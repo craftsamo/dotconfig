@@ -130,6 +130,7 @@ link "$DOTFILES/gemini/GEMINI.md"     "$HOME/.gemini/GEMINI.md"
 link "$DOTFILES/gemini/commands"      "$HOME/.gemini/commands"
 
 echo "[zsh]"
+link "$DOTFILES/zsh/env.zsh"    "$HOME/.zshenv"
 link "$DOTFILES/zsh/config.zsh" "$HOME/.zshrc"
 
 exit $status
