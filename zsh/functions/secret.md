@@ -24,20 +24,21 @@ eval "$(secret env -p global)"  # inject a whole project as environment variable
 ```
 
 Project resolution: `-p NAME` > `git config secret.project` > the git
-repository name > `global`. Set `git config secret.project NAME` in each
-clone of a multi-repo product so they all share one project.
+repository name > `global`. Run `secret link NAME` once per clone of a
+multi-repo product so they all share one project (`secret link` alone
+shows how the current directory resolves, `--unset` removes the mapping).
 
 ## Data model
 
 One keychain item per secret — fully visible and editable in Keychain Access:
 
-| Attribute | Value                                                                       |
-| --------- | --------------------------------------------------------------------------- |
-| service   | `secret.<project>` — namespace marker, lookup key together with account     |
-| account   | the variable name (`TAVILY_API_KEY`) — **unique key, do not repurpose**     |
-| label     | `NAME` inside the project's own keychain, `<project>/NAME` in shared ones   |
-| kind      | free text shown in the GUI, default `ENV` (`-D`)                            |
-| comment   | free-form description (`-j`), shown by `show` / `ls --long` / the GUI       |
+| Attribute | Value                                                                        |
+| --------- | ---------------------------------------------------------------------------- |
+| service   | `secret.<project>` (shared) or `secret.<project>/<scope>` (scoped) — lookup key together with account |
+| account   | the variable name (`TAVILY_API_KEY`) — **unique key, do not repurpose**      |
+| label     | `NAME` / `<scope>/NAME` inside the project's own keychain, prefixed with `<project>/` elsewhere |
+| kind      | free text shown in the GUI, default `ENV` (`-D`)                             |
+| comment   | free-form description (`-j`), shown by `show` / `ls --long` / the GUI        |
 
 ## Keychains
 
@@ -55,6 +56,25 @@ mapping; `-k default` targets the login keychain, which only ever holds the
 - `secret projects` lists registered keychain names without dumping them,
   so locked keychains never trigger unlock prompts; `export --all` spans
   every registered keychain.
+
+### Scopes — per-repository overrides
+
+Linked repositories share the project's **shared layer**; values that must
+differ per repository (`DATABASE_URL`, `PORT`, ...) go into a **scope**,
+named after the repository:
+
+```sh
+cd ~/Github/example-project/learning-app   # linked to example-project
+secret set GOOGLE_CLOUD_PROJECT_ID          # shared: visible to every repo
+secret set DATABASE_URL -S                  # scoped: learning-app only
+secret get DATABASE_URL                     # scoped first, falls back to shared
+eval "$(secret env)"                        # shared + this repo's scope (scoped wins)
+```
+
+The same `secret set DATABASE_URL -S` in `courses` lands in its own scope —
+no collision. Reads/updates/deletes are DWIM (repo scope first, then
+shared); `--shared`, `--scope X` and `-S` pin a specific layer. `ls` shows
+scoped items as `scope/NAME`, and so does Keychain Access via the label.
 
 ### Master password
 
@@ -96,8 +116,12 @@ macOS login password
 secret export -p global                  # -> secret-export-global-YYYYMMDD.json.age
 secret export --all --format env -o dev.env
 secret import dev.env -p myproj          # format auto-detected; JSON items keep
-secret import backup.json.age            # their own project unless -p is given
+secret import backup.json.age            # their own project/scope unless -p /
+                                         # -S / --scope override them
 ```
+
+JSON exports record each item's scope, so layered setups restore exactly;
+the env format flattens everything (scope and metadata are lost).
 
 Keychain unlock passwords are **never** part of an export. Encrypted exports
 are the recommended off-machine backup: they restore without the keychain
@@ -134,13 +158,14 @@ secret import secret-export-all-YYYYMMDD.json.age
 
 ## Tests
 
-[`zsh/tests/secret-selftest.zsh`](../tests/secret-selftest.zsh) — 106
+[`zsh/tests/secret-selftest.zsh`](../tests/secret-selftest.zsh) — 142
 assertions: round-trips (special characters, json/env/age), partial updates,
-keychain auto-creation, the `git config secret.project` mapping, the
-unregistered-file write gate, master adoption/rotation, auto-unlock. It only
-uses throwaway `secret-selftest*` projects/keychains, isolates the master
-machinery via the `SECRET_MASTER_ACCOUNT` / `SECRET_TEST_ONLY_KC` hooks, and
-cleans up after itself — safe to run on a machine with real data.
+keychain auto-creation, `secret link` / the `git config secret.project`
+mapping, scope layering (DWIM reads, env overlay, isolation between repos),
+the unregistered-file write gate, master adoption/rotation, auto-unlock. It
+only uses throwaway `secret-selftest*` projects/keychains, isolates the
+master machinery via the `SECRET_MASTER_ACCOUNT` / `SECRET_TEST_ONLY_KC`
+hooks, and cleans up after itself — safe to run on a machine with real data.
 
 ```sh
 zsh -f ~/.config/zsh/tests/secret-selftest.zsh
