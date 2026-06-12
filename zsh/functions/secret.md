@@ -104,6 +104,32 @@ macOS login password
 | `secret keychain unlock` | inventory and lifecycle                                  |
 | `secret keychain rm` | inventory and lifecycle                                  |
 
+## Launcher shims — secrets for AI CLIs
+
+[`bin/secret-shim`](../../bin/secret-shim) wraps CLIs that read API keys from
+the environment. `bin/` holds one symlink per command (`opencode`, `claude`,
+`codex`, `copilot`) and comes first in `PATH`
+([`config.zsh`](../config.zsh)), so every launch — interactive shell or the
+tmux `prefix o` popup — goes through the shim. It injects
+
+1. `secret env -p global` — shared by every tool
+2. `secret env -p <command>` — tool-specific, overrides `global`
+
+then execs the real binary (resolved from `PATH`, skipping itself, so the
+Claude Code self-updater in `~/.local/bin` keeps working). Inside a git
+repository the ambient scope applies on top, so per-repository overrides
+work too:
+
+```sh
+secret set OPENAI_API_KEY -p global        # every tool
+secret set CONTEXT7_API_KEY -p opencode    # one tool (overrides global)
+secret set FOO -p claude --scope myrepo    # one tool in one repository
+ln -s secret-shim ~/.config/bin/hermes     # wrap another tool
+```
+
+If the keychain cannot be unlocked, the shim starts the tool without the
+injection — it never blocks a launch.
+
 ## Import / export
 
 | Format          | Metadata | Protection                                  |

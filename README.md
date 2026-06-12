@@ -25,7 +25,9 @@ State and secrets (`~/.codex/auth.json`, sqlite logs, `~/.claude/history.jsonl`,
 transcripts, ...) stay in the tool directories and are never tracked.
 Development secrets (API keys, tokens) live in the macOS Keychain, managed
 from the terminal by [`secret`](./zsh/functions/secret.md) — per-project
-keychains, one master password, encrypted export/import.
+keychains, one master password, encrypted export/import. The
+[`bin/secret-shim`](./bin/secret-shim) launchers inject them into the AI
+CLIs (opencode, Claude Code, Codex, Copilot) at startup — no `.env` files.
 
 ## Fresh machine setup
 

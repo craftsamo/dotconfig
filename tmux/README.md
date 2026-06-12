@@ -30,4 +30,4 @@ symlink or setup step needed.
 | `prefix e`                 | kill every pane except the current one          |
 | `prefix f`                 | open the pane's directory in Finder             |
 | `prefix g`                 | lazygit popup (80% x 80%)                       |
-| `prefix o`                 | opencode popup — one detached session per directory |
+| `prefix o`                 | opencode popup — one detached session per directory, launched via `bin/opencode` (secret-shim) |

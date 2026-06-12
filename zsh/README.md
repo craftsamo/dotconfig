@@ -17,7 +17,8 @@ exec zsh
 2. Homebrew `shellenv` — prefix-agnostic: prefers `/opt/homebrew`, falls back
    to `~/.homebrew`
 3. `mise activate` — language runtimes declared in `mise/config.toml`
-4. `PATH` additions: `~/.local/bin`, Docker
+4. `PATH` additions: `~/.config/bin` (secret-shim launchers — see
+   [secret.md](./functions/secret.md)), `~/.local/bin`, Docker
 5. Sources `conf.d/*.zsh`, then `functions/*.zsh`, then `*.zsh` in this
    directory (everything except `config.zsh` itself)
 
