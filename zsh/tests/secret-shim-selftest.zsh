@@ -136,6 +136,24 @@ R=$TD/repo
 [[ -z "$(penv $TD/outside A_ONLY)" ]] \
   && ok "proj: no injection outside a git repository" || bad "proj: no injection outside a git repository"
 
+# --- mode table -----------------------------------------------------------
+# real command names must select their mode without SECRET_SHIM_MODE
+ln -s "$SHIM" "$TD/bin/docker"
+cat > "$TD/real/docker" <<'EOF'
+#!/bin/sh
+exec /usr/bin/printenv "$@"
+EOF
+chmod +x "$TD/real/docker"
+dockenv() {                    # like penv, but no SECRET_SHIM_MODE forcing
+  ( cd "$TD/repo" || exit 9
+    path=("$TD/bin" "$TD/real" $path)
+    "$TD/bin/docker" "$@" 2>/dev/null )
+}
+[[ "$(dockenv A_ONLY)" == 'kc-a' ]] \
+  && ok "mode table: docker maps to project mode" || bad "mode table: docker maps to project mode"
+[[ -z "$(dockenv B_DOTENV)" ]] \
+  && ok "mode table: docker respects dotenv skip" || bad "mode table: docker respects dotenv skip"
+
 # mapped project without a keychain: command must still run
 git -C "$TD" init -q nokc
 git -C "$TD/nokc" config secret.project $PNOKC
