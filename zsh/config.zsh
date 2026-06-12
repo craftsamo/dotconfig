@@ -30,11 +30,11 @@ fi
 # mise — language runtimes (node, python, ...) declared in mise/config.toml
 command -v mise >/dev/null && eval "$(mise activate zsh)"
 
-# User binaries — ~/.config/bin holds secret-shim wrappers and must come first
-export PATH=$HOME/.config/bin:$HOME/.local/bin:$HOME/bin:$PATH
-
 # Docker
 export PATH=$HOME/.docker/bin:$PATH
+
+# User binaries — ~/.config/bin holds secret-shim wrappers and must come first
+export PATH=$HOME/.config/bin:$HOME/.local/bin:$HOME/bin:$PATH
 
 setopt magic_equal_subst
 
