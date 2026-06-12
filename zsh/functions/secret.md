@@ -117,7 +117,7 @@ which injects Keychain secrets and execs the real binary (resolved from
 | Mode    | Commands                                       | Injects                                                  |
 | ------- | ---------------------------------------------- | -------------------------------------------------------- |
 | tool    | `opencode`, `claude`, `codex`, `copilot` — and any name not listed below | `secret env -p global`, then `-p <command>` (tool wins) |
-| project | `npm`, `pnpm`, `node`, `bun`, `bunx`, `yarn`, `npx`, `python`, `python3`, `uv` | `secret env` — the ambient project + repository scope of the CWD; nothing outside a git repository |
+| project | `npm`, `pnpm`, `node`, `bun`, `bunx`, `yarn`, `npx`, `python`, `python3`, `uv`, `docker`, `docker-compose` | `secret env` — the ambient project + repository scope of the CWD; nothing outside a git repository |
 
 Effective precedence in both modes:
 
@@ -141,6 +141,20 @@ secret set OPENAI_API_KEY -p global        # every AI tool
 secret set CONTEXT7_API_KEY -p opencode    # one tool (overrides global)
 secret set DATABASE_URL -S                 # this repo — `npm run dev` sees it
 ln -s secret-shim ~/.config/bin/hermes     # wrap another tool
+```
+
+Containers: `docker` / `docker compose` run through the shim too. Declare
+names **without values** under `environment:` and make `env_file` optional —
+Compose then prefers the `env_file` entry when the variable is absent from
+the shell, and falls back to the injected (Keychain) value otherwise
+(verified against Compose v5):
+
+```yaml
+env_file:
+  - path: ./apps/api/.env
+    required: false           # works with or without the file
+environment:
+  - STRIPE_SECRET_KEY         # value-less: shell (= injected) when set
 ```
 
 If the keychain cannot be unlocked, the shim starts the command without the
