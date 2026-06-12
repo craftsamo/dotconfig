@@ -104,31 +104,48 @@ macOS login password
 | `secret keychain unlock` | inventory and lifecycle                                  |
 | `secret keychain rm` | inventory and lifecycle                                  |
 
-## Launcher shims — secrets for AI CLIs
+## Launcher shims — env injection without .env files
 
-[`bin/secret-shim`](../../bin/secret-shim) wraps CLIs that read API keys from
-the environment. `bin/` holds one symlink per command (`opencode`, `claude`,
-`codex`, `copilot`) and comes first in `PATH`
-([`config.zsh`](../config.zsh)), so every launch — interactive shell or the
-tmux `prefix o` popup — goes through the shim. It injects
+[`bin/secret-shim`](../../bin/secret-shim) wraps commands that read
+configuration from the environment. `bin/` holds one symlink per command and
+comes first in `PATH` ([`config.zsh`](../config.zsh)), so every launch —
+interactive shell or the tmux `prefix o` popup — goes through the shim,
+which injects Keychain secrets and execs the real binary (resolved from
+`PATH`, skipping itself, so e.g. the Claude Code self-updater in
+`~/.local/bin` keeps working). The symlink name selects one of two modes:
 
-1. `secret env -p global` — shared by every tool
-2. `secret env -p <command>` — tool-specific, overrides `global`
+| Mode    | Commands                                       | Injects                                                  |
+| ------- | ---------------------------------------------- | -------------------------------------------------------- |
+| tool    | `opencode`, `claude`, `codex`, `copilot` — and any name not listed below | `secret env -p global`, then `-p <command>` (tool wins) |
+| project | `npm`, `pnpm`, `node`, `bun`, `bunx`, `yarn`, `npx`, `python`, `python3`, `uv` | `secret env` — the ambient project + repository scope of the CWD; nothing outside a git repository |
 
-then execs the real binary (resolved from `PATH`, skipping itself, so the
-Claude Code self-updater in `~/.local/bin` keeps working). Inside a git
-repository the ambient scope applies on top, so per-repository overrides
-work too:
+Effective precedence in both modes:
+
+```
+explicitly exported environment  >  .env files (project mode)  >  Keychain
+```
+
+Project mode never shadows an application's own dotenv loading: it collects
+variable *names* (values are never read) from `.env`, `.env.local` and
+`.env.{development,production,test}{,.local}` — in every directory from the
+CWD up to the git toplevel plus the subtree below the CWD (`node_modules`
+pruned, depth-limited) — and skips those names. Monorepo package files like
+`apps/web/.env` are therefore respected when launching from the workspace
+root; run inside `apps/api` for per-package precision. Templates
+(`.env.example`, ...) are ignored. Nested launches (npm scripts calling npm)
+skip re-injection via the `_SECRET_SHIM_PROJ` / `_SECRET_SHIM_TOOL`
+sentinels.
 
 ```sh
-secret set OPENAI_API_KEY -p global        # every tool
+secret set OPENAI_API_KEY -p global        # every AI tool
 secret set CONTEXT7_API_KEY -p opencode    # one tool (overrides global)
-secret set FOO -p claude --scope myrepo    # one tool in one repository
+secret set DATABASE_URL -S                 # this repo — `npm run dev` sees it
 ln -s secret-shim ~/.config/bin/hermes     # wrap another tool
 ```
 
-If the keychain cannot be unlocked, the shim starts the tool without the
-injection — it never blocks a launch.
+If the keychain cannot be unlocked, the shim starts the command without the
+injection — it never blocks a launch. Test hooks: `SECRET_SHIM_MODE` forces
+the mode, `SECRET_SHIM_BASE` replaces `global` as the tool-mode base.
 
 ## Import / export
 
@@ -193,6 +210,14 @@ only uses throwaway `secret-selftest*` projects/keychains, isolates the
 master machinery via the `SECRET_MASTER_ACCOUNT` / `SECRET_TEST_ONLY_KC`
 hooks, and cleans up after itself — safe to run on a machine with real data.
 
+[`zsh/tests/secret-shim-selftest.zsh`](../tests/secret-shim-selftest.zsh) —
+23 assertions for the launcher shims: layer injection and override order,
+inherited-environment precedence, dotenv name skipping (monorepo union from
+the root vs per-package precision, `.env.example` exclusion, `export NAME=`
+lines), sentinels, exec passthrough (arguments, exit codes, missing
+binaries). Same isolation and cleanup guarantees.
+
 ```sh
 zsh -f ~/.config/zsh/tests/secret-selftest.zsh
+zsh -f ~/.config/zsh/tests/secret-shim-selftest.zsh
 ```

@@ -32,6 +32,7 @@ exec zsh
 | `functions/fzf_change_directory.zsh`  | fzf picker over `~/.config`, ghq repos, `./*` and `~/Github`               |
 | `functions/secret.zsh`                | macOS Keychain secrets CLI + fzf wizard — see [secret.md](./functions/secret.md) |
 | `tests/secret-selftest.zsh`           | self-test for `secret` (not auto-sourced); `zsh -f zsh/tests/secret-selftest.zsh` |
+| `tests/secret-shim-selftest.zsh`      | self-test for the `bin/secret-shim` launchers; `zsh -f zsh/tests/secret-shim-selftest.zsh` |
 | `config-osx.zsh` / `config-linux.zsh` / `config-windows.zsh` | fish-era OS snippets; sourced on every OS, mostly commented out / inert |
 
 ## Customisation
