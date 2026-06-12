@@ -1,7 +1,9 @@
 # Zsh
 
-`config.zsh` is the entry point. [`install.sh`](../install.sh) wires it up as
-a symlink: `~/.zshrc -> ~/.config/zsh/config.zsh`.
+`env.zsh` (every shell) and `config.zsh` (interactive) are the entry points.
+[`install.sh`](../install.sh) wires them up as symlinks:
+`~/.zshenv -> ~/.config/zsh/env.zsh` and
+`~/.zshrc -> ~/.config/zsh/config.zsh`.
 
 ```sh
 ~/.config/install.sh   # creates the symlink (idempotent)
@@ -10,17 +12,23 @@ exec zsh
 
 ## Load order
 
-`config.zsh` sets the basics, then sources everything else:
+`env.zsh` runs for *every* zsh — including non-interactive `zsh -c`
+(opencode's bash tool, tmux launchers, scripts). It only builds `PATH`:
+`~/.config/bin` (secret-shim launchers — see
+[secret.md](./functions/secret.md)), `~/.local/bin`, `~/bin`, Docker,
+mise shims (node / pnpm / ...), then the Homebrew prefix.
+
+`config.zsh` adds the interactive layer on top:
 
 1. Aliases (`ls` / `la` / `ll` / `lla`, `g` = git, `vim` -> nvim) and
    `EDITOR=nvim`
 2. Homebrew `shellenv` — prefix-agnostic: prefers `/opt/homebrew`, falls back
    to `~/.homebrew`
-3. `mise activate` — language runtimes declared in `mise/config.toml`
-4. `PATH` additions: `~/.config/bin` (secret-shim launchers — see
-   [secret.md](./functions/secret.md)), `~/.local/bin`, Docker
-5. Sources `conf.d/*.zsh`, then `functions/*.zsh`, then `*.zsh` in this
-   directory (everything except `config.zsh` itself)
+3. `mise activate` — language runtimes declared in `mise/config.toml`; its
+   per-directory tool paths take precedence over the shims from `env.zsh`
+4. Sources `conf.d/*.zsh`, then `functions/*.zsh`, then `*.zsh` in this
+   directory (everything except `config.zsh` itself; re-sourcing `env.zsh`
+   here is idempotent)
 
 ## Files
 
