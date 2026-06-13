@@ -175,31 +175,44 @@ routes through the same `bin/hermes` shim — **every profile gets `global` +
   Copilot-capable `GITHUB_TOKEN` (the `copilot` T2 + Skills Hub).
 - **`global`** — keys shared with *other* tools (editor, MCP servers, other
   CLIs). Nothing Hermes-specific needs to live here.
-- **`assistant`** — the bot's own secrets: `DISCORD_BOT_TOKEN`,
-  `TELEGRAM_BOT_TOKEN`.
+- **gateway secrets** (`DISCORD_BOT_TOKEN`, `TELEGRAM_BOT_TOKEN`, +
+  `*_ALLOWED_USERS` / `*_HOME_CHANNEL`) currently sit in the **`hermes`** layer,
+  so the shim injects them whenever the gateway runs. Move them to a dedicated
+  `assistant` layer if you want them off non-gateway profiles.
 - **OAuth** (default's `auth.json`): Codex / Copilot / xAI-OAuth, inherited by
   every profile (read-only fallback).
 
 Workers need no unique secret: the dispatcher execs `hermes -p <worker>`, which
 hits the `bin/hermes` shim (`global` + `hermes`), and they also inherit the
-gateway's env. The only blind spot is a background **LaunchAgent** (stripped
-`PATH` / locked Keychain) — so launch the assistant gateway with the layers
-named explicitly (below).
+gateway's env. A background **LaunchAgent** can start with a stripped `PATH`, so
+the plist sets `PATH` with `~/.config/bin` first to keep the shim injecting
+(below).
 
 ## Gateway as a persistent service
 
-Run assistant's gateway (which hosts the dispatcher) keychain-pure via a
-**LaunchAgent** so it survives reboots without a plaintext `.env`:
+Assistant hosts the gateway (and the embedded kanban dispatcher) keychain-pure
+via a **LaunchAgent** (`hermes/launchd/local.hermes.gateway.assistant.plist`).
+It runs the `bin/hermes` shim with `~/.config/bin` first on `PATH`, so the shim
+injects the `global` + `hermes` Keychain layers (which hold `DISCORD_BOT_TOKEN` /
+`TELEGRAM_BOT_TOKEN` / `OPENROUTER_API_KEY` / …) before exec-ing the gateway — no
+plaintext `.env`:
 
 ```
-secret env -p global -p hermes -p assistant -- hermes -p assistant gateway start
+~/.config/bin/hermes -p assistant gateway run --replace --accept-hooks
 ```
 
-`-p hermes` is named explicitly because a LaunchAgent bypasses the `bin/hermes`
-shim, so the shared model/fallback keys must be injected by name; `-p assistant`
-adds the bot tokens. The LaunchAgent runs in the logged-in user session, so the
-login Keychain is unlocked and `secret` can read the tokens. ※ Validate this
-works on this box (Keychain unlocked when the agent starts).
+`secret env` has **no `-- <cmd>` form** — injection is the shim's job, which is
+why the plist puts `~/.config/bin` first on `PATH`. LaunchAgents run in the
+logged-in GUI session, so the login Keychain is unlocked and the shim can read
+the tokens. Activate on the **gateway host only**:
+
+```
+ln -s ~/.config/hermes/launchd/local.hermes.gateway.assistant.plist ~/Library/LaunchAgents/
+launchctl load -w ~/Library/LaunchAgents/local.hermes.gateway.assistant.plist
+```
+
+One bot token = one live connection — stop any gateway on another machine first,
+or Telegram/Discord will conflict.
 
 ## Tracking
 
@@ -239,4 +252,4 @@ Routing quality depends on `profile.yaml` descriptions — create workers with
 - [x] OpenRouter slugs confirmed: `deepseek/deepseek-v4-flash`, `google/gemini-3.5-flash`.
 - [x] default-created kanban task dispatched to coder/researcher/searcher (via `hermes kanban dispatch`).
 - [x] `install.sh` links each tracked profile (incl. `profile.yaml`) with no WARN.
-- [ ] Assistant gateway LaunchAgent names layers `-p global -p hermes -p assistant` + starts keychain-pure (Phase 3).
+- [ ] Assistant gateway: load the LaunchAgent on the host (shim injects `global`+`hermes`); confirm bot round-trip + auto-dispatch (Phase 3).
