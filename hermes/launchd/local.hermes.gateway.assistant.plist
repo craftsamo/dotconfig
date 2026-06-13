@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!--
+    Keychain-pure persistent gateway for the `assistant` profile.
+    Runs the bin/hermes secret-shim (PATH puts ~/.config/bin first), so the shim
+    injects the `global` + `hermes` Keychain layers — which hold DISCORD_BOT_TOKEN
+    / TELEGRAM_BOT_TOKEN / OPENROUTER_API_KEY / GITHUB_TOKEN / … — before exec-ing
+    the real gateway. No plaintext .env. The embedded kanban dispatcher rides along.
+
+    Activate on the GATEWAY HOST ONLY (one bot token = one live connection):
+      ln -s ~/.config/hermes/launchd/local.hermes.gateway.assistant.plist ~/Library/LaunchAgents/
+      launchctl load -w ~/Library/LaunchAgents/local.hermes.gateway.assistant.plist
+    Stop:
+      launchctl unload -w ~/Library/LaunchAgents/local.hermes.gateway.assistant.plist
+
+    Paths are absolute because launchd does not expand ~ / env vars; adjust the
+    /Users/itourui prefix if the host's home differs.
+  -->
+  <key>Label</key>
+  <string>local.hermes.gateway.assistant</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/itourui/.config/bin/hermes</string>
+    <string>-p</string>
+    <string>assistant</string>
+    <string>gateway</string>
+    <string>run</string>
+    <string>--replace</string>
+    <string>--accept-hooks</string>
+  </array>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/Users/itourui/.config/bin:/Users/itourui/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+  </dict>
+
+  <key>WorkingDirectory</key>
+  <string>/Users/itourui/Workspaces</string>
+
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>ThrottleInterval</key>
+  <integer>15</integer>
+  <key>ProcessType</key>
+  <string>Background</string>
+
+  <key>StandardOutPath</key>
+  <string>/Users/itourui/.hermes/logs/gateway-assistant.out.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/itourui/.hermes/logs/gateway-assistant.err.log</string>
+</dict>
+</plist>
