@@ -20,6 +20,7 @@ their config from here natively; the rest get symlinks created by
 | [Codex](./codex/README.md) | `codex/`       | 3 symlinks in `~/.codex/` (`skills/.system` and `config.toml` are app-managed, git-ignored) |
 | [Gemini CLI](./gemini/README.md) | `gemini/`  | 3 symlinks in `~/.gemini/`                                              |
 | [GitHub Copilot](./copilot/README.md) | `copilot/` | 4 symlinks in `~/.copilot/` (`config.json` is app-managed; auth dir `github-copilot/` git-ignored) |
+| [Hermes Agent](./hermes/README.md) | `hermes/`   | symlinks in `~/.hermes/` (+ per profile); skills via `external_dirs`; keys via Keychain shim |
 
 State and secrets (`~/.codex/auth.json`, sqlite logs, `~/.claude/history.jsonl`,
 transcripts, ...) stay in the tool directories and are never tracked.
@@ -27,7 +28,7 @@ Development secrets (API keys, tokens) live in the macOS Keychain, managed
 from the terminal by [`secret`](./zsh/functions/secret.md) — per-project
 keychains, one master password, encrypted export/import. The
 [`bin/secret-shim`](./bin/secret-shim) launchers inject them into the AI
-CLIs (opencode, Claude Code, Codex, Copilot) and dev runtimes (npm, pnpm,
+CLIs (opencode, Claude Code, Codex, Copilot, Hermes) and dev runtimes (npm, pnpm,
 node, python, ...) at startup — no `.env` files needed, and existing `.env`
 files keep priority.
 
@@ -48,6 +49,9 @@ Installed outside the [Brewfile](./Brewfile):
 
 - **Claude Code CLI** — [native installer](https://claude.com/product/claude-code)
   (lands in `~/.local/bin/claude`)
+- **Hermes Agent** — clone + `./setup-hermes.sh` (lands in `~/.local/bin/hermes`;
+  avoid the `curl | bash` installer — it edits shell rc files, and `~/.zshrc`
+  is a symlink into this repo)
 - **Language runtimes** (Node.js, Python, Ruby, Rust, Bun) and global npm
   CLIs — declared in [`mise/config.toml`](./mise/config.toml);
   `install.sh --deps` runs `mise install` after `brew bundle`

@@ -13,3 +13,15 @@ codex/skills/.system/
 
 # machine-specific state rewritten by the Codex app (absolute home paths)
 codex/config.toml
+
+# Hermes Agent per-machine state (config/SOUL/skills/mcp/cron ARE tracked; these are not)
+hermes/**/auth.json
+hermes/**/.env.EXAMPLE
+hermes/**/memories/
+hermes/**/sessions/
+hermes/**/state.db*
+hermes/**/logs/
+hermes/**/workspace/
+hermes/**/plans/
+hermes/**/*_cache/
+hermes/**/local/

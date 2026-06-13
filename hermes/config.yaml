@@ -1,0 +1,38 @@
+# Hermes Agent — default profile config (non-secret).
+# Managed in dotfiles: ~/.config/hermes/config.yaml  ->  ~/.hermes/config.yaml
+#
+# Secrets are NEVER stored here. API keys are injected from the macOS Keychain
+# by the bin/hermes secret-shim at launch (see ../zsh/functions/secret.md).
+# If you must reference a secret inline, use ${VAR} substitution — Hermes
+# expands ${VAR} from the (shim-injected) environment.
+#
+# NOTE: `hermes` rewrites/migrates this file on load — it may reorder keys and
+# strip these comments. That churn is expected; this is the live config.
+
+model:
+  # Auto-detect the provider from whichever API key the shim injects
+  # (OPENROUTER_API_KEY, ANTHROPIC_API_KEY, ...). Change with `hermes model`.
+  provider: "auto"
+  default: "anthropic/claude-opus-4.6"
+
+terminal:
+  backend: "local"
+  cwd: "."
+  timeout: 180
+
+memory:
+  memory_enabled: true
+  user_profile_enabled: true
+
+compression:
+  enabled: true
+  threshold: 0.50
+
+skills:
+  # Curated, version-controlled skills live in this repo and are read in place
+  # (read-only). Agent-created and bundled skills still write to ~/.hermes/skills.
+  external_dirs:
+    - ~/.config/hermes/skills
+
+platform_toolsets:
+  cli: [hermes-cli]

@@ -129,6 +129,22 @@ link "$DOTFILES/gemini/settings.json" "$HOME/.gemini/settings.json"
 link "$DOTFILES/gemini/GEMINI.md"     "$HOME/.gemini/GEMINI.md"
 link "$DOTFILES/gemini/commands"      "$HOME/.gemini/commands"
 
+echo "[hermes]"
+link "$DOTFILES/hermes/config.yaml" "$HOME/.hermes/config.yaml"
+link "$DOTFILES/hermes/SOUL.md"     "$HOME/.hermes/SOUL.md"
+link "$DOTFILES/hermes/mcp.json"    "$HOME/.hermes/mcp.json"
+link "$DOTFILES/hermes/cron"        "$HOME/.hermes/cron"
+# Named profiles: link tracked distribution-owned files for each repo profile.
+# Skills are read in place via skills.external_dirs (no symlink needed).
+for p in "$DOTFILES"/hermes/profiles/*/; do
+  [ -d "$p" ] || continue
+  n="$(basename "$p")"
+  [ -f "$p/config.yaml" ] && link "$p/config.yaml" "$HOME/.hermes/profiles/$n/config.yaml"
+  [ -f "$p/SOUL.md" ]     && link "$p/SOUL.md"     "$HOME/.hermes/profiles/$n/SOUL.md"
+  [ -f "$p/mcp.json" ]    && link "$p/mcp.json"    "$HOME/.hermes/profiles/$n/mcp.json"
+  [ -d "$p/cron" ]        && link "$p/cron"        "$HOME/.hermes/profiles/$n/cron"
+done
+
 echo "[zsh]"
 link "$DOTFILES/zsh/env.zsh"    "$HOME/.zshenv"
 link "$DOTFILES/zsh/config.zsh" "$HOME/.zshrc"
