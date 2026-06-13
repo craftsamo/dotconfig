@@ -161,6 +161,13 @@ If the keychain cannot be unlocked, the shim starts the command without the
 injection — it never blocks a launch. Test hooks: `SECRET_SHIM_MODE` forces
 the mode, `SECRET_SHIM_BASE` replaces `global` as the tool-mode base.
 
+[`bin/secret`](../../bin/secret) is a launcher too, but **not** a shim: it is a
+small wrapper that `source`s `secret.zsh` and dispatches, so the `secret` CLI is
+also callable from non-interactive shells (scripts, `zsh -c`, opencode) where
+`config.zsh` hasn't loaded the function. Interactive shells keep using the
+function directly (a defined function outranks the `bin/secret` command on
+`PATH`), so nothing changes there; the wrapper injects nothing.
+
 ## Import / export
 
 | Format          | Metadata | Protection                                  |
