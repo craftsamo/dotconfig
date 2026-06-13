@@ -185,23 +185,31 @@ routes through the same `bin/hermes` shim — **every profile gets `global` +
 Workers need no unique secret: the dispatcher execs `hermes -p <worker>`, which
 hits the `bin/hermes` shim (`global` + `hermes`), and they also inherit the
 gateway's env. A background **LaunchAgent** can start with a stripped `PATH`, so
-the plist sets `PATH` with `~/.config/bin` first to keep the shim injecting
-(below).
+the assistant launcher sets its own `PATH` and `eval`s the Keychain layers
+directly (below).
 
 ## Gateway as a persistent service
 
 Assistant hosts the gateway (and the embedded kanban dispatcher) keychain-pure
-via a **LaunchAgent** (`hermes/launchd/local.hermes.gateway.assistant.plist`).
-The plist runs `hermes/launchd/gateway-assistant-run.sh`, which `eval`s the
-`global` + `hermes` Keychain layers (`TELEGRAM_BOT_TOKEN` / `OPENROUTER_API_KEY`
-/ `GITHUB_TOKEN` / …) the way the shim does, then execs the real `hermes -p
-assistant gateway run` — no plaintext `.env`. (`secret env` has **no `-- <cmd>`
-form**; the wrapper evals it, and the LaunchAgent's GUI session keeps the login
-Keychain unlocked.)
+via a **LaunchAgent**. Three tracked, machine-agnostic files in `hermes/launchd/`:
+
+- **`hermes-gateway-assistant`** — the launcher. Sets `PATH`, `cd`s to
+  `~/Workspaces`, logs to `~/.hermes/logs/gateway-assistant.log`, `eval`s the
+  `global` + `hermes` Keychain layers (`TELEGRAM_BOT_TOKEN` /
+  `OPENROUTER_API_KEY` / `GITHUB_TOKEN` / …) like the shim does, then execs the
+  real `hermes -p assistant gateway run`. Every path is `$HOME`-relative — no
+  hardcoded home, no `.env`. (`secret env` has **no `-- <cmd>` form**, hence the
+  `eval`.)
+- **`local.hermes.gateway.assistant.plist.tmpl`** — LaunchAgent template with a
+  `__HOME__` placeholder (launchd can't expand `~`). Runs the launcher as
+  `ProgramArguments[0]`, so the login item reads `hermes-gateway-assistant`, not
+  `sh`.
+- **`gateway-launchctl.sh`** — renders the template (`__HOME__` → `$HOME`) into
+  `~/Library/LaunchAgents/` (host-local, never committed) and loads it.
 
 **Telegram-only — workaround for upstream #40695.** With Discord connected the
 gateway's `_handoff_watcher` blocks the event loop on a `list_pending_handoffs`
-SQLite query and hangs (discord heartbeat stalls, dispatcher stops). The wrapper
+SQLite query and hangs (discord heartbeat stalls, dispatcher stops). The launcher
 `unset`s `DISCORD_*` so only Telegram runs — verified stable, with the embedded
 dispatcher auto-claiming tasks across ticks. Re-enable Discord (drop the `unset`
 line) once the bug is fixed.
@@ -210,9 +218,9 @@ Activate on the **gateway host only** (one bot token = one live connection — s
 any gateway elsewhere first):
 
 ```
-ln -s ~/.config/hermes/launchd/local.hermes.gateway.assistant.plist ~/Library/LaunchAgents/
-launchctl load -w   ~/Library/LaunchAgents/local.hermes.gateway.assistant.plist   # start
-launchctl unload -w ~/Library/LaunchAgents/local.hermes.gateway.assistant.plist   # stop
+hermes/launchd/gateway-launchctl.sh install      # render template + load
+hermes/launchd/gateway-launchctl.sh status        # check
+hermes/launchd/gateway-launchctl.sh uninstall      # unload + remove
 ```
 
 ## Tracking
