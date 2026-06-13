@@ -50,10 +50,24 @@ then `secret env -p hermes`). Shared keys (e.g. `OPENROUTER_API_KEY`) go in the
 
 ## Installing the binary
 
-Outside the [Brewfile](../Brewfile). Prefer clone + `./setup-hermes.sh` (lands
-in `~/.local/bin/hermes`, already on `PATH` behind the shim). Avoid the
-`curl … | bash` installer — it edits shell rc files, and `~/.zshrc` is a symlink
-into this repo.
+Outside the [Brewfile](../Brewfile). Run [`./setup.sh`](./setup.sh) — an
+idempotent installer that clones the agent via `ghq`, builds a Python 3.11 venv
+with `uv`, and symlinks `~/.local/bin/hermes` (already on `PATH` behind the
+shim). It makes no shell-rc edits and runs no interactive wizard.
+
+```sh
+~/.config/hermes/setup.sh     # install (safe to re-run)
+hermes --version              # verify
+```
+
+Requires `ghq` + `uv` (both from `./install.sh --deps`). To update later, use
+`hermes update` (git pull + re-sync), not this script. The upstream
+`setup-hermes.sh` is deliberately avoided: it appends a PATH line to `~/.zshrc`,
+which is a symlink into this repo.
+
+`setup.sh` installs only the binary. Run [`../install.sh`](../install.sh)
+separately for the `~/.hermes/` config symlinks, and store keys with
+`secret set …` (no `.env`).
 
 ## Never tracked
 

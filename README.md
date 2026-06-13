@@ -49,9 +49,9 @@ Installed outside the [Brewfile](./Brewfile):
 
 - **Claude Code CLI** — [native installer](https://claude.com/product/claude-code)
   (lands in `~/.local/bin/claude`)
-- **Hermes Agent** — clone + `./setup-hermes.sh` (lands in `~/.local/bin/hermes`;
-  avoid the `curl | bash` installer — it edits shell rc files, and `~/.zshrc`
-  is a symlink into this repo)
+- **Hermes Agent** — run [`hermes/setup.sh`](./hermes/setup.sh) (idempotent:
+  `ghq` clone + `uv` venv + `~/.local/bin/hermes` symlink; no shell-rc edits).
+  Update later with `hermes update`
 - **Language runtimes** (Node.js, Python, Ruby, Rust, Bun) and global npm
   CLIs — declared in [`mise/config.toml`](./mise/config.toml);
   `install.sh --deps` runs `mise install` after `brew bundle`
