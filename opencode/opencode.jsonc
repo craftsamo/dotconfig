@@ -5,7 +5,8 @@
     "@slkiser/opencode-quota"
   ],
   "instructions": [
-    "instructions/*.txt"
+    "instructions/*.txt",
+    "instructions/*.md"
   ],
   "agent": {
     "build": {
@@ -56,10 +57,29 @@
       "git ls-files*": "allow",
       "git branch": "allow",
       "agent-browser *": "allow",
+      "secret ls*": "allow",
+      "secret list*": "allow",
+      "secret show *": "allow",
+      "secret projects*": "allow",
+      "secret help*": "allow",
+      "secret keychain ls*": "allow",
+      "secret keychain master status*": "allow",
+      "secret get*": "deny",
+      "secret rm*": "deny",
+      "secret del*": "deny",
+      "secret export*": "deny",
+      "secret import*": "deny",
+      "secret keychain rm*": "deny",
+      "secret keychain delete*": "deny",
+      "secret keychain master set*": "deny",
+      "secret keychain master rotate*": "deny",
+      "secret keychain master forget*": "deny",
+      "secret keychain master reveal*": "deny",
     },
     "skill": {
       "*": "ask",
-      "customize-opencode": "allow"
+      "customize-opencode": "allow",
+      "keychain-secrets": "allow"
     },
   },
 }
