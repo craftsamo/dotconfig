@@ -101,10 +101,11 @@ State (`.env`, `memories/`, `sessions/`, `state.db*`, …) stays in
 
 No `.env` files. API keys live in the macOS Keychain and are injected at launch
 by the [`bin/hermes`](../bin/secret-shim) secret-shim (`secret env -p global`
-then `secret env -p hermes`). Shared keys (e.g. `OPENROUTER_API_KEY`) go in the
-`global` layer; Hermes-only keys (e.g. `TELEGRAM_BOT_TOKEN`, `FAL_KEY`,
-`BROWSERBASE_API_KEY`) go in the `hermes` layer. See
-[`secret`](../zsh/functions/secret.md).
+then `secret env -p hermes`). The `hermes` layer holds keys only Hermes uses
+(e.g. `OPENROUTER_API_KEY`, `GITHUB_TOKEN`) — it's injected for every `hermes`
+invocation, including every profile alias (`~/.local/bin/<name>` runs bare
+`hermes -p <name>`). The `global` layer is for keys shared with other shimmed
+tools. See [`secret`](../zsh/functions/secret.md).
 
 ## Installing the binary
 
@@ -158,8 +159,8 @@ hermes computer-use status       # verify
 `.env`). Run these yourself (the value is read from stdin, never argv):
 
 ```sh
-secret set OPENROUTER_API_KEY -p global   # model + moa + vision fallback (shared)
-secret set GITHUB_TOKEN       -p global   # Skills Hub rate limits (shared)
+secret set OPENROUTER_API_KEY -p hermes   # model T3 fallback + moa + vision
+secret set GITHUB_TOKEN       -p hermes   # Skills Hub + copilot T2 fallback
 secret set EXA_API_KEY        -p hermes   # web_search / web_extract
 secret set GROQ_API_KEY       -p hermes   # cloud STT (local faster-whisper needs no key)
 ```
