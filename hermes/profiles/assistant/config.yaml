@@ -4,27 +4,27 @@ model:
   base_url: https://chatgpt.com/backend-api/codex
 providers: {}
 fallback_providers:
-  - provider: copilot
-    model: gpt-5.5
-  - provider: openrouter
-    model: xiaomi/mimo-v2.5
-    base_url: https://openrouter.ai/api/v1
-    api_mode: chat_completions
+- provider: copilot
+  model: gpt-5.5
+- provider: openrouter
+  model: xiaomi/mimo-v2.5
+  base_url: https://openrouter.ai/api/v1
+  api_mode: chat_completions
 credential_pool_strategies: {}
 toolsets:
-  - hermes-cli
-  - kanban
+- hermes-cli
+- kanban
 max_concurrent_sessions: null
 agent:
   max_turns: 90
   gateway_timeout: 1800
   restart_drain_timeout: 180
   api_max_retries: 3
-  service_tier: ""
+  service_tier: ''
   tool_use_enforcement: auto
   task_completion_guidance: true
   environment_probe: true
-  environment_hint: ""
+  environment_hint: ''
   coding_context: auto
   gateway_timeout_warning: 900
   clarify_timeout: 600
@@ -56,9 +56,9 @@ terminal:
   docker_run_as_host_user: false
   persistent_shell: true
 web:
-  backend: ""
-  search_backend: ""
-  extract_backend: ""
+  backend: ''
+  search_backend: ''
+  extract_backend: ''
 browser:
   inactivity_timeout: 120
   command_timeout: 30
@@ -66,13 +66,13 @@ browser:
   allow_private_urls: false
   engine: auto
   auto_local_for_private_urls: true
-  cdp_url: ""
+  cdp_url: ''
   dialog_policy: must_respond
   dialog_timeout_s: 300
   camofox:
     managed_persistence: false
-    user_id: ""
-    session_key: ""
+    user_id: ''
+    session_key: ''
     adopt_existing_tab: false
     rewrite_loopback_urls: false
     loopback_host_alias: host.docker.internal
@@ -117,112 +117,112 @@ openrouter:
   response_cache_ttl: 300
   min_coding_score: 0.65
 bedrock:
-  region: ""
+  region: ''
   discovery:
     enabled: true
     provider_filter: []
     refresh_interval: 3600
   guardrail:
-    guardrail_identifier: ""
-    guardrail_version: ""
+    guardrail_identifier: ''
+    guardrail_version: ''
     stream_processing_mode: async
     trace: disabled
 auxiliary:
   vision:
     provider: auto
-    model: ""
-    base_url: ""
-    api_key: ""
+    model: ''
+    base_url: ''
+    api_key: ''
     timeout: 120
     extra_body: {}
     download_timeout: 30
   web_extract:
     provider: auto
-    model: ""
-    base_url: ""
-    api_key: ""
+    model: ''
+    base_url: ''
+    api_key: ''
     timeout: 360
     extra_body: {}
   compression:
     provider: auto
-    model: ""
-    base_url: ""
-    api_key: ""
+    model: ''
+    base_url: ''
+    api_key: ''
     timeout: 120
     extra_body: {}
   skills_hub:
     provider: auto
-    model: ""
-    base_url: ""
-    api_key: ""
+    model: ''
+    base_url: ''
+    api_key: ''
     timeout: 30
     extra_body: {}
   approval:
     provider: auto
-    model: ""
-    base_url: ""
-    api_key: ""
+    model: ''
+    base_url: ''
+    api_key: ''
     timeout: 30
     extra_body: {}
   mcp:
     provider: auto
-    model: ""
-    base_url: ""
-    api_key: ""
+    model: ''
+    base_url: ''
+    api_key: ''
     timeout: 30
     extra_body: {}
   title_generation:
     provider: auto
-    model: ""
-    base_url: ""
-    api_key: ""
+    model: ''
+    base_url: ''
+    api_key: ''
     timeout: 30
     extra_body: {}
   tts_audio_tags:
     provider: auto
-    model: ""
-    base_url: ""
-    api_key: ""
+    model: ''
+    base_url: ''
+    api_key: ''
     timeout: 30
     extra_body: {}
   triage_specifier:
     provider: auto
-    model: ""
-    base_url: ""
-    api_key: ""
+    model: ''
+    base_url: ''
+    api_key: ''
     timeout: 120
     extra_body: {}
   kanban_decomposer:
     provider: auto
-    model: ""
-    base_url: ""
-    api_key: ""
+    model: ''
+    base_url: ''
+    api_key: ''
     timeout: 180
     extra_body: {}
   profile_describer:
     provider: auto
-    model: ""
-    base_url: ""
-    api_key: ""
+    model: ''
+    base_url: ''
+    api_key: ''
     timeout: 60
     extra_body: {}
   curator:
     provider: auto
-    model: ""
-    base_url: ""
-    api_key: ""
+    model: ''
+    base_url: ''
+    api_key: ''
     timeout: 600
     extra_body: {}
   monitor:
     provider: auto
-    model: ""
-    base_url: ""
-    api_key: ""
+    model: ''
+    base_url: ''
+    api_key: ''
     timeout: 60
     extra_body: {}
 display:
   compact: false
-  personality: ""
+  personality: ''
   resume_display: full
   resume_exchanges: 10
   resume_max_user_chars: 300
@@ -265,24 +265,24 @@ display:
   runtime_footer:
     enabled: false
     fields:
-      - model
-      - context_pct
-      - cwd
+    - model
+    - context_pct
+    - cwd
   copy_shortcut: auto
   tool_progress: all
 dashboard:
   theme: default
   show_token_analytics: false
   oauth:
-    client_id: ""
-    portal_url: ""
+    client_id: ''
+    portal_url: ''
   basic_auth:
-    username: ""
-    password_hash: ""
-    password: ""
-    secret: ""
+    username: ''
+    password_hash: ''
+    password: ''
+    secret: ''
     session_ttl_seconds: 0
-  public_url: ""
+  public_url: ''
 privacy:
   redact_pii: false
 tts:
@@ -299,7 +299,7 @@ tts:
     model: gemini-2.5-flash-preview-tts
     voice: Kore
     audio_tags: false
-    persona_prompt_file: ""
+    persona_prompt_file: ''
   xai:
     voice_id: eve
     language: en
@@ -309,8 +309,8 @@ tts:
     model: voxtral-mini-tts-2603
     voice_id: c69964a6-ab8b-4f8a-9465-ec0925096ec8
   neutts:
-    ref_audio: ""
-    ref_text: ""
+    ref_audio: ''
+    ref_text: ''
     model: neuphonic/neutts-air-q4-gguf
     device: cpu
   piper:
@@ -320,14 +320,14 @@ stt:
   provider: local
   local:
     model: base
-    language: ""
+    language: ''
   openai:
     model: whisper-1
   mistral:
     model: voxtral-mini-latest
   elevenlabs:
     model_id: scribe_v2
-    language_code: ""
+    language_code: ''
     tag_audio_events: false
     diarize: false
 voice:
@@ -338,7 +338,7 @@ voice:
   silence_threshold: 200
   silence_duration: 3.0
 human_delay:
-  mode: "off"
+  mode: 'off'
   min_ms: 800
   max_ms: 2500
 context:
@@ -349,27 +349,27 @@ memory:
   write_approval: false
   memory_char_limit: 2200
   user_char_limit: 1375
-  provider: ""
+  provider: ''
 delegation:
-  model: ""
-  provider: ""
-  base_url: ""
-  api_key: ""
-  api_mode: ""
+  model: ''
+  provider: ''
+  base_url: ''
+  api_key: ''
+  api_mode: ''
   inherit_mcp_toolsets: true
   max_iterations: 50
   child_timeout_seconds: 0
-  reasoning_effort: ""
+  reasoning_effort: ''
   max_concurrent_children: 3
   max_spawn_depth: 1
   orchestrator_enabled: true
   subagent_auto_approve: false
-prefill_messages_file: ""
+prefill_messages_file: ''
 goals:
   max_turns: 20
 skills:
   external_dirs:
-    - ~/ghq/github.com/NousResearch/hermes-agent/skills
+  - ~/ghq/github.com/NousResearch/hermes-agent/skills
   template_vars: true
   inline_shell: false
   inline_shell_timeout: 10
@@ -386,54 +386,54 @@ curator:
     enabled: true
     keep: 5
 honcho: {}
-timezone: ""
+timezone: ''
 slack:
   require_mention: true
-  free_response_channels: ""
-  allowed_channels: ""
+  free_response_channels: ''
+  allowed_channels: ''
   channel_prompts: {}
 discord:
   require_mention: true
-  free_response_channels: ""
-  allowed_channels: ""
+  free_response_channels: ''
+  allowed_channels: ''
   auto_thread: true
   thread_require_mention: false
   history_backfill: true
   history_backfill_limit: 50
   reactions: true
   channel_prompts: {}
-  dm_role_auth_guild: ""
-  server_actions: ""
+  dm_role_auth_guild: ''
+  server_actions: ''
   allow_any_attachment: false
   max_attachment_bytes: 33554432
   voice_fx:
     enabled: false
     ambient_enabled: true
-    ambient_path: ""
+    ambient_path: ''
     ambient_gain: 0.18
     duck_gain: 0.06
     speech_gain: 1.0
     ack_enabled: true
     ack_phrases:
-      - Let me look into that.
-      - One moment.
-      - Checking on that now.
-      - Give me a sec.
-      - On it.
+    - Let me look into that.
+    - One moment.
+    - Checking on that now.
+    - Give me a sec.
+    - On it.
 whatsapp: {}
 telegram:
   reactions: false
   channel_prompts: {}
-  allowed_chats: ""
+  allowed_chats: ''
 mattermost:
   require_mention: true
-  free_response_channels: ""
-  allowed_channels: ""
+  free_response_channels: ''
+  allowed_channels: ''
   channel_prompts: {}
 matrix:
   require_mention: true
-  free_response_rooms: ""
-  allowed_rooms: ""
+  free_response_rooms: ''
+  allowed_rooms: ''
 approvals:
   mode: manual
   timeout: 60
@@ -467,8 +467,8 @@ kanban:
   failure_limit: 2
   worker_log_rotate_bytes: 2097152
   worker_log_backup_count: 1
-  orchestrator_profile: ""
-  default_assignee: ""
+  orchestrator_profile: ''
+  default_assignee: ''
   max_in_progress_per_profile: null
   auto_decompose: true
   auto_decompose_per_tick: 3
@@ -511,7 +511,8 @@ sessions:
   min_interval_hours: 24
   write_json_snapshots: false
 onboarding:
-  seen: {}
+  seen:
+    profile_build_offered: true
   profile_build: ask
 updates:
   pre_update_backup: false
@@ -531,21 +532,21 @@ secrets:
   bitwarden:
     enabled: false
     access_token_env: BWS_ACCESS_TOKEN
-    project_id: ""
+    project_id: ''
     cache_ttl_seconds: 300
     override_existing: true
     auto_install: true
-    server_url: ""
+    server_url: ''
 paste_collapse_threshold: 5
 paste_collapse_threshold_fallback: 5
 paste_collapse_char_threshold: 2000
 _config_version: 29
 platform_toolsets:
   cli:
-    - hermes-cli
+  - hermes-cli
   telegram:
-    - hermes-telegram
+  - hermes-telegram
   discord:
-    - hermes-discord
+  - hermes-discord
 plugins:
   enabled: []
