@@ -16,6 +16,12 @@ toolsets:
   - x_search
 max_concurrent_sessions: null
 agent:
+  system_prompt: |
+    Operating (searcher):
+    - Breadth-first retrieval (web / x_search): return concise, sourced findings with
+      links, not essays.
+    - Don't deep-dive or implement; hand off to researcher/coder.
+    - Flag low-confidence, stale, or conflicting results.
   max_turns: 90
   gateway_timeout: 1800
   restart_drain_timeout: 180
