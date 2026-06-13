@@ -192,27 +192,28 @@ the plist sets `PATH` with `~/.config/bin` first to keep the shim injecting
 
 Assistant hosts the gateway (and the embedded kanban dispatcher) keychain-pure
 via a **LaunchAgent** (`hermes/launchd/local.hermes.gateway.assistant.plist`).
-It runs the `bin/hermes` shim with `~/.config/bin` first on `PATH`, so the shim
-injects the `global` + `hermes` Keychain layers (which hold `DISCORD_BOT_TOKEN` /
-`TELEGRAM_BOT_TOKEN` / `OPENROUTER_API_KEY` / …) before exec-ing the gateway — no
-plaintext `.env`:
+The plist runs `hermes/launchd/gateway-assistant-run.sh`, which `eval`s the
+`global` + `hermes` Keychain layers (`TELEGRAM_BOT_TOKEN` / `OPENROUTER_API_KEY`
+/ `GITHUB_TOKEN` / …) the way the shim does, then execs the real `hermes -p
+assistant gateway run` — no plaintext `.env`. (`secret env` has **no `-- <cmd>`
+form**; the wrapper evals it, and the LaunchAgent's GUI session keeps the login
+Keychain unlocked.)
 
-```
-~/.config/bin/hermes -p assistant gateway run --replace --accept-hooks
-```
+**Telegram-only — workaround for upstream #40695.** With Discord connected the
+gateway's `_handoff_watcher` blocks the event loop on a `list_pending_handoffs`
+SQLite query and hangs (discord heartbeat stalls, dispatcher stops). The wrapper
+`unset`s `DISCORD_*` so only Telegram runs — verified stable, with the embedded
+dispatcher auto-claiming tasks across ticks. Re-enable Discord (drop the `unset`
+line) once the bug is fixed.
 
-`secret env` has **no `-- <cmd>` form** — injection is the shim's job, which is
-why the plist puts `~/.config/bin` first on `PATH`. LaunchAgents run in the
-logged-in GUI session, so the login Keychain is unlocked and the shim can read
-the tokens. Activate on the **gateway host only**:
+Activate on the **gateway host only** (one bot token = one live connection — stop
+any gateway elsewhere first):
 
 ```
 ln -s ~/.config/hermes/launchd/local.hermes.gateway.assistant.plist ~/Library/LaunchAgents/
-launchctl load -w ~/Library/LaunchAgents/local.hermes.gateway.assistant.plist
+launchctl load -w   ~/Library/LaunchAgents/local.hermes.gateway.assistant.plist   # start
+launchctl unload -w ~/Library/LaunchAgents/local.hermes.gateway.assistant.plist   # stop
 ```
-
-One bot token = one live connection — stop any gateway on another machine first,
-or Telegram/Discord will conflict.
 
 ## Tracking
 
@@ -252,4 +253,5 @@ Routing quality depends on `profile.yaml` descriptions — create workers with
 - [x] OpenRouter slugs confirmed: `deepseek/deepseek-v4-flash`, `google/gemini-3.5-flash`.
 - [x] default-created kanban task dispatched to coder/researcher/searcher (via `hermes kanban dispatch`).
 - [x] `install.sh` links each tracked profile (incl. `profile.yaml`) with no WARN.
-- [ ] Assistant gateway: load the LaunchAgent on the host (shim injects `global`+`hermes`); confirm bot round-trip + auto-dispatch (Phase 3).
+- [x] Assistant gateway runs keychain-pure (LaunchAgent, Telegram-only per #40695); embedded dispatcher auto-claims tasks (verified).
+- [ ] Telegram round-trip: message the bot and confirm a reply (user).
