@@ -9,7 +9,7 @@ symlink or setup step needed.
 | ----------------- | ---------------------------------------------------------------- |
 | `tmux.conf`       | core options and key bindings; sources the files below           |
 | `statusline.conf` | status bar and pane colours — Neon Dark palette, matches Ghostty |
-| `utility.conf`    | popup helpers: lazygit and opencode                              |
+| `utility.conf`    | popup helpers: lazygit, opencode, and hermes                     |
 | `macos.conf`      | Darwin only: clipboard (reattach-to-user-namespace), undercurl   |
 
 ## Behaviour
@@ -31,3 +31,4 @@ symlink or setup step needed.
 | `prefix f`                 | open the pane's directory in Finder             |
 | `prefix g`                 | lazygit popup (80% x 80%)                       |
 | `prefix o`                 | opencode popup — one detached session per directory, launched via `bin/opencode` (secret-shim) |
+| `prefix H` (Shift+h)       | hermes popup — one detached session per directory, launched via `bin/hermes` (secret-shim) |
