@@ -8,7 +8,7 @@
 # What it does (no shell-rc edits, no interactive wizard):
 #   1. Clone NousResearch/hermes-agent via ghq (only if missing)
 #   2. Create a Python 3.11 venv with uv (only if missing)
-#   3. uv sync --extra all --locked   (hash-verified; pip fallback)
+#   3. uv sync the $EXTRAS optional-dependencies + $EXTRA_PIP (hash-verified)
 #   4. Symlink ~/.local/bin/hermes -> venv/bin/hermes
 #
 # The config/SOUL/mcp/cron symlinks into ~/.hermes/ are created separately by
@@ -25,6 +25,14 @@ set -euo pipefail
 REPO_PATH="github.com/NousResearch/hermes-agent"
 REPO_URL="https://$REPO_PATH"
 PYTHON_VERSION="3.11"
+
+# Capability extras to install (maximal CLI setup). Trim for a leaner venv.
+#   EXTRAS    — hermes pyproject optional-dependencies (installed via `uv sync`)
+#               all=curated core, voice=CLI mic/playback, messaging=telegram/discord,
+#               tts-premium=elevenlabs
+#   EXTRA_PIP — packages that are NOT hermes extras (free local STT)
+EXTRAS="all,voice,messaging,tts-premium"
+EXTRA_PIP=(faster-whisper)
 
 die() {
   echo "error: $*" >&2
@@ -59,15 +67,23 @@ else
 fi
 
 # 3. Dependencies — idempotent and non-destructive. `uv sync` installs the
-# hash-verified locked [all] set; --inexact keeps any extra packages already in
-# the venv, so re-runs do NOT prune Hermes' lazily-installed backends (TTS,
-# Bedrock, ...) that get added on first use. Fall back to a fresh PyPI resolve
-# if the lockfile is stale.
-echo "[hermes] installing dependencies (uv sync --extra all) ..."
+# hash-verified locked set for $EXTRAS; --inexact keeps extra packages already
+# in the venv (Hermes' lazily-installed backends + $EXTRA_PIP below), so re-runs
+# don't prune them. Fall back to a fresh PyPI resolve if the lockfile is stale.
 export VIRTUAL_ENV="$SRC/venv" UV_PROJECT_ENVIRONMENT="$SRC/venv"
-uv sync --extra all --locked --inexact ||
-  uv pip install -e ".[all]" ||
-  uv pip install -e "."
+extra_flags=()
+IFS=',' read -ra _extras <<<"$EXTRAS" || true
+for e in "${_extras[@]}"; do extra_flags+=(--extra "$e"); done
+echo "[hermes] installing dependencies (uv sync ${extra_flags[*]}) ..."
+uv sync "${extra_flags[@]}" --locked --inexact ||
+  uv pip install -e ".[$EXTRAS]" ||
+  uv pip install -e ".[all]"
+
+# Packages that aren't hermes extras (e.g. faster-whisper for free local STT).
+if [ "${#EXTRA_PIP[@]}" -gt 0 ]; then
+  echo "[hermes] installing extra packages: ${EXTRA_PIP[*]} ..."
+  uv pip install "${EXTRA_PIP[@]}"
+fi
 
 # 4. Symlink into ~/.local/bin (already on PATH via zsh/env.zsh, behind the
 # bin/hermes secret-shim). ln -sfn is idempotent.

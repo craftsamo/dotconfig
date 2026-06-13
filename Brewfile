@@ -26,6 +26,11 @@ brew "libyaml" # ruby build dep (mise compiles ruby from source)
 brew "mise"    # language runtimes + global npm CLIs — see mise/config.toml
 brew "anomalyco/tap/opencode"
 
+# --- Hermes Agent: audio / voice deps (CLI voice, TTS, Discord voice) ---
+brew "ffmpeg"    # audio conversion for TTS / voice (all platforms)
+brew "portaudio" # CLI voice mode: microphone input + playback (sounddevice)
+brew "opus"      # Discord voice channel codec
+
 # --- GUI apps / fonts (casks land in /Applications, shared across users) ---
 cask "font-hack-nerd-font"
 cask "ghostty"

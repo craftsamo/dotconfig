@@ -52,8 +52,11 @@ then `secret env -p hermes`). Shared keys (e.g. `OPENROUTER_API_KEY`) go in the
 
 Outside the [Brewfile](../Brewfile). Run [`./setup.sh`](./setup.sh) — an
 idempotent installer that clones the agent via `ghq`, builds a Python 3.11 venv
-with `uv`, and symlinks `~/.local/bin/hermes` (already on `PATH` behind the
-shim). It makes no shell-rc edits and runs no interactive wizard.
+with `uv` (installing the `EXTRAS` capability set — `all,voice,messaging,
+tts-premium` — plus `faster-whisper` for free local STT), and symlinks
+`~/.local/bin/hermes` (already on `PATH` behind the shim). It makes no shell-rc
+edits and runs no interactive wizard. Trim `EXTRAS` / `EXTRA_PIP` at the top of
+`setup.sh` for a leaner venv.
 
 ```sh
 ~/.config/hermes/setup.sh     # install (safe to re-run)
@@ -68,6 +71,46 @@ which is a symlink into this repo.
 `setup.sh` installs only the binary. Run [`../install.sh`](../install.sh)
 separately for the `~/.hermes/` config symlinks, and store keys with
 `secret set …` (no `.env`).
+
+## Capabilities & dependencies
+
+Maximal CLI setup — what enables each tool group:
+
+**System packages** (declared in the [Brewfile](../Brewfile)):
+
+- `ffmpeg` — TTS / voice audio conversion (all platforms)
+- `portaudio` — CLI voice mode microphone input + playback
+- `opus` — Discord voice-channel codec
+
+The local `browser` toolset already works via `agent-browser` + Playwright
+Chromium (from mise) — no Browserbase key needed.
+
+**`cua-driver`** (the macOS `computer_use` toolset — background desktop control)
+has no Brewfile formula and needs one-time GUI grants:
+
+```sh
+hermes computer-use install      # fetches trycua/cua -> ~/.local/bin/cua-driver
+cua-driver permissions grant     # grant Accessibility + Screen Recording
+hermes computer-use status       # verify
+```
+
+`hermes update` refreshes the driver automatically when it's on `PATH`.
+
+**API keys** — stored in the Keychain; the `bin/hermes` shim injects them (no
+`.env`). Run these yourself (the value is read from stdin, never argv):
+
+```sh
+secret set OPENROUTER_API_KEY -p global   # model + moa + vision fallback (shared)
+secret set GITHUB_TOKEN       -p global   # Skills Hub rate limits (shared)
+secret set EXA_API_KEY        -p hermes   # web_search / web_extract
+secret set GROQ_API_KEY       -p hermes   # cloud STT (local faster-whisper needs no key)
+```
+
+Other optional keys (`-p hermes` unless shared): `FAL_KEY` (image_gen),
+`ELEVENLABS_API_KEY` (premium TTS), `XAI_API_KEY` (x_search / video_gen),
+`BROWSERBASE_API_KEY` (cloud browser), `TELEGRAM_BOT_TOKEN` /
+`DISCORD_BOT_TOKEN` (gateway). STT/TTS default to free local `faster-whisper` +
+Edge TTS in `config.yaml`.
 
 ## Never tracked
 
