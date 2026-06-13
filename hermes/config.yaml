@@ -34,7 +34,7 @@ agent:
 terminal:
   backend: local
   modal_mode: auto
-  cwd: ~/Workspaces
+  cwd: "."
   timeout: 180
   env_passthrough: []
   shell_init_files: []
