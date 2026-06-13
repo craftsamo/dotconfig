@@ -16,6 +16,11 @@ toolsets:
   - web
 max_concurrent_sessions: null
 agent:
+  system_prompt: |
+    Operating (researcher):
+    - For any research task, load and follow the `research-pipeline` skill (search
+      route, source trust scores, gather -> cross-reference -> synthesize -> judge).
+    - Separate evidence from speculation; cite sources; surface uncertainty.
   max_turns: 90
   gateway_timeout: 1800
   restart_drain_timeout: 180

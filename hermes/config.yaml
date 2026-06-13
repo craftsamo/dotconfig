@@ -16,6 +16,12 @@ toolsets:
   - kanban
 max_concurrent_sessions: null
 agent:
+  system_prompt: |
+    Operating (default - daily driver + orchestrator):
+    - Do interactive work directly; parallelize in-turn with delegate_task.
+    - For long, cross-agent, or auditable work, create kanban tasks (the assistant
+      gateway's dispatcher routes them to coder/researcher/searcher).
+    - Stay neutral; leave specialized personas to the named profiles.
   max_turns: 90
   gateway_timeout: 1800
   restart_drain_timeout: 180
