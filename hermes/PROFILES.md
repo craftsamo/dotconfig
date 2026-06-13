@@ -239,27 +239,15 @@ Routing quality depends on `profile.yaml` descriptions — create workers with
 `hermes profile create <name> --description "<role>"` (or
 `hermes profile describe <name> --text "…"`).
 
-## Build phases
+## Status (as-built)
 
-1. **Default** — `kanban` toolset + `kanban-orchestrator` skill (full toolsets
-   kept); `hermes doctor` validated all three tiers. *(done)*
-2. **Coder** — created + adopted into the repo; a default-created task was
-   dispatched to it via `hermes kanban dispatch`; workspace confirmed. *(done)*
-3. **Assistant** — create; settle the LaunchAgent + `secret env` gateway;
-   verify Discord/TG round-trip and that the dispatcher is live. *(pending)*
-4. **Researcher / Searcher** — created with the Grok chain above; descriptions
-   written; dispatch routing verified. *(done)*
-5. **Repo** — `install.sh` tracks `profile.yaml` *(done)*; cross-link this doc
-   from `README.md` *(pending)*.
+Built and verified: default (kanban orchestrator), coder, researcher, and searcher
+workers — T1–T3 tiers resolve (doctor + live probes) and default-created tasks
+dispatch/route to each. Assistant gateway runs keychain-pure (LaunchAgent,
+Telegram-only per #40695); the embedded dispatcher auto-claims tasks across ticks.
+`install.sh` links every tracked profile (incl. `profile.yaml`) with no WARN.
 
-## Verification checklist
+Model slugs confirmed live: `grok-4.3` on `xai-oauth`, `claude-sonnet-4.6` (worker
+T2), `deepseek/deepseek-v4-flash`, `google/gemini-3.5-flash`; Copilot has no Grok.
 
-- [x] `kanban` toolset on default; `kanban-orchestrator` / `kanban-worker` skills present.
-- [x] T1–T3 resolve for default, coder, researcher, searcher (doctor + live probes).
-- [x] Grok slug confirmed: `grok-4.3` on `xai-oauth` (works after `hermes model` re-login).
-- [x] Grok-on-Copilot checked: none — worker T2 repointed to `claude-sonnet-4.6` / `gpt-5.5`.
-- [x] OpenRouter slugs confirmed: `deepseek/deepseek-v4-flash`, `google/gemini-3.5-flash`.
-- [x] default-created kanban task dispatched to coder/researcher/searcher (via `hermes kanban dispatch`).
-- [x] `install.sh` links each tracked profile (incl. `profile.yaml`) with no WARN.
-- [x] Assistant gateway runs keychain-pure (LaunchAgent, Telegram-only per #40695); embedded dispatcher auto-claims tasks (verified).
-- [ ] Telegram round-trip: message the bot and confirm a reply (user).
+Remaining (manual): Telegram round-trip — message the bot and confirm a reply.
