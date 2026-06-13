@@ -25,3 +25,21 @@ hermes/**/workspace/
 hermes/**/plans/
 hermes/**/*_cache/
 hermes/**/local/
+
+# Hermes skills: agent-created skills ARE tracked; bundled skills (read via
+# skills.external_dirs from the agent clone) + curator/hub/usage bookkeeping are not
+hermes/**/.bundled_manifest
+hermes/**/.usage.json
+hermes/**/.usage.json.lock
+hermes/**/.curator_state
+hermes/**/.curator_suppressed
+hermes/**/.curator_backups/
+hermes/**/.archive/
+hermes/**/.hub/
+hermes/**/index-cache/
+hermes/**/.restore-backups/
+
+# Hermes cron: job definitions (cron/jobs.json) ARE tracked; runtime churn is not
+hermes/**/cron/output/
+hermes/**/cron/.tick.lock
+hermes/**/cron/*.lock

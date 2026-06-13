@@ -134,15 +134,22 @@ link "$DOTFILES/hermes/config.yaml" "$HOME/.hermes/config.yaml"
 link "$DOTFILES/hermes/SOUL.md"     "$HOME/.hermes/SOUL.md"
 link "$DOTFILES/hermes/mcp.json"    "$HOME/.hermes/mcp.json"
 link "$DOTFILES/hermes/cron"        "$HOME/.hermes/cron"
+link "$DOTFILES/hermes/skills"      "$HOME/.hermes/skills"
+# Disable bundled-skill seeding (else the first `hermes` run seeds ~73 skills
+# into the symlinked skills dir = this repo). Bundled skills are read in place
+# via config.yaml skills.external_dirs instead.
+link "$DOTFILES/hermes/.no-bundled-skills" "$HOME/.hermes/.no-bundled-skills"
 # Named profiles: link tracked distribution-owned files for each repo profile.
-# Skills are read in place via skills.external_dirs (no symlink needed).
+# (Bundled skills are read from the agent clone via skills.external_dirs.)
 for p in "$DOTFILES"/hermes/profiles/*/; do
   [ -d "$p" ] || continue
   n="$(basename "$p")"
-  [ -f "$p/config.yaml" ] && link "$p/config.yaml" "$HOME/.hermes/profiles/$n/config.yaml"
-  [ -f "$p/SOUL.md" ]     && link "$p/SOUL.md"     "$HOME/.hermes/profiles/$n/SOUL.md"
-  [ -f "$p/mcp.json" ]    && link "$p/mcp.json"    "$HOME/.hermes/profiles/$n/mcp.json"
-  [ -d "$p/cron" ]        && link "$p/cron"        "$HOME/.hermes/profiles/$n/cron"
+  [ -f "$p/config.yaml" ]        && link "$p/config.yaml"        "$HOME/.hermes/profiles/$n/config.yaml"
+  [ -f "$p/SOUL.md" ]            && link "$p/SOUL.md"            "$HOME/.hermes/profiles/$n/SOUL.md"
+  [ -f "$p/mcp.json" ]          && link "$p/mcp.json"          "$HOME/.hermes/profiles/$n/mcp.json"
+  [ -d "$p/cron" ]              && link "$p/cron"              "$HOME/.hermes/profiles/$n/cron"
+  [ -d "$p/skills" ]            && link "$p/skills"            "$HOME/.hermes/profiles/$n/skills"
+  [ -f "$p/.no-bundled-skills" ] && link "$p/.no-bundled-skills" "$HOME/.hermes/profiles/$n/.no-bundled-skills"
 done
 
 echo "[zsh]"

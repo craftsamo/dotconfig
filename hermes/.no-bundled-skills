@@ -1,0 +1,7 @@
+This profile opted out of bundled-skill seeding (`hermes skills opt-out`).
+Delete this file to re-enable sync on the next `hermes update`.
+
+# Tracked in dotfiles and symlinked into ~/.hermes/ by install.sh so the opt-out
+# reproduces on a fresh machine. Without it, the first `hermes` run would seed
+# ~73 bundled skills into the symlinked ~/.hermes/skills (= this repo), polluting
+# it. Bundled skills are instead read in place via config.yaml skills.external_dirs.

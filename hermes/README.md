@@ -13,11 +13,29 @@ into place.
 | `~/.hermes/SOUL.md`     | `hermes/SOUL.md`    |
 | `~/.hermes/mcp.json`    | `hermes/mcp.json`   |
 | `~/.hermes/cron`        | `hermes/cron/`      |
+| `~/.hermes/skills`      | `hermes/skills/`    |
 
-Skills are **not** symlinked: `config.yaml` points `skills.external_dirs` at
-`~/.config/hermes/skills`, so curated skills are read in place (read-only).
-Agent-created and bundled skills stay in `~/.hermes/skills/` (untracked), which
-keeps `hermes update`'s bundled-skill churn out of the repo.
+### Skills — agent-created are tracked, bundled are not
+
+`~/.hermes/skills` is symlinked to the repo, so **skills the agent creates land
+in `hermes/skills/`** and are version-controlled (the agent always writes new
+skills to `HERMES_HOME/skills`). The ~73 **bundled** skills are kept out of the
+repo: seeding is disabled — `hermes skills opt-out --remove` writes a
+`.no-bundled-skills` marker, which is tracked here and symlinked into
+`~/.hermes/` by `install.sh` so the opt-out reproduces on a fresh machine — and
+`config.yaml` points `skills.external_dirs` at the agent clone
+(`~/ghq/github.com/NousResearch/hermes-agent/skills`), so they're read in place
+(read-only, auto-updated by `hermes update`). Curator/hub/usage bookkeeping
+(`.curator_state`, `.hub/`, `.usage.json`, `.archive/`, …) lands in
+`hermes/skills/` but is git-ignored.
+
+### Cron — job definitions tracked, runtime churn ignored
+
+`~/.hermes/cron` is symlinked to `hermes/cron/`. Hermes stores every job in a
+single `cron/jobs.json` (definition **and** run-state in one file), which is
+tracked — churn is occasional unless a gateway runs cron continuously. The
+per-run logs (`cron/output/`) and scheduler lock (`cron/.tick.lock`) are
+git-ignored.
 
 ## User-managed content
 
@@ -25,8 +43,10 @@ keeps `hermes update`'s bundled-skill churn out of the repo.
   toolsets, `skills.external_dirs`. No secrets. Hermes rewrites this on load.
 - `SOUL.md` — global agent identity (system-prompt slot #1).
 - `mcp.json` — MCP server connections.
-- `skills/<name>/SKILL.md` — curated, version-controlled skills.
-- `cron/<job>.json` — scheduled job definitions.
+- `skills/<name>/SKILL.md` — version-controlled skills (agent-created land here;
+  bundled are read from the clone via `external_dirs`, not tracked).
+- `cron/jobs.json` — scheduled job definitions (run-state churns in the same
+  file; `cron/output/` and `cron/.tick.lock` are git-ignored).
 
 ## Profiles
 
@@ -45,16 +65,19 @@ injected for every profile.
 move them into the repo (clearing the real files) before linking:
 
 1. `hermes profile create <name>` — seeds state + the `~/.local/bin/<name>` alias.
-2. Move the version-controllable files into the repo (skip any that don't exist):
+2. Stop bundled-skill seeding so only agent skills get tracked:
+   ```sh
+   hermes -p <name> skills opt-out --remove --yes
+   ```
+3. Move the version-controllable files into the repo (skip any that don't exist):
    ```sh
    mkdir -p ~/.config/hermes/profiles/<name>
-   mv ~/.hermes/profiles/<name>/{config.yaml,SOUL.md,mcp.json} \
+   mv ~/.hermes/profiles/<name>/{config.yaml,SOUL.md,mcp.json,cron,skills} \
       ~/.config/hermes/profiles/<name>/
-   # cron/ likewise; skills are read in place (next step)
    ```
-3. In that profile's tracked `config.yaml`, point `skills.external_dirs` at
-   `~/.config/hermes/profiles/<name>/skills`.
-4. `./install.sh` — the `[hermes]` loop now symlinks them (no WARN).
+4. In that profile's tracked `config.yaml`, point `skills.external_dirs` at the
+   clone (`~/ghq/github.com/NousResearch/hermes-agent/skills`) — same as default.
+5. `./install.sh` — the `[hermes]` loop now symlinks them (no WARN).
 
 State (`.env`, `memories/`, `sessions/`, `state.db*`, …) stays in
 `~/.hermes/profiles/<name>/` — never moved, never tracked.
