@@ -13,6 +13,7 @@ fallback_providers:
 credential_pool_strategies: {}
 toolsets:
   - hermes-cli
+  - kanban
 max_concurrent_sessions: null
 agent:
   max_turns: 90
