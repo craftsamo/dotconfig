@@ -35,7 +35,7 @@ agent:
 terminal:
   backend: local
   modal_mode: auto
-  cwd: "."
+  cwd: .
   timeout: 180
   env_passthrough: []
   shell_init_files: []
