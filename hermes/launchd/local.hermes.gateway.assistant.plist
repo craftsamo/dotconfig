@@ -3,11 +3,12 @@
 <plist version="1.0">
 <dict>
   <!--
-    Keychain-pure persistent gateway for the `assistant` profile.
-    Runs the bin/hermes secret-shim (PATH puts ~/.config/bin first), so the shim
-    injects the `global` + `hermes` Keychain layers — which hold DISCORD_BOT_TOKEN
-    / TELEGRAM_BOT_TOKEN / OPENROUTER_API_KEY / GITHUB_TOKEN / … — before exec-ing
-    the real gateway. No plaintext .env. The embedded kanban dispatcher rides along.
+    Keychain-pure persistent gateway for the `assistant` profile (Telegram-only).
+    Runs gateway-assistant-run.sh: it injects the `global` + `hermes` Keychain
+    layers (TELEGRAM_BOT_TOKEN / OPENROUTER_API_KEY / GITHUB_TOKEN / …), drops the
+    Discord vars, then execs the real gateway — no plaintext .env. The embedded
+    kanban dispatcher rides along. Discord is disabled as a workaround for the
+    handoff-watcher hang (upstream issue #40695); re-enable once it's fixed.
 
     Activate on the GATEWAY HOST ONLY (one bot token = one live connection):
       ln -s ~/.config/hermes/launchd/local.hermes.gateway.assistant.plist ~/Library/LaunchAgents/
@@ -23,13 +24,8 @@
 
   <key>ProgramArguments</key>
   <array>
-    <string>/Users/itourui/.config/bin/hermes</string>
-    <string>-p</string>
-    <string>assistant</string>
-    <string>gateway</string>
-    <string>run</string>
-    <string>--replace</string>
-    <string>--accept-hooks</string>
+    <string>/bin/sh</string>
+    <string>/Users/itourui/.config/hermes/launchd/gateway-assistant-run.sh</string>
   </array>
 
   <key>EnvironmentVariables</key>
