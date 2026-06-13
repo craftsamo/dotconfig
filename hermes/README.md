@@ -30,14 +30,49 @@ keeps `hermes update`'s bundled-skill churn out of the repo.
 
 ## Profiles
 
-Named profiles map the same way under `~/.hermes/profiles/<name>/`. To track a
-profile:
+Named profiles live under `~/.hermes/profiles/<name>/` — each its own
+`HERMES_HOME` with its own `config.yaml` / `.env` / `SOUL.md` / `skills/` /
+`cron/`. The alias `~/.local/bin/<name>` is just a wrapper that runs
+`exec hermes -p <name> "$@"` — **bare `hermes`**, so it still resolves through
+the `bin/hermes` shim and the shared `global` + `hermes` Keychain keys are
+injected for every profile.
+
+### Tracking a profile
+
+`install.sh`'s `link()` never overwrites a real file — it prints
+`WARN … not overwriting` and skips (the repo-wide drift policy). Because
+`hermes profile create` writes **real** files into `~/.hermes/profiles/<name>/`,
+move them into the repo (clearing the real files) before linking:
 
 1. `hermes profile create <name>` — seeds state + the `~/.local/bin/<name>` alias.
-2. Add `hermes/profiles/<name>/{config.yaml,SOUL.md,mcp.json,skills/,cron/}`.
-3. Point that profile's `skills.external_dirs` at
+2. Move the version-controllable files into the repo (skip any that don't exist):
+   ```sh
+   mkdir -p ~/.config/hermes/profiles/<name>
+   mv ~/.hermes/profiles/<name>/{config.yaml,SOUL.md,mcp.json} \
+      ~/.config/hermes/profiles/<name>/
+   # cron/ likewise; skills are read in place (next step)
+   ```
+3. In that profile's tracked `config.yaml`, point `skills.external_dirs` at
    `~/.config/hermes/profiles/<name>/skills`.
-4. Re-run `./install.sh` — the `[hermes]` loop overlays the tracked files.
+4. `./install.sh` — the `[hermes]` loop now symlinks them (no WARN).
+
+State (`.env`, `memories/`, `sessions/`, `state.db*`, …) stays in
+`~/.hermes/profiles/<name>/` — never moved, never tracked.
+
+### Caveats
+
+- **Order matters / "already installed".** The symlink must exist *before*
+  Hermes writes a real file. If real files already exist (a named profile, or a
+  `~/.hermes/` set up before this repo), `install.sh` won't replace them — use
+  the move-then-`install.sh` adoption above. Hermes itself still runs fine
+  either way; only the symlink tracking is affected.
+- **Per-profile secrets aren't isolated by the shim.** The wrapper always calls
+  `hermes`, so every profile gets the same `global` + `hermes` layers.
+  Profile-specific secrets (e.g. a distinct `TELEGRAM_BOT_TOKEN`) go in that
+  profile's own `~/.hermes/profiles/<name>/.env` (untracked).
+- **Background / launchd profiles** (`hermes gateway install`) may run with a
+  PATH that excludes `~/.config/bin` and a locked Keychain, so the shim can't
+  inject — those rely on the profile `.env`.
 
 ## Secrets
 
