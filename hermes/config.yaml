@@ -1,8 +1,15 @@
 model:
-  provider: auto
-  default: anthropic/claude-opus-4.6
+  default: gpt-5.5
+  provider: openai-codex
+  base_url: https://chatgpt.com/backend-api/codex
 providers: {}
-fallback_providers: []
+fallback_providers:
+  - provider: copilot
+    model: gpt-5.5
+  - provider: openrouter
+    model: xiaomi/mimo-v2.5
+    base_url: https://openrouter.ai/api/v1
+    api_mode: chat_completions
 credential_pool_strategies: {}
 toolsets:
   - hermes-cli
@@ -27,7 +34,7 @@ agent:
 terminal:
   backend: local
   modal_mode: auto
-  cwd: .
+  cwd: ~/Workspaces
   timeout: 180
   env_passthrough: []
   shell_init_files: []
@@ -535,26 +542,9 @@ _config_version: 29
 platform_toolsets:
   cli:
     - hermes-cli
+  telegram:
+    - hermes-telegram
+  discord:
+    - hermes-discord
 plugins:
   enabled: []
-# ── Fallback Model ────────────────────────────────────────────────────
-# Automatic provider failover when primary is unavailable.
-# Uncomment and configure to enable. Triggers on rate limits (429),
-# overload (529), service errors (503), or connection failures.
-#
-# Supported providers:
-#   openrouter   (OPENROUTER_API_KEY)  — routes to any model
-#   openai-codex (OAuth — hermes auth) — OpenAI Codex
-#   nous         (OAuth — hermes auth) — Nous Portal
-#   zai          (ZAI_API_KEY)         — Z.AI / GLM
-#   kimi-coding  (KIMI_API_KEY)        — Kimi / Moonshot
-#   kimi-coding-cn (KIMI_CN_API_KEY)   — Kimi / Moonshot (China)
-#   minimax      (MINIMAX_API_KEY)     — MiniMax
-#   minimax-cn   (MINIMAX_CN_API_KEY)  — MiniMax (China)
-#   bedrock      (AWS IAM / boto3)     — AWS Bedrock (Converse API)
-#
-# For custom OpenAI-compatible endpoints, add base_url and key_env.
-#
-# fallback_model:
-#   provider: openrouter
-#   model: anthropic/claude-sonnet-4
