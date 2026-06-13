@@ -145,6 +145,7 @@ for p in "$DOTFILES"/hermes/profiles/*/; do
   [ -d "$p" ] || continue
   n="$(basename "$p")"
   [ -f "$p/config.yaml" ]        && link "$p/config.yaml"        "$HOME/.hermes/profiles/$n/config.yaml"
+  [ -f "$p/profile.yaml" ]       && link "$p/profile.yaml"       "$HOME/.hermes/profiles/$n/profile.yaml"
   [ -f "$p/SOUL.md" ]            && link "$p/SOUL.md"            "$HOME/.hermes/profiles/$n/SOUL.md"
   [ -f "$p/mcp.json" ]          && link "$p/mcp.json"          "$HOME/.hermes/profiles/$n/mcp.json"
   [ -d "$p/cron" ]              && link "$p/cron"              "$HOME/.hermes/profiles/$n/cron"
