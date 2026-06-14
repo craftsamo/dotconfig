@@ -24,6 +24,7 @@ brew "pngpaste"
 brew "luarocks"
 brew "libyaml" # ruby build dep (mise compiles ruby from source)
 brew "mise"    # language runtimes + global npm CLIs — see mise/config.toml
+brew "uv"      # python venv/deps manager — required by hermes/setup.sh
 brew "anomalyco/tap/opencode"
 
 # --- Hermes Agent: audio / voice deps (CLI voice, TTS, Discord voice) ---
