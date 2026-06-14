@@ -135,6 +135,10 @@ link "$DOTFILES/hermes/SOUL.md"     "$HOME/.hermes/SOUL.md"
 link "$DOTFILES/hermes/mcp.json"    "$HOME/.hermes/mcp.json"
 link "$DOTFILES/hermes/cron"        "$HOME/.hermes/cron"
 link "$DOTFILES/hermes/skills"      "$HOME/.hermes/skills"
+# User plugins (e.g. image-gen fallback chains). One shared repo dir, linked
+# into the default home here and into every profile home in the loop below
+# (plugins are profile-scoped under each profile's HERMES_HOME).
+link "$DOTFILES/hermes/plugins"     "$HOME/.hermes/plugins"
 # Disable bundled-skill seeding (else the first `hermes` run seeds ~73 skills
 # into the symlinked skills dir = this repo). Bundled skills are read in place
 # via config.yaml skills.external_dirs instead.
@@ -151,6 +155,8 @@ for p in "$DOTFILES"/hermes/profiles/*/; do
   [ -d "$p/cron" ]              && link "$p/cron"              "$HOME/.hermes/profiles/$n/cron"
   [ -d "$p/skills" ]            && link "$p/skills"            "$HOME/.hermes/profiles/$n/skills"
   [ -f "$p/.no-bundled-skills" ] && link "$p/.no-bundled-skills" "$HOME/.hermes/profiles/$n/.no-bundled-skills"
+  # Shared user-plugins dir into each profile home (discovery is HERMES_HOME-scoped).
+  [ -d "$DOTFILES/hermes/plugins" ] && link "$DOTFILES/hermes/plugins" "$HOME/.hermes/profiles/$n/plugins"
 done
 
 echo "[workspaces]"
