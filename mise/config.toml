@@ -11,3 +11,4 @@ rust = "latest"
 "npm:agent-browser" = "latest"
 "npm:mcp-hub" = "latest"
 "npm:nps" = "latest"
+"npm:@mermaid-js/mermaid-cli" = "latest" # mmdc — nvim snacks: mermaid diagram rendering
