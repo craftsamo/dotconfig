@@ -14,11 +14,11 @@ command -v nvim >/dev/null && alias vim=nvim
 
 export EDITOR=nvim
 
-# Homebrew — prefix-agnostic: prefer global /opt/homebrew, else per-user ~/.homebrew
-if [ -x /opt/homebrew/bin/brew ]; then
-  eval "$(/opt/homebrew/bin/brew shellenv)"
-elif [ -x "$HOME/.homebrew/bin/brew" ]; then
+# Homebrew — prefix-agnostic: prefer per-user ~/.homebrew, else global /opt/homebrew
+if [ -x "$HOME/.homebrew/bin/brew" ]; then
   eval "$("$HOME/.homebrew/bin/brew" shellenv)"
+elif [ -x /opt/homebrew/bin/brew ]; then
+  eval "$(/opt/homebrew/bin/brew shellenv)"
 fi
 
 # mise — language runtimes (node, python, ...) declared in mise/config.toml
