@@ -15,6 +15,7 @@ toolsets:
   - hermes-cli
   - kanban
   - video_gen
+  - video
 max_concurrent_sessions: null
 agent:
   system_prompt: |
@@ -148,8 +149,8 @@ bedrock:
     trace: disabled
 auxiliary:
   vision:
-    provider: auto
-    model: ""
+    provider: openrouter
+    model: xiaomi/mimo-v2.5
     base_url: ""
     api_key: ""
     timeout: 120
