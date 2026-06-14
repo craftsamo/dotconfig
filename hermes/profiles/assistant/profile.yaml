@@ -1,4 +1,4 @@
-description: Messaging front door (Discord/Telegram) and kanban orchestrator. Fields
+description: Messaging front door (Telegram; Discord pending #40695) and kanban orchestrator. Fields
   user requests in ~/Workspaces and routes background work to coder/researcher/searcher
   via the shared kanban board. Hosts the dispatcher.
 description_auto: false
