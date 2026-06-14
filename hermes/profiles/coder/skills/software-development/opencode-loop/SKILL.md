@@ -1,57 +1,89 @@
 ---
 name: opencode-loop
-description: Coder's delegate-to-OpenCode implementation loop with model-priority and quota-aware model selection.
-version: 0.1.0
+description: Coder's delegate-to-OpenCode loop — quota-gated provider/model routing, plan-first for non-trivial work, independent verification, and structured reporting. CLI mechanics live in the bundled opencode/claude-code/codex skills.
+version: 1.0.0
 author: Hermes Agent
 metadata:
   hermes:
-    tags: [coding, opencode, delegation, workflow]
-    related_skills: [opencode]
+    tags: [coding, opencode, delegation, model-routing, quota, verification]
+    category: software-development
+    related_skills: [opencode, claude-code, codex, github-pr-workflow, test-driven-development, systematic-debugging]
 ---
 # OpenCode delegation loop (coder)
 
-Coder implements by driving the OpenCode CLI. This skill defines the loop, the
-model-priority ladder, and the quota check. CLI mechanics (one-shot `run` vs
-background TUI, flags, pitfalls) live in the bundled `opencode` skill — load it
-for syntax.
+Coder implements by driving OpenCode. This skill defines the loop, quota-gated
+model routing, and the verify/report discipline. CLI syntax (one-shot `run` vs
+background TUI, flags, pitfalls) lives in the bundled `opencode` skill — load it
+when you need mechanics.
 
 ## When to Use
 - Implementing a coder task: writing/refactoring code, fixing bugs, adding tests, PRs.
+- Not for web research, non-code writing, or work outside the caller's workdir.
 
-## Model priority (pick the highest with remaining quota)
-Check quota first: `terminal(command="opencode-quota show")`
-(or `npx @slkiser/opencode-quota show`; `--provider <name>` narrows it).
+## Prerequisites
+- A real workdir (the task worktree `$HERMES_KANBAN_WORKSPACE` for kanban work).
+- `terminal`, OpenCode installed + authenticated, `git`, and `opencode-quota`
+  for the Claude gate.
 
-Ladder (high → low) — [tune]:
-1. Claude — Opus 4.8
-2. Claude — Haiku 4.5
-3. Copilot — Opus 4.8
-4. OpenRouter — Deepseek-4-Flash
-5. OpenRouter — Deepseek-4-pro
+## Quota gate (check before choosing a model)
+```text
+terminal(command="opencode-quota show --provider anthropic", workdir="<wd>", timeout=60)
+# also: --provider copilot | openai ; npx -y @slkiser/opencode-quota show … if not on PATH
+```
+- Usable Anthropic quota → Claude may be used.
+- Missing command / auth failure / no quota data → **treat Claude as unavailable**
+  even if Claude auth looks valid. (`claude auth status` is NOT sufficient.)
 
-Rules:
-- Use the highest-priority entry that still has quota remaining.
-- Weight by task: heavy/complex → prefer an Opus-class model; light/mechanical →
-  a cheaper tier (Haiku / Deepseek-Flash) is fine even if a stronger one has quota.
-- Resolve the exact `--model provider/model` slug at runtime via
-  `terminal(command="opencode models")` — slugs change; don't hard-code stale ones.
+## Provider selection (high → low)
+1. **Claude via OpenCode** — only when the Anthropic quota gate passes.
+2. **Copilot** — Claude-family first (after Anthropic quota/auth limits), then OpenAI-family.
+3. **Direct OpenAI** via OpenCode — prefer GPT-5.5 when Copilot is unavailable.
+4. **OpenRouter** — cheap coding-capable models only. **Never Claude/GPT via OpenRouter**
+   (exclude `anthropic` / `claude` / `openai` / `gpt`).
+5. Direct `claude-code` / `codex` only on explicit request or when OpenCode is unsuitable.
+
+Resolve exact `--model provider/model` slugs at runtime (`opencode models`) — don't hard-code stale ones.
+
+## Model choice (weight by task risk)
+| Class | Use for |
+|---|---|
+| Opus / GPT-5.5 | high-risk architecture, complex refactor, hard debugging |
+| Sonnet | default implementation, standard features, tests |
+| Haiku / GPT-5.4 / cheap OpenRouter | small/mechanical fixes, docs, low-risk cleanup |
 
 ## Procedure
-1. Scope the task; work inside the task worktree (`$HERMES_KANBAN_WORKSPACE`).
-2. `opencode-quota show` → choose a model per the ladder above.
-3. Bounded task:
-   `terminal(command="opencode run '<task>' --model <provider/model>", workdir="<worktree>")`.
-   Iterative task: start the background TUI per the `opencode` skill and submit/poll.
-4. Read the result; run tests/builds.
-5. If incomplete or tests fail: continue the session with
-   `opencode run -c '<follow-up>'` and repeat.
-6. On a quota / rate / auth error: drop to the next model in the ladder and retry.
-7. Commit minimal, reversible changes; report files changed + test results.
+1. **Scope** the task; confirm workdir, success criteria, and whether commits /
+   pushes / PRs are allowed. Work inside the task worktree.
+2. **Quota → provider/model** per the gate and ladder above.
+3. **Plan first (non-trivial).** Ask OpenCode for an edit-free plan:
+   `opencode run 'Plan only, do not edit files: <task>' --agent plan --model <m>`.
+   Review it; reject plans that exceed scope or skip validation.
+4. **Confirm** with the caller before material file / dependency / architecture
+   changes, commits, pushes, PRs, or merges.
+5. **Implement.** `opencode run '<task>' --model <m>` in the workdir; for iterative
+   work use the background TUI (see `opencode` skill). Continue with `opencode run -c '<follow-up>'`.
+6. **Verify independently** — never trust the agent's self-report:
+   `git status --short`, `git diff`, read changed files, run targeted tests /
+   build / lint. If nothing is runnable, say so and explain what you checked instead.
+7. **On quota / rate / auth error**, drop to the next provider/model and retry.
+8. **Commit** minimal, reversible changes (only when allowed).
+
+## Report (final message)
+- Provider/model used and why.
+- Files changed or inspected.
+- Validation commands + outcomes (or what was skipped and why).
+- Remote / GitHub actions performed, if any.
+- Remaining risks, blockers, or decisions needed.
 
 ## Pitfalls
-- See the bundled `opencode` skill: TUI needs `pty=true`, never `/exit` (use Ctrl+C),
-  watch for PATH/binary mismatch, one workdir per session.
-- Don't share a workdir across parallel OpenCode sessions.
+- Treating `claude auth status` as enough — Claude needs usable `opencode-quota` data.
+- Falling back to OpenRouter but selecting Claude/GPT there.
+- Letting OpenCode implement before the caller confirms a material plan.
+- Trusting a completion message without inspecting the diff.
+- TUI: needs `pty=true`, exit with Ctrl+C (never `/exit`); one workdir per session.
 
 ## Verification
-- Tests/build pass; expected files changed; concrete outcome reported back.
+- Quota/provider decision recorded (or failure reported).
+- Non-trivial work had a reviewed plan + required confirmations.
+- `git status` / `git diff` inspected; tests / build / lint run or explicitly skipped.
+- No secrets or unrelated files included; report covers model, changes, validation, risk.
