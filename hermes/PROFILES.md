@@ -89,6 +89,23 @@ out via Kanban; default just orchestrates and does interactive work.
   (the launch dir) for every worker; pin an absolute path per worker if you want
   a fixed directory. `workspace/` is per-machine and never tracked.
 
+## Operating layers (per profile)
+
+Three per-profile layers, kept separate:
+
+- **SOUL.md** — persona/voice (BASE: Identity/Style/Avoid/Defaults + a one-line Role posture).
+- **`agent.system_prompt`** (config.yaml) — the always-on *operating contract*: how the
+  profile works each task. Workers open with "first action: load `<skill>`"; the assistant
+  carries its chat-output contract + routing here, kept out of SOUL so it survives. Note
+  `/personality` shares this slot and would clobber it — don't use it on these profiles.
+- **skills/** — detailed, on-demand playbooks:
+  - coder → `opencode-loop` (delegate to OpenCode; quota-gated provider/model routing; verify/report)
+  - researcher → `research-pipeline` (search route + Admiralty/SIFT source evaluation; evidence discipline)
+  - searcher → `breadth-retrieval` (query expansion, source-class routing, link-first hand-off)
+
+Routing (assistant): searcher = retrieval/web/X, researcher = analysis/synthesis,
+coder = implementation; keep in sync with each `profile.yaml` description.
+
 ## Models and fallback chains
 
 Each profile carries its own `model:` (tier 1) plus a `fallback_providers:`
