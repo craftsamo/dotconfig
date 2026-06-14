@@ -77,25 +77,25 @@ Installed outside the [Brewfile](./Brewfile):
 
 Currently installed per-user at `~/.homebrew` (no sudo required). Everything
 is prefix-agnostic: `install.sh` and `zsh/config.zsh` pick up `brew` from
-`PATH`, `/opt/homebrew`, or `~/.homebrew`, in that order.
+`PATH`, `~/.homebrew`, or `/opt/homebrew`, in that order.
 
-### Migrating to a global /opt/homebrew (planned)
+### Prefix priority (~/.homebrew preferred)
 
-A single shared install avoids per-user duplication on multi-user machines.
-Homebrew does not officially support multi-user usage: run installs/upgrades
-from one admin account only; other accounts just consume.
+Both prefixes are supported and auto-detected by `zsh/env.zsh`,
+`zsh/config.zsh`, and `install.sh` (`find_brew`). When both are installed on the
+same machine, per-user `~/.homebrew` wins — no sudo, self-contained in `$HOME`,
+and your curated brew always takes precedence; a machine with only
+`/opt/homebrew` uses that instead.
+
+To switch a machine to global `/opt/homebrew` (a single shared install, useful
+on multi-user machines — run installs/upgrades from one admin account only),
+install it with the official installer, reinstall the packages, then flip the
+priority in the files above or remove `~/.homebrew`:
 
 ```sh
-# 1. Official installer (requires sudo)
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-
-# 2. Reinstall the curated packages into the new prefix
 eval "$(/opt/homebrew/bin/brew shellenv)"
 brew bundle --file=~/.config/Brewfile
-
-# 3. New shells pick /opt/homebrew automatically (zsh/config.zsh prefers it).
-#    After verifying tools resolve to /opt/homebrew/bin:
-rm -rf ~/.homebrew
 ```
 
 ## Adding a new managed config

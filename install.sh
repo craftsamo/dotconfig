@@ -31,7 +31,7 @@ find_brew() {
     return 0
   fi
   local candidate
-  for candidate in /opt/homebrew/bin/brew "$HOME/.homebrew/bin/brew" /usr/local/bin/brew; do
+  for candidate in "$HOME/.homebrew/bin/brew" /opt/homebrew/bin/brew /usr/local/bin/brew; do
     if [ -x "$candidate" ]; then
       echo "$candidate"
       return 0
