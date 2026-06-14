@@ -129,6 +129,41 @@ link "$DOTFILES/gemini/settings.json" "$HOME/.gemini/settings.json"
 link "$DOTFILES/gemini/GEMINI.md"     "$HOME/.gemini/GEMINI.md"
 link "$DOTFILES/gemini/commands"      "$HOME/.gemini/commands"
 
+echo "[hermes]"
+link "$DOTFILES/hermes/config.yaml" "$HOME/.hermes/config.yaml"
+link "$DOTFILES/hermes/SOUL.md"     "$HOME/.hermes/SOUL.md"
+link "$DOTFILES/hermes/mcp.json"    "$HOME/.hermes/mcp.json"
+link "$DOTFILES/hermes/cron"        "$HOME/.hermes/cron"
+link "$DOTFILES/hermes/skills"      "$HOME/.hermes/skills"
+# Disable bundled-skill seeding (else the first `hermes` run seeds ~73 skills
+# into the symlinked skills dir = this repo). Bundled skills are read in place
+# via config.yaml skills.external_dirs instead.
+link "$DOTFILES/hermes/.no-bundled-skills" "$HOME/.hermes/.no-bundled-skills"
+# Named profiles: link tracked distribution-owned files for each repo profile.
+# (Bundled skills are read from the agent clone via skills.external_dirs.)
+for p in "$DOTFILES"/hermes/profiles/*/; do
+  [ -d "$p" ] || continue
+  n="$(basename "$p")"
+  [ -f "$p/config.yaml" ]        && link "$p/config.yaml"        "$HOME/.hermes/profiles/$n/config.yaml"
+  [ -f "$p/profile.yaml" ]       && link "$p/profile.yaml"       "$HOME/.hermes/profiles/$n/profile.yaml"
+  [ -f "$p/SOUL.md" ]            && link "$p/SOUL.md"            "$HOME/.hermes/profiles/$n/SOUL.md"
+  [ -f "$p/mcp.json" ]          && link "$p/mcp.json"          "$HOME/.hermes/profiles/$n/mcp.json"
+  [ -d "$p/cron" ]              && link "$p/cron"              "$HOME/.hermes/profiles/$n/cron"
+  [ -d "$p/skills" ]            && link "$p/skills"            "$HOME/.hermes/profiles/$n/skills"
+  [ -f "$p/.no-bundled-skills" ] && link "$p/.no-bundled-skills" "$HOME/.hermes/profiles/$n/.no-bundled-skills"
+done
+
+echo "[workspaces]"
+# Assistant's terminal.cwd. Symlink the tracked area/ops AGENTS.md (link() creates the
+# parent dirs); groups + repos under Projects/Personal are local, scaffolded on demand.
+link "$DOTFILES/workspaces/AGENTS.md"               "$HOME/Workspaces/AGENTS.md"
+link "$DOTFILES/workspaces/Projects/AGENTS.md"      "$HOME/Workspaces/Projects/AGENTS.md"
+link "$DOTFILES/workspaces/Personal/AGENTS.md"      "$HOME/Workspaces/Personal/AGENTS.md"
+link "$DOTFILES/workspaces/.scratch/AGENTS.md"      "$HOME/Workspaces/.scratch/AGENTS.md"
+link "$DOTFILES/workspaces/.deliverables/AGENTS.md" "$HOME/Workspaces/.deliverables/AGENTS.md"
+link "$DOTFILES/workspaces/.notes/AGENTS.md"        "$HOME/Workspaces/.notes/AGENTS.md"
+link "$DOTFILES/workspaces/.inbox/AGENTS.md"        "$HOME/Workspaces/.inbox/AGENTS.md"
+
 echo "[zsh]"
 link "$DOTFILES/zsh/env.zsh"    "$HOME/.zshenv"
 link "$DOTFILES/zsh/config.zsh" "$HOME/.zshrc"

@@ -2,12 +2,6 @@ setopt interactivecomments
 
 export TERM=screen-256color
 
-# Theme settings
-# set -g theme_color_scheme terminal-dark
-set -g theme_display_user yes
-set -g theme_hide_hostname no
-set -g theme_hostname always
-
 # Aliases
 alias ls="ls -p --color=auto"
 alias la="ls -A"

@@ -1,0 +1,3 @@
+description: 'Implements code: writes/edits files, runs tests and builds, works in
+  git worktrees. Best for concrete implementation tasks, not open-ended research.'
+description_auto: false

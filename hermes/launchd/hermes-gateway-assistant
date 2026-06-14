@@ -1,0 +1,28 @@
+#!/bin/sh
+# Hermes `assistant` gateway launcher — keychain-pure, Telegram-only.
+#
+# Self-contained and machine-agnostic: every path is derived from $HOME, so the
+# tracked file has no hardcoded user/home. The LaunchAgent runs THIS script as
+# ProgramArguments[0] (not `/bin/sh <script>`), so the login item / process
+# reads as "hermes-gateway-assistant" instead of a bare "sh".
+#
+# Injection: replicates the bin/hermes shim — eval the `global` + `hermes`
+# Keychain layers (TELEGRAM_BOT_TOKEN / OPENROUTER_API_KEY / GITHUB_TOKEN / …),
+# then exec the REAL hermes (not the shim, which would re-inject). No .env.
+#
+# Telegram-only is a workaround for the Discord-triggered _handoff_watcher hang
+# (upstream issue #40695): drop the `unset DISCORD_*` line once it's fixed.
+set -e
+
+export PATH="$HOME/.config/bin:$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+
+mkdir -p "$HOME/.hermes/logs"
+exec >>"$HOME/.hermes/logs/gateway-assistant.log" 2>&1
+
+cd "$HOME/Workspaces" 2>/dev/null || cd "$HOME"
+
+eval "$(secret env -p global)"
+eval "$(secret env -p hermes)"
+unset DISCORD_BOT_TOKEN DISCORD_ALLOWED_USERS DISCORD_HOME_CHANNEL
+
+exec "$HOME/.local/bin/hermes" -p assistant gateway run --replace --accept-hooks
