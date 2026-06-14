@@ -43,3 +43,8 @@ hermes/**/.restore-backups/
 hermes/**/cron/output/
 hermes/**/cron/.tick.lock
 hermes/**/cron/*.lock
+
+# Hermes plugins: source IS tracked; Python bytecode (written into the symlinked
+# plugins dir when Hermes loads a plugin) is not
+hermes/**/__pycache__/
+hermes/**/*.pyc
