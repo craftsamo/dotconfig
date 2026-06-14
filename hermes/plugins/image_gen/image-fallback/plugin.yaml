@@ -1,0 +1,7 @@
+name: image-fallback
+version: 1.0.0
+description: >-
+  Image-generation fallback chains. Registers ordered virtual backends that try
+  each underlying provider in turn (codex / xai / fal), falling through on error
+  or rate-limit. Select one via image_gen.provider.
+kind: backend
