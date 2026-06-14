@@ -153,6 +153,21 @@ for p in "$DOTFILES"/hermes/profiles/*/; do
   [ -f "$p/.no-bundled-skills" ] && link "$p/.no-bundled-skills" "$HOME/.hermes/profiles/$n/.no-bundled-skills"
 done
 
+echo "[workspaces]"
+# Assistant's terminal.cwd. Seed the flat base (functional subdirs) and symlink the
+# tracked AGENTS.md; per-project repos + Personal data stay local (never tracked).
+mkdir -p "$HOME/Workspaces/Projects/github" "$HOME/Workspaces/Projects/docs" \
+  "$HOME/Workspaces/Projects/data" "$HOME/Workspaces/Projects/teams" \
+  "$HOME/Workspaces/Personal/data" "$HOME/Workspaces/Personal/docs" \
+  "$HOME/Workspaces/Personal/Peoples"
+link "$DOTFILES/workspaces/AGENTS.md"               "$HOME/Workspaces/AGENTS.md"
+link "$DOTFILES/workspaces/Projects/AGENTS.md"      "$HOME/Workspaces/Projects/AGENTS.md"
+link "$DOTFILES/workspaces/Personal/AGENTS.md"      "$HOME/Workspaces/Personal/AGENTS.md"
+link "$DOTFILES/workspaces/.scratch/AGENTS.md"      "$HOME/Workspaces/.scratch/AGENTS.md"
+link "$DOTFILES/workspaces/.deliverables/AGENTS.md" "$HOME/Workspaces/.deliverables/AGENTS.md"
+link "$DOTFILES/workspaces/.notes/AGENTS.md"        "$HOME/Workspaces/.notes/AGENTS.md"
+link "$DOTFILES/workspaces/.inbox/AGENTS.md"        "$HOME/Workspaces/.inbox/AGENTS.md"
+
 echo "[zsh]"
 link "$DOTFILES/zsh/env.zsh"    "$HOME/.zshenv"
 link "$DOTFILES/zsh/config.zsh" "$HOME/.zshrc"
