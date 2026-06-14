@@ -154,12 +154,8 @@ for p in "$DOTFILES"/hermes/profiles/*/; do
 done
 
 echo "[workspaces]"
-# Assistant's terminal.cwd. Seed the flat base (functional subdirs) and symlink the
-# tracked AGENTS.md; per-project repos + Personal data stay local (never tracked).
-mkdir -p "$HOME/Workspaces/Projects/github" "$HOME/Workspaces/Projects/docs" \
-  "$HOME/Workspaces/Projects/data" "$HOME/Workspaces/Projects/teams" \
-  "$HOME/Workspaces/Personal/data" "$HOME/Workspaces/Personal/docs" \
-  "$HOME/Workspaces/Personal/Peoples"
+# Assistant's terminal.cwd. Symlink the tracked area/ops AGENTS.md (link() creates the
+# parent dirs); groups + repos under Projects/Personal are local, scaffolded on demand.
 link "$DOTFILES/workspaces/AGENTS.md"               "$HOME/Workspaces/AGENTS.md"
 link "$DOTFILES/workspaces/Projects/AGENTS.md"      "$HOME/Workspaces/Projects/AGENTS.md"
 link "$DOTFILES/workspaces/Personal/AGENTS.md"      "$HOME/Workspaces/Personal/AGENTS.md"
