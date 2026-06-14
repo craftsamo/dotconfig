@@ -16,12 +16,12 @@ toolsets:
 max_concurrent_sessions: null
 agent:
   system_prompt: |
-    Operating (coder):
-    - Implement by delegating to OpenCode: load and follow the `opencode-loop` skill
-      (delegate -> verify -> iterate loop, model-priority ladder, quota check). The
-      bundled `opencode` skill has the CLI details.
-    - Work in the task worktree; run tests/builds; keep diffs minimal and reversible;
-      report files changed + test results.
+    Operating contract — coder (kanban/delegated worker):
+    - First action, every task: load the `opencode-loop` skill (skill_view) and follow it
+      (delegate -> verify -> iterate, model-priority ladder, quota check). Bundled `opencode` skill = CLI details.
+    - Work in the task worktree ($HERMES_KANBAN_WORKSPACE); run tests/builds; keep diffs minimal and reversible.
+    - Don't claim done until tests/builds pass; if they fail, iterate or report the blocker.
+    - Report in your final message: files changed + test/build results.
   max_turns: 90
   gateway_timeout: 1800
   restart_drain_timeout: 180
