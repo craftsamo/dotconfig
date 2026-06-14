@@ -15,6 +15,8 @@ destination (`discovery.md`). Confirm exact specs per platform in
 | **Square social** (IG/LinkedIn feed) | 5–15s, 1:1 | optional | either | `social-specs.md` |
 | **Logo/brand sting** (animate a mark) | 2–5s | optional | image-to-video from the mark | `image-to-video.md` |
 | **Animated avatar / loop sticker** | 2–4s, 1:1, seamless | muted | image-to-video → loop | `loops-and-posters.md` |
+| **GIF** (chat / README / docs demo) | 2–6s, any | silent | generate (or image-to-video) → `to-gif.sh` | `gifs.md` |
+| **GIF sticker / emote** | 1–3s, 1:1, looped | silent | image-to-video or Ken Burns → GIF | `gifs.md` |
 
 ## Strategy meanings
 
@@ -35,5 +37,8 @@ destination (`discovery.md`). Confirm exact specs per platform in
   loop with `scripts/make-loop.sh`. Don't trust a raw clip to loop cleanly.
 - Web heroes almost always autoplay **muted + looped** — pick a quiet model and
   strip audio; ship an mp4 (H.264) **and** webm (VP9) pair + a poster frame.
+- **GIF is a post-format, not a backend** — no model outputs GIF. Generate a clip
+  (or Ken Burns a still), then convert with `scripts/to-gif.sh`; prefer mp4/webm
+  for the web. See `gifs.md`.
 - When unsure of the type, duration, or size, ask the user before generating —
   video is metered.
