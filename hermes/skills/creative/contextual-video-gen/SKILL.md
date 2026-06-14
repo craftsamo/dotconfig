@@ -10,8 +10,9 @@ description: >-
   post-process with ffmpeg to the exact target. Generation is slow and metered,
   so confirm duration/count before producing a set. Triggers: generate/create
   video, hero video, looping background, product demo, explainer clip, social
-  reel, animate this image, image-to-video, 動画生成, 動画作成, ループ動画,
-  デモ動画, リール, 静止画を動かす, アイキャッチ動画.
+  reel, animate this image, image-to-video, gif, animated gif, 動画生成, 動画作成,
+  ループ動画, デモ動画, リール, 静止画を動かす, アイキャッチ動画, GIF生成, GIF化,
+  GIFスタンプ, ループGIF.
 version: 0.1.0
 author: Hermes Agent
 license: MIT
@@ -84,8 +85,9 @@ user** rather than guessing — a wrong 8-second 1080p clip is expensive to redo
    re-run on another backend.
 6. **Post-process** to the exact target (`scripts/video-postprocess.sh`): trim,
    correct aspect/resolution, transcode, mute/strip audio, cap size. For loops
-   use `scripts/make-loop.sh`; for an `<video poster>` use
-   `scripts/poster-frame.sh`. Then place/upload per the discovered convention
+   use `scripts/make-loop.sh`; for a `<video poster>` use
+   `scripts/poster-frame.sh`; for a **GIF** use `scripts/to-gif.sh` (also does a
+   no-AI Ken Burns image→GIF). Then place/upload per the discovered convention
    (don't commit/upload without the user's go-ahead).
 
 ## Tradeoffs to confirm (ask before generating)
@@ -102,6 +104,9 @@ Video is expensive and slow — confirm up front (mirror the user's language):
   and flickers. Overlay titles/captions in post or via the `hyperframes` skill.
 - **People / faces** — motion artifacts on faces/hands are common; prefer
   image-to-video from a fixed still, shorter shots, and locked framing.
+- **Output format** — for the web prefer mp4/webm (autoplay-muted-loop); use
+  **GIF only where required** (chat, README, stickers) — it's large and silent.
+  See `references/gifs.md`.
 
 ## `video_generate` essentials (read before generating)
 
@@ -162,9 +167,11 @@ Video is expensive and slow — confirm up front (mirror the user's language):
 - `references/social-specs.md` — platform duration/aspect/codec tables (Reels/TikTok/Shorts/X/YT/LinkedIn).
 - `references/backends.md` — the `vid-xai-fal` / `vid-fal-xai` chain + per-backend capability matrix.
 - `references/loops-and-posters.md` — seamless loops, poster frames, autoplay-muted-loop HTML.
+- `references/gifs.md` — GIF vs mp4/webm, the two image→GIF routes, size discipline.
 - `scripts/video-postprocess.sh` — localize → trim → scale/crop → transcode → mute → size-cap.
 - `scripts/make-loop.sh` — seamless loop (crossfade or palindrome) → web mp4 + webm.
 - `scripts/poster-frame.sh` — extract a poster/preview still (jpg/webp) for `<video poster>`.
+- `scripts/to-gif.sh` — clip→GIF (two-pass palette) or still→GIF via `--ken-burns`; `--max-bytes`.
 
 Run scripts via `${HERMES_SKILL_DIR}/scripts/<name>` (pass `--help` for usage).
 Tooling (ffmpeg, ImageMagick, cwebp) is declared in the repo Brewfile.
