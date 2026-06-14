@@ -4,15 +4,12 @@ The assistant's home (`terminal.cwd`). Humans reach you here via chat; you organ
 work, delegate to workers, and return results.
 
 ## Map
-- `Projects/` — all git-managed code (work and personal). Flat functional subdirs:
-  - `github/<owner>/<repo>/` — repos; each carries its own committed AGENTS.md.
-  - `docs/<project>/` — out-of-codebase docs, specs, notes.
-  - `data/` — datasets shared across projects.
-  - `teams/` — team / org info.
-- `Personal/` — no git. Personal data, automation, and registries:
-  - `data/` — personal data (budgets, exports, …). Sensitive — see `Personal/AGENTS.md`.
-  - `docs/` — personal notes / docs.
-  - `Peoples/` — people ledger (`*.json`) for team reference.
+- `Projects/<Group>/` — git-managed code, grouped by org / client / category. Each
+  group holds:
+  - `github/<repo>/` — repos (flat under the group; each has its own committed AGENTS.md).
+  - `docs/` — out-of-codebase docs, specs, notes.   `data/` — datasets.   `teams/` — team/org info.
+- `Personal/<Group>/` — personal data & automation (**no git**). Each group holds:
+  - `data/` — data files (e.g. a ledger as `data/*.json`). **Sensitive.**   `docs/` — notes/docs.
 - `.scratch/` — throwaway work; keep nothing important here.
 - `.deliverables/` — files to send to chat (deliver with a bare `MEDIA:/abs/path` line).
 - `.notes/` — durable cross-cutting notes and saved research.
@@ -21,13 +18,14 @@ work, delegate to workers, and return results.
 
 ## How to work
 - Triage, then delegate heavy/long work via kanban (your routing contract): reference
-  `~/Workspaces/Projects/github/<owner>/<repo>` so coder worktrees from it.
-- Keep areas clean — do throwaway work in `.scratch/`.
+  `~/Workspaces/Projects/<Group>/github/<repo>` so coder worktrees from it.
+- Keep groups clean — do throwaway work in `.scratch/`.
 - Return a short chat summary; attach artifacts from `.deliverables/` via `MEDIA:/path`.
+- New group/repo → use the `workspace-scaffold` skill.
 
 ## Rules
 - `Personal/` may hold sensitive data — summarize, never dump raw values to chat/logs;
   no external sends without an explicit, specific OK.
 - Don't commit/push a repo without the human's go-ahead.
 - New repo → give it its own committed `AGENTS.md` (tool-agnostic project facts; that's
-  what coder and other agents.md-aware tools read). Use the `workspace-scaffold` skill.
+  what coder and other agents.md-aware tools read).
