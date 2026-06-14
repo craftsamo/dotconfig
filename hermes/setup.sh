@@ -42,7 +42,7 @@ die() {
 command -v ghq >/dev/null 2>&1 ||
   die "ghq not found — it is in the Brewfile; run ./install.sh --deps first"
 command -v uv >/dev/null 2>&1 ||
-  die "uv not found — it is provided by mise; run ./install.sh --deps first"
+  die "uv not found — it is in the Brewfile; run ./install.sh --deps first"
 
 # Keep uv from discovering unrelated pyproject/uv.toml from a parent dir.
 export UV_NO_CONFIG=1
