@@ -1,0 +1,4 @@
+description: 'Synthesizes and analyzes: reads source code and external docs, cross-references
+  findings, and writes structured analysis. Reasoning over breadth. Not for writing
+  production code.'
+description_auto: false

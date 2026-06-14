@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!--
+    TEMPLATE — not loaded directly. `gateway-launchctl.sh install` substitutes
+    __HOME__ with $HOME and writes the real plist to ~/Library/LaunchAgents/
+    (launchd does not expand ~ / env vars, so the path must be absolute; keeping
+    only the template in git avoids committing a machine-specific home path).
+
+    ProgramArguments is the launcher script itself (not `/bin/sh …`) so the
+    login item shows "hermes-gateway-assistant". All runtime setup (PATH, cwd,
+    logging, Keychain injection) lives in that script.
+  -->
+  <key>Label</key>
+  <string>local.hermes.gateway.assistant</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>__HOME__/.config/hermes/launchd/hermes-gateway-assistant</string>
+  </array>
+
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>ThrottleInterval</key>
+  <integer>15</integer>
+  <key>ProcessType</key>
+  <string>Background</string>
+</dict>
+</plist>
