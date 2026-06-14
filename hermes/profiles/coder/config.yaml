@@ -13,6 +13,7 @@ fallback_providers:
 credential_pool_strategies: {}
 toolsets:
   - hermes-cli
+  - video_gen
 max_concurrent_sessions: null
 agent:
   system_prompt: |
@@ -555,6 +556,9 @@ platform_toolsets:
     - hermes-discord
 image_gen:
   provider: img-xai-codex-fal
+video_gen:
+  provider: vid-xai-fal
 plugins:
   enabled:
     - image-fallback
+    - video-fallback
