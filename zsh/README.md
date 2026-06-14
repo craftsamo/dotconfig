@@ -22,8 +22,8 @@ mise shims (node / pnpm / ...), then the Homebrew prefix.
 
 1. Aliases (`ls` / `la` / `ll` / `lla`, `g` = git, `vim` -> nvim) and
    `EDITOR=nvim`
-2. Homebrew `shellenv` — prefix-agnostic: prefers `/opt/homebrew`, falls back
-   to `~/.homebrew`
+2. Homebrew `shellenv` — prefix-agnostic: prefers `~/.homebrew`, falls back
+   to `/opt/homebrew`
 3. `mise activate` — language runtimes declared in `mise/config.toml`; its
    per-directory tool paths take precedence over the shims from `env.zsh`
 4. Sources `conf.d/*.zsh`, then `functions/*.zsh`, then `*.zsh` in this
