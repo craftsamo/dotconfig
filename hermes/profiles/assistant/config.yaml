@@ -566,5 +566,8 @@ platform_toolsets:
     - hermes-telegram
   discord:
     - hermes-discord
+image_gen:
+  provider: img-xai-codex-fal
 plugins:
-  enabled: []
+  enabled:
+    - image-fallback
