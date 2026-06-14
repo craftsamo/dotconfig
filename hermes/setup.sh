@@ -7,7 +7,7 @@
 #
 # What it does (no shell-rc edits, no interactive wizard):
 #   1. Clone NousResearch/hermes-agent via ghq (only if missing)
-#   2. Create a Python 3.11 venv with uv (only if missing)
+#   2. Create a Python 3.11 venv with uv (uv-managed Python, brew-independent; only if missing)
 #   3. uv sync the $EXTRAS optional-dependencies + $EXTRA_PIP (hash-verified)
 #   4. Symlink ~/.local/bin/hermes -> venv/bin/hermes
 #
@@ -63,7 +63,11 @@ if [ -x "venv/bin/python" ]; then
   echo "[hermes] venv present ($(venv/bin/python --version 2>&1))"
 else
   echo "[hermes] creating venv (Python $PYTHON_VERSION) ..."
-  uv venv venv --python "$PYTHON_VERSION"
+  # --managed-python: always use a uv-managed CPython (under ~/.local/share/uv),
+  # never a brew/system one — so a Homebrew prefix move/upgrade can't orphan the
+  # venv's interpreter (which is exactly what broke after the ~/.homebrew → /opt
+  # migration).
+  uv venv venv --python "$PYTHON_VERSION" --managed-python
 fi
 
 # 3. Dependencies — idempotent and non-destructive. `uv sync` installs the
