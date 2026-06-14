@@ -36,11 +36,11 @@ terminal(command="opencode-quota show --provider anthropic", workdir="<wd>", tim
 
 ## Provider selection (high → low)
 1. **Claude via OpenCode** — only when the Anthropic quota gate passes.
-2. **Copilot** — Claude-family first (after Anthropic quota/auth limits), then OpenAI-family.
-3. **Direct OpenAI** via OpenCode — prefer GPT-5.5 when Copilot is unavailable.
-4. **OpenRouter** — cheap coding-capable models only. **Never Claude/GPT via OpenRouter**
-   (exclude `anthropic` / `claude` / `openai` / `gpt`).
-5. Direct `claude-code` / `codex` only on explicit request or when OpenCode is unsuitable.
+   Heavy/high-risk → Opus 4.8; light/mechanical → Haiku 4.5.
+2. **Copilot** — Claude-family first (Opus 4.8), then OpenAI-family.
+3. **OpenRouter** — cheap coding-capable models only. **Never Claude/GPT via OpenRouter**
+   (exclude `anthropic` / `claude` / `openai` / `gpt`). Prefer Deepseek-4-Flash, then Deepseek-4-pro.
+4. Direct `claude-code` / `codex` only on explicit request or when OpenCode is unsuitable.
 
 Resolve exact `--model provider/model` slugs at runtime (`opencode models`) — don't hard-code stale ones.
 

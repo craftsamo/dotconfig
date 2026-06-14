@@ -23,6 +23,10 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
 - **OAuth logins from `default` only** (`hermes model`, no `-p`). Codex / Copilot /
   xAI creds are inherited read-only by every profile; running `hermes model` inside
   a worker writes that profile's `auth.json` and shadows the inherited creds.
+- **Operating policy lives in `agent.system_prompt`** (per-profile, always-on);
+  detailed playbooks are per-profile skills. `SOUL.md` stays persona-only. Do **not**
+  run `/personality` on a profile — it shares the `agent.system_prompt` slot and
+  silently overwrites the operating contract (the messaging assistant is most at risk).
 
 ## Layout
 
@@ -34,10 +38,11 @@ cron/                # jobs.json tracked; output/ + .tick.lock ignored
 skills/              # agent-created skills tracked; .hub/ etc. ignored
 launchd/             # assistant gateway LaunchAgent (template + launcher)
 profiles/<name>/     # assistant, coder, researcher, searcher
-  - config.yaml      # per-profile model + fallback chain
+  - config.yaml      # model/fallback + agent.system_prompt (operating contract)
   - profile.yaml     # routing description (kanban/delegation)
-  - SOUL.md          # per-profile persona (BASE + role overlay)
-  - skills/          # per-profile agent skills
+  - SOUL.md          # per-profile persona (BASE + role posture)
+  - skills/          # per-profile skills (opencode-loop / research-pipeline / breadth-retrieval)
+  - cron/            # per-profile scheduled jobs (jobs.json; placeholder if empty)
 setup.sh README.md PROFILES.md
 ```
 

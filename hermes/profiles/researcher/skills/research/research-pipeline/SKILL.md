@@ -18,28 +18,42 @@ confident-sounding answer.
 - Any analysis / synthesis / research task assigned to the researcher.
 - Skip only when the caller explicitly wants unsupported brainstorming.
 
-## Search route (breadth, in order) — [tune]
-1. Primary / official (docs, specs, papers, filings, source code)
-2. Google (general web)
-3. X (real-time, expert takes)
-4. Reddit (community experience)
-5. Blogs / individual posts
+## Search route (breadth, in order; trace every claim to its original context)
+1. Primary / official (docs, specs, papers, filings, source code) — reliability A
+2. Reputable secondary (established docs/news, recognized experts) — B
+3. General web — C/D; investigate the source (lateral read) before trusting
+4. X / social — real-time / primary-witness value, but C–F; corroborate, never sole support
+5. Reddit / forums / blogs — lived experience; D by default
 
-Delegate breadth-gathering to `searcher` when it speeds things up.
+Virality != truth. A high search rank is not reliability. Delegate breadth-gathering
+to `searcher` when it speeds things up.
 
-## Source trust scores (weight every claim by these) — [tune]
-| Source | Trust |
-|---|---|
-| Primary/official, peer-reviewed, source code | 5 |
-| Reputable docs / established news | 4 |
-| Google-surfaced general web | 3 |
-| X (verified / expert) | 3 |
-| Reddit / forums | 2 |
-| Individual blogs / anonymous | 1–2 |
+## Source evaluation (rate reliability and credibility SEPARATELY)
+Adapted from the NATO/Admiralty system (AJP-2.1) + SIFT (Caulfield) +
+primary/secondary/tertiary. Keep the two axes independent — a reputable outlet can
+still carry an uncorroborated claim, and a weak source can still be right; separating
+them prevents halo bias.
 
-A claim resting only on trust ≤ 2 needs corroboration before you rely on it.
-Classify sources as **primary** (originator), **secondary** (reputable
-reporting/docs), or **noisy** (X, forums, reposts, SEO summaries).
+Source reliability (the outlet/author, by class):
+- A Reliable — primary/official: standards & specs, official docs, source code/repos,
+  peer-reviewed papers, filings, the originator's own statement.
+- B Usually reliable — reputable secondary: established docs, major references,
+  journalism with a track record, recognized domain experts.
+- C Fairly reliable — identifiable author + reputation/editorial signal
+  (known-practitioner blog, accepted/high-voted Q&A).
+- D Not usually reliable — anonymous/low-history web, marketing, SEO summaries, unvetted forums.
+- E Unreliable — content farms, known-bad track record, undisclosed agenda.
+- F Can't judge yet — new/unknown source; verify before relying.
+
+Claim credibility (the specific claim, by corroboration):
+- 1 Confirmed (>=2 independent reliable sources, consistent) · 2 Probably true ·
+  3 Possibly true · 4 Doubtful · 5 Improbable (contradicted) · 6 Can't judge yet.
+
+Rule of thumb: rely on ~A/B + 1/2. Treat single-source, reliability <= C, or
+credibility >= 3 as needing corroboration. Never present E/5 or F/6 as fact.
+Classify sources as **primary** (originator), **secondary** (reputable reporting/docs),
+or **noisy** (X, forums, reposts, SEO summaries), and feed both axes into the
+Observation / Corroboration / Inference / Uncertainty buckets below.
 
 ## Procedure
 1. **Scope.** Restate the question, the caller's decision context, success
@@ -47,7 +61,7 @@ reporting/docs), or **noisy** (X, forums, reposts, SEO summaries).
    missing detail doesn't change the search strategy.
 2. **Gather breadth** along the route. For each candidate source record: URL/id,
    author/publisher, publication time, retrieval time (when recency matters),
-   trust score, what it supports, and what it does *not* prove.
+   reliability (A–F), what it supports, and what it does *not* prove.
 3. **Extract directly, not from memory.** Fetch and read the source (web extract,
    browser, file). Don't rely on remembered summaries when the source is fetchable.
 4. **Deep-read** the highest-trust sources. Quote exactly only when wording
@@ -72,7 +86,7 @@ reporting/docs), or **noisy** (X, forums, reposts, SEO summaries).
 - 2–5 decision-relevant findings.
 ## Sources
 - <URL/id> — <author/publisher>, <published/observed>, <retrieved?>
-  - Supports: <…>   Does not prove: <…>   Trust: <1–5>
+  - Supports: <…>   Does not prove: <…>   Reliability: <A–F> · Credibility: <1–6>
 ## Key Observations
 - <observation grounded in a cited source>
 ## Corroboration
