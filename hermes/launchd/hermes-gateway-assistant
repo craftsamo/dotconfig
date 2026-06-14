@@ -14,7 +14,7 @@
 # (upstream issue #40695): drop the `unset DISCORD_*` line once it's fixed.
 set -e
 
-export PATH="$HOME/.config/bin:$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+export PATH="$HOME/.config/bin:$HOME/.local/bin:$HOME/.homebrew/bin:$HOME/.homebrew/sbin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 
 mkdir -p "$HOME/.hermes/logs"
 exec >>"$HOME/.hermes/logs/gateway-assistant.log" 2>&1

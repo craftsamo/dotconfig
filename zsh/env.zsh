@@ -8,11 +8,11 @@
 # loader); a plain `typeset` would create a function-local path/PATH there.
 typeset -gU path PATH
 
-# Homebrew — prefix-agnostic: prefer global /opt/homebrew, else ~/.homebrew
-if [[ -x /opt/homebrew/bin/brew ]]; then
-  path=(/opt/homebrew/bin /opt/homebrew/sbin $path)
-elif [[ -x $HOME/.homebrew/bin/brew ]]; then
+# Homebrew — prefix-agnostic: prefer per-user ~/.homebrew, else global /opt/homebrew
+if [[ -x $HOME/.homebrew/bin/brew ]]; then
   path=($HOME/.homebrew/bin $HOME/.homebrew/sbin $path)
+elif [[ -x /opt/homebrew/bin/brew ]]; then
+  path=(/opt/homebrew/bin /opt/homebrew/sbin $path)
 fi
 
 # mise shims — node/pnpm/python/... for non-interactive shells. Interactive
