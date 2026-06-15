@@ -117,9 +117,9 @@ turn. The default profile already proves the YAML shape.
 | --- | --- | --- | --- |
 | **default** | `openai-codex` / gpt-5.5 | `copilot` / gpt-5.5 | `openrouter` / `xiaomi/mimo-v2.5` |
 | **assistant** | `openai-codex` / gpt-5.5 | `copilot` / gpt-5.5 | `openrouter` / `xiaomi/mimo-v2.5` |
-| **coder** | `openai-codex` / gpt-5.5 | `copilot` / gpt-5.5 | `openrouter` / `xiaomi/mimo-v2.5` |
+| **coder** | `openai-codex` / gpt-5.5 | `copilot` / gpt-5.5 | `openrouter` / `deepseek/deepseek-v4-flash` |
 | **researcher** | `xai-oauth` / grok-4.3 | `copilot` / claude-sonnet-4.6 | `openrouter` / `deepseek/deepseek-v4-flash` |
-| **searcher** | `xai-oauth` / grok-4.3 | `copilot` / gpt-5.5 | `openrouter` / `google/gemini-3.5-flash` |
+| **searcher** | `xai-oauth` / grok-4.3 | `copilot` / gpt-5.5 | `openrouter` / `deepseek/deepseek-v4-flash` |
 
 ```yaml
 # example — researcher's ~/.hermes/profiles/researcher/config.yaml
@@ -147,6 +147,12 @@ calls):
 - **OpenRouter slugs** — `xiaomi/mimo-v2.5`, `deepseek/deepseek-v4-flash`,
   `google/gemini-3.5-flash` (the earlier `*-v3.2` / `gemini-3-flash-preview`
   refs were planning guesses).
+- **T3 split (mimo vs deepseek)** — `default` / `assistant` keep
+  `xiaomi/mimo-v2.5` as T3 because it is **vision-capable**, so image input stays
+  native even on a T3 fallback turn (video analysis is decoupled via the
+  `video-analyze-mimo` plugin — see `README.md` "Plugins"). Workers
+  (`coder` / `researcher` / `searcher`) use the cheaper text-only
+  `deepseek/deepseek-v4-flash`; they don't need native image vision.
 
 Optional: set `delegation.model: google/gemini-3.5-flash` on default /
 assistant to route `delegate_task` subagents to a cheap model.
