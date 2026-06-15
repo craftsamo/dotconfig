@@ -131,6 +131,9 @@ link "$DOTFILES/gemini/commands"      "$HOME/.gemini/commands"
 
 echo "[hermes]"
 link "$DOTFILES/hermes/config.yaml" "$HOME/.hermes/config.yaml"
+# Persona is private/local; seed from the tracked SOUL.example.md when the real
+# (gitignored, per-machine) SOUL.md is absent, then symlink it. Never clobbers.
+[ -f "$DOTFILES/hermes/SOUL.example.md" ] && [ ! -f "$DOTFILES/hermes/SOUL.md" ] && { cp "$DOTFILES/hermes/SOUL.example.md" "$DOTFILES/hermes/SOUL.md"; echo "  seeded hermes/SOUL.md from template (personalize locally; untracked)"; }
 link "$DOTFILES/hermes/SOUL.md"     "$HOME/.hermes/SOUL.md"
 link "$DOTFILES/hermes/mcp.json"    "$HOME/.hermes/mcp.json"
 link "$DOTFILES/hermes/cron"        "$HOME/.hermes/cron"
@@ -150,6 +153,7 @@ for p in "$DOTFILES"/hermes/profiles/*/; do
   n="$(basename "$p")"
   [ -f "$p/config.yaml" ]        && link "$p/config.yaml"        "$HOME/.hermes/profiles/$n/config.yaml"
   [ -f "$p/profile.yaml" ]       && link "$p/profile.yaml"       "$HOME/.hermes/profiles/$n/profile.yaml"
+  [ -f "$p/SOUL.example.md" ] && [ ! -f "$p/SOUL.md" ] && { cp "$p/SOUL.example.md" "$p/SOUL.md"; echo "  seeded $n/SOUL.md from template (personalize locally; untracked)"; }
   [ -f "$p/SOUL.md" ]            && link "$p/SOUL.md"            "$HOME/.hermes/profiles/$n/SOUL.md"
   [ -f "$p/mcp.json" ]          && link "$p/mcp.json"          "$HOME/.hermes/profiles/$n/mcp.json"
   [ -d "$p/cron" ]              && link "$p/cron"              "$HOME/.hermes/profiles/$n/cron"

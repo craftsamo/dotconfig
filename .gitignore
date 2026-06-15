@@ -14,7 +14,7 @@ codex/skills/.system/
 # machine-specific state rewritten by the Codex app (absolute home paths)
 codex/config.toml
 
-# Hermes Agent per-machine state (config/SOUL/skills/mcp/cron ARE tracked; these are not)
+# Hermes Agent per-machine state (config/skills/mcp/cron ARE tracked; these are not)
 hermes/**/auth.json
 hermes/**/.env.EXAMPLE
 hermes/**/memories/
@@ -25,6 +25,12 @@ hermes/**/workspace/
 hermes/**/plans/
 hermes/**/*_cache/
 hermes/**/local/
+
+# Hermes personas: the real SOUL.md is private/local per machine; the tracked
+# SOUL.example.md is the bootstrap template (install.sh seeds SOUL.md from it
+# when missing, then symlinks it). Personalize SOUL.md locally; it never ships.
+hermes/SOUL.md
+hermes/**/SOUL.md
 
 # Hermes skills: agent-created skills ARE tracked; bundled skills (read via
 # skills.external_dirs from the agent clone) + curator/hub/usage bookkeeping are not
