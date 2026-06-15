@@ -446,6 +446,18 @@ telegram:
   reactions: false
   channel_prompts: {}
   allowed_chats: ""
+platforms:
+  telegram:
+    extra:
+      rich_messages: true
+      dm_topics:
+        - chat_id: "${TELEGRAM_DM_CHAT_ID}"
+          topics:
+            - name: General
+            - name: Engineering
+              skill: plan
+            - name: Research
+              skill: arxiv
 mattermost:
   require_mention: true
   free_response_channels: ""
