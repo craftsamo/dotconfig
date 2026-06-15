@@ -14,6 +14,8 @@ credential_pool_strategies: {}
 toolsets:
   - hermes-cli
   - kanban
+  - video_gen
+  - video
 max_concurrent_sessions: null
 agent:
   system_prompt: |
@@ -388,6 +390,7 @@ goals:
 skills:
   external_dirs:
     - ~/ghq/github.com/NousResearch/hermes-agent/skills
+    - ~/.hermes/skills
   template_vars: true
   inline_shell: false
   inline_shell_timeout: 10
@@ -568,6 +571,13 @@ platform_toolsets:
     - hermes-discord
 image_gen:
   provider: img-xai-codex-fal
+video_gen:
+  provider: vid-xai-fal
+video_analyze:
+  provider: openrouter
+  model: xiaomi/mimo-v2.5
 plugins:
   enabled:
     - image-fallback
+    - video-fallback
+    - video-analyze-mimo

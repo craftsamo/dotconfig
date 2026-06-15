@@ -14,6 +14,7 @@ credential_pool_strategies: {}
 toolsets:
   - file
   - web
+  - video
 max_concurrent_sessions: null
 agent:
   system_prompt: |
@@ -556,5 +557,9 @@ platform_toolsets:
     - hermes-telegram
   discord:
     - hermes-discord
+video_analyze:
+  provider: openrouter
+  model: xiaomi/mimo-v2.5
 plugins:
-  enabled: []
+  enabled:
+    - video-analyze-mimo
