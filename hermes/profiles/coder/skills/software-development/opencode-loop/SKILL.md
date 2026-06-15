@@ -2,7 +2,7 @@
 name: opencode-loop
 description: Coder's delegate-to-OpenCode loop — quota-gated provider/model routing, plan-first for non-trivial work, independent verification, and structured reporting. CLI mechanics live in the bundled opencode/claude-code/codex skills.
 version: 1.0.0
-author: Hermes Agent
+author: CraftSamo
 metadata:
   hermes:
     tags: [coding, opencode, delegation, model-routing, quota, verification]
