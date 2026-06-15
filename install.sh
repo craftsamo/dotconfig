@@ -151,6 +151,7 @@ link "$DOTFILES/hermes/.no-bundled-skills" "$HOME/.hermes/.no-bundled-skills"
 for p in "$DOTFILES"/hermes/profiles/*/; do
   [ -d "$p" ] || continue
   n="$(basename "$p")"
+  [ -f "$p/config.example.yaml" ] && [ ! -f "$p/config.yaml" ] && { cp "$p/config.example.yaml" "$p/config.yaml"; echo "  seeded $n/config.yaml from template (personalize locally; untracked)"; }
   [ -f "$p/config.yaml" ]        && link "$p/config.yaml"        "$HOME/.hermes/profiles/$n/config.yaml"
   [ -f "$p/profile.yaml" ]       && link "$p/profile.yaml"       "$HOME/.hermes/profiles/$n/profile.yaml"
   [ -f "$p/SOUL.example.md" ] && [ ! -f "$p/SOUL.md" ] && { cp "$p/SOUL.example.md" "$p/SOUL.md"; echo "  seeded $n/SOUL.md from template (personalize locally; untracked)"; }
