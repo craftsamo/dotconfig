@@ -378,7 +378,8 @@ goals:
   max_turns: 20
 skills:
   external_dirs:
-    - ~/ghq/github.com/NousResearch/hermes-agent/skills
+    - ~/ghq/github.com/NousResearch/hermes-agent/skills/research
+    - ~/ghq/github.com/NousResearch/hermes-agent/skills/social-media
   template_vars: true
   inline_shell: false
   inline_shell_timeout: 10
