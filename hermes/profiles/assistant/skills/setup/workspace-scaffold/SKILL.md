@@ -2,7 +2,7 @@
 name: workspace-scaffold
 description: Scaffold a group or repo in ~/Workspaces (nested layout) — make the dirs, git init a repo, and seed a tool-agnostic AGENTS.md from the template.
 version: 1.1.0
-author: Hermes Agent
+author: CraftSamo
 metadata:
   hermes:
     tags: [workspace, scaffold, repo, setup]

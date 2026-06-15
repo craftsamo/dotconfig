@@ -14,7 +14,7 @@ description: >-
   ループ動画, デモ動画, リール, 静止画を動かす, アイキャッチ動画, GIF生成, GIF化,
   GIFスタンプ, ループGIF.
 version: 0.1.0
-author: Hermes Agent
+author: CraftSamo
 license: MIT
 platforms: [macos, linux]
 metadata:

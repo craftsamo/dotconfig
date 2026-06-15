@@ -10,7 +10,7 @@ description: >-
   image, hero image, OG image, Twitter/social card, favicon, app icon, apple-icon,
   illustration, thumbnail, ブランド画像, カバー画像, アイキャッチ, OG画像, ファビコン.
 version: 0.1.0
-author: Hermes Agent
+author: CraftSamo
 license: MIT
 platforms: [macos, linux]
 metadata:
