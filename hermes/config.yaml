@@ -137,8 +137,8 @@ bedrock:
     trace: disabled
 auxiliary:
   vision:
-    provider: openrouter
-    model: xiaomi/mimo-v2.5
+    provider: auto
+    model: ""
     base_url: ""
     api_key: ""
     timeout: 120
@@ -559,7 +559,11 @@ image_gen:
   provider: img-xai-codex-fal
 video_gen:
   provider: vid-xai-fal
+video_analyze:
+  provider: openrouter
+  model: xiaomi/mimo-v2.5
 plugins:
   enabled:
     - image-fallback
     - video-fallback
+    - video-analyze-mimo
