@@ -32,6 +32,10 @@ hermes/**/local/
 hermes/SOUL.md
 hermes/**/SOUL.md
 
+# Assistant config holds a private Telegram chat ID (platforms.*.dm_topics);
+# keep it local. The tracked config.example.yaml is the bootstrap template.
+hermes/profiles/assistant/config.yaml
+
 # Hermes skills: agent-created skills ARE tracked; bundled skills (read via
 # skills.external_dirs from the agent clone) + curator/hub/usage bookkeeping are not
 hermes/**/.bundled_manifest

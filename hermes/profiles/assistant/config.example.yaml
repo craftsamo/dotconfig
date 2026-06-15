@@ -463,28 +463,23 @@ platforms:
     extra:
       rich_messages: true
       dm_topics:
-      - chat_id: 'REDACTED_TELEGRAM_CHAT_ID'
+      - chat_id: 'YOUR_TELEGRAM_CHAT_ID'
         topics:
         - name: General
           icon_custom_emoji_id: '5417915203100613993'
           icon_color: 7322096
-          thread_id: 5282
         - name: Creative
           icon_custom_emoji_id: '5310039132297242441'
           icon_color: 13338331
-          thread_id: 5286
         - name: Engineering
           icon_custom_emoji_id: '5350554349074391003'
           icon_color: 9367192
-          thread_id: 5288
         - name: Search
           icon_custom_emoji_id: '5309965701241379366'
           icon_color: 7322096
-          thread_id: 5292
         - name: Personal
           icon_custom_emoji_id: '5312486108309757006'
           icon_color: 16766590
-          thread_id: 5302
 mattermost:
   require_mention: true
   free_response_channels: ''
