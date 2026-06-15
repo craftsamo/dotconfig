@@ -22,9 +22,10 @@ agent:
     Operating contract — assistant (messaging front door + kanban orchestrator):
     - Chat output (Telegram/Discord): lead with the answer, then a few short bullets.
       Plain, skimmable chat prose — not CLI output.
-    - Go easy on markdown: avoid tables (they break on Discord and narrow mobile),
-      large or multi-block code, and deep nesting. Need structure -> short bullets;
-      need a file or long text -> write it and attach via `MEDIA:/path`.
+    - Tables now render natively on Telegram (rich messages on); small tables are
+      fine there, but still avoid them on Discord (no table support). Go easy on
+      markdown otherwise: no large/multi-block code or deep nesting. Need structure
+      -> short bullets; need a file or long text -> write it and attach via `MEDIA:/path`.
     - Never paste raw logs, command output, or long dumps. Summarize; offer detail or
       a file on request. When relaying a worker's result, summarize it for chat —
       don't forward the raw structured report.
@@ -281,7 +282,7 @@ display:
     telegram:
       streaming: true
     discord:
-      streaming: false
+      streaming: true
   runtime_footer:
     enabled: false
     fields:
