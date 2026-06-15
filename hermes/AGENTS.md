@@ -27,6 +27,12 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
   detailed playbooks are per-profile skills. `SOUL.md` stays persona-only. Do **not**
   run `/personality` on a profile — it shares the `agent.system_prompt` slot and
   silently overwrites the operating contract (the messaging assistant is most at risk).
+- **Media stack lives in `plugins/`.** Backends are chosen via `*_gen.provider` /
+  `plugins.enabled`. Video analysis runs through the `video-analyze-mimo`
+  tool-override (config `video_analyze.model`) so `auxiliary.vision` can stay
+  `auto` — **pinning `auxiliary.vision` to a video-capable model disables the
+  main model's native image vision.** Custom top-level keys (e.g. `video_analyze:`)
+  survive Hermes' config rewrites (`_deep_merge` keeps user keys).
 
 ## Layout
 
@@ -36,6 +42,7 @@ SOUL.md              # default persona (prompt slot #1)
 mcp.json             # MCP servers ({} = none)
 cron/                # jobs.json tracked; output/ + .tick.lock ignored
 skills/              # agent-created skills tracked; .hub/ etc. ignored
+plugins/             # backend chains (image/video gen) + tool overrides; source tracked, __pycache__ ignored
 launchd/             # assistant gateway LaunchAgent (template + launcher)
 profiles/<name>/     # assistant, coder, researcher, searcher
   - config.yaml      # model/fallback + agent.system_prompt (operating contract)
@@ -56,10 +63,11 @@ repo (move real files → `../install.sh`); see `README.md` / `PROFILES.md`.
 
 ## Tracked vs ignored
 
-Tracked: config / SOUL / `profile.yaml`, agent-created skills, `cron/jobs.json`,
-`launchd/`, docs. Ignored (see `../.gitignore`): `auth.json`, `.env`, `memories/`,
-`sessions/`, `state.db*`, `logs/`, `workspace/`, `.hub/`, `.curator_state`,
-`.usage*`, `cron/output/`. Never commit secrets, state, or host-rendered plists.
+Tracked: config / SOUL / `profile.yaml`, agent-created skills, `plugins/` source,
+`cron/jobs.json`, `launchd/`, docs. Ignored (see `../.gitignore`): `auth.json`,
+`.env`, `memories/`, `sessions/`, `state.db*`, `logs/`, `workspace/`, `.hub/`,
+`.curator_state`, `.usage*`, `cron/output/`, `**/__pycache__/`, `*.pyc`. Never
+commit secrets, state, or host-rendered plists.
 
 ## Commands
 
