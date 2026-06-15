@@ -14,6 +14,7 @@ into place.
 | `~/.hermes/mcp.json`    | `hermes/mcp.json`   |
 | `~/.hermes/cron`        | `hermes/cron/`      |
 | `~/.hermes/skills`      | `hermes/skills/`    |
+| `~/.hermes/plugins`     | `hermes/plugins/`   |
 
 ### Skills — agent-created are tracked, bundled are not
 
@@ -37,10 +38,32 @@ tracked — churn is occasional unless a gateway runs cron continuously. The
 per-run logs (`cron/output/`) and scheduler lock (`cron/.tick.lock`) are
 git-ignored.
 
+### Plugins — provider chains & tool overrides
+
+`~/.hermes/plugins` is symlinked to `hermes/plugins/` (and into each profile's
+home — plugin discovery is `HERMES_HOME`-scoped). Plugin **source is tracked**;
+Python bytecode (`**/__pycache__/`, `*.pyc`) is git-ignored. The whole dir is
+symlinked, so a new plugin needs no re-`install.sh` — only `plugins.enabled` in
+the relevant `config.yaml`.
+
+- **image_gen / video_gen fallback chains** (`kind: backend`):
+  `image_gen/image-fallback` registers `img-xai-codex-fal` (xAI → Codex → FAL);
+  `video_gen/video-fallback` registers `vid-xai-fal` (Grok Imagine → FAL) and the
+  reverse `vid-fal-xai`. Pick one per profile via `image_gen.provider` /
+  `video_gen.provider`.
+- **video-analyze-mimo** (`kind: standalone`): overrides the built-in
+  `video_analyze` to route video understanding to a fixed, config-driven backend
+  (`video_analyze: {provider, model}`, default OpenRouter / `xiaomi/mimo-v2.5`),
+  bypassing `auxiliary.vision`. This lets `auxiliary.vision` stay `auto` so images
+  route natively to the active main model while video always lands on a
+  video-capable backend.
+
 ## User-managed content
 
 - `config.yaml` — model/provider, terminal backend, memory, compression,
-  toolsets, `skills.external_dirs`. No secrets. Hermes rewrites this on load.
+  toolsets, `skills.external_dirs`, media backends (`image_gen` / `video_gen` /
+  `video_analyze` providers, `auxiliary.vision`). No secrets. Hermes rewrites
+  this on load.
 - `SOUL.md` — global agent identity (system-prompt slot #1).
 - `mcp.json` — MCP server connections.
 - `skills/<name>/SKILL.md` — version-controlled skills (agent-created land here;
@@ -159,14 +182,15 @@ hermes computer-use status       # verify
 `.env`). Run these yourself (the value is read from stdin, never argv):
 
 ```sh
-secret set OPENROUTER_API_KEY -p hermes   # model T3 fallback + moa + vision
+secret set OPENROUTER_API_KEY -p hermes   # T3 fallback + moa + vision + video analysis (mimo)
 secret set GITHUB_TOKEN       -p hermes   # Skills Hub + copilot T2 fallback
 secret set EXA_API_KEY        -p hermes   # web_search / web_extract
 secret set GROQ_API_KEY       -p hermes   # cloud STT (local faster-whisper needs no key)
 ```
 
-Other optional keys (`-p hermes` unless shared): `FAL_KEY` (image_gen),
-`ELEVENLABS_API_KEY` (premium TTS), `XAI_API_KEY` (x_search / video_gen),
+Other optional keys (`-p hermes` unless shared): `FAL_KEY` (image + video
+generation fallback), `ELEVENLABS_API_KEY` (premium TTS), `XAI_API_KEY`
+(x_search / video_gen),
 `BROWSERBASE_API_KEY` (cloud browser), `TELEGRAM_BOT_TOKEN` /
 `DISCORD_BOT_TOKEN` (gateway). STT/TTS default to free local `faster-whisper` +
 Edge TTS in `config.yaml`.

@@ -1,0 +1,7 @@
+name: video-fallback
+version: 1.0.0
+description: >-
+  Video-generation fallback chains. Registers ordered virtual backends that try
+  each underlying provider in turn (xai Grok Imagine / fal), falling through on
+  error or rate-limit. Select one via video_gen.provider.
+kind: backend

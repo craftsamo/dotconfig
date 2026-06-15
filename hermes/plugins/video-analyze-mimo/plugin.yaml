@@ -1,0 +1,9 @@
+name: video-analyze-mimo
+version: 1.0.0
+description: >-
+  Overrides the built-in video_analyze tool to route video understanding to a
+  fixed, config-driven backend (default: OpenRouter / xiaomi/mimo-v2.5). This
+  decouples video analysis from auxiliary.vision so the main model keeps native
+  image routing (auto) while video always goes to a video-capable model.
+  Configure the backend via the top-level video_analyze: section in config.yaml.
+kind: standalone
