@@ -43,6 +43,9 @@ SOUL.md              # default persona (prompt slot #1)
 mcp.json             # MCP servers ({} = none)
 cron/                # jobs.json tracked; output/ + .tick.lock ignored
 skills/              # agent-created skills tracked; .hub/ etc. ignored
+  workspaces/        # ~/Workspaces data-skill cluster (people/pp, household-budget/hb,
+                     #   projects/pj, message-reply) + _cross.py (shared cross-skill contract,
+                     #   imported not executed; siblings call each other's CLI, never each other's DB)
 plugins/             # backend chains (image/video gen) + tool overrides; source tracked, __pycache__ ignored
 launchd/             # assistant gateway LaunchAgent (template + launcher)
 profiles/<name>/     # assistant, coder, researcher, searcher
