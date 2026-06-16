@@ -3,7 +3,7 @@
 # Silent on success (empty stdout); prints an alert to stdout only on failure,
 # which the cron job then delivers. Apply migrations, refresh FX, back up,
 # refresh the mirror, validate.
-HB="$HOME/.config/hermes/skills/finance/household-budget/scripts/hb"
+HB="$HOME/.config/hermes/skills/workspaces/household-budget/scripts/hb"
 fail=""
 python3 "$HB" migrate         >/dev/null 2>&1 || fail="$fail migrate"
 python3 "$HB" fx-refresh      >/dev/null 2>&1 || fail="$fail fx-refresh"

@@ -11,7 +11,7 @@ author: Hermes Agent
 metadata:
   hermes:
     tags: [message-reply, communication, people, personal, drafting]
-    category: personal
+    category: workspaces
 ---
 
 # Message reply
