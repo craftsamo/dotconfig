@@ -79,7 +79,8 @@
     "skill": {
       "*": "ask",
       "customize-opencode": "allow",
-      "keychain-secrets": "allow"
+      "keychain-secrets": "allow",
+      "approach": "allow"
     },
   },
 }
