@@ -1,7 +1,7 @@
 # migrations/
 
 Incremental schema changes for the HouseholdBudget DB. The baseline schema
-(`../schema.sql`) creates a database at `user_version = 2`. Each migration advances
+(`../schema.sql`) creates a database at `user_version = 5`. Each migration advances
 the database to the next version.
 
 ## Convention

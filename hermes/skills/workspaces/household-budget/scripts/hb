@@ -5,7 +5,7 @@ Analytical, multi-currency household ledger. The DB is the source of truth;
 JSON/CSV under data/export/ is a regenerable mirror. See ../references/data-model.md.
 
 Subcommands:
-  init           create a fresh DB from schema.sql (user_version = 2)
+  init           create a fresh DB from schema.sql (user_version = 5); --seed adds base lookups + sentinels
   migrate        apply pending migrations/ (NNNN_*.sql|.py) by user_version
   import-json    load a mirror (config/entities/transactions/transfers) into the DB
   export         regenerate JSON and/or CSV mirror from the DB
@@ -22,6 +22,7 @@ Subcommands:
   rename-entity  FK-safe id rename
   merge-entity   FK-safe merge of a duplicate into another
   backup         snapshot the DB to data/backups/ (with optional retention)
+  audit          read the append-only change log (budget_audit; filter by --entity)
 
 Money is exact decimal TEXT; reporting currency is JPY. No third-party deps.
 """
@@ -118,6 +119,19 @@ def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def _audit(con, action, tbl=None, entity=None, field=None, old=None, new=None, note=None):
+    """Append a row to the budget_audit change log. Defensive: a pre-0005 DB lacking the
+    table is skipped silently (the next `hb migrate` adds it) so a mutation never fails here."""
+    try:
+        con.execute(
+            "INSERT INTO budget_audit(ts, action, tbl, entity, field, old_value, new_value, note) "
+            "VALUES (?,?,?,?,?,?,?,?)",
+            (now_iso(), action, tbl, entity, field,
+             None if old is None else str(old), None if new is None else str(new), note))
+    except sqlite3.OperationalError:
+        pass
+
+
 def load(path: Path) -> dict:
     return json.loads(Path(path).read_text(encoding="utf-8"))
 
@@ -173,6 +187,25 @@ def D(v) -> Decimal:
 
 
 # --------------------------------------------------------------------------- init
+# Base lookups + sentinels seeded by `init --seed` (mirrors pp/pj). Sentinels keep intake
+# non-blocking and satisfy `hb validate`; safe to re-run (INSERT OR IGNORE). Order respects FKs:
+# currency -> category -> store/item/payment_account (+currency link) -> counterparty.
+def _seed_base(con):
+    con.execute("INSERT OR IGNORE INTO currencies(code, label, decimals) VALUES ('JPY','Japanese yen',0)")
+    con.execute("INSERT OR IGNORE INTO categories(id, label, parent_id, review_status) "
+                "VALUES ('uncategorized','Uncategorized',NULL,'confirmed')")
+    con.execute("INSERT OR IGNORE INTO stores(id, canonical_name, default_category_id, review_status) "
+                "VALUES ('store_unknown','Unknown store','uncategorized','confirmed')")
+    con.execute("INSERT OR IGNORE INTO items(id, canonical_name, default_category_id, review_status) "
+                "VALUES ('item_unknown','Unknown item','uncategorized','confirmed')")
+    con.execute("INSERT OR IGNORE INTO payment_accounts(id, label, type, default_currency, review_status) "
+                "VALUES ('pay_unknown','Unknown account','unknown','JPY','confirmed')")
+    con.execute("INSERT OR IGNORE INTO payment_account_currencies(payment_account_id, currency) "
+                "VALUES ('pay_unknown','JPY')")
+    con.execute("INSERT OR IGNORE INTO counterparties(id, canonical_name, type, default_scope, review_status) "
+                "VALUES ('cp_unknown','Unknown counterparty','unknown','excluded','confirmed')")
+
+
 def cmd_init(args):
     p = db_path(args)
     if p.exists():
@@ -182,9 +215,12 @@ def cmd_init(args):
     p.parent.mkdir(parents=True, exist_ok=True)
     con = sqlite3.connect(str(p))
     con.executescript(SCHEMA_PATH.read_text(encoding="utf-8"))
+    if args.seed:
+        con.execute("PRAGMA foreign_keys = ON")
+        _seed_base(con)
     con.commit()
     con.close()
-    print(f"initialized {p} (user_version=2)")
+    print(f"initialized {p} (user_version=5)" + (" + seeded base lookups/sentinels" if args.seed else ""))
 
 
 # --------------------------------------------------------------------------- migrate
@@ -428,6 +464,7 @@ def cmd_import(args):
                 for t in load(f).get("transfers", []):
                     _insert_transfer(con, t)
                     xc += 1
+        _audit(con, "import", note=f"{tc} txns, {lc} line_items, {cc} claims, {xc} transfers from {src}")
         con.execute("COMMIT")
     except Exception:
         con.execute("ROLLBACK")
@@ -685,6 +722,7 @@ def cmd_add(args):
     con.execute("BEGIN")
     try:
         _insert_txn(con, t)
+        _audit(con, "add", "transactions", t["id"], new=t["id"], note=t.get("budget_scope"))
         con.execute("COMMIT")
     except Exception:
         con.execute("ROLLBACK")
@@ -725,6 +763,7 @@ def cmd_transfer(args):
     con.execute("BEGIN")
     try:
         _insert_transfer(con, t)
+        _audit(con, "transfer", "transfers", t["id"], new=t["id"])
         con.execute("COMMIT")
     except Exception:
         con.execute("ROLLBACK")
@@ -1150,11 +1189,14 @@ def _set_status(args, value):
     if etype in ("transaction", "transfer"):
         table = "transactions" if etype == "transaction" else "transfers"
         con.execute(f"UPDATE {table} SET status = ?, updated_at = ? WHERE id = ?", (value, now_iso(), args.id))
+        field = "status"
     else:
         table = ENTITY_TABLE[etype]
         con.execute(f"UPDATE {table} SET review_status = ? WHERE id = ?", (value, args.id))
+        field = "review_status"
     if con.total_changes == 0:
         die(f"no {etype} with id {args.id}")
+    _audit(con, value, table, args.id, field=field, new=value)
     print(json.dumps({"action": value, "kind": etype, "id": args.id}, ensure_ascii=False))
 
 
@@ -1186,6 +1228,7 @@ def cmd_rename(args):
         bad = con.execute("PRAGMA foreign_key_check").fetchall()
         if bad:
             raise RuntimeError(f"foreign_key_check failed: {bad}")
+        _audit(con, "rename", table, args.new, field="id", old=args.old, new=args.new)
         con.execute("COMMIT")
     except Exception:
         con.execute("ROLLBACK")
@@ -1221,6 +1264,7 @@ def cmd_merge(args):
         bad = con.execute("PRAGMA foreign_key_check").fetchall()
         if bad:
             raise RuntimeError(f"foreign_key_check failed: {bad}")
+        _audit(con, "merge", table, args.into, field="id", old=args.old, new=args.into)
         con.execute("COMMIT")
     except Exception:
         con.execute("ROLLBACK")
@@ -1284,6 +1328,7 @@ def cmd_upsert(args):
             for c in curs:
                 con.execute("INSERT OR IGNORE INTO payment_account_currencies(payment_account_id, currency) VALUES (?,?)", (eid, c))
         _add_aliases(con, etype, eid, args.name, args.alias)
+        _audit(con, "upsert", table, eid, new=eid)
         con.execute("COMMIT")
     except Exception:
         con.execute("ROLLBACK")
@@ -1308,6 +1353,32 @@ def cmd_backup(args):
         for old in files[:-args.keep]:
             old.unlink()
             print(f"pruned {old.name}")
+
+
+# --------------------------------------------------------------------------- audit
+def cmd_audit(args):
+    con = connect(args)
+    q = "SELECT ts, action, tbl, entity, field, old_value, new_value, note FROM budget_audit"
+    params = []
+    if args.entity:
+        q += " WHERE entity = ?"; params.append(args.entity)
+    q += " ORDER BY seq DESC"
+    if args.limit:
+        q += " LIMIT ?"; params.append(args.limit)
+    rows = con.execute(q, params).fetchall()
+    if not rows:
+        print("No audit entries.")
+        return
+    for r in rows:
+        if r["field"]:
+            chg = f"  {r['field']}: {r['old_value']!r} -> {r['new_value']!r}"
+        elif r["new_value"]:
+            chg = f"  {r['new_value']}"
+        else:
+            chg = ""
+        ent = f"  {r['entity']}" if r["entity"] else ""
+        tail = f"  ({r['note']})" if r["note"] else ""
+        print(f"  {r['ts']}  {r['action']}  [{r['tbl'] or '-'}]{ent}{chg}{tail}")
 
 
 # --------------------------------------------------------------------------- export
@@ -1594,7 +1665,8 @@ def build_parser():
     p.add_argument("--db", help="override DB path (default: <root>/data/budget.db)")
     sub = p.add_subparsers(dest="cmd", required=True)
 
-    s = sub.add_parser("init"); s.add_argument("--force", action="store_true"); s.set_defaults(func=cmd_init)
+    s = sub.add_parser("init"); s.add_argument("--force", action="store_true")
+    s.add_argument("--seed", action="store_true", help="seed base lookups + sentinels"); s.set_defaults(func=cmd_init)
 
     s = sub.add_parser("migrate"); s.add_argument("--dry-run", action="store_true"); s.set_defaults(func=cmd_migrate)
 
@@ -1660,6 +1732,9 @@ def build_parser():
     s.add_argument("--old", required=True); s.add_argument("--into", required=True); s.set_defaults(func=cmd_merge)
 
     s = sub.add_parser("backup"); s.add_argument("--out"); s.add_argument("--keep", type=int); s.set_defaults(func=cmd_backup)
+
+    s = sub.add_parser("audit", help="read the append-only change log"); s.add_argument("--entity")
+    s.add_argument("--limit", type=int); s.set_defaults(func=cmd_audit)
 
     s = sub.add_parser("upsert-entity")
     s.add_argument("--kind", required=True, choices=list(ENTITY_TABLE))
