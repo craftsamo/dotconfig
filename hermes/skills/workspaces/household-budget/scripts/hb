@@ -1,0 +1,1767 @@
+#!/usr/bin/env python3
+"""hb — HouseholdBudget DB engine (SQLite v2, Python stdlib only).
+
+Analytical, multi-currency household ledger. The DB is the source of truth;
+JSON/CSV under data/export/ is a regenerable mirror. See ../references/data-model.md.
+
+Subcommands:
+  init           create a fresh DB from schema.sql (user_version = 5); --seed adds base lookups + sentinels
+  migrate        apply pending migrations/ (NNNN_*.sql|.py) by user_version
+  import-json    load a mirror (config/entities/transactions/transfers) into the DB
+  export         regenerate JSON and/or CSV mirror from the DB
+  add            normalize + append a transaction draft
+  transfer       add a two-sided transfer/exchange draft
+  validate       integrity + business-rule checks
+  summary        monthly totals by scope/category/store/currency/project
+  report         flexible aggregation: --by <axis> with filters (the analytical core)
+  subscriptions  active subscriptions + monthly-normalized cost
+  reimbursements open reimbursable report by counterparty
+  review         list pending (needs_review) entities and facts
+  confirm/ignore flip review_status/status (id never changes)
+  upsert-entity  create a pending master with a stable, state-free id
+  rename-entity  FK-safe id rename
+  merge-entity   FK-safe merge of a duplicate into another
+  backup         snapshot the DB to data/backups/ (with optional retention)
+  audit          read the append-only change log (budget_audit; filter by --entity)
+
+Money is exact decimal TEXT; reporting currency is JPY. No third-party deps.
+"""
+from __future__ import annotations
+
+import argparse
+import csv
+import html
+import importlib.util
+import json
+import re
+import sqlite3
+import sys
+import unicodedata
+from datetime import datetime, timezone, timedelta
+from decimal import Decimal, ROUND_HALF_UP
+from pathlib import Path
+
+DEFAULT_ROOT = Path.home() / "Workspaces" / "Personal" / "HouseholdBudget"
+SKILL_DIR = Path(__file__).resolve().parent.parent
+SCHEMA_PATH = SKILL_DIR / "schema.sql"
+MIGRATIONS_DIR = SKILL_DIR / "migrations"
+REPORTING_CURRENCY = "JPY"
+
+# shared cross-skill contract/resolver (degrade gracefully if unavailable)
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # skills/workspaces/
+try:
+    import _cross
+except Exception:  # pragma: no cover
+    _cross = None
+
+MONEY_RE = re.compile(r"^\d+(?:\.\d+)?$")
+DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+CLAIM_REQUIRED_SCOPES = {"business_expense", "reimbursable", "shared"}
+
+TXN_COLUMNS = [
+    "id", "date", "type", "amount_value", "amount_currency",
+    "reporting_value", "reporting_currency", "fx_rate", "fx_date", "fx_source",
+    "store_raw_name", "store_id", "store_confidence",
+    "payment_account_id", "payment_raw_text", "payment_confidence",
+    "category_id", "budget_scope", "project_id", "status", "confidence",
+    "source_kind", "source_document_saved", "source_raw_text_saved",
+    "source_summary", "source_organization", "source_external_ref",
+    "note", "subscription_id", "created_at", "updated_at",
+]
+
+TRANSFER_COLUMNS = [
+    "id", "date", "from_account_id", "from_value", "from_currency",
+    "to_account_id", "to_value", "to_currency",
+    "fee_value", "fee_currency", "fee_account_id",
+    "fx_rate", "reporting_value", "status", "confidence",
+    "source_kind", "source_document_saved", "source_raw_text_saved",
+    "source_summary", "note", "created_at", "updated_at",
+]
+
+# PK table per master entity type.
+ENTITY_TABLE = {
+    "store": "stores", "item": "items", "category": "categories",
+    "payment_account": "payment_accounts", "counterparty": "counterparties",
+    "project": "projects",
+}
+# (table, column) foreign-key references per entity type, for rename/merge.
+ENTITY_REFS = {
+    "store": [("transactions", "store_id"), ("store_payment_options", "store_id"),
+              ("subscriptions", "store_id")],
+    "item": [("transaction_line_items", "item_id"), ("subscriptions", "item_id")],
+    "category": [("stores", "default_category_id"), ("items", "default_category_id"),
+                 ("transactions", "category_id"), ("transaction_line_items", "category_id"),
+                 ("categories", "parent_id")],
+    "payment_account": [("transactions", "payment_account_id"),
+                        ("payment_account_currencies", "payment_account_id"),
+                        ("store_payment_options", "payment_account_id"),
+                        ("transfers", "from_account_id"), ("transfers", "to_account_id"),
+                        ("transfers", "fee_account_id")],
+    "counterparty": [("claims", "counterparty_id"), ("subscriptions", "counterparty_id"),
+                     ("projects", "default_counterparty_id")],
+    "project": [("transactions", "project_id"), ("subscriptions", "project_id")],
+}
+# junction tables whose rows may collide on merge (handle with UPDATE OR IGNORE + cleanup).
+JUNCTION_TABLES = {"store_payment_options", "payment_account_currencies"}
+
+ID_PREFIX = {"store": "store_", "item": "item_", "payment_account": "pay_",
+             "counterparty": "cp_", "project": "proj_"}
+
+
+# --------------------------------------------------------------------------- helpers
+def die(msg: str):
+    print(f"hb: {msg}", file=sys.stderr)
+    raise SystemExit(1)
+
+
+def now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _audit(con, action, tbl=None, entity=None, field=None, old=None, new=None, note=None):
+    """Append a row to the budget_audit change log. Defensive: a pre-0005 DB lacking the
+    table is skipped silently (the next `hb migrate` adds it) so a mutation never fails here."""
+    try:
+        con.execute(
+            "INSERT INTO budget_audit(ts, action, tbl, entity, field, old_value, new_value, note) "
+            "VALUES (?,?,?,?,?,?,?,?)",
+            (now_iso(), action, tbl, entity, field,
+             None if old is None else str(old), None if new is None else str(new), note))
+    except sqlite3.OperationalError:
+        pass
+
+
+def load(path: Path) -> dict:
+    return json.loads(Path(path).read_text(encoding="utf-8"))
+
+
+def normalize_text(s) -> str:
+    s = unicodedata.normalize("NFKC", s or "")
+    s = s.casefold()
+    return re.sub(r"\s+", " ", s).strip()
+
+
+def slugify(s) -> str:
+    s = unicodedata.normalize("NFKD", s or "")
+    s = s.encode("ascii", "ignore").decode("ascii").casefold()
+    s = re.sub(r"[^a-z0-9]+", "_", s).strip("_")
+    return s or "unknown"
+
+
+def db_path(args) -> Path:
+    if getattr(args, "db", None):
+        return Path(args.db)
+    return Path(args.root) / "data" / "budget.db"
+
+
+def connect(args, *, must_exist=True) -> sqlite3.Connection:
+    p = db_path(args)
+    if must_exist and not p.exists():
+        die(f"DB not found: {p}  (run: hb init)")
+    con = sqlite3.connect(str(p))
+    con.isolation_level = None
+    con.row_factory = sqlite3.Row
+    con.execute("PRAGMA foreign_keys = ON")
+    return con
+
+
+def decimals_map(con) -> dict:
+    return {r["code"]: r["decimals"] for r in con.execute("SELECT code, decimals FROM currencies")}
+
+
+def fmt_money(value: Decimal, currency: str, decs: dict) -> str:
+    d = decs.get(currency, 2)
+    return f"{value:,.{d}f} {currency}"
+
+
+def fmt_jpy(value: Decimal) -> str:
+    return f"{value:,.0f} JPY"
+
+
+def D(v) -> Decimal:
+    try:
+        return Decimal(str(v))
+    except Exception:
+        return Decimal(0)
+
+
+# --------------------------------------------------------------------------- init
+# Base lookups + sentinels seeded by `init --seed` (mirrors pp/pj). Sentinels keep intake
+# non-blocking and satisfy `hb validate`; safe to re-run (INSERT OR IGNORE). Order respects FKs:
+# currency -> category -> store/item/payment_account (+currency link) -> counterparty.
+def _seed_base(con):
+    con.execute("INSERT OR IGNORE INTO currencies(code, label, decimals) VALUES ('JPY','Japanese yen',0)")
+    con.execute("INSERT OR IGNORE INTO categories(id, label, parent_id, review_status) "
+                "VALUES ('uncategorized','Uncategorized',NULL,'confirmed')")
+    con.execute("INSERT OR IGNORE INTO stores(id, canonical_name, default_category_id, review_status) "
+                "VALUES ('store_unknown','Unknown store','uncategorized','confirmed')")
+    con.execute("INSERT OR IGNORE INTO items(id, canonical_name, default_category_id, review_status) "
+                "VALUES ('item_unknown','Unknown item','uncategorized','confirmed')")
+    con.execute("INSERT OR IGNORE INTO payment_accounts(id, label, type, default_currency, review_status) "
+                "VALUES ('pay_unknown','Unknown account','unknown','JPY','confirmed')")
+    con.execute("INSERT OR IGNORE INTO payment_account_currencies(payment_account_id, currency) "
+                "VALUES ('pay_unknown','JPY')")
+    con.execute("INSERT OR IGNORE INTO counterparties(id, canonical_name, type, default_scope, review_status) "
+                "VALUES ('cp_unknown','Unknown counterparty','unknown','excluded','confirmed')")
+
+
+def cmd_init(args):
+    p = db_path(args)
+    if p.exists():
+        if not args.force:
+            die(f"DB already exists: {p}  (use --force to recreate, or hb migrate to upgrade)")
+        p.unlink()
+    p.parent.mkdir(parents=True, exist_ok=True)
+    con = sqlite3.connect(str(p))
+    con.executescript(SCHEMA_PATH.read_text(encoding="utf-8"))
+    if args.seed:
+        con.execute("PRAGMA foreign_keys = ON")
+        _seed_base(con)
+    con.commit()
+    con.close()
+    print(f"initialized {p} (user_version=5)" + (" + seeded base lookups/sentinels" if args.seed else ""))
+
+
+# --------------------------------------------------------------------------- migrate
+def _migration_files():
+    out = []
+    if MIGRATIONS_DIR.exists():
+        for f in sorted(MIGRATIONS_DIR.iterdir()):
+            m = re.match(r"^(\d+)_.*\.(sql|py)$", f.name)
+            if m:
+                out.append((int(m.group(1)), f))
+    return sorted(out)
+
+
+def cmd_migrate(args):
+    con = connect(args)
+    cur = con.execute("PRAGMA user_version").fetchone()[0]
+    pending = [(v, f) for v, f in _migration_files() if v > cur]
+    if not pending:
+        print(f"up to date (user_version={cur})")
+        return
+    for v, f in pending:
+        if args.dry_run:
+            print(f"would apply {f.name} -> user_version={v}")
+            continue
+        if f.suffix == ".sql":
+            # executescript() commits any pending txn first, so wrap the body in an
+            # explicit transaction *inside* the script to keep the migration atomic.
+            body = f.read_text(encoding="utf-8")
+            try:
+                con.executescript(f"BEGIN;\n{body}\nPRAGMA user_version = {v};\nCOMMIT;")
+            except Exception:
+                try:
+                    con.execute("ROLLBACK")
+                except Exception:
+                    pass
+                raise
+        else:
+            con.execute("BEGIN")
+            con.execute("PRAGMA defer_foreign_keys = ON")
+            try:
+                spec = importlib.util.spec_from_file_location(f.stem, f)
+                mod = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(mod)
+                mod.up(con)
+                bad = con.execute("PRAGMA foreign_key_check").fetchall()
+                if bad:
+                    raise RuntimeError(f"foreign_key_check failed after {f.name}: {bad}")
+                con.execute(f"PRAGMA user_version = {v}")
+                con.execute("COMMIT")
+            except Exception:
+                con.execute("ROLLBACK")
+                raise
+        print(f"applied {f.name} -> user_version={v}")
+
+
+# --------------------------------------------------------------------------- aliases / inserts
+def _add_aliases(con, etype, eid, primary, aliases):
+    seen, rows = set(), []
+    for i, name in enumerate([primary] + list(aliases or [])):
+        if not name:
+            continue
+        norm = normalize_text(name)
+        if not norm or norm in seen:
+            continue
+        seen.add(norm)
+        rows.append((etype, eid, name, norm, 1 if i == 0 else 0))
+    con.executemany(
+        "INSERT OR IGNORE INTO entity_aliases(entity_type, entity_id, alias, alias_norm, is_primary) "
+        "VALUES (?,?,?,?,?)", rows)
+
+
+def _ensure_axis(con, axis):
+    con.execute("INSERT OR IGNORE INTO tag_axes(axis, label, review_status) VALUES (?,?, 'confirmed')",
+                (axis, axis))
+
+
+def _insert_txn(con, t):
+    amount = t.get("amount") or {}
+    rep = t.get("reporting_amount") or {}
+    store = t.get("store") or {}
+    pay = t.get("payment") or {}
+    src = t.get("source") or {}
+    if not rep:
+        if amount.get("currency") == REPORTING_CURRENCY:
+            rep = {"value": amount.get("value"), "currency": REPORTING_CURRENCY,
+                   "fx_rate": "1", "fx_date": t["date"], "fx_source": "not_required"}
+        else:
+            die(f"{t.get('id')}: reporting_amount required for non-JPY transaction")
+    ext = src.get("external_reference")
+    ext_json = json.dumps(ext, ensure_ascii=False) if ext else None
+    values = (
+        t["id"], t["date"], t.get("type", "expense"),
+        amount["value"], amount["currency"],
+        rep["value"], rep.get("currency", REPORTING_CURRENCY), rep["fx_rate"], rep["fx_date"], rep["fx_source"],
+        store.get("raw_name"), store.get("store_id"), store.get("confidence"),
+        pay["payment_account_id"], pay.get("raw_text"), pay.get("confidence"),
+        t["category_id"], t.get("budget_scope", "household"), t.get("project_id"),
+        t["status"], t.get("confidence", 1),
+        src.get("kind"), 1 if src.get("document_saved") else 0, 1 if src.get("raw_text_saved") else 0,
+        src.get("summary"), src.get("organization"), ext_json,
+        t.get("note"), t.get("subscription_id"),
+        t.get("created_at") or now_iso(), t.get("updated_at") or now_iso(),
+    )
+    con.execute(
+        f"INSERT INTO transactions ({','.join(TXN_COLUMNS)}) VALUES ({','.join('?' * len(TXN_COLUMNS))})",
+        values)
+    for i, li in enumerate(t.get("line_items") or [], start=1):
+        la = li.get("amount") or {}
+        con.execute(
+            "INSERT INTO transaction_line_items(txn_id, seq, raw_name, item_id, amount_value, amount_currency, category_id, confidence) "
+            "VALUES (?,?,?,?,?,?,?,?)",
+            (t["id"], i, li.get("raw_name", ""), li.get("item_id"),
+             la.get("value"), la.get("currency"), li.get("category_id", "uncategorized"), li.get("confidence")))
+    cl = t.get("claim")
+    if cl:
+        ea = cl.get("expected_reimbursement_amount") or {}
+        con.execute(
+            "INSERT INTO claims(txn_id, counterparty_id, status, expected_value, expected_currency, submitted_at, "
+            "reimbursed_at, linked_original_txn_id, linked_reimbursement_txn_id, note) VALUES (?,?,?,?,?,?,?,?,?,?)",
+            (t["id"], cl["counterparty_id"], cl["status"], ea.get("value"), ea.get("currency"),
+             cl.get("submitted_at"), cl.get("reimbursed_at"),
+             cl.get("linked_original_transaction_id"), cl.get("linked_reimbursement_transaction_id"), cl.get("note")))
+    for tag in t.get("tags") or []:
+        axis, val = tag.get("axis"), tag.get("value")
+        if not axis or val is None:
+            continue
+        _ensure_axis(con, axis)
+        con.execute("INSERT OR IGNORE INTO transaction_tags(txn_id, axis, value, value_norm) VALUES (?,?,?,?)",
+                    (t["id"], axis, val, normalize_text(val)))
+
+
+def _insert_transfer(con, t):
+    frm = t.get("from") or {}
+    to = t.get("to") or {}
+    fee = t.get("fee") or {}
+    fa, ta = frm.get("amount") or {}, to.get("amount") or {}
+    rep = t.get("reporting_amount") or {}
+    src = t.get("source") or {}
+    values = (
+        t["id"], t["date"],
+        frm["payment_account_id"], fa["value"], fa["currency"],
+        to["payment_account_id"], ta["value"], ta["currency"],
+        fee.get("value"), fee.get("currency"), fee.get("payment_account_id"),
+        t.get("fx_rate"), rep.get("value"), t.get("status", "needs_review"), t.get("confidence", 1),
+        src.get("kind"), 1 if src.get("document_saved") else 0, 1 if src.get("raw_text_saved") else 0,
+        src.get("summary"), t.get("note"),
+        t.get("created_at") or now_iso(), t.get("updated_at") or now_iso(),
+    )
+    con.execute(
+        f"INSERT INTO transfers ({','.join(TRANSFER_COLUMNS)}) VALUES ({','.join('?' * len(TRANSFER_COLUMNS))})",
+        values)
+
+
+# --------------------------------------------------------------------------- import
+def cmd_import(args):
+    src = Path(args.src) if args.src else Path(args.root) / "data" / "export"
+    con = connect(args)
+    n = con.execute("SELECT COUNT(*) FROM transactions").fetchone()[0]
+    if n and not args.force:
+        die(f"DB already has {n} transactions (use --force to re-import into an empty DB)")
+    con.execute("BEGIN")
+    con.execute("PRAGMA defer_foreign_keys = ON")
+    try:
+        for c in load(src / "config" / "currencies.json")["currencies"]:
+            con.execute("INSERT INTO currencies(code, label, decimals) VALUES (?,?,?)",
+                        (c["code"], c.get("label") or c.get("name") or c["code"], int(c["decimals"])))
+        for c in load(src / "config" / "categories.json")["categories"]:
+            con.execute("INSERT INTO categories(id, label, parent_id, review_status) VALUES (?,?,?,?)",
+                        (c["id"], c["label"], c.get("parent_id"), c.get("review_status", "confirmed")))
+            _add_aliases(con, "category", c["id"], c["label"], c.get("aliases"))
+        tax = src / "config" / "tag_axes.json"
+        if tax.exists():
+            for a in load(tax)["tag_axes"]:
+                con.execute("INSERT OR IGNORE INTO tag_axes(axis, label, review_status) VALUES (?,?,?)",
+                            (a["axis"], a.get("label", a["axis"]), a.get("review_status", "confirmed")))
+        for a in load(src / "entities" / "payment_accounts.json")["payment_accounts"]:
+            con.execute("INSERT INTO payment_accounts(id, label, type, default_currency, display_hint, review_status) "
+                        "VALUES (?,?,?,?,?,?)",
+                        (a["id"], a["label"], a["type"], a["default_currency"],
+                         a.get("display_hint"), a.get("review_status", "confirmed")))
+            for cu in a.get("currencies", []):
+                con.execute("INSERT OR IGNORE INTO payment_account_currencies(payment_account_id, currency) VALUES (?,?)",
+                            (a["id"], cu))
+            _add_aliases(con, "payment_account", a["id"], a["label"], a.get("aliases"))
+        cpf = src / "entities" / "counterparties.json"
+        if cpf.exists():
+            for cp in load(cpf)["counterparties"]:
+                con.execute("INSERT INTO counterparties(id, canonical_name, type, default_scope, review_status, person_id) "
+                            "VALUES (?,?,?,?,?,?)",
+                            (cp["id"], cp["canonical_name"], cp.get("type", "unknown"),
+                             cp.get("default_scope", "reimbursable"), cp.get("review_status", "confirmed"), cp.get("person_id")))
+                _add_aliases(con, "counterparty", cp["id"], cp["canonical_name"], cp.get("aliases"))
+        prf = src / "entities" / "projects.json"
+        if prf.exists():
+            for p in load(prf)["projects"]:
+                con.execute("INSERT INTO projects(id, canonical_name, dir_path, default_counterparty_id, "
+                            "default_scope, review_status, last_seen_at) VALUES (?,?,?,?,?,?,?)",
+                            (p["id"], p["canonical_name"], p.get("dir_path"), p.get("default_counterparty_id"),
+                             p.get("default_scope", "business_expense"), p.get("review_status", "confirmed"),
+                             p.get("last_seen_at")))
+                _add_aliases(con, "project", p["id"], p["canonical_name"], p.get("aliases"))
+        payopts = []
+        for s in load(src / "entities" / "stores.json")["stores"]:
+            con.execute("INSERT INTO stores(id, canonical_name, default_category_id, review_status, last_seen_at) "
+                        "VALUES (?,?,?,?,?)",
+                        (s["id"], s["canonical_name"], s.get("default_category_id", "uncategorized"),
+                         s.get("review_status", "confirmed"), s.get("last_seen_at")))
+            _add_aliases(con, "store", s["id"], s["canonical_name"], s.get("aliases"))
+            for po in s.get("payment_options", []):
+                payopts.append((s["id"], po["payment_account_id"], po["currency"], 1 if po.get("default") else 0))
+        for it in load(src / "entities" / "items.json")["items"]:
+            con.execute("INSERT INTO items(id, canonical_name, default_category_id, review_status, last_seen_at) "
+                        "VALUES (?,?,?,?,?)",
+                        (it["id"], it["canonical_name"], it.get("default_category_id", "uncategorized"),
+                         it.get("review_status", "confirmed"), it.get("last_seen_at")))
+            _add_aliases(con, "item", it["id"], it["canonical_name"], it.get("aliases"))
+        for po in payopts:
+            con.execute("INSERT INTO store_payment_options(store_id, payment_account_id, currency, is_default) "
+                        "VALUES (?,?,?,?)", po)
+        for su in load(src / "entities" / "subscriptions.json")["subscriptions"]:
+            ea = su.get("expected_amount") or {}
+            con.execute("INSERT INTO subscriptions(id, name, store_id, item_id, budget_scope, project_id, "
+                        "counterparty_id, billing_cycle, expected_value, expected_currency, review_status, note) "
+                        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                        (su["id"], su["name"], su.get("store_id"), su.get("item_id"),
+                         su.get("budget_scope", "household"), su.get("project_id"), su.get("counterparty_id"),
+                         su.get("billing_cycle", "unknown"), ea.get("value"), ea.get("currency"),
+                         su.get("review_status", "confirmed"), su.get("note")))
+        tc = lc = cc = xc = 0
+        tdir = src / "transactions"
+        if tdir.exists():
+            for f in sorted(tdir.glob("*.json")):
+                for t in load(f).get("transactions", []):
+                    _insert_txn(con, t)
+                    tc += 1
+                    lc += len(t.get("line_items") or [])
+                    cc += 1 if t.get("claim") else 0
+        xdir = src / "transfers"
+        if xdir.exists():
+            for f in sorted(xdir.glob("*.json")):
+                for t in load(f).get("transfers", []):
+                    _insert_transfer(con, t)
+                    xc += 1
+        _audit(con, "import", note=f"{tc} txns, {lc} line_items, {cc} claims, {xc} transfers from {src}")
+        con.execute("COMMIT")
+    except Exception:
+        con.execute("ROLLBACK")
+        raise
+    print(f"imported: {tc} transactions, {lc} line_items, {cc} claims, {xc} transfers from {src}")
+
+
+# --------------------------------------------------------------------------- validate
+def cmd_validate(args):
+    con = connect(args)
+    errs = []
+    ic = con.execute("PRAGMA integrity_check").fetchone()[0]
+    if ic != "ok":
+        errs.append(f"integrity_check: {ic}")
+    for r in con.execute("PRAGMA foreign_key_check").fetchall():
+        errs.append(f"FK violation in {r[0]} (rowid={r[1]}) -> {r[2]}")
+
+    def money_ok(v):
+        return isinstance(v, str) and bool(MONEY_RE.match(v))
+
+    for r in con.execute("SELECT id, amount_value, reporting_value, fx_rate, fx_date FROM transactions"):
+        if not money_ok(r["amount_value"]):
+            errs.append(f"{r['id']}: bad amount_value {r['amount_value']!r}")
+        if not money_ok(r["reporting_value"]):
+            errs.append(f"{r['id']}: bad reporting_value {r['reporting_value']!r}")
+        if not money_ok(r["fx_rate"]) or float(r["fx_rate"]) <= 0:
+            errs.append(f"{r['id']}: bad fx_rate {r['fx_rate']!r}")
+        if not DATE_RE.match(r["fx_date"] or ""):
+            errs.append(f"{r['id']}: bad fx_date {r['fx_date']!r}")
+    for r in con.execute("SELECT txn_id, seq, amount_value FROM transaction_line_items"):
+        if not money_ok(r["amount_value"]):
+            errs.append(f"{r['txn_id']}#{r['seq']}: bad line_item amount_value {r['amount_value']!r}")
+    for r in con.execute(
+        "SELECT t.id, t.budget_scope FROM transactions t LEFT JOIN claims c ON c.txn_id = t.id "
+        "WHERE t.budget_scope IN ('business_expense','reimbursable','shared') AND c.txn_id IS NULL"):
+        errs.append(f"{r['id']}: budget_scope {r['budget_scope']} requires a claim")
+    for r in con.execute("SELECT from_value, to_value, from_account_id, to_account_id, id FROM transfers"):
+        if not money_ok(r["from_value"]) or not money_ok(r["to_value"]):
+            errs.append(f"{r['id']}: bad transfer amount")
+        if r["from_account_id"] == r["to_account_id"]:
+            errs.append(f"{r['id']}: transfer from == to account")
+    for r in con.execute("SELECT txn_id, expected_value FROM claims WHERE expected_value IS NOT NULL"):
+        if not money_ok(r["expected_value"]):
+            errs.append(f"{r['txn_id']}: bad claim expected_value {r['expected_value']!r}")
+    for r in con.execute(
+        "SELECT p.id FROM payment_accounts p WHERE NOT EXISTS "
+        "(SELECT 1 FROM payment_account_currencies pc WHERE pc.payment_account_id = p.id AND pc.currency = p.default_currency)"):
+        errs.append(f"{r['id']}: default_currency not in account currencies")
+    for sid in ("store_unknown", "item_unknown", "pay_unknown", "cp_unknown", "uncategorized"):
+        tbl = {"store_unknown": "stores", "item_unknown": "items", "pay_unknown": "payment_accounts",
+               "cp_unknown": "counterparties", "uncategorized": "categories"}[sid]
+        if not con.execute(f"SELECT 1 FROM {tbl} WHERE id = ?", (sid,)).fetchone():
+            errs.append(f"missing sentinel {sid} in {tbl}")
+
+    # person-type counterparties must resolve to the People registry. We call the People CLI
+    # (`pp list --json`) rather than opening people.db — see ../../_cross. Skip with a warning
+    # if People is unavailable.
+    person_cps = con.execute("SELECT id, person_id FROM counterparties WHERE type = 'person'").fetchall()
+    if person_cps:
+        valid_people = None
+        if _cross is not None and _cross.available("people"):
+            data = _cross.call("people", ["list", "--json"])
+            if data is not None:
+                valid_people = {p["id"] for p in data.get("persons", [])}
+            else:
+                print("WARN: People cross-check skipped (no data from pp)", file=sys.stderr)
+        else:
+            print("WARN: People CLI unavailable; skipping person_id cross-check", file=sys.stderr)
+        if valid_people is not None:
+            for r in person_cps:
+                if not r["person_id"]:
+                    errs.append(f"{r['id']}: counterparty type=person without person_id")
+                elif r["person_id"] not in valid_people:
+                    errs.append(f"{r['id']}: person_id {r['person_id']!r} not in People registry")
+
+    if errs:
+        for e in errs:
+            print(f"ERROR: {e}", file=sys.stderr)
+        print(f"{len(errs)} error(s)", file=sys.stderr)
+        raise SystemExit(1)
+    print("HouseholdBudget DB validation passed.")
+
+
+# --------------------------------------------------------------------------- add (transaction)
+def _alias_map(con, etype):
+    m = {}
+    for r in con.execute("SELECT entity_id, alias_norm FROM entity_aliases WHERE entity_type = ?", (etype,)):
+        m.setdefault(r["alias_norm"], r["entity_id"])
+    return m
+
+
+def _select_payopt(opts, currency):
+    if currency:
+        f = [o for o in opts if o["currency"] == currency]
+        if len(f) == 1:
+            return f[0]
+        for o in f:
+            if o["is_default"]:
+                return o
+    for o in opts:
+        if o["is_default"]:
+            return o
+    return opts[0] if len(opts) == 1 else None
+
+
+def _ensure_claim(t, counterparty_id):
+    claim = t.setdefault("claim", {})
+    claim.setdefault("counterparty_id", counterparty_id)
+    claim.setdefault("status", "not_submitted")
+    claim.setdefault("expected_reimbursement_amount", dict(t.get("amount") or {}) or None)
+    for k in ("submitted_at", "reimbursed_at", "linked_original_transaction_id",
+              "linked_reimbursement_transaction_id"):
+        claim.setdefault(k, None)
+    claim.setdefault("note", "")
+
+
+def _needs_review(t, stores, items, pacc):
+    if t.get("category_id") in (None, "uncategorized"):
+        return True
+    sid = t.get("store", {}).get("store_id")
+    pid = t.get("payment", {}).get("payment_account_id")
+    if not sid or not pid:
+        return True
+    if sid in stores and stores[sid]["review_status"] == "needs_review":
+        return True
+    if pid in pacc and pacc[pid]["review_status"] == "needs_review":
+        return True
+    for li in t.get("line_items", []):
+        iid = li.get("item_id")
+        if iid in items and items[iid]["review_status"] == "needs_review":
+            return True
+    return False
+
+
+def _next_txn_id(con, date, store_id):
+    base = (store_id or "store_unknown").replace("store_", "")
+    prefix = f"txn_{date.replace('-', '')}_{base}"
+    existing = {r[0] for r in con.execute("SELECT id FROM transactions WHERE id LIKE ?", (prefix + "%",))}
+    if prefix not in existing:
+        return prefix
+    i = 2
+    while f"{prefix}_{i}" in existing:
+        i += 1
+    return f"{prefix}_{i}"
+
+
+def cmd_add(args):
+    con = connect(args)
+    t = load(Path(args.input))
+    stores = {r["id"]: dict(r) for r in con.execute("SELECT * FROM stores")}
+    items = {r["id"]: dict(r) for r in con.execute("SELECT * FROM items")}
+    pacc = {r["id"]: dict(r) for r in con.execute("SELECT * FROM payment_accounts")}
+    parties = {r["id"]: dict(r) for r in con.execute("SELECT * FROM counterparties")}
+    projects = {r["id"]: dict(r) for r in con.execute("SELECT * FROM projects")}
+    subs = [dict(r) for r in con.execute("SELECT * FROM subscriptions")]
+    store_amap, item_amap = _alias_map(con, "store"), _alias_map(con, "item")
+    party_aliases = [(r["entity_id"], r["alias_norm"]) for r in
+                     con.execute("SELECT entity_id, alias_norm FROM entity_aliases WHERE entity_type = 'counterparty'")]
+    spo = {}
+    for r in con.execute("SELECT * FROM store_payment_options"):
+        spo.setdefault(r["store_id"], []).append(dict(r))
+
+    if not t.get("date") or len(t["date"]) < 10:
+        die("draft.date is required as YYYY-MM-DD")
+    t.setdefault("type", "expense")
+    t.setdefault("line_items", [])
+    src = t.setdefault("source", {})
+    src.setdefault("kind", "manual")
+    src["document_saved"] = False
+    src.setdefault("raw_text_saved", False)
+
+    store = t.setdefault("store", {})
+    sid = store.get("store_id") or store_amap.get(normalize_text(store.get("raw_name")))
+    if sid:
+        store["store_id"] = sid
+    if sid and sid in stores:
+        st = stores[sid]
+        store.setdefault("raw_name", st["canonical_name"])
+        store.setdefault("confidence", 1)
+        t.setdefault("category_id", st["default_category_id"] or "uncategorized")
+        chosen = _select_payopt(spo.get(sid, []), (t.get("amount") or {}).get("currency"))
+        if chosen:
+            amt = t.setdefault("amount", {})
+            amt.setdefault("currency", chosen["currency"])
+            pay = t.setdefault("payment", {})
+            pay.setdefault("payment_account_id", chosen["payment_account_id"])
+            pay.setdefault("raw_text", None)
+            pay.setdefault("confidence", 1 if chosen["is_default"] else 0.8)
+
+    for li in t["line_items"]:
+        iid = li.get("item_id") or item_amap.get(normalize_text(li.get("raw_name")))
+        if iid and iid in items:
+            li["item_id"] = iid
+            li.setdefault("category_id", items[iid]["default_category_id"] or "uncategorized")
+            t.setdefault("category_id", items[iid]["default_category_id"])
+
+    # project -> default scope + default counterparty
+    pj = t.get("project_id")
+    if pj and pj in projects:
+        pr = projects[pj]
+        t.setdefault("budget_scope", pr["default_scope"] or "business_expense")
+        if t.get("budget_scope") in CLAIM_REQUIRED_SCOPES and pr.get("default_counterparty_id"):
+            _ensure_claim(t, pr["default_counterparty_id"])
+
+    # subscription match
+    li_items = {li.get("item_id") for li in t["line_items"]}
+    for sub in subs:
+        if sub["store_id"] and sub["store_id"] == t.get("store", {}).get("store_id") and sub["item_id"] in li_items:
+            t["subscription_id"] = sub["id"]
+            t.setdefault("budget_scope", sub["budget_scope"] or "household")
+            t.setdefault("project_id", sub.get("project_id"))
+            if sub["counterparty_id"] and sub["counterparty_id"] in parties:
+                _ensure_claim(t, sub["counterparty_id"])
+            break
+
+    # counterparty text-match
+    hay = normalize_text(" ".join(filter(None, [t.get("note"), src.get("summary"), src.get("organization")])))
+    if hay:
+        for pid, anorm in party_aliases:
+            if anorm and anorm in hay:
+                t["budget_scope"] = parties[pid]["default_scope"] or "reimbursable"
+                _ensure_claim(t, pid)
+                break
+
+    for li in t["line_items"]:
+        li.setdefault("category_id", t.get("category_id", "uncategorized"))
+    t.setdefault("budget_scope", "household")
+    amount = t.get("amount") or {}
+    if not amount.get("value") or not amount.get("currency"):
+        die("draft.amount.value and amount.currency are required")
+    if not t.get("reporting_amount"):
+        if amount["currency"] == REPORTING_CURRENCY:
+            t["reporting_amount"] = {"value": amount["value"], "currency": REPORTING_CURRENCY,
+                                     "fx_rate": "1", "fx_date": t["date"], "fx_source": "not_required"}
+        else:
+            row = con.execute(
+                "SELECT date, rate FROM fx_rates WHERE base='JPY' AND currency=? AND date<=? "
+                "ORDER BY date DESC LIMIT 1", (amount["currency"], t["date"])).fetchone()
+            if not row:
+                die(f"reporting_amount required for non-JPY (no cached fx rate for "
+                    f"{amount['currency']}; run: hb fx-refresh)")
+            jpy = (D(amount["value"]) * D(row["rate"])).quantize(Decimal(1), rounding=ROUND_HALF_UP)
+            t["reporting_amount"] = {"value": str(jpy), "currency": REPORTING_CURRENCY,
+                                     "fx_rate": row["rate"], "fx_date": row["date"], "fx_source": "exchange_api"}
+    t.setdefault("category_id", "uncategorized")
+    t.setdefault("confidence", 1)
+    t.setdefault("created_at", now_iso())
+    t["updated_at"] = now_iso()
+    t["status"] = "needs_review" if _needs_review(t, stores, items, pacc) else t.get("status", "confirmed")
+    t.setdefault("id", _next_txn_id(con, t["date"], t.get("store", {}).get("store_id")))
+
+    if args.dry_run:
+        print(json.dumps({"action": "would_append", "transaction": t}, ensure_ascii=False, indent=2))
+        return
+    con.execute("BEGIN")
+    try:
+        _insert_txn(con, t)
+        _audit(con, "add", "transactions", t["id"], new=t["id"], note=t.get("budget_scope"))
+        con.execute("COMMIT")
+    except Exception:
+        con.execute("ROLLBACK")
+        raise
+    print(json.dumps({"action": "appended", "id": t["id"]}, ensure_ascii=False))
+    if not args.skip_validation:
+        cmd_validate(args)
+
+
+# --------------------------------------------------------------------------- transfer
+def _next_transfer_id(con, date, frm, to):
+    base = f"xfer_{date.replace('-', '')}_{slugify(frm)}_{slugify(to)}"
+    existing = {r[0] for r in con.execute("SELECT id FROM transfers WHERE id LIKE ?", (base + "%",))}
+    if base not in existing:
+        return base
+    i = 2
+    while f"{base}_{i}" in existing:
+        i += 1
+    return f"{base}_{i}"
+
+
+def cmd_transfer(args):
+    con = connect(args)
+    t = load(Path(args.input))
+    if not t.get("date") or not (t.get("from") or {}).get("payment_account_id") or not (t.get("to") or {}).get("payment_account_id"):
+        die("transfer draft needs date, from.payment_account_id, to.payment_account_id")
+    src = t.setdefault("source", {})
+    src.setdefault("kind", "manual")
+    src["document_saved"] = False
+    src.setdefault("raw_text_saved", False)
+    t.setdefault("status", "needs_review")
+    t.setdefault("created_at", now_iso())
+    t["updated_at"] = now_iso()
+    t.setdefault("id", _next_transfer_id(con, t["date"], t["from"]["payment_account_id"], t["to"]["payment_account_id"]))
+    if args.dry_run:
+        print(json.dumps({"action": "would_append_transfer", "transfer": t}, ensure_ascii=False, indent=2))
+        return
+    con.execute("BEGIN")
+    try:
+        _insert_transfer(con, t)
+        _audit(con, "transfer", "transfers", t["id"], new=t["id"])
+        con.execute("COMMIT")
+    except Exception:
+        con.execute("ROLLBACK")
+        raise
+    print(json.dumps({"action": "appended_transfer", "id": t["id"]}, ensure_ascii=False))
+    if not args.skip_validation:
+        cmd_validate(args)
+
+
+# --------------------------------------------------------------------------- summary
+def cmd_summary(args):
+    con = connect(args)
+    decs = decimals_map(con)
+    rows = con.execute("SELECT * FROM transactions WHERE month = ?", (args.month,)).fetchall()
+    if not rows:
+        print(f"No transactions for {args.month}")
+        return
+    catlabel = {r["id"]: r["label"] for r in con.execute("SELECT id, label FROM categories")}
+    storelabel = {r["id"]: r["canonical_name"] for r in con.execute("SELECT id, canonical_name FROM stores")}
+    total = Decimal(0)
+    by_scope, by_cat, by_store, by_cur, by_proj = {}, {}, {}, {}, {}
+    nr = 0
+    for t in rows:
+        rep = D(t["reporting_value"])
+        if t["type"] == "expense":
+            total += rep
+        by_scope[t["budget_scope"]] = by_scope.get(t["budget_scope"], Decimal(0)) + rep
+        by_cat[t["category_id"]] = by_cat.get(t["category_id"], Decimal(0)) + rep
+        sidk = t["store_id"] or "store_unknown"
+        by_store[sidk] = by_store.get(sidk, Decimal(0)) + rep
+        by_cur[t["amount_currency"]] = by_cur.get(t["amount_currency"], Decimal(0)) + D(t["amount_value"])
+        if t["project_id"]:
+            by_proj[t["project_id"]] = by_proj.get(t["project_id"], Decimal(0)) + rep
+        if t["status"] == "needs_review":
+            nr += 1
+    print(f"# Monthly summary {args.month}")
+    print(f"transactions: {len(rows)}   needs_review: {nr}")
+    print(f"expense total: {fmt_jpy(total)}")
+    print("\nby scope:")
+    for k in sorted(by_scope):
+        print(f"  {k}: {fmt_jpy(by_scope[k])}")
+    print("\nby category:")
+    for k, v in sorted(by_cat.items(), key=lambda x: (-x[1], x[0])):
+        print(f"  {catlabel.get(k, k)} ({k}): {fmt_jpy(v)}")
+    print("\nby store:")
+    for k, v in sorted(by_store.items(), key=lambda x: (-x[1], x[0])):
+        print(f"  {storelabel.get(k, k)}: {fmt_jpy(v)}")
+    if by_proj:
+        print("\nby project:")
+        for k, v in sorted(by_proj.items(), key=lambda x: (-x[1], x[0])):
+            print(f"  {k}: {fmt_jpy(v)}")
+    print("\nsource amount by currency:")
+    for k in sorted(by_cur):
+        print(f"  {fmt_money(by_cur[k], k, decs)}")
+
+
+# --------------------------------------------------------------------------- report (flexible)
+REPORT_AXES = {
+    "month": "t.month", "type": "t.type", "scope": "t.budget_scope",
+    "category": "t.category_id", "store": "t.store_id", "account": "t.payment_account_id",
+    "currency": "t.amount_currency", "project": "t.project_id",
+}
+FILTER_COLS = dict(REPORT_AXES)
+
+
+def _apply_filters(args, where, params):
+    if args.month:
+        where.append("t.month = ?"); params.append(args.month)
+    if args.date_from:
+        where.append("t.date >= ?"); params.append(args.date_from)
+    if args.date_to:
+        where.append("t.date <= ?"); params.append(args.date_to)
+    if args.type:
+        where.append("t.type = ?"); params.append(args.type)
+    if args.scope:
+        where.append("t.budget_scope = ?"); params.append(args.scope)
+    for w in (args.where or []):
+        if "=" not in w:
+            die(f"--where must be axis=value (got {w!r})")
+        ax, val = w.split("=", 1)
+        if ax.startswith("tag:"):
+            where.append("EXISTS (SELECT 1 FROM transaction_tags tg WHERE tg.txn_id=t.id AND tg.axis=? AND tg.value_norm=?)")
+            params.extend([ax[4:], normalize_text(val)])
+        elif ax == "counterparty":
+            where.append("EXISTS (SELECT 1 FROM claims c WHERE c.txn_id=t.id AND c.counterparty_id=?)")
+            params.append(val)
+        elif ax in FILTER_COLS:
+            where.append(f"{FILTER_COLS[ax]} = ?"); params.append(val)
+        else:
+            die(f"unknown filter axis {ax!r}")
+
+
+def cmd_report(args):
+    con = connect(args)
+    decs = decimals_map(con)
+    by = args.by
+    where, params = ["t.type = t.type"], []
+    _apply_filters(args, where, params)
+    wsql = " AND ".join(where)
+
+    if by == "item":
+        sql = (f"SELECT li.item_id AS k, li.amount_currency AS cur, "
+               f"SUM(CAST(li.amount_value AS REAL)) AS tot, COUNT(*) AS n "
+               f"FROM transaction_line_items li JOIN transactions t ON t.id = li.txn_id "
+               f"WHERE {wsql} GROUP BY li.item_id, li.amount_currency ORDER BY tot DESC")
+        rows = con.execute(sql, params).fetchall()
+        label = {r["id"]: r["canonical_name"] for r in con.execute("SELECT id, canonical_name FROM items")}
+        print(f"# report by item  (filters: {_filter_desc(args)})")
+        for r in rows[: args.limit or 10000]:
+            nm = label.get(r["k"], r["k"] or "item_unknown")
+            print(f"  {nm}: {fmt_money(D(r['tot']), r['cur'], decs)}  (n={r['n']})")
+        return
+
+    if by == "counterparty":
+        join = "LEFT JOIN claims c ON c.txn_id = t.id"
+        kexpr = "c.counterparty_id"
+    elif by.startswith("tag:"):
+        join = "JOIN transaction_tags tg ON tg.txn_id = t.id AND tg.axis = ?"
+        params = [by[4:]] + params
+        kexpr = "tg.value"
+    elif by in REPORT_AXES:
+        join = ""
+        kexpr = REPORT_AXES[by]
+    else:
+        die(f"unknown --by axis {by!r}. valid: {', '.join(sorted(REPORT_AXES))}, counterparty, item, tag:<axis>")
+
+    sql = (f"SELECT {kexpr} AS k, COUNT(*) AS n, SUM(CAST(t.reporting_value AS INTEGER)) AS jpy "
+           f"FROM transactions t {join} WHERE {wsql} GROUP BY {kexpr} ORDER BY jpy DESC")
+    rows = con.execute(sql, params).fetchall()
+    total = sum(D(r["jpy"]) for r in rows if r["jpy"] is not None)
+    print(f"# report by {by}  (filters: {_filter_desc(args)})")
+    print(f"total: {fmt_jpy(total)}   groups: {len(rows)}")
+    for r in rows[: args.limit or 10000]:
+        print(f"  {r['k'] if r['k'] is not None else '(none)'}: {fmt_jpy(D(r['jpy']))}  (n={r['n']})")
+
+
+def _filter_desc(args):
+    parts = []
+    for a in ("month", "date_from", "date_to", "type", "scope"):
+        v = getattr(args, a)
+        if v:
+            parts.append(f"{a}={v}")
+    parts += list(args.where or [])
+    return ", ".join(parts) or "none"
+
+
+# --------------------------------------------------------------------------- subscriptions
+_CYCLE_TO_MONTHLY = {"weekly": Decimal("4.345"), "monthly": Decimal(1), "yearly": Decimal(1) / Decimal(12)}
+
+
+def cmd_subscriptions(args):
+    con = connect(args)
+    decs = decimals_map(con)
+    rows = con.execute("SELECT * FROM subscriptions ORDER BY id").fetchall()
+    if not rows:
+        print("No subscriptions.")
+        return
+    monthly_jpy_total = Decimal(0)
+    print("# Subscriptions")
+    for s in rows:
+        ev, ec = s["expected_value"], s["expected_currency"]
+        cyc = s["billing_cycle"]
+        norm = ""
+        if ev and ec:
+            per = _CYCLE_TO_MONTHLY.get(cyc)
+            base = fmt_money(D(ev), ec, decs)
+            if per is not None:
+                m = (D(ev) * per)
+                norm = f"  ~{fmt_money(m, ec, decs)}/mo"
+                if ec == REPORTING_CURRENCY:
+                    monthly_jpy_total += m
+            cost = f"{base}/{cyc}{norm}"
+        else:
+            cost = f"(no expected amount, {cyc})"
+        n = con.execute("SELECT COUNT(*) FROM transactions WHERE subscription_id = ?", (s["id"],)).fetchone()[0]
+        scope = s["budget_scope"]
+        extra = []
+        if s["project_id"]:
+            extra.append(f"project={s['project_id']}")
+        if s["counterparty_id"]:
+            extra.append(f"cp={s['counterparty_id']}")
+        tail = ("  [" + ", ".join(extra) + "]") if extra else ""
+        flag = "  !needs_review" if s["review_status"] == "needs_review" else ""
+        print(f"  {s['name']} ({scope}): {cost}  linked={n}{tail}{flag}")
+    print(f"\napprox monthly (JPY-denominated subs only): {fmt_jpy(monthly_jpy_total)}")
+
+
+# --------------------------------------------------------------------------- reimbursements
+def cmd_reimb(args):
+    con = connect(args)
+    decs = decimals_map(con)
+    where = "t.budget_scope = 'reimbursable' AND c.status NOT IN ('reimbursed','rejected','not_applicable')"
+    params = []
+    if args.month:
+        where += " AND t.month = ?"
+        params.append(args.month)
+    rows = con.execute(
+        f"SELECT t.id, t.date, t.amount_value, t.amount_currency, t.reporting_value, t.project_id, "
+        f"c.counterparty_id, c.status FROM transactions t JOIN claims c ON c.txn_id = t.id "
+        f"WHERE {where} ORDER BY c.counterparty_id, t.date, t.id", params).fetchall()
+    party = {r["id"]: r["canonical_name"] for r in con.execute("SELECT id, canonical_name FROM counterparties")}
+    totals = {}
+    for r in rows:
+        totals[r["counterparty_id"]] = totals.get(r["counterparty_id"], Decimal(0)) + D(r["reporting_value"])
+    title = "Open reimbursable transactions" + (f": {args.month}" if args.month else "")
+    print(title)
+    print(f"count: {len(rows)}")
+    print("\nby counterparty:")
+    for k, v in sorted(totals.items(), key=lambda x: (-x[1], x[0])):
+        print(f"  {party.get(k, k)}: {fmt_jpy(v)}")
+    print("\nopen items:")
+    for r in rows:
+        amt = fmt_money(D(r["amount_value"]), r["amount_currency"], decs)
+        pj = f" {r['project_id']}" if r["project_id"] else ""
+        print(f"  {r['date']} {party.get(r['counterparty_id'], r['counterparty_id'])} "
+              f"{amt} / {fmt_jpy(D(r['reporting_value']))} [{r['status']}]{pj} {r['id']}")
+
+
+# --------------------------------------------------------------------------- digest (Telegram)
+SCOPE_LABEL = {"household": "Household", "business_expense": "Business",
+               "reimbursable": "Reimbursable", "shared": "Shared", "excluded": "Excluded"}
+
+
+CUR_SYM = {"JPY": "¥", "USD": "$", "MYR": "RM", "IDR": "Rp"}
+
+
+def _cur(value, currency, decs):
+    """Compact currency string, e.g. $80.04 / ¥1,280 / 3.50 USDC."""
+    d = decs.get(currency, 2)
+    s = f"{D(value):,.{d}f}"
+    sym = CUR_SYM.get(currency)
+    return f"{sym}{s}" if sym else f"{s} {currency}"
+
+
+def _yen(value) -> str:
+    """Whole-yen reporting figure, e.g. ¥1,280."""
+    return f"¥{int(D(value)):,}"
+
+
+def _nb(*parts) -> str:
+    """Join tokens with U+00A0 (non-breaking space) so a value stays glued to its
+    unit (e.g. '142 txns'); mobile clients then wrap only at the ' · ' separators
+    instead of splitting a segment mid-way."""
+    return "\u00A0".join(str(p) for p in parts)
+
+
+def _esc(s) -> str:
+    """Escape text for Telegram HTML (& < > only; quotes are safe in body text)."""
+    return html.escape(str(s), quote=False)
+
+
+def _disp_width(s) -> int:
+    """Monospace display width: East-Asian wide/fullwidth glyphs occupy 2 cells."""
+    return sum(2 if unicodedata.east_asian_width(c) in ("W", "F") else 1 for c in str(s))
+
+
+def _pad(s, width, right) -> str:
+    """Pad raw text to `width` display columns (CJK-aware), left/right aligned."""
+    gap = " " * max(0, width - _disp_width(s))
+    return (gap + str(s)) if right else (str(s) + gap)
+
+
+def _pre_table(headers, rows, aligns=None) -> str:
+    """Monospace, CJK-aligned table wrapped in <pre> — renders as a table on Telegram.
+
+    Columns are padded on the RAW text (so escaping &<> never shifts alignment),
+    then each assembled line is HTML-escaped.
+    """
+    aligns = aligns or ["left"] * len(headers)
+    cols = list(zip(*([headers] + rows)))
+    widths = [max(_disp_width(c) for c in col) for col in cols]
+
+    def fmt(cells):
+        return "  ".join(_pad(c, widths[i], aligns[i] == "right")
+                         for i, c in enumerate(cells)).rstrip()
+
+    lines = [fmt(headers), "  ".join("-" * w for w in widths)] + [fmt(r) for r in rows]
+    return "<pre>\n" + "\n".join(_esc(ln) for ln in lines) + "\n</pre>"
+
+
+def _expandable(title, lines) -> str:
+    """Collapsible section via Telegram's native expandable blockquote."""
+    return ("<blockquote expandable>\n"
+            + "\n".join(_esc(ln) for ln in [title, *lines])
+            + "\n</blockquote>")
+
+
+def _digest_month_end(con, decs, month, html_mode):
+    month = month or (datetime.now().replace(day=1) - timedelta(days=1)).strftime("%Y-%m")
+    rows = con.execute("SELECT * FROM transactions WHERE month = ?", (month,)).fetchall()
+    title = f"Household Budget — {month}"
+    if not rows:
+        return f"<b>📊 {_esc(title)}</b>\n\nNo transactions." if html_mode else f"📊 {title}\n(no transactions)"
+    catlabel = {r["id"]: r["label"] for r in con.execute("SELECT id, label FROM categories")}
+    total, bycat, byscope, nr = Decimal(0), {}, {}, 0
+    for t in rows:
+        rep = D(t["reporting_value"])
+        if t["type"] == "expense":
+            total += rep
+        bycat[t["category_id"]] = bycat.get(t["category_id"], Decimal(0)) + rep
+        byscope[t["budget_scope"]] = byscope.get(t["budget_scope"], Decimal(0)) + rep
+        nr += 1 if t["status"] == "needs_review" else 0
+    cats = sorted(bycat.items(), key=lambda x: (-x[1], x[0]))
+    scopes = sorted(byscope.items(), key=lambda x: (-x[1], x[0]))
+    if not html_mode:
+        sec = [[f"📊 {title}",
+                f"💴 Spending: {_yen(total)}  ·  {len(rows)} txns ({nr} need review)"]]
+        sec.append(["Top categories"] + [f"・{catlabel.get(k, k)}  {_yen(v)}" for k, v in cats[:8]])
+        sec.append(["Scope",
+                    "  ·  ".join(f"{SCOPE_LABEL.get(k, k)} {_yen(v)}" for k, v in scopes)])
+        return "\n\n".join("\n".join(s) for s in sec)
+    L = [f"<b>📊 {_esc(title)}</b>", "",
+         f"💴 Spending: <b>{_yen(total)}</b> · {_nb(len(rows), 'txns')} ({_nb(nr, 'need', 'review')})", "",
+         "<b>Top categories</b>",
+         _pre_table(["Category", "Amount"],
+                    [[catlabel.get(k, k), _yen(v)] for k, v in cats[:8]], ["left", "right"])]
+    if len(cats) > 8:
+        L.append(_expandable(f"All categories ({len(cats)})",
+                             [f"{catlabel.get(k, k)} — {_yen(v)}" for k, v in cats]))
+    L += ["", "<b>By scope</b>",
+          _pre_table(["Scope", "Amount"],
+                     [[SCOPE_LABEL.get(k, k), _yen(v)] for k, v in scopes], ["left", "right"])]
+    return "\n".join(L)
+
+
+def _digest_weekly(con, decs, cap, html_mode):
+    where = ("t.budget_scope = 'reimbursable' AND "
+             "c.status NOT IN ('reimbursed','rejected','not_applicable')")
+    rrows = con.execute(
+        f"SELECT t.date, t.amount_value, t.amount_currency, t.reporting_value, c.counterparty_id "
+        f"FROM transactions t JOIN claims c ON c.txn_id = t.id WHERE {where} ORDER BY t.date").fetchall()
+    party = {r["id"]: r["canonical_name"] for r in con.execute("SELECT id, canonical_name FROM counterparties")}
+    rtotal = sum((D(r["reporting_value"]) for r in rrows), Decimal(0))
+    s_nr = con.execute("SELECT COUNT(*) FROM stores WHERE review_status='needs_review'").fetchone()[0]
+    i_nr = con.execute("SELECT COUNT(*) FROM items WHERE review_status='needs_review'").fetchone()[0]
+    t_nr = con.execute("SELECT COUNT(*) FROM transactions WHERE status='needs_review'").fetchone()[0]
+    bycp = {}
+    for r in rrows:
+        bycp[r["counterparty_id"]] = bycp.get(r["counterparty_id"], Decimal(0)) + D(r["reporting_value"])
+    cps = sorted(bycp.items(), key=lambda x: (-x[1], x[0]))
+    title = "Household Budget — Weekly Reminder"
+    if not html_mode:
+        sec = [[f"🧾 {title}",
+                f"💰 Unsettled: {_yen(rtotal)}  ·  {len(rrows)} open",
+                f"📋 Needs review: {s_nr} stores · {i_nr} items · {t_nr} txns"]]
+        if rrows:
+            lines = ["Open reimbursements"]
+            for r in rrows[:cap]:
+                lines.append(f"・{r['date'][5:]} {party.get(r['counterparty_id'], r['counterparty_id'])} "
+                             f"{_cur(r['amount_value'], r['amount_currency'], decs)}")
+            if len(rrows) > cap:
+                lines.append(f"・…and {len(rrows) - cap} more")
+            sec.append(lines)
+        sec.append(["💡 hb review to triage · hb confirm to approve"])
+        return "\n\n".join("\n".join(s) for s in sec)
+    review = " · ".join([_nb(s_nr, "stores"), _nb(i_nr, "items"), _nb(t_nr, "txns")])
+    L = [f"<b>🧾 {_esc(title)}</b>", "",
+         f"💰 Unsettled: <b>{_yen(rtotal)}</b> · {_nb(len(rrows), 'open')}",
+         f"📋 {_nb('Needs', 'review:')} {review}"]
+    if cps:
+        L += ["", "<b>By counterparty</b>",
+              _pre_table(["Counterparty", "Amount"],
+                         [[party.get(k, k), _yen(v)] for k, v in cps], ["left", "right"])]
+    if rrows:
+        items = [f"{r['date'][5:]}  {party.get(r['counterparty_id'], r['counterparty_id'])}  "
+                 f"{_cur(r['amount_value'], r['amount_currency'], decs)}" for r in rrows[:cap]]
+        if len(rrows) > cap:
+            items.append(f"…and {len(rrows) - cap} more")
+        L.append(_expandable(f"Open items ({len(rrows)})", items))
+    L += ["", "<i>💡 <code>hb review</code> to triage · <code>hb confirm</code> to approve</i>"]
+    return "\n".join(L)
+
+
+def cmd_digest(args):
+    con = connect(args)
+    decs = decimals_map(con)
+    cap = args.top if args.top and args.top > 0 else 20
+    html_mode = args.format == "html" and not args.plain
+    if args.period == "month-end":
+        print(_digest_month_end(con, decs, args.month, html_mode))
+    else:
+        print(_digest_weekly(con, decs, cap, html_mode))
+
+
+# --------------------------------------------------------------------------- review / confirm / ignore
+REVIEW_MASTERS = [("store", "stores", "canonical_name"), ("item", "items", "canonical_name"),
+                  ("payment_account", "payment_accounts", "label"),
+                  ("counterparty", "counterparties", "canonical_name"),
+                  ("project", "projects", "canonical_name"), ("category", "categories", "label")]
+
+
+def cmd_review(args):
+    con = connect(args)
+    any_pending = False
+    for etype, table, namecol in REVIEW_MASTERS:
+        rows = con.execute(f"SELECT id, {namecol} AS nm FROM {table} WHERE review_status = 'needs_review' ORDER BY id").fetchall()
+        if rows:
+            any_pending = True
+            print(f"\n{etype} ({len(rows)} pending):")
+            for r in rows:
+                if etype == "store":
+                    uses = con.execute("SELECT COUNT(*) FROM transactions WHERE store_id = ?", (r["id"],)).fetchone()[0]
+                elif etype == "item":
+                    uses = con.execute("SELECT COUNT(*) FROM transaction_line_items WHERE item_id = ?", (r["id"],)).fetchone()[0]
+                else:
+                    uses = ""
+                print(f"  {r['id']}  {r['nm']}" + (f"  (uses={uses})" if uses != "" else ""))
+    for kind, table in (("transaction", "transactions"), ("transfer", "transfers")):
+        n = con.execute(f"SELECT COUNT(*) FROM {table} WHERE status = 'needs_review'").fetchone()[0]
+        if n:
+            any_pending = True
+            print(f"\n{kind}s needing review: {n}")
+            for r in con.execute(f"SELECT id, date FROM {table} WHERE status = 'needs_review' ORDER BY date, id LIMIT ?",
+                                 (args.limit or 50,)):
+                print(f"  {r['date']}  {r['id']}")
+    if not any_pending:
+        print("Nothing pending review.")
+
+
+def _set_status(args, value):
+    con = connect(args)
+    etype = args.kind
+    if etype in ("transaction", "transfer"):
+        table = "transactions" if etype == "transaction" else "transfers"
+        con.execute(f"UPDATE {table} SET status = ?, updated_at = ? WHERE id = ?", (value, now_iso(), args.id))
+        field = "status"
+    else:
+        table = ENTITY_TABLE[etype]
+        con.execute(f"UPDATE {table} SET review_status = ? WHERE id = ?", (value, args.id))
+        field = "review_status"
+    if con.total_changes == 0:
+        die(f"no {etype} with id {args.id}")
+    _audit(con, value, table, args.id, field=field, new=value)
+    print(json.dumps({"action": value, "kind": etype, "id": args.id}, ensure_ascii=False))
+
+
+def cmd_confirm(args):
+    _set_status(args, "confirmed")
+
+
+def cmd_ignore(args):
+    _set_status(args, "ignored")
+
+
+# --------------------------------------------------------------------------- rename / merge
+def cmd_rename(args):
+    con = connect(args)
+    etype = args.kind
+    table = ENTITY_TABLE[etype]
+    if not con.execute(f"SELECT 1 FROM {table} WHERE id = ?", (args.old,)).fetchone():
+        die(f"no {etype} with id {args.old}")
+    if con.execute(f"SELECT 1 FROM {table} WHERE id = ?", (args.new,)).fetchone():
+        die(f"target id {args.new} already exists (use merge-entity)")
+    con.execute("BEGIN")
+    con.execute("PRAGMA defer_foreign_keys = ON")
+    try:
+        con.execute(f"UPDATE {table} SET id = ? WHERE id = ?", (args.new, args.old))
+        for tbl, col in ENTITY_REFS[etype]:
+            con.execute(f"UPDATE {tbl} SET {col} = ? WHERE {col} = ?", (args.new, args.old))
+        con.execute("UPDATE entity_aliases SET entity_id = ? WHERE entity_type = ? AND entity_id = ?",
+                    (args.new, etype, args.old))
+        bad = con.execute("PRAGMA foreign_key_check").fetchall()
+        if bad:
+            raise RuntimeError(f"foreign_key_check failed: {bad}")
+        _audit(con, "rename", table, args.new, field="id", old=args.old, new=args.new)
+        con.execute("COMMIT")
+    except Exception:
+        con.execute("ROLLBACK")
+        raise
+    print(json.dumps({"action": "renamed", "kind": etype, "from": args.old, "to": args.new}, ensure_ascii=False))
+
+
+def cmd_merge(args):
+    con = connect(args)
+    etype = args.kind
+    table = ENTITY_TABLE[etype]
+    for which in (args.old, args.into):
+        if not con.execute(f"SELECT 1 FROM {table} WHERE id = ?", (which,)).fetchone():
+            die(f"no {etype} with id {which}")
+    if args.old == args.into:
+        die("old and into are the same")
+    con.execute("BEGIN")
+    con.execute("PRAGMA defer_foreign_keys = ON")
+    try:
+        for tbl, col in ENTITY_REFS[etype]:
+            if tbl in JUNCTION_TABLES:
+                con.execute(f"UPDATE OR IGNORE {tbl} SET {col} = ? WHERE {col} = ?", (args.into, args.old))
+                con.execute(f"DELETE FROM {tbl} WHERE {col} = ?", (args.old,))
+            else:
+                con.execute(f"UPDATE {tbl} SET {col} = ? WHERE {col} = ?", (args.into, args.old))
+        # move aliases that don't collide, then drop the rest + the entity
+        for r in con.execute("SELECT alias, alias_norm, is_primary FROM entity_aliases WHERE entity_type=? AND entity_id=?",
+                             (etype, args.old)).fetchall():
+            con.execute("INSERT OR IGNORE INTO entity_aliases(entity_type, entity_id, alias, alias_norm, is_primary) "
+                        "VALUES (?,?,?,?,0)", (etype, args.into, r["alias"], r["alias_norm"]))
+        con.execute("DELETE FROM entity_aliases WHERE entity_type=? AND entity_id=?", (etype, args.old))
+        con.execute(f"DELETE FROM {table} WHERE id = ?", (args.old,))
+        bad = con.execute("PRAGMA foreign_key_check").fetchall()
+        if bad:
+            raise RuntimeError(f"foreign_key_check failed: {bad}")
+        _audit(con, "merge", table, args.into, field="id", old=args.old, new=args.into)
+        con.execute("COMMIT")
+    except Exception:
+        con.execute("ROLLBACK")
+        raise
+    print(json.dumps({"action": "merged", "kind": etype, "from": args.old, "into": args.into}, ensure_ascii=False))
+
+
+# --------------------------------------------------------------------------- upsert-entity
+def _unique_id(con, table, prefix, name, given=None):
+    if given:
+        return given
+    base = prefix + slugify(name)
+    existing = {r[0] for r in con.execute(f"SELECT id FROM {table} WHERE id LIKE ?", (base + "%",))}
+    if base not in existing:
+        return base
+    i = 2
+    while f"{base}_{i}" in existing:
+        i += 1
+    return f"{base}_{i}"
+
+
+def cmd_upsert(args):
+    con = connect(args)
+    etype = args.kind
+    table = ENTITY_TABLE[etype]
+    cand = {normalize_text(args.name)} | {normalize_text(a) for a in (args.alias or [])}
+    cand.discard("")
+    for r in con.execute("SELECT entity_id, alias_norm FROM entity_aliases WHERE entity_type = ?", (etype,)):
+        if r["alias_norm"] in cand:
+            print(json.dumps({"action": "existing", "id": r["entity_id"]}, ensure_ascii=False))
+            return
+    eid = _unique_id(con, table, ID_PREFIX[etype], args.name, args.id)
+    if args.dry_run:
+        print(json.dumps({"action": "would_create", "id": eid}, ensure_ascii=False))
+        return
+    con.execute("BEGIN")
+    try:
+        if etype in ("store", "item"):
+            con.execute(f"INSERT INTO {table}(id, canonical_name, default_category_id, review_status, last_seen_at) "
+                        "VALUES (?,?,?,?,?)", (eid, args.name, args.default_category_id, "needs_review", args.last_seen_at))
+            if etype == "store" and args.payment_account_id and args.currency:
+                con.execute("INSERT INTO store_payment_options(store_id, payment_account_id, currency, is_default) "
+                            "VALUES (?,?,?,1)", (eid, args.payment_account_id, args.currency))
+        elif etype == "counterparty":
+            con.execute("INSERT INTO counterparties(id, canonical_name, type, default_scope, review_status, person_id) "
+                        "VALUES (?,?,?,?,?,?)",
+                        (eid, args.name, args.counterparty_type, args.default_scope, "needs_review", args.person_id))
+        elif etype == "project":
+            con.execute("INSERT INTO projects(id, canonical_name, dir_path, default_counterparty_id, default_scope, "
+                        "review_status, last_seen_at) VALUES (?,?,?,?,?,?,?)",
+                        (eid, args.name, args.dir_path, args.default_counterparty_id,
+                         args.default_scope if args.default_scope != "reimbursable" else "business_expense",
+                         "needs_review", args.last_seen_at))
+        elif etype == "payment_account":
+            curs = args.payment_currency or []
+            if not curs:
+                die("payment_account requires at least one --payment-currency")
+            default_cur = args.default_currency or curs[0]
+            con.execute("INSERT INTO payment_accounts(id, label, type, default_currency, display_hint, review_status) "
+                        "VALUES (?,?,?,?,?,?)", (eid, args.name, args.payment_type, default_cur, args.display_hint, "needs_review"))
+            for c in curs:
+                con.execute("INSERT OR IGNORE INTO payment_account_currencies(payment_account_id, currency) VALUES (?,?)", (eid, c))
+        _add_aliases(con, etype, eid, args.name, args.alias)
+        _audit(con, "upsert", table, eid, new=eid)
+        con.execute("COMMIT")
+    except Exception:
+        con.execute("ROLLBACK")
+        raise
+    print(json.dumps({"action": "created", "id": eid}, ensure_ascii=False))
+
+
+# --------------------------------------------------------------------------- backup
+def cmd_backup(args):
+    con = connect(args)
+    outdir = Path(args.out) if args.out else Path(args.root) / "data" / "backups"
+    outdir.mkdir(parents=True, exist_ok=True)
+    ts = datetime.now().strftime("%Y%m%dT%H%M%S")
+    dest = outdir / f"budget-{ts}.db"
+    bcon = sqlite3.connect(str(dest))
+    with bcon:
+        con.backup(bcon)
+    bcon.close()
+    print(f"backup -> {dest}")
+    if args.keep:
+        files = sorted(outdir.glob("budget-*.db"))
+        for old in files[:-args.keep]:
+            old.unlink()
+            print(f"pruned {old.name}")
+
+
+# --------------------------------------------------------------------------- audit
+def cmd_audit(args):
+    con = connect(args)
+    q = "SELECT ts, action, tbl, entity, field, old_value, new_value, note FROM budget_audit"
+    params = []
+    if args.entity:
+        q += " WHERE entity = ?"; params.append(args.entity)
+    q += " ORDER BY seq DESC"
+    if args.limit:
+        q += " LIMIT ?"; params.append(args.limit)
+    rows = con.execute(q, params).fetchall()
+    if not rows:
+        print("No audit entries.")
+        return
+    for r in rows:
+        if r["field"]:
+            chg = f"  {r['field']}: {r['old_value']!r} -> {r['new_value']!r}"
+        elif r["new_value"]:
+            chg = f"  {r['new_value']}"
+        else:
+            chg = ""
+        ent = f"  {r['entity']}" if r["entity"] else ""
+        tail = f"  ({r['note']})" if r["note"] else ""
+        print(f"  {r['ts']}  {r['action']}  [{r['tbl'] or '-'}]{ent}{chg}{tail}")
+
+
+# --------------------------------------------------------------------------- export
+def _aliases_for(con, etype, eid):
+    return [r["alias"] for r in con.execute(
+        "SELECT alias FROM entity_aliases WHERE entity_type = ? AND entity_id = ? ORDER BY is_primary DESC, alias",
+        (etype, eid))]
+
+
+def _txn_to_obj(con, r):
+    obj = {
+        "id": r["id"], "date": r["date"], "type": r["type"],
+        "amount": {"value": r["amount_value"], "currency": r["amount_currency"]},
+        "reporting_amount": {"value": r["reporting_value"], "currency": r["reporting_currency"],
+                             "fx_rate": r["fx_rate"], "fx_date": r["fx_date"], "fx_source": r["fx_source"]},
+        "store": {"raw_name": r["store_raw_name"], "store_id": r["store_id"], "confidence": r["store_confidence"]},
+        "payment": {"payment_account_id": r["payment_account_id"], "raw_text": r["payment_raw_text"],
+                    "confidence": r["payment_confidence"]},
+        "category_id": r["category_id"], "budget_scope": r["budget_scope"], "project_id": r["project_id"],
+        "line_items": [], "source": {"kind": r["source_kind"],
+                                     "document_saved": bool(r["source_document_saved"]),
+                                     "raw_text_saved": bool(r["source_raw_text_saved"])},
+        "confidence": r["confidence"], "status": r["status"],
+        "created_at": r["created_at"], "updated_at": r["updated_at"],
+    }
+    if r["source_summary"]:
+        obj["source"]["summary"] = r["source_summary"]
+    if r["source_organization"]:
+        obj["source"]["organization"] = r["source_organization"]
+    if r["source_external_ref"]:
+        try:
+            obj["source"]["external_reference"] = json.loads(r["source_external_ref"])
+        except Exception:
+            obj["source"]["external_reference"] = r["source_external_ref"]
+    if r["note"]:
+        obj["note"] = r["note"]
+    if r["subscription_id"]:
+        obj["subscription_id"] = r["subscription_id"]
+    for li in con.execute("SELECT * FROM transaction_line_items WHERE txn_id = ? ORDER BY seq", (r["id"],)):
+        item = {"raw_name": li["raw_name"], "item_id": li["item_id"],
+                "amount": {"value": li["amount_value"], "currency": li["amount_currency"]},
+                "category_id": li["category_id"]}
+        if li["confidence"] is not None:
+            item["confidence"] = li["confidence"]
+        obj["line_items"].append(item)
+    c = con.execute("SELECT * FROM claims WHERE txn_id = ?", (r["id"],)).fetchone()
+    if c:
+        obj["claim"] = {"counterparty_id": c["counterparty_id"], "status": c["status"],
+                        "expected_reimbursement_amount": ({"value": c["expected_value"], "currency": c["expected_currency"]}
+                                                          if c["expected_value"] is not None else None),
+                        "submitted_at": c["submitted_at"], "reimbursed_at": c["reimbursed_at"],
+                        "linked_original_transaction_id": c["linked_original_txn_id"],
+                        "linked_reimbursement_transaction_id": c["linked_reimbursement_txn_id"],
+                        "note": c["note"]}
+    tags = [{"axis": t["axis"], "value": t["value"]} for t in
+            con.execute("SELECT axis, value FROM transaction_tags WHERE txn_id = ? ORDER BY axis, value", (r["id"],))]
+    if tags:
+        obj["tags"] = tags
+    return obj
+
+
+def _transfer_to_obj(r):
+    obj = {"id": r["id"], "date": r["date"],
+           "from": {"payment_account_id": r["from_account_id"],
+                    "amount": {"value": r["from_value"], "currency": r["from_currency"]}},
+           "to": {"payment_account_id": r["to_account_id"],
+                  "amount": {"value": r["to_value"], "currency": r["to_currency"]}},
+           "status": r["status"], "confidence": r["confidence"],
+           "source": {"kind": r["source_kind"], "document_saved": bool(r["source_document_saved"]),
+                      "raw_text_saved": bool(r["source_raw_text_saved"])},
+           "created_at": r["created_at"], "updated_at": r["updated_at"]}
+    if r["fee_value"]:
+        obj["fee"] = {"value": r["fee_value"], "currency": r["fee_currency"], "payment_account_id": r["fee_account_id"]}
+    if r["fx_rate"]:
+        obj["fx_rate"] = r["fx_rate"]
+    if r["reporting_value"]:
+        obj["reporting_amount"] = {"value": r["reporting_value"], "currency": REPORTING_CURRENCY}
+    if r["source_summary"]:
+        obj["source"]["summary"] = r["source_summary"]
+    if r["note"]:
+        obj["note"] = r["note"]
+    return obj
+
+
+def _export_json(con, out: Path):
+    cfg, ent, txn, xfer = out / "config", out / "entities", out / "transactions", out / "transfers"
+    for d in (cfg, ent, txn, xfer):
+        d.mkdir(parents=True, exist_ok=True)
+
+    def dump(path, obj):
+        path.write_text(json.dumps(obj, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+    dump(cfg / "currencies.json", {"schema_version": 2, "reporting_currency": REPORTING_CURRENCY,
+        "currencies": [{"code": r["code"], "label": r["label"], "decimals": r["decimals"]}
+                       for r in con.execute("SELECT * FROM currencies ORDER BY code")]})
+    dump(cfg / "categories.json", {"schema_version": 2,
+        "categories": [{"id": r["id"], "label": r["label"], "aliases": _aliases_for(con, "category", r["id"]),
+                        "parent_id": r["parent_id"], "review_status": r["review_status"]}
+                       for r in con.execute("SELECT * FROM categories ORDER BY id")]})
+    dump(cfg / "tag_axes.json", {"schema_version": 2,
+        "tag_axes": [{"axis": r["axis"], "label": r["label"], "review_status": r["review_status"]}
+                     for r in con.execute("SELECT * FROM tag_axes ORDER BY axis")]})
+    stores = []
+    for r in con.execute("SELECT * FROM stores ORDER BY id"):
+        opts = [{"payment_account_id": o["payment_account_id"], "currency": o["currency"], "default": bool(o["is_default"])}
+                for o in con.execute("SELECT * FROM store_payment_options WHERE store_id = ? ORDER BY payment_account_id, currency", (r["id"],))]
+        s = {"id": r["id"], "canonical_name": r["canonical_name"], "aliases": _aliases_for(con, "store", r["id"]),
+             "default_category_id": r["default_category_id"], "review_status": r["review_status"], "last_seen_at": r["last_seen_at"]}
+        if opts:
+            s["payment_options"] = opts
+        stores.append(s)
+    dump(ent / "stores.json", {"schema_version": 2, "stores": stores})
+    dump(ent / "items.json", {"schema_version": 2,
+        "items": [{"id": r["id"], "canonical_name": r["canonical_name"], "aliases": _aliases_for(con, "item", r["id"]),
+                   "default_category_id": r["default_category_id"], "review_status": r["review_status"], "last_seen_at": r["last_seen_at"]}
+                  for r in con.execute("SELECT * FROM items ORDER BY id")]})
+    pas = []
+    for r in con.execute("SELECT * FROM payment_accounts ORDER BY id"):
+        curs = [x["currency"] for x in con.execute(
+            "SELECT currency FROM payment_account_currencies WHERE payment_account_id = ? ORDER BY currency", (r["id"],))]
+        pas.append({"id": r["id"], "label": r["label"], "type": r["type"], "currencies": curs,
+                    "default_currency": r["default_currency"], "aliases": _aliases_for(con, "payment_account", r["id"]),
+                    "display_hint": r["display_hint"], "review_status": r["review_status"]})
+    dump(ent / "payment_accounts.json", {"schema_version": 2, "payment_accounts": pas})
+    dump(ent / "counterparties.json", {"schema_version": 2,
+        "counterparties": [{"id": r["id"], "canonical_name": r["canonical_name"], "type": r["type"],
+                            "aliases": _aliases_for(con, "counterparty", r["id"]), "default_scope": r["default_scope"],
+                            "review_status": r["review_status"], "person_id": r["person_id"]}
+                           for r in con.execute("SELECT * FROM counterparties ORDER BY id")]})
+    dump(ent / "projects.json", {"schema_version": 2,
+        "projects": [{"id": r["id"], "canonical_name": r["canonical_name"], "aliases": _aliases_for(con, "project", r["id"]),
+                      "dir_path": r["dir_path"], "default_counterparty_id": r["default_counterparty_id"],
+                      "default_scope": r["default_scope"], "review_status": r["review_status"], "last_seen_at": r["last_seen_at"]}
+                     for r in con.execute("SELECT * FROM projects ORDER BY id")]})
+    subs = []
+    for r in con.execute("SELECT * FROM subscriptions ORDER BY id"):
+        s = {"id": r["id"], "name": r["name"], "store_id": r["store_id"], "item_id": r["item_id"],
+             "budget_scope": r["budget_scope"], "billing_cycle": r["billing_cycle"],
+             "expected_amount": {"value": r["expected_value"], "currency": r["expected_currency"]},
+             "review_status": r["review_status"], "note": r["note"]}
+        if r["project_id"]:
+            s["project_id"] = r["project_id"]
+        if r["counterparty_id"]:
+            s["counterparty_id"] = r["counterparty_id"]
+        subs.append(s)
+    dump(ent / "subscriptions.json", {"schema_version": 2, "subscriptions": subs})
+
+    months = {}
+    for r in con.execute("SELECT * FROM transactions ORDER BY date, id"):
+        months.setdefault(r["month"], []).append(_txn_to_obj(con, r))
+    for month, txns in months.items():
+        dump(txn / f"{month}.json", {"schema_version": 2, "month": month,
+                                     "reporting_currency": REPORTING_CURRENCY, "transactions": txns})
+    xmonths = {}
+    for r in con.execute("SELECT * FROM transfers ORDER BY date, id"):
+        xmonths.setdefault(r["month"], []).append(_transfer_to_obj(r))
+    for month, xs in xmonths.items():
+        dump(xfer / f"{month}.json", {"schema_version": 2, "month": month, "transfers": xs})
+
+
+def _export_csv(con, out: Path):
+    out.mkdir(parents=True, exist_ok=True)
+    with (out / "transactions.csv").open("w", newline="", encoding="utf-8") as fh:
+        w = csv.writer(fh)
+        w.writerow(TXN_COLUMNS + ["month"])
+        for r in con.execute("SELECT * FROM transactions ORDER BY date, id"):
+            w.writerow([r[c] for c in TXN_COLUMNS] + [r["month"]])
+    with (out / "line_items.csv").open("w", newline="", encoding="utf-8") as fh:
+        w = csv.writer(fh)
+        w.writerow(["txn_id", "seq", "raw_name", "item_id", "amount_value", "amount_currency", "category_id", "confidence"])
+        for r in con.execute("SELECT * FROM transaction_line_items ORDER BY txn_id, seq"):
+            w.writerow([r["txn_id"], r["seq"], r["raw_name"], r["item_id"], r["amount_value"],
+                        r["amount_currency"], r["category_id"], r["confidence"]])
+    with (out / "claims.csv").open("w", newline="", encoding="utf-8") as fh:
+        w = csv.writer(fh)
+        cols = ["txn_id", "counterparty_id", "status", "expected_value", "expected_currency",
+                "submitted_at", "reimbursed_at", "linked_original_txn_id", "linked_reimbursement_txn_id", "note"]
+        w.writerow(cols)
+        for r in con.execute("SELECT * FROM claims ORDER BY txn_id"):
+            w.writerow([r[c] for c in cols])
+    with (out / "transfers.csv").open("w", newline="", encoding="utf-8") as fh:
+        w = csv.writer(fh)
+        w.writerow(TRANSFER_COLUMNS + ["month"])
+        for r in con.execute("SELECT * FROM transfers ORDER BY date, id"):
+            w.writerow([r[c] for c in TRANSFER_COLUMNS] + [r["month"]])
+    with (out / "tags.csv").open("w", newline="", encoding="utf-8") as fh:
+        w = csv.writer(fh)
+        w.writerow(["txn_id", "axis", "value"])
+        for r in con.execute("SELECT txn_id, axis, value FROM transaction_tags ORDER BY txn_id, axis, value"):
+            w.writerow([r["txn_id"], r["axis"], r["value"]])
+
+
+# --------------------------------------------------------------------------- fx-refresh
+FX_API = "https://open.er-api.com/v6/latest/JPY"   # public, no key; rates: 1 JPY -> X <code>
+
+
+def cmd_fx_refresh(args):
+    import urllib.request
+    con = connect(args)
+    codes = [r[0] for r in con.execute("SELECT code FROM currencies WHERE code != 'JPY'")]
+    url = args.url or FX_API
+    try:
+        with urllib.request.urlopen(url, timeout=30) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+    except Exception as e:
+        die(f"fx-refresh: fetch failed: {e}")
+    if data.get("result") == "error" or "rates" not in data:
+        die(f"fx-refresh: bad response: {data.get('error-type', 'no rates')}")
+    rates = data["rates"]
+    date = args.date or datetime.now().strftime("%Y-%m-%d")
+    src = "exchange_api:open.er-api.com"
+    fetched = now_iso()
+    stored, missing = 0, []
+    for code in codes:
+        r = rates.get(code)
+        if r is None and code in ("USDC", "USDT"):
+            r = rates.get("USD")           # stablecoins tracked ~1:1 to USD
+        if r is None or float(r) <= 0:
+            missing.append(code)
+            continue
+        jpy_per_unit = Decimal(1) / D(r)   # 1 JPY = r <code> -> 1 <code> = 1/r JPY
+        con.execute("INSERT OR REPLACE INTO fx_rates(date, base, currency, rate, source, fetched_at) "
+                    "VALUES (?, 'JPY', ?, ?, ?, ?)", (date, code, f"{jpy_per_unit:.8f}", src, fetched))
+        stored += 1
+    print(f"fx-refresh: stored {stored} rate(s) for {date}"
+          + (f"; no rate for {', '.join(missing)}" if missing else ""))
+
+
+def cmd_export(args):
+    con = connect(args)
+    out = Path(args.out) if args.out else Path(args.root) / "data" / "export"
+    if args.format in ("json", "both"):
+        _export_json(con, out)
+    if args.format in ("csv", "both"):
+        _export_csv(con, out / "csv" if args.format == "both" else out)
+    print(f"exported {args.format} -> {out}")
+
+
+# --------------------------------------------------------------------------- cross read ports
+# Public read API for sibling skills (projects/people). They call these instead of opening
+# budget.db. Output is the shared cross-skill envelope. Never mutate; never call validate.
+def _emit_port(data):
+    if _cross is not None:
+        _cross.emit("household-budget", data)
+    else:
+        print(json.dumps({"contract_version": 1, "skill": "household-budget", "data": data},
+                         ensure_ascii=False, indent=2))
+
+
+def cmd_projects_port(args):
+    con = connect(args)
+    data = {"projects": [
+        {"id": r["id"], "canonical_name": r["canonical_name"], "aliases": _aliases_for(con, "project", r["id"]),
+         "dir_path": r["dir_path"], "default_counterparty_id": r["default_counterparty_id"],
+         "default_scope": r["default_scope"], "review_status": r["review_status"]}
+        for r in con.execute("SELECT * FROM projects ORDER BY id")]}
+    if args.json:
+        _emit_port(data)
+    else:
+        for p in data["projects"]:
+            print(f"  {p['id']:<24} {p['canonical_name']:<22} {p['dir_path'] or ''}")
+        print(f"{len(data['projects'])} project(s)")
+
+
+def cmd_counterparties_port(args):
+    con = connect(args)
+    data = {"counterparties": [
+        {"id": r["id"], "canonical_name": r["canonical_name"], "type": r["type"],
+         "aliases": _aliases_for(con, "counterparty", r["id"]), "default_scope": r["default_scope"],
+         "review_status": r["review_status"], "person_id": r["person_id"]}
+        for r in con.execute("SELECT * FROM counterparties ORDER BY id")]}
+    if args.json:
+        _emit_port(data)
+    else:
+        for c in data["counterparties"]:
+            print(f"  {c['id']:<24} {c['type']:<10} person={c['person_id'] or '-'}")
+        print(f"{len(data['counterparties'])} counterparty(ies)")
+
+
+# --------------------------------------------------------------------------- CLI
+def build_parser():
+    p = argparse.ArgumentParser(prog="hb", description="HouseholdBudget DB engine (SQLite v2, stdlib).")
+    p.add_argument("--root", default=str(DEFAULT_ROOT), help="workspace root (default: ~/Workspaces/Personal/HouseholdBudget)")
+    p.add_argument("--db", help="override DB path (default: <root>/data/budget.db)")
+    sub = p.add_subparsers(dest="cmd", required=True)
+
+    s = sub.add_parser("init"); s.add_argument("--force", action="store_true")
+    s.add_argument("--seed", action="store_true", help="seed base lookups + sentinels"); s.set_defaults(func=cmd_init)
+
+    s = sub.add_parser("migrate"); s.add_argument("--dry-run", action="store_true"); s.set_defaults(func=cmd_migrate)
+
+    s = sub.add_parser("fx-refresh", help="fetch + cache JPY exchange rates (public API, no key)")
+    s.add_argument("--date", help="YYYY-MM-DD (default: today)")
+    s.add_argument("--url", help="override the rates API URL")
+    s.set_defaults(func=cmd_fx_refresh)
+
+    s = sub.add_parser("import-json")
+    s.add_argument("--src", help="source mirror dir (default: <root>/data/export)")
+    s.add_argument("--force", action="store_true"); s.set_defaults(func=cmd_import)
+
+    s = sub.add_parser("validate"); s.set_defaults(func=cmd_validate)
+
+    s = sub.add_parser("summary"); s.add_argument("--month", required=True); s.set_defaults(func=cmd_summary)
+
+    s = sub.add_parser("report", help="flexible aggregation by an axis")
+    s.add_argument("--by", required=True, help="month|type|scope|category|store|item|account|currency|project|counterparty|tag:<axis>")
+    s.add_argument("--month"); s.add_argument("--from", dest="date_from"); s.add_argument("--to", dest="date_to")
+    s.add_argument("--type", choices=["expense", "income"]); s.add_argument("--scope")
+    s.add_argument("--where", action="append", help="axis=value filter (repeatable)")
+    s.add_argument("--limit", type=int); s.set_defaults(func=cmd_report)
+
+    s = sub.add_parser("subscriptions"); s.set_defaults(func=cmd_subscriptions)
+
+    s = sub.add_parser("reimbursements"); s.add_argument("--month"); s.set_defaults(func=cmd_reimb)
+
+    s = sub.add_parser("digest", help="compact Telegram digest (weekly | month-end); HTML by default")
+    s.add_argument("period", choices=["weekly", "month-end"])
+    s.add_argument("--month", help="YYYY-MM for month-end (default: previous month)")
+    s.add_argument("--top", type=int, default=20, help="cap rows in the collapsible breakdown")
+    s.add_argument("--format", choices=["html", "plain"], default="html",
+                   help="html = Telegram HTML (bold headings, <pre> tables, expandable blockquote, default); "
+                        "plain = text+emoji (terminal/debug)")
+    s.add_argument("--plain", action="store_true", help="alias for --format plain (terminal/debug)")
+    s.set_defaults(func=cmd_digest)
+
+    s = sub.add_parser("export")
+    s.add_argument("--format", choices=["json", "csv", "both"], default="json")
+    s.add_argument("--out"); s.set_defaults(func=cmd_export)
+
+    s = sub.add_parser("add"); s.add_argument("--input", required=True)
+    s.add_argument("--dry-run", action="store_true"); s.add_argument("--skip-validation", action="store_true")
+    s.set_defaults(func=cmd_add)
+
+    s = sub.add_parser("transfer"); s.add_argument("--input", required=True)
+    s.add_argument("--dry-run", action="store_true"); s.add_argument("--skip-validation", action="store_true")
+    s.set_defaults(func=cmd_transfer)
+
+    s = sub.add_parser("review"); s.add_argument("--limit", type=int); s.set_defaults(func=cmd_review)
+    for name, fn in (("confirm", cmd_confirm), ("ignore", cmd_ignore)):
+        s = sub.add_parser(name)
+        s.add_argument("--kind", required=True,
+                       choices=["store", "item", "payment_account", "counterparty", "project", "category", "transaction", "transfer"])
+        s.add_argument("--id", required=True); s.set_defaults(func=fn)
+
+    s = sub.add_parser("rename-entity")
+    s.add_argument("--kind", required=True, choices=list(ENTITY_TABLE))
+    s.add_argument("--old", required=True); s.add_argument("--new", required=True); s.set_defaults(func=cmd_rename)
+
+    s = sub.add_parser("merge-entity")
+    s.add_argument("--kind", required=True, choices=list(ENTITY_TABLE))
+    s.add_argument("--old", required=True); s.add_argument("--into", required=True); s.set_defaults(func=cmd_merge)
+
+    s = sub.add_parser("backup"); s.add_argument("--out"); s.add_argument("--keep", type=int); s.set_defaults(func=cmd_backup)
+
+    s = sub.add_parser("audit", help="read the append-only change log"); s.add_argument("--entity")
+    s.add_argument("--limit", type=int); s.set_defaults(func=cmd_audit)
+
+    s = sub.add_parser("upsert-entity")
+    s.add_argument("--kind", required=True, choices=list(ENTITY_TABLE))
+    s.add_argument("--name", required=True); s.add_argument("--alias", action="append", default=[])
+    s.add_argument("--id"); s.add_argument("--last-seen-at")
+    s.add_argument("--default-category-id", default="uncategorized")
+    s.add_argument("--payment-account-id"); s.add_argument("--currency")
+    s.add_argument("--counterparty-type", default="unknown")
+    s.add_argument("--person-id", dest="person_id", help="People person_id for a type=person counterparty")
+    s.add_argument("--default-scope", default="reimbursable")
+    s.add_argument("--dir-path"); s.add_argument("--default-counterparty-id")
+    s.add_argument("--payment-type", default="unknown"); s.add_argument("--payment-currency", action="append")
+    s.add_argument("--default-currency"); s.add_argument("--display-hint")
+    s.add_argument("--dry-run", action="store_true"); s.set_defaults(func=cmd_upsert)
+
+    # cross read ports (siblings call these instead of opening budget.db)
+    s = sub.add_parser("projects", help="read-port: project masters (+aliases) for cross-skill reconcile")
+    s.add_argument("--json", action="store_true"); s.set_defaults(func=cmd_projects_port)
+    s = sub.add_parser("counterparties", help="read-port: counterparties (+person_id) for cross-skill checks")
+    s.add_argument("--json", action="store_true"); s.set_defaults(func=cmd_counterparties_port)
+    return p
+
+
+def main(argv=None):
+    args = build_parser().parse_args(argv)
+    args.func(args)
+
+
+if __name__ == "__main__":
+    main()

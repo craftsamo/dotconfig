@@ -19,7 +19,8 @@ seeded `AGENTS.md`. The workspace map and rules live in `~/Workspaces/AGENTS.md`
 
 ## Layout (nested)
 - Code: `~/Workspaces/Projects/<Group>/github/<repo>/` — repos flat under the group's
-  `github/`; group also has `docs/ data/ teams/`. Each repo: own git + `AGENTS.md`.
+  `github/`; group also has `docs/ data/`. Each repo: own git + `AGENTS.md`. Group identity,
+  repos, members, links, tags live in the central `Projects/.registry/` (the `projects` skill / `pj`).
 - Personal (no git): `~/Workspaces/Personal/<Group>/{data,docs}/`.
 
 ## Procedure
