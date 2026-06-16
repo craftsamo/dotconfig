@@ -1,0 +1,40 @@
+{
+  "_comment": "Synthetic shape reference for entities/persons.json (one element of persons[]). Not real data.",
+  "id": "jd",
+  "display_name": "JD",
+  "kind": "individual",
+  "status": "active",
+  "review_status": "confirmed",
+  "residence_country": "MY",
+  "preferred_language": "en",
+  "preferred_contact_channel": "telegram",
+  "timezone": "Asia/Kuala_Lumpur",
+  "last_updated": "2026-06-16",
+  "created_at": "2026-06-16T00:00:00+00:00",
+  "updated_at": "2026-06-16T00:00:00+00:00",
+  "aliases": [
+    { "alias": "JD", "is_primary": true },
+    { "alias": "John D", "is_primary": false }
+  ],
+  "contacts": [
+    { "channel": "telegram", "handle": "jdoe", "is_primary": true },
+    { "channel": "github", "handle": "jdoe", "is_primary": false }
+  ],
+  "languages": [
+    { "language": "en", "proficiency": "native", "is_primary": true },
+    { "language": "ms", "proficiency": "conversational", "is_primary": false }
+  ],
+  "nationalities": [
+    { "country": "MY", "is_primary": true }
+  ],
+  "notes": [
+    { "seq": 1, "text": "Prefers async; replies within a day.", "created_at": "2026-06-16T00:00:00+00:00" }
+  ],
+  "tags": [
+    { "axis": "comms", "value": "conclusion-first" },
+    { "axis": "how_we_met", "value": "introduced via a project" }
+  ],
+  "relationships": [
+    { "to": "master", "type": "colleague", "note": null }
+  ]
+}

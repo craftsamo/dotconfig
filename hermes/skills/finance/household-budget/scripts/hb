@@ -365,10 +365,10 @@ def cmd_import(args):
         cpf = src / "entities" / "counterparties.json"
         if cpf.exists():
             for cp in load(cpf)["counterparties"]:
-                con.execute("INSERT INTO counterparties(id, canonical_name, type, default_scope, review_status) "
-                            "VALUES (?,?,?,?,?)",
+                con.execute("INSERT INTO counterparties(id, canonical_name, type, default_scope, review_status, person_id) "
+                            "VALUES (?,?,?,?,?,?)",
                             (cp["id"], cp["canonical_name"], cp.get("type", "unknown"),
-                             cp.get("default_scope", "reimbursable"), cp.get("review_status", "confirmed")))
+                             cp.get("default_scope", "reimbursable"), cp.get("review_status", "confirmed"), cp.get("person_id")))
                 _add_aliases(con, "counterparty", cp["id"], cp["canonical_name"], cp.get("aliases"))
         prf = src / "entities" / "projects.json"
         if prf.exists():
@@ -474,6 +474,31 @@ def cmd_validate(args):
                "cp_unknown": "counterparties", "uncategorized": "categories"}[sid]
         if not con.execute(f"SELECT 1 FROM {tbl} WHERE id = ?", (sid,)).fetchone():
             errs.append(f"missing sentinel {sid} in {tbl}")
+
+    # person-type counterparties must resolve to the People registry. Read People's LIVE DB
+    # read-only (no export-mirror dependency); skip gracefully if it is absent/unreadable.
+    person_cps = con.execute("SELECT id, person_id FROM counterparties WHERE type = 'person'").fetchall()
+    if person_cps:
+        ppl_db = Path(args.people_db) if getattr(args, "people_db", None) else \
+            Path.home() / "Workspaces" / "Personal" / "People" / "data" / "people.db"
+        valid_people = None
+        if ppl_db.exists():
+            try:
+                pcon = sqlite3.connect(f"file:{ppl_db}?mode=ro", uri=True)
+                try:
+                    valid_people = {r[0] for r in pcon.execute("SELECT id FROM persons")}
+                finally:
+                    pcon.close()
+            except sqlite3.Error as e:
+                print(f"WARN: cannot read People DB ({ppl_db}): {e}; skipping person_id cross-check", file=sys.stderr)
+        else:
+            print(f"WARN: People DB not found ({ppl_db}); skipping person_id cross-check", file=sys.stderr)
+        if valid_people is not None:
+            for r in person_cps:
+                if not r["person_id"]:
+                    errs.append(f"{r['id']}: counterparty type=person without person_id")
+                elif r["person_id"] not in valid_people:
+                    errs.append(f"{r['id']}: person_id {r['person_id']!r} not in People registry")
 
     if errs:
         for e in errs:
@@ -1237,8 +1262,9 @@ def cmd_upsert(args):
                 con.execute("INSERT INTO store_payment_options(store_id, payment_account_id, currency, is_default) "
                             "VALUES (?,?,?,1)", (eid, args.payment_account_id, args.currency))
         elif etype == "counterparty":
-            con.execute("INSERT INTO counterparties(id, canonical_name, type, default_scope, review_status) "
-                        "VALUES (?,?,?,?,?)", (eid, args.name, args.counterparty_type, args.default_scope, "needs_review"))
+            con.execute("INSERT INTO counterparties(id, canonical_name, type, default_scope, review_status, person_id) "
+                        "VALUES (?,?,?,?,?,?)",
+                        (eid, args.name, args.counterparty_type, args.default_scope, "needs_review", args.person_id))
         elif etype == "project":
             con.execute("INSERT INTO projects(id, canonical_name, dir_path, default_counterparty_id, default_scope, "
                         "review_status, last_seen_at) VALUES (?,?,?,?,?,?,?)",
@@ -1406,7 +1432,7 @@ def _export_json(con, out: Path):
     dump(ent / "counterparties.json", {"schema_version": 2,
         "counterparties": [{"id": r["id"], "canonical_name": r["canonical_name"], "type": r["type"],
                             "aliases": _aliases_for(con, "counterparty", r["id"]), "default_scope": r["default_scope"],
-                            "review_status": r["review_status"]}
+                            "review_status": r["review_status"], "person_id": r["person_id"]}
                            for r in con.execute("SELECT * FROM counterparties ORDER BY id")]})
     dump(ent / "projects.json", {"schema_version": 2,
         "projects": [{"id": r["id"], "canonical_name": r["canonical_name"], "aliases": _aliases_for(con, "project", r["id"]),
@@ -1537,7 +1563,9 @@ def build_parser():
     s.add_argument("--src", help="source mirror dir (default: <root>/data/export)")
     s.add_argument("--force", action="store_true"); s.set_defaults(func=cmd_import)
 
-    s = sub.add_parser("validate"); s.set_defaults(func=cmd_validate)
+    s = sub.add_parser("validate")
+    s.add_argument("--people-db", help="override People DB path for the person_id cross-check (read-only)")
+    s.set_defaults(func=cmd_validate)
 
     s = sub.add_parser("summary"); s.add_argument("--month", required=True); s.set_defaults(func=cmd_summary)
 
@@ -1598,6 +1626,7 @@ def build_parser():
     s.add_argument("--default-category-id", default="uncategorized")
     s.add_argument("--payment-account-id"); s.add_argument("--currency")
     s.add_argument("--counterparty-type", default="unknown")
+    s.add_argument("--person-id", dest="person_id", help="People person_id for a type=person counterparty")
     s.add_argument("--default-scope", default="reimbursable")
     s.add_argument("--dir-path"); s.add_argument("--default-counterparty-id")
     s.add_argument("--payment-type", default="unknown"); s.add_argument("--payment-currency", action="append")

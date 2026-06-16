@@ -65,8 +65,12 @@ exist and are `confirmed`.
 - **projects** `{id, canonical_name, dir_path?, default_counterparty_id?,
   default_scope, review_status, last_seen_at}` — 1:1 with `~/Workspaces/Projects/<slug>`.
   Used as a spend dimension and to default a claim's counterparty.
-- **counterparties** `{id, canonical_name, type, default_scope, review_status}` — who
-  settles/reimburses; `type ∈ {project, person, company, unknown}`.
+- **counterparties** `{id, canonical_name, type, default_scope, review_status, person_id?}` —
+  who settles/reimburses; `type ∈ {project, person, company, unknown}`. For `type = 'person'`,
+  `person_id` is a soft reference to the People registry (`~/Workspaces/Personal/People`,
+  like `projects.dir_path`). Added by migration `0004`. `hb validate` cross-checks it by
+  reading People's **live `people.db` read-only** (not the export mirror; `--people-db`
+  overrides the path), and `pp validate` checks the same edge from the People side.
 - **subscriptions** `{id, name, store_id?, item_id?, budget_scope, project_id?,
   counterparty_id?, billing_cycle, expected_amount?, review_status, note?}`;
   `billing_cycle ∈ {weekly, monthly, yearly, unknown}`.
