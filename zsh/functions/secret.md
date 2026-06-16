@@ -64,7 +64,7 @@ differ per repository (`DATABASE_URL`, `PORT`, ...) go into a **scope**,
 named after the repository:
 
 ```sh
-cd ~/Github/example-project/learning-app   # linked to example-project
+cd ~/Workspaces/Projects/ExampleProject/github/learning-app   # linked to example-project
 secret set GOOGLE_CLOUD_PROJECT_ID          # shared: visible to every repo
 secret set DATABASE_URL -S                  # scoped: learning-app only
 secret get DATABASE_URL                     # scoped first, falls back to shared
