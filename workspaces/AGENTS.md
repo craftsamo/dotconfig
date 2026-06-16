@@ -7,7 +7,9 @@ work, delegate to workers, and return results.
 - `Projects/<Group>/` — git-managed code, grouped by org / client / category. Each
   group holds:
   - `github/<repo>/` — repos (flat under the group; each has its own committed AGENTS.md).
-  - `docs/` — out-of-codebase docs, specs, notes.   `data/` — datasets.   `teams/` — team/org info.
+  - `docs/` — out-of-codebase docs, specs, notes.   `data/` — datasets.
+  - Group identity, repos, links, **team memberships**, tags → central `Projects/.registry/`
+    (the `projects` skill / `pj`), not per-group files.
 - `Personal/<Group>/` — personal data & automation (**no git**). Each group holds:
   - `data/` — data files (e.g. a ledger as `data/*.json`). **Sensitive.**   `docs/` — notes/docs.
 - `.scratch/` — throwaway work; keep nothing important here.

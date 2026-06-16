@@ -1,0 +1,28 @@
+{
+  "date": "2026-06-01",
+  "type": "expense",
+  "amount": { "value": "80.04", "currency": "USD" },
+  "reporting_amount": {
+    "value": "12500", "currency": "JPY",
+    "fx_rate": "156.17", "fx_date": "2026-06-01", "fx_source": "estimated"
+  },
+  "store": { "raw_name": "Sample Cloud" },
+  "payment": { "payment_account_id": "pay_sample_card", "raw_text": "VISA", "confidence": 1 },
+  "category_id": "cloud_infrastructure",
+  "budget_scope": "reimbursable",
+  "project_id": "proj_sample_project",
+  "claim": {
+    "counterparty_id": "cp_sample_client",
+    "status": "not_submitted",
+    "expected_reimbursement_amount": { "value": "80.04", "currency": "USD" }
+  },
+  "line_items": [
+    { "raw_name": "Compute usage", "category_id": "cloud_infrastructure", "amount": { "value": "80.04", "currency": "USD" } }
+  ],
+  "source": {
+    "kind": "invoice_image", "document_saved": false, "raw_text_saved": false,
+    "organization": "Sample Client",
+    "external_reference": { "invoice_number": "INV-SAMPLE-001" }
+  },
+  "note": "Reimbursable project expense (sample)."
+}

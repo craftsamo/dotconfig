@@ -158,6 +158,7 @@ for p in "$DOTFILES"/hermes/profiles/*/; do
   [ -f "$p/SOUL.md" ]            && link "$p/SOUL.md"            "$HOME/.hermes/profiles/$n/SOUL.md"
   [ -f "$p/mcp.json" ]          && link "$p/mcp.json"          "$HOME/.hermes/profiles/$n/mcp.json"
   [ -d "$p/cron" ]              && link "$p/cron"              "$HOME/.hermes/profiles/$n/cron"
+  [ -d "$p/scripts" ]          && link "$p/scripts"          "$HOME/.hermes/profiles/$n/scripts"
   [ -d "$p/skills" ]            && link "$p/skills"            "$HOME/.hermes/profiles/$n/skills"
   [ -f "$p/.no-bundled-skills" ] && link "$p/.no-bundled-skills" "$HOME/.hermes/profiles/$n/.no-bundled-skills"
   # Shared user-plugins dir into each profile home (discovery is HERMES_HOME-scoped).
