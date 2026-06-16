@@ -46,6 +46,13 @@ SCHEMA_PATH = SKILL_DIR / "schema.sql"
 MIGRATIONS_DIR = SKILL_DIR / "migrations"
 REPORTING_CURRENCY = "JPY"
 
+# shared cross-skill contract/resolver (degrade gracefully if unavailable)
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # skills/workspaces/
+try:
+    import _cross
+except Exception:  # pragma: no cover
+    _cross = None
+
 MONEY_RE = re.compile(r"^\d+(?:\.\d+)?$")
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
@@ -475,24 +482,20 @@ def cmd_validate(args):
         if not con.execute(f"SELECT 1 FROM {tbl} WHERE id = ?", (sid,)).fetchone():
             errs.append(f"missing sentinel {sid} in {tbl}")
 
-    # person-type counterparties must resolve to the People registry. Read People's LIVE DB
-    # read-only (no export-mirror dependency); skip gracefully if it is absent/unreadable.
+    # person-type counterparties must resolve to the People registry. We call the People CLI
+    # (`pp list --json`) rather than opening people.db — see ../../_cross. Skip with a warning
+    # if People is unavailable.
     person_cps = con.execute("SELECT id, person_id FROM counterparties WHERE type = 'person'").fetchall()
     if person_cps:
-        ppl_db = Path(args.people_db) if getattr(args, "people_db", None) else \
-            Path.home() / "Workspaces" / "Personal" / "People" / "data" / "people.db"
         valid_people = None
-        if ppl_db.exists():
-            try:
-                pcon = sqlite3.connect(f"file:{ppl_db}?mode=ro", uri=True)
-                try:
-                    valid_people = {r[0] for r in pcon.execute("SELECT id FROM persons")}
-                finally:
-                    pcon.close()
-            except sqlite3.Error as e:
-                print(f"WARN: cannot read People DB ({ppl_db}): {e}; skipping person_id cross-check", file=sys.stderr)
+        if _cross is not None and _cross.available("people"):
+            data = _cross.call("people", ["list", "--json"])
+            if data is not None:
+                valid_people = {p["id"] for p in data.get("persons", [])}
+            else:
+                print("WARN: People cross-check skipped (no data from pp)", file=sys.stderr)
         else:
-            print(f"WARN: People DB not found ({ppl_db}); skipping person_id cross-check", file=sys.stderr)
+            print("WARN: People CLI unavailable; skipping person_id cross-check", file=sys.stderr)
         if valid_people is not None:
             for r in person_cps:
                 if not r["person_id"]:
@@ -1543,6 +1546,47 @@ def cmd_export(args):
     print(f"exported {args.format} -> {out}")
 
 
+# --------------------------------------------------------------------------- cross read ports
+# Public read API for sibling skills (projects/people). They call these instead of opening
+# budget.db. Output is the shared cross-skill envelope. Never mutate; never call validate.
+def _emit_port(data):
+    if _cross is not None:
+        _cross.emit("household-budget", data)
+    else:
+        print(json.dumps({"contract_version": 1, "skill": "household-budget", "data": data},
+                         ensure_ascii=False, indent=2))
+
+
+def cmd_projects_port(args):
+    con = connect(args)
+    data = {"projects": [
+        {"id": r["id"], "canonical_name": r["canonical_name"], "aliases": _aliases_for(con, "project", r["id"]),
+         "dir_path": r["dir_path"], "default_counterparty_id": r["default_counterparty_id"],
+         "default_scope": r["default_scope"], "review_status": r["review_status"]}
+        for r in con.execute("SELECT * FROM projects ORDER BY id")]}
+    if args.json:
+        _emit_port(data)
+    else:
+        for p in data["projects"]:
+            print(f"  {p['id']:<24} {p['canonical_name']:<22} {p['dir_path'] or ''}")
+        print(f"{len(data['projects'])} project(s)")
+
+
+def cmd_counterparties_port(args):
+    con = connect(args)
+    data = {"counterparties": [
+        {"id": r["id"], "canonical_name": r["canonical_name"], "type": r["type"],
+         "aliases": _aliases_for(con, "counterparty", r["id"]), "default_scope": r["default_scope"],
+         "review_status": r["review_status"], "person_id": r["person_id"]}
+        for r in con.execute("SELECT * FROM counterparties ORDER BY id")]}
+    if args.json:
+        _emit_port(data)
+    else:
+        for c in data["counterparties"]:
+            print(f"  {c['id']:<24} {c['type']:<10} person={c['person_id'] or '-'}")
+        print(f"{len(data['counterparties'])} counterparty(ies)")
+
+
 # --------------------------------------------------------------------------- CLI
 def build_parser():
     p = argparse.ArgumentParser(prog="hb", description="HouseholdBudget DB engine (SQLite v2, stdlib).")
@@ -1563,9 +1607,7 @@ def build_parser():
     s.add_argument("--src", help="source mirror dir (default: <root>/data/export)")
     s.add_argument("--force", action="store_true"); s.set_defaults(func=cmd_import)
 
-    s = sub.add_parser("validate")
-    s.add_argument("--people-db", help="override People DB path for the person_id cross-check (read-only)")
-    s.set_defaults(func=cmd_validate)
+    s = sub.add_parser("validate"); s.set_defaults(func=cmd_validate)
 
     s = sub.add_parser("summary"); s.add_argument("--month", required=True); s.set_defaults(func=cmd_summary)
 
@@ -1632,6 +1674,12 @@ def build_parser():
     s.add_argument("--payment-type", default="unknown"); s.add_argument("--payment-currency", action="append")
     s.add_argument("--default-currency"); s.add_argument("--display-hint")
     s.add_argument("--dry-run", action="store_true"); s.set_defaults(func=cmd_upsert)
+
+    # cross read ports (siblings call these instead of opening budget.db)
+    s = sub.add_parser("projects", help="read-port: project masters (+aliases) for cross-skill reconcile")
+    s.add_argument("--json", action="store_true"); s.set_defaults(func=cmd_projects_port)
+    s = sub.add_parser("counterparties", help="read-port: counterparties (+person_id) for cross-skill checks")
+    s.add_argument("--json", action="store_true"); s.set_defaults(func=cmd_counterparties_port)
     return p
 
 

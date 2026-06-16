@@ -24,7 +24,7 @@ Subcommands:
   tag-set/-rm     manage free-axis tags (axis registered on demand)
   rel-add/-rm     manage person<->person relationships
   show/list/search/whois  read helpers (whois resolves a handle/name -> person_id)
-  import-projects rebuild the membership mirror from ~/Workspaces/Projects/*/teams/members
+  import-projects rebuild the membership mirror from the projects registry (calls `pj members`)
   backup          snapshot the DB to data/backups/ (with optional retention)
   audit           show recent change history
 
@@ -48,6 +48,13 @@ SCHEMA_PATH = SKILL_DIR / "schema.sql"
 MIGRATIONS_DIR = SKILL_DIR / "migrations"
 PROJECTS_DIR = Path.home() / "Workspaces" / "Projects"
 SENTINEL = "person_unknown"
+
+# shared cross-skill contract/resolver (degrade gracefully if unavailable)
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # skills/workspaces/
+try:
+    import _cross
+except Exception:  # pragma: no cover
+    _cross = None
 
 # base lookups seeded by `init --seed` / migrate_people (kept lean; auto-extended on demand)
 SEED_COUNTRIES = {"JP": "Japan", "MY": "Malaysia", "ID": "Indonesia"}
@@ -380,42 +387,36 @@ def cmd_validate(args):
     for r in con.execute("SELECT alias_norm, person_id FROM person_aliases"):
         if r["alias_norm"] != normalize_text(r["alias_norm"]):
             errs.append(f"{r['person_id']}: alias_norm not normalized: {r['alias_norm']!r}")
-    # cross-store: every Projects member references an existing person
-    if PROJECTS_DIR.exists():
-        valid = {x[0] for x in con.execute("SELECT id FROM persons")}
-        for proj in sorted(PROJECTS_DIR.iterdir()):
-            mdir = proj / "teams" / "members"
-            if not mdir.is_dir():
-                continue
-            for f in sorted(mdir.glob("*.json")):
-                try:
-                    pid = load(f).get("person_id") or f.stem
-                except Exception as e:
-                    errs.append(f"{f}: unreadable ({e})")
+    # cross-store checks go through SIBLING CLIs (never open another skill's DB); each skips
+    # with a warning if the sibling is unavailable. See ../../_cross.
+    valid = {x[0] for x in con.execute("SELECT id FROM persons")}
+    # every Projects membership references an existing person (source: pj members)
+    if _cross is not None and _cross.available("projects"):
+        data = _cross.call("projects", ["members", "--json"])
+        if data is None:
+            print("WARN: projects cross-check skipped (no data from pj)", file=sys.stderr)
+        else:
+            for m in data.get("memberships", []):
+                if m.get("person_id") not in valid:
+                    errs.append(f"projects {m.get('project_id')}: member person_id {m.get('person_id')!r} not in People")
+    else:
+        print("WARN: projects CLI unavailable; skipped membership cross-check", file=sys.stderr)
+    # every budget person-counterparty resolves into People (source: hb counterparties)
+    if _cross is not None and _cross.available("household-budget"):
+        data = _cross.call("household-budget", ["counterparties", "--json"])
+        if data is None:
+            print("WARN: budget cross-check skipped (no data from hb)", file=sys.stderr)
+        else:
+            for c in data.get("counterparties", []):
+                if c.get("type") != "person":
                     continue
-                if pid not in valid:
-                    errs.append(f"{proj.name}/teams/members/{f.name}: person_id {pid!r} not in People")
-    # mutual cross-store: every budget person-counterparty must resolve into People. Read the
-    # budget's LIVE DB read-only; skip gracefully if absent or on an older schema.
-    budget_db = Path(args.budget_db) if getattr(args, "budget_db", None) else \
-        Path.home() / "Workspaces" / "Personal" / "HouseholdBudget" / "data" / "budget.db"
-    if budget_db.exists():
-        people_ids = {x[0] for x in con.execute("SELECT id FROM persons")}
-        cps = None
-        try:
-            bcon = sqlite3.connect(f"file:{budget_db}?mode=ro", uri=True)
-            try:
-                cps = bcon.execute("SELECT id, person_id FROM counterparties WHERE type = 'person'").fetchall()
-            finally:
-                bcon.close()
-        except sqlite3.Error as e:
-            print(f"WARN: cannot read budget DB ({budget_db}): {e}; skipping reverse cross-check", file=sys.stderr)
-        if cps is not None:
-            for cid, pid in cps:
+                pid = c.get("person_id")
                 if not pid:
-                    errs.append(f"budget counterparty {cid}: type=person without person_id")
-                elif pid not in people_ids:
-                    errs.append(f"budget counterparty {cid}: person_id {pid!r} not in People")
+                    errs.append(f"budget counterparty {c.get('id')}: type=person without person_id")
+                elif pid not in valid:
+                    errs.append(f"budget counterparty {c.get('id')}: person_id {pid!r} not in People")
+    else:
+        print("WARN: household-budget CLI unavailable; skipped reverse cross-check", file=sys.stderr)
     if errs:
         for e in errs:
             print(f"ERROR: {e}", file=sys.stderr)
@@ -476,11 +477,22 @@ def _memberships_for(con, pid):
     return out
 
 
+def _emit_people(data):
+    """Cross-skill read-port envelope (siblings call `pp` instead of opening people.db)."""
+    if _cross is not None:
+        _cross.emit("people", data)
+    else:
+        print(json.dumps({"contract_version": 1, "skill": "people", "data": data}, ensure_ascii=False, indent=2))
+
+
 def cmd_show(args):
     con = connect(args)
     obj = _person_obj(con, args.id)
     if not obj:
         die(f"no person with id {args.id}")
+    if getattr(args, "json", False):
+        _emit_people(obj)
+        return
     print(json.dumps(obj, ensure_ascii=False, indent=2))
 
 
@@ -496,6 +508,9 @@ def cmd_list(args):
         q += " AND id IN (SELECT person_id FROM person_project_memberships WHERE project_id = ?)"; params.append(args.project)
     q += " ORDER BY id"
     rows = con.execute(q, params).fetchall()
+    if getattr(args, "json", False):
+        _emit_people({"persons": [dict(r) for r in rows]})
+        return
     for r in rows:
         extra = " ".join(filter(None, [r["residence_country"], (f"lang={r['preferred_language']}" if r["preferred_language"] else "")]))
         print(f"  {r['id']:<12} {r['display_name']:<16} {r['kind']:<10} {r['status']:<8} {r['review_status']:<12} {extra}")
@@ -873,45 +888,52 @@ def cmd_merge(args):
 
 # --------------------------------------------------------------------------- import-projects
 def cmd_import_projects(args):
+    """Rebuild the membership mirror from the projects registry (calls `pj members --json`).
+
+    The registry (pj) is the source of truth; this regenerates People's local mirror. We call the
+    sibling CLI rather than reading its DB/files — see ../../_cross.
+    """
     con = connect(args)
     valid = {r[0] for r in con.execute("SELECT id FROM persons")}
     now = now_iso()
     count, orphans = 0, []
+    if _cross is None or not _cross.available("projects"):
+        die("projects skill (pj) unavailable; cannot rebuild membership mirror")
+    data = _cross.call("projects", ["members", "--json"])
+    if data is None:
+        die("no membership data from projects (pj members --json)")
+    memberships = data.get("memberships", [])
     con.execute("BEGIN")
     try:
         con.execute("DELETE FROM person_project_memberships")  # children cascade
-        if PROJECTS_DIR.exists():
-            for proj in sorted(PROJECTS_DIR.iterdir()):
-                mdir = proj / "teams" / "members"
-                if not mdir.is_dir():
-                    continue
-                for f in sorted(mdir.glob("*.json")):
-                    m = load(f)
-                    pid = m.get("person_id") or f.stem
-                    if pid not in valid:
-                        orphans.append({"person_id": pid, "project": proj.name})
-                        continue
-                    perms = m.get("permissions") or {}
-                    con.execute("INSERT INTO person_project_memberships(person_id, project_id, status, working_relationship, "
-                                "can_merge, can_deploy, source_path, last_synced_at) VALUES (?,?,?,?,?,?,?,?)",
-                                (pid, proj.name, m.get("status"), m.get("working_relationship"),
-                                 1 if perms.get("can_merge") else 0, 1 if perms.get("can_deploy") else 0, str(f), now))
-                    for role in m.get("roles") or []:
-                        con.execute("INSERT OR IGNORE INTO membership_roles VALUES (?,?,?)", (pid, proj.name, role))
-                    for r in m.get("responsibilities") or []:
-                        con.execute("INSERT OR IGNORE INTO membership_responsibilities VALUES (?,?,?)", (pid, proj.name, r))
-                    for a in m.get("areas") or []:
-                        con.execute("INSERT OR IGNORE INTO membership_areas VALUES (?,?,?)", (pid, proj.name, a))
-                    for t in perms.get("can_approve") or []:
-                        con.execute("INSERT OR IGNORE INTO membership_permission_scopes VALUES (?,?,?,?)", (pid, proj.name, "approve", t))
-                    for t in perms.get("can_review") or []:
-                        con.execute("INSERT OR IGNORE INTO membership_permission_scopes VALUES (?,?,?,?)", (pid, proj.name, "review", t))
-                    for i, note in enumerate(m.get("notes") or [], start=1):
-                        con.execute("INSERT OR IGNORE INTO membership_notes VALUES (?,?,?,?)", (pid, proj.name, i, note))
-                    for ch, h in (m.get("project_contacts") or {}).items():
-                        con.execute("INSERT OR IGNORE INTO membership_contacts VALUES (?,?,?,?)", (pid, proj.name, ch, h))
-                    count += 1
-        _audit(con, None, "import-projects", "person_project_memberships", None, None, f"{count} memberships, {len(orphans)} orphans")
+        for m in memberships:
+            pid = m.get("person_id")
+            proj = m.get("project_id")
+            if pid not in valid:
+                orphans.append({"person_id": pid, "project": proj})
+                continue
+            perms = m.get("permissions") or {}
+            con.execute("INSERT INTO person_project_memberships(person_id, project_id, status, working_relationship, "
+                        "can_merge, can_deploy, source_path, last_synced_at) VALUES (?,?,?,?,?,?,?,?)",
+                        (pid, proj, m.get("status"), m.get("working_relationship"),
+                         1 if perms.get("can_merge") else 0, 1 if perms.get("can_deploy") else 0,
+                         f"pj:{proj}/{pid}", now))
+            for role in m.get("roles") or []:
+                con.execute("INSERT OR IGNORE INTO membership_roles VALUES (?,?,?)", (pid, proj, role))
+            for r in m.get("responsibilities") or []:
+                con.execute("INSERT OR IGNORE INTO membership_responsibilities VALUES (?,?,?)", (pid, proj, r))
+            for a in m.get("areas") or []:
+                con.execute("INSERT OR IGNORE INTO membership_areas VALUES (?,?,?)", (pid, proj, a))
+            for t in perms.get("can_approve") or []:
+                con.execute("INSERT OR IGNORE INTO membership_permission_scopes VALUES (?,?,?,?)", (pid, proj, "approve", t))
+            for t in perms.get("can_review") or []:
+                con.execute("INSERT OR IGNORE INTO membership_permission_scopes VALUES (?,?,?,?)", (pid, proj, "review", t))
+            for i, note in enumerate(m.get("notes") or [], start=1):
+                con.execute("INSERT OR IGNORE INTO membership_notes VALUES (?,?,?,?)", (pid, proj, i, note))
+            for ch, h in (m.get("project_contacts") or {}).items():
+                con.execute("INSERT OR IGNORE INTO membership_contacts VALUES (?,?,?,?)", (pid, proj, ch, h))
+            count += 1
+        _audit(con, None, "import-projects", "person_project_memberships", None, None, f"{count} memberships, {len(orphans)} orphans (source: pj)")
         con.execute("COMMIT")
     except Exception:
         con.execute("ROLLBACK")
@@ -1041,14 +1063,12 @@ def build_parser():
     s.add_argument("--format", choices=["json", "csv", "both"], default="json")
     s.add_argument("--out"); s.set_defaults(func=cmd_export)
 
-    s = sub.add_parser("validate")
-    s.add_argument("--budget-db", help="override budget DB path for the reverse cross-check (read-only)")
-    s.set_defaults(func=cmd_validate)
+    s = sub.add_parser("validate"); s.set_defaults(func=cmd_validate)
 
-    s = sub.add_parser("show"); s.add_argument("--id", required=True); s.set_defaults(func=cmd_show)
+    s = sub.add_parser("show"); s.add_argument("--id", required=True); s.add_argument("--json", action="store_true"); s.set_defaults(func=cmd_show)
     s = sub.add_parser("list")
     s.add_argument("--status", choices=["active", "inactive"]); s.add_argument("--kind", choices=["self", "individual"])
-    s.add_argument("--project"); s.set_defaults(func=cmd_list)
+    s.add_argument("--project"); s.add_argument("--json", action="store_true"); s.set_defaults(func=cmd_list)
     s = sub.add_parser("search"); s.add_argument("query"); s.set_defaults(func=cmd_search)
     s = sub.add_parser("whois", help="resolve a handle/name -> person_id (+ context)"); s.add_argument("query"); s.set_defaults(func=cmd_whois)
 
@@ -1100,7 +1120,7 @@ def build_parser():
     s = sub.add_parser("rel-rm"); s.add_argument("--from", dest="from_id", required=True); s.add_argument("--to", dest="to_id", required=True)
     s.add_argument("--type", required=True); s.set_defaults(func=cmd_rel_rm)
 
-    s = sub.add_parser("import-projects", help="rebuild membership mirror from Projects"); s.set_defaults(func=cmd_import_projects)
+    s = sub.add_parser("import-projects", help="rebuild membership mirror from the projects registry (pj members)"); s.set_defaults(func=cmd_import_projects)
 
     s = sub.add_parser("backup"); s.add_argument("--out"); s.add_argument("--keep", type=int); s.set_defaults(func=cmd_backup)
     s = sub.add_parser("audit"); s.add_argument("--id"); s.add_argument("--limit", type=int); s.set_defaults(func=cmd_audit)
