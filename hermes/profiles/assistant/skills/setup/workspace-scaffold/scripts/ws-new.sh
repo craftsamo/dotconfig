@@ -2,7 +2,7 @@
 #
 # Scaffold groups/repos in ~/Workspaces (nested layout).
 #
-#   ws-new.sh group projects <Group>   -> Projects/<Group>/{github,docs,data,teams} + AGENTS.md
+#   ws-new.sh group projects <Group>   -> Projects/<Group>/{github,docs,data} + AGENTS.md + registry row
 #   ws-new.sh group personal <Group>   -> Personal/<Group>/{data,docs} + AGENTS.md (no git)
 #   ws-new.sh repo <Group> <repo>       -> Projects/<Group>/github/<repo> (+ git init + AGENTS.md)
 #
@@ -15,7 +15,7 @@ SKILL_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 usage() {
   cat >&2 <<'EOF'
 usage:
-  ws-new.sh group projects <Group>   # Projects/<Group>/{github,docs,data,teams}
+  ws-new.sh group projects <Group>   # Projects/<Group>/{github,docs,data} (+ projects registry row)
   ws-new.sh group personal <Group>   # Personal/<Group>/{data,docs} (no git)
   ws-new.sh repo <Group> <repo>       # Projects/<Group>/github/<repo> (+ git init)
 EOF
@@ -36,8 +36,17 @@ case "${1:-}" in
     case "$area" in
       projects)
         base="$WS/Projects/$name"
-        mkdir -p "$base/github" "$base/docs" "$base/data" "$base/teams"
+        mkdir -p "$base/github" "$base/docs" "$base/data"
         seed "$SKILL_DIR/templates/group.AGENTS.md" "$base/AGENTS.md"
+        # register the group in the central projects registry (best-effort; members/repos via pj)
+        pj="${PJ_BIN:-$HOME/.hermes/skills/workspaces/projects/scripts/pj}"
+        if [ -f "$pj" ] && command -v python3 >/dev/null 2>&1; then
+          python3 "$pj" upsert-project --id "$name" --name "$name" >/dev/null 2>&1 \
+            && echo "ws-new: registered $name in the projects registry (pj)" \
+            || echo "ws-new: NOTE register it: pj upsert-project --id $name"
+        else
+          echo "ws-new: NOTE register it in the registry: pj upsert-project --id $name"
+        fi
         ;;
       personal)
         base="$WS/Personal/$name"

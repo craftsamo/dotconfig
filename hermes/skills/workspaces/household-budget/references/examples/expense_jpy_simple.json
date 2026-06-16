@@ -1,0 +1,14 @@
+{
+  "date": "2026-06-03",
+  "type": "expense",
+  "amount": { "value": "1000", "currency": "JPY" },
+  "store": { "raw_name": "Sample Convenience" },
+  "payment": { "payment_account_id": "pay_sample_card", "raw_text": "CARD", "confidence": 1 },
+  "category_id": "food",
+  "budget_scope": "household",
+  "line_items": [
+    { "raw_name": "Bento", "category_id": "food_lunch", "amount": { "value": "650", "currency": "JPY" } },
+    { "raw_name": "Tea", "category_id": "food", "amount": { "value": "350", "currency": "JPY" } }
+  ],
+  "source": { "kind": "receipt_image", "document_saved": false, "raw_text_saved": false }
+}
