@@ -11,7 +11,7 @@ author: Hermes Agent
 metadata:
   hermes:
     tags: [household-budget, finance, sqlite, expenses, reimbursement, subscriptions, multi-currency]
-    category: finance
+    category: workspaces
 ---
 
 # HouseholdBudget
@@ -69,8 +69,8 @@ hb init [--force] ; hb import-json [--src DIR] ; hb migrate
 - Money moved between own accounts is a **transfer** (`hb transfer`), not a transaction —
   it is excluded from spend/income aggregation.
 - Person counterparties (`type='person'`) carry `person_id` → the People registry; create
-  with `upsert-entity --counterparty-type person --person-id <id>`. `hb validate` checks it
-  against People's live `people.db` (read-only).
+  with `upsert-entity --counterparty-type person --person-id <id>`. `hb validate` checks it by
+  calling the People CLI (`pp list --json`, read-only) — never opening `people.db`. See `skills/workspaces/_cross.py`.
 - Summarize results to chat; never paste raw balances/account numbers. No external sends
   without an explicit OK.
 - Don't hand-edit `budget.db` or the mirror — use `hb`. Schema evolves via `migrations/`
