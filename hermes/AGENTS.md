@@ -21,8 +21,9 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
 - **Keep `default` neutral** — every `--clone` inherits its `config.yaml`.
   Specialized personas, bots, and cron belong in named profiles.
 - **OAuth logins from `default` only** (`hermes model`, no `-p`). Codex / Copilot /
-  xAI creds are inherited read-only by every profile; running `hermes model` inside
-  a worker writes that profile's `auth.json` and shadows the inherited creds.
+  xAI creds are inherited read-only by every profile (Anthropic native resolves
+  separately via the global Claude Code credential/token); running `hermes model`
+  inside a worker writes that profile's `auth.json` and shadows the inherited creds.
 - **Operating policy lives in `agent.system_prompt`** (per-profile, always-on);
   detailed playbooks are per-profile skills. `SOUL.md` stays persona-only. Do **not**
   run `/personality` on a profile — it shares the `agent.system_prompt` slot and

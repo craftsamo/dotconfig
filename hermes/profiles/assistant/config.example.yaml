@@ -1,9 +1,12 @@
 model:
-  default: gpt-5.5
-  provider: openai-codex
-  base_url: https://chatgpt.com/backend-api/codex
+  default: claude-sonnet-4.6
+  provider: anthropic
+  base_url: https://api.anthropic.com
 providers: {}
 fallback_providers:
+- provider: openai-codex
+  model: gpt-5.5
+  base_url: https://chatgpt.com/backend-api/codex
 - provider: copilot
   model: gpt-5.5
 - provider: openrouter
