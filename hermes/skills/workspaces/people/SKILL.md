@@ -12,7 +12,7 @@ author: Hermes Agent
 metadata:
   hermes:
     tags: [people, registry, sqlite, contacts, directory, personal]
-    category: personal
+    category: workspaces
 ---
 
 # People
@@ -27,7 +27,7 @@ never paste raw records/PII into chat or logs). The full model is `references/da
 - Resolve who a message is from (a Telegram/GitHub handle or a name) → `pp whois <q>`.
 - Look up a person's languages, contacts, nationality, timezone, or project roles.
 - Add or update a person, alias, contact, language, nationality, tag, or relationship.
-- Re-sync project memberships after editing `Projects/*/teams/members/*.json`.
+- Re-sync project memberships after the projects registry changes (`pp import-projects`).
 
 ## Engine (run via the bundled CLI)
 All operations go through `${HERMES_SKILL_DIR}/scripts/pp` (Python stdlib, no deps);
@@ -52,7 +52,7 @@ pp nat-add|nat-rm   --id <id> --country JP [--primary]
 pp note-add --id <id> --text "..." ; pp tag-set|tag-rm --id <id> --axis comms --value "..."
 pp rel-add|rel-rm --from <id> --to <id> --type colleague [--note "..."]
 # data ops
-pp import-projects                       # rebuild the membership mirror from Projects
+pp import-projects                       # rebuild the membership mirror (calls `pj members --json`)
 pp validate ; pp export --format both ; pp backup [--keep N]
 pp init [--seed] [--force] ; pp import-json [--src DIR] ; pp migrate ; pp audit [--id <id>]
 ```
@@ -64,8 +64,9 @@ pp init [--seed] [--force] ; pp import-json [--src DIR] ; pp migrate ; pp audit 
 - **Don't guess personal facts.** Use `null` / omit when unknown (e.g. a multilingual
   person's `preferred_language` stays null until told). Set `review_status = needs_review`
   when unsure; never delete — `set-status --status inactive`.
-- **Memberships are a mirror.** `Projects/*/teams/members/*.json` is the source of truth;
-  `pp import-projects` regenerates `person_project_memberships` (+ children). Don't hand-edit.
+- **Memberships are a mirror.** The **projects registry** (the `projects` skill / `pj`) is the
+  source of truth; `pp import-projects` calls `pj members --json` and regenerates
+  `person_project_memberships` (+ children). Don't hand-edit the mirror.
 - **Privacy.** Sensitive channels (`phone`, `email`) are flagged `is_sensitive` and not
   populated by default. Never store gov IDs, home addresses, secrets, or wallet keys.
 - Don't hand-edit `people.db` or the mirror — use `pp`. Schema evolves via `migrations/`
@@ -78,7 +79,8 @@ pp init [--seed] [--force] ; pp import-json [--src DIR] ; pp migrate ; pp audit 
 - **message-reply** — resolves the sender (`pp whois`), then drafts in their
   `preferred_language` with tone from `working_relationship` + comms tags and scope from
   `permissions`.
-- **Cross-store checks** — the budget↔People link is verified by reading each other's
-  **live DB read-only**: `hb validate` reads `people.db`, `pp validate` reads `budget.db`
-  (mutual; export mirror is inspection-only). Projects members are checked from their JSON
-  files. Every check skips with a warning if the other store is absent.
+- **Cross-store checks** — each store calls the others' **CLI** read-only (never opens another
+  store's DB/files): `pp validate` calls `pj members` + `hb counterparties`; `hb validate` calls
+  `pp list`; `pj validate` calls `pp list` + `hb projects`. A producer answers with a versioned
+  JSON envelope; every check skips with a warning if the sibling CLI is unavailable. See
+  `skills/workspaces/_cross.py` (the shared contract/resolver). A skill never calls another's `validate`.

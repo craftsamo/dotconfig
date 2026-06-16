@@ -69,8 +69,8 @@ exist and are `confirmed`.
   who settles/reimburses; `type ∈ {project, person, company, unknown}`. For `type = 'person'`,
   `person_id` is a soft reference to the People registry (`~/Workspaces/Personal/People`,
   like `projects.dir_path`). Added by migration `0004`. `hb validate` cross-checks it by
-  reading People's **live `people.db` read-only** (not the export mirror; `--people-db`
-  overrides the path), and `pp validate` checks the same edge from the People side.
+  **calling the People CLI** (`pp list --json`, read-only — never opening `people.db`; see
+  `skills/workspaces/_cross.py`), and `pp validate` checks the same edge from the People side.
 - **subscriptions** `{id, name, store_id?, item_id?, budget_scope, project_id?,
   counterparty_id?, billing_cycle, expected_amount?, review_status, note?}`;
   `billing_cycle ∈ {weekly, monthly, yearly, unknown}`.
