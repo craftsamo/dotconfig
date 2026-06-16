@@ -1,4 +1,4 @@
--- HouseholdBudget — SQLite schema v2 (engine: hb). stdlib sqlite3 only.
+-- HouseholdBudget — SQLite schema v5 (engine: hb). stdlib sqlite3 only.
 --
 -- An analytical, multi-currency household ledger. Designed so spending/expense can be
 -- sliced by ANY axis (time, store, item, category, currency, payment account, scope,
@@ -71,7 +71,8 @@ CREATE TABLE counterparties (
   type           TEXT NOT NULL CHECK (type IN ('project','person','company','unknown')),
   default_scope  TEXT NOT NULL CHECK (default_scope IN
                    ('business_expense','reimbursable','shared','excluded')),
-  review_status  TEXT NOT NULL CHECK (review_status IN ('needs_review','confirmed','ignored'))
+  review_status  TEXT NOT NULL CHECK (review_status IN ('needs_review','confirmed','ignored')),
+  person_id      TEXT   -- soft ref to People persons.id for type='person' (folds migration 0004)
 );
 
 -- A unit of work. id/slug aligns 1:1 with a directory under ~/Workspaces/Projects/**.
@@ -255,6 +256,37 @@ CREATE TABLE transaction_tags (
 );
 CREATE INDEX ix_txn_tags_axis ON transaction_tags(axis, value_norm);
 
+-- ============================ fx cache ============================
+-- Cached JPY-per-unit exchange rates for auto-filling reporting_amount (folds migration 0003).
+-- rate = JPY per 1 unit of `currency`, so reporting_value(JPY) = amount_value * rate.
+-- Populated by `hb fx-refresh` (public API, no key); read by `hb add` for non-JPY drafts.
+CREATE TABLE fx_rates (
+  date       TEXT NOT NULL,                 -- YYYY-MM-DD the rate applies to
+  base       TEXT NOT NULL DEFAULT 'JPY',
+  currency   TEXT NOT NULL REFERENCES currencies(code),
+  rate       TEXT NOT NULL,                 -- decimal string: JPY per 1 unit of `currency`
+  source     TEXT NOT NULL,                 -- e.g. exchange_api:open.er-api.com
+  fetched_at TEXT NOT NULL,
+  PRIMARY KEY (date, base, currency)
+);
+CREATE INDEX ix_fx_currency_date ON fx_rates(currency, date);
+
+-- ============================ audit (git-less change history) ============================
+-- Append-only change log written by every hb mutation (add/transfer/confirm/ignore/
+-- upsert/rename/merge/import). No FK: audit must survive entity delete/rename/merge.
+CREATE TABLE budget_audit (
+  seq       INTEGER PRIMARY KEY AUTOINCREMENT,
+  ts        TEXT NOT NULL,
+  action    TEXT NOT NULL,             -- add|transfer|confirm|ignore|upsert|rename|merge|import
+  tbl       TEXT,
+  entity    TEXT,                      -- txn/transfer id, entity id, the renamed/merged id
+  field     TEXT,
+  old_value TEXT,
+  new_value TEXT,
+  note      TEXT
+);
+CREATE INDEX ix_budget_audit_entity ON budget_audit(entity);
+
 -- ============================ triggers: currency compatibility ============================
 -- txn.amount_currency must be allowed by the chosen payment account.
 CREATE TRIGGER trg_txn_currency_ins
@@ -320,4 +352,4 @@ CREATE VIEW v_open_reimbursements AS
   WHERE t.budget_scope = 'reimbursable'
     AND c.status NOT IN ('reimbursed','rejected','not_applicable');
 
-PRAGMA user_version = 2;
+PRAGMA user_version = 5;
