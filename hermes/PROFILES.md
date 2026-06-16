@@ -109,17 +109,17 @@ coder = implementation; keep in sync with each `profile.yaml` description.
 ## Models and fallback chains
 
 Each profile carries its own `model:` (tier 1) plus a `fallback_providers:`
-list (tiers 2-3). `fallback_providers` is **per-turn**: it triggers on errors
+list (tiers 2+). `fallback_providers` is **per-turn**: it triggers on errors
 (429 / 5xx / 401 / 404 / malformed) and the primary is restored on the next
 turn. The default profile already proves the YAML shape.
 
-| Profile | T1 (primary) | T2 | T3 |
-| --- | --- | --- | --- |
-| **default** | `openai-codex` / gpt-5.5 | `copilot` / gpt-5.5 | `openrouter` / `xiaomi/mimo-v2.5` |
-| **assistant** | `openai-codex` / gpt-5.5 | `copilot` / gpt-5.5 | `openrouter` / `xiaomi/mimo-v2.5` |
-| **coder** | `openai-codex` / gpt-5.5 | `copilot` / gpt-5.5 | `openrouter` / `deepseek/deepseek-v4-flash` |
-| **researcher** | `xai-oauth` / grok-4.3 | `copilot` / claude-sonnet-4.6 | `openrouter` / `deepseek/deepseek-v4-flash` |
-| **searcher** | `xai-oauth` / grok-4.3 | `copilot` / gpt-5.5 | `openrouter` / `deepseek/deepseek-v4-flash` |
+| Profile | T1 (primary) | T2 | T3 | T4 |
+| --- | --- | --- | --- | --- |
+| **default** | `anthropic` / claude-sonnet-4.6 | `openai-codex` / gpt-5.5 | `copilot` / gpt-5.5 | `openrouter` / `xiaomi/mimo-v2.5` |
+| **assistant** | `anthropic` / claude-sonnet-4.6 | `openai-codex` / gpt-5.5 | `copilot` / gpt-5.5 | `openrouter` / `xiaomi/mimo-v2.5` |
+| **coder** | `anthropic` / claude-sonnet-4.6 | `openai-codex` / gpt-5.5 | `copilot` / gpt-5.5 | `openrouter` / `deepseek/deepseek-v4-flash` |
+| **researcher** | `xai-oauth` / grok-4.3 | `copilot` / claude-sonnet-4.6 | `openrouter` / `deepseek/deepseek-v4-flash` | — |
+| **searcher** | `xai-oauth` / grok-4.3 | `copilot` / gpt-5.5 | `openrouter` / `deepseek/deepseek-v4-flash` | — |
 
 ```yaml
 # example — researcher's ~/.hermes/profiles/researcher/config.yaml
@@ -139,6 +139,11 @@ fallback_providers:
 Model facts confirmed during the build (live `provider_models_cache.json` + test
 calls):
 
+- **Anthropic native (T1)** — `default` / `assistant` / `coder` lead with
+  `anthropic` / `claude-sonnet-4.6` (`base_url: https://api.anthropic.com`,
+  `api_mode: anthropic_messages`; Hermes normalizes the slug to
+  `claude-sonnet-4-6` for the native API). OAuth (Claude Pro/Max) —
+  `hermes auth status anthropic` → *logged in*. codex/gpt-5.5 drops to T2.
 - **Grok** — `grok-4.3` is current on `xai-oauth` and verified working (the
   retired `grok-4*` glob doesn't cover it; re-auth via `hermes model` if the
   token lapses). `x-ai/grok-4.3` is the OpenRouter equivalent for per-token use.
@@ -147,12 +152,13 @@ calls):
 - **OpenRouter slugs** — `xiaomi/mimo-v2.5`, `deepseek/deepseek-v4-flash`,
   `google/gemini-3.5-flash` (the earlier `*-v3.2` / `gemini-3-flash-preview`
   refs were planning guesses).
-- **T3 split (mimo vs deepseek)** — `default` / `assistant` keep
-  `xiaomi/mimo-v2.5` as T3 because it is **vision-capable**, so image input stays
-  native even on a T3 fallback turn (video analysis is decoupled via the
-  `video-analyze-mimo` plugin — see `README.md` "Plugins"). Workers
-  (`coder` / `researcher` / `searcher`) use the cheaper text-only
-  `deepseek/deepseek-v4-flash`; they don't need native image vision.
+- **Deepest-tier split (mimo vs deepseek)** — `default` / `assistant` keep
+  `xiaomi/mimo-v2.5` as their deepest tier (now **T4**) because it is
+  **vision-capable**, so image input stays native even on a deep fallback turn
+  (video analysis is decoupled via the `video-analyze-mimo` plugin — see
+  `README.md` "Plugins"). The worker profiles (`coder` T4 / `researcher` T3 /
+  `searcher` T3) use the cheaper text-only `deepseek/deepseek-v4-flash`; they
+  don't need native image vision.
 
 Optional: set `delegation.model: google/gemini-3.5-flash` on default /
 assistant to route `delegate_task` subagents to a cheap model.
@@ -165,6 +171,12 @@ the default profile's `~/.hermes/auth.json` (`auth.py:1131-1157,1215-1259`).
 
 - OAuth logins done in **default** (`hermes model`, no `-p`) — Codex, Copilot,
   xAI-OAuth — are inherited by every worker. **No per-worker re-auth.**
+- **Anthropic native** is OAuth (Claude Pro/Max) but its creds live **outside**
+  `auth.json` (`~/.hermes/.anthropic_oauth.json` for Hermes' PKCE flow, else the
+  Claude Code credential / `CLAUDE_CODE_OAUTH_TOKEN`). That source is
+  machine-global, so every profile authenticates with **no per-worker login**
+  (`hermes auth status anthropic` → logged in); the auth.json read-only fallback
+  does not apply to it.
 - Always run OAuth logins from default. Running `hermes model` *inside* a worker
   writes that profile's `auth.json` and shadows the inherited creds for that
   provider (writes never propagate).
@@ -202,8 +214,9 @@ routes through the same `bin/hermes` shim — **every profile gets `global` +
   `*_ALLOWED_USERS` / `*_HOME_CHANNEL`) currently sit in the **`hermes`** layer,
   so the shim injects them whenever the gateway runs. Move them to a dedicated
   `assistant` layer if you want them off non-gateway profiles.
-- **OAuth** (default's `auth.json`): Codex / Copilot / xAI-OAuth, inherited by
-  every profile (read-only fallback).
+- **OAuth**: Codex / Copilot / xAI-OAuth in default's `auth.json` (read-only
+  fallback to every profile); **Anthropic** resolves separately via the Claude
+  Code credential / token (machine-global, every profile).
 
 Workers need no unique secret: the dispatcher execs `hermes -p <worker>`, which
 hits the `bin/hermes` shim (`global` + `hermes`), and they also inherit the
@@ -265,12 +278,14 @@ Routing quality depends on `profile.yaml` descriptions — create workers with
 ## Status (as-built)
 
 Built and verified: default (kanban orchestrator), coder, researcher, and searcher
-workers — T1–T3 tiers resolve (doctor + live probes) and default-created tasks
+workers — T1–T4 tiers resolve (doctor + live probes) and default-created tasks
 dispatch/route to each. Assistant gateway runs keychain-pure (LaunchAgent,
 Telegram-only per #40695); the embedded dispatcher auto-claims tasks across ticks.
 `install.sh` links every tracked profile (incl. `profile.yaml`) with no WARN.
 
-Model slugs confirmed live: `grok-4.3` on `xai-oauth`, `claude-sonnet-4.6` (worker
-T2), `deepseek/deepseek-v4-flash`, `google/gemini-3.5-flash`; Copilot has no Grok.
+Model slugs confirmed live: `anthropic` / `claude-sonnet-4.6` (T1 for default /
+assistant / coder; `hermes auth status anthropic` → logged in), `grok-4.3` on
+`xai-oauth`, `claude-sonnet-4.6` via `copilot` (worker T2),
+`deepseek/deepseek-v4-flash`, `google/gemini-3.5-flash`; Copilot has no Grok.
 
 Remaining (manual): Telegram round-trip — message the bot and confirm a reply.
