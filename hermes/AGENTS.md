@@ -79,6 +79,12 @@ commit secrets, state, or host-rendered plists.
 - `launchd/gateway-launchctl.sh {install,status,uninstall}` — gateway LaunchAgent,
   **one host only** (one bot token = one live connection). Telegram-only for now
   (workaround for upstream #40695; don't re-enable Discord until fixed).
+  `install` re-renders + reloads = **restart** (new process re-reads `config.yaml`);
+  to apply config you can also send **`/restart`** in chat (drain → `KeepAlive`
+  respawns one). **Stop = `uninstall`** (plist `KeepAlive:true`; a plain `kill` just
+  respawns). **Never** run `hermes gateway run`/`restart` in a terminal while it's
+  loaded — the 2nd poller causes Telegram `getUpdates` 409 conflicts
+  (verify a single instance: `pgrep -fl 'gateway run'` ⇒ exactly 1).
 
 ## Commits
 
