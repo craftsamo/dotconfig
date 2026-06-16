@@ -60,7 +60,7 @@ pj member-set --project <P> --person <id> [--role ..][--area ..][--responsibilit
 pj member-rm  --project <P> --person <id> ; pj mtag-set|mtag-rm --project <P> --person <id> --axis <a> --value "..."
 # data ops
 pj validate ; pj export --format both ; pj backup [--keep N]
-pj init [--seed] ; pj import-legacy [--src DIR] ; pj import-json [--src DIR] ; pj migrate ; pj audit
+pj init [--seed] [--force] ; pj import-legacy [--src DIR] ; pj import-json [--src DIR] ; pj migrate ; pj audit
 ```
 
 ## Rules

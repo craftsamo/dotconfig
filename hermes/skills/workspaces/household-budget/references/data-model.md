@@ -178,4 +178,12 @@ The DB/engine are source-agnostic; new adapters only need to emit a valid draft.
 ## 9. Extensibility
 - **New axis** → register in `tag_axes` and start tagging; no schema change.
 - **New core field/relation** → a numbered migration under `migrations/` (`hb migrate`).
-- The baseline schema is `user_version = 2`.
+- The baseline schema is `user_version = 5` (migrations `0003`–`0005` — fx_rates,
+  counterparties.person_id, budget_audit — are folded into it and remain in `migrations/`
+  only to upgrade older DBs).
+
+## 10. Audit log
+Every mutation (`add`/`transfer`/`confirm`/`ignore`/`upsert`/`rename`/`merge`/`import`) appends a
+row to `budget_audit` — a git-less change history (no FK, so it survives delete/rename/merge).
+Read it with `hb audit [--entity <id>] [--limit N]`. It is local-only and not part of the
+export mirror.
