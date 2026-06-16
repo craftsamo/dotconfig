@@ -572,6 +572,9 @@ sessions:
   write_json_snapshots: false
 onboarding:
   seen:
+    busy_input_prompt: true
+    tool_progress_prompt: true
+    openclaw_residue_cleanup: true
     profile_build_offered: true
   profile_build: ask
 updates:
