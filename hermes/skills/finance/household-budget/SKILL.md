@@ -14,7 +14,9 @@ metadata:
     category: finance
 ---
 
-# Household budget
+# HouseholdBudget
+
+Reference: `references/data-model-notes.md` captures safe local-ledger conventions for receipt intake, monthly summaries, DB backup/validation, sensitive-data handling, and export refresh. Use it before writing or summarizing the local ledger.
 
 An analytical, multi-currency SQLite ledger. The DB is the source of truth at
 `~/Workspaces/Personal/HouseholdBudget/data/budget.db`; JSON/CSV under `data/export/`
@@ -66,6 +68,9 @@ hb init [--force] ; hb import-json [--src DIR] ; hb migrate
   with `fx_rate`/`fx_date`/`fx_source`).
 - Money moved between own accounts is a **transfer** (`hb transfer`), not a transaction —
   it is excluded from spend/income aggregation.
+- Person counterparties (`type='person'`) carry `person_id` → the People registry; create
+  with `upsert-entity --counterparty-type person --person-id <id>`. `hb validate` checks it
+  against People's live `people.db` (read-only).
 - Summarize results to chat; never paste raw balances/account numbers. No external sends
   without an explicit OK.
 - Don't hand-edit `budget.db` or the mirror — use `hb`. Schema evolves via `migrations/`

@@ -58,4 +58,5 @@ Load the matching reference when the task fits:
 - Rebuild / restructure / schema-or-data migration → `references/rebuild-migration.md`
 - Add a feature to an existing system → `references/new-feature.md`
 - Start something from scratch → `references/new-project.md`
-- Draft a reply to a received message → `references/message-reply.md`
+
+(Replying to a received message moved to its own `message-reply` skill.)
