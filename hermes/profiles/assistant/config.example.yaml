@@ -519,7 +519,7 @@ security:
   acked_advisories: []
   allow_lazy_installs: true
 cron:
-  wrap_response: true
+  wrap_response: false
   max_parallel_jobs: null
 kanban:
   dispatch_in_gateway: true

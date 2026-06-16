@@ -1,0 +1,1172 @@
+#!/usr/bin/env python3
+"""pj — Projects registry engine (SQLite v1, Python stdlib only).
+
+Central registry for ALL Projects groups: project identity, repos, official links, the
+team-membership SOURCE OF TRUTH, and flexible tags. The DB is the source of truth at
+~/Workspaces/Projects/.registry/projects.db; JSON/CSV under .registry/export/ is a
+regenerable mirror. See ../references/data-model.md (the canon); schema.sql is the structure.
+
+Cross-domain reads go through sibling CLIs via _cross (never open another skill's DB):
+  * `pj validate` resolves member person_ids through People (`pp`) and reconciles the budget's
+    projects through household-budget (`hb`) — read-only, skip-with-warning if absent.
+  * People consumes `pj members --json` (the membership mirror it used to read from
+    teams/members/*.json). `pj projects --json` / `repos` / `links` are the other read ports.
+
+Project id == the Projects/<id> directory name (e.g. ExampleProject) == the cross-system join key.
+"""
+from __future__ import annotations
+
+import argparse
+import csv
+import json
+import re
+import sqlite3
+import sys
+import unicodedata
+from datetime import datetime, timezone
+from pathlib import Path
+
+DEFAULT_ROOT = Path.home() / "Workspaces" / "Projects"
+SKILL_DIR = Path(__file__).resolve().parent.parent
+SCHEMA_PATH = SKILL_DIR / "schema.sql"
+MIGRATIONS_DIR = SKILL_DIR / "migrations"
+
+# shared cross-skill contract/resolver (degrade gracefully if unavailable)
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # skills/workspaces/
+try:
+    import _cross
+except Exception:  # pragma: no cover
+    _cross = None
+
+SKILL_NAME = "projects"
+
+# base tag axes seeded by `init --seed` (auto-extended on demand)
+SEED_AXES = {
+    "stage": "Project stage (idea/mvp/launched/paused)",
+    "priority": "Attention priority",
+    "domain": "Subject domain",
+    "engagement": "Member engagement level",
+}
+
+# child tables carrying a project_id column (for rename/merge id rewrites)
+PROJECT_CHILD_TABLES = [
+    "project_aliases", "project_links", "repos", "memberships",
+    "membership_roles", "membership_responsibilities", "membership_areas",
+    "membership_permission_scopes", "membership_notes", "membership_contacts",
+    "project_tags", "membership_tags",
+]
+
+
+# --------------------------------------------------------------------------- helpers
+def die(msg: str):
+    print(f"pj: {msg}", file=sys.stderr)
+    raise SystemExit(1)
+
+
+def now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def today() -> str:
+    return datetime.now().strftime("%Y-%m-%d")
+
+
+def load(path: Path) -> dict:
+    return json.loads(Path(path).read_text(encoding="utf-8"))
+
+
+def normalize_text(s) -> str:
+    s = unicodedata.normalize("NFKC", s or "")
+    s = s.casefold()
+    return re.sub(r"\s+", " ", s).strip()
+
+
+def slugify(s) -> str:
+    """Lower kebab-case slug (example-project)."""
+    s = unicodedata.normalize("NFKD", s or "")
+    s = s.encode("ascii", "ignore").decode("ascii").casefold()
+    s = re.sub(r"[^a-z0-9]+", "-", s).strip("-")
+    return s or "unknown"
+
+
+def db_path(args) -> Path:
+    if getattr(args, "db", None):
+        return Path(args.db)
+    return Path(args.root) / ".registry" / "projects.db"
+
+
+def connect(args, *, must_exist=True) -> sqlite3.Connection:
+    p = db_path(args)
+    if must_exist and not p.exists():
+        die(f"DB not found: {p}  (run: pj init)")
+    con = sqlite3.connect(str(p))
+    con.isolation_level = None
+    con.row_factory = sqlite3.Row
+    con.execute("PRAGMA foreign_keys = ON")
+    return con
+
+
+def _audit(con, action, tbl=None, entity=None, field=None, old=None, new=None, note=None):
+    con.execute(
+        "INSERT INTO project_audit(ts, action, tbl, entity, field, old_value, new_value, note) "
+        "VALUES (?,?,?,?,?,?,?,?)",
+        (now_iso(), action, tbl, entity, field,
+         None if old is None else str(old), None if new is None else str(new), note))
+
+
+def _need_project(con, pid):
+    if not con.execute("SELECT 1 FROM projects WHERE id = ?", (pid,)).fetchone():
+        die(f"no project with id {pid}")
+
+
+def _need_membership(con, project_id, person_id):
+    if not con.execute("SELECT 1 FROM memberships WHERE project_id = ? AND person_id = ?",
+                       (project_id, person_id)).fetchone():
+        die(f"no membership {person_id} in {project_id}")
+
+
+def _ensure_axis(con, axis, label=None):
+    ax = axis.strip().lower()
+    con.execute("INSERT OR IGNORE INTO project_tag_axes(axis, label, review_status) VALUES (?,?, 'confirmed')",
+                (ax, label or ax))
+    return ax
+
+
+def _add_alias(con, pid, name, primary=False):
+    norm = normalize_text(name)
+    if not norm:
+        return
+    con.execute("INSERT OR IGNORE INTO project_aliases(project_id, alias, alias_norm, is_primary) VALUES (?,?,?,?)",
+                (pid, name, norm, 1 if primary else 0))
+    if primary:
+        con.execute("UPDATE project_aliases SET is_primary = 0 WHERE project_id = ? AND alias_norm != ?", (pid, norm))
+        con.execute("UPDATE project_aliases SET is_primary = 1 WHERE project_id = ? AND alias_norm = ?", (pid, norm))
+
+
+# --------------------------------------------------------------------------- init / migrate
+def _seed_base(con):
+    for ax, label in SEED_AXES.items():
+        con.execute("INSERT OR IGNORE INTO project_tag_axes(axis, label, review_status) VALUES (?,?, 'confirmed')",
+                    (ax, label))
+
+
+def cmd_init(args):
+    p = db_path(args)
+    if p.exists():
+        if not args.force:
+            die(f"DB already exists: {p}  (use --force to recreate, or pj migrate to upgrade)")
+        p.unlink()
+    p.parent.mkdir(parents=True, exist_ok=True)
+    con = sqlite3.connect(str(p))
+    con.executescript(SCHEMA_PATH.read_text(encoding="utf-8"))
+    if args.seed:
+        con.execute("PRAGMA foreign_keys = ON")
+        _seed_base(con)
+    con.commit()
+    con.close()
+    print(f"initialized {p} (user_version=1)" + (" + seeded base axes" if args.seed else ""))
+
+
+def _migration_files():
+    out = []
+    if MIGRATIONS_DIR.exists():
+        for f in sorted(MIGRATIONS_DIR.iterdir()):
+            m = re.match(r"^(\d+)_.*\.(sql|py)$", f.name)
+            if m:
+                out.append((int(m.group(1)), f))
+    return sorted(out)
+
+
+def cmd_migrate(args):
+    import importlib.util
+    con = connect(args)
+    cur = con.execute("PRAGMA user_version").fetchone()[0]
+    pending = [(v, f) for v, f in _migration_files() if v > cur]
+    if not pending:
+        print(f"up to date (user_version={cur})")
+        return
+    for v, f in pending:
+        if args.dry_run:
+            print(f"would apply {f.name} -> user_version={v}")
+            continue
+        if f.suffix == ".sql":
+            body = f.read_text(encoding="utf-8")
+            try:
+                con.executescript(f"BEGIN;\n{body}\nPRAGMA user_version = {v};\nCOMMIT;")
+            except Exception:
+                try:
+                    con.execute("ROLLBACK")
+                except Exception:
+                    pass
+                raise
+        else:
+            con.execute("BEGIN")
+            con.execute("PRAGMA defer_foreign_keys = ON")
+            try:
+                spec = importlib.util.spec_from_file_location(f.stem, f)
+                mod = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(mod)
+                mod.up(con)
+                bad = con.execute("PRAGMA foreign_key_check").fetchall()
+                if bad:
+                    raise RuntimeError(f"foreign_key_check failed after {f.name}: {bad}")
+                con.execute(f"PRAGMA user_version = {v}")
+                con.execute("COMMIT")
+            except Exception:
+                con.execute("ROLLBACK")
+                raise
+        print(f"applied {f.name} -> user_version={v}")
+
+
+# --------------------------------------------------------------------------- membership read shape
+def _membership_obj(con, project_id, person_id):
+    m = con.execute("SELECT * FROM memberships WHERE project_id = ? AND person_id = ?",
+                    (project_id, person_id)).fetchone()
+    if not m:
+        return None
+    return {
+        "person_id": person_id, "project_id": project_id,
+        "status": m["status"], "working_relationship": m["working_relationship"],
+        "roles": [r[0] for r in con.execute("SELECT role FROM membership_roles WHERE project_id=? AND person_id=? ORDER BY role", (project_id, person_id))],
+        "responsibilities": [r[0] for r in con.execute("SELECT responsibility FROM membership_responsibilities WHERE project_id=? AND person_id=? ORDER BY responsibility", (project_id, person_id))],
+        "areas": [r[0] for r in con.execute("SELECT area FROM membership_areas WHERE project_id=? AND person_id=? ORDER BY area", (project_id, person_id))],
+        "permissions": {
+            "can_approve": [r[0] for r in con.execute("SELECT target FROM membership_permission_scopes WHERE project_id=? AND person_id=? AND action='approve' ORDER BY target", (project_id, person_id))],
+            "can_review": [r[0] for r in con.execute("SELECT target FROM membership_permission_scopes WHERE project_id=? AND person_id=? AND action='review' ORDER BY target", (project_id, person_id))],
+            "can_merge": bool(m["can_merge"]), "can_deploy": bool(m["can_deploy"]),
+        },
+        "project_contacts": {r["channel"]: r["handle"] for r in con.execute("SELECT channel, handle FROM membership_contacts WHERE project_id=? AND person_id=?", (project_id, person_id))},
+        "notes": [r[0] for r in con.execute("SELECT text FROM membership_notes WHERE project_id=? AND person_id=? ORDER BY seq", (project_id, person_id))],
+        "tags": [{"axis": r["axis"], "value": r["value"]} for r in con.execute("SELECT axis, value FROM membership_tags WHERE project_id=? AND person_id=? ORDER BY axis, value", (project_id, person_id))],
+        "last_updated": m["last_updated"],
+    }
+
+
+def _all_memberships(con, project_id=None):
+    out = []
+    if project_id:
+        rows = con.execute("SELECT project_id, person_id FROM memberships WHERE project_id = ? ORDER BY person_id", (project_id,))
+    else:
+        rows = con.execute("SELECT project_id, person_id FROM memberships ORDER BY project_id, person_id")
+    for r in rows.fetchall():
+        out.append(_membership_obj(con, r["project_id"], r["person_id"]))
+    return out
+
+
+def _project_obj(con, pid, *, full=True):
+    p = con.execute("SELECT * FROM projects WHERE id = ?", (pid,)).fetchone()
+    if not p:
+        return None
+    obj = {
+        "id": p["id"], "slug": p["slug"], "canonical_name": p["canonical_name"],
+        "kind": p["kind"], "status": p["status"], "dir_path": p["dir_path"],
+        "summary": p["summary"], "review_status": p["review_status"],
+        "last_updated": p["last_updated"], "created_at": p["created_at"], "updated_at": p["updated_at"],
+        "aliases": [{"alias": r["alias"], "is_primary": bool(r["is_primary"])} for r in
+                    con.execute("SELECT alias, is_primary FROM project_aliases WHERE project_id = ? ORDER BY is_primary DESC, alias", (pid,))],
+        "links": [{"kind": r["kind"], "url": r["url"], "label": r["label"]} for r in
+                  con.execute("SELECT kind, url, label FROM project_links WHERE project_id = ? ORDER BY kind, url", (pid,))],
+        "tags": [{"axis": r["axis"], "value": r["value"]} for r in
+                 con.execute("SELECT axis, value FROM project_tags WHERE project_id = ? ORDER BY axis, value", (pid,))],
+    }
+    if full:
+        obj["repos"] = [_repo_obj(r) for r in
+                        con.execute("SELECT * FROM repos WHERE project_id = ? ORDER BY name", (pid,))]
+        obj["members"] = _all_memberships(con, pid)
+    return obj
+
+
+def _repo_obj(r):
+    return {
+        "name": r["name"], "owner": r["owner"], "host": r["host"], "url": r["url"],
+        "ghq_path": r["ghq_path"], "link_path": r["link_path"],
+        "has_agents_md": bool(r["has_agents_md"]), "summary": r["summary"],
+        "status": r["status"], "review_status": r["review_status"],
+    }
+
+
+# --------------------------------------------------------------------------- read ports
+def _emit(data):
+    if _cross is not None:
+        _cross.emit(SKILL_NAME, data)
+    else:  # fallback envelope if shared module is unavailable
+        print(json.dumps({"contract_version": 1, "skill": SKILL_NAME, "data": data},
+                         ensure_ascii=False, indent=2))
+
+
+def cmd_show(args):
+    con = connect(args)
+    obj = _project_obj(con, args.id)
+    if not obj:
+        die(f"no project with id {args.id}")
+    if args.json:
+        _emit(obj)
+    else:
+        print(json.dumps(obj, ensure_ascii=False, indent=2))
+
+
+def cmd_list(args):
+    con = connect(args)
+    q = "SELECT id, slug, canonical_name, kind, status, review_status, dir_path FROM projects WHERE 1=1"
+    params = []
+    if args.status:
+        q += " AND status = ?"; params.append(args.status)
+    if args.kind:
+        q += " AND kind = ?"; params.append(args.kind)
+    q += " ORDER BY id"
+    rows = con.execute(q, params).fetchall()
+    if args.json:
+        _emit({"projects": [dict(r) for r in rows]})
+        return
+    for r in rows:
+        print(f"  {r['id']:<16} {r['kind']:<9} {r['status']:<9} {r['review_status']:<12} {r['canonical_name']}")
+    print(f"{len(rows)} project(s)")
+
+
+def cmd_projects(args):
+    """Cross read-port: project identity + aliases (for budget/People reconciliation)."""
+    con = connect(args)
+    data = {"projects": [_project_obj(con, r["id"], full=False)
+                         for r in con.execute("SELECT id FROM projects ORDER BY id")]}
+    if args.json:
+        _emit(data)
+    else:
+        print(json.dumps(data, ensure_ascii=False, indent=2))
+
+
+def cmd_members(args):
+    """Cross read-port: memberships in People-mirror shape (People consumes this)."""
+    con = connect(args)
+    data = {"memberships": _all_memberships(con, getattr(args, "project", None))}
+    if args.json:
+        _emit(data)
+    else:
+        print(json.dumps(data, ensure_ascii=False, indent=2))
+
+
+def cmd_repos(args):
+    con = connect(args)
+    if getattr(args, "project", None):
+        rows = con.execute("SELECT * FROM repos WHERE project_id = ? ORDER BY name", (args.project,)).fetchall()
+    else:
+        rows = con.execute("SELECT * FROM repos ORDER BY project_id, name").fetchall()
+    if args.json:
+        _emit({"repos": [{"project_id": r["project_id"], **_repo_obj(r)} for r in rows]})
+        return
+    for r in rows:
+        print(f"  {r['project_id']:<16} {r['name']:<16} {r['status']:<10} {r['url'] or ''}")
+    print(f"{len(rows)} repo(s)")
+
+
+def cmd_links(args):
+    con = connect(args)
+    if getattr(args, "project", None):
+        rows = con.execute("SELECT * FROM project_links WHERE project_id = ? ORDER BY kind, url", (args.project,)).fetchall()
+    else:
+        rows = con.execute("SELECT * FROM project_links ORDER BY project_id, kind, url").fetchall()
+    if args.json:
+        _emit({"links": [{"project_id": r["project_id"], "kind": r["kind"], "url": r["url"], "label": r["label"]} for r in rows]})
+        return
+    for r in rows:
+        print(f"  {r['project_id']:<16} {r['kind']:<9} {r['url']}")
+    print(f"{len(rows)} link(s)")
+
+
+def cmd_report(args):
+    con = connect(args)
+    ax = args.by.strip().lower()
+    scope = args.scope
+    print(f"axis: {ax}  (scope: {scope})")
+    if scope in ("project", "both"):
+        rows = con.execute(
+            "SELECT value, COUNT(*) n, GROUP_CONCAT(project_id, ', ') ids FROM project_tags "
+            "WHERE axis = ? GROUP BY value_norm ORDER BY value", (ax,)).fetchall()
+        print("  projects:")
+        for r in rows:
+            print(f"    {r['value']:<16} {r['n']:>3}  [{r['ids']}]")
+        if not rows:
+            print("    (none)")
+    if scope in ("member", "both"):
+        rows = con.execute(
+            "SELECT value, COUNT(*) n FROM membership_tags WHERE axis = ? GROUP BY value_norm ORDER BY value", (ax,)).fetchall()
+        print("  members:")
+        for r in rows:
+            print(f"    {r['value']:<16} {r['n']:>3}")
+        if not rows:
+            print("    (none)")
+
+
+# --------------------------------------------------------------------------- project mutators
+def cmd_upsert_project(args):
+    con = connect(args)
+    pid = args.id
+    exists = con.execute("SELECT * FROM projects WHERE id = ?", (pid,)).fetchone()
+    now = now_iso()
+    dir_path = None
+    if args.external:
+        dir_path = None
+    elif args.dir_path is not None:
+        dir_path = args.dir_path or None
+    elif not exists:
+        guess = Path(args.root) / pid
+        dir_path = str(guess) if guess.exists() else None
+    con.execute("BEGIN")
+    try:
+        if exists:
+            fields = {}
+            if args.name is not None:
+                fields["canonical_name"] = args.name
+            if args.slug:
+                fields["slug"] = slugify(args.slug)
+            if args.kind:
+                fields["kind"] = args.kind
+            if args.status:
+                fields["status"] = args.status
+            if args.review_status:
+                fields["review_status"] = args.review_status
+            if args.summary is not None:
+                fields["summary"] = args.summary or None
+            if args.external or args.dir_path is not None:
+                fields["dir_path"] = dir_path
+            fields["updated_at"] = now
+            fields["last_updated"] = args.last_updated or today()
+            sets = ", ".join(f"{k} = ?" for k in fields)
+            con.execute(f"UPDATE projects SET {sets} WHERE id = ?", (*fields.values(), pid))
+            for k, v in fields.items():
+                if k not in ("updated_at", "last_updated"):
+                    _audit(con, "update", "projects", pid, k, None, v)
+            action = "updated"
+        else:
+            con.execute(
+                "INSERT INTO projects(id, slug, canonical_name, kind, status, dir_path, summary, "
+                "review_status, last_updated, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                (pid, slugify(args.slug or pid), args.name or pid, args.kind or ("external" if args.external else "category"),
+                 args.status or "active", dir_path, args.summary,
+                 args.review_status or "needs_review", args.last_updated or today(), now, now))
+            _audit(con, "create", "projects", pid, None, None, pid)
+            action = "created"
+        _add_alias(con, pid, args.name or pid, primary=True)
+        _add_alias(con, pid, pid, primary=False)
+        for a in (args.alias or []):
+            _add_alias(con, pid, a, primary=False)
+        con.execute("COMMIT")
+    except Exception:
+        con.execute("ROLLBACK")
+        raise
+    print(json.dumps({"action": action, "id": pid}, ensure_ascii=False))
+
+
+def cmd_set_status(args):
+    con = connect(args)
+    _need_project(con, args.id)
+    con.execute("UPDATE projects SET status = ?, updated_at = ?, last_updated = ? WHERE id = ?",
+                (args.status, now_iso(), today(), args.id))
+    _audit(con, "set-status", "projects", args.id, "status", None, args.status)
+    print(json.dumps({"action": "set-status", "id": args.id, "status": args.status}, ensure_ascii=False))
+
+
+def _set_review(args, value):
+    con = connect(args)
+    _need_project(con, args.id)
+    con.execute("UPDATE projects SET review_status = ?, updated_at = ? WHERE id = ?", (value, now_iso(), args.id))
+    _audit(con, "review", "projects", args.id, "review_status", None, value)
+    print(json.dumps({"action": value, "id": args.id}, ensure_ascii=False))
+
+
+def cmd_confirm(args):
+    _set_review(args, "confirmed")
+
+
+def cmd_ignore(args):
+    _set_review(args, "ignored")
+
+
+def cmd_review(args):
+    con = connect(args)
+    print("projects pending review:")
+    n = 0
+    for r in con.execute("SELECT id, canonical_name FROM projects WHERE review_status = 'needs_review' ORDER BY id"):
+        print(f"  project  {r['id']:<16} {r['canonical_name']}"); n += 1
+    for r in con.execute("SELECT project_id, name FROM repos WHERE review_status = 'needs_review' ORDER BY project_id, name"):
+        print(f"  repo     {r['project_id']}/{r['name']}"); n += 1
+    if not n:
+        print("  (nothing pending)")
+
+
+def cmd_rename_project(args):
+    con = connect(args)
+    _need_project(con, args.old)
+    if con.execute("SELECT 1 FROM projects WHERE id = ?", (args.new,)).fetchone():
+        die(f"target id {args.new} already exists (use merge-project)")
+    con.execute("BEGIN")
+    con.execute("PRAGMA defer_foreign_keys = ON")
+    try:
+        con.execute("UPDATE projects SET id = ?, updated_at = ? WHERE id = ?", (args.new, now_iso(), args.old))
+        for tbl in PROJECT_CHILD_TABLES:
+            con.execute(f"UPDATE {tbl} SET project_id = ? WHERE project_id = ?", (args.new, args.old))
+        con.execute("UPDATE project_audit SET entity = ? WHERE entity = ?", (args.new, args.old))
+        bad = con.execute("PRAGMA foreign_key_check").fetchall()
+        if bad:
+            raise RuntimeError(f"foreign_key_check failed: {bad}")
+        _audit(con, "rename", "projects", args.new, "id", args.old, args.new,
+               note="re-run People import + budget reconcile (join key changed)")
+        con.execute("COMMIT")
+    except Exception:
+        con.execute("ROLLBACK")
+        raise
+    print(json.dumps({"action": "renamed", "from": args.old, "to": args.new,
+                      "note": "join key changed: re-sync People + budget"}, ensure_ascii=False))
+
+
+def cmd_merge_project(args):
+    con = connect(args)
+    _need_project(con, args.old)
+    _need_project(con, args.into)
+    if args.old == args.into:
+        die("old and into are the same")
+    con.execute("BEGIN")
+    con.execute("PRAGMA defer_foreign_keys = ON")
+    try:
+        for tbl in PROJECT_CHILD_TABLES:
+            con.execute(f"UPDATE OR IGNORE {tbl} SET project_id = ? WHERE project_id = ?", (args.into, args.old))
+            con.execute(f"DELETE FROM {tbl} WHERE project_id = ?", (args.old,))
+        con.execute("DELETE FROM projects WHERE id = ?", (args.old,))
+        bad = con.execute("PRAGMA foreign_key_check").fetchall()
+        if bad:
+            raise RuntimeError(f"foreign_key_check failed: {bad}")
+        _audit(con, "merge", "projects", args.into, "id", args.old, args.into)
+        con.execute("COMMIT")
+    except Exception:
+        con.execute("ROLLBACK")
+        raise
+    print(json.dumps({"action": "merged", "from": args.old, "into": args.into}, ensure_ascii=False))
+
+
+# --------------------------------------------------------------------------- project facets
+def cmd_alias_add(args):
+    con = connect(args)
+    _need_project(con, args.id)
+    con.execute("BEGIN")
+    try:
+        _add_alias(con, args.id, args.alias, primary=args.primary)
+        _audit(con, "alias", "project_aliases", args.id, None, None, args.alias)
+        con.execute("COMMIT")
+    except Exception:
+        con.execute("ROLLBACK"); raise
+    print(json.dumps({"action": "alias-add", "id": args.id, "alias": args.alias}, ensure_ascii=False))
+
+
+def cmd_alias_rm(args):
+    con = connect(args)
+    con.execute("DELETE FROM project_aliases WHERE project_id = ? AND alias_norm = ?", (args.id, normalize_text(args.alias)))
+    if con.total_changes == 0:
+        die(f"no alias {args.alias!r} for {args.id}")
+    _audit(con, "alias-rm", "project_aliases", args.id, None, args.alias, None)
+    print(json.dumps({"action": "alias-rm", "id": args.id, "alias": args.alias}, ensure_ascii=False))
+
+
+def cmd_link_set(args):
+    con = connect(args)
+    _need_project(con, args.id)
+    con.execute("BEGIN")
+    try:
+        con.execute("INSERT OR REPLACE INTO project_links(project_id, kind, url, label) VALUES (?,?,?,?)",
+                    (args.id, args.kind, args.url, args.label))
+        _audit(con, "link", "project_links", args.id, args.kind, None, args.url)
+        con.execute("COMMIT")
+    except Exception:
+        con.execute("ROLLBACK"); raise
+    print(json.dumps({"action": "link-set", "id": args.id, "kind": args.kind, "url": args.url}, ensure_ascii=False))
+
+
+def cmd_link_rm(args):
+    con = connect(args)
+    con.execute("DELETE FROM project_links WHERE project_id = ? AND kind = ? AND url = ?", (args.id, args.kind, args.url))
+    if con.total_changes == 0:
+        die(f"no {args.kind} link {args.url!r} for {args.id}")
+    _audit(con, "link-rm", "project_links", args.id, args.kind, args.url, None)
+    print(json.dumps({"action": "link-rm", "id": args.id, "kind": args.kind, "url": args.url}, ensure_ascii=False))
+
+
+def cmd_tag_set(args):
+    con = connect(args)
+    _need_project(con, args.id)
+    con.execute("BEGIN")
+    try:
+        ax = _ensure_axis(con, args.axis, args.label)
+        con.execute("INSERT OR IGNORE INTO project_tags(project_id, axis, value, value_norm) VALUES (?,?,?,?)",
+                    (args.id, ax, args.value, normalize_text(args.value)))
+        _audit(con, "tag", "project_tags", args.id, ax, None, args.value)
+        con.execute("COMMIT")
+    except Exception:
+        con.execute("ROLLBACK"); raise
+    print(json.dumps({"action": "tag-set", "id": args.id, "axis": ax, "value": args.value}, ensure_ascii=False))
+
+
+def cmd_tag_rm(args):
+    con = connect(args)
+    con.execute("DELETE FROM project_tags WHERE project_id = ? AND axis = ? AND value_norm = ?",
+                (args.id, args.axis.strip().lower(), normalize_text(args.value)))
+    if con.total_changes == 0:
+        die(f"no tag {args.axis}={args.value!r} for {args.id}")
+    print(json.dumps({"action": "tag-rm", "id": args.id, "axis": args.axis, "value": args.value}, ensure_ascii=False))
+
+
+# --------------------------------------------------------------------------- repos
+def cmd_repo_set(args):
+    con = connect(args)
+    _need_project(con, args.project)
+    exists = con.execute("SELECT 1 FROM repos WHERE project_id = ? AND name = ?", (args.project, args.name)).fetchone()
+    con.execute("BEGIN")
+    try:
+        if exists:
+            fields = {}
+            for k, v in (("owner", args.owner), ("host", args.host), ("url", args.url),
+                         ("ghq_path", args.ghq_path), ("link_path", args.link_path),
+                         ("summary", args.summary), ("status", args.status)):
+                if v is not None:
+                    fields[k] = v or None
+            if args.has_agents_md is not None:
+                fields["has_agents_md"] = 1 if args.has_agents_md else 0
+            if args.review_status:
+                fields["review_status"] = args.review_status
+            if fields:
+                sets = ", ".join(f"{k} = ?" for k in fields)
+                con.execute(f"UPDATE repos SET {sets} WHERE project_id = ? AND name = ?", (*fields.values(), args.project, args.name))
+            action = "updated"
+        else:
+            host = args.host or "github.com"
+            url = args.url or (f"https://{host}/{args.owner}/{args.name}" if args.owner else None)
+            con.execute(
+                "INSERT INTO repos(project_id, name, owner, host, url, ghq_path, link_path, has_agents_md, "
+                "summary, status, review_status) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                (args.project, args.name, args.owner, host, url, args.ghq_path, args.link_path,
+                 1 if args.has_agents_md else 0, args.summary, args.status or "declared",
+                 args.review_status or "needs_review"))
+            action = "created"
+        _audit(con, "repo", "repos", f"{args.project}/{args.name}", None, None, action)
+        con.execute("COMMIT")
+    except Exception:
+        con.execute("ROLLBACK"); raise
+    print(json.dumps({"action": f"repo-{action}", "project": args.project, "name": args.name}, ensure_ascii=False))
+
+
+def cmd_repo_rm(args):
+    con = connect(args)
+    con.execute("DELETE FROM repos WHERE project_id = ? AND name = ?", (args.project, args.name))
+    if con.total_changes == 0:
+        die(f"no repo {args.name!r} in {args.project}")
+    _audit(con, "repo-rm", "repos", f"{args.project}/{args.name}", None, args.name, None)
+    print(json.dumps({"action": "repo-rm", "project": args.project, "name": args.name}, ensure_ascii=False))
+
+
+def cmd_link_repo(args):
+    """Materialize the github/<name> symlink to a ghq clone (clone itself is opt-in/manual)."""
+    con = connect(args)
+    r = con.execute("SELECT * FROM repos WHERE project_id = ? AND name = ?", (args.project, args.name)).fetchone()
+    if not r:
+        die(f"no repo {args.name!r} in {args.project}")
+    proj = con.execute("SELECT dir_path FROM projects WHERE id = ?", (args.project,)).fetchone()
+    if not proj or not proj["dir_path"]:
+        die(f"project {args.project} has no dir_path; cannot place a symlink")
+    ghq = r["ghq_path"]
+    if not ghq:
+        host, owner = r["host"] or "github.com", r["owner"]
+        ghq = str(Path.home() / "ghq" / host / (owner or "") / args.name) if owner else None
+    link_path = r["link_path"] or str(Path(proj["dir_path"]) / "github" / args.name)
+    status = r["status"]
+    note = None
+    if ghq and Path(ghq).exists():
+        lp = Path(link_path)
+        lp.parent.mkdir(parents=True, exist_ok=True)
+        if lp.is_symlink() or lp.exists():
+            if lp.is_symlink() and str(lp.resolve()) == str(Path(ghq).resolve()):
+                note = "symlink already correct"
+            else:
+                die(f"{lp} already exists and is not the expected symlink")
+        else:
+            lp.symlink_to(ghq)
+            note = f"linked {lp} -> {ghq}"
+        status = "linked"
+    else:
+        status = "missing"
+        note = f"clone not found at {ghq or '(unknown ghq path)'}; declared only (clone manually, then re-run)"
+    con.execute("BEGIN")
+    try:
+        con.execute("UPDATE repos SET ghq_path = ?, link_path = ?, status = ? WHERE project_id = ? AND name = ?",
+                    (ghq, link_path, status, args.project, args.name))
+        _audit(con, "link-repo", "repos", f"{args.project}/{args.name}", "status", None, status, note=note)
+        con.execute("COMMIT")
+    except Exception:
+        con.execute("ROLLBACK"); raise
+    print(json.dumps({"action": "link-repo", "project": args.project, "name": args.name,
+                      "status": status, "note": note}, ensure_ascii=False))
+
+
+# --------------------------------------------------------------------------- members
+def _upsert_membership_row(con, project_id, person_id, args, now):
+    exists = con.execute("SELECT 1 FROM memberships WHERE project_id = ? AND person_id = ?", (project_id, person_id)).fetchone()
+    if exists:
+        fields = {}
+        if args.status is not None:
+            fields["status"] = args.status or None
+        if args.working_relationship is not None:
+            fields["working_relationship"] = args.working_relationship or None
+        if args.can_merge is not None:
+            fields["can_merge"] = 1 if args.can_merge else 0
+        if args.can_deploy is not None:
+            fields["can_deploy"] = 1 if args.can_deploy else 0
+        fields["updated_at"] = now
+        fields["last_updated"] = args.last_updated or today()
+        sets = ", ".join(f"{k} = ?" for k in fields)
+        con.execute(f"UPDATE memberships SET {sets} WHERE project_id = ? AND person_id = ?", (*fields.values(), project_id, person_id))
+        return "updated"
+    con.execute(
+        "INSERT INTO memberships(project_id, person_id, status, working_relationship, can_merge, can_deploy, "
+        "last_updated, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?)",
+        (project_id, person_id, args.status if args.status is not None else "active", args.working_relationship,
+         1 if args.can_merge else 0, 1 if args.can_deploy else 0, args.last_updated or today(), now, now))
+    return "created"
+
+
+def cmd_member_set(args):
+    con = connect(args)
+    _need_project(con, args.project)
+    now = now_iso()
+    con.execute("BEGIN")
+    try:
+        action = _upsert_membership_row(con, args.project, args.person, args, now)
+        for role in (args.role or []):
+            con.execute("INSERT OR IGNORE INTO membership_roles VALUES (?,?,?)", (args.project, args.person, role))
+        for r in (args.responsibility or []):
+            con.execute("INSERT OR IGNORE INTO membership_responsibilities VALUES (?,?,?)", (args.project, args.person, r))
+        for a in (args.area or []):
+            con.execute("INSERT OR IGNORE INTO membership_areas VALUES (?,?,?)", (args.project, args.person, a))
+        for t in (args.approve or []):
+            con.execute("INSERT OR IGNORE INTO membership_permission_scopes VALUES (?,?,?,?)", (args.project, args.person, "approve", t))
+        for t in (args.review or []):
+            con.execute("INSERT OR IGNORE INTO membership_permission_scopes VALUES (?,?,?,?)", (args.project, args.person, "review", t))
+        for note in (args.note or []):
+            nxt = con.execute("SELECT COALESCE(MAX(seq),0)+1 FROM membership_notes WHERE project_id=? AND person_id=?", (args.project, args.person)).fetchone()[0]
+            con.execute("INSERT INTO membership_notes VALUES (?,?,?,?)", (args.project, args.person, nxt, note))
+        for kv in (args.contact or []):
+            if "=" not in kv:
+                die(f"--contact must be channel=handle, got {kv!r}")
+            ch, h = kv.split("=", 1)
+            con.execute("INSERT OR REPLACE INTO membership_contacts VALUES (?,?,?,?)", (args.project, args.person, ch.strip().lower(), h))
+        _audit(con, "member", "memberships", f"{args.project}/{args.person}", None, None, action)
+        con.execute("COMMIT")
+    except Exception:
+        con.execute("ROLLBACK"); raise
+    print(json.dumps({"action": f"member-{action}", "project": args.project, "person": args.person}, ensure_ascii=False))
+
+
+def cmd_member_rm(args):
+    con = connect(args)
+    con.execute("DELETE FROM memberships WHERE project_id = ? AND person_id = ?", (args.project, args.person))
+    if con.total_changes == 0:
+        die(f"no membership {args.person} in {args.project}")
+    _audit(con, "member-rm", "memberships", f"{args.project}/{args.person}", None, args.person, None)
+    print(json.dumps({"action": "member-rm", "project": args.project, "person": args.person}, ensure_ascii=False))
+
+
+def _member_facet_rm(args, table, col, value):
+    con = connect(args)
+    con.execute(f"DELETE FROM {table} WHERE project_id = ? AND person_id = ? AND {col} = ?", (args.project, args.person, value))
+    if con.total_changes == 0:
+        die(f"no {col}={value!r} for {args.person} in {args.project}")
+    print(json.dumps({"action": f"{table}-rm", "project": args.project, "person": args.person, col: value}, ensure_ascii=False))
+
+
+def cmd_member_role_rm(args):
+    _member_facet_rm(args, "membership_roles", "role", args.role)
+
+
+def cmd_member_area_rm(args):
+    _member_facet_rm(args, "membership_areas", "area", args.area)
+
+
+def cmd_mtag_set(args):
+    con = connect(args)
+    _need_membership(con, args.project, args.person)
+    con.execute("BEGIN")
+    try:
+        ax = _ensure_axis(con, args.axis, args.label)
+        con.execute("INSERT OR IGNORE INTO membership_tags(project_id, person_id, axis, value, value_norm) VALUES (?,?,?,?,?)",
+                    (args.project, args.person, ax, args.value, normalize_text(args.value)))
+        _audit(con, "mtag", "membership_tags", f"{args.project}/{args.person}", ax, None, args.value)
+        con.execute("COMMIT")
+    except Exception:
+        con.execute("ROLLBACK"); raise
+    print(json.dumps({"action": "mtag-set", "project": args.project, "person": args.person, "axis": ax, "value": args.value}, ensure_ascii=False))
+
+
+def cmd_mtag_rm(args):
+    con = connect(args)
+    con.execute("DELETE FROM membership_tags WHERE project_id = ? AND person_id = ? AND axis = ? AND value_norm = ?",
+                (args.project, args.person, args.axis.strip().lower(), normalize_text(args.value)))
+    if con.total_changes == 0:
+        die(f"no tag {args.axis}={args.value!r} for {args.person} in {args.project}")
+    print(json.dumps({"action": "mtag-rm", "project": args.project, "person": args.person, "axis": args.axis, "value": args.value}, ensure_ascii=False))
+
+
+# --------------------------------------------------------------------------- import-legacy
+def _import_member_dict(con, project_id, person_id, m, now):
+    perms = m.get("permissions") or {}
+    con.execute(
+        "INSERT OR REPLACE INTO memberships(project_id, person_id, status, working_relationship, can_merge, "
+        "can_deploy, last_updated, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?)",
+        (project_id, person_id, m.get("status"), m.get("working_relationship"),
+         1 if perms.get("can_merge") else 0, 1 if perms.get("can_deploy") else 0,
+         m.get("last_updated"), now, now))
+    for role in m.get("roles") or []:
+        con.execute("INSERT OR IGNORE INTO membership_roles VALUES (?,?,?)", (project_id, person_id, role))
+    for r in m.get("responsibilities") or []:
+        con.execute("INSERT OR IGNORE INTO membership_responsibilities VALUES (?,?,?)", (project_id, person_id, r))
+    for a in m.get("areas") or []:
+        con.execute("INSERT OR IGNORE INTO membership_areas VALUES (?,?,?)", (project_id, person_id, a))
+    for t in perms.get("can_approve") or []:
+        con.execute("INSERT OR IGNORE INTO membership_permission_scopes VALUES (?,?,?,?)", (project_id, person_id, "approve", t))
+    for t in perms.get("can_review") or []:
+        con.execute("INSERT OR IGNORE INTO membership_permission_scopes VALUES (?,?,?,?)", (project_id, person_id, "review", t))
+    for i, note in enumerate(m.get("notes") or [], start=1):
+        con.execute("INSERT OR IGNORE INTO membership_notes VALUES (?,?,?,?)", (project_id, person_id, i, note))
+    for ch, h in (m.get("project_contacts") or {}).items():
+        con.execute("INSERT OR IGNORE INTO membership_contacts VALUES (?,?,?,?)", (project_id, person_id, ch, h))
+
+
+def cmd_import_legacy(args):
+    """Build projects + memberships from legacy group dirs (Projects/*/teams/members/*.json)."""
+    src = Path(args.src) if args.src else Path(args.root)
+    con = connect(args)
+    now = now_iso()
+    projects, members = 0, 0
+    con.execute("BEGIN")
+    try:
+        for d in sorted(src.iterdir()):
+            if not d.is_dir() or d.name.startswith("."):
+                continue
+            mdir = d / "teams" / "members"
+            if not mdir.is_dir() and not (d / "AGENTS.md").exists():
+                continue
+            pid = d.name
+            real = (Path(args.root) / pid)
+            dir_path = str(real) if real.exists() else str(d)
+            if not con.execute("SELECT 1 FROM projects WHERE id = ?", (pid,)).fetchone():
+                con.execute(
+                    "INSERT INTO projects(id, slug, canonical_name, kind, status, dir_path, summary, "
+                    "review_status, last_updated, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                    (pid, slugify(pid), pid, "category", "active", dir_path, None, "needs_review", today(), now, now))
+                _add_alias(con, pid, pid, primary=True)
+                projects += 1
+            if mdir.is_dir():
+                for f in sorted(mdir.glob("*.json")):
+                    m = load(f)
+                    person_id = m.get("person_id") or f.stem
+                    _import_member_dict(con, pid, person_id, m, now)
+                    members += 1
+        _audit(con, "import-legacy", None, None, None, None, f"{projects} projects, {members} memberships from {src}")
+        con.execute("COMMIT")
+    except Exception:
+        con.execute("ROLLBACK")
+        raise
+    print(json.dumps({"action": "import-legacy", "projects": projects, "memberships": members, "src": str(src)}, ensure_ascii=False))
+
+
+# --------------------------------------------------------------------------- import-json (from mirror)
+def cmd_import_json(args):
+    src = Path(args.src) if args.src else Path(args.root) / ".registry" / "export"
+    con = connect(args)
+    n = con.execute("SELECT COUNT(*) FROM projects").fetchone()[0]
+    if n and not args.force:
+        die(f"DB already has {n} project(s) (use --force to re-import into an empty DB)")
+    pf = src / "entities" / "projects.json"
+    if not pf.exists():
+        die(f"no mirror at {pf}")
+    now = now_iso()
+    proj_c = mem_c = 0
+    con.execute("BEGIN")
+    try:
+        for p in load(pf)["projects"]:
+            con.execute(
+                "INSERT OR REPLACE INTO projects(id, slug, canonical_name, kind, status, dir_path, summary, "
+                "review_status, last_updated, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                (p["id"], p.get("slug") or slugify(p["id"]), p.get("canonical_name", p["id"]), p.get("kind", "category"),
+                 p.get("status", "active"), p.get("dir_path"), p.get("summary"), p.get("review_status", "confirmed"),
+                 p.get("last_updated"), p.get("created_at") or now, p.get("updated_at") or now))
+            for a in p.get("aliases", []):
+                con.execute("INSERT OR IGNORE INTO project_aliases(project_id, alias, alias_norm, is_primary) VALUES (?,?,?,?)",
+                            (p["id"], a["alias"], normalize_text(a["alias"]), int(a.get("is_primary", 0))))
+            for l in p.get("links", []):
+                con.execute("INSERT OR IGNORE INTO project_links(project_id, kind, url, label) VALUES (?,?,?,?)",
+                            (p["id"], l["kind"], l["url"], l.get("label")))
+            for t in p.get("tags", []):
+                _ensure_axis(con, t["axis"])
+                con.execute("INSERT OR IGNORE INTO project_tags(project_id, axis, value, value_norm) VALUES (?,?,?,?)",
+                            (p["id"], t["axis"], t["value"], normalize_text(t["value"])))
+            for r in p.get("repos", []):
+                con.execute(
+                    "INSERT OR REPLACE INTO repos(project_id, name, owner, host, url, ghq_path, link_path, "
+                    "has_agents_md, summary, status, review_status) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                    (p["id"], r["name"], r.get("owner"), r.get("host", "github.com"), r.get("url"), r.get("ghq_path"),
+                     r.get("link_path"), 1 if r.get("has_agents_md") else 0, r.get("summary"),
+                     r.get("status", "declared"), r.get("review_status", "confirmed")))
+            proj_c += 1
+        mf = src / "entities" / "memberships.json"
+        if mf.exists():
+            for m in load(mf)["memberships"]:
+                _import_member_dict(con, m["project_id"], m["person_id"], m, now)
+                for t in m.get("tags", []):
+                    _ensure_axis(con, t["axis"])
+                    con.execute("INSERT OR IGNORE INTO membership_tags(project_id, person_id, axis, value, value_norm) VALUES (?,?,?,?,?)",
+                                (m["project_id"], m["person_id"], t["axis"], t["value"], normalize_text(t["value"])))
+                mem_c += 1
+        _audit(con, "import-json", None, None, None, None, f"{proj_c} projects, {mem_c} memberships from {src}")
+        con.execute("COMMIT")
+    except Exception:
+        con.execute("ROLLBACK")
+        raise
+    print(json.dumps({"action": "import-json", "projects": proj_c, "memberships": mem_c, "src": str(src)}, ensure_ascii=False))
+
+
+# --------------------------------------------------------------------------- export
+def cmd_export(args):
+    con = connect(args)
+    out = Path(args.out) if args.out else Path(args.root) / ".registry" / "export"
+    if args.format in ("json", "both"):
+        _export_json(con, out)
+    if args.format in ("csv", "both"):
+        _export_csv(con, out / "csv" if args.format == "both" else out)
+    print(f"exported {args.format} -> {out}")
+
+
+def _export_json(con, out: Path):
+    cfg, ent = out / "config", out / "entities"
+    for d in (cfg, ent):
+        d.mkdir(parents=True, exist_ok=True)
+
+    def dump(path, obj):
+        path.write_text(json.dumps(obj, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+    dump(cfg / "tag_axes.json", {"schema_version": 1,
+        "tag_axes": [{"axis": r["axis"], "label": r["label"], "review_status": r["review_status"]}
+                     for r in con.execute("SELECT * FROM project_tag_axes ORDER BY axis")]})
+    projects = [_project_obj(con, r["id"]) for r in con.execute("SELECT id FROM projects ORDER BY id")]
+    # split members out into a top-level mirror (matches People's memberships.json shape)
+    memberships = []
+    for p in projects:
+        memberships.extend(p.pop("members", []))
+    dump(ent / "projects.json", {"schema_version": 1, "projects": projects})
+    dump(ent / "memberships.json", {"schema_version": 1, "memberships": memberships})
+
+
+def _export_csv(con, out: Path):
+    out.mkdir(parents=True, exist_ok=True)
+
+    def write(name, header, rows):
+        with (out / name).open("w", newline="", encoding="utf-8") as fh:
+            w = csv.writer(fh)
+            w.writerow(header)
+            for row in rows:
+                w.writerow(row)
+
+    write("projects.csv", ["id", "slug", "canonical_name", "kind", "status", "review_status", "dir_path"],
+          ([r["id"], r["slug"], r["canonical_name"], r["kind"], r["status"], r["review_status"], r["dir_path"]]
+           for r in con.execute("SELECT * FROM projects ORDER BY id")))
+    write("aliases.csv", ["project_id", "alias", "is_primary"],
+          ([r["project_id"], r["alias"], r["is_primary"]] for r in con.execute("SELECT * FROM project_aliases ORDER BY project_id, alias")))
+    write("links.csv", ["project_id", "kind", "url", "label"],
+          ([r["project_id"], r["kind"], r["url"], r["label"]] for r in con.execute("SELECT * FROM project_links ORDER BY project_id, kind")))
+    write("repos.csv", ["project_id", "name", "owner", "host", "url", "status", "review_status"],
+          ([r["project_id"], r["name"], r["owner"], r["host"], r["url"], r["status"], r["review_status"]]
+           for r in con.execute("SELECT * FROM repos ORDER BY project_id, name")))
+    write("memberships.csv", ["project_id", "person_id", "status", "working_relationship", "can_merge", "can_deploy"],
+          ([r["project_id"], r["person_id"], r["status"], r["working_relationship"], r["can_merge"], r["can_deploy"]]
+           for r in con.execute("SELECT * FROM memberships ORDER BY project_id, person_id")))
+    write("project_tags.csv", ["project_id", "axis", "value"],
+          ([r["project_id"], r["axis"], r["value"]] for r in con.execute("SELECT * FROM project_tags ORDER BY project_id, axis, value")))
+    write("membership_tags.csv", ["project_id", "person_id", "axis", "value"],
+          ([r["project_id"], r["person_id"], r["axis"], r["value"]] for r in con.execute("SELECT * FROM membership_tags ORDER BY project_id, person_id, axis, value")))
+
+
+# --------------------------------------------------------------------------- validate
+def cmd_validate(args):
+    con = connect(args)
+    errs, warns = [], []
+    ic = con.execute("PRAGMA integrity_check").fetchone()[0]
+    if ic != "ok":
+        errs.append(f"integrity_check: {ic}")
+    for r in con.execute("PRAGMA foreign_key_check").fetchall():
+        errs.append(f"FK violation in {r[0]} (rowid={r[1]}) -> {r[2]}")
+    # every project has a primary alias
+    for r in con.execute("SELECT id FROM projects WHERE NOT EXISTS "
+                         "(SELECT 1 FROM project_aliases a WHERE a.project_id = projects.id AND a.is_primary = 1)"):
+        errs.append(f"{r['id']}: no primary alias")
+    # non-external projects should resolve to an existing dir
+    for r in con.execute("SELECT id, kind, dir_path FROM projects"):
+        if r["kind"] != "external":
+            if not r["dir_path"]:
+                warns.append(f"{r['id']}: no dir_path (kind={r['kind']})")
+            elif not Path(r["dir_path"]).exists():
+                warns.append(f"{r['id']}: dir_path does not exist: {r['dir_path']}")
+    # alias_norm consistency
+    for r in con.execute("SELECT project_id, alias_norm FROM project_aliases"):
+        if r["alias_norm"] != normalize_text(r["alias_norm"]):
+            errs.append(f"{r['project_id']}: alias_norm not normalized: {r['alias_norm']!r}")
+
+    # cross-store: member person_ids resolve in People (via the pp CLI, read-only)
+    if _cross is not None and _cross.available("people"):
+        data = _cross.call("people", ["list", "--json"])
+        if data is not None:
+            valid = {p["id"] for p in data.get("persons", [])}
+            for r in con.execute("SELECT DISTINCT person_id FROM memberships ORDER BY person_id"):
+                if r["person_id"] not in valid:
+                    errs.append(f"member person_id {r['person_id']!r} not found in People")
+        else:
+            warns.append("People cross-check skipped (no data from pp)")
+    else:
+        warns.append("People CLI unavailable; skipped person_id cross-check")
+
+    # cross-store: every budget project (proj_*) reconciles to a registry project (via dir_path/alias)
+    if _cross is not None and _cross.available("household-budget"):
+        data = _cross.call("household-budget", ["projects", "--json"])
+        if data is not None:
+            alias_norms = {r[0] for r in con.execute("SELECT alias_norm FROM project_aliases")}
+            dir_paths = {r[0] for r in con.execute("SELECT dir_path FROM projects WHERE dir_path IS NOT NULL")}
+            ids = {r[0] for r in con.execute("SELECT id FROM projects")}
+            for bp in data.get("projects", []):
+                dp = bp.get("dir_path")
+                names = [bp.get("canonical_name", "")] + list(bp.get("aliases", []))
+                matched = (dp in dir_paths) or (bp.get("id") in ids) \
+                    or any(normalize_text(n) in alias_norms for n in names if n)
+                if not matched:
+                    warns.append(f"budget project {bp.get('id')!r} ({bp.get('canonical_name')!r}) has no registry match")
+        else:
+            warns.append("budget cross-check skipped (no data from hb)")
+    else:
+        warns.append("household-budget CLI unavailable; skipped budget reconcile")
+
+    for w in warns:
+        print(f"WARN: {w}", file=sys.stderr)
+    if errs:
+        for e in errs:
+            print(f"ERROR: {e}", file=sys.stderr)
+        print(f"{len(errs)} error(s), {len(warns)} warning(s)", file=sys.stderr)
+        raise SystemExit(1)
+    print(f"Projects registry validation passed. ({len(warns)} warning(s))")
+
+
+# --------------------------------------------------------------------------- backup
+def cmd_backup(args):
+    con = connect(args)
+    outdir = Path(args.out) if args.out else Path(args.root) / ".registry" / "backups"
+    outdir.mkdir(parents=True, exist_ok=True)
+    ts = datetime.now().strftime("%Y%m%dT%H%M%S")
+    dest = outdir / f"projects-{ts}.db"
+    bcon = sqlite3.connect(str(dest))
+    with bcon:
+        con.backup(bcon)
+    bcon.close()
+    print(f"backup -> {dest}")
+    if args.keep:
+        files = sorted(outdir.glob("projects-*.db"))
+        for old in files[:-args.keep]:
+            old.unlink()
+            print(f"pruned {old.name}")
+
+
+# --------------------------------------------------------------------------- audit
+def cmd_audit(args):
+    con = connect(args)
+    q = "SELECT seq, ts, action, tbl, entity, field, new_value, note FROM project_audit"
+    params = []
+    if args.entity:
+        q += " WHERE entity = ?"; params.append(args.entity)
+    q += " ORDER BY seq DESC LIMIT ?"; params.append(args.limit or 50)
+    for r in con.execute(q, params):
+        bits = " ".join(filter(None, [r["tbl"], r["entity"], r["field"], (f"={r['new_value']}" if r["new_value"] else ""), (f"({r['note']})" if r["note"] else "")]))
+        print(f"  #{r['seq']:<4} {r['ts'][:19]} {r['action']:<16} {bits}")
+
+
+# --------------------------------------------------------------------------- CLI
+def build_parser():
+    p = argparse.ArgumentParser(prog="pj", description="Projects registry engine (SQLite v1, stdlib).")
+    p.add_argument("--root", default=str(DEFAULT_ROOT), help="workspace root (default: ~/Workspaces/Projects)")
+    p.add_argument("--db", help="override DB path (default: <root>/.registry/projects.db)")
+    sub = p.add_subparsers(dest="cmd", required=True)
+
+    s = sub.add_parser("init"); s.add_argument("--force", action="store_true")
+    s.add_argument("--seed", action="store_true", help="seed base tag axes"); s.set_defaults(func=cmd_init)
+    s = sub.add_parser("migrate"); s.add_argument("--dry-run", action="store_true"); s.set_defaults(func=cmd_migrate)
+
+    s = sub.add_parser("import-legacy", help="build projects+memberships from Projects/*/teams/members")
+    s.add_argument("--src", help="source dir of group folders (default: <root>)"); s.set_defaults(func=cmd_import_legacy)
+    s = sub.add_parser("import-json"); s.add_argument("--src"); s.add_argument("--force", action="store_true"); s.set_defaults(func=cmd_import_json)
+    s = sub.add_parser("export"); s.add_argument("--format", choices=["json", "csv", "both"], default="json"); s.add_argument("--out"); s.set_defaults(func=cmd_export)
+    s = sub.add_parser("validate"); s.set_defaults(func=cmd_validate)
+    s = sub.add_parser("backup"); s.add_argument("--out"); s.add_argument("--keep", type=int); s.set_defaults(func=cmd_backup)
+    s = sub.add_parser("audit"); s.add_argument("--entity"); s.add_argument("--limit", type=int); s.set_defaults(func=cmd_audit)
+
+    # reads
+    s = sub.add_parser("show"); s.add_argument("--id", required=True); s.add_argument("--json", action="store_true"); s.set_defaults(func=cmd_show)
+    s = sub.add_parser("list"); s.add_argument("--status", choices=["active", "inactive", "archived"])
+    s.add_argument("--kind", choices=["org", "client", "category", "personal", "external"]); s.add_argument("--json", action="store_true"); s.set_defaults(func=cmd_list)
+    s = sub.add_parser("projects", help="read-port: project identity (+aliases) for reconciliation"); s.add_argument("--json", action="store_true"); s.set_defaults(func=cmd_projects)
+    s = sub.add_parser("members", help="read-port: memberships (People consumes this)"); s.add_argument("--project"); s.add_argument("--json", action="store_true"); s.set_defaults(func=cmd_members)
+    s = sub.add_parser("repos"); s.add_argument("--project"); s.add_argument("--json", action="store_true"); s.set_defaults(func=cmd_repos)
+    s = sub.add_parser("links"); s.add_argument("--project"); s.add_argument("--json", action="store_true"); s.set_defaults(func=cmd_links)
+    s = sub.add_parser("report"); s.add_argument("--by", required=True); s.add_argument("--scope", choices=["project", "member", "both"], default="both"); s.set_defaults(func=cmd_report)
+
+    # project mutators
+    s = sub.add_parser("upsert-project"); s.add_argument("--id", required=True); s.add_argument("--name"); s.add_argument("--slug")
+    s.add_argument("--kind", choices=["org", "client", "category", "personal", "external"]); s.add_argument("--status", choices=["active", "inactive", "archived"])
+    s.add_argument("--review-status", dest="review_status", choices=["needs_review", "confirmed", "ignored"])
+    s.add_argument("--dir-path", dest="dir_path"); s.add_argument("--external", action="store_true", help="no directory (dir_path=NULL)")
+    s.add_argument("--summary"); s.add_argument("--last-updated", dest="last_updated"); s.add_argument("--alias", action="append", default=[]); s.set_defaults(func=cmd_upsert_project)
+    s = sub.add_parser("set-status"); s.add_argument("--id", required=True); s.add_argument("--status", required=True, choices=["active", "inactive", "archived"]); s.set_defaults(func=cmd_set_status)
+    s = sub.add_parser("review"); s.set_defaults(func=cmd_review)
+    for name, fn in (("confirm", cmd_confirm), ("ignore", cmd_ignore)):
+        s = sub.add_parser(name); s.add_argument("--id", required=True); s.set_defaults(func=fn)
+    s = sub.add_parser("rename-project"); s.add_argument("--old", required=True); s.add_argument("--new", required=True); s.set_defaults(func=cmd_rename_project)
+    s = sub.add_parser("merge-project"); s.add_argument("--old", required=True); s.add_argument("--into", required=True); s.set_defaults(func=cmd_merge_project)
+
+    # facets
+    s = sub.add_parser("alias-add"); s.add_argument("--id", required=True); s.add_argument("--alias", required=True); s.add_argument("--primary", action="store_true"); s.set_defaults(func=cmd_alias_add)
+    s = sub.add_parser("alias-rm"); s.add_argument("--id", required=True); s.add_argument("--alias", required=True); s.set_defaults(func=cmd_alias_rm)
+    s = sub.add_parser("link-set"); s.add_argument("--id", required=True); s.add_argument("--kind", required=True, choices=["landing", "x", "github", "docs", "discord", "other"]); s.add_argument("--url", required=True); s.add_argument("--label"); s.set_defaults(func=cmd_link_set)
+    s = sub.add_parser("link-rm"); s.add_argument("--id", required=True); s.add_argument("--kind", required=True); s.add_argument("--url", required=True); s.set_defaults(func=cmd_link_rm)
+    s = sub.add_parser("tag-set"); s.add_argument("--id", required=True); s.add_argument("--axis", required=True); s.add_argument("--value", required=True); s.add_argument("--label"); s.set_defaults(func=cmd_tag_set)
+    s = sub.add_parser("tag-rm"); s.add_argument("--id", required=True); s.add_argument("--axis", required=True); s.add_argument("--value", required=True); s.set_defaults(func=cmd_tag_rm)
+
+    # repos
+    s = sub.add_parser("repo-set"); s.add_argument("--project", required=True); s.add_argument("--name", required=True)
+    s.add_argument("--owner"); s.add_argument("--host"); s.add_argument("--url"); s.add_argument("--ghq-path", dest="ghq_path"); s.add_argument("--link-path", dest="link_path")
+    s.add_argument("--has-agents-md", dest="has_agents_md", action="store_true", default=None); s.add_argument("--summary")
+    s.add_argument("--status", choices=["declared", "linked", "missing", "archived"]); s.add_argument("--review-status", dest="review_status", choices=["needs_review", "confirmed", "ignored"]); s.set_defaults(func=cmd_repo_set)
+    s = sub.add_parser("repo-rm"); s.add_argument("--project", required=True); s.add_argument("--name", required=True); s.set_defaults(func=cmd_repo_rm)
+    s = sub.add_parser("link-repo"); s.add_argument("--project", required=True); s.add_argument("--name", required=True); s.set_defaults(func=cmd_link_repo)
+
+    # members
+    s = sub.add_parser("member-set"); s.add_argument("--project", required=True); s.add_argument("--person", required=True)
+    s.add_argument("--status"); s.add_argument("--working-relationship", dest="working_relationship")
+    s.add_argument("--can-merge", dest="can_merge", action="store_true", default=None); s.add_argument("--no-can-merge", dest="can_merge", action="store_false")
+    s.add_argument("--can-deploy", dest="can_deploy", action="store_true", default=None); s.add_argument("--no-can-deploy", dest="can_deploy", action="store_false")
+    s.add_argument("--role", action="append", default=[]); s.add_argument("--responsibility", action="append", default=[]); s.add_argument("--area", action="append", default=[])
+    s.add_argument("--approve", action="append", default=[]); s.add_argument("--review", action="append", default=[])
+    s.add_argument("--note", action="append", default=[]); s.add_argument("--contact", action="append", default=[], help="channel=handle")
+    s.add_argument("--last-updated", dest="last_updated"); s.set_defaults(func=cmd_member_set)
+    s = sub.add_parser("member-rm"); s.add_argument("--project", required=True); s.add_argument("--person", required=True); s.set_defaults(func=cmd_member_rm)
+    s = sub.add_parser("member-role-rm"); s.add_argument("--project", required=True); s.add_argument("--person", required=True); s.add_argument("--role", required=True); s.set_defaults(func=cmd_member_role_rm)
+    s = sub.add_parser("member-area-rm"); s.add_argument("--project", required=True); s.add_argument("--person", required=True); s.add_argument("--area", required=True); s.set_defaults(func=cmd_member_area_rm)
+    s = sub.add_parser("mtag-set"); s.add_argument("--project", required=True); s.add_argument("--person", required=True); s.add_argument("--axis", required=True); s.add_argument("--value", required=True); s.add_argument("--label"); s.set_defaults(func=cmd_mtag_set)
+    s = sub.add_parser("mtag-rm"); s.add_argument("--project", required=True); s.add_argument("--person", required=True); s.add_argument("--axis", required=True); s.add_argument("--value", required=True); s.set_defaults(func=cmd_mtag_rm)
+    return p
+
+
+def main(argv=None):
+    args = build_parser().parse_args(argv)
+    args.func(args)
+
+
+if __name__ == "__main__":
+    main()
