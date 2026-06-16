@@ -16,7 +16,7 @@ metadata:
 
 # HouseholdBudget
 
-Reference: `references/data-model-notes.md` captures safe local-ledger conventions for receipt intake, monthly summaries, DB backup/validation, sensitive-data handling, and export refresh. Use it before writing or summarizing the local ledger.
+Reference: `references/data-model.md` captures the full data model plus safe local-ledger conventions for receipt intake, monthly summaries, DB backup/validation, sensitive-data handling, and export refresh. Use it before writing or summarizing the local ledger.
 
 An analytical, multi-currency SQLite ledger. The DB is the source of truth at
 `~/Workspaces/Personal/HouseholdBudget/data/budget.db`; JSON/CSV under `data/export/`
@@ -47,8 +47,9 @@ hb summary --month YYYY-MM
 hb report --by <axis> [--month|--from|--to] [--type] [--scope] [--where axis=value]
 hb subscriptions ; hb reimbursements [--month YYYY-MM]
 # data ops
-hb validate ; hb export --format both ; hb backup [--keep N]
-hb init [--force] ; hb import-json [--src DIR] ; hb migrate
+hb validate ; hb export --format both ; hb backup [--keep N] ; hb audit [--entity <id>]
+hb fx-refresh [--date YYYY-MM-DD] ; hb digest weekly|month-end [--format html|plain]
+hb init [--seed] [--force] ; hb import-json [--src DIR] ; hb migrate
 ```
 `report --by`: `month|type|scope|category|store|item|account|currency|project|counterparty|tag:<axis>`.
 
