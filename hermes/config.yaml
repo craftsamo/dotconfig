@@ -523,7 +523,11 @@ sessions:
   min_interval_hours: 24
   write_json_snapshots: false
 onboarding:
-  seen: {}
+  seen:
+    busy_input_prompt: true
+    tool_progress_prompt: true
+    openclaw_residue_cleanup: true
+    profile_build_offered: true
   profile_build: ask
 updates:
   pre_update_backup: false
