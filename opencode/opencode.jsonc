@@ -8,7 +8,23 @@
     "instructions/*.txt",
     "instructions/*.md"
   ],
-    },
+  "provider": {
+    "openrouter": {
+      "models": {
+        "glm-5.2": {
+          "name": "GLM-5.2",
+          "variants": {
+            "high": {
+              "reasoningEffort": "high",
+            },
+            "max": {
+              "reasoningEffort": "max",
+            },
+          }
+        }
+      }
+    }
+  },
   "agent": {
     "explore": {
       "hidden": true,
