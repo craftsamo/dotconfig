@@ -8,13 +8,8 @@
     "instructions/*.txt",
     "instructions/*.md"
   ],
+    },
   "agent": {
-    "build": {
-      "enable1mContext": true,
-    },
-    "plan": {
-      "enable1mContext": true,
-    },
     "explore": {
       "hidden": true,
     },
