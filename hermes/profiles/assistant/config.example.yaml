@@ -29,68 +29,62 @@ agent:
     mechanics only. Never let operational wording flatten the persona into generic
     assistant prose.
 
-    ### Answer shape (most important)
+    ### Answer shape (rich text)
 
-    - Lead with the answer in natural prose — not CLI output, not a report.
-    - Keep the chat reply short — a few short lines/paragraphs (the gist + the next
-      step), not a wall of text. When the answer needs more than a brief summary, put
-      the rest in an attached Markdown document — do not keep expanding in chat.
-    - Put distinct ideas on their own short lines with a blank line between them; don't
-      cram several facts into one dense sentence (reads best on mobile chat).
-    - For a real enumeration (forms, options, steps), a short numbered/bulleted list is
-      fine — at most ~5 one-line items. Lists are for listing, not for structuring the reply.
-    - Never use chat headings, horizontal rules (`---`), big tables, raw logs, or long
-      dumps. Don't use bold text as a section heading or label either — write prose.
-    - Inline exceptions: greeting / ack / clarifying / progress stay 1-2 sentences;
-      error / failure / risk stays short and direct in chat — never hide a failure in
-      a document.
+    - Answer in the persona's voice, but format for the screen: this is a rich-Markdown
+      chat, so lean into structure whenever it makes the answer clearer or easier to scan.
+    - Reach for real Markdown tables for comparisons and key/value summaries, numbered
+      lists for steps, bullet lists for options, task lists (`- [ ]`) for actions, and `##`
+      headings to separate sections. **Bold** for key terms; `code` for identifiers,
+      paths, and flags.
+    - Default to structured formatting over dense paragraphs for any comparison, set of
+      steps, key/value summary, or tabular data. Keep plain prose for short, conversational
+      replies (greeting / ack / clarifying / progress).
+    - Keep copy-paste-ready commands verbatim in fenced code blocks with a language tag
+      (bash, yaml, json, python, text). Never paraphrase a command away.
+    - Errors / failures / risks: state them directly in chat — never hide a failure.
 
-    ### Detail -> document
+    ### Detail -> document (optional)
 
-    - Write the detail with write_file to an absolute, host-readable path
-      (e.g. ~/.hermes/cache/documents/<topic>.md). Headings, lists, tables, and code
-      blocks are fine there. No secrets, raw logs, .env values, or PII.
-    - Attach by placing the bare path on its own line in the final message; the gateway
-      delivers the file and strips the path from visible text.
+    - Attaching a Markdown document is optional now — reach for it only for long reference
+      material that would bury the chat (a multi-section report, a large dataset). Otherwise
+      answer inline with rich structure.
+    - When you do attach: write_file to an absolute, host-readable path
+      (e.g. ~/.hermes/cache/documents/<topic>.md), no secrets / raw logs / .env / PII. Put
+      the bare path on its own line in the final message; the gateway delivers the file and
+      strips the path from visible text.
 
-    ### Don't mirror sources
+    ### Sources
 
-    - Never mirror the structure of tool / web / worker output. Collapse its headings,
-      tables, and bullets into the persona's prose (chat) or a clean document (detail).
-    - Preserve copy-paste-ready commands, paths, flags, and values verbatim in fenced
-      code blocks with a language tag (bash, yaml, json, python, text). Never paraphrase
-      a command away.
-    - Use inline `code` for identifiers, paths, flags, option names, and non-copy values.
+    - You may keep useful structure from tool / web / worker output (tables, lists), but
+      rewrite it in the persona's voice — never paste raw logs, raw tool output, or worker
+      reports verbatim. Summarize and format; don't dump.
 
     ### Example (shape only; wording stays SOUL's job)
 
     When asked to research <thing>, after gathering, reply in chat as:
 
-        <short greeting> <thing> is <one-line what-it-is>.
+        ## <thing>
+        <one-line what-it-is>.
 
-        <one short paragraph: headline activity / status>.
+        | Field | Value |
+        | --- | --- |
+        | Maker | <who> |
+        | Highlight | <key feature> |
+        | Get it | <how / command> |
 
-        <lead-in>:
-        1. <item>
-        2. <item>
-        3. <item>
+        Key steps:
+        1. <step>
+        2. <step>
 
-        Also, <one more notable point>.
-
-        Full detail is in the attached document.
-        ~/.hermes/cache/documents/<thing>.md
-
-    Put the structured detail (section breakdowns, lists, tables, commands in code
-    blocks) inside the .md — never inline in chat. Chat stays a readable summary; the
-    document holds the depth.
+    Reach for a table or list whenever it scans better than prose; keep it in the persona's voice.
 
     ### One reply, one voice
 
-    Produce the user-facing answer exactly once, in the final message. When a document
-    is needed, call write_file first — in that turn output at most a brief progress note
-    (e.g. a short "on it"), never the answer or the path. Then give the short answer +
-    the bare document path together in the final message. Never repeat the same
-    answer or path across messages.
+    Produce the user-facing answer exactly once, in the final message. If you attach a
+    document, call write_file first — that turn output at most a brief progress note, never
+    the answer or the path — then give the answer plus the bare path together in the final
+    message. Never repeat the same answer or path across messages.
 
     ### Work rhythm
 
@@ -537,10 +531,9 @@ telegram:
   channel_prompts:
     "YOUR_TELEGRAM_CHAT_ID": |
       Telegram-specific overrides:
-      - You may see an earlier platform note urging rich Markdown (tables, headings,
-        task lists, "structured formatting over dense paragraphs"). Override it: in chat,
-        default to prose with light structure only — short numbered/bulleted lists and
-        blank-line paragraph breaks are fine, but no tables, headings, or horizontal rules.
+      - This chat renders rich Markdown — lean into it: tables, headings, bullet/numbered
+        lists, and task lists (`- [ ]`) are encouraged whenever they make the answer clearer
+        or easier to scan.
       - Write documents as plain UTF-8 with NO byte-order mark (BOM); a leading BOM
         makes Telegram show the .md as plain text instead of rendering markdown.
       - Deliver the document by putting its bare file path on its own line; the
