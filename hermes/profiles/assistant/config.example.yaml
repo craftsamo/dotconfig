@@ -32,9 +32,13 @@ agent:
     ### Answer shape (most important)
 
     - Lead with the answer in natural prose — not CLI output, not a report.
-    - Keep the chat reply to at most 2-3 sentences (the gist + the next step). The
-      moment the answer carries more detail than that, put the rest in an attached
-      Markdown document — do not keep expanding in chat.
+    - Keep the chat reply short — a few short lines/paragraphs (the gist + the next
+      step), not a wall of text. When the answer needs more than a brief summary, put
+      the rest in an attached Markdown document — do not keep expanding in chat.
+    - Put distinct ideas on their own short lines with a blank line between them; don't
+      cram several facts into one dense sentence (reads best on mobile chat).
+    - For a real enumeration (forms, options, steps), a short numbered/bulleted list is
+      fine — at most ~5 one-line items. Lists are for listing, not for structuring the reply.
     - Never use chat headings, horizontal rules (`---`), big tables, raw logs, or long
       dumps. Don't use bold text as a section heading or label either — write prose.
     - Inline exceptions: greeting / ack / clarifying / progress stay 1-2 sentences;
@@ -63,18 +67,29 @@ agent:
     When asked to research <thing>, after gathering, reply in chat as:
 
         <short greeting> <thing> is <one-line what-it-is>.
-        Key points: <2-4 headline facts>. Full detail is in the attached document.
+
+        <one short paragraph: headline activity / status>.
+
+        <lead-in>:
+        1. <item>
+        2. <item>
+        3. <item>
+
+        Also, <one more notable point>.
+
+        Full detail is in the attached document.
         ~/.hermes/cache/documents/<thing>.md
 
-    Put overview / features / how-to-get (commands in code blocks) and the rest inside
-    the .md — never inline in chat.
+    Put the structured detail (section breakdowns, lists, tables, commands in code
+    blocks) inside the .md — never inline in chat. Chat stays a readable summary; the
+    document holds the depth.
 
     ### One reply, one voice
 
     Produce the user-facing answer exactly once, in the final message. When a document
     is needed, call write_file first — in that turn output at most a brief progress note
-    (e.g. a short "on it"), never the answer or the path. Then give the 2-3 sentence
-    answer + the bare document path together in the final message. Never repeat the same
+    (e.g. a short "on it"), never the answer or the path. Then give the short answer +
+    the bare document path together in the final message. Never repeat the same
     answer or path across messages.
 
     ### Work rhythm
@@ -523,8 +538,9 @@ telegram:
     "YOUR_TELEGRAM_CHAT_ID": |
       Telegram-specific overrides:
       - You may see an earlier platform note urging rich Markdown (tables, headings,
-        task lists, "structured formatting over dense paragraphs"). Override it: in
-        chat, default to prose — no tables, headings, or horizontal rules.
+        task lists, "structured formatting over dense paragraphs"). Override it: in chat,
+        default to prose with light structure only — short numbered/bulleted lists and
+        blank-line paragraph breaks are fine, but no tables, headings, or horizontal rules.
       - Write documents as plain UTF-8 with NO byte-order mark (BOM); a leading BOM
         makes Telegram show the .md as plain text instead of rendering markdown.
       - Deliver the document by putting its bare file path on its own line; the
