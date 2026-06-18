@@ -351,7 +351,7 @@ display:
   ephemeral_system_ttl: 0
   platforms:
     telegram:
-      streaming: true
+      streaming: false
     discord:
       streaming: true
   runtime_footer:
