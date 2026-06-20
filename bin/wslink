@@ -1,0 +1,15 @@
+#!/bin/zsh -f
+# wslink — thin launcher so the `wslink` workspace-link CLI (a zsh function
+# defined in zsh/functions/wslink.zsh, loaded interactively by config.zsh) is
+# also callable from non-interactive shells (scripts, `zsh -c`, opencode) and
+# from fzf's preview subshell (`wslink __preview …`).
+#
+# This is NOT a secret-shim symlink: it injects nothing. It loads the function
+# and dispatches. Interactive shells keep using the function directly (a defined
+# function outranks this PATH command), so behaviour is unchanged.
+source "$HOME/.config/zsh/functions/wslink.zsh" 2>/dev/null
+if (( ! $+functions[wslink] )); then
+  print -ru2 -- "wslink: could not load ~/.config/zsh/functions/wslink.zsh"
+  exit 1
+fi
+wslink "$@"
