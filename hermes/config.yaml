@@ -297,12 +297,16 @@ dashboard:
 privacy:
   redact_pii: false
 tts:
-  provider: aivis
+  provider: tts-fallback
+  fallback:
+    chain:
+    - aivis
+    - edge
   aivis:
     base_url: http://127.0.0.1:10101
     speaker: "888753760"
   edge:
-    voice: en-US-AriaNeural
+    voice: ja-JP-NanamiNeural
   elevenlabs:
     voice_id: pNInz6obpgDQGcFmaJgB
     model_id: eleven_multilingual_v2
@@ -586,3 +590,4 @@ plugins:
   - video-analyze-mimo
   - aivis
   - stt-fallback
+  - tts-fallback
