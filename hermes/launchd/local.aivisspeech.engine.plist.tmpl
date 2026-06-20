@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!--
+    TEMPLATE — not loaded directly. `aivis-launchctl.sh install` substitutes
+    __HOME__ with $HOME and writes the real plist to ~/Library/LaunchAgents/
+    (launchd does not expand ~ / env vars, so the path must be absolute;
+    keeping only the template in git avoids committing a machine-specific home).
+
+    Runs the AivisSpeech Engine headless (no Electron GUI) so Hermes' `aivis`
+    TTS provider has a backend on 127.0.0.1:10101. The engine binary ships
+    inside the AivisSpeech.app bundle; this depends on the app staying installed
+    in /Applications. Voice models live separately in
+    ~/Library/Application Support/AivisSpeech-Engine and are reused as-is.
+
+    Do NOT run the GUI app and this agent at the same time — both bind :10101.
+  -->
+  <key>Label</key>
+  <string>local.aivisspeech.engine</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Applications/AivisSpeech.app/Contents/Resources/AivisSpeech-Engine/run</string>
+    <string>--host</string>
+    <string>127.0.0.1</string>
+    <string>--port</string>
+    <string>10101</string>
+  </array>
+
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>ThrottleInterval</key>
+  <integer>15</integer>
+  <key>ProcessType</key>
+  <string>Background</string>
+
+  <key>StandardOutPath</key>
+  <string>__HOME__/Library/Logs/aivisspeech-engine.log</string>
+  <key>StandardErrorPath</key>
+  <string>__HOME__/Library/Logs/aivisspeech-engine.log</string>
+</dict>
+</plist>
