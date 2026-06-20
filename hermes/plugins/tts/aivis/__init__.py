@@ -8,9 +8,13 @@ JSON, which is then ``POST /synthesis?speaker=<style_id>`` to receive WAV bytes.
 
 This registers a Hermes ``TTSProvider`` (see ``agent/tts_provider.py``) named
 ``aivis``. It is selected per profile via ``tts.provider: aivis`` and enabled
-via ``plugins.enabled: [aivis]``. Stdlib-only (urllib) so it adds no
-dependency to the Hermes venv. The engine must be running locally — this
-plugin does not manage its lifecycle.
+via ``plugins.enabled: [aivis]``. Synthesis is stdlib-only (urllib); when the
+caller requests a non-WAV ``output_path`` (e.g. CLI/TUI voice mode hands us a
+``.mp3`` and plays it with ``afplay``, which picks its decoder by extension —
+raw WAV in a ``.mp3`` fails to decode), the engine WAV is transcoded with
+ffmpeg (a system binary Hermes already uses for Opus voice notes — no Hermes
+venv dependency; raw-WAV fallback if ffmpeg is absent). The engine must be
+running locally — this plugin does not manage its lifecycle.
 
 Config (optional, read from the active profile's ``config.yaml``)::
 
@@ -30,6 +34,10 @@ from __future__ import annotations
 
 import json
 import logging
+import os
+import shutil
+import subprocess
+import tempfile
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -47,6 +55,7 @@ _AUDIO_QUERY_TIMEOUT = 30
 _SYNTHESIS_TIMEOUT = 120
 _AVAILABILITY_TIMEOUT = 3
 _VOICES_TIMEOUT = 5
+_FFMPEG_TIMEOUT = 60
 
 
 class AivisProvider(TTSProvider):
@@ -166,6 +175,100 @@ class AivisProvider(TTSProvider):
                 f"engine running (default port 10101)?"
             ) from exc
 
+    # -- output encoding --------------------------------------------------
+    @staticmethod
+    def _ffmpeg_codec_args(ext: str) -> List[str]:
+        """ffmpeg ``-codec:a`` args for a target container extension.
+
+        Returns an empty list for unknown extensions, letting ffmpeg infer
+        the codec from the output filename.
+        """
+        ext = ext.lower().lstrip(".")
+        if ext == "mp3":
+            return ["-codec:a", "libmp3lame", "-q:a", "2"]
+        if ext in ("ogg", "oga", "opus"):
+            return ["-codec:a", "libopus", "-ac", "1", "-b:a", "64k", "-vbr", "off"]
+        if ext in ("m4a", "aac"):
+            return ["-codec:a", "aac", "-b:a", "128k"]
+        return []
+
+    def _write_audio(
+        self, wav_bytes: bytes, output_path: str, fmt_hint: Optional[str] = None
+    ) -> str:
+        """Persist engine WAV bytes at ``output_path`` honoring its extension.
+
+        AivisSpeech only returns WAV, but callers choose the output
+        extension. CLI/TUI voice mode hands us a ``.mp3`` path and then plays
+        it with ``afplay``, which selects its decoder by *extension* — so raw
+        WAV in a ``.mp3`` file fails (``AudioFileOpen 'dta?'``) and plays
+        nothing. When the requested extension isn't ``.wav`` we transcode via
+        ffmpeg so the file's contents match its name. ffmpeg failure (or a
+        missing binary) falls back to writing the raw WAV — degraded, but
+        never an exception.
+        """
+        ext = os.path.splitext(output_path)[1].lower()
+        if not ext and fmt_hint:
+            ext = "." + str(fmt_hint).lower().lstrip(".")
+
+        if ext in ("", ".wav"):
+            with open(output_path, "wb") as fh:
+                fh.write(wav_bytes)
+            return output_path
+
+        ffmpeg = shutil.which("ffmpeg")
+        if ffmpeg:
+            tmp_wav = None
+            try:
+                fd, tmp_wav = tempfile.mkstemp(suffix=".wav", prefix="aivis_src_")
+                with os.fdopen(fd, "wb") as fh:
+                    fh.write(wav_bytes)
+                cmd = (
+                    [ffmpeg, "-nostdin", "-y", "-loglevel", "error", "-i", tmp_wav]
+                    + self._ffmpeg_codec_args(ext)
+                    + [output_path]
+                )
+                result = subprocess.run(
+                    cmd, capture_output=True, timeout=_FFMPEG_TIMEOUT,
+                    stdin=subprocess.DEVNULL,
+                )
+                if (
+                    result.returncode == 0
+                    and os.path.exists(output_path)
+                    and os.path.getsize(output_path) > 0
+                ):
+                    return output_path
+                logger.warning(
+                    "aivis: ffmpeg transcode to %s failed (rc=%s): %s; "
+                    "falling back to raw WAV",
+                    ext, result.returncode,
+                    result.stderr.decode("utf-8", "ignore")[:200],
+                )
+            except subprocess.TimeoutExpired:
+                logger.warning(
+                    "aivis: ffmpeg transcode timed out; falling back to raw WAV"
+                )
+            except Exception as exc:  # noqa: BLE001 — never crash synthesis
+                logger.warning(
+                    "aivis: ffmpeg transcode error (%s); falling back to raw WAV",
+                    exc,
+                )
+            finally:
+                if tmp_wav:
+                    try:
+                        os.unlink(tmp_wav)
+                    except OSError:
+                        pass
+        else:
+            logger.warning(
+                "aivis: ffmpeg not found; writing raw WAV to a %s file — players "
+                "that key off the extension (e.g. afplay) may not play it",
+                ext,
+            )
+
+        with open(output_path, "wb") as fh:
+            fh.write(wav_bytes)
+        return output_path
+
     def synthesize(
         self,
         text: str,
@@ -212,9 +315,7 @@ class AivisProvider(TTSProvider):
                 "AivisSpeech /synthesis returned empty audio (engine error?)."
             )
 
-        with open(output_path, "wb") as fh:
-            fh.write(audio)
-        return output_path
+        return self._write_audio(audio, output_path, fmt_hint=format)
 
 
 def register(ctx) -> None:
