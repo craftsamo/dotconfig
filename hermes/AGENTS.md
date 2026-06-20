@@ -33,7 +33,9 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
   tool-override (config `video_analyze.model`) so `auxiliary.vision` can stay
   `auto` — **pinning `auxiliary.vision` to a video-capable model disables the
   main model's native image vision.** Custom top-level keys (e.g. `video_analyze:`)
-  survive Hermes' config rewrites (`_deep_merge` keeps user keys).
+  survive Hermes' config rewrites (`_deep_merge` keeps user keys). Voice routes the
+  same way: `tts/tts-fallback` + `transcription/stt-fallback` chains, picked via
+  `tts.provider` / `stt.provider` + `*.fallback.chain` (custom keys preserved).
 
 ## Layout
 
