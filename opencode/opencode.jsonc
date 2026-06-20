@@ -37,10 +37,6 @@
     "edit": "ask",
     "bash": {
       "*": "ask",
-      "sudo *": "deny",
-      "wget *": "deny",
-      "dd *": "deny",
-      ":(){ :|:& }; *": "deny",
       "ls*": "allow",
       "cat *": "allow",
       "head *": "allow",
@@ -79,6 +75,11 @@
       "secret help*": "allow",
       "secret keychain ls*": "allow",
       "secret keychain master status*": "allow",
+      // Deny block pinned last (not overridden by allows above)
+      "sudo *": "deny",
+      "wget *": "deny",
+      "dd *": "deny",
+      ":(){ :|:& }; *": "deny",
       "secret get*": "deny",
       "secret rm*": "deny",
       "secret del*": "deny",
