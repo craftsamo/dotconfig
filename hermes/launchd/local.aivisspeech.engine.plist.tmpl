@@ -9,9 +9,11 @@
     keeping only the template in git avoids committing a machine-specific home).
 
     Runs the AivisSpeech Engine headless (no Electron GUI) so Hermes' `aivis`
-    TTS provider has a backend on 127.0.0.1:10101. The engine binary ships
-    inside the AivisSpeech.app bundle; this depends on the app staying installed
-    in /Applications. Voice models live separately in
+    TTS provider has a backend on 127.0.0.1:10101. ProgramArguments[0] is a
+    hardlink shim named `hermes-aivis-engine` (built by aivis-launchctl.sh in
+    ~/.local/libexec/aivisspeech/) so the process is identifiable in ps/lsof
+    instead of the generic `run`; the real binary ships inside AivisSpeech.app
+    (must stay installed in /Applications). Voice models live separately in
     ~/Library/Application Support/AivisSpeech-Engine and are reused as-is.
 
     Do NOT run the GUI app and this agent at the same time — both bind :10101.
@@ -21,7 +23,7 @@
 
   <key>ProgramArguments</key>
   <array>
-    <string>/Applications/AivisSpeech.app/Contents/Resources/AivisSpeech-Engine/run</string>
+    <string>__HOME__/.local/libexec/aivisspeech/hermes-aivis-engine</string>
     <string>--host</string>
     <string>127.0.0.1</string>
     <string>--port</string>
