@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+pj_bin="${PJ_BIN:-$HOME/.hermes/skills/workspaces/projects/scripts/pj}"
+
+exec python3 "$pj_bin" "$@"
