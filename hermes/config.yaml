@@ -331,7 +331,14 @@ tts:
     voice: en_US-lessac-medium
 stt:
   enabled: true
-  provider: local
+  provider: stt-fallback
+  fallback:
+    chain:
+    - groq
+    - xai
+    - openai
+    - elevenlabs
+    - local
   local:
     model: medium
     language: ''
@@ -578,3 +585,4 @@ plugins:
   - video-fallback
   - video-analyze-mimo
   - aivis
+  - stt-fallback
