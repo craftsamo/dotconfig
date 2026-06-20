@@ -333,7 +333,7 @@ stt:
   enabled: true
   provider: local
   local:
-    model: base
+    model: medium
     language: ''
   openai:
     model: whisper-1
