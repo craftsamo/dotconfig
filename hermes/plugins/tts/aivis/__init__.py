@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import json
 import logging
+import urllib.error
 import urllib.parse
 import urllib.request
 from typing import Any, Dict, List, Optional
@@ -127,6 +128,44 @@ class AivisProvider(TTSProvider):
         }
 
     # -- synthesis --------------------------------------------------------
+    def _post(
+        self,
+        url: str,
+        data: bytes,
+        timeout: int,
+        what: str,
+        headers: Optional[Dict[str, str]] = None,
+    ) -> bytes:
+        """POST to the engine and return the body, with actionable errors.
+
+        Connection failures (engine not running) and HTTP errors (bad
+        speaker id, etc.) are turned into clear ``RuntimeError`` messages
+        the dispatcher surfaces in its ``{success: false, error: ...}``
+        envelope, instead of a bare ``URLError``/``Connection refused``.
+        """
+        req = urllib.request.Request(
+            url, data=data, method="POST", headers=headers or {}
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                return resp.read()
+        except urllib.error.HTTPError as exc:
+            detail = ""
+            try:
+                detail = exc.read().decode("utf-8", "replace")[:200]
+            except Exception:
+                pass
+            raise RuntimeError(
+                f"AivisSpeech {what} failed: HTTP {exc.code} {exc.reason}. "
+                f"Check the speaker/style id (GET /speakers). {detail}".strip()
+            ) from exc
+        except urllib.error.URLError as exc:
+            raise RuntimeError(
+                f"AivisSpeech engine not reachable at {self._base_url()} "
+                f"while calling {what}: {exc.reason}. Is the AivisSpeech "
+                f"engine running (default port 10101)?"
+            ) from exc
+
     def synthesize(
         self,
         text: str,
@@ -141,13 +180,18 @@ class AivisProvider(TTSProvider):
         base = self._base_url()
         speaker = self._speaker(voice)
 
-        # 1) text -> AudioQuery (speaker + text are query params; empty body POST)
+        # 1) text -> AudioQuery (speaker + text are query params; empty-body POST)
         aq_url = f"{base}/audio_query?" + urllib.parse.urlencode(
             {"speaker": speaker, "text": text}
         )
-        aq_req = urllib.request.Request(aq_url, data=b"", method="POST")
-        with urllib.request.urlopen(aq_req, timeout=_AUDIO_QUERY_TIMEOUT) as resp:
-            query = json.loads(resp.read().decode("utf-8"))
+        raw = self._post(aq_url, b"", _AUDIO_QUERY_TIMEOUT, "audio_query")
+        try:
+            query = json.loads(raw.decode("utf-8"))
+        except (ValueError, UnicodeDecodeError) as exc:
+            raise RuntimeError(
+                "AivisSpeech audio_query returned an unexpected (non-JSON) "
+                "response; check the engine version / VOICEVOX compatibility."
+            ) from exc
 
         # Pass the AudioQuery through unmodified except for an optional speed
         # tweak (editing other fields can break AivisSpeech synthesis).
@@ -156,17 +200,17 @@ class AivisProvider(TTSProvider):
 
         # 2) AudioQuery -> WAV bytes
         sy_url = f"{base}/synthesis?speaker={urllib.parse.quote(str(speaker))}"
-        sy_req = urllib.request.Request(
+        audio = self._post(
             sy_url,
-            data=json.dumps(query).encode("utf-8"),
-            method="POST",
+            json.dumps(query).encode("utf-8"),
+            _SYNTHESIS_TIMEOUT,
+            "synthesis",
             headers={"Content-Type": "application/json", "Accept": "audio/wav"},
         )
-        with urllib.request.urlopen(sy_req, timeout=_SYNTHESIS_TIMEOUT) as resp:
-            audio = resp.read()
-
         if not audio:
-            raise RuntimeError("AivisSpeech /synthesis returned empty audio")
+            raise RuntimeError(
+                "AivisSpeech /synthesis returned empty audio (engine error?)."
+            )
 
         with open(output_path, "wb") as fh:
             fh.write(audio)
