@@ -1,0 +1,12 @@
+name: stt-fallback
+version: 0.1.0
+description: >-
+  Speech-to-text fallback chain: tries Groq -> xAI -> OpenAI -> ElevenLabs ->
+  local (faster-whisper) in order and returns the first successful non-empty
+  transcript, so a single provider outage doesn't break voice input. Select with
+  stt.provider: stt-fallback. Keys: GROQ_API_KEY / SuperGrok OAuth (xai-oauth) or
+  XAI_API_KEY / OPENAI_API_KEY (or VOICE_TOOLS_OPENAI_KEY) / ELEVENLABS_API_KEY;
+  local needs none. Order is config-driven via stt.fallback.chain (defaults to
+  groq->xai->openai->elevenlabs->local). mistral is excluded by default (its
+  mistralai SDK is quarantined upstream) but can be added to that list.
+kind: backend
