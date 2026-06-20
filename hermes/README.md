@@ -57,6 +57,11 @@ the relevant `config.yaml`.
   bypassing `auxiliary.vision`. This lets `auxiliary.vision` stay `auto` so images
   route natively to the active main model while video always lands on a
   video-capable backend.
+- **tts/aivis** (`kind: backend`): AivisSpeech text-to-speech — a
+  VOICEVOX-compatible local engine on `127.0.0.1:10101`. Enabled for `default`
+  (CLI) and `assistant` via `plugins.enabled: [aivis]` + `tts.provider: aivis`.
+  See [AivisSpeech TTS](#aivisspeech-tts--headless-engine) for the headless
+  engine setup.
 
 ## User-managed content
 
@@ -192,8 +197,55 @@ Other optional keys (`-p hermes` unless shared): `FAL_KEY` (image + video
 generation fallback), `ELEVENLABS_API_KEY` (premium TTS), `XAI_API_KEY`
 (x_search / video_gen),
 `BROWSERBASE_API_KEY` (cloud browser), `TELEGRAM_BOT_TOKEN` /
-`DISCORD_BOT_TOKEN` (gateway). STT/TTS default to free local `faster-whisper` +
-Edge TTS in `config.yaml`.
+`DISCORD_BOT_TOKEN` (gateway). STT defaults to free local `faster-whisper`; TTS
+uses the local **AivisSpeech** engine for `default` / `assistant` (see the
+AivisSpeech TTS section below), with the built-in `edge` voice as the fallback.
+
+## AivisSpeech TTS — headless engine
+
+Japanese TTS for the `aivis` provider (the [`tts/aivis`](#plugins--provider-chains--tool-overrides)
+plugin). It speaks to a local **AivisSpeech Engine** — a VOICEVOX-compatible HTTP
+API on `127.0.0.1:10101` — selected in `default` (CLI) and `assistant` via
+`tts.provider: aivis` + `plugins.enabled: [aivis]`. The speaker (style id) comes
+from `tts.aivis.speaker` (default `888753760`) or a per-call voice; list them with
+`curl -s 127.0.0.1:10101/speakers`. Output is WAV and `voice_compatible`, so the
+gateway transcodes it to Opus (`ffmpeg` + `opus`) for voice delivery.
+
+**Install** — the AivisSpeech app is installed manually (not in the Brewfile;
+Apple-Silicon build). Voice models download on first run into
+`~/Library/Application Support/AivisSpeech-Engine` (≈1 GB), separate from the app
+bundle, and are reused by the headless engine.
+
+**GUI vs headless** — the engine is a standalone binary
+(`AivisSpeech.app/Contents/Resources/AivisSpeech-Engine/run`); the Electron GUI is
+not needed to serve the API. Run it headless via a LaunchAgent to drop the GUI's
+memory/CPU (the engine's own model RAM stays — it's what does the synthesis):
+
+```sh
+hermes/launchd/aivis-launchctl.sh install     # render plist + load (login start, KeepAlive)
+hermes/launchd/aivis-launchctl.sh status      # launchctl + /version health + listener name
+hermes/launchd/aivis-launchctl.sh uninstall   # unload + remove (incl. the shim dir)
+```
+
+`install` builds a host-local shim in `~/.local/libexec/aivisspeech/`: a **hardlink**
+named `hermes-aivis-engine` to `run` plus symlinks to its sibling resources
+(`engine_internal` / `resources` / `engine_manifest.json`). The agent execs the
+hardlink, so the process is identifiable as `hermes-aivis-engine` (short name
+truncated to `hermes-aivis-eng`) in `ps` / `lsof` / Activity Monitor instead of the
+generic `run`. Logs land in `~/Library/Logs/aivisspeech-engine.log`. **Re-run
+`install` after updating AivisSpeech** to repoint the hardlink at the new binary.
+
+**Using the GUI while headless is running** — the GUI and the agent both bind
+`:10101`, so they can't run at once. To open the app (e.g. to download or audition
+voices): `aivis-launchctl.sh uninstall` first, use the GUI, then
+`aivis-launchctl.sh install` again when done.
+
+**When the engine is down** — only actual speech calls fail, with a clear
+"engine not reachable on :10101" error; normal text replies are unaffected.
+Auto-speech (`voice.auto_tts: true`, set for `default` + `assistant`) is voice-in →
+voice-out in the gateway and TTS-on-by-default inside CLI voice mode — it never
+auto-speaks plain text turns. After changing the live config, restart a running
+gateway to apply it.
 
 ## Never tracked
 
