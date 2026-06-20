@@ -13,3 +13,7 @@
    start, restructuring, migrating, or any "how should I approach this?" — load
    and follow `@opencode/skills/approach/SKILL.md`. Skip it for small,
    well-specified, single-step tasks.
+
+3. **Resolve Dependabot alerts via its skill.** When asked to triage or fix
+   GitHub Dependabot security alerts (GHSA/CVE), load and follow
+   `@opencode/skills/resolve-dependabot-alerts/SKILL.md` rather than hand-fixing.

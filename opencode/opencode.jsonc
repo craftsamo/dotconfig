@@ -261,7 +261,8 @@
       "*": "ask",
       "customize-opencode": "allow",
       "keychain-secrets": "allow",
-      "approach": "allow"
+      "approach": "allow",
+      "resolve-dependabot-alerts": "allow"
     },
   },
 }
