@@ -95,6 +95,22 @@ class AivisProvider(TTSProvider):
             return voice.strip()
         return str(self._config().get("speaker") or _FALLBACK_SPEAKER)
 
+    def _timeout(self, key: str, default: int) -> int:
+        """Read an optional positive-int timeout override from ``tts.aivis``.
+
+        Local AivisSpeech inference can be slower than real-time on CPU, so a
+        long reply (≳1 min of audio) can exceed the default ``/synthesis``
+        timeout and make ``tts-fallback`` drop to the next tier (a different
+        voice). ``tts.aivis.synthesis_timeout`` / ``audio_query_timeout`` let
+        the active profile raise these without code changes; non-positive or
+        unparseable values fall back to the module default.
+        """
+        try:
+            n = int(self._config().get(key))
+        except (TypeError, ValueError):
+            return default
+        return n if n > 0 else default
+
     # -- introspection (optional) ----------------------------------------
     def is_available(self) -> bool:
         try:
@@ -287,7 +303,12 @@ class AivisProvider(TTSProvider):
         aq_url = f"{base}/audio_query?" + urllib.parse.urlencode(
             {"speaker": speaker, "text": text}
         )
-        raw = self._post(aq_url, b"", _AUDIO_QUERY_TIMEOUT, "audio_query")
+        raw = self._post(
+            aq_url,
+            b"",
+            self._timeout("audio_query_timeout", _AUDIO_QUERY_TIMEOUT),
+            "audio_query",
+        )
         try:
             query = json.loads(raw.decode("utf-8"))
         except (ValueError, UnicodeDecodeError) as exc:
@@ -306,7 +327,7 @@ class AivisProvider(TTSProvider):
         audio = self._post(
             sy_url,
             json.dumps(query).encode("utf-8"),
-            _SYNTHESIS_TIMEOUT,
+            self._timeout("synthesis_timeout", _SYNTHESIS_TIMEOUT),
             "synthesis",
             headers={"Content-Type": "application/json", "Accept": "audio/wav"},
         )
