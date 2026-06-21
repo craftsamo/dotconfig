@@ -386,6 +386,7 @@ tts:
   aivis:
     base_url: http://127.0.0.1:10101
     speaker: "888753760"
+    synthesis_timeout: 600
   edge:
     voice: ja-JP-NanamiNeural
   elevenlabs:
