@@ -1,5 +1,7 @@
 {
   "$schema": "https://opencode.ai/config.json",
+  "model": "zai-coding-plan/glm-5.2",
+  "small_model": "zai-coding-plan/glm-4.7",
   "plugin": [
     "opencode-claude-auth@latest",
     "@slkiser/opencode-quota"
@@ -8,26 +10,39 @@
     "instructions/*.txt",
     "instructions/*.md"
   ],
-  "provider": {
-    "openrouter": {
-      "models": {
-        "glm-5.2": {
-          "name": "GLM-5.2",
-          "variants": {
-            "high": {
-              "reasoningEffort": "high",
-            },
-            "max": {
-              "reasoningEffort": "max",
-            },
-          }
-        }
-      }
-    }
-  },
+  "provider": {},
   "agent": {
     "explore": {
       "hidden": true,
+    },
+    "explore-small": {
+      "mode": "subagent",
+      "model": "zai-coding-plan/glm-5-turbo",
+      "hidden": true,
+      "description": "Fast/cheap read-only codebase lookups: find files, simple keyword search.",
+      "permission": {
+        "edit": "deny"
+      },
+    },
+    "explore-high": {
+      "mode": "subagent",
+      "model": "zai-coding-plan/glm-5.2",
+      "reasoningEffort": "high",
+      "hidden": true,
+      "description": "Read-only codebase exploration for hard or ambiguous questions.",
+      "permission": {
+        "edit": "deny"
+      },
+    },
+    "explore-max": {
+      "mode": "subagent",
+      "model": "zai-coding-plan/glm-5.2",
+      "reasoningEffort": "max",
+      "hidden": true,
+      "description": "Read-only codebase exploration for the hardest cases; deep step-by-step reasoning.",
+      "permission": {
+        "edit": "deny"
+      },
     },
     "general": {
       "hidden": true,
