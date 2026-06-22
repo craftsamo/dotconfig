@@ -1,0 +1,8 @@
+name: aivis
+version: 0.1.0
+description: >-
+  AivisSpeech (VOICEVOX-compatible local engine) text-to-speech provider.
+  Talks to the AivisSpeech Engine HTTP API (default 127.0.0.1:10101) via
+  /audio_query -> /synthesis and writes WAV. Select with tts.provider: aivis;
+  speaker (style_id) via the voice arg or tts.aivis.speaker. Local, no API key.
+kind: backend
