@@ -1,4 +1,4 @@
-# Homebrew dependencies for this dotfiles repo.
+# Homebrew dependencies for this dotconfig repo.
 # Apply with: ./install.sh --deps   (or: brew bundle --file="$HOME/.config/Brewfile")
 #
 # Curated on purpose: only tools the configs in this repo actually reference.
