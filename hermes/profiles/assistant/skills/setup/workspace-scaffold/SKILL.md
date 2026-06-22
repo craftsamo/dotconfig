@@ -41,7 +41,7 @@ seeded `AGENTS.md`. The workspace map and rules live in `~/Workspaces/AGENTS.md`
 - Keep repo `AGENTS.md` tool-agnostic — it's read by every agents.md-aware tool
   (Hermes/OpenCode/Codex/Cursor). Tool-specific guidance goes in that tool's own file.
 - Never `git init` a Personal group — it holds sensitive, intentionally-untracked data.
-- Groups/repos are local instance data; don't track them under the dotfiles repo.
+- Groups/repos are local instance data; don't track them under the dotconfig repo.
 - `<Group>`/`<repo>` names: letters/digits/`.`/`_`/`-` only (the helper rejects `/`,
   `..`, and leading `.`/`-`).
 
