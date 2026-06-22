@@ -1,6 +1,6 @@
-# dotfiles
+# dotconfig
 
-XDG-first dotfiles — this repository **is** `~/.config`. Most tools read
+XDG-first dotconfig — this repository **is** `~/.config`. Most tools read
 their config from here natively; the rest get symlinks created by
 [`install.sh`](./install.sh). Secrets and runtime state never enter the repo.
 
@@ -36,7 +36,7 @@ files keep priority.
 
 ```sh
 # 1. Clone as ~/.config (back up / merge any existing ~/.config first)
-git clone git@github.com:craftsamo/dotfiles.git ~/.config
+git clone git@github.com:craftsamo/dotconfig.git ~/.config
 
 # 2. Install dependencies (Homebrew bootstrap + brew bundle) and create symlinks
 ~/.config/install.sh --deps

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Bootstrap this dotfiles repo.
+# Bootstrap this dotconfig repo.
 #
 #   ./install.sh          recreate symlinks only (idempotent, offline)
 #   ./install.sh --deps   also bootstrap Homebrew (if missing) + `brew bundle`
