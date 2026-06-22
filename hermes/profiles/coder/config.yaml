@@ -575,6 +575,9 @@ platform_toolsets:
     - hermes-discord
 image_gen:
   provider: img-xai-codex-fal
+video_analyze:
+  provider: zai
+  model: glm-4.5v
 plugins:
   enabled:
     - image-fallback
