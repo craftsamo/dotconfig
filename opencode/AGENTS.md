@@ -17,3 +17,9 @@
 3. **Resolve Dependabot alerts via its skill.** When asked to triage or fix
    GitHub Dependabot security alerts (GHSA/CVE), load and follow
    `@opencode/skills/resolve-dependabot-alerts/SKILL.md` rather than hand-fixing.
+
+4. **Offload codebase exploration to GLM.** For read-only codebase exploration,
+   prefer the `explore-small` (trivial), `explore-high` (hard), or `explore-max`
+   (hardest) subagents — they run on GLM to conserve Claude quota. Use the
+   default `explore` (which inherits the primary model) only when you
+   specifically need the primary model for exploration.
