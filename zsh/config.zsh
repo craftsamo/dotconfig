@@ -46,3 +46,19 @@ load_files_in_directory() {
 load_files_in_directory "$HOME/.config/zsh/conf.d" "zsh"
 load_files_in_directory "$HOME/.config/zsh/functions" "zsh"
 load_files_in_directory "$HOME/.config/zsh" "zsh"
+
+# Keep ~/.config/bin (secret-shim launchers) ahead of mise/brew install dirs.
+# `mise activate` (and `brew shellenv`) prepend their own bin dirs to PATH on
+# startup and again via mise's precmd/chpwd hooks, which would otherwise
+# shadow the secret-shim launchers in ~/.config/bin and bypass Keychain env
+# injection for node/npx/pnpm/... in interactive shells. Re-assert the user
+# bins after mise's hooks — on precmd (every prompt) and chpwd (so a compound
+# `cd sub && node ...` still hits the shim) — so the shims win (env.zsh
+# documents that ~/.config/bin "must come first"). `path` is `typeset -U`, so
+# this just moves them to the front and dedupes.
+_prioritize_user_bins() {
+  path=($HOME/.config/bin $HOME/.local/bin $HOME/bin $HOME/.docker/bin $path)
+}
+autoload -Uz add-zsh-hook
+add-zsh-hook precmd _prioritize_user_bins
+add-zsh-hook chpwd _prioritize_user_bins
