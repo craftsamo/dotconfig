@@ -4,6 +4,9 @@ model:
   base_url: https://api.x.ai/v1
 providers: {}
 fallback_providers:
+  - provider: zai
+    model: glm-4.6v
+    base_url: https://api.z.ai/api/coding/paas/v4
   - provider: copilot
     model: gpt-5.5
   - provider: openrouter
@@ -570,5 +573,8 @@ platform_toolsets:
     - hermes-telegram
   discord:
     - hermes-discord
+video_analyze:
+  provider: zai
+  model: glm-4.5v
 plugins:
   enabled: []
