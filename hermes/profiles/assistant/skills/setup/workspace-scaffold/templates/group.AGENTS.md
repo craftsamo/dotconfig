@@ -1,6 +1,6 @@
 # <Group>
 
-<!-- Group context (org / client / category). Local, not tracked in dotfiles. -->
+<!-- Group context (org / client / category). Local, not tracked in dotconfig. -->
 
 <one-line: what this group is>
 
