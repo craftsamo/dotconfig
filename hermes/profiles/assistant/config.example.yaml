@@ -378,9 +378,17 @@ dashboard:
 privacy:
   redact_pii: false
 tts:
-  provider: edge
+  provider: tts-fallback
+  fallback:
+    chain:
+    - aivis
+    - edge
+  aivis:
+    base_url: http://127.0.0.1:10101
+    speaker: "888753760"
+    synthesis_timeout: 600
   edge:
-    voice: en-US-AriaNeural
+    voice: ja-JP-NanamiNeural
   elevenlabs:
     voice_id: pNInz6obpgDQGcFmaJgB
     model_id: eleven_multilingual_v2
@@ -409,9 +417,16 @@ tts:
     voice: en_US-lessac-medium
 stt:
   enabled: true
-  provider: local
+  provider: stt-fallback
+  fallback:
+    chain:
+    - groq
+    - xai
+    - openai
+    - elevenlabs
+    - local
   local:
-    model: base
+    model: medium
     language: ''
   openai:
     model: whisper-1
@@ -425,10 +440,11 @@ stt:
 voice:
   record_key: ctrl+b
   max_recording_seconds: 120
-  auto_tts: false
+  auto_tts: true
   beep_enabled: true
   silence_threshold: 200
   silence_duration: 3.0
+  tts_streaming: false
 human_delay:
   mode: 'off'
   min_ms: 800
@@ -699,3 +715,6 @@ plugins:
   - image-fallback
   - video-fallback
   - video-analyze-mimo
+  - aivis
+  - stt-fallback
+  - tts-fallback
