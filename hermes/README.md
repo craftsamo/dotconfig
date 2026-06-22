@@ -57,6 +57,17 @@ the relevant `config.yaml`.
   bypassing `auxiliary.vision`. This lets `auxiliary.vision` stay `auto` so images
   route natively to the active main model while video always lands on a
   video-capable backend.
+- **tts/aivis** (`kind: backend`): AivisSpeech text-to-speech — a
+  VOICEVOX-compatible local engine on `127.0.0.1:10101`. The primary TTS tier
+  (see [AivisSpeech TTS](#aivisspeech-tts--headless-engine)).
+- **tts/tts-fallback** (`kind: backend`): TTS fallback chain. Tries
+  `tts.fallback.chain` in order (default `aivis → edge`) and returns the first
+  tier that produces audio, so a down AivisSpeech engine still speaks (Edge TTS,
+  `tts.edge.voice: ja-JP-NanamiNeural`). Active via `tts.provider: tts-fallback`.
+- **transcription/stt-fallback** (`kind: backend`): STT fallback chain. Tries
+  `stt.fallback.chain` in order (default `groq → xai → openai → elevenlabs →
+  local`) and returns the first successful transcript. Active via
+  `stt.provider: stt-fallback` (see [Speech-to-text](#speech-to-text--fallback-chain)).
 
 ## User-managed content
 
@@ -192,8 +203,79 @@ Other optional keys (`-p hermes` unless shared): `FAL_KEY` (image + video
 generation fallback), `ELEVENLABS_API_KEY` (premium TTS), `XAI_API_KEY`
 (x_search / video_gen),
 `BROWSERBASE_API_KEY` (cloud browser), `TELEGRAM_BOT_TOKEN` /
-`DISCORD_BOT_TOKEN` (gateway). STT/TTS default to free local `faster-whisper` +
-Edge TTS in `config.yaml`.
+`DISCORD_BOT_TOKEN` (gateway). Voice (for `default` / `assistant`) runs through
+fallback chains: **TTS** = `tts-fallback` (`aivis → edge`), **STT** =
+`stt-fallback` (`groq → xai → openai → elevenlabs → local`). See the AivisSpeech
+TTS and Speech-to-text sections below.
+
+## AivisSpeech TTS — headless engine
+
+TTS for `default` / `assistant` runs through the
+[`tts/tts-fallback`](#plugins--provider-chains--tool-overrides) chain
+(`tts.provider: tts-fallback`): it tries `tts.fallback.chain` in order (default
+`aivis → edge`) and returns the first tier that produces audio. The **primary
+tier is AivisSpeech** — a VOICEVOX-compatible HTTP API on `127.0.0.1:10101` (the
+`tts/aivis` plugin); its speaker (style id) is `tts.aivis.speaker` (default
+`888753760`, or a per-call voice; list with `curl -s 127.0.0.1:10101/speakers`).
+Output is `voice_compatible`, so the gateway transcodes to Opus (`ffmpeg` +
+`opus`) for voice delivery. The fallback tier is **Edge TTS** with a Japanese
+voice (`tts.edge.voice: ja-JP-NanamiNeural`).
+
+**Install** — the AivisSpeech app is installed manually (not in the Brewfile;
+Apple-Silicon build). Voice models download on first run into
+`~/Library/Application Support/AivisSpeech-Engine` (≈1 GB), separate from the app
+bundle, and are reused by the headless engine.
+
+**GUI vs headless** — the engine is a standalone binary
+(`AivisSpeech.app/Contents/Resources/AivisSpeech-Engine/run`); the Electron GUI is
+not needed to serve the API. Run it headless via a LaunchAgent to drop the GUI's
+memory/CPU (the engine's own model RAM stays — it's what does the synthesis):
+
+```sh
+hermes/launchd/aivis-launchctl.sh install     # render plist + load (login start, KeepAlive)
+hermes/launchd/aivis-launchctl.sh status      # launchctl + /version health + listener name
+hermes/launchd/aivis-launchctl.sh uninstall   # unload + remove (incl. the shim dir)
+```
+
+`install` builds a host-local shim in `~/.local/libexec/aivisspeech/`: a **hardlink**
+named `hermes-aivis-engine` to `run` plus symlinks to its sibling resources
+(`engine_internal` / `resources` / `engine_manifest.json`). The agent execs the
+hardlink, so the process is identifiable as `hermes-aivis-engine` (short name
+truncated to `hermes-aivis-eng`) in `ps` / `lsof` / Activity Monitor instead of the
+generic `run`. Logs land in `~/Library/Logs/aivisspeech-engine.log`. **Re-run
+`install` after updating AivisSpeech** to repoint the hardlink at the new binary.
+
+**Using the GUI while headless is running** — the GUI and the agent both bind
+`:10101`, so they can't run at once. To open the app (e.g. to download or audition
+voices): `aivis-launchctl.sh uninstall` first, use the GUI, then
+`aivis-launchctl.sh install` again when done.
+
+**When the engine is down** — `tts-fallback` catches the unreachable engine and
+falls through to **Edge TTS** (`ja-JP-NanamiNeural`), so speech still plays; the
+call only errors if every tier fails. Auto-speech (`voice.auto_tts: true`, set
+for `default` + `assistant`) is voice-in → voice-out in the gateway and
+TTS-on-by-default inside CLI voice mode — it never auto-speaks plain text turns.
+After changing the live config, restart a running gateway to apply it.
+
+## Speech-to-text — fallback chain
+
+STT for `default` / `assistant` runs through the
+[`transcription/stt-fallback`](#plugins--provider-chains--tool-overrides) chain
+(`stt.provider: stt-fallback`): it tries `stt.fallback.chain` in order (default
+`groq → xai → openai → elevenlabs → local`) and returns the first successful,
+non-empty transcript — outage fallback, not quality fallback. Per-tier auth:
+
+- **groq** — `GROQ_API_KEY` (Whisper `large-v3-turbo`; fast + accurate).
+- **xai** — SuperGrok OAuth (`hermes auth add xai-oauth`) or `XAI_API_KEY`.
+- **openai** — `OPENAI_API_KEY` / `VOICE_TOOLS_OPENAI_KEY` (paid; skipped if unset).
+- **elevenlabs** — `ELEVENLABS_API_KEY` (Scribe).
+- **local** — faster-whisper; no key, offline floor (`stt.local.model: medium`,
+  `stt.local.language: ''` = auto-detect).
+
+`mistral` is excluded by default (its `mistralai` SDK was quarantined on PyPI).
+Edit `stt.fallback.chain` to reorder/add/remove tiers; tiers whose credentials
+are missing are skipped at runtime. STT serves the gateway (voice input) and CLI
+voice mode.
 
 ## Never tracked
 

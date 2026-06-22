@@ -33,7 +33,9 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
   tool-override (config `video_analyze.model`) so `auxiliary.vision` can stay
   `auto` — **pinning `auxiliary.vision` to a video-capable model disables the
   main model's native image vision.** Custom top-level keys (e.g. `video_analyze:`)
-  survive Hermes' config rewrites (`_deep_merge` keeps user keys).
+  survive Hermes' config rewrites (`_deep_merge` keeps user keys). Voice routes the
+  same way: `tts/tts-fallback` + `transcription/stt-fallback` chains, picked via
+  `tts.provider` / `stt.provider` + `*.fallback.chain` (custom keys preserved).
 
 ## Layout
 
@@ -47,7 +49,7 @@ skills/              # agent-created skills tracked; .hub/ etc. ignored
                      #   projects/pj, message-reply) + _cross.py (shared cross-skill contract,
                      #   imported not executed; siblings call each other's CLI, never each other's DB)
 plugins/             # backend chains (image/video gen) + tool overrides; source tracked, __pycache__ ignored
-launchd/             # assistant gateway LaunchAgent (template + launcher)
+launchd/             # LaunchAgents: assistant gateway + headless AivisSpeech engine
 profiles/<name>/     # assistant, coder, researcher, searcher
   - config.yaml      # model/fallback + agent.system_prompt (operating contract)
   - profile.yaml     # routing description (kanban/delegation)
@@ -79,6 +81,9 @@ commit secrets, state, or host-rendered plists.
 - `../install.sh` — create the `~/.hermes/` symlinks (run after adding files).
 - `hermes update` — git pull + re-sync (use this to update, not setup.sh).
 - `hermes doctor` — validate providers / model tiers.
+- `launchd/aivis-launchctl.sh {install,status,uninstall}` — headless AivisSpeech
+  Engine LaunchAgent (execs a `hermes-aivis-engine` hardlink shim; backs the
+  `aivis` TTS provider on `127.0.0.1:10101`). Re-run `install` after AivisSpeech updates.
 - `launchd/gateway-launchctl.sh {install,status,uninstall}` — gateway LaunchAgent,
   **one host only** (one bot token = one live connection). Telegram-only for now
   (workaround for upstream #40695; don't re-enable Discord until fixed).
