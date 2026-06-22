@@ -573,5 +573,8 @@ platform_toolsets:
     - hermes-telegram
   discord:
     - hermes-discord
+video_analyze:
+  provider: zai
+  model: glm-4.5v
 plugins:
   enabled: []

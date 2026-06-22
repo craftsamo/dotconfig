@@ -711,8 +711,8 @@ image_gen:
 video_gen:
   provider: vid-xai-fal
 video_analyze:
-  provider: openrouter
-  model: xiaomi/mimo-v2.5
+  provider: zai
+  model: glm-4.5v
 plugins:
   enabled:
   - image-fallback

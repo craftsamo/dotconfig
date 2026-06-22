@@ -575,8 +575,8 @@ platform_toolsets:
   discord:
     - hermes-discord
 video_analyze:
-  provider: openrouter
-  model: xiaomi/mimo-v2.5
+  provider: zai
+  model: glm-4.5v
 plugins:
   enabled:
     - video-analyze-mimo
