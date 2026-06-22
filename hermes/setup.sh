@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Install the Hermes Agent binary for this dotfiles setup — one idempotent
+# Install the Hermes Agent binary for this dotconfig setup — one idempotent
 # command that captures the otherwise-manual flow. Safe to re-run.
 #
 #   ~/.config/hermes/setup.sh
