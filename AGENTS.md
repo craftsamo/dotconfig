@@ -1,6 +1,6 @@
 # AGENTS
 
-Rules for agents working in this dotfiles repo (`~/.config`). Subtree-specific
+Rules for agents working in this dotconfig repo (`~/.config`). Subtree-specific
 rules live in nested `AGENTS.md` files — read them when your task touches that area.
 
 ## Subtree: hermes/
