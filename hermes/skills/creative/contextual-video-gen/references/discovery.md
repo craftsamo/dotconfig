@@ -1,11 +1,13 @@
-# Discovery — gather preconditions
+<Goal>
 
-Goal: produce two fact sets before generating — **playback constraints** and the
+Produce two fact sets before generating — **playback constraints** and the
 **source/brand** material. Source order: codebase → brand doc/Figma → ask the
 user. Video is metered, so a missing fact that matters is worth one focused
 question, not a guess.
 
-## A. Playback constraints
+</Goal>
+
+<PlaybackConstraints>
 
 What to find:
 
@@ -21,7 +23,7 @@ What to find:
 - **Storage / upload path** — bucket, public URL pattern, signed-upload flow, or
   a framework convention (e.g. `public/hero.mp4`).
 
-### In a codebase (web/app)
+**In a codebase (web/app):**
 
 Use `search_files` / `terminal` grep; delegate big repos to an `explore` task.
 
@@ -33,13 +35,15 @@ Use `search_files` / `terminal` grep; delegate big repos to an `explore` task.
 
 Record exact `file:line` so the user can verify.
 
-### Brand doc / Figma / none
+**Brand doc / Figma / none:**
 
 - Ask for target length, frame size, codec/container, and placement.
 - If nothing exists, ask the user for duration + size + where it will live. Do
   not assume — wrong specs are costly to regenerate.
 
-## B. Source & motion material
+</PlaybackConstraints>
+
+<SourceMotion>
 
 What to find:
 
@@ -56,7 +60,11 @@ What to find:
 Grep hints (brand/source): `hero|poster|key-?art|public/**/*.{png,jpg,webp}`,
 `--primary|--accent|#[0-9a-fA-F]{6}`, `logo|brand`.
 
-## Output (feed into the chosen strategy)
+</SourceMotion>
+
+<Output>
+
+Feed into the chosen strategy:
 
 - **Target spec**: duration, aspect, resolution, container/codec, size cap,
   loop? audio?
@@ -67,3 +75,5 @@ Grep hints (brand/source): `hero|poster|key-?art|public/**/*.{png,jpg,webp}`,
   (`backends.md`) — e.g. portrait 9:16, 1080p, or audio.
 
 If a fact is missing and matters, ask one focused question rather than guessing.
+
+</Output>
