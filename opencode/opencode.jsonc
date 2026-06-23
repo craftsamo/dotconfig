@@ -181,6 +181,9 @@
       "go install*": "ask",
       "gh auth*": "ask",
       "gh secret*": "ask",
+      "gh project delete*": "ask",
+      "gh project field-delete*": "ask",
+      "gh project item-delete*": "ask",
       // Note: npx / bunx / pip / uv / docker / node / python / ruby / bash -c stay ask by default
       // Version checks (gated tools)
       "node --version*": "allow",
@@ -277,7 +280,16 @@
       "customize-opencode": "allow",
       "keychain-secrets": "allow",
       "approach*": "allow",
-      "resolve-dependabot-alerts": "allow"
+      "resolve-dependabot-alerts": "allow",
+      "manage-github-projects": "allow"
     },
+    // Custom GitHub Project tools (tools/github_project.ts) — board ops only, no delete
+    "github_project_create": "allow",
+    "github_project_field_ensure": "allow",
+    "github_project_item_add": "allow",
+    "github_project_item_set": "allow",
+    "github_project_item_list": "allow",
+    "github_project_item_note": "allow",
+    "github_project_item_promote": "allow",
   },
 }
