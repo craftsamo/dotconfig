@@ -2,6 +2,7 @@
   "extras": [
     "lazyvim.plugins.extras.ai.copilot",
     "lazyvim.plugins.extras.lang.yaml",
+    "lazyvim.plugins.extras.lang.solidity",
     "lazyvim.plugins.extras.util.octo"
   ],
   "install_version": 7,
