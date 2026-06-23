@@ -8,17 +8,30 @@ metadata:
     tags: [search, retrieval, web, x_search, sources, triage]
     category: research
 ---
-# Breadth-first retrieval (searcher)
+
+<Goal>
 
 Searcher gathers candidate sources fast and wide, then hands off. The job is
 coverage and link-first findings — not analysis or conclusions.
 
-## When to Use
-- Any searcher retrieval task: "find sources / what's out there / latest on X".
-- Not for synthesis, deep analysis, or implementation — hand those to
-  researcher / coder.
+</Goal>
 
-## Procedure
+<Scope>
+<UseWhen>
+
+- Any searcher retrieval task: "find sources / what's out there / latest on X".
+
+</UseWhen>
+
+<DoNotUseWhen>
+
+- Synthesis, deep analysis, or implementation — hand those to researcher / coder.
+
+</DoNotUseWhen>
+</Scope>
+
+<Steps>
+
 1. **Frame the query.** Restate it; pull out entities and keywords; generate a
    few variants (synonyms, narrower/broader, site- or time-scoped).
 2. **Route by source class:**
@@ -33,11 +46,18 @@ coverage and link-first findings — not analysis or conclusions.
 6. **Hand off** a concise, link-first list, plus a short note of what still needs
    verification or synthesis by researcher.
 
-## x_search guidance
+</Steps>
+
+<XSearchGuidance>
+
 - Use for breaking events, primary accounts, and expert commentary.
 - Virality / engagement is attention, not truth — mark it as such, never as corroboration.
 
-## Output (default)
+</XSearchGuidance>
+
+<OutputTemplate>
+
+Default:
 ```text
 - <title / claim> — <URL> (<source>, <date?>) [flag: stale | low-confidence | conflicting?]
 …
@@ -45,13 +65,21 @@ Open for researcher: <what needs verification / deeper reading>
 ```
 Keep it link-first. No essays.
 
-## Pitfalls
+</OutputTemplate>
+
+<Pitfalls>
+
 - Search ranking ≠ relevance ≠ trust.
 - Don't synthesize, conclude, or implement — that's the next profile's job.
 - Don't over-collect: stop when coverage is good, not exhaustive.
 - No write-actions on social platforms (post / reply / like / follow / DM).
 
-## Verification
+</Pitfalls>
+
+<Verification>
+
 - Every hit has a URL and an identified source.
 - Duplicates removed; low-confidence / stale / conflicting flagged.
 - Output is breadth (many sources, shallow) with a clear hand-off note.
+
+</Verification>
