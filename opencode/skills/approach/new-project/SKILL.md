@@ -1,10 +1,19 @@
-<ScenarioPlaybook name="new-project">
-<UseWhen>
+---
+name: approach-new-project
+description: >-
+  Use when starting a new project from scratch — greenfield, scaffold, no
+  existing system to preserve (新規プロジェクト, ゼロから, greenfield, scaffold,
+  bootstrap). Apply on top of the `approach` spine with a from-scratch playbook.
+---
 
-Apply on top of the general spine when starting from scratch, with no existing
-system or data to preserve.
+<Goal>
 
-</UseWhen>
+Start something from scratch, with no existing system or data to preserve.
+Apply this on top of the `approach` spine: investigate → confirm the real goal
+→ co-design one decision at a time → proceed in small reversible verified
+steps.
+
+</Goal>
 
 <Steps>
 
@@ -31,4 +40,3 @@ system or data to preserve.
 - [ ] MVP slice works end-to-end.
 
 </Gates>
-</ScenarioPlaybook>

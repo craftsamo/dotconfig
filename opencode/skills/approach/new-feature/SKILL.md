@@ -1,10 +1,19 @@
-<ScenarioPlaybook name="new-feature">
-<UseWhen>
+---
+name: approach-new-feature
+description: >-
+  Use when adding a feature or capability to an existing system — extending
+  behavior and wiring a new path into existing code (機能追加, フィーチャー追加,
+  add feature, extend, enhance). Apply on top of the `approach` spine with an
+  existing-system integration playbook.
+---
 
-Apply on top of the general spine when adding a capability to an existing
-system.
+<Goal>
 
-</UseWhen>
+Add a capability to an existing system. Apply this on top of the `approach`
+spine: investigate → confirm the real goal → co-design one decision at a time
+→ proceed in small reversible verified steps.
+
+</Goal>
 
 <Steps>
 
@@ -33,4 +42,3 @@ system.
 - [ ] No nearby regressions.
 
 </Gates>
-</ScenarioPlaybook>
