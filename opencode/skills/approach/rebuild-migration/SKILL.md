@@ -1,10 +1,21 @@
-<ScenarioPlaybook name="rebuild-migration">
-<UseWhen>
+---
+name: approach-rebuild-migration
+description: >-
+  Use for a full rebuild, restructure, or schema/data migration — overhauling
+  architecture, moving data, or rebuilding an opaque system (再構築, 作り直し,
+  マイグレーション, rebuild, migrate, restructure, overhaul). Includes the
+  evacuate → build-alongside → cutover safety sequence. Apply on top of the
+  `approach` spine.
+---
 
-Apply on top of the general spine in `SKILL.md` when the task is a full rebuild,
-restructure, schema/architecture/layout overhaul, or data migration.
+<Goal>
 
-</UseWhen>
+Handle a full rebuild, restructure, schema/architecture/layout overhaul, or
+data migration. Apply this on top of the `approach` spine: investigate →
+confirm the real goal → co-design one decision at a time → proceed in small
+reversible verified steps.
+
+</Goal>
 
 <IntentCheck>
 
@@ -43,4 +54,3 @@ co-design the rebuild so the user regains ownership.
 - [ ] Docs/config synced; old kept as a recovery point.
 
 </Gates>
-</ScenarioPlaybook>
