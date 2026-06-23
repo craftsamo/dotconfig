@@ -8,22 +8,39 @@ metadata:
     tags: [workspace, scaffold, repo, setup]
     category: setup
 ---
-# Workspace scaffold
+
+<Goal>
 
 Create new groups / repos under `~/Workspaces` with the standard nested layout and a
 seeded `AGENTS.md`. The workspace map and rules live in `~/Workspaces/AGENTS.md`.
 
-## When to Use
-- The human asks to start/add a new group, project, or repo in `~/Workspaces`.
-- Not for editing existing project code (that's a normal coder task).
+</Goal>
 
-## Layout (nested)
+<Scope>
+<UseWhen>
+
+- The human asks to start/add a new group, project, or repo in `~/Workspaces`.
+
+</UseWhen>
+
+<DoNotUseWhen>
+
+- Editing existing project code (that's a normal coder task).
+
+</DoNotUseWhen>
+</Scope>
+
+<Layout>
+
 - Code: `~/Workspaces/Projects/<Group>/github/<repo>/` — repos flat under the group's
   `github/`; group also has `docs/ data/`. Each repo: own git + `AGENTS.md`. Group identity,
   repos, members, links, tags live in the central `Projects/.registry/` (the `projects` skill / `pj`).
 - Personal (no git): `~/Workspaces/Personal/<Group>/{data,docs}/`.
 
-## Procedure
+</Layout>
+
+<Steps>
+
 1. Confirm with the human: code (Projects) or personal data (Personal)? the `<Group>`,
    and for a repo the `<repo>` name.
 2. New group:
@@ -37,7 +54,10 @@ seeded `AGENTS.md`. The workspace map and rules live in `~/Workspaces/AGENTS.md`
    build/test/run, conventions) — no tool-specific or Hermes-specific text.
 5. Report what was created; don't commit/push without the human's go-ahead.
 
-## Pitfalls
+</Steps>
+
+<Pitfalls>
+
 - Keep repo `AGENTS.md` tool-agnostic — it's read by every agents.md-aware tool
   (Hermes/OpenCode/Codex/Cursor). Tool-specific guidance goes in that tool's own file.
 - Never `git init` a Personal group — it holds sensitive, intentionally-untracked data.
@@ -45,6 +65,11 @@ seeded `AGENTS.md`. The workspace map and rules live in `~/Workspaces/AGENTS.md`
 - `<Group>`/`<repo>` names: letters/digits/`.`/`_`/`-` only (the helper rejects `/`,
   `..`, and leading `.`/`-`).
 
-## Verification
+</Pitfalls>
+
+<Verification>
+
 - Dirs exist; a code repo has `.git` + an `AGENTS.md`; each `AGENTS.md` is filled in
   (not left as the template stub).
+
+</Verification>
