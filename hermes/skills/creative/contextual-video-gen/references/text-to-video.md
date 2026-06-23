@@ -1,4 +1,4 @@
-# Text-to-video — prompt motion from scratch
+<Goal>
 
 For concept/atmosphere clips with **no source still**. Hardest mode to keep
 on-brand — if a brand still exists, prefer `image-to-video.md`.
@@ -7,7 +7,9 @@ Call: `video_generate(prompt=…, aspect_ratio=…, duration=…, resolution=…
 (omit `image_url`). The active backend picks the model family; **don't hardcode
 `model=`** (`backends.md`).
 
-## Prompt structure
+</Goal>
+
+<PromptStructure>
 
 Keep it concrete and short. Cover, in order:
 
@@ -25,7 +27,9 @@ Example:
 > backdrop, soft studio light. Slow push-in. A thin wisp of steam drifts upward.
 > Calm, premium, minimal.
 
-## Dials
+</PromptStructure>
+
+<Dials>
 
 - **Duration** — start short (4–6s). Longer = more drift and more cost.
 - **aspect_ratio** — generate at the **nearest supported** ratio (`backends.md`),
@@ -39,7 +43,9 @@ Example:
 - **seed** — set it to make a good result reproducible while you tune other
   params; record it in `prompts/NN-<slug>.md`.
 
-## Keep out of the prompt
+</Dials>
+
+<KeepOutOfPrompt>
 
 - **On-screen text / logos / UI** — they warp and flicker. Overlay in post or via
   the `hyperframes` skill.
@@ -47,7 +53,11 @@ Example:
   framing and short shots, or switch to image-to-video from a clean still.
 - **Multiple simultaneous camera + subject moves** — pick one.
 
-## Then
+</KeepOutOfPrompt>
+
+<PostProcess>
 
 Localize and finish the clip with `scripts/video-postprocess.sh` (hosted URLs
 expire). For loops, `scripts/make-loop.sh`; for a poster, `scripts/poster-frame.sh`.
+
+</PostProcess>
