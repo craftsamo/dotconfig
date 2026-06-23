@@ -1,25 +1,37 @@
-# AGENTS
+<GlobalAgentInstructions>
+<LanguagePolicy>
 
-<!-- Global instructions for opencode. Add rules below. -->
+Always reply in the language the user used in their latest message, or the
+language they explicitly request. This applies to explanations and user-facing
+communication; code and identifiers stay as-is.
 
-## Rules
+</LanguagePolicy>
 
-1. **Respond in the user's language.** Always reply in the language the user
-   used in their latest message, or the language they explicitly request. This
-   applies to all explanations and communication (code and identifiers stay as-is).
+<SkillRouting>
+<ApproachSkill>
 
-2. **Use the `approach` skill for non-trivial work.** When a task is non-trivial
-   or ambiguous — planning something new, adding a capability, deciding where to
-   start, restructuring, migrating, or any "how should I approach this?" — load
-   and follow `@opencode/skills/approach/SKILL.md`. Skip it for small,
-   well-specified, single-step tasks.
+Use the `approach` skill for non-trivial or ambiguous work: planning something
+new, adding a capability, deciding where to start, restructuring, migrating, or
+any "how should I approach this?" style task. Skip it for small,
+well-specified, single-step tasks.
 
-3. **Resolve Dependabot alerts via its skill.** When asked to triage or fix
-   GitHub Dependabot security alerts (GHSA/CVE), load and follow
-   `@opencode/skills/resolve-dependabot-alerts/SKILL.md` rather than hand-fixing.
+</ApproachSkill>
 
-4. **Offload codebase exploration to GLM.** For read-only codebase exploration,
-   prefer the `explore-small` (trivial), `explore-high` (hard), or `explore-max`
-   (hardest) subagents — they run on GLM to conserve Claude quota. Use the
-   default `explore` (which inherits the primary model) only when you
-   specifically need the primary model for exploration.
+<DependabotSkill>
+
+When asked to triage, resolve, or fix GitHub Dependabot security alerts
+(GHSA/CVE, "security alert", "dependabot"), load and follow the
+`resolve-dependabot-alerts` skill rather than hand-fixing.
+
+</DependabotSkill>
+</SkillRouting>
+
+<ExplorationDelegation>
+
+For read-only codebase exploration, prefer the `explore-small` (trivial),
+`explore-high` (hard), or `explore-max` (hardest) subagents. Use the default
+`explore` subagent only when the primary model is specifically needed for the
+exploration.
+
+</ExplorationDelegation>
+</GlobalAgentInstructions>

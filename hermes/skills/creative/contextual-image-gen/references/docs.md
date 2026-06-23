@@ -1,10 +1,12 @@
-# Docs — slides, figures, print
+<Goal>
 
 Images for slide decks, documents, and print. Mostly `generate` (illustrations,
 backgrounds) or `template + text` (title slides); icons still come from
 `icons.md`.
 
-## Slides
+</Goal>
+
+<Slides>
 
 | Target | Size (px) | Ratio |
 |---|---|---|
@@ -17,7 +19,9 @@ backgrounds) or `template + text` (title slides); icons still come from
 - Inset figures: generate `square`/`landscape`, export PNG (transparent if it sits
   on a colored slide).
 
-## Documents / figures
+</Slides>
+
+<DocumentsFigures>
 
 - Diagrams and spot illustrations: `square` or `landscape`, export **PNG**
   (transparent background when placed on a page) or **SVG** if vector is needed
@@ -25,7 +29,9 @@ backgrounds) or `template + text` (title slides); icons still come from
   pipeline or author the SVG).
 - Keep a consistent style across a document's figures (locked style block).
 
-## Print
+</DocumentsFigures>
+
+<Print>
 
 - Work at **300 DPI**: pixels = inches × 300 (e.g. 4×6 in → 1200×1800 px). Note
   `image_generate` resolution is limited — generate the largest available, then
@@ -36,7 +42,11 @@ backgrounds) or `template + text` (title slides); icons still come from
 - Embed fonts / outline text in the final document; don't bake unreliable AI text
   into figures.
 
-## Format
+</Print>
+
+<Format>
 
 - Slides/screen: PNG (flat/transparent) or JPEG/WebP (photographic).
 - Print: high-res PNG/TIFF; confirm the printer's required format/DPI/color space.
+
+</Format>

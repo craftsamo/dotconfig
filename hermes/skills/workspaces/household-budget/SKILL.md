@@ -7,14 +7,14 @@ description: >-
   Use when the user shares a receipt/expense or asks about spending, 家計簿, レシート,
   経費, 立替, サブスク, 振替, expenses, reimbursement, subscriptions, budget.
 version: 0.2.0
-author: Hermes Agent
+author: Hermes agent
 metadata:
   hermes:
     tags: [household-budget, finance, sqlite, expenses, reimbursement, subscriptions, multi-currency]
     category: workspaces
 ---
 
-# HouseholdBudget
+<Goal>
 
 Reference: `references/data-model.md` captures the full data model plus safe local-ledger conventions for receipt intake, monthly summaries, DB backup/validation, sensitive-data handling, and export refresh. Use it before writing or summarizing the local ledger.
 
@@ -23,12 +23,20 @@ An analytical, multi-currency SQLite ledger. The DB is the source of truth at
 is a regenerable mirror. Data is **sensitive** (financial) — handle per `Personal/AGENTS.md`.
 The full model is `references/data-model.md` (the canon); `schema.sql` is the structure.
 
-## When to use
+</Goal>
+
+<Scope>
+<UseWhen>
+
 - The user shares a receipt, invoice, card-statement line, or a transfer/exchange to record.
 - The user asks about spending, a monthly summary, open reimbursements, subscriptions, or a
   custom breakdown ("by store / by project / by currency …").
 
-## Engine (run via the bundled CLI)
+</UseWhen>
+</Scope>
+
+<Engine>
+
 All operations go through `${HERMES_SKILL_DIR}/scripts/hb` (Python stdlib, no deps);
 defaults to `--root ~/Workspaces/Personal/HouseholdBudget`. Pass `--help` to any subcommand.
 
@@ -53,7 +61,10 @@ hb init [--seed] [--force] ; hb import-json [--src DIR] ; hb migrate
 ```
 `report --by`: `month|type|scope|category|store|item|account|currency|project|counterparty|tag:<axis>`.
 
-## Recording a receipt (workflow)
+</Engine>
+
+<RecordingWorkflow>
+
 1. Extract date, total, store, payment, and line items from the source.
 2. Write a normalized draft JSON to `drafts/` (shape: `references/data-model.md` §6;
    `references/examples/*.json` are synthetic shape references).
@@ -64,7 +75,10 @@ hb init [--seed] [--force] ; hb import-json [--src DIR] ; hb migrate
    `uncategorized`) + `status: needs_review` rather than guessing; create pending masters
    with `hb upsert-entity` (stable ids; state lives in `review_status`).
 
-## Rules
+</RecordingWorkflow>
+
+<Rules>
+
 - Money is decimal strings; reporting currency is JPY (non-JPY needs `reporting_amount`
   with `fx_rate`/`fx_date`/`fx_source`).
 - Money moved between own accounts is a **transfer** (`hb transfer`), not a transaction —
@@ -76,3 +90,5 @@ hb init [--seed] [--force] ; hb import-json [--src DIR] ; hb migrate
   without an explicit OK.
 - Don't hand-edit `budget.db` or the mirror — use `hb`. Schema evolves via `migrations/`
   (`hb migrate`), never `init --force` on a live DB.
+
+</Rules>

@@ -1,11 +1,13 @@
-# Social & web video specs
+<Goal>
 
 Target these at **post-process** time (`video-postprocess.sh`). Generate at the
 nearest backend-supported aspect/resolution (`backends.md`), then crop/scale to
 the exact target. Generated clips are short (≤ 15s) — for longer placements,
 generate beats and stitch.
 
-## Platform table
+</Goal>
+
+<PlatformTable>
 
 | Platform | Aspect | Resolution | Duration (gen → final) | FPS | Container / codec | Audio |
 |---|---|---|---|---|---|---|
@@ -18,7 +20,9 @@ generate beats and stitch.
 | YouTube (standard) | 16:9 | 1920×1080 | stitch beats | 24–30 | mp4 / H.264 | yes |
 | **Web hero / background** | 16:9 (or 21:9 crop) | 1920×1080 → ≤2–5 MB | 4–8s, **looped** | 24–30 | **mp4 (H.264) + webm (VP9)** | **muted** |
 
-## Notes
+</PlatformTable>
+
+<Notes>
 
 - **Web heroes**: autoplay requires **muted**; ship an **mp4 + webm pair** for
   `<video>` coverage and a **poster frame** (`poster-frame.sh`) for first paint.
@@ -34,3 +38,5 @@ generate beats and stitch.
   inside the generated frame.
 - **Audio**: only some FAL models produce audio; xAI Grok Imagine has none. If a
   platform wants sound and the active backend is silent, add a track in post.
+
+</Notes>

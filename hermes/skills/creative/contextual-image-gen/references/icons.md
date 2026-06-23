@@ -1,4 +1,4 @@
-# Icons — favicon, apple-icon, PWA (derive from the logo)
+<Goal>
 
 **Do not `image_generate` icons.** AI can't produce crisp tiny marks or exact
 pixel sets, and a set must be visually identical across sizes. Instead **render
@@ -8,7 +8,9 @@ the existing logo SVG** to the required raster sizes with `scripts/logo-to-icons
 If there is no logo SVG, ask for one (or a high-res master PNG). A simplified,
 high-contrast mark is best — fine detail vanishes at 16px.
 
-## Standard outputs
+</Goal>
+
+<StandardOutputs>
 
 | File | Size(s) | Notes |
 |---|---|---|
@@ -23,7 +25,9 @@ Next.js app-dir conventions: place `app/icon.svg`, `app/apple-icon.png`,
 `app/favicon.ico`; the framework wires `<link rel>` automatically. Match whatever
 the codebase already uses (from `discovery.md`).
 
-## Procedure
+</StandardOutputs>
+
+<Procedure>
 
 1. Locate the logo SVG (e.g. `public/**/logo.svg`, `app/icon.svg`) and the brand
    color. Note `currentColor` — pass an explicit color if needed.
@@ -38,9 +42,13 @@ the codebase already uses (from `discovery.md`).
 5. Verify legibility at 16×16 (zoom in). If the mark is too detailed, simplify the
    SVG (fewer strokes) and re-render.
 
-## Pitfalls
+</Procedure>
+
+<Pitfalls>
 
 - Transparent apple-icon → ugly black corners on iOS. Always flatten.
 - Mark touching the maskable edge → cropped by the OS mask. Respect the safe zone.
 - Re-coloring via `currentColor` only works if you set a color; otherwise it
   renders black. Pass `--color`.
+
+</Pitfalls>

@@ -1,11 +1,13 @@
-# Image-to-video & reference-guided — keep it on-brand
+<Goal>
 
 Animating an existing still is the **best way to stay on-brand** — the first
 frame *is* your art, so colours, composition, and product stay exact. Prefer this
 whenever a usable still exists (hero image, product screenshot, key art, logo
 frame). This is the motion analogue of the image skill's "derive-from-logo".
 
-## Image-to-video
+</Goal>
+
+<ImageToVideo>
 
 Call: `video_generate(prompt=…, image_url=…, aspect_ratio=…, duration=…)`.
 
@@ -20,7 +22,7 @@ Call: `video_generate(prompt=…, image_url=…, aspect_ratio=…, duration=…)
 - Keep motion **subtle** for product/brand stills — small camera moves and
   ambient motion read as "premium"; large motion warps the product.
 
-### Backend routing (automatic)
+**Backend routing (automatic):**
 
 - **xAI Grok Imagine**: image-to-video routes to `grok-imagine-video-1.5-preview`
   (latest); up to **7 `reference_image_urls`**; no audio.
@@ -31,7 +33,9 @@ Call: `video_generate(prompt=…, image_url=…, aspect_ratio=…, duration=…)
 The `vid-xai-fal` chain tries Grok first, then FAL — so an image-to-video call
 animates via Grok 1.5 and falls back to a FAL model on error/limit.
 
-## Reference-guided (persist identity across shots)
+</ImageToVideo>
+
+<ReferenceGuided>
 
 To keep a character/product **consistent across multiple generations**, pass
 `reference_image_urls=[url1, url2, …]` (xAI Grok Imagine, up to 7). Use when you
@@ -39,14 +43,18 @@ need several clips that share one identity (a mascot, a product from angles).
 FAL backends don't take reference images (`max_reference_images: 0`) — for those,
 reuse the same `image_url` first frame and a fixed `seed`.
 
-## Dials
+</ReferenceGuided>
+
+<Dials>
 
 - **Motion amount** — start minimal; increase only if the clip feels dead.
 - **duration** — short (4–6s) keeps the product from morphing.
 - **seed** — fix it to reproduce a good animation while tuning.
 - **aspect_ratio** — match the source still; otherwise crop the still first.
 
-## Pitfalls
+</Dials>
+
+<Pitfalls>
 
 - Busy stills morph — simpler first frames animate cleaner.
 - Text/logos in the still can still flicker — if they wobble, keep them out of
@@ -54,7 +62,11 @@ reuse the same `image_url` first frame and a fixed `seed`.
 - Don't promise audio from Grok image-to-video (it has none) — use a FAL model or
   add audio in post.
 
-## Then
+</Pitfalls>
+
+<PostProcess>
 
 Localize + finish with `scripts/video-postprocess.sh`; loop with
 `scripts/make-loop.sh`; poster via `scripts/poster-frame.sh`.
+
+</PostProcess>
