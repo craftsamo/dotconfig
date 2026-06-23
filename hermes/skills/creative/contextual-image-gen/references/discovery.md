@@ -1,9 +1,11 @@
-# Discovery — gather preconditions
+<Goal>
 
-Goal: produce two fact sets before generating — **destination constraints** and
-the **design system**. Source order: codebase → Figma/brand doc → ask the user.
+Produce two fact sets before generating — **destination constraints** and the
+**design system**. Source order: codebase → Figma/brand doc → ask the user.
 
-## A. Destination constraints
+</Goal>
+
+<DestinationConstraints>
 
 What to find:
 
@@ -15,7 +17,7 @@ What to find:
 - **Storage / upload path** (bucket, public URL pattern, signed-upload flow,
   or a file-convention path like Next.js `app/opengraph-image.png`).
 
-### In a codebase (web/app)
+**In a codebase (web/app):**
 
 Use `search_files` / `terminal` grep; delegate big repos to an `explore` task.
 
@@ -29,13 +31,15 @@ Use `search_files` / `terminal` grep; delegate big repos to an `explore` task.
 
 Record exact file:line so the user can verify.
 
-### Figma / brand doc / none
+**Figma / brand doc / none:**
 
 - Ask for the frame size, export settings (format, scale), and placement.
 - If nothing exists, ask the user for size + format + where it will live. Do not
   assume.
 
-## B. Design system
+</DestinationConstraints>
+
+<DesignSystem>
 
 What to find:
 
@@ -51,7 +55,11 @@ What to find:
 Grep hints: `--primary|--accent|--background|oklch\(|#[0-9a-fA-F]{6}`,
 `font-(sans|mono)|next/font|fontFamily`, `logo|icon|brand`, `public/**/*.svg`.
 
-## Output (feed into the chosen strategy)
+</DesignSystem>
+
+<Output>
+
+Feed into the chosen strategy:
 
 - **Master aspect** = the widest/most-constrained ratio; design a **center-safe
   area** that survives every crop.
@@ -60,3 +68,5 @@ Grep hints: `--primary|--accent|--background|oklch\(|#[0-9a-fA-F]{6}`,
 - **Negative list** appropriate to the destination (no text / no logos / etc.).
 
 If a fact is missing and matters, ask one focused question rather than guessing.
+
+</Output>

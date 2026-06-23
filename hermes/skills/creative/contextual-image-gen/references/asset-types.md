@@ -1,4 +1,4 @@
-# Asset types — router
+<Goal>
 
 Identify the asset type first, then follow its **strategy** and reference. Sizes
 are typical defaults; always prefer sizes discovered from the destination
@@ -18,7 +18,9 @@ are typical defaults; always prefer sizes discovered from the destination
 | **Slide / figure** | 16:9 (1920×1080) or 4:3 | generate or compose | `docs.md` |
 | **Print figure** | physical size @ 300 DPI | generate or compose | `docs.md` |
 
-## Strategy meanings
+</Goal>
+
+<StrategyMeanings>
 
 - **generate** — text-to-image via `image_generate`. Best for illustrative,
   non-text, brand-styled imagery. See `ai-imagery.md`.
@@ -28,10 +30,14 @@ are typical defaults; always prefer sizes discovered from the destination
 - **template + text** — a background (AI-generated or a solid brand fill) with the
   title/text **composited** on top (AI text is unreliable). See `text-cards.md`.
 
-## Routing notes
+</StrategyMeanings>
+
+<RoutingNotes>
 
 - One destination can need several types (e.g. a web app has favicon + OG +
   in-app covers). Handle each by its own strategy; don't force one approach.
 - OG/Twitter cards are "discovered in the codebase but sized by social specs" —
   use `discovery.md` to find them and `social-specs.md` for exact dimensions.
 - When unsure of the type or size, ask the user before producing anything.
+
+</RoutingNotes>
