@@ -69,11 +69,15 @@ understanding and owning the result, not toward rushing into edits.
 
 <ScenarioPlaybooks>
 
-Load the matching reference when the task fits:
+Load the matching scenario skill when the task fits (each applies on top of
+this spine):
 
-- Rebuild, restructure, or schema/data migration: `references/rebuild-migration.md`
-- Add a feature to an existing system: `references/new-feature.md`
-- Start something from scratch: `references/new-project.md`
+- Add a feature to an existing system → `approach-new-feature`
+- Start something from scratch → `approach-new-project`
+- Rebuild, restructure, or schema/data migration → `approach-rebuild-migration`
+- Fix a bug or incident systematically → `approach-debugging`
+- Improve structure without changing behavior → `approach-refactor`
+- Resolve a performance problem → `approach-performance`
 
 </ScenarioPlaybooks>
 
