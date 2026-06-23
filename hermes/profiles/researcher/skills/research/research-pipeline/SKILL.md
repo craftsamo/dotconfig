@@ -8,17 +8,28 @@ metadata:
     tags: [research, methodology, sources, citations, synthesis, verification]
     category: research
 ---
-# Research pipeline (researcher)
+
+<Goal>
 
 The standard method for research tasks. Accuracy outranks speed, confidence, and
 completeness. The goal is evidence the caller can verify and act on — not a
 confident-sounding answer.
 
-## When to Use
+</Goal>
+
+<Scope>
+<UseWhen>
+
 - Any analysis / synthesis / research task assigned to the researcher.
 - Skip only when the caller explicitly wants unsupported brainstorming.
 
-## Search route (breadth, in order; trace every claim to its original context)
+</UseWhen>
+</Scope>
+
+<SearchRoute>
+
+Breadth, in order; trace every claim to its original context:
+
 1. Primary / official (docs, specs, papers, filings, source code) — reliability A
 2. Reputable secondary (established docs/news, recognized experts) — B
 3. General web — C/D; investigate the source (lateral read) before trusting
@@ -28,11 +39,14 @@ confident-sounding answer.
 Virality != truth. A high search rank is not reliability. Delegate breadth-gathering
 to `searcher` when it speeds things up.
 
-## Source evaluation (rate reliability and credibility SEPARATELY)
-Adapted from the NATO/Admiralty system (AJP-2.1) + SIFT (Caulfield) +
-primary/secondary/tertiary. Keep the two axes independent — a reputable outlet can
-still carry an uncorroborated claim, and a weak source can still be right; separating
-them prevents halo bias.
+</SearchRoute>
+
+<SourceEvaluation>
+
+Rate reliability and credibility SEPARATELY. Adapted from the NATO/Admiralty system
+(AJP-2.1) + SIFT (Caulfield) + primary/secondary/tertiary. Keep the two axes
+independent — a reputable outlet can still carry an uncorroborated claim, and a weak
+source can still be right; separating them prevents halo bias.
 
 Source reliability (the outlet/author, by class):
 - A Reliable — primary/official: standards & specs, official docs, source code/repos,
@@ -55,7 +69,10 @@ Classify sources as **primary** (originator), **secondary** (reputable reporting
 or **noisy** (X, forums, reposts, SEO summaries), and feed both axes into the
 Observation / Corroboration / Inference / Uncertainty buckets below.
 
-## Procedure
+</SourceEvaluation>
+
+<Steps>
+
 1. **Scope.** Restate the question, the caller's decision context, success
    criteria, and key sub-questions. State an assumption and proceed when a
    missing detail doesn't change the search strategy.
@@ -80,7 +97,11 @@ Observation / Corroboration / Inference / Uncertainty buckets below.
    return implications for the caller. Don't make the caller's final domain
    decision unless explicitly asked.
 
-## Output — evidence pack (default)
+</Steps>
+
+<OutputTemplate>
+
+Evidence pack (default):
 ```markdown
 ## Summary
 - 2–5 decision-relevant findings.
@@ -98,20 +119,31 @@ Observation / Corroboration / Inference / Uncertainty buckets below.
 ```
 Shorten sections for compact output, but keep the categories.
 
-## Citation rules
+</OutputTemplate>
+
+<CitationRules>
+
 - Never invent URLs, authors, timestamps, or quotes.
 - Don't cite a source you didn't inspect (or mark it unverified/secondhand).
 - Don't quote search snippets as if they were source text.
 - If a source was inaccessible or may be dynamic, say so.
 
-## Pitfalls
+</CitationRules>
+
+<Pitfalls>
+
 - A high search ranking is not high trust — score the source, not its position.
 - Virality / repetition is evidence of attention, not truth.
 - One plausible source is not enough for a high-impact claim.
 - Letting your own inference blur into observed source content.
 
-## Verification
+</Pitfalls>
+
+<Verification>
+
 - Every nontrivial claim traces to a scored source, a direct observation, or a
   stated uncertainty.
 - Quotes are verbatim and short; metadata suffices for later verification.
 - Counterevidence was considered; confidence and open gaps are stated.
+
+</Verification>
