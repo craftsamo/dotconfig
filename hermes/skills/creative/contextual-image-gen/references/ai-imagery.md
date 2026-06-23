@@ -1,8 +1,10 @@
-# AI imagery — covers, heroes, illustrations, social backgrounds
+<Goal>
 
 For illustrative, brand-styled, **text-free** imagery via `image_generate`.
 
-## Pattern: locked style block × subject
+</Goal>
+
+<Pattern>
 
 Keep a brand-locked **common style block** and only swap the **subject** per
 image. This is what gives a set visual consistency (the tool can't take a
@@ -14,7 +16,7 @@ reference image, so consistency is carried in text).
 Subject: <one clear hero + a few close, intentional supporting elements>
 ```
 
-### Build the common block from discovery
+**Build the common block from discovery:**
 
 - **Background**: brand-driven. A solid/gradient brand fill often reads stronger
   on cards and dark UIs than a pale wash.
@@ -29,7 +31,7 @@ Subject: <one clear hero + a few close, intentional supporting elements>
   starburst/spinner, NO person/face avatars, NO human figures` (trim to taste).
 - **Aspect**: state the master ratio (e.g. "16:9 aspect ratio").
 
-### Worked example (a tech-education brand, terracotta)
+**Worked example (a tech-education brand, terracotta):**
 
 ```
 Bold flat vector illustration on a brand-orange background. The whole frame is a
@@ -48,7 +50,9 @@ bubbles and right-aligned terracotta bubbles, differentiated by side and color
 
 Swap only the `Subject:` line for the rest of the set.
 
-## Procedure
+</Pattern>
+
+<Procedure>
 
 1. Map the master ratio to `image_generate`: 16:9 → `landscape`, 9:16 →
    `portrait`, 1:1 → `square`.
@@ -59,7 +63,9 @@ Swap only the `Subject:` line for the rest of the set.
 5. Review at **thumbnail size** and on the real background. Tune with the dials,
    regenerate. For a set, lock course/page 1, then do the rest in the same style.
 
-## Dials
+</Procedure>
+
+<Dials>
 
 - Washed out → bolder strokes, solid fills, higher contrast.
 - Too busy / clipped → fewer larger elements, smaller footprint, more margin.
@@ -69,9 +75,13 @@ Swap only the `Subject:` line for the rest of the set.
 - Oversized in a multi-panel subject → "keep the SAME compact footprint; do not
   enlarge for extra content".
 
-## Backend note
+</Dials>
+
+<BackendNote>
 
 The active backend is user-configured (here: `img-xai-codex-fal`, xai first) and
 **not** agent-selectable. Don't name models in the prompt. If prompt adherence
 drifts, suggest switching `image_gen.provider: img-codex-xai` (gpt-image-2 first)
 for brand work.
+
+</BackendNote>
