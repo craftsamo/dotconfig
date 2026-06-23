@@ -23,7 +23,7 @@ metadata:
     category: creative
 ---
 
-# Contextual Video Generation
+<Goal>
 
 Make a generated clip **fit its destination and brand** instead of prompting
 blind. The value of this skill is the work done *before* `video_generate`:
@@ -34,7 +34,10 @@ priced per second/clip), so the pre-work pays for itself.
 
 This is the motion sibling of `contextual-image-gen`; the philosophy is the same.
 
-## When to Use
+</Goal>
+
+<Scope>
+<UseWhen>
 
 - The user asks to create/generate a hero loop, looping background, product
   demo, explainer clip, social reel, teaser, or any short branded video —
@@ -42,13 +45,20 @@ This is the motion sibling of `contextual-image-gen`; the philosophy is the same
 - Use it whenever the clip must match an existing product's look or slot into a
   specific place with fixed duration/aspect/codec.
 
-**Not** for: editing/trimming a user-supplied video (just run
-`scripts/video-postprocess.sh`), video *understanding* (that's `video_analyze`),
-HTML/canvas-composited motion graphics, title cards, captions, or shader
-transitions (that's the bundled `hyperframes` skill), or a full multi-agent
-production pipeline (bundled `kanban-video-orchestrator`).
+</UseWhen>
 
-## Core principle: gather preconditions first
+<DoNotUseWhen>
+
+- Editing/trimming a user-supplied video (just run `scripts/video-postprocess.sh`).
+- Video *understanding* (that's `video_analyze`).
+- HTML/canvas-composited motion graphics, title cards, captions, or shader
+  transitions (that's the bundled `hyperframes` skill).
+- A full multi-agent production pipeline (bundled `kanban-video-orchestrator`).
+
+</DoNotUseWhen>
+</Scope>
+
+<CorePrinciple>
 
 Never jump straight to a prompt. Two homework passes drive everything downstream:
 
@@ -65,7 +75,9 @@ Never jump straight to a prompt. Two homework passes drive everything downstream
 If you can't find these (no codebase, no brand, no source still), **ask the
 user** rather than guessing — a wrong 8-second 1080p clip is expensive to redo.
 
-## Workflow
+</CorePrinciple>
+
+<Steps>
 
 1. **Identify the delivery type** → load `references/delivery-types.md` and
    route. If the destination is unclear, ask: "Where will this play (web hero,
@@ -73,11 +85,13 @@ user** rather than guessing — a wrong 8-second 1080p clip is expensive to redo
 2. **Discover preconditions** (`references/discovery.md`): codebase grep / stated
    specs → destination constraints + brand/source assets.
 3. **Pick the strategy**:
+
    | Strategy | When | How |
    |---|---|---|
    | **image-to-video** | a brand still / first frame exists; brand consistency matters | `video_generate(prompt=…, image_url=…)` → `references/image-to-video.md` |
    | **text-to-video** | no source; concept/atmosphere clip | `video_generate(prompt=…)` → `references/text-to-video.md` |
    | **reference-guided** | identity must persist across shots (xAI: up to 7 refs) | `reference_image_urls=[…]` → `references/image-to-video.md` |
+
 4. **Confirm tradeoffs** with the user before producing a set (cost × duration ×
    count; audio yes/no; text-in-video = no). See below.
 5. **Produce → review → tune → iterate** (dials below). Write the final prompt +
@@ -90,7 +104,9 @@ user** rather than guessing — a wrong 8-second 1080p clip is expensive to redo
    no-AI Ken Burns image→GIF). Then place/upload per the discovered convention
    (don't commit/upload without the user's go-ahead).
 
-## Tradeoffs to confirm (ask before generating)
+</Steps>
+
+<Tradeoffs>
 
 Video is expensive and slow — confirm up front (mirror the user's language):
 
@@ -108,7 +124,9 @@ Video is expensive and slow — confirm up front (mirror the user's language):
   **GIF only where required** (chat, README, stickers) — it's large and silent.
   See `references/gifs.md`.
 
-## `video_generate` essentials (read before generating)
+</Tradeoffs>
+
+<ToolEssentials>
 
 - **One tool, two modalities**: pass `image_url` to **animate a still**
   (image-to-video); omit it for **text-to-video**. The active backend
@@ -132,7 +150,9 @@ Video is expensive and slow — confirm up front (mirror the user's language):
 - **Reproducibility**: save each final prompt + params to `prompts/NN-<slug>.md`
   before calling, so you can regenerate or switch backends later.
 
-## Tuning dials (iterate, don't restart)
+</ToolEssentials>
+
+<TuningDials>
 
 - Too much warping/morphing → shorter duration, lower motion, image-to-video
   from a clean still, locked camera.
@@ -145,7 +165,9 @@ Video is expensive and slow — confirm up front (mirror the user's language):
 - Wrong vibe/pacing → adjust shot length and one motion verb; keep prompts
   concrete and short.
 
-## Pitfalls (hard-won)
+</TuningDials>
+
+<Pitfalls>
 
 - Generated on-screen **text** is unreliable — keep words out, overlay in post.
 - **Hosted URLs expire** — always localize the result before doing anything else.
@@ -158,7 +180,9 @@ Video is expensive and slow — confirm up front (mirror the user's language):
 - **Seamless loops** aren't free — generated clips rarely loop cleanly; build the
   loop with `scripts/make-loop.sh` (crossfade or palindrome).
 
-## Files
+</Pitfalls>
+
+<Files>
 
 - `references/delivery-types.md` — router: delivery type → duration/aspect/codec → strategy.
 - `references/discovery.md` — find playback constraints + brand/source assets.
@@ -175,3 +199,5 @@ Video is expensive and slow — confirm up front (mirror the user's language):
 
 Run scripts via `${HERMES_SKILL_DIR}/scripts/<name>` (pass `--help` for usage).
 Tooling (ffmpeg, ImageMagick, cwebp) is declared in the repo Brewfile.
+
+</Files>

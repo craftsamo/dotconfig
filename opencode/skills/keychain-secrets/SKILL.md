@@ -3,130 +3,164 @@ name: keychain-secrets
 description: Use when handling secrets, API keys, tokens, credentials, environment variables, .env files, or "missing"/unset env vars on this machine — secrets are injected from the macOS Keychain via ~/.config/bin PATH shims. Covers tool vs project injection modes and the command allowlist, why injected values are invisible to the parent shell, adding/listing/getting secrets with the `secret` CLI, wrapping new tools, name-collision pitfalls, and debugging missing injection.
 ---
 
-# Keychain secrets on this machine
+<Goal>
 
-Development secrets live in the **macOS Keychain**, not in committed files. A
-PATH-based shim injects them as environment variables when a command launches.
-Authoritative docs: `~/.config/zsh/functions/secret.md`. Implementation:
-`~/.config/bin/secret-shim` and `~/.config/zsh/functions/secret.zsh`.
+Handle local development secrets safely. Secrets live in the macOS Keychain,
+not in committed files, and are injected as environment variables by PATH-based
+command shims when a process launches.
 
-## How injection works
+</Goal>
 
-`~/.config/zsh/env.zsh` puts `~/.config/bin` first on `PATH`. That directory holds
-one symlink per wrapped command, all pointing at `secret-shim`. Every launch
-therefore goes through the shim, which reads values via `secret env`
+<Implementation>
+
+Authoritative docs: `~/.config/zsh/functions/secret.md`.
+Implementation: `~/.config/bin/secret-shim` and
+`~/.config/zsh/functions/secret.zsh`.
+
+`~/.config/zsh/env.zsh` puts `~/.config/bin` first on `PATH`. That directory
+holds one symlink per wrapped command, all pointing at `secret-shim`. Every
+launch goes through the shim, which reads values via `secret env`
 (`security find-generic-password`), exports them, then `exec`s the real binary
-(resolved further down `PATH`, skipping the shim itself).
+resolved further down `PATH`, skipping the shim itself.
 
-Two modes, chosen by the command name (`bin/secret-shim:44-49`):
+</Implementation>
 
-| Mode    | Commands | Injects |
-| ------- | -------- | ------- |
-| tool    | `opencode`, `claude`, `codex`, `copilot`, and any unlisted name | `secret env -p global`, then `-p <command>` (tool layer overrides global) |
-| project | `node npm pnpm bun bunx yarn npx python python3 uv docker docker-compose` | `secret env` for the current git repo's project + scope; **only inside a git repo** |
+<InjectionModes>
+
+The mode is chosen by the command name in `bin/secret-shim:44-49`.
+
+| Mode | Commands | Injects |
+| --- | --- | --- |
+| tool | `opencode`, `claude`, `codex`, `copilot`, and any unlisted name | `secret env -p global`, then `-p <command>`; tool layer overrides global |
+| project | `node npm pnpm bun bunx yarn npx python python3 uv docker docker-compose` | `secret env` for the current git repo's project + scope; only inside a git repo |
 
 Precedence in both modes:
-`exported env  >  .env files (project mode)  >  Keychain`.
+`exported env > .env files (project mode) > Keychain`.
 
-## The critical subtlety: env vars, not shell-expandable values
+</InjectionModes>
 
-Injection delivers variables **into the launched process's environment**. It does
-**not** populate the parent shell. Consequences:
+<ShellExpansionRule>
 
-- ✅ `node app.js` reading `process.env.DATABASE_URL` — works.
-- ✅ `python -c 'import os; print(os.environ["X"])'` — works.
-- ❌ `some-cmd --token=$API_KEY` typed at the shell — the parent shell expands
-  `$API_KEY` (empty here) before the command runs.
-- ❌ A generated `deploy.sh` containing `curl -H "Authorization: Bearer $TOKEN"`
-  run via `bash deploy.sh` — `bash` is not shimmed, and `$TOKEN` is expanded by a
-  shell that does not have it.
+Injection delivers variables into the launched process's environment. It does
+not populate the parent shell.
 
-Rule: reference secrets **by name, read at runtime inside an allowlisted program**.
-Write programs that read `process.env` / `os.environ`. If you must use a shell
-script, run its secret-dependent steps through an allowlisted launcher (a
-`node`/`python` entry, or an `npm` script), not bare `bash`/`sh`.
+- Works: `node app.js` reading `process.env.DATABASE_URL`.
+- Works: `python -c 'import os; print(os.environ["X"])'`.
+- Fails: `some-cmd --token=$API_KEY` typed at the shell, because the parent
+  shell expands `$API_KEY` before the command runs.
+- Fails: a generated `deploy.sh` containing `curl -H "Authorization: Bearer
+  $TOKEN"` run via `bash deploy.sh`, because `bash` is not shimmed and `$TOKEN`
+  is expanded by a shell without that variable.
 
-## What OpenCode's own environment has
+Rule: reference secrets by name and read them at runtime inside an allowlisted
+program. Write programs that read `process.env` or `os.environ`. If a shell
+script is unavoidable, run its secret-dependent steps through an allowlisted
+launcher such as a `node` or `python` entry, or an `npm` script, not bare
+`bash`/`sh`.
 
-OpenCode launches via the tool-mode shim, so its process env contains the
-**global + opencode** layers only (e.g. `MCP_GITHUB_TOKEN`, `TAVILY_API_KEY`) —
-**never** project secrets. You cannot read a project secret's value directly; it
-materializes only inside an allowlisted child process. Do not echo, log, or commit
-the global-layer values you can see.
+</ShellExpansionRule>
 
-## Non-allowlisted launchers
+<OpenCodeEnvironment>
+
+OpenCode launches via the tool-mode shim, so its process environment contains
+the global + opencode layers only, for example `MCP_GITHUB_TOKEN` or
+`TAVILY_API_KEY`. It never contains project secrets. Project secret values
+materialize only inside an allowlisted child process. Do not echo, log, or
+commit any global-layer values visible to OpenCode.
+
+</OpenCodeEnvironment>
+
+<NonAllowlistedLaunchers>
 
 `cargo`, `go`, `make`, `pytest`, `ruby`, `rails`, `php`, `deno`, `dotnet`,
-`bundle`, `psql`, bare scripts, and compiled binaries receive **no** project
-injection. Options:
+`bundle`, `psql`, bare scripts, and compiled binaries receive no project
+injection.
 
-- **Inject for one command** by loading the repo's secrets into a subshell, then
-  running the launcher there:
+Options:
 
-  ```sh
-  ( eval "$(secret env)" && pytest )
-  ```
+1. Inject for one command by loading the repo's secrets into a subshell, then
+   running the launcher there:
 
-  `secret env` (no `-p`) resolves the current repo's project + scope; the subshell
-  `( … )` keeps the values out of later commands. This works for any launcher
-  (`bash`, `sh`, `cargo`, `make`, …) and prompts once (`secret env` is `ask`).
-- Invoke the work through an allowlisted command (e.g. `npm run <script>`, whose
-  child process inherits the injected env).
-- Permanently wrap the tool (see below).
+   ```sh
+   ( eval "$(secret env)" && pytest )
+   ```
 
-## Using the `secret` CLI from here
+   `secret env` with no `-p` resolves the current repo's project + scope. The
+   subshell keeps the values out of later commands. This works for any launcher
+   and prompts once because `secret env` is `ask`.
+2. Invoke the work through an allowlisted command, for example `npm run <script>`.
+3. Permanently wrap the tool.
 
-`secret` is available **directly** via the `~/.config/bin/secret` launcher (it
-loads the function for non-interactive shells; it is *not* a secret-shim symlink
-and injects nothing):
+</NonAllowlistedLaunchers>
+
+<SecretCli>
+
+`secret` is available directly via the `~/.config/bin/secret` launcher. It loads
+the function for non-interactive shells; it is not a `secret-shim` symlink and
+injects nothing.
 
 ```sh
-secret ls                 # names + metadata (no values)
-secret show NAME          # one item's metadata (no value)
+secret ls                 # names + metadata, no values
+secret show NAME          # one item's metadata, no value
 secret projects           # project names
 ```
 
-OpenCode's permission rules mirror the safety model: `ls`/`show`/`projects`/
-`help` and `keychain ls`/`keychain master status` run without approval;
-`get`/`env`/`set` prompt; `rm`/`del`/`export`/`import` and `keychain
-rm`/`master set|rotate|forget|reveal` are **blocked**. Need a value injected for
-a command? Use the `( eval "$(secret env)" && … )` idiom above, not `secret get`.
+OpenCode permission rules mirror the safety model: `ls`, `show`, `projects`,
+`help`, `keychain ls`, and `keychain master status` run without approval;
+`get`, `env`, and `set` prompt; `rm`, `del`, `export`, `import`, and `keychain
+rm` / `master set|rotate|forget|reveal` are blocked.
 
-Adding a secret writes to the Keychain. Prefer asking the **user** to run
-`secret set NAME -p <project>` (or `-S` for a repo-specific scope) interactively —
-that keeps the value out of argv and the transcript. `.env` files are gitignored;
-project mode reads only their variable **names** (to avoid shadowing the app's own
-loader), never their values.
+Need a value injected for a command? Use `( eval "$(secret env)" && ... )`, not
+`secret get`.
 
-## Wrapping a new tool
+Adding a secret writes to the Keychain. Prefer asking the user to run
+`secret set NAME -p <project>` or `secret set NAME -S <scope>` interactively;
+that keeps the value out of argv and the transcript. `.env` files are
+gitignored. Project mode reads only their variable names to avoid shadowing the
+app's own loader, never their values.
+
+</SecretCli>
+
+<WrappingTools>
 
 ```sh
 ln -s secret-shim ~/.config/bin/<command>     # route it through the shim
 ```
 
-If it should receive **project** (repo) secrets rather than the tool layers, also
-add its name to the `project` case in `~/.config/bin/secret-shim:46`.
+If the tool should receive project/repo secrets instead of tool-layer secrets,
+also add its name to the `project` case in `~/.config/bin/secret-shim:46`.
 
-## Name-collision pitfall under OpenCode
+</WrappingTools>
 
-Project mode never overrides a name already exported (`secret-shim:60`, the `_had`
-set). Because OpenCode already exports the global-layer names, a project secret
-**with the same name as a global one** is skipped in OpenCode-launched children —
-the global value wins (this differs from a human running the command in a fresh
-shell). Use distinct names, or run the command outside OpenCode, when a per-repo
-override must take effect.
+<NameCollisionPitfall>
 
-## Debugging missing injection
+Project mode never overrides a name already exported (`secret-shim:60`, the
+`_had` set). Because OpenCode already exports global-layer names, a project
+secret with the same name as a global one is skipped in OpenCode-launched
+children, and the global value wins. This differs from a human running the
+command in a fresh shell. Use distinct names, or run the command outside
+OpenCode when a per-repo override must take effect.
 
-1. `which -a <cmd>` — does it resolve to `~/.config/bin/<cmd>` (the shim) first?
-2. Is `~/.config/bin` first on `PATH`? (`print -l -- $path | head`)
-3. Project mode: are you inside a git repo, and is the command on the allowlist?
-4. Keychain unlocked? `secret keychain master status`.
-5. Does the value exist? `secret env -p <project>` lists it (prompts; `ask`).
-6. Name already in env (collision skip) or present as a `.env` name (dotenv skip)?
+</NameCollisionPitfall>
 
-## References
+<Debugging>
 
-- `~/.config/zsh/functions/secret.md` — full CLI + mechanism reference
-- `~/.config/bin/secret-shim` — the injector
-- `~/.config/zsh/tests/secret-shim-selftest.zsh`, `secret-selftest.zsh` — behavior specs
+1. `which -a <cmd>`: does it resolve to `~/.config/bin/<cmd>` first?
+2. Is `~/.config/bin` first on `PATH`? Use `print -l -- $path | head` in an
+   interactive zsh.
+3. Project mode: are you inside a git repo, and is the command allowlisted?
+4. Is the Keychain unlocked? `secret keychain master status`.
+5. Does the value exist? `secret env -p <project>` lists it and prompts.
+6. Is the name already in env, causing a collision skip, or present as a `.env`
+   name, causing dotenv skip?
+
+</Debugging>
+
+<References>
+
+- `~/.config/zsh/functions/secret.md`: full CLI and mechanism reference
+- `~/.config/bin/secret-shim`: injector implementation
+- `~/.config/zsh/tests/secret-shim-selftest.zsh` and `secret-selftest.zsh`:
+  behavior specs
+
+</References>

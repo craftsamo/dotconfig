@@ -8,14 +8,14 @@ description: >-
   roles, permissions). Keyed by person_id; consumed by household-budget
   (counterparties.person_id) and the message-reply skill. 人物, 連絡先, だれ, people, contact.
 version: 0.1.0
-author: Hermes Agent
+author: Hermes agent
 metadata:
   hermes:
     tags: [people, registry, sqlite, contacts, directory, personal]
     category: workspaces
 ---
 
-# People
+<Goal>
 
 The canonical person registry. The SQLite DB is the source of truth at
 `~/Workspaces/Personal/People/data/people.db`; JSON/CSV under `data/export/` is a
@@ -23,13 +23,21 @@ regenerable mirror. Data is **sensitive** — handle per `Personal/AGENTS.md` (s
 never paste raw records/PII into chat or logs). The full model is `references/data-model.md`
 (the canon); `schema.sql` is the structure.
 
-## When to use
+</Goal>
+
+<Scope>
+<UseWhen>
+
 - Resolve who a message is from (a Telegram/GitHub handle or a name) → `pp whois <q>`.
 - Look up a person's languages, contacts, nationality, timezone, or project roles.
 - Add or update a person, alias, contact, language, nationality, tag, or relationship.
 - Re-sync project memberships after the projects registry changes (`pp import-projects`).
 
-## Engine (run via the bundled CLI)
+</UseWhen>
+</Scope>
+
+<Engine>
+
 All operations go through `${HERMES_SKILL_DIR}/scripts/pp` (Python stdlib, no deps);
 defaults to `--root ~/Workspaces/Personal/People`. Pass `--help` to any subcommand.
 
@@ -57,7 +65,10 @@ pp validate ; pp export --format both ; pp backup [--keep N]
 pp init [--seed] [--force] ; pp import-json [--src DIR] ; pp migrate ; pp audit [--id <id>]
 ```
 
-## Rules
+</Engine>
+
+<Rules>
+
 - Person `id` is a **bare lowercase slug** (e.g. `oy`, `master`) — it equals the `person_id`
   that `Projects/*/teams/members/` and `household-budget.counterparties.person_id` reference.
   Keep it stable; state lives in `review_status` / `status`, never in the id.
@@ -73,7 +84,10 @@ pp init [--seed] [--force] ; pp import-json [--src DIR] ; pp migrate ; pp audit 
   (`pp migrate`), never `init --force` on a live DB. Summarize results to chat; no external
   sends without an explicit OK.
 
-## Consumers
+</Rules>
+
+<Consumers>
+
 - **household-budget** — `counterparties.type='person'` rows carry `person_id` referencing
   People (link a reimbursement/shared expense to a person).
 - **message-reply** — resolves the sender (`pp whois`), then drafts in their
@@ -84,3 +98,5 @@ pp init [--seed] [--force] ; pp import-json [--src DIR] ; pp migrate ; pp audit 
   `pp list`; `pj validate` calls `pp list` + `hb projects`. A producer answers with a versioned
   JSON envelope; every check skips with a warning if the sibling CLI is unavailable. See
   `skills/workspaces/_cross.py` (the shared contract/resolver). A skill never calls another's `validate`.
+
+</Consumers>

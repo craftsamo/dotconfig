@@ -1,4 +1,4 @@
-# Backends & the fallback chain
+<Goal>
 
 `video_generate` dispatches to whatever `video_gen.provider` names. On this
 machine that's a **fallback chain** (plugin: `video-fallback`), so a call tries
@@ -15,7 +15,9 @@ Switch chains by setting `video_gen.provider` in the profile's `config.yaml`.
 invalid for the other and breaks failover. To force a specific model family, set
 the backend directly (not the chain) and configure its model via `hermes tools`.
 
-## Capability matrix
+</Goal>
+
+<CapabilityMatrix>
 
 | | **xAI Grok Imagine** (`xai`) | **FAL.ai** (`fal`) |
 |---|---|---|
@@ -31,13 +33,16 @@ the backend directly (not the chain) and configure its model via `hermes tools`.
 Pick by need: **portrait + reference images** → Grok strengths; **1080p, audio,
 or negative prompts** → FAL strengths (consider `vid-fal-xai`).
 
-## Model families
+</CapabilityMatrix>
+
+<ModelFamilies>
 
 **xAI Grok Imagine** (`~60–240s` per clip):
 - `grok-imagine-video` — text-to-video (+ legacy image-to-video fallback).
 - `grok-imagine-video-1.5-preview` — latest **image-to-video** model.
 
 **FAL.ai** (default family: `pixverse-v6`):
+
 | Model | Tier | Notes |
 |---|---|---|
 | `ltx-2.3` | cheap | 22B, native audio, affordable |
@@ -50,7 +55,9 @@ or negative prompts** → FAL strengths (consider `vid-fal-xai`).
 The active FAL model is user-configured via `hermes tools`; the agent shouldn't
 hardcode it.
 
-## Credentials on this machine
+</ModelFamilies>
+
+<Credentials>
 
 - **`FAL_KEY`** — present in the Keychain (`hermes` layer), injected by the
   `bin/hermes` shim. FAL is ready.
@@ -58,3 +65,5 @@ hardcode it.
   Premium+), read-only across profiles; `XAI_API_KEY` also works if set.
 - Grok Imagine video may require a sufficient xAI tier; if a call 4xxs on tier,
   the chain falls through to FAL automatically.
+
+</Credentials>
