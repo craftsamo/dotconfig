@@ -1,11 +1,14 @@
-# HouseholdBudget — data model (canon)
+<Goal>
 
 Single source of truth for the ledger's structure. The engine (`scripts/hb`) and the
 schema (`schema.sql`) conform to this document. The SQLite DB at
 `~/Workspaces/Personal/HouseholdBudget/data/budget.db` is authoritative; JSON/CSV under
 `data/export/` is a regenerable mirror (never hand-edited).
 
-## 1. Principles
+</Goal>
+
+<Principles>
+
 - **Analytical ledger.** Every transaction carries many axes so spend/income can be
   summed by any of them: time, store, item, category, currency, payment account,
   budget scope, project, counterparty, subscription, and free **tags**.
@@ -23,7 +26,10 @@ schema (`schema.sql`) conform to this document. The SQLite DB at
 - **Versioned.** Schema evolves via `migrations/` (`hb migrate`), never a destructive
   rebuild.
 
-## 2. Identity & state
+</Principles>
+
+<IdentityState>
+
 | entity            | id form                         | sentinel        |
 |-------------------|---------------------------------|-----------------|
 | category          | bare slug (`food`, `food_lunch`)| `uncategorized` |
@@ -40,7 +46,10 @@ schema (`schema.sql`) conform to this document. The SQLite DB at
 (transactions, transfers) use `status` with the same three values. Sentinels always
 exist and are `confirmed`.
 
-## 3. Money, currency, FX
+</IdentityState>
+
+<MoneyCurrencyFX>
+
 - `amount = {value, currency}` keeps the receipt's own currency.
 - Reporting is JPY. If `amount.currency == JPY`, the engine fills
   `reporting_amount = {value: amount.value, currency: JPY, fx_rate:"1", fx_date: date,
@@ -51,7 +60,10 @@ exist and are `confirmed`.
 - A payment account declares its allowed `currencies`; a transaction's
   `amount.currency` must be one of them (enforced by trigger).
 
-## 4. Masters
+</MoneyCurrencyFX>
+
+<Masters>
+
 - **currencies** `{code, label, decimals}` — e.g. JPY/0, USD/2, MYR/2, USDC/6.
 - **categories** `{id, label, parent_id?, review_status}` — hierarchical (e.g.
   `food_lunch → food`). `uncategorized` is the sentinel.
@@ -78,7 +90,10 @@ exist and are `confirmed`.
 All masters share **aliases** (canonical + variants, normalized) used to map raw
 receipt text → the entity. Normalization = NFKC + casefold + collapse spaces.
 
-## 5. Facts
+</Masters>
+
+<Facts>
+
 - **transactions** — one expense/income event. `type ∈ {expense, income}` (money
   moved between own accounts is a **transfer**, not a transaction). Carries:
   amount(+reporting), store(raw+id+confidence), payment(account+raw+confidence),
@@ -101,13 +116,16 @@ receipt text → the entity. Normalization = NFKC + casefold + collapse spaces.
 `budget_scope ∈ {household, business_expense, reimbursable, shared, excluded}`.
 `household` is the default when there is no evidence otherwise.
 
-## 6. Draft shapes (input to the engine)
+</Facts>
+
+<DraftShapes>
+
 Intake adapters (manual, Telegram extraction, future API/cron) all emit a **draft**
 that the engine normalizes + appends. Only `date` and `amount` are strictly required;
 the engine fills defaults, matches masters by alias, applies sentinels, and sets
 `status = needs_review` when anything is uncertain.
 
-### Transaction draft
+**Transaction draft:**
 ```json
 {
   "date": "2026-06-06",
@@ -144,7 +162,7 @@ the engine fills defaults, matches masters by alias, applies sentinels, and sets
   (non-sensitive references only: invoice/order numbers).
 - `source.document_saved` is forced to `false`.
 
-### Transfer draft
+**Transfer draft:**
 ```json
 {
   "date": "2026-06-06",
@@ -158,7 +176,10 @@ the engine fills defaults, matches masters by alias, applies sentinels, and sets
 }
 ```
 
-## 7. Normalization rules
+</DraftShapes>
+
+<NormalizationRules>
+
 - Put each default in the **narrowest stable master**: store aliases / payment options
   → store; item aliases / default category → item; recurring → subscription;
   reimbursement parties / default scope → counterparty; project defaults → project.
@@ -169,21 +190,32 @@ the engine fills defaults, matches masters by alias, applies sentinels, and sets
 - Low confidence / no match → sentinel id + `status = needs_review`. Prefer creating a
   **pending entity** (`review_status = needs_review`, stable id) over guessing.
 
-## 8. Intake adapter seam
+</NormalizationRules>
+
+<IntakeAdapterSeam>
+
 Every source produces the same **draft → `hb add` (or `hb transfer add`)** contract:
 - manual / Telegram extraction (agent + vision) — unstructured → LLM.
 - future API/cron adapters (FX rates, Wise, billing emails) — structured → plain Python.
 The DB/engine are source-agnostic; new adapters only need to emit a valid draft.
 
-## 9. Extensibility
+</IntakeAdapterSeam>
+
+<Extensibility>
+
 - **New axis** → register in `tag_axes` and start tagging; no schema change.
 - **New core field/relation** → a numbered migration under `migrations/` (`hb migrate`).
 - The baseline schema is `user_version = 5` (migrations `0003`–`0005` — fx_rates,
   counterparties.person_id, budget_audit — are folded into it and remain in `migrations/`
   only to upgrade older DBs).
 
-## 10. Audit log
+</Extensibility>
+
+<AuditLog>
+
 Every mutation (`add`/`transfer`/`confirm`/`ignore`/`upsert`/`rename`/`merge`/`import`) appends a
 row to `budget_audit` — a git-less change history (no FK, so it survives delete/rename/merge).
 Read it with `hb audit [--entity <id>] [--limit N]`. It is local-only and not part of the
 export mirror.
+
+</AuditLog>
