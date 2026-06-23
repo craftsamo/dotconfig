@@ -12,6 +12,7 @@ return {
 				"tailwindcss-language-server",
 				"typescript-language-server",
 				"css-lsp",
+				"nomicfoundation-solidity-language-server",
 			})
 		end,
 	},
@@ -24,6 +25,18 @@ return {
 			---@type lspconfig.options
 			servers = {
 				cssls = {},
+				-- Solidity: Nomic Foundation server only (solidity_ls_nomicfoundation).
+				-- It's the Hardhat team's own LSP: detects Hardhat/Foundry projects,
+				-- resolves the compiler from the project config, and provides both
+				-- diagnostics (via solc) and completion/navigation (via slang).
+				-- DISABLE solidity_ls (juanfranblanco/vscode-solidity-server): it's
+				-- Hardhat-2 era and crashes on Hardhat 3 projects (downloads
+				-- soljson-latest.js into the project root then dies loading it),
+				-- and mason-lspconfig's automatic_enable would re-enable it if its
+				-- package stays installed. `enabled = false` keeps it out of
+				-- ensure_installed and the automatic_enable exclude list.
+				solidity_ls = { enabled = false },
+				solidity_ls_nomicfoundation = {},
 				-- NOTE: do not override root_dir here. LazyVim 16 configures
 				-- servers via the native vim.lsp.config API where root_dir is
 				-- async (bufnr, on_dir) — old lspconfig-style overrides keep
