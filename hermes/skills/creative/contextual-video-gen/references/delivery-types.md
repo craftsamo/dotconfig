@@ -1,4 +1,4 @@
-# Delivery types — router
+<Goal>
 
 Identify the delivery type first, then follow its **strategy** and reference.
 Durations/sizes are typical defaults; always prefer values discovered from the
@@ -18,7 +18,9 @@ destination (`discovery.md`). Confirm exact specs per platform in
 | **GIF** (chat / README / docs demo) | 2–6s, any | silent | generate (or image-to-video) → `to-gif.sh` | `gifs.md` |
 | **GIF sticker / emote** | 1–3s, 1:1, looped | silent | image-to-video or Ken Burns → GIF | `gifs.md` |
 
-## Strategy meanings
+</Goal>
+
+<StrategyMeanings>
 
 - **text-to-video** — `video_generate(prompt=…)`. Best for atmosphere/concept
   clips with no source. Hardest to keep on-brand. See `text-to-video.md`.
@@ -28,7 +30,9 @@ destination (`discovery.md`). Confirm exact specs per platform in
 - **reference-guided** — `reference_image_urls=[…]` (xAI Grok Imagine, up to 7)
   to persist a subject/identity across generations. See `image-to-video.md`.
 
-## Routing notes
+</StrategyMeanings>
+
+<RoutingNotes>
 
 - One destination can need several deliverables (e.g. a landing page wants a 16:9
   hero loop **and** a 9:16 social cut). Handle each by its own type; don't force
@@ -42,3 +46,5 @@ destination (`discovery.md`). Confirm exact specs per platform in
   for the web. See `gifs.md`.
 - When unsure of the type, duration, or size, ask the user before generating —
   video is metered.
+
+</RoutingNotes>

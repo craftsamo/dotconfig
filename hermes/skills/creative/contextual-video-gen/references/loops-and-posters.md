@@ -1,9 +1,11 @@
-# Loops & posters
+<Goal>
 
 Generated clips rarely loop cleanly and don't ship a poster — both are **post
 steps**.
 
-## Seamless loops
+</Goal>
+
+<SeamlessLoops>
 
 A raw generated clip usually jumps at the wrap. Two ways to fix it
 (`scripts/make-loop.sh`):
@@ -23,7 +25,9 @@ Tips:
 - Keep loops short (4–8s) and **muted** for web heroes.
 - Ship an **mp4 (H.264) + webm (VP9) pair** for `<video>` coverage.
 
-## Poster / preview frame
+</SeamlessLoops>
+
+<PosterFrame>
 
 Web players show a `poster` until playback starts; many feeds need a thumbnail.
 Extract one with `scripts/poster-frame.sh`:
@@ -36,7 +40,9 @@ Extract one with `scripts/poster-frame.sh`:
 Pick a frame that looks good static (the hero's first frame is usually safest for
 autoplay so there's no jump from poster → video).
 
-## Web embed (autoplay, muted, looped)
+</PosterFrame>
+
+<WebEmbed>
 
 ```html
 <video
@@ -58,3 +64,5 @@ autoplay so there's no jump from poster → video).
   for the crop, like the image skill's center-safe area).
 - Size budget: short loop, 720–1080p, sensible bitrate; verify the final bytes
   with `video-postprocess.sh --max-bytes`.
+
+</WebEmbed>
