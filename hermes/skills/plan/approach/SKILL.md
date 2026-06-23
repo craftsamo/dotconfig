@@ -15,22 +15,33 @@ metadata:
     category: plan
 ---
 
-# Approach
+<Goal>
 
 A disciplined, collaborative way to take on **non-trivial or ambiguous work** —
 planning something new, adding a capability, deciding where to start, restructuring,
 or any "how should I go about this?". Bias toward the user **understanding and owning**
 the result, and toward **safe, reversible progress** over rushing.
 
-## When to use
+</Goal>
+
+<Scope>
+<UseWhen>
+
 - Open-ended / ambiguous / multi-step asks: "plan X", "where do I start with X",
   "I want to do X", "add X here", "how should I approach X".
 - The right move isn't obvious, or the goal could be read several ways.
 
-## When NOT to use
+</UseWhen>
+
+<DoNotUseWhen>
+
 - Small, well-specified, single-step tasks. Don't add ceremony to simple work.
 
-## Principles
+</DoNotUseWhen>
+</Scope>
+
+<Principles>
+
 - **Investigate before asserting** — understand the context before proposing.
 - **Don't assume intent** — confirm the real goal; mirror it back.
 - **One decision at a time** — options + tradeoffs + a recommendation; the user decides.
@@ -39,7 +50,10 @@ the result, and toward **safe, reversible progress** over rushing.
 - **Legible & owned** — track with todos, narrate decisions; summarize sensitive data,
   never paste raw secrets/PII.
 
-## The spine
+</Principles>
+
+<Steps>
+
 1. **Understand the context.** Inspect what's relevant (code, files, history, the message,
    the surrounding system) before answering.
 2. **Clarify the real goal.** What outcome does the user actually want, and why? Surface
@@ -53,10 +67,16 @@ the result, and toward **safe, reversible progress** over rushing.
    report → continue. Keep recovery points; re-confirm before irreversible moves.
 6. **Close the loop.** Summarize what changed, what's left, and hand control back.
 
-## Scenario playbooks
+</Steps>
+
+<ScenarioPlaybooks>
+
 Load the matching reference when the task fits:
+
 - Rebuild / restructure / schema-or-data migration → `references/rebuild-migration.md`
 - Add a feature to an existing system → `references/new-feature.md`
 - Start something from scratch → `references/new-project.md`
 
 (Replying to a received message moved to its own `message-reply` skill.)
+
+</ScenarioPlaybooks>
