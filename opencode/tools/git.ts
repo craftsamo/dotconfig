@@ -397,3 +397,100 @@ export const provenance = tool({
     return JSON.stringify({ commit, blameNote, repo: full, pulls, issues, links }, null, 2)
   },
 })
+
+// ---- related-work scanning ------------------------------------------------
+
+function parseIssueRefs(text: string): { closes: number[]; refs: number[] } {
+  const closes = new Set<number>()
+  const refs = new Set<number>()
+  const closeRe = /\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+#(\d+)/gi
+  let m: RegExpExecArray | null
+  while ((m = closeRe.exec(text))) closes.add(parseInt(m[1], 10))
+  const refRe = /(?<![\w/])#(\d+)\b/g
+  while ((m = refRe.exec(text))) {
+    const n = parseInt(m[1], 10)
+    if (!closes.has(n)) refs.add(n)
+  }
+  return { closes: [...closes], refs: [...refs] }
+}
+
+export const related_scan = tool({
+  description:
+    "Scan the current branch for Issues and PRs to link when opening a PR. Reads the branch's commit messages and name for issue references, finds an existing open PR for the branch, and runs targeted keyword searches for related Issues/PRs and a stacked base PR. Read-only; local refs plus targeted gh queries (no file-overlap deep scan). Explicit refs are high-confidence; search hits are candidates to confirm, never fabricate.",
+  args: {
+    base: tool.schema.string().optional().describe("Base branch (defaults to the repo's default branch)."),
+    head: tool.schema.string().optional().describe("Head branch (defaults to the current branch)."),
+    keywords: tool.schema.string().optional().describe("Override the keyword query for the Issue/PR search."),
+  },
+  async execute(args, context) {
+    const cwd = context.worktree
+    const head = args.head?.trim() || (await runGit(["rev-parse", "--abbrev-ref", "HEAD"], cwd)).trim()
+    let defBranch = "main"
+    try {
+      defBranch = (await runGh(["repo", "view", "--json", "defaultBranchRef", "--jq", ".defaultBranchRef.name"], cwd)).trim() || "main"
+    } catch {
+      // not resolvable; assume main
+    }
+    const base = args.base?.trim() || defBranch
+    const { full } = await resolveRepo(undefined, cwd)
+
+    let log = ""
+    try {
+      log = await runGit(["log", `${base}..${head}`, "--pretty=%s%n%b%n--"], cwd)
+    } catch {
+      // base/head not comparable
+    }
+    const { closes, refs } = parseIssueRefs(log)
+    const bm = head.match(/(?:^|[/_-])(\d+)(?:[/_-]|$)/)
+    if (bm) refs.push(parseInt(bm[1], 10))
+
+    let existingPR: any = null
+    try {
+      existingPR = (await runGhJson(["pr", "list", "--head", head, "--state", "open", "--json", "number,title,url", "--jq", ".[0]"], cwd)) ?? null
+    } catch {
+      // none / not resolvable
+    }
+
+    const keywords = args.keywords?.trim() || head.replace(/[/_-]+/g, " ").replace(/\b\d+\b/g, "").trim()
+    let issueCandidates: any[] = []
+    let relatedPRs: any[] = []
+    if (keywords) {
+      try {
+        issueCandidates = (await runGhJson(["issue", "list", "--state", "open", "--search", keywords, "--json", "number,title", "-L", "10"], cwd)) ?? []
+      } catch {
+        // search unavailable
+      }
+      try {
+        relatedPRs = (await runGhJson(["pr", "list", "--state", "open", "--search", keywords, "--json", "number,title", "-L", "10"], cwd)) ?? []
+      } catch {
+        // search unavailable
+      }
+    }
+    if (existingPR) relatedPRs = relatedPRs.filter((p: any) => p.number !== existingPR.number)
+
+    let stackedBasePR: any = null
+    if (base !== defBranch) {
+      try {
+        stackedBasePR = (await runGhJson(["pr", "list", "--head", base, "--state", "all", "--json", "number,title", "--jq", ".[0]"], cwd)) ?? null
+      } catch {
+        // none
+      }
+    }
+
+    return JSON.stringify(
+      {
+        base,
+        head,
+        repo: full,
+        existingPR,
+        closes: [...new Set(closes)].map((n) => ({ number: n, source: "commit" })),
+        refs: [...new Set(refs)].map((n) => ({ number: n, source: "commit-or-branch" })),
+        issueCandidates: issueCandidates.map((i: any) => ({ ...i, source: "search" })),
+        relatedPRs: relatedPRs.map((p: any) => ({ ...p, source: "search" })),
+        stackedBasePR,
+      },
+      null,
+      2,
+    )
+  },
+})
