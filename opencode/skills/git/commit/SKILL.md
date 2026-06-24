@@ -43,12 +43,12 @@ precisely instead of guessing.
 
 Resolve the message format in this priority order. Detect, do not assume.
 
-1. Existing habit — read recent history and infer the type set, scope
-   vocabulary, casing, language, body norms, and trailer usage:
-   `git log --no-merges -30 --pretty='%s%n%b%n--'`. Ignore squash-merge PR
-   titles (`... (#NN)`) as machine-generated noise.
-2. Convention files — `commitlint.config.*`, `.commitlintrc*`, `.gitmessage`,
-   `CONTRIBUTING.md`, commitizen config.
+1. Existing habit — call `git_history_digest` for recent commit subjects with
+   their type/scope frequencies; infer the type set, scope vocabulary, casing,
+   language, body norms, and trailer usage. Ignore squash-merge PR titles
+   (`... (#NN)`) as machine-generated noise.
+2. Convention files — `git_history_digest` also reports any commitlint,
+   `.gitmessage`, commitizen, or `CONTRIBUTING` config present; honor them.
 3. Fallback — Conventional Commits: `type(scope): subject`.
 
 - Hard gate: when a convention is enforced (a `commit-msg` hook or commitlint
