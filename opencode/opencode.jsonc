@@ -302,5 +302,6 @@
     "git_secret_scan": "allow",
     "git_stage_hunks": "allow",
     "git_provenance": "allow",
+    "git_related_scan": "allow",
   },
 }
