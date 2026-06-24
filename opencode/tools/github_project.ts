@@ -6,7 +6,7 @@ import { tool } from "@opencode-ai/plugin"
  * These tools are intentionally schema-agnostic: they operate on any project
  * and resolve field / option ids by NAME at runtime (nothing is hard-coded, so
  * adding or renaming options never makes them stale). The "Roadmap" conventions
- * (which board, which fields, per-Type body guidance) live in the
+ * (which board, which fields, per-Kind body guidance) live in the
  * `manage-github-projects` skill, not here.
  *
  * Defaults: when `owner` is omitted it is taken from the current repo's remote
@@ -19,6 +19,9 @@ import { tool } from "@opencode-ai/plugin"
  */
 
 const DEFAULT_TITLE = "Roadmap"
+const TEMPLATE_OWNER = "@me"
+const TEMPLATE_TITLE = "Roadmap Template"
+const REST_API_VERSION = "X-GitHub-Api-Version: 2026-03-10"
 
 async function runGh(argv: string[], cwd?: string): Promise<string> {
   let p = Bun.$`gh ${argv}`
@@ -64,6 +67,11 @@ async function resolveProject(owner: string, project?: string): Promise<{ number
   }
   const view = await runGhJson(["project", "view", String(number), "--owner", owner, "--format", "json"])
   return { number: number!, id: view.id }
+}
+
+async function findProjectNumber(owner: string, title: string): Promise<number | undefined> {
+  const list = await runGhJson(["project", "list", "--owner", owner, "--format", "json", "-L", "100"])
+  return (list?.projects ?? []).find((x: any) => x.title === title)?.number
 }
 
 async function getFields(projectNodeId: string): Promise<any[]> {
@@ -120,16 +128,35 @@ function optionsToGraphQL(opts: { id?: string; name: string; color?: string; des
   return `[${body}]`
 }
 
+// GitHub Projects reserves these built-in field display names; creating a
+// custom field with the same name fails (e.g. the issue "Type" field on org
+// boards). Mirror a built-in we carry through promote with the "_"-prefixed
+// stand-in convention (`_Repository`, `_Milestone`); otherwise pick a plain name.
+const RESERVED_FIELD_NAMES = new Set([
+  "title", "assignees", "labels", "milestone", "repository", "reviewers",
+  "linked pull requests", "parent issue", "sub-issues progress", "type",
+])
+
+function assertCreatableFieldName(name: string): void {
+  if (RESERVED_FIELD_NAMES.has(name.trim().toLowerCase())) {
+    throw new Error(
+      `"${name}" is a reserved GitHub built-in field name and cannot be created as a custom field. ` +
+        `Use a plain custom name (e.g. "Kind" instead of "Type"), or mirror a built-in carried through ` +
+        `promote with the "_"-prefixed stand-in convention (e.g. "_Repository", "_Milestone").`,
+    )
+  }
+}
+
 // ---- Canonical "Roadmap" schema applied by github_project_create ----
 const ROADMAP_SELECTS: Record<string, [string, string][]> = {
   Status: [["Todo", "GRAY"], ["In Progress", "YELLOW"], ["Done", "GREEN"], ["Cancelled", "RED"]],
-  Type: [["Feature", "GREEN"], ["Enhancement", "BLUE"], ["Bug Fix", "RED"], ["Chore", "GRAY"], ["Design", "PURPLE"], ["Test", "YELLOW"]],
+  Kind: [["Feature", "GREEN"], ["Enhancement", "BLUE"], ["Bug Fix", "RED"], ["Chore", "GRAY"], ["Design", "PURPLE"], ["Test", "YELLOW"]],
   Area: [
     ["Frontend", "BLUE"], ["Backend", "GREEN"], ["Infra", "ORANGE"], ["Docs", "GRAY"], ["UI/UX", "PINK"],
     ["Config", "YELLOW"], ["CI/CD", "PURPLE"], ["Skills", "RED"], ["Tooling", "ORANGE"], ["Other", "GRAY"],
   ],
 }
-const ROADMAP_SIMPLE: [string, string][] = [["_Repository", "TEXT"], ["_Milestone", "TEXT"], ["Phase", "NUMBER"]]
+const ROADMAP_SIMPLE: [string, string][] = [["_Repository", "TEXT"], ["_Milestone", "TEXT"], ["Start date", "DATE"], ["Target date", "DATE"]]
 
 // Ensure a single-select field exists with the given option names AND colors.
 // Existing options are matched by name and keep their ids (assignments survive),
@@ -138,6 +165,7 @@ async function ensureSelectField(owner: string, number: number, projectId: strin
   let fields = await getFields(projectId)
   let field = fields.find((f: any) => String(f.name).toLowerCase() === name.toLowerCase())
   if (!field) {
+    assertCreatableFieldName(name)
     const names = optionColors.map(([n]) => n).join(",")
     await runGh(["project", "field-create", String(number), "--owner", owner, "--name", name, "--data-type", "SINGLE_SELECT", "--single-select-options", names])
     fields = await getFields(projectId)
@@ -162,12 +190,13 @@ async function ensureSelectField(owner: string, number: number, projectId: strin
 async function ensureSimpleField(owner: string, number: number, projectId: string, name: string, dataType: string): Promise<void> {
   const fields = await getFields(projectId)
   if (fields.find((f: any) => String(f.name).toLowerCase() === name.toLowerCase())) return
+  assertCreatableFieldName(name)
   await runGh(["project", "field-create", String(number), "--owner", owner, "--name", name, "--data-type", dataType])
 }
 
 export const create = tool({
   description:
-    'Create a GitHub Projects (v2) board and set up the standard "Roadmap" schema in one call: Status (Todo/In Progress/Done/Cancelled), Type and Area — all with colors — plus _Repository, _Milestone and Phase. If a project with the title already exists for the owner it is reused. Idempotent (safe to re-run to repair/refresh the schema). Returns number, id and URL.',
+    'Create a GitHub Projects (v2) board and set up the standard "Roadmap" schema in one call: Status (Todo/In Progress/Done/Cancelled), Kind and Area — all with colors — plus _Repository, _Milestone and Start/Target date. A new board is seeded by copying the "Roadmap Template" board (carrying its saved views) when that template exists, else created bare. If a project with the title already exists for the owner it is reused. Idempotent (safe to re-run to repair/refresh the schema). Returns number, id and URL.',
   args: {
     owner: tool.schema.string().describe('Owner login, or "@me" for the current user. Use an org login for a team board.'),
     title: tool.schema.string().optional().describe('Project title. Defaults to "Roadmap".'),
@@ -177,8 +206,25 @@ export const create = tool({
     const list = await runGhJson(["project", "list", "--owner", args.owner, "--format", "json", "-L", "100"])
     let proj = (list?.projects ?? []).find((p: any) => p.title === title)
     const createdNew = !proj
+    let copiedFrom: string | null = null
     if (!proj) {
-      proj = await runGhJson(["project", "create", "--owner", args.owner, "--title", title, "--format", "json"])
+      // Seed a new board by copying the canonical template (carries its saved
+      // views + date fields). Skip when creating the template itself, or if the
+      // template is absent; fall back to a bare project on any copy failure.
+      if (title !== TEMPLATE_TITLE) {
+        const tmpl = await findProjectNumber(TEMPLATE_OWNER, TEMPLATE_TITLE)
+        if (tmpl) {
+          try {
+            proj = await runGhJson(["project", "copy", String(tmpl), "--source-owner", TEMPLATE_OWNER, "--target-owner", args.owner, "--title", title, "--format", "json"])
+            copiedFrom = `${TEMPLATE_OWNER}/${TEMPLATE_TITLE}#${tmpl}`
+          } catch {
+            // fall back to a bare project below
+          }
+        }
+      }
+      if (!proj) {
+        proj = await runGhJson(["project", "create", "--owner", args.owner, "--title", title, "--format", "json"])
+      }
     }
     const number = proj.number
     const view = await runGhJson(["project", "view", String(number), "--owner", args.owner, "--format", "json"])
@@ -189,7 +235,7 @@ export const create = tool({
     for (const [name, dataType] of ROADMAP_SIMPLE) {
       await ensureSimpleField(args.owner, number, projectId, name, dataType)
     }
-    return JSON.stringify({ ok: true, createdNew, number, id: projectId, url: view.url ?? proj.url, title })
+    return JSON.stringify({ ok: true, createdNew, copiedFrom, number, id: projectId, url: view.url ?? proj.url, title })
   },
 })
 
@@ -197,7 +243,7 @@ export const field_ensure = tool({
   description:
     "Idempotently ensure a field exists on a project. Creates it if missing. For SINGLE_SELECT, also appends any missing options (existing options and their ids/colors are preserved). owner defaults to the current repo owner (else @me); project defaults to a board titled \"Roadmap\".",
   args: {
-    name: tool.schema.string().describe('Field name, e.g. "Type" or "Area".'),
+    name: tool.schema.string().describe('Field name, e.g. "Kind" or "Area".'),
     dataType: tool.schema.enum(["TEXT", "SINGLE_SELECT", "DATE", "NUMBER"]).describe("Field data type."),
     options: tool.schema
       .array(tool.schema.string())
@@ -213,6 +259,7 @@ export const field_ensure = tool({
     const field = fields.find((x: any) => String(x.name).toLowerCase() === args.name.toLowerCase())
 
     if (!field) {
+      assertCreatableFieldName(args.name)
       const argv = ["project", "field-create", String(number), "--owner", owner, "--name", args.name, "--data-type", args.dataType, "--format", "json"]
       if (args.dataType === "SINGLE_SELECT") {
         const opts = args.options ?? []
@@ -253,14 +300,14 @@ export const field_ensure = tool({
 
 export const item_add = tool({
   description:
-    'Add a DRAFT item to a project and set its fields in one call (no repo issue, no local file). Pass field values by name in `fields`, e.g. {"Type":"Bug Fix","Area":"Backend","Status":"Todo","_Repository":"owner/repo"}; ids are resolved automatically. owner defaults to the current repo owner (else @me); project defaults to a board titled "Roadmap". Returns the project item id (PVTI_...).',
+    'Add a DRAFT item to a project and set its fields in one call (no repo issue, no local file). Pass field values by name in `fields`, e.g. {"Kind":"Bug Fix","Area":"Backend","Status":"Todo","_Repository":"owner/repo"}; ids are resolved automatically. owner defaults to the current repo owner (else @me); project defaults to a board titled "Roadmap". Returns the project item id (PVTI_...).',
   args: {
     title: tool.schema.string().describe("Item title. Keep it short; put detail in body."),
     body: tool.schema.string().optional().describe("Markdown body. Include only the relevant sections."),
     fields: tool.schema
       .record(tool.schema.string(), tool.schema.string())
       .optional()
-      .describe('Field name -> value, e.g. {"Type":"Feature","Area":"Backend","Status":"Todo","_Repository":"owner/repo","Phase":"1"}.'),
+      .describe('Field name -> value, e.g. {"Kind":"Feature","Area":"Backend","Status":"Todo","_Repository":"owner/repo"}.'),
     owner: tool.schema.string().optional().describe('Owner login or "@me". Defaults to current repo owner, else @me.'),
     project: tool.schema.string().optional().describe('Project number or title. Defaults to "Roadmap".'),
   },
@@ -309,7 +356,7 @@ export const item_set = tool({
 
 export const item_list = tool({
   description:
-    'List items on a project. Optionally filter with the Projects query syntax, e.g. -status:Done or type:"Bug Fix" or assignee:@me. Returns id (PVTI_...), title, flattened field values and the draft body. owner/project default to the current repo owner and a board titled "Roadmap".',
+    'List items on a project. Optionally filter with the Projects query syntax, e.g. -status:Done or kind:"Bug Fix" or assignee:@me. Returns id (PVTI_...), title, flattened field values and the draft body. owner/project default to the current repo owner and a board titled "Roadmap".',
   args: {
     query: tool.schema.string().optional().describe('Projects filter, e.g. "-status:Done".'),
     limit: tool.schema.number().optional().describe("Max items (default 50)."),
@@ -420,5 +467,58 @@ export const item_promote = tool({
       milestone: milestone ? { number: milestone.number, title: milestone.title } : null,
       clearedFields: cleared,
     })
+  },
+})
+
+// ---- Views (REST projectsV2 views API) ----
+// GraphQL/gh cannot create views; the REST projectsV2 views endpoint can set
+// name, layout, filter and visible columns. Grouping / sort / roadmap zoom &
+// date-binding are NOT settable via the API (UI only) — which is why the
+// standard boards are seeded by copying the UI-configured "Roadmap Template".
+async function resolveRestBase(owner: string): Promise<string> {
+  let login = owner
+  if (login === "@me") login = (await runGh(["api", "user", "--jq", ".login"])).trim()
+  const type = (await runGh(["api", `users/${login}`, "--jq", ".type"])).trim()
+  return type === "Organization" ? `/orgs/${login}` : `/users/${login}`
+}
+
+async function getViewNames(projectNodeId: string): Promise<string[]> {
+  const q = "query($id:ID!){node(id:$id){... on ProjectV2{views(first:50){nodes{name}}}}}"
+  const data = await runGhJson(["api", "graphql", "-f", `query=${q}`, "-f", `id=${projectNodeId}`])
+  return (data?.data?.node?.views?.nodes ?? []).map((v: any) => String(v.name))
+}
+
+export const view_ensure = tool({
+  description:
+    'Idempotently ensure a saved VIEW exists on a project, via the REST projectsV2 views API (gh/GraphQL cannot create views). Creates the view only if no view of that name exists (case-insensitive). `layout` is "table", "board" or "roadmap"; optional `filter` (Projects filter syntax) and `visibleFields` (field NAMES → columns; ignored for roadmap). LIMITATION: grouping, sort, and roadmap zoom / date-binding are NOT settable via the API — configure those once in the UI (the standard boards inherit them by copying the "Roadmap Template"). owner defaults to the current repo owner (else @me); project defaults to "Roadmap".',
+  args: {
+    name: tool.schema.string().describe('View name, e.g. "Kanban" or "Backlog".'),
+    layout: tool.schema.enum(["table", "board", "roadmap"]).describe("View layout."),
+    filter: tool.schema.string().optional().describe('Projects filter, e.g. "-status:Done -status:Cancelled".'),
+    visibleFields: tool.schema.array(tool.schema.string()).optional().describe("Field names to show as columns (table/board only)."),
+    owner: tool.schema.string().optional().describe('Owner login or "@me". Defaults to current repo owner, else @me.'),
+    project: tool.schema.string().optional().describe('Project number or title. Defaults to "Roadmap".'),
+  },
+  async execute(args, context) {
+    const owner = await resolveOwner(args.owner, context.worktree)
+    const { number, id: projectId } = await resolveProject(owner, args.project)
+    const existing = await getViewNames(projectId)
+    if (existing.some((n) => n.toLowerCase() === args.name.toLowerCase())) {
+      return JSON.stringify({ created: false, unchanged: true, view: args.name })
+    }
+    const base = await resolveRestBase(owner)
+    const path = `${base}/projectsV2/${number}/views`
+    const argv = ["api", "--method", "POST", "-H", REST_API_VERSION, path, "-f", `name=${args.name}`, "-f", `layout=${args.layout}`]
+    if (args.filter) argv.push("-f", `filter=${args.filter}`)
+    if (args.layout !== "roadmap" && args.visibleFields?.length) {
+      const restFields: any[] = (await runGhJson(["api", "-H", REST_API_VERSION, `${base}/projectsV2/${number}/fields`, "--paginate"])) ?? []
+      const byName = new Map(restFields.map((f: any) => [String(f.name).toLowerCase(), f.id]))
+      for (const fn of args.visibleFields) {
+        const fid = byName.get(fn.toLowerCase())
+        if (fid != null) argv.push("-F", `visible_fields[]=${fid}`)
+      }
+    }
+    const created = await runGhJson(argv)
+    return JSON.stringify({ created: true, view: { number: created?.number, name: created?.name, layout: created?.layout } })
   },
 })

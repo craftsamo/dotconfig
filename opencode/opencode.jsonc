@@ -291,5 +291,6 @@
     "github_project_item_list": "allow",
     "github_project_item_note": "allow",
     "github_project_item_promote": "allow",
+    "github_project_view_ensure": "allow",
   },
 }

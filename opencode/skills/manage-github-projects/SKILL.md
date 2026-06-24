@@ -1,6 +1,6 @@
 ---
 name: manage-github-projects
-description: Use to record and manage persistent, cross-session tasks and notes on a GitHub Projects (v2) "Roadmap" board via the github_project_* tools, instead of writing local TODO/plan/notes files (GitHub Projects, project board, roadmap, draft issue, project item, 起票, タスク管理, ロードマップ, ボードに追加, 進捗更新, ファイルを残さない). Covers the two-tier personal/org board topology and owner resolution, the Status/Type/Area/_Repository/_Milestone/Phase schema, per-Type body guidance, and add/start/done/list/note/promote recipes. Use ONLY for GitHub Project board task management, not general gh usage.
+description: Use to record and manage persistent, cross-session tasks and notes on a GitHub Projects (v2) "Roadmap" board via the github_project_* tools, instead of writing local TODO/plan/notes files (GitHub Projects, project board, roadmap, draft issue, project item, 起票, タスク管理, ロードマップ, ボードに追加, 進捗更新, ファイルを残さない). Covers the two-tier personal/org board topology and owner resolution, the Status/Kind/Area/_Repository/_Milestone schema, board granularity (epic / sub-issue), saved views (Kanban / Backlog / roadmap via a copied template), per-Kind body guidance, and add/start/done/list/note/promote recipes. Use ONLY for GitHub Project board task management, not general gh usage.
 ---
 
 <Goal>
@@ -18,6 +18,8 @@ issue, no local file, no issue-tracker churn.
   put it on the board.
 - Ephemeral, within-session step tracking → keep using TodoWrite, not the board.
 - Do not create local TODO/plan/notes files for this purpose; use the board.
+- For the planning workflow that feeds the board (epic vs single item, phasing),
+  see the `approach-roadmap` skill.
 
 </WhenToUse>
 
@@ -33,7 +35,8 @@ runtime, so nothing goes stale:
 - `github_project_item_note` — append a note to a draft body.
 - `github_project_item_promote` — convert a draft item into a real Issue in a repo.
 - `github_project_field_ensure` — idempotently ensure a field / its options.
-- `github_project_create` — create a board AND apply the standard Roadmap schema (fields, options, colors) in one call.
+- `github_project_view_ensure` — idempotently ensure a saved view (table/board/roadmap + filter/columns) via the REST views API.
+- `github_project_create` — create a board AND apply the standard Roadmap schema; a new board is seeded by copying the "Roadmap Template" (carrying its saved views).
 
 `owner` defaults to the current repo's owner (else `@me`); `project` defaults to
 a board titled `Roadmap`. Inside a repo you can usually omit both.
@@ -62,18 +65,27 @@ repo → use the `@me` hub.
 | Field | Type | Values |
 | --- | --- | --- |
 | Status | single-select | Todo / In Progress / Done / Cancelled |
-| Type | single-select | Feature / Enhancement / Bug Fix / Chore / Design / Test |
+| Kind | single-select | Feature / Enhancement / Bug Fix / Chore / Design / Test |
 | Area | single-select | Frontend / Backend / Infra / Docs / UI/UX / Config / CI/CD / Skills / Tooling / Other |
 | _Repository | text | `owner/repo` — always set it (the work target) |
-| _Milestone | text | Planned milestone title (synced to a real milestone on promote) |
-| Phase | number | Optional phase / ordering for large multi-step work |
+| _Milestone | text | Theme that groups epics — milestone title, synced to a real milestone on promote |
+| Start date | date | Drives the roadmap (Timeline) views |
+| Target date | date | Drives the roadmap (Timeline) views |
 
-Naming convention: a leading `_` marks a custom stand-in for a built-in field
-that does not work on drafts (`_Repository` ↔ built-in Repository, `_Milestone`
-↔ built-in Milestone). The bare built-in names (`Repository`, `Milestone`,
-`Repo`) are reserved and cannot be created as custom fields. Draft items cannot
-carry GitHub Labels or the built-in Repository / Milestone fields — use these
-custom fields while a draft, then promote syncs them.
+Naming convention. A leading `_` marks a **draft-time stand-in for a built-in
+GitHub field** that cannot be set on a draft; on promote it is reconciled with
+the real built-in (synced, then cleared). Only `_Repository` ↔ built-in
+Repository and `_Milestone` ↔ built-in Milestone qualify — the built-ins we
+carry through promote. Labels / Assignees are deliberately not mirrored (set
+them on the real issue after promoting).
+
+Reserved built-in display names — `Title`, `Assignees`, `Labels`, `Milestone`,
+`Repository`, `Reviewers`, `Linked pull requests`, `Parent issue`, `Sub-issues
+progress`, and `Type` (the issue-type field, present on org boards) — cannot be
+created as custom fields. A plain custom field must therefore avoid these names:
+that is why the work-kind field is `Kind`, not `Type`/`_Type` — it is an
+independent triage taxonomy, not a mirror of GitHub's issue type. `Status` is
+the native default project field; `Kind` and `Area` are plain custom fields.
 
 </Schema>
 
@@ -92,15 +104,102 @@ custom fields while a draft, then promote syncs them.
 
 </ItemModel>
 
+<Granularity>
+
+What goes on the board, and how large work is broken down:
+
+- A board item is a **standalone task** or an **epic** — never the individual
+  sub-tasks of an epic. Keep the board a roadmap of efforts, not a flat task dump.
+- Break large multi-step work into an **epic**: one parent issue whose body follows
+  the Epic format in `<BodyGuidance>` (Overview + a phased Plan — ordering / waves
+  live here in prose, there is no Phase field). Its steps are GitHub **sub-issues**
+  in the relevant repo.
+- Sub-issues stay in the repo and are **not** added to the board; they are
+  single-purpose and use the repo's own Issue template. Progress shows on the epic
+  via its sub-issue bar (e.g. `2/5`).
+- **Milestone** is a high-level **theme** grouping epics over time. Assign it to the
+  **epic**, not to each sub-task; a later epic on the same theme joins the same
+  milestone while it is open.
+
+</Granularity>
+
+<Views>
+
+GitHub's API cannot fully configure views: layout, filter and visible columns are
+settable (REST), but grouping, sort, and the roadmap zoom / date-binding are
+UI-only. So the standard views are configured once on the `@me` "Roadmap
+Template" board, and `github_project_create` **copies** that template for every
+new board — carrying the views intact.
+
+Standard views (3):
+
+- **Timeline** — roadmap layout driven by `Start date` / `Target date`; the month zoom is set in the UI.
+- **Kanban** — board layout, filter `-status:Done -status:Cancelled` (groups by Status by default).
+- **Backlog** — table layout, filter `-status:Done -status:Cancelled`, columns Title / Kind / Area / Status.
+
+`github_project_view_ensure` `{ name, layout, filter?, visibleFields? }` adds a
+table/board view to an existing board (idempotent by name) — use it to repair a
+board that predates the template. It cannot set grouping/sort/zoom; finish
+roadmap views in the UI on the template.
+
+</Views>
+
 <BodyGuidance>
 
-Write only the relevant sections — never leave empty placeholders. Cover, by
-Type:
+Compose bodies in GitHub Markdown. Include only the sections that apply — never
+leave empty placeholders.
 
-- Bug Fix: 事象 / 原因の見立て(file:line) / 再現手順 / 参照
-- Feature: 目的 / 要件 / 受け入れ条件
-- Enhancement: 現状の課題 / 改善内容 / 影響範囲
-- Chore / Design / Test: 要点 1–2 行（＋対象）
+Markup convention:
+
+- `##` — a Kind's main sections (the skeleton you always consider).
+- `###` — a sub-section inside a `##`, only when content needs splitting
+  (e.g. Option A / Option B, happy path / edge cases, confirmed cause).
+- `**Label**:` — a one-line metadata field that doesn't deserve a heading.
+
+Formatting conventions (any item):
+
+- Code reference → a GitHub line-range permalink, not `file:line`:
+  `https://github.com/<owner>/<repo>/blob/<sha>/<path>#L16-L37` (commit-pinned, stable).
+- Code change → a `diff`-fenced code block.
+- Log / long output → wrap in `<details><summary>…</summary> … </details>` with a
+  clear summary, so the body stays scannable.
+- `**Refs**:` — shared optional inline field for related issue / PR / doc links.
+
+Per Kind (sections in order; fill only the relevant ones):
+
+- Feature
+  - `## Purpose` — why build it; the problem it solves.
+  - `## Requirements` — functional requirements (bullets); split sub-features with `###`.
+  - `## Acceptance criteria` — done checks as a `- [ ]` checklist.
+- Enhancement
+  - `## Problem` — what is painful or limiting today.
+  - `## Change` — what changes and how; show code as a `diff`-fenced block.
+  - `## Impact` — affected files / behavior / compatibility (short → `**Impact**:`).
+- Bug Fix
+  - `## Symptom` — expected vs actual behavior.
+  - `## Suspected cause` — likely cause with a line-range permalink; once verified add `### Confirmed cause`.
+  - `## Repro steps` — minimal numbered steps.
+- Chore
+  - `## Summary` — what to do (1–2 lines); add `## Steps` when multi-step.
+  - `**Target**:` — files / deps / settings touched.
+- Design
+  - `## Goal / context` — what is being designed and why.
+  - `## Options` — candidates as `### Option A` / `### Option B` with trade-offs.
+  - `## Decision` — chosen option and rationale (once decided).
+- Test
+  - `## Target` — feature / module under test.
+  - `## Cases` — cases / angles; split with `### Happy path` / `### Edge cases`.
+  - `## Pass criteria` — coverage / pass conditions (optional).
+
+Epic (a parent issue with sub-issues — any Kind; supersedes the per-Kind body):
+
+- `## Overview` — the outcome and why (1–3 lines); optional `**Done when**:` exit criterion.
+- `## Details` — scope / constraints / design notes (optional; omit if none).
+- `## Plan` — phased breakdown: `### Phase 1 — <wave goal>` then plain `- #12`
+  sub-issue references; add `### Phase 2 …` for later waves.
+- Reference sub-issues as `#n` only — no `- [ ]` checkboxes (the native Sub-issues
+  panel is the single source of progress; checkboxes create a parallel task list).
+- Phase grouping is maintained by hand; update Plan when sub-issues change.
 
 On a shared repo that already provides Issue Forms, prefer that form for real
 issues rather than this guidance.
@@ -111,21 +210,24 @@ issues rather than this guidance.
 
 Initialize a board (new owner/org):
 
-1. `github_project_create { owner, title: "Roadmap" }` — creates the board (or
-   reuses an existing one with that title) and applies the full standard schema
-   in one call: Status (incl. Cancelled), Type and Area with colors, plus
-   `_Repository`, `_Milestone`, `Phase`. Idempotent — safe to re-run to repair.
+1. `github_project_create { owner, title: "Roadmap" }` — seeds the board by
+   copying the `@me` "Roadmap Template" (carrying its saved views) when present,
+   else creates it bare, then applies the full standard schema: Status (incl.
+   Cancelled), Kind and Area with colors, `_Repository`, `_Milestone`, and
+   `Start date` / `Target date`. Idempotent — safe to re-run to repair.
 2. Org board only: `gh project link <number> --owner <org> --repo <org>/<repo>`.
 
-`github_project_field_ensure` is only for ad-hoc additions afterwards (e.g. a new
-Area option); routine setup is handled by `github_project_create`.
+`github_project_field_ensure` / `github_project_view_ensure` are for ad-hoc
+additions afterwards (a new Area option, or a view on a pre-template board);
+routine setup is handled by `github_project_create`.
 
-Add an entry of a given Type:
+Add an entry of a given Kind:
 
-- Compose the body per `<BodyGuidance>` for that Type (relevant sections only).
+- Compose the body per `<BodyGuidance>` for that Kind (relevant sections only).
 - `github_project_item_add` with
-  `{ title, body, fields: { Type, Area, Status: "Todo", "_Repository": "<owner/repo>" } }`
-  (add `"_Milestone"` and/or `"Phase"` for large planned work).
+  `{ title, body, fields: { Kind, Area, Status: "Todo", "_Repository": "<owner/repo>" } }`
+  (add `"_Milestone"` to file it under a theme; for large multi-step work use an
+  epic — see `<Granularity>`).
 
 Lifecycle (item id is the `PVTI_…` from `item_list`):
 
@@ -153,7 +255,9 @@ Add a new Area (or other single-select) option:
 <Guardrails>
 
 - List before adding to avoid duplicates.
-- Keep titles short; put detail in the body.
+- Titles are action phrases (JA「〜する」, EN imperative) stating the work to do,
+  not a noun or a bare symptom — for a bug, name the fix (「〜を修正する」). Keep
+  them short and put detail in the body. e.g.「ルートの README.md を整備する」.
 - Always set `_Repository` from the current repo so the work target is unambiguous.
 - Never delete items; archive them in the project UI (there is no delete tool).
 - Single-select values must match an existing option name (case-insensitive);
