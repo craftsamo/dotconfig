@@ -148,7 +148,7 @@ const ROADMAP_SELECTS: Record<string, [string, string][]> = {
     ["Config", "YELLOW"], ["CI/CD", "PURPLE"], ["Skills", "RED"], ["Tooling", "ORANGE"], ["Other", "GRAY"],
   ],
 }
-const ROADMAP_SIMPLE: [string, string][] = [["_Repository", "TEXT"], ["_Milestone", "TEXT"], ["Phase", "NUMBER"]]
+const ROADMAP_SIMPLE: [string, string][] = [["_Repository", "TEXT"], ["_Milestone", "TEXT"]]
 
 // Ensure a single-select field exists with the given option names AND colors.
 // Existing options are matched by name and keep their ids (assignments survive),
@@ -188,7 +188,7 @@ async function ensureSimpleField(owner: string, number: number, projectId: strin
 
 export const create = tool({
   description:
-    'Create a GitHub Projects (v2) board and set up the standard "Roadmap" schema in one call: Status (Todo/In Progress/Done/Cancelled), Kind and Area — all with colors — plus _Repository, _Milestone and Phase. If a project with the title already exists for the owner it is reused. Idempotent (safe to re-run to repair/refresh the schema). Returns number, id and URL.',
+    'Create a GitHub Projects (v2) board and set up the standard "Roadmap" schema in one call: Status (Todo/In Progress/Done/Cancelled), Kind and Area — all with colors — plus _Repository and _Milestone. If a project with the title already exists for the owner it is reused. Idempotent (safe to re-run to repair/refresh the schema). Returns number, id and URL.',
   args: {
     owner: tool.schema.string().describe('Owner login, or "@me" for the current user. Use an org login for a team board.'),
     title: tool.schema.string().optional().describe('Project title. Defaults to "Roadmap".'),
@@ -282,7 +282,7 @@ export const item_add = tool({
     fields: tool.schema
       .record(tool.schema.string(), tool.schema.string())
       .optional()
-      .describe('Field name -> value, e.g. {"Kind":"Feature","Area":"Backend","Status":"Todo","_Repository":"owner/repo","Phase":"1"}.'),
+      .describe('Field name -> value, e.g. {"Kind":"Feature","Area":"Backend","Status":"Todo","_Repository":"owner/repo"}.'),
     owner: tool.schema.string().optional().describe('Owner login or "@me". Defaults to current repo owner, else @me.'),
     project: tool.schema.string().optional().describe('Project number or title. Defaults to "Roadmap".'),
   },
