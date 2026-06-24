@@ -298,5 +298,7 @@
     "github_project_item_note": "allow",
     "github_project_item_promote": "allow",
     "github_project_view_ensure": "allow",
+    // Custom git workflow tools (tools/git.ts) — read/index only, no commit/push/merge
+    "git_secret_scan": "allow",
   },
 }
