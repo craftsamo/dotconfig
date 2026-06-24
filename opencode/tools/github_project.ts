@@ -6,7 +6,7 @@ import { tool } from "@opencode-ai/plugin"
  * These tools are intentionally schema-agnostic: they operate on any project
  * and resolve field / option ids by NAME at runtime (nothing is hard-coded, so
  * adding or renaming options never makes them stale). The "Roadmap" conventions
- * (which board, which fields, per-Type body guidance) live in the
+ * (which board, which fields, per-Kind body guidance) live in the
  * `manage-github-projects` skill, not here.
  *
  * Defaults: when `owner` is omitted it is taken from the current repo's remote
@@ -120,10 +120,29 @@ function optionsToGraphQL(opts: { id?: string; name: string; color?: string; des
   return `[${body}]`
 }
 
+// GitHub Projects reserves these built-in field display names; creating a
+// custom field with the same name fails (e.g. the issue "Type" field on org
+// boards). Mirror a built-in we carry through promote with the "_"-prefixed
+// stand-in convention (`_Repository`, `_Milestone`); otherwise pick a plain name.
+const RESERVED_FIELD_NAMES = new Set([
+  "title", "assignees", "labels", "milestone", "repository", "reviewers",
+  "linked pull requests", "parent issue", "sub-issues progress", "type",
+])
+
+function assertCreatableFieldName(name: string): void {
+  if (RESERVED_FIELD_NAMES.has(name.trim().toLowerCase())) {
+    throw new Error(
+      `"${name}" is a reserved GitHub built-in field name and cannot be created as a custom field. ` +
+        `Use a plain custom name (e.g. "Kind" instead of "Type"), or mirror a built-in carried through ` +
+        `promote with the "_"-prefixed stand-in convention (e.g. "_Repository", "_Milestone").`,
+    )
+  }
+}
+
 // ---- Canonical "Roadmap" schema applied by github_project_create ----
 const ROADMAP_SELECTS: Record<string, [string, string][]> = {
   Status: [["Todo", "GRAY"], ["In Progress", "YELLOW"], ["Done", "GREEN"], ["Cancelled", "RED"]],
-  Type: [["Feature", "GREEN"], ["Enhancement", "BLUE"], ["Bug Fix", "RED"], ["Chore", "GRAY"], ["Design", "PURPLE"], ["Test", "YELLOW"]],
+  Kind: [["Feature", "GREEN"], ["Enhancement", "BLUE"], ["Bug Fix", "RED"], ["Chore", "GRAY"], ["Design", "PURPLE"], ["Test", "YELLOW"]],
   Area: [
     ["Frontend", "BLUE"], ["Backend", "GREEN"], ["Infra", "ORANGE"], ["Docs", "GRAY"], ["UI/UX", "PINK"],
     ["Config", "YELLOW"], ["CI/CD", "PURPLE"], ["Skills", "RED"], ["Tooling", "ORANGE"], ["Other", "GRAY"],
@@ -138,6 +157,7 @@ async function ensureSelectField(owner: string, number: number, projectId: strin
   let fields = await getFields(projectId)
   let field = fields.find((f: any) => String(f.name).toLowerCase() === name.toLowerCase())
   if (!field) {
+    assertCreatableFieldName(name)
     const names = optionColors.map(([n]) => n).join(",")
     await runGh(["project", "field-create", String(number), "--owner", owner, "--name", name, "--data-type", "SINGLE_SELECT", "--single-select-options", names])
     fields = await getFields(projectId)
@@ -162,12 +182,13 @@ async function ensureSelectField(owner: string, number: number, projectId: strin
 async function ensureSimpleField(owner: string, number: number, projectId: string, name: string, dataType: string): Promise<void> {
   const fields = await getFields(projectId)
   if (fields.find((f: any) => String(f.name).toLowerCase() === name.toLowerCase())) return
+  assertCreatableFieldName(name)
   await runGh(["project", "field-create", String(number), "--owner", owner, "--name", name, "--data-type", dataType])
 }
 
 export const create = tool({
   description:
-    'Create a GitHub Projects (v2) board and set up the standard "Roadmap" schema in one call: Status (Todo/In Progress/Done/Cancelled), Type and Area — all with colors — plus _Repository, _Milestone and Phase. If a project with the title already exists for the owner it is reused. Idempotent (safe to re-run to repair/refresh the schema). Returns number, id and URL.',
+    'Create a GitHub Projects (v2) board and set up the standard "Roadmap" schema in one call: Status (Todo/In Progress/Done/Cancelled), Kind and Area — all with colors — plus _Repository, _Milestone and Phase. If a project with the title already exists for the owner it is reused. Idempotent (safe to re-run to repair/refresh the schema). Returns number, id and URL.',
   args: {
     owner: tool.schema.string().describe('Owner login, or "@me" for the current user. Use an org login for a team board.'),
     title: tool.schema.string().optional().describe('Project title. Defaults to "Roadmap".'),
@@ -197,7 +218,7 @@ export const field_ensure = tool({
   description:
     "Idempotently ensure a field exists on a project. Creates it if missing. For SINGLE_SELECT, also appends any missing options (existing options and their ids/colors are preserved). owner defaults to the current repo owner (else @me); project defaults to a board titled \"Roadmap\".",
   args: {
-    name: tool.schema.string().describe('Field name, e.g. "Type" or "Area".'),
+    name: tool.schema.string().describe('Field name, e.g. "Kind" or "Area".'),
     dataType: tool.schema.enum(["TEXT", "SINGLE_SELECT", "DATE", "NUMBER"]).describe("Field data type."),
     options: tool.schema
       .array(tool.schema.string())
@@ -213,6 +234,7 @@ export const field_ensure = tool({
     const field = fields.find((x: any) => String(x.name).toLowerCase() === args.name.toLowerCase())
 
     if (!field) {
+      assertCreatableFieldName(args.name)
       const argv = ["project", "field-create", String(number), "--owner", owner, "--name", args.name, "--data-type", args.dataType, "--format", "json"]
       if (args.dataType === "SINGLE_SELECT") {
         const opts = args.options ?? []
@@ -253,14 +275,14 @@ export const field_ensure = tool({
 
 export const item_add = tool({
   description:
-    'Add a DRAFT item to a project and set its fields in one call (no repo issue, no local file). Pass field values by name in `fields`, e.g. {"Type":"Bug Fix","Area":"Backend","Status":"Todo","_Repository":"owner/repo"}; ids are resolved automatically. owner defaults to the current repo owner (else @me); project defaults to a board titled "Roadmap". Returns the project item id (PVTI_...).',
+    'Add a DRAFT item to a project and set its fields in one call (no repo issue, no local file). Pass field values by name in `fields`, e.g. {"Kind":"Bug Fix","Area":"Backend","Status":"Todo","_Repository":"owner/repo"}; ids are resolved automatically. owner defaults to the current repo owner (else @me); project defaults to a board titled "Roadmap". Returns the project item id (PVTI_...).',
   args: {
     title: tool.schema.string().describe("Item title. Keep it short; put detail in body."),
     body: tool.schema.string().optional().describe("Markdown body. Include only the relevant sections."),
     fields: tool.schema
       .record(tool.schema.string(), tool.schema.string())
       .optional()
-      .describe('Field name -> value, e.g. {"Type":"Feature","Area":"Backend","Status":"Todo","_Repository":"owner/repo","Phase":"1"}.'),
+      .describe('Field name -> value, e.g. {"Kind":"Feature","Area":"Backend","Status":"Todo","_Repository":"owner/repo","Phase":"1"}.'),
     owner: tool.schema.string().optional().describe('Owner login or "@me". Defaults to current repo owner, else @me.'),
     project: tool.schema.string().optional().describe('Project number or title. Defaults to "Roadmap".'),
   },
@@ -309,7 +331,7 @@ export const item_set = tool({
 
 export const item_list = tool({
   description:
-    'List items on a project. Optionally filter with the Projects query syntax, e.g. -status:Done or type:"Bug Fix" or assignee:@me. Returns id (PVTI_...), title, flattened field values and the draft body. owner/project default to the current repo owner and a board titled "Roadmap".',
+    'List items on a project. Optionally filter with the Projects query syntax, e.g. -status:Done or kind:"Bug Fix" or assignee:@me. Returns id (PVTI_...), title, flattened field values and the draft body. owner/project default to the current repo owner and a board titled "Roadmap".',
   args: {
     query: tool.schema.string().optional().describe('Projects filter, e.g. "-status:Done".'),
     limit: tool.schema.number().optional().describe("Max items (default 50)."),
