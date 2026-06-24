@@ -112,18 +112,12 @@ Hop 1 — symptom → commit:
 - Caveat: blame reports the last modifier, not necessarily the introducer.
   Confirm with pickaxe or bisect.
 
-Hop 2 — commit → PR:
-
-- `gh api repos/{owner}/{repo}/commits/<sha>/pulls --jq '.[].number'`.
-- Detect merge style from history: squash repos → the commit subject ends with
-  `(#N)`; merge repos → `git log --merges --ancestry-path <sha>..<branch>` →
-  first merge → parse `#N`.
-
-Hop 3 — PR → Issue:
-
-- `gh pr view <N> --json closingIssuesReferences,title,body` →
-  `closingIssuesReferences[].number`; also parse the body for
-  `Closes/Fixes/Resolves #\d+`.
+Hops 2-3 — commit → PR → Issue: call `git_provenance` with the `sha` (or pass
+`file` + `lines` to let it blame the commit first). It returns the commit, the
+PRs that introduced it, and the Issues those PRs close, with link-ready refs
+(bare short SHA, `#PR`, `#Issue`). For merge-commit repos, confirming the merge
+that brought a commit in still helps:
+`git log --merges --ancestry-path <sha>..<branch>`.
 
 Reverse (Issue-first fan-out): `gh issue view <M> --json title,body` and
 `gh pr list --search "<M>"` → each PR → its commits.
