@@ -1,6 +1,6 @@
 ---
 name: manage-github-projects
-description: Use to record and manage persistent, cross-session tasks and notes on a GitHub Projects (v2) "Roadmap" board via the github_project_* tools, instead of writing local TODO/plan/notes files (GitHub Projects, project board, roadmap, draft issue, project item, 起票, タスク管理, ロードマップ, ボードに追加, 進捗更新, ファイルを残さない). Covers the two-tier personal/org board topology and owner resolution, the Status/Type/Area/_Repository/_Milestone/Phase schema, per-Type body guidance, and add/start/done/list/note/promote recipes. Use ONLY for GitHub Project board task management, not general gh usage.
+description: Use to record and manage persistent, cross-session tasks and notes on a GitHub Projects (v2) "Roadmap" board via the github_project_* tools, instead of writing local TODO/plan/notes files (GitHub Projects, project board, roadmap, draft issue, project item, 起票, タスク管理, ロードマップ, ボードに追加, 進捗更新, ファイルを残さない). Covers the two-tier personal/org board topology and owner resolution, the Status/Kind/Area/_Repository/_Milestone/Phase schema, per-Kind body guidance, and add/start/done/list/note/promote recipes. Use ONLY for GitHub Project board task management, not general gh usage.
 ---
 
 <Goal>
@@ -62,18 +62,27 @@ repo → use the `@me` hub.
 | Field | Type | Values |
 | --- | --- | --- |
 | Status | single-select | Todo / In Progress / Done / Cancelled |
-| Type | single-select | Feature / Enhancement / Bug Fix / Chore / Design / Test |
+| Kind | single-select | Feature / Enhancement / Bug Fix / Chore / Design / Test |
 | Area | single-select | Frontend / Backend / Infra / Docs / UI/UX / Config / CI/CD / Skills / Tooling / Other |
 | _Repository | text | `owner/repo` — always set it (the work target) |
 | _Milestone | text | Planned milestone title (synced to a real milestone on promote) |
 | Phase | number | Optional phase / ordering for large multi-step work |
 
-Naming convention: a leading `_` marks a custom stand-in for a built-in field
-that does not work on drafts (`_Repository` ↔ built-in Repository, `_Milestone`
-↔ built-in Milestone). The bare built-in names (`Repository`, `Milestone`,
-`Repo`) are reserved and cannot be created as custom fields. Draft items cannot
-carry GitHub Labels or the built-in Repository / Milestone fields — use these
-custom fields while a draft, then promote syncs them.
+Naming convention. A leading `_` marks a **draft-time stand-in for a built-in
+GitHub field** that cannot be set on a draft; on promote it is reconciled with
+the real built-in (synced, then cleared). Only `_Repository` ↔ built-in
+Repository and `_Milestone` ↔ built-in Milestone qualify — the built-ins we
+carry through promote. Labels / Assignees are deliberately not mirrored (set
+them on the real issue after promoting).
+
+Reserved built-in display names — `Title`, `Assignees`, `Labels`, `Milestone`,
+`Repository`, `Reviewers`, `Linked pull requests`, `Parent issue`, `Sub-issues
+progress`, and `Type` (the issue-type field, present on org boards) — cannot be
+created as custom fields. A plain custom field must therefore avoid these names:
+that is why the work-kind field is `Kind`, not `Type`/`_Type` — it is an
+independent triage taxonomy, not a mirror of GitHub's issue type. `Status` is
+the native default project field; `Kind`, `Area` and `Phase` are plain custom
+fields.
 
 </Schema>
 
@@ -99,12 +108,12 @@ leave empty placeholders.
 
 Markup convention:
 
-- `##` — a Type's main sections (the skeleton you always consider).
+- `##` — a Kind's main sections (the skeleton you always consider).
 - `###` — a sub-section inside a `##`, only when content needs splitting
   (e.g. Option A / Option B, happy path / edge cases, confirmed cause).
 - `**Label**:` — a one-line metadata field that doesn't deserve a heading.
 
-Formatting conventions (any Type):
+Formatting conventions (any item):
 
 - Code reference → a GitHub line-range permalink, not `file:line`:
   `https://github.com/<owner>/<repo>/blob/<sha>/<path>#L16-L37` (commit-pinned, stable).
@@ -113,7 +122,7 @@ Formatting conventions (any Type):
   clear summary, so the body stays scannable.
 - `**Refs**:` — shared optional inline field for related issue / PR / doc links.
 
-Per Type (sections in order; fill only the relevant ones):
+Per Kind (sections in order; fill only the relevant ones):
 
 - Feature
   - `## Purpose` — why build it; the problem it solves.
@@ -150,18 +159,18 @@ Initialize a board (new owner/org):
 
 1. `github_project_create { owner, title: "Roadmap" }` — creates the board (or
    reuses an existing one with that title) and applies the full standard schema
-   in one call: Status (incl. Cancelled), Type and Area with colors, plus
+   in one call: Status (incl. Cancelled), Kind and Area with colors, plus
    `_Repository`, `_Milestone`, `Phase`. Idempotent — safe to re-run to repair.
 2. Org board only: `gh project link <number> --owner <org> --repo <org>/<repo>`.
 
 `github_project_field_ensure` is only for ad-hoc additions afterwards (e.g. a new
 Area option); routine setup is handled by `github_project_create`.
 
-Add an entry of a given Type:
+Add an entry of a given Kind:
 
-- Compose the body per `<BodyGuidance>` for that Type (relevant sections only).
+- Compose the body per `<BodyGuidance>` for that Kind (relevant sections only).
 - `github_project_item_add` with
-  `{ title, body, fields: { Type, Area, Status: "Todo", "_Repository": "<owner/repo>" } }`
+  `{ title, body, fields: { Kind, Area, Status: "Todo", "_Repository": "<owner/repo>" } }`
   (add `"_Milestone"` and/or `"Phase"` for large planned work).
 
 Lifecycle (item id is the `PVTI_…` from `item_list`):
