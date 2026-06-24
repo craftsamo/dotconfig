@@ -104,9 +104,9 @@ lsarr=(${(f)"$(secret ls -p $P)"})
 (( ${lsarr[(Ie)TEST_ALPHA]} )) && ok "ls lists item" || bad "ls lists item"
 [[ ${#lsarr} -eq 2 ]] && ok "ls shows 2 items" || bad "ls shows 2 items"
 longout=$(secret ls -p $P --long)
-[[ $longout == *'api key'* ]] && ok "ls --long shows kind" || bad "ls --long shows kind"
-[[ $longout =~ 'TEST_BETA[[:space:]]+ENV[[:space:]]+[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}' ]] \
-  && ok "ls --long aligns columns for empty comment" || bad "ls --long aligns columns for empty comment"
+[[ $longout == *'API KEY'* ]] && ok "ls --long shows normalized kind" || bad "ls --long shows normalized kind"
+[[ $longout =~ 'TEST_BETA[[:space:]]+Shared[[:space:]]+ENV[[:space:]]+[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}' ]] \
+  && ok "ls --long shows Shared scope + aligns columns" || bad "ls --long shows Shared scope + aligns columns"
 showout=$(secret show TEST_ALPHA -p $P)
 [[ $showout == *'comment with "quotes" and spaces'* ]] && ok "show displays comment" || bad "show displays comment"
 [[ $showout =~ 'Modified:[[:space:]]+[0-9]{4}-[0-9]{2}-[0-9]{2}' ]] && ok "show displays modified date" || bad "show displays modified date"
@@ -126,7 +126,7 @@ envout=$(secret env -p $P)
 secret export -p $P --format json -o "$TD/x.json" >/dev/null 2>&1 \
   && ok "export json" || bad "export json"
 jq -e '.items | length == 2' "$TD/x.json" >/dev/null 2>&1 && ok "json has 2 items" || bad "json has 2 items"
-jq -e '.items[] | select(.name == "TEST_ALPHA") | .kind == "api key"' "$TD/x.json" >/dev/null 2>&1 \
+jq -e '.items[] | select(.name == "TEST_ALPHA") | .kind == "API KEY"' "$TD/x.json" >/dev/null 2>&1 \
   && ok "json keeps metadata" || bad "json keeps metadata"
 jq -e '.items[] | select(.name == "TEST_BETA") | .comment == ""' "$TD/x.json" >/dev/null 2>&1 \
   && ok "json empty comment stays empty" || bad "json empty comment stays empty"
@@ -145,7 +145,7 @@ secret export -p $P --format json -o "$TD/gamma.json" >/dev/null 2>&1
 secret rm TEST_GAMMA -p $P -f >/dev/null
 secret import "$TD/gamma.json" >/dev/null 2>&1
 gshow=$(secret show TEST_GAMMA -p $P)
-[[ $gshow =~ 'Kind:[[:space:]]+token' ]] \
+[[ $gshow =~ 'Kind:[[:space:]]+TOKEN' ]] \
   && ok "import keeps kind despite empty comment" || bad "import keeps kind despite empty comment"
 [[ $gshow != *'Comment:   token'* ]] \
   && ok "empty comment stays empty on import" || bad "empty comment stays empty on import"
@@ -188,7 +188,7 @@ print -r -- 'rotated-789' | secret update TEST_ALPHA -p $P --stdin >/dev/null \
 upshow=$(secret show TEST_ALPHA -p $P)
 [[ $upshow == *'comment with "quotes" and spaces'* ]] \
   && ok "value update keeps comment" || bad "value update keeps comment"
-[[ $upshow =~ 'Kind:[[:space:]]+api key' ]] \
+[[ $upshow =~ 'Kind:[[:space:]]+API KEY' ]] \
   && ok "value update keeps kind" || bad "value update keeps kind"
 secret update TEST_ALPHA -p $P -j 'fresh comment' >/dev/null \
   && ok "update comment only" || bad "update comment only"
@@ -196,15 +196,19 @@ secret update TEST_ALPHA -p $P -j 'fresh comment' >/dev/null \
   && ok "comment update keeps value" || bad "comment update keeps value"
 upshow=$(secret show TEST_ALPHA -p $P)
 [[ $upshow == *'fresh comment'* ]] && ok "comment updated" || bad "comment updated"
-[[ $upshow =~ 'Kind:[[:space:]]+api key' ]] \
+[[ $upshow =~ 'Kind:[[:space:]]+API KEY' ]] \
   && ok "comment update keeps kind" || bad "comment update keeps kind"
 secret update TEST_ALPHA -p $P -D 'token' >/dev/null \
   && ok "update kind only" || bad "update kind only"
 upshow=$(secret show TEST_ALPHA -p $P)
-[[ $upshow =~ 'Kind:[[:space:]]+token' ]] && ok "kind updated" || bad "kind updated"
+[[ $upshow =~ 'Kind:[[:space:]]+TOKEN' ]] && ok "kind updated" || bad "kind updated"
 [[ $upshow == *'fresh comment'* ]] && ok "kind update keeps comment" || bad "kind update keeps comment"
 [[ "$(secret get TEST_ALPHA -p $P)" == 'rotated-789' ]] \
   && ok "kind update keeps value" || bad "kind update keeps value"
+secret update TEST_ALPHA -p $P -D '  private   key ' >/dev/null \
+  && ok "update messy kind" || bad "update messy kind"
+[[ "$(secret show TEST_ALPHA -p $P)" =~ 'Kind:[[:space:]]+PRIVATE KEY' ]] \
+  && ok "kind normalised on write (case + whitespace)" || bad "kind normalised on write (case + whitespace)"
 secret update TEST_ALPHA -p $P -j '' >/dev/null \
   && ok "update clears comment with -j ''" || bad "update clears comment with -j ''"
 [[ "$(secret show TEST_ALPHA -p $P)" != *'fresh comment'* ]] \
@@ -254,6 +258,9 @@ mkdir -p "$TD/repo-a" "$TD/repo-b" "$TD/$PREPO"
 lsout=$(secret ls -p $PMAP)
 [[ $lsout == *'repo-a/DB_URL'* && $lsout == *'repo-b/DB_URL'* ]] \
   && ok "ls shows scope prefixes" || bad "ls shows scope prefixes"
+lslong=$(secret ls -p $PMAP --long)
+[[ $lslong =~ 'DB_URL[[:space:]]+repo-a[[:space:]]' ]] \
+  && ok "ls --long puts scope in its own column" || bad "ls --long puts scope in its own column"
 showsc=$(cd "$TD/repo-a" && secret show DB_URL)
 [[ $showsc =~ 'Scope:[[:space:]]+repo-a' ]] && ok "show reports the scope" || bad "show reports the scope"
 [[ "$(print -r -- "$showsc" | awk '/^Label:/ {print $2}')" == 'repo-a/DB_URL' ]] \
