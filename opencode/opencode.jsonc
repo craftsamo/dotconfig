@@ -301,5 +301,6 @@
     // Custom git workflow tools (tools/git.ts) — read/index only, no commit/push/merge
     "git_secret_scan": "allow",
     "git_stage_hunks": "allow",
+    "git_provenance": "allow",
   },
 }

@@ -322,3 +322,78 @@ export const stage_hunks = tool({
     return JSON.stringify({ mode: "staged", stagedHunkIds: selected.map((h) => h.id), staged: staged.trim() }, null, 2)
   },
 })
+
+// ---- gh helpers + provenance ----------------------------------------------
+
+async function runGh(argv: string[], cwd?: string): Promise<string> {
+  let p = Bun.$`gh ${argv}`
+  if (cwd) p = p.cwd(cwd)
+  const res = await p.nothrow().quiet()
+  if (res.exitCode !== 0) {
+    const err = res.stderr.toString().trim() || res.stdout.toString().trim()
+    throw new Error(`gh ${argv.join(" ")} failed (exit ${res.exitCode}):\n${err}`)
+  }
+  return res.stdout.toString()
+}
+
+async function runGhJson(argv: string[], cwd?: string): Promise<any> {
+  const out = (await runGh(argv, cwd)).trim()
+  return out ? JSON.parse(out) : null
+}
+
+async function resolveRepo(repo: string | undefined, cwd?: string): Promise<{ full: string }> {
+  const r = (repo ?? "").trim()
+  if (r.includes("/")) return { full: r }
+  const full = (await runGh(["repo", "view", "--json", "nameWithOwner", "--jq", ".nameWithOwner"], cwd)).trim()
+  return { full }
+}
+
+export const provenance = tool({
+  description:
+    "Trace a change to its origin: commit -> PR -> Issue. Give a `sha`, or `file` + `lines` (e.g. \"10,20\") to blame the commit first. Returns the commit, the pull requests that introduced it (via the GitHub commits/{sha}/pulls API), and the Issues those PRs close, plus link-ready refs (bare short SHA, #PR, #Issue). Read-only; does not run bisect. Local/unpushed commits return no PRs.",
+  args: {
+    sha: tool.schema.string().optional().describe("Commit SHA to trace. If omitted, provide file + lines."),
+    file: tool.schema.string().optional().describe("File to blame when no sha is given."),
+    lines: tool.schema.string().optional().describe('Line range for blame, e.g. "10,20" or "10,+5".'),
+    repo: tool.schema.string().optional().describe('"owner/repo". Defaults to the current repository.'),
+  },
+  async execute(args, context) {
+    const cwd = context.worktree
+    let sha = args.sha?.trim()
+    let blameNote: string | undefined
+    if (!sha) {
+      if (!args.file || !args.lines) throw new Error('Provide `sha`, or `file` + `lines` (e.g. "10,20").')
+      const blame = await runGit(["blame", "-w", "-C", "-L", args.lines, "--porcelain", "--", args.file], cwd)
+      sha = blame.split("\n")[0]?.split(" ")[0]
+      if (!sha || !/^[0-9a-f]{7,40}$/.test(sha)) throw new Error("Could not determine a commit from blame.")
+      blameNote = `from blame ${args.file}:${args.lines}`
+    }
+    const { full } = await resolveRepo(args.repo, cwd)
+    const meta = (await runGit(["show", "-s", "--format=%H%n%s%n%an%n%aI", sha], cwd)).split("\n")
+    const commit = { sha: meta[0] ?? sha, subject: meta[1] ?? "", author: meta[2] ?? "", date: meta[3] ?? "" }
+    let pulls: any[] = []
+    try {
+      pulls = (await runGhJson(["api", `repos/${full}/commits/${sha}/pulls`, "--jq", "[.[]|{number,title,state}]"], cwd)) ?? []
+    } catch {
+      pulls = []
+    }
+    const issues: any[] = []
+    for (const pr of pulls) {
+      try {
+        const v = await runGhJson(
+          ["pr", "view", String(pr.number), "--json", "closingIssuesReferences", "--jq", "[.closingIssuesReferences[]?|{number,title}]"],
+          cwd,
+        )
+        for (const is of v ?? []) issues.push({ ...is, viaPR: pr.number })
+      } catch {
+        // PR not resolvable; skip
+      }
+    }
+    const links = {
+      commit: commit.sha.slice(0, 8),
+      prs: pulls.map((p: any) => `#${p.number}`),
+      issues: issues.map((i: any) => `#${i.number}`),
+    }
+    return JSON.stringify({ commit, blameNote, repo: full, pulls, issues, links }, null, 2)
+  },
+})
