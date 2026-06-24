@@ -33,6 +33,16 @@ commit/PR/Issue a change came from — load and follow the `git-commit` skill
 rather than committing ad hoc.
 
 </CommitSkill>
+
+<PullRequestSkill>
+
+When asked to open, push, or update a GitHub pull request — pushing a branch,
+creating a PR whose title and body match the repo, scanning the branch for
+related Issues/PRs to link, or marking it ready — load and follow the
+`git-pullrequest` skill. It does not create commits (use `git-commit`) and does
+not merge.
+
+</PullRequestSkill>
 </SkillRouting>
 
 <ExplorationDelegation>
