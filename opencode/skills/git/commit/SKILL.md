@@ -51,8 +51,9 @@ Resolve the message format in this priority order. Detect, do not assume.
    `.gitmessage`, commitizen, or `CONTRIBUTING` config present; honor them.
 3. Fallback — Conventional Commits: `type(scope): subject`.
 
-- Hard gate: when a convention is enforced (a `commit-msg` hook or commitlint
-  in CI), the message MUST pass it regardless of habit.
+- Hard gate: when a convention is enforced (a `commit-msg` hook or commitlint),
+  the message MUST pass it regardless of habit; `git_commit_lint` runs the
+  repo's commitlint when it is present.
 - Subject language follows the repo's habit (English in this repo).
 
 </ConventionResolution>
@@ -143,7 +144,8 @@ a deterministic reproduction; local/unpushed commits have no PR or Issue.
 4. Scan the staged diff for secrets with `git_secret_scan` (built-in rules plus
    gitleaks when available; values are redacted). Never stage or commit secret
    values (see `keychain-secrets`). Stop and report if it returns findings.
-5. Write the message per <ConventionResolution> and <MessageHygiene>. Add
+5. Write the message per <ConventionResolution> and <MessageHygiene>, then
+   validate it with `git_commit_lint`; fix any errors before committing. Add
    provenance links when committing a fix or follow-up.
 6. Run hooks and formatters. If they modify files, re-stage and re-verify. If a
    hook rejects the commit, fix the cause and re-commit — never `--no-verify`.
@@ -152,6 +154,9 @@ a deterministic reproduction; local/unpushed commits have no PR or Issue.
 </Steps>
 
 <MessageHygiene>
+
+Draft the message, then check it with `git_commit_lint` — it validates the
+rules below (and the repo's commitlint when present).
 
 - Subject: imperative, concise. Target ≤ 50 characters, hard ceiling 72. If
   commitlint enforces a length, that wins.
