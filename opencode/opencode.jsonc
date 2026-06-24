@@ -281,7 +281,8 @@
       "keychain-secrets": "allow",
       "approach*": "allow",
       "resolve-dependabot-alerts": "allow",
-      "manage-github-projects": "allow"
+      "manage-github-projects": "allow",
+      "git-*": "allow"
     },
     // Custom GitHub Project tools (tools/github_project.ts) — board ops only, no delete
     "github_project_create": "allow",
