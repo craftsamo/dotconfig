@@ -59,35 +59,23 @@ Resolve the title and body format. Detect, do not assume.
 
 <RelatedScan>
 
-Scan the branch to find Issues and PRs to link. Read-only. Local refs first,
-then targeted gh queries (no file-overlap deep scan).
+Find the Issues and PRs to link. Call `git_related_scan` (base defaults to the
+repo's default branch; pass `keywords` to widen the search). It returns,
+read-only:
 
-Inputs: the branch name, `git log <base>..HEAD`, and the changed files
-(`git diff --name-only <base>..HEAD`).
+- `existingPR` — the open PR for this branch, if any. Update it; do not duplicate.
+- `closes` / `refs` — issue numbers from the branch's commit messages and name
+  (explicit references — link directly).
+- `issueCandidates` / `relatedPRs` — keyword-search hits. Propose and confirm;
+  never auto-`Closes` a guessed issue.
+- `stackedBasePR` — the parent PR when this branch targets a non-default base.
 
-Scan A — Issues this PR resolves or relates to:
+For a prior PR that a commit builds on, `git_provenance` (commit → PR) gives a
+`Follow-up to #M` / `Supersedes #M` link.
 
-- Commits: grep `git log <base>..HEAD --pretty='%s%n%b'` for `#\d+` and
-  `Closes|Fixes|Resolves #\d+`.
-- Branch name: parse an embedded issue number (`feat/123-...`, `fix/issue-123`).
-- Keyword: `gh issue list --state open --search "<keywords>"` for candidates.
-- Classify: full resolution → `Closes #N`; related only → `Refs #N`.
-
-Scan B — Related or prior PRs:
-
-- Existing PR for this head: `gh pr list --head <branch> --state open` — update
-  it instead of opening a duplicate.
-- Code provenance: for the commits this branch builds on,
-  `gh api repos/{owner}/{repo}/commits/<sha>/pulls` → `Follow-up to #M` /
-  `Supersedes #M`.
-- Area overlap: `gh pr list --state open --search "<keyword>"`.
-- Stacked base: when `base` is not the default branch, link the base branch's
-  PR as the parent.
-
-Output — vetted links for the body or footer: `Closes #N`, `Refs #N`,
-`Follow-up to #M`, `Supersedes #M`. Explicit refs from commits or the branch
-name link directly; search-derived candidates are proposed for confirmation,
-never auto-`Closes`. Never fabricate a link.
+Judgment stays here: explicit refs link directly, search hits are confirmed not
+assumed, and a link is never fabricated. Use `Closes #N` for full resolution;
+`Refs #N` / `Follow-up to #M` / `Supersedes #M` for relations.
 
 Limits: `gh` search filters by keyword, not reliably by file path, so area
 overlap is approximate; links exist only when the work genuinely maps;
