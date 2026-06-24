@@ -156,6 +156,9 @@
       "git revert*": "ask",
       "git cherry-pick*": "ask",
       "git config*": "ask",
+      // Safe local commits (message-bearing) bypass the gate; bare/-a/--amend/--fixup/--no-verify stay ask
+      "git commit -m*": "allow",
+      "git commit --message*": "allow",
       // Build / test (runs project code)
       "npm *": "allow",
       "pnpm *": "allow",
@@ -181,6 +184,8 @@
       "go install*": "ask",
       "gh auth*": "ask",
       "gh secret*": "ask",
+      // PR create/edit/view/ready stay allow; only merging is gated
+      "gh pr merge*": "ask",
       "gh project delete*": "ask",
       "gh project field-delete*": "ask",
       "gh project item-delete*": "ask",
@@ -281,7 +286,8 @@
       "keychain-secrets": "allow",
       "approach*": "allow",
       "resolve-dependabot-alerts": "allow",
-      "manage-github-projects": "allow"
+      "manage-github-projects": "allow",
+      "git-*": "allow"
     },
     // Custom GitHub Project tools (tools/github_project.ts) — board ops only, no delete
     "github_project_create": "allow",
@@ -292,5 +298,13 @@
     "github_project_item_note": "allow",
     "github_project_item_promote": "allow",
     "github_project_view_ensure": "allow",
+    // Custom git workflow tools (tools/git.ts) — read/index only, no commit/push/merge
+    "git_secret_scan": "allow",
+    "git_stage_hunks": "allow",
+    "git_provenance": "allow",
+    "git_related_scan": "allow",
+    "git_history_digest": "allow",
+    "git_amend_check": "allow",
+    "git_commit_lint": "allow",
   },
 }
