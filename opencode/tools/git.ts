@@ -357,23 +357,34 @@ async function resolveRepo(repo: string | undefined, cwd?: string): Promise<{ fu
 
 export const provenance = tool({
   description:
-    "Trace a change to its origin: commit -> PR -> Issue. Give a `sha`, or `file` + `lines` (e.g. \"10,20\") to blame the commit first. Returns the commit, the pull requests that introduced it (via the GitHub commits/{sha}/pulls API), and the Issues those PRs close, plus link-ready refs (bare short SHA, #PR, #Issue). Read-only; does not run bisect. Local/unpushed commits return no PRs.",
+    "Trace a change to its origin: commit -> PR -> Issue. Anchor with a `sha`, with `file` + `lines` (blame), or with `token`/`regex` to pickaxe the commit that introduced a string. Returns the commit, the pull requests that introduced it (via the GitHub commits/{sha}/pulls API), and the Issues those PRs close, plus link-ready refs (bare short SHA, #PR, #Issue). Read-only; does not run bisect. Local/unpushed commits return no PRs.",
   args: {
-    sha: tool.schema.string().optional().describe("Commit SHA to trace. If omitted, provide file + lines."),
-    file: tool.schema.string().optional().describe("File to blame when no sha is given."),
+    sha: tool.schema.string().optional().describe("Commit SHA to trace. If omitted, provide file + lines, or token/regex."),
+    file: tool.schema.string().optional().describe("File to blame (with lines) or to scope a token/regex search."),
     lines: tool.schema.string().optional().describe('Line range for blame, e.g. "10,20" or "10,+5".'),
+    token: tool.schema.string().optional().describe("Find the commit that introduced this exact string (pickaxe, git log -S)."),
+    regex: tool.schema.string().optional().describe("Find the commit that introduced a match of this regex (git log -G)."),
     repo: tool.schema.string().optional().describe('"owner/repo". Defaults to the current repository.'),
   },
   async execute(args, context) {
     const cwd = context.worktree
     let sha = args.sha?.trim()
-    let blameNote: string | undefined
+    let locatedBy: string | undefined
     if (!sha) {
-      if (!args.file || !args.lines) throw new Error('Provide `sha`, or `file` + `lines` (e.g. "10,20").')
-      const blame = await runGit(["blame", "-w", "-C", "-L", args.lines, "--porcelain", "--", args.file], cwd)
-      sha = blame.split("\n")[0]?.split(" ")[0]
-      if (!sha || !/^[0-9a-f]{7,40}$/.test(sha)) throw new Error("Could not determine a commit from blame.")
-      blameNote = `from blame ${args.file}:${args.lines}`
+      if (args.file && args.lines) {
+        const blame = await runGit(["blame", "-w", "-C", "-L", args.lines, "--porcelain", "--", args.file], cwd)
+        sha = blame.split("\n")[0]?.split(" ")[0]
+        locatedBy = `blame ${args.file}:${args.lines}`
+      } else if (args.token || args.regex) {
+        const pick = args.token ? ["-S", args.token] : ["-G", args.regex as string]
+        const argv = ["log", ...pick, "--format=%H", "-n", "1"]
+        if (args.file) argv.push("--", args.file)
+        sha = (await runGit(argv, cwd)).split("\n")[0]?.trim()
+        locatedBy = args.token ? `pickaxe -S "${args.token}"` : `pickaxe -G "${args.regex}"`
+      } else {
+        throw new Error("Provide `sha`, `file` + `lines`, or `token`/`regex`.")
+      }
+      if (!sha || !/^[0-9a-f]{7,40}$/.test(sha)) throw new Error("Could not locate a commit from the given anchor.")
     }
     const { full } = await resolveRepo(args.repo, cwd)
     const meta = (await runGit(["show", "-s", "--format=%H%n%s%n%an%n%aI", sha], cwd)).split("\n")
@@ -401,7 +412,7 @@ export const provenance = tool({
       prs: pulls.map((p: any) => `#${p.number}`),
       issues: issues.map((i: any) => `#${i.number}`),
     }
-    return JSON.stringify({ commit, blameNote, repo: full, pulls, issues, links }, null, 2)
+    return JSON.stringify({ commit, locatedBy, repo: full, pulls, issues, links }, null, 2)
   },
 })
 
