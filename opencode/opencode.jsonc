@@ -156,6 +156,9 @@
       "git revert*": "ask",
       "git cherry-pick*": "ask",
       "git config*": "ask",
+      // Safe local commits (message-bearing) bypass the gate; bare/-a/--amend/--fixup/--no-verify stay ask
+      "git commit -m*": "allow",
+      "git commit --message*": "allow",
       // Build / test (runs project code)
       "npm *": "allow",
       "pnpm *": "allow",
