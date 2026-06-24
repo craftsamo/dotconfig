@@ -253,12 +253,12 @@ _secret_prompt_value() {       # $1 display label; hidden double prompt, value o
   print -r -- "$v1"
 }
 
-# Canonical kind labels offered by the fzf pickers (one per line). "[custom]"
+# Canonical kind labels offered by the fzf pickers (one per line). "Other"
 # lets the user type a free-form kind; every write is normalised by
 # _secret_norm_kind, so casing/spacing stays consistent whatever the source.
 _secret_kind_choices() {
   print -rl -- ENV 'API KEY' TOKEN PASSWORD SECRET URL \
-    'WEBHOOK SECRET' 'MNEMONIC PHRASE' 'PRIVATE KEY' '[custom]'
+    'WEBHOOK SECRET' 'MNEMONIC PHRASE' 'PRIVATE KEY' 'Other'
 }
 
 # Normalise a kind label: upper-case, collapse whitespace runs to one space,
@@ -606,7 +606,7 @@ _secret_cmd_show() {
   printf '%-10s %s\n' \
     'Name:'     "${f[2]}" \
     'Project:'  "${f[1]}" \
-    'Scope:'    "${f[7]:-(shared)}" \
+    'Scope:'    "${f[7]:-Shared}" \
     'Label:'    "${f[3]}" \
     'Kind:'     "${f[4]}" \
     'Comment:'  "${f[5]}" \
@@ -635,7 +635,7 @@ _secret_cmd_ls() {
     while IFS= read -r row; do
       f=("${(@ps:\t:)row}")
       printf '%-28s %-14s %-16s %-17s %s\n' \
-        "${f[2]}" "${f[7]:-(shared)}" "${f[4]}" "$(_secret_fmt_date "${f[6]}")" "${f[5]}"
+        "${f[2]}" "${f[7]:-Shared}" "${f[4]}" "$(_secret_fmt_date "${f[6]}")" "${f[5]}"
     done <<< "$rows"
   else
     print -r -- "$rows" | awk -F'\t' '{ print ($7 == "" ? $2 : $7 "/" $2) }'
@@ -1539,7 +1539,7 @@ KINDS
   -D sets the item's kind, a short type label shown in Keychain Access.
   It is normalised on write (upper-cased, whitespace collapsed; default
   ENV). The wizard offers ENV, API KEY, TOKEN, PASSWORD, SECRET, URL,
-  WEBHOOK SECRET, MNEMONIC PHRASE, PRIVATE KEY, or a custom value.
+  WEBHOOK SECRET, MNEMONIC PHRASE, PRIVATE KEY, or Other to type your own.
 
 KEYCHAINS
   One project = one keychain: project P lives in
@@ -1643,7 +1643,7 @@ _secret_ui_add() {
   fi
   kind=$(_secret_kind_choices \
     | _secret_fzf --header="secret › $proj/$name › kind" --prompt='kind> ') || return 0
-  if [[ $kind == '[custom]' ]]; then
+  if [[ $kind == 'Other' ]]; then
     read -r "kind?kind: " || return 0
   fi
   read -r "comment?comment (optional): " || return 0
@@ -1694,7 +1694,7 @@ _secret_ui_update() {
         k=$(_secret_kind_choices \
           | _secret_fzf --header="secret › $proj/$tok › new kind (current: ${f[4]:-ENV})" \
               --prompt='kind> ') || return 0
-        if [[ $k == '[custom]' ]]; then
+        if [[ $k == 'Other' ]]; then
           read -r "k?kind: " || return 0
         fi
         [[ -z $k ]] && return 0
