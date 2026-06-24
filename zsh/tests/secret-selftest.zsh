@@ -105,8 +105,8 @@ lsarr=(${(f)"$(secret ls -p $P)"})
 [[ ${#lsarr} -eq 2 ]] && ok "ls shows 2 items" || bad "ls shows 2 items"
 longout=$(secret ls -p $P --long)
 [[ $longout == *'API KEY'* ]] && ok "ls --long shows normalized kind" || bad "ls --long shows normalized kind"
-[[ $longout =~ 'TEST_BETA[[:space:]]+ENV[[:space:]]+[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}' ]] \
-  && ok "ls --long aligns columns for empty comment" || bad "ls --long aligns columns for empty comment"
+[[ $longout =~ 'TEST_BETA[[:space:]]+\(shared\)[[:space:]]+ENV[[:space:]]+[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}' ]] \
+  && ok "ls --long shows (shared) scope + aligns columns" || bad "ls --long shows (shared) scope + aligns columns"
 showout=$(secret show TEST_ALPHA -p $P)
 [[ $showout == *'comment with "quotes" and spaces'* ]] && ok "show displays comment" || bad "show displays comment"
 [[ $showout =~ 'Modified:[[:space:]]+[0-9]{4}-[0-9]{2}-[0-9]{2}' ]] && ok "show displays modified date" || bad "show displays modified date"
@@ -258,6 +258,9 @@ mkdir -p "$TD/repo-a" "$TD/repo-b" "$TD/$PREPO"
 lsout=$(secret ls -p $PMAP)
 [[ $lsout == *'repo-a/DB_URL'* && $lsout == *'repo-b/DB_URL'* ]] \
   && ok "ls shows scope prefixes" || bad "ls shows scope prefixes"
+lslong=$(secret ls -p $PMAP --long)
+[[ $lslong =~ 'DB_URL[[:space:]]+repo-a[[:space:]]' ]] \
+  && ok "ls --long puts scope in its own column" || bad "ls --long puts scope in its own column"
 showsc=$(cd "$TD/repo-a" && secret show DB_URL)
 [[ $showsc =~ 'Scope:[[:space:]]+repo-a' ]] && ok "show reports the scope" || bad "show reports the scope"
 [[ "$(print -r -- "$showsc" | awk '/^Label:/ {print $2}')" == 'repo-a/DB_URL' ]] \
