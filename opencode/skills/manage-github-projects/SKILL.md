@@ -105,9 +105,10 @@ What goes on the board, and how large work is broken down:
 
 - A board item is a **standalone task** or an **epic** — never the individual
   sub-tasks of an epic. Keep the board a roadmap of efforts, not a flat task dump.
-- Break large multi-step work into an **epic**: one parent issue whose body holds
-  the overview and the phased plan (ordering / waves live here in prose — there is
-  no Phase field). Its steps are GitHub **sub-issues** in the relevant repo.
+- Break large multi-step work into an **epic**: one parent issue whose body follows
+  the Epic format in `<BodyGuidance>` (Overview + a phased Plan — ordering / waves
+  live here in prose, there is no Phase field). Its steps are GitHub **sub-issues**
+  in the relevant repo.
 - Sub-issues stay in the repo and are **not** added to the board; they are
   single-purpose and use the repo's own Issue template. Progress shows on the epic
   via its sub-issue bar (e.g. `2/5`).
@@ -163,6 +164,16 @@ Per Kind (sections in order; fill only the relevant ones):
   - `## Target` — feature / module under test.
   - `## Cases` — cases / angles; split with `### Happy path` / `### Edge cases`.
   - `## Pass criteria` — coverage / pass conditions (optional).
+
+Epic (a parent issue with sub-issues — any Kind; supersedes the per-Kind body):
+
+- `## Overview` — the outcome and why (1–3 lines); optional `**Done when**:` exit criterion.
+- `## Details` — scope / constraints / design notes (optional; omit if none).
+- `## Plan` — phased breakdown: `### Phase 1 — <wave goal>` then plain `- #12`
+  sub-issue references; add `### Phase 2 …` for later waves.
+- Reference sub-issues as `#n` only — no `- [ ]` checkboxes (the native Sub-issues
+  panel is the single source of progress; checkboxes create a parallel task list).
+- Phase grouping is maintained by hand; update Plan when sub-issues change.
 
 On a shared repo that already provides Issue Forms, prefer that form for real
 issues rather than this guidance.
