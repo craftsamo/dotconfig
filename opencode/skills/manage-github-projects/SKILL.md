@@ -18,6 +18,8 @@ issue, no local file, no issue-tracker churn.
   put it on the board.
 - Ephemeral, within-session step tracking → keep using TodoWrite, not the board.
 - Do not create local TODO/plan/notes files for this purpose; use the board.
+- For the planning workflow that feeds the board (epic vs single item, phasing),
+  see the `approach-roadmap` skill.
 
 </WhenToUse>
 
