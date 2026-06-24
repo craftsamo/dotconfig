@@ -131,11 +131,11 @@ UI-only. So the standard views are configured once on the `@me` "Roadmap
 Template" board, and `github_project_create` **copies** that template for every
 new board — carrying the views intact.
 
-Standard views:
+Standard views (3):
 
+- **Timeline** — roadmap layout driven by `Start date` / `Target date`; the month zoom is set in the UI.
 - **Kanban** — board layout, filter `-status:Done -status:Cancelled` (groups by Status by default).
 - **Backlog** — table layout, filter `-status:Done -status:Cancelled`, columns Title / Kind / Area / Status.
-- **Monthly** / **Quarterly** — roadmap layout driven by `Start date` / `Target date`; zoom is set in the UI.
 
 `github_project_view_ensure` `{ name, layout, filter?, visibleFields? }` adds a
 table/board view to an existing board (idempotent by name) — use it to repair a
