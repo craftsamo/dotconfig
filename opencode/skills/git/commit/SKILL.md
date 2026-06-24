@@ -76,9 +76,10 @@ Resolve the message format in this priority order. Detect, do not assume.
   present), it is one concern; if each part is meaningful and the build is
   coherent in either order, separate them.
 - Smallest atomic unit within a concern: when one file holds unrelated
-  changes, split by hunk. `git add -p` is interactive and awkward for an
-  agent — prefer a patch: `git diff -- <file> > /tmp/p.diff`, trim it to the
-  wanted hunks, then `git apply --cached /tmp/p.diff`. Verify with
+  changes, split by hunk with `git_stage_hunks` — call it to list the hunks
+  with stable ids, then stage exactly the ones for this commit (by id, or with
+  include/exclude). It applies them deterministically via `git apply --cached`,
+  avoiding the fragility of interactive `git add -p`. Verify with
   `git diff --cached` before committing.
 - Never split co-dependent hunks: changes that must land together to keep the
   build or semantics intact stay in one commit. The build gate wins over
@@ -143,7 +144,7 @@ a deterministic reproduction; local/unpushed commits have no PR or Issue.
    (unstaged) and `git diff --cached` (staged), and recent `git log` for style.
 2. Plan the split along concern and build boundaries (see <CommitGranularity>).
    If a change belongs to earlier work, resolve amend-vs-link first.
-3. Stage intentionally: explicit paths, or hunks via `git apply --cached`.
+3. Stage intentionally: explicit paths, or specific hunks via `git_stage_hunks`.
    Never `git add -A` or `git add .` blindly. Re-check `git diff --cached`.
 4. Scan the staged diff for secrets with `git_secret_scan` (built-in rules plus
    gitleaks when available; values are redacted). Never stage or commit secret
