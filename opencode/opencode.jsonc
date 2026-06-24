@@ -184,6 +184,8 @@
       "go install*": "ask",
       "gh auth*": "ask",
       "gh secret*": "ask",
+      // PR create/edit/view/ready stay allow; only merging is gated
+      "gh pr merge*": "ask",
       "gh project delete*": "ask",
       "gh project field-delete*": "ask",
       "gh project item-delete*": "ask",
