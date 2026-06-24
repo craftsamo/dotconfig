@@ -105,8 +105,8 @@ lsarr=(${(f)"$(secret ls -p $P)"})
 [[ ${#lsarr} -eq 2 ]] && ok "ls shows 2 items" || bad "ls shows 2 items"
 longout=$(secret ls -p $P --long)
 [[ $longout == *'API KEY'* ]] && ok "ls --long shows normalized kind" || bad "ls --long shows normalized kind"
-[[ $longout =~ 'TEST_BETA[[:space:]]+\(shared\)[[:space:]]+ENV[[:space:]]+[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}' ]] \
-  && ok "ls --long shows (shared) scope + aligns columns" || bad "ls --long shows (shared) scope + aligns columns"
+[[ $longout =~ 'TEST_BETA[[:space:]]+Shared[[:space:]]+ENV[[:space:]]+[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}' ]] \
+  && ok "ls --long shows Shared scope + aligns columns" || bad "ls --long shows Shared scope + aligns columns"
 showout=$(secret show TEST_ALPHA -p $P)
 [[ $showout == *'comment with "quotes" and spaces'* ]] && ok "show displays comment" || bad "show displays comment"
 [[ $showout =~ 'Modified:[[:space:]]+[0-9]{4}-[0-9]{2}-[0-9]{2}' ]] && ok "show displays modified date" || bad "show displays modified date"
