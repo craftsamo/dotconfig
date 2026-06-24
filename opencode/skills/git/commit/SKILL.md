@@ -105,16 +105,17 @@ test / reproduction).
 
 Hop 1 — symptom → commit:
 
-- From a location: `git blame -w -C -L <a>,<b> -- <file>` (last touch);
-  `git log -L <a>,<b>:<file>` (line history); pickaxe
-  `git log -S'<token>' -- <file>` or `-G'<regex>'` (when a string entered).
-- From a behavior (most reliable): `git bisect start <bad> <good>` →
+- From a location or a string, `git_provenance` locates the commit for you:
+  pass `file` + `lines` (blame) or `token` / `regex` (pickaxe — when a string
+  entered), and it continues straight into hops 2-3.
+- From a behavior (most reliable, manual): `git bisect start <bad> <good>` →
   `git bisect run <test-cmd>` → culprit, then `git bisect reset`.
 - Caveat: blame reports the last modifier, not necessarily the introducer.
   Confirm with pickaxe or bisect.
 
-Hops 2-3 — commit → PR → Issue: call `git_provenance` with the `sha` (or pass
-`file` + `lines` to let it blame the commit first). It returns the commit, the
+Hops 2-3 — commit → PR → Issue: call `git_provenance` with the `sha` (or
+`file` + `lines`, or `token` / `regex`, to locate it first). It returns the
+commit, the
 PRs that introduced it, and the Issues those PRs close, with link-ready refs
 (bare short SHA, `#PR`, `#Issue`). For merge-commit repos, confirming the merge
 that brought a commit in still helps:
