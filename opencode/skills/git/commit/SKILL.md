@@ -84,13 +84,13 @@ Resolve the message format in this priority order. Detect, do not assume.
 - Never split co-dependent hunks: changes that must land together to keep the
   build or semantics intact stay in one commit. The build gate wins over
   granularity.
-- A change that belongs to an earlier commit:
-  - Earlier commit is local and unpushed (verify: `git branch -r --contains
-    <sha>` is empty, i.e. not in `@{upstream}`): fold it in with
-    `git commit --amend` (for HEAD) or `git commit --fixup=<sha>` followed by
+- A change that belongs to an earlier commit: run `git_amend_check` (pass the
+  `sha`, default HEAD) to classify it.
+  - `amend` / `fixup` (local, unpushed): fold it in with `git commit --amend`
+    (for HEAD) or `git commit --fixup=<sha>` followed by
     `git rebase -i --autosquash`.
-  - Earlier commit is already pushed or on another branch: do not rewrite it.
-    Make a new commit that links the origin (see <Provenance>), e.g.
+  - `linked-fix` (already pushed or on another branch): do not rewrite it. Make
+    a new commit that links the origin (see <Provenance>), e.g.
     `fix(scope): add missing num arg (follow-up to abc1234)`.
 
 </CommitGranularity>
