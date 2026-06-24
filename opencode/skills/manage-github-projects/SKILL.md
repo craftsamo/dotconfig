@@ -1,6 +1,6 @@
 ---
 name: manage-github-projects
-description: Use to record and manage persistent, cross-session tasks and notes on a GitHub Projects (v2) "Roadmap" board via the github_project_* tools, instead of writing local TODO/plan/notes files (GitHub Projects, project board, roadmap, draft issue, project item, 起票, タスク管理, ロードマップ, ボードに追加, 進捗更新, ファイルを残さない). Covers the two-tier personal/org board topology and owner resolution, the Status/Kind/Area/_Repository/_Milestone/Phase schema, per-Kind body guidance, and add/start/done/list/note/promote recipes. Use ONLY for GitHub Project board task management, not general gh usage.
+description: Use to record and manage persistent, cross-session tasks and notes on a GitHub Projects (v2) "Roadmap" board via the github_project_* tools, instead of writing local TODO/plan/notes files (GitHub Projects, project board, roadmap, draft issue, project item, 起票, タスク管理, ロードマップ, ボードに追加, 進捗更新, ファイルを残さない). Covers the two-tier personal/org board topology and owner resolution, the Status/Kind/Area/_Repository/_Milestone schema, board granularity (epic / sub-issue), per-Kind body guidance, and add/start/done/list/note/promote recipes. Use ONLY for GitHub Project board task management, not general gh usage.
 ---
 
 <Goal>
@@ -65,8 +65,7 @@ repo → use the `@me` hub.
 | Kind | single-select | Feature / Enhancement / Bug Fix / Chore / Design / Test |
 | Area | single-select | Frontend / Backend / Infra / Docs / UI/UX / Config / CI/CD / Skills / Tooling / Other |
 | _Repository | text | `owner/repo` — always set it (the work target) |
-| _Milestone | text | Planned milestone title (synced to a real milestone on promote) |
-| Phase | number | Optional phase / ordering for large multi-step work |
+| _Milestone | text | Theme that groups epics — milestone title, synced to a real milestone on promote |
 
 Naming convention. A leading `_` marks a **draft-time stand-in for a built-in
 GitHub field** that cannot be set on a draft; on promote it is reconciled with
@@ -81,8 +80,7 @@ progress`, and `Type` (the issue-type field, present on org boards) — cannot b
 created as custom fields. A plain custom field must therefore avoid these names:
 that is why the work-kind field is `Kind`, not `Type`/`_Type` — it is an
 independent triage taxonomy, not a mirror of GitHub's issue type. `Status` is
-the native default project field; `Kind`, `Area` and `Phase` are plain custom
-fields.
+the native default project field; `Kind` and `Area` are plain custom fields.
 
 </Schema>
 
@@ -100,6 +98,24 @@ fields.
   `_Repository` / `_Milestone` fields are cleared automatically.
 
 </ItemModel>
+
+<Granularity>
+
+What goes on the board, and how large work is broken down:
+
+- A board item is a **standalone task** or an **epic** — never the individual
+  sub-tasks of an epic. Keep the board a roadmap of efforts, not a flat task dump.
+- Break large multi-step work into an **epic**: one parent issue whose body holds
+  the overview and the phased plan (ordering / waves live here in prose — there is
+  no Phase field). Its steps are GitHub **sub-issues** in the relevant repo.
+- Sub-issues stay in the repo and are **not** added to the board; they are
+  single-purpose and use the repo's own Issue template. Progress shows on the epic
+  via its sub-issue bar (e.g. `2/5`).
+- **Milestone** is a high-level **theme** grouping epics over time. Assign it to the
+  **epic**, not to each sub-task; a later epic on the same theme joins the same
+  milestone while it is open.
+
+</Granularity>
 
 <BodyGuidance>
 
@@ -160,7 +176,7 @@ Initialize a board (new owner/org):
 1. `github_project_create { owner, title: "Roadmap" }` — creates the board (or
    reuses an existing one with that title) and applies the full standard schema
    in one call: Status (incl. Cancelled), Kind and Area with colors, plus
-   `_Repository`, `_Milestone`, `Phase`. Idempotent — safe to re-run to repair.
+   `_Repository` and `_Milestone`. Idempotent — safe to re-run to repair.
 2. Org board only: `gh project link <number> --owner <org> --repo <org>/<repo>`.
 
 `github_project_field_ensure` is only for ad-hoc additions afterwards (e.g. a new
@@ -171,7 +187,8 @@ Add an entry of a given Kind:
 - Compose the body per `<BodyGuidance>` for that Kind (relevant sections only).
 - `github_project_item_add` with
   `{ title, body, fields: { Kind, Area, Status: "Todo", "_Repository": "<owner/repo>" } }`
-  (add `"_Milestone"` and/or `"Phase"` for large planned work).
+  (add `"_Milestone"` to file it under a theme; for large multi-step work use an
+  epic — see `<Granularity>`).
 
 Lifecycle (item id is the `PVTI_…` from `item_list`):
 
