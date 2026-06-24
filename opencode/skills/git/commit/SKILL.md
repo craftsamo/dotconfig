@@ -62,9 +62,19 @@ Resolve the message format in this priority order. Detect, do not assume.
 - Build gate (highest priority): every commit must build and pass the
   project's relevant checks on its own. Never split in a way that leaves an
   intermediate commit broken.
-- One concern per commit: do not mix kinds. Keep feature, docs, test,
-  refactor, and chore in separate commits — a feature and its accompanying doc
-  update are two commits.
+- One concern per commit — a vertical slice, not a horizontal layer. A concern
+  is a coherent change together with the wiring it is incomplete without: the
+  implementation, its call sites, its registration or permission, and the
+  integration that makes it actually run. Keep these together even when they
+  span code, config, and skill prose. Example: a new tool, the permission that
+  lets it run, and the skill section that calls it land in one commit — split
+  apart, the tool is dead code and the skill references something absent.
+- Separate by kind only when the parts stand alone. Independently meaningful
+  changes — descriptive docs about a feature, a standalone refactor, an
+  unrelated test or chore — stay in their own commits. Test: if splitting leaves
+  a part inert (dead code) or dangling (a reference to something not yet
+  present), it is one concern; if each part is meaningful and the build is
+  coherent in either order, separate them.
 - Smallest atomic unit within a concern: when one file holds unrelated
   changes, split by hunk. `git add -p` is interactive and awkward for an
   agent — prefer a patch: `git diff -- <file> > /tmp/p.diff`, trim it to the
