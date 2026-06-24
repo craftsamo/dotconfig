@@ -631,11 +631,11 @@ _secret_cmd_ls() {
   if (( long )); then
     local row
     local -a f
-    printf '%-32s %-14s %-17s %s\n' 'NAME' 'KIND' 'MODIFIED' 'COMMENT'
+    printf '%-28s %-14s %-16s %-17s %s\n' 'NAME' 'SCOPE' 'KIND' 'MODIFIED' 'COMMENT'
     while IFS= read -r row; do
       f=("${(@ps:\t:)row}")
-      printf '%-32s %-14s %-17s %s\n' \
-        "${f[7]:+${f[7]}/}${f[2]}" "${f[4]}" "$(_secret_fmt_date "${f[6]}")" "${f[5]}"
+      printf '%-28s %-14s %-16s %-17s %s\n' \
+        "${f[2]}" "${f[7]:-(shared)}" "${f[4]}" "$(_secret_fmt_date "${f[6]}")" "${f[5]}"
     done <<< "$rows"
   else
     print -r -- "$rows" | awk -F'\t' '{ print ($7 == "" ? $2 : $7 "/" $2) }'
@@ -1480,7 +1480,8 @@ COMMANDS
   get NAME [-p proj] [LAYER] [-c|--copy]
         print the value (or copy to clipboard, auto-clears in 45s)
   show NAME [-p proj] [LAYER]  metadata only (never prints the value)
-  ls [-p proj] [-l|--long]     list secrets (scoped ones as "scope/NAME")
+  ls [-p proj] [-l|--long]     list secrets; short form shows scoped items
+        as "scope/NAME", --long has a dedicated Scope column
   projects                     list all projects
   env [-p proj] [--scope X]    emit `export NAME=...` lines: the shared
         layer overlaid with the repository scope (scoped wins), e.g.:
