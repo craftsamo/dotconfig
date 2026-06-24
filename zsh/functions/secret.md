@@ -17,7 +17,7 @@ From the [Brewfile](../../Brewfile): `fzf` (interactive UI), `jq`
 
 ```sh
 secret                          # fzf wizard: Get / Add / Update / List / Show / Delete / Export / Import
-secret set STRIPE_KEY -j "prod key, rotate in dashboard" -D "api key"
+secret set STRIPE_KEY -j "prod key, rotate in dashboard" -D "API KEY"
 secret get STRIPE_KEY           # value on stdout   (-c: clipboard, auto-clears in 45 s)
 secret ls --long                # names + kind + modified + comment
 eval "$(secret env -p global)"  # inject a whole project as environment variables
@@ -37,7 +37,7 @@ One keychain item per secret — fully visible and editable in Keychain Access:
 | service   | `secret.<project>` (shared) or `secret.<project>/<scope>` (scoped) — lookup key together with account |
 | account   | the variable name (`TAVILY_API_KEY`) — **unique key, do not repurpose**      |
 | label     | `NAME` / `<scope>/NAME` inside the project's own keychain, prefixed with `<project>/` elsewhere |
-| kind      | free text shown in the GUI, default `ENV` (`-D`)                             |
+| kind      | short type label (`-D`), upper-cased on write; default `ENV` (`API KEY`, `TOKEN`, `SECRET`, ...)                             |
 | comment   | free-form description (`-j`), shown by `show` / `ls --long` / the GUI        |
 
 ## Keychains
