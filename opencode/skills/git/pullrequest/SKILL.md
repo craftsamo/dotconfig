@@ -42,12 +42,11 @@ Issues and PRs the branch's work actually touches. Never merge.
 
 Resolve the title and body format. Detect, do not assume.
 
-1. Existing habit — read recent merged PRs:
-   `gh pr list --state merged --limit 20 --json title,body,headRefName`. Infer
-   the title style (casing, whether a `type:` prefix is used, parentheticals)
-   and the body structure.
-2. Template — if `.github/PULL_REQUEST_TEMPLATE.md` (or a root / `docs/`
-   variant) exists, fill its sections instead of inventing structure.
+1. Existing habit — call `git_history_digest` for recent merged PR titles and
+   the branch's commit subjects; infer the title style (casing, whether a
+   `type:` prefix is used, parentheticals) and the body structure.
+2. Template — `git_history_digest` reports whether a PR template exists; if so,
+   fill its sections instead of inventing structure.
 3. Fallback — derive from the branch's commits (`git log <base>..HEAD`): a
    capitalized summary title and a Summary / Changes / Notes body.
 
