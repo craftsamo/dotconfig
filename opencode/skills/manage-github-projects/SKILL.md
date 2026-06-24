@@ -94,13 +94,50 @@ custom fields while a draft, then promote syncs them.
 
 <BodyGuidance>
 
-Write only the relevant sections — never leave empty placeholders. Cover, by
-Type:
+Compose bodies in GitHub Markdown. Include only the sections that apply — never
+leave empty placeholders.
 
-- Bug Fix: 事象 / 原因の見立て(file:line) / 再現手順 / 参照
-- Feature: 目的 / 要件 / 受け入れ条件
-- Enhancement: 現状の課題 / 改善内容 / 影響範囲
-- Chore / Design / Test: 要点 1–2 行（＋対象）
+Markup convention:
+
+- `##` — a Type's main sections (the skeleton you always consider).
+- `###` — a sub-section inside a `##`, only when content needs splitting
+  (e.g. Option A / Option B, happy path / edge cases, confirmed cause).
+- `**Label**:` — a one-line metadata field that doesn't deserve a heading.
+
+Formatting conventions (any Type):
+
+- Code reference → a GitHub line-range permalink, not `file:line`:
+  `https://github.com/<owner>/<repo>/blob/<sha>/<path>#L16-L37` (commit-pinned, stable).
+- Code change → a `diff`-fenced code block.
+- Log / long output → wrap in `<details><summary>…</summary> … </details>` with a
+  clear summary, so the body stays scannable.
+- `**Refs**:` — shared optional inline field for related issue / PR / doc links.
+
+Per Type (sections in order; fill only the relevant ones):
+
+- Feature
+  - `## Purpose` — why build it; the problem it solves.
+  - `## Requirements` — functional requirements (bullets); split sub-features with `###`.
+  - `## Acceptance criteria` — done checks as a `- [ ]` checklist.
+- Enhancement
+  - `## Problem` — what is painful or limiting today.
+  - `## Change` — what changes and how; show code as a `diff`-fenced block.
+  - `## Impact` — affected files / behavior / compatibility (short → `**Impact**:`).
+- Bug Fix
+  - `## Symptom` — expected vs actual behavior.
+  - `## Suspected cause` — likely cause with a line-range permalink; once verified add `### Confirmed cause`.
+  - `## Repro steps` — minimal numbered steps.
+- Chore
+  - `## Summary` — what to do (1–2 lines); add `## Steps` when multi-step.
+  - `**Target**:` — files / deps / settings touched.
+- Design
+  - `## Goal / context` — what is being designed and why.
+  - `## Options` — candidates as `### Option A` / `### Option B` with trade-offs.
+  - `## Decision` — chosen option and rationale (once decided).
+- Test
+  - `## Target` — feature / module under test.
+  - `## Cases` — cases / angles; split with `### Happy path` / `### Edge cases`.
+  - `## Pass criteria` — coverage / pass conditions (optional).
 
 On a shared repo that already provides Issue Forms, prefer that form for real
 issues rather than this guidance.
