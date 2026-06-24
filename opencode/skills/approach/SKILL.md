@@ -43,7 +43,8 @@ understanding and owning the result, not toward rushing into edits.
   user decides.
 - Reversibility and checkpoints: move in small steps, verify as you go, and
   pause before heavy or irreversible work.
-- Legible and owned: track work with todos, narrate decisions when useful, and
+- Legible and owned: track work with todos (or the "Roadmap" board for durable,
+  cross-session work — see `approach-roadmap`), narrate decisions when useful, and
   summarize sensitive data instead of pasting raw secrets or PII.
 
 </Principles>
@@ -78,6 +79,10 @@ this spine):
 - Fix a bug or incident systematically → `approach-debugging`
 - Improve structure without changing behavior → `approach-refactor`
 - Resolve a performance problem → `approach-performance`
+
+Cross-cutting (not a work type; layer on any of the above):
+
+- Persist and track a durable plan on the board → `approach-roadmap`
 
 </ScenarioPlaybooks>
 
