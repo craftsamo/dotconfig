@@ -1,6 +1,6 @@
 ---
 name: manage-github-projects
-description: Use to record and manage persistent, cross-session tasks and notes on a GitHub Projects (v2) "Roadmap" board via the github_project_* tools, instead of writing local TODO/plan/notes files (GitHub Projects, project board, roadmap, draft issue, project item, 起票, タスク管理, ロードマップ, ボードに追加, 進捗更新, ファイルを残さない). Covers the two-tier personal/org board topology and owner resolution, the Status/Kind/Area/_Repository/_Milestone schema, board granularity (epic / sub-issue), per-Kind body guidance, and add/start/done/list/note/promote recipes. Use ONLY for GitHub Project board task management, not general gh usage.
+description: Use to record and manage persistent, cross-session tasks and notes on a GitHub Projects (v2) "Roadmap" board via the github_project_* tools, instead of writing local TODO/plan/notes files (GitHub Projects, project board, roadmap, draft issue, project item, 起票, タスク管理, ロードマップ, ボードに追加, 進捗更新, ファイルを残さない). Covers the two-tier personal/org board topology and owner resolution, the Status/Kind/Area/_Repository/_Milestone schema, board granularity (epic / sub-issue), saved views (Kanban / Backlog / roadmap via a copied template), per-Kind body guidance, and add/start/done/list/note/promote recipes. Use ONLY for GitHub Project board task management, not general gh usage.
 ---
 
 <Goal>
@@ -35,7 +35,8 @@ runtime, so nothing goes stale:
 - `github_project_item_note` — append a note to a draft body.
 - `github_project_item_promote` — convert a draft item into a real Issue in a repo.
 - `github_project_field_ensure` — idempotently ensure a field / its options.
-- `github_project_create` — create a board AND apply the standard Roadmap schema (fields, options, colors) in one call.
+- `github_project_view_ensure` — idempotently ensure a saved view (table/board/roadmap + filter/columns) via the REST views API.
+- `github_project_create` — create a board AND apply the standard Roadmap schema; a new board is seeded by copying the "Roadmap Template" (carrying its saved views).
 
 `owner` defaults to the current repo's owner (else `@me`); `project` defaults to
 a board titled `Roadmap`. Inside a repo you can usually omit both.
@@ -68,6 +69,8 @@ repo → use the `@me` hub.
 | Area | single-select | Frontend / Backend / Infra / Docs / UI/UX / Config / CI/CD / Skills / Tooling / Other |
 | _Repository | text | `owner/repo` — always set it (the work target) |
 | _Milestone | text | Theme that groups epics — milestone title, synced to a real milestone on promote |
+| Start date | date | Drives the roadmap (Timeline) views |
+| Target date | date | Drives the roadmap (Timeline) views |
 
 Naming convention. A leading `_` marks a **draft-time stand-in for a built-in
 GitHub field** that cannot be set on a draft; on promote it is reconciled with
@@ -119,6 +122,27 @@ What goes on the board, and how large work is broken down:
   milestone while it is open.
 
 </Granularity>
+
+<Views>
+
+GitHub's API cannot fully configure views: layout, filter and visible columns are
+settable (REST), but grouping, sort, and the roadmap zoom / date-binding are
+UI-only. So the standard views are configured once on the `@me` "Roadmap
+Template" board, and `github_project_create` **copies** that template for every
+new board — carrying the views intact.
+
+Standard views:
+
+- **Kanban** — board layout, filter `-status:Done -status:Cancelled` (groups by Status by default).
+- **Backlog** — table layout, filter `-status:Done -status:Cancelled`, columns Title / Kind / Area / Status.
+- **Monthly** / **Quarterly** — roadmap layout driven by `Start date` / `Target date`; zoom is set in the UI.
+
+`github_project_view_ensure` `{ name, layout, filter?, visibleFields? }` adds a
+table/board view to an existing board (idempotent by name) — use it to repair a
+board that predates the template. It cannot set grouping/sort/zoom; finish
+roadmap views in the UI on the template.
+
+</Views>
 
 <BodyGuidance>
 
@@ -186,14 +210,16 @@ issues rather than this guidance.
 
 Initialize a board (new owner/org):
 
-1. `github_project_create { owner, title: "Roadmap" }` — creates the board (or
-   reuses an existing one with that title) and applies the full standard schema
-   in one call: Status (incl. Cancelled), Kind and Area with colors, plus
-   `_Repository` and `_Milestone`. Idempotent — safe to re-run to repair.
+1. `github_project_create { owner, title: "Roadmap" }` — seeds the board by
+   copying the `@me` "Roadmap Template" (carrying its saved views) when present,
+   else creates it bare, then applies the full standard schema: Status (incl.
+   Cancelled), Kind and Area with colors, `_Repository`, `_Milestone`, and
+   `Start date` / `Target date`. Idempotent — safe to re-run to repair.
 2. Org board only: `gh project link <number> --owner <org> --repo <org>/<repo>`.
 
-`github_project_field_ensure` is only for ad-hoc additions afterwards (e.g. a new
-Area option); routine setup is handled by `github_project_create`.
+`github_project_field_ensure` / `github_project_view_ensure` are for ad-hoc
+additions afterwards (a new Area option, or a view on a pre-template board);
+routine setup is handled by `github_project_create`.
 
 Add an entry of a given Kind:
 
