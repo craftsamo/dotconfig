@@ -145,9 +145,9 @@ a deterministic reproduction; local/unpushed commits have no PR or Issue.
    If a change belongs to earlier work, resolve amend-vs-link first.
 3. Stage intentionally: explicit paths, or hunks via `git apply --cached`.
    Never `git add -A` or `git add .` blindly. Re-check `git diff --cached`.
-4. Scan the staged diff for secrets — `.env`, keys, tokens, credentials. Never
-   stage or commit secret values (see `keychain-secrets`). Stop and report if
-   any appear.
+4. Scan the staged diff for secrets with `git_secret_scan` (built-in rules plus
+   gitleaks when available; values are redacted). Never stage or commit secret
+   values (see `keychain-secrets`). Stop and report if it returns findings.
 5. Write the message per <ConventionResolution> and <MessageHygiene>. Add
    provenance links when committing a fix or follow-up.
 6. Run hooks and formatters. If they modify files, re-stage and re-verify. If a
