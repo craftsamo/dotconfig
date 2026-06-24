@@ -199,7 +199,9 @@ Add a new Area (or other single-select) option:
 <Guardrails>
 
 - List before adding to avoid duplicates.
-- Keep titles short; put detail in the body.
+- Titles are action phrases (JA「〜する」, EN imperative) stating the work to do,
+  not a noun or a bare symptom — for a bug, name the fix (「〜を修正する」). Keep
+  them short and put detail in the body. e.g.「ルートの README.md を整備する」.
 - Always set `_Repository` from the current repo so the work target is unambiguous.
 - Never delete items; archive them in the project UI (there is no delete tool).
 - Single-select values must match an existing option name (case-insensitive);
