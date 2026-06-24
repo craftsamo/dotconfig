@@ -22,7 +22,7 @@
 # Data model — native keychain attributes (fully visible in Keychain Access):
 #   service = secret.<project>      account = NAME (the unique lookup key)
 #   label   = NAME inside the project's own keychain, else <project>/NAME
-#   kind    = -D (default "ENV")    comment = -j (free-form description)
+#   kind    = -D (upper-cased, default "ENV")  comment = -j (free-form description)
 # Project resolution:
 #   -p flag > `git config secret.project` > git toplevel basename > "global"
 # Keychain model — strict 1:1, one project = one keychain:
@@ -253,6 +253,24 @@ _secret_prompt_value() {       # $1 display label; hidden double prompt, value o
   print -r -- "$v1"
 }
 
+# Canonical kind labels offered by the fzf pickers (one per line). "Other"
+# lets the user type a free-form kind; every write is normalised by
+# _secret_norm_kind, so casing/spacing stays consistent whatever the source.
+_secret_kind_choices() {
+  print -rl -- ENV 'API KEY' TOKEN PASSWORD SECRET URL \
+    'WEBHOOK SECRET' 'MNEMONIC PHRASE' 'PRIVATE KEY' 'Other'
+}
+
+# Normalise a kind label: upper-case, collapse whitespace runs to one space,
+# trim both ends, default to ENV when empty. Applied on every write so the
+# stored kind is consistent regardless of -D casing or origin (set/update/import).
+_secret_norm_kind() {          # $1 raw kind -> canonical kind on stdout
+  local k=${(U)1}
+  k=${k//[[:space:]]##/ }
+  k=${${k##[[:space:]]#}%%[[:space:]]#}
+  print -r -- "${k:-ENV}"
+}
+
 _secret_store() {              # $1 name $2 project $3 comment $4 kind $5 scope ; value on stdin
   local name=$1 proj=$2 comment=$3 kind=$4 scope=$5 value extra err
   IFS= read -r value
@@ -279,7 +297,7 @@ _secret_store() {              # $1 name $2 project $3 comment $4 kind $5 scope 
   cmd+=" -a $(_secret_quote_si "$name")"
   cmd+=" -s $(_secret_quote_si "$svc")"
   cmd+=" -l $(_secret_quote_si "$label")"
-  cmd+=" -D $(_secret_quote_si "${kind:-ENV}")"
+  cmd+=" -D $(_secret_quote_si "$(_secret_norm_kind "$kind")")"
   cmd+=" -j $(_secret_quote_si "$comment")"
   cmd+=" -w $(_secret_quote_si "$value")"
   cmd+=" $(_secret_quote_si "$kc")"
@@ -588,7 +606,7 @@ _secret_cmd_show() {
   printf '%-10s %s\n' \
     'Name:'     "${f[2]}" \
     'Project:'  "${f[1]}" \
-    'Scope:'    "${f[7]:-(shared)}" \
+    'Scope:'    "${f[7]:-Shared}" \
     'Label:'    "${f[3]}" \
     'Kind:'     "${f[4]}" \
     'Comment:'  "${f[5]}" \
@@ -613,11 +631,11 @@ _secret_cmd_ls() {
   if (( long )); then
     local row
     local -a f
-    printf '%-32s %-14s %-17s %s\n' 'NAME' 'KIND' 'MODIFIED' 'COMMENT'
+    printf '%-28s %-14s %-16s %-17s %s\n' 'NAME' 'SCOPE' 'KIND' 'MODIFIED' 'COMMENT'
     while IFS= read -r row; do
       f=("${(@ps:\t:)row}")
-      printf '%-32s %-14s %-17s %s\n' \
-        "${f[7]:+${f[7]}/}${f[2]}" "${f[4]}" "$(_secret_fmt_date "${f[6]}")" "${f[5]}"
+      printf '%-28s %-14s %-16s %-17s %s\n' \
+        "${f[2]}" "${f[7]:-Shared}" "${f[4]}" "$(_secret_fmt_date "${f[6]}")" "${f[5]}"
     done <<< "$rows"
   else
     print -r -- "$rows" | awk -F'\t' '{ print ($7 == "" ? $2 : $7 "/" $2) }'
@@ -1462,7 +1480,8 @@ COMMANDS
   get NAME [-p proj] [LAYER] [-c|--copy]
         print the value (or copy to clipboard, auto-clears in 45s)
   show NAME [-p proj] [LAYER]  metadata only (never prints the value)
-  ls [-p proj] [-l|--long]     list secrets (scoped ones as "scope/NAME")
+  ls [-p proj] [-l|--long]     list secrets; short form shows scoped items
+        as "scope/NAME", --long has a dedicated Scope column
   projects                     list all projects
   env [-p proj] [--scope X]    emit `export NAME=...` lines: the shared
         layer overlaid with the repository scope (scoped wins), e.g.:
@@ -1515,6 +1534,12 @@ SCOPES
   (DATABASE_URL, PORT, ...) with -S. The scope name defaults to the
   repository basename, so two linked repos never collide. `secret env`
   emits shared + this repo's scope, scoped values winning.
+
+KINDS
+  -D sets the item's kind, a short type label shown in Keychain Access.
+  It is normalised on write (upper-cased, whitespace collapsed; default
+  ENV). The wizard offers ENV, API KEY, TOKEN, PASSWORD, SECRET, URL,
+  WEBHOOK SECRET, MNEMONIC PHRASE, PRIVATE KEY, or Other to type your own.
 
 KEYCHAINS
   One project = one keychain: project P lives in
@@ -1616,9 +1641,9 @@ _secret_ui_add() {
     [[ -z $layer ]] && return 0
     layer=${${(z)layer}[1]}
   fi
-  kind=$(printf '%s\n' 'ENV' 'api key' 'token' 'password' 'webhook secret' '[custom]' \
+  kind=$(_secret_kind_choices \
     | _secret_fzf --header="secret › $proj/$name › kind" --prompt='kind> ') || return 0
-  if [[ $kind == '[custom]' ]]; then
+  if [[ $kind == 'Other' ]]; then
     read -r "kind?kind: " || return 0
   fi
   read -r "comment?comment (optional): " || return 0
@@ -1666,10 +1691,10 @@ _secret_ui_update() {
         args+=(-j "$c")
         ;;
       kind)
-        k=$(printf '%s\n' 'ENV' 'api key' 'token' 'password' 'webhook secret' '[custom]' \
+        k=$(_secret_kind_choices \
           | _secret_fzf --header="secret › $proj/$tok › new kind (current: ${f[4]:-ENV})" \
               --prompt='kind> ') || return 0
-        if [[ $k == '[custom]' ]]; then
+        if [[ $k == 'Other' ]]; then
           read -r "k?kind: " || return 0
         fi
         [[ -z $k ]] && return 0
