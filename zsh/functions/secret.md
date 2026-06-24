@@ -19,7 +19,7 @@ From the [Brewfile](../../Brewfile): `fzf` (interactive UI), `jq`
 secret                          # fzf wizard: Get / Add / Update / List / Show / Delete / Export / Import
 secret set STRIPE_KEY -j "prod key, rotate in dashboard" -D "API KEY"
 secret get STRIPE_KEY           # value on stdout   (-c: clipboard, auto-clears in 45 s)
-secret ls --long                # names + kind + modified + comment
+secret ls --long                # name + scope + kind + modified + comment
 eval "$(secret env -p global)"  # inject a whole project as environment variables
 ```
 
@@ -74,7 +74,8 @@ eval "$(secret env)"                        # shared + this repo's scope (scoped
 The same `secret set DATABASE_URL -S` in `courses` lands in its own scope —
 no collision. Reads/updates/deletes are DWIM (repo scope first, then
 shared); `--shared`, `--scope X` and `-S` pin a specific layer. `ls` shows
-scoped items as `scope/NAME`, and so does Keychain Access via the label.
+scoped items as `scope/NAME` — `--long` gives scope its own column — and so
+does Keychain Access via the label.
 
 ### Master password
 
