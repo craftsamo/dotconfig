@@ -24,6 +24,15 @@ When asked to triage, resolve, or fix GitHub Dependabot security alerts
 `resolve-dependabot-alerts` skill rather than hand-fixing.
 
 </DependabotSkill>
+
+<CommitSkill>
+
+When asked to create git commits — staging, splitting changes into atomic
+build-passing commits, writing commit messages, or tracing which
+commit/PR/Issue a change came from — load and follow the `git-commit` skill
+rather than committing ad hoc.
+
+</CommitSkill>
 </SkillRouting>
 
 <ExplorationDelegation>
