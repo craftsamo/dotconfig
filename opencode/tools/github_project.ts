@@ -19,6 +19,9 @@ import { tool } from "@opencode-ai/plugin"
  */
 
 const DEFAULT_TITLE = "Roadmap"
+const TEMPLATE_OWNER = "@me"
+const TEMPLATE_TITLE = "Roadmap Template"
+const REST_API_VERSION = "X-GitHub-Api-Version: 2026-03-10"
 
 async function runGh(argv: string[], cwd?: string): Promise<string> {
   let p = Bun.$`gh ${argv}`
@@ -64,6 +67,11 @@ async function resolveProject(owner: string, project?: string): Promise<{ number
   }
   const view = await runGhJson(["project", "view", String(number), "--owner", owner, "--format", "json"])
   return { number: number!, id: view.id }
+}
+
+async function findProjectNumber(owner: string, title: string): Promise<number | undefined> {
+  const list = await runGhJson(["project", "list", "--owner", owner, "--format", "json", "-L", "100"])
+  return (list?.projects ?? []).find((x: any) => x.title === title)?.number
 }
 
 async function getFields(projectNodeId: string): Promise<any[]> {
@@ -148,7 +156,7 @@ const ROADMAP_SELECTS: Record<string, [string, string][]> = {
     ["Config", "YELLOW"], ["CI/CD", "PURPLE"], ["Skills", "RED"], ["Tooling", "ORANGE"], ["Other", "GRAY"],
   ],
 }
-const ROADMAP_SIMPLE: [string, string][] = [["_Repository", "TEXT"], ["_Milestone", "TEXT"]]
+const ROADMAP_SIMPLE: [string, string][] = [["_Repository", "TEXT"], ["_Milestone", "TEXT"], ["Start date", "DATE"], ["Target date", "DATE"]]
 
 // Ensure a single-select field exists with the given option names AND colors.
 // Existing options are matched by name and keep their ids (assignments survive),
@@ -188,7 +196,7 @@ async function ensureSimpleField(owner: string, number: number, projectId: strin
 
 export const create = tool({
   description:
-    'Create a GitHub Projects (v2) board and set up the standard "Roadmap" schema in one call: Status (Todo/In Progress/Done/Cancelled), Kind and Area — all with colors — plus _Repository and _Milestone. If a project with the title already exists for the owner it is reused. Idempotent (safe to re-run to repair/refresh the schema). Returns number, id and URL.',
+    'Create a GitHub Projects (v2) board and set up the standard "Roadmap" schema in one call: Status (Todo/In Progress/Done/Cancelled), Kind and Area — all with colors — plus _Repository, _Milestone and Start/Target date. A new board is seeded by copying the "Roadmap Template" board (carrying its saved views) when that template exists, else created bare. If a project with the title already exists for the owner it is reused. Idempotent (safe to re-run to repair/refresh the schema). Returns number, id and URL.',
   args: {
     owner: tool.schema.string().describe('Owner login, or "@me" for the current user. Use an org login for a team board.'),
     title: tool.schema.string().optional().describe('Project title. Defaults to "Roadmap".'),
@@ -198,8 +206,25 @@ export const create = tool({
     const list = await runGhJson(["project", "list", "--owner", args.owner, "--format", "json", "-L", "100"])
     let proj = (list?.projects ?? []).find((p: any) => p.title === title)
     const createdNew = !proj
+    let copiedFrom: string | null = null
     if (!proj) {
-      proj = await runGhJson(["project", "create", "--owner", args.owner, "--title", title, "--format", "json"])
+      // Seed a new board by copying the canonical template (carries its saved
+      // views + date fields). Skip when creating the template itself, or if the
+      // template is absent; fall back to a bare project on any copy failure.
+      if (title !== TEMPLATE_TITLE) {
+        const tmpl = await findProjectNumber(TEMPLATE_OWNER, TEMPLATE_TITLE)
+        if (tmpl) {
+          try {
+            proj = await runGhJson(["project", "copy", String(tmpl), "--source-owner", TEMPLATE_OWNER, "--target-owner", args.owner, "--title", title, "--format", "json"])
+            copiedFrom = `${TEMPLATE_OWNER}/${TEMPLATE_TITLE}#${tmpl}`
+          } catch {
+            // fall back to a bare project below
+          }
+        }
+      }
+      if (!proj) {
+        proj = await runGhJson(["project", "create", "--owner", args.owner, "--title", title, "--format", "json"])
+      }
     }
     const number = proj.number
     const view = await runGhJson(["project", "view", String(number), "--owner", args.owner, "--format", "json"])
@@ -210,7 +235,7 @@ export const create = tool({
     for (const [name, dataType] of ROADMAP_SIMPLE) {
       await ensureSimpleField(args.owner, number, projectId, name, dataType)
     }
-    return JSON.stringify({ ok: true, createdNew, number, id: projectId, url: view.url ?? proj.url, title })
+    return JSON.stringify({ ok: true, createdNew, copiedFrom, number, id: projectId, url: view.url ?? proj.url, title })
   },
 })
 
@@ -442,5 +467,58 @@ export const item_promote = tool({
       milestone: milestone ? { number: milestone.number, title: milestone.title } : null,
       clearedFields: cleared,
     })
+  },
+})
+
+// ---- Views (REST projectsV2 views API) ----
+// GraphQL/gh cannot create views; the REST projectsV2 views endpoint can set
+// name, layout, filter and visible columns. Grouping / sort / roadmap zoom &
+// date-binding are NOT settable via the API (UI only) — which is why the
+// standard boards are seeded by copying the UI-configured "Roadmap Template".
+async function resolveRestBase(owner: string): Promise<string> {
+  let login = owner
+  if (login === "@me") login = (await runGh(["api", "user", "--jq", ".login"])).trim()
+  const type = (await runGh(["api", `users/${login}`, "--jq", ".type"])).trim()
+  return type === "Organization" ? `/orgs/${login}` : `/users/${login}`
+}
+
+async function getViewNames(projectNodeId: string): Promise<string[]> {
+  const q = "query($id:ID!){node(id:$id){... on ProjectV2{views(first:50){nodes{name}}}}}"
+  const data = await runGhJson(["api", "graphql", "-f", `query=${q}`, "-f", `id=${projectNodeId}`])
+  return (data?.data?.node?.views?.nodes ?? []).map((v: any) => String(v.name))
+}
+
+export const view_ensure = tool({
+  description:
+    'Idempotently ensure a saved VIEW exists on a project, via the REST projectsV2 views API (gh/GraphQL cannot create views). Creates the view only if no view of that name exists (case-insensitive). `layout` is "table", "board" or "roadmap"; optional `filter` (Projects filter syntax) and `visibleFields` (field NAMES → columns; ignored for roadmap). LIMITATION: grouping, sort, and roadmap zoom / date-binding are NOT settable via the API — configure those once in the UI (the standard boards inherit them by copying the "Roadmap Template"). owner defaults to the current repo owner (else @me); project defaults to "Roadmap".',
+  args: {
+    name: tool.schema.string().describe('View name, e.g. "Kanban" or "Backlog".'),
+    layout: tool.schema.enum(["table", "board", "roadmap"]).describe("View layout."),
+    filter: tool.schema.string().optional().describe('Projects filter, e.g. "-status:Done -status:Cancelled".'),
+    visibleFields: tool.schema.array(tool.schema.string()).optional().describe("Field names to show as columns (table/board only)."),
+    owner: tool.schema.string().optional().describe('Owner login or "@me". Defaults to current repo owner, else @me.'),
+    project: tool.schema.string().optional().describe('Project number or title. Defaults to "Roadmap".'),
+  },
+  async execute(args, context) {
+    const owner = await resolveOwner(args.owner, context.worktree)
+    const { number, id: projectId } = await resolveProject(owner, args.project)
+    const existing = await getViewNames(projectId)
+    if (existing.some((n) => n.toLowerCase() === args.name.toLowerCase())) {
+      return JSON.stringify({ created: false, unchanged: true, view: args.name })
+    }
+    const base = await resolveRestBase(owner)
+    const path = `${base}/projectsV2/${number}/views`
+    const argv = ["api", "--method", "POST", "-H", REST_API_VERSION, path, "-f", `name=${args.name}`, "-f", `layout=${args.layout}`]
+    if (args.filter) argv.push("-f", `filter=${args.filter}`)
+    if (args.layout !== "roadmap" && args.visibleFields?.length) {
+      const restFields: any[] = (await runGhJson(["api", "-H", REST_API_VERSION, `${base}/projectsV2/${number}/fields`, "--paginate"])) ?? []
+      const byName = new Map(restFields.map((f: any) => [String(f.name).toLowerCase(), f.id]))
+      for (const fn of args.visibleFields) {
+        const fid = byName.get(fn.toLowerCase())
+        if (fid != null) argv.push("-F", `visible_fields[]=${fid}`)
+      }
+    }
+    const created = await runGhJson(argv)
+    return JSON.stringify({ created: true, view: { number: created?.number, name: created?.name, layout: created?.layout } })
   },
 })
