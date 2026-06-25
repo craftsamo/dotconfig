@@ -107,6 +107,11 @@ longout=$(secret ls -p $P --long)
 [[ $longout == *'API KEY'* ]] && ok "ls --long shows normalized kind" || bad "ls --long shows normalized kind"
 [[ $longout =~ 'TEST_BETA[[:space:]]+Shared[[:space:]]+ENV[[:space:]]+[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}' ]] \
   && ok "ls --long shows Shared scope + aligns columns" || bad "ls --long shows Shared scope + aligns columns"
+# a name longer than the old fixed width must not misalign its row (auto-size)
+print -r -- 'v' | secret set TEST_LONG_VARIABLE_NAME_FOR_ALIGNMENT -p $P -D token --stdin >/dev/null 2>&1
+[[ "$(secret ls -p $P --long)" =~ 'TEST_LONG_VARIABLE_NAME_FOR_ALIGNMENT[[:space:]]+Shared[[:space:]]+TOKEN' ]] \
+  && ok "ls --long auto-sizes a long name" || bad "ls --long auto-sizes a long name"
+secret rm TEST_LONG_VARIABLE_NAME_FOR_ALIGNMENT -p $P -f >/dev/null 2>&1
 showout=$(secret show TEST_ALPHA -p $P)
 [[ $showout == *'comment with "quotes" and spaces'* ]] && ok "show displays comment" || bad "show displays comment"
 [[ $showout =~ 'Modified:[[:space:]]+[0-9]{4}-[0-9]{2}-[0-9]{2}' ]] && ok "show displays modified date" || bad "show displays modified date"
