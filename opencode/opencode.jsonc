@@ -8,7 +8,338 @@
     "instructions/*.txt",
     "instructions/*.md"
   ],
-  "provider": {},
+  "provider": {
+    "zai-coding-plan": {
+      "models": {
+        // OpenCode currently exposes no variants for these non-5.2 GLM
+        // reasoning models, even though Z.AI supports thinking on/off.
+        "glm-4.5-air": {
+          "cost": {
+            "input": 0.2,
+            "output": 1.1,
+            "cache_read": 0.03,
+            "cache_write": 0
+          },
+          "variants": {
+            "none": {
+              "thinking": {
+                "type": "disabled"
+              }
+            },
+            "thinking": {
+              "thinking": {
+                "type": "enabled",
+                "clear_thinking": false
+              }
+            }
+          }
+        },
+        "glm-4.7": {
+          "cost": {
+            "input": 0.6,
+            "output": 2.2,
+            "cache_read": 0.11,
+            "cache_write": 0
+          },
+          "variants": {
+            "none": {
+              "thinking": {
+                "type": "disabled"
+              }
+            },
+            "thinking": {
+              "thinking": {
+                "type": "enabled",
+                "clear_thinking": false
+              }
+            }
+          }
+        },
+        "glm-5.1": {
+          "cost": {
+            "input": 1.4,
+            "output": 4.4,
+            "cache_read": 0.26,
+            "cache_write": 0
+          },
+          "variants": {
+            "none": {
+              "thinking": {
+                "type": "disabled"
+              }
+            },
+            "thinking": {
+              "thinking": {
+                "type": "enabled",
+                "clear_thinking": false
+              }
+            }
+          }
+        },
+        "glm-5-turbo": {
+          "cost": {
+            "input": 1.2,
+            "output": 4.0,
+            "cache_read": 0.24,
+            "cache_write": 0
+          },
+          "variants": {
+            "none": {
+              "thinking": {
+                "type": "disabled"
+              }
+            },
+            "thinking": {
+              "thinking": {
+                "type": "enabled",
+                "clear_thinking": false
+              }
+            }
+          }
+        },
+        "glm-5.2": {
+          "cost": {
+            "input": 1.4,
+            "output": 4.4,
+            "cache_read": 0.26,
+            "cache_write": 0
+          }
+        },
+        // Listed by OpenCode/models.dev, but your Pro probe returned 1311.
+        "glm-5v-turbo": {
+          "cost": {
+            "input": 1.2,
+            "output": 4.0,
+            "cache_read": 0.24,
+            "cache_write": 0
+          }
+        },
+        // Extra GLM Coding Plan models verified against the endpoint but not yet
+        // present in OpenCode/models.dev's zai-coding-plan catalog.
+        "glm-4.5": {
+          "id": "glm-4.5",
+          "name": "GLM-4.5",
+          "family": "glm",
+          "attachment": false,
+          "reasoning": true,
+          "temperature": true,
+          "tool_call": true,
+          "release_date": "2025-07-28",
+          "cost": {
+            "input": 0.6,
+            "output": 2.2,
+            "cache_read": 0.11,
+            "cache_write": 0
+          },
+          "limit": {
+            "context": 131072,
+            "output": 98304
+          },
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "variants": {
+            "none": {
+              "thinking": {
+                "type": "disabled"
+              }
+            },
+            "thinking": {
+              "thinking": {
+                "type": "enabled",
+                "clear_thinking": false
+              }
+            }
+          }
+        },
+        "glm-4.5-flash": {
+          "id": "glm-4.5-flash",
+          "name": "GLM-4.5-Flash",
+          "family": "glm-flash",
+          "attachment": false,
+          "reasoning": true,
+          "temperature": true,
+          "tool_call": true,
+          "release_date": "2025-07-28",
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cache_read": 0,
+            "cache_write": 0
+          },
+          "limit": {
+            "context": 131072,
+            "output": 98304
+          },
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "variants": {
+            "none": {
+              "thinking": {
+                "type": "disabled"
+              }
+            },
+            "thinking": {
+              "thinking": {
+                "type": "enabled",
+                "clear_thinking": false
+              }
+            }
+          }
+        },
+        "glm-4.5v": {
+          "id": "glm-4.5v",
+          "name": "GLM-4.5V",
+          "family": "glm",
+          "attachment": true,
+          "reasoning": true,
+          "temperature": true,
+          "tool_call": true,
+          "release_date": "2025-08-11",
+          "cost": {
+            "input": 0.6,
+            "output": 1.8,
+            "cache_read": 0.11,
+            "cache_write": 0
+          },
+          "limit": {
+            "context": 64000,
+            "output": 16384
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "video"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "variants": {
+            "none": {
+              "thinking": {
+                "type": "disabled"
+              }
+            },
+            "thinking": {
+              "thinking": {
+                "type": "enabled",
+                "clear_thinking": false
+              }
+            }
+          }
+        },
+        "glm-4.6v": {
+          "id": "glm-4.6v",
+          "name": "GLM-4.6V",
+          "family": "glm",
+          "attachment": true,
+          "reasoning": true,
+          "temperature": true,
+          "tool_call": true,
+          "interleaved": {
+            "field": "reasoning_content"
+          },
+          "release_date": "2025-12-08",
+          "cost": {
+            "input": 0.3,
+            "output": 0.9,
+            "cache_read": 0.05,
+            "cache_write": 0
+          },
+          "limit": {
+            "context": 128000,
+            "output": 32768
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "video",
+              "pdf"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "variants": {
+            "none": {
+              "thinking": {
+                "type": "disabled"
+              }
+            },
+            "thinking": {
+              "thinking": {
+                "type": "enabled",
+                "clear_thinking": false
+              }
+            }
+          }
+        },
+        // Your probe returned a temporary overload (1305), not a plan/permission
+        // rejection, so keep this available for retrying when capacity recovers.
+        "glm-4.6v-flash": {
+          "id": "glm-4.6v-flash",
+          "name": "GLM-4.6V-Flash",
+          "family": "glm-flash",
+          "attachment": true,
+          "reasoning": true,
+          "temperature": true,
+          "tool_call": true,
+          "interleaved": {
+            "field": "reasoning_content"
+          },
+          "release_date": "2025-12-08",
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cache_read": 0,
+            "cache_write": 0
+          },
+          "limit": {
+            "context": 128000,
+            "output": 32768
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "video",
+              "pdf"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "variants": {
+            "none": {
+              "thinking": {
+                "type": "disabled"
+              }
+            },
+            "thinking": {
+              "thinking": {
+                "type": "enabled",
+                "clear_thinking": false
+              }
+            }
+          }
+        }
+      }
+    }
+  },
   "agent": {
     "explore": {
       "hidden": true,
