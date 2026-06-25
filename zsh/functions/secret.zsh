@@ -629,14 +629,28 @@ _secret_cmd_ls() {
   rows=$(_secret_rows "$proj")
   [[ -z $rows ]] && { print -r -- "no secrets in project '$proj'" >&2; return 0 }
   if (( long )); then
-    local row
-    local -a f
-    printf '%-28s %-14s %-16s %-17s %s\n' 'NAME' 'SCOPE' 'KIND' 'MODIFIED' 'COMMENT'
+    local row mod scope
+    local -a f names scopes kinds mods comments
+    local -i wn=4 ws=5 wk=4 wm=8           # seed from header label widths
     while IFS= read -r row; do
       f=("${(@ps:\t:)row}")
-      printf '%-28s %-14s %-16s %-17s %s\n' \
-        "${f[2]}" "${f[7]:-Shared}" "${f[4]}" "$(_secret_fmt_date "${f[6]}")" "${f[5]}"
+      scope=${f[7]:-Shared}
+      mod=$(_secret_fmt_date "${f[6]}")
+      names+=("${f[2]}"); scopes+=("$scope"); kinds+=("${f[4]}")
+      mods+=("$mod"); comments+=("${f[5]}")
+      (( ${#f[2]}  > wn )) && wn=${#f[2]}
+      (( ${#scope} > ws )) && ws=${#scope}
+      (( ${#f[4]}  > wk )) && wk=${#f[4]}
+      (( ${#mod}   > wm )) && wm=${#mod}
     done <<< "$rows"
+    # auto-size columns to their content (NAME/SCOPE/KIND/MODIFIED); the
+    # trailing COMMENT is left unbounded so long names never misalign a row
+    local fmt="%-${wn}s  %-${ws}s  %-${wk}s  %-${wm}s  %s\n"
+    printf "$fmt" NAME SCOPE KIND MODIFIED COMMENT
+    local -i i
+    for (( i = 1; i <= ${#names}; i++ )); do
+      printf "$fmt" "${names[i]}" "${scopes[i]}" "${kinds[i]}" "${mods[i]}" "${comments[i]}"
+    done
   else
     print -r -- "$rows" | awk -F'\t' '{ print ($7 == "" ? $2 : $7 "/" $2) }'
   fi
