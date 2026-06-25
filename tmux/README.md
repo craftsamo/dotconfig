@@ -17,6 +17,7 @@ symlink or setup step needed.
 - Prefix is `C-t` (`C-b` is unbound)
 - vi copy-mode, bar cursor, 24-bit colour + undercurl, focus events,
   64k scrollback, 10ms escape time
+- Mouse is on: wheel scroll (enters copy-mode), pane select, and resize by drag
 - Inactive panes are slightly dimmed; the active pane border is neon green
 
 ## Key bindings
