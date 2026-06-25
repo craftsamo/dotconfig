@@ -69,13 +69,28 @@ Resolve the message format in this priority order. Detect, do not assume.
   integration that makes it actually run. Keep these together even when they
   span code, config, and skill prose. Example: a new tool, the permission that
   lets it run, and the skill section that calls it land in one commit — split
-  apart, the tool is dead code and the skill references something absent.
-- Separate by kind only when the parts stand alone. Independently meaningful
-  changes — descriptive docs about a feature, a standalone refactor, an
-  unrelated test or chore — stay in their own commits. Test: if splitting leaves
-  a part inert (dead code) or dangling (a reference to something not yet
-  present), it is one concern; if each part is meaningful and the build is
-  coherent in either order, separate them.
+  apart, the tool is dead code and the skill references something absent. This
+  binds only wiring that is non-functional or dangling on its own; a
+  self-contained reusable building block the feature happens to use is not such
+  wiring and may stand as its own earlier commit (see the next bullet).
+- Separate by kind when the parts stand alone. Independently meaningful changes
+  — a reusable primitive or shared capability, descriptive docs about a feature,
+  a standalone refactor, an unrelated test or chore — stay in their own commits.
+  Test: tell a *dangling reference* (a call site, import, or registration of
+  something not yet present — it breaks the build, so it stays with its target)
+  from a *not-yet-used foundation* (a self-contained reusable building block that
+  builds on its own and only lacks a consumer until a later commit). A dangling
+  fragment is one concern with its target; a not-yet-used foundation may be its
+  own earlier commit. Inert-but-building is allowed only when the part is
+  genuinely reusable — never an excuse to commit a broken fragment.
+- Build-up order, aligned to the goal: prefer the finest decomposition in which
+  every commit still builds — foundations first (a reusable component, a shared
+  capability), then the feature that consumes them, then the wiring that exposes
+  it (entry points, routes, navigation, sitemap). A single "add the whole
+  feature" commit is atomic but too coarse when it splits into independently
+  building steps; the sequence should read as the construction steps that reach
+  the branch/PR's stated goal, keeping review diffs small and `git bisect`
+  precise.
 - Smallest atomic unit within a concern: when one file holds unrelated
   changes, split by hunk with `git_stage_hunks` — call it to list the hunks
   with stable ids, then stage exactly the ones for this commit (by id, or with
