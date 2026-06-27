@@ -1,0 +1,5 @@
+{
+  "enabledProviders": ["anthropic", "zai"],
+  "formatStyle": "allWindows",
+  "enableToast": false
+}
