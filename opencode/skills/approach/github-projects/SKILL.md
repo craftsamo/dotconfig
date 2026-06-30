@@ -72,7 +72,8 @@ Parent Issue (epic) … the high-level requirement
   backend auth wiring, the login UI, and route protection — three independent
   sub-goals, so an **Epic**. The backend piece stays one sub-issue (one PR)
   whose internal steps are commits; it does not become three sub-issues unless
-  each is independently reviewable.
+  each is independently reviewable. The epic's `## Acceptance` then covers the
+  end-to-end login→protection flow no single sub-issue verifies alone.
 
 </WhatGoesOnTheBoard>
 
@@ -112,9 +113,11 @@ Parent Issue (epic) … the high-level requirement
    PR to its base via `git-pullrequest`. Land each PR (it closes its
    sub-issue); keep the epic's Plan in sync as sub-issues change. A single
    Issue just PRs to the default branch.
-5. **Close the loop.** When all sub-issues land, PR the epic branch into the
-   default branch; merging closes the epic. Set the board item Status to Done
-   and summarize the outcome. No orphan local plan/TODO files.
+5. **Close the loop.** When all sub-issues land, run the epic's `## Acceptance`
+   integration checks (end-to-end, no regressions) before merging; then PR the
+   epic branch into the default branch — merging closes the epic. Set the board
+   item Status to Done and summarize the outcome. No orphan local plan/TODO
+   files.
 6. **Re-enter across sessions.** At the start of a session,
    `github_project_item_list` (`-status:Done -status:Cancelled`) → read the
    epic's `## Plan` → `checkout` the relevant branch → resume.
