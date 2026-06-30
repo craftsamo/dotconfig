@@ -200,12 +200,17 @@ Per Kind (sections in order; fill only the relevant ones):
 
 Epic (a parent issue with sub-issues — any Kind; supersedes the per-Kind body):
 
-- `## Overview` — the outcome and why (1–3 lines); optional `**Done when**:` exit criterion.
+- `## Overview` — the outcome and why (1–3 lines).
 - `## Details` — scope / constraints / design notes (optional; omit if none).
 - `## Plan` — phased breakdown: `### Phase 1 — <wave goal>` then plain `- #12`
   sub-issue references; add `### Phase 2 …` for later waves.
-- Reference sub-issues as `#n` only — no `- [ ]` checkboxes (the native Sub-issues
-  panel is the single source of progress; checkboxes create a parallel task list).
+- `## Acceptance` — the integration-level checks confirmed AFTER all sub-issues
+  land (end-to-end scenarios, requirement coverage, no regressions). Use `- [ ]`
+  checkboxes here. This is the epic's exit criterion; each sub-issue's own
+  acceptance lives in that sub-issue, not here.
+- Reference sub-issues in `## Plan` as `#n` only — no `- [ ]` there (the native
+  Sub-issues panel is the single source of progress; checkboxes create a
+  parallel task list). Checkboxes belong ONLY in `## Acceptance`.
 - Phase grouping is maintained by hand; update Plan when sub-issues change.
 
 On a shared repo that already provides Issue Forms, prefer that form for real
