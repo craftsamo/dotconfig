@@ -65,15 +65,20 @@ Parent Issue (epic) … the high-level requirement
 
 - A sub-issue maps to one PR. Whether several small structural pieces inside a
   sub-goal become separate sub-issues or commits inside one PR depends on
-  whether each is independently reviewable.
+  whether each is independently reviewable. A sub-issue's body is its per-Kind
+  sections (Requirements / Acceptance) plus, when the work isn't obvious, a
+  `## Approach` outline (main steps, files touched, approach — no code) so an
+  agent or fresh session can pick it up without re-exploring.
 - Sub-issues live in the repo (not on the board); the epic carries progress via
   its sub-issue bar.
 - Neutral example: "add an external login" decomposes along the seams into
   backend auth wiring, the login UI, and route protection — three independent
   sub-goals, so an **Epic**. The backend piece stays one sub-issue (one PR)
   whose internal steps are commits; it does not become three sub-issues unless
-  each is independently reviewable. The epic's `## Acceptance` then covers the
-  end-to-end login→protection flow no single sub-issue verifies alone.
+  each is independently reviewable. Its `## Approach` names the provider
+  strategy, the module registration, and the guard wiring; the epic's
+  `## Acceptance` covers the end-to-end login→protection flow no single
+  sub-issue verifies alone.
 
 </WhatGoesOnTheBoard>
 
@@ -109,6 +114,9 @@ Parent Issue (epic) … the high-level requirement
    - For an epic, `github_project_issue_link` to attach each sub-issue (it sets
      the sub-issue's Issue Type to `Task`). Write the epic body's `## Plan`
      with `### Phase N` and `#n` sub-issue references.
+   - Fill each sub-issue's body with its per-Kind sections (Requirements /
+     Acceptance) and, when the work isn't obvious, a `## Approach` outline so it
+     can be picked up without re-exploring.
 4. **Execute via stacked PRs.** Implement each sub-issue on its branch; open a
    PR to its base via `git-pullrequest`. Land each PR (it closes its
    sub-issue); keep the epic's Plan in sync as sub-issues change. A single
