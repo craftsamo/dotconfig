@@ -198,6 +198,15 @@ Per Kind (sections in order; fill only the relevant ones):
   - `## Cases` — cases / angles; split with `### Happy path` / `### Edge cases`.
   - `## Pass criteria` — coverage / pass conditions (optional).
 
+Common optional section (any Kind, when the work will be implemented):
+
+- `## Approach` — the implementation outline: main steps, the files / modules it
+  touches, and the chosen approach. Outline only — NO code blocks (the PR diff is
+  the implementation; code here drifts from it). Lets a sub-issue be picked up by
+  an agent or a fresh session without re-exploring the codebase. Omit when
+  Requirements / Acceptance already make the work obvious. Distinct from an
+  epic's `## Plan` (which orders sub-issues into phases).
+
 Epic (a parent issue with sub-issues — any Kind; supersedes the per-Kind body):
 
 - `## Overview` — the outcome and why (1–3 lines).
