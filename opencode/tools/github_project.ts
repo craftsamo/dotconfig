@@ -577,14 +577,38 @@ async function listLinkedBranches(issue: string, repo?: string, cwd?: string): P
 }
 
 function parseBranchFromOutput(out: string): string | null {
-  // gh prints the new branch as a tree URL: .../tree/<branch>
+  // gh prints the new branch as a plain (NOT percent-encoded) tree URL:
+  // "host/owner/repo/tree/<branch>" — see cli/cli's develop.go.
   const m = out.match(/\/tree\/(.+?)(\s|$)/)
-  return m ? decodeURIComponent(m[1]) : null
+  return m ? m[1] : null
+}
+
+// Extract the issue number from either a bare number or an issue URL, for
+// comparing against the numbers `gh issue view --json subIssues` returns.
+function issueRefNumber(ref: string): number | null {
+  const trimmed = ref.trim()
+  if (/^\d+$/.test(trimmed)) return parseInt(trimmed, 10)
+  const m = trimmed.match(/\/issues\/(\d+)(?:[/?#].*)?$/)
+  return m ? parseInt(m[1], 10) : null
+}
+
+// GitHub's addSubIssue errors ("Issue may not contain duplicate sub-issues")
+// on re-adding a sub already under the same parent, and removeSubIssue errors
+// similarly on removing one that isn't there — so add/remove need to know the
+// parent's current sub-issues to skip subs already in the target state.
+async function getSubIssueNumbers(parent: string, repo?: string, cwd?: string): Promise<Set<number>> {
+  const data = await runGhJson(withRepo(["issue", "view", parent, "--json", "subIssues"], repo), cwd)
+  // `--json subIssues` returns a connection ({ nodes, totalCount }), not a bare
+  // array — verified against `gh issue view <n> --json subIssues` output.
+  const nums = (data?.subIssues?.nodes ?? [])
+    .map((s: any) => s?.number)
+    .filter((n: any): n is number => typeof n === "number")
+  return new Set<number>(nums)
 }
 
 export const issue_link = tool({
   description:
-    'Link sub-issues under a parent (epic), or unlink them. On add/set-parent it also sets each sub-issue\'s Issue Type — "Task" by default. Backed by `gh issue edit --add-sub-issue/--parent/--remove-sub-issue/--remove-parent` (gh >= 2.94.0). Idempotent: duplicate links are ignored. Issue Type is best-effort: on a personal repo or when the type is undefined it warns and continues. Operates on the current repo, or pass `repo` as owner/repo.',
+    'Link sub-issues under a parent (epic), or unlink them. On add/set-parent it also sets each sub-issue\'s Issue Type — "Task" by default. Backed by `gh issue edit --add-sub-issue/--parent/--remove-sub-issue/--remove-parent` (gh >= 2.94.0). Idempotent: for add/remove, subs already in the target state are skipped (reported in `unchanged`) rather than re-sent to `gh` (which would otherwise error on a duplicate). Issue Type is best-effort: on a personal repo or when the type is undefined it warns and continues. Operates on the current repo, or pass `repo` as owner/repo.',
   args: {
     parent: tool.schema.string().describe("Parent issue number or URL (for add / remove)."),
     subs: tool.schema.array(tool.schema.string()).describe("Sub-issue numbers or URLs to link / unlink."),
@@ -607,9 +631,27 @@ export const issue_link = tool({
     const subType = args.subType ?? "Task"
     const cwd = context.worktree
 
+    let applied: string[] = args.subs
+    let unchanged: string[] = []
+
     if (mode === "add" || mode === "remove") {
-      const flag = mode === "add" ? "--add-sub-issue" : "--remove-sub-issue"
-      await runGh(withRepo(["issue", "edit", args.parent, flag, args.subs.join(",")], args.repo), cwd)
+      // Pre-check against the parent's current sub-issues so a sub already in
+      // the target state is skipped instead of re-sent to `gh` (see the
+      // getSubIssueNumbers comment for why that would otherwise error).
+      const existingNums = await getSubIssueNumbers(args.parent, args.repo, cwd)
+      const wantsLinked = mode === "add"
+      const targets: string[] = []
+      for (const sub of args.subs) {
+        const n = issueRefNumber(sub)
+        const alreadyInState = n !== null && existingNums.has(n) === wantsLinked
+        if (alreadyInState) unchanged.push(sub)
+        else targets.push(sub)
+      }
+      applied = targets
+      if (targets.length) {
+        const flag = mode === "add" ? "--add-sub-issue" : "--remove-sub-issue"
+        await runGh(withRepo(["issue", "edit", args.parent, flag, targets.join(",")], args.repo), cwd)
+      }
     } else if (mode === "set-parent") {
       for (const sub of args.subs) {
         await runGh(withRepo(["issue", "edit", sub, "--parent", args.parent], args.repo), cwd)
@@ -620,7 +662,8 @@ export const issue_link = tool({
       }
     }
 
-    // On link operations, set each sub-issue's Type (best-effort).
+    // On link operations, set each sub-issue's Type (best-effort) — including
+    // subs already linked, in case a prior run linked but didn't tag them.
     let typeSet: string[] = []
     let typeWarned: string[] = []
     if ((mode === "add" || mode === "set-parent") && subType.trim()) {
@@ -633,7 +676,8 @@ export const issue_link = tool({
       ok: true,
       mode,
       parent: args.parent,
-      applied: args.subs,
+      applied,
+      unchanged,
       type: subType.trim() ? { requested: subType, set: typeSet, warned: typeWarned } : null,
     })
   },
