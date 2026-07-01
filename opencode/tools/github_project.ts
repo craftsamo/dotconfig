@@ -711,7 +711,7 @@ export const issue_develop = tool({
     const repo = await resolveRepo(args.repo, cwd)
 
     // 1. Idempotency: reuse an already-linked branch instead of creating a duplicate.
-    const existing = await listLinkedBranches(args.issue, args.repo, cwd)
+    const existing = await listLinkedBranches(args.issue, repo, cwd)
     if (existing.length) {
       return JSON.stringify({
         ok: true,
@@ -720,7 +720,9 @@ export const issue_develop = tool({
         branch: existing[0],
         repo,
         linkedBranches: existing,
-        note: "branch already linked; not recreated (checkout was ignored)",
+        note: args.checkout
+          ? "branch already linked; not recreated (checkout was ignored — checkout it yourself if needed)"
+          : "branch already linked; not recreated",
       })
     }
 
