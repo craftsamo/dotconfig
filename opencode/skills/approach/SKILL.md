@@ -44,7 +44,7 @@ understanding and owning the result, not toward rushing into edits.
 - Reversibility and checkpoints: move in small steps, verify as you go, and
   pause before heavy or irreversible work.
 - Legible and owned: track work with todos (or the "Roadmap" board for durable,
-  cross-session work — see `approach-roadmap`), narrate decisions when useful, and
+  cross-session work — see `approach-github-projects`), narrate decisions when useful, and
   summarize sensitive data instead of pasting raw secrets or PII.
 
 </Principles>
@@ -82,7 +82,7 @@ this spine):
 
 Cross-cutting (not a work type; layer on any of the above):
 
-- Persist and track a durable plan on the board → `approach-roadmap`
+- Persist and track a durable plan on the board → `approach-github-projects`
 
 </ScenarioPlaybooks>
 

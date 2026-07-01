@@ -18,8 +18,9 @@ issue, no local file, no issue-tracker churn.
   put it on the board.
 - Ephemeral, within-session step tracking → keep using TodoWrite, not the board.
 - Do not create local TODO/plan/notes files for this purpose; use the board.
-- For the planning workflow that feeds the board (epic vs single item, phasing),
-  see the `approach-roadmap` skill.
+- For the planning workflow that feeds the board (epic vs single item, phasing,
+  the promote → branch → PR lifecycle), see the `approach-github-projects`
+  skill.
 
 </WhenToUse>
 
@@ -37,6 +38,11 @@ runtime, so nothing goes stale:
 - `github_project_field_ensure` — idempotently ensure a field / its options.
 - `github_project_view_ensure` — idempotently ensure a saved view (table/board/roadmap + filter/columns) via the REST views API.
 - `github_project_create` — create a board AND apply the standard Roadmap schema; a new board is seeded by copying the "Roadmap Template" (carrying its saved views).
+
+Issue lifecycle (take an issue number, typically from `github_project_item_promote`'s return; operate on the current repo or `repo`):
+
+- `github_project_issue_link` — link sub-issues under a parent (epic) or unlink them; sets each sub-issue's Issue Type to `Task` on link (best-effort). `gh >= 2.94.0`.
+- `github_project_issue_develop` — create (or reuse) a linked development branch for an issue; a PR from it links in the Development panel automatically.
 
 `owner` defaults to the current repo's owner (else `@me`); `project` defaults to
 a board titled `Roadmap`. Inside a repo you can usually omit both.
@@ -115,8 +121,9 @@ What goes on the board, and how large work is broken down:
   live here in prose, there is no Phase field). Its steps are GitHub **sub-issues**
   in the relevant repo.
 - Sub-issues stay in the repo and are **not** added to the board; they are
-  single-purpose and use the repo's own Issue template. Progress shows on the epic
-  via its sub-issue bar (e.g. `2/5`).
+  single-purpose and use the repo's own Issue template. Link each under the epic
+  with `github_project_issue_link` (it also sets the sub-issue's Issue Type to
+  `Task`). Progress shows on the epic via its sub-issue bar (e.g. `2/5`).
 - **Milestone** is a high-level **theme** grouping epics over time. Assign it to the
   **epic**, not to each sub-task; a later epic on the same theme joins the same
   milestone while it is open.
@@ -191,14 +198,28 @@ Per Kind (sections in order; fill only the relevant ones):
   - `## Cases` — cases / angles; split with `### Happy path` / `### Edge cases`.
   - `## Pass criteria` — coverage / pass conditions (optional).
 
+Common optional section (any Kind, when the work will be implemented):
+
+- `## Approach` — the implementation outline: main steps, the files / modules it
+  touches, and the chosen approach. Outline only — NO code blocks (the PR diff is
+  the implementation; code here drifts from it). Lets a sub-issue be picked up by
+  an agent or a fresh session without re-exploring the codebase. Omit when
+  Requirements / Acceptance already make the work obvious. Distinct from an
+  epic's `## Plan` (which orders sub-issues into phases).
+
 Epic (a parent issue with sub-issues — any Kind; supersedes the per-Kind body):
 
-- `## Overview` — the outcome and why (1–3 lines); optional `**Done when**:` exit criterion.
+- `## Overview` — the outcome and why (1–3 lines).
 - `## Details` — scope / constraints / design notes (optional; omit if none).
 - `## Plan` — phased breakdown: `### Phase 1 — <wave goal>` then plain `- #12`
   sub-issue references; add `### Phase 2 …` for later waves.
-- Reference sub-issues as `#n` only — no `- [ ]` checkboxes (the native Sub-issues
-  panel is the single source of progress; checkboxes create a parallel task list).
+- `## Acceptance` — the integration-level checks confirmed AFTER all sub-issues
+  land (end-to-end scenarios, requirement coverage, no regressions). Use `- [ ]`
+  checkboxes here. This is the epic's exit criterion; each sub-issue's own
+  acceptance lives in that sub-issue, not here.
+- Reference sub-issues in `## Plan` as `#n` only — no `- [ ]` there (the native
+  Sub-issues panel is the single source of progress; checkboxes create a
+  parallel task list). Checkboxes belong ONLY in `## Acceptance`.
 - Phase grouping is maintained by hand; update Plan when sub-issues change.
 
 On a shared repo that already provides Issue Forms, prefer that form for real
@@ -243,6 +264,19 @@ Promote a draft to a real Issue (when it becomes tracked team work):
   draft to an issue in that repo, keeps it on the board with its field values,
   syncs `_Milestone` to a real repo milestone, and clears `_Repository` /
   `_Milestone` (now redundant).
+
+After promote — wire the issue into the development lifecycle (the
+`approach-github-projects` skill decides when each applies):
+
+- Branch + Development link: `github_project_issue_develop`
+  `{ issue, branch?, base?, checkout?, repo? }` — creates a linked development
+  branch (or reuses an existing one); a PR opened from it links in the issue's
+  Development panel automatically. For an epic's sub-issue, point `base` at the
+  epic branch so the PR stacks under it.
+- Sub-issue under an epic: `github_project_issue_link`
+  `{ parent, subs, subType?: "Task" }` — links the sub-issues under the parent
+  and sets each sub's Issue Type to `Task` (best-effort: warns and continues on
+  repos without Issue Types).
 
 Add a new Area (or other single-select) option:
 

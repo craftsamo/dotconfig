@@ -1,13 +1,20 @@
 import { tool } from "@opencode-ai/plugin"
 
 /**
- * Generic GitHub Projects (v2) toolset.
+ * Generic GitHub Projects (v2) toolset, plus the issue-lifecycle operations
+ * that surround a promoted board item (parent/sub-issue hierarchy and linked
+ * development branches).
  *
- * These tools are intentionally schema-agnostic: they operate on any project
- * and resolve field / option ids by NAME at runtime (nothing is hard-coded, so
- * adding or renaming options never makes them stale). The "Roadmap" conventions
- * (which board, which fields, per-Kind body guidance) live in the
- * `manage-github-projects` skill, not here.
+ * Board operations are intentionally schema-agnostic: they operate on any
+ * project and resolve field / option ids by NAME at runtime (nothing is
+ * hard-coded, so adding or renaming options never makes them stale). The
+ * "Roadmap" conventions (which board, which fields, per-Kind body guidance)
+ * live in the `manage-github-projects` skill, not here.
+ *
+ * Issue-lifecycle operations (`issue_link`, `issue_develop`) take an issue
+ * number — typically the one returned by `item_promote` — and manage sub-issue
+ * hierarchy and linked development branches. They are thin, idempotent
+ * wrappers over `gh` (>= 2.94.0 for sub-issue links).
  *
  * Defaults: when `owner` is omitted it is taken from the current repo's remote
  * (falling back to "@me"); when `project` is omitted a project titled "Roadmap"
@@ -520,5 +527,235 @@ export const view_ensure = tool({
     }
     const created = await runGhJson(argv)
     return JSON.stringify({ created: true, view: { number: created?.number, name: created?.name, layout: created?.layout } })
+  },
+})
+
+// ---- Issue lifecycle: hierarchy & linked development branches ----
+// Thin idempotent wrappers over `gh issue edit --add-sub-issue / --parent`
+// (gh >= 2.94.0) and `gh issue develop`. They take an issue number — typically
+// returned by item_promote — and operate on the current repo, or pass `repo`.
+
+function withRepo(argv: string[], repo?: string): string[] {
+  return repo ? [...argv, "--repo", repo] : argv
+}
+
+async function resolveRepo(repo: string | undefined, cwd?: string): Promise<string> {
+  if (repo && repo.trim()) return repo.trim()
+  const r = (await runGh(["repo", "view", "--json", "nameWithOwner", "--jq", ".nameWithOwner"], cwd)).trim()
+  if (!r) throw new Error("Could not resolve current repository; pass `repo` as owner/repo.")
+  return r
+}
+
+// Issue Types are an org-repo feature. Missing type / unsupported repo -> warn, don't fail.
+async function setIssueType(issue: string, type: string, repo?: string, cwd?: string): Promise<boolean> {
+  try {
+    await runGh(withRepo(["issue", "edit", issue, "--type", type], repo), cwd)
+    return true
+  } catch {
+    return false
+  }
+}
+
+async function remoteBranchExists(branch: string, repo: string, cwd?: string): Promise<boolean> {
+  try {
+    await runGh(["api", `repos/${repo}/branches/${encodeURIComponent(branch)}`], cwd)
+    return true
+  } catch {
+    return false
+  }
+}
+
+async function listLinkedBranches(issue: string, repo?: string, cwd?: string): Promise<string[]> {
+  // `gh issue develop --list` prints one branch per line as "name\turl" (or just name).
+  const out = await runGh(withRepo(["issue", "develop", "--list", issue], repo), cwd)
+  return out
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .map((l) => l.split("\t")[0].trim())
+    .filter(Boolean)
+}
+
+function parseBranchFromOutput(out: string): string | null {
+  // gh prints the new branch as a plain (NOT percent-encoded) tree URL:
+  // "host/owner/repo/tree/<branch>" — see cli/cli's develop.go.
+  const m = out.match(/\/tree\/(.+?)(\s|$)/)
+  return m ? m[1] : null
+}
+
+// Extract the issue number from either a bare number or an issue URL, for
+// comparing against the numbers `gh issue view --json subIssues` returns.
+function issueRefNumber(ref: string): number | null {
+  const trimmed = ref.trim()
+  if (/^\d+$/.test(trimmed)) return parseInt(trimmed, 10)
+  const m = trimmed.match(/\/issues\/(\d+)(?:[/?#].*)?$/)
+  return m ? parseInt(m[1], 10) : null
+}
+
+// GitHub's addSubIssue errors ("Issue may not contain duplicate sub-issues")
+// on re-adding a sub already under the same parent, and removeSubIssue errors
+// similarly on removing one that isn't there — so add/remove need to know the
+// parent's current sub-issues to skip subs already in the target state.
+async function getSubIssueNumbers(parent: string, repo?: string, cwd?: string): Promise<Set<number>> {
+  const data = await runGhJson(withRepo(["issue", "view", parent, "--json", "subIssues"], repo), cwd)
+  // `--json subIssues` returns a connection ({ nodes, totalCount }), not a bare
+  // array — verified against `gh issue view <n> --json subIssues` output.
+  const nums = (data?.subIssues?.nodes ?? [])
+    .map((s: any) => s?.number)
+    .filter((n: any): n is number => typeof n === "number")
+  return new Set<number>(nums)
+}
+
+export const issue_link = tool({
+  description:
+    'Link sub-issues under a parent (epic), or unlink them. On add/set-parent it also sets each sub-issue\'s Issue Type — "Task" by default. Backed by `gh issue edit --add-sub-issue/--parent/--remove-sub-issue/--remove-parent` (gh >= 2.94.0). Idempotent: for add/remove, subs already in the target state are skipped (reported in `unchanged`) rather than re-sent to `gh` (which would otherwise error on a duplicate). Issue Type is best-effort: on a personal repo or when the type is undefined it warns and continues. Operates on the current repo, or pass `repo` as owner/repo.',
+  args: {
+    parent: tool.schema.string().describe("Parent issue number or URL (for add / remove)."),
+    subs: tool.schema.array(tool.schema.string()).describe("Sub-issue numbers or URLs to link / unlink."),
+    mode: tool.schema
+      .enum(["add", "remove", "set-parent", "remove-parent"])
+      .optional()
+      .describe(
+        '"add" (default): add subs under parent via --add-sub-issue. "set-parent": set each sub\'s parent via --parent. "remove": --remove-sub-issue. "remove-parent": --remove-parent on each sub.',
+      ),
+    subType: tool.schema
+      .string()
+      .optional()
+      .describe(
+        'Issue Type to set on each sub-issue on add/set-parent. Defaults to "Task". Pass "" to skip. Best-effort: warns and continues when Issue Types are unsupported or the type is undefined.',
+      ),
+    repo: tool.schema.string().optional().describe("Target repository as owner/repo. Defaults to the current repo."),
+  },
+  async execute(args, context) {
+    const mode = args.mode ?? "add"
+    const subType = args.subType ?? "Task"
+    const cwd = context.worktree
+
+    let applied: string[] = args.subs
+    let unchanged: string[] = []
+
+    if (mode === "add" || mode === "remove") {
+      // Pre-check against the parent's current sub-issues so a sub already in
+      // the target state is skipped instead of re-sent to `gh` (see the
+      // getSubIssueNumbers comment for why that would otherwise error).
+      const existingNums = await getSubIssueNumbers(args.parent, args.repo, cwd)
+      const wantsLinked = mode === "add"
+      const targets: string[] = []
+      for (const sub of args.subs) {
+        const n = issueRefNumber(sub)
+        const alreadyInState = n !== null && existingNums.has(n) === wantsLinked
+        if (alreadyInState) unchanged.push(sub)
+        else targets.push(sub)
+      }
+      applied = targets
+      if (targets.length) {
+        const flag = mode === "add" ? "--add-sub-issue" : "--remove-sub-issue"
+        await runGh(withRepo(["issue", "edit", args.parent, flag, targets.join(",")], args.repo), cwd)
+      }
+    } else if (mode === "set-parent") {
+      for (const sub of args.subs) {
+        await runGh(withRepo(["issue", "edit", sub, "--parent", args.parent], args.repo), cwd)
+      }
+    } else {
+      for (const sub of args.subs) {
+        await runGh(withRepo(["issue", "edit", sub, "--remove-parent"], args.repo), cwd)
+      }
+    }
+
+    // On link operations, set each sub-issue's Type (best-effort) — including
+    // subs already linked, in case a prior run linked but didn't tag them.
+    let typeSet: string[] = []
+    let typeWarned: string[] = []
+    if ((mode === "add" || mode === "set-parent") && subType.trim()) {
+      for (const sub of args.subs) {
+        ;(await setIssueType(sub, subType, args.repo, cwd)) ? typeSet.push(sub) : typeWarned.push(sub)
+      }
+    }
+
+    return JSON.stringify({
+      ok: true,
+      mode,
+      parent: args.parent,
+      applied,
+      unchanged,
+      type: subType.trim() ? { requested: subType, set: typeSet, warned: typeWarned } : null,
+    })
+  },
+})
+
+export const issue_develop = tool({
+  description:
+    "Create a linked development branch for an issue (and optionally check it out), or reuse the existing linked branch if one already exists. Backed by `gh issue develop`. The branch shows in the issue's Development panel; a PR opened from it links there automatically. Validates the `base` exists on remote (guards the known silent-fallback bug). Stacked PRs: point `base` at a parent issue's branch. Operates on the current repo, or pass `repo` as owner/repo.",
+  args: {
+    issue: tool.schema.string().describe("Issue number or URL to create/reuse a development branch for."),
+    branch: tool.schema
+      .string()
+      .optional()
+      .describe("Branch name. If omitted, gh derives one from the issue title."),
+    base: tool.schema
+      .string()
+      .optional()
+      .describe("Remote branch to create from (defaults to the repo default branch). Verified to exist on remote."),
+    checkout: tool.schema
+      .boolean()
+      .optional()
+      .describe("Check out the branch locally after creating it. Only applies when a new branch is created."),
+    branchRepo: tool.schema
+      .string()
+      .optional()
+      .describe("owner/repo to create the branch in (defaults to the issue's repo)."),
+    repo: tool.schema.string().optional().describe("Target repository as owner/repo. Defaults to the current repo."),
+  },
+  async execute(args, context) {
+    const cwd = context.worktree
+    const repo = await resolveRepo(args.repo, cwd)
+
+    // 1. Idempotency: reuse an already-linked branch instead of creating a duplicate.
+    const existing = await listLinkedBranches(args.issue, repo, cwd)
+    if (existing.length) {
+      return JSON.stringify({
+        ok: true,
+        created: false,
+        issue: args.issue,
+        branch: existing[0],
+        repo,
+        linkedBranches: existing,
+        note: args.checkout
+          ? "branch already linked; not recreated (checkout was ignored — checkout it yourself if needed)"
+          : "branch already linked; not recreated",
+      })
+    }
+
+    // 2. Validate base exists on remote (gh otherwise silently falls back to default).
+    if (args.base) {
+      const ok = await remoteBranchExists(args.base, repo, cwd)
+      if (!ok) {
+        throw new Error(
+          `Base branch "${args.base}" not found on remote ${repo}. gh issue develop would silently fall back to the default branch; refusing.`,
+        )
+      }
+    }
+
+    // 3. Create the linked branch.
+    const argv = ["issue", "develop", args.issue, "--repo", repo]
+    if (args.branch) argv.push("--name", args.branch)
+    if (args.base) argv.push("--base", args.base)
+    if (args.checkout) argv.push("--checkout")
+    if (args.branchRepo) argv.push("--branch-repo", args.branchRepo)
+    const out = await runGh(argv, cwd)
+    const branch = args.branch ?? parseBranchFromOutput(out)
+    if (!branch) {
+      throw new Error(`gh issue develop succeeded but the branch name could not be parsed from output:\n${out}`)
+    }
+
+    return JSON.stringify({
+      ok: true,
+      created: true,
+      issue: args.issue,
+      branch,
+      base: args.base ?? null,
+      repo,
+      linkedBranches: [branch],
+    })
   },
 })
