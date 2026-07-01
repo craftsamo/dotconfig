@@ -520,4 +520,55 @@
     "git_amend_check": "allow",
     "git_commit_lint": "allow",
   },
+  "mcp": {
+    "zai-mcp-server": {
+      "type": "local",
+      "command": [
+        "npx",
+        "-y",
+        "@z_ai/mcp-server"
+      ],
+      "enabled": false,
+      "environment": {
+        "Z_AI_API_KEY": "{env:ZAI_CODING_PLAN_API_KEY}",
+        "Z_AI_MODE": "ZAI"
+      }
+    },
+    "zread": {
+      "type": "remote",
+      "url": "https://api.z.ai/api/mcp/zread/mcp",
+      "enabled": false,
+      "headers": {
+        "Authorization": "Bearer {env:ZAI_CODING_PLAN_API_KEY}"
+      }
+    },
+    "web-search-prime": {
+      "type": "remote",
+      "url": "https://api.z.ai/api/mcp/web_search_prime/mcp",
+      "enabled": false,
+      "headers": {
+        "Authorization": "Bearer {env:ZAI_CODING_PLAN_API_KEY}"
+      }
+    },
+    "web-reader": {
+      "type": "remote",
+      "url": "https://api.z.ai/api/mcp/web_reader/mcp",
+      "enabled": false,
+      "headers": {
+        "Authorization": "Bearer {env:ZAI_CODING_PLAN_API_KEY}"
+      }
+    },
+    "blender-mcp": {
+      "type": "local",
+      "command": [
+        "uvx",
+        "blender-mcp"
+      ],
+      "enabled": false,
+      "environment": {
+        "BLENDER_HOST": "localhost",
+        "BLENDER_PORT": "9876"
+      }
+    }
+  }
 }
