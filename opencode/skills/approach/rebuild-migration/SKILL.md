@@ -4,16 +4,17 @@ description: >-
   Use for a full rebuild, restructure, or schema/data migration — overhauling
   architecture, moving data, or rebuilding an opaque system (再構築, 作り直し,
   マイグレーション, rebuild, migrate, restructure, overhaul). Includes the
-  evacuate → build-alongside → cutover safety sequence. Apply on top of the
+  evacuate → build-alongside → cutover safety sequence. For incremental
+  behavior-preserving cleanup, use `approach-refactor`. Apply on top of the
   `approach` spine.
 ---
 
 <Goal>
 
 Handle a full rebuild, restructure, schema/architecture/layout overhaul, or
-data migration. Apply this on top of the `approach` spine: investigate →
-confirm the real goal → co-design one decision at a time → proceed in small
-reversible verified steps.
+data migration. Apply this on top of the `approach` spine (load it first if
+not already in context): investigate → confirm the real goal → co-design one
+decision at a time → proceed in small reversible verified steps.
 
 </Goal>
 
@@ -21,9 +22,18 @@ reversible verified steps.
 
 Confirm improve-in-place vs rebuild-from-scratch explicitly. They yield very
 different plans. If the system was built opaquely and is not understood,
-co-design the rebuild so the user regains ownership.
+co-design the rebuild so the user regains ownership. Incremental,
+behavior-preserving structural cleanup is `approach-refactor`, not this skill.
 
 </IntentCheck>
+
+<AntiPatterns>
+
+- Do not rewrite in place as a big bang; build alongside and cut over.
+- Do not mix behavior changes into the migration — move first, change later.
+- Do not retire the old system before the new one has soaked in real use.
+
+</AntiPatterns>
 
 <Steps>
 
@@ -37,8 +47,8 @@ co-design the rebuild so the user regains ownership.
    review with sentinels and needs-review markers instead of guessing.
 5. Verify and reconcile: counts, totals, round-trip export/import, validation;
    new vs old must reconcile.
-6. Cut over only after verification and explicit approval. Keep the old as a
-   recovery point.
+6. Cut over only after verification and explicit approval. Define how to roll
+   back before flipping; keep the old as a recovery point.
 7. Sync and clean up: update docs/config to the new shape; retire/stash the old.
 
 </Steps>
