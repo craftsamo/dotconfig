@@ -20,6 +20,9 @@ time → proceed in small reversible verified steps.
 1. Clarify scope and constraints:
    - Goal, users, must-haves vs nice-to-haves, and constraints such as stack,
      deadline, hosting, and budget.
+   - Derive the implied must-haves the goal requires but the user did not
+     name (e.g., accounts imply signup, auth, and password reset); sort them
+     into must-have vs nice-to-have.
    - Success criteria for a first usable version.
 2. Choose the shape:
    - Pick stack/structure deliberately. Favor boring/proven defaults and justify
