@@ -27,6 +27,14 @@ behavior-preserving structural cleanup is `approach-refactor`, not this skill.
 
 </IntentCheck>
 
+<AntiPatterns>
+
+- Do not rewrite in place as a big bang; build alongside and cut over.
+- Do not mix behavior changes into the migration — move first, change later.
+- Do not retire the old system before the new one has soaked in real use.
+
+</AntiPatterns>
+
 <Steps>
 
 1. Evacuate: back up live data and export a human-readable copy. Establish at
@@ -39,8 +47,8 @@ behavior-preserving structural cleanup is `approach-refactor`, not this skill.
    review with sentinels and needs-review markers instead of guessing.
 5. Verify and reconcile: counts, totals, round-trip export/import, validation;
    new vs old must reconcile.
-6. Cut over only after verification and explicit approval. Keep the old as a
-   recovery point.
+6. Cut over only after verification and explicit approval. Define how to roll
+   back before flipping; keep the old as a recovery point.
 7. Sync and clean up: update docs/config to the new shape; retire/stash the old.
 
 </Steps>

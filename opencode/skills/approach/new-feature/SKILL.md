@@ -16,6 +16,17 @@ verified steps.
 
 </Goal>
 
+<AntiPatterns>
+
+- Do not build a parallel new pattern when an existing seam fits — integrate.
+- Do not silently expand beyond the agreed scope; surface new needs as
+  follow-ups.
+- Do not ship the happy path while ignoring the feature's entailed footprint
+  (permissions, errors, data migrations).
+- Do not pull in a new dependency without flagging it as a decision.
+
+</AntiPatterns>
+
 <Steps>
 
 1. Understand the existing system:
@@ -35,6 +46,8 @@ verified steps.
    - Add or extend tests; run the project's build/lint/test checks before
      claiming done.
    - Confirm no regressions in adjacent behavior.
+5. Close the loop: summarize what was added, how it integrates, and the
+   deferred follow-ups.
 
 </Steps>
 
