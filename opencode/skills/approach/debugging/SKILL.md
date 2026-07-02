@@ -10,9 +10,9 @@ description: >-
 <Goal>
 
 Resolve a defect or incident by finding and fixing the root cause, not the
-symptom. Apply this on top of the `approach` spine: investigate → confirm the
-real goal → co-design one decision at a time → proceed in small reversible
-verified steps.
+symptom. Apply this on top of the `approach` spine (load it first if not
+already in context): investigate → confirm the real goal → co-design one
+decision at a time → proceed in small reversible verified steps.
 
 </Goal>
 
