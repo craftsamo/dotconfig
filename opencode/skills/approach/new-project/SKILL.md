@@ -9,9 +9,9 @@ description: >-
 <Goal>
 
 Start something from scratch, with no existing system or data to preserve.
-Apply this on top of the `approach` spine: investigate → confirm the real goal
-→ co-design one decision at a time → proceed in small reversible verified
-steps.
+Apply this on top of the `approach` spine (load it first if not already in
+context): investigate → confirm the real goal → co-design one decision at a
+time → proceed in small reversible verified steps.
 
 </Goal>
 

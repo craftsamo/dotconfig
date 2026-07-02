@@ -10,8 +10,9 @@ description: >-
 <Goal>
 
 Add a capability to an existing system. Apply this on top of the `approach`
-spine: investigate → confirm the real goal → co-design one decision at a time
-→ proceed in small reversible verified steps.
+spine (load it first if not already in context): investigate → confirm the
+real goal → co-design one decision at a time → proceed in small reversible
+verified steps.
 
 </Goal>
 
