@@ -39,7 +39,9 @@ time → proceed in small reversible verified steps.
 3. Locate the bottleneck: profile to find where time/resources actually go, not
    where they feel like they go. Rank candidates by impact.
 4. Form one hypothesis and improve: pick the highest-impact bottleneck, make
-   the smallest change aimed at it, and keep behavior correct.
+   the smallest change aimed at it, and keep behavior correct. Prefer doing
+   less work (cache, batch, skip, precompute) and algorithmic wins over
+   micro-optimizations.
 5. Re-measure: compare against the baseline with the same method. Confirm the
    gain is real, not noise, and that correctness is unchanged (tests still
    pass).
