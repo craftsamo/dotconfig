@@ -248,6 +248,10 @@ function parseHunks(diff: string): Hunk[] {
         bodyLines.push(lines[i])
         i++
       }
+      // Drop the split artifact of the diff's trailing newline: kept, it
+      // becomes an empty "context" line that --recount counts and git apply
+      // then rejects ("patch does not apply") on the file's last hunk.
+      while (bodyLines.length && bodyLines[bodyLines.length - 1] === "") bodyLines.pop()
       hunks.push({ id: ++id, file, header, preamble, body: bodyLines.join("\n"), added, removed, binary: false })
     }
   }
