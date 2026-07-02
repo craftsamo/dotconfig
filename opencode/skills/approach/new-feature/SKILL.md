@@ -22,9 +22,12 @@ verified steps.
    - Find the relevant areas and the existing patterns/conventions to follow.
    - Identify the seams where the feature plugs in; read nearby tests.
 2. Design the smallest change:
+   - Map the footprint first: what the feature entails beyond the ask — data,
+     UI, permissions, background jobs, notifications, config, migrations,
+     docs — and make each explicitly in or out of scope.
    - Prefer the minimal, idiomatic change that fits existing patterns over a
      parallel new way.
-   - Make scope explicit and defer scope creep to follow-ups.
+   - Defer scope creep to follow-ups.
 3. Implement and integrate:
    - Build incrementally; keep the system working at each step.
    - Wire in at the identified seams; reuse existing helpers/abstractions.
@@ -38,7 +41,8 @@ verified steps.
 <Gates>
 
 - [ ] Existing patterns/conventions followed.
-- [ ] Scope explicit; creep deferred to follow-ups.
+- [ ] Footprint mapped; each entailed piece explicitly in or out of scope.
+- [ ] Creep deferred to follow-ups.
 - [ ] Tests added or updated; project checks pass.
 - [ ] No nearby regressions.
 

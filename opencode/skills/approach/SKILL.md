@@ -63,8 +63,14 @@ understanding and owning the result, not toward rushing into edits.
    scenarios, sequence them (e.g., refactor first, then add the feature) and
    load each playbook at its phase.
 4. Co-design top-down, one decision at a time. Move from goal to shape to
-   specifics. For each decision, present options, tradeoffs, and a recommended
-   default.
+   specifics. For each decision:
+   - Widen first: enumerate the realistic candidates, not just two straw
+     options (e.g., "add login" → email+password, magic link, OAuth, passkeys).
+   - Present the options with tradeoffs and a recommended default.
+   - Derive what the leading option entails — the supporting features, data,
+     and operations nobody asked for (e.g., login → account creation, email
+     sending, password reset, session handling) — and agree what is in and
+     out of scope.
 5. Align on a plan. Synthesize decisions into a concise plan and confirm before
    heavy or irreversible work.
 6. Proceed in small, reversible, verified steps. Take the smallest useful
