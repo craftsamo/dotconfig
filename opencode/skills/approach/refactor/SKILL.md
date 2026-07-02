@@ -5,14 +5,18 @@ description: >-
   clean up, extract, rename, or simplify under a test safety net in small
   behavior-preserving steps (リファクタリング, 整理, リファクタ, refactor,
   restructure code, clean up, extract method, rename). Behavior must stay
-  identical. Apply on top of the `approach` spine.
+  identical. For wholesale rebuilds or data migration, use
+  `approach-rebuild-migration`. Apply on top of the `approach` spine.
 ---
 
 <Goal>
 
-Improve the structure of working code without changing its behavior. Apply
-this on top of the `approach` spine: investigate → confirm the real goal →
-co-design one decision at a time → proceed in small reversible verified steps.
+Improve the structure of working code without changing its behavior. If the
+system or its data is being replaced or moved wholesale, use
+`approach-rebuild-migration` instead. Apply this on top of the `approach`
+spine (load it first if not already in context): investigate → confirm the
+real goal → co-design one decision at a time → proceed in small reversible
+verified steps.
 
 </Goal>
 

@@ -10,10 +10,22 @@ description: >-
 <Goal>
 
 Add a capability to an existing system. Apply this on top of the `approach`
-spine: investigate → confirm the real goal → co-design one decision at a time
-→ proceed in small reversible verified steps.
+spine (load it first if not already in context): investigate → confirm the
+real goal → co-design one decision at a time → proceed in small reversible
+verified steps.
 
 </Goal>
+
+<AntiPatterns>
+
+- Do not build a parallel new pattern when an existing seam fits — integrate.
+- Do not silently expand beyond the agreed scope; surface new needs as
+  follow-ups.
+- Do not ship the happy path while ignoring the feature's entailed footprint
+  (permissions, errors, data migrations).
+- Do not pull in a new dependency without flagging it as a decision.
+
+</AntiPatterns>
 
 <Steps>
 
@@ -21,9 +33,12 @@ spine: investigate → confirm the real goal → co-design one decision at a tim
    - Find the relevant areas and the existing patterns/conventions to follow.
    - Identify the seams where the feature plugs in; read nearby tests.
 2. Design the smallest change:
+   - Map the footprint first: what the feature entails beyond the ask — data,
+     UI, permissions, background jobs, notifications, config, migrations,
+     docs — and make each explicitly in or out of scope.
    - Prefer the minimal, idiomatic change that fits existing patterns over a
      parallel new way.
-   - Make scope explicit and defer scope creep to follow-ups.
+   - Defer scope creep to follow-ups.
 3. Implement and integrate:
    - Build incrementally; keep the system working at each step.
    - Wire in at the identified seams; reuse existing helpers/abstractions.
@@ -31,13 +46,16 @@ spine: investigate → confirm the real goal → co-design one decision at a tim
    - Add or extend tests; run the project's build/lint/test checks before
      claiming done.
    - Confirm no regressions in adjacent behavior.
+5. Close the loop: summarize what was added, how it integrates, and the
+   deferred follow-ups.
 
 </Steps>
 
 <Gates>
 
 - [ ] Existing patterns/conventions followed.
-- [ ] Scope explicit; creep deferred to follow-ups.
+- [ ] Footprint mapped; each entailed piece explicitly in or out of scope.
+- [ ] Creep deferred to follow-ups.
 - [ ] Tests added or updated; project checks pass.
 - [ ] No nearby regressions.
 
