@@ -67,13 +67,22 @@ function redact(secret: string): string {
   return `${s.slice(0, 3)}...${s.slice(-3)} [${s.length} chars]`
 }
 
+// Files whose bulk is integrity hashes / generated blobs — exempt from the
+// entropy heuristic only; the explicit SECRET_RULES still apply everywhere.
+const HASH_MANIFEST_RE =
+  /(^|\/)(package-lock\.json|npm-shrinkwrap\.json|pnpm-lock\.yaml|bun\.lockb|go\.sum|packages\.lock\.json|gradle\.lockfile)$|\.(lock|min\.js|min\.css|map|svg)$/i
+// Integrity-hash tokens (npm `sha512-...` style) are checksums, not secrets.
+const HASH_TOKEN_RE = /^(sha\d+|blake2b|blake3|md5)-/i
+
 function scanLine(file: string, line: number, content: string, out: Finding[]): void {
   for (const { rule, re } of SECRET_RULES) {
     const m = content.match(re)
     if (m) out.push({ file, line, rule, redacted: redact(m[0]), source: "builtin" })
   }
+  if (HASH_MANIFEST_RE.test(file)) return
   const looksEnv = /\.env(\.|$)/.test(file)
   for (const tok of content.match(/[A-Za-z0-9+/=_\-]{20,}/g) ?? []) {
+    if (HASH_TOKEN_RE.test(tok)) continue
     const ent = shannonEntropy(tok)
     if ((ent >= 4.0 && tok.length >= 24) || (looksEnv && tok.length >= 16 && ent >= 3.0)) {
       out.push({ file, line, rule: "high-entropy", redacted: redact(tok), source: "builtin" })
@@ -157,7 +166,7 @@ async function runGitleaks(target: string, range: string | undefined, cwd?: stri
 
 export const secret_scan = tool({
   description:
-    "Scan a diff for secrets before committing. Scans the staged diff by default (or the worktree, or a commit range). Uses built-in rules (known key prefixes, private-key blocks, secret-looking assignments, high-entropy tokens, .env values) and delegates to gitleaks when installed. Secret values are always redacted. Returns { pass, findings }. Read-only.",
+    "Scan a diff for secrets before committing. Scans the staged diff by default (or the worktree, or a commit range). Uses built-in rules (known key prefixes, private-key blocks, secret-looking assignments, high-entropy tokens, .env values) and delegates to gitleaks when installed; lockfiles and integrity hashes are exempt from the entropy heuristic to avoid false positives. Secret values are always redacted. Returns { pass, findings }. Read-only.",
   args: {
     target: tool.schema
       .enum(["staged", "worktree", "range"])
@@ -239,6 +248,10 @@ function parseHunks(diff: string): Hunk[] {
         bodyLines.push(lines[i])
         i++
       }
+      // Drop the split artifact of the diff's trailing newline: kept, it
+      // becomes an empty "context" line that --recount counts and git apply
+      // then rejects ("patch does not apply") on the file's last hunk.
+      while (bodyLines.length && bodyLines[bodyLines.length - 1] === "") bodyLines.pop()
       hunks.push({ id: ++id, file, header, preamble, body: bodyLines.join("\n"), added, removed, binary: false })
     }
   }
@@ -357,7 +370,7 @@ async function resolveRepo(repo: string | undefined, cwd?: string): Promise<{ fu
 
 export const provenance = tool({
   description:
-    "Trace a change to its origin: commit -> PR -> Issue. Anchor with a `sha`, with `file` + `lines` (blame), or with `token`/`regex` to pickaxe the commit that introduced a string. Returns the commit, the pull requests that introduced it (via the GitHub commits/{sha}/pulls API), and the Issues those PRs close, plus link-ready refs (bare short SHA, #PR, #Issue). Read-only; does not run bisect. Local/unpushed commits return no PRs.",
+    "Trace a change to its origin: commit -> PR -> Issue. Anchor with a `sha`, with `file` + `lines` (blame), or with `token`/`regex` to pickaxe the commit that introduced a string (anchored on the oldest hit — the introducer; the newest hit is reported alongside). Returns the commit, the pull requests that introduced it (via the GitHub commits/{sha}/pulls API), and the Issues those PRs close, plus link-ready refs (bare short SHA, #PR, #Issue). Read-only; does not run bisect. Local/unpushed commits return no PRs.",
   args: {
     sha: tool.schema.string().optional().describe("Commit SHA to trace. If omitted, provide file + lines, or token/regex."),
     file: tool.schema.string().optional().describe("File to blame (with lines) or to scope a token/regex search."),
@@ -370,6 +383,7 @@ export const provenance = tool({
     const cwd = context.worktree
     let sha = args.sha?.trim()
     let locatedBy: string | undefined
+    let pickaxe: { hits: number; newest?: string; oldest?: string } | undefined
     if (!sha) {
       if (args.file && args.lines) {
         const blame = await runGit(["blame", "-w", "-C", "-L", args.lines, "--porcelain", "--", args.file], cwd)
@@ -377,10 +391,14 @@ export const provenance = tool({
         locatedBy = `blame ${args.file}:${args.lines}`
       } else if (args.token || args.regex) {
         const pick = args.token ? ["-S", args.token] : ["-G", args.regex as string]
-        const argv = ["log", ...pick, "--format=%H", "-n", "1"]
+        const argv = ["log", ...pick, "--format=%H"]
         if (args.file) argv.push("--", args.file)
-        sha = (await runGit(argv, cwd)).split("\n")[0]?.trim()
-        locatedBy = args.token ? `pickaxe -S "${args.token}"` : `pickaxe -G "${args.regex}"`
+        // Oldest hit = the commit that introduced the string; newer hits are
+        // later edits or removals of it.
+        const hits = (await runGit(argv, cwd)).split("\n").map((s) => s.trim()).filter(Boolean)
+        sha = hits[hits.length - 1]
+        pickaxe = { hits: hits.length, newest: hits[0]?.slice(0, 8), oldest: sha?.slice(0, 8) }
+        locatedBy = `${args.token ? `pickaxe -S "${args.token}"` : `pickaxe -G "${args.regex}"`} (oldest of ${hits.length} hit(s))`
       } else {
         throw new Error("Provide `sha`, `file` + `lines`, or `token`/`regex`.")
       }
@@ -412,7 +430,7 @@ export const provenance = tool({
       prs: pulls.map((p: any) => `#${p.number}`),
       issues: issues.map((i: any) => `#${i.number}`),
     }
-    return JSON.stringify({ commit, locatedBy, repo: full, pulls, issues, links }, null, 2)
+    return JSON.stringify({ commit, locatedBy, pickaxe, repo: full, pulls, issues, links }, null, 2)
   },
 })
 
@@ -532,7 +550,9 @@ export const history_digest = tool({
   async execute(args, context) {
     const cwd = context.worktree
     const limit = args.limit ?? 30
-    const subjects = (await runGit(["log", "--no-merges", `-${limit}`, "--pretty=%s"], cwd)).split("\n").filter(Boolean)
+    // Tolerate an unborn HEAD (no commits yet): report an empty sample.
+    const logRes = await tryGit(["log", "--no-merges", `-${limit}`, "--pretty=%s"], cwd)
+    const subjects = logRes.ok ? logRes.stdout.split("\n").filter(Boolean) : []
     const typeFrequency: Record<string, number> = {}
     const scopes = new Set<string>()
     let conventional = 0
@@ -664,9 +684,15 @@ function lintMessage(message: string, allowTrailers: boolean, subjectMax: number
     v.push({ rule: "conventional", severity: "warning", message: "Subject is not `type(scope): summary`." })
   if (lines.length > 1 && lines[1].trim() !== "")
     v.push({ rule: "blank-line", severity: "error", message: "Missing blank line between subject and body." })
+  let inFence = false
   for (let i = 2; i < lines.length; i++) {
     const l = lines[i]
-    if (l.length > 72 && !/^\s*(https?:\/\/|[-*]\s|\d+\.\s|\|)/.test(l) && !l.includes("```"))
+    if (/^\s*(```|~~~)/.test(l)) {
+      inFence = !inFence
+      continue
+    }
+    if (inFence) continue
+    if (l.length > 72 && !/^\s*(https?:\/\/|[-*]\s|\d+\.\s|\|)/.test(l))
       v.push({ rule: "body-wrap", severity: "warning", message: `Body line ${i + 1} is ${l.length} chars; wrap near 72.` })
   }
   if (EMOJI_RE.test(message)) v.push({ rule: "emoji", severity: "warning", message: "Message contains emoji." })
