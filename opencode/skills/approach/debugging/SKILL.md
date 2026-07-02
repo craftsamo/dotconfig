@@ -31,8 +31,10 @@ decision at a time → proceed in small reversible verified steps.
 1. Reproduce: establish a reliable, minimal reproduction before changing
    anything. If it cannot be reproduced, gather logs/state and define what
    "fixed" will look like first.
-2. Isolate: shrink the reproduction. Bisect history, toggle code paths, or
-   reduce inputs until the triggering condition is as small as possible.
+2. Isolate: shrink the reproduction. If it worked before, treat it as a
+   regression: bisect history or trace provenance to the introducing commit.
+   Otherwise toggle code paths or reduce inputs until the triggering condition
+   is as small as possible.
 3. Hypothesize the cause: form one falsifiable hypothesis grounded in the
    observed evidence (not vibes). State what would prove it wrong.
 4. Verify the hypothesis: confirm with a targeted check — a log, a probe, a
