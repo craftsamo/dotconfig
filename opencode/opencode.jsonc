@@ -367,9 +367,17 @@
       "git revert*": "ask",
       "git cherry-pick*": "ask",
       "git config*": "ask",
-      // Safe local commits (message-bearing) bypass the gate; bare/-a/--amend/--fixup/--no-verify stay ask
+      // Safe local commits (message-bearing) bypass the gate; bare `git commit` stays ask
       "git commit -m*": "allow",
       "git commit --message*": "allow",
+      // Re-gate risky flags in ANY position (last match wins over the -m allows above)
+      "git commit*--amend*": "ask",
+      "git commit*--no-verify*": "ask",
+      "git commit*--fixup*": "ask",
+      "git commit*--squash*": "ask",
+      "git commit*--all*": "ask",
+      "git commit* -a*": "ask",
+      "git commit* -n*": "ask",
       // Build / test (runs project code)
       "npm *": "allow",
       "pnpm *": "allow",
