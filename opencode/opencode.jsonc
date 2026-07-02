@@ -13,27 +13,6 @@
       "models": {
         // OpenCode currently exposes no variants for these non-5.2 GLM
         // reasoning models, even though Z.AI supports thinking on/off.
-        "glm-4.5-air": {
-          "cost": {
-            "input": 0.2,
-            "output": 1.1,
-            "cache_read": 0.03,
-            "cache_write": 0
-          },
-          "variants": {
-            "none": {
-              "thinking": {
-                "type": "disabled"
-              }
-            },
-            "thinking": {
-              "thinking": {
-                "type": "enabled",
-                "clear_thinking": false
-              }
-            }
-          }
-        },
         "glm-4.7": {
           "cost": {
             "input": 0.6,
@@ -42,32 +21,6 @@
             "cache_write": 0
           },
           "variants": {
-            "none": {
-              "thinking": {
-                "type": "disabled"
-              }
-            },
-            "thinking": {
-              "thinking": {
-                "type": "enabled",
-                "clear_thinking": false
-              }
-            }
-          }
-        },
-        "glm-5.1": {
-          "cost": {
-            "input": 1.4,
-            "output": 4.4,
-            "cache_read": 0.26,
-            "cache_write": 0
-          },
-          "variants": {
-            "none": {
-              "thinking": {
-                "type": "disabled"
-              }
-            },
             "thinking": {
               "thinking": {
                 "type": "enabled",
@@ -112,36 +65,6 @@
             "output": 4.0,
             "cache_read": 0.24,
             "cache_write": 0
-          }
-        },
-        // Extra GLM Coding Plan models verified against the endpoint but not yet
-        // present in OpenCode/models.dev's zai-coding-plan catalog.
-        "glm-4.5": {
-          "id": "glm-4.5",
-          "name": "GLM-4.5",
-          "family": "glm",
-          "attachment": false,
-          "reasoning": true,
-          "temperature": true,
-          "tool_call": true,
-          "release_date": "2025-07-28",
-          "cost": {
-            "input": 0.6,
-            "output": 2.2,
-            "cache_read": 0.11,
-            "cache_write": 0
-          },
-          "limit": {
-            "context": 131072,
-            "output": 98304
-          },
-          "modalities": {
-            "input": [
-              "text"
-            ],
-            "output": [
-              "text"
-            ]
           },
           "variants": {
             "none": {
@@ -157,6 +80,8 @@
             }
           }
         },
+        // Extra GLM Coding Plan models verified against the endpoint but not yet
+        // present in OpenCode/models.dev's zai-coding-plan catalog.
         "glm-4.5-flash": {
           "id": "glm-4.5-flash",
           "name": "GLM-4.5-Flash",
@@ -179,49 +104,6 @@
           "modalities": {
             "input": [
               "text"
-            ],
-            "output": [
-              "text"
-            ]
-          },
-          "variants": {
-            "none": {
-              "thinking": {
-                "type": "disabled"
-              }
-            },
-            "thinking": {
-              "thinking": {
-                "type": "enabled",
-                "clear_thinking": false
-              }
-            }
-          }
-        },
-        "glm-4.5v": {
-          "id": "glm-4.5v",
-          "name": "GLM-4.5V",
-          "family": "glm",
-          "attachment": true,
-          "reasoning": true,
-          "temperature": true,
-          "tool_call": true,
-          "release_date": "2025-08-11",
-          "cost": {
-            "input": 0.6,
-            "output": 1.8,
-            "cache_read": 0.11,
-            "cache_write": 0
-          },
-          "limit": {
-            "context": 64000,
-            "output": 16384
-          },
-          "modalities": {
-            "input": [
-              "text",
-              "image",
-              "video"
             ],
             "output": [
               "text"
@@ -638,4 +520,55 @@
     "git_amend_check": "allow",
     "git_commit_lint": "allow",
   },
+  "mcp": {
+    "zai-mcp-server": {
+      "type": "local",
+      "command": [
+        "npx",
+        "-y",
+        "@z_ai/mcp-server"
+      ],
+      "enabled": false,
+      "environment": {
+        "Z_AI_API_KEY": "{env:ZAI_CODING_PLAN_API_KEY}",
+        "Z_AI_MODE": "ZAI"
+      }
+    },
+    "zread": {
+      "type": "remote",
+      "url": "https://api.z.ai/api/mcp/zread/mcp",
+      "enabled": false,
+      "headers": {
+        "Authorization": "Bearer {env:ZAI_CODING_PLAN_API_KEY}"
+      }
+    },
+    "web-search-prime": {
+      "type": "remote",
+      "url": "https://api.z.ai/api/mcp/web_search_prime/mcp",
+      "enabled": false,
+      "headers": {
+        "Authorization": "Bearer {env:ZAI_CODING_PLAN_API_KEY}"
+      }
+    },
+    "web-reader": {
+      "type": "remote",
+      "url": "https://api.z.ai/api/mcp/web_reader/mcp",
+      "enabled": false,
+      "headers": {
+        "Authorization": "Bearer {env:ZAI_CODING_PLAN_API_KEY}"
+      }
+    },
+    "blender-mcp": {
+      "type": "local",
+      "command": [
+        "uvx",
+        "blender-mcp"
+      ],
+      "enabled": false,
+      "environment": {
+        "BLENDER_HOST": "localhost",
+        "BLENDER_PORT": "9876"
+      }
+    }
+  }
 }
