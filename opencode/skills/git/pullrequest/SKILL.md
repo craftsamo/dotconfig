@@ -52,7 +52,8 @@ Resolve the title and body format. Detect, do not assume.
 
 - Squash-merge repos: the PR title becomes the squash commit subject on the
   base branch — make it a good permanent subject.
-- Title language follows the repo's habit (English in this repo).
+- Title and body language follow the repo's merged-PR habit — infer it, never
+  assume English.
 
 </ConventionResolution>
 
@@ -89,16 +90,16 @@ cross-repo or private refs may not resolve; solo repos surface few Issues.
    has commits. Warn that uncommitted changes will not be in the PR.
 2. Determine the base: the repo default branch
    (`gh repo view --json defaultBranchRef`), unless the user names one.
-3. Push: `git push -u origin HEAD` (gated `ask`). Never force-push unless
-   explicitly asked.
-4. Detect an existing open PR for the head
-   (`gh pr list --head <branch> --state open`). If one exists, update it;
-   otherwise create.
-5. Build the title and body per <ConventionResolution>, and gather links per
-   <RelatedScan>.
-6. Create or update: `gh pr create --base <base> --title "..." --body "..."`
-   (ready by default; add `--draft` only if asked), or `gh pr edit`. Set
-   reviewers, labels, assignees, or a milestone only if the user asked.
+3. Push: `git push -u origin HEAD` (gated `ask`); when `origin` is not
+   writable (fork workflow), push to the writable fork remote instead. Never
+   force-push unless explicitly asked.
+4. Run <RelatedScan>: `git_related_scan` returns the existing open PR for this
+   head — update it, do not duplicate — along with the links to include.
+5. Build the title and body per <ConventionResolution>, folding in the links.
+6. Create or update: `gh pr create --base <base> --title "..." --body-file -`
+   fed by a heredoc (multi-line bodies survive quoting; never literal `\n`);
+   ready by default, add `--draft` only if asked. Update with `gh pr edit`.
+   Set reviewers, labels, assignees, or a milestone only if the user asked.
 7. Report the PR URL and its ready/draft state. Do not merge.
 
 </Steps>
