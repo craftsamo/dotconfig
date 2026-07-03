@@ -47,10 +47,55 @@ not merge.
 
 <ExplorationDelegation>
 
-For read-only codebase exploration, prefer the `explore-small` (trivial),
-`explore-high` (hard), or `explore-max` (hardest) subagents. Use the default
+For read-only codebase exploration, prefer the `explore-small` (trivial
+lookups) or `explore-high` (anything harder) subagents. Use the default
 `explore` subagent only when the primary model is specifically needed for the
 exploration.
 
 </ExplorationDelegation>
+
+<ImplementationDelegation>
+
+When a change is well-specified and mechanical — bulk edits, boilerplate,
+rote refactors, applying an already-decided design — delegate it to the
+`worker` subagent with an exact spec instead of doing it in the primary
+session. Keep design decisions, ambiguous work, and difficult code in the
+primary. Before commits of non-trivial changes, consider a read-only pass by
+the `reviewer` subagent.
+
+</ImplementationDelegation>
+
+<QuotaAwareRouting>
+
+Model pools: the primary session runs on the Claude Max pool (scarcest);
+default subagents (`explore-*`, `worker`, `reviewer`) run on the z.ai Coding
+Plan pool; OpenRouter is pay-per-use and a last resort.
+
+Check quota BEFORE delegating, so subagents are not launched into an
+exhausted pool:
+
+    npx -y @slkiser/opencode-quota show
+
+Run this check before the FIRST subagent delegation of the session, and
+remember the result. Re-run it only when the last check is stale (roughly an
+hour old), before kicking off a large batch of subagent work, or after any
+subagent fails with a rate-limit/quota error despite the check.
+
+Routing by the result (a pool is exhausted when ANY of its active windows —
+e.g. the 5h or weekly window — is at 0% left):
+
+- z.ai has quota (default): use `explore-small` / `explore-high` / `worker` /
+  `reviewer`.
+- z.ai exhausted or down: use the Claude-pool mirrors `explore-small-claude`
+  (Haiku), `explore-high-claude` (Sonnet), `worker-claude`,
+  `reviewer-claude` (Sonnet).
+- Anthropic quota unknown ("Unavailable / not detected") counts as available;
+  fall back to it freely when z.ai is exhausted.
+- Both pools exhausted: stop delegating; do the work directly in the primary
+  session and tell the user, who may switch the primary model to an
+  `openrouter/...` model manually via `/model`.
+
+Never route subagents to OpenRouter models on your own initiative.
+
+</QuotaAwareRouting>
 </GlobalAgentInstructions>
