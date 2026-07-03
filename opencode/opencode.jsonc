@@ -8,6 +8,8 @@
     "instructions/*.txt",
     "instructions/*.md"
   ],
+  // Title generation etc. → free-tier GLM flash (zero quota cost)
+  "small_model": "zai-coding-plan/glm-4.5-flash",
   "provider": {
     "zai-coding-plan": {
       "models": {
@@ -408,6 +410,8 @@
       "gh project delete*": "ask",
       "gh project field-delete*": "ask",
       "gh project item-delete*": "ask",
+      // Quota check for subagent routing (narrow allow; npx otherwise stays ask)
+      "npx -y @slkiser/opencode-quota *": "allow",
       // Note: npx / bunx / pip / uv / docker / node / python / ruby / bash -c stay ask by default
       // Version checks (gated tools)
       "node --version*": "allow",
