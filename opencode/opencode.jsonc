@@ -225,40 +225,17 @@
     }
   },
   "agent": {
+    // Custom subagents (explore-*, worker*, reviewer*) live in agent/*.md files.
     "explore": {
       "hidden": true,
     },
-    "explore-small": {
-      "mode": "subagent",
-      "model": "zai-coding-plan/glm-5-turbo",
-      "hidden": true,
-      "description": "Fast/cheap read-only codebase lookups: find files, simple keyword search.",
-      "permission": {
-        "edit": "deny"
-      },
-    },
-    "explore-high": {
-      "mode": "subagent",
-      "model": "zai-coding-plan/glm-5.2",
-      "reasoningEffort": "high",
-      "hidden": true,
-      "description": "Read-only codebase exploration for hard or ambiguous questions.",
-      "permission": {
-        "edit": "deny"
-      },
-    },
-    "explore-max": {
-      "mode": "subagent",
-      "model": "zai-coding-plan/glm-5.2",
-      "reasoningEffort": "max",
-      "hidden": true,
-      "description": "Read-only codebase exploration for the hardest cases; deep step-by-step reasoning.",
-      "permission": {
-        "edit": "deny"
-      },
-    },
     "general": {
       "hidden": true,
+    },
+    // Context compaction fires on every long session; keep it off the
+    // Claude Max window but on a model strong enough to preserve context.
+    "compaction": {
+      "model": "zai-coding-plan/glm-5.2",
     },
   },
   "permission": {
