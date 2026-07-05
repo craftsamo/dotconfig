@@ -17,6 +17,41 @@
       "model": "openai/gpt-5.5",
     },
   },
+  "provider": {
+    "openai": {
+      "models": {
+        // OpenAI API pricing, USD per 1M tokens. Source: https://developers.openai.com/api/docs/pricing
+        "gpt-5.5": {
+          "cost": {
+            "input": 5,
+            "cache_read": 0.5,
+            "output": 30,
+            "context_over_200k": {
+              "input": 10,
+              "cache_read": 1,
+              "output": 45,
+            },
+          },
+        },
+        "gpt-5.4-mini": {
+          "cost": {
+            "input": 0.75,
+            "cache_read": 0.075,
+            "output": 4.5,
+          },
+        },
+        // Spark has no separate public API pricing table; use the published
+        // gpt-5.3-codex rate so OpenCode cost estimates are not unknown.
+        "gpt-5.3-codex-spark": {
+          "cost": {
+            "input": 1.75,
+            "cache_read": 0.175,
+            "output": 14,
+          },
+        },
+      },
+    },
+  },
   "permission": {
     "edit": "ask",
     "bash": {
