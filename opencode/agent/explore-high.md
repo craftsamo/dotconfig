@@ -1,7 +1,7 @@
 ---
 description: "Read-only codebase exploration for hard or ambiguous questions."
 mode: subagent
-model: zai-coding-plan/glm-5.2
+model: openai/gpt-5.5
 reasoningEffort: high
 hidden: true
 permission:
