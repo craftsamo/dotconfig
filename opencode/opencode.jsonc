@@ -8,10 +8,11 @@
     "instructions/*.txt",
     "instructions/*.md"
   ],
-  // Title generation etc. → light OpenAI Pro model.
-  "small_model": "openai/gpt-5.4-mini-fast",
+  // Title generation etc. → light OpenAI Pro model without priority-tier cost.
+  "small_model": "openai/gpt-5.4-mini",
   "agent": {
-    // Custom subagents (explore-*, worker*, reviewer*) live in agent/*.md files.
+    // Custom subagents (explore-*, worker, reviewer) live in agent/*.md files.
+    // The delegate plugin selects their model dynamically by budget/quota.
     "explore": {
       "hidden": true,
     },
@@ -286,6 +287,8 @@
     "github_project_view_ensure": "allow",
     "github_project_issue_link": "allow",
     "github_project_issue_develop": "allow",
+    // Quota-aware subagent router (plugins/delegate.ts)
+    "delegate": "allow",
     // Custom git workflow tools (tools/git.ts) — read/index only, no commit/push/merge
     "git_secret_scan": "allow",
     "git_stage_hunks": "allow",
