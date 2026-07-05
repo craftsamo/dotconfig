@@ -11,6 +11,12 @@
   // Title generation etc. → light OpenAI Pro model without priority-tier cost.
   "small_model": "openai/gpt-5.4-mini",
   "agent": {
+    "plan": {
+      "color": "#f5f5f5",
+    },
+    "build": {
+      "color": "#ff6f00",
+    },
     // Context compaction fires on every long session; keep it off the
     // Claude Max window but on a model strong enough to preserve context.
     "compaction": {
