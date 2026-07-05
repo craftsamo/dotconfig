@@ -1,6 +1,7 @@
 ---
-description: "Implements well-specified, mechanical code changes: bulk edits, boilerplate, rote refactors, applying an already-decided design. Give it exact specs; it makes no design decisions. Prefer invoking through the delegate tool."
+description: "Implements well-specified, mechanical code changes: bulk edits, boilerplate, rote refactors, applying an already-decided design. Give it exact specs; it makes no design decisions. Prefer invoking through the built-in task tool."
 mode: subagent
+hidden: true
 permission:
   edit: allow
 ---
