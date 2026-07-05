@@ -47,56 +47,49 @@ not merge.
 
 <ExplorationDelegation>
 
-For read-only codebase exploration, prefer the `delegate` tool with role
-`explore-small` (trivial lookups) or `explore-high` (anything harder). Use the
-built-in `task` tool only if `delegate` is unavailable or explicitly requested.
-Use the default `explore` subagent only when the primary model is specifically
-needed for the exploration.
+For read-only codebase exploration, prefer the built-in `task` tool with
+subagent_type `explore-small` (trivial lookups) or `explore-high` (anything
+harder). Use `explore-max` only for difficult, ambiguous, or high-stakes
+exploration. These agents are pinned to OpenAI models. Use the default
+`explore` subagent only when the primary model is specifically needed for the
+exploration.
 
 </ExplorationDelegation>
 
 <ImplementationDelegation>
 
 When a change is well-specified and mechanical — bulk edits, boilerplate,
-rote refactors, applying an already-decided design — delegate it through the
-`delegate` tool with role `worker` and an exact spec instead of doing it in the
-primary session. Keep design decisions, ambiguous work, and difficult code in
-the primary. Before commits of non-trivial changes, consider a read-only pass
-through `delegate` with role `reviewer`.
+rote refactors, applying an already-decided design — run it through the built-in
+`task` tool with subagent_type `worker` and an exact spec instead of
+doing it in the primary session. Keep design decisions, ambiguous work, and
+difficult code in the primary. Before commits of non-trivial changes, consider a
+read-only pass through `task` with subagent_type `reviewer`.
 
 </ImplementationDelegation>
 
 <QuotaAwareRouting>
 
 Model pools: the primary session usually runs on the Claude Max pool
-(scarcest). Delegated subagents should run through the `delegate` custom tool,
-which chooses OpenAI Pro or Claude by budget tier and quota. OpenRouter is
-pay-per-use and a last resort.
+(scarcest). Exploration subagents (`explore-small`, `explore-high`,
+`explore-max`) are pinned to OpenAI and should run through the built-in `task`
+tool. Worker/reviewer subagents are also invoked through `task` and inherit
+their configured agent model behavior. OpenRouter is pay-per-use and a last
+resort.
 
-When using `delegate`, do NOT run a separate quota check first; the tool checks
-quota and retries quota/rate-limit failures on the fallback provider. Check
-quota manually only when using the built-in `task` tool directly:
+Check OpenAI quota manually before the FIRST OpenAI-pinned exploration subagent
+use of the session:
 
     npx -y @slkiser/opencode-quota show
 
-Run this check before the FIRST subagent delegation of the session, and
-remember the result. Re-run it only when the last check is stale (roughly an
-hour old), before kicking off a large batch of subagent work, or after any
-subagent fails with a rate-limit/quota error despite the check.
+Remember the result. Re-run it only when the last check is stale (roughly an
+hour old), before kicking off a large batch of OpenAI-pinned exploration work,
+or after an exploration subagent fails with a rate-limit/quota error despite the
+check.
 
-`delegate` budget tiers:
-
-- `auto`: default; the tool chooses from the role.
-- `small`: fast/cheap lookup profile.
-- `medium`: normal implementation or search profile.
-- `high`: stronger model + deeper reasoning for review/debug/design-adjacent work.
-- `max`: last resort for failed retries or critical review.
-
-Direct `task` fallback rules, if `delegate` is unavailable: when OpenAI Pro has
-quota, use `explore-small` / `explore-high` / `worker` / `reviewer`; when it is
-exhausted, stop delegating and do the work in the primary session or ask the
-user to switch model/provider. The old `*-claude` mirror agents are not present;
-provider fallback is centralized in `delegate`.
+Direct `task` rules: `explore-small`, `explore-high`, and `explore-max` are
+OpenAI-pinned. If OpenAI quota is exhausted, stop delegating exploration and do
+the work in the primary session or ask the user to switch model/provider. Do not
+route subagents to custom fallback tools.
 
 Never route subagents to OpenRouter models on your own initiative.
 
