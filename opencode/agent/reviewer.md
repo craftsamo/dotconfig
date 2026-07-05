@@ -1,6 +1,7 @@
 ---
-description: "Read-only pre-commit code review: bugs, spec deviations, security issues, missing edge cases. Point it at a diff or a set of files. Prefer invoking through the delegate tool."
+description: "Read-only pre-commit code review: bugs, spec deviations, security issues, missing edge cases. Point it at a diff or a set of files. Prefer invoking through the built-in task tool."
 mode: subagent
+hidden: true
 permission:
   edit: deny
 ---
