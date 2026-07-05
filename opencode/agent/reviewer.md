@@ -1,8 +1,7 @@
 ---
-description: "Read-only pre-commit code review: bugs, spec deviations, security issues, missing edge cases. Point it at a diff or a set of files. Default reviewer (OpenAI Pro pool)."
+description: "Read-only pre-commit code review: bugs, spec deviations, security issues, missing edge cases. Point it at a diff or a set of files. Prefer invoking through the built-in task tool."
 mode: subagent
-model: openai/gpt-5.5
-reasoningEffort: high
+hidden: true
 permission:
   edit: deny
 ---

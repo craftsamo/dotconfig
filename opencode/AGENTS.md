@@ -47,8 +47,10 @@ not merge.
 
 <ExplorationDelegation>
 
-For read-only codebase exploration, prefer the `explore-small` (trivial
-lookups) or `explore-high` (anything harder) subagents. Use the default
+For read-only codebase exploration, prefer the built-in `task` tool with
+subagent_type `explore-small` (trivial lookups) or `explore-high` (anything
+harder). Use `explore-max` only for difficult, ambiguous, or high-stakes
+exploration. These agents are pinned to OpenAI models. Use the default
 `explore` subagent only when the primary model is specifically needed for the
 exploration.
 
@@ -57,45 +59,22 @@ exploration.
 <ImplementationDelegation>
 
 When a change is well-specified and mechanical — bulk edits, boilerplate,
-rote refactors, applying an already-decided design — delegate it to the
-`worker` subagent with an exact spec instead of doing it in the primary
-session. Keep design decisions, ambiguous work, and difficult code in the
-primary. Before commits of non-trivial changes, consider a read-only pass by
-the `reviewer` subagent.
+rote refactors, applying an already-decided design — run it through the built-in
+`task` tool with subagent_type `worker` and an exact spec instead of
+doing it in the primary session. Keep design decisions, ambiguous work, and
+difficult code in the primary. Before commits of non-trivial changes, consider a
+read-only pass through `task` with subagent_type `reviewer`.
 
 </ImplementationDelegation>
 
-<QuotaAwareRouting>
+<VerificationDelegation>
 
-Model pools: the primary session runs on the Claude Max pool (scarcest);
-default subagents (`explore-*`, `worker`, `reviewer`) run on the OpenAI Pro
-pool; OpenRouter is pay-per-use and a last resort.
+For routine verification chores — tests, typechecks, lint, format checks,
+builds, and summarizing failure logs — prefer the built-in `task` tool with
+subagent_type `verifier`. Give it exact commands when known. Keep root-cause
+analysis and design decisions in the primary session when failures are
+non-obvious or require code changes.
 
-Check quota BEFORE delegating, so subagents are not launched into an
-exhausted pool:
+</VerificationDelegation>
 
-    npx -y @slkiser/opencode-quota show
-
-Run this check before the FIRST subagent delegation of the session, and
-remember the result. Re-run it only when the last check is stale (roughly an
-hour old), before kicking off a large batch of subagent work, or after any
-subagent fails with a rate-limit/quota error despite the check.
-
-Routing by the result (a pool is exhausted when ANY of its active windows —
-e.g. the 5h or weekly window — is at 0% left):
-
-- OpenAI Pro has quota (default): use `explore-small` / `explore-high` /
-  `worker` / `reviewer`.
-- OpenAI Pro exhausted or down: use the Claude-pool mirrors `explore-small-claude`
-  (Haiku), `explore-high-claude` (Sonnet), `worker-claude`,
-  `reviewer-claude` (Sonnet).
-- Anthropic quota unknown ("Unavailable / not detected") counts as available;
-  fall back to it freely when OpenAI Pro is exhausted.
-- Both pools exhausted: stop delegating; do the work directly in the primary
-  session and tell the user, who may switch the primary model to an
-  `openrouter/...` model manually via `/model`.
-
-Never route subagents to OpenRouter models on your own initiative.
-
-</QuotaAwareRouting>
 </GlobalAgentInstructions>
