@@ -1,7 +1,7 @@
 ---
-description: "Read-only pre-commit code review: bugs, spec deviations, security issues, missing edge cases. Point it at a diff or a set of files. Default reviewer (z.ai pool)."
+description: "Read-only pre-commit code review: bugs, spec deviations, security issues, missing edge cases. Point it at a diff or a set of files. Default reviewer (OpenAI Pro pool)."
 mode: subagent
-model: zai-coding-plan/glm-5.2
+model: openai/gpt-5.5
 reasoningEffort: high
 permission:
   edit: deny
