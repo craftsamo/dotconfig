@@ -77,31 +77,4 @@ non-obvious or require code changes.
 
 </VerificationDelegation>
 
-<QuotaAwareRouting>
-
-Model pools: the primary session usually runs on the Claude Max pool
-(scarcest). Exploration subagents (`explore-small`, `explore-high`,
-`explore-max`) are pinned to OpenAI and should run through the built-in `task`
-tool. Worker/reviewer/verifier subagents are also invoked through `task` and
-inherit their configured agent model behavior. OpenRouter is pay-per-use and a
-last resort.
-
-Check OpenAI quota manually before the FIRST OpenAI-pinned exploration subagent
-use of the session:
-
-    npx -y @slkiser/opencode-quota show
-
-Remember the result. Re-run it only when the last check is stale (roughly an
-hour old), before kicking off a large batch of OpenAI-pinned exploration work,
-or after an exploration subagent fails with a rate-limit/quota error despite the
-check.
-
-Direct `task` rules: `explore-small`, `explore-high`, and `explore-max` are
-OpenAI-pinned. If OpenAI quota is exhausted, stop delegating exploration and do
-the work in the primary session or ask the user to switch model/provider. Do not
-route subagents to custom fallback tools.
-
-Never route subagents to OpenRouter models on your own initiative.
-
-</QuotaAwareRouting>
 </GlobalAgentInstructions>
