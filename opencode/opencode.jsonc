@@ -287,8 +287,6 @@
     "github_project_view_ensure": "allow",
     "github_project_issue_link": "allow",
     "github_project_issue_develop": "allow",
-    // Quota-aware subagent router (plugins/delegate.ts)
-    "delegate": "allow",
     // Custom git workflow tools (tools/git.ts) — read/index only, no commit/push/merge
     "git_secret_scan": "allow",
     "git_stage_hunks": "allow",
