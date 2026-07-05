@@ -46,13 +46,13 @@ when you need mechanics.
 Check before choosing a model:
 ```text
 terminal(command="opencode-quota show --provider anthropic", workdir="<wd>", timeout=60)
-# also: --provider copilot | openai | zai ; npx -y @slkiser/opencode-quota show … if not on PATH
+# also: --provider copilot | openai ; npx -y @slkiser/opencode-quota show ... if not on PATH
 ```
 - Usable Anthropic quota → Claude may be used.
 - Missing command / auth failure / no quota data → **treat Claude as unavailable**
   even if Claude auth looks valid. (`claude auth status` is NOT sufficient.)
-- GLM fallback: gate on `--provider zai` (Coding Plan 5h + weekly windows). `glm-5.2`
-  bills ~3× at peak (14:00–18:00 UTC+8), 2× off-peak — prefer `glm-4.7` for routine work.
+- OpenAI fallback: gate on `--provider openai` (OpenAI Pro windows). Prefer
+  `gpt-5.5` for substantive work and `gpt-5.5-fast` for routine/mechanical work.
 
 </QuotaGate>
 
@@ -64,11 +64,9 @@ High → low:
    Heavy/high-risk → Opus 4.8; light/mechanical → Haiku 4.5.
    If OpenCode-native Claude is gated/unavailable, **Copilot** is the alternate
    Claude-family source (Opus 4.8 first, then OpenAI-family).
-2. **GLM via OpenCode (`zai-coding-plan`)** — primary fallback once Claude is gated
-   out, and the cost-saver for routine work. Strong → `glm-5.2`; routine/cheap →
-   `glm-4.7` / `glm-5-turbo`. Works through OpenCode because the local `zai-sanitize`
-   plugin neutralizes Z.ai's system-prompt filter (otherwise these requests fail with
-   code `1305` / "temporarily overloaded"). Gate on `--provider zai`.
+2. **OpenAI via OpenCode** — primary fallback once Claude is gated out. Strong →
+   `gpt-5.5`; routine/cheap → `gpt-5.5-fast` or the configured light model.
+   Gate on `--provider openai`.
 3. **OpenRouter** — cheap coding-capable models only. **Never Claude/GPT via OpenRouter**
    (exclude `anthropic` / `claude` / `openai` / `gpt`). Prefer Deepseek-4-Flash, then Deepseek-4-pro.
 4. Direct `claude-code` / `codex` only on explicit request or when OpenCode is unsuitable.
@@ -84,8 +82,8 @@ Weight by task risk:
 | Class | Use for |
 |---|---|
 | Opus 4.8 / GPT-5.5 | high-risk architecture, complex refactor, hard debugging |
-| Sonnet / GLM-5.2 | default implementation, standard features, tests |
-| Haiku / GLM-4.7 / glm-5-turbo / cheap OpenRouter | small/mechanical fixes, docs, low-risk cleanup |
+| Sonnet / GPT-5.5-fast | default implementation, standard features, tests |
+| Haiku / GPT-5.4-mini-fast / cheap OpenRouter | small/mechanical fixes, docs, low-risk cleanup |
 
 </ModelChoice>
 
@@ -125,8 +123,8 @@ Final message:
 
 - Treating `claude auth status` as enough — Claude needs usable `opencode-quota` data.
 - Falling back to OpenRouter but selecting Claude/GPT there.
-- Using `zai-coding-plan` in OpenCode without the `zai-sanitize` plugin loaded — Z.ai's
-  system-prompt filter then rejects the request as `1305` / "temporarily overloaded".
+- Treating OpenAI Pro quota as interchangeable with Codex/Copilot quota; check the
+  provider actually selected for the run.
 - Letting OpenCode implement before the caller confirms a material plan.
 - Trusting a completion message without inspecting the diff.
 - TUI: needs `pty=true`, exit with Ctrl+C (never `/exit`); one workdir per session.

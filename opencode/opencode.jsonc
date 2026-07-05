@@ -8,255 +8,20 @@
     "instructions/*.txt",
     "instructions/*.md"
   ],
-  "provider": {
-    "zai-coding-plan": {
-      "models": {
-        // OpenCode currently exposes no variants for these non-5.2 GLM
-        // reasoning models, even though Z.AI supports thinking on/off.
-        "glm-4.7": {
-          "cost": {
-            "input": 0.6,
-            "output": 2.2,
-            "cache_read": 0.11,
-            "cache_write": 0
-          },
-          "variants": {
-            "thinking": {
-              "thinking": {
-                "type": "enabled",
-                "clear_thinking": false
-              }
-            }
-          }
-        },
-        "glm-5-turbo": {
-          "cost": {
-            "input": 1.2,
-            "output": 4.0,
-            "cache_read": 0.24,
-            "cache_write": 0
-          },
-          "variants": {
-            "none": {
-              "thinking": {
-                "type": "disabled"
-              }
-            },
-            "thinking": {
-              "thinking": {
-                "type": "enabled",
-                "clear_thinking": false
-              }
-            }
-          }
-        },
-        "glm-5.2": {
-          "cost": {
-            "input": 1.4,
-            "output": 4.4,
-            "cache_read": 0.26,
-            "cache_write": 0
-          }
-        },
-        // Listed by OpenCode/models.dev, but your Pro probe returned 1311.
-        "glm-5v-turbo": {
-          "cost": {
-            "input": 1.2,
-            "output": 4.0,
-            "cache_read": 0.24,
-            "cache_write": 0
-          },
-          "variants": {
-            "none": {
-              "thinking": {
-                "type": "disabled"
-              }
-            },
-            "thinking": {
-              "thinking": {
-                "type": "enabled",
-                "clear_thinking": false
-              }
-            }
-          }
-        },
-        // Extra GLM Coding Plan models verified against the endpoint but not yet
-        // present in OpenCode/models.dev's zai-coding-plan catalog.
-        "glm-4.5-flash": {
-          "id": "glm-4.5-flash",
-          "name": "GLM-4.5-Flash",
-          "family": "glm-flash",
-          "attachment": false,
-          "reasoning": true,
-          "temperature": true,
-          "tool_call": true,
-          "release_date": "2025-07-28",
-          "cost": {
-            "input": 0,
-            "output": 0,
-            "cache_read": 0,
-            "cache_write": 0
-          },
-          "limit": {
-            "context": 131072,
-            "output": 98304
-          },
-          "modalities": {
-            "input": [
-              "text"
-            ],
-            "output": [
-              "text"
-            ]
-          },
-          "variants": {
-            "none": {
-              "thinking": {
-                "type": "disabled"
-              }
-            },
-            "thinking": {
-              "thinking": {
-                "type": "enabled",
-                "clear_thinking": false
-              }
-            }
-          }
-        },
-        "glm-4.6v": {
-          "id": "glm-4.6v",
-          "name": "GLM-4.6V",
-          "family": "glm",
-          "attachment": true,
-          "reasoning": true,
-          "temperature": true,
-          "tool_call": true,
-          "interleaved": {
-            "field": "reasoning_content"
-          },
-          "release_date": "2025-12-08",
-          "cost": {
-            "input": 0.3,
-            "output": 0.9,
-            "cache_read": 0.05,
-            "cache_write": 0
-          },
-          "limit": {
-            "context": 128000,
-            "output": 32768
-          },
-          "modalities": {
-            "input": [
-              "text",
-              "image",
-              "video",
-              "pdf"
-            ],
-            "output": [
-              "text"
-            ]
-          },
-          "variants": {
-            "none": {
-              "thinking": {
-                "type": "disabled"
-              }
-            },
-            "thinking": {
-              "thinking": {
-                "type": "enabled",
-                "clear_thinking": false
-              }
-            }
-          }
-        },
-        // Your probe returned a temporary overload (1305), not a plan/permission
-        // rejection, so keep this available for retrying when capacity recovers.
-        "glm-4.6v-flash": {
-          "id": "glm-4.6v-flash",
-          "name": "GLM-4.6V-Flash",
-          "family": "glm-flash",
-          "attachment": true,
-          "reasoning": true,
-          "temperature": true,
-          "tool_call": true,
-          "interleaved": {
-            "field": "reasoning_content"
-          },
-          "release_date": "2025-12-08",
-          "cost": {
-            "input": 0,
-            "output": 0,
-            "cache_read": 0,
-            "cache_write": 0
-          },
-          "limit": {
-            "context": 128000,
-            "output": 32768
-          },
-          "modalities": {
-            "input": [
-              "text",
-              "image",
-              "video",
-              "pdf"
-            ],
-            "output": [
-              "text"
-            ]
-          },
-          "variants": {
-            "none": {
-              "thinking": {
-                "type": "disabled"
-              }
-            },
-            "thinking": {
-              "thinking": {
-                "type": "enabled",
-                "clear_thinking": false
-              }
-            }
-          }
-        }
-      }
-    }
-  },
+  // Title generation etc. → light OpenAI Pro model.
+  "small_model": "openai/gpt-5.4-mini-fast",
   "agent": {
+    // Custom subagents (explore-*, worker*, reviewer*) live in agent/*.md files.
     "explore": {
       "hidden": true,
     },
-    "explore-small": {
-      "mode": "subagent",
-      "model": "zai-coding-plan/glm-5-turbo",
-      "hidden": true,
-      "description": "Fast/cheap read-only codebase lookups: find files, simple keyword search.",
-      "permission": {
-        "edit": "deny"
-      },
-    },
-    "explore-high": {
-      "mode": "subagent",
-      "model": "zai-coding-plan/glm-5.2",
-      "reasoningEffort": "high",
-      "hidden": true,
-      "description": "Read-only codebase exploration for hard or ambiguous questions.",
-      "permission": {
-        "edit": "deny"
-      },
-    },
-    "explore-max": {
-      "mode": "subagent",
-      "model": "zai-coding-plan/glm-5.2",
-      "reasoningEffort": "max",
-      "hidden": true,
-      "description": "Read-only codebase exploration for the hardest cases; deep step-by-step reasoning.",
-      "permission": {
-        "edit": "deny"
-      },
-    },
     "general": {
       "hidden": true,
+    },
+    // Context compaction fires on every long session; keep it off the
+    // Claude Max window but on a model strong enough to preserve context.
+    "compaction": {
+      "model": "openai/gpt-5.5-fast",
     },
   },
   "permission": {
@@ -408,6 +173,8 @@
       "gh project delete*": "ask",
       "gh project field-delete*": "ask",
       "gh project item-delete*": "ask",
+      // Quota check for subagent routing (narrow allow; npx otherwise stays ask)
+      "npx -y @slkiser/opencode-quota *": "allow",
       // Note: npx / bunx / pip / uv / docker / node / python / ruby / bash -c stay ask by default
       // Version checks (gated tools)
       "node --version*": "allow",
