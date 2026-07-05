@@ -67,14 +67,24 @@ read-only pass through `task` with subagent_type `reviewer`.
 
 </ImplementationDelegation>
 
+<VerificationDelegation>
+
+For routine verification chores — tests, typechecks, lint, format checks,
+builds, and summarizing failure logs — prefer the built-in `task` tool with
+subagent_type `verifier`. Give it exact commands when known. Keep root-cause
+analysis and design decisions in the primary session when failures are
+non-obvious or require code changes.
+
+</VerificationDelegation>
+
 <QuotaAwareRouting>
 
 Model pools: the primary session usually runs on the Claude Max pool
 (scarcest). Exploration subagents (`explore-small`, `explore-high`,
 `explore-max`) are pinned to OpenAI and should run through the built-in `task`
-tool. Worker/reviewer subagents are also invoked through `task` and inherit
-their configured agent model behavior. OpenRouter is pay-per-use and a last
-resort.
+tool. Worker/reviewer/verifier subagents are also invoked through `task` and
+inherit their configured agent model behavior. OpenRouter is pay-per-use and a
+last resort.
 
 Check OpenAI quota manually before the FIRST OpenAI-pinned exploration subagent
 use of the session:
