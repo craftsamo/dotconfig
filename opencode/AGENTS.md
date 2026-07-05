@@ -47,32 +47,35 @@ not merge.
 
 <ExplorationDelegation>
 
-For read-only codebase exploration, prefer the `explore-small` (trivial
-lookups) or `explore-high` (anything harder) subagents. Use the default
-`explore` subagent only when the primary model is specifically needed for the
-exploration.
+For read-only codebase exploration, prefer the `delegate` tool with role
+`explore-small` (trivial lookups) or `explore-high` (anything harder). Use the
+built-in `task` tool only if `delegate` is unavailable or explicitly requested.
+Use the default `explore` subagent only when the primary model is specifically
+needed for the exploration.
 
 </ExplorationDelegation>
 
 <ImplementationDelegation>
 
 When a change is well-specified and mechanical — bulk edits, boilerplate,
-rote refactors, applying an already-decided design — delegate it to the
-`worker` subagent with an exact spec instead of doing it in the primary
-session. Keep design decisions, ambiguous work, and difficult code in the
-primary. Before commits of non-trivial changes, consider a read-only pass by
-the `reviewer` subagent.
+rote refactors, applying an already-decided design — delegate it through the
+`delegate` tool with role `worker` and an exact spec instead of doing it in the
+primary session. Keep design decisions, ambiguous work, and difficult code in
+the primary. Before commits of non-trivial changes, consider a read-only pass
+through `delegate` with role `reviewer`.
 
 </ImplementationDelegation>
 
 <QuotaAwareRouting>
 
-Model pools: the primary session runs on the Claude Max pool (scarcest);
-default subagents (`explore-*`, `worker`, `reviewer`) run on the OpenAI Pro
-pool; OpenRouter is pay-per-use and a last resort.
+Model pools: the primary session usually runs on the Claude Max pool
+(scarcest). Delegated subagents should run through the `delegate` custom tool,
+which chooses OpenAI Pro or Claude by budget tier and quota. OpenRouter is
+pay-per-use and a last resort.
 
-Check quota BEFORE delegating, so subagents are not launched into an
-exhausted pool:
+When using `delegate`, do NOT run a separate quota check first; the tool checks
+quota and retries quota/rate-limit failures on the fallback provider. Check
+quota manually only when using the built-in `task` tool directly:
 
     npx -y @slkiser/opencode-quota show
 
@@ -81,19 +84,19 @@ remember the result. Re-run it only when the last check is stale (roughly an
 hour old), before kicking off a large batch of subagent work, or after any
 subagent fails with a rate-limit/quota error despite the check.
 
-Routing by the result (a pool is exhausted when ANY of its active windows —
-e.g. the 5h or weekly window — is at 0% left):
+`delegate` budget tiers:
 
-- OpenAI Pro has quota (default): use `explore-small` / `explore-high` /
-  `worker` / `reviewer`.
-- OpenAI Pro exhausted or down: use the Claude-pool mirrors `explore-small-claude`
-  (Haiku), `explore-high-claude` (Sonnet), `worker-claude`,
-  `reviewer-claude` (Sonnet).
-- Anthropic quota unknown ("Unavailable / not detected") counts as available;
-  fall back to it freely when OpenAI Pro is exhausted.
-- Both pools exhausted: stop delegating; do the work directly in the primary
-  session and tell the user, who may switch the primary model to an
-  `openrouter/...` model manually via `/model`.
+- `auto`: default; the tool chooses from the role.
+- `small`: fast/cheap lookup profile.
+- `medium`: normal implementation or search profile.
+- `high`: stronger model + deeper reasoning for review/debug/design-adjacent work.
+- `max`: last resort for failed retries or critical review.
+
+Direct `task` fallback rules, if `delegate` is unavailable: when OpenAI Pro has
+quota, use `explore-small` / `explore-high` / `worker` / `reviewer`; when it is
+exhausted, stop delegating and do the work in the primary session or ask the
+user to switch model/provider. The old `*-claude` mirror agents are not present;
+provider fallback is centralized in `delegate`.
 
 Never route subagents to OpenRouter models on your own initiative.
 
