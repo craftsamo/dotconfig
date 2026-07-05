@@ -1,7 +1,6 @@
 ---
-description: "Implements well-specified, mechanical code changes: bulk edits, boilerplate, rote refactors, applying an already-decided design. Give it exact specs; it makes no design decisions. Default worker (OpenAI Pro pool)."
+description: "Implements well-specified, mechanical code changes: bulk edits, boilerplate, rote refactors, applying an already-decided design. Give it exact specs; it makes no design decisions. Prefer invoking through the delegate tool."
 mode: subagent
-model: openai/gpt-5.5
 permission:
   edit: allow
 ---
