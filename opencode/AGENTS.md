@@ -68,8 +68,8 @@ the `reviewer` subagent.
 <QuotaAwareRouting>
 
 Model pools: the primary session runs on the Claude Max pool (scarcest);
-default subagents (`explore-*`, `worker`, `reviewer`) run on the z.ai Coding
-Plan pool; OpenRouter is pay-per-use and a last resort.
+default subagents (`explore-*`, `worker`, `reviewer`) run on the OpenAI Pro
+pool; OpenRouter is pay-per-use and a last resort.
 
 Check quota BEFORE delegating, so subagents are not launched into an
 exhausted pool:
@@ -84,13 +84,13 @@ subagent fails with a rate-limit/quota error despite the check.
 Routing by the result (a pool is exhausted when ANY of its active windows —
 e.g. the 5h or weekly window — is at 0% left):
 
-- z.ai has quota (default): use `explore-small` / `explore-high` / `worker` /
-  `reviewer`.
-- z.ai exhausted or down: use the Claude-pool mirrors `explore-small-claude`
+- OpenAI Pro has quota (default): use `explore-small` / `explore-high` /
+  `worker` / `reviewer`.
+- OpenAI Pro exhausted or down: use the Claude-pool mirrors `explore-small-claude`
   (Haiku), `explore-high-claude` (Sonnet), `worker-claude`,
   `reviewer-claude` (Sonnet).
 - Anthropic quota unknown ("Unavailable / not detected") counts as available;
-  fall back to it freely when z.ai is exhausted.
+  fall back to it freely when OpenAI Pro is exhausted.
 - Both pools exhausted: stop delegating; do the work directly in the primary
   session and tell the user, who may switch the primary model to an
   `openrouter/...` model manually via `/model`.

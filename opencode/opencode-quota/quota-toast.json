@@ -1,5 +1,10 @@
 {
-  "enabledProviders": ["anthropic", "zai"],
+  "enabledProviders": [
+    "anthropic",
+    "openai",
+    "opencode-go",
+    "zai"
+  ],
   "formatStyle": "allWindows",
   "enableToast": false
 }

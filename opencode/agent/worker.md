@@ -1,7 +1,7 @@
 ---
-description: "Implements well-specified, mechanical code changes: bulk edits, boilerplate, rote refactors, applying an already-decided design. Give it exact specs; it makes no design decisions. Default worker (z.ai pool)."
+description: "Implements well-specified, mechanical code changes: bulk edits, boilerplate, rote refactors, applying an already-decided design. Give it exact specs; it makes no design decisions. Default worker (OpenAI Pro pool)."
 mode: subagent
-model: zai-coding-plan/glm-5.2
+model: openai/gpt-5.5
 permission:
   edit: allow
 ---
