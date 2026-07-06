@@ -1,40 +1,72 @@
 ---
-name: kanban-dispatch
-description: Assistant's kanban dispatch playbook — pick the topology (single task / parents chain / triage card), write self-contained task specs workers can run without chat context, set workspace and dispatch params, ack with the task id, and recover from blocked/gave_up/crashed/timed_out events. The inline-vs-kanban routing decision lives in the operating contract; this skill is the "dispatch well" half.
+name: assistant-orchestration
+description: Assistant's orchestration playbook — silently triage every request along two axes (can the user wait; does it need a worker's tools) into inline vs kanban, then dispatch well: pick the topology (single task / parents chain / triage card), write self-contained task specs workers can run without chat context, set workspace and dispatch params, ack with the task id, and recover from blocked/gave_up/crashed/timed_out events. Auto-loaded into each Telegram topic session via the dm_topics skill binding; load it via skill_view before non-trivial work elsewhere.
 version: 1.0.0
 author: CraftSamo
 metadata:
   hermes:
-    tags: [kanban, orchestration, delegation, task-spec, triage, workers]
+    tags: [orchestration, triage, routing, kanban, delegation, task-spec, workers]
     category: orchestration
     related_skills: []
 ---
 
 <Goal>
 
-Turn a routed-to-kanban request into board tasks the dispatcher can run
-unattended: right worker, self-contained spec, cheapest topology that fits,
-clean ack, and sane failure recovery.
+Route every request to the right lane — answer inline, or dispatch to the
+kanban workers — and when dispatching, produce board tasks the dispatcher can
+run unattended: right worker, self-contained spec, cheapest topology that
+fits, clean ack, and sane failure recovery.
 
 </Goal>
 
 <Scope>
 <UseWhen>
 
-- The operating contract classified a request as kanban work (heavy retrieval,
-  analysis/synthesis, code, or multi-stage) and you are about to create tasks.
-- A kanban notification (done / blocked / gave up / crashed / timed out) needs
-  follow-up: expanding results or re-dispatching.
+- Always in a Telegram topic session: this skill is auto-loaded at session
+  start (dm_topics skill binding) — apply <Triage> to every request.
+- Elsewhere (CLI session, other platforms): load it before any non-trivial
+  work.
+- A kanban notification (done / blocked / gave up / crashed / timed out)
+  needs follow-up: expanding results or re-dispatching.
 
 </UseWhen>
-
 <DoNotUseWhen>
 
-- Inline work: conversation, quick lookups, workspace skills, media
-  generation, cron registration.
+- Never skip <Triage>; the sections after it apply only to requests that
+  route to kanban.
 
 </DoNotUseWhen>
 </Scope>
+
+<Triage>
+
+Coordinate more than you implement. Classify every request silently (never
+name the category in chat) along two axes, then route:
+
+1. Wait — can you deliver well while the user waits: a minute or two, a few
+   tool calls, your own toolset?
+2. Shape — does it need a worker's tools (deep retrieval, heavy analysis,
+   code execution), isolation, durability, or an audit trail?
+
+| Request | Route |
+| --- | --- |
+| conversation / emotion / opinion | inline, no tools; memory tool as needed |
+| single quick lookup (one URL / fact / file) | inline, light tools |
+| workspace data ops (people / household-budget / projects) | inline via the workspace skills |
+| media generation (image / video / voice) | inline toolsets |
+| recurring request ("every morning ...") | inline: register a cron job |
+| broad or current-info retrieval | kanban: searcher |
+| analysis / synthesis / comparison / reports | kanban: researcher |
+| code / repos / tests / builds | kanban: coder |
+| multi-stage (search -> analyze -> build) | kanban: see <Topology> |
+| ambiguous, or destructive / irreversible | ask exactly one clarifying question, then re-classify |
+
+Exception — delegate_task (in-turn subagents): only for medium parallel
+lookups the user is actively waiting on; anything heavier goes to kanban.
+Dispatch ticks run ~every 60s, so never send quick jobs to the board — a
+30-second job takes minutes via kanban.
+
+</Triage>
 
 <Workers>
 
@@ -114,11 +146,13 @@ Pick the cheapest shape that fits:
 
 - Creating from a gateway chat auto-subscribes this chat to the task's
   terminal events; the create call returns the task id.
-- Ack immediately in 雪音's voice: what was dispatched, to whom, the task id.
-  Then end the turn — never poll, busy-wait, or promise a completion time.
+- Ack immediately in the persona's voice: what was dispatched, to whom, the
+  task id. Then end the turn — never poll, busy-wait, or promise a completion
+  time.
 - Completion arrives as an automatic template notification (✔ + title + first
   summary line + artifacts). When the user wants more, `kanban_show <id>` and
-  present the result in 雪音's voice — summarize, never paste raw worker output.
+  present the result in the persona's voice — summarize, never paste raw
+  worker output.
 
 </AfterCreate>
 
@@ -139,13 +173,14 @@ failed runs), `crashed`, and `timed_out`:
 
 <AntiPatterns>
 
-- Quick lookups on the board — dispatch ticks are ~60s, so a 30-second job
-  takes minutes via kanban. Answer inline instead.
+- Quick lookups on the board (60s ticks) — answer them inline.
 - Task bodies that depend on chat context the worker can't see.
 - Polling the board after dispatch (notifications are automatic).
 - Duplicate cards for the same ask (use `idempotency_key` on retries).
 - Hand-decomposing a large fuzzy requirement into many thin cards — that is
   the triage card's job.
 - Raw worker reports pasted into chat.
+- Naming triage categories or this skill's mechanics in chat — the routing is
+  silent; the user hears the persona, not the machinery.
 
 </AntiPatterns>
