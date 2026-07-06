@@ -54,7 +54,8 @@ profiles/<name>/     # assistant, coder, researcher, searcher
   - config.yaml      # model/fallback + agent.system_prompt (operating contract)
   - profile.yaml     # routing description (kanban/delegation)
   - SOUL.md          # per-profile persona (BASE + role posture)
-  - skills/          # per-profile skills (opencode-loop / research-pipeline / breadth-retrieval)
+  - skills/          # per-profile skills (assistant: kanban-dispatch; workers:
+                     #   opencode-loop / research-pipeline / breadth-retrieval)
   - cron/            # per-profile scheduled jobs (jobs.json; placeholder if empty)
 setup.sh README.md PROFILES.md
 ```

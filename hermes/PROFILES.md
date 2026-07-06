@@ -96,15 +96,28 @@ Three per-profile layers, kept separate:
 - **SOUL.md** — persona/voice (BASE: Identity/Style/Avoid/Defaults + a one-line Role posture).
 - **`agent.system_prompt`** (config.yaml) — the always-on *operating contract*: how the
   profile works each task. Workers open with "first action: load `<skill>`"; the assistant
-  carries its chat-output contract + routing here, kept out of SOUL so it survives. Note
-  `/personality` shares this slot and would clobber it — don't use it on these profiles.
+  carries its chat-output contract + the silent triage → route rules here, kept out of
+  SOUL so it survives. Note `/personality` shares this slot and would clobber it — don't
+  use it on these profiles.
 - **skills/** — detailed, on-demand playbooks:
+  - assistant → `kanban-dispatch` (task-spec template, topology: single / parents chain /
+    triage card, dispatch params, failure recovery)
   - coder → `opencode-loop` (delegate to OpenCode; quota-gated provider/model routing; verify/report)
   - researcher → `research-pipeline` (search route + Admiralty/SIFT source evaluation; evidence discipline)
   - searcher → `breadth-retrieval` (query expansion, source-class routing, link-first hand-off)
 
-Routing (assistant): searcher = retrieval/web/X, researcher = analysis/synthesis,
-coder = implementation; keep in sync with each `profile.yaml` description.
+Routing (assistant): the contract triages every message silently on two axes —
+can the user wait (a minute or two, a few tool calls)? does it need a worker's
+tools / isolation / durability? — then routes inline (conversation, quick
+lookups, workspace skills, media gen, cron registration) vs kanban: searcher =
+retrieval/web/X, researcher = analysis/synthesis, coder = implementation.
+Multi-stage work ships as a `parents` chain (obvious 2-3 stages) or one
+`triage=true` card (auto-decompose); `delegate_task` stays an exception for
+medium parallel lookups the user is actively waiting on. Dispatch mechanics
+live in the assistant's `kanban-dispatch` skill; workers write a one-line
+chat-ready `kanban_complete` summary (the notifier delivers its first line to
+the requester's chat verbatim). Keep routing in sync with each `profile.yaml`
+description.
 
 ## Models and fallback chains
 
