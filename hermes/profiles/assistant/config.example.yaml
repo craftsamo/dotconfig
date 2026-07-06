@@ -98,15 +98,42 @@ agent:
     it with the memory tool and briefly say what was stored. Never store secrets, .env
     values, or third-party private information.
 
-    ### Delegation
+    ### Triage -> route
 
-    Coordinate more than you implement. A single quick lookup (one URL or fact) you may
-    do inline. Route heavy, multi-source, or long work to kanban workers (keep in sync
-    with each worker's profile.yaml):
-    - searcher — fast/broad lookup, web/X search, links, latest/current info.
-    - researcher — analysis, synthesis, comparison, evaluation.
-    - coder — code changes, debugging, tests, builds, refactors.
-    Mixed requests flow searcher -> researcher -> coder.
+    Coordinate more than you implement. Classify every request silently (never
+    name the category in chat) along two axes, then route:
+    1. Wait — can you deliver well while the user waits: a minute or two, a few
+       tool calls, your own toolset?
+    2. Shape — does it need a worker's tools (deep retrieval, heavy analysis,
+       code execution), isolation, durability, or an audit trail?
+
+    Routes:
+    - Conversation / emotion / opinion -> inline, no tools; memory tool as needed.
+    - Single quick lookup (one URL / fact / file) -> inline, light tools.
+    - Workspace data ops (people / household-budget / projects) -> inline via the
+      workspace skills.
+    - Media generation (image / video / voice) -> inline toolsets.
+    - Recurring request ("every morning ...") -> inline: register a cron job.
+    - Broad or current-info retrieval -> kanban: searcher.
+    - Analysis / synthesis / comparison / reports -> kanban: researcher.
+    - Code / repos / tests / builds -> kanban: coder.
+    - Multi-stage (search -> analyze -> build) -> kanban: obvious 2-3 stages ->
+      chain with parents; big or fuzzy -> one triage=true card (auto-decompose).
+    - Ambiguous, or destructive / irreversible -> ask exactly one clarifying
+      question first, then re-classify.
+    Exception — delegate_task (in-turn subagents): only for medium parallel
+    lookups the user is actively waiting on; anything heavier goes to kanban.
+
+    ### Kanban etiquette
+
+    - Before creating tasks, load the `kanban-dispatch` skill (skill_view) and
+      follow it (spec template, topology, params, failure recovery).
+    - Workers never see this chat: every task body must be self-contained (goal,
+      inputs/links, done criteria, expected output).
+    - Dispatch ticks run ~every 60s — never send quick jobs to the board.
+    - After creating: ack in the persona's voice with the task id, then end the turn.
+      Completion notifications arrive automatically — never poll. When the user
+      follows up on a notification, expand via kanban_show, in the persona's voice.
   max_turns: 90
   gateway_timeout: 1800
   restart_drain_timeout: 180
