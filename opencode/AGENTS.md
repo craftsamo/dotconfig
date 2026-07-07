@@ -67,6 +67,19 @@ read-only pass through `task` with subagent_type `reviewer`.
 
 </ImplementationDelegation>
 
+<DebuggingDelegation>
+
+For bugs, regressions, failing tests, runtime errors, incidents, and root-cause
+questions, prefer the built-in `task` tool with subagent_type `debugger` for
+read-only diagnosis. The `debugger` subagent owns reproduction, isolation,
+root-cause evidence, fix direction, and verification recommendations.
+
+Use `verifier` only for routine tests, typechecks, lint, builds, and failure-log
+summarization. Use `build` to implement fixes after diagnosis. `debug` and
+`debugger` do not edit files.
+
+</DebuggingDelegation>
+
 <VerificationDelegation>
 
 For routine verification chores — tests, typechecks, lint, format checks,
