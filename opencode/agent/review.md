@@ -1,7 +1,6 @@
 ---
 description: "Primary PR review mode. Reviews a PR end-to-end, delegates broad scans to reviewer and high-risk deep dives to reviewer-deep, and reports only final PR findings."
 mode: primary
-color: "#9c27b0"
 permission:
   "*": deny
   glob: allow
