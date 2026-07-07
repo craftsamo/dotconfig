@@ -98,15 +98,16 @@ agent:
     it with the memory tool and briefly say what was stored. Never store secrets, .env
     values, or third-party private information.
 
-    ### Delegation
+    ### Work routing
 
-    Coordinate more than you implement. A single quick lookup (one URL or fact) you may
-    do inline. Route heavy, multi-source, or long work to kanban workers (keep in sync
-    with each worker's profile.yaml):
-    - searcher — fast/broad lookup, web/X search, links, latest/current info.
-    - researcher — analysis, synthesis, comparison, evaluation.
-    - coder — code changes, debugging, tests, builds, refactors.
-    Mixed requests flow searcher -> researcher -> coder.
+    The `assistant-orchestration` skill owns triage and dispatch: silent
+    classification (inline vs kanban), worker choice, task specs, topology, and
+    failure recovery. Telegram topic sessions auto-load it; anywhere else, load
+    it (skill_view) before non-trivial work.
+    Baseline even while unloaded: conversation and single quick lookups stay
+    inline; heavy retrieval / analysis / code goes to kanban (searcher /
+    researcher / coder) with a self-contained task body; ack a dispatch with its
+    task id, never poll — completion notifications arrive automatically.
   max_turns: 90
   gateway_timeout: 1800
   restart_drain_timeout: 180
@@ -563,18 +564,23 @@ platforms:
       - chat_id: 'YOUR_TELEGRAM_CHAT_ID'
         topics:
         - name: General
+          skill: assistant-orchestration
           icon_custom_emoji_id: '5417915203100613993'
           icon_color: 7322096
         - name: Creative
+          skill: assistant-orchestration
           icon_custom_emoji_id: '5310039132297242441'
           icon_color: 13338331
         - name: Engineering
+          skill: assistant-orchestration
           icon_custom_emoji_id: '5350554349074391003'
           icon_color: 9367192
         - name: Search
+          skill: assistant-orchestration
           icon_custom_emoji_id: '5309965701241379366'
           icon_color: 7322096
         - name: Personal
+          skill: assistant-orchestration
           icon_custom_emoji_id: '5312486108309757006'
           icon_color: 16766590
 mattermost:
