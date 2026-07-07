@@ -17,6 +17,9 @@
     "build": {
       "color": "#ff6f00",
     },
+    "review": {
+      "color": "#A855F7",
+    },
     // Context compaction fires on every long session; keep it off the
     // Claude Max window but on a model strong enough to preserve context.
     "compaction": {
