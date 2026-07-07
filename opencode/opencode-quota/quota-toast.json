@@ -2,7 +2,6 @@
   "enabledProviders": [
     "anthropic",
     "openai",
-    "opencode-go",
     "zai"
   ],
   "formatStyle": "allWindows",
