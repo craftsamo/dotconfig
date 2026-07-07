@@ -96,15 +96,33 @@ Three per-profile layers, kept separate:
 - **SOUL.md** — persona/voice (BASE: Identity/Style/Avoid/Defaults + a one-line Role posture).
 - **`agent.system_prompt`** (config.yaml) — the always-on *operating contract*: how the
   profile works each task. Workers open with "first action: load `<skill>`"; the assistant
-  carries its chat-output contract + routing here, kept out of SOUL so it survives. Note
-  `/personality` shares this slot and would clobber it — don't use it on these profiles.
+  carries its chat-output contract + a compact work-routing tripwire here, kept out of
+  SOUL so it survives. Note `/personality` shares this slot and would clobber it — don't
+  use it on these profiles.
 - **skills/** — detailed, on-demand playbooks:
+  - assistant → `assistant-orchestration` (silent two-axis triage: inline vs kanban;
+    task-spec template, topology: single / parents chain / triage card, dispatch params,
+    failure recovery)
   - coder → `opencode-loop` (delegate to OpenCode; quota-gated provider/model routing; verify/report)
   - researcher → `research-pipeline` (search route + Admiralty/SIFT source evaluation; evidence discipline)
   - searcher → `breadth-retrieval` (query expansion, source-class routing, link-first hand-off)
 
-Routing (assistant): searcher = retrieval/web/X, researcher = analysis/synthesis,
-coder = implementation; keep in sync with each `profile.yaml` description.
+Routing (assistant): `assistant-orchestration` owns it. The skill is
+**auto-loaded into every new Telegram topic session** via the per-topic
+`skill:` binding in `platforms.telegram.extra.dm_topics` (gateway injects the
+skill body into the session's first turn; `compression.protect_first_n` keeps
+it alive; existing sessions pick it up after `/new` or an idle reset). It
+triages silently on two axes — can the user wait? does it need a worker's
+tools / isolation / durability? — then routes inline (conversation, quick
+lookups, workspace skills, media gen, cron registration) vs kanban: searcher =
+retrieval/web/X, researcher = analysis/synthesis, coder = implementation.
+Multi-stage work ships as a `parents` chain (obvious 2-3 stages) or one
+`triage=true` card (auto-decompose); `delegate_task` stays an exception for
+medium parallel lookups the user is actively waiting on. The contract keeps a
+fallback tripwire for surfaces without the auto-load (CLI, other platforms);
+workers write a one-line chat-ready `kanban_complete` summary (the notifier
+delivers its first line to the requester's chat verbatim). Keep routing in
+sync with each `profile.yaml` description.
 
 ## Models and fallback chains
 

@@ -25,6 +25,9 @@ agent:
     - Deliver findings in your final message, not just files: the scratch workspace is deleted on completion.
     - Output: concise, link-first findings, each as claim + source URL (+ date if time-sensitive);
       flag low-confidence, stale, or conflicting results. No essays.
+    - Kanban tasks: write the kanban_complete summary as one line of 1-2 plain, user-facing
+      sentences — it is delivered verbatim to the requester's chat; keep link lists out of
+      it (they belong in the final message).
   max_turns: 90
   gateway_timeout: 1800
   restart_drain_timeout: 180
