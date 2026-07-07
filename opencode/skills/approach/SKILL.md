@@ -58,10 +58,11 @@ understanding and owning the result, not toward rushing into edits.
    user cannot see the details, describe the big picture in their terms.
 3. Classify the scenario and load its playbook. Once the goal is confirmed,
    match the work against <ScenarioPlaybooks> and load the matching skill(s)
-   before designing. Re-classify when investigation changes the work type
-   (e.g., a bug turns out to be a design flaw → rebuild). If the work spans
-   scenarios, sequence them (e.g., refactor first, then add the feature) and
-   load each playbook at its phase.
+   before designing. Re-classify when investigation changes the work type. If
+   the work spans scenarios, sequence them (e.g., refactor first, then add the
+   feature) and load each playbook at its phase. Bug reports, regressions,
+   failing tests, runtime errors, incidents, and root-cause investigations are
+   owned by the `debug` / `debugger` agents, not an approach scenario skill.
 4. Co-design top-down, one decision at a time. Move from goal to shape to
    specifics. For each decision:
    - Widen first: enumerate the realistic candidates, not just two straw
@@ -88,9 +89,13 @@ this spine):
 - Add a feature to an existing system → `approach-new-feature`
 - Start something from scratch → `approach-new-project`
 - Rebuild, restructure, or schema/data migration → `approach-rebuild-migration`
-- Fix a bug or incident systematically → `approach-debugging`
 - Improve structure without changing behavior → `approach-refactor`
 - Resolve a performance problem → `approach-performance`
+
+Bug reports, regressions, failing tests, runtime errors, incidents, and
+root-cause investigations are owned by the `debug` / `debugger` agents. Delegate
+read-only diagnosis to `debugger` when acting from Plan, Build, or Review; use
+Build only to implement fixes after diagnosis.
 
 Refactor vs rebuild: behavior stays identical and the change is incremental →
 `approach-refactor`; the system or its data is replaced or moved wholesale →
