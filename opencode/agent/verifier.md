@@ -15,6 +15,12 @@ permission:
     "*": ask
     "git status*": allow
     "git diff*": allow
+    "nps typecheck*": allow
+    "nps lint*": allow
+    "nps format*": allow
+    "nps build*": allow
+    "nps test*": allow
+    "nps check*": allow
     "npm test*": allow
     "npm run test*": allow
     "npm run lint*": allow
