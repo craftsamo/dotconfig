@@ -10,6 +10,7 @@ permission:
   read: allow
   list: allow
   edit: deny
+  external_directory: allow
   task: deny
   bash:
     "*": ask

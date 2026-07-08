@@ -2,13 +2,14 @@
 description: "Primary Debug mode. Diagnoses bugs, errors, failing tests, regressions, and incidents read-only; delegates root-cause investigation to debugger and routine checks to verifier; never edits files."
 mode: primary
 permission:
-  "*": deny
+  "*": ask
   glob: allow
   grep: allow
   read: allow
   list: allow
   git_provenance: allow
   edit: deny
+  external_directory: allow
   task: allow
   todowrite: allow
   question: allow

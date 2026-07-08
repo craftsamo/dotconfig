@@ -2,12 +2,13 @@
 description: "Primary PR review mode. Reviews a PR end-to-end, delegates broad scans to reviewer and high-risk deep dives to reviewer-deep, and reports only final PR findings."
 mode: primary
 permission:
-  "*": deny
+  "*": ask
   glob: allow
   grep: allow
   read: allow
   list: allow
   edit: deny
+  external_directory: allow
   task: allow
   todowrite: allow
   question: allow
