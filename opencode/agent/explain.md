@@ -2,12 +2,13 @@
 description: "Primary Explain mode. Teaches how a specific implementation, subsystem, command, workflow, or file works with evidence, diagrams, and a suggested reading order; never edits files."
 mode: primary
 permission:
-  "*": deny
+  "*": ask
   glob: allow
   grep: allow
   read: allow
   list: allow
   edit: deny
+  external_directory: allow
   task: allow
   todowrite: allow
   question: allow
