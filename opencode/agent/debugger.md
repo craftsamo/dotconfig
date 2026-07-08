@@ -13,6 +13,7 @@ permission:
   list: allow
   git_provenance: allow
   edit: deny
+  external_directory: allow
   task: deny
   webfetch: allow
   websearch: ask
