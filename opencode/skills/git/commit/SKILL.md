@@ -64,11 +64,20 @@ Resolve the message format in this priority order. Detect, do not assume.
 
 <CommitGranularity>
 
+A large diff is a signal to split more, not less. When the working diff spans
+several files or concerns, decompose further — it is never a reason to lump.
+Even one large feature breaks into foundation → core → wiring → tests → docs.
+Scope grows the number of commits, not the size of a single commit.
+
 Two invariants, in priority order:
 
 1. Build gate — every commit must build and pass the project's relevant
    checks on its own; never leave an intermediate commit broken. This gate
-   wins every conflict with the rules below.
+   constrains ordering and boundaries; it is NOT a license to merge independent
+   concerns into one commit. If two parts each build once correctly ordered,
+   they are two commits. Merging is justified only by a genuine dangling
+   reference (below) — never by diff size or convenience. Within that
+   constraint the gate wins every conflict with the rules below.
 2. One concern per commit — a vertical slice, not a horizontal layer: the
    change plus the wiring it is incomplete without (implementation, call
    sites, registration or permission, the tests that verify it), even when
@@ -85,6 +94,11 @@ Split-or-merge test — classify each part once:
   own, and only lacks a consumer until a later commit: it may stand as its own
   earlier commit. Reusability is the bar — inert-but-building is never an
   excuse to commit a broken fragment.
+
+Subject test — if the honest subject needs "and", a comma, or a bullet list to
+say what the commit does, it is more than one commit. A commit that touches many
+files serving distinct concerns is probably several commits — the exception is a
+single vertical slice whose parts are co-dependent.
 
 Kind boundaries — separate commits when each side stands alone:
 
@@ -113,6 +127,12 @@ Mechanics:
 - Mixed changes already staged (e.g. after `git add -A`): unstage with
   `git reset` first, then stage selectively — the tool lists only unstaged
   hunks.
+- A large pre-written diff (a big branch, many files): do not stage it whole.
+  `git reset` to unstage everything, then build the sequence one concern at a
+  time — stage only that concern's hunks with `git_stage_hunks`, confirm with
+  `git diff --cached`, commit, and repeat for the next concern. Iterating
+  concern-by-concern is what keeps each commit small; staging all then
+  committing once is the failure to avoid.
 - Untracked and binary files cannot be hunk-split: `git add <path>` them
   whole, into the commit whose concern they serve.
 - One hunk mixing two concerns: edit the file down to the first concern's
@@ -175,8 +195,12 @@ a deterministic reproduction; local/unpushed commits have no PR or Issue.
    untracked files), `git diff` (unstaged) and `git diff --cached` (staged);
    resolve the convention per <ConventionResolution>.
 2. Plan the split along concern and build boundaries (see <CommitGranularity>);
-   resolve amend-vs-link first for changes that belong to earlier work. For a
-   multi-commit split, state the planned sequence briefly before executing.
+   resolve amend-vs-link first for changes that belong to earlier work. Unless
+   the diff is a single trivial concern, this is a required gate: enumerate the
+   concerns, map each to a commit, and present the ordered plan
+   (concern → commit → order) before staging anything. A large or multi-file
+   diff must produce a multi-commit plan — one fat commit is the default to
+   resist, not accept.
 3. Stage intentionally: explicit paths, or specific hunks via `git_stage_hunks`.
    Never `git add -A` or `git add .` blindly. Re-check `git diff --cached`.
 4. Scan the staged diff with `git_secret_scan` (built-in rules plus gitleaks
@@ -237,6 +261,8 @@ rules below (and the repo's commitlint when present).
 - Do not `--no-verify` to skip hooks; fix what the hook flags.
 - Do not `--amend` or force-push a commit that is already pushed or shared.
 - Do not mix unrelated changes or different concerns into one commit.
+- Do not use the build gate or a large diff as an excuse to lump independent
+  concerns; scope means more commits, not a bigger one.
 - Do not invent a convention that contradicts the repo's history.
 - Do not add trailers unless asked.
 - Do not fabricate provenance — leave a link out rather than guess the
