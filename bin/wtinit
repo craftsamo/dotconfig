@@ -1,0 +1,183 @@
+#!/usr/bin/env bash
+# wtinit — post-/move worktree setup.
+#
+# Workflow (inside the opencode TUI):
+#   /move              -> opencode creates a linked worktree + moves the session
+#   !wtinit <branch>   -> this: `git switch -c <branch>`, copy gitignored .env*
+#                         from the main worktree, and symlink heavy ignored
+#                         dirs (node_modules, .venv, ...) from the main worktree
+#
+# Why a plain bin/ script (not a zsh function+alias): opencode's `!` runs a
+# non-interactive zsh that sources only ~/.zshenv (= env.zsh -> PATH), NOT
+# ~/.zshrc (= config.zsh, where functions/aliases live). env.zsh already puts
+# ~/.config/bin first on PATH, so a script here is visible to both opencode's
+# `!` and interactive shells — same stance as bin/pj. No zsh/dotconfig changes.
+#
+# Safety:
+#   - never writes to the main worktree (reads from it; copies/links OUT only)
+#   - .env*: copied (small; may be edited per worktree). Existing files are
+#     skipped so tracked .env.example/.env.sample stay untouched.
+#   - heavy dirs (node_modules, .venv, ...): symlinked, not copied — large and
+#     identical at worktree creation. Auto-detected from a default list
+#     (override via WTINIT_LINK); WTINIT_LINK='' disables linking.
+#   - never overwrites without -f; -f only replaces existing symlinks (never a
+#     real file/dir); -n previews with no changes
+#
+# Usage:
+#   wtinit [-f|--force] [-n|--dry-run] [-h|--help] <branch>
+#   WTINIT_GLOB='.env*'                  override the copy glob (rooted at main)
+#   WTINIT_LINK='node_modules .venv ...' override dirs to symlink from main
+#   WTINIT_LINK=''                       disable heavy-dir linking
+
+set -uo pipefail
+
+prog=${0##*/}
+
+usage() {
+  cat >&2 <<EOF
+Usage: $prog [-f|--force] [-n|--dry-run] [-h|--help] <branch>
+
+After opencode's /move, create a new git branch in the current worktree,
+copy gitignored .env* files from the main worktree, and symlink heavy
+ignored dirs (node_modules, .venv, target, ...) from it.
+
+Options:
+  -f, --force    overwrite existing .env* files; replace existing symlinks
+                 (never clobbers a real file/dir)
+  -n, --dry-run  print what would happen; change nothing
+  -h, --help     show this help
+
+Environment:
+  WTINIT_GLOB    copy glob at the main worktree root (default: '.env*')
+  WTINIT_LINK    space-separated dirs to symlink from the main worktree
+                 (default: node_modules .venv venv target _build deps .bundle
+                  bower_components; '' disables linking)
+EOF
+}
+
+force=0
+dry=0
+branch=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -f|--force)   force=1; shift ;;
+    -n|--dry-run) dry=1; shift ;;
+    -h|--help)    usage; exit 0 ;;
+    --)           shift; break ;;
+    -*)           echo "$prog: unknown option: $1" >&2; usage; exit 2 ;;
+    *)            branch="$1"; shift ;;
+  esac
+done
+
+if [ -z "$branch" ]; then
+  echo "$prog: <branch> is required" >&2
+  usage
+  exit 2
+fi
+
+if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  echo "$prog: not inside a git work tree" >&2
+  exit 1
+fi
+
+cur_root=$(git rev-parse --show-toplevel 2>/dev/null) || {
+  echo "$prog: cannot determine current worktree root" >&2; exit 1; }
+
+# primary (main) worktree root = first 'worktree <path>' line in porcelain output
+main_root=$(git worktree list --porcelain 2>/dev/null | awk '/^worktree /{print $2; exit}')
+if [ -z "$main_root" ]; then
+  echo "$prog: cannot determine main worktree" >&2
+  exit 1
+fi
+
+# 1) create + switch to the branch in the current worktree
+if [ "$dry" -eq 1 ]; then
+  echo "dry-run: git switch -c '$branch'"
+else
+  if ! out=$(git switch -c "$branch" 2>&1); then
+    echo "$prog: $out" >&2
+    echo "$prog: 'git switch -c $branch' failed — if it already exists, use 'git switch $branch' to switch to it." >&2
+    exit 1
+  fi
+  [ -n "$out" ] && printf '%s\n' "$out"
+fi
+
+# 2) copy .env* from the main worktree root -> current worktree root
+glob=${WTINIT_GLOB:-.env*}
+if [ "$main_root" = "$cur_root" ]; then
+  echo "note: this is the main worktree (not a linked one); env copy skipped"
+  exit 0
+fi
+
+shopt -s nullglob
+copied=0
+skipped=0
+for src in "$main_root"/$glob; do
+  [ -f "$src" ] || continue
+  base=${src##*/}
+  dst="$cur_root/$base"
+  if [ -e "$dst" ] && [ "$force" -eq 0 ]; then
+    echo "skip    $base  (exists in worktree)"
+    skipped=$((skipped + 1))
+    continue
+  fi
+  if [ "$dry" -eq 1 ]; then
+    echo "dry-run: cp '$src' -> '$dst'"
+  else
+    if ! cp -- "$src" "$dst"; then
+      echo "$prog: failed to copy $base" >&2
+      exit 1
+    fi
+    echo "copy    $base"
+  fi
+  copied=$((copied + 1))
+done
+
+if [ "$copied" -eq 0 ] && [ "$skipped" -eq 0 ]; then
+  echo "no '$glob' files in main worktree ($main_root)"
+elif [ "$dry" -eq 1 ]; then
+  echo "(dry-run: nothing was changed)"
+fi
+
+# 3) symlink heavy ignored dirs (deps/build outputs) from the main worktree
+default_links="node_modules .venv venv target _build deps .bundle bower_components"
+links=${WTINIT_LINK-$default_links}
+linked=0
+lskip=0
+for name in $links; do
+  src="$main_root/$name"
+  [ -e "$src" ] || [ -L "$src" ] || continue    # auto-detect: only what exists in main
+  dst="$cur_root/$name"
+  dst_exists=0
+  if [ -e "$dst" ] || [ -L "$dst" ]; then dst_exists=1; fi
+  if [ "$dst_exists" -eq 1 ]; then
+    if [ "$force" -eq 0 ]; then
+      echo "skip    $name  (exists in worktree)"
+      lskip=$((lskip + 1)); continue
+    fi
+    if [ ! -L "$dst" ]; then
+      echo "skip    $name  (real entry exists; remove it manually to link)"
+      lskip=$((lskip + 1)); continue
+    fi
+    action=replace
+  else
+    action=create
+  fi
+  if [ "$dry" -eq 1 ]; then
+    if [ "$action" = replace ]; then
+      echo "dry-run: replace $name -> $src"
+    else
+      echo "dry-run: ln -s '$src' -> '$dst'"
+    fi
+    linked=$((linked + 1)); continue
+  fi
+  if [ "$action" = replace ]; then
+    rm -- "$dst" || { echo "$prog: cannot remove existing $name" >&2; exit 1; }
+  fi
+  if ! ln -s -- "$src" "$dst"; then
+    echo "$prog: failed to symlink $name" >&2
+    exit 1
+  fi
+  echo "link    $name  -> $src"
+  linked=$((linked + 1))
+done
