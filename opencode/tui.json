@@ -3,5 +3,11 @@
   "plugin": [
     "@slkiser/opencode-quota"
   ],
-  "theme": "lucent-orng"
+  "theme": "lucent-orng",
+  "keybinds": {
+    // Open the "Move session" dialog (worktree switch/create). Default is unbound.
+    "session_move": "<leader>w",
+    // New worktree in the Move dialog. Default ctrl+m collides with Enter (CR) in terminals.
+    "dialog.move_session.new": "ctrl+o"
+  }
 }
