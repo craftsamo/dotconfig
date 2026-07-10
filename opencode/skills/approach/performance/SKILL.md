@@ -4,18 +4,34 @@ description: >-
   Use to resolve a performance problem — measure a baseline, locate the
   bottleneck, improve, and re-measure (パフォーマンス改善, 高速化, ボトルネック,
   遅い, 重い, performance, optimize, speed up, slow, latency, throughput).
-  Measurement-driven; avoid premature optimization. Apply on top of the
-  `approach` spine.
+  Measurement-driven; avoid premature optimization.
 ---
 
 <Goal>
 
-Resolve a concrete performance problem with measurement, not guesswork. Apply
-this on top of the `approach` spine (load it first if not already in
-context): investigate → confirm the real goal → co-design one decision at a
-time → proceed in small reversible verified steps.
+Resolve a concrete performance problem with measurement, not guesswork.
 
 </Goal>
+
+<Method>
+
+Non-trivial work runs through this spine; do not jump straight to edits:
+
+1. Investigate before asserting — read the relevant code, files, and history
+   first.
+2. Confirm the real goal — mirror it back instead of designing from
+   assumptions. Do not ask what investigation can answer; take the recommended
+   default on low-risk details and report it.
+3. Co-design one decision at a time — widen to the realistic candidates (not
+   just two straw options), present tradeoffs with a recommendation, and let
+   the user decide.
+4. Align on a concise plan before heavy or irreversible work. Persist durable
+   or cross-session plans via `approach-github-projects`, not local TODO files.
+5. Execute in small reversible verified steps; checkpoint before anything
+   irreversible.
+6. Close the loop — summarize what changed and what remains.
+
+</Method>
 
 <AntiPatterns>
 
@@ -37,7 +53,9 @@ time → proceed in small reversible verified steps.
    (representative input/load, warm caches, repeated runs). Record how you
    measured so it is repeatable.
 3. Locate the bottleneck: profile to find where time/resources actually go, not
-   where they feel like they go. Rank candidates by impact.
+   where they feel like they go. Rank candidates by impact. This read-only
+   diagnosis can be delegated to the `debugger` subagent (via the task tool)
+   when the profiling is involved or the cause is disputed.
 4. Form one hypothesis and improve: pick the highest-impact bottleneck, make
    the smallest change aimed at it, and keep behavior correct. Prefer doing
    less work (cache, batch, skip, precompute) and algorithmic wins over
