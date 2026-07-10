@@ -1,6 +1,6 @@
 ---
 name: web-ui
-description: Use when implementing or modifying any web frontend UI — pages, components, layout, styling, CSS, themes, visual states (UI 実装, フロントエンド, 画面, 見た目, デザイン, スタイリング, コンポーネント, レイアウト, web design, frontend, component, styling). Enforces verification against the real rendering with agent-browser (never claim UI work done from code alone), applies design principles (typography scale, spacing system, color restraint, hierarchy, states), and routes substantial UI work to the ui-review subagent for an unbiased multi-viewport screenshot critique. Do NOT use for TUI/CLI output or non-visual backend work.
+description: Use when implementing or modifying any web frontend UI — pages, components, layout, styling, CSS, themes, visual states, or when the user wants a specific look (UI 実装, フロントエンド, 画面, 見た目, デザイン, かっこいい, 可愛い, 綺麗, お洒落, 未来的, ダサい, スタイリング, コンポーネント, レイアウト, web design, aesthetic, look and feel, frontend, component, styling). Fixes an aesthetic direction before implementing (style catalog, reference extraction, or disposable style tiles), enforces verification against the real rendering with agent-browser (never claim UI work done from code alone), applies design principles (typography scale, spacing system, color restraint, hierarchy, states), and routes substantial UI work to the ui-review subagent for an unbiased multi-viewport screenshot critique. Do NOT use for TUI/CLI output or non-visual backend work.
 ---
 
 <Goal>
@@ -28,6 +28,141 @@ building, then close the loop against actual pixels with `agent-browser`.
 
 </DoNotUseWhen>
 </Scope>
+
+<AestheticDirection>
+
+Craft correctness (the principles below) prevents amateur mistakes but does
+not produce a look. A UI can pass every checklist item and still be generic —
+the stock framework default with nothing memorable. Direction is chosen, not
+emergent: do not start implementing visual work until one is fixed.
+
+A fixed direction = a named style (from <DesignDirections> or custom) + its
+mood adjectives + the concrete tokens derived from it (fonts, palette, radius,
+depth, density, signature element). State it in one line before coding, e.g.
+"Direction: Dark Tech — near-black, one cyan accent, mono data, 2px radius."
+
+Resolve it by the first path that applies:
+
+1. The project already has an established look or design system → consistency
+   wins. Extend the existing direction; do not introduce a new one unless the
+   user explicitly asked for a restyle.
+2. The user names a style or mood (かっこいい, 可愛い, futuristic, editorial,
+   like-a-terminal, ...) → map it to the closest <DesignDirections> entry,
+   confirm the mapping in one line, derive tokens.
+3. The user points at a reference site → open it with agent-browser,
+   screenshot, Read the image, and extract its decisions (palette, type
+   choices, radius, density, depth, signature elements) into tokens. A
+   reference is worth more than adjectives — prefer this path when offered.
+4. The user cannot verbalize it → build STYLE TILES: pick 2–3 plausible
+   catalog directions and implement the SAME representative screen once per
+   direction as a disposable, self-contained single-file HTML (inline CSS,
+   realistic content, no project scaffolding) under the temp dir. Render each
+   via `file://` with agent-browser, screenshot, present to the user, and let
+   them point. Style tiles are throwaway — never wire them into the project.
+   Do this only when direction is genuinely unresolved; do not ceremony-load
+   small tweaks.
+
+Once fixed, the direction is law: derive every token from it, and treat
+deviations (an off-mood color, a friendly round button in a sharp technical
+UI) as findings. Pass the direction to `ui-review` when delegating so it can
+judge mood consistency. A mediocre direction executed consistently beats a
+great direction executed inconsistently.
+
+</AestheticDirection>
+
+<DesignDirections>
+
+Compressed catalog. Each entry: mood / type / color / shape / depth /
+signature / kills-it (anti-patterns that break the mood) / fits. When the
+project uses Tailwind + shadcn/ui, express tokens via CSS variables
+(`--radius`, `--primary`, `--background`, font variables) so the direction
+lands in one edit.
+
+Dark Tech / Cyber — かっこいい・未来的 (precise, glowing, dense, cold)
+
+- Type: geometric grotesk + monospace for data/labels; tabular numbers.
+- Color: near-black bg (#0B0D10-ish), ONE neon accent (cyan/indigo/green),
+  cool gray ramp. Accent = signal only.
+- Shape: radius 0–4px; 1px hairline borders; visible grid lines.
+- Depth: glow and layered translucency, not soft drop shadows.
+- Signature: terminal/coordinate motifs, live tabular numbers, scanline or
+  grid texture.
+- Kills it: warm pastels, radius ≥ 8px, rounded friendly type, cream bg.
+- Fits: dashboards, dev tools, web3, monitoring.
+
+Clean SaaS / Trust — 誠実・整然 (calm, competent, unsurprising)
+
+- Type: one humanist sans (Inter-class); strong weight contrast for headings.
+- Color: white/near-white bg, one confident brand hue, warm-neutral grays.
+- Shape: radius 6–10px, consistent; subtle borders or bg shifts to separate.
+- Depth: one soft shadow step for cards, one for overlays. Nothing else.
+- Signature: generous whitespace + one accent-colored primary CTA per screen.
+- Kills it: more than two hues, dense borders everywhere, gradient buttons.
+- Fits: B2B SaaS, admin consoles, docs. NOTE: this is the default-look zone —
+  it MUST carry a deliberate brand hue and one signature choice, or it reads
+  as unstyled framework output.
+
+Playful Pop — 可愛い・楽しい (round, bouncy, sweet, bright)
+
+- Type: rounded sans, chunky weights; oversized display numbers.
+- Color: 2–3 saturated pastels + cream bg; colored (not gray) secondary text.
+- Shape: radius 12–24px; pill buttons; organic blobs allowed.
+- Depth: flat colors + hard offset shadows or thick outlines; sticker feel.
+- Signature: mascot/emoji-grade icons, bounce on interaction, playful empty
+  states.
+- Kills it: pure black, hairline borders, sharp corners, corporate grays.
+- Fits: consumer apps, education, community, kids.
+
+Elegant Minimal — 綺麗・上品 (restrained, airy, precise, quiet)
+
+- Type: one refined sans, light-to-regular weights; larger sizes instead of
+  bold; wide letter-spacing on small caps labels.
+- Color: off-white bg, near-black text, ONE muted accent (sage/navy/plum);
+  hierarchy carried almost entirely by grays and spacing.
+- Shape: radius 0–6px; separation by whitespace, almost no borders.
+- Depth: essentially flat; at most one whisper-level shadow.
+- Signature: extreme whitespace discipline; thin 1px rules used sparingly.
+- Kills it: loud accent colors, heavy bold everywhere, tight packing.
+- Fits: portfolios, galleries, premium consumer, settings-heavy UIs.
+
+Editorial — お洒落・雑誌的 (curated, typographic, confident)
+
+- Type: serif display for headlines + neutral sans for UI; dramatic size
+  jumps (16 → 40+); tight leading on display.
+- Color: paper-white or warm-cream bg, ink-black text, one editorial accent
+  (red/cobalt) used like a highlighter.
+- Shape: sharp corners; strong grid with intentional asymmetry; big margins.
+- Depth: flat; hierarchy from type scale, not elevation.
+- Signature: oversized headlines, pull-quotes, numbered sections, ALL-CAPS
+  micro-labels.
+- Kills it: bubbly rounded cards, glassmorphism, centered-everything.
+- Fits: content sites, landing pages, blogs, media.
+
+Luxury — 高級・重厚 (dark, slow, gold-accented, spacious)
+
+- Type: high-contrast serif (Didone-class) for display; restrained sans body.
+- Color: deep charcoal/ink bg OR ivory bg; metallic accent (gold/champagne)
+  in tiny doses; desaturated everything else.
+- Shape: sharp or barely-rounded; thin 1px gold rules as dividers.
+- Depth: flat with vignette-like large imagery; no cartoon shadows.
+- Signature: small centered serif wordmark, wide letter-spaced uppercase,
+  slow fades (300–500ms).
+- Kills it: bright saturated colors, chunky buttons, busy layouts, emoji.
+- Fits: brand sites, e-commerce for premium goods, hospitality.
+
+Brutalist — 尖った・生 (raw, loud, honest, anti-polish)
+
+- Type: default-stack or mono pushed to extreme sizes; no subtlety.
+- Color: white/black base + 1–2 shocking accents (electric blue, acid
+  yellow); system-default link blue is allowed as a statement.
+- Shape: zero radius; thick 2–4px borders; visible structure, no decoration.
+- Depth: none, or hard non-blurred offset shadows.
+- Signature: exposed grid, underlined links, marquee-grade oversized text.
+- Kills it: soft shadows, gradients, pastel harmony, polish of any kind.
+- Fits: portfolios, event sites, dev culture, statements. Rarely right for
+  products with forms.
+
+</DesignDirections>
 
 <RenderingLoop>
 
@@ -80,8 +215,9 @@ session).
   two screenshots read directly in the primary session.
 - Substantial UI work (new page/feature, restyle, "design is bad" complaints):
   after your own loop passes, delegate an unbiased critique to the `ui-review`
-  subagent via the `task` tool. Give it: the URL(s), what changed, and any
-  states to exercise. It returns a severity-ranked critique with measurements
+  subagent via the `task` tool. Give it: the URL(s), what changed, the fixed
+  aesthetic direction (name + mood adjectives), and any states to exercise.
+  It returns a severity-ranked critique with measurements
   and screenshot paths — apply fixes, then re-invoke it with the same
   `task_id` to confirm.
 - Screenshots are token-heavy. Keep bulk multi-viewport/multi-state capture in
@@ -155,6 +291,9 @@ Judge each screenshot against these; a miss is a finding, not a vibe:
 - [ ] Color count restrained; grays doing the hierarchy work; AA contrast.
 - [ ] No layout breakage at 1440px and 375px (overflow, wrapping, squash).
 - [ ] Interactive/empty/loading/error states present where relevant.
+- [ ] Mood consistent with the fixed direction; no off-direction elements.
+- [ ] Not generic: at least one deliberate signature choice — this would not
+      be mistaken for an unstyled framework default.
 - [ ] `agent-browser errors` clean; console free of new errors.
 
 </DesignChecklist>
@@ -163,6 +302,12 @@ Judge each screenshot against these; a miss is a finding, not a vibe:
 
 - Declaring UI work done after only reading/writing code — the whole point of
   this skill is that rendering is the ground truth.
+- Starting visual implementation with no fixed direction, or "styling" by
+  accepting framework defaults — passing the checklist while looking like
+  every other stock app is a failure of this skill.
+- Mixing directions mid-project (a playful button in a luxury layout) or
+  drifting from the agreed tokens because a component "looked better" that
+  way.
 - Screenshotting but not Reading the image, or Reading it and not comparing
   against the checklist.
 - Verifying only the desktop viewport, or only the happy path.
