@@ -17,6 +17,17 @@ and report it.
 
 </QuestionQuality>
 
+<PlanHandoff>
+
+When a plan is aligned in Plan mode, register it as todos shaped
+`Phase{N}.{m} - <task> (executor)` — Phase = dependency wave, {m} = reference
+id within the phase (no ordering implied), executor = Build | worker |
+reviewer | verifier | debugger | ui-review (default Build; worker only for
+mechanical work) — then switch to Build. Build executes phases in order,
+delegates per the executor tag, and updates todo statuses as it goes.
+
+</PlanHandoff>
+
 <SkillRouting>
 <ApproachSkills>
 
