@@ -133,11 +133,11 @@ turn. The default profile already proves the YAML shape.
 
 | Profile | T1 (primary) | T2 | T3 | T4 |
 | --- | --- | --- | --- | --- |
-| **default** | `anthropic` / claude-sonnet-4.6 | `openai-codex` / gpt-5.5 | `copilot` / gpt-5.5 | `openrouter` / `xiaomi/mimo-v2.5` |
-| **assistant** | `anthropic` / claude-sonnet-4.6 | `openai-codex` / gpt-5.5 | `copilot` / gpt-5.5 | `openrouter` / `xiaomi/mimo-v2.5` |
-| **coder** | `anthropic` / claude-sonnet-4.6 | `openai-codex` / gpt-5.5 | `copilot` / gpt-5.5 | `openrouter` / `deepseek/deepseek-v4-flash` |
+| **default** | `anthropic` / claude-sonnet-4.6 | `openai-codex` / gpt-5.6-terra | `copilot` / gpt-5.6-terra | `openrouter` / `xiaomi/mimo-v2.5` |
+| **assistant** | `zai` / glm-5.2 | `openai-codex` / gpt-5.6-terra | `copilot` / gpt-5.6-terra | `openrouter` / `xiaomi/mimo-v2.5` |
+| **coder** | `anthropic` / claude-sonnet-4.6 | `openai-codex` / gpt-5.6-terra | `copilot` / gpt-5.6-terra | `openrouter` / `deepseek/deepseek-v4-flash` |
 | **researcher** | `xai-oauth` / grok-4.3 | `copilot` / claude-sonnet-4.6 | `openrouter` / `deepseek/deepseek-v4-flash` | — |
-| **searcher** | `xai-oauth` / grok-4.3 | `copilot` / gpt-5.5 | `openrouter` / `deepseek/deepseek-v4-flash` | — |
+| **searcher** | `xai-oauth` / grok-4.3 | `copilot` / gpt-5.6-terra | `openrouter` / `deepseek/deepseek-v4-flash` | — |
 
 ```yaml
 # example — researcher's ~/.hermes/profiles/researcher/config.yaml
@@ -161,12 +161,12 @@ calls):
   `anthropic` / `claude-sonnet-4.6` (`base_url: https://api.anthropic.com`,
   `api_mode: anthropic_messages`; Hermes normalizes the slug to
   `claude-sonnet-4-6` for the native API). OAuth (Claude Pro/Max) —
-  `hermes auth status anthropic` → *logged in*. codex/gpt-5.5 drops to T2.
+  `hermes auth status anthropic` → *logged in*. codex/gpt-5.6-terra drops to T2.
 - **Grok** — `grok-4.3` is current on `xai-oauth` and verified working (the
   retired `grok-4*` glob doesn't cover it; re-auth via `hermes model` if the
   token lapses). `x-ai/grok-4.3` is the OpenRouter equivalent for per-token use.
 - **Copilot has no Grok** — its catalog is Claude + GPT-5.x + gemini-2.5-pro, so
-  worker T2 uses `claude-sonnet-4.6` (researcher) / `gpt-5.5` (searcher).
+  worker T2 uses `claude-sonnet-4.6` (researcher) / `gpt-5.6-terra` (searcher).
 - **OpenRouter slugs** — `xiaomi/mimo-v2.5`, `deepseek/deepseek-v4-flash`,
   `google/gemini-3.5-flash` (the earlier `*-v3.2` / `gemini-3-flash-preview`
   refs were planning guesses).
