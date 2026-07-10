@@ -5,18 +5,35 @@ description: >-
   architecture, moving data, or rebuilding an opaque system (再構築, 作り直し,
   マイグレーション, rebuild, migrate, restructure, overhaul). Includes the
   evacuate → build-alongside → cutover safety sequence. For incremental
-  behavior-preserving cleanup, use `approach-refactor`. Apply on top of the
-  `approach` spine.
+  behavior-preserving cleanup, use `approach-refactor`.
 ---
 
 <Goal>
 
 Handle a full rebuild, restructure, schema/architecture/layout overhaul, or
-data migration. Apply this on top of the `approach` spine (load it first if
-not already in context): investigate → confirm the real goal → co-design one
-decision at a time → proceed in small reversible verified steps.
+data migration without losing data or breaking the live system.
 
 </Goal>
+
+<Method>
+
+Non-trivial work runs through this spine; do not jump straight to edits:
+
+1. Investigate before asserting — read the relevant code, files, and history
+   first.
+2. Confirm the real goal — mirror it back instead of designing from
+   assumptions. Do not ask what investigation can answer; take the recommended
+   default on low-risk details and report it.
+3. Co-design one decision at a time — widen to the realistic candidates (not
+   just two straw options), present tradeoffs with a recommendation, and let
+   the user decide.
+4. Align on a concise plan before heavy or irreversible work. Persist durable
+   or cross-session plans via `approach-github-projects`, not local TODO files.
+5. Execute in small reversible verified steps; checkpoint before anything
+   irreversible.
+6. Close the loop — summarize what changed and what remains.
+
+</Method>
 
 <IntentCheck>
 
