@@ -5,7 +5,7 @@ model:
 providers: {}
 fallback_providers:
   - provider: copilot
-    model: gpt-5.5
+    model: gpt-5.6-terra
   - provider: openrouter
     model: deepseek/deepseek-v4-flash
     base_url: https://openrouter.ai/api/v1
