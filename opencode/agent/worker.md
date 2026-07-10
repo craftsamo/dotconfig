@@ -1,7 +1,7 @@
 ---
 description: "Implements well-specified, mechanical code changes: bulk edits, boilerplate, rote refactors, applying an already-decided design. Give it exact specs; it makes no design decisions. Prefer invoking through the built-in task tool."
 mode: subagent
-model: openai/gpt-5.3-codex-spark
+model: openai/gpt-5.6-luna
 options:
   reasoningEffort: high
 hidden: true

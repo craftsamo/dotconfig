@@ -1,7 +1,7 @@
 ---
 description: "Lightweight read-only review subagent for broad PR scans: project conventions, AGENTS.md violations, obvious bugs, missing tests, and low-cost regressions. Prefer invoking through the built-in task tool."
 mode: subagent
-model: openai/gpt-5.5
+model: openai/gpt-5.6-terra
 hidden: true
 options:
   reasoningEffort: medium
