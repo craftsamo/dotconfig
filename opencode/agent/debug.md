@@ -5,7 +5,13 @@ permission:
   "*": ask
   glob: allow
   grep: allow
-  read: allow
+  read:
+    "*": allow
+    "**/.env": deny
+    "**/.env.*": deny
+    "**/*.env": deny
+    "**/.env.example": allow
+    "**/.env.sample": allow
   list: allow
   git_provenance: allow
   edit: deny

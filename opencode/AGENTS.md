@@ -43,6 +43,25 @@ related Issues/PRs to link, or marking it ready — load and follow the
 not merge.
 
 </PullRequestSkill>
+
+<WebUiSkill>
+
+When implementing or modifying web frontend UI — pages, components, layout,
+styling, visual states — load and follow the `web-ui` skill. UI work is not
+done until the real rendering has been verified with `agent-browser`
+screenshots; code-only inspection is not verification.
+
+</WebUiSkill>
+
+<UxPersonaTestingSkill>
+
+When asked to test UI/UX as users would experience it — persona testing,
+usability testing, hostile/reluctant/involuntary/novice user simulations, or
+separating "computer hate" noise from real UX defects — load and follow the
+`ux-persona-testing` skill. Personas run in the `ux-persona` subagent (never
+in the primary session); triage stays in the primary per the skill's rubric.
+
+</UxPersonaTestingSkill>
 </SkillRouting>
 
 <ExplorationDelegation>
@@ -79,6 +98,19 @@ summarization. Use `build` to implement fixes after diagnosis. `debug` and
 `debugger` do not edit files.
 
 </DebuggingDelegation>
+
+<UiReviewDelegation>
+
+For unbiased visual critique of substantial web UI work — new pages,
+restyles, or "the design looks bad" complaints — prefer the built-in `task`
+tool with subagent_type `ui-review` after your own render check passes. It
+captures multi-viewport screenshots with `agent-browser` (absorbing the image
+tokens) and returns a severity-ranked critique with measurements and
+screenshot paths. Apply fixes in the primary, then re-invoke with the same
+`task_id` to confirm. Keep quick single-screenshot checks inline; `ui-review`
+does not edit files.
+
+</UiReviewDelegation>
 
 <VerificationDelegation>
 
