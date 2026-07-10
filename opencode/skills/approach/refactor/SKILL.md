@@ -6,19 +6,36 @@ description: >-
   behavior-preserving steps (リファクタリング, 整理, リファクタ, refactor,
   restructure code, clean up, extract method, rename). Behavior must stay
   identical. For wholesale rebuilds or data migration, use
-  `approach-rebuild-migration`. Apply on top of the `approach` spine.
+  `approach-rebuild-migration`.
 ---
 
 <Goal>
 
 Improve the structure of working code without changing its behavior. If the
 system or its data is being replaced or moved wholesale, use
-`approach-rebuild-migration` instead. Apply this on top of the `approach`
-spine (load it first if not already in context): investigate → confirm the
-real goal → co-design one decision at a time → proceed in small reversible
-verified steps.
+`approach-rebuild-migration` instead.
 
 </Goal>
+
+<Method>
+
+Non-trivial work runs through this spine; do not jump straight to edits:
+
+1. Investigate before asserting — read the relevant code, files, and history
+   first.
+2. Confirm the real goal — mirror it back instead of designing from
+   assumptions. Do not ask what investigation can answer; take the recommended
+   default on low-risk details and report it.
+3. Co-design one decision at a time — widen to the realistic candidates (not
+   just two straw options), present tradeoffs with a recommendation, and let
+   the user decide.
+4. Align on a concise plan before heavy or irreversible work. Persist durable
+   or cross-session plans via `approach-github-projects`, not local TODO files.
+5. Execute in small reversible verified steps; checkpoint before anything
+   irreversible.
+6. Close the loop — summarize what changed and what remains.
+
+</Method>
 
 <AntiPatterns>
 

@@ -8,14 +8,26 @@ communication; code and identifiers stay as-is.
 </LanguagePolicy>
 
 <SkillRouting>
-<ApproachSkill>
+<ApproachSkills>
 
-Use the `approach` skill for non-trivial or ambiguous work: planning something
-new, adding a capability, deciding where to start, restructuring, migrating, or
-any "how should I approach this?" style task. Skip it for small,
-well-specified, single-step tasks.
+For non-trivial or ambiguous work, load the matching approach-* scenario skill
+before designing:
 
-</ApproachSkill>
+- Add a feature or capability to an existing system → `approach-new-feature`
+- Rebuild, restructure, or schema/data migration → `approach-rebuild-migration`
+- Improve structure without changing behavior → `approach-refactor`
+- Resolve a performance problem → `approach-performance`
+- Persist a durable, cross-session plan on GitHub Projects (layers on any of
+  the above) → `approach-github-projects`
+
+Refactor vs rebuild: behavior stays identical and the change is incremental →
+`approach-refactor`; the system or its data is replaced or moved wholesale →
+`approach-rebuild-migration`. Bugs, regressions, failing tests, and root-cause
+work belong to `debug` / `debugger`, not these skills. Generic planning that
+matches no scenario stays with the Plan agent's default behavior. Skip these
+skills for small, well-specified, single-step tasks.
+
+</ApproachSkills>
 
 <DependabotSkill>
 
