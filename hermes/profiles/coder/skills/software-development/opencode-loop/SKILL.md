@@ -52,7 +52,8 @@ terminal(command="opencode-quota show --provider anthropic", workdir="<wd>", tim
 - Missing command / auth failure / no quota data → **treat Claude as unavailable**
   even if Claude auth looks valid. (`claude auth status` is NOT sufficient.)
 - OpenAI fallback: gate on `--provider openai` (OpenAI Pro windows). Prefer
-  `gpt-5.5` for substantive work and `gpt-5.5-fast` for routine/mechanical work.
+  `gpt-5.6-sol` for high-risk work, `gpt-5.6-terra` for standard work, and
+  `gpt-5.6-luna` for routine/mechanical work.
 
 </QuotaGate>
 
@@ -64,8 +65,9 @@ High → low:
    Heavy/high-risk → Opus 4.8; light/mechanical → Haiku 4.5.
    If OpenCode-native Claude is gated/unavailable, **Copilot** is the alternate
    Claude-family source (Opus 4.8 first, then OpenAI-family).
-2. **OpenAI via OpenCode** — primary fallback once Claude is gated out. Strong →
-   `gpt-5.5`; routine/cheap → `gpt-5.5-fast` or the configured light model.
+2. **OpenAI via OpenCode** — primary fallback once Claude is gated out. High-risk →
+   `gpt-5.6-sol`; standard → `gpt-5.6-terra`; routine/cheap → `gpt-5.6-luna`
+   or the configured light model.
    Gate on `--provider openai`.
 3. **OpenRouter** — cheap coding-capable models only. **Never Claude/GPT via OpenRouter**
    (exclude `anthropic` / `claude` / `openai` / `gpt`). Prefer Deepseek-4-Flash, then Deepseek-4-pro.
@@ -81,9 +83,9 @@ Weight by task risk:
 
 | Class | Use for |
 |---|---|
-| Opus 4.8 / GPT-5.5 | high-risk architecture, complex refactor, hard debugging |
-| Sonnet / GPT-5.5-fast | default implementation, standard features, tests |
-| Haiku / GPT-5.4-mini-fast / cheap OpenRouter | small/mechanical fixes, docs, low-risk cleanup |
+| Opus 4.8 / GPT-5.6 Sol | high-risk architecture, complex refactor, hard debugging |
+| Sonnet / GPT-5.6 Terra | default implementation, standard features, tests |
+| Haiku / GPT-5.6 Luna / cheap OpenRouter | small/mechanical fixes, docs, low-risk cleanup |
 
 </ModelChoice>
 
