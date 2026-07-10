@@ -9,7 +9,7 @@
     "instructions/*.md"
   ],
   // Title generation etc. → light OpenAI Pro model without priority-tier cost.
-  "small_model": "openai/gpt-5.3-codex-spark",
+  "small_model": "openai/gpt-5.4-mini",
   "agent": {
     "plan": {
       "color": "#f5f5f5",
@@ -75,18 +75,6 @@
             },
           },
         },
-        "gpt-5.6-pro": {
-          "cost": {
-            "input": 5,
-            "cache_read": 0.5,
-            "output": 30,
-            "context_over_200k": {
-              "input": 10,
-              "cache_read": 1,
-              "output": 45,
-            },
-          },
-        },
         // Spark has no separate public API pricing table; use the published
         // gpt-5.3-codex rate so OpenCode cost estimates are not unknown.
         "gpt-5.3-codex-spark": {
@@ -101,6 +89,17 @@
   },
   "permission": {
     "edit": "ask",
+    // .env may hold secrets — gate whole-file reads via the Read tool too
+    // (bash cat/head/tail on .env is already denied below). Last match wins:
+    // example/sample templates stay free.
+    "read": {
+      "*": "allow",
+      "**/.env": "ask",
+      "**/.env.*": "ask",
+      "**/*.env": "ask",
+      "**/.env.example": "allow",
+      "**/.env.sample": "allow",
+    },
     "bash": {
       "*": "ask",
       // Read / inspect (safe)
@@ -346,7 +345,9 @@
       "approach*": "allow",
       "resolve-dependabot-alerts": "allow",
       "manage-github-projects": "allow",
-      "git-*": "allow"
+      "git-*": "allow",
+      "web-ui": "allow",
+      "ux-persona-testing": "allow"
     },
     // Custom GitHub Project tools (tools/github_project.ts) — board + issue-lifecycle ops, no delete
     "github_project_create": "allow",
