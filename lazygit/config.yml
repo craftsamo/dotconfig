@@ -7,3 +7,7 @@ customCommands:
     output: terminal
 gui:
   mouseEvents: false
+git:
+  merging:
+    manualCommit: true
+    args: "--no-ff"
