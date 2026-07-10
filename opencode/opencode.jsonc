@@ -89,6 +89,17 @@
   },
   "permission": {
     "edit": "ask",
+    // .env may hold secrets — gate whole-file reads via the Read tool too
+    // (bash cat/head/tail on .env is already denied below). Last match wins:
+    // example/sample templates stay free.
+    "read": {
+      "*": "allow",
+      "**/.env": "ask",
+      "**/.env.*": "ask",
+      "**/*.env": "ask",
+      "**/.env.example": "allow",
+      "**/.env.sample": "allow",
+    },
     "bash": {
       "*": "ask",
       // Read / inspect (safe)
