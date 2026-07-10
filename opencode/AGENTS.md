@@ -7,6 +7,16 @@ communication; code and identifiers stay as-is.
 
 </LanguagePolicy>
 
+<QuestionQuality>
+
+Questions to the user must be answerable in ~30 seconds without opening code.
+Never make a bare file/line reference the subject of a question — summarize
+what that code does in plain language. Phrase options as behavior/outcomes
+with a recommended default; for non-blocking details, proceed on the default
+and report it.
+
+</QuestionQuality>
+
 <SkillRouting>
 <ApproachSkills>
 
