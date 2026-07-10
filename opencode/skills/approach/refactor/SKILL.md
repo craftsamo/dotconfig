@@ -29,13 +29,32 @@ Non-trivial work runs through this spine; do not jump straight to edits:
 3. Co-design one decision at a time — widen to the realistic candidates (not
    just two straw options), present tradeoffs with a recommendation, and let
    the user decide.
-4. Align on a concise plan before heavy or irreversible work. Persist durable
-   or cross-session plans via `approach-github-projects`, not local TODO files.
+4. Align on a plan shaped backward from the goal at fixed granularity:
+   Goal (acceptance criteria — how we know it is done) → sub-goals (each an
+   independently verifiable, reviewable-PR-sized increment) → steps
+   (commit-sized edit→verify moves). A sub-goal whose verification cannot be
+   stated needs further decomposition. Persist durable or cross-session plans
+   via `approach-github-projects`, not local TODO files.
 5. Execute in small reversible verified steps; checkpoint before anything
    irreversible.
 6. Close the loop — summarize what changed and what remains.
 
 </Method>
+
+<Questioning>
+
+Questions to the user must be answerable in ~30 seconds without opening code:
+
+- Never make a bare file/line reference the subject of a question; summarize
+  what that code does in plain language first.
+- One question = one decision: context summary in the user's terms (what is
+  at stake, why decide now) + options phrased as behavior/outcomes, not
+  implementation details + a recommended default.
+- If answering would require the user to read code, the question is not
+  ready — investigate yourself and present conclusions as options.
+- Non-blocking details: proceed on the recommended default and report it.
+
+</Questioning>
 
 <AntiPatterns>
 
