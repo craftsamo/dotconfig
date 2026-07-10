@@ -346,7 +346,8 @@
       "resolve-dependabot-alerts": "allow",
       "manage-github-projects": "allow",
       "git-*": "allow",
-      "web-ui": "allow"
+      "web-ui": "allow",
+      "ux-persona-testing": "allow"
     },
     // Custom GitHub Project tools (tools/github_project.ts) — board + issue-lifecycle ops, no delete
     "github_project_create": "allow",
