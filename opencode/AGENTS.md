@@ -52,6 +52,16 @@ done until the real rendering has been verified with `agent-browser`
 screenshots; code-only inspection is not verification.
 
 </WebUiSkill>
+
+<UxPersonaTestingSkill>
+
+When asked to test UI/UX as users would experience it — persona testing,
+usability testing, hostile/reluctant/involuntary/novice user simulations, or
+separating "computer hate" noise from real UX defects — load and follow the
+`ux-persona-testing` skill. Personas run in the `ux-persona` subagent (never
+in the primary session); triage stays in the primary per the skill's rubric.
+
+</UxPersonaTestingSkill>
 </SkillRouting>
 
 <ExplorationDelegation>
