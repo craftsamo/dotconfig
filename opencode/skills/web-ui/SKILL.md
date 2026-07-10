@@ -222,6 +222,9 @@ session).
   `task_id` to confirm.
 - Screenshots are token-heavy. Keep bulk multi-viewport/multi-state capture in
   `ui-review`; only Read into the primary the images you need to fix against.
+- Behavioral testing (would a hostile, reluctant, or novice user survive this
+  flow?) is not this skill's job: once the render loop passes, load
+  `ux-persona-testing` and run personas through the `ux-persona` subagent.
 
 </Delegation>
 
