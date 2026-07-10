@@ -43,6 +43,15 @@ related Issues/PRs to link, or marking it ready — load and follow the
 not merge.
 
 </PullRequestSkill>
+
+<WebUiSkill>
+
+When implementing or modifying web frontend UI — pages, components, layout,
+styling, visual states — load and follow the `web-ui` skill. UI work is not
+done until the real rendering has been verified with `agent-browser`
+screenshots; code-only inspection is not verification.
+
+</WebUiSkill>
 </SkillRouting>
 
 <ExplorationDelegation>
@@ -79,6 +88,19 @@ summarization. Use `build` to implement fixes after diagnosis. `debug` and
 `debugger` do not edit files.
 
 </DebuggingDelegation>
+
+<UiReviewDelegation>
+
+For unbiased visual critique of substantial web UI work — new pages,
+restyles, or "the design looks bad" complaints — prefer the built-in `task`
+tool with subagent_type `ui-review` after your own render check passes. It
+captures multi-viewport screenshots with `agent-browser` (absorbing the image
+tokens) and returns a severity-ranked critique with measurements and
+screenshot paths. Apply fixes in the primary, then re-invoke with the same
+`task_id` to confirm. Keep quick single-screenshot checks inline; `ui-review`
+does not edit files.
+
+</UiReviewDelegation>
 
 <VerificationDelegation>
 
