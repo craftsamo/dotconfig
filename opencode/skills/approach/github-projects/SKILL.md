@@ -6,7 +6,7 @@ description: >-
   with phased sub-issues (or a single issue) and drive it to done through
   linked development branches and stacked PRs (ロードマップ, 計画をボードに,
   エピック, Parent issue, Sub-issue, 起票して進める, track work, roadmap, epic,
-  stacked PR, development branch). Applies on top of the `approach` spine;
+  stacked PR, development branch). Layers on any approach-* scenario skill;
   delegates board mechanics to `manage-github-projects` and PR creation to
   `git-pullrequest`. Use ONLY to orchestrate planning ↔ GitHub Projects, not
   for board mechanics themselves.
@@ -15,11 +15,11 @@ description: >-
 <Goal>
 
 Persist a co-designed plan on GitHub Projects and drive it to done across
-sessions, so nothing lives in throwaway local TODO/plan files. Apply on top of
-the `approach` spine (investigate → confirm the goal → co-design → small
-reversible steps): decompose the requirement, materialize it as a single issue
-or an epic with sub-issues, and wire each into a linked development branch and
-stacked PR. Delegate board operations to `manage-github-projects` and PR
+sessions, so nothing lives in throwaway local TODO/plan files. Once a plan is
+co-designed (investigate → confirm the goal → co-design → small reversible
+steps), decompose the requirement, materialize it as a single issue or an epic
+with sub-issues, and wire each into a linked development branch and stacked
+PR. Delegate board operations to `manage-github-projects` and PR
 creation to `git-pullrequest`.
 
 </Goal>
@@ -103,7 +103,7 @@ Parent Issue (epic) … the high-level requirement
 1. **Triage & capture.** New idea or requirement → add a DRAFT item
    (`github_project_item_add`) with Kind / Area / `_Repository` (+
    `_Milestone` theme). It is safe to capture before committing to do it.
-2. **Decompose (at the spine's "align on a plan" checkpoint).** Break the
+2. **Decompose (when aligning on the plan, before implementation).** Break the
    requirement along the codebase's seams into reviewable sub-goals. The count
    decides the shape: one → single Issue; several → Parent Issue + sub-issues
    (per `<WhatGoesOnTheBoard>`). If unsure, keep decomposing.

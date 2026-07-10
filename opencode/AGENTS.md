@@ -7,15 +7,48 @@ communication; code and identifiers stay as-is.
 
 </LanguagePolicy>
 
+<QuestionQuality>
+
+Questions to the user must be answerable in ~30 seconds without opening code.
+Never make a bare file/line reference the subject of a question — summarize
+what that code does in plain language. Phrase options as behavior/outcomes
+with a recommended default; for non-blocking details, proceed on the default
+and report it.
+
+</QuestionQuality>
+
+<PlanHandoff>
+
+When a plan is aligned in Plan mode, register it as todos shaped
+`Phase{N}.{m} - <task> (executor)` — Phase = dependency wave, {m} = reference
+id within the phase (no ordering implied), executor = Build | worker |
+reviewer | verifier | debugger | ui-review (default Build; worker only for
+mechanical work) — then switch to Build. Build executes phases in order,
+delegates per the executor tag, and updates todo statuses as it goes.
+
+</PlanHandoff>
+
 <SkillRouting>
-<ApproachSkill>
+<ApproachSkills>
 
-Use the `approach` skill for non-trivial or ambiguous work: planning something
-new, adding a capability, deciding where to start, restructuring, migrating, or
-any "how should I approach this?" style task. Skip it for small,
-well-specified, single-step tasks.
+For non-trivial or ambiguous work, load the matching approach-* scenario skill
+before designing:
 
-</ApproachSkill>
+- Add a feature or capability to an existing system → `approach-new-feature`
+- Rebuild, restructure, or schema/data migration → `approach-rebuild-migration`
+- Improve structure without changing behavior → `approach-refactor`
+- Resolve a performance problem → `approach-performance`
+- Persist a durable, cross-session plan on GitHub Projects (layers on any of
+  the above) → `approach-github-projects`
+
+Refactor vs rebuild: behavior stays identical and the change is incremental →
+`approach-refactor`; the system or its data is replaced or moved wholesale →
+`approach-rebuild-migration`. Bugs, regressions, failing tests, and root-cause
+work belong to `debug` / `debugger`, not these skills. Generic planning that
+matches no scenario stays with the Plan agent's default behavior. Skip these
+skills for small, well-specified, single-step tasks.
+
+</ApproachSkills>
 
 <DependabotSkill>
 
