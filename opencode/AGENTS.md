@@ -95,6 +95,16 @@ separating "computer hate" noise from real UX defects — load and follow the
 in the primary session); triage stays in the primary per the skill's rubric.
 
 </UxPersonaTestingSkill>
+
+<JapaneseWritingSkill>
+
+When writing Japanese-language deliverable text — documentation, README, code
+comments, commit messages, PR bodies, UI copy, release notes — load and follow
+the `japanese-writing` skill for typography, terminology, and style
+consistency. It does not apply to conversational replies (LanguagePolicy
+governs those) or to i18n/translation-file workflows.
+
+</JapaneseWritingSkill>
 </SkillRouting>
 
 <ExplorationDelegation>
