@@ -31,9 +31,16 @@ Non-trivial work runs through this spine; do not jump straight to edits:
    (commit-sized edit→verify moves). A sub-goal whose verification cannot be
    stated needs further decomposition. Persist durable or cross-session plans
    via `approach-github-projects`, not local TODO files.
-5. Execute in small reversible verified steps; checkpoint before anything
+5. Hand off to execution: register the agreed plan as todos shaped
+   `Phase{N}.{m} - <task> (executor)` — Phase is the dependency wave, {m} a
+   reference id within the phase (no ordering implied), executor one of
+   Build | worker | reviewer | verifier | debugger | ui-review (default
+   Build; worker only for mechanical work) — then switch to Build and
+   execute in phase order. The todos are the session's execution queue;
+   the board holds the durable plan.
+6. Execute in small reversible verified steps; checkpoint before anything
    irreversible.
-6. Close the loop — summarize what changed and what remains.
+7. Close the loop — summarize what changed and what remains.
 
 </Method>
 
