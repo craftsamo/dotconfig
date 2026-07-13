@@ -16,6 +16,7 @@ permission:
     "**/.env.sample": allow
   list: allow
   edit: deny
+  external_directory: allow
   task: deny
 ---
 
