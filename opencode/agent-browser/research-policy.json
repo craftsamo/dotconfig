@@ -1,0 +1,4 @@
+{
+  "default": "allow",
+  "deny": ["eval", "download", "upload", "network", "state"]
+}
