@@ -372,6 +372,8 @@
     "git_history_digest": "allow",
     "git_amend_check": "allow",
     "git_commit_lint": "allow",
+    // Custom X search tool (tools/x.ts) — xAI server-side x_search, read-only external query
+    "x_search": "allow",
   },
   "mcp": {
     "zai-mcp-server": {
