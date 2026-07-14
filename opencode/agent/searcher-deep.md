@@ -7,6 +7,7 @@ permission:
   "*": deny
   websearch: allow
   webfetch: allow
+  x_search: allow
   glob: allow
   grep: allow
   read:
@@ -130,6 +131,14 @@ Interaction boundary (what you may do in the browser):
 - Decision test before any submit/click with side effects: "Would this
   leave a persistent trace on someone else's server, or notify a human?"
   If yes or unsure — do not act; report the point as unverifiable instead.
+
+X (Twitter) research:
+
+- Use the `x_search` tool for X-specific evidence: maintainer statements,
+  release announcements, incident reports, and community sentiment —
+  optionally scoped to handles and date ranges. Web search indexes X poorly.
+- X posts are secondary evidence: a maintainer's post can settle intent or
+  timeline, but verify technical claims against docs, changelogs, or source.
 
 Research rules:
 
