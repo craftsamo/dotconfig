@@ -102,6 +102,10 @@ When delegating:
   to re-derive scope wastes its context on re-discovery.
 - Tell the subagent what question to answer: `searcher` sweeps and maps;
   `searcher-deep` settles one verdict.
+- Route X (Twitter) evidence — sentiment, maintainer statements, release
+  announcements, handle-scoped monitoring — to the subagents' `x_search`
+  tool by saying so in the delegation prompt; general web search indexes X
+  poorly.
 - Ask for sources, confidence, and residual risk in every call.
 - Do not ask subagents to write the final user-facing answer.
 

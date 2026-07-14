@@ -7,6 +7,7 @@ permission:
   "*": deny
   websearch: allow
   webfetch: allow
+  x_search: allow
   glob: allow
   grep: allow
   read:
@@ -49,6 +50,15 @@ Local file access is for grounding only:
 - Never put secrets, credentials, internal identifiers, private code, or
   file contents into web search queries or fetched URLs. Query with public
   names and versions only.
+
+X (Twitter) research:
+
+- For real-time sentiment, developer reactions, announcements, or posts from
+  specific handles, use the `x_search` tool instead of general web search —
+  it runs xAI's server-side X search and returns cited posts. Web search
+  indexes X poorly; do not fight it.
+- Treat X posts as secondary sources: good for sentiment and leads, weak for
+  facts. Confirm load-bearing claims against documentation.
 
 Research rules:
 
