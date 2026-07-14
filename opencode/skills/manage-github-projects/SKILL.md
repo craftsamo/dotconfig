@@ -1,6 +1,6 @@
 ---
 name: manage-github-projects
-description: Use to record and manage persistent, cross-session tasks and notes on a GitHub Projects (v2) "Roadmap" board via the github_project_* tools, instead of writing local TODO/plan/notes files (GitHub Projects, project board, roadmap, draft issue, project item, 起票, タスク管理, ロードマップ, ボードに追加, 進捗更新, ファイルを残さない). Covers the two-tier personal/org board topology and owner resolution, the Status/Kind/Area/_Repository/_Milestone schema, board granularity (epic / sub-issue), saved views (Kanban / Backlog / roadmap via a copied template), per-Kind body guidance, and add/start/done/list/note/promote recipes. Use ONLY for GitHub Project board task management, not general gh usage.
+description: Use to record and manage persistent, cross-session tasks and notes on a GitHub Projects (v2) "Roadmap" board via the github_project_* tools, instead of writing local TODO/plan/notes files (GitHub Projects, project board, roadmap, draft issue, project item, 起票, タスク管理, ロードマップ, ボードに追加, 進捗更新, ファイルを残さない). Covers the two-tier personal/org board topology and owner resolution, the Status/Kind/Area/_Repository/_Milestone schema, board granularity (epic on the board; purpose / work issues in the repo), saved views (Kanban / Backlog / roadmap via a copied template), per-Kind and three-tier (epic / purpose / work) body formats, and add/start/done/list/note/promote recipes. Use ONLY for GitHub Project board task management, not general gh usage.
 ---
 
 <Goal>
@@ -114,16 +114,20 @@ the native default project field; `Kind` and `Area` are plain custom fields.
 
 What goes on the board, and how large work is broken down:
 
-- A board item is a **standalone task** or an **epic** — never the individual
-  sub-tasks of an epic. Keep the board a roadmap of efforts, not a flat task dump.
-- Break large multi-step work into an **epic**: one parent issue whose body follows
-  the Epic format in `<BodyGuidance>` (Overview + a phased Plan — ordering / waves
-  live here in prose, there is no Phase field). Its steps are GitHub **sub-issues**
-  in the relevant repo.
-- Sub-issues stay in the repo and are **not** added to the board; they are
-  single-purpose and use the repo's own Issue template. Link each under the epic
-  with `github_project_issue_link` (it also sets the sub-issue's Issue Type to
-  `Task`). Progress shows on the epic via its sub-issue bar (e.g. `2/5`).
+- A board item is a **standalone task** or an **epic** — never an epic's
+  descendants. Keep the board a roadmap of efforts, not a flat task dump: a
+  team's org Roadmap showing every purpose / work issue is noise.
+- Break large multi-step work into an **epic**: one parent issue whose body
+  follows the Epic format in `<BodyGuidance>` (Overview + a Plan of dependency
+  waves — ordering lives in the body, there is no Wave field). Its direct
+  sub-issues are **purpose issues** (the execution unit, sized 1–3 PRs), each
+  of which gets its own PR-sized **work sub-issues** at kickoff. Tier
+  selection, spec lifecycle, and branch topology live in
+  `approach-github-projects`.
+- Purpose and work issues stay in the repo and are **not** added to the board.
+  Link each tier under its parent with `github_project_issue_link` (it also
+  sets the sub-issue's Issue Type to `Task`). Progress shows on each parent
+  via its sub-issue bar (e.g. `2/5`).
 - **Milestone** is a high-level **theme** grouping epics over time. Assign it to the
   **epic**, not to each sub-task; a later epic on the same theme joins the same
   milestone while it is open.
@@ -171,6 +175,12 @@ Formatting conventions (any item):
 - Log / long output → wrap in `<details><summary>…</summary> … </details>` with a
   clear summary, so the body stays scannable.
 - `**Refs**:` — shared optional inline field for related issue / PR / doc links.
+- Section names below are the canonical English definitions; in a real issue,
+  translate them into the repository's main language (keep the meaning 1:1).
+- Never write `Parent: #n` in a body — the native sub-issue panel is the single
+  source of parentage; body copies go stale on re-parenting.
+- Reference sibling/dependency issues as plain `#n`. Create issues in
+  dependency order so real numbers exist — no "(TBD)" placeholders.
 
 Per Kind (sections in order; fill only the relevant ones):
 
@@ -207,20 +217,62 @@ Common optional section (any Kind, when the work will be implemented):
   Requirements / Acceptance already make the work obvious. Distinct from an
   epic's `## Plan` (which orders sub-issues into phases).
 
-Epic (a parent issue with sub-issues — any Kind; supersedes the per-Kind body):
+Three-tier formats (epic-structured work — supersede the per-Kind body; tier
+selection, spec lifecycle, research model, and branches live in
+`approach-github-projects`):
+
+**Epic** (a parent issue whose sub-issues are purpose issues):
 
 - `## Overview` — the outcome and why (1–3 lines).
-- `## Details` — scope / constraints / design notes (optional; omit if none).
-- `## Plan` — phased breakdown: `### Phase 1 — <wave goal>` then plain `- #12`
-  sub-issue references; add `### Phase 2 …` for later waves.
-- `## Acceptance` — the integration-level checks confirmed AFTER all sub-issues
-  land (end-to-end scenarios, requirement coverage, no regressions). Use `- [ ]`
-  checkboxes here. This is the epic's exit criterion; each sub-issue's own
-  acceptance lives in that sub-issue, not here.
-- Reference sub-issues in `## Plan` as `#n` only — no `- [ ]` there (the native
-  Sub-issues panel is the single source of progress; checkboxes create a
-  parallel task list). Checkboxes belong ONLY in `## Acceptance`.
-- Phase grouping is maintained by hand; update Plan when sub-issues change.
+- `## Details` — constraints, design principles, and the seams table (open
+  business decisions → config / adapter / manual ops / launch gate). This is
+  the **distillate** of domain research, not its home — full research reports
+  (market, competitors, primary sources) live as **epic comments**, linked
+  from consumers' `## Evidence`.
+- `## Plan` — purposes ordered into dependency waves: a table
+  `| Wave | Purpose issues |` (or `### Wave N` headings) with plain `#n`
+  references; later waves may stay prose until decomposed.
+- `## Acceptance` — the integration-level checks confirmed AFTER all purposes
+  land (end-to-end scenarios, requirement coverage, no regressions). Use
+  `- [ ]` checkboxes here. This is the epic's exit criterion.
+- Reference sub-issues in `## Plan` as `#n` only — no `- [ ]` there (the
+  native Sub-issues panel is the single source of progress). Checkboxes belong
+  ONLY in `## Acceptance`. Wave grouping is maintained by hand.
+
+**Purpose issue** (one purpose, the execution unit; sub-issue of an epic):
+
+- Header lines:
+  `**Requirement status**: Draft | Fixed` and
+  `**Implementation status**: Not started | In progress | Done`.
+- `## Purpose` — the single goal (1–2 lines).
+- `## Requirements` — Draft: the provisional skeleton; Fixed: the confirmed
+  spec (Open decisions folded in).
+- `## Research` (optional) — the transcribed excerpts of epic research this
+  purpose depends on, plus kickoff findings (existing assets, port sources,
+  provider comparisons). Transcribe, don't just link — the purpose must stay
+  self-contained when source issues close. Fold into `## Requirements` when
+  short.
+- `## Implementation outline` — expected PR slices (prose bullets). At
+  kickoff, replaced by the linked work sub-issue `#n` list.
+- `## Open decisions` — what must be settled at kickoff. Removed when Fixed
+  (each decision resolved into Requirements); re-add it when an escalated
+  mid-implementation discovery raises a new decision.
+- `## Dependencies` — the purpose issues this depends on (`#n` + why).
+- `## Acceptance` — purpose-level done checks (`- [ ]`).
+- `## Evidence` — links to research originals (epic comments), decision
+  issues, superseded predecessors.
+
+**Work sub-issue** (one reviewable PR; sub-issue of a purpose, created at its
+kickoff):
+
+- `## Purpose` — one line.
+- `## Scope` — what is included (bullets).
+- `## Out of scope` — explicit exclusions (optional).
+- `## Acceptance` — done checks, including verification commands.
+- `## Dependencies` — sibling work issues (`#n`).
+- No `## Research` here — implementation-detail findings go into the PR
+  itself; out-of-scope discoveries escalate to the purpose's
+  `## Open decisions` (or an epic comment), never absorbed silently.
 
 On a shared repo that already provides Issue Forms, prefer that form for real
 issues rather than this guidance.
@@ -271,9 +323,11 @@ After promote — wire the issue into the development lifecycle (the
 - Branch + Development link: `github_project_issue_develop`
   `{ issue, branch?, base?, checkout?, repo? }` — creates a linked development
   branch (or reuses an existing one); a PR opened from it links in the issue's
-  Development panel automatically. For an epic's sub-issue, point `base` at the
-  epic branch so the PR stacks under it.
-- Sub-issue under an epic: `github_project_issue_link`
+  Development panel automatically. A purpose issue branches off the default
+  branch; a work sub-issue points `base` at its purpose branch so the PR
+  stacks under it. Epics get no branch (tracking only).
+- Sub-issue under a parent (purpose under epic, work under purpose):
+  `github_project_issue_link`
   `{ parent, subs, subType?: "Task" }` — links the sub-issues under the parent
   and sets each sub's Issue Type to `Task` (best-effort: warns and continues on
   repos without Issue Types).
