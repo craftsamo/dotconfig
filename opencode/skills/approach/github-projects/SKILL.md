@@ -3,13 +3,16 @@ name: approach-github-projects
 description: >-
   Use when durable, multi-step, or cross-session work from an approach should
   live on GitHub Projects — decompose a high-level requirement into an epic
-  with phased sub-issues (or a single issue) and drive it to done through
-  linked development branches and stacked PRs (ロードマップ, 計画をボードに,
-  エピック, Parent issue, Sub-issue, 起票して進める, track work, roadmap, epic,
-  stacked PR, development branch). Layers on any approach-* scenario skill;
-  delegates board mechanics to `manage-github-projects` and PR creation to
-  `git-pullrequest`. Use ONLY to orchestrate planning ↔ GitHub Projects, not
-  for board mechanics themselves.
+  whose direct sub-issues are PURPOSE issues (the "do this now" execution
+  unit, sized 1–3 PRs, spec Draft→Fixed at kickoff), each decomposed into
+  PR-sized work sub-issues at kickoff, and drive it to done through linked
+  development branches (purpose → main; work PRs stack under the purpose
+  branch) (ロードマップ, 計画をボードに, エピック, 目的 Issue, Parent issue,
+  Sub-issue, 起票して進める, track work, roadmap, epic, stacked PR,
+  development branch). Layers on any approach-* scenario skill; delegates
+  board mechanics and body formats to `manage-github-projects` and PR
+  creation to `git-pullrequest`. Use ONLY to orchestrate planning ↔ GitHub
+  Projects, not for board mechanics themselves.
 ---
 
 <Goal>
@@ -17,10 +20,11 @@ description: >-
 Persist a co-designed plan on GitHub Projects and drive it to done across
 sessions, so nothing lives in throwaway local TODO/plan files. Once a plan is
 co-designed (investigate → confirm the goal → co-design → small reversible
-steps), decompose the requirement, materialize it as a single issue or an epic
-with sub-issues, and wire each into a linked development branch and stacked
-PR. Delegate board operations to `manage-github-projects` and PR
-creation to `git-pullrequest`.
+steps), decompose the requirement into an epic whose execution units are
+**purpose issues**, defer PR-level decomposition to each purpose's kickoff,
+and wire each purpose into a linked development branch and stacked work PRs.
+Delegate board operations and issue body formats to `manage-github-projects`
+and PR creation to `git-pullrequest`.
 
 </Goal>
 
@@ -33,131 +37,197 @@ creation to `git-pullrequest`.
 
 </WhenToUse>
 
-<WhatGoesOnTheBoard>
+<Hierarchy>
 
-Anything from a raw idea to work in flight. The existing draft-vs-promoted
-item model carries the stage — **no schema change needed**:
-
-- **Idea / not yet committed to** → a **DRAFT** item on the board (no repo
-  issue, no local file). Safe to capture, triage, and discard.
-- **Decided to do** (the gate) → **promote** to a real Issue, and start its
-  development lifecycle (branch → PR).
-
-Decide the shape from the requirement by decomposing it along the codebase's
-structural seams (layers / modules / concerns):
-
-- The decomposition yields **a single sub-goal** that fits one reviewable PR
-  → a **single Issue**.
-- It yields **two or more independent sub-goals** → a **Parent Issue (epic)**
-  with one sub-issue per sub-goal.
-- "One or several?" is unclear → the decomposition is not finished; decompose
-  again. A single increment that still feels huge is a signal to keep
-  decomposing, not to ship a giant one-commit PR.
-
-Hierarchy:
+Three tiers, sized so that "what we do now" is always a small, visible unit:
 
 ```
-Parent Issue (epic) … the high-level requirement
- └ Phase … a wave / dependency order, written in the epic body as `### Phase N`
-    └ Sub-issue … one reviewable PR-sized unit, referenced as `#n`
-       └ Commit … the steps stacked inside that PR
+Board item … the EPIC only (never purposes or work issues — keep the org
+             Roadmap noise-free)
+Epic (parent issue) … the high-level requirement; tracking only
+ └ Purpose issue … ONE purpose, the execution unit ("do this now"),
+    │              sized 1–3 reviewable PRs; carries its own spec
+    │              (Requirements Draft→Fixed) and implementation outline
+    └ Work sub-issue … one reviewable PR; created at the purpose's kickoff
+       └ Commit … the steps inside that PR
 ```
 
-- A sub-issue maps to one PR. Whether several small structural pieces inside a
-  sub-goal become separate sub-issues or commits inside one PR depends on
-  whether each is independently reviewable. A sub-issue's body is its per-Kind
-  sections (Requirements / Acceptance) plus, when the work isn't obvious, a
-  `## Approach` outline (main steps, files touched, approach — no code) so an
-  agent or fresh session can pick it up without re-exploring.
-- Sub-issues live in the repo (not on the board); the epic carries progress via
-  its sub-issue bar.
-- Neutral example: "add an external login" decomposes along the seams into
-  backend auth wiring, the login UI, and route protection — three independent
-  sub-goals, so an **Epic**. The backend piece stays one sub-issue (one PR)
-  whose internal steps are commits; it does not become three sub-issues unless
-  each is independently reviewable. Its `## Approach` names the provider
-  strategy, the module registration, and the guard wiring; the epic's
-  `## Acceptance` covers the end-to-end login→protection flow no single
-  sub-issue verifies alone.
+Shape selection (decompose along the codebase's structural seams):
 
-</WhatGoesOnTheBoard>
+- One standalone sub-goal that fits one PR (no epic context) → a **single
+  issue**.
+- One purpose-sized sub-goal (1–3 PRs) → a **single purpose issue** (no epic).
+- Several purpose-sized sub-goals → an **epic** with purpose issues.
+- Inside an epic, a purpose that turns out to be one PR stays a purpose issue
+  and simply skips the work tier (see `<BranchTopology>`).
+- An epic that would decompose directly into ~5+ PR-sized units, or spans
+  several domains, is the signal that the purpose tier is missing — insert it.
+  A "purpose" is the smallest unit that delivers a meaningful outcome on its
+  own; if picking it up for the week feels heavy, it is still an epic-sized
+  lump: keep decomposing.
+- A short-lived feature that must land atomically is modeled as a **purpose
+  issue**, not an epic — epics never get their own branch (see
+  `<BranchTopology>`).
+
+The epic's `## Plan` orders purposes into dependency waves (a Wave table or
+`### Wave N` headings); each purpose issue additionally names its own
+`## Dependencies`. Body formats for all three tiers are defined in
+`manage-github-projects` `<BodyGuidance>`.
+
+</Hierarchy>
+
+<ResearchModel>
+
+Each tier investigates different questions, at different times, recorded in
+different places. Research never gets its own standalone issue.
+
+| Tier | Research | Question | When | Recorded where |
+| --- | --- | --- | --- | --- |
+| Epic | Domain: market, competitors, primary sources, business constraints | What should we build? | Around epic creation | Epic **comments** hold the full reports (the originals); the epic body's `## Details` holds only the distilled constraints / principles / seams |
+| Purpose | System: existing code assets, port sources, library / provider comparison, integration seams | How do we realize this purpose here? | At the purpose's **kickoff** (the Draft→Fixed gate) | The purpose issue's `## Research` — transcribe the epic-research excerpts it depends on (self-contained even if source issues close) plus its own findings; conclusions resolve `## Open decisions` into `## Requirements` |
+| Work | Implementation detail: file locations, conventions, API shapes, how to run tests | Where and how do we change it? | Inline during implementation | Not persisted as issue content — the Scope/Approach and the PR itself are the record |
+
+Flow is bidirectional:
+
+- **Down**: epic research → each purpose transcribes the excerpts it relies on.
+- **Up**: a discovery during work that exceeds its scope is NOT absorbed on the
+  spot — escalate it to the purpose's `## Open decisions` (system-level) or an
+  epic comment (domain-level), then continue.
+
+</ResearchModel>
+
+<SpecLifecycle>
+
+Purpose issues carry a two-stage spec, tracked by body header lines
+(`**Requirement status**: Draft | Fixed`):
+
+1. **Draft (at planning).** Created with provisional `## Requirements`, an
+   `## Implementation outline` (expected PR slices, prose only), and
+   `## Open decisions` (what must be settled at kickoff). This is deliberate:
+   later purposes' PR boundaries depend on earlier implementations, so
+   decomposing everything up front causes rework.
+2. **Fixed (at kickoff).** When a purpose is picked up: run its system
+   research (`<ResearchModel>`), settle `## Open decisions` with the user,
+   update the body (Draft → Fixed, decisions folded into Requirements), then
+   create the PR-sized work sub-issues and link them under the purpose.
+
+Only purposes derived from an already-confirmed spec start as Fixed.
+
+</SpecLifecycle>
 
 <BranchTopology>
 
-- **One issue = one branch.** On promote/issue-creation, open a linked
-  development branch with `github_project_issue_develop`. It appears in the
-  issue's Development panel; a PR opened from it links there automatically.
-- **Stacked.** For an epic, the epic has its own branch off the default branch;
-  each sub-issue's branch is created off the **epic branch** (`base`), so its
-  PR targets the epic branch (a stacked PR). When all sub-issues land, the epic
-  branch is PR'd into the default branch.
-- **Single issue** → its branch is PR'd straight into the default branch.
+- **Epics have no branch.** They are tracking-only; a months-long epic branch
+  would starve the default branch and rot. The epic's progress is its
+  sub-issue bar.
+- **One purpose = one branch = one PR to the default branch.** On kickoff,
+  open a linked development branch with `github_project_issue_develop` off the
+  default branch. The purpose lands as a unit; its branch lives days-to-a-week,
+  so the stack stays bounded.
+- **Work sub-issues stack under the purpose branch.** Each work branch is
+  created off the purpose branch (`base`), its PR targets the purpose branch,
+  and review happens per work PR. The final purpose → default-branch PR is a
+  merge vehicle — already-reviewed content, no re-review.
+- **Degenerate case**: a purpose that is one PR skips the work tier; its
+  branch PRs straight to the default branch.
 - Delegate: branch creation to `github_project_issue_develop` (or `git-commit`
-  for plain branches), PR creation to `git-pullrequest` (it detects the stacked
-  base). Use `github_project_issue_link` to attach sub-issues to the epic.
+  for plain branches), PR creation to `git-pullrequest` (it detects the
+  stacked base). Use `github_project_issue_link` to attach sub-issues.
 
 </BranchTopology>
 
 <Steps>
 
-1. **Triage & capture.** New idea or requirement → add a DRAFT item
+1. **Triage & capture.** New idea or requirement → add a DRAFT board item
    (`github_project_item_add`) with Kind / Area / `_Repository` (+
-   `_Milestone` theme). It is safe to capture before committing to do it.
-2. **Decompose (when aligning on the plan, before implementation).** Break the
-   requirement along the codebase's seams into reviewable sub-goals. The count
-   decides the shape: one → single Issue; several → Parent Issue + sub-issues
-   (per `<WhatGoesOnTheBoard>`). If unsure, keep decomposing.
-3. **Gate — promote + wire.** When decided:
-   - `github_project_item_promote` the item to a real Issue.
-   - `github_project_issue_develop` to open its linked branch (epic off the
-     default branch; sub-issue off the epic branch for stacking; `checkout`).
-   - For an epic, `github_project_issue_link` to attach each sub-issue (it sets
-     the sub-issue's Issue Type to `Task`). Write the epic body's `## Plan`
-     with `### Phase N` and `#n` sub-issue references.
-   - Fill each sub-issue's body with its per-Kind sections (Requirements /
-     Acceptance) and, when the work isn't obvious, a `## Approach` outline so it
-     can be picked up without re-exploring.
-4. **Execute via stacked PRs.** Implement each sub-issue on its branch; open a
-   PR to its base via `git-pullrequest`. Land each PR (it closes its
-   sub-issue); keep the epic's Plan in sync as sub-issues change. A single
-   Issue just PRs to the default branch.
-5. **Close the loop.** When all sub-issues land, run the epic's `## Acceptance`
-   integration checks (end-to-end, no regressions) before merging; then PR the
-   epic branch into the default branch — merging closes the epic. Set the board
-   item Status to Done and summarize the outcome. No orphan local plan/TODO
-   files.
-6. **Re-enter across sessions.** At the start of a session,
-   `github_project_item_list` (`-status:Done -status:Cancelled`) → read the
-   epic's `## Plan` → `checkout` the relevant branch → resume.
+   `_Milestone` theme). Safe to capture before committing to do it.
+2. **Decompose (when aligning on the plan).** Break the requirement along the
+   codebase's seams into purpose-sized sub-goals (`<Hierarchy>`). Record
+   domain research as epic comments; write each purpose issue per
+   `manage-github-projects` `<BodyGuidance>` (Draft spec + outline + open
+   decisions). Order purposes into waves in the epic's `## Plan`. Create
+   purposes in dependency order so `## Dependencies` uses real `#n` numbers.
+3. **Gate — promote + wire.** When decided: `github_project_item_promote` the
+   board item to the real epic issue (the board tracks ONLY this epic);
+   `github_project_issue_link` each purpose under the epic (Type `Task`).
+   Do NOT create branches yet.
+4. **Kickoff a purpose (repeat per purpose).** Pick the next purpose by the
+   Wave table: run its system research → settle Open decisions → update the
+   body to Fixed → create + link its work sub-issues →
+   `github_project_issue_develop` its branch off the default branch, and each
+   work branch off the purpose branch.
+5. **Execute via stacked PRs.** Implement each work sub-issue on its branch;
+   PR to the purpose branch via `git-pullrequest`; landing it closes the work
+   sub-issue. When all land, PR the purpose branch into the default branch
+   (merge vehicle) — merging closes the purpose. Keep the epic's Plan in sync.
+6. **Close the loop.** When all purposes land, run the epic's `## Acceptance`
+   integration checks, close the epic, set the board item Status to Done, and
+   summarize. No orphan local plan/TODO files.
+7. **Re-enter across sessions.** `github_project_item_list`
+   (`-status:Done -status:Cancelled`) → read the epic's `## Plan` → open
+   purposes' status headers → resume the in-flight purpose (its Development
+   panel names the branch).
 
 </Steps>
 
+<SupersedeProtocol>
+
+When restructuring changes the issue topology (splitting, merging, or
+re-tiering existing issues), never delete and never leave dangling parents:
+
+1. Create the successor issues first (transcribe the content they inherit —
+   requirements, research excerpts, decisions — so each successor is
+   self-contained).
+2. Comment on each superseded issue: what replaced it and where the content
+   went (successor `#n` list).
+3. Unlink it from its parent (`github_project_issue_link` mode `remove`), then
+   close it — `completed` if its job was finished (e.g. a spec that was
+   confirmed and transcribed), `not planned` if it was replaced mid-flight.
+4. Re-parent surviving sub-issues onto the successors (mode `set-parent`), and
+   split any sub-issue that now spans two successors.
+
+Closed superseded issues remain readable as originals; successors link back
+(via `## Evidence` on a purpose, or `**Refs**:` on other tiers).
+
+</SupersedeProtocol>
+
 <AntiPatterns>
 
-- Do not put a giant single-commit PR behind a lone Issue when the work has
-  several sub-goals — decompose into an epic first.
-- Do not confuse a DRAFT (idea, not committed to) with a promoted Issue
-  (decided, in flight).
-- Do not run an issue without a linked development branch; the Development
-  panel is the cross-session source of truth for "where is this work".
-- Do not break the stack: a sub-issue's PR targets the **epic branch**, not the
-  default branch directly.
-- Do not dump every sub-task onto the board — the board tracks epics and
-  single issues; sub-issues stay in the repo.
-- Do not leave the plan in a local TODO/plan/notes file — it lives on the board
-  and in the epic body.
+- Do not decompose every purpose into PR-sized work issues up front — later
+  PR boundaries depend on earlier implementations; decompose at kickoff.
+- Do not create an epic branch or stack work under one — epics are
+  tracking-only; a purpose is the landing unit.
+- Do not put purposes or work sub-issues on the board — the board carries the
+  epic (and standalone tasks) only; anything more is Roadmap noise.
+- Do not create research-only issues — domain research lives in epic comments,
+  system research inside the purpose issue that consumes it.
+- Do not leave a purpose in Draft while implementing it — Fixed (settled
+  decisions, updated body) gates the work decomposition.
+- Do not write `Parent: #n` in issue bodies — the native sub-issue panel is
+  the single source of parentage; body copies go stale on re-parenting.
+- Do not absorb out-of-scope discoveries mid-implementation — escalate up
+  (`<ResearchModel>`) and keep the work PR on scope.
+- Do not confuse a DRAFT board item (idea) with a promoted epic (decided).
+- Do not leave the plan in a local TODO/plan/notes file — it lives on the
+  board and in the epic and purpose bodies.
 
 </AntiPatterns>
 
 <Gates>
 
-- [ ] Ideas are DRAFT items; decided work is promoted — no schema confusion.
-- [ ] Shape chosen by decomposition: one sub-goal → single Issue; several →
-  epic with sub-issues.
-- [ ] Every issue has a linked development branch; sub-issues stack under the
-  epic branch.
-- [ ] Sub-issues linked to the epic (Type `Task`); epic `## Plan` kept in sync.
-- [ ] Re-enterable: `item_list` → epic Plan → branch checkout resumes the work.
-- [ ] No orphan local plan/TODO files; the board and epic body are the record.
+- [ ] Ideas are DRAFT board items; decided work is a promoted epic — the board
+  carries epics and standalone items only, never an epic's descendants.
+- [ ] Shape chosen by decomposition: 1 PR → single issue; 1–3 PRs → purpose;
+  several purposes → epic (purpose tier inserted, no direct epic→PR lumps).
+- [ ] Every purpose body carries its spec status; Draft purposes have Open
+  decisions, Fixed purposes have linked work sub-issues.
+- [ ] Research is tiered: epic comments (domain) / purpose `## Research`
+  (system, transcribed + self-contained) / none persisted at work tier.
+- [ ] Branches: purpose → default branch; work PRs stack under the purpose
+  branch; epics have no branch.
+- [ ] Superseded issues are closed with successor links, never deleted; no
+  stale `Parent:` lines in bodies.
+- [ ] Re-enterable: `item_list` → epic Plan → purpose status → branch checkout
+  resumes the work.
 
 </Gates>
