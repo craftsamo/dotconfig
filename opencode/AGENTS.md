@@ -118,6 +118,21 @@ exploration.
 
 </ExplorationDelegation>
 
+<ResearchDelegation>
+
+For web research — external docs, library/API behavior, versions, changelogs,
+advisories, best practices, current events — prefer the built-in `task` tool
+with subagent_type `searcher` (fast sweeps, fact checks) or `searcher-deep`
+(settling one topic: conflicting sources, primary-source verification). These
+agents run on the Grok subscription tier and absorb bulky web-page tokens;
+avoid running `websearch`/`webfetch` in the primary session except for a
+single user-provided URL. Codebase questions stay with the explore-* agents;
+never put secrets, private code, or internal identifiers into delegated
+queries. For multi-question research sessions, the `deepsearch` primary mode
+orchestrates both.
+
+</ResearchDelegation>
+
 <ImplementationDelegation>
 
 When a change is well-specified and mechanical — bulk edits, boilerplate,
