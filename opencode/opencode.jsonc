@@ -26,6 +26,9 @@
     "explain": {
       "color": "#10B981",
     },
+    "deepsearch": {
+      "color": "#3B82F6",
+    },
     // Context compaction fires on every long session; keep it off the
     // Claude Max window but on a model strong enough to preserve context.
     "compaction": {
@@ -369,6 +372,8 @@
     "git_history_digest": "allow",
     "git_amend_check": "allow",
     "git_commit_lint": "allow",
+    // Custom X search tool (tools/x.ts) — xAI server-side x_search, read-only external query
+    "x_search": "allow",
   },
   "mcp": {
     "zai-mcp-server": {
