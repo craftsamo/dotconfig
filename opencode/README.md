@@ -23,7 +23,9 @@ Empty directories carry a `.gitkeep` so the skeleton survives a fresh clone.
 
 tmux `prefix o` lazily starts a shared `opencode serve` process on
 `127.0.0.1:4096`. The server is kept in the detached `opencode-web` tmux
-session and is exposed to mobile devices through Tailscale Serve.
+session and is exposed to mobile devices through Tailscale Serve. Directory-
+specific tmux sessions run `opencode attach --dir <path>` against the same
+server, so the web UI and terminal clients share project and session state.
 
 After enabling Serve for the tailnet, configure its persistent HTTPS proxy:
 
@@ -45,9 +47,10 @@ starts it with the new value:
 tmux kill-session -t opencode-web
 ```
 
-The normal `opencode` TUI does not require this variable. The launcher rejects
-only `opencode serve` when the password is unavailable, preventing an
-accidentally unauthenticated web server.
+The launcher rejects `opencode serve` when the password is unavailable,
+preventing an accidentally unauthenticated web server. Attach clients receive
+the same credential through the `opencode` secret shim; it is never placed in
+the process arguments.
 
 ## Ignored machine state
 
