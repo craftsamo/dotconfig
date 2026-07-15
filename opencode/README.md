@@ -19,6 +19,36 @@ needed.
 
 Empty directories carry a `.gitkeep` so the skeleton survives a fresh clone.
 
+## Web access
+
+tmux `prefix o` lazily starts a shared `opencode serve` process on
+`127.0.0.1:4096`. The server is kept in the detached `opencode-web` tmux
+session and is exposed to mobile devices through Tailscale Serve.
+
+After enabling Serve for the tailnet, configure its persistent HTTPS proxy:
+
+```sh
+tailscale serve --bg 127.0.0.1:4096
+```
+
+HTTP Basic authentication is mandatory for `opencode serve`. Store its
+password in the macOS Keychain through the existing `opencode` secret layer:
+
+```sh
+secret set OPENCODE_SERVER_PASSWORD -p opencode
+```
+
+Restart the server after replacing the password; the next tmux `prefix o`
+starts it with the new value:
+
+```sh
+tmux kill-session -t opencode-web
+```
+
+The normal `opencode` TUI does not require this variable. The launcher rejects
+only `opencode serve` when the password is unavailable, preventing an
+accidentally unauthenticated web server.
+
 ## Ignored machine state
 
 `node_modules/`, `package.json`, `package-lock.json` and `bun.lock` are
