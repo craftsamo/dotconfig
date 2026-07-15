@@ -137,6 +137,10 @@ root; run inside `apps/api` for per-package precision. Templates
 skip re-injection via the `_SECRET_SHIM_PROJ` / `_SECRET_SHIM_TOOL`
 sentinels.
 
+The tmux OpenCode launcher uses tool mode for both the shared `opencode serve`
+process and its `opencode attach` clients, so Basic authentication credentials
+are injected into both sides without appearing in process arguments.
+
 ```sh
 secret set OPENAI_API_KEY -p global        # every AI tool
 secret set CONTEXT7_API_KEY -p opencode    # one tool (overrides global)
@@ -158,9 +162,11 @@ environment:
   - STRIPE_SECRET_KEY         # value-less: shell (= injected) when set
 ```
 
-If the keychain cannot be unlocked, the shim starts the command without the
-injection — it never blocks a launch. Test hooks: `SECRET_SHIM_MODE` forces
-the mode, `SECRET_SHIM_BASE` replaces `global` as the tool-mode base.
+If the keychain cannot be unlocked, the shim normally starts the command
+without injection. `opencode serve` is the fail-closed exception: it exits
+unless `OPENCODE_SERVER_PASSWORD` was inherited or injected. Test hooks:
+`SECRET_SHIM_MODE` forces the mode, `SECRET_SHIM_BASE` replaces `global` as
+the tool-mode base.
 
 [`bin/secret`](../../bin/secret) is a launcher too, but **not** a shim: it is a
 small wrapper that `source`s `secret.zsh` and dispatches, so the `secret` CLI is
@@ -233,7 +239,7 @@ master machinery via the `SECRET_MASTER_ACCOUNT` / `SECRET_TEST_ONLY_KC`
 hooks, and cleans up after itself — safe to run on a machine with real data.
 
 [`zsh/tests/secret-shim-selftest.zsh`](../tests/secret-shim-selftest.zsh) —
-23 assertions for the launcher shims: layer injection and override order,
+28 assertions for the launcher shims: layer injection and override order,
 inherited-environment precedence, dotenv name skipping (monorepo union from
 the root vs per-package precision, `.env.example` exclusion, `export NAME=`
 lines), sentinels, exec passthrough (arguments, exit codes, missing
