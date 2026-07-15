@@ -137,6 +137,10 @@ root; run inside `apps/api` for per-package precision. Templates
 skip re-injection via the `_SECRET_SHIM_PROJ` / `_SECRET_SHIM_TOOL`
 sentinels.
 
+The tmux OpenCode launcher uses tool mode for both the shared `opencode serve`
+process and its `opencode attach` clients, so Basic authentication credentials
+are injected into both sides without appearing in process arguments.
+
 ```sh
 secret set OPENAI_API_KEY -p global        # every AI tool
 secret set CONTEXT7_API_KEY -p opencode    # one tool (overrides global)
