@@ -55,6 +55,7 @@ print -r -- "$MP" | secret keychain master set --stdin >/dev/null 2>&1 \
 mkdir -p "$TD/bin" "$TD/real" "$TD/outside"
 ln -s "$SHIM" "$TD/bin/$PTOOL"
 ln -s "$SHIM" "$TD/bin/printenv"
+ln -s "$SHIM" "$TD/bin/opencode"
 ln -s "$SHIM" "$TD/bin/secret-selftest-shimmissing"
 cat > "$TD/real/$PTOOL" <<'EOF'
 #!/bin/sh
@@ -62,6 +63,11 @@ if [ "$1" = "--args" ]; then shift; printf '%s\n' "$@"; exit 0; fi
 exec /usr/bin/printenv "$@"
 EOF
 chmod +x "$TD/real/$PTOOL"
+cat > "$TD/real/opencode" <<'EOF'
+#!/bin/sh
+printf '%s\n' "$@"
+EOF
+chmod +x "$TD/real/opencode"
 
 # project-mode repo: root .env, monorepo package .env, template file
 git -C "$TD" init -q repo
@@ -84,6 +90,11 @@ print -r -- 'tool-both' | secret set TB_BOTH -p $PTOOL --stdin >/dev/null 2>&1
 tool_run() {                   # tool mode: run the fake tool, args -> printenv
   ( path=("$TD/bin" "$TD/real" $path)
     SECRET_SHIM_BASE=$PB "$TD/bin/$PTOOL" "$@" 2>/dev/null )
+}
+opencode_run() {               # skip Keychain access; test serve's auth guard
+  ( path=("$TD/bin" "$TD/real" $path)
+    unset OPENCODE_SERVER_PASSWORD
+    _SECRET_SHIM_TOOL=opencode "$TD/bin/opencode" "$@" )
 }
 penv() {                       # project mode: $1 dir, $2.. -> printenv args
   local d=$1; shift
@@ -108,6 +119,15 @@ penv() {                       # project mode: $1 dir, $2.. -> printenv args
 out=$(tool_run --args one 'two words' three)
 [[ $out == 'one'$'\n''two words'$'\n''three' ]] \
   && ok "tool: arguments passed through verbatim" || bad "tool: arguments passed through verbatim"
+[[ "$(opencode_run tui 2>/dev/null)" == 'tui' ]] \
+  && ok "tool: bare opencode does not require server auth" || bad "tool: bare opencode does not require server auth"
+opencode_run serve --port 4096 >/dev/null 2>&1
+(( $? == 1 )) \
+  && ok "tool: opencode serve rejects a missing password" || bad "tool: opencode serve rejects a missing password"
+out=$(path=("$TD/bin" "$TD/real" $path) _SECRET_SHIM_TOOL=opencode \
+  OPENCODE_SERVER_PASSWORD=test "$TD/bin/opencode" serve --port 4096 2>/dev/null)
+[[ $out == 'serve'$'\n''--port'$'\n''4096' ]] \
+  && ok "tool: opencode serve accepts an injected password" || bad "tool: opencode serve accepts an injected password"
 
 # --- project mode ---------------------------------------------------------
 R=$TD/repo
