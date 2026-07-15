@@ -31,16 +31,21 @@ symlink or setup step needed.
 | `prefix e`                 | kill every pane except the current one          |
 | `prefix f`                 | open the pane's directory in Finder             |
 | `prefix g`                 | lazygit popup (80% x 80%)                       |
-| `prefix o`                 | opencode popup — starts the shared web server if needed, then opens one detached TUI session per directory |
+| `prefix o`                 | opencode popup — starts the shared server if needed, then opens one detached attach client per directory |
 | `prefix H` (Shift+h)       | hermes popup (modern TUI) — one detached session per directory, launched via `bin/hermes --tui` (secret-shim) |
 
 ## OpenCode web server
 
 The first `prefix o` starts `opencode serve` in the detached `opencode-web`
-session. The server listens only on `127.0.0.1:4096`; the existing TUI remains
-one independent process per directory. A startup failure does not block the
-TUI; tmux displays the path to the persistent
-`~/Library/Logs/opencode-web.log` startup log.
+session. The server listens only on `127.0.0.1:4096`. Each directory keeps its
+own detached tmux session, but its TUI runs `opencode attach --dir <path>`
+against that shared server instead of starting another server. tmux waits for
+the server before creating a new client; a startup failure is reported with
+the persistent `~/Library/Logs/opencode-web.log` startup log.
+
+Existing directory sessions are not replaced while they are running. After an
+old standalone TUI exits, the next `prefix o` recreates that directory's tmux
+session as an attach client.
 
 `OPENCODE_SERVER_PASSWORD` must exist in the `opencode` Keychain layer. Add or
 replace it interactively without putting the value in shell history:
