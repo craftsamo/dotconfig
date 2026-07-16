@@ -109,12 +109,23 @@ governs those) or to i18n/translation-file workflows.
 
 <ExplorationDelegation>
 
-For read-only codebase exploration, prefer the built-in `task` tool with
-subagent_type `explore-small` (trivial lookups) or `explore-high` (anything
-harder). Use `explore-max` only for difficult, ambiguous, or high-stakes
-exploration. These agents are pinned to OpenAI models. Use the default
-`explore` subagent only when the primary model is specifically needed for the
-exploration.
+For read-only codebase exploration, prefer the built-in `task` tool with the
+matching explore-* tier:
+
+- `explore-spark` — ONLY when the scope is pre-identified and narrow (specific
+  files/dirs or a single symbol). Small context: never send it open-ended
+  queries.
+- `explore-small` — trivial lookups: find files, symbols, config keys, simple
+  keyword search.
+- `explore-medium` — standard exploration: multi-file traces, "how does X
+  work?" questions.
+- `explore-high` — hard or ambiguous questions where explore-medium falls
+  short.
+- `explore-max` — only for difficult, high-stakes, or previously failed
+  exploration.
+
+These agents are pinned to OpenAI models. Use the default `explore` subagent
+only when the primary model is specifically needed for the exploration.
 
 </ExplorationDelegation>
 

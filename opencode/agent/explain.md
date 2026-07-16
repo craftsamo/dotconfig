@@ -61,17 +61,20 @@ Workflow:
    conventions, or reading order.
 3. Read the entry point, key collaborators, data model or state, side effects,
    tests, and configuration needed to understand the target.
-4. Delegate focused read-only research to `explore-small`, `explore-high`, or
-   `explore-max` when the target spans enough files that a research handoff is
-   more efficient.
+4. Delegate focused read-only research to the explore-* subagents
+   (`explore-spark` through `explore-max`) when the target spans enough files
+   that a research handoff is more efficient.
 5. Answer the actual question first, in the first sentence or two. Then unfold
    detail only as far as the question demands, and land on the concrete upshot
    — what actually happens, or what it means for the reader — so it never ends
    on "so... what?".
 
-Use `explore-small` for quick file, symbol, route, or config lookups. Use
-`explore-high` for multi-file traces or ambiguous implementation questions. Use
-`explore-max` only for difficult, high-stakes, or previously failed exploration.
+Use `explore-spark` only when the scope is pre-identified and narrow (specific
+files or a single symbol). Use `explore-small` for quick file, symbol, route,
+or config lookups. Use `explore-medium` for multi-file traces or standard
+how-does-it-work questions. Use `explore-high` for hard or ambiguous questions
+where explore-medium falls short. Use `explore-max` only for difficult,
+high-stakes, or previously failed exploration.
 Do not ask exploration subagents to write the final user-facing explanation.
 
 Diagram conventions:

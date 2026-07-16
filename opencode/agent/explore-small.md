@@ -1,8 +1,10 @@
 ---
 description: "Fast/cheap read-only codebase lookups: find files, simple keyword search."
 mode: subagent
-model: openai/gpt-5.3-codex-spark
+model: openai/gpt-5.6-luna
 hidden: true
+options:
+  reasoningEffort: low
 permission:
   "*": deny
   glob: allow
@@ -38,7 +40,7 @@ Rules:
 - Use only Glob for file patterns, Grep for content search, Read for known files,
   and List for directory inspection.
 - Do not use Bash. If the answer requires shell or git history inspection,
-  report that `explore-high` is more appropriate.
+  report that `explore-medium` is more appropriate.
 - Keep scope tight. Stop when you have enough evidence.
 - If the request is ambiguous, make the smallest reasonable assumption and state
   it.
