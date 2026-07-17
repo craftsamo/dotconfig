@@ -1,76 +1,71 @@
 ---
 name: japanese-writing
-description: Use when writing Japanese-language deliverable text — documentation, README, code comments, commit messages, PR titles/bodies, UI copy, error messages, release notes (日本語で書いて, 日本語ドキュメント, 日本語のREADME, 和訳, 日本語化, 表記ゆれ, 文体, 敬体, カタカナ表記, 全角半角, 一文一行, 改行位置, 助詞の省略, 複合名詞, 日本語ライティング). Covers mixed Japanese-English typography (spacing, punctuation), terminology choice (English vs katakana vs code-literal), compound-noun vs particle forms (改行位置 vs 改行の位置), notation consistency (long vowels, kana usage), source line-breaking (one sentence per line), and per-deliverable style. Do NOT use for chat replies (the LanguagePolicy already governs response language) or for i18n/translation-file workflows.
+description: Use when writing Japanese-language deliverable text — documentation, README, code comments, commit messages, PR titles/bodies, UI copy, error messages, release notes (日本語で書いて, 日本語ドキュメント, 日本語のREADME, 和訳, 日本語化, 表記ゆれ, 文体, 敬体, カタカナ表記, 全角半角, 一文一行, 改行位置, 助詞の省略, 複合名詞, 日本語ライティング). Covers mixed Japanese-English typography (spacing, punctuation), terminology choice (English vs katakana vs code-literal), compound-noun vs particle forms (改行位置 vs 改行の位置), notation consistency (long vowels, kana usage, dashes, 中黒), source line-breaking (one sentence per line), and per-deliverable style. This is the notation (micro) layer of the Japanese writing stack — for long-form argumentation quality also load `japanese-tech-prose`, and for narrative pacing `japanese-prose-rhythm`; this skill applies to ALL Japanese deliverables regardless. Do NOT use for chat replies (the LanguagePolicy already governs response language) or for i18n/translation-file workflows.
 ---
 
 <Goal>
 
-Keep Japanese deliverable text consistent: one notation, one terminology
-decision rule, one style per deliverable type. These rules eliminate the usual
-drift (「Gitの履歴」 vs 「Git の履歴」, サーバ vs サーバー, です・ます混在)
-across sessions.
+日本語の成果物テキストの一貫性を保つ。
+表記は一つ、用語の決定規則は一つ、文体は成果物の種類ごとに一つ。
+この規則群は、セッションをまたいで起きがちな揺れ（「Gitの履歴」 vs 「Git の履歴」、サーバ vs サーバー、です・ます混在）を排除する。
 
 </Goal>
 
 <WhenToApply>
 
-Applies to text that will persist as an artifact written in Japanese:
-documentation, README, code comments, commit messages, PR titles and bodies,
-UI copy, error messages, release notes, issue text.
+対象：日本語で書かれ、成果物として残るテキスト。
+ドキュメント、README、コードコメント、コミットメッセージ、PR のタイトルと本文、UI コピー、エラーメッセージ、リリースノート、issue の本文。
 
-Does NOT apply to conversational chat replies — those follow the global
-LanguagePolicy, not this skill. Does NOT cover translation-file / i18n
-tooling workflows.
+対象外：会話のチャット応答（グローバルの LanguagePolicy に従う）。
+翻訳ファイル・i18n ツーリングのワークフローも対象外。
 
 </WhenToApply>
 
 <ProjectFirst>
 
-The repository's own convention always wins over this skill:
+リポジトリ自身の規約が常にこのスキルより優先される：
 
-1. A textlint config (`.textlintrc*`) or prose linter in the repo — obey it,
-   and run it for verification.
-2. An explicit style guide (`CONTRIBUTING.md`, `docs/style*`).
-3. The dominant pattern in the repo's existing Japanese documents.
+1. リポジトリ内の textlint 設定（`.textlintrc*`）や文章リンター。従ったうえで、検証にも実行する。
+2. 明示的なスタイルガイド（`CONTRIBUTING.md`、`docs/style*`）。
+3. リポジトリの既存の日本語文書で支配的なパターン。
 
-Only when none of these decide a point, fall back to the rules below.
+これらのいずれでも決まらない点についてだけ、以下の規則に従う。
 
 </ProjectFirst>
 
 <MixedScript>
 
-Rules for 和欧混植 (mixing Japanese with Latin script and digits):
+和欧混植（日本語と欧文・数字の混在）の規則：
 
-- Put a half-width space between Japanese text and a Latin word or number:
-  「Git の履歴」「3 個のファイル」「TypeScript で書く」.
-- No space between Japanese text and full-width punctuation, or inside
-  brackets adjacent to the quoted term: 「（GitHub）」 not 「（ GitHub ）」.
-- Punctuation in Japanese sentences is full-width 「、」「。」. Do not use
-  half-width `,` `.` in Japanese prose.
-- Parentheses around Latin-only content inside a Japanese sentence may be
-  half-width `()`; parentheses containing Japanese are full-width （）.
-- Numbers and units are half-width: 「100 ms」「8 GB」. Half-width `%` and
-  half-width digits: 「50%」.
-- Question/exclamation marks in prose: prefer 「。」; when unavoidable use
-  full-width 「？」「！」 followed by no extra space.
-- Code identifiers, commands, file paths, and flag names go in backticks and
-  stay verbatim; the backticked token counts as a Latin word for spacing:
-  「`git rebase` を実行する」.
+- 日本語と欧単語・数字のあいだには半角スペースを入れる：
+  「Git の履歴」「3 個のファイル」「TypeScript で書く」。
+- 日本語と全角約物のあいだ、および括弧の内側にはスペースを入れない：
+  「（GitHub）」であり「（ GitHub ）」ではない。
+- 日本語の文の句読点は全角の「、」「。」。日本語の地の文に半角の `,` `.` を使わない。
+- ただし、欧文・コードのみを並べる並列は半角カンマ＋半角スペースで区切る：
+  「TypeScript, Docker をインストールする」であり「TypeScript、Docker を〜」ではない。
+  並列に日本語の語句が混じる場合は「、」を使う。
+- 日本語の文中で欧文だけを囲む括弧は半角 `()` でよい。日本語を含む括弧は全角（）。
+- 数字と単位は半角：「100 ms」「8 GB」。`%` も数字も半角：「50%」。
+- 地の文の疑問符・感嘆符はなるべく「。」で済ませる。
+  避けられない場合は全角の「？」「！」を使い、直後にスペースを足さない。
+- コードの識別子、コマンド、ファイルパス、フラグ名はバッククォートで囲み、原文のまま書く。
+  バッククォートで囲んだトークンは、スペーシング上は欧単語として扱う：「`git rebase` を実行する」。
 
 </MixedScript>
 
 <Terminology>
 
-Decision tree for a technical term in Japanese prose:
+日本語の地の文における技術用語の決定木：
 
-1. Code identifier / command / API name / file name → verbatim in backticks:
-   `repository`, `git push`, `package.json`. Never translate or katakana-ize.
-2. Proper noun (product, service, language) → official original spelling:
-   GitHub, TypeScript, Docker, Visual Studio Code. Never 「ギットハブ」.
-3. Common technical term in running text → established katakana if one
-   exists; otherwise keep the English word (lowercase unless a proper noun).
+1. コードの識別子・コマンド・API 名・ファイル名 → バッククォートで原文のまま：
+   `repository`, `git push`, `package.json`。翻訳もカタカナ化もしない。
+2. 固有名詞（製品、サービス、言語） → 公式の原綴り：
+   GitHub, TypeScript, Docker, Visual Studio Code。「ギットハブ」とは書かない。
+3. 地の文の一般的な技術用語 → 定着したカタカナ表記があればそれを使う。
+   なければ英語のまま書く（固有名詞でない限り小文字）。
 
-Reference table for frequent terms (established katakana):
+頻出語の参照表（定着したカタカナ表記）：
 
 | English | 地の文での表記 |
 | --- | --- |
@@ -91,111 +86,101 @@ Reference table for frequent terms (established katakana):
 | error | エラー |
 | log | ログ |
 
-Kept in English (katakana not established or ambiguous): commit hash,
-issue, pull request（または PR）, lint, diff, stash.
+英語のまま書く語（カタカナが未定着または曖昧）：commit hash, issue, pull request（または PR）, lint, diff, stash。
 
-Do not mix forms for the same concept within one document. First occurrence
-of a less-known term may carry the original in parentheses:
-「べき等性（idempotency）」.
+同じ概念に対して複数の表記を一つの文書内で混在させない。
+なじみの薄い用語の初出には、括弧で原語を添えてよい：「べき等性（idempotency）」。
 
 </Terminology>
 
 <CompoundNouns>
 
-Particle omission (「改行位置」 vs 「改行の位置」): whether to fuse nouns
-into a compound is decided by two TESTS plus a placement rule — never by a
-vocabulary list, because the same surface form can be both an established
-term and an ad-hoc compression (「改行コード」 = newline character, or a
-compression of 「改行されたコード」).
+助詞の省略（「改行位置」 vs 「改行の位置」）：名詞を複合語に融合させるかどうかは、二つのテストと配置規則で決める。
+語彙リストでは決めない。
+同じ表層形が、定着した術語にも、その場限りの圧縮にもなりうるからである（「改行コード」＝改行文字、または「改行されたコード」の圧縮）。
 
-Test 1 — expansion (is it an established term?):
-Re-insert 「の」 or the underlying verb and check whether the meaning is
-preserved.
+テスト 1（展開：定着した術語か？）：
+「の」または元の動詞を挿し戻して、意味が保たれるかを確認する。
 
-- Meaning preserved → ad-hoc compound. In running text, use the expanded
-  form: 「変更の内容を確認します」 not 「変更内容を確認します」,
-  「エラーの原因」 not 「エラー原因」.
-- Meaning changes or breaks → established term. Keep it fused everywhere:
-  「改行コード」(\n) ≠ 「改行のコード」, 「環境変数」 ≠ 「環境の変数」 —
-  these stay fused even in prose.
+- 意味が保たれる → その場限りの複合語。地の文では展開形を使う：
+  「変更の内容を確認します」であり「変更内容を確認します」ではない。
+  「エラーの原因」であり「エラー原因」ではない。
+- 意味が変わる・壊れる → 定着した術語。どこでも融合形のまま使う：
+  「改行コード」(\n) ≠ 「改行のコード」、「環境変数」 ≠ 「環境の変数」。
+  これらは地の文でも融合形のまま。
 
-Test 2 — collision (is compression forbidden?):
-If compressing an ad-hoc phrase would produce the same surface form as an
-established term, do NOT compress; keep the verb/particle form.
+テスト 2（衝突：圧縮が禁止されるか？）：
+その場限りの句を圧縮した結果が定着した術語と同じ表層形になるなら、圧縮しない。動詞・助詞の形を保つ。
 
-- 「改行されたコード」 → never compress to 「改行コード」 (misread as \n).
-- 「テストされた環境」 → never compress to 「テスト環境」 (misread as the
-  staging/test environment). Applies even in headings and labels.
+- 「改行されたコード」 → 「改行コード」に圧縮しない（\n と誤読される）。
+- 「テストされた環境」 → 「テスト環境」に圧縮しない（検証用環境と誤読される）。
+  見出しやラベルでも同様。
 
-Placement rule (for ad-hoc compounds that pass Test 2):
+配置規則（テスト 2 を通過したその場限りの複合語について）：
 
-- Running text and UI explanatory sentences → expanded form with particles:
-  「変更の内容」「日本語のドキュメント」「削除の対象」.
-- Headings, list-item labels, table headers, UI labels, commit subjects →
-  compressed form is acceptable: 「変更内容」「削除対象」 (pairs well with
-  体言止め).
-- Ad-hoc chains of 3+ nouns are forbidden in running text; unfold them:
-  「日本語ドキュメント改行規則」 → 「日本語ドキュメントにおける改行の規則」.
+- 地の文と UI の説明文 → 助詞を入れた展開形：
+  「変更の内容」「日本語のドキュメント」「削除の対象」。
+- 見出し、箇条書きのラベル、表のヘッダー、UI ラベル、コミットの件名 → 圧縮形を使ってよい：
+  「変更内容」「削除対象」（体言止めと相性がよい）。
+- その場限りの名詞を 3 つ以上連結することは地の文では禁止。展開する：
+  「日本語ドキュメント改行規則」 → 「日本語ドキュメントにおける改行の規則」。
 
-The examples above illustrate the tests; they are not a whitelist.
+上記の例はテストの説明であって、ホワイトリストではない。
 
 </CompoundNouns>
 
 <NotationConsistency>
 
-- Long vowel mark: WITH trailing 「ー」 — サーバー, ユーザー, パラメーター,
-  コンピューター (JIS Z 8301:2019 / current Microsoft style). Not サーバ.
-- Prefer kana over kanji for formal/auxiliary words:
-  ください（× 下さい）, できる（× 出来る）, 〜のとおり（× 〜の通り）,
-  〜すること（× 〜する事）, ほかに（× 他に）, 〜してみる（× 〜して見る）,
-  および（× 及び）, ため（× 為）.
-- 送り仮名 follows 本則: 「行う」「表す」「変わる」.
-- Choose one of 「〜化」「〜的」 constructions vs plain phrasing and stay
-  consistent; avoid stacking （「最適化的な」→「最適化に近い」）.
+- 長音記号：末尾の「ー」を付ける。サーバー、ユーザー、パラメーター、コンピューター（JIS Z 8301:2019 および現行の Microsoft スタイル）。サーバとは書かない。
+- 形式名詞・補助的な語はかな書きを優先する：
+  ください（× 下さい）、できる（× 出来る）、〜のとおり（× 〜の通り）、
+  〜すること（× 〜する事）、ほかに（× 他に）、〜してみる（× 〜して見る）、
+  および（× 及び）、ため（× 為）。
+- 送り仮名は本則に従う：「行う」「表す」「変わる」。
+- 日本語の地の文・見出しでダッシュを使わない。
+  em ダッシュ「—」、horizontal bar「―」、2 倍ダッシュ「——」のいずれも禁止。
+  同格・補足の挿入（「A——挿入——B」）は括弧（）にする。
+  言い換え（「A——B」）は「。」で二文に分けるか「、」でつなぐ。
+  対象外：範囲を示す en ダッシュや英語の複合語（`Curry–Howard`）、コードブロック、書誌情報。
+- 日本語の並列に中黒「・」を使わない。「、」または「と」「や」を使う：
+  「ビルドとテスト」であり「ビルド・テスト」ではない。
+  単一の固有名詞の内部では使ってよい（「ロールス・ロイス」）。
+- 「〜化」「〜的」の構文と平易な言い回しのどちらかを選んで一貫させる。
+  積み重ねを避ける（「最適化的な」→「最適化に近い」）。
 
 </NotationConsistency>
 
 <SourceFormatting>
 
-Line-breaking rules for Japanese Markdown / plain-text SOURCE (how the file
-is wrapped, independent of prose style):
+日本語の Markdown・プレーンテキストのソースの改行規則（文体とは独立の、ファイルの折り返し方）：
 
-- One sentence per line: break after every 「。」. Do not hard-wrap Japanese
-  prose at a fixed column — a mid-sentence newline renders as a stray
-  half-width space on GitHub, and fixed-width wrapping makes diffs span whole
-  paragraphs. Sentence-per-line keeps diffs one-sentence-sized and puts the
-  rendered space only at sentence boundaries.
-- A very long sentence (roughly over 100 characters) may additionally break
-  after a clause-level 「、」 — but first consider splitting it into two
-  sentences.
-- Exceptions:
-  - Commit message bodies follow the git convention (wrap at ~72 columns),
-    which takes precedence.
-  - Headings, table cells, and list items that are single phrases stay on
-    one line as usual.
-  - Code comments follow the surrounding code's line-width convention.
+- 一文一行：「。」ごとに改行する。日本語の地の文を固定幅で折り返さない。
+  文の途中の改行は GitHub のレンダリングで余分な半角スペースになり、固定幅の折り返しは diff を段落全体に広げる。
+  一文一行なら diff は一文サイズに収まり、レンダリング上のスペースも文境界にしか現れない。
+- 非常に長い文（おおむね 100 文字超）は、節の区切りの「、」の後で追加の改行をしてよい。
+  ただし、まず二文に分割することを検討する。
+- 例外：
+  - コミットメッセージの本文は git の慣習（約 72 桁で折り返し）に従う。こちらが優先。
+  - 見出し、表のセル、単一の句である箇条書き項目は、通常どおり 1 行に収める。
+  - コードコメントは周囲のコードの行幅の慣習に従う。
 
 </SourceFormatting>
 
 <Style>
 
-- Documentation, README, UI messages: 敬体（です・ます）. One document, one
-  register — never mix 敬体 and 常体 in the same prose block.
-- Commit messages, PR titles, bullet lists, table cells, headings: 常体 or
-  体言止め. 「バグを修正」 not 「バグを修正しました」.
-- Code comments: 常体, concise. 「境界値を含む」 not 「境界値を含みます」.
-- One sentence, one idea. Prefer short sentences over long 連用中止 chains.
-- Avoid redundant honorifics in technical text (「〜させていただく」→
-  「〜する」).
+- ドキュメント、README、UI メッセージ：敬体（です・ます）。
+  一文書一文体。同じ地の文ブロックで敬体と常体を混在させない。
+- コミットメッセージ、PR タイトル、箇条書き、表のセル、見出し：常体または体言止め。
+  「バグを修正する」であり「バグを修正しました」ではない。
+- コードコメント：常体で簡潔に。「境界値を含む」であり「境界値を含みます」ではない。
+- 一文一義。長い連用中止の連鎖より短い文を優先する。
+- 技術文書での過剰な敬語を避ける（「〜させていただく」→「〜する」）。
 
 </Style>
 
 <Verification>
 
-- If the repo has textlint (or another Japanese prose linter) configured, run
-  it on the produced files and fix findings.
-- Self-check before finishing: consistent 和欧間スペース, no half-width
-  punctuation in Japanese prose, one register per document, terminology table
-  respected, long-vowel form uniform.
+- リポジトリに textlint（または他の日本語文章リンター）が設定されていれば、生成したファイルに対して実行し、指摘を修正する。
+- 完了前のセルフチェック：和欧間スペースの一貫性、日本語の地の文に半角句読点がないこと（欧文のみの並列の半角カンマは除く）、一文書一文体、用語表の遵守、長音表記の統一。
 
 </Verification>
