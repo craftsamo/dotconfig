@@ -96,15 +96,26 @@ in the primary session); triage stays in the primary per the skill's rubric.
 
 </UxPersonaTestingSkill>
 
-<JapaneseWritingSkill>
+<JapaneseWritingSkills>
 
-When writing Japanese-language deliverable text — documentation, README, code
-comments, commit messages, PR bodies, UI copy, release notes — load and follow
-the `japanese-writing` skill for typography, terminology, and style
-consistency. It does not apply to conversational replies (LanguagePolicy
-governs those) or to i18n/translation-file workflows.
+Japanese deliverable text is governed by a three-layer skill stack; load the
+layers that match the deliverable (they compose, lower layers always apply):
 
-</JapaneseWritingSkill>
+- `japanese-writing` (notation layer) — ALL Japanese deliverables:
+  documentation, README, code comments, commit messages, PR bodies, UI copy,
+  release notes. Typography, terminology, notation, style consistency.
+- `japanese-tech-prose` (argumentation layer) — long-form explanatory prose:
+  articles, tutorials, book chapters, design docs, README explanatory
+  sections. Paragraph argumentation, rigor, LLM-phrase bans, redundancy.
+  NOT for reference docs, commit messages, or UI copy.
+- `japanese-prose-rhythm` (pacing layer) — ONLY text meant to be read
+  start-to-finish as engaging prose: blog posts, essays, book chapters.
+  NOT for anything readers scan; flat is correct there.
+
+None apply to conversational replies (LanguagePolicy governs those) or to
+i18n/translation-file workflows.
+
+</JapaneseWritingSkills>
 </SkillRouting>
 
 <ExplorationDelegation>
