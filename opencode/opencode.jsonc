@@ -351,7 +351,7 @@
       "git-*": "allow",
       "web-ui": "allow",
       "ux-persona-testing": "allow",
-      "japanese-writing": "allow",
+      "japanese-*": "allow",
     },
     // Custom GitHub Project tools (tools/github_project.ts) — board + issue-lifecycle ops, no delete
     "github_project_create": "allow",
