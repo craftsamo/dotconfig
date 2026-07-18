@@ -32,6 +32,7 @@ symlink or setup step needed.
 | `prefix f`                 | open the pane's directory in Finder             |
 | `prefix g`                 | lazygit popup (80% x 80%)                       |
 | `prefix o`                 | opencode popup — starts the shared server if needed, then opens one detached attach client per directory |
+| `prefix O` (Shift+o)       | reload the OpenCode instance for the pane's project after confirmation |
 | `prefix H` (Shift+h)       | hermes popup (modern TUI) — one detached session per directory, launched via `bin/hermes --tui` (secret-shim) |
 
 ## OpenCode web server
@@ -46,6 +47,22 @@ the persistent `~/Library/Logs/opencode-web.log` startup log.
 Existing directory sessions are not replaced while they are running. After an
 old standalone TUI exits, the next `prefix o` recreates that directory's tmux
 session as an attach client.
+
+`prefix O` calls the shared server's directory-scoped instance disposal API.
+Only the pane's project is affected; its persisted sessions remain available,
+and the next request rebuilds project configuration, agents, commands, skills,
+MCP connections, formatters, and language servers. Project `AGENTS.md` content
+is read on every model turn and normally does not require a reload. The helper
+refuses to reload while any session in that project is running or retrying;
+other clients using the same idle project will still reconnect their project
+services after the reload.
+
+The project reload does not invalidate Bun's module cache. Restart the shared
+server after editing an already-loaded `.opencode/plugin(s)/*.ts` or
+`.opencode/tool(s)/*.ts`, or after changing global OpenCode configuration.
+Restart only the directory-specific TUI after changing `tui.json` or
+`tui.jsonc`. Arbitrary files under `.opencode/` are not loaded unless they
+match an OpenCode configuration resource.
 
 `OPENCODE_SERVER_PASSWORD` must exist in the `opencode` Keychain layer. Add or
 replace it interactively without putting the value in shell history:

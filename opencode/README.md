@@ -27,6 +27,18 @@ session and is exposed to mobile devices through Tailscale Serve. Directory-
 specific tmux sessions run `opencode attach --dir <path>` against the same
 server, so the web UI and terminal clients share project and session state.
 
+tmux `prefix O` reloads only the OpenCode instance associated with the current
+pane's project. The next request rebuilds project configuration and discovered
+agents, commands, skills, MCP connections, formatters, and language servers;
+persisted sessions remain available. Reload is refused while any session in
+the project is running or retrying. Project `AGENTS.md` files are already read
+on every model turn and normally need no explicit reload.
+
+The project reload cannot refresh already-imported JavaScript or TypeScript
+plugins and custom tools because Bun retains its module cache. Restart the
+shared server for those changes and for global OpenCode configuration changes.
+Restart the directory-specific TUI for `tui.json` or `tui.jsonc` changes.
+
 After enabling Serve for the tailnet, configure its persistent HTTPS proxy:
 
 ```sh
