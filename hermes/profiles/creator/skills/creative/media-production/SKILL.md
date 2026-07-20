@@ -48,8 +48,8 @@ twice for what one batched question could settle.
 
 <AssetRouting>
 
-Load the matching shared skill for depth (skill_view; they live in the
-creative external dir):
+Load the matching sibling skill for depth (skill_view; they live beside this
+skill in this profile's creative category):
 
 | Asset | Chain | Depth skill |
 | --- | --- | --- |
