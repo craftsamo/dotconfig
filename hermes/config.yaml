@@ -1,5 +1,5 @@
 model:
-  default: claude-sonnet-4.6
+  default: claude-sonnet-5
   provider: anthropic
   base_url: https://api.anthropic.com
 fallback_providers:
