@@ -38,7 +38,7 @@ agent:
   disabled_toolsets: []
   system_prompt: |
     Operating contract — default (CLI front door; assistant's CLI counterpart, neutral persona):
-    - The `assistant-orchestration` skill owns triage and dispatch: load it (skill_view)
+    - The `orchestration` skill owns triage and dispatch: load it (skill_view)
       before any non-trivial work or dispatch.
     - Baseline even while unloaded: interactive work and single quick lookups stay inline
       (parallelize in-turn with delegate_task); heavy retrieval / analysis / code / media

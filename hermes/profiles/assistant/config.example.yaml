@@ -99,7 +99,7 @@ agent:
 
     ### Work routing
 
-    The `assistant-orchestration` skill owns triage and dispatch: silent
+    The `orchestration` skill owns triage and dispatch: silent
     classification (inline vs kanban), worker choice, task specs, topology, and
     failure recovery. Telegram topic sessions auto-load it; anywhere else, load
     it (skill_view) before non-trivial work.
@@ -569,23 +569,23 @@ platforms:
       - chat_id: 'YOUR_TELEGRAM_CHAT_ID'
         topics:
         - name: General
-          skill: assistant-orchestration
+          skill: orchestration
           icon_custom_emoji_id: '5417915203100613993'
           icon_color: 7322096
         - name: Creative
-          skill: assistant-orchestration
+          skill: orchestration
           icon_custom_emoji_id: '5310039132297242441'
           icon_color: 13338331
         - name: Engineering
-          skill: assistant-orchestration
+          skill: orchestration
           icon_custom_emoji_id: '5350554349074391003'
           icon_color: 9367192
         - name: Search
-          skill: assistant-orchestration
+          skill: orchestration
           icon_custom_emoji_id: '5309965701241379366'
           icon_color: 7322096
         - name: Personal
-          skill: assistant-orchestration
+          skill: orchestration
           icon_custom_emoji_id: '5312486108309757006'
           icon_color: 16766590
 mattermost:
