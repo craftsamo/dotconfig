@@ -1,6 +1,8 @@
 ---
 name: japanese-writing
 description: Use when writing Japanese-language deliverable text — documentation, README, code comments, commit messages, PR titles/bodies, UI copy, error messages, release notes (日本語で書いて, 日本語ドキュメント, 日本語のREADME, 和訳, 日本語化, 表記ゆれ, 文体, 敬体, カタカナ表記, 全角半角, 一文一行, 改行位置, 助詞の省略, 複合名詞, 日本語ライティング). Covers mixed Japanese-English typography (spacing, punctuation), terminology choice (English vs katakana vs code-literal), compound-noun vs particle forms (改行位置 vs 改行の位置), notation consistency (long vowels, kana usage, dashes, 中黒), source line-breaking (one sentence per line), and per-deliverable style. This is the notation (micro) layer of the Japanese writing stack — for long-form argumentation quality also load `japanese-tech-prose`, and for narrative pacing `japanese-prose-rhythm`; this skill applies to ALL Japanese deliverables regardless. Do NOT use for chat replies (the LanguagePolicy already governs response language) or for i18n/translation-file workflows.
+author: CraftSamo
+license: MIT
 ---
 
 <Goal>
