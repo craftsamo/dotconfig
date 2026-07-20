@@ -45,8 +45,9 @@ SOUL.md              # default persona (prompt slot #1)
 mcp.json             # MCP servers ({} = none)
 cron/                # jobs.json tracked; output/ + .tick.lock ignored
 skills/              # agent-created skills tracked; .hub/ etc. ignored
-  orchestration/     # assistant-orchestration — shared front-door playbook (default native;
-                     #   assistant via its ~/.hermes/skills external dir; dm_topics auto-load)
+  orchestration/     # orchestration skill (SKILL.md + references/<approach>.md) — shared
+                     #   front-door playbook (default native; assistant via ~/.hermes/skills
+                     #   external dir; dm_topics auto-load)
   workspaces/        # ~/Workspaces data-skill cluster (people/pp, household-budget/hb,
                      #   projects/pj, message-reply, scaffold) + _cross.py (shared cross-skill
                      #   contract, imported not executed; siblings call each other's CLI,
