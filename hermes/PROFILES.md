@@ -25,8 +25,8 @@ its own `config.yaml` / `.env` / `SOUL.md` / `skills/` / `cron/` / state, and a
                              │ dispatcher (in assistant's gateway) spawns
               ┌──────────────┼──────────────┐
               ▼              ▼               ▼
-           searcher      researcher        coder
-          (retrieve)    (synthesize)     (implement)
+           searcher      researcher       engineer
+           (retrieve)    (synthesize)     (implement)
 ```
 
 Verified against the source clone
@@ -50,7 +50,7 @@ Verified against the source clone
 
 | | Kanban | `delegate_task` |
 | --- | --- | --- |
-| Worker | **named profile** (coder/researcher/searcher) | anonymous subagent |
+| Worker | **named profile** (engineer/researcher/searcher) | anonymous subagent |
 | Durability | persistent queue, resumable, human-in-loop | synchronous, dies with the turn |
 | Requires | a running gateway (the dispatcher) | nothing — fires automatically |
 | Use for | cross-agent / long / auditable work | in-turn parallel research or refactor |
@@ -65,13 +65,33 @@ in-turn). A Kanban worker may itself call `delegate_task` during its run.
 | --- | --- | --- | --- | --- | --- | --- |
 | **default** | general daily driver + orchestrator | CLI | `.` (launch dir) | full + `kanban` | — | yes |
 | **assistant** | messaging front door + dispatcher host | Discord/TG | `~/Workspaces` | full + `kanban` | **yes** | yes (token per-machine) |
-| **coder** | implement (git worktree, run tests) | — (worker) | `.` (launch / task ws) | `hermes-cli` | — | yes |
+| **engineer** | implement via OpenCode (git worktree, tests); confirms material decisions through kanban block round-trips | — (worker) | `.` (launch / task ws) | `hermes-cli` | — | yes |
 | **researcher** | synthesize / analyze | — (worker) | `.` (launch / task ws) | `file,web` | — | yes |
 | **searcher** | fast retrieval (web / x_search) | — (worker) | `.` (launch / task ws) | `web,x_search` | — | yes |
 
-Role split: **searcher (retrieve) → researcher (synthesize) → coder
+Role split: **searcher (retrieve) → researcher (synthesize) → engineer
 (implement)**, mirroring the `delegate_task` toolset patterns
 (`["web"]` / `["file","web"]` / `["terminal","file"]`).
+
+### Engineer dialogue loop (assistant ↔ engineer)
+
+Workers are disposable processes (a `kanban_block` ends the run; unblock
+respawns a fresh one), so the engineer's "conversation" with the assistant is
+turn-based over two durable layers:
+
+- **kanban comment thread** — decisions and answers (recovered on respawn via
+  `kanban_show`); bulky plans/diffs travel as `kanban_attach` attachments.
+- **OpenCode session in the preserved worktree** — implementation context,
+  resumed with `opencode run -c`.
+
+The protocol: the task body carries an **Authority** grant (pre-approved
+actions); anything outside it triggers **checkpoint-then-block** (WIP commit →
+state comment → one question with options + recommendation). The assistant
+answers autonomously within the grant (comment + unblock, then informs the
+user) and relays out-of-grant questions to the human. The gateway's
+`kanban.dispatch_interval_seconds` is lowered to **15** so a round-trip costs
+roughly the answer time + ~20 s. Details: engineer's `engineer-loop` skill and
+assistant's `assistant-orchestration` `<BlockedTriage>`.
 
 ### Default is a clean baseline, not a junk drawer
 
@@ -83,7 +103,7 @@ out via Kanban; default just orchestrates and does interactive work.
 ### Two working directories per worker
 
 - **Kanban-dispatched work** runs in the task workspace
-  (`$HERMES_KANBAN_WORKSPACE`): `worktree:` for coder (isolated + preserved),
+  (`$HERMES_KANBAN_WORKSPACE`): `worktree:` for engineer (isolated + preserved),
   `scratch` for the rest (ephemeral, deleted on completion).
 - **Direct / `delegate_task` work** starts in `terminal.cwd` — currently `.`
   (the launch dir) for every worker; pin an absolute path per worker if you want
@@ -103,7 +123,8 @@ Three per-profile layers, kept separate:
   - assistant → `assistant-orchestration` (silent two-axis triage: inline vs kanban;
     task-spec template, topology: single / parents chain / triage card, dispatch params,
     failure recovery)
-  - coder → `opencode-loop` (delegate to OpenCode; quota-gated provider/model routing; verify/report)
+  - engineer → `engineer-loop` (delegate to OpenCode; Authority parsing + checkpoint-then-block
+    dialogue; quota-gated provider/model routing; `opencode run -c` resume; verify/report)
   - researcher → `research-pipeline` (search route + Admiralty/SIFT source evaluation; evidence discipline)
   - searcher → `breadth-retrieval` (query expansion, source-class routing, link-first hand-off)
 
@@ -115,7 +136,7 @@ it alive; existing sessions pick it up after `/new` or an idle reset). It
 triages silently on two axes — can the user wait? does it need a worker's
 tools / isolation / durability? — then routes inline (conversation, quick
 lookups, workspace skills, media gen, cron registration) vs kanban: searcher =
-retrieval/web/X, researcher = analysis/synthesis, coder = implementation.
+retrieval/web/X, researcher = analysis/synthesis, engineer = implementation.
 Multi-stage work ships as a `parents` chain (obvious 2-3 stages) or one
 `triage=true` card (auto-decompose); `delegate_task` stays an exception for
 medium parallel lookups the user is actively waiting on. The contract keeps a
@@ -133,9 +154,9 @@ turn. The default profile already proves the YAML shape.
 
 | Profile | T1 (primary) | T2 | T3 | T4 |
 | --- | --- | --- | --- | --- |
-| **default** | `anthropic` / claude-sonnet-4.6 | `openai-codex` / gpt-5.6-terra | `copilot` / gpt-5.6-terra | `openrouter` / `xiaomi/mimo-v2.5` |
-| **assistant** | `zai` / glm-5.2 | `openai-codex` / gpt-5.6-terra | `copilot` / gpt-5.6-terra | `openrouter` / `xiaomi/mimo-v2.5` |
-| **coder** | `anthropic` / claude-sonnet-4.6 | `openai-codex` / gpt-5.6-terra | `copilot` / gpt-5.6-terra | `openrouter` / `deepseek/deepseek-v4-flash` |
+| **default** | `anthropic` / claude-sonnet-5 | `openai-codex` / gpt-5.6-terra | `copilot` / gpt-5.6-terra | `openrouter` / `xiaomi/mimo-v2.5` |
+| **assistant** | `anthropic` / claude-sonnet-5 | `openai-codex` / gpt-5.6-terra | `copilot` / gpt-5.6-terra | `openrouter` / `xiaomi/mimo-v2.5` |
+| **engineer** | `anthropic` / claude-sonnet-5 | `openai-codex` / gpt-5.6-terra | `copilot` / gpt-5.6-terra | `openrouter` / `deepseek/deepseek-v4-flash` |
 | **researcher** | `xai-oauth` / grok-4.3 | `copilot` / claude-sonnet-4.6 | `openrouter` / `deepseek/deepseek-v4-flash` | — |
 | **searcher** | `xai-oauth` / grok-4.3 | `copilot` / gpt-5.6-terra | `openrouter` / `deepseek/deepseek-v4-flash` | — |
 
@@ -157,11 +178,11 @@ fallback_providers:
 Model facts confirmed during the build (live `provider_models_cache.json` + test
 calls):
 
-- **Anthropic native (T1)** — `default` / `assistant` / `coder` lead with
-  `anthropic` / `claude-sonnet-4.6` (`base_url: https://api.anthropic.com`,
-  `api_mode: anthropic_messages`; Hermes normalizes the slug to
-  `claude-sonnet-4-6` for the native API). OAuth (Claude Pro/Max) —
-  `hermes auth status anthropic` → *logged in*. codex/gpt-5.6-terra drops to T2.
+- **Anthropic native (T1)** — `default` / `assistant` / `engineer` lead with
+  `anthropic` / `claude-sonnet-5` (`base_url: https://api.anthropic.com`,
+  `api_mode: anthropic_messages`; in the curated lists since upstream 766c617).
+  OAuth (Claude Pro/Max) — `hermes auth status anthropic` → *logged in*.
+  codex/gpt-5.6-terra drops to T2.
 - **Grok** — `grok-4.3` is current on `xai-oauth` and verified working (the
   retired `grok-4*` glob doesn't cover it; re-auth via `hermes model` if the
   token lapses). `x-ai/grok-4.3` is the OpenRouter equivalent for per-token use.
@@ -174,7 +195,7 @@ calls):
   `xiaomi/mimo-v2.5` as their deepest tier (now **T4**) because it is
   **vision-capable**, so image input stays native even on a deep fallback turn
   (video analysis is decoupled via the `video-analyze-mimo` plugin — see
-  `README.md` "Plugins"). The worker profiles (`coder` T4 / `researcher` T3 /
+  `README.md` "Plugins"). The worker profiles (`engineer` T4 / `researcher` T3 /
   `searcher` T3) use the cheaper text-only `deepseek/deepseek-v4-flash`; they
   don't need native image vision.
 
@@ -295,14 +316,16 @@ Routing quality depends on `profile.yaml` descriptions — create workers with
 
 ## Status (as-built)
 
-Built and verified: default (kanban orchestrator), coder, researcher, and searcher
-workers — T1–T4 tiers resolve (doctor + live probes) and default-created tasks
+Built and verified: default (kanban orchestrator), engineer (ex-coder, promoted
+2026-07: dialogue-driven OpenCode worker), researcher, and searcher workers —
+T1–T4 tiers resolve (doctor + live probes) and default-created tasks
 dispatch/route to each. Assistant gateway runs keychain-pure (LaunchAgent,
-Telegram-only per #40695); the embedded dispatcher auto-claims tasks across ticks.
+Telegram-only per #40695); the embedded dispatcher auto-claims tasks across
+ticks (`dispatch_interval_seconds: 15` for fast block round-trips).
 `install.sh` links every tracked profile (incl. `profile.yaml`) with no WARN.
 
-Model slugs confirmed live: `anthropic` / `claude-sonnet-4.6` (T1 for default /
-assistant / coder; `hermes auth status anthropic` → logged in), `grok-4.3` on
+Model slugs confirmed live: `anthropic` / `claude-sonnet-5` (T1 for default /
+assistant / engineer; `hermes auth status anthropic` → logged in), `grok-4.3` on
 `xai-oauth`, `claude-sonnet-4.6` via `copilot` (worker T2),
 `deepseek/deepseek-v4-flash`, `google/gemini-3.5-flash`; Copilot has no Grok.
 

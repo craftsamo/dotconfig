@@ -1,0 +1,5 @@
+description: 'Implements code by driving OpenCode: writes/edits files, runs tests
+  and builds, works in git worktrees. Confirms material decisions (plan approval,
+  push/PR, dependency or architecture changes) with the orchestrator via kanban block/comment
+  before proceeding. Best for concrete implementation tasks, not open-ended research.'
+description_auto: false
