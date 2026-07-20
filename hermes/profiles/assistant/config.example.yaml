@@ -562,6 +562,9 @@ platforms:
   telegram:
     extra:
       rich_messages: true
+      # Opt back in to native rich messages for CJK text (local fork patch of
+      # upstream PR #56155; upstream gates CJK off by default for #47653).
+      allow_cjk_rich_messages: true
       dm_topics:
       - chat_id: 'YOUR_TELEGRAM_CHAT_ID'
         topics:
