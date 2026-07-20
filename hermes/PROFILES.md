@@ -23,10 +23,10 @@ its own `config.yaml` / `.env` / `SOUL.md` / `skills/` / `cron/` / state, and a
                              ▼
                  ~/.hermes/kanban.db  (one shared board)
                              │ dispatcher (in assistant's gateway) spawns
-              ┌──────────────┼──────────────┐
-              ▼              ▼               ▼
-           searcher      researcher       engineer
-           (retrieve)    (synthesize)     (implement)
+              ┌──────────────┼──────────────┬──────────────┐
+              ▼              ▼               ▼              ▼
+           searcher      researcher       engineer       creator
+           (retrieve)    (synthesize)     (implement)    (produce media)
 ```
 
 Verified against the source clone
@@ -50,7 +50,7 @@ Verified against the source clone
 
 | | Kanban | `delegate_task` |
 | --- | --- | --- |
-| Worker | **named profile** (engineer/researcher/searcher) | anonymous subagent |
+| Worker | **named profile** (engineer/researcher/searcher/creator) | anonymous subagent |
 | Durability | persistent queue, resumable, human-in-loop | synchronous, dies with the turn |
 | Requires | a running gateway (the dispatcher) | nothing — fires automatically |
 | Use for | cross-agent / long / auditable work | in-turn parallel research or refactor |
@@ -67,11 +67,20 @@ in-turn). A Kanban worker may itself call `delegate_task` during its run.
 | **assistant** | messaging front door + dispatcher host | Discord/TG | `~/Workspaces` | full + `kanban` | **yes** | yes (token per-machine) |
 | **engineer** | implement via OpenCode (git worktree, tests); confirms material decisions through kanban block round-trips | — (worker) | `.` (launch / task ws) | `hermes-cli` | — | yes |
 | **researcher** | synthesize / analyze | — (worker) | `.` (launch / task ws) | `file,web` | — | yes |
-| **searcher** | fast retrieval (web / x_search) | — (worker) | `.` (launch / task ws) | `web,x_search` | — | yes |
+| **searcher** | fast retrieval (web / x_search); deep multi-hop via `deep-retrieval` + `goal_mode` | — (worker) | `.` (launch / task ws) | `web,x_search` | — | yes |
+| **creator** | media production: batch / long-render / multi-asset image, video, GIF, voice (single quick assets stay inline on assistant) | — (worker) | `.` (launch / task ws) | `hermes-cli,video_gen,video` + gen plugins | — | yes |
 
 Role split: **searcher (retrieve) → researcher (synthesize) → engineer
 (implement)**, mirroring the `delegate_task` toolset patterns
-(`["web"]` / `["file","web"]` / `["terminal","file"]`).
+(`["web"]` / `["file","web"]` / `["terminal","file"]`), with **creator**
+(produce media) as a side stage any pipeline can call on.
+
+The org stays **flat by design**: profiles are global and the board is one
+shared queue, so "hierarchy" is expressed as routing policy + `parents`
+fan-in, not nested profiles. Workers fan out themselves via `kanban_create`
+(e.g. engineer dispatches a searcher lookup or a creator asset mid-task);
+a live supervising mid-manager isn't possible anyway — block/done
+notifications reach gateway chat sessions, never a parent worker.
 
 ### Engineer dialogue loop (assistant ↔ engineer)
 
@@ -124,9 +133,13 @@ Three per-profile layers, kept separate:
     task-spec template, topology: single / parents chain / triage card, dispatch params,
     failure recovery)
   - engineer → `engineer-loop` (delegate to OpenCode; Authority parsing + checkpoint-then-block
-    dialogue; quota-gated provider/model routing; `opencode run -c` resume; verify/report)
+    dialogue; fan-out to searcher/researcher/creator; quota-gated provider/model routing;
+    `opencode run -c` resume; verify/report)
   - researcher → `research-pipeline` (search route + Admiralty/SIFT source evaluation; evidence discipline)
   - searcher → `breadth-retrieval` (query expansion, source-class routing, link-first hand-off)
+    + `deep-retrieval` (explicit multi-hop hunts: `skills: ["deep-retrieval"]` + `goal_mode`)
+  - creator → `media-production` (asset-type routing to the gen chains, clarify-before-generate,
+    visual verification, kanban_attach delivery; depth in the shared contextual-image/video-gen skills)
 
 Routing (assistant): `assistant-orchestration` owns it. The skill is
 **auto-loaded into every new Telegram topic session** via the per-topic
@@ -135,8 +148,10 @@ skill body into the session's first turn; `compression.protect_first_n` keeps
 it alive; existing sessions pick it up after `/new` or an idle reset). It
 triages silently on two axes — can the user wait? does it need a worker's
 tools / isolation / durability? — then routes inline (conversation, quick
-lookups, workspace skills, media gen, cron registration) vs kanban: searcher =
-retrieval/web/X, researcher = analysis/synthesis, engineer = implementation.
+lookups, workspace skills, single quick media assets, cron registration) vs
+kanban: searcher = retrieval/web/X (deep hunts via `deep-retrieval` +
+`goal_mode`), researcher = analysis/synthesis, engineer = implementation,
+creator = batch/long-render/multi-asset media.
 Multi-stage work ships as a `parents` chain (obvious 2-3 stages) or one
 `triage=true` card (auto-decompose); `delegate_task` stays an exception for
 medium parallel lookups the user is actively waiting on. The contract keeps a
@@ -159,6 +174,7 @@ turn. The default profile already proves the YAML shape.
 | **engineer** | `anthropic` / claude-sonnet-5 | `openai-codex` / gpt-5.6-terra | `copilot` / gpt-5.6-terra | `openrouter` / `deepseek/deepseek-v4-flash` |
 | **researcher** | `xai-oauth` / grok-4.3 | `copilot` / claude-sonnet-4.6 | `openrouter` / `deepseek/deepseek-v4-flash` | — |
 | **searcher** | `xai-oauth` / grok-4.3 | `copilot` / gpt-5.6-terra | `openrouter` / `deepseek/deepseek-v4-flash` | — |
+| **creator** | `openai-codex` / gpt-5.6-terra | `copilot` / gpt-5.6-terra | `openrouter` / `google/gemini-3.5-flash` | — |
 
 ```yaml
 # example — researcher's ~/.hermes/profiles/researcher/config.yaml
@@ -197,7 +213,10 @@ calls):
   (video analysis is decoupled via the `video-analyze-mimo` plugin — see
   `README.md` "Plugins"). The worker profiles (`engineer` T4 / `researcher` T3 /
   `searcher` T3) use the cheaper text-only `deepseek/deepseek-v4-flash`; they
-  don't need native image vision.
+  don't need native image vision. `creator` is the exception: it leads with
+  codex/`gpt-5.6-terra` (media work is tool-driven) and keeps vision-capable
+  `google/gemini-3.5-flash` as its deepest tier so it can still eyeball
+  generated assets on a fallback turn.
 
 Optional: set `delegation.model: google/gemini-3.5-flash` on default /
 assistant to route `delegate_task` subagents to a cheap model.
@@ -317,7 +336,8 @@ Routing quality depends on `profile.yaml` descriptions — create workers with
 ## Status (as-built)
 
 Built and verified: default (kanban orchestrator), engineer (ex-coder, promoted
-2026-07: dialogue-driven OpenCode worker), researcher, and searcher workers —
+2026-07: dialogue-driven OpenCode worker), researcher, searcher, and creator
+(added 2026-07: media production worker) workers —
 T1–T4 tiers resolve (doctor + live probes) and default-created tasks
 dispatch/route to each. Assistant gateway runs keychain-pure (LaunchAgent,
 Telegram-only per #40695); the embedded dispatcher auto-claims tasks across
