@@ -1,7 +1,7 @@
 ---
 name: assistant-orchestration
-description: Assistant's orchestration playbook — silently triage every request along two axes (can the user wait; does it need a worker's tools) into inline vs kanban, then dispatch well: pick the topology (single task / parents chain / triage card), write self-contained task specs workers can run without chat context, set workspace and dispatch params, ack with the task id, and recover from blocked/gave_up/crashed/timed_out events. Auto-loaded into each Telegram topic session via the dm_topics skill binding; load it via skill_view before non-trivial work elsewhere.
-version: 1.0.0
+description: Assistant's orchestration playbook — silently triage every request along two axes (can the user wait; does it need a worker's tools) into inline vs kanban, then dispatch well: pick the topology (single task / parents chain / triage card), write self-contained task specs workers can run without chat context (engineer tasks carry an Authority grant), set workspace and dispatch params, ack with the task id, answer engineer questions within the granted authority autonomously, and recover from blocked/gave_up/crashed/timed_out events. Auto-loaded into each Telegram topic session via the dm_topics skill binding; load it via skill_view before non-trivial work elsewhere.
+version: 2.0.0
 author: CraftSamo
 license: MIT
 metadata:
@@ -58,14 +58,14 @@ name the category in chat) along two axes, then route:
 | recurring request ("every morning ...") | inline: register a cron job |
 | broad or current-info retrieval | kanban: searcher |
 | analysis / synthesis / comparison / reports | kanban: researcher |
-| code / repos / tests / builds | kanban: coder |
+| code / repos / tests / builds | kanban: engineer |
 | multi-stage (search -> analyze -> build) | kanban: see <Topology> |
 | ambiguous, or destructive / irreversible | ask exactly one clarifying question, then re-classify |
 
 Exception — delegate_task (in-turn subagents): only for medium parallel
 lookups the user is actively waiting on; anything heavier goes to kanban.
-Dispatch ticks run ~every 60s, so never send quick jobs to the board — a
-30-second job takes minutes via kanban.
+Dispatch ticks run ~every 15s, so never send quick jobs to the board — a
+30-second job still takes noticeably longer via kanban.
 
 </Triage>
 
@@ -77,9 +77,9 @@ Keep in sync with each worker's `profile.yaml` description:
 | --- | --- | --- |
 | searcher | breadth-first retrieval: web/X search, links, latest/current info | web, x_search |
 | researcher | depth: analysis, synthesis, comparison, evaluation, reports | file, web |
-| coder | implementation: code changes, debugging, tests, builds, PRs | terminal (hermes-cli) |
+| engineer | implementation: drives OpenCode, code changes, debugging, tests, builds, PRs; confirms material decisions via block round-trips | terminal (hermes-cli) |
 
-Mixed pipelines flow searcher -> researcher -> coder.
+Mixed pipelines flow searcher -> researcher -> engineer.
 
 </Workers>
 
@@ -97,6 +97,11 @@ body:
   Output: <shape of the final message: language, format, length; name any
           artifact files to produce>
   Constraints: <scope limits, deadlines, things NOT to do>
+  Authority: <engineer tasks only — the pre-approval grant. Explicitly state
+             what is allowed without asking: commit (usually yes), push,
+             PR, dependency changes, scope boundaries. Anything not granted
+             here forces the engineer into a block round-trip, so grant
+             what the user has already sanctioned and no more.>
 ```
 
 - Write the body in the language you want the deliverable in.
@@ -164,17 +169,39 @@ failed runs), `crashed`, and `timed_out`:
 
 1. `kanban_show <id>` — read status, comments, and the worker's last report.
 2. State the cause plainly in chat; never hide a failure.
-3. Blocked on a question -> supply the answer via `kanban_comment`, then
-   `kanban_unblock`. Broken or impossible spec -> fix the spec and re-create
-   with an `idempotency_key`; don't re-run the same failure unchanged.
-4. Wrong worker or scope -> re-route to a new task with the right assignee and
+3. Blocked on a question -> apply <BlockedTriage> below.
+4. Broken or impossible spec -> fix the spec and re-create with an
+   `idempotency_key`; don't re-run the same failure unchanged.
+5. Wrong worker or scope -> re-route to a new task with the right assignee and
    close out the dead card, so the board stays truthful.
 
 </Failures>
 
+<BlockedTriage>
+
+Engineer (and other workers) block with one question + options + a
+recommendation. The block round-trip is the worker's conversation channel —
+answer it fast and keep the loop moving:
+
+- **Within the task's Authority / the user's already-stated intent** ->
+  answer autonomously: `kanban_comment` with the decision (pick the
+  recommendation unless the thread argues otherwise), then `kanban_unblock`.
+  Report the decision to the user in one short line afterwards — inform,
+  don't ask.
+- **Outside the grant** (push/PR not sanctioned, spend, scope expansion,
+  destructive/irreversible, or genuinely the user's call) -> relay the
+  question to the user verbatim-but-compact with the options and the
+  worker's recommendation; on reply, `kanban_comment` the answer +
+  `kanban_unblock`.
+- Never leave a blocked engineer waiting on a question you can already
+  answer from the grant or the chat context; never silently unblock without
+  a comment (the respawned worker reads the comments to resume).
+
+</BlockedTriage>
+
 <AntiPatterns>
 
-- Quick lookups on the board (60s ticks) — answer them inline.
+- Quick lookups on the board (dispatch ticks) — answer them inline.
 - Task bodies that depend on chat context the worker can't see.
 - Polling the board after dispatch (notifications are automatic).
 - Duplicate cards for the same ask (use `idempotency_key` on retries).
