@@ -1,7 +1,7 @@
 ---
 name: assistant-orchestration
 description: Assistant's orchestration playbook — silently triage every request along two axes (can the user wait; does it need a worker's tools) into inline vs kanban, then dispatch well: pick the topology (single task / parents chain / triage card), write self-contained task specs workers can run without chat context (engineer tasks carry an Authority grant), set workspace and dispatch params, ack with the task id, answer engineer questions within the granted authority autonomously, and recover from blocked/gave_up/crashed/timed_out events. Auto-loaded into each Telegram topic session via the dm_topics skill binding; load it via skill_view before non-trivial work elsewhere.
-version: 2.0.0
+version: 2.1.0
 author: CraftSamo
 license: MIT
 metadata:
@@ -54,9 +54,11 @@ name the category in chat) along two axes, then route:
 | conversation / emotion / opinion | inline, no tools; memory tool as needed |
 | single quick lookup (one URL / fact / file) | inline, light tools |
 | workspace data ops (people / household-budget / projects) | inline via the workspace skills |
-| media generation (image / video / voice) | inline toolsets |
+| single quick asset (one image / short clip / voice line) | inline toolsets |
+| batch, long-render, or multi-asset media production | kanban: creator |
 | recurring request ("every morning ...") | inline: register a cron job |
 | broad or current-info retrieval | kanban: searcher |
+| deep multi-hop retrieval (exhaustive source hunt) | kanban: searcher + `skills: ["deep-retrieval"]`, `goal_mode: true` |
 | analysis / synthesis / comparison / reports | kanban: researcher |
 | code / repos / tests / builds | kanban: engineer |
 | multi-stage (search -> analyze -> build) | kanban: see <Topology> |
@@ -75,11 +77,15 @@ Keep in sync with each worker's `profile.yaml` description:
 
 | Assignee | Sweet spot | Tools |
 | --- | --- | --- |
-| searcher | breadth-first retrieval: web/X search, links, latest/current info | web, x_search |
+| searcher | breadth-first retrieval: web/X search, links, latest/current info; deep multi-hop via the `deep-retrieval` skill + `goal_mode` | web, x_search |
 | researcher | depth: analysis, synthesis, comparison, evaluation, reports | file, web |
 | engineer | implementation: drives OpenCode, code changes, debugging, tests, builds, PRs; confirms material decisions via block round-trips | terminal (hermes-cli) |
+| creator | media production: batch/long-render/multi-asset image, video, GIF, voice; delivers via kanban_attach | media gen chains + terminal |
 
-Mixed pipelines flow searcher -> researcher -> engineer.
+Mixed pipelines flow searcher -> researcher -> engineer, with creator as a
+side stage for assets. Workers can fan out themselves (`kanban_create` +
+`parents`): e.g. engineer dispatches a searcher lookup or a creator asset
+mid-implementation — don't pre-decompose what the worker can request itself.
 
 </Workers>
 
@@ -142,9 +148,10 @@ Pick the cheapest shape that fits:
   returns the existing task id instead of forking work.
 - `max_runtime_seconds`: cap runaway tasks (exceeded -> SIGTERM + `timed_out`).
 - `skills: [...]`: force-load a specialist skill installed on the assignee's
-  profile when the task depends on it.
+  profile when the task depends on it (e.g. searcher's `deep-retrieval`).
 - `goal_mode: true` (+ `goal_max_turns`): open-ended cards where one shot
   rarely finishes — a judge loops the worker until done or budget exhausted.
+  Pair it with `deep-retrieval` for exhaustive source hunts.
 
 </Parameters>
 
