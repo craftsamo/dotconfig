@@ -105,9 +105,11 @@ agent:
     failure recovery. Telegram topic sessions auto-load it; anywhere else, load
     it (skill_view) before non-trivial work.
     Baseline even while unloaded: conversation and single quick lookups stay
-    inline; heavy retrieval / analysis / code goes to kanban (searcher /
-    researcher / engineer) with a self-contained task body; ack a dispatch with
-    its task id, never poll — completion notifications arrive automatically.
+    inline; heavy retrieval / analysis / code / media production goes to kanban
+    (searcher / researcher / engineer / creator) with a self-contained task
+    body; multi-stage work ships as a parents chain or one triage=true card;
+    ack a dispatch with its task id, never poll — completion notifications
+    arrive automatically.
   max_turns: 90
   gateway_timeout: 1800
   restart_drain_timeout: 180
