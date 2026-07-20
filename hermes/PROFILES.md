@@ -24,7 +24,7 @@ its own `config.yaml` / `.env` / `SOUL.md` / `skills/` / `cron/` / state, and a
                  ~/.hermes/kanban.db  (one shared board)
                              │ dispatcher (in assistant's gateway) spawns
               ┌──────────────┼──────────────┬──────────────┐
-              ▼              ▼               ▼              ▼
+              ▼              ▼              ▼              ▼
            searcher      researcher       engineer       creator
            (retrieve)    (synthesize)     (implement)    (produce media)
 ```
@@ -63,12 +63,12 @@ in-turn). A Kanban worker may itself call `delegate_task` during its run.
 
 | Profile | Role | Front door | `terminal.cwd` | Toolsets | Gateway | Tracked |
 | --- | --- | --- | --- | --- | --- | --- |
-| **default** | general daily driver + orchestrator | CLI | `.` (launch dir) | full + `kanban` | — | yes |
+| **default** | CLI front door — assistant's CLI counterpart (neutral persona) | CLI | `.` (launch dir) | full + `kanban` | — | yes |
 | **assistant** | messaging front door + dispatcher host | Discord/TG | `~/Workspaces` | full + `kanban` | **yes** | yes (token per-machine) |
 | **engineer** | implement via OpenCode (git worktree, tests); confirms material decisions through kanban block round-trips | — (worker) | `.` (launch / task ws) | `hermes-cli` | — | yes |
 | **researcher** | synthesize / analyze | — (worker) | `.` (launch / task ws) | `file,web` | — | yes |
 | **searcher** | fast retrieval (web / x_search); deep multi-hop via `deep-retrieval` + `goal_mode` | — (worker) | `.` (launch / task ws) | `web,x_search` | — | yes |
-| **creator** | media production: batch / long-render / multi-asset image, video, GIF, voice (single quick assets stay inline on assistant) | — (worker) | `.` (launch / task ws) | `hermes-cli,video_gen,video` + gen plugins | — | yes |
+| **creator** | ALL media production — image, video, GIF, voice, single and batch (front doors only brief and dispatch) | — (worker) | `.` (launch / task ws) | `hermes-cli,video_gen,video` + gen plugins | — | yes |
 
 Role split: **searcher (retrieve) → researcher (synthesize) → engineer
 (implement)**, mirroring the `delegate_task` toolset patterns
@@ -102,12 +102,19 @@ user) and relays out-of-grant questions to the human. The gateway's
 roughly the answer time + ~20 s. Details: engineer's `engineer-loop` skill and
 assistant's `assistant-orchestration` `<BlockedTriage>`.
 
-### Default is a clean baseline, not a junk drawer
+### Default is the assistant's CLI counterpart (and stays a clean baseline)
 
-Keep default's `config.yaml` rich (every `--clone` inherits it) and its
-`SOUL.md` neutral; keep its `cron/` empty and run no gateway on it. Specialized
-personas, bots, and scheduled automation belong in named profiles. Workers fan
-out via Kanban; default just orchestrates and does interactive work.
+default and assistant are the two faces of the same front door: identical
+orchestration behavior (both run `assistant-orchestration`, which lives in
+default's skills tree at `hermes/skills/orchestration/` — default loads it
+natively, assistant through its `~/.hermes/skills` external dir; the dm_topics
+auto-load keeps working since resolution goes through `skill_view`), the same
+worker roster, the same media-full-delegation rule. The differences: platform
+(CLI vs Telegram gateway), persona (default stays **neutral** — every
+`--clone` inherits its `config.yaml`, so voice/character stays out), and
+assistant-only surface skills (workspace-scaffold etc.) stay in the assistant
+profile. Keep default's `cron/` empty and run no gateway on it; bots and
+scheduled automation belong in named profiles.
 
 ### Two working directories per worker
 
@@ -129,9 +136,10 @@ Three per-profile layers, kept separate:
   SOUL so it survives. Note `/personality` shares this slot and would clobber it — don't
   use it on these profiles.
 - **skills/** — detailed, on-demand playbooks:
-  - assistant → `assistant-orchestration` (silent two-axis triage: inline vs kanban;
-    task-spec template, topology: single / parents chain / triage card, dispatch params,
-    failure recovery)
+  - assistant + default → `assistant-orchestration` (shared front-door playbook, lives in
+    default's tree at `hermes/skills/orchestration/`: silent two-axis triage inline vs kanban;
+    task-spec template + MediaBrief, topology: single / parents chain / triage card,
+    dispatch params, BlockedTriage, failure recovery)
   - engineer → `engineer-loop` (delegate to OpenCode; Authority parsing + checkpoint-then-block
     dialogue; fan-out to searcher/researcher/creator; quota-gated provider/model routing;
     `opencode run -c` resume; verify/report)
@@ -139,7 +147,9 @@ Three per-profile layers, kept separate:
   - searcher → `breadth-retrieval` (query expansion, source-class routing, link-first hand-off)
     + `deep-retrieval` (explicit multi-hop hunts: `skills: ["deep-retrieval"]` + `goal_mode`)
   - creator → `media-production` (asset-type routing to the gen chains, clarify-before-generate,
-    visual verification, kanban_attach delivery; depth in the shared contextual-image/video-gen skills)
+    visual verification, kanban_attach delivery) + the sibling `contextual-image-gen` /
+    `contextual-video-gen` depth skills (moved from default's tree — creator owns the
+    creative cluster)
 
 Routing (assistant): `assistant-orchestration` owns it. The skill is
 **auto-loaded into every new Telegram topic session** via the per-topic
@@ -148,10 +158,11 @@ skill body into the session's first turn; `compression.protect_first_n` keeps
 it alive; existing sessions pick it up after `/new` or an idle reset). It
 triages silently on two axes — can the user wait? does it need a worker's
 tools / isolation / durability? — then routes inline (conversation, quick
-lookups, workspace skills, single quick media assets, cron registration) vs
-kanban: searcher = retrieval/web/X (deep hunts via `deep-retrieval` +
-`goal_mode`), researcher = analysis/synthesis, engineer = implementation,
-creator = batch/long-render/multi-asset media.
+lookups, workspace skills, cron registration) vs kanban: searcher =
+retrieval/web/X (deep hunts via `deep-retrieval` + `goal_mode`), researcher =
+analysis/synthesis, engineer = implementation, creator = ALL media production
+(the front door only collects the MediaBrief — purpose, destination specs,
+style references, quantity — and dispatches; it generates nothing itself).
 Multi-stage work ships as a `parents` chain (obvious 2-3 stages) or one
 `triage=true` card (auto-decompose); `delegate_task` stays an exception for
 medium parallel lookups the user is actively waiting on. The contract keeps a
