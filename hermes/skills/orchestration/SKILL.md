@@ -5,8 +5,8 @@ description: >-
   on the CLI) — walk every request through a 7-step pipeline: Classify
   (Projects / Personal / cross-cutting / neither), Locate (workspace group +
   repo), Approach (Plan / Build / Search / Research / Creative / Inline —
-  exclusive), then for Plan only: Decompose the goal with the `approach`
-  skill, Register the steps in the session `todo`, run the Plan Loop with
+  exclusive), then for Plan only: Decompose the goal with the inlined
+  methodology, Register the steps in the session `todo`, run the Plan Loop with
   the user (worker consultations via kanban, advisory). On sign-off,
   Dispatch via the existing topology (single / parents / triage card) with
   self-contained task specs (engineer tasks carry an Authority grant; media
@@ -25,7 +25,7 @@ metadata:
   hermes:
     tags: [orchestration, pipeline, classify, locate, approach, plan, dispatch, triage, routing, kanban, delegation, task-spec, workers]
     category: orchestration
-    related_skills: [plan/approach]
+    related_skills: []
 ---
 
 <Goal>
