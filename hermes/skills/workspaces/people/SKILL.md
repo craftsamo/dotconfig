@@ -9,6 +9,7 @@ description: >-
   (counterparties.person_id) and the message-reply skill. 人物, 連絡先, だれ, people, contact.
 version: 0.1.0
 author: Hermes agent
+license: MIT
 metadata:
   hermes:
     tags: [people, registry, sqlite, contacts, directory, personal]

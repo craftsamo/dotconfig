@@ -9,6 +9,7 @@ description: >-
   household-budget (proj_* ↔ dir_path/aliases). プロジェクト, チーム, レポ, projects, repos.
 version: 0.1.0
 author: Hermes agent
+license: MIT
 metadata:
   hermes:
     tags: [projects, registry, sqlite, repos, teams, memberships, directory]
