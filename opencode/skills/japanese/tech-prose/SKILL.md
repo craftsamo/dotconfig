@@ -1,6 +1,7 @@
 ---
 name: japanese-tech-prose
 description: Use when writing or revising long-form explanatory Japanese prose — technical articles, tutorials, book chapters, design documents, README explanatory sections (解説記事, チュートリアル, 技術書, 章を書く, 原稿, 推敲, リライト, 論証, 段落構成, パラグラフライティング, LLMっぽい, AI臭い, 冗長, 長文ドキュメント). Covers paragraph-level argumentation (one topic per paragraph, explicit logical connectives), argumentative rigor (no unsupported assertions, preserve uncertainty, name the mechanism behind causal claims), reader cognitive-load management, voice and narration, restraint of theatrics, a ban list of hollow LLM-style phrases (重要なのは, 正面から, 掘り下げる, 多角的), redundancy elimination, and headings. This is the argumentation (meso) layer of the Japanese writing stack — notation/terminology rules live in `japanese-writing` (always load it too); narrative pacing lives in `japanese-prose-rhythm`. Do NOT use for reference docs, commit messages, UI copy, or short boilerplate text.
+author: CraftSamo
 license: Unlicense
 metadata:
   source: "https://gist.github.com/k16shikano/fd287c3133457c4fd8f5601d34aa817d (japanese-tech-writing by k16shikano, Unlicense). Adapted: book-specific examples generalized, notation rules delegated to japanese-writing, verification steps consolidated."

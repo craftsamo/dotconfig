@@ -1,6 +1,8 @@
 ---
 name: web-ui
 description: Use when implementing or modifying any web frontend UI — pages, components, layout, styling, CSS, themes, visual states, or when the user wants a specific look (UI 実装, フロントエンド, 画面, 見た目, デザイン, かっこいい, 可愛い, 綺麗, お洒落, 未来的, ダサい, スタイリング, コンポーネント, レイアウト, web design, aesthetic, look and feel, frontend, component, styling). Fixes an aesthetic direction before implementing (style catalog, reference extraction, or disposable style tiles), enforces verification against the real rendering with agent-browser (never claim UI work done from code alone), applies design principles (typography scale, spacing system, color restraint, hierarchy, states), and routes substantial UI work to the ui-review subagent for an unbiased multi-viewport screenshot critique. Do NOT use for TUI/CLI output or non-visual backend work.
+author: CraftSamo
+license: MIT
 ---
 
 <Goal>

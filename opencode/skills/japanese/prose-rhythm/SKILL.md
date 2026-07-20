@@ -1,6 +1,7 @@
 ---
 name: japanese-prose-rhythm
 description: Use ONLY when Japanese long-form text must read as engaging prose — blog posts, essays, book chapters, narrative explainers meant to be read start-to-finish (読み物, 読ませる文章, ブログ記事, エッセイ, 連載, 平坦でつまらない, 緩急, リズムがない, 密度はあるが退屈, engaging prose, pacing). Designs pacing as cognitive-mode switching (observe → hesitate → assert → re-observe) and manages unresolved tension so the reader always has a reason to continue; includes the 状況/文書 topic test for cutting meta-prose, sentence-beat patterns, paragraph density waves, opening/section/closing design, and a mechanical post-draft checklist. Layers ON TOP of `japanese-tech-prose` (load it first) and `japanese-writing`. Do NOT use for README, reference docs, runbooks, commit messages, UI copy, or any document readers scan instead of read — flat is correct there.
+author: CraftSamo
 license: Unlicense
 metadata:
   source: "https://gist.github.com/k16shikano/eb2929f13ed19c97188393d297be8432 (cognitive-rhythm-writing by k16shikano, Unlicense). Adapted: dependency rewired to japanese-tech-prose, factuality caution added for the betrayed-conviction device."
