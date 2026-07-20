@@ -36,8 +36,16 @@ hermes/**/SOUL.md
 # keep it local. The tracked config.example.yaml is the bootstrap template.
 hermes/profiles/assistant/config.yaml
 
-# Hermes skills: agent-created skills ARE tracked; bundled skills (read via
-# skills.external_dirs from the agent clone) + curator/hub/usage bookkeeping are not
+# Hermes skills: NOT tracked by default (Hermes authors skills itself).
+# Intentional/user-authored skills opt in once via `git add -f <path>`;
+# already-tracked skill files are unaffected by these patterns and stay
+# tracked, frozen at their committed snapshot via `git update-index
+# --skip-worktree` (list: `git ls-files -v | grep ^S`).
+hermes/skills/**
+hermes/profiles/*/skills/**
+
+# Hermes skills bookkeeping: bundled skills (read via skills.external_dirs
+# from the agent clone) + curator/hub/usage bookkeeping are never tracked
 hermes/**/.bundled_manifest
 hermes/**/.usage.json
 hermes/**/.usage.json.lock
@@ -53,6 +61,8 @@ hermes/**/.restore-backups/
 hermes/**/cron/output/
 hermes/**/cron/.tick.lock
 hermes/**/cron/*.lock
+hermes/**/cron/ticker_heartbeat
+hermes/**/cron/ticker_last_success
 
 # Hermes plugins: source IS tracked; Python bytecode (written into the symlinked
 # plugins dir when Hermes loads a plugin) is not
