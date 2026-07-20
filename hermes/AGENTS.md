@@ -50,13 +50,13 @@ skills/              # agent-created skills tracked; .hub/ etc. ignored
                      #   imported not executed; siblings call each other's CLI, never each other's DB)
 plugins/             # backend chains (image/video gen) + tool overrides; source tracked, __pycache__ ignored
 launchd/             # LaunchAgents: assistant gateway + headless AivisSpeech engine
-profiles/<name>/     # assistant, coder, researcher, searcher
+profiles/<name>/     # assistant, engineer, researcher, searcher
   - config.yaml      # model/fallback + agent.system_prompt (operating contract)
   - profile.yaml     # routing description (kanban/delegation)
   - SOUL.md          # per-profile persona (BASE + role posture)
   - skills/          # per-profile skills (assistant: assistant-orchestration, auto-loaded
                      #   per Telegram topic via dm_topics skill binding; workers:
-                     #   opencode-loop / research-pipeline / breadth-retrieval)
+                     #   engineer-loop / research-pipeline / breadth-retrieval)
   - cron/            # per-profile scheduled jobs (jobs.json; placeholder if empty)
 setup.sh README.md PROFILES.md
 ```
@@ -64,7 +64,9 @@ setup.sh README.md PROFILES.md
 ## Profiles
 
 default (CLI driver/orchestrator) + assistant (messaging front door, hosts the
-gateway/dispatcher) + coder / researcher / searcher (kanban workers). Tracked per
+gateway/dispatcher) + engineer / researcher / searcher (kanban workers; engineer
+converses with the assistant via kanban block round-trips — see PROFILES.md
+"Engineer dialogue loop"). Tracked per
 profile: `config.yaml`, `profile.yaml`, `SOUL.md`, `skills/`, `.no-bundled-skills`.
 Create with `hermes profile create <name> --description "…"`, then adopt into the
 repo (move real files → `../install.sh`); see `README.md` / `PROFILES.md`.
