@@ -20,8 +20,7 @@ implementation, default to **Plan**.
 
 ## Step 4 — Decompose
 
-Load and follow the `approach` skill (`skill_view approach`) — its
-principles apply directly:
+Apply these four principles throughout the Plan Loop:
 
 1. **Investigate before asserting** — read the relevant repo, docs, history,
    workspace skill output before drafting.
