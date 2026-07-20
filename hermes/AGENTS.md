@@ -71,11 +71,24 @@ repo (move real files → `../install.sh`); see `README.md` / `PROFILES.md`.
 
 ## Tracked vs ignored
 
-Tracked: config / SOUL / `profile.yaml`, agent-created skills, `plugins/` source,
-`cron/jobs.json`, `launchd/`, docs. Ignored (see `../.gitignore`): `auth.json`,
-`.env`, `memories/`, `sessions/`, `state.db*`, `logs/`, `workspace/`, `.hub/`,
-`.curator_state`, `.usage*`, `cron/output/`, `**/__pycache__/`, `*.pyc`. Never
-commit secrets, state, or host-rendered plists.
+Tracked: config / SOUL / `profile.yaml`, `plugins/` source, `cron/jobs.json`,
+`launchd/`, docs. Ignored (see `../.gitignore`): `auth.json`, `.env`,
+`memories/`, `sessions/`, `state.db*`, `logs/`, `workspace/`, `.hub/`,
+`.curator_state`, `.usage*`, `cron/output/`, `cron/ticker_*`, `**/__pycache__/`,
+`*.pyc`. Never commit secrets, state, or host-rendered plists.
+
+**Skills are NOT tracked by default** (`hermes/skills/**` and
+`hermes/profiles/*/skills/**` are gitignored — Hermes authors skills itself and
+that churn stays out of the repo). To track a user-authored skill, opt in once
+with `git add -f <path>`; it then behaves like any tracked file. Skill files
+that were already tracked remain tracked but are **frozen at their committed
+snapshot** via `git update-index --skip-worktree` (also `cron/jobs.json`, which
+Hermes rewrites at runtime): later local changes never show in status/diff.
+List frozen files with `git ls-files -v | grep ^S`; to intentionally commit an
+update, `git update-index --no-skip-worktree <file>`, commit, then re-freeze.
+The skip-worktree flag is per-machine (index-local) — re-apply it after a fresh
+clone, and if upstream changes a frozen file, `git pull` stops until you
+unfreeze and resolve.
 
 ## Commands
 
