@@ -112,8 +112,8 @@ auto-load keeps working since resolution goes through `skill_view`), the same
 worker roster, the same media-full-delegation rule. The differences: platform
 (CLI vs Telegram gateway), persona (default stays **neutral** — every
 `--clone` inherits its `config.yaml`, so voice/character stays out), and
-assistant-only surface skills (workspace-scaffold etc.) stay in the assistant
-profile. Keep default's `cron/` empty and run no gateway on it; bots and
+assistant-only surface skills (ccc-course-production,
+codebase-fact-finding) stay in the assistant profile. Keep default's `cron/` empty and run no gateway on it; bots and
 scheduled automation belong in named profiles.
 
 ### Two working directories per worker

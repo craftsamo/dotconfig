@@ -9,6 +9,7 @@ their shared helper has an obvious home.
 | `household-budget/` | `hb` | multi-currency ledger (SQLite) |
 | `projects/` | `pj` | projects registry: identity/repos/links/memberships/tags (SQLite) |
 | `message-reply/` | — (prose) | draft replies using People context |
+| `scaffold/` | — (`scripts/ws-new.sh`) | scaffold new groups/repos under `~/Workspaces` (dirs, git init, AGENTS.md seed); not part of the `_cross` contract |
 | `_cross.py` | — (lib) | shared cross-skill contract + resolver (imported, never executed) |
 
 The three registries cross-reference each other; `_cross.py` is the single place that defines how.
