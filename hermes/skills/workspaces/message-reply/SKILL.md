@@ -11,6 +11,7 @@ description: >-
   draft a reply, answer a message, what does this mean, interpret, DM.
 version: 0.2.0
 author: Hermes agent
+license: MIT
 metadata:
   hermes:
     tags: [message-reply, communication, people, projects, personal, drafting]

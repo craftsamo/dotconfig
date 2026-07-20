@@ -8,6 +8,7 @@ description: >-
   経費, 立替, サブスク, 振替, expenses, reimbursement, subscriptions, budget.
 version: 0.2.0
 author: Hermes agent
+license: MIT
 metadata:
   hermes:
     tags: [household-budget, finance, sqlite, expenses, reimbursement, subscriptions, multi-currency]

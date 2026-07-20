@@ -3,6 +3,7 @@ name: breadth-retrieval
 description: Searcher's breadth-first retrieval — query expansion, source-class routing across web + x_search, dedup, and concise link-first findings handed off to researcher/coder.
 version: 1.0.0
 author: CraftSamo
+license: MIT
 metadata:
   hermes:
     tags: [search, retrieval, web, x_search, sources, triage]
