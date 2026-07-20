@@ -100,12 +100,12 @@ answers autonomously within the grant (comment + unblock, then informs the
 user) and relays out-of-grant questions to the human. The gateway's
 `kanban.dispatch_interval_seconds` is lowered to **15** so a round-trip costs
 roughly the answer time + ~20 s. Details: engineer's `engineer-loop` skill and
-assistant's `assistant-orchestration` `<BlockedTriage>`.
+assistant's `orchestration` `<BlockedTriage>`.
 
 ### Default is the assistant's CLI counterpart (and stays a clean baseline)
 
 default and assistant are the two faces of the same front door: identical
-orchestration behavior (both run `assistant-orchestration`, which lives in
+orchestration behavior (both run `orchestration`, which lives in
 default's skills tree at `hermes/skills/orchestration/` — default loads it
 natively, assistant through its `~/.hermes/skills` external dir; the dm_topics
 auto-load keeps working since resolution goes through `skill_view`), the same
@@ -136,10 +136,12 @@ Three per-profile layers, kept separate:
   SOUL so it survives. Note `/personality` shares this slot and would clobber it — don't
   use it on these profiles.
 - **skills/** — detailed, on-demand playbooks:
-  - assistant + default → `assistant-orchestration` (shared front-door playbook, lives in
-    default's tree at `hermes/skills/orchestration/`: silent two-axis triage inline vs kanban;
-    task-spec template + MediaBrief, topology: single / parents chain / triage card,
-    dispatch params, BlockedTriage, failure recovery)
+  - assistant + default → `orchestration` (shared front-door playbook, lives in
+    default's tree at `hermes/skills/orchestration/`: 7-step pipeline
+    (Classify → Locate → Approach → [Plan: Decompose → Register → Plan Loop] →
+    Dispatch); task-spec template, topology: single / parents chain / triage
+    card, dispatch params, BlockedTriage, failure recovery. Per-approach
+    detail in `references/{plan,build,search,research,creative,inline}.md`.)
   - engineer → `engineer-loop` (delegate to OpenCode; Authority parsing + checkpoint-then-block
     dialogue; fan-out to searcher/researcher/creator; quota-gated provider/model routing;
     `opencode run -c` resume; verify/report)
@@ -151,7 +153,7 @@ Three per-profile layers, kept separate:
     `contextual-video-gen` depth skills (moved from default's tree — creator owns the
     creative cluster)
 
-Routing (assistant): `assistant-orchestration` owns it. The skill is
+Routing (assistant): `orchestration` owns it. The skill is
 **auto-loaded into every new Telegram topic session** via the per-topic
 `skill:` binding in `platforms.telegram.extra.dm_topics` (gateway injects the
 skill body into the session's first turn; `compression.protect_first_n` keeps
