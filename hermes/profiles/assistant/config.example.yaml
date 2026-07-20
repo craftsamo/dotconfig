@@ -17,7 +17,6 @@ credential_pool_strategies: {}
 toolsets:
 - hermes-cli
 - kanban
-- video_gen
 - video
 max_concurrent_sessions: null
 agent:
@@ -126,7 +125,8 @@ agent:
   gateway_notify_interval: 180
   gateway_auto_continue_freshness: 3600
   image_input_mode: auto
-  disabled_toolsets: []
+  disabled_toolsets:
+  - image_gen
 terminal:
   backend: local
   modal_mode: auto
