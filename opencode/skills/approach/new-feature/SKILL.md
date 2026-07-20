@@ -7,6 +7,8 @@ description: >-
   system first, confirm the real goal, co-design one decision at a time, then
   integrate in small verified steps. Do NOT use for bug fixes (that is
   debug/debugger work) or trivial single-step edits.
+author: CraftSamo
+license: MIT
 ---
 
 <Goal>

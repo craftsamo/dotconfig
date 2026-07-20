@@ -6,6 +6,8 @@ description: >-
   マイグレーション, rebuild, migrate, restructure, overhaul). Includes the
   evacuate → build-alongside → cutover safety sequence. For incremental
   behavior-preserving cleanup, use `approach-refactor`.
+author: CraftSamo
+license: MIT
 ---
 
 <Goal>

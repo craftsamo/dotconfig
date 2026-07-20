@@ -1,6 +1,8 @@
 ---
 name: manage-github-projects
 description: Use to record and manage persistent, cross-session tasks and notes on a GitHub Projects (v2) "Roadmap" board via the github_project_* tools, instead of writing local TODO/plan/notes files (GitHub Projects, project board, roadmap, draft issue, project item, 起票, タスク管理, ロードマップ, ボードに追加, 進捗更新, ファイルを残さない). Covers the two-tier personal/org board topology and owner resolution, the Status/Kind/Area/_Repository/_Milestone schema, board granularity (epic on the board; purpose / work issues in the repo), saved views (Kanban / Backlog / roadmap via a copied template), per-Kind and three-tier (epic / purpose / work) body formats, and add/start/done/list/note/promote recipes. Use ONLY for GitHub Project board task management, not general gh usage.
+author: CraftSamo
+license: MIT
 ---
 
 <Goal>

@@ -10,6 +10,8 @@ description: >-
   branch name and targeted gh queries, and defaults to ready-for-review. Do NOT
   use to create commits (use git-commit) or to merge — merging stays gated and
   explicit.
+author: CraftSamo
+license: MIT
 ---
 
 <Goal>

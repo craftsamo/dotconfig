@@ -13,6 +13,8 @@ description: >-
   board mechanics and body formats to `manage-github-projects` and PR
   creation to `git-pullrequest`. Use ONLY to orchestrate planning ↔ GitHub
   Projects, not for board mechanics themselves.
+author: CraftSamo
+license: MIT
 ---
 
 <Goal>

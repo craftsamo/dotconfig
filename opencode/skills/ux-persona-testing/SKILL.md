@@ -1,6 +1,8 @@
 ---
 name: ux-persona-testing
 description: Use when testing UI/UX with simulated user personas — hostile, reluctant, conscripted, low-IT-literacy, hurried-expert, distracted-mobile — to find where real users struggle and to separate temperament noise from genuine UX defects (UX テスト, ペルソナテスト, 敵対的ユーザー, 拒否的ユーザー, 非自発的ユーザー, リテラシーが低い, ユーザビリティテスト, usability test, persona test, UX audit, user simulation, friction, 離脱, 導線). Runs persona simulations through the ux-persona subagent, triages FACT/REACTION reports with a Signal/Noise/Watch rubric plus cross-persona corroboration, and gates critical flows with a worst-case floor test. Do NOT use for dark-pattern audits of third-party sites, visual design critique (use web-ui / ui-review), or functional unit/e2e testing.
+author: CraftSamo
+license: MIT
 ---
 
 <Goal>
