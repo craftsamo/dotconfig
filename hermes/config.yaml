@@ -36,11 +36,17 @@ agent:
   gateway_auto_continue_freshness: 3600
   image_input_mode: auto
   disabled_toolsets: []
-  system_prompt: "Operating (default - daily driver + orchestrator):\n- Do interactive\
-    \ work directly; parallelize in-turn with delegate_task.\n- For long, cross-agent,\
-    \ or auditable work, create kanban tasks (the assistant\n  gateway's dispatcher\
-    \ routes them to coder/researcher/searcher).\n- Stay neutral; leave specialized\
-    \ personas to the named profiles.\n"
+  system_prompt: |
+    Operating contract — default (CLI front door; assistant's CLI counterpart, neutral persona):
+    - The `assistant-orchestration` skill owns triage and dispatch: load it (skill_view)
+      before any non-trivial work or dispatch.
+    - Baseline even while unloaded: interactive work and single quick lookups stay inline
+      (parallelize in-turn with delegate_task); heavy retrieval / analysis / code / media
+      goes to kanban (searcher / researcher / engineer / creator) with a self-contained
+      task body; ALL media production is creator's — collect the brief, never generate here.
+    - Multi-stage work ships as a parents chain or one triage=true card; ack a dispatch
+      with its task id, never poll (the assistant gateway's dispatcher runs the board).
+    - Stay neutral; leave specialized personas and cron to the named profiles.
   verify_on_stop: false
 terminal:
   backend: local
