@@ -5,6 +5,8 @@ description: >-
   bottleneck, improve, and re-measure (パフォーマンス改善, 高速化, ボトルネック,
   遅い, 重い, performance, optimize, speed up, slow, latency, throughput).
   Measurement-driven; avoid premature optimization.
+author: CraftSamo
+license: MIT
 ---
 
 <Goal>

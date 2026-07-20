@@ -11,6 +11,8 @@ description: >-
   files → Conventional Commits; one concern per commit; never commits secrets.
   Do NOT use for creating/merging pull requests or pushing — only commit
   creation and the read-only history tracing that supports it.
+author: CraftSamo
+license: MIT
 ---
 
 <Goal>

@@ -7,6 +7,8 @@ description: >-
   restructure code, clean up, extract method, rename). Behavior must stay
   identical. For wholesale rebuilds or data migration, use
   `approach-rebuild-migration`.
+author: CraftSamo
+license: MIT
 ---
 
 <Goal>

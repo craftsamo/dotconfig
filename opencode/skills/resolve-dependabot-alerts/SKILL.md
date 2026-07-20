@@ -1,6 +1,8 @@
 ---
 name: resolve-dependabot-alerts
 description: Use when resolving, triaging, or fixing GitHub Dependabot security/vulnerability alerts (GHSA/CVE, "security alert", "dependabot") in a repository, across ecosystems (npm/pnpm/yarn and cargo in depth, others via the alert's ecosystem field). Fetches open alerts with `gh api`, classifies each as fix/dismiss/defer, bumps vulnerable dependencies (including transitive overrides), verifies the lockfile resolves to a patched version plus build/test, then works on a branch with one commit per group, pushes, and opens a PR. Do NOT use for routine non-security dependency bumps or for merging Dependabot version-update PRs.
+author: CraftSamo
+license: MIT
 ---
 
 <Goal>

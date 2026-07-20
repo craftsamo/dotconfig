@@ -1,6 +1,8 @@
 ---
 name: keychain-secrets
 description: Use when handling secrets, API keys, tokens, credentials, environment variables, .env files, or "missing"/unset env vars on this machine — secrets are injected from the macOS Keychain via ~/.config/bin PATH shims. Covers tool vs project injection modes and the command allowlist, why injected values are invisible to the parent shell, adding/listing/getting secrets with the `secret` CLI, wrapping new tools, name-collision pitfalls, and debugging missing injection.
+author: CraftSamo
+license: MIT
 ---
 
 <Goal>
