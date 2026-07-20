@@ -1,7 +1,7 @@
 ---
 name: assistant-orchestration
-description: Assistant's orchestration playbook — silently triage every request along two axes (can the user wait; does it need a worker's tools) into inline vs kanban, then dispatch well: pick the topology (single task / parents chain / triage card), write self-contained task specs workers can run without chat context (engineer tasks carry an Authority grant), set workspace and dispatch params, ack with the task id, answer engineer questions within the granted authority autonomously, and recover from blocked/gave_up/crashed/timed_out events. Auto-loaded into each Telegram topic session via the dm_topics skill binding; load it via skill_view before non-trivial work elsewhere.
-version: 2.1.0
+description: Orchestration playbook for the front-door profiles (assistant on Telegram, default on the CLI) — silently triage every request along two axes (can the user wait; does it need a worker's tools) into inline vs kanban, then dispatch well: pick the topology (single task / parents chain / triage card), write self-contained task specs workers can run without chat context (engineer tasks carry an Authority grant; media tasks carry a MediaBrief), set workspace and dispatch params, ack with the task id, answer engineer questions within the granted authority autonomously, and recover from blocked/gave_up/crashed/timed_out events. Auto-loaded into each Telegram topic session via the dm_topics skill binding; load it via skill_view before non-trivial work elsewhere.
+version: 2.2.0
 author: CraftSamo
 license: MIT
 metadata:
@@ -54,8 +54,7 @@ name the category in chat) along two axes, then route:
 | conversation / emotion / opinion | inline, no tools; memory tool as needed |
 | single quick lookup (one URL / fact / file) | inline, light tools |
 | workspace data ops (people / household-budget / projects) | inline via the workspace skills |
-| single quick asset (one image / short clip / voice line) | inline toolsets |
-| batch, long-render, or multi-asset media production | kanban: creator |
+| media generation — any image / video / GIF / voice asset | kanban: creator, after collecting the <MediaBrief> |
 | recurring request ("every morning ...") | inline: register a cron job |
 | broad or current-info retrieval | kanban: searcher |
 | deep multi-hop retrieval (exhaustive source hunt) | kanban: searcher + `skills: ["deep-retrieval"]`, `goal_mode: true` |
@@ -80,7 +79,7 @@ Keep in sync with each worker's `profile.yaml` description:
 | searcher | breadth-first retrieval: web/X search, links, latest/current info; deep multi-hop via the `deep-retrieval` skill + `goal_mode` | web, x_search |
 | researcher | depth: analysis, synthesis, comparison, evaluation, reports | file, web |
 | engineer | implementation: drives OpenCode, code changes, debugging, tests, builds, PRs; confirms material decisions via block round-trips | terminal (hermes-cli) |
-| creator | media production: batch/long-render/multi-asset image, video, GIF, voice; delivers via kanban_attach | media gen chains + terminal |
+| creator | ALL media production: image, video, GIF, voice assets, batch and single; delivers via kanban_attach | media gen chains + terminal |
 
 Mixed pipelines flow searcher -> researcher -> engineer, with creator as a
 side stage for assets. Workers can fan out themselves (`kanban_create` +
@@ -117,6 +116,28 @@ body:
   message / completion summary, never only in files.
 
 </TaskSpec>
+
+<MediaBrief>
+
+You produce no media yourself — creator does. Your job is the brief: collect
+what creator needs to generate right on the first pass, so it never has to
+block on style questions or burn credits guessing. Gather (from the chat, the
+user, and memory) before dispatching:
+
+- Purpose & audience — what the asset is for, where it will be seen.
+- Destination & specs — platform/placement and its constraints (dimensions,
+  aspect ratio, duration, format, file-size cap) when known.
+- Style direction — tone, palette, brand assets, reference images/links; paste
+  or link references into the task body.
+- Quantity & variants — how many, which sizes/crops.
+- Deadline / priority.
+
+Ask the user at most one compact round of questions for missing essentials;
+fill sensible defaults yourself and say so. Put all of it in the task body
+(Inputs/Constraints) — creator cannot see this chat. Small single assets go to
+creator too; ack with the task id and deliver on the completion notification.
+
+</MediaBrief>
 
 <Topology>
 
@@ -208,7 +229,10 @@ answer it fast and keep the loop moving:
 
 <AntiPatterns>
 
-- Quick lookups on the board (dispatch ticks) — answer them inline.
+- Quick lookups on the board (dispatch ticks) — answer them inline. Media is
+  the deliberate exception: it always goes to creator, with a full brief.
+- Generating or improvising media yourself instead of dispatching creator.
+- Dispatching a media task without the <MediaBrief> essentials in the body.
 - Task bodies that depend on chat context the worker can't see.
 - Polling the board after dispatch (notifications are automatic).
 - Duplicate cards for the same ask (use `idempotency_key` on retries).
