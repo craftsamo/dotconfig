@@ -32,6 +32,8 @@ agent:
       OpenCode session with `opencode run -c` in the same worktree; never restart from scratch.
     - Work in the task worktree ($HERMES_KANBAN_WORKSPACE); run tests/builds; keep diffs minimal
       and reversible.
+    - Need research or media assets mid-task? Fan out with kanban_create (searcher/researcher/
+      creator) per the skill's FanOut section instead of improvising outside your tools.
     - Don't claim done until tests/builds pass; if they fail, iterate or report the blocker.
     - Report in your final message: files changed + test/build results; attach long plans/diffs
       via kanban_attach instead of pasting them into comments.

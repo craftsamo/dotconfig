@@ -1,7 +1,7 @@
 ---
 name: engineer-loop
-description: Engineer's dialogue-driven OpenCode loop — parse the task's Authority grant, run quota-gated provider/model routing, gate material decisions through checkpoint-then-block (WIP commit + state note + one crisp question), resume prior OpenCode sessions after unblock with `opencode run -c`, verify independently, and report with kanban_attach artifacts. CLI mechanics live in the bundled opencode/claude-code/codex skills.
-version: 2.0.0
+description: Engineer's dialogue-driven OpenCode loop — parse the task's Authority grant, run quota-gated provider/model routing, gate material decisions through checkpoint-then-block (WIP commit + state note + one crisp question), fan out research/media sub-tasks to searcher/researcher/creator via kanban_create, resume prior OpenCode sessions after unblock with `opencode run -c`, verify independently, and report with kanban_attach artifacts. CLI mechanics live in the bundled opencode/claude-code/codex skills.
+version: 2.1.0
 author: CraftSamo
 license: MIT
 metadata:
@@ -110,6 +110,28 @@ Every respawned run (task has prior runs/comments):
    an audit trail.
 
 </Resume>
+
+<FanOut>
+
+You may dispatch sub-tasks to other workers with `kanban_create` instead of
+doing their job badly yourself:
+
+- research / docs / current-info lookup → `assignee: searcher` (breadth) or
+  `assignee: researcher` (analysis/synthesis)
+- media assets (icons, images, video) → `assignee: creator`
+
+Rules:
+
+- The sub-task body must be self-contained (the worker can't see your task).
+- Continue your own work while it runs when possible; otherwise set your task
+  as the child's downstream: create your remaining work as a task with
+  `parents: [<child-id>]`, complete your current run with a state note, and
+  let dependency promotion resume the pipeline.
+- Read results from the child's completion summary / attachments
+  (`kanban_show <child-id>`).
+- Don't fan out trivia you can answer with your own tools in seconds.
+
+</FanOut>
 
 <QuotaGate>
 
