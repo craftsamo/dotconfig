@@ -63,6 +63,7 @@ hermes/**/cron/.tick.lock
 hermes/**/cron/*.lock
 hermes/**/cron/ticker_heartbeat
 hermes/**/cron/ticker_last_success
+hermes/**/cron/executions.db*
 
 # Hermes plugins: source IS tracked; Python bytecode (written into the symlinked
 # plugins dir when Hermes loads a plugin) is not
