@@ -3,6 +3,7 @@ name: research-pipeline
 description: Researcher's evidence-grounded pipeline — search route, source trust scores, and a gather -> cross-reference -> synthesize -> judge procedure that keeps observation, inference, and uncertainty separate.
 version: 1.0.0
 author: CraftSamo
+license: MIT
 metadata:
   hermes:
     tags: [research, methodology, sources, citations, synthesis, verification]

@@ -9,6 +9,7 @@ description: >-
   small reversible verified steps. Do NOT use for small, well-specified single-step tasks.
 version: 0.1.0
 author: CraftSamo
+license: MIT
 metadata:
   hermes:
     tags: [planning, approach, rebuild, migration, workflow]

@@ -3,6 +3,7 @@ name: assistant-orchestration
 description: Assistant's orchestration playbook — silently triage every request along two axes (can the user wait; does it need a worker's tools) into inline vs kanban, then dispatch well: pick the topology (single task / parents chain / triage card), write self-contained task specs workers can run without chat context, set workspace and dispatch params, ack with the task id, and recover from blocked/gave_up/crashed/timed_out events. Auto-loaded into each Telegram topic session via the dm_topics skill binding; load it via skill_view before non-trivial work elsewhere.
 version: 1.0.0
 author: CraftSamo
+license: MIT
 metadata:
   hermes:
     tags: [orchestration, triage, routing, kanban, delegation, task-spec, workers]
