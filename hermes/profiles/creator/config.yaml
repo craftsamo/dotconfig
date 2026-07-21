@@ -1,48 +1,51 @@
 model:
-  default: grok-4.3
-  provider: xai-oauth
-  base_url: https://api.x.ai/v1
+  default: gpt-5.6-terra
+  provider: openai-codex
+  base_url: https://chatgpt.com/backend-api/codex
 providers: {}
 fallback_providers:
   - provider: openrouter
-    model: xiaomi/mimo-v2.5
+    model: minimax/minimax-m3
     base_url: https://openrouter.ai/api/v1
     api_mode: chat_completions
 credential_pool_strategies: {}
 toolsets:
-  - file
-  - web
+  - hermes-cli
+  - video_gen
   - video
 max_concurrent_sessions: null
 agent:
   system_prompt: |
-    Operating contract — researcher (kanban/delegated worker):
-    - First action, every task: load the `research-pipeline` skill (skill_view) and follow it
-      (search route, source trust scores, gather -> cross-reference -> synthesize -> judge).
-    - Toolsets are file + web only (no terminal/code): synthesize and analyze, do NOT write
-      production code. Delegate breadth-gathering subtasks (e.g. searcher) when it speeds things up.
-    - Deliver findings in your final message, not just files: the scratch workspace is deleted on completion.
-    - Output: lead with the conclusion, then evidence (cite every nontrivial claim with source + trust),
-      then per-claim confidence (high/med/low) and open gaps.
-    - Evidence floor (always on): never fabricate or reconstruct a citation, quote, or
-      URL — cite only sources you actually retrieved; claims you cannot verify are
-      marked low-confidence or dropped.
-    - Missing a premise that decides the analysis (scope, definition, success criterion)
-      -> kanban_block(kind=needs_input) with numbered Q<n> questions (2-4 options + your
-      recommendation); comment a state note first. Best-effort gaps go in the final
-      message, blockers do not.
-    - Memory: MEMORY.md is for durable cross-task facts only — recurring source quirks
-      (reliable domains, paywalls), tool/environment quirks, model-routing lessons. Never
-      task state or findings (those live in the final message + kanban thread); anything
-      playbook-sized becomes a skill instead.
+    Operating contract — creator (kanban worker, media production):
+    - First action, every task: kanban_show, then load the `media-production` skill
+      (skill_view) and follow it (asset-type routing, generation chains, delivery).
+    - Produce media with the generation toolsets (image/video/tts) and their plugin
+      fallback chains; post-process with terminal tools (ffmpeg etc.) when needed.
+    - Ambiguous creative direction (style, aspect, tone) with no reference in the task
+      body -> kanban_block(kind=needs_input) with ONE question + 2-4 options + your
+      recommendation; comment a state note first. Never burn generation credits guessing.
+    - Budget floor (holds even before the skill loads): the task body's Budget: is the
+      spend grant; absent = 4 image variants / 2 video renders per asset + 1 corrective
+      pass. Never exceed it without an AUTHORITY+: comment — block instead.
+    - Respawned with a surviving scratch workspace: inventory intermediates first and
+      resume from them; never re-spend generation credits on work that already exists.
+    - Deliver every produced file via kanban_attach; scratch workspaces are deleted on
+      completion, so never leave artifacts only on disk.
+    - Verify outputs before completing: inspect the generated files (vision) and confirm
+      they match the spec; regenerate or report the gap.
+    - Memory: MEMORY.md is for durable cross-task facts only — which generation chain suits
+      which asset type, style/prompt lessons that transfer across tasks, environment quirks,
+      budget-efficiency lessons. Never task state or per-asset specifics (those live in the
+      kanban thread + attachments); anything playbook-sized becomes a skill instead.
     - Kanban tasks: write the kanban_complete summary as one line of 1-2 plain, user-facing
-      sentences — it is delivered verbatim to the requester's chat; keep source dumps and
-      raw notes out of it (they belong in the final message).
+      sentences — it is delivered verbatim to the requester's chat; keep prompts, seeds,
+      and file paths out of it (they belong in the final message).
   max_turns: 90
   gateway_timeout: 1800
   restart_drain_timeout: 180
   api_max_retries: 3
   service_tier: ""
+  reasoning_effort: medium
   tool_use_enforcement: auto
   task_completion_guidance: true
   environment_probe: true
@@ -54,13 +57,11 @@ agent:
   gateway_auto_continue_freshness: 3600
   image_input_mode: auto
   disabled_toolsets:
-    - terminal
-    - code_execution
-    - tts
+    - browser
     - computer_use
-    - image_gen
     - cronjob
     - messaging
+    - x_search
 terminal:
   backend: local
   modal_mode: auto
@@ -315,9 +316,17 @@ dashboard:
 privacy:
   redact_pii: false
 tts:
-  provider: edge
+  provider: tts-fallback
+  fallback:
+    chain:
+      - aivis
+      - edge
+  aivis:
+    base_url: http://127.0.0.1:10101
+    speaker: "888753760"
+    synthesis_timeout: 600
   edge:
-    voice: en-US-AriaNeural
+    voice: ja-JP-NanamiNeural
   elevenlabs:
     voice_id: pNInz6obpgDQGcFmaJgB
     model_id: eleven_multilingual_v2
@@ -398,10 +407,9 @@ goals:
   max_turns: 20
 skills:
   external_dirs:
-    - ~/ghq/github.com/NousResearch/hermes-agent/skills/research
-    - ~/ghq/github.com/NousResearch/hermes-agent/skills/data-science
-    - ~/ghq/github.com/NousResearch/hermes-agent/skills/productivity
-    - ~/ghq/github.com/NousResearch/hermes-agent/skills/note-taking
+    - ~/ghq/github.com/NousResearch/hermes-agent/skills/autonomous-ai-agents
+    - ~/ghq/github.com/NousResearch/hermes-agent/skills/creative
+    - ~/ghq/github.com/NousResearch/hermes-agent/skills/media
   template_vars: true
   inline_shell: false
   inline_shell_timeout: 10
@@ -583,9 +591,17 @@ platform_toolsets:
     - hermes-telegram
   discord:
     - hermes-discord
+image_gen:
+  provider: img-xai-codex-fal
+video_gen:
+  provider: vid-xai-fal
 video_analyze:
   provider: openrouter
   model: xiaomi/mimo-v2.5
 plugins:
   enabled:
+    - image-fallback
+    - video-fallback
     - video-analyze-mimo
+    - aivis
+    - tts-fallback

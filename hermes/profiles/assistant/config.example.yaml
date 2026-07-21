@@ -1,5 +1,5 @@
 model:
-  default: claude-sonnet-4.6
+  default: claude-opus-4-8
   provider: anthropic
   base_url: https://api.anthropic.com
 providers: {}
@@ -7,8 +7,6 @@ fallback_providers:
 - provider: openai-codex
   model: gpt-5.6-terra
   base_url: https://chatgpt.com/backend-api/codex
-- provider: copilot
-  model: gpt-5.6-terra
 - provider: openrouter
   model: xiaomi/mimo-v2.5
   base_url: https://openrouter.ai/api/v1
@@ -17,7 +15,6 @@ credential_pool_strategies: {}
 toolsets:
 - hermes-cli
 - kanban
-- video_gen
 - video
 max_concurrent_sessions: null
 agent:
@@ -29,68 +26,16 @@ agent:
     mechanics only. Never let operational wording flatten the persona into generic
     assistant prose.
 
-    ### Answer shape (rich text)
+    ### Answer shape
 
-    - Answer in the persona's voice, but format for the screen: this is a rich-Markdown
-      chat, so lean into structure whenever it makes the answer clearer or easier to scan.
-    - Reach for real Markdown tables for comparisons and key/value summaries, numbered
-      lists for steps, bullet lists for options, task lists (`- [ ]`) for actions, and `##`
-      headings to separate sections. **Bold** for key terms; `code` for identifiers,
-      paths, and flags.
-    - Default to structured formatting over dense paragraphs for any comparison, set of
-      steps, key/value summary, or tabular data. Keep plain prose for short, conversational
-      replies (greeting / ack / clarifying / progress).
-    - Keep copy-paste-ready commands verbatim in fenced code blocks with a language tag
-      (bash, yaml, json, python, text). Never paraphrase a command away.
-    - Errors / failures / risks: state them directly in chat — never hide a failure.
-
-    ### Detail -> document (optional)
-
-    - Attaching a Markdown document is optional now — reach for it only for long reference
-      material that would bury the chat (a multi-section report, a large dataset). Otherwise
-      answer inline with rich structure.
-    - When you do attach: write_file to an absolute, host-readable path
-      (e.g. ~/.hermes/cache/documents/<topic>.md), no secrets / raw logs / .env / PII. Put
-      the bare path on its own line in the final message; the gateway delivers the file and
-      strips the path from visible text.
+    Keep commands copy-paste-ready in fenced blocks with a language tag; never
+    paraphrase a command. Keep plain prose for short conversational replies
+    (greeting / ack / clarifying / progress) — don't over-structure trivial answers.
 
     ### Sources
 
-    - You may keep useful structure from tool / web / worker output (tables, lists), but
-      rewrite it in the persona's voice — never paste raw logs, raw tool output, or worker
-      reports verbatim. Summarize and format; don't dump.
-
-    ### Example (shape only; wording stays SOUL's job)
-
-    When asked to research <thing>, after gathering, reply in chat as:
-
-        ## <thing>
-        <one-line what-it-is>.
-
-        | Field | Value |
-        | --- | --- |
-        | Maker | <who> |
-        | Highlight | <key feature> |
-        | Get it | <how / command> |
-
-        Key steps:
-        1. <step>
-        2. <step>
-
-    Reach for a table or list whenever it scans better than prose; keep it in the persona's voice.
-
-    ### One reply, one voice
-
-    Produce the user-facing answer exactly once, in the final message. If you attach a
-    document, call write_file first — that turn output at most a brief progress note, never
-    the answer or the path — then give the answer plus the bare path together in the final
-    message. Never repeat the same answer or path across messages.
-
-    ### Work rhythm
-
-    Briefly acknowledge long work, act, summarize the result, and continue. Never paste
-    raw tool output or worker reports; translate them into chat-ready prose in the
-    persona's voice.
+    Never paste raw tool, web, or worker output verbatim — rewrite it in the persona's
+    voice (summarize and format, don't dump).
 
     ### Memory
 
@@ -100,14 +45,20 @@ agent:
 
     ### Work routing
 
-    The `assistant-orchestration` skill owns triage and dispatch: silent
-    classification (inline vs kanban), worker choice, task specs, topology, and
-    failure recovery. Telegram topic sessions auto-load it; anywhere else, load
-    it (skill_view) before non-trivial work.
-    Baseline even while unloaded: conversation and single quick lookups stay
-    inline; heavy retrieval / analysis / code goes to kanban (searcher /
-    researcher / coder) with a self-contained task body; ack a dispatch with its
-    task id, never poll — completion notifications arrive automatically.
+    The `orchestration` skill owns triage and dispatch end-to-end — auto-loaded
+    in Telegram topic sessions; load it (skill_view) before non-trivial work
+    anywhere else. Baseline until it loads: conversation and single quick
+    lookups stay inline; heavy retrieval, analysis, code, or media production
+    goes to kanban (searcher / researcher / engineer / creator) — never do heavy
+    work inline yourself. Task-spec shape, topology, ack etiquette, and failure
+    recovery all live in the skill.
+
+    ### Blocked workers
+
+    A worker block (needs_input) notification is yours to triage even before the
+    orchestration skill loads: kanban_show the task, read its STATE:/Q<n>: comments,
+    answer whatever the task's grant already covers as DECISION(Q<n>) comments +
+    unblock, and relay only out-of-grant questions to the user.
   max_turns: 90
   gateway_timeout: 1800
   restart_drain_timeout: 180
@@ -124,7 +75,8 @@ agent:
   gateway_notify_interval: 180
   gateway_auto_continue_freshness: 3600
   image_input_mode: auto
-  disabled_toolsets: []
+  disabled_toolsets:
+  - image_gen
 terminal:
   backend: local
   modal_mode: auto
@@ -560,27 +512,30 @@ platforms:
   telegram:
     extra:
       rich_messages: true
+      # Opt back in to native rich messages for CJK text (local fork patch of
+      # upstream PR #56155; upstream gates CJK off by default for #47653).
+      allow_cjk_rich_messages: true
       dm_topics:
       - chat_id: 'YOUR_TELEGRAM_CHAT_ID'
         topics:
         - name: General
-          skill: assistant-orchestration
+          skill: orchestration
           icon_custom_emoji_id: '5417915203100613993'
           icon_color: 7322096
         - name: Creative
-          skill: assistant-orchestration
+          skill: orchestration
           icon_custom_emoji_id: '5310039132297242441'
           icon_color: 13338331
         - name: Engineering
-          skill: assistant-orchestration
+          skill: orchestration
           icon_custom_emoji_id: '5350554349074391003'
           icon_color: 9367192
         - name: Search
-          skill: assistant-orchestration
+          skill: orchestration
           icon_custom_emoji_id: '5309965701241379366'
           icon_color: 7322096
         - name: Personal
-          skill: assistant-orchestration
+          skill: orchestration
           icon_custom_emoji_id: '5312486108309757006'
           icon_color: 16766590
 mattermost:
@@ -621,7 +576,7 @@ cron:
   max_parallel_jobs: null
 kanban:
   dispatch_in_gateway: true
-  dispatch_interval_seconds: 60
+  dispatch_interval_seconds: 15
   failure_limit: 2
   worker_log_rotate_bytes: 2097152
   worker_log_backup_count: 1
