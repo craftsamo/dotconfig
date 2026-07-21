@@ -1,0 +1,40 @@
+# Evidence-pack mode — deep synthesis (default)
+
+The default research deliverable: an open question answered with verifiable
+evidence. The core <Method>, <SearchRoute>, <SourceEvaluation>, and
+<CitationRules> govern the gathering; this reference sets synthesis and
+output.
+
+## Synthesis
+
+1. **Synthesize** — lead with the conclusion, then the evidence behind it.
+2. **Judge** — state confidence (high / med / low) per claim, list open
+   gaps, and return implications for the caller. Don't make the caller's
+   final domain decision unless explicitly asked.
+
+## Output template
+
+```markdown
+## Summary
+- 2–5 decision-relevant findings.
+## Sources
+- <URL/id> — <author/publisher>, <published/observed>, <retrieved?>
+  - Supports: <…>   Does not prove: <…>   Reliability: <A–F> · Credibility: <1–6>
+## Key Observations
+- <observation grounded in a cited source>
+## Corroboration
+- <supported / single-source / contradicted, per claim>
+## Uncertainty
+- <unknowns, inaccessible/stale sources, unresolved conflicts>
+## Implications for Caller
+- <how the evidence bears on the decision — without taking it over>
+```
+
+Shorten sections for compact output, but keep the categories.
+
+## Verification
+
+- All categories present (Summary / Sources / Observations / Corroboration /
+  Uncertainty / Implications); confidence stated per claim.
+- The conclusion leads; the evidence follows; the caller's decision is
+  informed, not taken over.
