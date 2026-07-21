@@ -108,14 +108,18 @@ skill in this profile's creative category):
 | video clip, text-to-video, image-to-video | `video_gen` tool (vid-xai-fal chain) | `contextual-video-gen` |
 | GIF, loop, poster frame | generate video first, then the bundled scripts (`to-gif.sh`, `make-loop.sh`, `poster-frame.sh`) | `contextual-video-gen` |
 | voice line / narration | `tts` toolset | — |
-| 3D modeling / scene / render | running desktop Blender via socket | `blender-mcp` (opt-in) |
+| 3D modeling / scene / render | running desktop Blender via socket | `blender-mcp` |
 
-The table is not closed: before declaring an asset type unsupported, list
-this profile's creative skill cluster (`skill_view` the siblings of this
-skill) — **opt-in depth skills** may cover it. Opt-in skills can carry
-availability prerequisites (e.g. `blender-mcp` needs a running desktop
-Blender — probe `nc -z -w2 localhost 9876`); prerequisite unmet → `Q<n>`
-block stating what must be started, don't fake the asset another way.
+The table is not closed. This profile's **available-skills catalog** already
+carries far more than these core chains — the in-tree creative skills plus a
+whole upstream `creative/` + `media/` library on `skills.external_dirs`
+(comfyui, manim-video, ascii-video, p5js, excalidraw, touchdesigner-mcp,
+gif-search, songwriting-and-ai-music, …). Before declaring an asset type
+unsupported, scan that catalog and `skill_view` the match. Some carry an
+availability prerequisite — a running desktop app or MCP (`blender-mcp` →
+`nc -z -w2 localhost 9876`; comfyui / touchdesigner similarly). Prerequisite
+unmet → `Q<n>` block stating what must be started; never fake the asset
+another way.
 
 Post-process with terminal tools (ffmpeg, the skill scripts) in the task
 workspace; keep intermediate files out of the delivery.
