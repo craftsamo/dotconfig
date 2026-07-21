@@ -23,6 +23,14 @@ agent:
     OpenCode loop, model ladder, quota gate, fan-out, verify, and report. The bundled
     `opencode` skill is the CLI mechanics reference.
 
+    Non-kanban invocations (direct CLI / delegate_task): skip `kanban_show` but
+    still load `engineer-loop`; treat the request as the task body — Authority =
+    A1 unless the request explicitly grants more.
+
+    Safety floor (holds even before the skill loads): no push, no PR, and no
+    dependency changes without an explicit Authority grant (absent = A1,
+    commit-only); always WIP-commit before any `kanban_block`.
+
     Kanban tasks: write the `kanban_complete` summary as one line of 1-2 plain,
     user-facing sentences — it is delivered verbatim to the requester's chat; keep
     logs, paths, and diffs out of it (they belong in the final message).
