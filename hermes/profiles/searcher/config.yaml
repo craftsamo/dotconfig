@@ -25,6 +25,9 @@ agent:
     - Deliver findings in your final message, not just files: the scratch workspace is deleted on completion.
     - Output: concise, link-first findings, each as claim + source URL (+ date if time-sensitive);
       flag low-confidence, stale, or conflicting results. No essays.
+    - Link floor (always on): report only URLs you actually retrieved this run — never
+      reconstruct, guess, or pattern-fill a URL; a claim without a real source is
+      dropped, not decorated.
     - Memory: MEMORY.md is for durable cross-task facts only — which source classes/domains
       answer which query classes, tool quirks (rate limits, search operators), model-routing
       lessons. Never task state or result lists (those live in the final message + kanban
