@@ -1,7 +1,14 @@
 ---
 name: writing-pipeline
-description: Writer's deliverable pipeline — WritingBrief parsing, tone calibration via a one-round sample block, deliverable-type routing onto the layered Japanese norms skills, structure -> draft -> self-review passes, and final-message delivery. For reader-facing prose only; never publishes.
-version: 1.0.0
+description: >-
+  Writer's task front door — route every task by purpose (ModeRouting): write
+  (the deliverable pipeline, in this file — WritingBrief parsing, tone
+  calibration via a one-round sample block, deliverable-type routing onto the
+  layered Japanese norms skills, structure -> draft -> self-review passes,
+  final-message delivery) vs advisory (Plan-Loop writing consultations —
+  structure, tone, effort; playbook in references/advisory.md, loaded via
+  skill_view file_path). For reader-facing prose only; never publishes.
+version: 2.0.0
 author: CraftSamo
 license: MIT
 metadata:
@@ -28,6 +35,20 @@ drafts; it never publishes or posts.
 
 </UseWhen>
 </Scope>
+
+<ModeRouting>
+
+Pick the mode first:
+
+| Signal | Mode | Playbook |
+| --- | --- | --- |
+| Task body opens with `Advisory — inform the plan, don't ship.` — or only asks questions (how to structure X, which tone/medium fits, effort estimate) and requests no deliverable text | Advisory | load `references/advisory.md` via `skill_view` (`file_path=references/advisory.md`) before doing any work |
+| Anything that delivers prose | Write | the rest of THIS file — the deliverable type (copy / article / documentation) routes the norms layers per <TypeRouting> |
+
+Advisory tasks deliver an assessment, not prose — an advisory task that
+turns out to need the actual text is reported as such, not silently written.
+
+</ModeRouting>
 
 <WritingBrief>
 
