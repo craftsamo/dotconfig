@@ -16,7 +16,6 @@ fallback_providers:
 credential_pool_strategies: {}
 toolsets:
   - hermes-cli
-  - video_gen
 max_concurrent_sessions: null
 agent:
   system_prompt: |
