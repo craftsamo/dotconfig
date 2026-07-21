@@ -64,14 +64,20 @@ When you need facts to make the plan concrete, dispatch via **kanban**
 don't get confused with deliverables:
 
 - `workspace_kind: scratch`, small `max_runtime_seconds` (e.g. 600).
-- Body opens with **"Advisory — inform the plan, don't ship."** and closes
-  with what the plan needs from the result (a feasibility verdict, a
-  landscape scan, a tradeoff matrix).
-- Engineer at the **feasibility altitude** ("is this buildable, what's the
-  shape, what's the risk, rough size") — not implementation altitude. The
-  deliverable is a short assessment, not code.
-- Searcher for landscape scans; researcher for synthesis / tradeoff
-  matrices.
+- Body opens with **"Advisory — inform the plan, don't ship."** — this
+  opener is the universal advisory marker: every worker's loop skill
+  routes on it into a consultation playbook (short assessment, nothing
+  produced or shipped). Close the body with what the plan needs from the
+  result (a feasibility verdict, a landscape scan, a tradeoff matrix).
+- Any worker can be consulted, each at its own altitude:
+  - **engineer** — feasibility ("is this buildable, what's the shape,
+    what's the risk, rough size"), not implementation.
+  - **searcher** — landscape scans; **researcher** — synthesis / tradeoff
+    matrices.
+  - **creator** — media feasibility, chain fit, Budget estimate (no
+    generation spend).
+  - **writer** — structure, tone/norms recommendation, effort.
+  - **marketer** — channel fit, campaign shape, effort.
 - Ack the user in chat when consultations are in flight; never poll. Worker
   completion notifications resume the Plan Loop where you left off.
 
