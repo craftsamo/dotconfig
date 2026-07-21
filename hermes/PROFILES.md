@@ -134,6 +134,15 @@ them when asked (`orchestration` `<StatusCheck>`). The gateway's
 roughly the answer time + ~20 s. Details: engineer's `engineer-loop` skill and
 assistant's `orchestration` `<BlockedTriage>`.
 
+The comment protocol is worker-generic, not engineer-specific: **creator**
+speaks the same markers with a **Budget** grant as its Authority analog
+(generation-spend caps; defaults 4 image variants / 2 video renders per
+asset + 1 corrective pass, expanded only via `AUTHORITY+:`), leaves
+`PROGRESS:` per finished asset, and — since a task's scratch workspace
+survives block/crash respawns (deleted only on completion) — resumes by
+inventorying surviving intermediates instead of re-spending credits.
+Details: creator's `media-production` skill.
+
 ### Default is the assistant's CLI counterpart (and stays a clean baseline)
 
 default and assistant are the two faces of the same front door: identical
@@ -181,10 +190,12 @@ Three per-profile layers, kept separate:
   - researcher → `research-pipeline` (search route + Admiralty/SIFT source evaluation; evidence discipline)
   - searcher → `breadth-retrieval` (query expansion, source-class routing, link-first hand-off)
     + `deep-retrieval` (explicit multi-hop hunts: `skills: ["deep-retrieval"]` + `goal_mode`)
-  - creator → `media-production` (asset-type routing to the gen chains, clarify-before-generate,
-    visual verification, kanban_attach delivery) + the sibling `contextual-image-gen` /
-    `contextual-video-gen` depth skills (moved from default's tree — creator owns the
-    creative cluster)
+  - creator → `media-production` (asset-type routing to the gen chains + opt-in
+    depth skills (e.g. blender-mcp), Budget grant parsing, structured STATE/Qn
+    block dialogue, per-asset PROGRESS, workspace-reuse resume, visual
+    verification, kanban_attach delivery) + the sibling `contextual-image-gen` /
+    `contextual-video-gen` depth skills (moved from default's tree — creator owns
+    the creative cluster)
 
 Routing (assistant): `orchestration` owns it. The skill is
 **auto-loaded into every new Telegram topic session** via the per-topic
