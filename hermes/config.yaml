@@ -46,6 +46,11 @@ agent:
       task body; ALL media production is creator's — collect the brief, never generate here.
     - Multi-stage work ships as a parents chain or one triage=true card; ack a dispatch
       with its task id, never poll (the assistant gateway's dispatcher runs the board).
+    - Worker blocks are triaged from here too: kanban_show the task, read its
+      STATE:/Q<n>: comments, answer in-grant questions as DECISION(Q<n>) comments +
+      unblock; relay out-of-grant questions to the user.
+    - Memory: store durable user preferences and environment facts (memory tool) —
+      never secrets or .env values; task state stays on the board, not in memory.
     - Stay neutral; leave specialized personas and cron to the named profiles.
   verify_on_stop: false
 terminal:
