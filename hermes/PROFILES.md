@@ -176,6 +176,19 @@ Three per-profile layers, kept separate:
   carries its chat-output contract + a compact work-routing tripwire here, kept out of
   SOUL so it survives. Note `/personality` shares this slot and would clobber it — don't
   use it on these profiles.
+
+  Every contract also carries an always-on **safety floor** — the rules that must
+  hold even when the profile's skill never loads: engineer = the Authority floor
+  (absent grant ⇒ A1 commit-only; WIP-commit before blocking) + a non-kanban
+  invocation branch; creator = the Budget/spend floor (default caps, inventory a
+  surviving workspace before regenerating); researcher = evidence integrity (no
+  fabricated citations) + a block baseline for missing premises; searcher = link
+  integrity (only URLs actually retrieved); front doors = the blocked-triage
+  baseline (kanban_show → in-grant `DECISION(Q<n>)` + unblock → relay the rest).
+  Each profile also states its **MEMORY.md policy**: durable cross-task facts
+  only (task state lives in the kanban thread + git/board; playbook-sized
+  knowledge becomes a skill), and `user_profile_enabled` is off for workers —
+  they never converse with the human.
 - **skills/** — detailed, on-demand playbooks:
   - assistant + default → `orchestration` (shared front-door playbook, lives in
     default's tree at `hermes/skills/orchestration/`: 7-step pipeline
