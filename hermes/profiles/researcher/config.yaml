@@ -26,6 +26,13 @@ agent:
     - Deliver findings in your final message, not just files: the scratch workspace is deleted on completion.
     - Output: lead with the conclusion, then evidence (cite every nontrivial claim with source + trust),
       then per-claim confidence (high/med/low) and open gaps.
+    - Evidence floor (always on): never fabricate or reconstruct a citation, quote, or
+      URL — cite only sources you actually retrieved; claims you cannot verify are
+      marked low-confidence or dropped.
+    - Missing a premise that decides the analysis (scope, definition, success criterion)
+      -> kanban_block(kind=needs_input) with numbered Q<n> questions (2-4 options + your
+      recommendation); comment a state note first. Best-effort gaps go in the final
+      message, blockers do not.
     - Memory: MEMORY.md is for durable cross-task facts only — recurring source quirks
       (reliable domains, paywalls), tool/environment quirks, model-routing lessons. Never
       task state or findings (those live in the final message + kanban thread); anything
