@@ -190,12 +190,14 @@ Three per-profile layers, kept separate:
   - researcher → `research-pipeline` (search route + Admiralty/SIFT source evaluation; evidence discipline)
   - searcher → `breadth-retrieval` (query expansion, source-class routing, link-first hand-off)
     + `deep-retrieval` (explicit multi-hop hunts: `skills: ["deep-retrieval"]` + `goal_mode`)
-  - creator → `media-production` (asset-type routing to the gen chains + opt-in
-    depth skills (e.g. blender-mcp), Budget grant parsing, structured STATE/Qn
-    block dialogue, per-asset PROGRESS, workspace-reuse resume, visual
-    verification, kanban_attach delivery) + the sibling `contextual-image-gen` /
-    `contextual-video-gen` depth skills (moved from default's tree — creator owns
-    the creative cluster)
+  - creator → `media-production` (asset-type routing to the gen chains + the
+    creative-skill catalog, Budget grant parsing, structured STATE/Qn block
+    dialogue, per-asset PROGRESS, workspace-reuse resume, visual verification,
+    kanban_attach delivery) + the in-tree `contextual-image-gen` /
+    `contextual-video-gen` / `blender-mcp` depth skills, plus the upstream
+    `creative/` + `media/` libraries referenced via `skills.external_dirs`
+    (comfyui, manim-video, touchdesigner-mcp, gif-search, … — creator owns the
+    creative cluster)
 
 Routing (assistant): `orchestration` owns it. The skill is
 **auto-loaded into every new Telegram topic session** via the per-topic
@@ -224,14 +226,21 @@ list (tiers 2+). `fallback_providers` is **per-turn**: it triggers on errors
 (429 / 5xx / 401 / 404 / malformed) and the primary is restored on the next
 turn. The default profile already proves the YAML shape.
 
+The shape mirrors OpenCode's split: **front doors = Claude (judgment +
+long-lived context on the Max plan); workers = GPT / Grok (stateless
+task turns); cheap OpenRouter tails.** The engineer's own turns are
+orchestration (OpenCode does the coding), so it rides the GPT tier; the
+coding model inside OpenCode is chosen per run by the engineer-loop's
+comparative QuotaGate.
+
 | Profile | T1 (primary) | T2 | T3 | T4 |
 | --- | --- | --- | --- | --- |
-| **default** | `anthropic` / claude-sonnet-5 | `openai-codex` / gpt-5.6-terra | `copilot` / gpt-5.6-terra | `openrouter` / `xiaomi/mimo-v2.5` |
-| **assistant** | `anthropic` / claude-sonnet-5 | `openai-codex` / gpt-5.6-terra | `copilot` / gpt-5.6-terra | `openrouter` / `xiaomi/mimo-v2.5` |
-| **engineer** | `anthropic` / claude-sonnet-5 | `openai-codex` / gpt-5.6-terra | `copilot` / gpt-5.6-terra | `openrouter` / `deepseek/deepseek-v4-flash` |
+| **default** | `anthropic` / claude-opus-4-8 | `openai-codex` / gpt-5.6-terra | `copilot` / claude-sonnet-4.6 | `openrouter` / `xiaomi/mimo-v2.5` |
+| **assistant** | `anthropic` / claude-opus-4-8 | `openai-codex` / gpt-5.6-terra | `copilot` / claude-sonnet-4.6 | `openrouter` / `xiaomi/mimo-v2.5` |
+| **engineer** | `openai-codex` / gpt-5.6-terra | `copilot` / gpt-5.4 | `openrouter` / `deepseek/deepseek-v4-flash` | — |
 | **researcher** | `xai-oauth` / grok-4.3 | `copilot` / claude-sonnet-4.6 | `openrouter` / `deepseek/deepseek-v4-flash` | — |
-| **searcher** | `xai-oauth` / grok-4.3 | `copilot` / gpt-5.6-terra | `openrouter` / `deepseek/deepseek-v4-flash` | — |
-| **creator** | `openai-codex` / gpt-5.6-terra | `copilot` / gpt-5.6-terra | `openrouter` / `google/gemini-3.5-flash` | — |
+| **searcher** | `xai-oauth` / grok-4.3 | `copilot` / gpt-5.4 | `openrouter` / `deepseek/deepseek-v4-flash` | — |
+| **creator** | `openai-codex` / gpt-5.6-terra | `copilot` / gpt-5.4 | `openrouter` / `google/gemini-3.5-flash` | — |
 
 ```yaml
 # example — researcher's ~/.hermes/profiles/researcher/config.yaml
@@ -251,16 +260,21 @@ fallback_providers:
 Model facts confirmed during the build (live `provider_models_cache.json` + test
 calls):
 
-- **Anthropic native (T1)** — `default` / `assistant` / `engineer` lead with
-  `anthropic` / `claude-sonnet-5` (`base_url: https://api.anthropic.com`,
-  `api_mode: anthropic_messages`; in the curated lists since upstream 766c617).
-  OAuth (Claude Pro/Max) — `hermes auth status anthropic` → *logged in*.
-  codex/gpt-5.6-terra drops to T2.
+- **Anthropic native (T1)** — `default` / `assistant` lead with
+  `anthropic` / `claude-opus-4-8` (`base_url: https://api.anthropic.com`,
+  `api_mode: anthropic_messages`; slug in the live cache). OAuth (Claude
+  Pro/Max) — `hermes auth status anthropic` → *logged in*. The engineer left
+  the Claude tier 2026-07 (resource rebalance: its own turns are
+  orchestration; Claude is spent inside OpenCode via the QuotaGate instead).
 - **Grok** — `grok-4.3` is current on `xai-oauth` and verified working (the
   retired `grok-4*` glob doesn't cover it; re-auth via `hermes model` if the
   token lapses). `x-ai/grok-4.3` is the OpenRouter equivalent for per-token use.
-- **Copilot has no Grok** — its catalog is Claude + GPT-5.x + gemini-2.5-pro, so
-  worker T2 uses `claude-sonnet-4.6` (researcher) / `gpt-5.6-terra` (searcher).
+- **Copilot catalog drift** — as of 2026-07 the catalog is the gpt-5.4
+  generation + `claude-sonnet-4.x` + gemini (no `gpt-5.6-*`, no Grok): the
+  old `copilot / gpt-5.6-terra` tiers 404'd and silently fell through, so
+  copilot tiers now pin `claude-sonnet-4.6` (front doors, researcher) /
+  `gpt-5.4` (engineer, searcher, creator). Re-check the cache after Copilot
+  catalog updates.
 - **OpenRouter slugs** — `xiaomi/mimo-v2.5`, `deepseek/deepseek-v4-flash`,
   `google/gemini-3.5-flash` (the earlier `*-v3.2` / `gemini-3-flash-preview`
   refs were planning guesses).
@@ -268,9 +282,9 @@ calls):
   `xiaomi/mimo-v2.5` as their deepest tier (now **T4**) because it is
   **vision-capable**, so image input stays native even on a deep fallback turn
   (video analysis is decoupled via the `video-analyze-mimo` plugin — see
-  `README.md` "Plugins"). The worker profiles (`engineer` T4 / `researcher` T3 /
-  `searcher` T3) use the cheaper text-only `deepseek/deepseek-v4-flash`; they
-  don't need native image vision. `creator` is the exception: it leads with
+  `README.md` "Plugins"). The worker profiles (`engineer` / `researcher` /
+  `searcher`, deepest tier each) use the cheaper text-only
+  `deepseek/deepseek-v4-flash`; they don't need native image vision. `creator` is the exception: it leads with
   codex/`gpt-5.6-terra` (media work is tool-driven) and keeps vision-capable
   `google/gemini-3.5-flash` as its deepest tier so it can still eyeball
   generated assets on a fallback turn.
@@ -401,9 +415,12 @@ Telegram-only per #40695); the embedded dispatcher auto-claims tasks across
 ticks (`dispatch_interval_seconds: 15` for fast block round-trips).
 `install.sh` links every tracked profile (incl. `profile.yaml`) with no WARN.
 
-Model slugs confirmed live: `anthropic` / `claude-sonnet-5` (T1 for default /
-assistant / engineer; `hermes auth status anthropic` → logged in), `grok-4.3` on
-`xai-oauth`, `claude-sonnet-4.6` via `copilot` (worker T2),
-`deepseek/deepseek-v4-flash`, `google/gemini-3.5-flash`; Copilot has no Grok.
+Model slugs confirmed against the live cache (2026-07 rebalance):
+`anthropic` / `claude-opus-4-8` (front-door T1; `hermes auth status
+anthropic` → logged in), `openai-codex` / `gpt-5.6-terra` (engineer/creator
+T1), `grok-4.3` on `xai-oauth`, `claude-sonnet-4.6` + `gpt-5.4` via
+`copilot` (the gpt-5.6 copilot slugs 404 — catalog drift),
+`deepseek/deepseek-v4-flash`, `google/gemini-3.5-flash`.
 
-Remaining (manual): Telegram round-trip — message the bot and confirm a reply.
+Remaining (manual): Telegram round-trip — message the bot and confirm a
+reply; re-run `hermes doctor` after the 2026-07 tier rebalance.
