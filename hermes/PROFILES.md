@@ -283,16 +283,16 @@ orchestration (OpenCode does the coding), so it rides the GPT tier; the
 coding model inside OpenCode is chosen per run by the engineer-loop's
 comparative QuotaGate.
 
-| Profile | T1 (primary) | T2 | T3 | T4 |
-| --- | --- | --- | --- | --- |
-| **default** | `anthropic` / claude-opus-4-8 | `openai-codex` / gpt-5.6-terra | `copilot` / claude-sonnet-4.6 | `openrouter` / `xiaomi/mimo-v2.5` |
-| **assistant** | `anthropic` / claude-opus-4-8 | `openai-codex` / gpt-5.6-terra | `copilot` / claude-sonnet-4.6 | `openrouter` / `xiaomi/mimo-v2.5` |
-| **engineer** | `openai-codex` / gpt-5.6-terra | `copilot` / gpt-5.4 | `openrouter` / `deepseek/deepseek-v4-flash` | — |
-| **researcher** | `xai-oauth` / grok-4.3 | `copilot` / claude-sonnet-4.6 | `openrouter` / `deepseek/deepseek-v4-flash` | — |
-| **searcher** | `xai-oauth` / grok-4.3 | `copilot` / gpt-5.4 | `openrouter` / `deepseek/deepseek-v4-flash` | — |
-| **creator** | `openai-codex` / gpt-5.6-terra | `copilot` / gpt-5.4 | `openrouter` / `google/gemini-3.5-flash` | — |
-| **writer** | `anthropic` / claude-sonnet-5 | `openai-codex` / gpt-5.6-sol | `openrouter` / `deepseek/deepseek-v4-flash` | — |
-| **marketer** | `openai-codex` / gpt-5.6-sol | `openrouter` / `xiaomi/mimo-v2.5` | — | — |
+| Profile | T1 (primary) | T2 | T3 |
+| --- | --- | --- | --- |
+| **default** | `anthropic` / claude-opus-4-8 | `openai-codex` / gpt-5.6-terra | `openrouter` / `xiaomi/mimo-v2.5` |
+| **assistant** | `anthropic` / claude-opus-4-8 | `openai-codex` / gpt-5.6-terra | `openrouter` / `xiaomi/mimo-v2.5` |
+| **engineer** | `openai-codex` / gpt-5.6-sol | `openrouter` / `deepseek/deepseek-v4-flash` | — |
+| **researcher** | `xai-oauth` / grok-4.3 | `openrouter` / `xiaomi/mimo-v2.5` | — |
+| **searcher** | `xai-oauth` / grok-4.3 | `openrouter` / `xiaomi/mimo-v2.5` | — |
+| **creator** | `openai-codex` / gpt-5.6-terra | `openrouter` / `minimax/minimax-m3` | — |
+| **writer** | `anthropic` / claude-sonnet-5 | `openai-codex` / gpt-5.6-sol | `openrouter` / `deepseek/deepseek-v4-flash` |
+| **marketer** | `openai-codex` / gpt-5.6-sol | `openrouter` / `xiaomi/mimo-v2.5` | — |
 
 ```yaml
 # example — researcher's ~/.hermes/profiles/researcher/config.yaml
@@ -301,10 +301,8 @@ model:
   provider: xai-oauth
   base_url: https://api.x.ai/v1
 fallback_providers:
-  - provider: copilot
-    model: claude-sonnet-4.6
   - provider: openrouter
-    model: deepseek/deepseek-v4-flash
+    model: xiaomi/mimo-v2.5
     base_url: https://openrouter.ai/api/v1
     api_mode: chat_completions
 ```
@@ -321,25 +319,24 @@ calls):
 - **Grok** — `grok-4.3` is current on `xai-oauth` and verified working (the
   retired `grok-4*` glob doesn't cover it; re-auth via `hermes model` if the
   token lapses). `x-ai/grok-4.3` is the OpenRouter equivalent for per-token use.
-- **Copilot catalog drift** — as of 2026-07 the catalog is the gpt-5.4
-  generation + `claude-sonnet-4.x` + gemini (no `gpt-5.6-*`, no Grok): the
-  old `copilot / gpt-5.6-terra` tiers 404'd and silently fell through, so
-  copilot tiers now pin `claude-sonnet-4.6` (front doors, researcher) /
-  `gpt-5.4` (engineer, searcher, creator). Re-check the cache after Copilot
-  catalog updates.
+- **Copilot retired from every chain** (2026-07): the subscription became
+  unusable, and its catalog drift had already 404'd tiers silently once.
+  All fallbacks now go straight to OpenRouter (per-token, no catalog
+  surprises). `GITHUB_TOKEN` stays in the `hermes` Keychain layer for the
+  Skills Hub — it is no longer a model-provider credential.
 - **OpenRouter slugs** — `xiaomi/mimo-v2.5`, `deepseek/deepseek-v4-flash`,
   `google/gemini-3.5-flash` (the earlier `*-v3.2` / `gemini-3-flash-preview`
   refs were planning guesses).
-- **Deepest-tier split (mimo vs deepseek)** — `default` / `assistant` keep
-  `xiaomi/mimo-v2.5` as their deepest tier (now **T4**) because it is
-  **vision-capable**, so image input stays native even on a deep fallback turn
-  (video analysis is decoupled via the `video-analyze-mimo` plugin — see
-  `README.md` "Plugins"). The worker profiles (`engineer` / `researcher` /
-  `searcher`, deepest tier each) use the cheaper text-only
-  `deepseek/deepseek-v4-flash`; they don't need native image vision. `creator` is the exception: it leads with
-  codex/`gpt-5.6-terra` (media work is tool-driven) and keeps vision-capable
-  `google/gemini-3.5-flash` as its deepest tier so it can still eyeball
-  generated assets on a fallback turn.
+- **OpenRouter tail split (vision vs text-only)** — profiles whose fallback
+  turns may need to SEE something keep a vision-capable tail:
+  `default` / `assistant` / `researcher` / `searcher` / `marketer` use
+  `xiaomi/mimo-v2.5` (omnimodal, cheap; video analysis stays decoupled via
+  the `video-analyze-mimo` plugin — see `README.md` "Plugins"), and
+  `creator` uses `minimax/minimax-m3` (image + video input) so it can still
+  eyeball generated assets. Text-only work rides the cheaper
+  `deepseek/deepseek-v4-flash` (`engineer`, `writer` tail). Researcher and
+  searcher gained vision in the 2026-07 copilot removal as a side effect of
+  standardizing on mimo.
 - **Writer breaks the workers-ride-GPT rule on purpose** (added 2026-07): its
   deliverable IS the prose, so T1 is `anthropic` / `claude-sonnet-5` (Claude
   Max quota — accepted tradeoff; sonnet over opus to keep the quota cost down).
@@ -378,12 +375,11 @@ the default profile's `~/.hermes/auth.json` (`auth.py:1131-1157,1215-1259`).
 
 Two caveats:
 
-1. **Copilot token shadowing.** Copilot checks env before stored OAuth creds
-   (`COPILOT_GITHUB_TOKEN` → `GH_TOKEN` → `GITHUB_TOKEN` → `gh`). The current
-   `hermes`-layer `GITHUB_TOKEN` is already Copilot-capable (verified with a live
-   `--provider copilot` call), so this is fine — but if you swap it for a classic
-   `ghp_*` token, Copilot 401s. Then set a Copilot-capable
-   **`COPILOT_GITHUB_TOKEN`** (highest priority) so it wins regardless.
+1. **Copilot token shadowing** (historical — copilot left every model chain
+   2026-07, kept for if it returns). Copilot checks env before stored OAuth
+   creds (`COPILOT_GITHUB_TOKEN` → `GH_TOKEN` → `GITHUB_TOKEN` → `gh`); a
+   non-Copilot-capable `GITHUB_TOKEN` in the `hermes` layer would 401 it.
+   `COPILOT_GITHUB_TOKEN` (highest priority) overrides regardless.
 2. **Parallel OAuth refresh.** Several workers refreshing the same rotating
    refresh token at once can race to `invalid_grant`. If it bites, move
    high-parallelism workers' T1 to an API-key provider (OpenRouter / `XAI_API_KEY`).
@@ -398,8 +394,9 @@ routes through the same `bin/hermes` shim — **every profile gets `global` +
 [`README.md`](./README.md#secrets).
 
 - **`hermes`** — shared model/fallback keys every profile and every
-  dispatcher-spawned worker needs: `OPENROUTER_API_KEY` (T3) and a
-  Copilot-capable `GITHUB_TOKEN` (the `copilot` T2 + Skills Hub).
+  dispatcher-spawned worker needs: `OPENROUTER_API_KEY` (the OpenRouter
+  fallback tails) and `GITHUB_TOKEN` (Skills Hub; no longer a model
+  provider since the 2026-07 copilot retirement).
 - **`global`** — keys shared with *other* tools (editor, MCP servers, other
   CLIs). Nothing Hermes-specific needs to live here.
 - **gateway secrets** (`DISCORD_BOT_TOKEN`, `TELEGRAM_BOT_TOKEN`, +
@@ -482,12 +479,14 @@ Telegram-only per #40695); the embedded dispatcher auto-claims tasks across
 ticks (`dispatch_interval_seconds: 15` for fast block round-trips).
 `install.sh` links every tracked profile (incl. `profile.yaml`) with no WARN.
 
-Model slugs confirmed against the live cache (2026-07 rebalance):
-`anthropic` / `claude-opus-4-8` (front-door T1; `hermes auth status
-anthropic` → logged in), `openai-codex` / `gpt-5.6-terra` (engineer/creator
-T1), `grok-4.3` on `xai-oauth`, `claude-sonnet-4.6` + `gpt-5.4` via
-`copilot` (the gpt-5.6 copilot slugs 404 — catalog drift),
-`deepseek/deepseek-v4-flash`, `google/gemini-3.5-flash`.
+Model slugs confirmed 2026-07 (live cache + OpenRouter model pages after the
+copilot removal): `anthropic` / `claude-opus-4-8` and `claude-sonnet-5`
+(`hermes auth status anthropic` → logged in), `openai-codex` /
+`gpt-5.6-terra` + `gpt-5.6-sol`, `grok-4.3` on `xai-oauth`, and the
+OpenRouter tails `xiaomi/mimo-v2.5` (vision; live on openrouter.ai but
+missing from a stale local model cache — refresh before trusting doctor),
+`minimax/minimax-m3` (image+video), `deepseek/deepseek-v4-flash`
+(text-only).
 
 Remaining (manual): Telegram round-trip — message the bot and confirm a
 reply; re-run `hermes doctor` after the 2026-07 tier rebalance.
