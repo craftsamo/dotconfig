@@ -1,20 +1,36 @@
 ---
 name: research-pipeline
-description: Researcher's evidence-grounded pipeline — search route, source trust scores, and a gather -> cross-reference -> synthesize -> judge procedure that keeps observation, inference, and uncertainty separate.
-version: 1.0.0
+description: >-
+  Researcher's task front door — route every task by goal (ModeRouting), then
+  load the matching reference — evidence-pack (the default deep synthesis
+  deliverable) vs tradeoff-matrix (Plan-Loop decision support — options ×
+  criteria with a recommendation) vs fact-check (claim-by-claim verdicts,
+  narrow and fast). This core file always applies — it owns the shared
+  method: the search route, dual-axis source evaluation (reliability A-F ×
+  credibility 1-6, NATO/Admiralty + SIFT), the gather → cross-reference →
+  counterevidence discipline that keeps observation, inference, and
+  uncertainty separate, and citation rules. Output formats and per-goal
+  procedure live in references/{evidence-pack,tradeoff-matrix,fact-check}.md —
+  load them via skill_view file_path per ModeRouting, never skip.
+version: 2.0.0
 author: CraftSamo
 license: MIT
 metadata:
   hermes:
-    tags: [research, methodology, sources, citations, synthesis, verification]
+    tags: [research, methodology, sources, citations, synthesis, verification, tradeoff, fact-check]
     category: research
 ---
 
 <Goal>
 
-The standard method for research tasks. Accuracy outranks speed, confidence, and
-completeness. The goal is evidence the caller can verify and act on — not a
-confident-sounding answer.
+The standard method for research tasks. Accuracy outranks speed, confidence,
+and completeness — the goal is evidence the caller can verify and act on,
+shaped to what the caller actually asked for:
+
+- **Evidence-pack** — deep synthesis of a question (default).
+- **Tradeoff-matrix** — decision support: compare named options against
+  criteria, recommend one (the Plan-Loop consultation form).
+- **Fact-check** — verify specific claims, narrow and fast.
 
 </Goal>
 
@@ -26,6 +42,23 @@ confident-sounding answer.
 
 </UseWhen>
 </Scope>
+
+<ModeRouting>
+
+Pick the mode first, then **load the matching reference with `skill_view`
+(`file_path=references/<file>`) before gathering**. Never deliver from this
+core file alone.
+
+| Signal (check in order) | Mode | Load |
+| --- | --- | --- |
+| Body opens with `Advisory — inform the plan, don't ship.` — or asks to compare named options / pick between approaches for a decision | Tradeoff-matrix | `references/tradeoff-matrix.md` |
+| Body presents specific claim(s) to verify ("is it true that…", "confirm/refute…") | Fact-check | `references/fact-check.md` |
+| Anything else (open question, landscape analysis, synthesis) | Evidence-pack | `references/evidence-pack.md` |
+
+The shared method below applies in every mode; the reference sets the
+procedure emphasis, output format, and done criteria.
+
+</ModeRouting>
 
 <SearchRoute>
 
@@ -72,7 +105,9 @@ Observation / Corroboration / Inference / Uncertainty buckets below.
 
 </SourceEvaluation>
 
-<Steps>
+<Method>
+
+The shared gathering discipline, every mode:
 
 1. **Scope.** Restate the question, the caller's decision context, success
    criteria, and key sub-questions. State an assumption and proceed when a
@@ -93,34 +128,10 @@ Observation / Corroboration / Inference / Uncertainty buckets below.
    - Corroboration — independent support (or single-source / contradicted)
    - Inference — what may follow from the evidence
    - Uncertainty — unknown, stale, or weakly supported
-8. **Synthesize** — lead with the conclusion, then the evidence behind it.
-9. **Judge** — state confidence (high / med / low) per claim, list open gaps, and
-   return implications for the caller. Don't make the caller's final domain
-   decision unless explicitly asked.
 
-</Steps>
+Then synthesize and deliver per the loaded reference's format.
 
-<OutputTemplate>
-
-Evidence pack (default):
-```markdown
-## Summary
-- 2–5 decision-relevant findings.
-## Sources
-- <URL/id> — <author/publisher>, <published/observed>, <retrieved?>
-  - Supports: <…>   Does not prove: <…>   Reliability: <A–F> · Credibility: <1–6>
-## Key Observations
-- <observation grounded in a cited source>
-## Corroboration
-- <supported / single-source / contradicted, per claim>
-## Uncertainty
-- <unknowns, inaccessible/stale sources, unresolved conflicts>
-## Implications for Caller
-- <how the evidence bears on the decision — without taking it over>
-```
-Shorten sections for compact output, but keep the categories.
-
-</OutputTemplate>
+</Method>
 
 <CitationRules>
 
@@ -133,6 +144,8 @@ Shorten sections for compact output, but keep the categories.
 
 <Pitfalls>
 
+- Delivering without loading the mode reference — the output format and done
+  criteria live there.
 - A high search ranking is not high trust — score the source, not its position.
 - Virality / repetition is evidence of attention, not truth.
 - One plausible source is not enough for a high-impact claim.
@@ -142,6 +155,7 @@ Shorten sections for compact output, but keep the categories.
 
 <Verification>
 
+- Mode routed per <ModeRouting>; output follows the loaded reference's format.
 - Every nontrivial claim traces to a scored source, a direct observation, or a
   stated uncertainty.
 - Quotes are verbatim and short; metadata suffices for later verification.
