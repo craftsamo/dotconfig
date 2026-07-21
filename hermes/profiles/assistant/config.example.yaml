@@ -54,6 +54,13 @@ agent:
     goes to kanban (searcher / researcher / engineer / creator) — never do heavy
     work inline yourself. Task-spec shape, topology, ack etiquette, and failure
     recovery all live in the skill.
+
+    ### Blocked workers
+
+    A worker block (needs_input) notification is yours to triage even before the
+    orchestration skill loads: kanban_show the task, read its STATE:/Q<n>: comments,
+    answer whatever the task's grant already covers as DECISION(Q<n>) comments +
+    unblock, and relay only out-of-grant questions to the user.
   max_turns: 90
   gateway_timeout: 1800
   restart_drain_timeout: 180
