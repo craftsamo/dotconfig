@@ -1,7 +1,7 @@
 ---
 name: engineer-loop
-description: Engineer's dialogue-driven OpenCode loop — parse the task's Authority grant, run quota-gated provider/model routing, gate material decisions through checkpoint-then-block (WIP commit + state note + one crisp question), fan out research/media sub-tasks to searcher/researcher/creator via kanban_create, resume prior OpenCode sessions after unblock with `opencode run -c`, verify independently, and report with kanban_attach artifacts. CLI mechanics live in the bundled opencode/claude-code/codex skills.
-version: 2.1.0
+description: Engineer's dialogue-driven OpenCode loop — parse the task's Authority grant (preset A1/A2/A3 + overrides, expanded only by AUTHORITY+ comments), run quota-gated provider/model routing, gate material decisions through checkpoint-then-block (WIP commit + structured STATE/Qn comments + a <=160-char block reason), keep an on-demand progress trail with PROGRESS comments, fan out research/media sub-tasks to searcher/researcher/creator via kanban_create, resume prior OpenCode sessions after unblock with `opencode run -c` and Qn<->DECISION(Qn) matching, verify independently, and report with kanban_attach artifacts. CLI mechanics live in the bundled opencode/claude-code/codex skills.
+version: 2.2.0
 author: CraftSamo
 license: MIT
 metadata:
@@ -47,17 +47,58 @@ routing, and the verify/report discipline. CLI syntax lives in the bundled
 
 </Prerequisites>
 
+<CommentProtocol>
+
+All dialogue with the orchestrator travels as kanban comments with a fixed
+marker as the first token. Markers you WRITE:
+
+- `STATE:` — checkpoint note before a block: what's done, current plan, what
+  the pending question(s) decide, and that the OpenCode session in this
+  worktree is resumable (`opencode run -c`).
+- `Q<n>: <question>` — one numbered question per comment (or one comment with
+  `Q1:`/`Q2:`… lines): 2-4 concrete options, your recommendation marked.
+  Numbering continues across the task's lifetime — never reuse an n.
+- `PROGRESS: <one-two lines>` — phase/milestone completed, what's next.
+  Comments are NOT pushed to chat; the orchestrator reads them on demand
+  (`kanban_show`), so keep them frequent but terse.
+
+Markers you READ (written by the orchestrator):
+
+- `DECISION(Q<n>): <choice> — <reason>` — the binding answer to your Q<n>.
+- `AUTHORITY+: <grant line(s)>` — an expansion of the task's Authority grant
+  (see <Authority>).
+
+Anything bulky (plans, diffs, logs) goes through `kanban_attach` /
+`kanban_attach_url` and is referenced from the comment, never inlined.
+
+</CommentProtocol>
+
 <Authority>
 
 The task body's `Authority:` section is the orchestrator's pre-approval grant.
 Parse it first; it decides what you may do without asking.
 
-- Listed as allowed (e.g. `commit: yes`, `push: yes`, `PR: yes`,
-  `deps: allowed`, scope boundaries) → proceed without blocking.
-- Not listed, listed as `ask`, or absent entirely → treat as NOT granted:
-  commits to the worktree are always fine; **push, PR creation, dependency
-  additions/upgrades, architecture or public-API changes, destructive
-  operations, and material plan choices require a block round-trip.**
+It opens with a **preset level**, optionally followed by overrides:
+
+| Preset | Grants |
+| --- | --- |
+| `A1` (default) | commit to the worktree (WIP + final). Nothing else. |
+| `A2` | A1 + push to a feature branch + open a PR (never push default/main). |
+| `A3` | A2 + dependency additions/upgrades. |
+
+- Override lines refine the preset: scope boundaries (`scope: only src/foo`),
+  explicit denials (`do not touch: migrations/`), or extra grants
+  (`branch: feat/x`). Overrides win over the preset.
+- **Effective grant = body `Authority:` + all `AUTHORITY+:` comments**, applied
+  in comment order. `AUTHORITY+` only ever expands; nothing can shrink a grant
+  mid-task (a shrink means the plan changed — expect a replacement task, not
+  a body edit).
+- Missing or unparseable `Authority:` section → assume **A1** with no
+  overrides.
+- Not granted (by preset, override, or `AUTHORITY+`) → NOT allowed:
+  **push, PR creation, dependency changes, architecture or public-API
+  changes, destructive operations, and material plan choices require a
+  block round-trip.**
 - Never exceed an explicit scope limit even if technically convenient.
 
 </Authority>
@@ -81,18 +122,21 @@ When you need the orchestrator's answer (approval, choice, missing input):
 1. **Checkpoint the work.** Commit WIP in the worktree
    (`git add -A && git commit -m "wip: <state>"`) so nothing is lost across
    the respawn.
-2. **Write a state note** with `kanban_comment`: what's done, current plan,
-   what the question decides, and that the OpenCode session in this worktree
-   is resumable (`opencode run -c`). Long plans/diffs go through
-   `kanban_attach` / `kanban_attach_url`, not inline.
-3. **Block with ONE crisp question**: `kanban_block(kind=needs_input,
-   reason=...)`. The reason must be answerable in ~30 seconds: one question,
-   2-4 concrete options, your recommendation marked. No code dumps.
+2. **Write a `STATE:` comment** (`kanban_comment`) per <CommentProtocol>,
+   then the full question(s) as `Q<n>:` lines — each with 2-4 concrete
+   options and your recommendation marked, answerable in ~30 seconds. Long
+   plans/diffs go through `kanban_attach` / `kanban_attach_url`, not inline.
+3. **Block with a short pointer**: `kanban_block(kind=needs_input,
+   reason=...)`. The chat notification truncates the reason to ~160 chars —
+   keep it to one line naming the open question ids and the crux, e.g.
+   `Q3: ORM migration vs raw SQL? options+rec in comments`. The comments
+   carry the full text; the reason is just the headline. No code dumps.
 4. **Stop.** Produce no further work after the block call — the dispatcher
    will respawn you after the answer arrives.
 
-Batch questions: if several decisions are pending, ask them in one block
-round-trip (numbered, each with options + recommendation), never serially.
+Batch questions: if several decisions are pending, ask them all in one block
+round-trip (`Q1`/`Q2`/…, each with options + recommendation), never
+serially.
 
 </CheckpointThenBlock>
 
@@ -100,14 +144,19 @@ round-trip (numbered, each with options + recommendation), never serially.
 
 Every respawned run (task has prior runs/comments):
 
-1. `kanban_show <id>` — read the full comment thread, prior-attempt summaries,
-   and the answers to your blocked question(s).
+1. `kanban_show <id>` — read the full comment thread and prior-attempt
+   summaries. Rebuild the dialogue state mechanically:
+   - **Match every `Q<n>` against a `DECISION(Q<n>)`.** Unanswered Q<n> →
+     still open; if it gates the next step, re-block referencing the same n
+     (don't renumber, don't re-ask answered questions).
+   - **Recompute the effective Authority**: body grant + every `AUTHORITY+:`
+     comment (see <Authority>).
 2. Confirm the worktree state: `git log --oneline -5`, `git status --short`.
 3. **Continue the prior OpenCode session**: `opencode run -c '<follow-up
-   incorporating the answer>'` in the same worktree. Only start a fresh
+   incorporating the DECISION(s)>'` in the same worktree. Only start a fresh
    session when the answer invalidates the previous approach.
-4. Record the decision outcome in a short `kanban_comment` so the thread stays
-   an audit trail.
+4. Record the outcome in a short `PROGRESS:` comment so the thread stays an
+   audit trail.
 
 </Resume>
 
@@ -191,6 +240,9 @@ Weight by task risk:
    then <CheckpointThenBlock> for approval.
 4. **Implement.** `opencode run '<task>' --model <m>` in the workdir; for iterative
    work use the background TUI (see `opencode` skill). Continue with `opencode run -c '<follow-up>'`.
+   Drop a `PROGRESS:` comment at each phase boundary (plan done, feature
+   builds, tests green, …) — that trail is the orchestrator's only mid-run
+   visibility, read on demand.
 5. **Verify independently** — never trust the agent's self-report:
    `git status --short`, `git diff`, read changed files, run targeted tests /
    build / lint. If nothing is runnable, say so and explain what you checked instead.
@@ -217,9 +269,18 @@ Final message:
 
 - Blocking without checkpointing first — the respawn loses uncommitted work
   and the next run restarts blind.
-- Vague block reasons ("thoughts?") — always options + recommendation.
+- Vague block reasons ("thoughts?") — always `Q<n>` comments with options +
+  recommendation, and a reason line that survives 160-char truncation.
+- Putting the full question only in the block reason — the notification is
+  truncated; comments are the durable copy.
 - Restarting OpenCode from scratch after an unblock instead of `opencode run -c`.
-- Treating an absent Authority section as permission — absence means ask.
+- Reusing a question number or re-asking an already-DECIDED Q<n>.
+- Treating an absent Authority section as more than A1 — absence means the
+  default preset, and everything beyond it means ask.
+- Acting on a grant you inferred from chat-style comments — only the body
+  `Authority:` and `AUTHORITY+:` comments count.
+- Long silent runs with no `PROGRESS:` comments — the orchestrator can't see
+  inside your run any other way.
 - Treating `claude auth status` as enough — Claude needs usable `opencode-quota` data.
 - Falling back to OpenRouter but selecting Claude/GPT there.
 - Treating OpenAI Pro quota as interchangeable with Codex/Copilot quota; check the
@@ -231,10 +292,14 @@ Final message:
 
 <Verification>
 
-- Authority section parsed; every remote/destructive action maps to a grant or a block round-trip.
+- Effective Authority computed (preset + overrides + `AUTHORITY+` comments);
+  every remote/destructive action maps to a grant or a block round-trip.
 - Quota/provider decision recorded (or failure reported).
 - Medium/high-risk work has a plan artifact; high-risk had an approval round-trip.
-- Blocks were preceded by a WIP commit + state note; resumes used `opencode run -c`.
+- Blocks were preceded by a WIP commit + `STATE:`/`Q<n>:` comments, with a
+  <=160-char reason headline; resumes used `opencode run -c` after matching
+  every open `Q<n>` to its `DECISION(Q<n>)`.
+- Phase boundaries left a `PROGRESS:` trail.
 - `git status` / `git diff` inspected; tests / build / lint run or explicitly skipped.
 - No secrets or unrelated files included; report covers model, changes, validation, risk.
 
