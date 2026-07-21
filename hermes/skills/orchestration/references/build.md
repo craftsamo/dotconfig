@@ -17,16 +17,22 @@ implementation work.
 ## Writing a tight Authority
 
 Because Plan was skipped, the Authority grant in the task body is the only
-place the engineer learns what's pre-approved. Be explicit and minimal:
+place the engineer learns what's pre-approved. Use the preset table in
+`<TaskSpec>`, explicit and minimal:
 
-- **Commit** — usually yes (WIP + final).
-- **Push / PR** — only if the user has already said so in chat.
-- **Dependency changes** — default no; if needed, that's a Plan question.
-- **Scope boundaries** — name the files/areas that are in scope, and
-  explicitly call out anything nearby that is **not** to be touched.
+- **`A1`** (commit only) is the default — stay there unless the user has
+  already said otherwise in chat.
+- **`A2`** (+ feature-branch push / PR) — only if the user asked for a PR
+  or push.
+- **`A3`** (+ dependency changes) — rare from Build; if deps are in play,
+  that's usually a Plan question.
+- **Scope boundary overrides** — name the files/areas that are in scope,
+  and explicitly call out anything nearby that is **not** to be touched
+  (`scope:` / `do not touch:` lines).
 
-Anything not granted here forces the engineer into a block round-trip
+Anything not granted forces the engineer into a block round-trip
 (`<BlockedTriage>`), so grant what the user has sanctioned and no more.
+Mid-task expansions go through `AUTHORITY+:` comments, never body edits.
 
 ## Dispatching
 
