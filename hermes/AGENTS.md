@@ -76,8 +76,9 @@ workers; engineer converses with the assistant via kanban block round-trips
 under a structured comment protocol — Authority presets A1/A2/A3,
 `STATE:`/`Q<n>:`/`DECISION(Q<n>):`/`PROGRESS:`/`AUTHORITY+:` markers — and
 drives OpenCode through a P0-plan + per-unit-fork loop with permission /
-question bridges, see PROFILES.md "Engineer dialogue loop"; workers fan out
-sub-tasks via kanban_create). Tracked per
+question bridges; creator speaks the same comment protocol with a Budget
+grant (generation-spend caps) — see PROFILES.md "Engineer dialogue loop";
+workers fan out sub-tasks via kanban_create). Tracked per
 profile: `config.yaml`, `profile.yaml`, `SOUL.md`, `skills/`, `.no-bundled-skills`.
 Create with `hermes profile create <name> --description "…"`, then adopt into the
 repo (move real files → `../install.sh`); see `README.md` / `PROFILES.md`.
