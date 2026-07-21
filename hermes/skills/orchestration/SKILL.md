@@ -232,6 +232,9 @@ body:
   Output: <shape of the final message: language, format, length; name any
           artifact files to produce>
   Constraints: <scope limits, deadlines, things NOT to do>
+  Budget: <creator tasks only — generation-spend caps; omitted = creator
+          defaults. See references/creative.md. Expanded mid-task only via
+          AUTHORITY+ comments.>
   Authority: <engineer tasks only — the pre-approval grant, carried over
              from the Plan Loop sign-off (or written tight when Build skips
              Plan — see references/build.md). Open with a preset level,
@@ -348,11 +351,12 @@ block reason to ~160 chars — it's only a headline (e.g. `Q3: ORM vs raw
 SQL?`); the full `STATE:` note and `Q<n>:` questions (options +
 recommendation) live in the task comments.
 
-The grant that frames every answer comes from the task's **effective
-Authority** — the body's `Authority:` preset + overrides (artifact of the
+The grant that frames every answer is the task's **effective grant**: for
+engineer, the body's `Authority:` preset + overrides (artifact of the
 Plan Loop sign-off, `references/plan.md`, or written tight when Build skips
-Plan, `references/build.md`) plus any prior `AUTHORITY+:` comments. Two
-altitudes to keep straight:
+Plan, `references/build.md`); for creator, the body's `Budget:` caps
+(`references/creative.md`) — each plus any prior `AUTHORITY+:` comments.
+Two altitudes to keep straight:
 
 - **Feasibility altitude** (the Plan was wrong on a material point: an
   assumption turned out impossible, scope needs re-thinking, architecture
@@ -378,7 +382,8 @@ Answer format — the respawned worker parses comments mechanically
   question, using the worker's numbering. Answer **every** open `Q<n>` in
   the batch before unblocking — a half-answered batch forces another
   round-trip.
-- If the answer grants something new (push, PR, deps, wider scope), add an
+- If the answer grants something new (push, PR, deps, wider scope — or for
+  creator, extra generation spend beyond the Budget), add an
   `AUTHORITY+: <grant line>` comment — never rely on prose in the decision,
   and never edit the task body for a grant.
 
@@ -398,8 +403,9 @@ event the board is silent by design. Mid-run visibility is on-demand:
   `kanban_show <id>` and summarize the latest `PROGRESS:` / `STATE:`
   comments in the persona's voice — one or two lines, current phase + what's
   next. Never paste the raw comment trail.
-- Engineer writes `PROGRESS:` at unit boundaries (per its `engineer-loop`
-  contract), so the newest one is the authoritative "where are we".
+- Workers write `PROGRESS:` at their natural boundaries (engineer per
+  implementation unit, creator per finished asset), so the newest one is
+  the authoritative "where are we".
 - No comments yet and the run is young → say it's in progress since <claimed
   time>; suspiciously long with no trail → check `kanban_list` /
   last events for a stale or crashed run instead of guessing.

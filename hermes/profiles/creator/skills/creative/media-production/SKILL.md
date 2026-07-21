@@ -1,7 +1,7 @@
 ---
 name: media-production
-description: Creator's production loop for kanban media tasks — parse the brief, route by asset type to the right generation chain (image / video / GIF / poster / voice), clarify creative direction via one block round-trip instead of burning credits on guesses, post-process with the bundled scripts, verify outputs visually, and deliver every artifact through kanban_attach with a one-line chat-ready summary. Deep per-type guidance lives in the shared contextual-image-gen / contextual-video-gen skills.
-version: 1.0.0
+description: Creator's production loop for kanban media tasks — parse the brief and its Budget grant (defaults 4 image variants / 2 video renders / 1 corrective pass; expanded only by AUTHORITY+ comments), route by asset type to the right generation chain (image / video / GIF / poster / voice, plus opt-in depth skills like blender-mcp for 3D), clarify creative direction through structured STATE/Qn block round-trips instead of burning credits on guesses, leave a per-asset PROGRESS trail, resume after unblock by matching DECISION(Qn) answers and reusing intermediates surviving in the task workspace, post-process with the bundled scripts, verify outputs visually, and deliver every artifact through kanban_attach with a one-line chat-ready summary. Deep per-type guidance lives in the sibling contextual-image-gen / contextual-video-gen skills.
+version: 1.1.0
 author: CraftSamo
 license: MIT
 metadata:
@@ -33,18 +33,69 @@ artifacts attached to the task — never stranded on disk.
 </DoNotUseWhen>
 </Scope>
 
+<CommentProtocol>
+
+Dialogue with the orchestrator travels as kanban comments with a fixed
+marker as the first token (shared contract across workers). You WRITE:
+
+- `STATE:` — before a block: what's produced so far, what the question
+  decides, which intermediates sit in the workspace (they survive the
+  respawn — see <Resume>), and the **spend tally** so far (e.g.
+  `spend: img 3/4, corrective 0/1`) — surviving files alone can't tell how
+  much budget went into failed attempts.
+- `Q<n>: <question>` — numbered questions, 2-4 concrete options, your
+  recommendation marked. Numbering continues across the task's lifetime;
+  batch all pending questions into one block round-trip.
+- `PROGRESS: <one-two lines>` — per finished asset (or batch chunk): what's
+  delivered-ready, what's next, ending with the running spend tally
+  (`spend: img 3/4`). Comments are NOT pushed to chat; the orchestrator
+  reads them on demand, so keep them frequent but terse.
+
+You READ (written by the orchestrator):
+
+- `DECISION(Q<n>): <choice> — <reason>` — the binding answer to your Q<n>.
+- `AUTHORITY+: <grant line(s)>` — an expansion of the task's Budget (see
+  <Budget>). Grants only expand; nothing shrinks mid-task.
+
+Block mechanics: `kanban_block(kind=needs_input, reason=...)` with the
+reason as a **<=160-char headline** naming the open question ids and the
+crux (the chat notification truncates it) — the full `Q<n>:` text lives in
+the comments. Stop producing after the block call.
+
+</CommentProtocol>
+
 <Brief>
 
 The task body is the whole brief (workers never see the chat). Extract before
 generating: purpose/audience, asset type(s) and count, style/tone references,
-dimensions/platform specs, and delivery format. If creative direction is
-ambiguous and the body carries no reference (style, aspect, tone), do ONE
-block round-trip: `kanban_comment` a short state note, then
-`kanban_block(kind=needs_input)` with one question, 2-4 concrete options, and
-your recommendation. Never burn generation credits guessing; never block
+dimensions/platform specs, delivery format, and the `Budget:` line
+(<Budget>). If creative direction is ambiguous and the body carries no
+reference (style, aspect, tone), do ONE block round-trip per
+<CommentProtocol>. Never burn generation credits guessing; never block
 twice for what one batched question could settle.
 
 </Brief>
+
+<Budget>
+
+Generation spend is granted, not discretionary. The body's `Budget:` line
+sets the caps; absent → the defaults:
+
+| Spend | Default cap |
+| --- | --- |
+| Still-image generations | 4 variants per asset |
+| Video renders | 2 per asset |
+| Corrective regeneration | 1 pass per asset (after <Verification>) |
+| Batch quantity | exactly the brief's count |
+
+- **Effective budget = body `Budget:` + all `AUTHORITY+:` comments**, in
+  comment order.
+- Need to exceed it (more variants, another render, a longer cut)? That is
+  a block round-trip: `Q<n>` with the cost stated ("2 more renders,
+  ~<estimate>"), never a silent overrun.
+- Under-budget is always fine — stop as soon as the spec is met.
+
+</Budget>
 
 <AssetRouting>
 
@@ -57,18 +108,49 @@ skill in this profile's creative category):
 | video clip, text-to-video, image-to-video | `video_gen` tool (vid-xai-fal chain) | `contextual-video-gen` |
 | GIF, loop, poster frame | generate video first, then the bundled scripts (`to-gif.sh`, `make-loop.sh`, `poster-frame.sh`) | `contextual-video-gen` |
 | voice line / narration | `tts` toolset | — |
+| 3D modeling / scene / render | running desktop Blender via socket | `blender-mcp` (opt-in) |
+
+The table is not closed: before declaring an asset type unsupported, list
+this profile's creative skill cluster (`skill_view` the siblings of this
+skill) — **opt-in depth skills** may cover it. Opt-in skills can carry
+availability prerequisites (e.g. `blender-mcp` needs a running desktop
+Blender — probe `nc -z -w2 localhost 9876`); prerequisite unmet → `Q<n>`
+block stating what must be started, don't fake the asset another way.
 
 Post-process with terminal tools (ffmpeg, the skill scripts) in the task
 workspace; keep intermediate files out of the delivery.
 
 </AssetRouting>
 
+<Resume>
+
+Every respawned run (task has prior runs/comments):
+
+1. `kanban_show <id>` — rebuild the dialogue state mechanically: match every
+   `Q<n>` against a `DECISION(Q<n>)` (unanswered + gating → re-block with the
+   same n), and recompute the effective Budget (body + `AUTHORITY+:`
+   comments).
+2. **Inventory the workspace** (`$HERMES_KANBAN_WORKSPACE`): scratch dirs
+   survive block/crash respawns — deletion happens only on completion. List
+   what's already generated. **Spent budget stays spent**: take the tally
+   from the latest `STATE:`/`PROGRESS:` comment (not from counting files —
+   failed attempts also cost); no recorded tally after a crash → count
+   conservatively (files present + 1).
+3. **Reuse, don't regenerate**: apply the DECISION to the surviving
+   intermediates (post-process, re-crop, continue the batch). Regenerate
+   only what the DECISION actually invalidates.
+4. Record the outcome in a short `PROGRESS:` comment.
+
+</Resume>
+
 <Verification>
 
 Before completing, inspect every produced file yourself (image/video input —
 vision): dimensions and format match the spec, no artifacts/garbled text, the
-style matches the brief. One regeneration pass for a clear miss; if it still
-misses, deliver the best attempt and state the gap plainly.
+style matches the brief. A clear miss gets the Budget's corrective pass
+(default: one per asset); if it still misses, deliver the best attempt and
+state the gap plainly — exceeding the budget instead is a `Q<n>` block, not
+a judgment call.
 
 </Verification>
 
@@ -85,11 +167,22 @@ misses, deliver the best attempt and state the gap plainly.
 
 <Pitfalls>
 
-- Generating before reading the whole brief (count, specs, platform).
-- Guessing style direction instead of one batched clarify block.
+- Generating before reading the whole brief (count, specs, platform, Budget).
+- Guessing style direction instead of one batched `Q<n>` block round-trip.
+- Silently exceeding the Budget (more variants "to be safe") — expansion is
+  the orchestrator's call via `AUTHORITY+:`, requested through a block.
+- Regenerating after a respawn what already sits in the workspace — the
+  scratch dir survives blocks; inventory before spending (<Resume>).
+- Block reasons that don't survive 160-char truncation, or full questions
+  living only in the reason instead of `Q<n>:` comments.
+- Long batch runs with no `PROGRESS:` trail — the orchestrator's only
+  mid-run visibility.
+- Declaring an asset type unsupported without checking the opt-in sibling
+  skills, or using an opt-in chain whose prerequisite isn't running.
 - Leaving artifacts only on disk / forgetting kanban_attach.
 - Completing without visually inspecting the output.
 - Paths, prompts, or seeds in the kanban_complete summary line.
-- Endless regeneration loops — one corrective pass, then report honestly.
+- Endless regeneration loops — the budgeted corrective pass, then report
+  honestly.
 
 </Pitfalls>
