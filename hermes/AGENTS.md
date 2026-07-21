@@ -72,8 +72,10 @@ setup.sh README.md PROFILES.md
 default (CLI front door — assistant's CLI counterpart, neutral persona) +
 assistant (messaging front door, hosts the
 gateway/dispatcher) + engineer / researcher / searcher / creator (kanban
-workers; engineer converses with the assistant via kanban block round-trips —
-see PROFILES.md "Engineer dialogue loop" — and workers fan out sub-tasks via
+workers; engineer converses with the assistant via kanban block round-trips
+under a structured comment protocol — Authority presets A1/A2/A3,
+`STATE:`/`Q<n>:`/`DECISION(Q<n>):`/`PROGRESS:`/`AUTHORITY+:` markers, see
+PROFILES.md "Engineer dialogue loop" — and workers fan out sub-tasks via
 kanban_create). Tracked per
 profile: `config.yaml`, `profile.yaml`, `SOUL.md`, `skills/`, `.no-bundled-skills`.
 Create with `hermes profile create <name> --description "…"`, then adopt into the

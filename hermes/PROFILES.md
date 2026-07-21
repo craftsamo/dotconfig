@@ -93,11 +93,18 @@ turn-based over two durable layers:
 - **OpenCode session in the preserved worktree** — implementation context,
   resumed with `opencode run -c`.
 
-The protocol: the task body carries an **Authority** grant (pre-approved
-actions); anything outside it triggers **checkpoint-then-block** (WIP commit →
-state comment → one question with options + recommendation). The assistant
-answers autonomously within the grant (comment + unblock, then informs the
-user) and relays out-of-grant questions to the human. The gateway's
+The protocol: the task body carries an **Authority** grant — a preset level
+(`A1` commit-only / `A2` +feature-branch push+PR / `A3` +deps; absent = A1)
+plus scope overrides, expanded mid-task only via `AUTHORITY+:` comments.
+Anything outside the effective grant triggers **checkpoint-then-block**
+(WIP commit → `STATE:` comment → numbered `Q<n>:` questions with options +
+recommendation → block reason as a ≤160-char headline, since the chat
+notification truncates it). The assistant `kanban_show`s the thread, answers
+autonomously within the grant (`DECISION(Q<n>):` comment per open question +
+unblock, then informs the user) and relays out-of-grant questions to the
+human. Mid-run visibility is on-demand: engineer leaves `PROGRESS:` comments
+at phase boundaries (comments never notify chat) and the assistant summarizes
+them when asked (`orchestration` `<StatusCheck>`). The gateway's
 `kanban.dispatch_interval_seconds` is lowered to **15** so a round-trip costs
 roughly the answer time + ~20 s. Details: engineer's `engineer-loop` skill and
 assistant's `orchestration` `<BlockedTriage>`.

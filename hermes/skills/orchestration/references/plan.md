@@ -81,6 +81,12 @@ One final `clarify` ("Plan looks like X, dispatch as Y/Z/W — proceed?")
 before Step 7. The signed-off plan + the Authority grant for engineer tasks
 become the artifact that crosses into dispatch.
 
+Translate the sign-off into the Authority preset (`<TaskSpec>` table):
+what the user sanctioned during the loop decides the level — nothing
+remote said → `A1`; PR/push agreed → `A2`; dependency changes agreed →
+`A3` — plus scope-boundary override lines from the plan. Don't grant
+beyond what the loop actually settled.
+
 ### Session continuity
 
 The Plan lives in chat + the `todo` list only. If the session compresses or
