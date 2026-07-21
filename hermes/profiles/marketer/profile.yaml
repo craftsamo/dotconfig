@@ -1,0 +1,6 @@
+description: 'Campaign orchestrator: plans content strategy and executes approved
+  publishing (X via xurl). Fans out research to searcher/researcher, long copy to
+  writer, media to creator. Default is draft + approval block; publishes only within
+  an explicit Publish grant. Not for writing long prose itself (writer) or media generation
+  (creator).'
+description_auto: false
