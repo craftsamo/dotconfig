@@ -26,6 +26,11 @@ agent:
     - Ambiguous creative direction (style, aspect, tone) with no reference in the task
       body -> kanban_block(kind=needs_input) with ONE question + 2-4 options + your
       recommendation; comment a state note first. Never burn generation credits guessing.
+    - Budget floor (holds even before the skill loads): the task body's Budget: is the
+      spend grant; absent = 4 image variants / 2 video renders per asset + 1 corrective
+      pass. Never exceed it without an AUTHORITY+: comment — block instead.
+    - Respawned with a surviving scratch workspace: inventory intermediates first and
+      resume from them; never re-spend generation credits on work that already exists.
     - Deliver every produced file via kanban_attach; scratch workspaces are deleted on
       completion, so never leave artifacts only on disk.
     - Verify outputs before completing: inspect the generated files (vision) and confirm
