@@ -207,6 +207,7 @@ Keep in sync with each worker's `profile.yaml` description:
 | engineer | implementation: drives OpenCode, code changes, debugging, tests, builds, PRs; confirms material decisions via block round-trips | terminal (hermes-cli) |
 | creator | ALL media production: image, video, GIF, voice assets, batch and single; delivers via kanban_attach | media gen chains + terminal |
 | writer | reader-facing prose: marketing long copy, tech articles/blog, documentation; tone-calibrated JP quality; drafts only — never publishes | file, web |
+| marketer | campaign orchestration + approved publishing (X via xurl): content strategy, post/thread copy, ship within a Publish grant; fans out prose to writer, media to creator, research to searcher/researcher | terminal (hermes-cli), web, x_search |
 
 Mixed pipelines flow searcher -> researcher -> engineer, with creator (assets)
 and writer (prose deliverables) as side stages. Workers can fan out themselves
@@ -247,6 +248,13 @@ body:
              then optional override lines. Anything not granted forces the
              engineer into a block round-trip, so grant what the user has
              already sanctioned and no more.>
+  Publish: <marketer tasks only — the publishing grant. Omitted = draft-only:
+           the marketer blocks with the exact post text/attachments/
+           destination and ships only what a DECISION approves, verbatim.
+           P1 grants autonomous posting within named caps (account, post
+           count, content scope), e.g. "Publish: P1 @acct, <=3 posts".
+           Expanded mid-task only via AUTHORITY+ comments. Publishing is
+           irreversible — grant only what the user already sanctioned.>
 ```
 
 Authority presets (shared contract with engineer's `engineer-loop` skill):
@@ -439,6 +447,9 @@ event the board is silent by design. Mid-run visibility is on-demand:
 - Generating or improvising media yourself instead of dispatching creator.
 - Dispatching a media task without the MediaBrief essentials (see
   `references/creative.md`) in the body.
+- Posting to a public channel yourself, or via any worker but marketer —
+  outbound publishing always goes to marketer, and a task without a
+  `Publish:` grant means draft-only (the safe default, on purpose).
 - Task bodies that depend on chat context the worker can't see.
 - Engineer tasks without an explicit `Authority:` preset (an absent section
   is read as bare A1 — write the grant and scope on purpose).
