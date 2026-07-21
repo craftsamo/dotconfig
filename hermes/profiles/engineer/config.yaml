@@ -1,48 +1,48 @@
 model:
-  default: grok-4.3
-  provider: xai-oauth
-  base_url: https://api.x.ai/v1
+  default: gpt-5.6-sol
+  provider: openai-codex
+  base_url: https://chatgpt.com/backend-api/codex
 providers: {}
 fallback_providers:
   - provider: openrouter
-    model: xiaomi/mimo-v2.5
+    model: deepseek/deepseek-v4-flash
     base_url: https://openrouter.ai/api/v1
     api_mode: chat_completions
 credential_pool_strategies: {}
 toolsets:
-  - file
-  - web
-  - video
+  - hermes-cli
 max_concurrent_sessions: null
 agent:
   system_prompt: |
-    Operating contract — researcher (kanban/delegated worker):
-    - First action, every task: load the `research-pipeline` skill (skill_view) and follow it
-      (search route, source trust scores, gather -> cross-reference -> synthesize -> judge).
-    - Toolsets are file + web only (no terminal/code): synthesize and analyze, do NOT write
-      production code. Delegate breadth-gathering subtasks (e.g. searcher) when it speeds things up.
-    - Deliver findings in your final message, not just files: the scratch workspace is deleted on completion.
-    - Output: lead with the conclusion, then evidence (cite every nontrivial claim with source + trust),
-      then per-claim confidence (high/med/low) and open gaps.
-    - Evidence floor (always on): never fabricate or reconstruct a citation, quote, or
-      URL — cite only sources you actually retrieved; claims you cannot verify are
-      marked low-confidence or dropped.
-    - Missing a premise that decides the analysis (scope, definition, success criterion)
-      -> kanban_block(kind=needs_input) with numbered Q<n> questions (2-4 options + your
-      recommendation); comment a state note first. Best-effort gaps go in the final
-      message, blockers do not.
-    - Memory: MEMORY.md is for durable cross-task facts only — recurring source quirks
-      (reliable domains, paywalls), tool/environment quirks, model-routing lessons. Never
-      task state or findings (those live in the final message + kanban thread); anything
-      playbook-sized becomes a skill instead.
-    - Kanban tasks: write the kanban_complete summary as one line of 1-2 plain, user-facing
-      sentences — it is delivered verbatim to the requester's chat; keep source dumps and
-      raw notes out of it (they belong in the final message).
+    Operating contract — engineer (kanban worker, dialogue-driven).
+
+    First action, every task: `kanban_show`, then load the `engineer-loop` skill
+    (`skill_view`) and follow it — it owns Authority parsing, checkpoint-then-block,
+    OpenCode loop, model ladder, quota gate, fan-out, verify, and report. The bundled
+    `opencode` skill is the CLI mechanics reference.
+
+    Non-kanban invocations (direct CLI / delegate_task): skip `kanban_show` but
+    still load `engineer-loop`; treat the request as the task body — Authority =
+    A1 unless the request explicitly grants more.
+
+    Safety floor (holds even before the skill loads): no push, no PR, and no
+    dependency changes without an explicit Authority grant (absent = A1,
+    commit-only); always WIP-commit before any `kanban_block`.
+
+    Memory: MEMORY.md is for durable cross-task facts only — repo conventions
+    (build/test commands, layout), environment quirks, model-routing lessons.
+    Never task state or progress (that lives in the kanban thread + git);
+    anything playbook-sized becomes a skill instead.
+
+    Kanban tasks: write the `kanban_complete` summary as one line of 1-2 plain,
+    user-facing sentences — it is delivered verbatim to the requester's chat; keep
+    logs, paths, and diffs out of it (they belong in the final message).
   max_turns: 90
   gateway_timeout: 1800
   restart_drain_timeout: 180
   api_max_retries: 3
   service_tier: ""
+  reasoning_effort: high
   tool_use_enforcement: auto
   task_completion_guidance: true
   environment_probe: true
@@ -54,13 +54,12 @@ agent:
   gateway_auto_continue_freshness: 3600
   image_input_mode: auto
   disabled_toolsets:
-    - terminal
-    - code_execution
+    - browser
     - tts
     - computer_use
-    - image_gen
     - cronjob
     - messaging
+    - x_search
 terminal:
   backend: local
   modal_mode: auto
@@ -398,10 +397,9 @@ goals:
   max_turns: 20
 skills:
   external_dirs:
-    - ~/ghq/github.com/NousResearch/hermes-agent/skills/research
-    - ~/ghq/github.com/NousResearch/hermes-agent/skills/data-science
-    - ~/ghq/github.com/NousResearch/hermes-agent/skills/productivity
-    - ~/ghq/github.com/NousResearch/hermes-agent/skills/note-taking
+    - ~/ghq/github.com/NousResearch/hermes-agent/skills/autonomous-ai-agents
+    - ~/ghq/github.com/NousResearch/hermes-agent/skills/software-development
+    - ~/ghq/github.com/NousResearch/hermes-agent/skills/github
   template_vars: true
   inline_shell: false
   inline_shell_timeout: 10
@@ -583,9 +581,11 @@ platform_toolsets:
     - hermes-telegram
   discord:
     - hermes-discord
+image_gen:
+  provider: img-xai-codex-fal
 video_analyze:
   provider: openrouter
   model: xiaomi/mimo-v2.5
 plugins:
   enabled:
-    - video-analyze-mimo
+    - image-fallback

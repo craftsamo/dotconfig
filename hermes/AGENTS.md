@@ -45,26 +45,45 @@ SOUL.md              # default persona (prompt slot #1)
 mcp.json             # MCP servers ({} = none)
 cron/                # jobs.json tracked; output/ + .tick.lock ignored
 skills/              # agent-created skills tracked; .hub/ etc. ignored
+  orchestration/     # orchestration skill (SKILL.md + references/<approach>.md) — shared
+                     #   front-door playbook (default native; assistant via ~/.hermes/skills
+                     #   external dir; dm_topics auto-load)
   workspaces/        # ~/Workspaces data-skill cluster (people/pp, household-budget/hb,
-                     #   projects/pj, message-reply) + _cross.py (shared cross-skill contract,
-                     #   imported not executed; siblings call each other's CLI, never each other's DB)
+                     #   projects/pj, message-reply, scaffold) + _cross.py (shared cross-skill
+                     #   contract, imported not executed; siblings call each other's CLI,
+                     #   never each other's DB; scaffold is a helper outside the contract)
+                     # (creative/ moved to profiles/creator/skills — creator owns media)
 plugins/             # backend chains (image/video gen) + tool overrides; source tracked, __pycache__ ignored
 launchd/             # LaunchAgents: assistant gateway + headless AivisSpeech engine
-profiles/<name>/     # assistant, coder, researcher, searcher
+profiles/<name>/     # assistant, engineer, researcher, searcher, creator, writer, marketer
   - config.yaml      # model/fallback + agent.system_prompt (operating contract)
   - profile.yaml     # routing description (kanban/delegation)
   - SOUL.md          # per-profile persona (BASE + role posture)
-  - skills/          # per-profile skills (assistant: assistant-orchestration, auto-loaded
-                     #   per Telegram topic via dm_topics skill binding; workers:
-                     #   opencode-loop / research-pipeline / breadth-retrieval)
+  - skills/          # per-profile skills (workers: engineer-loop / research-pipeline /
+                     #   breadth-retrieval + deep-retrieval / media-production +
+                     #   contextual-image/video-gen / writing-pipeline (writer also
+                     #   shares the opencode Japanese stack via external_dirs) /
+                     #   marketing-loop (marketer; + upstream social-media/xurl);
+                     #   assistant keeps only its surface
+                     #   skills — orchestration lives in the shared skills/ tree above)
   - cron/            # per-profile scheduled jobs (jobs.json; placeholder if empty)
 setup.sh README.md PROFILES.md
 ```
 
 ## Profiles
 
-default (CLI driver/orchestrator) + assistant (messaging front door, hosts the
-gateway/dispatcher) + coder / researcher / searcher (kanban workers). Tracked per
+default (CLI front door — assistant's CLI counterpart, neutral persona) +
+assistant (messaging front door, hosts the
+gateway/dispatcher) + engineer / researcher / searcher / creator / writer /
+marketer (kanban workers; engineer converses with the assistant via kanban block round-trips
+under a structured comment protocol — Authority presets A1/A2/A3,
+`STATE:`/`Q<n>:`/`DECISION(Q<n>):`/`PROGRESS:`/`AUTHORITY+:` markers — and
+drives OpenCode through a P0-plan + per-unit-fork loop with permission /
+question bridges; creator speaks the same comment protocol with a Budget
+grant (generation-spend caps), marketer with a Publish grant (absent =
+draft-only; posting needs verbatim approval or in-cap P1) — see PROFILES.md
+"Engineer dialogue loop";
+workers fan out sub-tasks via kanban_create). Tracked per
 profile: `config.yaml`, `profile.yaml`, `SOUL.md`, `skills/`, `.no-bundled-skills`.
 Create with `hermes profile create <name> --description "…"`, then adopt into the
 repo (move real files → `../install.sh`); see `README.md` / `PROFILES.md`.

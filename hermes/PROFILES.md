@@ -23,10 +23,10 @@ its own `config.yaml` / `.env` / `SOUL.md` / `skills/` / `cron/` / state, and a
                              ▼
                  ~/.hermes/kanban.db  (one shared board)
                              │ dispatcher (in assistant's gateway) spawns
-              ┌──────────────┼──────────────┐
-              ▼              ▼               ▼
-           searcher      researcher        coder
-          (retrieve)    (synthesize)     (implement)
+               ┌──────────────┼──────────────┬──────────────┬──────────────┬──────────────┐
+               ▼              ▼              ▼              ▼              ▼              ▼
+            searcher      researcher       engineer       creator        writer        marketer
+            (retrieve)    (synthesize)     (implement)    (produce media) (write prose) (publish)
 ```
 
 Verified against the source clone
@@ -50,7 +50,7 @@ Verified against the source clone
 
 | | Kanban | `delegate_task` |
 | --- | --- | --- |
-| Worker | **named profile** (coder/researcher/searcher) | anonymous subagent |
+| Worker | **named profile** (engineer/researcher/searcher/creator) | anonymous subagent |
 | Durability | persistent queue, resumable, human-in-loop | synchronous, dies with the turn |
 | Requires | a running gateway (the dispatcher) | nothing — fires automatically |
 | Use for | cross-agent / long / auditable work | in-turn parallel research or refactor |
@@ -63,27 +63,116 @@ in-turn). A Kanban worker may itself call `delegate_task` during its run.
 
 | Profile | Role | Front door | `terminal.cwd` | Toolsets | Gateway | Tracked |
 | --- | --- | --- | --- | --- | --- | --- |
-| **default** | general daily driver + orchestrator | CLI | `.` (launch dir) | full + `kanban` | — | yes |
+| **default** | CLI front door — assistant's CLI counterpart (neutral persona) | CLI | `.` (launch dir) | full + `kanban` | — | yes |
 | **assistant** | messaging front door + dispatcher host | Discord/TG | `~/Workspaces` | full + `kanban` | **yes** | yes (token per-machine) |
-| **coder** | implement (git worktree, run tests) | — (worker) | `.` (launch / task ws) | `hermes-cli` | — | yes |
+| **engineer** | implement via OpenCode (git worktree, tests); confirms material decisions through kanban block round-trips | — (worker) | `.` (launch / task ws) | `hermes-cli` | — | yes |
 | **researcher** | synthesize / analyze | — (worker) | `.` (launch / task ws) | `file,web` | — | yes |
-| **searcher** | fast retrieval (web / x_search) | — (worker) | `.` (launch / task ws) | `web,x_search` | — | yes |
+| **searcher** | fast retrieval (web / x_search); deep multi-hop via `deep-retrieval` + `goal_mode` | — (worker) | `.` (launch / task ws) | `web,x_search` | — | yes |
+| **creator** | ALL media production — image, video, GIF, voice, single and batch (front doors only brief and dispatch) | — (worker) | `.` (launch / task ws) | `hermes-cli,video_gen,video` + gen plugins | — | yes |
+| **writer** | reader-facing prose — marketing long copy, tech articles/blog, documentation (tone-calibrated, JP norms); never publishes | — (worker) | `.` (launch / task ws) | `file,web` | — | yes |
+| **marketer** | campaign orchestration + approved publishing (X via xurl); confirms every post through Publish-grant block round-trips | — (worker) | `.` (launch / task ws) | `hermes-cli,web,x_search` | — | yes |
 
-Role split: **searcher (retrieve) → researcher (synthesize) → coder
+Role split: **searcher (retrieve) → researcher (synthesize) → engineer
 (implement)**, mirroring the `delegate_task` toolset patterns
-(`["web"]` / `["file","web"]` / `["terminal","file"]`).
+(`["web"]` / `["file","web"]` / `["terminal","file"]`), with **creator**
+(produce media) and **writer** (produce reader-facing prose — the deliverable
+is the text itself, vs researcher's verified conclusions) as side stages any
+pipeline can call on, and **marketer** as the outbound end stage: it
+orchestrates campaigns (fanning out to writer/creator/searcher/researcher)
+and is the only profile that publishes to public channels.
 
-### Default is a clean baseline, not a junk drawer
+The org stays **flat by design**: profiles are global and the board is one
+shared queue, so "hierarchy" is expressed as routing policy + `parents`
+fan-in, not nested profiles. Workers fan out themselves via `kanban_create`
+(e.g. engineer dispatches a searcher lookup or a creator asset mid-task);
+a live supervising mid-manager isn't possible anyway — block/done
+notifications reach gateway chat sessions, never a parent worker.
 
-Keep default's `config.yaml` rich (every `--clone` inherits it) and its
-`SOUL.md` neutral; keep its `cron/` empty and run no gateway on it. Specialized
-personas, bots, and scheduled automation belong in named profiles. Workers fan
-out via Kanban; default just orchestrates and does interactive work.
+### Engineer dialogue loop (the four layered loops)
+
+Implementation work runs through four nested loops, each with its own
+channel, its own durable state, and its own decision altitude:
+
+| # | Loop | Channel | Durable state | Decides |
+| --- | --- | --- | --- | --- |
+| L1 requirements | user ↔ assistant | chat + `clarify` (Plan Loop) | chat + session todo | what/why: goal, scope, Authority level |
+| L2 detail | assistant ↔ engineer | kanban block round-trips (`Q<n>`/`DECISION`) | kanban comment thread | how (shape): feasibility, plan revision, in-grant calls |
+| L3 implementation | engineer ↔ OpenCode | `opencode run` (P0 master-plan session + per-unit forks) | P0 session + git history + plan attachment | how (detail): unit split, tactics, model, verification |
+| L4 in-run | OpenCode ↔ its subagents (reviewer/debugger/…) | OpenCode task tool, per the `opencode/` config | subagent sessions | code-level: review findings, root causes |
+
+Three principles hold the stack together: **escalation moves one layer at a
+time** (OpenCode never talks to the assistant, the engineer never talks to
+the user — each layer translates what it cannot decide into the next layer
+up's format); **the engineer is the translation layer** (upward a worker
+speaking kanban — `Q<n>`/`DECISION`/Authority; downward an orchestrator
+speaking OpenCode — prompts, forks, permission env); **L4 is hands-off**
+(the engineer judges results by independent verification, never micromanages
+the subagents).
+
+Workers are disposable processes (a `kanban_block` ends the run; unblock
+respawns a fresh one), so continuity lives in the durable layers above —
+never in a long-running session. In L3 the engineer plans once in a lean
+**P0** session (`--agent plan`; unit split + architecture only), then
+implements each PR-sized unit in a short-lived **fork** of P0
+(`run -s <P0> --fork`), ending every unit with verify → commit →
+`PROGRESS:` comment carrying the session ids; review/debug primaries run as
+fresh read-only sessions. Two bridges wire L3 to OpenCode's non-interactive
+reality (both verified against source): the **Permission Bridge** — bare
+`run` auto-rejects every `ask`, so the engineer translates the Authority
+grant into an `OPENCODE_PERMISSION` overlay (deep-merged; deny beats
+`--auto`) plus `--auto`; and the **Question Bridge** — `run` denies the
+question tool, so OpenCode escalates only via its final output text, which
+the engineer answers with `run -c` or translates into an L2 block.
+
+The L2 protocol: the task body carries an **Authority** grant — a preset
+(`A1` commit-only / `A2` +feature-branch push+PR / `A3` +deps; absent = A1)
+plus scope overrides, expanded mid-task only via `AUTHORITY+:` comments.
+Anything outside the effective grant triggers **checkpoint-then-block**
+(WIP commit → `STATE:` comment → numbered `Q<n>:` questions with options +
+recommendation → block reason as a ≤160-char headline, since the chat
+notification truncates it). The assistant `kanban_show`s the thread, answers
+autonomously within the grant (`DECISION(Q<n>):` comment per open question +
+unblock, then informs the user) and relays out-of-grant questions to the
+human. Mid-run visibility is on-demand: engineer leaves `PROGRESS:` comments
+at unit boundaries (comments never notify chat) and the assistant summarizes
+them when asked (`orchestration` `<StatusCheck>`). The gateway's
+`kanban.dispatch_interval_seconds` is lowered to **15** so a round-trip costs
+roughly the answer time + ~20 s. Details: engineer's `engineer-loop` skill and
+assistant's `orchestration` `<BlockedTriage>`.
+
+The comment protocol is worker-generic, not engineer-specific: **creator**
+speaks the same markers with a **Budget** grant as its Authority analog
+(generation-spend caps; defaults 4 image variants / 2 video renders per
+asset + 1 corrective pass, expanded only via `AUTHORITY+:`), leaves
+`PROGRESS:` per finished asset, and — since a task's scratch workspace
+survives block/crash respawns (deleted only on completion) — resumes by
+inventorying surviving intermediates instead of re-spending credits.
+Details: creator's `media-production` skill. **marketer** speaks it with a
+**Publish** grant (publishing is public and irreversible: absent grant =
+draft-only + a needs_approval block showing the exact post
+text/attachments/destination; `P1` = autonomous within named caps —
+account, post count, content scope), leaves `PROGRESS:` with the posted URL
+per post, and treats shipped posts as immutable facts on resume. Details:
+marketer's `marketing-loop` skill.
+
+### Default is the assistant's CLI counterpart (and stays a clean baseline)
+
+default and assistant are the two faces of the same front door: identical
+orchestration behavior (both run `orchestration`, which lives in
+default's skills tree at `hermes/skills/orchestration/` — default loads it
+natively, assistant through its `~/.hermes/skills` external dir; the dm_topics
+auto-load keeps working since resolution goes through `skill_view`), the same
+worker roster, the same media-full-delegation rule. The differences: platform
+(CLI vs Telegram gateway), persona (default stays **neutral** — every
+`--clone` inherits its `config.yaml`, so voice/character stays out), and
+assistant-only surface skills (ccc-course-production,
+codebase-fact-finding) stay in the assistant profile. Keep default's `cron/` empty and run no gateway on it; bots and
+scheduled automation belong in named profiles.
 
 ### Two working directories per worker
 
 - **Kanban-dispatched work** runs in the task workspace
-  (`$HERMES_KANBAN_WORKSPACE`): `worktree:` for coder (isolated + preserved),
+  (`$HERMES_KANBAN_WORKSPACE`): `worktree:` for engineer (isolated + preserved),
   `scratch` for the rest (ephemeral, deleted on completion).
 - **Direct / `delegate_task` work** starts in `terminal.cwd` — currently `.`
   (the launch dir) for every worker; pin an absolute path per worker if you want
@@ -99,23 +188,79 @@ Three per-profile layers, kept separate:
   carries its chat-output contract + a compact work-routing tripwire here, kept out of
   SOUL so it survives. Note `/personality` shares this slot and would clobber it — don't
   use it on these profiles.
+
+  Every contract also carries an always-on **safety floor** — the rules that must
+  hold even when the profile's skill never loads: engineer = the Authority floor
+  (absent grant ⇒ A1 commit-only; WIP-commit before blocking) + a non-kanban
+  invocation branch; creator = the Budget/spend floor (default caps, inventory a
+  surviving workspace before regenerating); researcher = evidence integrity (no
+  fabricated citations) + a block baseline for missing premises; searcher = link
+  integrity (only URLs actually retrieved); writer = deliverable integrity (no
+  fabricated facts/quotes/URLs; assumptions labeled) + never publishes + a
+  tone-sample block before long unsettled-tone deliverables; marketer = the
+  Publish floor (absent grant ⇒ draft-only; every post needs a verbatim
+  DECISION approval or an in-cap P1 grant; posted URLs verified; shipped
+  posts never silently edited or deleted); front doors = the blocked-triage
+  baseline (kanban_show → in-grant `DECISION(Q<n>)` + unblock → relay the rest).
+  Each profile also states its **MEMORY.md policy**: durable cross-task facts
+  only (task state lives in the kanban thread + git/board; playbook-sized
+  knowledge becomes a skill), and `user_profile_enabled` is off for workers —
+  they never converse with the human.
 - **skills/** — detailed, on-demand playbooks:
-  - assistant → `assistant-orchestration` (silent two-axis triage: inline vs kanban;
-    task-spec template, topology: single / parents chain / triage card, dispatch params,
-    failure recovery)
-  - coder → `opencode-loop` (delegate to OpenCode; quota-gated provider/model routing; verify/report)
+  - assistant + default → `orchestration` (shared front-door playbook, lives in
+    default's tree at `hermes/skills/orchestration/`: 7-step pipeline
+    (Classify → Locate → Approach → [Plan: Decompose → Register → Plan Loop] →
+    Dispatch); task-spec template, topology: single / parents chain / triage
+    card, dispatch params, BlockedTriage, failure recovery. Per-approach
+    detail in `references/{plan,build,search,research,creative,inline}.md`.)
+  - engineer → `engineer-loop` (delegate to OpenCode; Authority parsing + checkpoint-then-block
+    dialogue; P0 master-plan + per-unit forks with permission/question bridges;
+    fan-out to searcher/researcher/creator; quota-gated provider/model routing;
+    intra-unit `-c`/`-s` resume; verify/report)
   - researcher → `research-pipeline` (search route + Admiralty/SIFT source evaluation; evidence discipline)
   - searcher → `breadth-retrieval` (query expansion, source-class routing, link-first hand-off)
+    + `deep-retrieval` (explicit multi-hop hunts: `skills: ["deep-retrieval"]` + `goal_mode`)
+  - creator → `media-production` (asset-type routing to the gen chains + the
+    creative-skill catalog, Budget grant parsing, structured STATE/Qn block
+    dialogue, per-asset PROGRESS, workspace-reuse resume, visual verification,
+    kanban_attach delivery) + the in-tree `contextual-image-gen` /
+    `contextual-video-gen` / `blender-mcp` depth skills, plus the upstream
+    `creative/` + `media/` libraries referenced via `skills.external_dirs`
+    (comfyui, manim-video, touchdesigner-mcp, gif-search, … — creator owns the
+    creative cluster)
+  - writer → `writing-pipeline` (WritingBrief parsing; one-round tone
+    calibration via sample-variant blocks; deliverable-type routing onto the
+    layered Japanese norms; structure → draft → norms/humanizer/integrity
+    self-review; final-message delivery) + external skills shared via
+    `skills.external_dirs`: the opencode Japanese stack
+    (`~/.config/opencode/skills/japanese` — japanese-writing / tech-prose /
+    prose-rhythm, single-sourced with OpenCode) and upstream
+    `creative/humanizer`
+  - marketer → `marketing-loop` (MarketingBrief + Publish-grant parsing;
+    strategy → fan-out to writer/creator/searcher/researcher → assemble →
+    approval-gated xurl publish bridge with per-post PROGRESS + URL
+    verification; channel extension points for future Discord/IG/TikTok
+    accounts; kanban-thread resume treating shipped posts as immutable) +
+    the upstream `social-media/xurl` skill via `skills.external_dirs`
 
-Routing (assistant): `assistant-orchestration` owns it. The skill is
+Routing (assistant): `orchestration` owns it. The skill is
 **auto-loaded into every new Telegram topic session** via the per-topic
 `skill:` binding in `platforms.telegram.extra.dm_topics` (gateway injects the
 skill body into the session's first turn; `compression.protect_first_n` keeps
 it alive; existing sessions pick it up after `/new` or an idle reset). It
 triages silently on two axes — can the user wait? does it need a worker's
 tools / isolation / durability? — then routes inline (conversation, quick
-lookups, workspace skills, media gen, cron registration) vs kanban: searcher =
-retrieval/web/X, researcher = analysis/synthesis, coder = implementation.
+lookups, workspace skills, cron registration) vs kanban: searcher =
+retrieval/web/X (deep hunts via `deep-retrieval` + `goal_mode`), researcher =
+analysis/synthesis, engineer = implementation, creator = ALL media production
+(the front door only collects the MediaBrief — purpose, destination specs,
+style references, quantity — and dispatches; it generates nothing itself),
+writer = reader-facing prose (marketing copy, articles/blog, docs — the front
+door passes the WritingBrief fields it has: audience, purpose, medium, tone,
+length; the writer blocks once for the rest), marketer = campaign
+orchestration + ALL outbound publishing (the front door collects the
+MarketingBrief and writes the `Publish:` grant line on purpose — an omitted
+grant means draft-only; it never posts anything itself).
 Multi-stage work ships as a `parents` chain (obvious 2-3 stages) or one
 `triage=true` card (auto-decompose); `delegate_task` stays an exception for
 medium parallel lookups the user is actively waiting on. The contract keeps a
@@ -131,13 +276,23 @@ list (tiers 2+). `fallback_providers` is **per-turn**: it triggers on errors
 (429 / 5xx / 401 / 404 / malformed) and the primary is restored on the next
 turn. The default profile already proves the YAML shape.
 
-| Profile | T1 (primary) | T2 | T3 | T4 |
-| --- | --- | --- | --- | --- |
-| **default** | `anthropic` / claude-sonnet-4.6 | `openai-codex` / gpt-5.6-terra | `copilot` / gpt-5.6-terra | `openrouter` / `xiaomi/mimo-v2.5` |
-| **assistant** | `zai` / glm-5.2 | `openai-codex` / gpt-5.6-terra | `copilot` / gpt-5.6-terra | `openrouter` / `xiaomi/mimo-v2.5` |
-| **coder** | `anthropic` / claude-sonnet-4.6 | `openai-codex` / gpt-5.6-terra | `copilot` / gpt-5.6-terra | `openrouter` / `deepseek/deepseek-v4-flash` |
-| **researcher** | `xai-oauth` / grok-4.3 | `copilot` / claude-sonnet-4.6 | `openrouter` / `deepseek/deepseek-v4-flash` | — |
-| **searcher** | `xai-oauth` / grok-4.3 | `copilot` / gpt-5.6-terra | `openrouter` / `deepseek/deepseek-v4-flash` | — |
+The shape mirrors OpenCode's split: **front doors = Claude (judgment +
+long-lived context on the Max plan); workers = GPT / Grok (stateless
+task turns); cheap OpenRouter tails.** The engineer's own turns are
+orchestration (OpenCode does the coding), so it rides the GPT tier; the
+coding model inside OpenCode is chosen per run by the engineer-loop's
+comparative QuotaGate.
+
+| Profile | T1 (primary) | T2 | T3 |
+| --- | --- | --- | --- |
+| **default** | `anthropic` / claude-opus-4-8 | `openai-codex` / gpt-5.6-terra | `openrouter` / `xiaomi/mimo-v2.5` |
+| **assistant** | `anthropic` / claude-opus-4-8 | `openai-codex` / gpt-5.6-terra | `openrouter` / `xiaomi/mimo-v2.5` |
+| **engineer** | `openai-codex` / gpt-5.6-sol | `openrouter` / `deepseek/deepseek-v4-flash` | — |
+| **researcher** | `xai-oauth` / grok-4.3 | `openrouter` / `xiaomi/mimo-v2.5` | — |
+| **searcher** | `xai-oauth` / grok-4.3 | `openrouter` / `xiaomi/mimo-v2.5` | — |
+| **creator** | `openai-codex` / gpt-5.6-terra | `openrouter` / `minimax/minimax-m3` | — |
+| **writer** | `anthropic` / claude-sonnet-5 | `openai-codex` / gpt-5.6-sol | `openrouter` / `deepseek/deepseek-v4-flash` |
+| **marketer** | `openai-codex` / gpt-5.6-sol | `openrouter` / `xiaomi/mimo-v2.5` | — |
 
 ```yaml
 # example — researcher's ~/.hermes/profiles/researcher/config.yaml
@@ -146,10 +301,8 @@ model:
   provider: xai-oauth
   base_url: https://api.x.ai/v1
 fallback_providers:
-  - provider: copilot
-    model: claude-sonnet-4.6
   - provider: openrouter
-    model: deepseek/deepseek-v4-flash
+    model: xiaomi/mimo-v2.5
     base_url: https://openrouter.ai/api/v1
     api_mode: chat_completions
 ```
@@ -157,26 +310,44 @@ fallback_providers:
 Model facts confirmed during the build (live `provider_models_cache.json` + test
 calls):
 
-- **Anthropic native (T1)** — `default` / `assistant` / `coder` lead with
-  `anthropic` / `claude-sonnet-4.6` (`base_url: https://api.anthropic.com`,
-  `api_mode: anthropic_messages`; Hermes normalizes the slug to
-  `claude-sonnet-4-6` for the native API). OAuth (Claude Pro/Max) —
-  `hermes auth status anthropic` → *logged in*. codex/gpt-5.6-terra drops to T2.
+- **Anthropic native (T1)** — `default` / `assistant` lead with
+  `anthropic` / `claude-opus-4-8` (`base_url: https://api.anthropic.com`,
+  `api_mode: anthropic_messages`; slug in the live cache). OAuth (Claude
+  Pro/Max) — `hermes auth status anthropic` → *logged in*. The engineer left
+  the Claude tier 2026-07 (resource rebalance: its own turns are
+  orchestration; Claude is spent inside OpenCode via the QuotaGate instead).
 - **Grok** — `grok-4.3` is current on `xai-oauth` and verified working (the
   retired `grok-4*` glob doesn't cover it; re-auth via `hermes model` if the
   token lapses). `x-ai/grok-4.3` is the OpenRouter equivalent for per-token use.
-- **Copilot has no Grok** — its catalog is Claude + GPT-5.x + gemini-2.5-pro, so
-  worker T2 uses `claude-sonnet-4.6` (researcher) / `gpt-5.6-terra` (searcher).
+- **Copilot retired from every chain** (2026-07): the subscription became
+  unusable, and its catalog drift had already 404'd tiers silently once.
+  All fallbacks now go straight to OpenRouter (per-token, no catalog
+  surprises). `GITHUB_TOKEN` stays in the `hermes` Keychain layer for the
+  Skills Hub — it is no longer a model-provider credential.
 - **OpenRouter slugs** — `xiaomi/mimo-v2.5`, `deepseek/deepseek-v4-flash`,
   `google/gemini-3.5-flash` (the earlier `*-v3.2` / `gemini-3-flash-preview`
   refs were planning guesses).
-- **Deepest-tier split (mimo vs deepseek)** — `default` / `assistant` keep
-  `xiaomi/mimo-v2.5` as their deepest tier (now **T4**) because it is
-  **vision-capable**, so image input stays native even on a deep fallback turn
-  (video analysis is decoupled via the `video-analyze-mimo` plugin — see
-  `README.md` "Plugins"). The worker profiles (`coder` T4 / `researcher` T3 /
-  `searcher` T3) use the cheaper text-only `deepseek/deepseek-v4-flash`; they
-  don't need native image vision.
+- **OpenRouter tail split (vision vs text-only)** — profiles whose fallback
+  turns may need to SEE something keep a vision-capable tail:
+  `default` / `assistant` / `researcher` / `searcher` / `marketer` use
+  `xiaomi/mimo-v2.5` (omnimodal, cheap; video analysis stays decoupled via
+  the `video-analyze-mimo` plugin — see `README.md` "Plugins"), and
+  `creator` uses `minimax/minimax-m3` (image + video input) so it can still
+  eyeball generated assets. Text-only work rides the cheaper
+  `deepseek/deepseek-v4-flash` (`engineer`, `writer` tail). Researcher and
+  searcher gained vision in the 2026-07 copilot removal as a side effect of
+  standardizing on mimo.
+- **Writer breaks the workers-ride-GPT rule on purpose** (added 2026-07): its
+  deliverable IS the prose, so T1 is `anthropic` / `claude-sonnet-5` (Claude
+  Max quota — accepted tradeoff; sonnet over opus to keep the quota cost down).
+  No copilot tier (copilot unavailable at build time); T2 `openai-codex` /
+  `gpt-5.6-sol`, T3 `deepseek/deepseek-v4-flash` (both slugs verified in the
+  live cache 2026-07).
+- **Marketer** (added 2026-07) rides the codex tier like the other
+  orchestrating worker (engineer): T1 `openai-codex` / `gpt-5.6-sol`, and a
+  single vision-capable tail `xiaomi/mimo-v2.5` so it can still eyeball
+  creator's assets before posting on a fallback turn (no copilot tier —
+  built after the copilot retirement).
 
 Optional: set `delegation.model: google/gemini-3.5-flash` on default /
 assistant to route `delegate_task` subagents to a cheap model.
@@ -204,12 +375,11 @@ the default profile's `~/.hermes/auth.json` (`auth.py:1131-1157,1215-1259`).
 
 Two caveats:
 
-1. **Copilot token shadowing.** Copilot checks env before stored OAuth creds
-   (`COPILOT_GITHUB_TOKEN` → `GH_TOKEN` → `GITHUB_TOKEN` → `gh`). The current
-   `hermes`-layer `GITHUB_TOKEN` is already Copilot-capable (verified with a live
-   `--provider copilot` call), so this is fine — but if you swap it for a classic
-   `ghp_*` token, Copilot 401s. Then set a Copilot-capable
-   **`COPILOT_GITHUB_TOKEN`** (highest priority) so it wins regardless.
+1. **Copilot token shadowing** (historical — copilot left every model chain
+   2026-07, kept for if it returns). Copilot checks env before stored OAuth
+   creds (`COPILOT_GITHUB_TOKEN` → `GH_TOKEN` → `GITHUB_TOKEN` → `gh`); a
+   non-Copilot-capable `GITHUB_TOKEN` in the `hermes` layer would 401 it.
+   `COPILOT_GITHUB_TOKEN` (highest priority) overrides regardless.
 2. **Parallel OAuth refresh.** Several workers refreshing the same rotating
    refresh token at once can race to `invalid_grant`. If it bites, move
    high-parallelism workers' T1 to an API-key provider (OpenRouter / `XAI_API_KEY`).
@@ -224,8 +394,9 @@ routes through the same `bin/hermes` shim — **every profile gets `global` +
 [`README.md`](./README.md#secrets).
 
 - **`hermes`** — shared model/fallback keys every profile and every
-  dispatcher-spawned worker needs: `OPENROUTER_API_KEY` (T3) and a
-  Copilot-capable `GITHUB_TOKEN` (the `copilot` T2 + Skills Hub).
+  dispatcher-spawned worker needs: `OPENROUTER_API_KEY` (the OpenRouter
+  fallback tails) and `GITHUB_TOKEN` (Skills Hub; no longer a model
+  provider since the 2026-07 copilot retirement).
 - **`global`** — keys shared with *other* tools (editor, MCP servers, other
   CLIs). Nothing Hermes-specific needs to live here.
 - **gateway secrets** (`DISCORD_BOT_TOKEN`, `TELEGRAM_BOT_TOKEN`, +
@@ -295,15 +466,27 @@ Routing quality depends on `profile.yaml` descriptions — create workers with
 
 ## Status (as-built)
 
-Built and verified: default (kanban orchestrator), coder, researcher, and searcher
-workers — T1–T4 tiers resolve (doctor + live probes) and default-created tasks
+Built and verified: default (kanban orchestrator), engineer (ex-coder, promoted
+2026-07: dialogue-driven OpenCode worker), researcher, searcher, creator
+(added 2026-07: media production worker), writer (added 2026-07: prose
+worker; T1 anthropic/claude-sonnet-5, skills shared from the opencode Japanese
+stack via external_dirs), and marketer (added 2026-07: campaign/publishing
+worker; posts to X via the bundled xurl skill + external CLI under the
+Publish-grant floor) workers —
+T1–T4 tiers resolve (doctor + live probes) and default-created tasks
 dispatch/route to each. Assistant gateway runs keychain-pure (LaunchAgent,
-Telegram-only per #40695); the embedded dispatcher auto-claims tasks across ticks.
+Telegram-only per #40695); the embedded dispatcher auto-claims tasks across
+ticks (`dispatch_interval_seconds: 15` for fast block round-trips).
 `install.sh` links every tracked profile (incl. `profile.yaml`) with no WARN.
 
-Model slugs confirmed live: `anthropic` / `claude-sonnet-4.6` (T1 for default /
-assistant / coder; `hermes auth status anthropic` → logged in), `grok-4.3` on
-`xai-oauth`, `claude-sonnet-4.6` via `copilot` (worker T2),
-`deepseek/deepseek-v4-flash`, `google/gemini-3.5-flash`; Copilot has no Grok.
+Model slugs confirmed 2026-07 (live cache + OpenRouter model pages after the
+copilot removal): `anthropic` / `claude-opus-4-8` and `claude-sonnet-5`
+(`hermes auth status anthropic` → logged in), `openai-codex` /
+`gpt-5.6-terra` + `gpt-5.6-sol`, `grok-4.3` on `xai-oauth`, and the
+OpenRouter tails `xiaomi/mimo-v2.5` (vision; live on openrouter.ai but
+missing from a stale local model cache — refresh before trusting doctor),
+`minimax/minimax-m3` (image+video), `deepseek/deepseek-v4-flash`
+(text-only).
 
-Remaining (manual): Telegram round-trip — message the bot and confirm a reply.
+Remaining (manual): Telegram round-trip — message the bot and confirm a
+reply; re-run `hermes doctor` after the 2026-07 tier rebalance.
