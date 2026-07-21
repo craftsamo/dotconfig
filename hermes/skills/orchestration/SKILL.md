@@ -398,7 +398,7 @@ event the board is silent by design. Mid-run visibility is on-demand:
   `kanban_show <id>` and summarize the latest `PROGRESS:` / `STATE:`
   comments in the persona's voice — one or two lines, current phase + what's
   next. Never paste the raw comment trail.
-- Engineer writes `PROGRESS:` at phase boundaries (per its `engineer-loop`
+- Engineer writes `PROGRESS:` at unit boundaries (per its `engineer-loop`
   contract), so the newest one is the authoritative "where are we".
 - No comments yet and the run is young → say it's in progress since <claimed
   time>; suspiciously long with no trail → check `kanban_list` /
