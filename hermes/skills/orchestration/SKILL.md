@@ -206,11 +206,17 @@ Keep in sync with each worker's `profile.yaml` description:
 | researcher | depth: analysis, synthesis, comparison, evaluation, reports | file, web |
 | engineer | implementation: drives OpenCode, code changes, debugging, tests, builds, PRs; confirms material decisions via block round-trips | terminal (hermes-cli) |
 | creator | ALL media production: image, video, GIF, voice assets, batch and single; delivers via kanban_attach | media gen chains + terminal |
+| writer | reader-facing prose: marketing long copy, tech articles/blog, documentation; tone-calibrated JP quality; drafts only — never publishes | file, web |
 
-Mixed pipelines flow searcher -> researcher -> engineer, with creator as a
-side stage for assets. Workers can fan out themselves (`kanban_create` +
-`parents`): e.g. engineer dispatches a searcher lookup or a creator asset
-mid-implementation — don't pre-decompose what the worker can request itself.
+Mixed pipelines flow searcher -> researcher -> engineer, with creator (assets)
+and writer (prose deliverables) as side stages. Workers can fan out themselves
+(`kanban_create` + `parents`): e.g. engineer dispatches a searcher lookup or a
+creator asset mid-implementation — don't pre-decompose what the worker can
+request itself. Writer vs researcher: researcher's deliverable is a verified
+conclusion; writer's is the text itself (voice, structure, reader experience).
+Writer tasks: pass the WritingBrief fields you already know — audience,
+purpose, medium, tone, length, source links — in the body; the writer blocks
+once (tone samples / missing premises) rather than guessing.
 
 During Plan Loop, workers can also be **consulted at advisory altitude**
 (see `references/plan.md` "Worker consultations") — the same roster, but
