@@ -1,7 +1,7 @@
 ---
 name: engineer-loop
 description: Engineer's dialogue-driven OpenCode loop — parse the task's Authority grant (preset A1/A2/A3 + overrides, expanded only by AUTHORITY+ comments), translate it into an OPENCODE_PERMISSION overlay + --auto (Permission Bridge), plan once in a lean P0 master-plan session and implement unit-by-unit in short-lived forks (-s <P0> --fork; PR-sized units, no compaction), run review/debug primaries as fresh sessions, handle OpenCode's needs via its final output (Question Bridge: run -c answer or L2 block), gate material decisions through checkpoint-then-block (WIP commit + structured STATE/Qn comments + a <=160-char block reason), keep an on-demand PROGRESS trail with session ids, fan out research/media sub-tasks via kanban_create, verify independently, and report with kanban_attach artifacts. CLI mechanics live in the bundled opencode/claude-code/codex skills.
-version: 2.3.0
+version: 2.4.0
 author: CraftSamo
 license: MIT
 metadata:
@@ -317,17 +317,26 @@ Rules:
 
 <QuotaGate>
 
-Check before choosing a model:
+The gate is **comparative** — both subscription pools are shared with the
+human's interactive OpenCode use, so route to the pool with headroom:
+
 ```text
-terminal(command="opencode-quota show --provider anthropic", workdir="<wd>", timeout=60)
-# also: --provider copilot | openai ; npx -y @slkiser/opencode-quota show ... if not on PATH
+terminal(command="npx -y @slkiser/opencode-quota show", workdir="<wd>", timeout=90)
 ```
-- Usable Anthropic quota → Claude may be used.
-- Missing command / auth failure / no quota data → **treat Claude as unavailable**
-  even if Claude auth looks valid. (`claude auth status` is NOT sufficient.)
-- OpenAI fallback: gate on `--provider openai` (OpenAI Pro windows). Prefer
-  `gpt-5.6-sol` for high-risk work, `gpt-5.6-terra` for standard work, and
-  `gpt-5.6-luna` for routine/mechanical work.
+
+- Both pools report a remaining % → pick the one with **more headroom**
+  (tie → Claude for heavy/high-risk, OpenAI for standard).
+- A pool under ~15% left → treat it as exhausted for heavy work; only
+  small/mechanical jobs may still use it.
+- **Anthropic `Unavailable (not detected)` is a known false negative** (the
+  tool cannot read Claude subscription usage on this machine) — it does NOT
+  mean "no quota". Fall back to an auth check: anthropic models listed in
+  `opencode models` → Claude is usable; prefer Claude when OpenAI is below
+  ~30% or the work is heavy/high-risk, otherwise OpenAI.
+- Neither pool usable (auth missing / both exhausted) → cheap tier per
+  <ProviderSelection>. `claude auth status` alone is never the gate.
+
+Within the chosen pool, weight the model by task risk per <ModelChoice>.
 
 </QuotaGate>
 
@@ -335,14 +344,13 @@ terminal(command="opencode-quota show --provider anthropic", workdir="<wd>", tim
 
 High → low:
 
-1. **Claude via OpenCode** — only when the Anthropic quota gate passes.
+1. **Claude via OpenCode** — when <QuotaGate> routes to Claude.
    Heavy/high-risk → Opus 4.8; light/mechanical → Haiku 4.5.
    If OpenCode-native Claude is gated/unavailable, **Copilot** is the alternate
-   Claude-family source (Opus 4.8 first, then OpenAI-family).
-2. **OpenAI via OpenCode** — primary fallback once Claude is gated out. High-risk →
+   Claude-family source (Claude-family first, then OpenAI-family).
+2. **OpenAI via OpenCode** — when <QuotaGate> routes to OpenAI. High-risk →
    `gpt-5.6-sol`; standard → `gpt-5.6-terra`; routine/cheap → `gpt-5.6-luna`
    or the configured light model.
-   Gate on `--provider openai`.
 3. **OpenRouter** — cheap coding-capable models only. **Never Claude/GPT via OpenRouter**
    (exclude `anthropic` / `claude` / `openai` / `gpt`). Prefer Deepseek-4-Flash, then Deepseek-4-pro.
 4. Direct `claude-code` / `codex` only on explicit request or when OpenCode is unsuitable.
@@ -426,7 +434,9 @@ Final message:
   `Authority:` and `AUTHORITY+:` comments count.
 - Long silent runs with no `PROGRESS:` comments — the orchestrator can't see
   inside your run any other way.
-- Treating `claude auth status` as enough — Claude needs usable `opencode-quota` data.
+- Treating `claude auth status` as the quota gate, or reading Anthropic
+  "Unavailable (not detected)" as "no Claude" — use the comparative gate and
+  its auth fallback (<QuotaGate>).
 - Falling back to OpenRouter but selecting Claude/GPT there.
 - Treating OpenAI Pro quota as interchangeable with Codex/Copilot quota; check the
   provider actually selected for the run.

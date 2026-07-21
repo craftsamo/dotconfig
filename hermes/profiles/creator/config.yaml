@@ -5,7 +5,7 @@ model:
 providers: {}
 fallback_providers:
   - provider: copilot
-    model: gpt-5.6-terra
+    model: gpt-5.4
   - provider: openrouter
     model: google/gemini-3.5-flash
     base_url: https://openrouter.ai/api/v1
