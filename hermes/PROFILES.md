@@ -82,18 +82,43 @@ fan-in, not nested profiles. Workers fan out themselves via `kanban_create`
 a live supervising mid-manager isn't possible anyway — block/done
 notifications reach gateway chat sessions, never a parent worker.
 
-### Engineer dialogue loop (assistant ↔ engineer)
+### Engineer dialogue loop (the four layered loops)
+
+Implementation work runs through four nested loops, each with its own
+channel, its own durable state, and its own decision altitude:
+
+| # | Loop | Channel | Durable state | Decides |
+| --- | --- | --- | --- | --- |
+| L1 requirements | user ↔ assistant | chat + `clarify` (Plan Loop) | chat + session todo | what/why: goal, scope, Authority level |
+| L2 detail | assistant ↔ engineer | kanban block round-trips (`Q<n>`/`DECISION`) | kanban comment thread | how (shape): feasibility, plan revision, in-grant calls |
+| L3 implementation | engineer ↔ OpenCode | `opencode run` (P0 master-plan session + per-unit forks) | P0 session + git history + plan attachment | how (detail): unit split, tactics, model, verification |
+| L4 in-run | OpenCode ↔ its subagents (reviewer/debugger/…) | OpenCode task tool, per the `opencode/` config | subagent sessions | code-level: review findings, root causes |
+
+Three principles hold the stack together: **escalation moves one layer at a
+time** (OpenCode never talks to the assistant, the engineer never talks to
+the user — each layer translates what it cannot decide into the next layer
+up's format); **the engineer is the translation layer** (upward a worker
+speaking kanban — `Q<n>`/`DECISION`/Authority; downward an orchestrator
+speaking OpenCode — prompts, forks, permission env); **L4 is hands-off**
+(the engineer judges results by independent verification, never micromanages
+the subagents).
 
 Workers are disposable processes (a `kanban_block` ends the run; unblock
-respawns a fresh one), so the engineer's "conversation" with the assistant is
-turn-based over two durable layers:
+respawns a fresh one), so continuity lives in the durable layers above —
+never in a long-running session. In L3 the engineer plans once in a lean
+**P0** session (`--agent plan`; unit split + architecture only), then
+implements each PR-sized unit in a short-lived **fork** of P0
+(`run -s <P0> --fork`), ending every unit with verify → commit →
+`PROGRESS:` comment carrying the session ids; review/debug primaries run as
+fresh read-only sessions. Two bridges wire L3 to OpenCode's non-interactive
+reality (both verified against source): the **Permission Bridge** — bare
+`run` auto-rejects every `ask`, so the engineer translates the Authority
+grant into an `OPENCODE_PERMISSION` overlay (deep-merged; deny beats
+`--auto`) plus `--auto`; and the **Question Bridge** — `run` denies the
+question tool, so OpenCode escalates only via its final output text, which
+the engineer answers with `run -c` or translates into an L2 block.
 
-- **kanban comment thread** — decisions and answers (recovered on respawn via
-  `kanban_show`); bulky plans/diffs travel as `kanban_attach` attachments.
-- **OpenCode session in the preserved worktree** — implementation context,
-  resumed with `opencode run -c`.
-
-The protocol: the task body carries an **Authority** grant — a preset level
+The L2 protocol: the task body carries an **Authority** grant — a preset
 (`A1` commit-only / `A2` +feature-branch push+PR / `A3` +deps; absent = A1)
 plus scope overrides, expanded mid-task only via `AUTHORITY+:` comments.
 Anything outside the effective grant triggers **checkpoint-then-block**
@@ -103,7 +128,7 @@ notification truncates it). The assistant `kanban_show`s the thread, answers
 autonomously within the grant (`DECISION(Q<n>):` comment per open question +
 unblock, then informs the user) and relays out-of-grant questions to the
 human. Mid-run visibility is on-demand: engineer leaves `PROGRESS:` comments
-at phase boundaries (comments never notify chat) and the assistant summarizes
+at unit boundaries (comments never notify chat) and the assistant summarizes
 them when asked (`orchestration` `<StatusCheck>`). The gateway's
 `kanban.dispatch_interval_seconds` is lowered to **15** so a round-trip costs
 roughly the answer time + ~20 s. Details: engineer's `engineer-loop` skill and
@@ -150,8 +175,9 @@ Three per-profile layers, kept separate:
     card, dispatch params, BlockedTriage, failure recovery. Per-approach
     detail in `references/{plan,build,search,research,creative,inline}.md`.)
   - engineer → `engineer-loop` (delegate to OpenCode; Authority parsing + checkpoint-then-block
-    dialogue; fan-out to searcher/researcher/creator; quota-gated provider/model routing;
-    `opencode run -c` resume; verify/report)
+    dialogue; P0 master-plan + per-unit forks with permission/question bridges;
+    fan-out to searcher/researcher/creator; quota-gated provider/model routing;
+    intra-unit `-c`/`-s` resume; verify/report)
   - researcher → `research-pipeline` (search route + Admiralty/SIFT source evaluation; evidence discipline)
   - searcher → `breadth-retrieval` (query expansion, source-class routing, link-first hand-off)
     + `deep-retrieval` (explicit multi-hop hunts: `skills: ["deep-retrieval"]` + `goal_mode`)
