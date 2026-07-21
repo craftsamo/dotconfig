@@ -23,10 +23,10 @@ its own `config.yaml` / `.env` / `SOUL.md` / `skills/` / `cron/` / state, and a
                              ▼
                  ~/.hermes/kanban.db  (one shared board)
                              │ dispatcher (in assistant's gateway) spawns
-               ┌──────────────┼──────────────┬──────────────┬──────────────┐
-               ▼              ▼              ▼              ▼              ▼
-            searcher      researcher       engineer       creator        writer
-            (retrieve)    (synthesize)     (implement)    (produce media) (write prose)
+               ┌──────────────┼──────────────┬──────────────┬──────────────┬──────────────┐
+               ▼              ▼              ▼              ▼              ▼              ▼
+            searcher      researcher       engineer       creator        writer        marketer
+            (retrieve)    (synthesize)     (implement)    (produce media) (write prose) (publish)
 ```
 
 Verified against the source clone
@@ -70,13 +70,16 @@ in-turn). A Kanban worker may itself call `delegate_task` during its run.
 | **searcher** | fast retrieval (web / x_search); deep multi-hop via `deep-retrieval` + `goal_mode` | — (worker) | `.` (launch / task ws) | `web,x_search` | — | yes |
 | **creator** | ALL media production — image, video, GIF, voice, single and batch (front doors only brief and dispatch) | — (worker) | `.` (launch / task ws) | `hermes-cli,video_gen,video` + gen plugins | — | yes |
 | **writer** | reader-facing prose — marketing long copy, tech articles/blog, documentation (tone-calibrated, JP norms); never publishes | — (worker) | `.` (launch / task ws) | `file,web` | — | yes |
+| **marketer** | campaign orchestration + approved publishing (X via xurl); confirms every post through Publish-grant block round-trips | — (worker) | `.` (launch / task ws) | `hermes-cli,web,x_search` | — | yes |
 
 Role split: **searcher (retrieve) → researcher (synthesize) → engineer
 (implement)**, mirroring the `delegate_task` toolset patterns
 (`["web"]` / `["file","web"]` / `["terminal","file"]`), with **creator**
 (produce media) and **writer** (produce reader-facing prose — the deliverable
 is the text itself, vs researcher's verified conclusions) as side stages any
-pipeline can call on.
+pipeline can call on, and **marketer** as the outbound end stage: it
+orchestrates campaigns (fanning out to writer/creator/searcher/researcher)
+and is the only profile that publishes to public channels.
 
 The org stays **flat by design**: profiles are global and the board is one
 shared queue, so "hierarchy" is expressed as routing policy + `parents`
@@ -144,7 +147,13 @@ asset + 1 corrective pass, expanded only via `AUTHORITY+:`), leaves
 `PROGRESS:` per finished asset, and — since a task's scratch workspace
 survives block/crash respawns (deleted only on completion) — resumes by
 inventorying surviving intermediates instead of re-spending credits.
-Details: creator's `media-production` skill.
+Details: creator's `media-production` skill. **marketer** speaks it with a
+**Publish** grant (publishing is public and irreversible: absent grant =
+draft-only + a needs_approval block showing the exact post
+text/attachments/destination; `P1` = autonomous within named caps —
+account, post count, content scope), leaves `PROGRESS:` with the posted URL
+per post, and treats shipped posts as immutable facts on resume. Details:
+marketer's `marketing-loop` skill.
 
 ### Default is the assistant's CLI counterpart (and stays a clean baseline)
 
@@ -188,8 +197,11 @@ Three per-profile layers, kept separate:
   fabricated citations) + a block baseline for missing premises; searcher = link
   integrity (only URLs actually retrieved); writer = deliverable integrity (no
   fabricated facts/quotes/URLs; assumptions labeled) + never publishes + a
-  tone-sample block before long unsettled-tone deliverables; front doors = the
-  blocked-triage baseline (kanban_show → in-grant `DECISION(Q<n>)` + unblock → relay the rest).
+  tone-sample block before long unsettled-tone deliverables; marketer = the
+  Publish floor (absent grant ⇒ draft-only; every post needs a verbatim
+  DECISION approval or an in-cap P1 grant; posted URLs verified; shipped
+  posts never silently edited or deleted); front doors = the blocked-triage
+  baseline (kanban_show → in-grant `DECISION(Q<n>)` + unblock → relay the rest).
   Each profile also states its **MEMORY.md policy**: durable cross-task facts
   only (task state lives in the kanban thread + git/board; playbook-sized
   knowledge becomes a skill), and `user_profile_enabled` is off for workers —
@@ -224,6 +236,12 @@ Three per-profile layers, kept separate:
     (`~/.config/opencode/skills/japanese` — japanese-writing / tech-prose /
     prose-rhythm, single-sourced with OpenCode) and upstream
     `creative/humanizer`
+  - marketer → `marketing-loop` (MarketingBrief + Publish-grant parsing;
+    strategy → fan-out to writer/creator/searcher/researcher → assemble →
+    approval-gated xurl publish bridge with per-post PROGRESS + URL
+    verification; channel extension points for future Discord/IG/TikTok
+    accounts; kanban-thread resume treating shipped posts as immutable) +
+    the upstream `social-media/xurl` skill via `skills.external_dirs`
 
 Routing (assistant): `orchestration` owns it. The skill is
 **auto-loaded into every new Telegram topic session** via the per-topic
@@ -239,7 +257,10 @@ analysis/synthesis, engineer = implementation, creator = ALL media production
 style references, quantity — and dispatches; it generates nothing itself),
 writer = reader-facing prose (marketing copy, articles/blog, docs — the front
 door passes the WritingBrief fields it has: audience, purpose, medium, tone,
-length; the writer blocks once for the rest).
+length; the writer blocks once for the rest), marketer = campaign
+orchestration + ALL outbound publishing (the front door collects the
+MarketingBrief and writes the `Publish:` grant line on purpose — an omitted
+grant means draft-only; it never posts anything itself).
 Multi-stage work ships as a `parents` chain (obvious 2-3 stages) or one
 `triage=true` card (auto-decompose); `delegate_task` stays an exception for
 medium parallel lookups the user is actively waiting on. The contract keeps a
@@ -271,6 +292,7 @@ comparative QuotaGate.
 | **searcher** | `xai-oauth` / grok-4.3 | `copilot` / gpt-5.4 | `openrouter` / `deepseek/deepseek-v4-flash` | — |
 | **creator** | `openai-codex` / gpt-5.6-terra | `copilot` / gpt-5.4 | `openrouter` / `google/gemini-3.5-flash` | — |
 | **writer** | `anthropic` / claude-sonnet-5 | `openai-codex` / gpt-5.6-sol | `openrouter` / `deepseek/deepseek-v4-flash` | — |
+| **marketer** | `openai-codex` / gpt-5.6-sol | `openrouter` / `xiaomi/mimo-v2.5` | — | — |
 
 ```yaml
 # example — researcher's ~/.hermes/profiles/researcher/config.yaml
@@ -324,6 +346,11 @@ calls):
   No copilot tier (copilot unavailable at build time); T2 `openai-codex` /
   `gpt-5.6-sol`, T3 `deepseek/deepseek-v4-flash` (both slugs verified in the
   live cache 2026-07).
+- **Marketer** (added 2026-07) rides the codex tier like the other
+  orchestrating worker (engineer): T1 `openai-codex` / `gpt-5.6-sol`, and a
+  single vision-capable tail `xiaomi/mimo-v2.5` so it can still eyeball
+  creator's assets before posting on a fallback turn (no copilot tier —
+  built after the copilot retirement).
 
 Optional: set `delegation.model: google/gemini-3.5-flash` on default /
 assistant to route `delegate_task` subagents to a cheap model.
@@ -444,9 +471,11 @@ Routing quality depends on `profile.yaml` descriptions — create workers with
 
 Built and verified: default (kanban orchestrator), engineer (ex-coder, promoted
 2026-07: dialogue-driven OpenCode worker), researcher, searcher, creator
-(added 2026-07: media production worker), and writer (added 2026-07: prose
+(added 2026-07: media production worker), writer (added 2026-07: prose
 worker; T1 anthropic/claude-sonnet-5, skills shared from the opencode Japanese
-stack via external_dirs) workers —
+stack via external_dirs), and marketer (added 2026-07: campaign/publishing
+worker; posts to X via the bundled xurl skill + external CLI under the
+Publish-grant floor) workers —
 T1–T4 tiers resolve (doctor + live probes) and default-created tasks
 dispatch/route to each. Assistant gateway runs keychain-pure (LaunchAgent,
 Telegram-only per #40695); the embedded dispatcher auto-claims tasks across
