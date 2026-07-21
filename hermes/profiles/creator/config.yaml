@@ -393,6 +393,8 @@ goals:
 skills:
   external_dirs:
     - ~/ghq/github.com/NousResearch/hermes-agent/skills/autonomous-ai-agents
+    - ~/ghq/github.com/NousResearch/hermes-agent/skills/creative
+    - ~/ghq/github.com/NousResearch/hermes-agent/skills/media
   template_vars: true
   inline_shell: false
   inline_shell_timeout: 10
