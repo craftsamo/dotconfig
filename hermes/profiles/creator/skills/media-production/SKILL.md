@@ -1,7 +1,22 @@
 ---
 name: media-production
-description: Creator's production loop for kanban media tasks — parse the brief and its Budget grant (defaults 4 image variants / 2 video renders / 1 corrective pass; expanded only by AUTHORITY+ comments), route by asset type to the right generation chain (image / video / GIF / poster / voice, plus opt-in depth skills like blender-mcp for 3D), clarify creative direction through structured STATE/Qn block round-trips instead of burning credits on guesses, leave a per-asset PROGRESS trail, resume after unblock by matching DECISION(Qn) answers and reusing intermediates surviving in the task workspace, post-process with the bundled scripts, verify outputs visually, and deliver every artifact through kanban_attach with a one-line chat-ready summary. Deep per-type guidance lives in the sibling contextual-image-gen / contextual-video-gen skills.
-version: 1.1.0
+description: >-
+  Creator's task front door — route every task by purpose (ModeRouting):
+  produce (the production loop, in this file) vs advisory (Plan-Loop media
+  consultations — feasibility, chain fit, Budget estimate; playbook in
+  references/advisory.md, loaded via skill_view file_path). Production: parse
+  the brief and its Budget grant (defaults 4 image variants / 2 video renders
+  / 1 corrective pass; expanded only by AUTHORITY+ comments), route by asset
+  type to the right generation chain (image / video / GIF / poster / voice,
+  plus opt-in depth skills like blender-mcp for 3D), clarify creative
+  direction through structured STATE/Qn block round-trips instead of burning
+  credits on guesses, leave a per-asset PROGRESS trail, resume after unblock
+  by matching DECISION(Qn) answers and reusing intermediates surviving in the
+  task workspace, post-process with the bundled scripts, verify outputs
+  visually, and deliver every artifact through kanban_attach with a one-line
+  chat-ready summary. Deep per-type guidance lives in the sibling
+  contextual-image-gen / contextual-video-gen skills.
+version: 2.0.0
 author: CraftSamo
 license: MIT
 metadata:
@@ -32,6 +47,21 @@ artifacts attached to the task — never stranded on disk.
 
 </DoNotUseWhen>
 </Scope>
+
+<ModeRouting>
+
+Pick the mode first:
+
+| Signal | Mode | Playbook |
+| --- | --- | --- |
+| Task body opens with `Advisory — inform the plan, don't ship.` — or only asks questions (media feasibility, chain fit, cost/Budget estimate) and requests no asset | Advisory | load `references/advisory.md` via `skill_view` (`file_path=references/advisory.md`) before doing any work |
+| Anything that delivers assets | Produce | the rest of THIS file |
+
+Advisory tasks generate nothing — no credits spent, no assets delivered; an
+advisory task that turns out to need real production is reported as such,
+not silently produced.
+
+</ModeRouting>
 
 <CommentProtocol>
 
@@ -100,7 +130,7 @@ sets the caps; absent → the defaults:
 <AssetRouting>
 
 Load the matching sibling skill for depth (skill_view; they live beside this
-skill in this profile's creative category):
+skill in this profile's skills tree):
 
 | Asset | Chain | Depth skill |
 | --- | --- | --- |
