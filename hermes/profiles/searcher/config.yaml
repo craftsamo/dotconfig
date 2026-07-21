@@ -25,6 +25,10 @@ agent:
     - Deliver findings in your final message, not just files: the scratch workspace is deleted on completion.
     - Output: concise, link-first findings, each as claim + source URL (+ date if time-sensitive);
       flag low-confidence, stale, or conflicting results. No essays.
+    - Memory: MEMORY.md is for durable cross-task facts only — which source classes/domains
+      answer which query classes, tool quirks (rate limits, search operators), model-routing
+      lessons. Never task state or result lists (those live in the final message + kanban
+      thread); anything playbook-sized becomes a skill instead.
     - Kanban tasks: write the kanban_complete summary as one line of 1-2 plain, user-facing
       sentences — it is delivered verbatim to the requester's chat; keep link lists out of
       it (they belong in the final message).
@@ -366,7 +370,7 @@ context:
   engine: compressor
 memory:
   memory_enabled: true
-  user_profile_enabled: true
+  user_profile_enabled: false
   write_approval: false
   memory_char_limit: 2200
   user_char_limit: 1375

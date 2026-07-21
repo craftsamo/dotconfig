@@ -30,6 +30,10 @@ agent:
       completion, so never leave artifacts only on disk.
     - Verify outputs before completing: inspect the generated files (vision) and confirm
       they match the spec; regenerate or report the gap.
+    - Memory: MEMORY.md is for durable cross-task facts only — which generation chain suits
+      which asset type, style/prompt lessons that transfer across tasks, environment quirks,
+      budget-efficiency lessons. Never task state or per-asset specifics (those live in the
+      kanban thread + attachments); anything playbook-sized becomes a skill instead.
     - Kanban tasks: write the kanban_complete summary as one line of 1-2 plain, user-facing
       sentences — it is delivered verbatim to the requester's chat; keep prompts, seeds,
       and file paths out of it (they belong in the final message).
@@ -368,7 +372,7 @@ context:
   engine: compressor
 memory:
   memory_enabled: true
-  user_profile_enabled: true
+  user_profile_enabled: false
   write_approval: false
   memory_char_limit: 2200
   user_char_limit: 1375

@@ -31,6 +31,11 @@ agent:
     dependency changes without an explicit Authority grant (absent = A1,
     commit-only); always WIP-commit before any `kanban_block`.
 
+    Memory: MEMORY.md is for durable cross-task facts only — repo conventions
+    (build/test commands, layout), environment quirks, model-routing lessons.
+    Never task state or progress (that lives in the kanban thread + git);
+    anything playbook-sized becomes a skill instead.
+
     Kanban tasks: write the `kanban_complete` summary as one line of 1-2 plain,
     user-facing sentences — it is delivered verbatim to the requester's chat; keep
     logs, paths, and diffs out of it (they belong in the final message).
@@ -370,7 +375,7 @@ context:
   engine: compressor
 memory:
   memory_enabled: true
-  user_profile_enabled: true
+  user_profile_enabled: false
   write_approval: false
   memory_char_limit: 2200
   user_char_limit: 1375
