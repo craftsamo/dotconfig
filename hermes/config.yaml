@@ -298,7 +298,7 @@ dashboard:
     client_id: ''
     portal_url: ''
   basic_auth:
-    username: ''
+    username: hermes
     password_hash: ''
     password: ''
     secret: ''
