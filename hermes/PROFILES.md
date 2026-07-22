@@ -85,7 +85,10 @@ The org stays **flat by design**: profiles are global and the board is one
 shared queue, so "hierarchy" is expressed as routing policy + `parents`
 fan-in, not nested profiles. Workers fan out themselves via `kanban_create`
 (e.g. engineer dispatches a searcher lookup or a creator asset mid-task);
-a live supervising mid-manager isn't possible anyway — block/done
+staged supervision is expressed via the continuation-card pattern: a worker
+creates its children plus a self-assigned fan-in card (formalized in each
+worker skill's `<FanOut>`); grants never propagate to worker-created children.
+A live supervising mid-manager isn't possible anyway — block/done
 notifications reach gateway chat sessions, never a parent worker.
 
 ### Engineer dialogue loop (the four layered loops)
@@ -273,6 +276,12 @@ Time-deferred work parks in `scheduled` via `hermes kanban schedule <id>
 "until=<ISO8601> — <reason>"`; the assistant's no_agent
 `kanban-scheduled-sweeper.sh` cron releases due cards every 15 minutes. Dead
 cards close via `hermes kanban archive <id>`.
+Chat Plan Loop remains the default; Board Plan is for 2+ consultations when the
+user is async, using investigation advisory cards plus one assistant-assigned
+synthesis card whose `parents` fan in; its `REVIEW:` approval signs off the
+outline and opens the build cards. The no_agent `kanban-orphan-watchdog.sh`
+cron runs every 30 minutes and surfaces unsubscribed blocked cards plus silent
+block-loop triage falls to chat.
 Multi-stage work ships as a `parents` chain (obvious 2-3 stages) or one
 `triage=true` card (auto-decompose); `delegate_task` stays an exception for
 medium parallel lookups the user is actively waiting on. The contract keeps a
@@ -491,7 +500,9 @@ Telegram-only per #40695); the embedded dispatcher auto-claims tasks across
 ticks (`dispatch_interval_seconds: 15` for fast block round-trips).
 `install.sh` links every tracked profile (incl. `profile.yaml`) with no WARN.
 The 2026-07 kanban workflow conventions (Review gate, scheduled sweeper cron,
-and block-loop reset discipline) shipped in the orchestration and worker skills.
+Board Plan planning trees, continuation-card fan-out, the
+`kanban-orphan-watchdog.sh` cron, and block-loop reset discipline) shipped in
+the orchestration and worker skills.
 
 Model slugs confirmed 2026-07 (live cache + OpenRouter model pages after the
 copilot removal): `anthropic` / `claude-opus-4-8` and `claude-sonnet-5`
