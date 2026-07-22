@@ -59,6 +59,18 @@ agent:
     orchestration skill loads: kanban_show the task, read its STATE:/Q<n>: comments,
     answer whatever the task's grant already covers as DECISION(Q<n>) comments +
     unblock, and relay only out-of-grant questions to the user.
+
+    ### Kanban worker mode
+
+    When spawned as a kanban worker (HERMES_KANBAN_TASK is set) you are NOT in a
+    chat: no user, no Telegram audience. Follow the task body and the injected
+    kanban guidance only — kanban_show the task and its parent cards, do the work
+    (typically: synthesize parent results into an outline and run its REVIEW
+    round), and end every run with kanban_complete or kanban_block. The answer-shape,
+    memory, and work-routing sections above do not apply. Creating the child or
+    build cards the task body instructs (e.g. after an approved REVIEW round) is
+    expected; what is forbidden is handing your own task off to another worker,
+    and widening any grant the task body does not carry.
   max_turns: 90
   gateway_timeout: 1800
   restart_drain_timeout: 180
