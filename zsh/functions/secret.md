@@ -117,7 +117,7 @@ which injects Keychain secrets and execs the real binary (resolved from
 
 | Mode    | Commands                                       | Injects                                                  |
 | ------- | ---------------------------------------------- | -------------------------------------------------------- |
-| tool    | `opencode`, `claude`, `codex`, `copilot` — and any name not listed below | `secret env -p global`, then `-p <command>` (tool wins) |
+| tool    | `opencode`, `claude`, `codex`, `copilot`, `grok` — and any name not listed below | `secret env -p global`, then `-p <command>` (tool wins) |
 | project | `npm`, `pnpm`, `node`, `bun`, `bunx`, `yarn`, `npx`, `python`, `python3`, `uv`, `docker`, `docker-compose` | `secret env` — the ambient project + repository scope of the CWD; nothing outside a git repository |
 
 Effective precedence in both modes:
