@@ -141,6 +141,38 @@ invocation, including every profile alias (`~/.local/bin/<name>` runs bare
 `hermes -p <name>`). The `global` layer is for keys shared with other shimmed
 tools. See [`secret`](../zsh/functions/secret.md).
 
+## Web dashboard (tailnet)
+
+`hermes dashboard` runs a full web UI (config, API keys, sessions, and a Chat
+terminal). tmux `prefix H` lazily starts one shared, machine-level dashboard in
+a detached `hermes-dashboard` session that survives closing every directory's
+TUI, so mobile devices on the tailnet can reach it anytime. See
+[`tmux/README.md`](../tmux/README.md#hermes-web-dashboard) for the binding and
+launch mechanics.
+
+The dashboard binds to this machine's **Tailscale IPv4 only** (port `9119`) —
+never `0.0.0.0` or the LAN — and Hermes' auth gate requires a login on every
+non-loopback bind. It uses the bundled Basic provider:
+
+- `dashboard.basic_auth.username` in `config.yaml` — the non-secret username.
+- `HERMES_DASHBOARD_BASIC_AUTH_PASSWORD` / `HERMES_DASHBOARD_BASIC_AUTH_SECRET`
+  — in the `hermes` Keychain layer, injected by `bin/hermes` at launch. The
+  stable `SECRET` keeps sessions signed-in across restarts.
+
+Provision both Keychain values once on a new machine. The password prompt does
+not echo, and the signing secret goes directly from `openssl` to the Keychain:
+
+```sh
+secret set HERMES_DASHBOARD_BASIC_AUTH_PASSWORD -p hermes
+openssl rand -base64 32 | \
+  secret set HERMES_DASHBOARD_BASIC_AUTH_SECRET -p hermes --stdin
+```
+
+Browse `http://<tailnet-ip>:9119` from any tailnet device and sign in once. The
+dashboard's web Chat starts its own profile-scoped TUI process — a parallel
+entry point that shares the profile and saved sessions, not a mirror of an
+in-progress terminal conversation.
+
 ## Installing the binary
 
 Outside the [Brewfile](../Brewfile). Run [`./setup.sh`](./setup.sh) — an
