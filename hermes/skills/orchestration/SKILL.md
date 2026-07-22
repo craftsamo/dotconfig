@@ -219,7 +219,12 @@ Mixed pipelines flow searcher -> researcher -> engineer, with creator (assets)
 and writer (prose deliverables) as side stages. Workers can fan out themselves
 (`kanban_create` + `parents`): e.g. engineer dispatches a searcher lookup or a
 creator asset mid-implementation — don't pre-decompose what the worker can
-request itself. Writer vs researcher: researcher's deliverable is a verified
+request itself. When a worker needs its children's RESULTS, it uses the
+**continuation-card pattern** (each worker skill's `<FanOut>` section):
+children + a card assigned back to itself gated on them, then complete —
+never waiting in-process. Grants never propagate to worker-created
+children, and such children notify nobody (the orphan-watchdog cron is
+the safety net). Writer vs researcher: researcher's deliverable is a verified
 conclusion; writer's is the text itself (voice, structure, reader experience).
 Writer tasks: pass the WritingBrief fields you already know — audience,
 purpose, medium, tone, length, source links — in the body; the writer blocks
