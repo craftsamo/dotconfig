@@ -350,6 +350,11 @@ card's newest `SCHEDULED:` comment.
   never a plain create, a `ready` card can be dispatched within ~15 s,
   before you can park it — then park it via terminal:
   `hermes kanban schedule <id> "until=<ISO8601> — <reason>"`.
+  Park **in the same turn, immediately**: a created-blocked card carries no
+  block event, so `recompute_ready` treats it as non-sticky and can
+  auto-promote it to `ready` on the next tick. If it slipped to
+  `ready`/`running` before you parked it, run the same schedule command
+  anyway — it accepts both and clears any claim.
 - **Existing card**: same CLI; works from todo/ready/running/blocked.
 - **`until=` format**: local-time ISO 8601, e.g. `until=2026-07-25T09:00`
   (same shape as upstream's planned `schedule --at`, so a future migration
