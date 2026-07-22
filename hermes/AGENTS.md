@@ -68,7 +68,7 @@ profiles/<name>/     # assistant, engineer, researcher, searcher, creator, write
                      #   skills — orchestration lives in the shared skills/ tree above)
   - cron/            # per-profile scheduled jobs (jobs.json; placeholder if empty)
                      # assistant/scripts/ holds cron scripts incl.
-                     # kanban-scheduled-sweeper.sh
+                     # kanban-scheduled-sweeper.sh and kanban-orphan-watchdog.sh
 setup.sh README.md PROFILES.md
 ```
 
@@ -81,8 +81,10 @@ marketer (kanban workers; engineer converses with the assistant via kanban block
 under a structured comment protocol — Authority presets A1/A2/A3,
 `STATE:`/`Q<n>:`/`DECISION(Q<n>):`/`PROGRESS:`/`AUTHORITY+:`/`REVIEW:`
 (human sign-off gate) markers, plus scheduled parking in `scheduled` via
-`SCHEDULED: until=` comments and the assistant sweeper cron — and
-drives OpenCode through a P0-plan + per-unit-fork loop with permission /
+`SCHEDULED: until=` comments and the assistant sweeper cron — Board Plan
+synthesis cards run the assistant as a kanban worker for plan synthesis, while
+workers use the continuation-card fan-out pattern — and drives OpenCode through
+a P0-plan + per-unit-fork loop with permission /
 question bridges; creator speaks the same comment protocol with a Budget
 grant (generation-spend caps), marketer with a Publish grant (absent =
 draft-only; posting needs verbatim approval or in-cap P1) — see PROFILES.md
