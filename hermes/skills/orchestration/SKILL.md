@@ -10,18 +10,24 @@ description: >-
   the user (worker consultations via kanban, advisory). On sign-off,
   Dispatch via the existing topology (single / parents / triage card) with
   self-contained task specs (engineer tasks carry an Authority grant —
-  preset A1/A2/A3 + overrides; media tasks carry a MediaBrief), ack with
+  preset A1/A2/A3 + overrides; media tasks carry a MediaBrief; deliverables
+  needing human sign-off carry a Review gate), ack with
   the task id, answer engineer questions within the granted authority
-  autonomously via `DECISION(Q<n>):` comments, expand grants only through
-  `AUTHORITY+:` comments, answer progress questions from the task's PROGRESS
-  trail (StatusCheck), and recover from blocked/gave_up/crashed/timed_out
-  events. Auto-loaded into each Telegram
+  autonomously via `DECISION(Q<n>):` comments (always resetting the
+  block-loop counter after a DECISION unblock), relay `REVIEW:` blocks to
+  the user untouched, expand grants only through
+  `AUTHORITY+:` comments, park time-deferred work in `scheduled` with an
+  `until=` comment (the sweeper cron releases it), answer progress
+  questions from the task's PROGRESS
+  trail (StatusCheck), recover from blocked/gave_up/crashed/timed_out
+  events and silent block-loop triage falls, and close dead cards via CLI
+  archive. Auto-loaded into each Telegram
   topic session via the dm_topics skill binding; load it via skill_view
   before non-trivial work elsewhere. Prefer the `clarify` tool over
   plain-chat questions whenever options exist. Each approach has its own
   reference under `references/<approach>.md` — load the matching one after
   Step 3.
-version: 3.2.0
+version: 3.3.0
 author: CraftSamo
 license: MIT
 metadata:
@@ -385,7 +391,20 @@ failed runs), `crashed`, and `timed_out`:
 4. Broken or impossible spec -> fix the spec and re-create with an
    `idempotency_key`; don't re-run the same failure unchanged.
 5. Wrong worker or scope -> re-route to a new task with the right assignee and
-   close out the dead card, so the board stays truthful.
+   close out the dead card (step 6), so the board stays truthful.
+6. Dead card (superseded spec, duplicate, wrong worker) -> archive via
+   terminal: `hermes kanban archive <id>` — there is **no kanban tool** for
+   archiving. Permanent delete (`hermes kanban archive --rm <id>`) only on
+   an explicit user ask.
+7. A dispatched task vanished from `blocked`/`running` and sits in
+   `triage` with a `block_loop_detected` event (visible in `kanban_show`)
+   -> it hit the block-loop breaker (see <BlockedTriage> — this transition
+   does NOT notify chat). First check whether auto-decompose already
+   fanned it out into unexpected children (archive strays), then answer
+   the open `Q<n>`/`REVIEW:` questions as usual and restore the card:
+   `sqlite3 ~/.hermes/kanban.db "UPDATE tasks SET status = 'todo',
+   block_recurrences = 0, block_kind = NULL WHERE id = '<id>';"`
+   (the dispatcher re-promotes it to `ready` on the next tick).
 
 </Failures>
 
@@ -452,6 +471,25 @@ answer from the grant or the chat context; never unblock without the
 `DECISION(Q<n>)` comments (the respawned worker reads only the comments to
 resume).
 
+**After every DECISION-driven unblock, reset the block-loop counter** via
+terminal:
+
+```
+sqlite3 ~/.hermes/kanban.db \
+  "UPDATE tasks SET block_recurrences = 0, block_kind = NULL WHERE id = '<id>';"
+```
+
+Why: the board escalates the SECOND same-kind block of a task's life
+straight to `triage` — silently (no chat notification), where
+auto-decompose may dismantle the card (`BLOCK_RECURRENCE_LIMIT = 2`;
+unblock deliberately never resets the counter, only completion does).
+That breaker exists to stop *blind cron-unblock loops*; your answered
+`DECISION` comments ARE the human-in-the-loop it wants to force, so the
+reset is the correct semantic. Never run the reset from automation or
+without actually having answered the open questions — that would recreate
+the loop the breaker guards against. (Recovery when a task already fell
+to `triage`: <Failures> step 7.)
+
 </BlockedTriage>
 
 <StatusCheck>
@@ -507,6 +545,21 @@ event the board is silent by design. Mid-run visibility is on-demand:
   `AUTHORITY+:` comments; shrinks are a plan revision).
 - Unblocking without a `DECISION(Q<n>)` comment per open question, or
   answering only part of a question batch.
+- Unblocking after a DECISION without the `block_recurrences` sqlite reset
+  (<BlockedTriage>) — the next same-kind block silently escalates to
+  `triage`.
+- Resetting `block_recurrences` from automation, or without having
+  actually answered the open questions.
+- Answering a `REVIEW:` block yourself, however obvious the approval —
+  the review gate exists precisely for the user's own sign-off.
+- Moving a card into the `review` column (UI drag or otherwise) — it has
+  no supported ingress, and the dispatcher auto-claims review cards for an
+  `sdlc-review` run. The human-approval gate is a `REVIEW:` block, not a
+  column.
+- Parking time-deferred work in chat memory / MEMORY.md / a cron prompt
+  instead of `scheduled` + `until=` (<Scheduled>).
+- Creating a deferred task without `initial_status="blocked"` — a plain
+  create can be dispatched before you park it.
 - Answering a block from the 160-char notification headline without
   `kanban_show` (the options and recommendation live in the comments).
 - Polling the board after dispatch (notifications are automatic;
