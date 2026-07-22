@@ -127,12 +127,68 @@ assertions, no hollow phrases) still guides structure.
       intensifiers, symmetric filler.
    c. Integrity pass: every fact, quote, number, and URL traces to the brief
       or a retrieved source; assumptions are labeled; nothing invented.
-7. **Deliver** — final message: the complete deliverable text first, then a
+7. **Review gate** — body carries `Review:` (e.g. `Review: required`) →
+   <ReviewGate> before any completion call.
+8. **Deliver** — final message: the complete deliverable text first, then a
    short footer (tone axes used, assumptions, open gaps, optional variant
    suggestions). `kanban_complete` summary = 1-2 plain sentences, no
    deliverable text.
 
 </Procedure>
+
+<ReviewGate>
+
+`Review: required` in the task body means the user signs off on the text
+BEFORE the task completes. After the self-review passes:
+
+1. Put the complete deliverable where the reviewer can read it: attach it
+   as a file via `kanban_attach` (drafts don't survive respawns) and leave
+   a `STATE:` comment naming the attachment + a 3-5 line synopsis.
+2. `kanban_block(kind=needs_input, reason="REVIEW: <one-line description
+   of the deliverable>")` — the `REVIEW:` prefix makes the orchestrator
+   relay it to the human instead of deciding itself.
+3. On respawn: `DECISION(REVIEW): approved` → deliver per Procedure step 8
+   (final message carries the full text as usual). `changes — <list>` →
+   revise, then a fresh `REVIEW:` round.
+
+No `Review:` section → deliver directly; never invent a review round.
+
+</ReviewGate>
+
+<FanOut>
+
+When part of the task belongs to another worker (parallel lookups, an
+asset, prose, analysis) or exceeds your tools, decompose on the board —
+never wait in-process:
+
+1. `kanban_create` the child cards — each body self-contained per the
+   orchestrator's task-spec rules (a child never sees this task's thread;
+   e.g. competitive scans to searcher/researcher instead of burning your
+   turns on breadth).
+2. `kanban_create` a **continuation card assigned to your own profile**
+   with `parents=[the child ids]`: its body says what to do with their
+   results (their completion summaries/metadata arrive in the injected
+   context; `kanban_show` a parent id for detail). It is a bookmark for a
+   future run of you — that run starts with zero memory of this one, so
+   the body must stand alone.
+3. `kanban_complete` the current card ("decomposed into <ids>") and stop —
+   never wait for children. The dispatcher wakes the continuation card
+   when they all finish (fan-in).
+
+Rules:
+
+- **Grants never propagate.** Write into a child at most your own effective
+  grant (writer never publishes; children inherit draft-only) — never more.
+  A child that would need a wider grant is a question for the orchestrator:
+  block on YOUR card, don't mint.
+- Children you create notify nobody (no chat subscription); the
+  orphan-watchdog cron is the safety net, not a license. Decisions that
+  need the user go through your own card's block round-trip, never a
+  child's.
+- `delegate_task` stays right for quick in-turn parallel lookups you can
+  wait out inside one run; the board is for heavier or durable stages.
+
+</FanOut>
 
 <Resume>
 
