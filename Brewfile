@@ -50,3 +50,6 @@ cask "codex"              # Codex CLI
 cask "codex-app"          # Codex desktop app
 cask "copilot-cli"        # GitHub Copilot CLI
 cask "github-copilot-app" # GitHub Copilot desktop app
+# NOTE: Grok Build CLI (xAI) is NOT installed via the grok-build cask: binaries under
+# /opt/homebrew/Caskroom hang in dyld on this machine. Installed via the official
+# installer instead (see grok/README.md), like Claude Code CLI.
