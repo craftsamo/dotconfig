@@ -8,11 +8,13 @@ description: >-
   resume (rejoin after an unblock/respawn). This core file always applies — it
   owns the Authority grant contract (presets A1/A2/A3 + AUTHORITY+ expansions),
   the kanban comment protocol (STATE/Q<n>/PROGRESS markers, DECISION/AUTHORITY+
-  replies), checkpoint-then-block, and the report discipline. Detailed
+  replies), checkpoint-then-block, the Review gate (body `Review: required`
+  ⇒ block with a REVIEW: headline for human sign-off before completing),
+  and the report discipline. Detailed
   playbooks live in references/{advisory,implement,resume,model-routing}.md —
   load them via skill_view file_path per ModeRouting, never skip. CLI
   mechanics live in the bundled opencode/claude-code/codex skills.
-version: 3.0.0
+version: 3.1.0
 author: CraftSamo
 license: MIT
 metadata:
@@ -172,6 +174,32 @@ serially.
 
 </CheckpointThenBlock>
 
+<ReviewGate>
+
+If the task body carries a `Review:` section (e.g. `Review: required —
+<what to present>`), the deliverable needs the user's sign-off BEFORE the
+task completes. After all done criteria pass and the final commit exists,
+do NOT call `kanban_complete` yet:
+
+1. Checkpoint as usual (final commit; push/PR only if the Authority grant
+   covers it).
+2. Comment a `STATE:` review package: what shipped, verification results,
+   and pointers (branch/PR link, changed files); attach bulky diffs or
+   artifacts via `kanban_attach` — exactly what the `Review:` line asks to
+   present.
+3. Block with `kanban_block(kind=needs_input, reason="REVIEW: <one-line
+   summary of the deliverable>")` — the `REVIEW:` prefix is the contract:
+   the orchestrator relays it to the human instead of answering
+   autonomously.
+4. On respawn, read the `DECISION(REVIEW):` comment: `approved` →
+   `kanban_complete` per <Report>; `changes — <list>` → apply the changes,
+   then open a fresh `REVIEW:` round (steps 1-3).
+
+No `Review:` section in the body → complete directly as usual; never
+invent a review round the spec didn't ask for.
+
+</ReviewGate>
+
 <Steps>
 
 1. **Orient.** `kanban_show`; parse the <Authority> grant and success
@@ -183,7 +211,9 @@ serially.
    OpenCode run.
 4. **Dialogue.** Any material open decision → <CheckpointThenBlock>; answers
    arrive as `DECISION(Q<n>)` after a respawn.
-5. **Report** per <Report>; complete the task.
+5. **Review gate.** Body carries `Review:` → <ReviewGate> before any
+   completion call.
+6. **Report** per <Report>; complete the task.
 
 </Steps>
 
@@ -199,6 +229,10 @@ Final message:
 - Remaining risks, blockers, or decisions needed.
 - Attach bulky artifacts (assessments, full plans, large diffs, logs) with
   `kanban_attach`.
+- Pass the machine-readable handoff in `kanban_complete(metadata={...})`
+  using the board convention: `changed_files`, `verification` (commands
+  run), `dependencies`, `retry_notes`, `residual_risk`. No secrets or raw
+  logs — pointers and summaries only.
 
 </Report>
 
@@ -213,6 +247,9 @@ Final message:
 - Putting the full question only in the block reason — the notification is
   truncated; comments are the durable copy.
 - Reusing a question number or re-asking an already-DECIDED Q<n>.
+- Completing a `Review: required` task without an approved `REVIEW:` round
+  (<ReviewGate>) — or using the `REVIEW:` prefix on an ordinary question
+  block (it forces a human relay; questions belong to `Q<n>:`).
 - Treating an absent Authority section as more than A1 — absence means the
   default preset, and everything beyond it means ask.
 - Acting on a grant you inferred from chat-style comments — only the body

@@ -93,6 +93,14 @@ remote said → `A1`; PR/push agreed → `A2`; dependency changes agreed →
 `A3` — plus scope-boundary override lines from the plan. Don't grant
 beyond what the loop actually settled.
 
+Settle the **Review gate** in the same breath: does the user want to
+approve the deliverable before the task closes? Yes → write `Review:
+required — <what to present>` into the task spec (worker blocks with a
+`REVIEW:` headline instead of completing; see `<TaskSpec>` /
+`<BlockedTriage>`). Default is no gate — completion notification + post-hoc
+review. Lean toward the gate for irreversible or user-facing deliverables
+(published prose, PR merges the user will own, expensive media batches).
+
 ### Session continuity
 
 The Plan lives in chat + the `todo` list only. If the session compresses or

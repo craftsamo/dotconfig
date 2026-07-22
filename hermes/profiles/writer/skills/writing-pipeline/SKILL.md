@@ -127,12 +127,33 @@ assertions, no hollow phrases) still guides structure.
       intensifiers, symmetric filler.
    c. Integrity pass: every fact, quote, number, and URL traces to the brief
       or a retrieved source; assumptions are labeled; nothing invented.
-7. **Deliver** — final message: the complete deliverable text first, then a
+7. **Review gate** — body carries `Review:` (e.g. `Review: required`) →
+   <ReviewGate> before any completion call.
+8. **Deliver** — final message: the complete deliverable text first, then a
    short footer (tone axes used, assumptions, open gaps, optional variant
    suggestions). `kanban_complete` summary = 1-2 plain sentences, no
    deliverable text.
 
 </Procedure>
+
+<ReviewGate>
+
+`Review: required` in the task body means the user signs off on the text
+BEFORE the task completes. After the self-review passes:
+
+1. Put the complete deliverable where the reviewer can read it: attach it
+   as a file via `kanban_attach` (drafts don't survive respawns) and leave
+   a `STATE:` comment naming the attachment + a 3-5 line synopsis.
+2. `kanban_block(kind=needs_input, reason="REVIEW: <one-line description
+   of the deliverable>")` — the `REVIEW:` prefix makes the orchestrator
+   relay it to the human instead of deciding itself.
+3. On respawn: `DECISION(REVIEW): approved` → deliver per Procedure step 8
+   (final message carries the full text as usual). `changes — <list>` →
+   revise, then a fresh `REVIEW:` round.
+
+No `Review:` section → deliver directly; never invent a review round.
+
+</ReviewGate>
 
 <Resume>
 
