@@ -133,15 +133,23 @@ recommendation → block reason as a ≤160-char headline, since the chat
 notification truncates it). The assistant `kanban_show`s the thread, answers
 autonomously within the grant (`DECISION(Q<n>):` comment per open question +
 unblock, then informs the user) and relays out-of-grant questions to the
-human. Mid-run visibility is on-demand: engineer leaves `PROGRESS:` comments
-at unit boundaries (comments never notify chat) and the assistant summarizes
-them when asked (`orchestration` `<StatusCheck>`). The gateway's
+human. When the spec says `Review: required — <what to present>`, the worker
+checkpoints and blocks with a `REVIEW:` headline (`kind=needs_input`) for human
+sign-off; the assistant always relays that block rather than answering
+autonomously, then replies `DECISION(REVIEW): approved` or `changes — <list>`
+and unblocks. After every DECISION-driven unblock, the assistant resets the
+block-loop counter: the breaker targets blind cron loops, while a DECISION is
+the human-in-the-loop it wants. Mid-run visibility is on-demand: engineer
+leaves `PROGRESS:` comments at unit boundaries (comments never notify chat) and
+the assistant summarizes them when asked (`orchestration` `<StatusCheck>`).
+The gateway's
 `kanban.dispatch_interval_seconds` is lowered to **15** so a round-trip costs
 roughly the answer time + ~20 s. Details: engineer's `engineer-loop` skill and
 assistant's `orchestration` `<BlockedTriage>`.
 
-The comment protocol is worker-generic, not engineer-specific: **creator**
-speaks the same markers with a **Budget** grant as its Authority analog
+The comment protocol is worker-generic, not engineer-specific: **creator** and
+**writer** also honor the `Review: required` gate; creator speaks the same
+markers with a **Budget** grant as its Authority analog
 (generation-spend caps; defaults 4 image variants / 2 video renders per
 asset + 1 corrective pass, expanded only via `AUTHORITY+:`), leaves
 `PROGRESS:` per finished asset, and — since a task's scratch workspace
@@ -261,6 +269,10 @@ length; the writer blocks once for the rest), marketer = campaign
 orchestration + ALL outbound publishing (the front door collects the
 MarketingBrief and writes the `Publish:` grant line on purpose — an omitted
 grant means draft-only; it never posts anything itself).
+Time-deferred work parks in `scheduled` via `hermes kanban schedule <id>
+"until=<ISO8601> — <reason>"`; the assistant's no_agent
+`kanban-scheduled-sweeper.sh` cron releases due cards every 15 minutes. Dead
+cards close via `hermes kanban archive <id>`.
 Multi-stage work ships as a `parents` chain (obvious 2-3 stages) or one
 `triage=true` card (auto-decompose); `delegate_task` stays an exception for
 medium parallel lookups the user is actively waiting on. The contract keeps a
@@ -478,6 +490,8 @@ dispatch/route to each. Assistant gateway runs keychain-pure (LaunchAgent,
 Telegram-only per #40695); the embedded dispatcher auto-claims tasks across
 ticks (`dispatch_interval_seconds: 15` for fast block round-trips).
 `install.sh` links every tracked profile (incl. `profile.yaml`) with no WARN.
+The 2026-07 kanban workflow conventions (Review gate, scheduled sweeper cron,
+and block-loop reset discipline) shipped in the orchestration and worker skills.
 
 Model slugs confirmed 2026-07 (live cache + OpenRouter model pages after the
 copilot removal): `anthropic` / `claude-opus-4-8` and `claude-sonnet-5`
