@@ -1,0 +1,18 @@
+# Grok Build (grok CLI) user config baseline. install.sh SEEDS this into
+# ~/.grok/config.toml on first install (it is not symlinked: the CLI atomically
+# rewrites the live file on run, which would clobber a symlink). The CLI owns the
+# live file afterwards; edit this baseline to change what a fresh machine gets.
+
+[cli]
+# Written/maintained by the official installer (curl x.ai/cli/install.sh).
+# Updates go through `grok update` (auto-update stays on its default).
+installer = "internal"
+
+[ui]
+permission_mode = "ask"
+
+[skills]
+# Repo-managed grok-specific skills. Bundled skills still auto-expand into
+# ~/.grok/skills/ (left untracked); Claude-compat scanning of ~/.claude/skills
+# stays enabled by default, so skills tracked under claude/skills/ are shared.
+paths = ["~/.config/grok/skills"]

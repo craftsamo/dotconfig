@@ -33,7 +33,7 @@ The mode is chosen by the command name in `bin/secret-shim:44-49`.
 
 | Mode | Commands | Injects |
 | --- | --- | --- |
-| tool | `opencode`, `claude`, `codex`, `copilot`, and any unlisted name | `secret env -p global`, then `-p <command>`; tool layer overrides global |
+| tool | `opencode`, `claude`, `codex`, `copilot`, `grok`, and any unlisted name | `secret env -p global`, then `-p <command>`; tool layer overrides global |
 | project | `node npm pnpm bun bunx yarn npx python python3 uv docker docker-compose` | `secret env` for the current git repo's project + scope; only inside a git repo |
 
 Precedence in both modes:
