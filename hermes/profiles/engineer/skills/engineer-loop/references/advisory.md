@@ -51,6 +51,27 @@ implementation altitude.
 <what you assumed instead of asking, labeled>
 ```
 
+## Plan-draft variant
+
+When the consultation body asks for a **draft implementation plan** (e.g.
+"実装計画の草案を" / "draft the implementation plan"), the deliverable is a
+plan document, not just a verdict — typically feeding a Board Plan
+synthesis card (orchestration `references/plan.md`):
+
+- Still read-only: the plan is prose; nothing is scaffolded or committed.
+- Produce it with an OpenCode plan primary (`opencode run --auto --agent
+  plan …`, model per `references/model-routing.md`) grounded in the actual
+  repo — or from direct inspection when the repo is small or absent (new
+  project: propose the stack and structure yourself).
+- Then **self-assess the draft**: apply the Risks lens above to your own
+  plan (what's uncertain, where it could be wrong, what a reviewer should
+  challenge).
+- Deliverable = the draft plan (attach if long) + the self-assessment +
+  a unit split estimate. `kanban_complete` summary must name the
+  attachment and carry the plan's one-line shape, since downstream cards
+  see only the summary/metadata; put the unit list in
+  `metadata` (e.g. {"units": [...], "stack": "..."}).
+
 ## Report
 
 - Final message = the assessment (or its summary + attachment reference).

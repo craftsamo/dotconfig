@@ -81,6 +81,64 @@ don't get confused with deliverables:
 - Ack the user in chat when consultations are in flight; never poll. Worker
   completion notifications resume the Plan Loop where you left off.
 
+### Board Plan — planning that runs unattended
+
+The chat Plan Loop above is the **default**. Move the planning itself onto
+the board only when BOTH hold:
+
+- the decomposition needs **2+ worker consultations** before an outline is
+  even possible, and
+- the user signalled async ("任せる", "まとまったら見せて") or the
+  investigations will take a while.
+
+Never for small or interactive planning — every board hop costs a dispatch
+tick + spawn + model turn.
+
+Shape: the investigation advisory cards (previous section) **plus one
+synthesis card** that fans them in:
+
+- `title: 統合: <goal> のアウトライン作成`, `assignee: assistant`,
+  `parents: [investigation ids]`, `workspace_kind: scratch`, modest
+  `max_runtime_seconds`, and `Review: required — アウトライン` in the body.
+- The synthesis card wakes automatically when the investigations finish
+  (fan-in), drafts the outline, and surfaces to the user exactly once —
+  as a `REVIEW:` block you relay per `<BlockedTriage>`. Its approval IS
+  the Plan sign-off.
+
+Synthesis-card body template (self-contained — the spawned assistant
+worker never sees this chat):
+
+```text
+Goal: <goal> の実装アウトラインを作り、承認後に Build カードを起票する。
+Steps:
+  1. 各親カード (<ids>) を kanban_show で読む — 自動注入されるのは
+     summary/metadata のみ。summary が添付名を挙げていたらそのパスを読む。
+  2. アウトラインを作る: 構成 / 主要な選択肢と推奨 / Build カード毎の
+     spec 案(Authority / Budget / Publish / Review の grant 行まで含める)。
+  3. アウトラインを kanban_attach → STATE: コメント →
+     kanban_block(kind=needs_input, reason="REVIEW: <goal> アウトラインの承認を").
+  4. respawn 後、DECISION(REVIEW) を読む:
+     approved → 承認済みアウトライン通りに kanban_create
+       (parents=[このカード id]) で Build カードを起票し、kanban_complete
+       (summary はチャット向け 1 行)。
+     changes — <list> → 反映して新しい REVIEW ラウンドを開く。
+Done criteria: 承認済みアウトライン通りの Build カードが存在する。
+Output: 日本語。
+Constraints: 承認前にカードを作らない。承認済みアウトラインに無い
+  grant を Build カードに書かない。
+```
+
+Governance: the grant lines inside the outline's build-card specs are part
+of what the user approves — the `DECISION(REVIEW): approved` is the
+sanction, equivalent to a chat sign-off. The synthesis worker never mints
+a grant the outline didn't carry; widening later is a normal `AUTHORITY+:`
+flow on the build card.
+
+For implementation goals, include an engineer consultation using the
+**plan-draft advisory variant** (body asks for a draft implementation plan
+via OpenCode's plan mode plus a self-assessment — see engineer-loop) so
+the outline folds in a grounded technical plan, not a guess.
+
 ### Sign-off gate
 
 One final `clarify` ("Plan looks like X, dispatch as Y/Z/W — proceed?")
@@ -93,11 +151,21 @@ remote said → `A1`; PR/push agreed → `A2`; dependency changes agreed →
 `A3` — plus scope-boundary override lines from the plan. Don't grant
 beyond what the loop actually settled.
 
+Settle the **Review gate** in the same breath: does the user want to
+approve the deliverable before the task closes? Yes → write `Review:
+required — <what to present>` into the task spec (worker blocks with a
+`REVIEW:` headline instead of completing; see `<TaskSpec>` /
+`<BlockedTriage>`). Default is no gate — completion notification + post-hoc
+review. Lean toward the gate for irreversible or user-facing deliverables
+(published prose, PR merges the user will own, expensive media batches).
+
 ### Session continuity
 
 The Plan lives in chat + the `todo` list only. If the session compresses or
 resets, ask the user "what did we agree on?" and rebuild from the todo
-state.
+state. A **Board Plan** does not share this fragility: its outline,
+decisions, and REVIEW round live in the synthesis card's thread — on any
+reset, `kanban_show` the synthesis card instead of re-asking the user.
 
 ## After sign-off
 
