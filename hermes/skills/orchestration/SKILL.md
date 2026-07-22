@@ -10,18 +10,24 @@ description: >-
   the user (worker consultations via kanban, advisory). On sign-off,
   Dispatch via the existing topology (single / parents / triage card) with
   self-contained task specs (engineer tasks carry an Authority grant —
-  preset A1/A2/A3 + overrides; media tasks carry a MediaBrief), ack with
+  preset A1/A2/A3 + overrides; media tasks carry a MediaBrief; deliverables
+  needing human sign-off carry a Review gate), ack with
   the task id, answer engineer questions within the granted authority
-  autonomously via `DECISION(Q<n>):` comments, expand grants only through
-  `AUTHORITY+:` comments, answer progress questions from the task's PROGRESS
-  trail (StatusCheck), and recover from blocked/gave_up/crashed/timed_out
-  events. Auto-loaded into each Telegram
+  autonomously via `DECISION(Q<n>):` comments (always resetting the
+  block-loop counter after a DECISION unblock), relay `REVIEW:` blocks to
+  the user untouched, expand grants only through
+  `AUTHORITY+:` comments, park time-deferred work in `scheduled` with an
+  `until=` comment (the sweeper cron releases it), answer progress
+  questions from the task's PROGRESS
+  trail (StatusCheck), recover from blocked/gave_up/crashed/timed_out
+  events and silent block-loop triage falls, and close dead cards via CLI
+  archive. Auto-loaded into each Telegram
   topic session via the dm_topics skill binding; load it via skill_view
   before non-trivial work elsewhere. Prefer the `clarify` tool over
   plain-chat questions whenever options exist. Each approach has its own
   reference under `references/<approach>.md` — load the matching one after
   Step 3.
-version: 3.2.0
+version: 3.3.0
 author: CraftSamo
 license: MIT
 metadata:
@@ -213,7 +219,12 @@ Mixed pipelines flow searcher -> researcher -> engineer, with creator (assets)
 and writer (prose deliverables) as side stages. Workers can fan out themselves
 (`kanban_create` + `parents`): e.g. engineer dispatches a searcher lookup or a
 creator asset mid-implementation — don't pre-decompose what the worker can
-request itself. Writer vs researcher: researcher's deliverable is a verified
+request itself. When a worker needs its children's RESULTS, it uses the
+**continuation-card pattern** (each worker skill's `<FanOut>` section):
+children + a card assigned back to itself gated on them, then complete —
+never waiting in-process. Grants never propagate to worker-created
+children, and such children notify nobody (the orphan-watchdog cron is
+the safety net). Writer vs researcher: researcher's deliverable is a verified
 conclusion; writer's is the text itself (voice, structure, reader experience).
 Writer tasks: pass the WritingBrief fields you already know — audience,
 purpose, medium, tone, length, source links — in the body; the writer blocks
@@ -239,6 +250,12 @@ body:
   Output: <shape of the final message: language, format, length; name any
           artifact files to produce>
   Constraints: <scope limits, deadlines, things NOT to do>
+  Review: <optional — human-approval gate, decided at Plan sign-off (see
+          references/plan.md). "Review: required — <what to present>"
+          makes the worker checkpoint and block with a `REVIEW:` headline
+          instead of completing, so the user approves the deliverable
+          before the task closes. Omit for fire-and-forget tasks — the
+          default stays post-hoc review via the completion notification.>
   Budget: <creator tasks only — generation-spend caps; omitted = creator
           defaults. See references/creative.md. Expanded mid-task only via
           AUTHORITY+ comments.>
@@ -297,6 +314,11 @@ Pick the cheapest shape that fits:
    carrying the whole requirement. The gateway auto-decomposes it into a
    routed child graph using the profile descriptions (a few cards per tick).
    Don't pre-chop the work yourself — invest in the requirement text instead.
+4. **Board Plan tree** — the *planning itself* should run unattended:
+   investigation advisory cards + one assistant-assigned synthesis card
+   (`parents` fan-in, `Review: required`) that drafts the outline, gets it
+   approved via a `REVIEW:` block, then opens the build cards. Conditions
+   and the synthesis-card template: `references/plan.md` "Board Plan".
 
 Coming out of a Plan Loop (`references/plan.md`), the topology choice is
 usually obvious from the signed-off plan — the plan's shape dictates
@@ -325,6 +347,40 @@ single / parents / triage.
 
 </Parameters>
 
+<Scheduled>
+
+Time-deferred work ("金曜にやって", "hold until the invoice arrives") lives
+on the board in the `scheduled` column — not in chat memory, MEMORY.md, or
+a cron prompt. `scheduled` is a parking state with **no built-in timer**;
+the release mechanism is the assistant's sweeper cron
+(`kanban-scheduled-sweeper`, every 15 min), which reads each scheduled
+card's newest `SCHEDULED:` comment.
+
+- **New deferred task**: `kanban_create(..., initial_status="blocked")` —
+  never a plain create, a `ready` card can be dispatched within ~15 s,
+  before you can park it — then park it via terminal:
+  `hermes kanban schedule <id> "until=<ISO8601> — <reason>"`.
+  Park **in the same turn, immediately**: a created-blocked card carries no
+  block event, so `recompute_ready` treats it as non-sticky and can
+  auto-promote it to `ready` on the next tick. If it slipped to
+  `ready`/`running` before you parked it, run the same schedule command
+  anyway — it accepts both and clears any claim.
+- **Existing card**: same CLI; works from todo/ready/running/blocked.
+- **`until=` format**: local-time ISO 8601, e.g. `until=2026-07-25T09:00`
+  (same shape as upstream's planned `schedule --at`, so a future migration
+  is a find-replace). The CLI stores the text as a `SCHEDULED: …` comment;
+  the sweeper unblocks the card on the first sweep past that time
+  (→ `ready`, or `todo` while parents are open) and normal dispatch +
+  completion notifications take over — subscriptions survive scheduling.
+- A scheduled card whose newest `SCHEDULED:` comment has **no `until=`**
+  is a manual hold: the sweeper skips it; release it with
+  `hermes kanban unblock <id>` when the user says so.
+- Condition-deferred (not time-deferred) work: prefer a `parents` link when
+  the trigger is another task; `scheduled` + manual release when the
+  trigger is external to the board.
+
+</Scheduled>
+
 <AfterCreate>
 
 - Creating from a gateway chat auto-subscribes this chat to the task's
@@ -350,7 +406,27 @@ failed runs), `crashed`, and `timed_out`:
 4. Broken or impossible spec -> fix the spec and re-create with an
    `idempotency_key`; don't re-run the same failure unchanged.
 5. Wrong worker or scope -> re-route to a new task with the right assignee and
-   close out the dead card, so the board stays truthful.
+   close out the dead card (step 6), so the board stays truthful.
+6. Dead card (superseded spec, duplicate, wrong worker) -> archive via
+   terminal: `hermes kanban archive <id>` — there is **no kanban tool** for
+   archiving. Permanent delete (`hermes kanban archive --rm <id>`) only on
+   an explicit user ask.
+7. A dispatched task vanished from `blocked`/`running` and sits in
+   `triage` with a `block_loop_detected` event (visible in `kanban_show`)
+   -> it hit the block-loop breaker (see <BlockedTriage> — this transition
+   does NOT notify chat). First check whether auto-decompose already
+   fanned it out into unexpected children (archive strays), then answer
+   the open `Q<n>`/`REVIEW:` questions as usual and restore the card:
+   `sqlite3 ~/.hermes/kanban.db "UPDATE tasks SET status = 'todo',
+   block_recurrences = 0, block_kind = NULL WHERE id = '<id>';"`
+   (the dispatcher re-promotes it to `ready` on the next tick).
+8. A `🚨 kanban watchdog` chat message (the `kanban-orphan-watchdog` cron,
+   every 30 min) lists cards stuck where no notification can reach:
+   worker-created cards that blocked (no subscription) and block-loop
+   triage falls. For each listed id: `kanban_show`, then apply
+   <BlockedTriage> (blocked) or step 7 (triage fall). Worker-created
+   children answer to their creating card's plan — read the parent
+   card's thread before deciding.
 
 </Failures>
 
@@ -365,7 +441,18 @@ block reason to ~160 chars — it's only a headline (e.g. `Q3: ORM vs raw
 SQL?`); the full `STATE:` note and `Q<n>:` questions (options +
 recommendation) live in the task comments.
 
-The grant that frames every answer is the task's **effective grant**: for
+**Review gate first.** If the block headline starts with `REVIEW:`, the
+task body carried `Review: required` and the worker is presenting its
+deliverable for human sign-off. NEVER answer it autonomously, whatever the
+grant — relay to the user (a `clarify`: approve / request changes, with
+the worker's summary and artifacts). On approve: comment
+`DECISION(REVIEW): approved` + `kanban_unblock` (+ counter reset below) —
+the worker completes. On change requests: `DECISION(REVIEW): changes —
+<list>` + unblock (+ reset); the worker revises and opens a fresh
+`REVIEW:` round.
+
+For everything else, the grant that frames every answer is the task's
+**effective grant**: for
 engineer, the body's `Authority:` preset + overrides (artifact of the
 Plan Loop sign-off, `references/plan.md`, or written tight when Build skips
 Plan, `references/build.md`); for creator, the body's `Budget:` caps
@@ -406,6 +493,25 @@ answer from the grant or the chat context; never unblock without the
 `DECISION(Q<n>)` comments (the respawned worker reads only the comments to
 resume).
 
+**After every DECISION-driven unblock, reset the block-loop counter** via
+terminal:
+
+```
+sqlite3 ~/.hermes/kanban.db \
+  "UPDATE tasks SET block_recurrences = 0, block_kind = NULL WHERE id = '<id>';"
+```
+
+Why: the board escalates the SECOND same-kind block of a task's life
+straight to `triage` — silently (no chat notification), where
+auto-decompose may dismantle the card (`BLOCK_RECURRENCE_LIMIT = 2`;
+unblock deliberately never resets the counter, only completion does).
+That breaker exists to stop *blind cron-unblock loops*; your answered
+`DECISION` comments ARE the human-in-the-loop it wants to force, so the
+reset is the correct semantic. Never run the reset from automation or
+without actually having answered the open questions — that would recreate
+the loop the breaker guards against. (Recovery when a task already fell
+to `triage`: <Failures> step 7.)
+
 </BlockedTriage>
 
 <StatusCheck>
@@ -423,6 +529,10 @@ event the board is silent by design. Mid-run visibility is on-demand:
 - No comments yet and the run is young → say it's in progress since <claimed
   time>; suspiciously long with no trail → check `kanban_list` /
   last events for a stale or crashed run instead of guessing.
+- "何が保留中?" / what's parked → `hermes kanban list --status scheduled
+  --json` (terminal) and summarize each card's newest `SCHEDULED:` comment
+  (until / reason). The board, not chat memory, is the source of truth for
+  deferred work.
 - This is user-initiated only — it does not license proactive polling;
   terminal events still arrive as automatic notifications.
 
@@ -457,6 +567,21 @@ event the board is silent by design. Mid-run visibility is on-demand:
   `AUTHORITY+:` comments; shrinks are a plan revision).
 - Unblocking without a `DECISION(Q<n>)` comment per open question, or
   answering only part of a question batch.
+- Unblocking after a DECISION without the `block_recurrences` sqlite reset
+  (<BlockedTriage>) — the next same-kind block silently escalates to
+  `triage`.
+- Resetting `block_recurrences` from automation, or without having
+  actually answered the open questions.
+- Answering a `REVIEW:` block yourself, however obvious the approval —
+  the review gate exists precisely for the user's own sign-off.
+- Moving a card into the `review` column (UI drag or otherwise) — it has
+  no supported ingress, and the dispatcher auto-claims review cards for an
+  `sdlc-review` run. The human-approval gate is a `REVIEW:` block, not a
+  column.
+- Parking time-deferred work in chat memory / MEMORY.md / a cron prompt
+  instead of `scheduled` + `until=` (<Scheduled>).
+- Creating a deferred task without `initial_status="blocked"` — a plain
+  create can be dispatched before you park it.
 - Answering a block from the 160-char notification headline without
   `kanban_show` (the options and recommendation live in the comments).
 - Polling the board after dispatch (notifications are automatic;
@@ -464,6 +589,9 @@ event the board is silent by design. Mid-run visibility is on-demand:
 - Duplicate cards for the same ask (use `idempotency_key` on retries).
 - Hand-decomposing a large fuzzy requirement into many thin cards — that is
   the triage card's job.
+- Sending a small or interactive planning session to a Board Plan tree —
+  the chat Plan Loop is the default; the tree costs a dispatch hop per
+  stage and hides the loop from an engaged user.
 - Raw worker reports pasted into chat.
 - Naming pipeline categories or this skill's mechanics in chat — the routing
   is silent; the user hears the persona, not the machinery.

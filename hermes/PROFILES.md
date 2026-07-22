@@ -85,7 +85,10 @@ The org stays **flat by design**: profiles are global and the board is one
 shared queue, so "hierarchy" is expressed as routing policy + `parents`
 fan-in, not nested profiles. Workers fan out themselves via `kanban_create`
 (e.g. engineer dispatches a searcher lookup or a creator asset mid-task);
-a live supervising mid-manager isn't possible anyway — block/done
+staged supervision is expressed via the continuation-card pattern: a worker
+creates its children plus a self-assigned fan-in card (formalized in each
+worker skill's `<FanOut>`); grants never propagate to worker-created children.
+A live supervising mid-manager isn't possible anyway — block/done
 notifications reach gateway chat sessions, never a parent worker.
 
 ### Engineer dialogue loop (the four layered loops)
@@ -133,15 +136,23 @@ recommendation → block reason as a ≤160-char headline, since the chat
 notification truncates it). The assistant `kanban_show`s the thread, answers
 autonomously within the grant (`DECISION(Q<n>):` comment per open question +
 unblock, then informs the user) and relays out-of-grant questions to the
-human. Mid-run visibility is on-demand: engineer leaves `PROGRESS:` comments
-at unit boundaries (comments never notify chat) and the assistant summarizes
-them when asked (`orchestration` `<StatusCheck>`). The gateway's
+human. When the spec says `Review: required — <what to present>`, the worker
+checkpoints and blocks with a `REVIEW:` headline (`kind=needs_input`) for human
+sign-off; the assistant always relays that block rather than answering
+autonomously, then replies `DECISION(REVIEW): approved` or `changes — <list>`
+and unblocks. After every DECISION-driven unblock, the assistant resets the
+block-loop counter: the breaker targets blind cron loops, while a DECISION is
+the human-in-the-loop it wants. Mid-run visibility is on-demand: engineer
+leaves `PROGRESS:` comments at unit boundaries (comments never notify chat) and
+the assistant summarizes them when asked (`orchestration` `<StatusCheck>`).
+The gateway's
 `kanban.dispatch_interval_seconds` is lowered to **15** so a round-trip costs
 roughly the answer time + ~20 s. Details: engineer's `engineer-loop` skill and
 assistant's `orchestration` `<BlockedTriage>`.
 
-The comment protocol is worker-generic, not engineer-specific: **creator**
-speaks the same markers with a **Budget** grant as its Authority analog
+The comment protocol is worker-generic, not engineer-specific: **creator** and
+**writer** also honor the `Review: required` gate; creator speaks the same
+markers with a **Budget** grant as its Authority analog
 (generation-spend caps; defaults 4 image variants / 2 video renders per
 asset + 1 corrective pass, expanded only via `AUTHORITY+:`), leaves
 `PROGRESS:` per finished asset, and — since a task's scratch workspace
@@ -261,6 +272,16 @@ length; the writer blocks once for the rest), marketer = campaign
 orchestration + ALL outbound publishing (the front door collects the
 MarketingBrief and writes the `Publish:` grant line on purpose — an omitted
 grant means draft-only; it never posts anything itself).
+Time-deferred work parks in `scheduled` via `hermes kanban schedule <id>
+"until=<ISO8601> — <reason>"`; the assistant's no_agent
+`kanban-scheduled-sweeper.sh` cron releases due cards every 15 minutes. Dead
+cards close via `hermes kanban archive <id>`.
+Chat Plan Loop remains the default; Board Plan is for 2+ consultations when the
+user is async, using investigation advisory cards plus one assistant-assigned
+synthesis card whose `parents` fan in; its `REVIEW:` approval signs off the
+outline and opens the build cards. The no_agent `kanban-orphan-watchdog.sh`
+cron runs every 30 minutes and surfaces unsubscribed blocked cards plus silent
+block-loop triage falls to chat.
 Multi-stage work ships as a `parents` chain (obvious 2-3 stages) or one
 `triage=true` card (auto-decompose); `delegate_task` stays an exception for
 medium parallel lookups the user is actively waiting on. The contract keeps a
@@ -478,6 +499,10 @@ dispatch/route to each. Assistant gateway runs keychain-pure (LaunchAgent,
 Telegram-only per #40695); the embedded dispatcher auto-claims tasks across
 ticks (`dispatch_interval_seconds: 15` for fast block round-trips).
 `install.sh` links every tracked profile (incl. `profile.yaml`) with no WARN.
+The 2026-07 kanban workflow conventions (Review gate, scheduled sweeper cron,
+Board Plan planning trees, continuation-card fan-out, the
+`kanban-orphan-watchdog.sh` cron, and block-loop reset discipline) shipped in
+the orchestration and worker skills.
 
 Model slugs confirmed 2026-07 (live cache + OpenRouter model pages after the
 copilot removal): `anthropic` / `claude-opus-4-8` and `claude-sonnet-5`

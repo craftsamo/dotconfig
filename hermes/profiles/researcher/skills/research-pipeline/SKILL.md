@@ -133,6 +133,40 @@ Then synthesize and deliver per the loaded reference's format.
 
 </Method>
 
+<FanOut>
+
+When part of the task belongs to another worker (parallel lookups, an
+asset, prose, analysis) or exceeds your tools, decompose on the board —
+never wait in-process:
+
+1. `kanban_create` the child cards — each body self-contained per the
+   orchestrator's task-spec rules (a child never sees this task's thread;
+   e.g. parallel searcher hunts feeding one synthesis).
+2. `kanban_create` a **continuation card assigned to your own profile**
+   with `parents=[the child ids]`: its body says what to do with their
+   results (their completion summaries/metadata arrive in the injected
+   context; `kanban_show` a parent id for detail). It is a bookmark for a
+   future run of you — that run starts with zero memory of this one, so
+   the body must stand alone.
+3. `kanban_complete` the current card ("decomposed into <ids>") and stop —
+   never wait for children. The dispatcher wakes the continuation card
+   when they all finish (fan-in).
+
+Rules:
+
+- **Grants never propagate.** Write into a child at most your own
+  effective grant (advisory tasks stay read-only) — never more. A child
+  that would need a wider grant is a question for the orchestrator: block
+  on YOUR card, don't mint.
+- Children you create notify nobody (no chat subscription); the
+  orphan-watchdog cron is the safety net, not a license. Decisions that
+  need the user go through your own card's block round-trip, never a
+  child's.
+- `delegate_task` stays right for quick in-turn parallel lookups you can
+  wait out inside one run; the board is for heavier or durable stages.
+
+</FanOut>
+
 <CitationRules>
 
 - Never invent URLs, authors, timestamps, or quotes.
