@@ -129,6 +129,15 @@ link "$DOTFILES/gemini/settings.json" "$HOME/.gemini/settings.json"
 link "$DOTFILES/gemini/GEMINI.md"     "$HOME/.gemini/GEMINI.md"
 link "$DOTFILES/gemini/commands"      "$HOME/.gemini/commands"
 
+echo "[grok]"
+# config.toml is seeded, not symlinked: the grok CLI atomically rewrites it on
+# run (temp file + rename), which would replace a symlink with a real file every
+# launch. Seed the repo baseline on first install, then let the CLI own the live
+# file — like codex, whose config is likewise app-managed. AGENTS.md holds user
+# rules the CLI does not rewrite, so it stays a symlink.
+[ -f "$HOME/.grok/config.toml" ] || { mkdir -p "$HOME/.grok"; cp "$DOTFILES/grok/config.toml" "$HOME/.grok/config.toml"; echo "  seeded ~/.grok/config.toml from grok/config.toml (CLI owns it after)"; }
+link "$DOTFILES/grok/AGENTS.md"   "$HOME/.grok/AGENTS.md"
+
 echo "[hermes]"
 link "$DOTFILES/hermes/config.yaml" "$HOME/.hermes/config.yaml"
 # Persona is private/local; seed from the tracked SOUL.example.md when the real
