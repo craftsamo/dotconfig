@@ -309,6 +309,11 @@ Pick the cheapest shape that fits:
    carrying the whole requirement. The gateway auto-decomposes it into a
    routed child graph using the profile descriptions (a few cards per tick).
    Don't pre-chop the work yourself — invest in the requirement text instead.
+4. **Board Plan tree** — the *planning itself* should run unattended:
+   investigation advisory cards + one assistant-assigned synthesis card
+   (`parents` fan-in, `Review: required`) that drafts the outline, gets it
+   approved via a `REVIEW:` block, then opens the build cards. Conditions
+   and the synthesis-card template: `references/plan.md` "Board Plan".
 
 Coming out of a Plan Loop (`references/plan.md`), the topology choice is
 usually obvious from the signed-off plan — the plan's shape dictates
@@ -579,6 +584,9 @@ event the board is silent by design. Mid-run visibility is on-demand:
 - Duplicate cards for the same ask (use `idempotency_key` on retries).
 - Hand-decomposing a large fuzzy requirement into many thin cards — that is
   the triage card's job.
+- Sending a small or interactive planning session to a Board Plan tree —
+  the chat Plan Loop is the default; the tree costs a dispatch hop per
+  stage and hides the loop from an engaged user.
 - Raw worker reports pasted into chat.
 - Naming pipeline categories or this skill's mechanics in chat — the routing
   is silent; the user hears the persona, not the machinery.
