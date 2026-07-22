@@ -292,7 +292,7 @@ display:
   copy_shortcut: auto
   tool_progress: all
 dashboard:
-  theme: default
+  theme: mono
   show_token_analytics: false
   oauth:
     client_id: ''
@@ -304,6 +304,7 @@ dashboard:
     secret: ''
     session_ttl_seconds: 0
   public_url: ''
+  font: system-mono
 privacy:
   redact_pii: false
 tts:
