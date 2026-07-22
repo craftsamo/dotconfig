@@ -239,6 +239,12 @@ body:
   Output: <shape of the final message: language, format, length; name any
           artifact files to produce>
   Constraints: <scope limits, deadlines, things NOT to do>
+  Review: <optional — human-approval gate, decided at Plan sign-off (see
+          references/plan.md). "Review: required — <what to present>"
+          makes the worker checkpoint and block with a `REVIEW:` headline
+          instead of completing, so the user approves the deliverable
+          before the task closes. Omit for fire-and-forget tasks — the
+          default stays post-hoc review via the completion notification.>
   Budget: <creator tasks only — generation-spend caps; omitted = creator
           defaults. See references/creative.md. Expanded mid-task only via
           AUTHORITY+ comments.>
@@ -394,7 +400,18 @@ block reason to ~160 chars — it's only a headline (e.g. `Q3: ORM vs raw
 SQL?`); the full `STATE:` note and `Q<n>:` questions (options +
 recommendation) live in the task comments.
 
-The grant that frames every answer is the task's **effective grant**: for
+**Review gate first.** If the block headline starts with `REVIEW:`, the
+task body carried `Review: required` and the worker is presenting its
+deliverable for human sign-off. NEVER answer it autonomously, whatever the
+grant — relay to the user (a `clarify`: approve / request changes, with
+the worker's summary and artifacts). On approve: comment
+`DECISION(REVIEW): approved` + `kanban_unblock` (+ counter reset below) —
+the worker completes. On change requests: `DECISION(REVIEW): changes —
+<list>` + unblock (+ reset); the worker revises and opens a fresh
+`REVIEW:` round.
+
+For everything else, the grant that frames every answer is the task's
+**effective grant**: for
 engineer, the body's `Authority:` preset + overrides (artifact of the
 Plan Loop sign-off, `references/plan.md`, or written tight when Build skips
 Plan, `references/build.md`); for creator, the body's `Budget:` caps
