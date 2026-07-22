@@ -29,7 +29,7 @@ Development secrets (API keys, tokens) live in the macOS Keychain, managed
 from the terminal by [`secret`](./zsh/functions/secret.md) — per-project
 keychains, one master password, encrypted export/import. The
 [`bin/secret-shim`](./bin/secret-shim) launchers inject them into the AI
-CLIs (opencode, Claude Code, Codex, Copilot, Hermes) and dev runtimes (npm, pnpm,
+CLIs (opencode, Claude Code, Codex, Copilot, Grok Build, Hermes) and dev runtimes (npm, pnpm,
 node, python, ...) at startup — no `.env` files needed, and existing `.env`
 files keep priority.
 
