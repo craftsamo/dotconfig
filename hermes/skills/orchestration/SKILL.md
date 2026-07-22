@@ -325,6 +325,35 @@ single / parents / triage.
 
 </Parameters>
 
+<Scheduled>
+
+Time-deferred work ("金曜にやって", "hold until the invoice arrives") lives
+on the board in the `scheduled` column — not in chat memory, MEMORY.md, or
+a cron prompt. `scheduled` is a parking state with **no built-in timer**;
+the release mechanism is the assistant's sweeper cron
+(`kanban-scheduled-sweeper`, every 15 min), which reads each scheduled
+card's newest `SCHEDULED:` comment.
+
+- **New deferred task**: `kanban_create(..., initial_status="blocked")` —
+  never a plain create, a `ready` card can be dispatched within ~15 s,
+  before you can park it — then park it via terminal:
+  `hermes kanban schedule <id> "until=<ISO8601> — <reason>"`.
+- **Existing card**: same CLI; works from todo/ready/running/blocked.
+- **`until=` format**: local-time ISO 8601, e.g. `until=2026-07-25T09:00`
+  (same shape as upstream's planned `schedule --at`, so a future migration
+  is a find-replace). The CLI stores the text as a `SCHEDULED: …` comment;
+  the sweeper unblocks the card on the first sweep past that time
+  (→ `ready`, or `todo` while parents are open) and normal dispatch +
+  completion notifications take over — subscriptions survive scheduling.
+- A scheduled card whose newest `SCHEDULED:` comment has **no `until=`**
+  is a manual hold: the sweeper skips it; release it with
+  `hermes kanban unblock <id>` when the user says so.
+- Condition-deferred (not time-deferred) work: prefer a `parents` link when
+  the trigger is another task; `scheduled` + manual release when the
+  trigger is external to the board.
+
+</Scheduled>
+
 <AfterCreate>
 
 - Creating from a gateway chat auto-subscribes this chat to the task's
@@ -423,6 +452,10 @@ event the board is silent by design. Mid-run visibility is on-demand:
 - No comments yet and the run is young → say it's in progress since <claimed
   time>; suspiciously long with no trail → check `kanban_list` /
   last events for a stale or crashed run instead of guessing.
+- "何が保留中?" / what's parked → `hermes kanban list --status scheduled
+  --json` (terminal) and summarize each card's newest `SCHEDULED:` comment
+  (until / reason). The board, not chat memory, is the source of truth for
+  deferred work.
 - This is user-initiated only — it does not license proactive polling;
   terminal events still arrive as automatic notifications.
 
