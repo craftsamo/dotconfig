@@ -405,6 +405,13 @@ failed runs), `crashed`, and `timed_out`:
    `sqlite3 ~/.hermes/kanban.db "UPDATE tasks SET status = 'todo',
    block_recurrences = 0, block_kind = NULL WHERE id = '<id>';"`
    (the dispatcher re-promotes it to `ready` on the next tick).
+8. A `🚨 kanban watchdog` chat message (the `kanban-orphan-watchdog` cron,
+   every 30 min) lists cards stuck where no notification can reach:
+   worker-created cards that blocked (no subscription) and block-loop
+   triage falls. For each listed id: `kanban_show`, then apply
+   <BlockedTriage> (blocked) or step 7 (triage fall). Worker-created
+   children answer to their creating card's plan — read the parent
+   card's thread before deciding.
 
 </Failures>
 
