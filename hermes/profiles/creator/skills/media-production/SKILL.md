@@ -196,6 +196,15 @@ a judgment call.
   used, prompts or seeds worth keeping, verification result, gaps or risks.
 - `kanban_complete` summary: one line of 1-2 plain user-facing sentences —
   delivered verbatim to the requester's chat; no prompts, seeds, or paths.
+- **Review gate**: if the task body carries `Review:` (e.g. `Review:
+  required`), do NOT complete after verification — `kanban_attach` the
+  final assets first (attachments survive blocks), leave a `STATE:`
+  comment naming them, then `kanban_block(kind=needs_input,
+  reason="REVIEW: <one-line asset summary>")`. The `REVIEW:` prefix makes
+  the orchestrator relay to the human. On respawn: `DECISION(REVIEW):
+  approved` → complete as above; `changes — <list>` → apply within the
+  remaining Budget (a revision that needs more spend is a `Q<n>` round,
+  not silent overrun), then a fresh `REVIEW:` round.
 
 </Delivery>
 
@@ -215,6 +224,8 @@ a judgment call.
   skills, or using an opt-in chain whose prerequisite isn't running.
 - Leaving artifacts only on disk / forgetting kanban_attach.
 - Completing without visually inspecting the output.
+- Completing a `Review: required` task without an approved `REVIEW:` round,
+  or using the `REVIEW:` prefix on an ordinary `Q<n>` question block.
 - Paths, prompts, or seeds in the kanban_complete summary line.
 - Endless regeneration loops — the budgeted corrective pass, then report
   honestly.
