@@ -1,8 +1,7 @@
 {
   "enabledProviders": [
     "anthropic",
-    "openai",
-    "zai"
+    "openai"
   ],
   "formatStyle": "allWindows",
   "enableToast": false
