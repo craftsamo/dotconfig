@@ -27,7 +27,7 @@ description: >-
   plain-chat questions whenever options exist. Each approach has its own
   reference under `references/<approach>.md` — load the matching one after
   Step 3.
-version: 3.3.0
+version: 3.4.0
 author: CraftSamo
 license: MIT
 metadata:
@@ -233,6 +233,15 @@ once (tone samples / missing premises) rather than guessing.
 During Plan Loop, workers can also be **consulted at advisory altitude**
 (see `references/plan.md` "Worker consultations") — the same roster, but
 the deliverable is an assessment, not the work product itself.
+
+The engineer additionally answers at **orient altitude** — a read-only
+situational-awareness pass on a repo / environment. Dispatch an engineer
+task whose body opens with `Orient — inform the plan, don't judge or ship.`
+and it reports repo / GitHub / env state (structure, conventions, build/test,
+open PRs — or "no repo, bootstrap needed") without judging feasibility or
+touching code. Use it to ground a plan before Wave 1, or when the user just
+asks "what's the state of X"; it needs no Plan gate (nothing ships). Distinct
+from advisory, which judges a proposed change.
 
 </Workers>
 
