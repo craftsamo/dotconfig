@@ -16,6 +16,12 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
 - **`config.yaml` is rewritten by Hermes on load.** Expect re-serialization churn;
   match Hermes' output format (block style, key order), keep diffs minimal — don't
   hand-reformat or alphabetize.
+- **`platform_toolsets.<platform>` is the effective tool allowlist.** Keep it granular;
+  `hermes-cli` / `hermes-telegram` expand to a broad surface and strip default-off
+  tools such as `video` / `video_gen`. Mirror the role in top-level `toolsets`, but
+  remember that top-level `kanban` is also the front-door runtime gate. Dispatcher
+  workers receive `kanban` automatically; their dormant Telegram / Discord lists stay
+  empty, and `no_mcp` prevents accidental inheritance of future global MCP servers.
 - **`SOUL.md` = persona only** (voice/posture), per-profile (`HERMES_HOME`). No
   project rules/paths/commands there. Headings aren't parsed (verbatim inject).
 - **Keep `default` neutral** — every `--clone` inherits its `config.yaml`.
