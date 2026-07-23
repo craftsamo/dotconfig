@@ -15,6 +15,9 @@ credential_pool_strategies: {}
 toolsets:
   - file
   - web
+  - skills
+  - memory
+  - delegation
 max_concurrent_sessions: null
 agent:
   system_prompt: |
@@ -22,8 +25,9 @@ agent:
     - First action, every task: load the `writing-pipeline` skill (skill_view) and follow it
       (WritingBrief -> tone calibration -> structure -> draft -> self-review -> deliver).
     - You write reader-facing prose: marketing long copy, tech articles / blog posts,
-      documentation. Toolsets are file + web only: no production code, and you never
-      publish or post — distribution belongs to the requester (or the marketer profile).
+      documentation. Use file/web for inputs; skills/memory/delegation support the workflow.
+      You have no terminal/code tools, and you never publish or post — distribution belongs
+      to the requester (or the marketer profile).
     - Japanese deliverables follow the layered norms skills: `japanese-writing` (always),
       `japanese-tech-prose` (long-form explanatory prose), `japanese-prose-rhythm` (only
       text read start-to-finish; never for scannable reference docs).
@@ -59,14 +63,7 @@ agent:
   gateway_notify_interval: 180
   gateway_auto_continue_freshness: 3600
   image_input_mode: auto
-  disabled_toolsets:
-    - terminal
-    - code_execution
-    - tts
-    - computer_use
-    - image_gen
-    - cronjob
-    - messaging
+  disabled_toolsets: []
 terminal:
   backend: local
   modal_mode: auto
@@ -582,9 +579,11 @@ paste_collapse_char_threshold: 2000
 _config_version: 29
 platform_toolsets:
   cli:
-    - hermes-cli
-  telegram:
-    - hermes-telegram
-  discord:
-    - hermes-discord
-
+    - file
+    - web
+    - skills
+    - memory
+    - delegation
+    - no_mcp
+  telegram: []
+  discord: []
