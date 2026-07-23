@@ -2,8 +2,10 @@
 name: engineer-loop
 description: >-
   Engineer's task front door — route every task by purpose (ModeRouting), then
-  load the matching reference — advisory (Plan-Loop feasibility consultations —
-  read-only assessment, no code) vs implement (the dialogue-driven OpenCode
+  load the matching reference — orient (read-only situational awareness of the
+  repo / environment / GitHub — no judgment, no code) vs advisory (Plan-Loop
+  feasibility consultations — read-only assessment, no code) vs implement (the
+  dialogue-driven OpenCode
   loop — P0 master plan + per-unit forks, Permission/Question bridges) vs
   resume (rejoin after an unblock/respawn). This core file always applies — it
   owns the Authority grant contract (presets A1/A2/A3 + AUTHORITY+ expansions),
@@ -11,10 +13,10 @@ description: >-
   replies), checkpoint-then-block, the Review gate (body `Review: required`
   ⇒ block with a REVIEW: headline for human sign-off before completing),
   and the report discipline. Detailed
-  playbooks live in references/{advisory,implement,resume,model-routing}.md —
+  playbooks live in references/{orient,advisory,implement,resume,model-routing}.md —
   load them via skill_view file_path per ModeRouting, never skip. CLI
   mechanics live in the bundled opencode/claude-code/codex skills.
-version: 3.1.0
+version: 3.2.0
 author: CraftSamo
 license: MIT
 metadata:
@@ -26,9 +28,11 @@ metadata:
 
 <Goal>
 
-Engineer receives two kinds of tasks, both driven **in dialogue with the
+Engineer receives a few kinds of tasks, all driven **in dialogue with the
 orchestrator** over the kanban thread:
 
+- **Orient** — read-only situational awareness: report the repo / environment /
+  GitHub state so the plan can start grounded. No judgment, no code.
 - **Advisory** — a Plan-Loop consultation: assess feasibility, shape, risk,
   rough size. Deliverable is a short assessment, never code.
 - **Implementation** — write/refactor code, fix bugs, add tests, PRs, by
@@ -70,6 +74,7 @@ work**. Never proceed on this core file alone.
 
 | Signal (check in order) | Mode | Load |
 | --- | --- | --- |
+| Task body opens with `Orient — inform the plan, don't judge or ship.` — or the body only asks for the state of the repo / environment / GitHub, proposing no change and requesting no feasibility verdict | Orient | `references/orient.md` |
 | Task body opens with `Advisory — inform the plan, don't ship.` — or the body only asks questions (feasibility, shape, risk, sizing) and requests no code change | Advisory | `references/advisory.md` |
 | Task has prior runs / comments (a respawn after block, crash, or timeout) | Resume | `references/resume.md` + the reference of the underlying mode |
 | Anything else (implementation work) | Implement | `references/implement.md` + `references/model-routing.md` |
@@ -236,7 +241,7 @@ Rules:
 
 <Steps>
 
-1. **Orient.** `kanban_show`; parse the <Authority> grant and success
+1. **Intake.** `kanban_show`; parse the <Authority> grant and success
    criteria; confirm the workdir.
 2. **Route.** Pick the mode per <ModeRouting> and load the matching
    reference(s) via `skill_view`.
