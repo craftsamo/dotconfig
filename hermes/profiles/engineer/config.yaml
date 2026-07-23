@@ -10,7 +10,13 @@ fallback_providers:
     api_mode: chat_completions
 credential_pool_strategies: {}
 toolsets:
-  - hermes-cli
+  - terminal
+  - file
+  - web
+  - skills
+  - todo
+  - memory
+  - delegation
 max_concurrent_sessions: null
 agent:
   system_prompt: |
@@ -53,13 +59,7 @@ agent:
   gateway_notify_interval: 180
   gateway_auto_continue_freshness: 3600
   image_input_mode: auto
-  disabled_toolsets:
-    - browser
-    - tts
-    - computer_use
-    - cronjob
-    - messaging
-    - x_search
+  disabled_toolsets: []
 terminal:
   backend: local
   modal_mode: auto
@@ -576,16 +576,20 @@ paste_collapse_char_threshold: 2000
 _config_version: 29
 platform_toolsets:
   cli:
-    - hermes-cli
-  telegram:
-    - hermes-telegram
-  discord:
-    - hermes-discord
+    - terminal
+    - file
+    - web
+    - skills
+    - todo
+    - memory
+    - delegation
+    - no_mcp
+  telegram: []
+  discord: []
 image_gen:
   provider: img-xai-codex-fal
 video_analyze:
   provider: openrouter
   model: xiaomi/mimo-v2.5
 plugins:
-  enabled:
-    - image-fallback
+  enabled: []
