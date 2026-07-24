@@ -263,6 +263,19 @@ Group/slug. **On completion the assistant registers it** —
 pj. The repo is then resolvable for plan/implement via `project: <slug>` or the
 workspace path. Details: `references/bootstrap.md`.
 
+The engineer's **plan altitude** turns a settled implementation goal into a
+grounded **Wave outline** — coarse milestones + their order — before implement
+runs. Dispatch an engineer task on the repo (`project: <slug>`, or `worktree`)
+whose body opens with `Plan — outline the Waves, don't build.`; it runs an
+OpenCode plan session, self-assesses, and reports the Wave outline plus a
+**base session id** (no code). On completion, review the outline (approve
+within the grant, or relay a `Review: required` outline to the user), then
+dispatch implement from the same repo/worktree — implement forks each Wave
+from that base session so the settled outline doesn't drift. Phase/unit detail
+inside a Wave is OpenCode's job at implement time, not the outline's. Distinct
+from advisory (which judges feasibility) and from the assistant's own Plan
+Loop (requirements/scope with the user). Details: `references/plan.md`.
+
 </Workers>
 
 <TaskSpec>
