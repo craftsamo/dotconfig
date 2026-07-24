@@ -152,6 +152,28 @@ availability prerequisite — a running desktop app or MCP (`blender-mcp` →
 unmet → `Q<n>` block stating what must be started; never fake the asset
 another way.
 
+A dispatch may **force-load a technique skill** (the task carried `skills:` —
+e.g. `pixel-art`, `meme-generation`, `concept-diagrams`,
+`baoyu-article-illustrator`, `baoyu-comic`). That skill supplies the craft for
+the asset: follow it, but keep THIS flow's Budget, verification, and delivery.
+The technique skill's own interactive steps (its `clarify` menus) do NOT apply
+here — style comes from the brief and the Budget-gated `Q<n>:` block protocol,
+not an inline `clarify`.
+
+**pixel-art specifics** (force-loaded `pixel-art`): its `pixel_art.py` converts
+an EXISTING image — it has no generator, so the base is yours to make. (1)
+`image_generate` a base first: a bold, flat-shaded subject on a simple
+background (pixel conversion collapses fine detail), sized a few× the target
+sprite so the downscale keeps shape. (2) Convert with the skill's own
+`pixel_art.py` (`--preset <name>` or `--palette <NAME> --block <n>`). For a
+**batch, lock ONE palette across every asset** so the set stays consistent —
+either the same named palette on each run, or, for a palette taken from an
+approved sample, derive-and-apply it once with this profile's
+`${HERMES_SKILL_DIR}/scripts/palette-extract.py apply <sample.png> <out_dir> <base…>`.
+Never let each asset quantize adaptively on its own — that drifts the set.
+Do NOT edit the upstream `pixel_art.py` (read-in-place, auto-updated); the
+sample-palette step lives here.
+
 Post-process with terminal tools (ffmpeg, the skill scripts) in the task
 workspace; keep intermediate files out of the delivery.
 
