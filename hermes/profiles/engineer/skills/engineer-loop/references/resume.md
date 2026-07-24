@@ -16,16 +16,24 @@ mechanically, then rejoin the recorded session — never restart blind.
      comment (core <Authority>).
 2. Confirm the worktree state: `git log --oneline -5`, `git status --short`.
 3. **Rejoin the right session** (ids from the latest `STATE:`/`PROGRESS:`
-   comment):
-   - Blocked **mid-unit** → continue the unit fork:
-     `opencode run -s <fork-id> '<follow-up incorporating the DECISION(s)>'`
-     (wrapped per PermissionBridge, same model).
-   - Between units (or the DECISION invalidates the current unit's approach)
-     → fork fresh from P0 per OpenCodeLoop.
-   - The DECISION invalidates the plan itself → redo P0 (new master plan),
-     attach it, note the supersession.
-   - Advisory task → no sessions to rejoin; fold the DECISION(s) into the
-     assessment recorded in the last `STATE:` and finish it.
+   comment — the base id and the current Wave's fork id):
+   - **Re-establish the base if needed.** The base plan session is recorded;
+     reuse it if `opencode session list` still shows it. If it's gone
+     (worktree preserved, session lost), re-seed the base from the attached
+     Wave outline (`references/implement.md` "Base") before forking.
+   - Blocked **mid-Wave** → continue that Wave's build fork:
+     `opencode run -s <build-fork-id> '<follow-up incorporating the
+     DECISION(s)>'` (wrapped per PermissionBridge, same model).
+   - **Between Waves** (or the DECISION invalidates the current Wave's
+     approach) → fork fresh from the base for the current Wave per
+     OpenCodeLoop (decompose → confirm → build); prior Waves are committed, so
+     ground on the worktree.
+   - The DECISION **invalidates the outline itself** → the Waves changed:
+     re-establish the base from the revised outline, attach it, note the
+     supersession; Waves already committed stay as they are.
+   - **Read-only slice** (orient / advisory / plan) → no build sessions to
+     rejoin; fold the DECISION(s) into the deliverable recorded in the last
+     `STATE:` and finish it.
 4. Record the outcome in a short `PROGRESS:` comment so the thread stays an
    audit trail.
 
@@ -43,5 +51,5 @@ mechanically, then rejoin the recorded session — never restart blind.
 
 - Every open `Q<n>` was matched to its `DECISION(Q<n>)` before work resumed.
 - Effective Authority recomputed from body + all `AUTHORITY+:` comments.
-- The recorded session was rejoined (or a fresh fork/P0 was justified by the
-  DECISION); the outcome is logged as `PROGRESS:`.
+- The recorded session was rejoined (or a fresh fork from the base was
+  justified by the DECISION); the outcome is logged as `PROGRESS:`.
