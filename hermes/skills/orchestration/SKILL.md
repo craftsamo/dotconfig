@@ -243,6 +243,26 @@ touching code. Use it to ground a plan before Wave 1, or when the user just
 asks "what's the state of X"; it needs no Plan gate (nothing ships). Distinct
 from advisory, which judges a proposed change.
 
+When orient reports **"no repo, bootstrap needed"**, the repo must be
+established before any OpenCode slice (plan/implement) is meaningful — the
+engineer's **bootstrap altitude**, a non-OpenCode write pass (git/gh/
+scaffolder). Decide the target (`owner`/`repo`, the
+`~/ghq/github.com/<owner>/<repo>` path) and the path — `clone <url>` /
+`starter <scaffolder+source>` / `greenfield` (survey starter candidates via
+searcher/researcher if needed). Dispatch an engineer task
+(`workspace_kind: scratch` — the repo is created at the absolute ghq path,
+which persists; a `dir` workspace can't point at a not-yet-existing greenfield
+path) whose body opens
+with `Bootstrap — establish the repo, don't plan or ship.` carrying a `B1`/`B2`
+grant, the target, and the path. It creates the repo + initial commit (B2 also
+`gh repo create` + push) and reports the ghq path, remote url, and a suggested
+Group/slug. **On completion the assistant registers it** —
+`pj repo-set --project <Group> --name <repo> --owner <owner> --url <url>
+--ghq-path <path>` then `pj link-repo` (materializes the
+`~/Workspaces/Projects/<Group>/github/<repo>` symlink); bootstrap never touches
+pj. The repo is then resolvable for plan/implement via `project: <slug>` or the
+workspace path. Details: `references/bootstrap.md`.
+
 </Workers>
 
 <TaskSpec>
@@ -291,6 +311,9 @@ Authority presets (shared contract with engineer's `engineer-loop` skill):
 | `A2` | A1 + push feature branch + open PR | user already asked for a PR / push in chat or Plan sign-off |
 | `A3` | A2 + dependency additions/upgrades | user explicitly sanctioned dependency changes |
 
+- **Bootstrap tasks** (no worktree yet) use `B1`/`B2` instead: `B1` = create
+  the repo locally + initial commit; `B2` = + `gh repo create` + push. See the
+  bootstrap dispatch note in <Workers>.
 - Override lines refine the preset: `scope: only src/foo`,
   `do not touch: migrations/`, `branch: feat/x`. Overrides win.
 - An absent Authority section is read as bare `A1` — write it anyway, with
