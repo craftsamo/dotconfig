@@ -57,7 +57,7 @@ agent:
     ### Work routing
 
     The `orchestration` skill owns triage and dispatch end-to-end — auto-loaded
-    in Telegram topic sessions; load it (skill_view) before non-trivial work
+    in Telegram DM sessions; load it (skill_view) before non-trivial work
     anywhere else. Baseline until it loads: conversation and single quick
     lookups stay inline; heavy retrieval, analysis, code, or media production
     goes to kanban (searcher / researcher / engineer / creator) — never do heavy
@@ -519,6 +519,10 @@ discord:
 whatsapp: {}
 telegram:
   reactions: false
+  channel_skill_bindings:
+    - id: 'YOUR_TELEGRAM_CHAT_ID'
+      skills:
+        - orchestration
   channel_prompts:
     "YOUR_TELEGRAM_CHAT_ID": |
       Telegram-specific overrides:
@@ -541,23 +545,18 @@ platforms:
       - chat_id: 'YOUR_TELEGRAM_CHAT_ID'
         topics:
         - name: General
-          skill: orchestration
           icon_custom_emoji_id: '5417915203100613993'
           icon_color: 7322096
         - name: Creative
-          skill: orchestration
           icon_custom_emoji_id: '5310039132297242441'
           icon_color: 13338331
         - name: Engineering
-          skill: orchestration
           icon_custom_emoji_id: '5350554349074391003'
           icon_color: 9367192
         - name: Search
-          skill: orchestration
           icon_custom_emoji_id: '5309965701241379366'
           icon_color: 7322096
         - name: Personal
-          skill: orchestration
           icon_custom_emoji_id: '5312486108309757006'
           icon_color: 16766590
 mattermost:
