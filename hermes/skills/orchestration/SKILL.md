@@ -22,7 +22,7 @@ description: >-
   trail (StatusCheck), recover from blocked/gave_up/crashed/timed_out
   events and silent block-loop triage falls, and close dead cards via CLI
   archive. Auto-loaded into each Telegram
-  topic session via the dm_topics skill binding; load it via skill_view
+  DM session via the chat-wide skill binding; load it via skill_view
   before non-trivial work elsewhere. Prefer the `clarify` tool over
   plain-chat questions whenever options exist. Each approach has its own
   reference under `references/<approach>.md` — load the matching one after
@@ -53,8 +53,8 @@ recovery.
 <Scope>
 <UseWhen>
 
-- Always in a Telegram topic session: this skill is auto-loaded at session
-  start (dm_topics skill binding) — apply <Pipeline> to every request.
+- Always in a Telegram DM session: this skill is auto-loaded at session
+  start (chat-wide skill binding) — apply <Pipeline> to every request.
 - Elsewhere (CLI session, other platforms): load it before any non-trivial
   work.
 - A kanban notification (done / blocked / gave up / crashed / timed out)
