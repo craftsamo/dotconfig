@@ -179,9 +179,9 @@ marketer's `marketing-loop` skill.
 default and assistant are the two faces of the same front door: identical
 orchestration behavior (both run `orchestration`, which lives in
 default's skills tree at `hermes/skills/orchestration/` — default loads it
-natively, assistant through its `~/.hermes/skills` external dir; the dm_topics
-auto-load keeps working since resolution goes through `skill_view`), the same
-worker roster, the same media-full-delegation rule. The differences: platform
+natively, assistant through its `~/.hermes/skills` external dir; the Telegram
+chat-wide auto-load keeps working since resolution goes through `skill_view`),
+the same worker roster, the same media-full-delegation rule. The differences: platform
 (CLI vs Telegram gateway), persona (default stays **neutral** — every
 `--clone` inherits its `config.yaml`, so voice/character stays out), and
 assistant-only surface skills (ccc-course-production,
@@ -263,10 +263,11 @@ Three per-profile layers, kept separate:
     the upstream `social-media/xurl` skill via `skills.external_dirs`
 
 Routing (assistant): `orchestration` owns it. The skill is
-**auto-loaded into every new Telegram topic session** via the per-topic
-`skill:` binding in `platforms.telegram.extra.dm_topics` (gateway injects the
-skill body into the session's first turn; `compression.protect_first_n` keeps
-it alive; existing sessions pick it up after `/new` or an idle reset). It
+**auto-loaded into every new Telegram DM session** via the chat-wide
+`telegram.channel_skill_bindings` entry (root DM plus fixed and user-created
+topics; gateway injects the skill body into the session's first turn;
+`compression.protect_first_n` keeps it alive; existing sessions pick it up
+after `/new` or an idle reset). It
 triages silently on two axes — can the user wait? does it need a worker's
 tools / isolation / durability? — then routes inline (conversation, quick
 lookups, workspace skills, cron registration) vs kanban: searcher =
