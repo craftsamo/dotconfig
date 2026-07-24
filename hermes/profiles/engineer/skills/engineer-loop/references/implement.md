@@ -1,8 +1,14 @@
-# Implement mode — the dialogue-driven OpenCode loop
+# Implement mode — the Wave-fork OpenCode loop
 
 Loaded for implementation tasks (with `references/model-routing.md` for the
 provider/model decision). The core file's Authority contract, comment
 protocol, and checkpoint-then-block apply throughout.
+
+Implement consumes a **Wave outline** — the coarse milestones and their order
+— and builds it Wave by Wave. The outline comes from a preceding **plan**
+slice (`references/plan.md`), or implement generates its own for a Build-path
+task. Session context is NOT the durable layer — the Wave outline (text), git
+history, and kanban comments are.
 
 ## RiskGate
 
@@ -10,71 +16,115 @@ Plan-approval is risk-tiered, not unconditional:
 
 | Tier | Examples | Gate |
 | --- | --- | --- |
-| Low | mechanical fix, docs, small test, cleanup within scope | no P0, no plan round-trip; implement directly in one session |
-| Medium | standard feature/refactor inside granted scope | P0 master plan (OpenCodeLoop), self-review it, implement; attach the plan (kanban_attach) for the audit trail |
-| High | architecture change, public API/schema change, dependency change, anything outside Authority | P0 master plan, then checkpoint-then-block with the plan attached — wait for approval before implementing |
+| Low | mechanical fix, docs, small test, cleanup within scope | no base, no Waves; implement directly in one session |
+| Medium | standard feature/refactor inside granted scope | establish the base (plan outline), run the Wave loop, self-review; attach the outline (kanban_attach) for the audit trail |
+| High | architecture change, public API/schema change, dependency change, anything outside Authority | establish the base, then — unless a plan slice already produced an **approved** outline — checkpoint-then-block with the outline attached, wait for approval before the Wave loop |
 
 ## OpenCodeLoop
 
-Plan once, then implement in short-lived scoped sessions. Session context is
-NOT the durable layer — the plan session, git history, and kanban comments
-are.
+### Base — the Wave outline (established in THIS task)
 
-**P0 — master plan (one live P0 per task; Low-tier tasks skip P0 and run
-as a single unit):**
+The base is a plan session in this worktree that holds the Wave outline; each
+Wave forks from it. Establish it in-task — never depend on a session reaching
+across tasks (opencode sessions are project-keyed; a prior plan task's session
+may not be visible here):
 
-```text
-opencode run --auto --agent plan --title "plan: <task>" --model <m> \
-  'Split this task into implementation units and sketch the architecture.
-   Units only — no per-unit detail: <task goal, constraints, done criteria>'
-```
+- **A plan slice ran** (the task body / an attachment carries the approved
+  Wave outline): seed the base from that outline verbatim —
 
-(P0 is read-only planning — plain `--auto` suffices, no permission env. If
-a DECISION later invalidates the plan itself, redo P0 as a successor and
-note the supersession; the old P0's forks are dead.)
+  ```text
+  opencode run --auto --agent plan --title "waves: <goal>" --model <m> \
+    'This Wave outline is already approved — hold it as the plan to implement,
+     do not re-plan: <the approved Waves, verbatim>'
+  ```
 
-- Keep P0 **lean**: unit list + architecture shape + risks. Per-unit detail
-  is planned inside each fork — every fork re-sends P0's transcript, so P0
-  bloat taxes every unit.
-- **Unit granularity**: one PR-sized concern (foundation, feature A, …) that
-  finishes implement→verify in ONE session without compaction. Too big to
-  fit → split it in P0.
-- Recover the id via `opencode session list`; record it in a `PROGRESS:`
-  comment; attach the plan text with `kanban_attach`.
+  Optimization: if `opencode session list` in this worktree shows the plan
+  slice's base session id, fork it directly and skip re-seeding.
+- **No outline** (Build path, Medium/High): generate it yourself —
 
-**Unit loop (foundation → feature A → feature B → …):**
+  ```text
+  opencode run --auto --agent plan --title "waves: <goal>" --model <m> \
+    'Split this goal into WAVES only — coarse milestones and their dependency
+     order, one line each. No phase/unit detail. <goal, constraints, done>'
+  ```
 
-1. Fork from P0 — the fork inherits the plan context:
-   `OPENCODE_PERMISSION='<per PermissionBridge>' opencode run --auto
-   -s <P0-id> --fork --agent build --title "unit: <name>" --model <m>
-   '<scoped unit goal — this unit only, with done criteria>'`
-2. Follow-ups within the unit: `opencode run -c '<follow-up>'` (or
-   `-s <fork-id>`). The permission env and `--auto` are **per-invocation**,
-   not per-session — wrap every build call, including `-c`/`-s` resumes,
-   and pass the same `--model <m>` explicitly each time.
-3. Unit done: **verify independently → commit → `PROGRESS:` comment (with
-   ids) → discard the fork.** Next unit forks fresh from P0 — never carry a
-   session across unit boundaries (that is how cost and compaction creep
-   back in).
-4. Prompt scoping rule: every planning/implementing prompt names ONE scoped
-   deliverable ("build the data layer"), never the whole task ("build the
-   app") — narrow scope is what buys plan quality.
+  then self-review it (risks, ordering). High tier additionally blocks for
+  approval (RiskGate) before the loop.
+- Recover the base id (`opencode session list`), record it in a `PROGRESS:`
+  comment, and attach the outline (`kanban_attach`). The **durable handoff is
+  the outline text + git**; the session id is just the fork handle.
 
-**Inspection primaries (fresh sessions, not forks):**
+### Wave loop (Wave 1 → Wave 2 → …, in outline order)
+
+Per Wave, a decompose → confirm → build sub-cycle. **OpenCode owns the phase
+granularity; you judge it, you don't dictate it.**
+
+1. **Decompose** — fork the base with the plan agent (read-only):
+
+   ```text
+   opencode run --auto -s <base-id> --fork --agent plan --model <m> \
+     'Decompose Wave N — "<wave intent>" — into phases/units, grounded on the
+      current worktree (prior Waves are already committed here). Phases only,
+      no code. If something material is undecided, say so.'
+   ```
+
+2. **Confirm** — read the phase breakdown and sanity-check it: does it match
+   the Wave's intent, stay inside the granted scope, and hang together? This is
+   your L3 review of OpenCode's plan — judge it, don't re-granularize it.
+   - Off target / too broad → correct via `run -c '<redirect>'`.
+   - Reveals a need outside the grant (a dependency, a push, an
+     architecture/public-API change) → **checkpoint-then-block** (core
+     <CheckpointThenBlock>) — this is the exception that goes to the
+     orchestrator; the Wave outline's approval does not cover a new grant.
+   - Leave a one-line `PROGRESS:` naming the confirmed phases (visibility).
+
+3. **Implement** — fork the confirmed phase-plan to build, wrapped per
+   <PermissionBridge>:
+
+   ```text
+   OPENCODE_PERMISSION='<per PermissionBridge>' opencode run --auto \
+     -s <phase-plan-id> --fork --agent build --model <m> \
+     'Implement these phases for Wave N: <the confirmed breakdown>. Prior Waves
+      are committed — build on them. If something material is undecided, stop
+      and state it in your final message instead of guessing.'
+   ```
+
+   Follow-ups within the Wave: `opencode run -c '<follow-up>'` (or
+   `-s <build-fork-id>`). The permission env, `--auto`, and `--model <m>` are
+   **per-invocation** — wrap every build call, including `-c`/`-s` resumes.
+   OpenCode handles the phases' own sub-steps/subagents; **don't micromanage
+   L4** — judge the result by your own verification.
+
+4. **Close the Wave** — verify independently → commit (sub-commits per phase
+   are fine) → `PROGRESS:` with ids (`[base <id> | wave <name> <build-fork-id>
+   | phases: …]`) → discard the Wave's forks. The **next Wave forks fresh from
+   the base** — never carry a session across a Wave boundary (that is how cost
+   and compaction creep back in).
+
+Grounding: prior Waves are committed, so each Wave's decompose/build reads the
+**current worktree** for context — grounding travels through git, not through
+session lineage. You only ever track two live ids: the base and the current
+Wave's fork.
+
+Prompt scoping rule: every decompose/build prompt names ONE Wave, never the
+whole goal — narrow scope is what buys quality.
+
+Escape hatch: if fork mechanics misbehave, commit the outline as `PLAN.md` in
+the worktree and run each Wave as a fresh session that reads `PLAN.md` + the
+current code.
+
+### Inspection primaries (fresh sessions, not forks)
 
 - `opencode run --auto --agent review --model <m> '<review this worktree's
-  diff …>'` — after a unit or before handing back; unbiased eyes, read-only
+  diff …>'` — after a Wave or before handing back; unbiased eyes, read-only
   by its own permissions (plain `--auto`, no env).
 - `opencode run --auto --agent debug --model <m> '<symptom, repro …>'` —
-  stubborn bugs; read-only diagnosis. Apply the fix in the unit fork
+  stubborn bugs; read-only diagnosis. Apply the fix in the Wave's build fork
   (`run -c`).
-- Their findings flow back as `run -c` follow-ups into the unit fork. Both
-  delegate internally (reviewer/debugger subagents) per the opencode config —
-  **don't micromanage L4**; judge the results with your own verification.
-
-Escape hatch: if fork mechanics misbehave, fall back to committing the plan
-as `PLAN.md` in the worktree and starting each unit as a fresh session that
-reads it.
+- Their findings flow back as `run -c` follow-ups into the Wave's build fork.
+  Both delegate internally (reviewer/debugger subagents) per the opencode
+  config — **don't micromanage L4**; judge the results with your own
+  verification.
 
 ## PermissionBridge
 
@@ -156,17 +206,19 @@ Rules:
 ## Steps
 
 1. **Quota → provider/model** per `references/model-routing.md`.
-2. **Risk-gate the plan** per RiskGate: Medium/High → run P0 per
-   OpenCodeLoop; High additionally → checkpoint-then-block for approval
-   before implementing.
-3. **Implement unit-by-unit** per OpenCodeLoop, every invocation wrapped
-   per PermissionBridge: fork from P0 → build → verify → commit →
-   `PROGRESS:` (with session ids) → next unit. Read each run's output per
-   QuestionBridge. Interpose `--auto --agent review` / `--agent debug`
-   fresh sessions where a unit warrants it.
+2. **RiskGate.** Low → implement directly in one session, skip the base and
+   the Wave loop. Medium/High → establish the base per OpenCodeLoop (seed the
+   approved outline, or self-generate one); High without a prior approved
+   outline → checkpoint-then-block for approval before the loop.
+3. **Run the Wave loop** per OpenCodeLoop: for each Wave, decompose (plan
+   fork) → confirm the breakdown → implement (build fork, wrapped per
+   PermissionBridge) → verify → commit → `PROGRESS:` (with ids) → next Wave
+   forks fresh from the base. Read each run's output per QuestionBridge.
+   Interpose `--auto --agent review` / `--agent debug` fresh sessions where a
+   Wave warrants it.
 4. **Verify independently** — never trust the agent's self-report:
    `git status --short`, `git diff`, read changed files, run targeted tests /
-   build / lint. If nothing is runnable, say so and explain what you checked instead.
+   build / lint. If nothing is runnable, say so and explain what you checked.
 5. **On quota / rate / auth error**, drop to the next provider/model and retry
    (`references/model-routing.md`).
 6. **Commit** minimal, reversible changes; push/PR only under an explicit
@@ -174,15 +226,20 @@ Rules:
 
 ## Pitfalls
 
-- Restarting from scratch after a mid-unit unblock instead of rejoining the
-  recorded fork (`-s <fork-id>`) — or the opposite: carrying one session
-  across unit boundaries (cost + compaction creep back in).
-- Un-recorded session ids — a respawn that can't find P0 or the unit fork
-  restarts blind; ids belong in every `STATE:`/`PROGRESS:` comment.
-- Bloating P0 with per-unit detail (every fork re-sends its transcript), or
-  planning "the whole app" in one prompt instead of one scoped unit.
-- Bare `opencode run` without the PermissionBridge env — edits get
-  silently auto-rejected and the model "completes" around them.
+- Carrying one session across a Wave boundary (cost + compaction creep) — fork
+  fresh from the base per Wave and ground on git; or the opposite: restarting
+  from scratch after an unblock instead of rejoining the recorded Wave fork
+  (`-s <fork-id>`, see `references/resume.md`).
+- Dictating the phase granularity instead of judging OpenCode's decomposition
+  — or skipping the confirm step and building a bad breakdown.
+- Building a Wave whose decompose surfaced an out-of-grant need (dependency,
+  push, architecture change) without a block round-trip.
+- Un-recorded base / Wave-fork ids — a respawn that can't find them restarts
+  blind; ids belong in every `STATE:`/`PROGRESS:` comment.
+- Bloating the base with phase detail (keep it the coarse Wave outline), or
+  prompting "the whole goal" in one Wave instead of that Wave only.
+- Bare `opencode run` without the PermissionBridge env — edits get silently
+  auto-rejected and the model "completes" around them.
 - `OPENCODE_PERMISSION='{"*":"allow"}'` — the merge would bury the global
   protective denies; set only `edit`/`bash` keys plus the Authority denies.
 - Ignoring `auto-rejecting` lines or unstated-assumption text in run output —
@@ -192,12 +249,15 @@ Rules:
 
 ## Verification
 
-- Every run carried the matching PermissionBridge env + `--auto`; every
+- The base was established in-task (seeded from the approved outline, or
+  self-generated + self-reviewed); base and Wave-fork ids are recorded.
+- Medium/high-risk work has the Wave outline attached; high-risk without a
+  prior approved outline had an approval round-trip.
+- Each Wave ran decompose (plan fork) → confirm → implement (build fork),
+  ending verify → commit → `PROGRESS:` with ids; no session crossed a Wave
+  boundary; grounding read the committed prior Waves; run outputs were read
+  for open questions (QuestionBridge).
+- Every build run carried the matching PermissionBridge env + `--auto`; every
   remote/destructive action maps to a grant or a block round-trip.
-- Medium/high-risk work has a P0 plan artifact attached; high-risk had an
-  approval round-trip.
-- Units were implemented in per-unit forks of a lean P0, each ending
-  verify → commit → `PROGRESS:` with session ids; no session crossed a unit
-  boundary; run outputs were read for open questions (QuestionBridge).
-- `git status` / `git diff` inspected; tests / build / lint run or
-  explicitly skipped.
+- `git status` / `git diff` inspected; tests / build / lint run or explicitly
+  skipped.
