@@ -134,10 +134,10 @@ sanction, equivalent to a chat sign-off. The synthesis worker never mints
 a grant the outline didn't carry; widening later is a normal `AUTHORITY+:`
 flow on the build card.
 
-For implementation goals, include an engineer consultation using the
-**plan-draft advisory variant** (body asks for a draft implementation plan
-via OpenCode's plan mode plus a self-assessment — see engineer-loop) so
-the outline folds in a grounded technical plan, not a guess.
+For implementation goals, include an engineer **plan** slice (body opens
+`Plan — outline the Waves, don't build.` — a grounded Wave outline via
+OpenCode's plan mode plus a self-assessment, see engineer-loop) so the
+outline folds in a grounded technical plan, not a guess.
 
 ### Sign-off gate
 

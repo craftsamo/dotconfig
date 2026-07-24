@@ -6,7 +6,9 @@ description: >-
   repo / environment / GitHub — no judgment, no code) vs bootstrap (establish a
   repo when none exists — non-OpenCode git/gh/scaffolder, B1/B2 grant) vs
   advisory (Plan-Loop
-  feasibility consultations — read-only assessment, no code) vs implement (the
+  feasibility consultations — read-only assessment, no code) vs plan (a grounded
+  Wave outline for an implementation goal — read-only, coarse milestones, no
+  code; Phase/unit detail is OpenCode's job in implement) vs implement (the
   dialogue-driven OpenCode
   loop — P0 master plan + per-unit forks, Permission/Question bridges) vs
   resume (rejoin after an unblock/respawn). This core file always applies — it
@@ -16,7 +18,7 @@ description: >-
   replies), checkpoint-then-block, the Review gate (body `Review: required`
   ⇒ block with a REVIEW: headline for human sign-off before completing),
   and the report discipline. Detailed
-  playbooks live in references/{orient,bootstrap,advisory,implement,resume,model-routing}.md —
+  playbooks live in references/{orient,bootstrap,advisory,plan,implement,resume,model-routing}.md —
   load them via skill_view file_path per ModeRouting, never skip. CLI
   mechanics live in the bundled opencode/claude-code/codex skills.
 version: 3.2.0
@@ -80,6 +82,7 @@ work**. Never proceed on this core file alone.
 | Task body opens with `Orient — inform the plan, don't judge or ship.` — or the body only asks for the state of the repo / environment / GitHub, proposing no change and requesting no feasibility verdict | Orient | `references/orient.md` |
 | Task body opens with `Bootstrap — establish the repo, don't plan or ship.` — establish a repo (clone / starter / greenfield) when none exists yet, before any OpenCode slice | Bootstrap | `references/bootstrap.md` |
 | Task body opens with `Advisory — inform the plan, don't ship.` — or the body only asks questions (feasibility, shape, risk, sizing) and requests no code change | Advisory | `references/advisory.md` |
+| Task body opens with `Plan — outline the Waves, don't build.` — produce a grounded Wave outline (coarse milestones + order) for an implementation goal, no code | Plan | `references/plan.md` + `references/model-routing.md` |
 | Task has prior runs / comments (a respawn after block, crash, or timeout) | Resume | `references/resume.md` + the reference of the underlying mode |
 | Anything else (implementation work) | Implement | `references/implement.md` + `references/model-routing.md` |
 
