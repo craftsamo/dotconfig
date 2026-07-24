@@ -10,7 +10,7 @@ description: >-
   Wave outline for an implementation goal — read-only, coarse milestones, no
   code; Phase/unit detail is OpenCode's job in implement) vs implement (the
   dialogue-driven OpenCode
-  loop — P0 master plan + per-unit forks, Permission/Question bridges) vs
+  loop — a base Wave outline + per-Wave forks, Permission/Question bridges) vs
   resume (rejoin after an unblock/respawn). This core file always applies — it
   owns the Authority grant contract (presets A1/A2/A3 for implement + B1/B2 for
   bootstrap + AUTHORITY+ expansions),
@@ -41,7 +41,7 @@ orchestrator** over the kanban thread:
 - **Advisory** — a Plan-Loop consultation: assess feasibility, shape, risk,
   rough size. Deliverable is a short assessment, never code.
 - **Implementation** — write/refactor code, fix bugs, add tests, PRs, by
-  driving OpenCode through a plan-once / fork-per-unit loop.
+  driving OpenCode through a base-outline / fork-per-Wave loop.
 
 The worker process is disposable (block ends the run; unblock respawns a
 fresh one), so continuity lives in durable layers only: the kanban comment
@@ -108,12 +108,12 @@ marker as the first token. Markers you WRITE:
 
 - `STATE:` — checkpoint note before a block: what's done, current plan, what
   the pending question(s) decide, plus the **session ids** needed to resume
-  (P0 id, current unit-fork id, current unit — see `references/implement.md`).
+  (base id, current Wave-fork id, current Wave — see `references/implement.md`).
 - `Q<n>: <question>` — one numbered question per comment (or one comment with
   `Q1:`/`Q2:`… lines): 2-4 concrete options, your recommendation marked.
   Numbering continues across the task's lifetime — never reuse an n.
-- `PROGRESS: <one-two lines>` — unit/milestone completed, what's next; end
-  with `[P0 <id> | unit <name> <fork-id>]` so any respawn can find the
+- `PROGRESS: <one-two lines>` — Wave/milestone completed, what's next; end
+  with `[base <id> | wave <name> <fork-id>]` so any respawn can find the
   sessions. Comments are NOT pushed to chat; the orchestrator reads them on
   demand (`kanban_show`), so keep them frequent but terse.
 
@@ -289,7 +289,7 @@ Final message:
 <Pitfalls>
 
 - Working from this core file without loading the mode reference — the
-  playbooks (P0/fork loop, permission bridge, advisory format) live there.
+  playbooks (Wave-fork loop, permission bridge, advisory format) live there.
 - Blocking without checkpointing first — the respawn loses uncommitted work
   and the next run restarts blind.
 - Vague block reasons ("thoughts?") — always `Q<n>` comments with options +
