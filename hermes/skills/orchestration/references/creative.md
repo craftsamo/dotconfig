@@ -69,6 +69,13 @@ main skill, with:
   `~/Workspaces/.deliverables/` only as an additional copy destination
   when the user wants files on disk
 
+For a **consistent multi-asset set** or a **high-cost asset** (a long video),
+open the body with `Plan —`: creator locks the style on a cheap sample and
+blocks for sign-off before spending the batch budget (its plan mode). Approve
+the anchor with a `DECISION(Q<n>):` — or relay it to the user when the brief
+set `Review: required` — and the same task continues into the batch. One cheap
+asset dispatches normally (produce).
+
 Ack with the task id and deliver on the completion notification. Small
 single assets go to creator too — never improvise media inline.
 
