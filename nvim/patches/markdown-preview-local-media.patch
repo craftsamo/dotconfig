@@ -1,0 +1,73 @@
+diff --git a/app/routes.js b/app/routes.js
+index 63d3a9a..6f35fd4 100644
+--- a/app/routes.js
++++ b/app/routes.js
+@@ -13 +13 @@ use((req, res, next) => {
+-  if (/\/page\/\d+/.test(req.asPath)) {
++  if (/^\/page\/\d+$/.test(req.asPath)) {
+@@ -59 +59 @@ use((req, res, next) => {
+-// images
++// local files
+@@ -62 +62 @@ use(async (req, res, next) => {
+-  const reg = /^\/_local_image_/
++  const reg = /^\/(?:_local_image_|page\/)?/
+@@ -112,2 +112,6 @@ use(async (req, res, next) => {
+-        if (imgPath.endsWith('svg')) {
+-          res.setHeader('content-type', 'image/svg+xml')
++        const stat = fs.statSync(imgPath)
++        const contentTypes = {
++          '.mp4': 'video/mp4',
++          '.webm': 'video/webm',
++          '.ogv': 'video/ogg',
++          '.svg': 'image/svg+xml'
+@@ -115 +119,49 @@ use(async (req, res, next) => {
+-        return fs.createReadStream(imgPath).pipe(res)
++        const contentType = contentTypes[path.extname(imgPath).toLowerCase()]
++        if (contentType) {
++          res.setHeader('content-type', contentType)
++        }
++
++        res.setHeader('accept-ranges', 'bytes')
++        const sendWholeFile = () => {
++          res.setHeader('content-length', stat.size)
++          if (req.method === 'HEAD') {
++            return res.end()
++          }
++          return fs.createReadStream(imgPath).pipe(res)
++        }
++        const range = req.headers.range
++        if (!range) {
++          return sendWholeFile()
++        }
++
++        const match = /^bytes=(\d*)-(\d*)$/.exec(range)
++        if (!match || (match[1] === '' && match[2] === '')) {
++          return sendWholeFile()
++        }
++
++        let start
++        let end
++        if (match[1] === '') {
++          const suffixLength = Number(match[2])
++          if (Number.isSafeInteger(suffixLength) && suffixLength > 0) {
++            start = Math.max(stat.size - suffixLength, 0)
++            end = stat.size - 1
++          }
++        } else {
++          start = Number(match[1])
++          end = match[2] === '' ? stat.size - 1 : Math.min(Number(match[2]), stat.size - 1)
++        }
++
++        if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start < 0 || start >= stat.size || end < start) {
++          res.statusCode = 416
++          res.setHeader('content-range', `bytes */${stat.size}`)
++          return res.end()
++        }
++
++        res.statusCode = 206
++        res.setHeader('content-range', `bytes ${start}-${end}/${stat.size}`)
++        res.setHeader('content-length', end - start + 1)
++        if (req.method === 'HEAD') {
++          return res.end()
++        }
++        return fs.createReadStream(imgPath, { start, end }).pipe(res)
