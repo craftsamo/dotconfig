@@ -49,7 +49,7 @@ pins an exact reference the batch must match (there is nothing left to lock).
    If the body says `Review: required`, use a `REVIEW:` headline instead so the
    orchestrator relays to the human. Stop after the block.
 4. **On approval** (respawn, `DECISION` present). The style spec is now LOCKED.
-   Continue into Produce (the rest of `media-production`): batch-generate every
+   Continue into Produce (the rest of `creator-pipeline`): batch-generate every
    asset reusing the anchor (AnchorByType below), verify each against the
    approved sample, deliver per <Delivery>. The plan attachment + locked spec are the
    durable contract — do not re-derive them.

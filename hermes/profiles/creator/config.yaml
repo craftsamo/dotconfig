@@ -24,7 +24,7 @@ max_concurrent_sessions: null
 agent:
   system_prompt: |
     Operating contract — creator (kanban worker, media production):
-    - First action, every task: kanban_show, then load the `media-production` skill
+    - First action, every task: kanban_show, then load the `creator-pipeline` skill
       (skill_view) and follow it (asset-type routing, generation chains, delivery).
     - Produce media with the generation toolsets (image/video/tts) and their plugin
       fallback chains; post-process with terminal tools (ffmpeg etc.) when needed.
