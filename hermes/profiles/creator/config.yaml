@@ -70,7 +70,11 @@ terminal:
   cwd: "."
   timeout: 180
   env_passthrough: []
-  shell_init_files: []
+  shell_init_files:
+    - ~/.profile
+    - ~/.bash_profile
+    - ~/.bashrc
+    - ~/.hermes/profiles/creator/scripts/hyperframes-env.sh
   auto_source_bashrc: true
   docker_image: nikolaik/python-nodejs:python3.11-nodejs20
   docker_forward_env: []

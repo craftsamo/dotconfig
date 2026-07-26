@@ -136,6 +136,7 @@ skill in this profile's skills tree):
 | --- | --- | --- |
 | still image, logo, icon set, text card, social visual | `image_gen` tool (img-xai-codex-fal chain) | `contextual-image-gen` |
 | video clip, text-to-video, image-to-video | `video_gen` tool (vid-xai-fal chain) | `contextual-video-gen` |
+| HTML/CSS motion graphics, product tour, captioned narration, website-to-video | `hyperframes` CLI | `hyperframes` |
 | GIF, loop, poster frame | generate video first, then the bundled scripts (`to-gif.sh`, `make-loop.sh`, `poster-frame.sh`) | `contextual-video-gen` |
 | voice line / narration | `tts` toolset | — |
 | 3D modeling / scene / render | running desktop Blender via socket | `blender-mcp` |
