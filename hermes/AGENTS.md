@@ -61,17 +61,20 @@ skills/              # agent-created skills tracked; .hub/ etc. ignored
                      # (creative/ moved to profiles/creator/skills — creator owns media)
 plugins/             # backend chains (image/video gen) + tool overrides; source tracked, __pycache__ ignored
 launchd/             # LaunchAgents: assistant gateway + headless AivisSpeech engine
-profiles/<name>/     # assistant, engineer, researcher, searcher, creator, writer, marketer
+profiles/<name>/     # assistant, planner, engineer, researcher, searcher, creator, writer, marketer
   - config.yaml      # model/fallback + agent.system_prompt (operating contract)
   - profile.yaml     # routing description (kanban/delegation)
   - SOUL.md          # per-profile persona (BASE + role posture)
-  - skills/          # per-profile skills (workers: engineer-loop / research-pipeline /
-                     #   breadth-retrieval + deep-retrieval / media-production +
-                     #   contextual-image/video-gen / writing-pipeline (writer also
-                     #   shares the opencode Japanese stack via external_dirs) /
-                     #   marketing-loop (marketer; + upstream social-media/xurl);
-                     #   assistant keeps only its surface
-                     #   skills — orchestration lives in the shared skills/ tree above)
+  - skills/          # per-profile skills. Naming: every worker has exactly ONE
+                     #   pipeline skill `<profile>-pipeline` (lifecycle playbook,
+                     #   auto-loaded by its operating contract) + optional technic
+                     #   skills pinned per task via kanban_create skills:[...]
+                     #   (searcher: deep-retrieval / creator: contextual-image/
+                     #   video-gen / writer: opencode Japanese stack via
+                     #   external_dirs / marketer: + upstream social-media/xurl;
+                     #   planner-pipeline owns outline schema + granularity rubric;
+                     #   assistant keeps only its surface skills — orchestration
+                     #   lives in the shared skills/ tree above)
   - cron/            # per-profile scheduled jobs (jobs.json; placeholder if empty)
                      # assistant/scripts/ holds cron scripts incl.
                      # kanban-scheduled-sweeper.sh and kanban-orphan-watchdog.sh
@@ -82,15 +85,19 @@ setup.sh README.md PROFILES.md
 
 default (CLI front door — assistant's CLI counterpart, neutral persona) +
 assistant (messaging front door, hosts the
-gateway/dispatcher) + engineer / researcher / searcher / creator / writer /
-marketer (kanban workers; engineer converses with the assistant via kanban block round-trips
+gateway/dispatcher) + planner / engineer / researcher / searcher / creator /
+writer / marketer (kanban workers; engineer converses with the assistant via kanban block round-trips
 under a structured comment protocol — Authority presets A1/A2/A3,
 `STATE:`/`Q<n>:`/`DECISION(Q<n>):`/`PROGRESS:`/`AUTHORITY+:`/`REVIEW:`
 (human sign-off gate) markers, plus scheduled parking in `scheduled` via
-`SCHEDULED: until=` comments and the assistant sweeper cron — Board Plan
-synthesis cards run the assistant as a kanban worker for plan synthesis, while
-workers use the continuation-card fan-out pattern — and drives OpenCode through
-a P0-plan + per-unit-fork loop with permission /
+`SCHEDULED: until=` comments and the assistant sweeper cron — multi-card
+plans run through the Planner tree: a planner card (Claude Opus 5,
+plan-only) delivers a dependency-graph outline YAML, the user approves it
+in chat, and the assistant registers the cards topologically with
+idempotency keys (`auto_decompose` is OFF — the upstream aux decomposer's
+prompt is hardcoded and can't carry our TaskSpec/grant conventions); all
+workers use the continuation-card fan-out pattern — engineer drives
+OpenCode through a P0-plan + per-unit-fork loop with permission /
 question bridges; creator speaks the same comment protocol with a Budget
 grant (generation-spend caps), marketer with a Publish grant (absent =
 draft-only; posting needs verbatim approval or in-cap P1) — see PROFILES.md
