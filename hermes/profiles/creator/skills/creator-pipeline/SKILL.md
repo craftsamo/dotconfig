@@ -1,5 +1,5 @@
 ---
-name: media-production
+name: creator-pipeline
 description: >-
   Creator's task front door — route every task by purpose (ModeRouting):
   produce (the production loop, in this file) vs plan (lock the creative

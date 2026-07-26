@@ -1,6 +1,6 @@
 ---
 name: deep-retrieval
-description: Searcher's deep multi-hop retrieval for exhaustive source hunts — iterative query refinement across hops (follow citations, authors, and primary documents), per-hop coverage ledger, saturation-based stopping, and a source-map hand-off. Dispatched explicitly via skills:["deep-retrieval"], normally with goal_mode:true so the judge loops hops until coverage saturates. Still retrieval, not synthesis — breadth-retrieval covers the default fast/wide case.
+description: Searcher's deep multi-hop retrieval for exhaustive source hunts — iterative query refinement across hops (follow citations, authors, and primary documents), per-hop coverage ledger, saturation-based stopping, and a source-map hand-off. Dispatched explicitly via skills:["deep-retrieval"], normally with goal_mode:true so the judge loops hops until coverage saturates. Still retrieval, not synthesis — searcher-pipeline covers the default fast/wide case.
 version: 1.0.0
 author: CraftSamo
 license: MIT
@@ -8,7 +8,7 @@ metadata:
   hermes:
     tags: [search, retrieval, deep-dive, multi-hop, web, x_search, goal-mode]
     category: research
-    related_skills: [breadth-retrieval]
+    related_skills: [searcher-pipeline]
 ---
 
 <Goal>
@@ -32,7 +32,7 @@ structured source map. Depth of coverage — still not analysis or conclusions.
 
 <DoNotUseWhen>
 
-- Default retrieval tasks — `breadth-retrieval` (fast, wide, one pass).
+- Default retrieval tasks — `searcher-pipeline` (fast, wide, one pass).
 - Synthesis, evaluation, or verdicts — researcher's job.
 
 </DoNotUseWhen>

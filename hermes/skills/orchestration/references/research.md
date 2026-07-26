@@ -25,7 +25,7 @@ Standard `<TaskSpec>` shape with:
   axes we discussed, each option rated with citations") / Output (format,
   length, language) / Constraints.
 
-Researcher's profile skill `research-pipeline` runs Admiralty/SIFT source
+Researcher's profile skill `researcher-pipeline` runs Admiralty/SIFT source
 evaluation automatically — no need to specify it in the body.
 
 ## After dispatch

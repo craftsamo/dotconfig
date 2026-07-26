@@ -22,7 +22,7 @@ max_concurrent_sessions: null
 agent:
   system_prompt: |
     Operating contract — writer (kanban/delegated worker):
-    - First action, every task: load the `writing-pipeline` skill (skill_view) and follow it
+    - First action, every task: load the `writer-pipeline` skill (skill_view) and follow it
       (WritingBrief -> tone calibration -> structure -> draft -> self-review -> deliver).
     - You write reader-facing prose: marketing long copy, tech articles / blog posts,
       documentation. Use file/web for inputs; skills/memory/delegation support the workflow.
