@@ -155,7 +155,7 @@ leaves `PROGRESS:` comments at unit boundaries (comments never notify chat) and
 the assistant summarizes them when asked (`orchestration` `<StatusCheck>`).
 The gateway's
 `kanban.dispatch_interval_seconds` is lowered to **15** so a round-trip costs
-roughly the answer time + ~20 s. Details: engineer's `engineer-loop` skill and
+roughly the answer time + ~20 s. Details: engineer's `engineer-pipeline` skill and
 assistant's `orchestration` `<BlockedTriage>`.
 
 The comment protocol is worker-generic, not engineer-specific: **creator** and
@@ -166,13 +166,13 @@ asset + 1 corrective pass, expanded only via `AUTHORITY+:`), leaves
 `PROGRESS:` per finished asset, and — since a task's scratch workspace
 survives block/crash respawns (deleted only on completion) — resumes by
 inventorying surviving intermediates instead of re-spending credits.
-Details: creator's `media-production` skill. **marketer** speaks it with a
+Details: creator's `creator-pipeline` skill. **marketer** speaks it with a
 **Publish** grant (publishing is public and irreversible: absent grant =
 draft-only + a needs_approval block showing the exact post
 text/attachments/destination; `P1` = autonomous within named caps —
 account, post count, content scope), leaves `PROGRESS:` with the posted URL
 per post, and treats shipped posts as immutable facts on resume. Details:
-marketer's `marketing-loop` skill.
+marketer's `marketer-pipeline` skill.
 
 ### Default is the assistant's CLI counterpart (and stays a clean baseline)
 
@@ -232,14 +232,14 @@ Three per-profile layers, kept separate:
     Dispatch); task-spec template, topology: single / parents chain / triage
     card, dispatch params, BlockedTriage, failure recovery. Per-approach
     detail in `references/{plan,build,search,research,creative,inline}.md`.)
-  - engineer → `engineer-loop` (delegate to OpenCode; Authority parsing + checkpoint-then-block
+  - engineer → `engineer-pipeline` (delegate to OpenCode; Authority parsing + checkpoint-then-block
     dialogue; P0 master-plan + per-unit forks with permission/question bridges;
     fan-out to searcher/researcher/creator; quota-gated provider/model routing;
     intra-unit `-c`/`-s` resume; verify/report)
-  - researcher → `research-pipeline` (search route + Admiralty/SIFT source evaluation; evidence discipline)
-  - searcher → `breadth-retrieval` (query expansion, source-class routing, link-first hand-off)
+  - researcher → `researcher-pipeline` (search route + Admiralty/SIFT source evaluation; evidence discipline)
+  - searcher → `searcher-pipeline` (query expansion, source-class routing, link-first hand-off)
     + `deep-retrieval` (explicit multi-hop hunts: `skills: ["deep-retrieval"]` + `goal_mode`)
-  - creator → `media-production` (asset-type routing to the gen chains + the
+  - creator → `creator-pipeline` (asset-type routing to the gen chains + the
     creative-skill catalog, Budget grant parsing, structured STATE/Qn block
     dialogue, per-asset PROGRESS, workspace-reuse resume, visual verification,
     kanban_attach delivery) + the in-tree `contextual-image-gen` /
@@ -247,7 +247,7 @@ Three per-profile layers, kept separate:
     `creative/` + `media/` libraries referenced via `skills.external_dirs`
     (comfyui, manim-video, touchdesigner-mcp, gif-search, … — creator owns the
     creative cluster)
-  - writer → `writing-pipeline` (WritingBrief parsing; one-round tone
+  - writer → `writer-pipeline` (WritingBrief parsing; one-round tone
     calibration via sample-variant blocks; deliverable-type routing onto the
     layered Japanese norms; structure → draft → norms/humanizer/integrity
     self-review; final-message delivery) + external skills shared via
@@ -255,7 +255,7 @@ Three per-profile layers, kept separate:
     (`~/.config/opencode/skills/japanese` — japanese-writing / tech-prose /
     prose-rhythm, single-sourced with OpenCode) and upstream
     `creative/humanizer`
-  - marketer → `marketing-loop` (MarketingBrief + Publish-grant parsing;
+  - marketer → `marketer-pipeline` (MarketingBrief + Publish-grant parsing;
     strategy → fan-out to writer/creator/searcher/researcher → assemble →
     approval-gated xurl publish bridge with per-post PROGRESS + URL
     verification; channel extension points for future Discord/IG/TikTok
@@ -270,7 +270,9 @@ topics; gateway injects the skill body into the session's first turn;
 after `/new` or an idle reset). It
 triages silently on two axes — can the user wait? does it need a worker's
 tools / isolation / durability? — then routes inline (conversation, quick
-lookups, workspace skills, cron registration) vs kanban: searcher =
+lookups, workspace skills, cron registration) vs kanban: planner =
+multi-card decomposition (the Planner tree — dependency-graph outline for
+user approval; plan-only, never executes), searcher =
 retrieval/web/X (deep hunts via `deep-retrieval` + `goal_mode`), researcher =
 analysis/synthesis, engineer = implementation, creator = ALL media production
 (the front door only collects the MediaBrief — purpose, destination specs,
@@ -285,14 +287,19 @@ Time-deferred work parks in `scheduled` via `hermes kanban schedule <id>
 "until=<ISO8601> — <reason>"`; the assistant's no_agent
 `kanban-scheduled-sweeper.sh` cron releases due cards every 15 minutes. Dead
 cards close via `hermes kanban archive <id>`.
-Chat Plan Loop remains the default; Board Plan is for 2+ consultations when the
-user is async, using investigation advisory cards plus one assistant-assigned
-synthesis card whose `parents` fan in; its `REVIEW:` approval signs off the
-outline and opens the build cards. The no_agent `kanban-orphan-watchdog.sh`
+Chat Plan Loop remains the default for settling requirements; multi-card
+graphs run through the **Planner tree**: optional investigation parents +
+one planner-assigned plan card that delivers a dependency-graph outline
+YAML (assignees, technic `skills:`, grants, parents), the user approves it
+in chat, and the assistant registers the cards in topological order with
+idempotency keys — no worker ever creates build cards. The no_agent
+`kanban-orphan-watchdog.sh`
 cron runs every 30 minutes and surfaces unsubscribed blocked cards plus silent
 block-loop triage falls to chat.
-Multi-stage work ships as a `parents` chain (obvious 2-3 stages) or one
-`triage=true` card (auto-decompose); `delegate_task` stays an exception for
+Multi-stage work ships as a `parents` chain (obvious 2-3 stages) or a
+Planner tree (`auto_decompose` is off — the upstream aux decomposer's
+hardcoded prompt can't carry the TaskSpec/grant/granularity conventions);
+`delegate_task` stays an exception for
 medium parallel lookups the user is actively waiting on. The contract keeps a
 fallback tripwire for surfaces without the auto-load (CLI, other platforms);
 workers write a one-line chat-ready `kanban_complete` summary (the notifier
@@ -310,7 +317,7 @@ The shape mirrors OpenCode's split: **front doors = Claude (judgment +
 long-lived context on the Max plan); workers = GPT / Grok (stateless
 task turns); cheap OpenRouter tails.** The engineer's own turns are
 orchestration (OpenCode does the coding), so it rides the GPT tier; the
-coding model inside OpenCode is chosen per run by the engineer-loop's
+coding model inside OpenCode is chosen per run by the engineer-pipeline's
 comparative QuotaGate.
 
 | Profile | T1 (primary) | T2 | T3 |
@@ -509,7 +516,9 @@ Telegram-only per #40695); the embedded dispatcher auto-claims tasks across
 ticks (`dispatch_interval_seconds: 15` for fast block round-trips).
 `install.sh` links every tracked profile (incl. `profile.yaml`) with no WARN.
 The 2026-07 kanban workflow conventions (Review gate, scheduled sweeper cron,
-Board Plan planning trees, continuation-card fan-out, the
+Planner trees (planner profile, Claude Opus 5, plan-only; replaced the
+assistant-run Board Plan synthesis cards and the auto-decompose triage
+route), continuation-card fan-out, the
 `kanban-orphan-watchdog.sh` cron, and block-loop reset discipline) shipped in
 the orchestration and worker skills.
 
