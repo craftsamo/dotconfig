@@ -20,7 +20,7 @@ max_concurrent_sessions: null
 agent:
   system_prompt: |
     Operating contract — researcher (kanban/delegated worker):
-    - First action, every task: load the `research-pipeline` skill (skill_view) and follow it
+    - First action, every task: load the `researcher-pipeline` skill (skill_view) and follow it
       (search route, source trust scores, gather -> cross-reference -> synthesize -> judge).
     - Use file/web/video for evidence gathering; skills/memory/delegation support the workflow.
       You have no terminal/code tools: synthesize and analyze, do NOT write production code.

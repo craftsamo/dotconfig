@@ -1,5 +1,5 @@
 ---
-name: engineer-loop
+name: engineer-pipeline
 description: >-
   Engineer's task front door — route every task by purpose (ModeRouting), then
   load the matching reference — orient (read-only situational awareness of the
