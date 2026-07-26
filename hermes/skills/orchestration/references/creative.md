@@ -38,7 +38,7 @@ Ask the user at most one compact round of questions for missing essentials
 When the request names or clearly implies a specific craft/style, force-load
 the matching creator skill by passing it in the task's `skills:` field
 (`kanban_create(..., skills=["<name>"])`) — creator loads that skill's craft
-on top of `media-production`. Set a technique only when the request implies
+on top of `creator-pipeline`. Set a technique only when the request implies
 one; otherwise leave it off and let creator route by asset type.
 
 | Request signal | skill |
@@ -50,7 +50,7 @@ one; otherwise leave it off and let creator route by asset type.
 | knowledge comic / 漫画 / educational strip | `baoyu-comic` |
 
 The catalog is larger than this curated set — creator scans it for other
-asset types (`<AssetRouting>` in `media-production`). Some techniques need a
+asset types (`<AssetRouting>` in `creator-pipeline`). Some techniques need a
 running prerequisite (HTML-to-video `hyperframes` needs its toolchain,
 `blender` a Blender session); dispatch those only when the prereq is up, else
 creator blocks with a `Q<n>:` naming what to start.
