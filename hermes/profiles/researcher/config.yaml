@@ -1,9 +1,15 @@
 model:
-  default: grok-4.3
+  default: grok-4.5
   provider: xai-oauth
   base_url: https://api.x.ai/v1
 providers: {}
 fallback_providers:
+  - provider: anthropic
+    model: claude-opus-5
+    base_url: https://api.anthropic.com
+  - provider: openai-codex
+    model: gpt-5.6-sol
+    base_url: https://chatgpt.com/backend-api/codex
   - provider: openrouter
     model: xiaomi/mimo-v2.5
     base_url: https://openrouter.ai/api/v1
@@ -47,7 +53,7 @@ agent:
   restart_drain_timeout: 180
   api_max_retries: 3
   service_tier: ""
-  reasoning_effort: high
+  reasoning_effort: medium
   tool_use_enforcement: auto
   task_completion_guidance: true
   environment_probe: true
