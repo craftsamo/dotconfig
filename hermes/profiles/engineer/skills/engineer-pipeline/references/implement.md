@@ -205,6 +205,12 @@ Rules:
 
 ## Steps
 
+0. **Know the executor.** If the goal leans on a capability you have not
+   confirmed in this environment (a technique OpenCode should own as a skill,
+   a subagent, a custom tool, a model), load `opencode-env` and check it
+   first — prompts then carry intent instead of pasted procedure. Environment
+   symptoms during the build (missing API keys, a launcher that "loses" its
+   env, credential errors) are `machine-env`'s subject, not the model's.
 1. **Quota → provider/model** per `references/model-routing.md`.
 2. **RiskGate.** Low → implement directly in one session, skip the base and
    the Wave loop. Medium/High → establish the base per OpenCodeLoop (seed the
@@ -232,6 +238,9 @@ Rules:
   (`-s <fork-id>`, see `references/resume.md`).
 - Dictating the phase granularity instead of judging OpenCode's decomposition
   — or skipping the confirm step and building a bad breakdown.
+- Pasting the steps of a technique OpenCode already owns as a skill into the
+  prompt, or assuming a capability this environment doesn't have — check
+  `opencode-env` instead of guessing in either direction.
 - Building a Wave whose decompose surfaced an out-of-grant need (dependency,
   push, architecture change) without a block round-trip.
 - Un-recorded base / Wave-fork ids — a respawn that can't find them restarts
