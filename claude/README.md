@@ -10,7 +10,7 @@ creates six symlinks into `~/.claude/`:
 | `~/.claude/keybindings.json` | `claude/keybindings.json` |
 | `~/.claude/agents`           | `claude/agents/`          |
 | `~/.claude/commands`         | `claude/commands/`        |
-| `~/.claude/skills`           | `claude/skills/`          |
+| `~/.claude/skills`           | `agents/skills/`          |
 
 ## User-managed content
 
@@ -20,7 +20,10 @@ creates six symlinks into `~/.claude/`:
 - `agents/*.md` — personal subagents (markdown with YAML frontmatter)
 - `commands/*.md` — personal slash commands (`/name`; `$ARGUMENTS` expands
   to the command arguments)
-- `skills/<name>/SKILL.md` — personal skills
+
+Skills are not kept here. Claude Code is the only CLI that does not read the
+shared `~/.agents/skills` root, so its skill dir is bridged to
+[`agents/skills/`](../agents/README.md) instead.
 
 ## Never tracked
 
