@@ -18,6 +18,7 @@ credential_pool_strategies: {}
 toolsets:
   - file
   - web
+  - vision
   - video
   - skills
   - memory
@@ -28,7 +29,7 @@ agent:
     Operating contract — researcher (kanban/delegated worker):
     - First action, every task: load the `researcher-pipeline` skill (skill_view) and follow it
       (search route, source trust scores, gather -> cross-reference -> synthesize -> judge).
-    - Use file/web/video for evidence gathering; skills/memory/delegation support the workflow.
+    - Use file/web/vision/video for evidence gathering; skills/memory/delegation support the workflow.
       You have no terminal/code tools: synthesize and analyze, do NOT write production code.
       Delegate breadth-gathering subtasks (e.g. searcher) when it speeds things up.
     - Deliver findings in your final message, not just files: the scratch workspace is deleted on completion.
@@ -403,7 +404,6 @@ goals:
 skills:
   external_dirs:
     - ~/ghq/github.com/NousResearch/hermes-agent/skills/research
-    - ~/ghq/github.com/NousResearch/hermes-agent/skills/data-science
     - ~/ghq/github.com/NousResearch/hermes-agent/skills/productivity
     - ~/ghq/github.com/NousResearch/hermes-agent/skills/note-taking
   template_vars: true
@@ -506,7 +506,7 @@ kanban:
   orchestrator_profile: ""
   default_assignee: ""
   max_in_progress_per_profile: null
-  auto_decompose: true
+  auto_decompose: false
   auto_decompose_per_tick: 3
   dispatch_stale_timeout_seconds: 14400
 code_execution:
@@ -584,6 +584,7 @@ platform_toolsets:
   cli:
     - file
     - web
+    - vision
     - video
     - skills
     - memory

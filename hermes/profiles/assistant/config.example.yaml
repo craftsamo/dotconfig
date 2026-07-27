@@ -454,8 +454,6 @@ skills:
   external_dirs:
   - ~/ghq/github.com/NousResearch/hermes-agent/skills/apple
   - ~/ghq/github.com/NousResearch/hermes-agent/skills/creative
-  - ~/ghq/github.com/NousResearch/hermes-agent/skills/devops
-  - ~/ghq/github.com/NousResearch/hermes-agent/skills/dogfood
   - ~/ghq/github.com/NousResearch/hermes-agent/skills/email
   - ~/ghq/github.com/NousResearch/hermes-agent/skills/github
   - ~/ghq/github.com/NousResearch/hermes-agent/skills/media
@@ -464,7 +462,6 @@ skills:
   - ~/ghq/github.com/NousResearch/hermes-agent/skills/research
   - ~/ghq/github.com/NousResearch/hermes-agent/skills/smart-home
   - ~/ghq/github.com/NousResearch/hermes-agent/skills/social-media
-  - ~/ghq/github.com/NousResearch/hermes-agent/skills/yuanbao
   - ~/.hermes/skills
   template_vars: true
   inline_shell: false

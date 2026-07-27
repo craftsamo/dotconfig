@@ -102,11 +102,11 @@ table in sync with `profile.yaml` descriptions and the orchestration skill's
 | Profile | Sweet spot | Technics you may pin | Grant |
 | --- | --- | --- | --- |
 | searcher | breadth-first web/X retrieval | `deep-retrieval` (exhaustive multi-hop; pair with `goal_mode`) | — |
-| researcher | analysis, synthesis, comparison, reports | — | — |
+| researcher | analysis, synthesis, comparison, reports | `web-source-vetting` (source trust triage), `media-artifact-verification` (confirmed media numbers — metadata for figures, vision for content) | — |
 | engineer | code, tests, builds, PRs via OpenCode; altitudes chosen by body opener (`Orient —` / `Bootstrap —` / `Plan —` / implement) | — | Authority A1/A2/A3, B1/B2 |
-| creator | ALL media production (image/video/GIF/voice) | `contextual-image-gen`, `contextual-video-gen` | Budget |
+| creator | ALL media production (image/video/GIF/voice) | `contextual-image-gen`, `contextual-video-gen`, `hyperframes` (HTML/CSS motion compositions — entry point that routes the rest of the stack), `media-use` (asset resolution, TTS, captions) | Budget |
 | writer | reader-facing prose, drafts only | `japanese-writing` (all JP deliverables), `japanese-tech-prose` (long-form explanatory only), `japanese-prose-rhythm` (ONLY start-to-finish reading like blog/essay — never scannable copy/reference) | — |
-| marketer | campaign orchestration + approved publishing | — | Publish (absent = draft-only) |
+| marketer | campaign orchestration + approved publishing | `social-video-research` (platform-native format/spec recon) | Publish (absent = draft-only) |
 
 - Technic missing for a niche (e.g. pixel art)? Do NOT block: route to the
   profile's pipeline default, write the technique requirements into the card

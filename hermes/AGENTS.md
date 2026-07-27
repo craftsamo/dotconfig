@@ -53,6 +53,29 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
   survive Hermes' config rewrites (`_deep_merge` keeps user keys). Voice routes the
   same way: `tts/tts-fallback` + `transcription/stt-fallback` chains, picked via
   `tts.provider` / `stt.provider` + `*.fallback.chain` (custom keys preserved).
+- **Worker terminal approvals cannot prompt — a flagged command just fails.** The
+  dispatcher runs workers with `stdin=DEVNULL` but still sets
+  `HERMES_INTERACTIVE=1`, so `approvals.mode: manual` reaches EOF, denies, and the
+  tool returns `status: "blocked"`. The guard reads only the OUTER command, never
+  inside a script — so `./scripts/x.sh`, `bash x.sh`, `opencode run`, `npx
+  hyperframes …`, `ffmpeg`, `git commit`, non-force `git push`, `gh pr create`,
+  `xurl` and `python3 script.py` all pass. What trips it: inline interpreters
+  (`bash -c`, `python3 -c`, `node -e`), `find -delete`, `chmod +x … && ./…`,
+  recursive `rm -rf`, `git reset --hard`, `git clean -f`, force push. Write worker
+  playbooks around scripts and wrapper CLIs, never inline one-liners.
+  `command_allowlist` is the escape hatch (exact match or fnmatch glob against the
+  WHOLE command; skipped when it contains `&&` `|` `>` `;`) and stays empty on
+  purpose — allowing `bash -c *` would reopen exactly what the guard exists to
+  catch. The hardline floor (`rm -rf /`, `$HOME`, system dirs) blocks regardless.
+- **HyperFrames skills live outside the repo, on purpose.** `creator` reaches the
+  `hyperframes*` / `media-use` playbooks through `skills.external_dirs`
+  (`~/.agents/skills`) — a harness-neutral store owned by `hyperframes skills
+  update` and shared with Claude Code / Codex / Gemini, so it stays untracked.
+  Never symlink them into `profiles/creator/skills/`: the CLI already relocated
+  the store once (`~/.claude/skills` → `~/.agents/skills`) and the relative links
+  broke silently. A fresh machine needs `hyperframes skills update` before creator
+  can load them. Note that a bare `hyperframes skills` **installs** rather than
+  reports — verify with `hermes -p creator skills list` instead.
 
 ## Layout
 
