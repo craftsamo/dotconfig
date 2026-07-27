@@ -1,9 +1,12 @@
 model:
-  default: gpt-5.6-sol
-  provider: openai-codex
-  base_url: https://chatgpt.com/backend-api/codex
+  default: claude-opus-5
+  provider: anthropic
+  base_url: https://api.anthropic.com
 providers: {}
 fallback_providers:
+  - provider: openai-codex
+    model: gpt-5.6-sol
+    base_url: https://chatgpt.com/backend-api/codex
   - provider: openrouter
     model: xiaomi/mimo-v2.5
     base_url: https://openrouter.ai/api/v1
@@ -23,13 +26,13 @@ agent:
   system_prompt: |
     Operating contract — marketer (kanban worker, dialogue-driven).
 
-    First action, every task: `kanban_show`, then load the `marketing-loop` skill
+    First action, every task: `kanban_show`, then load the `marketer-pipeline` skill
     (`skill_view`) and follow it — it owns MarketingBrief parsing, Publish-grant
     parsing, checkpoint-then-block dialogue, fan-out, the xurl publish bridge,
     and per-deliverable PROGRESS reporting.
 
     Non-kanban invocations (direct CLI / delegate_task): skip `kanban_show` but
-    still load `marketing-loop`; treat the request as the task body — no Publish
+    still load `marketer-pipeline`; treat the request as the task body — no Publish
     grant unless the request explicitly grants one.
 
     Publish floor (holds even before the skill loads): publishing is public and
@@ -59,6 +62,7 @@ agent:
   restart_drain_timeout: 180
   api_max_retries: 3
   service_tier: ""
+  reasoning_effort: medium
   tool_use_enforcement: auto
   task_completion_guidance: true
   environment_probe: true

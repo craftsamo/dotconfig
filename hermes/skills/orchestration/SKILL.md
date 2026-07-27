@@ -7,8 +7,10 @@ description: >-
   repo), Approach (Plan / Build / Search / Research / Creative / Inline —
   exclusive), then for Plan only: Decompose the goal with the inlined
   methodology, Register the steps in the session `todo`, run the Plan Loop with
-  the user (worker consultations via kanban, advisory). On sign-off,
-  Dispatch via the existing topology (single / parents / triage card) with
+  the user (worker consultations via kanban, advisory; multi-card graphs are
+  drafted by the planner profile and registered only after user approval —
+  the Planner tree). On sign-off,
+  Dispatch via the existing topology (single / parents / planner tree) with
   self-contained task specs (engineer tasks carry an Authority grant —
   preset A1/A2/A3 + overrides; media tasks carry a MediaBrief; deliverables
   needing human sign-off carry a Review gate), ack with
@@ -27,7 +29,7 @@ description: >-
   plain-chat questions whenever options exist. Each approach has its own
   reference under `references/<approach>.md` — load the matching one after
   Step 3.
-version: 3.3.0
+version: 3.5.0
 author: CraftSamo
 license: MIT
 metadata:
@@ -206,14 +208,26 @@ Dispatch ticks run ~every 15s, so never send quick jobs to the board — a
 
 Keep in sync with each worker's `profile.yaml` description:
 
-| Assignee | Sweet spot | Tools |
-| --- | --- | --- |
-| searcher | breadth-first retrieval: web/X search, links, latest/current info; deep multi-hop via the `deep-retrieval` skill + `goal_mode` | web, x_search |
-| researcher | depth: analysis, synthesis, comparison, evaluation, reports | file, web |
-| engineer | implementation: drives OpenCode, code changes, debugging, tests, builds, PRs; confirms material decisions via block round-trips | terminal (hermes-cli) |
-| creator | ALL media production: image, video, GIF, voice assets, batch and single; delivers via kanban_attach | media gen chains + terminal |
-| writer | reader-facing prose: marketing long copy, tech articles/blog, documentation; tone-calibrated JP quality; drafts only — never publishes | file, web |
-| marketer | campaign orchestration + approved publishing (X via xurl): content strategy, post/thread copy, ship within a Publish grant; fans out prose to writer, media to creator, research to searcher/researcher | terminal (hermes-cli), web, x_search |
+| Assignee | Sweet spot | Technics (pin via `skills:`) | Tools |
+| --- | --- | --- | --- |
+| planner | multi-card decomposition: dependency-graph outlines (assignees, technics, grants, parents) for user approval; plan-only, never executes, never creates build cards | — | file, web |
+| searcher | breadth-first retrieval: web/X search, links, latest/current info | `deep-retrieval` (exhaustive multi-hop, pair with `goal_mode`) | web, x_search |
+| researcher | depth: analysis, synthesis, comparison, evaluation, reports | — | file, web |
+| engineer | implementation: drives OpenCode, code changes, debugging, tests, builds, PRs; confirms material decisions via block round-trips | — (altitudes via body opener: Orient / Bootstrap / Plan / implement) | terminal (hermes-cli) |
+| creator | ALL media production: image, video, GIF, voice assets, batch and single; delivers via kanban_attach | `contextual-image-gen`, `contextual-video-gen` | media gen chains + terminal |
+| writer | reader-facing prose: marketing long copy, tech articles/blog, documentation; tone-calibrated JP quality; drafts only — never publishes | `japanese-writing`, `japanese-tech-prose`, `japanese-prose-rhythm` | file, web |
+| marketer | campaign orchestration + approved publishing (X via xurl): content strategy, post/thread copy, ship within a Publish grant; fans out prose to writer, media to creator, research to searcher/researcher | — | terminal (hermes-cli), web, x_search |
+
+Two-tier vocabulary: the **profile** is the execution contract (model,
+tools, grant type); a **technic** is a task-pinnable playbook passed as
+`skills: [...]` on `kanban_create`. Each worker's pipeline skill
+(`<profile>-pipeline`) auto-loads via its operating contract — never name
+it in a task. A technic layers ON TOP of the pipeline and never overrides
+lifecycle. No technic fits? Route to the profile default and put the
+technique requirements in the body — a recurring gap is a signal to author
+a new technic skill, not a new profile (new profile only when the execution
+contract itself differs: toolset/permissions, model, isolated long-term
+memory, conflicting standing prompt).
 
 Mixed pipelines flow searcher -> researcher -> engineer, with creator (assets)
 and writer (prose deliverables) as side stages. Workers can fan out themselves
@@ -233,6 +247,48 @@ once (tone samples / missing premises) rather than guessing.
 During Plan Loop, workers can also be **consulted at advisory altitude**
 (see `references/plan.md` "Worker consultations") — the same roster, but
 the deliverable is an assessment, not the work product itself.
+
+The engineer additionally answers at **orient altitude** — a read-only
+situational-awareness pass on a repo / environment. Dispatch an engineer
+task whose body opens with `Orient — inform the plan, don't judge or ship.`
+and it reports repo / GitHub / env state (structure, conventions, build/test,
+open PRs — or "no repo, bootstrap needed") without judging feasibility or
+touching code. Use it to ground a plan before Wave 1, or when the user just
+asks "what's the state of X"; it needs no Plan gate (nothing ships). Distinct
+from advisory, which judges a proposed change.
+
+When orient reports **"no repo, bootstrap needed"**, the repo must be
+established before any OpenCode slice (plan/implement) is meaningful — the
+engineer's **bootstrap altitude**, a non-OpenCode write pass (git/gh/
+scaffolder). Decide the target (`owner`/`repo`, the
+`~/ghq/github.com/<owner>/<repo>` path) and the path — `clone <url>` /
+`starter <scaffolder+source>` / `greenfield` (survey starter candidates via
+searcher/researcher if needed). Dispatch an engineer task
+(`workspace_kind: scratch` — the repo is created at the absolute ghq path,
+which persists; a `dir` workspace can't point at a not-yet-existing greenfield
+path) whose body opens
+with `Bootstrap — establish the repo, don't plan or ship.` carrying a `B1`/`B2`
+grant, the target, and the path. It creates the repo + initial commit (B2 also
+`gh repo create` + push) and reports the ghq path, remote url, and a suggested
+Group/slug. **On completion the assistant registers it** —
+`pj repo-set --project <Group> --name <repo> --owner <owner> --url <url>
+--ghq-path <path>` then `pj link-repo` (materializes the
+`~/Workspaces/Projects/<Group>/github/<repo>` symlink); bootstrap never touches
+pj. The repo is then resolvable for plan/implement via `project: <slug>` or the
+workspace path. Details: `references/bootstrap.md`.
+
+The engineer's **plan altitude** turns a settled implementation goal into a
+grounded **Wave outline** — coarse milestones + their order — before implement
+runs. Dispatch an engineer task on the repo (`project: <slug>`, or `worktree`)
+whose body opens with `Plan — outline the Waves, don't build.`; it runs an
+OpenCode plan session, self-assesses, and reports the Wave outline plus a
+**base session id** (no code). On completion, review the outline (approve
+within the grant, or relay a `Review: required` outline to the user), then
+dispatch implement from the same repo/worktree — implement forks each Wave
+from that base session so the settled outline doesn't drift. Phase/unit detail
+inside a Wave is OpenCode's job at implement time, not the outline's. Distinct
+from advisory (which judges feasibility) and from the assistant's own Plan
+Loop (requirements/scope with the user). Details: `references/plan.md`.
 
 </Workers>
 
@@ -274,7 +330,7 @@ body:
            irreversible — grant only what the user already sanctioned.>
 ```
 
-Authority presets (shared contract with engineer's `engineer-loop` skill):
+Authority presets (shared contract with engineer's `engineer-pipeline` skill):
 
 | Preset | Grants | Give when |
 | --- | --- | --- |
@@ -282,6 +338,9 @@ Authority presets (shared contract with engineer's `engineer-loop` skill):
 | `A2` | A1 + push feature branch + open PR | user already asked for a PR / push in chat or Plan sign-off |
 | `A3` | A2 + dependency additions/upgrades | user explicitly sanctioned dependency changes |
 
+- **Bootstrap tasks** (no worktree yet) use `B1`/`B2` instead: `B1` = create
+  the repo locally + initial commit; `B2` = + `gh repo create` + push. See the
+  bootstrap dispatch note in <Workers>.
 - Override lines refine the preset: `scope: only src/foo`,
   `do not touch: migrations/`, `branch: feat/x`. Overrides win.
 - An absent Authority section is read as bare `A1` — write it anyway, with
@@ -310,19 +369,24 @@ Pick the cheapest shape that fits:
    until every parent is `done`, then auto-promotes to `ready`. Fan-in works
    (several searcher tasks -> one researcher synthesis). Tell each downstream
    body to read its parents' results and list the parent ids.
-3. **Triage card** — big or fuzzy: one `kanban_create(..., triage=true)` card
-   carrying the whole requirement. The gateway auto-decomposes it into a
-   routed child graph using the profile descriptions (a few cards per tick).
-   Don't pre-chop the work yourself — invest in the requirement text instead.
-4. **Board Plan tree** — the *planning itself* should run unattended:
-   investigation advisory cards + one assistant-assigned synthesis card
-   (`parents` fan-in, `Review: required`) that drafts the outline, gets it
-   approved via a `REVIEW:` block, then opens the build cards. Conditions
-   and the synthesis-card template: `references/plan.md` "Board Plan".
+3. **Planner tree** — the work needs a multi-card dependency graph (3+
+   cards, 2+ profiles, distributed grants, or the user wants to see the
+   structure first): optional investigation parents + one planner-assigned
+   plan card that delivers an outline YAML; you render it, the user
+   approves, **you** register the cards in topological order with
+   idempotency keys. Conditions, flow, and the registration recipe:
+   `references/plan.md` "Planner tree". Never pre-chop the graph yourself,
+   and never let any worker create build cards.
+
+Note: `triage=true` auto-decompose is retired here (`auto_decompose:
+false` — the aux decomposer's prompt is hardcoded upstream and can't carry
+our TaskSpec/grant/granularity conventions). Fuzzy multi-card work goes
+through the Planner tree; for "全部任せる" cases keep the approval light
+(one-line graph summary + a single clarify).
 
 Coming out of a Plan Loop (`references/plan.md`), the topology choice is
 usually obvious from the signed-off plan — the plan's shape dictates
-single / parents / triage.
+single / parents / planner tree.
 
 </Topology>
 
@@ -414,9 +478,9 @@ failed runs), `crashed`, and `timed_out`:
 7. A dispatched task vanished from `blocked`/`running` and sits in
    `triage` with a `block_loop_detected` event (visible in `kanban_show`)
    -> it hit the block-loop breaker (see <BlockedTriage> — this transition
-   does NOT notify chat). First check whether auto-decompose already
-   fanned it out into unexpected children (archive strays), then answer
-   the open `Q<n>`/`REVIEW:` questions as usual and restore the card:
+   does NOT notify chat). Auto-decompose is disabled, so the card just
+   sits in `triage` untouched; answer the open `Q<n>`/`REVIEW:` questions
+   as usual and restore the card:
    `sqlite3 ~/.hermes/kanban.db "UPDATE tasks SET status = 'todo',
    block_recurrences = 0, block_kind = NULL WHERE id = '<id>';"`
    (the dispatcher re-promotes it to `ready` on the next tick).
@@ -502,8 +566,8 @@ sqlite3 ~/.hermes/kanban.db \
 ```
 
 Why: the board escalates the SECOND same-kind block of a task's life
-straight to `triage` — silently (no chat notification), where
-auto-decompose may dismantle the card (`BLOCK_RECURRENCE_LIMIT = 2`;
+straight to `triage` — silently (no chat notification), where it sits
+untouched until you notice (`BLOCK_RECURRENCE_LIMIT = 2`;
 unblock deliberately never resets the counter, only completion does).
 That breaker exists to stop *blind cron-unblock loops*; your answered
 `DECISION` comments ARE the human-in-the-loop it wants to force, so the
@@ -587,11 +651,18 @@ event the board is silent by design. Mid-run visibility is on-demand:
 - Polling the board after dispatch (notifications are automatic;
   <StatusCheck> is user-initiated only).
 - Duplicate cards for the same ask (use `idempotency_key` on retries).
-- Hand-decomposing a large fuzzy requirement into many thin cards — that is
-  the triage card's job.
-- Sending a small or interactive planning session to a Board Plan tree —
+- Hand-decomposing a multi-card requirement into thin cards yourself — the
+  dependency graph is the planner's deliverable (Planner tree), and the
+  user approves it before anything is registered.
+- Registering build cards before the user approved the outline, or letting
+  any worker (planner included) create build cards — registration is yours,
+  post-approval, in topological order with idempotency keys.
+- Pinning a `skills:` technic that isn't in the <Workers> table for that
+  profile — unknown needs go into the card body + a technic-authoring note.
+- Sending a small or interactive planning session to a Planner tree —
   the chat Plan Loop is the default; the tree costs a dispatch hop per
-  stage and hides the loop from an engaged user.
+  stage and hides the loop from an engaged user. Single-card work never
+  needs the planner.
 - Raw worker reports pasted into chat.
 - Naming pipeline categories or this skill's mechanics in chat — the routing
   is silent; the user hears the persona, not the machinery.

@@ -1,20 +1,27 @@
 ---
-name: engineer-loop
+name: engineer-pipeline
 description: >-
   Engineer's task front door — route every task by purpose (ModeRouting), then
-  load the matching reference — advisory (Plan-Loop feasibility consultations —
-  read-only assessment, no code) vs implement (the dialogue-driven OpenCode
-  loop — P0 master plan + per-unit forks, Permission/Question bridges) vs
+  load the matching reference — orient (read-only situational awareness of the
+  repo / environment / GitHub — no judgment, no code) vs bootstrap (establish a
+  repo when none exists — non-OpenCode git/gh/scaffolder, B1/B2 grant) vs
+  advisory (Plan-Loop
+  feasibility consultations — read-only assessment, no code) vs plan (a grounded
+  Wave outline for an implementation goal — read-only, coarse milestones, no
+  code; Phase/unit detail is OpenCode's job in implement) vs implement (the
+  dialogue-driven OpenCode
+  loop — a base Wave outline + per-Wave forks, Permission/Question bridges) vs
   resume (rejoin after an unblock/respawn). This core file always applies — it
-  owns the Authority grant contract (presets A1/A2/A3 + AUTHORITY+ expansions),
+  owns the Authority grant contract (presets A1/A2/A3 for implement + B1/B2 for
+  bootstrap + AUTHORITY+ expansions),
   the kanban comment protocol (STATE/Q<n>/PROGRESS markers, DECISION/AUTHORITY+
   replies), checkpoint-then-block, the Review gate (body `Review: required`
   ⇒ block with a REVIEW: headline for human sign-off before completing),
   and the report discipline. Detailed
-  playbooks live in references/{advisory,implement,resume,model-routing}.md —
+  playbooks live in references/{orient,bootstrap,advisory,plan,implement,resume,model-routing}.md —
   load them via skill_view file_path per ModeRouting, never skip. CLI
   mechanics live in the bundled opencode/claude-code/codex skills.
-version: 3.1.0
+version: 3.2.0
 author: CraftSamo
 license: MIT
 metadata:
@@ -26,13 +33,15 @@ metadata:
 
 <Goal>
 
-Engineer receives two kinds of tasks, both driven **in dialogue with the
+Engineer receives a few kinds of tasks, all driven **in dialogue with the
 orchestrator** over the kanban thread:
 
+- **Orient** — read-only situational awareness: report the repo / environment /
+  GitHub state so the plan can start grounded. No judgment, no code.
 - **Advisory** — a Plan-Loop consultation: assess feasibility, shape, risk,
   rough size. Deliverable is a short assessment, never code.
 - **Implementation** — write/refactor code, fix bugs, add tests, PRs, by
-  driving OpenCode through a plan-once / fork-per-unit loop.
+  driving OpenCode through a base-outline / fork-per-Wave loop.
 
 The worker process is disposable (block ends the run; unblock respawns a
 fresh one), so continuity lives in durable layers only: the kanban comment
@@ -70,7 +79,10 @@ work**. Never proceed on this core file alone.
 
 | Signal (check in order) | Mode | Load |
 | --- | --- | --- |
+| Task body opens with `Orient — inform the plan, don't judge or ship.` — or the body only asks for the state of the repo / environment / GitHub, proposing no change and requesting no feasibility verdict | Orient | `references/orient.md` |
+| Task body opens with `Bootstrap — establish the repo, don't plan or ship.` — establish a repo (clone / starter / greenfield) when none exists yet, before any OpenCode slice | Bootstrap | `references/bootstrap.md` |
 | Task body opens with `Advisory — inform the plan, don't ship.` — or the body only asks questions (feasibility, shape, risk, sizing) and requests no code change | Advisory | `references/advisory.md` |
+| Task body opens with `Plan — outline the Waves, don't build.` — produce a grounded Wave outline (coarse milestones + order) for an implementation goal, no code | Plan | `references/plan.md` + `references/model-routing.md` |
 | Task has prior runs / comments (a respawn after block, crash, or timeout) | Resume | `references/resume.md` + the reference of the underlying mode |
 | Anything else (implementation work) | Implement | `references/implement.md` + `references/model-routing.md` |
 
@@ -96,12 +108,12 @@ marker as the first token. Markers you WRITE:
 
 - `STATE:` — checkpoint note before a block: what's done, current plan, what
   the pending question(s) decide, plus the **session ids** needed to resume
-  (P0 id, current unit-fork id, current unit — see `references/implement.md`).
+  (base id, current Wave-fork id, current Wave — see `references/implement.md`).
 - `Q<n>: <question>` — one numbered question per comment (or one comment with
   `Q1:`/`Q2:`… lines): 2-4 concrete options, your recommendation marked.
   Numbering continues across the task's lifetime — never reuse an n.
-- `PROGRESS: <one-two lines>` — unit/milestone completed, what's next; end
-  with `[P0 <id> | unit <name> <fork-id>]` so any respawn can find the
+- `PROGRESS: <one-two lines>` — Wave/milestone completed, what's next; end
+  with `[base <id> | wave <name> <fork-id>]` so any respawn can find the
   sessions. Comments are NOT pushed to chat; the orchestrator reads them on
   demand (`kanban_show`), so keep them frequent but terse.
 
@@ -145,6 +157,10 @@ It opens with a **preset level**, optionally followed by overrides:
   changes, destructive operations, and material plan choices require a
   block round-trip.**
 - Never exceed an explicit scope limit even if technically convenient.
+- **Bootstrap tasks use B1/B2, not A1/A2/A3** — there is no worktree to commit
+  to yet. `B1` = establish the repo locally (clone / scaffold / `git init` +
+  initial commit); `B2` = + `gh repo create` + push. Missing → `B1`. Full
+  contract in `references/bootstrap.md`.
 
 </Authority>
 
@@ -236,7 +252,7 @@ Rules:
 
 <Steps>
 
-1. **Orient.** `kanban_show`; parse the <Authority> grant and success
+1. **Intake.** `kanban_show`; parse the <Authority> grant and success
    criteria; confirm the workdir.
 2. **Route.** Pick the mode per <ModeRouting> and load the matching
    reference(s) via `skill_view`.
@@ -273,7 +289,7 @@ Final message:
 <Pitfalls>
 
 - Working from this core file without loading the mode reference — the
-  playbooks (P0/fork loop, permission bridge, advisory format) live there.
+  playbooks (Wave-fork loop, permission bridge, advisory format) live there.
 - Blocking without checkpointing first — the respawn loses uncommitted work
   and the next run restarts blind.
 - Vague block reasons ("thoughts?") — always `Q<n>` comments with options +
