@@ -404,7 +404,6 @@ goals:
 skills:
   external_dirs:
     - ~/ghq/github.com/NousResearch/hermes-agent/skills/research
-    - ~/ghq/github.com/NousResearch/hermes-agent/skills/data-science
     - ~/ghq/github.com/NousResearch/hermes-agent/skills/productivity
     - ~/ghq/github.com/NousResearch/hermes-agent/skills/note-taking
   template_vars: true
