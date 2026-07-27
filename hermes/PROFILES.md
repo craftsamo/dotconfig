@@ -313,54 +313,77 @@ list (tiers 2+). `fallback_providers` is **per-turn**: it triggers on errors
 (429 / 5xx / 401 / 404 / malformed) and the primary is restored on the next
 turn. The default profile already proves the YAML shape.
 
-The shape mirrors OpenCode's split: **front doors = Claude (judgment +
-long-lived context on the Max plan); workers = GPT / Grok (stateless
-task turns); cheap OpenRouter tails.** The engineer's own turns are
-orchestration (OpenCode does the coding), so it rides the GPT tier; the
-coding model inside OpenCode is chosen per run by the engineer-pipeline's
-comparative QuotaGate.
+Most profiles lead with **Claude Opus 5** for judgment and long-context work,
+fall back first to **GPT-5.6 Sol**, then keep a role-appropriate OpenRouter
+tail. Two exceptions: **planner** leads with **Claude Fable 5** and inserts
+Opus 5 as its T2 (see "Fable and the Max weekly pool" below), and **researcher**
+/ **searcher** run on `xai-oauth` / grok-4.3 with a single OpenRouter tail. The
+coding model inside OpenCode remains a separate decision chosen per run by the
+engineer-pipeline's comparative QuotaGate.
 
-| Profile | T1 (primary) | T2 | T3 |
-| --- | --- | --- | --- |
-| **default** | `anthropic` / claude-opus-4-8 | `openai-codex` / gpt-5.6-terra | `openrouter` / `xiaomi/mimo-v2.5` |
-| **assistant** | `anthropic` / claude-opus-4-8 | `openai-codex` / gpt-5.6-terra | `openrouter` / `xiaomi/mimo-v2.5` |
-| **engineer** | `openai-codex` / gpt-5.6-sol | `openrouter` / `deepseek/deepseek-v4-flash` | — |
-| **researcher** | `xai-oauth` / grok-4.3 | `openrouter` / `xiaomi/mimo-v2.5` | — |
-| **searcher** | `xai-oauth` / grok-4.3 | `openrouter` / `xiaomi/mimo-v2.5` | — |
-| **creator** | `openai-codex` / gpt-5.6-terra | `openrouter` / `minimax/minimax-m3` | — |
-| **writer** | `anthropic` / claude-sonnet-5 | `openai-codex` / gpt-5.6-sol | `openrouter` / `deepseek/deepseek-v4-flash` |
-| **marketer** | `openai-codex` / gpt-5.6-sol | `openrouter` / `xiaomi/mimo-v2.5` | — |
+| Profile | T1 (primary) | T2 | T3 | T4 | `reasoning_effort` |
+| --- | --- | --- | --- | --- | --- |
+| **default** | `anthropic` / claude-opus-5 | `openai-codex` / gpt-5.6-sol | `openrouter` / `xiaomi/mimo-v2.5` | — | `medium` |
+| **assistant** | `anthropic` / claude-opus-5 | `openai-codex` / gpt-5.6-sol | `openrouter` / `xiaomi/mimo-v2.5` | — | `medium` |
+| **planner** | `anthropic` / **claude-fable-5** | `anthropic` / claude-opus-5 | `openai-codex` / gpt-5.6-sol | `openrouter` / `deepseek/deepseek-v4-flash` | `high` |
+| **engineer** | `anthropic` / claude-opus-5 | `openai-codex` / gpt-5.6-sol | `openrouter` / `deepseek/deepseek-v4-flash` | — | `high` |
+| **researcher** | `xai-oauth` / grok-4.3 | `openrouter` / `xiaomi/mimo-v2.5` | — | — | `high` |
+| **searcher** | `xai-oauth` / grok-4.3 | `openrouter` / `xiaomi/mimo-v2.5` | — | — | `low` |
+| **creator** | `anthropic` / claude-opus-5 | `openai-codex` / gpt-5.6-sol | `openrouter` / `minimax/minimax-m3` | — | `medium` |
+| **writer** | `anthropic` / claude-opus-5 | `openai-codex` / gpt-5.6-sol | `openrouter` / `deepseek/deepseek-v4-flash` | — | `medium` |
+| **marketer** | `anthropic` / claude-opus-5 | `openai-codex` / gpt-5.6-sol | `openrouter` / `xiaomi/mimo-v2.5` | — | `medium` |
 
 ```yaml
-# example — researcher's ~/.hermes/profiles/researcher/config.yaml
+# example — planner's ~/.hermes/profiles/planner/config.yaml (the 4-tier shape)
 model:
-  default: grok-4.3
-  provider: xai-oauth
-  base_url: https://api.x.ai/v1
+  default: claude-fable-5
+  provider: anthropic
+  base_url: https://api.anthropic.com
 fallback_providers:
+  - provider: anthropic          # same provider, different model — allowed
+    model: claude-opus-5         # (only an identical provider+model pair is skipped)
+    base_url: https://api.anthropic.com
+  - provider: openai-codex
+    model: gpt-5.6-sol
+    base_url: https://chatgpt.com/backend-api/codex
   - provider: openrouter
-    model: xiaomi/mimo-v2.5
+    model: deepseek/deepseek-v4-flash
     base_url: https://openrouter.ai/api/v1
     api_mode: chat_completions
+agent:
+  reasoning_effort: high
 ```
+
+A `fallback_providers` entry carries no per-entry `reasoning_effort` or
+`api_mode` for the main agent: on each fallback activation Hermes re-reads the
+profile config and re-resolves both from provider / base URL / model
+(`chat_completion_helpers.py:1668,1846`). Use `agent.reasoning_overrides`
+(model → effort) if one tier needs a different depth from the rest.
 
 Model facts confirmed during the build (live `provider_models_cache.json` + test
 calls):
 
-- **Anthropic native (T1)** — `default` / `assistant` lead with
-  `anthropic` / `claude-opus-4-8` (`base_url: https://api.anthropic.com`,
-  `api_mode: anthropic_messages`; slug in the live cache). OAuth (Claude
-  Pro/Max) — `hermes auth status anthropic` → *logged in*. The engineer left
-  the Claude tier 2026-07 (resource rebalance: its own turns are
-  orchestration; Claude is spent inside OpenCode via the QuotaGate instead).
-- **Grok** — `grok-4.3` is current on `xai-oauth` and verified working (the
-  retired `grok-4*` glob doesn't cover it; re-auth via `hermes model` if the
-  token lapses). `x-ai/grok-4.3` is the OpenRouter equivalent for per-token use.
+- **Anthropic native (T1)** — every profile except `researcher` / `searcher`
+  leads with `anthropic` (`base_url: https://api.anthropic.com`):
+  `claude-fable-5` on planner, `claude-opus-5` everywhere else. OAuth resolves
+  from the global Claude Code credential/token rather than per-profile
+  `auth.json`.
+- **xAI (T1, researcher / searcher)** — both run `xai-oauth` / `grok-4.3`
+  (`base_url: https://api.x.ai/v1`) with the OpenRouter tail as their only
+  fallback; there is no Codex tier on those two. `grok-4.3` is on the
+  reasoning-capable allowlist (`model_metadata.py:370-410`), so their
+  `reasoning_effort` really is sent as `reasoning: {effort: …}` — it is not a
+  no-op. Non-allowlisted Grok models have the field dropped on purpose, because
+  xAI answers an unsupported `reasoningEffort` with HTTP 400.
+- **Codex (T2)** — the Anthropic profiles fall back to `openai-codex` /
+  `gpt-5.6-sol` (`base_url: https://chatgpt.com/backend-api/codex`). The former
+  `gpt-5.6-terra` profile routes were promoted to Sol; the engineer-pipeline's
+  OpenCode QuotaGate remains a separate model-routing layer.
 - **Copilot retired from every chain** (2026-07): the subscription became
   unusable, and its catalog drift had already 404'd tiers silently once.
-  All fallbacks now go straight to OpenRouter (per-token, no catalog
-  surprises). `GITHUB_TOKEN` stays in the `hermes` Keychain layer for the
-  Skills Hub — it is no longer a model-provider credential.
+  Profile fallbacks now use Codex first and OpenRouter as the final tail.
+  `GITHUB_TOKEN` stays in the `hermes` Keychain layer for the Skills Hub — it
+  is no longer a model-provider credential.
 - **OpenRouter slugs** — `xiaomi/mimo-v2.5`, `deepseek/deepseek-v4-flash`,
   `google/gemini-3.5-flash` (the earlier `*-v3.2` / `gemini-3-flash-preview`
   refs were planning guesses).
@@ -371,23 +394,66 @@ calls):
   the `video-analyze-mimo` plugin — see `README.md` "Plugins"), and
   `creator` uses `minimax/minimax-m3` (image + video input) so it can still
   eyeball generated assets. Text-only work rides the cheaper
-  `deepseek/deepseek-v4-flash` (`engineer`, `writer` tail). Researcher and
+  `deepseek/deepseek-v4-flash` (`planner`, `engineer`, `writer` tail). Researcher and
   searcher gained vision in the 2026-07 copilot removal as a side effect of
   standardizing on mimo.
-- **Writer breaks the workers-ride-GPT rule on purpose** (added 2026-07): its
-  deliverable IS the prose, so T1 is `anthropic` / `claude-sonnet-5` (Claude
-  Max quota — accepted tradeoff; sonnet over opus to keep the quota cost down).
-  No copilot tier (copilot unavailable at build time); T2 `openai-codex` /
-  `gpt-5.6-sol`, T3 `deepseek/deepseek-v4-flash` (both slugs verified in the
-  live cache 2026-07).
-- **Marketer** (added 2026-07) rides the codex tier like the other
-  orchestrating worker (engineer): T1 `openai-codex` / `gpt-5.6-sol`, and a
-  single vision-capable tail `xiaomi/mimo-v2.5` so it can still eyeball
-  creator's assets before posting on a fallback turn (no copilot tier —
-  built after the copilot retirement).
 
 Optional: set `delegation.model: google/gemini-3.5-flash` on default /
 assistant to route `delegate_task` subagents to a cheap model.
+
+### Fable and the Max weekly pool
+
+Only **planner** runs Fable 5, and the `anthropic` / `claude-opus-5` T2 beneath
+it exists for exactly one failure mode. Four facts drive the design:
+
+1. **Fable is not a separate quota tank.** On Max it is included but capped at
+   **≤50% of the plan's weekly pool**, drawn from the *same* pool as Opus, and
+   it burns that pool faster. So `Fable → Opus` only rescues the case where the
+   Fable sub-cap is exhausted while the overall weekly still has room. If the
+   shared weekly or the 5-hour session limit is what tripped, Opus is dead too
+   and the chain correctly continues to Codex.
+2. **The T2 step depends on the token being resolvable outside the credential
+   pool.** A `usage_limit_reached` 429 marks the *credential* exhausted, and
+   that mark has **no model dimension** (`credential_pool.py:662`) — the pool
+   then refuses to hand it out. The Opus attempt only succeeds because
+   `resolve_anthropic_token()` checks `ANTHROPIC_TOKEN` /
+   `CLAUDE_CODE_OAUTH_TOKEN` / the Claude Code Keychain entry **before** the
+   pool (`anthropic_adapter.py:1401`). Park the Max subscription *only* in the
+   credential pool and the Opus tier is silently skipped — the chain quietly
+   degrades to `Fable → Codex`.
+3. **Hermes has no per-model quota memory.** The "included Fable 5 usage for
+   this week" message carries no parseable reset, so a fixed **1-hour** local
+   cooldown is applied (`credential_pool.py:117`), while the agent-level
+   fallback cooldown is only **60 seconds** (`chat_completion_helpers.py:1549`).
+   At t+61s the primary is restored and Fable is retried. Once the weekly cap is
+   hit this costs **one wasted request per turn until the week rolls over** —
+   accepted deliberately, and a reason planner (low turn count) carries Fable
+   while assistant (highest turn count, latency-sensitive) does not.
+4. **Adaptive thinking, not manual budgets.** Modern Claude — Fable 5 included —
+   gets `thinking: {type: adaptive}` + `output_config: {effort: …}`, so the
+   effort level passes straight through (`minimal→low`, `ultra→max`); the
+   legacy 4k/8k/16k/32k `budget_tokens` table does **not** apply. planner sits
+   at `high` rather than `xhigh` because its deliverable is a long outline YAML
+   and Hermes can otherwise burn the whole output budget on reasoning
+   (`conversation_loop.py:2600`). If that warning ever appears, drop to
+   `medium` or raise `max_tokens`.
+
+### `agent.*` does not inherit from the root profile
+
+A named profile's config is `$HERMES_HOME/config.yaml` deep-merged with the
+built-in `DEFAULT_CONFIG` **only** (`hermes_cli/config.py:680,7456`) — the root
+`~/.hermes/config.yaml` is never a parent. `--clone` copies it once at creation
+time; that is not live inheritance.
+
+This bites hardest on `agent.reasoning_effort`, because `DEFAULT_CONFIG["agent"]`
+has **no** `reasoning_effort` key. Omitting it does not inherit the root's
+`medium` — it resolves to `None`, and each provider path then does something
+different: native Anthropic sends no `thinking`/`output_config` at all
+(`anthropic_adapter.py:2854`), Codex defaults to `medium`
+(`transports/codex.py:170`), OpenRouter to `{enabled: true, effort: medium}`.
+The result is a profile whose T1 is unspecified while its fallbacks are
+`medium`. Five profiles sat in that state until 2026-07; every profile now
+carries an explicit value. **Set `agent.*` keys per profile, always.**
 
 ## Authentication inheritance
 
@@ -506,30 +572,31 @@ Routing quality depends on `profile.yaml` descriptions — create workers with
 Built and verified: default (kanban orchestrator), engineer (ex-coder, promoted
 2026-07: dialogue-driven OpenCode worker), researcher, searcher, creator
 (added 2026-07: media production worker), writer (added 2026-07: prose
-worker; T1 anthropic/claude-sonnet-5, skills shared from the opencode Japanese
+worker; skills shared from the opencode Japanese
 stack via external_dirs), and marketer (added 2026-07: campaign/publishing
 worker; posts to X via the bundled xurl skill + external CLI under the
 Publish-grant floor) workers —
-T1–T4 tiers resolve (doctor + live probes) and default-created tasks
+T1–T3 tiers resolve (doctor + live probes) and default-created tasks
 dispatch/route to each. Assistant gateway runs keychain-pure (LaunchAgent,
 Telegram-only per #40695); the embedded dispatcher auto-claims tasks across
 ticks (`dispatch_interval_seconds: 15` for fast block round-trips).
 `install.sh` links every tracked profile (incl. `profile.yaml`) with no WARN.
 The 2026-07 kanban workflow conventions (Review gate, scheduled sweeper cron,
-Planner trees (planner profile, Claude Opus 5, plan-only; replaced the
+Planner trees (planner profile, Claude Fable 5, plan-only; replaced the
 assistant-run Board Plan synthesis cards and the auto-decompose triage
 route), continuation-card fan-out, the
 `kanban-orphan-watchdog.sh` cron, and block-loop reset discipline) shipped in
 the orchestration and worker skills.
 
-Model slugs confirmed 2026-07 (live cache + OpenRouter model pages after the
-copilot removal): `anthropic` / `claude-opus-4-8` and `claude-sonnet-5`
-(`hermes auth status anthropic` → logged in), `openai-codex` /
-`gpt-5.6-terra` + `gpt-5.6-sol`, `grok-4.3` on `xai-oauth`, and the
+Active profile-chain model slugs confirmed 2026-07 (provider checks +
+OpenRouter model pages): `anthropic` / `claude-opus-5`, `anthropic` /
+`claude-fable-5` (planner T1), `xai-oauth` / `grok-4.3` (researcher /
+searcher T1), `openai-codex` / `gpt-5.6-sol`, and the
 OpenRouter tails `xiaomi/mimo-v2.5` (vision; live on openrouter.ai but
 missing from a stale local model cache — refresh before trusting doctor),
 `minimax/minimax-m3` (image+video), `deepseek/deepseek-v4-flash`
 (text-only).
 
 Remaining (manual): Telegram round-trip — message the bot and confirm a
-reply; re-run `hermes doctor` after the 2026-07 tier rebalance.
+reply. `hermes doctor` passed for default and every named profile after the
+2026-07 tier rebalance.
