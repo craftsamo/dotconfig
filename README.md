@@ -15,6 +15,7 @@ their config from here natively; the rest get symlinks created by
 | lazygit                    | `lazygit/`     | XDG native                                                               |
 | mise                       | `mise/`        | XDG native; declares language runtimes + global npm CLIs                 |
 | [opencode](./opencode/README.md) | `opencode/` | XDG native                                                            |
+| [Shared agent skills](./agents/README.md) | `agents/` | `~/.agents/skills` + `~/.claude/skills` symlinks; one skill tree for every AI CLI |
 | Git                        | `git/`         | XDG fallback (`~/.gitconfig` must not exist); `git/credentials` ignored  |
 | [Claude Code](./claude/README.md) | `claude/` | 6 symlinks in `~/.claude/`                                             |
 | [Codex](./codex/README.md) | `codex/`       | 3 symlinks in `~/.codex/` (`skills/.system` and `config.toml` are app-managed, git-ignored) |

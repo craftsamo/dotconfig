@@ -14,6 +14,13 @@ fish/
 # app-managed system skills (not user content)
 codex/skills/.system/
 
+# Shared cross-agent skill root (~/.agents/skills): NOT tracked by default —
+# it doubles as the `npx skills` install target, so third-party skills land
+# here. Own skills opt in once via `git add -f <path>` and stay tracked
+# thereafter (same policy as hermes/skills below). Third-party ones are
+# reinstalled from their source instead; see agents/README.md.
+agents/skills/**
+
 # machine-specific state rewritten by the Codex app (absolute home paths)
 codex/config.toml
 

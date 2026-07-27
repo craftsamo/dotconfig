@@ -105,6 +105,14 @@ if [ "$deps" = 1 ]; then
   install_deps || status=1
 fi
 
+# Shared skill root: ~/.agents/skills is the cross-agent convention honored by
+# codex, opencode, copilot, grok and gemini (claude reads ~/.claude/skills, so
+# that one is bridged to the same dir below). Only skills/ is linked — the
+# installer's ~/.agents/.skill-lock.json is per-machine update state and stays
+# out of the repo, same split as hermes/.
+echo "[agents]"
+link "$DOTFILES/agents/skills" "$HOME/.agents/skills"
+
 echo "[claude]"
 link "$DOTFILES/claude/CLAUDE.md"        "$HOME/.claude/CLAUDE.md"
 link "$DOTFILES/claude/settings.json"    "$HOME/.claude/settings.json"
