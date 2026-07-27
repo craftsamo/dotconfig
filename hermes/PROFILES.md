@@ -482,6 +482,17 @@ the default profile's `~/.hermes/auth.json` (`auth.py:1131-1157,1215-1259`).
 - Always run OAuth logins from default. Running `hermes model` *inside* a worker
   writes that profile's `auth.json` and shadows the inherited creds for that
   provider (writes never propagate).
+- **Shadowed creds survive a default re-login, and `hermes doctor` will not see
+  it.** Doctor inspects default, so it reports the provider healthy while a
+  worker still loads its own stale entry — the fallback only applies to a
+  profile with *no* entry at all. The symptom is uneven: the model can keep
+  answering while a tool that resolves through the credential pool goes
+  missing, so `x_search` returns unavailable on a profile whose grok replies
+  fine. Confirm with `providers` in the worker's own
+  `~/.hermes/profiles/<name>/auth.json`; the repair is to drop that provider
+  key so the profile inherits default again. Prefer editing the file over
+  `hermes auth logout`, which may revoke upstream and take the shared
+  credential down with it.
 - Env tokens work everywhere via the shim: Copilot reads
   `COPILOT_GITHUB_TOKEN` → `GH_TOKEN` → `GITHUB_TOKEN` → `gh auth token`
   (`copilot_auth.py:39,67-95`); xAI accepts `XAI_API_KEY`.
