@@ -30,6 +30,17 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
   xAI creds are inherited read-only by every profile (Anthropic native resolves
   separately via the global Claude Code credential/token); running `hermes model`
   inside a worker writes that profile's `auth.json` and shadows the inherited creds.
+- **Anthropic account mapping — do not cross the streams.** Hermes' resolver
+  (`resolve_anthropic_token()`) ALWAYS prefers the default Keychain entry
+  `Claude Code-credentials` over the credential pool (pool entries and
+  `suppressed_sources` never override it). That default entry must stay logged
+  into the **Hermes** account (itourui). OpenCode runs on the **sub account**
+  (craftsamo) via the `opencode-claude-auth` plugin pinned to the suffixed entry
+  `Claude Code-credentials-aab5ffbd` (`CLAUDE_CONFIG_DIR=~/.claude-sub`,
+  alias `claude-sub`). A plain `claude /login` re-login therefore changes
+  **Hermes'** account, not OpenCode's — after one, verify with
+  `security find-generic-password -s "Claude Code-credentials"` + the OAuth
+  profile endpoint before assuming the split still holds.
 - **Operating policy lives in `agent.system_prompt`** (per-profile, always-on);
   detailed playbooks are per-profile skills. `SOUL.md` stays persona-only. Do **not**
   run `/personality` on a profile — it shares the `agent.system_prompt` slot and
