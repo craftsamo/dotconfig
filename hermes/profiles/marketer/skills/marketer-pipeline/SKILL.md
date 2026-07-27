@@ -1,5 +1,5 @@
 ---
-name: marketing-loop
+name: marketer-pipeline
 description: >-
   Marketer's task front door — route every task by goal (ModeRouting), then
   load the matching reference — campaign (research → fan-out to writer/creator

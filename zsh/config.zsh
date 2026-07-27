@@ -12,6 +12,10 @@ alias g="git"
 # Neovim
 command -v nvim >/dev/null && alias vim=nvim
 
+# Claude Code — sub-account profile (OpenCode's account).
+# Plain `claude` stays on the default Keychain entry (Hermes' account).
+alias claude-sub='CLAUDE_CONFIG_DIR=$HOME/.claude-sub command claude'
+
 export EDITOR=nvim
 
 # Homebrew — prefix-agnostic: prefer per-user ~/.homebrew, else global /opt/homebrew

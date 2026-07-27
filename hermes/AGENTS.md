@@ -30,6 +30,17 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
   xAI creds are inherited read-only by every profile (Anthropic native resolves
   separately via the global Claude Code credential/token); running `hermes model`
   inside a worker writes that profile's `auth.json` and shadows the inherited creds.
+- **Anthropic account mapping — do not cross the streams.** Hermes' resolver
+  (`resolve_anthropic_token()`) ALWAYS prefers the default Keychain entry
+  `Claude Code-credentials` over the credential pool (pool entries and
+  `suppressed_sources` never override it). That default entry must stay logged
+  into the **Hermes** account (REDACTED). OpenCode runs on the **sub account**
+  (craftsamo) via the `opencode-claude-auth` plugin pinned to the suffixed entry
+  `Claude Code-credentials-REDACTED` (`CLAUDE_CONFIG_DIR=~/.claude-sub`,
+  alias `claude-sub`). A plain `claude /login` re-login therefore changes
+  **Hermes'** account, not OpenCode's — after one, verify with
+  `security find-generic-password -s "Claude Code-credentials"` + the OAuth
+  profile endpoint before assuming the split still holds.
 - **Operating policy lives in `agent.system_prompt`** (per-profile, always-on);
   detailed playbooks are per-profile skills. `SOUL.md` stays persona-only. Do **not**
   run `/personality` on a profile — it shares the `agent.system_prompt` slot and
@@ -61,17 +72,20 @@ skills/              # agent-created skills tracked; .hub/ etc. ignored
                      # (creative/ moved to profiles/creator/skills — creator owns media)
 plugins/             # backend chains (image/video gen) + tool overrides; source tracked, __pycache__ ignored
 launchd/             # LaunchAgents: assistant gateway + headless AivisSpeech engine
-profiles/<name>/     # assistant, engineer, researcher, searcher, creator, writer, marketer
+profiles/<name>/     # assistant, planner, engineer, researcher, searcher, creator, writer, marketer
   - config.yaml      # model/fallback + agent.system_prompt (operating contract)
   - profile.yaml     # routing description (kanban/delegation)
   - SOUL.md          # per-profile persona (BASE + role posture)
-  - skills/          # per-profile skills (workers: engineer-loop / research-pipeline /
-                     #   breadth-retrieval + deep-retrieval / media-production +
-                     #   contextual-image/video-gen / writing-pipeline (writer also
-                     #   shares the opencode Japanese stack via external_dirs) /
-                     #   marketing-loop (marketer; + upstream social-media/xurl);
-                     #   assistant keeps only its surface
-                     #   skills — orchestration lives in the shared skills/ tree above)
+  - skills/          # per-profile skills. Naming: every worker has exactly ONE
+                     #   pipeline skill `<profile>-pipeline` (lifecycle playbook,
+                     #   auto-loaded by its operating contract) + optional technic
+                     #   skills pinned per task via kanban_create skills:[...]
+                     #   (searcher: deep-retrieval / creator: contextual-image/
+                     #   video-gen / writer: opencode Japanese stack via
+                     #   external_dirs / marketer: + upstream social-media/xurl;
+                     #   planner-pipeline owns outline schema + granularity rubric;
+                     #   assistant keeps only its surface skills — orchestration
+                     #   lives in the shared skills/ tree above)
   - cron/            # per-profile scheduled jobs (jobs.json; placeholder if empty)
                      # assistant/scripts/ holds cron scripts incl.
                      # kanban-scheduled-sweeper.sh and kanban-orphan-watchdog.sh
@@ -82,15 +96,19 @@ setup.sh README.md PROFILES.md
 
 default (CLI front door — assistant's CLI counterpart, neutral persona) +
 assistant (messaging front door, hosts the
-gateway/dispatcher) + engineer / researcher / searcher / creator / writer /
-marketer (kanban workers; engineer converses with the assistant via kanban block round-trips
+gateway/dispatcher) + planner / engineer / researcher / searcher / creator /
+writer / marketer (kanban workers; engineer converses with the assistant via kanban block round-trips
 under a structured comment protocol — Authority presets A1/A2/A3,
 `STATE:`/`Q<n>:`/`DECISION(Q<n>):`/`PROGRESS:`/`AUTHORITY+:`/`REVIEW:`
 (human sign-off gate) markers, plus scheduled parking in `scheduled` via
-`SCHEDULED: until=` comments and the assistant sweeper cron — Board Plan
-synthesis cards run the assistant as a kanban worker for plan synthesis, while
-workers use the continuation-card fan-out pattern — and drives OpenCode through
-a P0-plan + per-unit-fork loop with permission /
+`SCHEDULED: until=` comments and the assistant sweeper cron — multi-card
+plans run through the Planner tree: a planner card (Claude Fable 5,
+plan-only) delivers a dependency-graph outline YAML, the user approves it
+in chat, and the assistant registers the cards topologically with
+idempotency keys (`auto_decompose` is OFF — the upstream aux decomposer's
+prompt is hardcoded and can't carry our TaskSpec/grant conventions); all
+workers use the continuation-card fan-out pattern — engineer drives
+OpenCode through a P0-plan + per-unit-fork loop with permission /
 question bridges; creator speaks the same comment protocol with a Budget
 grant (generation-spend caps), marketer with a Publish grant (absent =
 draft-only; posting needs verbatim approval or in-cap P1) — see PROFILES.md

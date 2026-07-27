@@ -1,5 +1,5 @@
 ---
-name: research-pipeline
+name: researcher-pipeline
 description: >-
   Researcher's task front door — route every task by goal (ModeRouting), then
   load the matching reference — evidence-pack (the default deep synthesis

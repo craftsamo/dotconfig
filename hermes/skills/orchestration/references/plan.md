@@ -81,63 +81,73 @@ don't get confused with deliverables:
 - Ack the user in chat when consultations are in flight; never poll. Worker
   completion notifications resume the Plan Loop where you left off.
 
-### Board Plan — planning that runs unattended
+### Planner tree — multi-card plans, user-approved before registration
 
-The chat Plan Loop above is the **default**. Move the planning itself onto
-the board only when BOTH hold:
+The chat Plan Loop settles **requirements** (what to build, scope, grant
+posture). When the signed-off goal needs a **multi-card dependency graph**,
+the graph itself is drafted by the **planner** profile and registered by
+you only after the user approves it. Activation — any ONE of:
 
-- the decomposition needs **2+ worker consultations** before an outline is
-  even possible, and
-- the user signalled async ("任せる", "まとまったら見せて") or the
-  investigations will take a while.
+- the work implies **3+ cards** or **2+ worker profiles**
+- fan-out / fan-in parallelism is on the table
+- grants (Authority A2+/Budget/Publish/Review) must be distributed across
+  several cards
+- the user wants to see the structure before it runs, or signalled async
+  ("任せる", "まとまったら見せて")
 
-Never for small or interactive planning — every board hop costs a dispatch
-tick + spawn + model turn.
+Not for single-card work (write the TaskSpec yourself — a planner hop costs
+a dispatch tick + an Opus turn) and not for unsettled requirements (settle
+them in the chat loop first).
 
-Shape: the investigation advisory cards (previous section) **plus one
-synthesis card** that fans them in:
+Flow:
 
-- `title: 統合: <goal> のアウトライン作成`, `assignee: assistant`,
-  `parents: [investigation ids]`, `workspace_kind: scratch`, modest
-  `max_runtime_seconds`, and `Review: required — アウトライン` in the body.
-- The synthesis card wakes automatically when the investigations finish
-  (fan-in), drafts the outline, and surfaces to the user exactly once —
-  as a `REVIEW:` block you relay per `<BlockedTriage>`. Its approval IS
-  the Plan sign-off.
+1. **(Optional) pre-seed investigations.** When grounding is obviously
+   needed (implementation goal → engineer orient card; unknown landscape →
+   searcher/researcher advisories, previous section), create them first and
+   list them as `parents` of the plan card. The planner reads their
+   summaries on wake. For repo work, orient results replace guessing.
+2. **Create the plan card.** `title: 計画: <goal>`, `assignee: planner`,
+   `workspace_kind: scratch`, modest `max_runtime_seconds` (e.g. 900),
+   parents = the investigation ids (if any). Body: Goal / Inputs (paths,
+   repo, parent ids, the user's constraints and sanctioned grant posture) /
+   Done criteria ("outline YAML attached + final message") — self-contained
+   as always. The planner may fan out its own advisories mid-plan
+   (continuation card, its pipeline's Tier 3); it never creates build cards.
+3. **Receive the outline.** The plan card completes with `outline.yaml`
+   attached (schema: planner-pipeline `<OutlineSchema>` — cards with `key` /
+   `assignee` / `skills` / `parents` / `params` / self-contained `body`
+   with grant lines, plus `plan.notes`). Render it for the user: a compact
+   tree/graph summary (per card: title, assignee+technics, grants, deps) +
+   the planner's notes. Then ONE `clarify`: approve / request changes /
+   discard.
+4. **Approval = grant sanction.** The user approves topology AND the grant
+   lines inside the card bodies — equivalent to a chat sign-off. Never
+   register grants the approved outline doesn't carry; widening later is a
+   normal `AUTHORITY+:` flow on the live card.
+5. **Register (you, not the planner).** Create cards in topological order —
+   parents before children, mapping outline `key`s to returned task ids:
+   - validate first: every `assignee` exists, every `skills:` entry is a
+     known technic for that profile (`<Workers>` table); on mismatch go
+     back to step 3's clarify, don't improvise.
+   - `kanban_create(title, assignee, body, parents=[mapped ids],
+     skills=[...], **params, idempotency_key="<plan-card-id>:<key>")` —
+     the idempotency key makes re-registration after a partial failure
+     safe.
+   - ack in chat: card ids per outline key, then hand off to normal
+     <AfterCreate> / <Failures> handling.
+6. **Changes / rejection.** Comment nothing on the completed plan card:
+   create a **new** plan card carrying the user's feedback + a pointer to
+   the previous card id and its outline attachment, and archive the old one
+   (`hermes kanban archive <id>`) so the board stays truthful. Repeated
+   rounds (>2) mean requirements weren't settled — drop back to the chat
+   Plan Loop.
 
-Synthesis-card body template (self-contained — the spawned assistant
-worker never sees this chat):
-
-```text
-Goal: <goal> の実装アウトラインを作り、承認後に Build カードを起票する。
-Steps:
-  1. 各親カード (<ids>) を kanban_show で読む — 自動注入されるのは
-     summary/metadata のみ。summary が添付名を挙げていたらそのパスを読む。
-  2. アウトラインを作る: 構成 / 主要な選択肢と推奨 / Build カード毎の
-     spec 案(Authority / Budget / Publish / Review の grant 行まで含める)。
-  3. アウトラインを kanban_attach → STATE: コメント →
-     kanban_block(kind=needs_input, reason="REVIEW: <goal> アウトラインの承認を").
-  4. respawn 後、DECISION(REVIEW) を読む:
-     approved → 承認済みアウトライン通りに kanban_create
-       (parents=[このカード id]) で Build カードを起票し、kanban_complete
-       (summary はチャット向け 1 行)。
-     changes — <list> → 反映して新しい REVIEW ラウンドを開く。
-Done criteria: 承認済みアウトライン通りの Build カードが存在する。
-Output: 日本語。
-Constraints: 承認前にカードを作らない。承認済みアウトラインに無い
-  grant を Build カードに書かない。
-```
-
-Governance: the grant lines inside the outline's build-card specs are part
-of what the user approves — the `DECISION(REVIEW): approved` is the
-sanction, equivalent to a chat sign-off. The synthesis worker never mints
-a grant the outline didn't carry; widening later is a normal `AUTHORITY+:`
-flow on the build card.
-
-For implementation goals, include an engineer consultation using the
-**plan-draft advisory variant** (body asks for a draft implementation plan
-via OpenCode's plan mode plus a self-assessment — see engineer-loop) so
-the outline folds in a grounded technical plan, not a guess.
+For implementation goals, the outline carries ONE engineer card per
+deliverable (Wave/phase detail is the engineer's own plan altitude at
+implement time); it may also include an upfront engineer **plan** slice
+(body opens `Plan — outline the Waves, don't build.`, see
+engineer-pipeline) when the user wants the technical shape validated before
+approving the graph.
 
 ### Sign-off gate
 
@@ -163,9 +173,9 @@ review. Lean toward the gate for irreversible or user-facing deliverables
 
 The Plan lives in chat + the `todo` list only. If the session compresses or
 resets, ask the user "what did we agree on?" and rebuild from the todo
-state. A **Board Plan** does not share this fragility: its outline,
-decisions, and REVIEW round live in the synthesis card's thread — on any
-reset, `kanban_show` the synthesis card instead of re-asking the user.
+state. A **Planner tree** does not share this fragility: the outline and
+its notes live on the plan card (attachment + final message) — on any
+reset, `kanban_show` the plan card instead of re-asking the user.
 
 ## After sign-off
 
