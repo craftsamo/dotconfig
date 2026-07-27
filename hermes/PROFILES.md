@@ -315,11 +315,13 @@ turn. The default profile already proves the YAML shape.
 
 Most profiles lead with **Claude Opus 5** for judgment and long-context work,
 fall back first to **GPT-5.6 Sol**, then keep a role-appropriate OpenRouter
-tail. Two exceptions: **planner** leads with **Claude Fable 5** and inserts
-Opus 5 as its T2 (see "Fable and the Max weekly pool" below), and **researcher**
-/ **searcher** run on `xai-oauth` / grok-4.3 with a single OpenRouter tail. The
-coding model inside OpenCode remains a separate decision chosen per run by the
-engineer-pipeline's comparative QuotaGate.
+tail. Three exceptions: **planner** leads with **Claude Fable 5** and inserts
+Opus 5 as its T2 (see "Fable and the Max weekly pool" below), while
+**researcher** and **searcher** lead on `xai-oauth` — grok-4.5 and grok-4.3
+respectively, splitting the load across two flat-rate subscriptions instead of
+piling every worker onto the Max weekly pool. The coding model inside OpenCode
+remains a separate decision chosen per run by the engineer-pipeline's
+comparative QuotaGate.
 
 | Profile | T1 (primary) | T2 | T3 | T4 | `reasoning_effort` |
 | --- | --- | --- | --- | --- | --- |
@@ -327,7 +329,7 @@ engineer-pipeline's comparative QuotaGate.
 | **assistant** | `anthropic` / claude-opus-5 | `openai-codex` / gpt-5.6-sol | `openrouter` / `xiaomi/mimo-v2.5` | — | `medium` |
 | **planner** | `anthropic` / **claude-fable-5** | `anthropic` / claude-opus-5 | `openai-codex` / gpt-5.6-sol | `openrouter` / `deepseek/deepseek-v4-flash` | `high` |
 | **engineer** | `anthropic` / claude-opus-5 | `openai-codex` / gpt-5.6-sol | `openrouter` / `deepseek/deepseek-v4-flash` | — | `high` |
-| **researcher** | `xai-oauth` / grok-4.3 | `openrouter` / `xiaomi/mimo-v2.5` | — | — | `high` |
+| **researcher** | `xai-oauth` / **grok-4.5** | `anthropic` / claude-opus-5 | `openai-codex` / gpt-5.6-sol | `openrouter` / `xiaomi/mimo-v2.5` | `medium` |
 | **searcher** | `xai-oauth` / grok-4.3 | `openrouter` / `xiaomi/mimo-v2.5` | — | — | `low` |
 | **creator** | `anthropic` / claude-opus-5 | `openai-codex` / gpt-5.6-sol | `openrouter` / `minimax/minimax-m3` | — | `medium` |
 | **writer** | `anthropic` / claude-opus-5 | `openai-codex` / gpt-5.6-sol | `openrouter` / `deepseek/deepseek-v4-flash` | — | `medium` |
@@ -368,25 +370,40 @@ calls):
   `claude-fable-5` on planner, `claude-opus-5` everywhere else. OAuth resolves
   from the global Claude Code credential/token rather than per-profile
   `auth.json`.
-- **xAI (T1, researcher / searcher)** — both run `xai-oauth` / `grok-4.3`
-  (`base_url: https://api.x.ai/v1`) with the OpenRouter tail as their only
-  fallback; there is no Codex tier on those two. `grok-4.3` is on the
-  reasoning-capable allowlist (`model_metadata.py:370-410`), so their
-  `reasoning_effort` really is sent as `reasoning: {effort: …}` — it is not a
-  no-op. Non-allowlisted Grok models have the field dropped on purpose, because
-  xAI answers an unsupported `reasoningEffort` with HTTP 400.
-  **A lapsed xAI OAuth does not degrade these two to their OpenRouter tail.**
+- **xAI (T1, researcher / searcher)** — both run `xai-oauth`
+  (`base_url: https://api.x.ai/v1`), which is a flat-rate **SuperGrok /
+  Premium+ subscription**, not the metered `XAI_API_KEY` API. The published
+  per-token prices therefore do not apply to this path; what the two profiles
+  actually spend is subscription allowance, which is why they sit here rather
+  than adding two more consumers to the Max weekly pool.
+
+  The split is by job shape. **Researcher takes grok-4.5**, xAI's frontier
+  reasoning SKU, and stacks Opus 5 and Sol beneath it. **Searcher stays on
+  grok-4.3**, which xAI positions for *tool calling and instruction
+  following* — the right shape for link-first retrieval, and the only one of
+  the two whose reasoning can be switched off entirely (`none`). Grok 4.5
+  cannot disable reasoning and **defaults to `high` when the key is omitted**,
+  so an unset effort there is an expensive surprise rather than a cheap one.
+  Both are on the reasoning-capable allowlist
+  (`model_metadata.py:370-410`), so their `reasoning_effort` really is sent as
+  `reasoning: {effort: …}` — it is not a no-op. Non-allowlisted Grok models
+  have the field dropped on purpose, because xAI answers an unsupported
+  `reasoningEffort` with HTTP 400.
+
+  **A lapsed xAI OAuth does not degrade these two to their lower tiers.**
   Credential resolution fails before the request is built, so the agent aborts
   with `xAI OAuth state is missing access_token` and `fallback_providers` never
-  engages — researcher and searcher stop dead rather than running cheaper. The
+  engages — researcher and searcher stop dead rather than falling through, so
+  researcher's Opus 5 tier is no insurance against this particular failure. The
   same gate hides the `x_search` tool from the schema, which `hermes doctor`
   reports as `x_search (missing XAI_API_KEY)`; that wording is misleading,
   since the tool prefers the OAuth bearer and only falls back to the API key
   (`tools/xai_http.py:243-310`). Re-authenticate with `hermes model` from the
   **default** profile — never with `-p`, which would write the worker's own
   `auth.json` and shadow the inherited credential.
-- **Codex (T2)** — the Anthropic profiles fall back to `openai-codex` /
-  `gpt-5.6-sol` (`base_url: https://chatgpt.com/backend-api/codex`). The former
+- **Codex** — every profile except searcher carries `openai-codex` /
+  `gpt-5.6-sol` (`base_url: https://chatgpt.com/backend-api/codex`), as T2 on
+  the Anthropic profiles and T3 on planner and researcher. The former
   `gpt-5.6-terra` profile routes were promoted to Sol; the engineer-pipeline's
   OpenCode QuotaGate remains a separate model-routing layer.
 - **Copilot retired from every chain** (2026-07): the subscription became
@@ -611,8 +628,8 @@ the orchestration and worker skills.
 
 Active profile-chain model slugs confirmed 2026-07 (provider checks +
 OpenRouter model pages): `anthropic` / `claude-opus-5`, `anthropic` /
-`claude-fable-5` (planner T1), `xai-oauth` / `grok-4.3` (researcher /
-searcher T1), `openai-codex` / `gpt-5.6-sol`, and the
+`claude-fable-5` (planner T1), `xai-oauth` / `grok-4.5` (researcher T1) and
+`grok-4.3` (searcher T1), `openai-codex` / `gpt-5.6-sol`, and the
 OpenRouter tails `xiaomi/mimo-v2.5` (vision; live on openrouter.ai but
 missing from a stale local model cache — refresh before trusting doctor),
 `minimax/minimax-m3` (image+video), `deepseek/deepseek-v4-flash`
