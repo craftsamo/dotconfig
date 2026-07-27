@@ -16,6 +16,7 @@ toolsets:
   - terminal
   - file
   - web
+  - browser
   - x_search
   - vision
   - skills
@@ -512,7 +513,7 @@ kanban:
   orchestrator_profile: ""
   default_assignee: ""
   max_in_progress_per_profile: null
-  auto_decompose: true
+  auto_decompose: false
   auto_decompose_per_tick: 3
   dispatch_stale_timeout_seconds: 14400
 code_execution:
@@ -591,6 +592,7 @@ platform_toolsets:
     - terminal
     - file
     - web
+    - browser
     - x_search
     - vision
     - skills
