@@ -420,8 +420,12 @@ skills:
     - ~/ghq/github.com/NousResearch/hermes-agent/skills/creative
     - ~/ghq/github.com/NousResearch/hermes-agent/skills/media
     - ~/ghq/github.com/NousResearch/hermes-agent/optional-skills/creative
+    - ~/.agents/skills
   disabled:
     - kanban-video-orchestrator
+    - blender-mcp
+    - touchdesigner-mcp
+    - unreal-mcp
   template_vars: true
   inline_shell: false
   inline_shell_timeout: 10

@@ -16,6 +16,7 @@ toolsets:
   - terminal
   - file
   - web
+  - browser
   - x_search
   - vision
   - skills
@@ -591,6 +592,7 @@ platform_toolsets:
     - terminal
     - file
     - web
+    - browser
     - x_search
     - vision
     - skills
