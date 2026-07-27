@@ -56,8 +56,7 @@ agent:
   gateway_timeout: 1800
   reasoning_effort: high
 skills:
-  external_dirs:
-    - ~/ghq/github.com/NousResearch/hermes-agent/skills
+  external_dirs: []
 platform_toolsets:
   cli:
     - file
