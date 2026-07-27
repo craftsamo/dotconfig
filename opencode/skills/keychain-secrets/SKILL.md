@@ -62,15 +62,16 @@ launcher such as a `node` or `python` entry, or an `npm` script, not bare
 
 </ShellExpansionRule>
 
-<OpenCodeEnvironment>
+<AgentProcessEnvironment>
 
-OpenCode launches via the tool-mode shim, so its process environment contains
-the global + opencode layers only, for example `MCP_GITHUB_TOKEN` or
+Every AI CLI here (opencode, claude, codex, copilot, grok) launches through
+the tool-mode shim, so your own process environment contains the global layer
+plus your own tool layer only, for example `MCP_GITHUB_TOKEN` or
 `TAVILY_API_KEY`. It never contains project secrets. Project secret values
 materialize only inside an allowlisted child process. Do not echo, log, or
-commit any global-layer values visible to OpenCode.
+commit any global-layer value visible to you.
 
-</OpenCodeEnvironment>
+</AgentProcessEnvironment>
 
 <NonAllowlistedLaunchers>
 
@@ -107,10 +108,13 @@ secret show NAME          # one item's metadata, no value
 secret projects           # project names
 ```
 
-OpenCode permission rules mirror the safety model: `ls`, `show`, `projects`,
-`help`, `keychain ls`, and `keychain master status` run without approval;
-`get`, `env`, and `set` prompt; `rm`, `del`, `export`, `import`, and `keychain
-rm` / `master set|rotate|forget|reveal` are blocked.
+The safety model has three tiers: `ls`, `show`, `projects`, `help`, `keychain
+ls`, and `keychain master status` are read-only and safe to run; `get`, `env`,
+and `set` touch values and should be confirmed with the user first; `rm`,
+`del`, `export`, `import`, and `keychain rm` / `master set|rotate|forget|
+reveal` are destructive or exfiltrating — never run them unprompted. opencode
+enforces these tiers as permission rules; other CLIs rely on you to honor
+them.
 
 Need a value injected for a command? Use `( eval "$(secret env)" && ... )`, not
 `secret get`.
@@ -137,11 +141,11 @@ also add its name to the `project` case in `~/.config/bin/secret-shim:46`.
 <NameCollisionPitfall>
 
 Project mode never overrides a name already exported (`secret-shim:60`, the
-`_had` set). Because OpenCode already exports global-layer names, a project
-secret with the same name as a global one is skipped in OpenCode-launched
-children, and the global value wins. This differs from a human running the
-command in a fresh shell. Use distinct names, or run the command outside
-OpenCode when a per-repo override must take effect.
+`_had` set). Because your own process already exports global-layer names, a
+project secret with the same name as a global one is skipped in the children
+you launch, and the global value wins. This differs from a human running the
+command in a fresh shell. Use distinct names, or have the command run outside
+the agent when a per-repo override must take effect.
 
 </NameCollisionPitfall>
 
