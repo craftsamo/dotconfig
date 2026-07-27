@@ -1,7 +1,14 @@
 {
   "$schema": "https://opencode.ai/config.json",
   "plugin": [
+    // claude-auth: OpenCode runs on the SUB Claude account via the Keychain entry
+    // "Claude Code-credentials-REDACTED" (~/.claude-sub, selected in
+    // ~/.local/share/opencode/claude-account-source.txt). The DEFAULT entry
+    // ("Claude Code-credentials") belongs to Hermes — see hermes/AGENTS.md.
     "opencode-claude-auth@latest",
+    // quota: pinned — its cached dist/lib/anthropic.js is locally PATCHED to read
+    // the sub-account Keychain entry above (upstream hardcodes the default entry
+    // and would display Hermes' usage). Re-apply the patch after a version bump.
     "@slkiser/opencode-quota@3.11.1"
   ],
   "instructions": [
