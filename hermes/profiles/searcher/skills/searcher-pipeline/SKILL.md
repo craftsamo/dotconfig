@@ -1,5 +1,5 @@
 ---
-name: breadth-retrieval
+name: searcher-pipeline
 description: Searcher's breadth-first retrieval — query expansion, source-class routing across web + x_search, dedup, and concise link-first findings handed off to researcher/coder.
 version: 1.0.0
 author: CraftSamo

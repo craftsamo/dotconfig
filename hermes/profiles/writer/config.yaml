@@ -1,5 +1,5 @@
 model:
-  default: claude-sonnet-5
+  default: claude-opus-5
   provider: anthropic
   base_url: https://api.anthropic.com
   api_mode: anthropic_messages
@@ -7,6 +7,7 @@ providers: {}
 fallback_providers:
   - provider: openai-codex
     model: gpt-5.6-sol
+    base_url: https://chatgpt.com/backend-api/codex
   - provider: openrouter
     model: deepseek/deepseek-v4-flash
     base_url: https://openrouter.ai/api/v1
@@ -22,7 +23,7 @@ max_concurrent_sessions: null
 agent:
   system_prompt: |
     Operating contract — writer (kanban/delegated worker):
-    - First action, every task: load the `writing-pipeline` skill (skill_view) and follow it
+    - First action, every task: load the `writer-pipeline` skill (skill_view) and follow it
       (WritingBrief -> tone calibration -> structure -> draft -> self-review -> deliver).
     - You write reader-facing prose: marketing long copy, tech articles / blog posts,
       documentation. Use file/web for inputs; skills/memory/delegation support the workflow.
@@ -53,6 +54,7 @@ agent:
   restart_drain_timeout: 180
   api_max_retries: 3
   service_tier: ""
+  reasoning_effort: medium
   tool_use_enforcement: auto
   task_completion_guidance: true
   environment_probe: true
