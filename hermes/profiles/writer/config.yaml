@@ -1,5 +1,5 @@
 model:
-  default: claude-sonnet-5
+  default: claude-opus-5
   provider: anthropic
   base_url: https://api.anthropic.com
   api_mode: anthropic_messages
@@ -7,6 +7,7 @@ providers: {}
 fallback_providers:
   - provider: openai-codex
     model: gpt-5.6-sol
+    base_url: https://chatgpt.com/backend-api/codex
   - provider: openrouter
     model: deepseek/deepseek-v4-flash
     base_url: https://openrouter.ai/api/v1
