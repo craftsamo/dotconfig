@@ -1,10 +1,12 @@
 ---
-name: media-production
+name: creator-pipeline
 description: >-
   Creator's task front door — route every task by purpose (ModeRouting):
-  produce (the production loop, in this file) vs advisory (Plan-Loop media
-  consultations — feasibility, chain fit, Budget estimate; playbook in
-  references/advisory.md, loaded via skill_view file_path). Production: parse
+  produce (the production loop, in this file) vs plan (lock the creative
+  direction on a cheap style-anchor sample before an expensive batch; playbook
+  in references/plan.md) vs advisory (Plan-Loop media consultations —
+  feasibility, chain fit, Budget estimate; playbook in references/advisory.md,
+  loaded via skill_view file_path). Production: parse
   the brief and its Budget grant (defaults 4 image variants / 2 video renders
   / 1 corrective pass; expanded only by AUTHORITY+ comments), route by asset
   type to the right generation chain (image / video / GIF / poster / voice,
@@ -52,14 +54,17 @@ artifacts attached to the task — never stranded on disk.
 
 Pick the mode first:
 
-| Signal | Mode | Playbook |
+| Signal (check in order) | Mode | Playbook |
 | --- | --- | --- |
 | Task body opens with `Advisory — inform the plan, don't ship.` — or only asks questions (media feasibility, chain fit, cost/Budget estimate) and requests no asset | Advisory | load `references/advisory.md` via `skill_view` (`file_path=references/advisory.md`) before doing any work |
-| Anything that delivers assets | Produce | the rest of THIS file |
+| Task body opens with `Plan —`, or delivers a **consistent multi-asset set / batch** or a **single high-cost asset** whose creative direction is not already pinned to an exact reference | Plan | load `references/plan.md` via `skill_view` before generating anything |
+| Anything else that delivers assets (one cheap asset, or an exact reference to match) | Produce | the rest of THIS file |
 
 Advisory tasks generate nothing — no credits spent, no assets delivered; an
 advisory task that turns out to need real production is reported as such,
-not silently produced.
+not silently produced. Plan spends only the cheap style-anchor sample, then
+continues into Produce for the batch once the orchestrator signs off — never
+render the batch before the anchor is approved.
 
 </ModeRouting>
 
@@ -117,9 +122,13 @@ sets the caps; absent → the defaults:
 | Video renders | 2 per asset |
 | Corrective regeneration | 1 pass per asset (after <Verification>) |
 | Batch quantity | exactly the brief's count |
+| Plan-mode style anchor | 1-2 cheap samples per set, before the batch (Plan mode only) |
 
 - **Effective budget = body `Budget:` + all `AUTHORITY+:` comments**, in
   comment order.
+- **Plan-mode anchor spend is small and up front**: the 1-2 samples that lock
+  the style are counted as plan-spend and settled by the sign-off (see
+  `references/plan.md`) — the batch budget applies only after approval.
 - Need to exceed it (more variants, another render, a longer cut)? That is
   a block round-trip: `Q<n>` with the cost stated ("2 more renders,
   ~<estimate>"), never a silent overrun.
@@ -151,6 +160,28 @@ availability prerequisite — a running desktop app or MCP (`blender-mcp` →
 `nc -z -w2 localhost 9876`; comfyui / touchdesigner similarly). Prerequisite
 unmet → `Q<n>` block stating what must be started; never fake the asset
 another way.
+
+A dispatch may **force-load a technique skill** (the task carried `skills:` —
+e.g. `pixel-art`, `meme-generation`, `concept-diagrams`,
+`baoyu-article-illustrator`, `baoyu-comic`). That skill supplies the craft for
+the asset: follow it, but keep THIS flow's Budget, verification, and delivery.
+The technique skill's own interactive steps (its `clarify` menus) do NOT apply
+here — style comes from the brief and the Budget-gated `Q<n>:` block protocol,
+not an inline `clarify`.
+
+**pixel-art specifics** (force-loaded `pixel-art`): its `pixel_art.py` converts
+an EXISTING image — it has no generator, so the base is yours to make. (1)
+`image_generate` a base first: a bold, flat-shaded subject on a simple
+background (pixel conversion collapses fine detail), sized a few× the target
+sprite so the downscale keeps shape. (2) Convert with the skill's own
+`pixel_art.py` (`--preset <name>` or `--palette <NAME> --block <n>`). For a
+**batch, lock ONE palette across every asset** so the set stays consistent —
+either the same named palette on each run, or, for a palette taken from an
+approved sample, derive-and-apply it once with this profile's
+`${HERMES_SKILL_DIR}/scripts/palette-extract.py apply <sample.png> <out_dir> <base…>`.
+Never let each asset quantize adaptively on its own — that drifts the set.
+Do NOT edit the upstream `pixel_art.py` (read-in-place, auto-updated); the
+sample-palette step lives here.
 
 Post-process with terminal tools (ffmpeg, the skill scripts) in the task
 workspace; keep intermediate files out of the delivery.

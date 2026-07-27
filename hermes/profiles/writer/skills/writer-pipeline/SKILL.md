@@ -1,5 +1,5 @@
 ---
-name: writing-pipeline
+name: writer-pipeline
 description: >-
   Writer's task front door — route every task by purpose (ModeRouting): write
   (the deliverable pipeline, in this file — WritingBrief parsing, tone

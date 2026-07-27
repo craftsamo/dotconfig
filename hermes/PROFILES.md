@@ -155,7 +155,7 @@ leaves `PROGRESS:` comments at unit boundaries (comments never notify chat) and
 the assistant summarizes them when asked (`orchestration` `<StatusCheck>`).
 The gateway's
 `kanban.dispatch_interval_seconds` is lowered to **15** so a round-trip costs
-roughly the answer time + ~20 s. Details: engineer's `engineer-loop` skill and
+roughly the answer time + ~20 s. Details: engineer's `engineer-pipeline` skill and
 assistant's `orchestration` `<BlockedTriage>`.
 
 The comment protocol is worker-generic, not engineer-specific: **creator** and
@@ -166,13 +166,13 @@ asset + 1 corrective pass, expanded only via `AUTHORITY+:`), leaves
 `PROGRESS:` per finished asset, and — since a task's scratch workspace
 survives block/crash respawns (deleted only on completion) — resumes by
 inventorying surviving intermediates instead of re-spending credits.
-Details: creator's `media-production` skill. **marketer** speaks it with a
+Details: creator's `creator-pipeline` skill. **marketer** speaks it with a
 **Publish** grant (publishing is public and irreversible: absent grant =
 draft-only + a needs_approval block showing the exact post
 text/attachments/destination; `P1` = autonomous within named caps —
 account, post count, content scope), leaves `PROGRESS:` with the posted URL
 per post, and treats shipped posts as immutable facts on resume. Details:
-marketer's `marketing-loop` skill.
+marketer's `marketer-pipeline` skill.
 
 ### Default is the assistant's CLI counterpart (and stays a clean baseline)
 
@@ -232,14 +232,14 @@ Three per-profile layers, kept separate:
     Dispatch); task-spec template, topology: single / parents chain / triage
     card, dispatch params, BlockedTriage, failure recovery. Per-approach
     detail in `references/{plan,build,search,research,creative,inline}.md`.)
-  - engineer → `engineer-loop` (delegate to OpenCode; Authority parsing + checkpoint-then-block
+  - engineer → `engineer-pipeline` (delegate to OpenCode; Authority parsing + checkpoint-then-block
     dialogue; P0 master-plan + per-unit forks with permission/question bridges;
     fan-out to searcher/researcher/creator; quota-gated provider/model routing;
     intra-unit `-c`/`-s` resume; verify/report)
-  - researcher → `research-pipeline` (search route + Admiralty/SIFT source evaluation; evidence discipline)
-  - searcher → `breadth-retrieval` (query expansion, source-class routing, link-first hand-off)
+  - researcher → `researcher-pipeline` (search route + Admiralty/SIFT source evaluation; evidence discipline)
+  - searcher → `searcher-pipeline` (query expansion, source-class routing, link-first hand-off)
     + `deep-retrieval` (explicit multi-hop hunts: `skills: ["deep-retrieval"]` + `goal_mode`)
-  - creator → `media-production` (asset-type routing to the gen chains + the
+  - creator → `creator-pipeline` (asset-type routing to the gen chains + the
     creative-skill catalog, Budget grant parsing, structured STATE/Qn block
     dialogue, per-asset PROGRESS, workspace-reuse resume, visual verification,
     kanban_attach delivery) + the in-tree `contextual-image-gen` /
@@ -247,7 +247,7 @@ Three per-profile layers, kept separate:
     `creative/` + `media/` libraries referenced via `skills.external_dirs`
     (comfyui, manim-video, touchdesigner-mcp, gif-search, … — creator owns the
     creative cluster)
-  - writer → `writing-pipeline` (WritingBrief parsing; one-round tone
+  - writer → `writer-pipeline` (WritingBrief parsing; one-round tone
     calibration via sample-variant blocks; deliverable-type routing onto the
     layered Japanese norms; structure → draft → norms/humanizer/integrity
     self-review; final-message delivery) + external skills shared via
@@ -255,7 +255,7 @@ Three per-profile layers, kept separate:
     (`~/.config/opencode/skills/japanese` — japanese-writing / tech-prose /
     prose-rhythm, single-sourced with OpenCode) and upstream
     `creative/humanizer`
-  - marketer → `marketing-loop` (MarketingBrief + Publish-grant parsing;
+  - marketer → `marketer-pipeline` (MarketingBrief + Publish-grant parsing;
     strategy → fan-out to writer/creator/searcher/researcher → assemble →
     approval-gated xurl publish bridge with per-post PROGRESS + URL
     verification; channel extension points for future Discord/IG/TikTok
@@ -270,7 +270,9 @@ topics; gateway injects the skill body into the session's first turn;
 after `/new` or an idle reset). It
 triages silently on two axes — can the user wait? does it need a worker's
 tools / isolation / durability? — then routes inline (conversation, quick
-lookups, workspace skills, cron registration) vs kanban: searcher =
+lookups, workspace skills, cron registration) vs kanban: planner =
+multi-card decomposition (the Planner tree — dependency-graph outline for
+user approval; plan-only, never executes), searcher =
 retrieval/web/X (deep hunts via `deep-retrieval` + `goal_mode`), researcher =
 analysis/synthesis, engineer = implementation, creator = ALL media production
 (the front door only collects the MediaBrief — purpose, destination specs,
@@ -285,14 +287,19 @@ Time-deferred work parks in `scheduled` via `hermes kanban schedule <id>
 "until=<ISO8601> — <reason>"`; the assistant's no_agent
 `kanban-scheduled-sweeper.sh` cron releases due cards every 15 minutes. Dead
 cards close via `hermes kanban archive <id>`.
-Chat Plan Loop remains the default; Board Plan is for 2+ consultations when the
-user is async, using investigation advisory cards plus one assistant-assigned
-synthesis card whose `parents` fan in; its `REVIEW:` approval signs off the
-outline and opens the build cards. The no_agent `kanban-orphan-watchdog.sh`
+Chat Plan Loop remains the default for settling requirements; multi-card
+graphs run through the **Planner tree**: optional investigation parents +
+one planner-assigned plan card that delivers a dependency-graph outline
+YAML (assignees, technic `skills:`, grants, parents), the user approves it
+in chat, and the assistant registers the cards in topological order with
+idempotency keys — no worker ever creates build cards. The no_agent
+`kanban-orphan-watchdog.sh`
 cron runs every 30 minutes and surfaces unsubscribed blocked cards plus silent
 block-loop triage falls to chat.
-Multi-stage work ships as a `parents` chain (obvious 2-3 stages) or one
-`triage=true` card (auto-decompose); `delegate_task` stays an exception for
+Multi-stage work ships as a `parents` chain (obvious 2-3 stages) or a
+Planner tree (`auto_decompose` is off — the upstream aux decomposer's
+hardcoded prompt can't carry the TaskSpec/grant/granularity conventions);
+`delegate_task` stays an exception for
 medium parallel lookups the user is actively waiting on. The contract keeps a
 fallback tripwire for surfaces without the auto-load (CLI, other platforms);
 workers write a one-line chat-ready `kanban_complete` summary (the notifier
@@ -306,54 +313,104 @@ list (tiers 2+). `fallback_providers` is **per-turn**: it triggers on errors
 (429 / 5xx / 401 / 404 / malformed) and the primary is restored on the next
 turn. The default profile already proves the YAML shape.
 
-The shape mirrors OpenCode's split: **front doors = Claude (judgment +
-long-lived context on the Max plan); workers = GPT / Grok (stateless
-task turns); cheap OpenRouter tails.** The engineer's own turns are
-orchestration (OpenCode does the coding), so it rides the GPT tier; the
-coding model inside OpenCode is chosen per run by the engineer-loop's
+Most profiles lead with **Claude Opus 5** for judgment and long-context work,
+fall back first to **GPT-5.6 Sol**, then keep a role-appropriate OpenRouter
+tail. Three exceptions: **planner** leads with **Claude Fable 5** and inserts
+Opus 5 as its T2 (see "Fable and the Max weekly pool" below), while
+**researcher** and **searcher** lead on `xai-oauth` — grok-4.5 and grok-4.3
+respectively, splitting the load across two flat-rate subscriptions instead of
+piling every worker onto the Max weekly pool. The coding model inside OpenCode
+remains a separate decision chosen per run by the engineer-pipeline's
 comparative QuotaGate.
 
-| Profile | T1 (primary) | T2 | T3 |
-| --- | --- | --- | --- |
-| **default** | `anthropic` / claude-opus-4-8 | `openai-codex` / gpt-5.6-terra | `openrouter` / `xiaomi/mimo-v2.5` |
-| **assistant** | `anthropic` / claude-opus-4-8 | `openai-codex` / gpt-5.6-terra | `openrouter` / `xiaomi/mimo-v2.5` |
-| **engineer** | `openai-codex` / gpt-5.6-sol | `openrouter` / `deepseek/deepseek-v4-flash` | — |
-| **researcher** | `xai-oauth` / grok-4.3 | `openrouter` / `xiaomi/mimo-v2.5` | — |
-| **searcher** | `xai-oauth` / grok-4.3 | `openrouter` / `xiaomi/mimo-v2.5` | — |
-| **creator** | `openai-codex` / gpt-5.6-terra | `openrouter` / `minimax/minimax-m3` | — |
-| **writer** | `anthropic` / claude-sonnet-5 | `openai-codex` / gpt-5.6-sol | `openrouter` / `deepseek/deepseek-v4-flash` |
-| **marketer** | `openai-codex` / gpt-5.6-sol | `openrouter` / `xiaomi/mimo-v2.5` | — |
+| Profile | T1 (primary) | T2 | T3 | T4 | `reasoning_effort` |
+| --- | --- | --- | --- | --- | --- |
+| **default** | `anthropic` / claude-opus-5 | `openai-codex` / gpt-5.6-sol | `openrouter` / `xiaomi/mimo-v2.5` | — | `medium` |
+| **assistant** | `anthropic` / claude-opus-5 | `openai-codex` / gpt-5.6-sol | `openrouter` / `xiaomi/mimo-v2.5` | — | `medium` |
+| **planner** | `anthropic` / **claude-fable-5** | `anthropic` / claude-opus-5 | `openai-codex` / gpt-5.6-sol | `openrouter` / `deepseek/deepseek-v4-flash` | `high` |
+| **engineer** | `anthropic` / claude-opus-5 | `openai-codex` / gpt-5.6-sol | `openrouter` / `deepseek/deepseek-v4-flash` | — | `high` |
+| **researcher** | `xai-oauth` / **grok-4.5** | `anthropic` / claude-opus-5 | `openai-codex` / gpt-5.6-sol | `openrouter` / `xiaomi/mimo-v2.5` | `medium` |
+| **searcher** | `xai-oauth` / grok-4.3 | `openrouter` / `xiaomi/mimo-v2.5` | — | — | `low` |
+| **creator** | `anthropic` / claude-opus-5 | `openai-codex` / gpt-5.6-sol | `openrouter` / `minimax/minimax-m3` | — | `medium` |
+| **writer** | `anthropic` / claude-opus-5 | `openai-codex` / gpt-5.6-sol | `openrouter` / `deepseek/deepseek-v4-flash` | — | `medium` |
+| **marketer** | `anthropic` / claude-opus-5 | `openai-codex` / gpt-5.6-sol | `openrouter` / `xiaomi/mimo-v2.5` | — | `medium` |
 
 ```yaml
-# example — researcher's ~/.hermes/profiles/researcher/config.yaml
+# example — planner's ~/.hermes/profiles/planner/config.yaml (the 4-tier shape)
 model:
-  default: grok-4.3
-  provider: xai-oauth
-  base_url: https://api.x.ai/v1
+  default: claude-fable-5
+  provider: anthropic
+  base_url: https://api.anthropic.com
 fallback_providers:
+  - provider: anthropic          # same provider, different model — allowed
+    model: claude-opus-5         # (only an identical provider+model pair is skipped)
+    base_url: https://api.anthropic.com
+  - provider: openai-codex
+    model: gpt-5.6-sol
+    base_url: https://chatgpt.com/backend-api/codex
   - provider: openrouter
-    model: xiaomi/mimo-v2.5
+    model: deepseek/deepseek-v4-flash
     base_url: https://openrouter.ai/api/v1
     api_mode: chat_completions
+agent:
+  reasoning_effort: high
 ```
+
+A `fallback_providers` entry carries no per-entry `reasoning_effort` or
+`api_mode` for the main agent: on each fallback activation Hermes re-reads the
+profile config and re-resolves both from provider / base URL / model
+(`chat_completion_helpers.py:1668,1846`). Use `agent.reasoning_overrides`
+(model → effort) if one tier needs a different depth from the rest.
 
 Model facts confirmed during the build (live `provider_models_cache.json` + test
 calls):
 
-- **Anthropic native (T1)** — `default` / `assistant` lead with
-  `anthropic` / `claude-opus-4-8` (`base_url: https://api.anthropic.com`,
-  `api_mode: anthropic_messages`; slug in the live cache). OAuth (Claude
-  Pro/Max) — `hermes auth status anthropic` → *logged in*. The engineer left
-  the Claude tier 2026-07 (resource rebalance: its own turns are
-  orchestration; Claude is spent inside OpenCode via the QuotaGate instead).
-- **Grok** — `grok-4.3` is current on `xai-oauth` and verified working (the
-  retired `grok-4*` glob doesn't cover it; re-auth via `hermes model` if the
-  token lapses). `x-ai/grok-4.3` is the OpenRouter equivalent for per-token use.
+- **Anthropic native (T1)** — every profile except `researcher` / `searcher`
+  leads with `anthropic` (`base_url: https://api.anthropic.com`):
+  `claude-fable-5` on planner, `claude-opus-5` everywhere else. OAuth resolves
+  from the global Claude Code credential/token rather than per-profile
+  `auth.json`.
+- **xAI (T1, researcher / searcher)** — both run `xai-oauth`
+  (`base_url: https://api.x.ai/v1`), which is a flat-rate **SuperGrok /
+  Premium+ subscription**, not the metered `XAI_API_KEY` API. The published
+  per-token prices therefore do not apply to this path; what the two profiles
+  actually spend is subscription allowance, which is why they sit here rather
+  than adding two more consumers to the Max weekly pool.
+
+  The split is by job shape. **Researcher takes grok-4.5**, xAI's frontier
+  reasoning SKU, and stacks Opus 5 and Sol beneath it. **Searcher stays on
+  grok-4.3**, which xAI positions for *tool calling and instruction
+  following* — the right shape for link-first retrieval, and the only one of
+  the two whose reasoning can be switched off entirely (`none`). Grok 4.5
+  cannot disable reasoning and **defaults to `high` when the key is omitted**,
+  so an unset effort there is an expensive surprise rather than a cheap one.
+  Both are on the reasoning-capable allowlist
+  (`model_metadata.py:370-410`), so their `reasoning_effort` really is sent as
+  `reasoning: {effort: …}` — it is not a no-op. Non-allowlisted Grok models
+  have the field dropped on purpose, because xAI answers an unsupported
+  `reasoningEffort` with HTTP 400.
+
+  **A lapsed xAI OAuth does not degrade these two to their lower tiers.**
+  Credential resolution fails before the request is built, so the agent aborts
+  with `xAI OAuth state is missing access_token` and `fallback_providers` never
+  engages — researcher and searcher stop dead rather than falling through, so
+  researcher's Opus 5 tier is no insurance against this particular failure. The
+  same gate hides the `x_search` tool from the schema, which `hermes doctor`
+  reports as `x_search (missing XAI_API_KEY)`; that wording is misleading,
+  since the tool prefers the OAuth bearer and only falls back to the API key
+  (`tools/xai_http.py:243-310`). Re-authenticate with `hermes model` from the
+  **default** profile — never with `-p`, which would write the worker's own
+  `auth.json` and shadow the inherited credential.
+- **Codex** — every profile except searcher carries `openai-codex` /
+  `gpt-5.6-sol` (`base_url: https://chatgpt.com/backend-api/codex`), as T2 on
+  the Anthropic profiles and T3 on planner and researcher. The former
+  `gpt-5.6-terra` profile routes were promoted to Sol; the engineer-pipeline's
+  OpenCode QuotaGate remains a separate model-routing layer.
 - **Copilot retired from every chain** (2026-07): the subscription became
   unusable, and its catalog drift had already 404'd tiers silently once.
-  All fallbacks now go straight to OpenRouter (per-token, no catalog
-  surprises). `GITHUB_TOKEN` stays in the `hermes` Keychain layer for the
-  Skills Hub — it is no longer a model-provider credential.
+  Profile fallbacks now use Codex first and OpenRouter as the final tail.
+  `GITHUB_TOKEN` stays in the `hermes` Keychain layer for the Skills Hub — it
+  is no longer a model-provider credential.
 - **OpenRouter slugs** — `xiaomi/mimo-v2.5`, `deepseek/deepseek-v4-flash`,
   `google/gemini-3.5-flash` (the earlier `*-v3.2` / `gemini-3-flash-preview`
   refs were planning guesses).
@@ -364,23 +421,66 @@ calls):
   the `video-analyze-mimo` plugin — see `README.md` "Plugins"), and
   `creator` uses `minimax/minimax-m3` (image + video input) so it can still
   eyeball generated assets. Text-only work rides the cheaper
-  `deepseek/deepseek-v4-flash` (`engineer`, `writer` tail). Researcher and
+  `deepseek/deepseek-v4-flash` (`planner`, `engineer`, `writer` tail). Researcher and
   searcher gained vision in the 2026-07 copilot removal as a side effect of
   standardizing on mimo.
-- **Writer breaks the workers-ride-GPT rule on purpose** (added 2026-07): its
-  deliverable IS the prose, so T1 is `anthropic` / `claude-sonnet-5` (Claude
-  Max quota — accepted tradeoff; sonnet over opus to keep the quota cost down).
-  No copilot tier (copilot unavailable at build time); T2 `openai-codex` /
-  `gpt-5.6-sol`, T3 `deepseek/deepseek-v4-flash` (both slugs verified in the
-  live cache 2026-07).
-- **Marketer** (added 2026-07) rides the codex tier like the other
-  orchestrating worker (engineer): T1 `openai-codex` / `gpt-5.6-sol`, and a
-  single vision-capable tail `xiaomi/mimo-v2.5` so it can still eyeball
-  creator's assets before posting on a fallback turn (no copilot tier —
-  built after the copilot retirement).
 
 Optional: set `delegation.model: google/gemini-3.5-flash` on default /
 assistant to route `delegate_task` subagents to a cheap model.
+
+### Fable and the Max weekly pool
+
+Only **planner** runs Fable 5, and the `anthropic` / `claude-opus-5` T2 beneath
+it exists for exactly one failure mode. Four facts drive the design:
+
+1. **Fable is not a separate quota tank.** On Max it is included but capped at
+   **≤50% of the plan's weekly pool**, drawn from the *same* pool as Opus, and
+   it burns that pool faster. So `Fable → Opus` only rescues the case where the
+   Fable sub-cap is exhausted while the overall weekly still has room. If the
+   shared weekly or the 5-hour session limit is what tripped, Opus is dead too
+   and the chain correctly continues to Codex.
+2. **The T2 step depends on the token being resolvable outside the credential
+   pool.** A `usage_limit_reached` 429 marks the *credential* exhausted, and
+   that mark has **no model dimension** (`credential_pool.py:662`) — the pool
+   then refuses to hand it out. The Opus attempt only succeeds because
+   `resolve_anthropic_token()` checks `ANTHROPIC_TOKEN` /
+   `CLAUDE_CODE_OAUTH_TOKEN` / the Claude Code Keychain entry **before** the
+   pool (`anthropic_adapter.py:1401`). Park the Max subscription *only* in the
+   credential pool and the Opus tier is silently skipped — the chain quietly
+   degrades to `Fable → Codex`.
+3. **Hermes has no per-model quota memory.** The "included Fable 5 usage for
+   this week" message carries no parseable reset, so a fixed **1-hour** local
+   cooldown is applied (`credential_pool.py:117`), while the agent-level
+   fallback cooldown is only **60 seconds** (`chat_completion_helpers.py:1549`).
+   At t+61s the primary is restored and Fable is retried. Once the weekly cap is
+   hit this costs **one wasted request per turn until the week rolls over** —
+   accepted deliberately, and a reason planner (low turn count) carries Fable
+   while assistant (highest turn count, latency-sensitive) does not.
+4. **Adaptive thinking, not manual budgets.** Modern Claude — Fable 5 included —
+   gets `thinking: {type: adaptive}` + `output_config: {effort: …}`, so the
+   effort level passes straight through (`minimal→low`, `ultra→max`); the
+   legacy 4k/8k/16k/32k `budget_tokens` table does **not** apply. planner sits
+   at `high` rather than `xhigh` because its deliverable is a long outline YAML
+   and Hermes can otherwise burn the whole output budget on reasoning
+   (`conversation_loop.py:2600`). If that warning ever appears, drop to
+   `medium` or raise `max_tokens`.
+
+### `agent.*` does not inherit from the root profile
+
+A named profile's config is `$HERMES_HOME/config.yaml` deep-merged with the
+built-in `DEFAULT_CONFIG` **only** (`hermes_cli/config.py:680,7456`) — the root
+`~/.hermes/config.yaml` is never a parent. `--clone` copies it once at creation
+time; that is not live inheritance.
+
+This bites hardest on `agent.reasoning_effort`, because `DEFAULT_CONFIG["agent"]`
+has **no** `reasoning_effort` key. Omitting it does not inherit the root's
+`medium` — it resolves to `None`, and each provider path then does something
+different: native Anthropic sends no `thinking`/`output_config` at all
+(`anthropic_adapter.py:2854`), Codex defaults to `medium`
+(`transports/codex.py:170`), OpenRouter to `{enabled: true, effort: medium}`.
+The result is a profile whose T1 is unspecified while its fallbacks are
+`medium`. Five profiles sat in that state until 2026-07; every profile now
+carries an explicit value. **Set `agent.*` keys per profile, always.**
 
 ## Authentication inheritance
 
@@ -399,6 +499,17 @@ the default profile's `~/.hermes/auth.json` (`auth.py:1131-1157,1215-1259`).
 - Always run OAuth logins from default. Running `hermes model` *inside* a worker
   writes that profile's `auth.json` and shadows the inherited creds for that
   provider (writes never propagate).
+- **Shadowed creds survive a default re-login, and `hermes doctor` will not see
+  it.** Doctor inspects default, so it reports the provider healthy while a
+  worker still loads its own stale entry — the fallback only applies to a
+  profile with *no* entry at all. The symptom is uneven: the model can keep
+  answering while a tool that resolves through the credential pool goes
+  missing, so `x_search` returns unavailable on a profile whose grok replies
+  fine. Confirm with `providers` in the worker's own
+  `~/.hermes/profiles/<name>/auth.json`; the repair is to drop that provider
+  key so the profile inherits default again. Prefer editing the file over
+  `hermes auth logout`, which may revoke upstream and take the shared
+  credential down with it.
 - Env tokens work everywhere via the shim: Copilot reads
   `COPILOT_GITHUB_TOKEN` → `GH_TOKEN` → `GITHUB_TOKEN` → `gh auth token`
   (`copilot_auth.py:39,67-95`); xAI accepts `XAI_API_KEY`.
@@ -499,28 +610,31 @@ Routing quality depends on `profile.yaml` descriptions — create workers with
 Built and verified: default (kanban orchestrator), engineer (ex-coder, promoted
 2026-07: dialogue-driven OpenCode worker), researcher, searcher, creator
 (added 2026-07: media production worker), writer (added 2026-07: prose
-worker; T1 anthropic/claude-sonnet-5, skills shared from the opencode Japanese
+worker; skills shared from the opencode Japanese
 stack via external_dirs), and marketer (added 2026-07: campaign/publishing
 worker; posts to X via the bundled xurl skill + external CLI under the
 Publish-grant floor) workers —
-T1–T4 tiers resolve (doctor + live probes) and default-created tasks
+T1–T3 tiers resolve (doctor + live probes) and default-created tasks
 dispatch/route to each. Assistant gateway runs keychain-pure (LaunchAgent,
 Telegram-only per #40695); the embedded dispatcher auto-claims tasks across
 ticks (`dispatch_interval_seconds: 15` for fast block round-trips).
 `install.sh` links every tracked profile (incl. `profile.yaml`) with no WARN.
 The 2026-07 kanban workflow conventions (Review gate, scheduled sweeper cron,
-Board Plan planning trees, continuation-card fan-out, the
+Planner trees (planner profile, Claude Fable 5, plan-only; replaced the
+assistant-run Board Plan synthesis cards and the auto-decompose triage
+route), continuation-card fan-out, the
 `kanban-orphan-watchdog.sh` cron, and block-loop reset discipline) shipped in
 the orchestration and worker skills.
 
-Model slugs confirmed 2026-07 (live cache + OpenRouter model pages after the
-copilot removal): `anthropic` / `claude-opus-4-8` and `claude-sonnet-5`
-(`hermes auth status anthropic` → logged in), `openai-codex` /
-`gpt-5.6-terra` + `gpt-5.6-sol`, `grok-4.3` on `xai-oauth`, and the
+Active profile-chain model slugs confirmed 2026-07 (provider checks +
+OpenRouter model pages): `anthropic` / `claude-opus-5`, `anthropic` /
+`claude-fable-5` (planner T1), `xai-oauth` / `grok-4.5` (researcher T1) and
+`grok-4.3` (searcher T1), `openai-codex` / `gpt-5.6-sol`, and the
 OpenRouter tails `xiaomi/mimo-v2.5` (vision; live on openrouter.ai but
 missing from a stale local model cache — refresh before trusting doctor),
 `minimax/minimax-m3` (image+video), `deepseek/deepseek-v4-flash`
 (text-only).
 
 Remaining (manual): Telegram round-trip — message the bot and confirm a
-reply; re-run `hermes doctor` after the 2026-07 tier rebalance.
+reply. `hermes doctor` passed for default and every named profile after the
+2026-07 tier rebalance.

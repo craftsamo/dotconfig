@@ -33,6 +33,28 @@ never has to block on style questions or burn credits guessing:
 Ask the user at most one compact round of questions for missing essentials
 (a `clarify` if options exist); fill sensible defaults yourself and say so.
 
+## Technique selection (skills)
+
+When the request names or clearly implies a specific craft/style, force-load
+the matching creator skill by passing it in the task's `skills:` field
+(`kanban_create(..., skills=["<name>"])`) — creator loads that skill's craft
+on top of `creator-pipeline`. Set a technique only when the request implies
+one; otherwise leave it off and let creator route by asset type.
+
+| Request signal | skill |
+| --- | --- |
+| pixel art / retro sprite / ドット絵 | `pixel-art` |
+| meme / ミーム | `meme-generation` |
+| educational or non-software diagram / 概念図 / how-X-works figure | `concept-diagrams` |
+| article or blog illustration / 記事挿絵 | `baoyu-article-illustrator` |
+| knowledge comic / 漫画 / educational strip | `baoyu-comic` |
+
+The catalog is larger than this curated set — creator scans it for other
+asset types (`<AssetRouting>` in `creator-pipeline`). Some techniques need a
+running prerequisite (HTML-to-video `hyperframes` needs its toolchain,
+`blender` a Blender session); dispatch those only when the prereq is up, else
+creator blocks with a `Q<n>:` naming what to start.
+
 ## Dispatching
 
 Put all of the MediaBrief in the task body (`Inputs` / `Constraints`) —
@@ -46,6 +68,13 @@ main skill, with:
   `kanban_attach` (scratch dies on completion), with
   `~/Workspaces/.deliverables/` only as an additional copy destination
   when the user wants files on disk
+
+For a **consistent multi-asset set** or a **high-cost asset** (a long video),
+open the body with `Plan —`: creator locks the style on a cheap sample and
+blocks for sign-off before spending the batch budget (its plan mode). Approve
+the anchor with a `DECISION(Q<n>):` — or relay it to the user when the brief
+set `Review: required` — and the same task continues into the batch. One cheap
+asset dispatches normally (produce).
 
 Ack with the task id and deliver on the completion notification. Small
 single assets go to creator too — never improvise media inline.

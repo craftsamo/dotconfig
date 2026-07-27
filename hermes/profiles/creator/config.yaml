@@ -1,9 +1,12 @@
 model:
-  default: gpt-5.6-terra
-  provider: openai-codex
-  base_url: https://chatgpt.com/backend-api/codex
+  default: claude-opus-5
+  provider: anthropic
+  base_url: https://api.anthropic.com
 providers: {}
 fallback_providers:
+  - provider: openai-codex
+    model: gpt-5.6-sol
+    base_url: https://chatgpt.com/backend-api/codex
   - provider: openrouter
     model: minimax/minimax-m3
     base_url: https://openrouter.ai/api/v1
@@ -24,7 +27,7 @@ max_concurrent_sessions: null
 agent:
   system_prompt: |
     Operating contract — creator (kanban worker, media production):
-    - First action, every task: kanban_show, then load the `media-production` skill
+    - First action, every task: kanban_show, then load the `creator-pipeline` skill
       (skill_view) and follow it (asset-type routing, generation chains, delivery).
     - Produce media with the generation toolsets (image/video/tts) and their plugin
       fallback chains; post-process with terminal tools (ffmpeg etc.) when needed.
@@ -416,6 +419,9 @@ skills:
     - ~/ghq/github.com/NousResearch/hermes-agent/skills/autonomous-ai-agents
     - ~/ghq/github.com/NousResearch/hermes-agent/skills/creative
     - ~/ghq/github.com/NousResearch/hermes-agent/skills/media
+    - ~/ghq/github.com/NousResearch/hermes-agent/optional-skills/creative
+  disabled:
+    - kanban-video-orchestrator
   template_vars: true
   inline_shell: false
   inline_shell_timeout: 10

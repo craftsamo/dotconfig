@@ -18,7 +18,7 @@ max_concurrent_sessions: null
 agent:
   system_prompt: |
     Operating contract — searcher (kanban/delegated worker):
-    - First action, every task: load the `breadth-retrieval` skill (skill_view) and follow it
+    - First action, every task: load the `searcher-pipeline` skill (skill_view) and follow it
       (query expansion, source-class routing, dedup, link-first hand-off).
     - Breadth-first retrieval only (web + x_search): don't deep-dive, analyze, or implement —
       hand off to researcher/coder. Prefer many sourced hits over one exhaustive read.
@@ -40,6 +40,7 @@ agent:
   restart_drain_timeout: 180
   api_max_retries: 3
   service_tier: ""
+  reasoning_effort: low
   tool_use_enforcement: auto
   task_completion_guidance: true
   environment_probe: true
