@@ -45,6 +45,10 @@ scaffolds or clones itself (that is the bootstrap slice).
      CI config / docs).
    - **GitHub state** — open PRs, open issues, CI status, recent activity
      (`gh pr list`, `gh issue list`, `gh run list` — best-effort).
+   - **Toolchain & environment** — only when the ask covers what the work
+     will run on: load `machine-env` (config repo, secret injection,
+     accounts) and `opencode-env` (what OpenCode can do here) and report
+     from their inspection recipes, never from memory.
 3. **Write the report** (format below); attach if long (`kanban_attach`),
    deliver the substance in the final message.
 4. **Persist durable facts** to MEMORY.md (see below).
