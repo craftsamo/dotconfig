@@ -102,7 +102,7 @@ under a structured comment protocol — Authority presets A1/A2/A3,
 `STATE:`/`Q<n>:`/`DECISION(Q<n>):`/`PROGRESS:`/`AUTHORITY+:`/`REVIEW:`
 (human sign-off gate) markers, plus scheduled parking in `scheduled` via
 `SCHEDULED: until=` comments and the assistant sweeper cron — multi-card
-plans run through the Planner tree: a planner card (Claude Opus 5,
+plans run through the Planner tree: a planner card (Claude Fable 5,
 plan-only) delivers a dependency-graph outline YAML, the user approves it
 in chat, and the assistant registers the cards topologically with
 idempotency keys (`auto_decompose` is OFF — the upstream aux decomposer's
