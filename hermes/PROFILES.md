@@ -65,12 +65,13 @@ in-turn). A Kanban worker may itself call `delegate_task` during its run.
 | --- | --- | --- | --- | --- | --- | --- |
 | **default** | CLI front door — assistant's CLI counterpart (neutral persona) | CLI | `.` (launch dir) | `web,browser,terminal,file,code_execution,vision,x_search,skills,todo,memory,clarify,delegation,cronjob,kanban` | — | yes |
 | **assistant** | messaging front door + dispatcher host | Telegram | `~/Workspaces` | `web,browser,terminal,file,vision,x_search,skills,todo,memory,clarify,delegation,cronjob,computer_use,kanban` | **yes** | yes (token per-machine) |
+| **planner** | multi-card decomposition into a dependency-graph outline for user approval; plan-only, never executes, never creates build cards | — (worker) | `.` (launch / task ws) | `file,web,skills,memory` | — | yes |
 | **engineer** | implement via OpenCode (git worktree, tests); confirms material decisions through kanban block round-trips | — (worker) | `.` (launch / task ws) | `terminal,file,web,skills,todo,memory,delegation` | — | yes |
-| **researcher** | synthesize / analyze | — (worker) | `.` (launch / task ws) | `file,web,video,skills,memory,delegation` | — | yes |
+| **researcher** | synthesize / analyze | — (worker) | `.` (launch / task ws) | `file,web,vision,video,skills,memory,delegation` | — | yes |
 | **searcher** | fast retrieval (web / x_search); deep multi-hop via `deep-retrieval` + `goal_mode` | — (worker) | `.` (launch / task ws) | `web,x_search,skills,memory` | — | yes |
 | **creator** | ALL media production — image, video, GIF, voice, single and batch (front doors only brief and dispatch) | — (worker) | `.` (launch / task ws) | `terminal,file,vision,image_gen,video_gen,video,tts,skills,memory,delegation` + gen plugins | — | yes |
 | **writer** | reader-facing prose — marketing long copy, tech articles/blog, documentation (tone-calibrated, JP norms); never publishes | — (worker) | `.` (launch / task ws) | `file,web,skills,memory,delegation` | — | yes |
-| **marketer** | campaign orchestration + approved publishing (X via xurl); confirms every post through Publish-grant block round-trips | — (worker) | `.` (launch / task ws) | `terminal,file,web,x_search,vision,skills,memory,delegation` | — | yes |
+| **marketer** | campaign orchestration + approved publishing (X via xurl); confirms every post through Publish-grant block round-trips | — (worker) | `.` (launch / task ws) | `terminal,file,web,browser,x_search,vision,skills,memory,delegation` | — | yes |
 
 The table lists each role's native capability allowlist. `platform_toolsets` is
 the runtime authority; top-level `toolsets` mirrors it and retains `kanban` on
@@ -236,6 +237,11 @@ Three per-profile layers, kept separate:
     dialogue; P0 master-plan + per-unit forks with permission/question bridges;
     fan-out to searcher/researcher/creator; quota-gated provider/model routing;
     intra-unit `-c`/`-s` resume; verify/report)
+  - planner → `planner-pipeline` (parent summaries → tiered investigation →
+    boundary-based granularity rubric → outline YAML schema + the Roster of
+    assignable profiles/technics/grants; plan-only). No `external_dirs`: the
+    pipeline is self-contained and the profile has no terminal, so upstream
+    CLI-backed skills would only advertise capabilities it cannot run
   - researcher → `researcher-pipeline` (search route + Admiralty/SIFT source evaluation; evidence discipline)
   - searcher → `searcher-pipeline` (query expansion, source-class routing, link-first hand-off)
     + `deep-retrieval` (explicit multi-hop hunts: `skills: ["deep-retrieval"]` + `goal_mode`)
@@ -243,10 +249,14 @@ Three per-profile layers, kept separate:
     creative-skill catalog, Budget grant parsing, structured STATE/Qn block
     dialogue, per-asset PROGRESS, workspace-reuse resume, visual verification,
     kanban_attach delivery) + the in-tree `contextual-image-gen` /
-    `contextual-video-gen` / `blender-mcp` depth skills, plus the upstream
-    `creative/` + `media/` libraries referenced via `skills.external_dirs`
-    (comfyui, manim-video, touchdesigner-mcp, gif-search, … — creator owns the
-    creative cluster)
+    `contextual-video-gen` depth skills, the HyperFrames stack via
+    `skills.external_dirs` (`~/.agents/skills` — `hyperframes` is the entry
+    point that routes the 6 sub-skills, plus `media-use` for asset resolution /
+    TTS / captions; CLI-owned store, see AGENTS.md), and the upstream
+    `creative/` + `media/` libraries (comfyui, manim-video, gif-search, … —
+    creator owns the creative cluster). MCP-backed entries in that cluster
+    (`blender-mcp`, `touchdesigner-mcp`, `unreal-mcp`) are listed in
+    `skills.disabled`: the profile runs `no_mcp`, so they can never execute
   - writer → `writer-pipeline` (WritingBrief parsing; one-round tone
     calibration via sample-variant blocks; deliverable-type routing onto the
     layered Japanese norms; structure → draft → norms/humanizer/integrity

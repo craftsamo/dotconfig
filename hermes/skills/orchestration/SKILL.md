@@ -212,11 +212,11 @@ Keep in sync with each worker's `profile.yaml` description:
 | --- | --- | --- | --- |
 | planner | multi-card decomposition: dependency-graph outlines (assignees, technics, grants, parents) for user approval; plan-only, never executes, never creates build cards | — | file, web |
 | searcher | breadth-first retrieval: web/X search, links, latest/current info | `deep-retrieval` (exhaustive multi-hop, pair with `goal_mode`) | web, x_search |
-| researcher | depth: analysis, synthesis, comparison, evaluation, reports | — | file, web |
+| researcher | depth: analysis, synthesis, comparison, evaluation, reports | `web-source-vetting` (source trust triage), `media-artifact-verification` (confirmed media numbers — metadata for figures, vision for content) | file, web, vision, video |
 | engineer | implementation: drives OpenCode, code changes, debugging, tests, builds, PRs; confirms material decisions via block round-trips | — (altitudes via body opener: Orient / Bootstrap / Plan / implement) | terminal (hermes-cli) |
-| creator | ALL media production: image, video, GIF, voice assets, batch and single; delivers via kanban_attach | `contextual-image-gen`, `contextual-video-gen` | media gen chains + terminal |
+| creator | ALL media production: image, video, GIF, voice assets, batch and single; delivers via kanban_attach | `contextual-image-gen`, `contextual-video-gen`, `hyperframes` (HTML/CSS motion compositions — entry point that routes the rest of the stack), `media-use` (asset resolution, TTS, captions) | media gen chains + terminal |
 | writer | reader-facing prose: marketing long copy, tech articles/blog, documentation; tone-calibrated JP quality; drafts only — never publishes | `japanese-writing`, `japanese-tech-prose`, `japanese-prose-rhythm` | file, web |
-| marketer | campaign orchestration + approved publishing (X via xurl): content strategy, post/thread copy, ship within a Publish grant; fans out prose to writer, media to creator, research to searcher/researcher | — | terminal (hermes-cli), web, x_search |
+| marketer | campaign orchestration + approved publishing (X via xurl): content strategy, post/thread copy, ship within a Publish grant; fans out prose to writer, media to creator, research to searcher/researcher | `social-video-research` (platform-native format/spec recon) | terminal (hermes-cli), web, browser, x_search |
 
 Two-tier vocabulary: the **profile** is the execution contract (model,
 tools, grant type); a **technic** is a task-pinnable playbook passed as
