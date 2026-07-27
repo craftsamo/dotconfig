@@ -375,6 +375,16 @@ calls):
   `reasoning_effort` really is sent as `reasoning: {effort: …}` — it is not a
   no-op. Non-allowlisted Grok models have the field dropped on purpose, because
   xAI answers an unsupported `reasoningEffort` with HTTP 400.
+  **A lapsed xAI OAuth does not degrade these two to their OpenRouter tail.**
+  Credential resolution fails before the request is built, so the agent aborts
+  with `xAI OAuth state is missing access_token` and `fallback_providers` never
+  engages — researcher and searcher stop dead rather than running cheaper. The
+  same gate hides the `x_search` tool from the schema, which `hermes doctor`
+  reports as `x_search (missing XAI_API_KEY)`; that wording is misleading,
+  since the tool prefers the OAuth bearer and only falls back to the API key
+  (`tools/xai_http.py:243-310`). Re-authenticate with `hermes model` from the
+  **default** profile — never with `-p`, which would write the worker's own
+  `auth.json` and shadow the inherited credential.
 - **Codex (T2)** — the Anthropic profiles fall back to `openai-codex` /
   `gpt-5.6-sol` (`base_url: https://chatgpt.com/backend-api/codex`). The former
   `gpt-5.6-terra` profile routes were promoted to Sol; the engineer-pipeline's
