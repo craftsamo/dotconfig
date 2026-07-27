@@ -1,9 +1,12 @@
 model:
-  default: gpt-5.6-sol
-  provider: openai-codex
-  base_url: https://chatgpt.com/backend-api/codex
+  default: claude-opus-5
+  provider: anthropic
+  base_url: https://api.anthropic.com
 providers: {}
 fallback_providers:
+  - provider: openai-codex
+    model: gpt-5.6-sol
+    base_url: https://chatgpt.com/backend-api/codex
   - provider: openrouter
     model: deepseek/deepseek-v4-flash
     base_url: https://openrouter.ai/api/v1
