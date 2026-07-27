@@ -148,7 +148,7 @@ kanban:
   worker_log_backup_count: 1
   orchestrator_profile: ''
   default_assignee: ''
-  auto_decompose: true
+  auto_decompose: false
   auto_decompose_per_tick: 3
   dispatch_stale_timeout_seconds: 14400
 prompt_caching:
