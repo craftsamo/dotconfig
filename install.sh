@@ -117,7 +117,9 @@ echo "[claude]"
 link "$DOTFILES/claude/CLAUDE.md"        "$HOME/.claude/CLAUDE.md"
 link "$DOTFILES/claude/settings.json"    "$HOME/.claude/settings.json"
 link "$DOTFILES/claude/keybindings.json" "$HOME/.claude/keybindings.json"
-link "$DOTFILES/claude/skills"           "$HOME/.claude/skills"
+# Claude Code is the one CLI that does not read ~/.agents/skills, so its skill
+# dir is bridged to the shared root instead of holding a claude-only tree.
+link "$DOTFILES/agents/skills"           "$HOME/.claude/skills"
 link "$DOTFILES/claude/agents"           "$HOME/.claude/agents"
 link "$DOTFILES/claude/commands"         "$HOME/.claude/commands"
 
