@@ -30,7 +30,11 @@ implementation altitude.
    tools. For heavier recon, read-only OpenCode primaries are fine — plain
    `--auto`, no permission env (`opencode run --auto --agent plan …` /
    `--agent explore …`); pick the model per `references/model-routing.md`
-   only if you invoke OpenCode at all.
+   only if you invoke OpenCode at all. If the verdict turns on what the
+   executor or the machine can do here (a technique OpenCode owns, a
+   subagent, a tool, credentials, secret injection), load `opencode-env` /
+   `machine-env` and confirm with their recipes — an unverified capability
+   claim is the one assumption you may not label and move past.
 3. Write the assessment (format below), attach it if long
    (`kanban_attach`), deliver the substance in the final message.
 

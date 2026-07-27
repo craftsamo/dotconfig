@@ -54,6 +54,14 @@ report discipline. The per-mode playbooks live under `references/` and are
 loaded on demand (<ModeRouting>). CLI syntax lives in the bundled `opencode`
 skill — load it when you need mechanics.
 
+Two technic skills map the environment you work in, loaded on demand from any
+mode: **`opencode-env`** (what this machine's OpenCode can actually do — agent
+roster, skills it loads by itself, custom tools, permissions, quota) and
+**`machine-env`** (the machine itself — the `~/.config` config repo and its
+symlinks, Keychain secret injection, the split Anthropic accounts, and the
+guard on changing Hermes' own runtime). Both are maps plus inspection recipes:
+never assert an environment fact from memory — run the recipe.
+
 </Goal>
 
 <Scope>
