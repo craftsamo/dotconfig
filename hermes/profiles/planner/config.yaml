@@ -54,6 +54,7 @@ agent:
       outline belongs in the final message + attachment, not the summary.
   max_turns: 90
   gateway_timeout: 1800
+  reasoning_effort: high
 skills:
   external_dirs:
     - ~/ghq/github.com/NousResearch/hermes-agent/skills
