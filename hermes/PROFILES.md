@@ -285,10 +285,12 @@ Three per-profile layers, kept separate:
     creator owns the creative cluster). MCP-backed entries in that cluster
     (`blender-mcp`, `touchdesigner-mcp`, `unreal-mcp`) are listed in
     `skills.disabled`: the profile runs `no_mcp`, so they can never execute
-  - writer → `writer-pipeline` (WritingBrief parsing; one-round tone
-    calibration via sample-variant blocks; deliverable-type routing onto the
-    layered Japanese norms; structure → draft → norms/humanizer/integrity
-    self-review; final-message delivery) + external skills shared via
+  - writer → `writer-pipeline` (kernel SKILL.md pinned on every writer card:
+    assess/write mode routing by deliverable, WritingBrief parsing, one-round
+    tone calibration; TypeTable routes copy/article/docs → references/prose.md
+    and 台本/絵コンテ/screenplay → references/script.md, with the four-pass
+    quality engine references/review.md shared by self-review and critique,
+    and consultations/critiques in references/assess.md) + external skills via
     `skills.external_dirs`: the Japanese stack via the curated
     `profiles/writer/external-skills/` symlink dir (japanese-writing /
     tech-prose / prose-rhythm, single-sourced with the shared
