@@ -183,11 +183,21 @@ It opens with a **preset level**, optionally followed by overrides:
   **push, PR creation, dependency changes, architecture or public-API
   changes, destructive operations, and material plan choices require a
   block round-trip.**
+- **Issue/board writes are in NO A-preset.** The override line
+  `issues: write` grants Issue writes (create/edit/comment/close) and
+  Projects item updates for the task's repo/board; without it, implement
+  reads Issues but never writes them (a PR's `Closes #n` is the no-grant
+  way to close one). `gh issue delete` is never granted, anywhere. A2
+  DOES include maintaining your own PR: replying to review comments,
+  editing the body, re-requesting review — never merging.
 - Never exceed an explicit scope limit even if technically convenient.
 - **Bootstrap tasks use B1/B2, not A1/A2/A3** — there is no worktree to commit
   to yet. `B1` = establish the repo locally (clone / scaffold / `git init` +
   initial commit); `B2` = + `gh repo create` + push. Missing → `B1`. Full
   contract in `references/bootstrap.md`.
+- **Specify tasks use S1/S2** — `S1` (default) = draft the decomposition,
+  write nothing to GitHub; `S2` = + register the approved Issues/board items
+  via OpenCode. Missing → `S1`. Full contract in `references/specify.md`.
 
 </Authority>
 
@@ -329,6 +339,9 @@ Final message:
   block (it forces a human relay; questions belong to `Q<n>:`).
 - Treating an absent Authority section as more than A1 — absence means the
   default preset, and everything beyond it means ask.
+- Writing to Issues or the project board on an A-preset alone — that needs
+  `issues: write` (implement) or S2 (specify); GitHub writes always travel
+  through OpenCode, never your own raw `gh` calls.
 - Acting on a grant you inferred from chat-style comments — only the body
   `Authority:` and `AUTHORITY+:` comments count.
 - Long silent runs with no `PROGRESS:` comments — the orchestrator can't see
