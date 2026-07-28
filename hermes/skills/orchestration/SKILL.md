@@ -213,7 +213,7 @@ Keep in sync with each worker's `profile.yaml` description:
 | planner | multi-card decomposition: dependency-graph outlines (assignees, technics, grants, parents) for user approval; plan-only, never executes, never creates build cards | — | file, web |
 | searcher | breadth-first retrieval: web/X search, links, latest/current info | `deep-retrieval` (exhaustive multi-hop, pair with `goal_mode`) | web, x_search |
 | researcher | depth: analysis, synthesis, comparison, evaluation, reports | `web-source-vetting` (source trust triage), `media-artifact-verification` (confirmed media numbers — metadata for figures, vision for content) | file, web, vision, video |
-| engineer | implementation + GitHub flow: drives OpenCode — code changes, debugging, tests, builds, PRs; specifies requirements into Issues, works from Issues, answers PR reviews, syncs Projects boards; confirms material decisions via block round-trips | — (altitudes via body opener: Orient / Bootstrap / Specify / Plan / implement) | terminal (hermes-cli) |
+| engineer | implementation + GitHub flow: drives OpenCode — code changes, debugging, tests, builds, PRs; specifies requirements into Issues, works from Issues, answers PR reviews, syncs Projects boards; confirms material decisions via block round-trips | **always pin `engineer-pipeline`** (see note below); optional: `opencode-env`, `machine-env` | terminal (hermes-cli) |
 | creator | ALL media production: image, video, GIF, voice assets, batch and single; delivers via kanban_attach | `contextual-image-gen`, `contextual-video-gen`, `hyperframes` (HTML/CSS motion compositions — entry point that routes the rest of the stack), `media-use` (asset resolution, TTS, captions) | media gen chains + terminal |
 | writer | reader-facing prose: marketing long copy, tech articles/blog, documentation; tone-calibrated JP quality; drafts only — never publishes | `japanese-writing`, `japanese-tech-prose`, `japanese-prose-rhythm` | file, web |
 | marketer | campaign orchestration + approved publishing (X via xurl): content strategy, post/thread copy, ship within a Publish grant; fans out prose to writer, media to creator, research to searcher/researcher | `social-video-research` (platform-native format/spec recon) | terminal (hermes-cli), web, browser, x_search |
@@ -222,7 +222,11 @@ Two-tier vocabulary: the **profile** is the execution contract (model,
 tools, grant type); a **technic** is a task-pinnable playbook passed as
 `skills: [...]` on `kanban_create`. Each worker's pipeline skill
 (`<profile>-pipeline`) auto-loads via its operating contract — never name
-it in a task. A technic layers ON TOP of the pipeline and never overrides
+it in a task, with ONE exception: **every engineer card carries
+`skills: ["engineer-pipeline"]`**. The dispatcher preloads pinned skills
+mechanically into the worker's system prompt, which turns the engineer's
+routing/authority kernel from a prompt-level instruction into a guarantee.
+A technic layers ON TOP of the pipeline and never overrides
 lifecycle. No technic fits? Route to the profile default and put the
 technique requirements in the body — a recurring gap is a signal to author
 a new technic skill, not a new profile (new profile only when the execution
@@ -248,14 +252,19 @@ During Plan Loop, workers can also be **consulted at advisory altitude**
 (see `references/plan.md` "Worker consultations") — the same roster, but
 the deliverable is an assessment, not the work product itself.
 
-The engineer additionally answers at **orient altitude** — a read-only
-situational-awareness pass on a repo / environment. Dispatch an engineer
-task whose body opens with `Orient — inform the plan, don't judge or ship.`
-and it reports repo / GitHub / env state (structure, conventions, build/test,
-open PRs — or "no repo, bootstrap needed") without judging feasibility or
-touching code. Use it to ground a plan before Wave 1, or when the user just
-asks "what's the state of X"; it needs no Plan gate (nothing ships). Distinct
-from advisory, which judges a proposed change.
+The engineer routes internally by **deliverable** (its `assess` / `shape` /
+`implement` modes) — the openers below remain supported as explicit hints
+and are still the recommended way to pin the altitude on consultation
+cards.
+
+The engineer additionally answers at **orient altitude** (assess/facts) — a
+read-only situational-awareness pass on a repo / environment. Dispatch an
+engineer task whose body opens with `Orient — inform the plan, don't judge
+or ship.` and it reports repo / GitHub / env state (structure, conventions,
+build/test, open PRs — or "no repo, bootstrap needed") without judging
+feasibility or touching code. Use it to ground a plan before Wave 1, or
+when the user just asks "what's the state of X"; it needs no Plan gate
+(nothing ships). Distinct from advisory, which judges a proposed change.
 
 When orient reports **"no repo, bootstrap needed"**, the repo must be
 established before any OpenCode slice (plan/implement) is meaningful — the
@@ -275,7 +284,8 @@ Group/slug. **On completion the assistant registers it** —
 --ghq-path <path>` then `pj link-repo` (materializes the
 `~/Workspaces/Projects/<Group>/github/<repo>` symlink); bootstrap never touches
 pj. The repo is then resolvable for plan/implement via `project: <slug>` or the
-workspace path. Details: `references/bootstrap.md`.
+workspace path. Details: engineer's `references/implement.md` (bootstrap
+branch).
 
 The engineer's **specify altitude** concretizes a requirement you settled with
 the user. You own the HIGH-level requirement ("login feature", "blog
@@ -290,7 +300,7 @@ approves the split before registration. It may block once with batched
 requirement questions (`Q<n>` — relay per <BlockedTriage>). On completion its
 metadata carries the Issue numbers — **dispatch implement per Issue**
 (body: `Issue: #n`, usually A2): the Issue is the outline, so no plan slice
-is needed for that work. Details: engineer's `references/specify.md`.
+is needed for that work. Details: engineer's `references/shape.md`.
 
 The engineer's **plan altitude** turns a settled implementation goal into a
 grounded **Wave outline** — coarse milestones + their order — before implement
@@ -306,7 +316,8 @@ dispatch implement from the same repo/worktree — implement forks each Wave
 from that base session so the settled outline doesn't drift. Phase/unit detail
 inside a Wave is OpenCode's job at implement time, not the outline's. Distinct
 from advisory (which judges feasibility) and from the assistant's own Plan
-Loop (requirements/scope with the user). Details: `references/plan.md`.
+Loop (requirements/scope with the user). Details: engineer's
+`references/shape.md` (outline branch).
 
 Engineer implement tasks on GitHub-flow repos can also carry: `Issue: #n`
 (work from that Issue; the PR's `Closes #n` closes it — no issue-write grant
@@ -362,11 +373,11 @@ Authority presets (shared contract with engineer's `engineer-pipeline` skill):
 | `A2` | A1 + push feature branch + open PR | user already asked for a PR / push in chat or Plan sign-off |
 | `A3` | A2 + dependency additions/upgrades | user explicitly sanctioned dependency changes |
 
-- **Bootstrap tasks** (no worktree yet) use `B1`/`B2` instead: `B1` = create
-  the repo locally + initial commit; `B2` = + `gh repo create` + push. See the
-  bootstrap dispatch note in <Workers>.
-- **Specify tasks** use `S1`/`S2` instead: `S1` = draft the requirement
-  decomposition only (nothing written to GitHub); `S2` = + register the
+- **Repo-establishment work** (no worktree yet) uses `B1`/`B2` instead:
+  `B1` = create the repo locally + initial commit; `B2` = + `gh repo create`
+  + push. See the bootstrap dispatch note in <Workers>.
+- **Requirement-decomposition work** uses `S1`/`S2` instead: `S1` = draft
+  the decomposition only (nothing written to GitHub); `S2` = + register the
   approved Issues/board items. See the specify dispatch note in <Workers>.
 - **Issue/board writes are in no A-preset**: implement tasks that should
   also update Issues or Projects items directly need the override line
