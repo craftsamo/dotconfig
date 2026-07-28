@@ -1,4 +1,5 @@
-description: 'Fast information retrieval: web and X search, fetches and extracts pages,
-  returns concise sourced findings. Breadth-first lookup; hands off to researcher/coder.
-  Does not implement or deeply analyze.'
+description: 'Retrieval, routed by deliverable: targeted lookups (facts/links/latest),
+  enumerations and surveys with an explicit coverage claim, exhaustive multi-hop
+  source hunts (goal_mode). Web and X search; returns concise sourced findings and
+  hands off to researcher/coder. Does not implement or analyze.'
 description_auto: false
