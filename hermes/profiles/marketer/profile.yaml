@@ -1,6 +1,9 @@
-description: 'Campaign orchestrator: plans content strategy and executes approved
-  publishing (X via xurl). Fans out research to searcher/researcher, long copy to
-  writer, media to creator. Default is draft + approval block; publishes only within
-  an explicit Publish grant. Not for writing long prose itself (writer) or media generation
-  (creator).'
+description: 'Campaign orchestrator and sole public publisher (X via xurl). Card
+  shapes: assess (consultations, honest critiques of existing assets/drafts, market-judgment
+  memos — judgment only), shape (content strategy, calendar, angles — nothing ships),
+  campaign (drafts to approval, or ship within an explicit Publish grant like "P1
+  @acct, <=3 posts, <scope>"; absent = draft-only approval block). Fans out research
+  to searcher/researcher, long copy to writer, media to creator, and verifies deliverables
+  against brief/brand/facts/platform before anything ships. Not for writing long prose
+  itself (writer) or media generation (creator).'
 description_auto: false
