@@ -15,8 +15,8 @@ from `references/verify.md`.
   agent permissions; only `build` edits (and only under <PermissionBridge>).
 - Continue: `run -c '<follow-up>'` (last session) or `-s <id>` (named).
   Fork: `-s <id> --fork` — branch a session without mutating it.
-- `--auto`, the permission env, and `--model <m>` are **per-invocation** —
-  wrap every call, including `-c`/`-s` resumes.
+- `--auto`, the permission env, `--model <m>` and `--variant` are
+  **per-invocation** — wrap every call, including `-c`/`-s` resumes.
 - Session context is NOT the durable layer: outlines/Issues (text), git
   history, and kanban comments are. Record every base/fork id in
   `STATE:`/`PROGRESS:` comments — a respawn that can't find ids restarts blind.
@@ -25,58 +25,57 @@ from `references/verify.md`.
 
 ## ModelRouting
 
-### QuotaGate
+A **fixed ladder**, not a per-task weighing. Always start at the top rung and
+descend only when the rung above is unusable. You do **not** pre-classify the
+work as heavy or light to pick a cheaper model — OpenCode is the only layer
+that can measure the real weight of a job, and it does that inside the run.
+Your risk tier (implement.md) shapes the Wave loop, never the model.
 
-The gate is **comparative** — both subscription pools are shared with the
-human's interactive OpenCode use, so route to the pool with headroom:
+### ProviderLadder
+
+| # | `--model` | Descend when |
+| --- | --- | --- |
+| 1 | `anthropic/claude-opus-5` | quota / rate / auth error, or Claude unavailable |
+| 2 | `openai/gpt-5.6-sol` + `--variant high` | OpenAI pool spent (QuotaCheck) or erroring |
+| 3 | `xai/grok-4.5` | xAI OAuth missing/lapsed |
+| 4 | OpenRouter, cheap coding-capable only | — last metered resort |
+| 5 | direct `claude-code` / `codex` | only on explicit request, or OpenCode unsuitable |
+
+- **Variants.** Anthropic already defaults to `high`, so rung 1 needs no
+  `--variant` (`max` exists for a deliberately larger thinking budget).
+  OpenAI defaults to the model's built-in effort, so rung 2 states
+  `--variant high` explicitly. An unrecognized variant name is **silently
+  ignored** (verified — no error), so a typo degrades the run invisibly.
+- **Rung 4 excludes `anthropic` / `claude` / `openai` / `gpt` slugs** — paying
+  per token for a model you already hold a subscription to is the mistake this
+  rule exists to prevent. Prefer `deepseek/deepseek-v4-flash`, then
+  `deepseek/deepseek-v4-pro`.
+- Resolve exact `provider/model` slugs at runtime (`opencode models`) — the
+  catalog moves; don't hard-code stale ones. On a mid-task error drop **one**
+  rung and retry; the final report names the provider/model actually used.
+
+### QuotaCheck
+
+The ladder sets the order; this check only says whether the rung you are on
+still has room. Both subscription pools are shared with the human's own
+interactive OpenCode use, so draining one takes it from them.
 
 ```text
 terminal(command="npx -y @slkiser/opencode-quota show", workdir="<wd>", timeout=90)
 ```
 
-- Both pools report a remaining % → pick the one with **more headroom**
-  (tie → Claude for heavy/high-risk, OpenAI for standard).
-- A pool under ~15% left → treat it as exhausted for heavy work; only
-  small/mechanical jobs may still use it.
-- **Anthropic `Unavailable (not detected)` is a known false negative** (the
-  tool cannot read Claude subscription usage on this machine) — it does NOT
-  mean "no quota". Fall back to an auth check: anthropic models listed in
-  `opencode models` → Claude is usable; prefer Claude when OpenAI is below
-  ~30% or the work is heavy/high-risk, otherwise OpenAI.
-- Neither pool usable (auth missing / both exhausted) → cheap tier per
-  ProviderSelection. `claude auth status` alone is never the gate.
-
-### ProviderSelection
-
-High → low:
-
-1. **Claude via OpenCode** — when QuotaGate routes to Claude.
-   Heavy/high-risk → Opus 4.8; light/mechanical → Haiku 4.5.
-   If OpenCode-native Claude is gated/unavailable, **Copilot** is the alternate
-   Claude-family source (Claude-family first, then OpenAI-family).
-2. **OpenAI via OpenCode** — when QuotaGate routes to OpenAI. High-risk →
-   `gpt-5.6-sol`; standard → `gpt-5.6-terra`; routine/cheap → `gpt-5.6-luna`
-   or the configured light model.
-3. **OpenRouter** — cheap coding-capable models only. **Never Claude/GPT via
-   OpenRouter** (exclude `anthropic` / `claude` / `openai` / `gpt`). Prefer
-   Deepseek-4-Flash, then Deepseek-4-pro.
-4. Direct `claude-code` / `codex` only on explicit request or when OpenCode
-   is unsuitable.
-
-Resolve exact `--model provider/model` slugs at runtime (`opencode models`) —
-don't hard-code stale ones. On quota / rate / auth errors mid-task, drop to
-the next rung and retry; the final report names the provider/model actually
-used.
-
-### ModelChoice
-
-Weight by task risk:
-
-| Class | Use for |
-|---|---|
-| Opus 4.8 / GPT-5.6 Sol | high-risk architecture, complex refactor, hard debugging |
-| Sonnet / GPT-5.6 Terra | default implementation, standard features, tests |
-| Haiku / GPT-5.6 Luna / cheap OpenRouter | small/mechanical fixes, docs, low-risk cleanup |
+- **Anthropic reports `Unavailable (not detected)` on this machine — always.**
+  It is not a quota signal (the locally patched copy behaves the same). Rung 1
+  is therefore driven by errors, not by the meter: anthropic models present in
+  `opencode models` → use it; a quota / rate error mid-run → descend.
+- OpenAI reports a real remaining %. Under ~15% treat rung 2 as gone and skip
+  to rung 3 instead of fighting the human for the last slice.
+- **Every run draws on the OpenAI (and xAI) pools regardless of `--model`** —
+  OpenCode's own subagents are pinned to their own models in frontmatter
+  (explore / worker / reviewer / verifier / debugger on OpenAI, the search
+  tiers on xAI). A Claude run is never purely Claude, so OpenAI headroom
+  matters even on rung 1.
+- `claude auth status` is never the gate.
 
 ## OpenCodeLoop
 
@@ -294,16 +293,20 @@ is cheaper than persuasion. Record what was discarded and why in a
 - Bloating the base with phase detail (keep it the coarse Wave outline), or
   prompting "the whole goal" in one Wave instead of that Wave only.
 - Treating `claude auth status` as the quota gate, or reading Anthropic
-  "Unavailable (not detected)" as "no Claude" — use the comparative gate and
-  its auth fallback.
+  "Unavailable (not detected)" as "no Claude" — rung 1 descends on errors, not
+  on the meter.
+- Judging the job "light" and starting below rung 1 — the ladder is fixed;
+  weighing the work is OpenCode's job, inside the run.
+- Skipping rungs on a single error instead of descending exactly one.
 - Falling back to OpenRouter but selecting Claude/GPT there.
-- Hard-coding stale model slugs instead of resolving via `opencode models`.
+- Hard-coding stale model slugs instead of resolving via `opencode models`, or
+  passing a `--variant` name the provider doesn't know (silently ignored).
 
 ## Verification
 
-- Quota/provider decision recorded in the report; on quota / rate / auth
-  errors the run dropped to the next rung and the report names the
-  provider/model actually used.
+- The run started at ProviderLadder rung 1 unless a recorded error or
+  QuotaCheck reading forced a descent; the report names the provider/model
+  (and variant) actually used, plus the reason for any descent.
 - The base was established in-task; base and fork ids are recorded in
   comments.
 - Each Wave ran decompose (plan fork) → confirm → implement (build fork);
