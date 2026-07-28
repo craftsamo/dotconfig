@@ -103,7 +103,8 @@ profiles/<name>/     # assistant, planner, engineer, researcher, searcher, creat
                      #   pipeline skill `<profile>-pipeline` (lifecycle playbook,
                      #   auto-loaded by its operating contract) + optional technic
                      #   skills pinned per task via kanban_create skills:[...]
-                     #   (searcher: deep-retrieval / creator: contextual-image/
+                     #   (searcher: none — modes live in pipeline references,
+                     #   deep-retrieval is a deprecated stub / creator: contextual-image/
                      #   video-gen / writer: Japanese stack via the curated
                      #   external-skills symlink dir / marketer: + upstream
                      #   social-media/xurl;
