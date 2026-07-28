@@ -1,8 +1,9 @@
-# Content-plan mode — strategy deliverable, nothing ships
+# Shape mode — strategy deliverable, nothing ships
 
 Loaded when the goal is a plan: content strategy, calendar, angles, thread
-designs. The deliverable is the plan itself — **no post is published in
-this mode, even under a P1 grant** (the goal decides, not the grant).
+designs, campaign structure. The deliverable is the plan itself — **no post
+is published and no production is dispatched in this mode, even under a P1
+grant** (the goal decides, not the grant).
 
 ## Procedure
 
@@ -11,8 +12,9 @@ this mode, even under a P1 grant** (the goal decides, not the grant).
    options? a full playbook?). One consolidated block if a required field
    is missing.
 2. **Ground.** Facts from the brief first; fan out to searcher/researcher
-   (`kanban_create`) for market/competitor/trend input worth having —
-   only when it materially shapes the plan.
+   via the delegate engine for market/competitor/trend input worth having —
+   only when it materially shapes the plan (deliver through a continuation
+   card).
 3. **Draft the plan** (structure below). Where a real choice exists
    (angle A vs B, cadence), present options with a recommendation instead
    of silently picking — either inline in the deliverable or, if the
