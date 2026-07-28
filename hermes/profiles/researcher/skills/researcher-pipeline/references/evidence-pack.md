@@ -1,9 +1,9 @@
 # Evidence-pack mode — deep synthesis (default)
 
 The default research deliverable: an open question answered with verifiable
-evidence. The core <Method>, <SearchRoute>, <SourceEvaluation>, and
-<CitationRules> govern the gathering; this reference sets synthesis and
-output.
+evidence. The core <Method>, <SourceEvaluation>, and <CitationRules> govern
+the gathering (route and fan-out per `references/gather.md`); this
+reference sets synthesis and output.
 
 ## Synthesis
 

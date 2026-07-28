@@ -1,23 +1,24 @@
 ---
 name: researcher-pipeline
 description: >-
-  Researcher's task front door — route every task by goal (ModeRouting), then
-  load the matching reference — evidence-pack (the default deep synthesis
-  deliverable) vs tradeoff-matrix (Plan-Loop decision support — options ×
-  criteria with a recommendation) vs fact-check (claim-by-claim verdicts,
-  narrow and fast). This core file always applies — it owns the shared
-  method: the search route, dual-axis source evaluation (reliability A-F ×
-  credibility 1-6, NATO/Admiralty + SIFT), the gather → cross-reference →
-  counterevidence discipline that keeps observation, inference, and
-  uncertainty separate, and citation rules. Output formats and per-goal
-  procedure live in references/{evidence-pack,tradeoff-matrix,fact-check}.md —
-  load them via skill_view file_path per ModeRouting, never skip.
-version: 2.0.0
+  Researcher's task kernel — pinned on every dispatched card. Routes every
+  task by deliverable (ModeRouting): evidence-pack (deep synthesis, default)
+  vs tradeoff-matrix (decision support — options × criteria with a
+  recommendation) vs fact-check (claim-by-claim verdicts; artifact-vs-spec
+  QA gates) vs guidance (evidence-backed direction for a downstream worker).
+  This core file always applies — it owns the shared method: dual-axis
+  source evaluation (reliability A-F × credibility 1-6, NATO/Admiralty +
+  SIFT), the gather → cross-reference → counterevidence discipline that
+  keeps observation, inference, and uncertainty separate, citation rules,
+  and the Review gate. Output formats live in references/{evidence-pack,
+  tradeoff-matrix,fact-check,guidance}.md; retrieval strategy and fan-out
+  live in references/gather.md — load via skill_view file_path, never skip.
+version: 3.0.0
 author: CraftSamo
 license: MIT
 metadata:
   hermes:
-    tags: [research, methodology, sources, citations, synthesis, verification, tradeoff, fact-check]
+    tags: [research, methodology, sources, citations, synthesis, verification, tradeoff, fact-check, guidance]
     category: research
 ---
 
@@ -30,7 +31,10 @@ shaped to what the caller actually asked for:
 - **Evidence-pack** — deep synthesis of a question (default).
 - **Tradeoff-matrix** — decision support: compare named options against
   criteria, recommend one (the Plan-Loop consultation form).
-- **Fact-check** — verify specific claims, narrow and fast.
+- **Fact-check** — verify specific claims — or an artifact against a spec
+  (QA gate) — narrow and fast.
+- **Guidance** — evidence-backed direction (constraints, principles,
+  dos/don'ts) for a downstream worker; the analysis, not the artifact.
 
 </Goal>
 
@@ -45,35 +49,25 @@ shaped to what the caller actually asked for:
 
 <ModeRouting>
 
-Pick the mode first, then **load the matching reference with `skill_view`
-(`file_path=references/<file>`) before gathering**. Never deliver from this
-core file alone.
+Route by the **deliverable the body asks for** — openers are hints, never
+required. Pick the mode first, then **load the matching reference with
+`skill_view` (`file_path=references/<file>`) before gathering**. Never
+deliver from this core file alone.
 
 | Signal (check in order) | Mode | Load |
 | --- | --- | --- |
-| Body opens with `Advisory — inform the plan, don't ship.` — or asks to compare named options / pick between approaches for a decision | Tradeoff-matrix | `references/tradeoff-matrix.md` |
-| Body presents specific claim(s) to verify ("is it true that…", "confirm/refute…") | Fact-check | `references/fact-check.md` |
+| Body opens with `Advisory — inform the plan, don't ship.` (legacy opener) — or asks to compare named options / pick between approaches for a decision | Tradeoff-matrix | `references/tradeoff-matrix.md` |
+| Body presents specific claim(s) to verify ("is it true that…", "confirm/refute…") — or an artifact to check against a spec / gating QA criteria | Fact-check | `references/fact-check.md` |
+| Deliverable is direction a downstream worker (or the user) will act on — design principles, constraints, dos/don'ts derived from sources or parent results | Guidance | `references/guidance.md` |
 | Anything else (open question, landscape analysis, synthesis) | Evidence-pack | `references/evidence-pack.md` |
 
 The shared method below applies in every mode; the reference sets the
-procedure emphasis, output format, and done criteria.
+procedure emphasis, output format, and done criteria. Gathering strategy —
+search route, searcher fan-out, technic choice — lives in
+`references/gather.md`; load it whenever gathering goes beyond a few
+direct lookups.
 
 </ModeRouting>
-
-<SearchRoute>
-
-Breadth, in order; trace every claim to its original context:
-
-1. Primary / official (docs, specs, papers, filings, source code) — reliability A
-2. Reputable secondary (established docs/news, recognized experts) — B
-3. General web — C/D; investigate the source (lateral read) before trusting
-4. X / social — real-time / primary-witness value, but C–F; corroborate, never sole support
-5. Reddit / forums / blogs — lived experience; D by default
-
-Virality != truth. A high search rank is not reliability. Delegate breadth-gathering
-to `searcher` when it speeds things up.
-
-</SearchRoute>
 
 <SourceEvaluation>
 
@@ -112,7 +106,8 @@ The shared gathering discipline, every mode:
 1. **Scope.** Restate the question, the caller's decision context, success
    criteria, and key sub-questions. State an assumption and proceed when a
    missing detail doesn't change the search strategy.
-2. **Gather breadth** along the route. For each candidate source record: URL/id,
+2. **Gather breadth** per `references/gather.md` (search route, own tools
+   vs searcher fan-out vs technics). For each candidate source record: URL/id,
    author/publisher, publication time, retrieval time (when recency matters),
    reliability (A–F), what it supports, and what it does *not* prove.
 3. **Extract directly, not from memory.** Fetch and read the source (web extract,
@@ -133,39 +128,17 @@ Then synthesize and deliver per the loaded reference's format.
 
 </Method>
 
-<FanOut>
+<ReviewGate>
 
-When part of the task belongs to another worker (parallel lookups, an
-asset, prose, analysis) or exceeds your tools, decompose on the board —
-never wait in-process:
+A body carrying `Review: required — <what to present>` never completes
+directly: at the point the deliverable is ready, post a comment opening
+with a `REVIEW:` headline presenting exactly what the body asked for, then
+`kanban_block(kind=needs_input)` and stop. Complete only after a comment
+approves (a `DECISION:` or equivalent explicit go); revisions loop through
+the same gate. Without a Review line, deliver and complete normally —
+post-hoc review via the completion notification is the default.
 
-1. `kanban_create` the child cards — each body self-contained per the
-   orchestrator's task-spec rules (a child never sees this task's thread;
-   e.g. parallel searcher hunts feeding one synthesis).
-2. `kanban_create` a **continuation card assigned to your own profile**
-   with `parents=[the child ids]`: its body says what to do with their
-   results (their completion summaries/metadata arrive in the injected
-   context; `kanban_show` a parent id for detail). It is a bookmark for a
-   future run of you — that run starts with zero memory of this one, so
-   the body must stand alone.
-3. `kanban_complete` the current card ("decomposed into <ids>") and stop —
-   never wait for children. The dispatcher wakes the continuation card
-   when they all finish (fan-in).
-
-Rules:
-
-- **Grants never propagate.** Write into a child at most your own
-  effective grant (advisory tasks stay read-only) — never more. A child
-  that would need a wider grant is a question for the orchestrator: block
-  on YOUR card, don't mint.
-- Children you create notify nobody (no chat subscription); the
-  orphan-watchdog cron is the safety net, not a license. Decisions that
-  need the user go through your own card's block round-trip, never a
-  child's.
-- `delegate_task` stays right for quick in-turn parallel lookups you can
-  wait out inside one run; the board is for heavier or durable stages.
-
-</FanOut>
+</ReviewGate>
 
 <CitationRules>
 
@@ -175,6 +148,18 @@ Rules:
 - If a source was inaccessible or may be dynamic, say so.
 
 </CitationRules>
+
+<Resume>
+
+A task with prior runs or comments (respawn after a block, crash, or
+timeout) starts with zero memory: reread the body and EVERY comment first.
+Honor recorded `DECISION:` answers — never re-ask; rebuild from your own
+`STATE:`/`REVIEW:` notes and the final messages of parent tasks. The
+scratch workspace does not survive runs — anything not in the card thread
+or attachments is gone; re-gather only what is not recoverable, and post a
+brief `STATE:` note before continuing so the next respawn starts warmer.
+
+</Resume>
 
 <Pitfalls>
 
@@ -194,5 +179,6 @@ Rules:
   stated uncertainty.
 - Quotes are verbatim and short; metadata suffices for later verification.
 - Counterevidence was considered; confidence and open gaps are stated.
+- A `Review: required` body blocked at the gate instead of completing.
 
 </Verification>
