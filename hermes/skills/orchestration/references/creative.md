@@ -25,7 +25,8 @@ never has to block on style questions or burn credits guessing:
 - **Quantity & variants** — how many, which sizes/crops.
 - **Budget** — generation-spend caps as a `Budget:` line. Omitted → creator
   applies its defaults (4 image variants / 2 video renders per asset, 1
-  corrective pass, batch = the brief's count). Widen it up front for
+  corrective pass, batch = the brief's count, plus a 1-2 cheap-sample
+  anchor allowance in plan mode). Widen it up front for
   exploratory work the user has sanctioned; expansions mid-task go through
   `AUTHORITY+:` comments only (see below), never a body edit.
 - **Deadline / priority.**
@@ -35,11 +36,16 @@ Ask the user at most one compact round of questions for missing essentials
 
 ## Technique selection (skills)
 
-When the request names or clearly implies a specific craft/style, force-load
-the matching creator skill by passing it in the task's `skills:` field
-(`kanban_create(..., skills=["<name>"])`) — creator loads that skill's craft
-on top of `creator-pipeline`. Set a technique only when the request implies
-one; otherwise leave it off and let creator route by asset type.
+**Every creator card carries `skills: ["creator-pipeline"]`** — the
+dispatcher preloads pinned skills mechanically into the worker's system
+prompt, which turns creator's routing/Budget kernel from a prompt-level
+instruction into a guarantee (same rule as engineer's pipeline pin).
+
+When the request additionally names or clearly implies a specific
+craft/style, force-load the matching technique on top:
+`kanban_create(..., skills=["creator-pipeline", "<technique>"])`. Set a
+technique only when the request implies one; otherwise pin the pipeline
+alone and let creator route by asset type.
 
 | Request signal | skill |
 | --- | --- |
@@ -50,7 +56,7 @@ one; otherwise leave it off and let creator route by asset type.
 | knowledge comic / 漫画 / educational strip | `baoyu-comic` |
 
 The catalog is larger than this curated set — creator scans it for other
-asset types (`<AssetRouting>` in `creator-pipeline`). Some techniques need a
+asset types (creator's `references/produce.md` <AssetRouting>). Some techniques need a
 running prerequisite (HTML-to-video `hyperframes` needs its toolchain,
 `blender` a Blender session); dispatch those only when the prereq is up, else
 creator blocks with a `Q<n>:` naming what to start.
@@ -62,6 +68,7 @@ creator cannot see this chat. Use the standard `<TaskSpec>` shape from the
 main skill, with:
 
 - `assignee: creator`
+- `skills: ["creator-pipeline"]` (+ any technique — see above)
 - `workspace_kind: scratch` (or `dir` if assets must land somewhere specific)
 - The MediaBrief fields in the body
 - Output spec: file format(s); every final artifact is delivered via
@@ -72,12 +79,39 @@ main skill, with:
 For a **consistent multi-asset set** or a **high-cost asset** (a long video),
 open the body with `Plan —`: creator locks the style on a cheap sample and
 blocks for sign-off before spending the batch budget (its plan mode). Approve
-the anchor with a `DECISION(Q<n>):` — or relay it to the user when the brief
-set `Review: required` — and the same task continues into the batch. One cheap
-asset dispatches normally (produce).
+the anchor with a `DECISION(Q<n>):`; when the brief set `Review: required`,
+creator blocks with a `REVIEW:` headline instead — relay it to the user and
+answer with `DECISION(REVIEW): approved` (or `changes — <list>`). The same
+task then continues into the batch. One cheap asset dispatches normally
+(produce).
 
 Ack with the task id and deliver on the completion notification. Small
 single assets go to creator too — never improvise media inline.
+
+## Revision dispatches (redo / fix an earlier delivery)
+
+When the user asks to change something a previous creator card delivered
+(«作り直し», «修正», "make it v2", or feedback after a completion), the new
+card is a **revise** card, and its economics depend on inheritance — a
+revise card that can't find the previous work regenerates from scratch and
+drifts the set. The body MUST carry:
+
+- `Intent: revise` (creator routes its first move on it), and Inputs with
+  the **previous card id** and its anchor pointers (the completion
+  metadata's `anchor` values — style spec / palette / seed / voice — or
+  the attachment names).
+- **Itemized feedback** — what changes, per asset; relay the user's words,
+  not a paraphrase of the style. Everything unnamed is treated as approved
+  and preserved.
+- A fresh `Budget:` line — the caps apply per revised asset; untouched
+  assets cost nothing.
+
+A wholesale direction change («全面組み直し», a new concept) is not a
+revise: creator will stop and re-anchor via its plan gate — expect a cheap
+sample + sign-off round before any full re-render, and prefer opening such
+a card with `Plan —` yourself. Cards that rescue interrupted or stranded
+work instead carry `Intent: salvage` + the source card/workspace pointers
+(inventory first, spend only on what's genuinely missing).
 
 ## After dispatch
 
