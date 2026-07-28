@@ -289,10 +289,10 @@ Three per-profile layers, kept separate:
     calibration via sample-variant blocks; deliverable-type routing onto the
     layered Japanese norms; structure → draft → norms/humanizer/integrity
     self-review; final-message delivery) + external skills shared via
-    `skills.external_dirs`: the opencode Japanese stack
-    (`~/.config/opencode/skills/japanese` — japanese-writing / tech-prose /
-    prose-rhythm, single-sourced with OpenCode) and upstream
-    `creative/humanizer`
+    `skills.external_dirs`: the Japanese stack via the curated
+    `profiles/writer/external-skills/` symlink dir (japanese-writing /
+    tech-prose / prose-rhythm, single-sourced with the shared
+    `agents/skills/` store) and upstream `creative/humanizer`
   - marketer → `marketer-pipeline` (MarketingBrief + Publish-grant parsing;
     strategy → fan-out to writer/creator/searcher/researcher → assemble →
     approval-gated xurl publish bridge with per-post PROGRESS + URL
