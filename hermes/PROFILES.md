@@ -270,7 +270,12 @@ Three per-profile layers, kept separate:
     assignable profiles/technics/grants; plan-only). No `external_dirs`: the
     pipeline is self-contained and the profile has no terminal, so upstream
     CLI-backed skills would only advertise capabilities it cannot run
-  - researcher → `researcher-pipeline` (search route + Admiralty/SIFT source evaluation; evidence discipline)
+  - researcher → `researcher-pipeline` (kernel SKILL.md pinned on every
+    researcher card: deliverable-based mode routing — evidence-pack /
+    tradeoff-matrix / fact-check incl. artifact-vs-spec QA gates /
+    guidance for downstream workers — plus Admiralty/SIFT source
+    evaluation, citation rules, Review gate, and resume in the kernel;
+    retrieval strategy + searcher fan-out in references/gather.md)
   - searcher → `searcher-pipeline` (query expansion, source-class routing, link-first hand-off)
     + `deep-retrieval` (explicit multi-hop hunts: `skills: ["deep-retrieval"]` + `goal_mode`)
   - creator → `creator-pipeline` (asset-type routing to the gen chains + the
