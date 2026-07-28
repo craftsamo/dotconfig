@@ -211,7 +211,7 @@ Keep in sync with each worker's `profile.yaml` description:
 | Assignee | Sweet spot | Technics (pin via `skills:`) | Tools |
 | --- | --- | --- | --- |
 | planner | multi-card decomposition: dependency-graph outlines (assignees, technics, grants, parents) for user approval; plan-only, never executes, never creates build cards | — | file, web |
-| searcher | breadth-first retrieval: web/X search, links, latest/current info | `deep-retrieval` (exhaustive multi-hop, pair with `goal_mode`) | web, x_search |
+| searcher | retrieval, routed by deliverable: targeted lookups (facts/links/latest), enumerations and surveys with an explicit coverage claim, exhaustive multi-hop source hunts (signal with `goal_mode`) | **always pin `searcher-pipeline`** (see note below); no optional technics (`deep-retrieval` is a deprecated stub — use `goal_mode` instead) | web, x_search |
 | researcher | depth: analysis, synthesis, comparison, evaluation, reports; fact-check and artifact-vs-spec QA verdicts (pass/fail gates); evidence-backed guidance consumed by a downstream worker | **always pin `researcher-pipeline`** (see note below); optional: `web-source-vetting` (source trust triage), `media-artifact-verification` (confirmed media numbers — metadata for figures, vision for content) | file, web, vision, video |
 | engineer | implementation + GitHub flow: drives OpenCode — code changes, debugging, tests, builds, PRs; specifies requirements into Issues, works from Issues, answers PR reviews, syncs Projects boards; confirms material decisions via block round-trips | **always pin `engineer-pipeline`** (see note below); optional: `opencode-env`, `machine-env` | terminal (hermes-cli) |
 | creator | ALL media production: image, video, GIF, voice assets, batch and single; media advisories (feasibility, chain fit, cost) and style-anchor plan rounds; revisions (`Intent: revise` + previous-card pointers) and salvage of interrupted work; delivers via kanban_attach | **always pin `creator-pipeline`** (see note below); techniques on top: `contextual-image-gen`, `contextual-video-gen`, `hyperframes` (HTML/CSS motion compositions — entry point that routes the rest of the stack), `media-use` (asset resolution, TTS, captions) | media gen chains + terminal |
@@ -226,8 +226,9 @@ it in a task, with the PIN exceptions: **every engineer card carries
 `skills: ["engineer-pipeline"]`, every creator card
 `skills: ["creator-pipeline"]`, every writer card
 `skills: ["writer-pipeline"]`, every marketer card
-`skills: ["marketer-pipeline"]`, and every researcher card
-`skills: ["researcher-pipeline"]`**. The dispatcher preloads pinned skills
+`skills: ["marketer-pipeline"]`, every researcher card
+`skills: ["researcher-pipeline"]`, and every searcher card
+`skills: ["searcher-pipeline"]`**. The dispatcher preloads pinned skills
 mechanically into the worker's system prompt, which turns those workers'
 routing/grant kernels from a prompt-level instruction into a guarantee.
 A technic layers ON TOP of the pipeline and never overrides
@@ -456,10 +457,11 @@ single / parents / planner tree.
 - `max_runtime_seconds`: cap runaway tasks (exceeded -> SIGTERM + `timed_out`).
   Set small (e.g. 600) for Plan-loop advisory consultations.
 - `skills: [...]`: force-load a specialist skill installed on the assignee's
-  profile when the task depends on it (e.g. searcher's `deep-retrieval`).
+  profile when the task depends on it (e.g. researcher's
+  `web-source-vetting`) — and the mandatory pipeline pins (see <Workers>).
 - `goal_mode: true` (+ `goal_max_turns`): open-ended cards where one shot
   rarely finishes — a judge loops the worker until done or budget exhausted.
-  Pair it with `deep-retrieval` for exhaustive source hunts.
+  Searcher's exhaustive source hunts are the classic case (goal-looped Hunt).
 
 </Parameters>
 

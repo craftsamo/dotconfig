@@ -132,8 +132,8 @@ Flow:
    - `kanban_create(title, assignee, body, parents=[mapped ids],
      skills=[...], **params, idempotency_key="<plan-card-id>:<key>")` —
      the idempotency key makes re-registration after a partial failure
-      safe. Cards for a pinned profile (engineer / creator / writer /
-      marketer / researcher, <Workers>) always get their
+       safe. Cards for a pinned profile (engineer / creator / writer /
+       marketer / researcher / searcher, <Workers>) always get their
       `"<profile>-pipeline"` prepended to `skills` (the mandatory pin) —
       add it if the outline omitted it.
    - ack in chat: card ids per outline key, then hand off to normal
