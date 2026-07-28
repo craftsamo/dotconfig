@@ -1,0 +1,74 @@
+# Prose deliverables — copy, article, documentation
+
+Reader-facing text where the words you write ARE the shipped artifact.
+Loaded from the kernel's Procedure when the TypeTable routes the
+deliverable here. The kernel owns brief parsing, tone calibration, the
+review gate, and delivery; this file owns how each prose type is built.
+
+## Structure by type
+
+### Marketing copy (LP, 告知, release note, X post text)
+
+- Skeleton: hook → value → proof → CTA. Every sentence earns the next.
+- Medium conventions when the brief is silent:
+  - X post/thread: the first line must survive alone in a timeline; one
+    idea per post; hard length limits are part of the contract, count
+    characters.
+  - Release note: what changed → why the reader cares → how to adopt.
+    Facts from the brief only — never embellish scope.
+  - LP / 告知: one reader, one promise, one CTA; proof (numbers, quotes)
+    only from supplied sources.
+- Long-form argumentative copy also gets the `japanese-tech-prose`
+  argumentation discipline (per the kernel TypeTable).
+
+### Tech article / blog / tutorial
+
+- Skeleton: claim → argument paragraphs (one topic each, explicit
+  connectives) → close that lands the claim. The title promises the
+  payoff; the opening paragraph commits to it.
+- Tutorials: steps in execution order; each step states its observable
+  result so the reader can self-verify.
+- All three Japanese layers apply — this is the only prose type where
+  `japanese-prose-rhythm` is loaded (readers go start-to-finish).
+
+### Documentation (README, manual, reference)
+
+- Task-ordered sections the reader can scan; every heading answers "can
+  I skip this?". Flat is correct — NEVER load the rhythm layer.
+- Explanatory sections (design rationale, background) get the
+  `japanese-tech-prose` argumentation rules; reference tables and
+  procedures do not.
+- README openers: what this is + who it serves within the first screen,
+  judged in ~30 seconds by a stranger.
+
+## Length
+
+Brief gives a range → hit it. Brief is silent → infer from the medium
+(X post: platform limit; README intro: one screen; blog article:
+1,500-3,000 chars unless the outline demands more) and label the choice
+as an assumption in the final-message footer.
+
+## Non-Japanese deliverables
+
+Skip the notation layer; keep the `japanese-tech-prose` argumentation
+discipline (one topic per paragraph, no unsupported assertions, no hollow
+phrases) as the structural guide.
+
+## Drafting rules
+
+- Outline before prose; get the structure pass (see
+  `references/review.md`) right at outline time — restructuring a full
+  draft costs a whole rewrite.
+- Read every supplied source before the outline, not during the draft;
+  heavy retrieval fans out per the kernel's FanOut rules.
+- Write the full text in one register; tone drift mid-document is a
+  norms-pass failure.
+
+## Pitfalls
+
+- Copy that argues instead of hooks — copy persuades by momentum,
+  articles persuade by argument; don't swap their skeletons.
+- Docs written to be read instead of scanned (walls of narrative in a
+  README).
+- Inventing product facts to fill a proof slot — the integrity pass will
+  strike them; leave the slot out and note the gap instead.
