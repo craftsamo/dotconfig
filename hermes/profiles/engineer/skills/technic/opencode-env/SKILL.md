@@ -4,14 +4,16 @@ description: >-
   Engineer's capability map of the OpenCode instance on THIS machine — where its
   configuration lives (opencode.jsonc, agent roster, the two skill trees, custom
   tools, always-on instructions), what it therefore does on its own (loads
-  technique skills, delegates to subagents, runs custom git/board tools), and the
+  technique skills, delegates to subagents, runs custom git/board tools), the
+  IntentCatalog (which OpenCode skill implements each engineer intent — feature /
+  bugfix / refactor / rebuild / perf / deps / spec — on this machine), and the
   inspection recipes that confirm all of it before you rely on it. Load it before
-  the first OpenCode run of an implement task, when an advisory verdict depends on
-  what OpenCode can do here, when orient must report the toolchain, or when a run
-  behaves oddly (auto-rejects, quota, auth). This is the capability map — CLI
-  syntax lives in the bundled `opencode` skill, and the drive loop lives in
-  engineer-pipeline's implement reference.
-version: 1.0.0
+  the first OpenCode run of an implement task, when an assess verdict depends on
+  what OpenCode can do here, when a facts report must cover the toolchain, or
+  when a run behaves oddly (auto-rejects, quota, auth). This is the capability
+  map — CLI syntax lives in the bundled `opencode` skill, and the drive loop
+  lives in engineer-pipeline's `references/opencode.md` engine.
+version: 1.1.0
 author: CraftSamo
 license: MIT
 metadata:
@@ -38,12 +40,13 @@ what stays true.
 <Scope>
 <UseWhen>
 
-- Before the first OpenCode run of an implement task, when the goal touches a
-  capability you have not confirmed (a technique skill, a subagent, a custom
-  tool, a model).
-- Advisory/plan work whose verdict depends on what OpenCode can actually do in
+- Before the first OpenCode run of an implement task — including resolving the
+  card's intent to this machine's approach skill (<IntentCatalog>) — or when
+  the goal touches a capability you have not confirmed (a technique skill, a
+  subagent, a custom tool, a model).
+- Assess/shape work whose verdict depends on what OpenCode can actually do in
   this environment.
-- Orient tasks that must report the toolchain available for the work.
+- Assess facts reports that must cover the toolchain available for the work.
 - A run behaves unexpectedly: permissions auto-reject, a quota or auth error,
   an unexplained delegation, a capability you assumed is missing.
 
@@ -54,7 +57,7 @@ what stays true.
 - You need CLI syntax (flags, sessions, forking) — the bundled `opencode`
   skill.
 - You need the drive loop itself (base/Wave forks, PermissionBridge,
-  QuestionBridge) — `engineer-pipeline` + `references/implement.md`.
+  QuestionBridge) — `engineer-pipeline` + its `references/opencode.md`.
 - The task is about the machine outside OpenCode (secrets injection, the
   dotconfig repo, account split) — the `machine-env` skill.
 
@@ -117,12 +120,44 @@ laws.
 - **Models are configured, not implicit.** Providers, per-model pricing, the
   compaction model, and the light title model are all pinned in
   `opencode.jsonc`. The model *choice* for a run stays with
-  `references/model-routing.md`; this skill only tells you where the truth is.
+  engineer-pipeline's `references/opencode.md` <ModelRouting>; this skill only
+  tells you where the truth is.
 - **Its Anthropic quota is not Hermes'.** OpenCode authenticates as a separate
   account through a plugin (see `machine-env`); read quota and auth errors
   against that account, never against Hermes' own.
 
 </CapabilitySurface>
+
+<IntentCatalog>
+
+The engineer-pipeline kernel's <IntentTriage> classifies every card with one
+intent token; THIS table says which of this machine's OpenCode skills/agents
+implements each intent. It is **environment knowledge** — skill names change
+when the OpenCode config changes, so verify with <InspectionRecipes> (`ls`
+the skill trees) before leaning on an entry, and name the skill in the
+dispatch prompt as a hint ("load and follow `approach-refactor`"), never
+paste its steps.
+
+| Intent | Drive OpenCode with | Notes |
+| --- | --- | --- |
+| `feature` | `approach-new-feature` skill | investigate-first discipline lives in the skill |
+| `bugfix` | `--agent debug` for diagnosis, then the fix in a build fork | root-cause work is the debug agent's (and its `debugger` subagent's) job; no approach skill needed |
+| `refactor` | `approach-refactor` skill | behavior-preserving steps under a test net |
+| `rebuild` | `approach-rebuild-migration` skill | evacuate → build-alongside → cutover sequence |
+| `perf` | `approach-performance` skill | measure → bottleneck → improve → re-measure |
+| `deps` | `resolve-dependabot-alerts` skill | GHSA/CVE triage + lockfile verification |
+| `spec` (S2 registration) | `approach-github-projects` + `manage-github-projects` skills | epic → purpose → work bodies and board conventions; the outline branch uses a plain `--agent plan` primary instead |
+| `bootstrap` | — no OpenCode | there is no codebase yet; git/gh/scaffolder directly (implement.md bootstrap branch) |
+| `investigate` | own tools first; `--agent plan` / `--agent explore` read-only primaries for heavier recon | assess mode; only when a repo exists |
+| `diagnose` | `--agent debug` (read-only) | assess mode; no build fork follows |
+| `review` | `--agent review` (read-only) | assess mode; delegates to reviewer subagents itself |
+
+Cross-cutting (any intent, at the matching stage): `git-commit` /
+`git-pullrequest` for commits and PRs (delivery), `web-ui` + its `ui-review`
+subagent when the change touches web frontend rendering (verification
+evidence for verify.md V5).
+
+</IntentCatalog>
 
 <InspectionRecipes>
 
