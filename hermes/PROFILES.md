@@ -68,7 +68,7 @@ in-turn). A Kanban worker may itself call `delegate_task` during its run.
 | **planner** | multi-card decomposition into a dependency-graph outline for user approval; plan-only, never executes, never creates build cards | — (worker) | `.` (launch / task ws) | `file,web,skills,memory` | — | yes |
 | **engineer** | implement via OpenCode (git worktree, tests) + GitHub flow (specify requirements into Issues, work from Issues, PR review response, Projects updates — writes via OpenCode); confirms material decisions through kanban block round-trips | — (worker) | `.` (launch / task ws) | `terminal,file,web,skills,todo,memory,delegation` | — | yes |
 | **researcher** | synthesize / analyze | — (worker) | `.` (launch / task ws) | `file,web,vision,video,skills,memory,delegation` | — | yes |
-| **searcher** | fast retrieval (web / x_search); deep multi-hop via `deep-retrieval` + `goal_mode` | — (worker) | `.` (launch / task ws) | `web,x_search,skills,memory` | — | yes |
+| **searcher** | retrieval routed by deliverable: lookup / sweep / hunt (multi-hop via `goal_mode`) | — (worker) | `.` (launch / task ws) | `web,x_search,skills,memory` | — | yes |
 | **creator** | ALL media production — image, video, GIF, voice, single and batch (front doors only brief and dispatch) | — (worker) | `.` (launch / task ws) | `terminal,file,vision,image_gen,video_gen,video,tts,skills,memory,delegation` + gen plugins | — | yes |
 | **writer** | reader-facing prose — marketing long copy, tech articles/blog, documentation (tone-calibrated, JP norms); never publishes | — (worker) | `.` (launch / task ws) | `file,web,skills,memory,delegation` | — | yes |
 | **marketer** | campaign orchestration + approved publishing (X via xurl); confirms every post through Publish-grant block round-trips | — (worker) | `.` (launch / task ws) | `terminal,file,web,browser,x_search,vision,skills,memory,delegation` | — | yes |
@@ -276,8 +276,12 @@ Three per-profile layers, kept separate:
     guidance for downstream workers — plus Admiralty/SIFT source
     evaluation, citation rules, Review gate, and resume in the kernel;
     retrieval strategy + searcher fan-out in references/gather.md)
-  - searcher → `searcher-pipeline` (query expansion, source-class routing, link-first hand-off)
-    + `deep-retrieval` (explicit multi-hop hunts: `skills: ["deep-retrieval"]` + `goal_mode`)
+  - searcher → `searcher-pipeline` (kernel SKILL.md pinned on every searcher
+    card: deliverable-based mode routing — lookup (targeted facts) / sweep
+    (enumeration with a coverage claim, incl. measurements) / hunt (multi-hop
+    to saturation, signalled by `goal_mode`) — plus the link-integrity floor
+    and the minimal kanban protocol in the kernel; per-mode playbooks in
+    references/. `deep-retrieval` remains only as a deprecated stub)
   - creator → `creator-pipeline` (asset-type routing to the gen chains + the
     creative-skill catalog, Budget grant parsing, structured STATE/Qn block
     dialogue, per-asset PROGRESS, workspace-reuse resume, visual verification,
@@ -318,7 +322,7 @@ tools / isolation / durability? — then routes inline (conversation, quick
 lookups, workspace skills, cron registration) vs kanban: planner =
 multi-card decomposition (the Planner tree — dependency-graph outline for
 user approval; plan-only, never executes), searcher =
-retrieval/web/X (deep hunts via `deep-retrieval` + `goal_mode`), researcher =
+retrieval/web/X (deep hunts via `goal_mode`), researcher =
 analysis/synthesis, engineer = implementation, creator = ALL media production
 (the front door only collects the MediaBrief — purpose, destination specs,
 style references, quantity — and dispatches; it generates nothing itself),
