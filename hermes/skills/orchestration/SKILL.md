@@ -212,7 +212,7 @@ Keep in sync with each worker's `profile.yaml` description:
 | --- | --- | --- | --- |
 | planner | multi-card decomposition: dependency-graph outlines (assignees, technics, grants, parents) for user approval; plan-only, never executes, never creates build cards | — | file, web |
 | searcher | breadth-first retrieval: web/X search, links, latest/current info | `deep-retrieval` (exhaustive multi-hop, pair with `goal_mode`) | web, x_search |
-| researcher | depth: analysis, synthesis, comparison, evaluation, reports | `web-source-vetting` (source trust triage), `media-artifact-verification` (confirmed media numbers — metadata for figures, vision for content) | file, web, vision, video |
+| researcher | depth: analysis, synthesis, comparison, evaluation, reports; fact-check and artifact-vs-spec QA verdicts (pass/fail gates); evidence-backed guidance consumed by a downstream worker | **always pin `researcher-pipeline`** (see note below); optional: `web-source-vetting` (source trust triage), `media-artifact-verification` (confirmed media numbers — metadata for figures, vision for content) | file, web, vision, video |
 | engineer | implementation + GitHub flow: drives OpenCode — code changes, debugging, tests, builds, PRs; specifies requirements into Issues, works from Issues, answers PR reviews, syncs Projects boards; confirms material decisions via block round-trips | **always pin `engineer-pipeline`** (see note below); optional: `opencode-env`, `machine-env` | terminal (hermes-cli) |
 | creator | ALL media production: image, video, GIF, voice assets, batch and single; media advisories (feasibility, chain fit, cost) and style-anchor plan rounds; revisions (`Intent: revise` + previous-card pointers) and salvage of interrupted work; delivers via kanban_attach | **always pin `creator-pipeline`** (see note below); techniques on top: `contextual-image-gen`, `contextual-video-gen`, `hyperframes` (HTML/CSS motion compositions — entry point that routes the rest of the stack), `media-use` (asset resolution, TTS, captions) | media gen chains + terminal |
 | writer | text deliverables: reader-facing prose (marketing long copy, tech articles/blog, documentation) AND producer-facing scripts (漫画台本, 絵コンテ, storyboards, screenplays consumed by creator/artists); tone-calibrated JP quality; drafts only — never publishes | **always pin `writer-pipeline`** (see note below); Japanese norms layers auto-route inside the pipeline — never pin `japanese-*` | file, web |
@@ -225,8 +225,9 @@ tools, grant type); a **technic** is a task-pinnable playbook passed as
 it in a task, with the PIN exceptions: **every engineer card carries
 `skills: ["engineer-pipeline"]`, every creator card
 `skills: ["creator-pipeline"]`, every writer card
-`skills: ["writer-pipeline"]`, and every marketer card
-`skills: ["marketer-pipeline"]`**. The dispatcher preloads pinned skills
+`skills: ["writer-pipeline"]`, every marketer card
+`skills: ["marketer-pipeline"]`, and every researcher card
+`skills: ["researcher-pipeline"]`**. The dispatcher preloads pinned skills
 mechanically into the worker's system prompt, which turns those workers'
 routing/grant kernels from a prompt-level instruction into a guarantee.
 A technic layers ON TOP of the pipeline and never overrides
