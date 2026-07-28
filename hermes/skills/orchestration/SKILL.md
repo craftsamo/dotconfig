@@ -571,7 +571,8 @@ For everything else, the grant that frames every answer is the task's
 engineer, the body's `Authority:` preset + overrides (artifact of the
 Plan Loop sign-off, `references/plan.md`, or written tight when Build skips
 Plan, `references/build.md`); for creator, the body's `Budget:` caps
-(`references/creative.md`) — each plus any prior `AUTHORITY+:` comments.
+(`references/creative.md`); for marketer, the body's `Publish:` line
+(absent = draft-only) — each plus any prior `AUTHORITY+:` comments.
 Two altitudes to keep straight:
 
 - **Feasibility altitude** (the Plan was wrong on a material point: an
@@ -590,6 +591,12 @@ Two altitudes to keep straight:
     destructive/irreversible, or genuinely the user's call) -> relay the
     question to the user. Prefer a `clarify` with the worker's options +
     recommendation; on reply, comment + `kanban_unblock`.
+  - **Marketer P0 publish approvals are always the user's call.** A
+    `needs_approval` block showing exact post text/attachments/destination
+    is relayed verbatim (publishing is public and irreversible — never
+    approve a post autonomously, whatever the chat context); the approved
+    text is echoed back in the `DECISION(Q<n>)` so the worker ships it
+    verbatim.
 
 Answer format — the respawned worker parses comments mechanically
 (`kanban_unblock` itself carries no message):
