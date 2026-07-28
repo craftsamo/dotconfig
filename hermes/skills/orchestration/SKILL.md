@@ -215,7 +215,7 @@ Keep in sync with each worker's `profile.yaml` description:
 | researcher | depth: analysis, synthesis, comparison, evaluation, reports | `web-source-vetting` (source trust triage), `media-artifact-verification` (confirmed media numbers — metadata for figures, vision for content) | file, web, vision, video |
 | engineer | implementation + GitHub flow: drives OpenCode — code changes, debugging, tests, builds, PRs; specifies requirements into Issues, works from Issues, answers PR reviews, syncs Projects boards; confirms material decisions via block round-trips | **always pin `engineer-pipeline`** (see note below); optional: `opencode-env`, `machine-env` | terminal (hermes-cli) |
 | creator | ALL media production: image, video, GIF, voice assets, batch and single; media advisories (feasibility, chain fit, cost) and style-anchor plan rounds; revisions (`Intent: revise` + previous-card pointers) and salvage of interrupted work; delivers via kanban_attach | **always pin `creator-pipeline`** (see note below); techniques on top: `contextual-image-gen`, `contextual-video-gen`, `hyperframes` (HTML/CSS motion compositions — entry point that routes the rest of the stack), `media-use` (asset resolution, TTS, captions) | media gen chains + terminal |
-| writer | reader-facing prose: marketing long copy, tech articles/blog, documentation; tone-calibrated JP quality; drafts only — never publishes | `japanese-writing`, `japanese-tech-prose`, `japanese-prose-rhythm` | file, web |
+| writer | text deliverables: reader-facing prose (marketing long copy, tech articles/blog, documentation) AND producer-facing scripts (漫画台本, 絵コンテ, storyboards, screenplays consumed by creator/artists); tone-calibrated JP quality; drafts only — never publishes | **always pin `writer-pipeline`** (see note below); Japanese norms layers auto-route inside the pipeline — never pin `japanese-*` | file, web |
 | marketer | campaign orchestration + approved publishing (X via xurl): content strategy, post/thread copy, ship within a Publish grant; fans out prose to writer, media to creator, research to searcher/researcher | `social-video-research` (platform-native format/spec recon) | terminal (hermes-cli), web, browser, x_search |
 
 Two-tier vocabulary: the **profile** is the execution contract (model,
@@ -223,8 +223,9 @@ tools, grant type); a **technic** is a task-pinnable playbook passed as
 `skills: [...]` on `kanban_create`. Each worker's pipeline skill
 (`<profile>-pipeline`) auto-loads via its operating contract — never name
 it in a task, with the PIN exceptions: **every engineer card carries
-`skills: ["engineer-pipeline"]` and every creator card
-`skills: ["creator-pipeline"]`**. The dispatcher preloads pinned skills
+`skills: ["engineer-pipeline"]`, every creator card
+`skills: ["creator-pipeline"]`, and every writer card
+`skills: ["writer-pipeline"]`**. The dispatcher preloads pinned skills
 mechanically into the worker's system prompt, which turns those workers'
 routing/grant kernels from a prompt-level instruction into a guarantee.
 A technic layers ON TOP of the pipeline and never overrides
@@ -245,9 +246,13 @@ never waiting in-process. Grants never propagate to worker-created
 children, and such children notify nobody (the orphan-watchdog cron is
 the safety net). Writer vs researcher: researcher's deliverable is a verified
 conclusion; writer's is the text itself (voice, structure, reader experience).
-Writer tasks: pass the WritingBrief fields you already know — audience,
-purpose, medium, tone, length, source links — in the body; the writer blocks
-once (tone samples / missing premises) rather than guessing.
+Writer tasks: pass the WritingBrief fields you already know — deliverable
+type (copy / article / documentation / script), audience, purpose, medium,
+tone, length/budget, source links — in the body; the writer routes prose
+vs script and the norms layers itself, and blocks once (tone samples /
+missing premises) rather than guessing. Script cards for downstream
+production (comic panels, video) should name the artifact file and any
+unit/field conventions the producer expects.
 
 During Plan Loop, workers can also be **consulted at advisory altitude**
 (see `references/plan.md` "Worker consultations") — the same roster, but
