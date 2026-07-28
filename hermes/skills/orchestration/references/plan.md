@@ -132,7 +132,9 @@ Flow:
    - `kanban_create(title, assignee, body, parents=[mapped ids],
      skills=[...], **params, idempotency_key="<plan-card-id>:<key>")` —
      the idempotency key makes re-registration after a partial failure
-     safe.
+     safe. Engineer cards always get `"engineer-pipeline"` prepended to
+     `skills` (the mandatory pin, <Workers>) — add it if the outline
+     omitted it.
    - ack in chat: card ids per outline key, then hand off to normal
      <AfterCreate> / <Failures> handling.
 6. **Changes / rejection.** Comment nothing on the completed plan card:
