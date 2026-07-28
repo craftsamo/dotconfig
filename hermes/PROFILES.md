@@ -184,12 +184,12 @@ and hands the deliverable one rung down; nothing plans two rungs deep.
 | --- | --- | --- | --- |
 | High-level requirement — feature intent ("login feature", "blog feature"): what & why | assistant Plan Loop (L1, with the user) | TaskSpec (goal / scope / Authority / done) | chat + task body |
 | Multi-card decomposition — only when the work spans several workers/cards | planner | dependency-graph outline YAML, user-approved | kanban cards |
-| Low-level requirements — feature → concrete requirement units ("login" → account creation, email verification, session handling) | engineer **specify** mode | GitHub Issues (epic → purpose/work, OpenCode's `approach-github-projects` conventions), user-reviewed before registration | GitHub Issues / Projects |
-| Technical milestones — Wave outline | engineer **plan** mode (or implement's self-generated base) | Wave list (coarse, one line each) | kanban attachment + base session |
+| Low-level requirements — feature → concrete requirement units ("login" → account creation, email verification, session handling) | engineer **shape** mode, specify branch (S1/S2) | GitHub Issues (epic → purpose/work, OpenCode's `approach-github-projects` conventions), user-reviewed before registration, each unit intent-labeled | GitHub Issues / Projects |
+| Technical milestones — Wave outline | engineer **shape** mode, outline branch (or implement's self-generated base) | Wave list (coarse, one line each) | kanban attachment + base session |
 | Phase/unit decomposition — inside one Wave or one Issue | OpenCode plan agent (L3) | phase breakdown | OpenCode sessions + git |
 
-Feasibility (engineer **advisory**) is not a rung — it is a consultation that
-feeds the assistant's Plan Loop from any altitude.
+Feasibility (engineer **assess** mode, ex-advisory) is not a rung — it is a
+consultation that feeds the assistant's Plan Loop from any altitude.
 
 Two rules keep the ladder from collapsing back into confusion:
 
