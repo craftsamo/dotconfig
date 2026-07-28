@@ -216,7 +216,7 @@ Keep in sync with each worker's `profile.yaml` description:
 | engineer | implementation + GitHub flow: drives OpenCode — code changes, debugging, tests, builds, PRs; specifies requirements into Issues, works from Issues, answers PR reviews, syncs Projects boards; confirms material decisions via block round-trips | **always pin `engineer-pipeline`** (see note below); optional: `opencode-env`, `machine-env` | terminal (hermes-cli) |
 | creator | ALL media production: image, video, GIF, voice assets, batch and single; media advisories (feasibility, chain fit, cost) and style-anchor plan rounds; revisions (`Intent: revise` + previous-card pointers) and salvage of interrupted work; delivers via kanban_attach | **always pin `creator-pipeline`** (see note below); techniques on top: `contextual-image-gen`, `contextual-video-gen`, `hyperframes` (HTML/CSS motion compositions — entry point that routes the rest of the stack), `media-use` (asset resolution, TTS, captions) | media gen chains + terminal |
 | writer | text deliverables: reader-facing prose (marketing long copy, tech articles/blog, documentation) AND producer-facing scripts (漫画台本, 絵コンテ, storyboards, screenplays consumed by creator/artists); tone-calibrated JP quality; drafts only — never publishes | **always pin `writer-pipeline`** (see note below); Japanese norms layers auto-route inside the pipeline — never pin `japanese-*` | file, web |
-| marketer | campaign orchestration + approved publishing (X via xurl): content strategy, post/thread copy, ship within a Publish grant; fans out prose to writer, media to creator, research to searcher/researcher | `social-video-research` (platform-native format/spec recon) | terminal (hermes-cli), web, browser, x_search |
+| marketer | campaign orchestration + approved publishing (X via xurl): consultations and honest critiques of assets/drafts (assess), content strategy/calendar (shape), post/thread copy + ship within a Publish grant (campaign); fans out prose to writer, media to creator, research to searcher/researcher | **always pin `marketer-pipeline`** (see note below); optional: `social-video-research` (platform-native format/spec recon) | terminal (hermes-cli), web, browser, x_search |
 
 Two-tier vocabulary: the **profile** is the execution contract (model,
 tools, grant type); a **technic** is a task-pinnable playbook passed as
@@ -224,8 +224,9 @@ tools, grant type); a **technic** is a task-pinnable playbook passed as
 (`<profile>-pipeline`) auto-loads via its operating contract — never name
 it in a task, with the PIN exceptions: **every engineer card carries
 `skills: ["engineer-pipeline"]`, every creator card
-`skills: ["creator-pipeline"]`, and every writer card
-`skills: ["writer-pipeline"]`**. The dispatcher preloads pinned skills
+`skills: ["creator-pipeline"]`, every writer card
+`skills: ["writer-pipeline"]`, and every marketer card
+`skills: ["marketer-pipeline"]`**. The dispatcher preloads pinned skills
 mechanically into the worker's system prompt, which turns those workers'
 routing/grant kernels from a prompt-level instruction into a guarantee.
 A technic layers ON TOP of the pipeline and never overrides
