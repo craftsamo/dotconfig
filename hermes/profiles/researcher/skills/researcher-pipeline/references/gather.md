@@ -25,8 +25,8 @@ Virality != truth. A high search rank is not reliability.
 - **`delegate_task`** — quick parallel lookups you can wait out inside one
   run (a handful of URL fetches, a definition check).
 - **Searcher child cards** — breadth hunts and link harvesting that would
-  eat your runtime. For exhaustive multi-hop hunts, create the card with
-  `skills: ["deep-retrieval"]` and `goal_mode: true`. Searcher hands back
+  eat your runtime. Always pin `skills: ["searcher-pipeline"]`; for
+  exhaustive multi-hop hunts add `goal_mode: true`. Searcher hands back
   links + snippets; the trust scoring stays yours.
 - **Technic playbooks on this profile** — `web-source-vetting` (retrieval
   fallbacks, source independence, vendor-metric discipline) and
