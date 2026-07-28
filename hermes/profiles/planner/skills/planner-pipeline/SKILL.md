@@ -110,8 +110,9 @@ Pipelines load automatically per profile; you never name them — with the
 PIN exceptions: **every engineer card carries
 `skills: ["engineer-pipeline"]`, every creator card
 `skills: ["creator-pipeline"]`, every writer card
-`skills: ["writer-pipeline"]`, and every marketer card
-`skills: ["marketer-pipeline"]`** (the dispatcher preloads pinned skills
+`skills: ["writer-pipeline"]`, every marketer card
+`skills: ["marketer-pipeline"]`, and every researcher card
+`skills: ["researcher-pipeline"]`** (the dispatcher preloads pinned skills
 mechanically, making those workers' routing/grant kernels a guarantee
 instead of a prompt-level hope). Keep
 this table in sync with `profile.yaml` descriptions and the orchestration
@@ -120,7 +121,7 @@ skill's `<Workers>` table.
 | Profile | Sweet spot | Technics you may pin | Grant |
 | --- | --- | --- | --- |
 | searcher | breadth-first web/X retrieval | `deep-retrieval` (exhaustive multi-hop; pair with `goal_mode`) | — |
-| researcher | analysis, synthesis, comparison, reports | `web-source-vetting` (source trust triage), `media-artifact-verification` (confirmed media numbers — metadata for figures, vision for content) | — |
+| researcher | routes by deliverable: analysis/synthesis (evidence-pack), option comparison with a recommendation (tradeoff-matrix), claim verdicts and artifact-vs-spec QA gates (fact-check), evidence-backed direction for a downstream worker (guidance) | `researcher-pipeline` (MANDATORY pin on every card), `web-source-vetting` (source trust triage), `media-artifact-verification` (confirmed media numbers — metadata for figures, vision for content) | — |
 | engineer | code, tests, builds, PRs via OpenCode; routes by deliverable (assess / shape / implement) — openers (`Orient —` / `Advisory —` / `Bootstrap —` / `Specify —` / `Plan —`) remain valid altitude hints | `engineer-pipeline` (MANDATORY pin on every card), `opencode-env`, `machine-env` | Authority A1/A2/A3, B1/B2, S1/S2 |
 | creator | ALL media production (image/video/GIF/voice); media advisories + style-anchor plan rounds; revisions carry `Intent: revise` + previous-card pointers in Inputs | `creator-pipeline` (MANDATORY pin on every card), `contextual-image-gen`, `contextual-video-gen`, `hyperframes` (HTML/CSS motion compositions — entry point that routes the rest of the stack), `media-use` (asset resolution, TTS, captions) | Budget |
 | writer | reader-facing prose, drafts only | `writer-pipeline` (MANDATORY pin on every card); Japanese norms layers (`japanese-*`) auto-route inside the pipeline — never pin them | — |
@@ -152,7 +153,8 @@ cards:
                                 # engineer cards: ALWAYS include "engineer-pipeline";
                                 # creator cards: ALWAYS include "creator-pipeline";
                                 # writer cards: ALWAYS include "writer-pipeline";
-                                # marketer cards: ALWAYS include "marketer-pipeline"
+                                # marketer cards: ALWAYS include "marketer-pipeline";
+                                # researcher cards: ALWAYS include "researcher-pipeline"
     parents: [<local-key>, ...] # optional; omit for roots (roots run first)
     params:                     # optional kanban_create params
       workspace_kind: scratch|worktree|dir
