@@ -369,8 +369,10 @@ Opus 5 as its T2 (see "Fable and the Max weekly pool" below), while
 **researcher** and **searcher** lead on `xai-oauth` — grok-4.5 and grok-4.3
 respectively, splitting the load across two flat-rate subscriptions instead of
 piling every worker onto the Max weekly pool. The coding model inside OpenCode
-remains a separate decision chosen per run by the engineer-pipeline's
-comparative QuotaGate.
+is a separate layer entirely: engineer-pipeline drives a **fixed ladder**
+(`claude-opus-5` → `gpt-5.6-sol` at `--variant high` → `grok-4.5` → OpenRouter),
+descending only on an error or a spent pool — never by pre-judging the task's
+weight.
 
 | Profile | T1 (primary) | T2 | T3 | T4 | `reasoning_effort` |
 | --- | --- | --- | --- | --- | --- |
@@ -454,7 +456,7 @@ calls):
   `gpt-5.6-sol` (`base_url: https://chatgpt.com/backend-api/codex`), as T2 on
   the Anthropic profiles and T3 on planner and researcher. The former
   `gpt-5.6-terra` profile routes were promoted to Sol; the engineer-pipeline's
-  OpenCode QuotaGate remains a separate model-routing layer.
+  OpenCode ProviderLadder remains a separate model-routing layer.
 - **Copilot retired from every chain** (2026-07): the subscription became
   unusable, and its catalog drift had already 404'd tiers silently once.
   Profile fallbacks now use Codex first and OpenRouter as the final tail.
