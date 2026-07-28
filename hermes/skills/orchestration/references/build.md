@@ -39,6 +39,9 @@ Mid-task expansions go through `AUTHORITY+:` comments, never body edits.
 Standard `<TaskSpec>` shape with:
 
 - `assignee: engineer`
+- `skills: ["engineer-pipeline"]` — mandatory on every engineer card: the
+  dispatcher preloads it mechanically, guaranteeing the engineer's
+  routing/authority kernel is in context.
 - `workspace_kind: worktree` + absolute `workspace_path` (or `project:
   <slug>` for a deterministic project branch) — code work needs isolation
   and a preserved OpenCode session.
