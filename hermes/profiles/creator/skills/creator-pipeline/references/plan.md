@@ -3,9 +3,10 @@
 Loaded when <ModeRouting> detects a plan task. For a consistent multi-asset
 set or a costly single asset, fix the style + structure and get the
 orchestrator's sign-off on a CHEAP sample BEFORE spending the full batch
-budget — the media analog of a plan-before-build gate. The core file's
-<CommentProtocol>, <Budget>, <Resume>, <Verification>, and <Delivery> apply
-throughout.
+budget — the media analog of a plan-before-build gate. The kernel's
+<CommentProtocol> and <Budget> apply throughout; re-entry follows
+`references/resume.md`, verification `references/verify.md` (plan anchor
+profile), delivery `references/delivery.md`.
 
 ## When plan applies (else go straight to Produce)
 
@@ -46,12 +47,17 @@ pins an exact reference the batch must match (there is nothing left to lock).
    `Q<n>:` presenting the sample(s) and style spec — options = `approve` /
    `adjust — <knobs>`, recommendation marked; attach the samples.
    `kanban_block(kind=needs_input, reason="Q<n>: style anchor — <one line>")`.
-   If the body says `Review: required`, use a `REVIEW:` headline instead so the
-   orchestrator relays to the human. Stop after the block.
-4. **On approval** (respawn, `DECISION` present). The style spec is now LOCKED.
-   Continue into Produce (the rest of `creator-pipeline`): batch-generate every
+   If the body says `Review: required`, run the full Review gate instead
+   (`references/delivery.md` <ReviewGate>): attach the samples first, then
+   block with a `REVIEW:` headline — the approval arrives as
+   `DECISION(REVIEW): approved / changes`, not as a `DECISION(Q<n>)`. Stop
+   after the block.
+4. **On approval** (respawn: `DECISION(Q<n>): approve` — or
+   `DECISION(REVIEW): approved` on a Review-gated card). The style spec is now LOCKED.
+   Continue into Produce (`references/produce.md`): batch-generate every
    asset reusing the anchor (AnchorByType below), verify each against the
-   approved sample, deliver per <Delivery>. The plan attachment + locked spec are the
+   approved sample (`references/verify.md`, batch profile), deliver per
+   `references/delivery.md`. The plan attachment + locked spec are the
    durable contract — do not re-derive them.
 5. **On `adjust`.** Apply the named changes, re-sample within the plan-spend
    allowance (a re-sample is one cheap gen, never the batch), then a fresh
@@ -62,14 +68,14 @@ pins an exact reference the batch must match (there is nothing left to lock).
 | Asset | Anchor carried into the batch |
 | --- | --- |
 | still image | the **locked style prompt** (text) reused verbatim, subject swapped — the image tool takes no seed/reference, so consistency IS the shared prompt; switch to a prompt-adherent provider (`img-codex-xai`) if it drifts |
-| pixel-art | the **locked palette** — one named palette on every run, or a sample-derived palette applied with `${HERMES_SKILL_DIR}/scripts/palette-extract.py` (see <AssetRouting> "pixel-art specifics") |
+| pixel-art | the **locked palette** — one named palette on every run, or a sample-derived palette applied with `${HERMES_SKILL_DIR}/scripts/palette-extract.py` (see `references/produce.md` <AssetRouting> pixel-art specifics) |
 | video | the approved sample as `reference_image_urls` + a **fixed `seed`** on every render (both supported by `video_gen`) |
 | voice / narration | the same voice id and params across the set |
 
 ## Report
 
 - The plan STEP delivers the attached plan + the approved sample(s); the
-  Produce step then delivers the batch per <Delivery>.
+  Produce step then delivers the batch per `references/delivery.md`.
 - After approval, a `PROGRESS:` comment names the locked anchor (palette name /
   seed / style-spec) so any respawn reuses it instead of re-deriving it.
 
