@@ -101,6 +101,16 @@ laws.
   set (history/convention digest, hunk staging, secret scan, commit lint,
   provenance) and GitHub Projects operations. Ask for the outcome; it will
   reach for them.
+- **It owns the GitHub write conventions.** Commit style (`git-commit`), PR
+  title/body/linking (`git-pullrequest`), and the epic → purpose → work
+  Issue/board formats (`approach-github-projects`, `manage-github-projects`)
+  are OpenCode skills — the same ones the user's own sessions run. That is
+  why engineer-pipeline routes EVERY GitHub write (Issues, PRs, review
+  replies, board items) through an OpenCode run instead of raw `gh`: the
+  output matches the user's own workflow and history. The
+  `github_project_*` tools are `allow` in the global config — the
+  PermissionBridge's per-run tool denies are what enforce the Authority
+  boundary on them.
 - **Agent frontmatter beats your invocation.** Read-only agents keep their own
   permissions no matter what environment you pass — that is why review/debug
   runs need no permission bridge.
