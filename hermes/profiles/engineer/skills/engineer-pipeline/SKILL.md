@@ -6,22 +6,28 @@ description: >-
   repo / environment / GitHub — no judgment, no code) vs bootstrap (establish a
   repo when none exists — non-OpenCode git/gh/scaffolder, B1/B2 grant) vs
   advisory (Plan-Loop
-  feasibility consultations — read-only assessment, no code) vs plan (a grounded
+  feasibility consultations — read-only assessment, no code) vs specify
+  (concretize a settled high-level requirement into low-level requirement
+  Issues on GitHub — epic/purpose/work via OpenCode, S1/S2 grant, no code) vs
+  plan (a grounded
   Wave outline for an implementation goal — read-only, coarse milestones, no
   code; Phase/unit detail is OpenCode's job in implement) vs implement (the
   dialogue-driven OpenCode
-  loop — a base Wave outline + per-Wave forks, Permission/Question bridges) vs
+  loop — a base Wave outline OR a requirement Issue + per-Wave forks,
+  Permission/Question bridges, GitHub flow: work-from-Issue, PR review
+  response, board sync — all GitHub writes via OpenCode) vs
   resume (rejoin after an unblock/respawn). This core file always applies — it
   owns the Authority grant contract (presets A1/A2/A3 for implement + B1/B2 for
-  bootstrap + AUTHORITY+ expansions),
+  bootstrap + S1/S2 for specify + the issues:write override + AUTHORITY+
+  expansions),
   the kanban comment protocol (STATE/Q<n>/PROGRESS markers, DECISION/AUTHORITY+
   replies), checkpoint-then-block, the Review gate (body `Review: required`
   ⇒ block with a REVIEW: headline for human sign-off before completing),
   and the report discipline. Detailed
-  playbooks live in references/{orient,bootstrap,advisory,plan,implement,resume,model-routing}.md —
+  playbooks live in references/{orient,bootstrap,advisory,specify,plan,implement,resume,model-routing}.md —
   load them via skill_view file_path per ModeRouting, never skip. CLI
   mechanics live in the bundled opencode/claude-code/codex skills.
-version: 3.2.0
+version: 3.3.0
 author: CraftSamo
 license: MIT
 metadata:
@@ -40,8 +46,20 @@ orchestrator** over the kanban thread:
   GitHub state so the plan can start grounded. No judgment, no code.
 - **Advisory** — a Plan-Loop consultation: assess feasibility, shape, risk,
   rough size. Deliverable is a short assessment, never code.
+- **Specify** — concretize: the assistant settled a high-level requirement
+  ("login feature") with the user; you ground it on the repo and decompose it
+  into low-level requirement Issues ("account creation", "email
+  verification") registered via OpenCode. No code.
 - **Implementation** — write/refactor code, fix bugs, add tests, PRs, by
-  driving OpenCode through a base-outline / fork-per-Wave loop.
+  driving OpenCode through a base-outline / fork-per-Wave loop — or, on
+  GitHub-flow repos, Issue by Issue (the Issue is the outline), including PR
+  review response and board sync.
+
+The planning ladder (PROFILES.md "Planning ladder") splits the altitudes:
+assistant = high-level requirement (what/why) → specify = low-level
+requirement Issues → plan = Wave outline (non-Issue work only) → OpenCode =
+phases/units. Each mode decides its own altitude ONLY; on GitHub-flow repos
+the Issues replace the Wave outline — never both for the same work.
 
 The worker process is disposable (block ends the run; unblock respawns a
 fresh one), so continuity lives in durable layers only: the kanban comment
@@ -90,7 +108,8 @@ work**. Never proceed on this core file alone.
 | Task body opens with `Orient — inform the plan, don't judge or ship.` — or the body only asks for the state of the repo / environment / GitHub, proposing no change and requesting no feasibility verdict | Orient | `references/orient.md` |
 | Task body opens with `Bootstrap — establish the repo, don't plan or ship.` — establish a repo (clone / starter / greenfield) when none exists yet, before any OpenCode slice | Bootstrap | `references/bootstrap.md` |
 | Task body opens with `Advisory — inform the plan, don't ship.` — or the body only asks questions (feasibility, shape, risk, sizing) and requests no code change | Advisory | `references/advisory.md` |
-| Task body opens with `Plan — outline the Waves, don't build.` — produce a grounded Wave outline (coarse milestones + order) for an implementation goal, no code | Plan | `references/plan.md` + `references/model-routing.md` |
+| Task body opens with `Specify — concretize the requirement, don't build.` — decompose a settled high-level requirement into low-level requirement Issues (draft, review, S2: register via OpenCode), no code | Specify | `references/specify.md` + `references/model-routing.md` |
+| Task body opens with `Plan — outline the Waves, don't build.` — produce a grounded Wave outline (coarse milestones + order) for an implementation goal, no code. NOT for work whose requirement Issues already exist (that goes straight to implement, per Issue) | Plan | `references/plan.md` + `references/model-routing.md` |
 | Task has prior runs / comments (a respawn after block, crash, or timeout) | Resume | `references/resume.md` + the reference of the underlying mode |
 | Anything else (implementation work) | Implement | `references/implement.md` + `references/model-routing.md` |
 
