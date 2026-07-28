@@ -214,7 +214,7 @@ Keep in sync with each worker's `profile.yaml` description:
 | searcher | breadth-first retrieval: web/X search, links, latest/current info | `deep-retrieval` (exhaustive multi-hop, pair with `goal_mode`) | web, x_search |
 | researcher | depth: analysis, synthesis, comparison, evaluation, reports | `web-source-vetting` (source trust triage), `media-artifact-verification` (confirmed media numbers — metadata for figures, vision for content) | file, web, vision, video |
 | engineer | implementation + GitHub flow: drives OpenCode — code changes, debugging, tests, builds, PRs; specifies requirements into Issues, works from Issues, answers PR reviews, syncs Projects boards; confirms material decisions via block round-trips | **always pin `engineer-pipeline`** (see note below); optional: `opencode-env`, `machine-env` | terminal (hermes-cli) |
-| creator | ALL media production: image, video, GIF, voice assets, batch and single; delivers via kanban_attach | `contextual-image-gen`, `contextual-video-gen`, `hyperframes` (HTML/CSS motion compositions — entry point that routes the rest of the stack), `media-use` (asset resolution, TTS, captions) | media gen chains + terminal |
+| creator | ALL media production: image, video, GIF, voice assets, batch and single; media advisories (feasibility, chain fit, cost) and style-anchor plan rounds; revisions (`Intent: revise` + previous-card pointers) and salvage of interrupted work; delivers via kanban_attach | **always pin `creator-pipeline`** (see note below); techniques on top: `contextual-image-gen`, `contextual-video-gen`, `hyperframes` (HTML/CSS motion compositions — entry point that routes the rest of the stack), `media-use` (asset resolution, TTS, captions) | media gen chains + terminal |
 | writer | reader-facing prose: marketing long copy, tech articles/blog, documentation; tone-calibrated JP quality; drafts only — never publishes | `japanese-writing`, `japanese-tech-prose`, `japanese-prose-rhythm` | file, web |
 | marketer | campaign orchestration + approved publishing (X via xurl): content strategy, post/thread copy, ship within a Publish grant; fans out prose to writer, media to creator, research to searcher/researcher | `social-video-research` (platform-native format/spec recon) | terminal (hermes-cli), web, browser, x_search |
 
@@ -222,10 +222,11 @@ Two-tier vocabulary: the **profile** is the execution contract (model,
 tools, grant type); a **technic** is a task-pinnable playbook passed as
 `skills: [...]` on `kanban_create`. Each worker's pipeline skill
 (`<profile>-pipeline`) auto-loads via its operating contract — never name
-it in a task, with ONE exception: **every engineer card carries
-`skills: ["engineer-pipeline"]`**. The dispatcher preloads pinned skills
-mechanically into the worker's system prompt, which turns the engineer's
-routing/authority kernel from a prompt-level instruction into a guarantee.
+it in a task, with the PIN exceptions: **every engineer card carries
+`skills: ["engineer-pipeline"]` and every creator card
+`skills: ["creator-pipeline"]`**. The dispatcher preloads pinned skills
+mechanically into the worker's system prompt, which turns those workers'
+routing/grant kernels from a prompt-level instruction into a guarantee.
 A technic layers ON TOP of the pipeline and never overrides
 lifecycle. No technic fits? Route to the profile default and put the
 technique requirements in the body — a recurring gap is a signal to author

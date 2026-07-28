@@ -106,10 +106,12 @@ engineer's split is the granularity source, yours is a copy.
 
 Two-tier vocabulary: **profile** (execution contract — model, tools, grant
 type) + **technic skills** (task-pinnable playbooks, passed as `skills:`).
-Pipelines load automatically per profile; you never name them — with ONE
-exception: **every engineer card carries `skills: ["engineer-pipeline"]`**
-(the dispatcher preloads pinned skills mechanically, making the engineer's
-routing/authority kernel a guarantee instead of a prompt-level hope). Keep
+Pipelines load automatically per profile; you never name them — with the
+PIN exceptions: **every engineer card carries
+`skills: ["engineer-pipeline"]` and every creator card
+`skills: ["creator-pipeline"]`** (the dispatcher preloads pinned skills
+mechanically, making those workers' routing/grant kernels a guarantee
+instead of a prompt-level hope). Keep
 this table in sync with `profile.yaml` descriptions and the orchestration
 skill's `<Workers>` table.
 
@@ -118,7 +120,7 @@ skill's `<Workers>` table.
 | searcher | breadth-first web/X retrieval | `deep-retrieval` (exhaustive multi-hop; pair with `goal_mode`) | — |
 | researcher | analysis, synthesis, comparison, reports | `web-source-vetting` (source trust triage), `media-artifact-verification` (confirmed media numbers — metadata for figures, vision for content) | — |
 | engineer | code, tests, builds, PRs via OpenCode; routes by deliverable (assess / shape / implement) — openers (`Orient —` / `Advisory —` / `Bootstrap —` / `Specify —` / `Plan —`) remain valid altitude hints | `engineer-pipeline` (MANDATORY pin on every card), `opencode-env`, `machine-env` | Authority A1/A2/A3, B1/B2, S1/S2 |
-| creator | ALL media production (image/video/GIF/voice) | `contextual-image-gen`, `contextual-video-gen`, `hyperframes` (HTML/CSS motion compositions — entry point that routes the rest of the stack), `media-use` (asset resolution, TTS, captions) | Budget |
+| creator | ALL media production (image/video/GIF/voice); media advisories + style-anchor plan rounds; revisions carry `Intent: revise` + previous-card pointers in Inputs | `creator-pipeline` (MANDATORY pin on every card), `contextual-image-gen`, `contextual-video-gen`, `hyperframes` (HTML/CSS motion compositions — entry point that routes the rest of the stack), `media-use` (asset resolution, TTS, captions) | Budget |
 | writer | reader-facing prose, drafts only | `japanese-writing` (all JP deliverables), `japanese-tech-prose` (long-form explanatory only), `japanese-prose-rhythm` (ONLY start-to-finish reading like blog/essay — never scannable copy/reference) | — |
 | marketer | campaign orchestration + approved publishing | `social-video-research` (platform-native format/spec recon) | Publish (absent = draft-only) |
 
@@ -145,7 +147,8 @@ cards:
     title: <imperative, <=80 chars>
     assignee: <profile name from <Roster>>
     skills: [<technic>, ...]    # optional; only technics from <Roster>.
-                                # engineer cards: ALWAYS include "engineer-pipeline"
+                                # engineer cards: ALWAYS include "engineer-pipeline";
+                                # creator cards: ALWAYS include "creator-pipeline"
     parents: [<local-key>, ...] # optional; omit for roots (roots run first)
     params:                     # optional kanban_create params
       workspace_kind: scratch|worktree|dir
@@ -164,6 +167,8 @@ cards:
       Review: required — <what to present>   # only when the user must sign off
       Authority: A1|A2|A3 ...   # engineer only
       Budget: ...               # creator only
+      Intent: new|revise|salvage  # creator produce cards; revise/salvage MUST
+                                  # carry source-card pointers in Inputs
       Publish: ...              # marketer only
 ```
 
