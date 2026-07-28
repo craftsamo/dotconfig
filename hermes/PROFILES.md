@@ -66,7 +66,7 @@ in-turn). A Kanban worker may itself call `delegate_task` during its run.
 | **default** | CLI front door — assistant's CLI counterpart (neutral persona) | CLI | `.` (launch dir) | `web,browser,terminal,file,code_execution,vision,x_search,skills,todo,memory,clarify,delegation,cronjob,kanban` | — | yes |
 | **assistant** | messaging front door + dispatcher host | Telegram | `~/Workspaces` | `web,browser,terminal,file,vision,x_search,skills,todo,memory,clarify,delegation,cronjob,computer_use,kanban` | **yes** | yes (token per-machine) |
 | **planner** | multi-card decomposition into a dependency-graph outline for user approval; plan-only, never executes, never creates build cards | — (worker) | `.` (launch / task ws) | `file,web,skills,memory` | — | yes |
-| **engineer** | implement via OpenCode (git worktree, tests); confirms material decisions through kanban block round-trips | — (worker) | `.` (launch / task ws) | `terminal,file,web,skills,todo,memory,delegation` | — | yes |
+| **engineer** | implement via OpenCode (git worktree, tests) + GitHub flow (specify requirements into Issues, work from Issues, PR review response, Projects updates — writes via OpenCode); confirms material decisions through kanban block round-trips | — (worker) | `.` (launch / task ws) | `terminal,file,web,skills,todo,memory,delegation` | — | yes |
 | **researcher** | synthesize / analyze | — (worker) | `.` (launch / task ws) | `file,web,vision,video,skills,memory,delegation` | — | yes |
 | **searcher** | fast retrieval (web / x_search); deep multi-hop via `deep-retrieval` + `goal_mode` | — (worker) | `.` (launch / task ws) | `web,x_search,skills,memory` | — | yes |
 | **creator** | ALL media production — image, video, GIF, voice, single and batch (front doors only brief and dispatch) | — (worker) | `.` (launch / task ws) | `terminal,file,vision,image_gen,video_gen,video,tts,skills,memory,delegation` + gen plugins | — | yes |
@@ -174,6 +174,34 @@ text/attachments/destination; `P1` = autonomous within named caps —
 account, post count, content scope), leaves `PROGRESS:` with the posted URL
 per post, and treats shipped posts as immutable facts on resume. Details:
 marketer's `marketer-pipeline` skill.
+
+### Planning ladder — who plans at which altitude
+
+Planning happens at five altitudes. Each owner decides its own altitude ONLY
+and hands the deliverable one rung down; nothing plans two rungs deep.
+
+| Altitude | Owner | Deliverable | Durable home |
+| --- | --- | --- | --- |
+| High-level requirement — feature intent ("login feature", "blog feature"): what & why | assistant Plan Loop (L1, with the user) | TaskSpec (goal / scope / Authority / done) | chat + task body |
+| Multi-card decomposition — only when the work spans several workers/cards | planner | dependency-graph outline YAML, user-approved | kanban cards |
+| Low-level requirements — feature → concrete requirement units ("login" → account creation, email verification, session handling) | engineer **specify** mode | GitHub Issues (epic → purpose/work, OpenCode's `approach-github-projects` conventions), user-reviewed before registration | GitHub Issues / Projects |
+| Technical milestones — Wave outline | engineer **plan** mode (or implement's self-generated base) | Wave list (coarse, one line each) | kanban attachment + base session |
+| Phase/unit decomposition — inside one Wave or one Issue | OpenCode plan agent (L3) | phase breakdown | OpenCode sessions + git |
+
+Feasibility (engineer **advisory**) is not a rung — it is a consultation that
+feeds the assistant's Plan Loop from any altitude.
+
+Two rules keep the ladder from collapsing back into confusion:
+
+- **GitHub-flow repos use Issues as the milestone layer.** When specify has
+  registered low-level requirement Issues, implement consumes an Issue (its
+  body is the outline; the PR closes it) — do NOT also produce a Wave
+  outline for the same work. The Wave outline is for repos/work outside the
+  GitHub Issue flow (scratch builds, small refactors, non-GitHub targets).
+- **Escalation moves one rung at a time** (same principle as the dialogue
+  loops): OpenCode's open question goes to the engineer; the engineer's
+  material ambiguity goes to the assistant as a `Q<n>` block; only the
+  assistant talks to the user.
 
 ### Default is the assistant's CLI counterpart (and stays a clean baseline)
 
