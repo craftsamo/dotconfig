@@ -134,15 +134,30 @@ config, a bare `run` cannot even edit files. Translate the effective
 Authority into permissions per invocation:
 
 ```bash
-OPENCODE_PERMISSION='{"edit":"allow","bash":{"*":"allow",<authority-denies>}}' \
+OPENCODE_PERMISSION='{"edit":"allow","bash":{"*":"allow",<authority-denies>},<tool-denies>}' \
   opencode run --auto ...
 ```
 
-| Effective grant | `<authority-denies>` |
+| Effective grant | `<authority-denies>` (bash) |
 | --- | --- |
-| A1 | `"git push*":"deny","gh pr create*":"deny","gh pr merge*":"deny","npm publish*":"deny"` |
-| A2 | drop the push/PR-create denies; keep `"gh pr merge*":"deny"` (merging is never yours) |
+| A1 | `"git push*":"deny","gh pr create*":"deny","gh pr merge*":"deny","gh pr comment*":"deny","gh pr edit*":"deny","gh pr review*":"deny","npm publish*":"deny"` + the issue-write denies below |
+| A2 | drop the push/PR-create/comment/edit/review denies — A2 includes maintaining YOUR OWN PR (reply to review comments, edit the body, re-request review); keep `"gh pr merge*":"deny"` (merging is never yours) + the issue-write denies below |
 | A3 | same as A2 |
+
+**Issue/board writes are in NO A-preset** — only the override line
+`issues: write` (or an `AUTHORITY+:` expansion) grants them. Until granted,
+every build run also carries:
+
+- bash: `"gh issue create*":"deny","gh issue edit*":"deny","gh issue comment*":"deny","gh issue close*":"deny","gh project *":"deny"`
+- `<tool-denies>` — OpenCode's custom GitHub Projects tools are `allow` in its
+  global config, so deny the write ones by name:
+  `"github_project_create":"deny","github_project_field_ensure":"deny","github_project_item_add":"deny","github_project_item_set":"deny","github_project_item_note":"deny","github_project_item_promote":"deny","github_project_view_ensure":"deny","github_project_issue_link":"deny","github_project_issue_develop":"deny"`
+  (`github_project_item_list` stays allowed — read-only).
+
+With `issues: write`: drop the issue/board denies above, but ALWAYS keep
+`"gh issue delete*":"deny"` (deleting is never yours, mirroring the tools'
+own no-delete policy). Reading (`gh issue view/list`, `gh pr view/diff`,
+`github_project_item_list`) is never denied at any grant.
 
 Verified mechanics this relies on:
 
