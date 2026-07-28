@@ -104,8 +104,9 @@ profiles/<name>/     # assistant, planner, engineer, researcher, searcher, creat
                      #   auto-loaded by its operating contract) + optional technic
                      #   skills pinned per task via kanban_create skills:[...]
                      #   (searcher: deep-retrieval / creator: contextual-image/
-                     #   video-gen / writer: opencode Japanese stack via
-                     #   external_dirs / marketer: + upstream social-media/xurl;
+                     #   video-gen / writer: Japanese stack via the curated
+                     #   external-skills symlink dir / marketer: + upstream
+                     #   social-media/xurl;
                      #   engineer groups its technic skills under skills/technic/
                      #   — Hermes walks nested dirs and shows the parent as the
                      #   category, unlike the flat shared agents/skills tree;

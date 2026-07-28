@@ -403,7 +403,7 @@ goals:
   max_turns: 20
 skills:
   external_dirs:
-    - ~/.config/opencode/skills/japanese
+    - ~/.config/hermes/profiles/writer/external-skills
     - ~/ghq/github.com/NousResearch/hermes-agent/skills/creative/humanizer
   template_vars: true
   inline_shell: false
