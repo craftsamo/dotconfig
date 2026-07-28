@@ -89,21 +89,35 @@ implementation card is bounded by "implement feature X, tests pass, PR" —
 Wave/phase detail inside it belongs to the engineer's own plan altitude, not
 to your outline.
 
+Engineer **implementation** cards additionally honor the **one-intent
+boundary**: one card = one kind of work (feature / bugfix / refactor /
+rebuild / perf / deps) — never mix a refactor and a feature in one card (a
+preparatory cleanup is its own card, ordered before the feature).
+Consultation/decomposition cards (opener-hinted assess/shape slices) sit
+outside this list and carry their own contracts. When an implementation goal
+needs finer requirement-level slicing than you can ground, don't guess:
+put ONE engineer shape card (`Specify —` opener, S1/S2) in the graph and
+let its Issue decomposition drive the per-Issue implement cards — the
+engineer's split is the granularity source, yours is a copy.
+
 </GranularityRubric>
 
 <Roster>
 
 Two-tier vocabulary: **profile** (execution contract — model, tools, grant
 type) + **technic skills** (task-pinnable playbooks, passed as `skills:`).
-Pipelines load automatically per profile; you never name them. Keep this
-table in sync with `profile.yaml` descriptions and the orchestration skill's
-`<Workers>` table.
+Pipelines load automatically per profile; you never name them — with ONE
+exception: **every engineer card carries `skills: ["engineer-pipeline"]`**
+(the dispatcher preloads pinned skills mechanically, making the engineer's
+routing/authority kernel a guarantee instead of a prompt-level hope). Keep
+this table in sync with `profile.yaml` descriptions and the orchestration
+skill's `<Workers>` table.
 
 | Profile | Sweet spot | Technics you may pin | Grant |
 | --- | --- | --- | --- |
 | searcher | breadth-first web/X retrieval | `deep-retrieval` (exhaustive multi-hop; pair with `goal_mode`) | — |
 | researcher | analysis, synthesis, comparison, reports | `web-source-vetting` (source trust triage), `media-artifact-verification` (confirmed media numbers — metadata for figures, vision for content) | — |
-| engineer | code, tests, builds, PRs via OpenCode; altitudes chosen by body opener (`Orient —` / `Bootstrap —` / `Plan —` / implement) | — | Authority A1/A2/A3, B1/B2 |
+| engineer | code, tests, builds, PRs via OpenCode; routes by deliverable (assess / shape / implement) — openers (`Orient —` / `Advisory —` / `Bootstrap —` / `Specify —` / `Plan —`) remain valid altitude hints | `engineer-pipeline` (MANDATORY pin on every card), `opencode-env`, `machine-env` | Authority A1/A2/A3, B1/B2, S1/S2 |
 | creator | ALL media production (image/video/GIF/voice) | `contextual-image-gen`, `contextual-video-gen`, `hyperframes` (HTML/CSS motion compositions — entry point that routes the rest of the stack), `media-use` (asset resolution, TTS, captions) | Budget |
 | writer | reader-facing prose, drafts only | `japanese-writing` (all JP deliverables), `japanese-tech-prose` (long-form explanatory only), `japanese-prose-rhythm` (ONLY start-to-finish reading like blog/essay — never scannable copy/reference) | — |
 | marketer | campaign orchestration + approved publishing | `social-video-research` (platform-native format/spec recon) | Publish (absent = draft-only) |
@@ -130,7 +144,8 @@ cards:
   - key: <local-key>            # unique within this outline; assistant maps to task ids
     title: <imperative, <=80 chars>
     assignee: <profile name from <Roster>>
-    skills: [<technic>, ...]    # optional; only technics from <Roster>
+    skills: [<technic>, ...]    # optional; only technics from <Roster>.
+                                # engineer cards: ALWAYS include "engineer-pipeline"
     parents: [<local-key>, ...] # optional; omit for roots (roots run first)
     params:                     # optional kanban_create params
       workspace_kind: scratch|worktree|dir
