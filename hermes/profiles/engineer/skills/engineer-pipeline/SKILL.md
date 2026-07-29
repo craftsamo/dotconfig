@@ -287,7 +287,9 @@ never wait in-process:
 
 1. `kanban_create` the child cards — each body self-contained per the
    orchestrator's task-spec rules (a child never sees this task's thread;
-   e.g. a searcher lookup or a creator asset mid-implementation).
+   e.g. a searcher lookup or a creator asset mid-implementation), and each
+   pinning its assignee's pipeline kernel
+   (`skills=["<profile>-pipeline"]`).
 2. `kanban_create` a **continuation card assigned to your own profile**
    with `parents=[the child ids]` and `skills=["engineer-pipeline"]`: its
    body says what to do with their results (their completion
