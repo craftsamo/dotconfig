@@ -60,13 +60,16 @@ This kernel is mechanically preloaded on every card — keep it lean: routing,
 triage, and contracts live here; playbook detail lives in `references/`
 (loaded on demand) and must never migrate back in.
 
-Two technic skills map the environment, loaded on demand from any mode:
+Three technic skills map the environment, loaded on demand from any mode:
 **`opencode-env`** (what this machine's OpenCode can do — agents, skills incl.
 the <IntentCatalog> mapping intents to approach skills, custom tools,
-permissions, quota) and **`machine-env`** (the machine — config repo,
-Keychain secret injection, account split, the guard on changing Hermes
-itself). Both are maps plus inspection recipes: never assert an environment
-fact from memory — run the recipe.
+permissions, quota, and the <InjectedLayer> baseline for prompts),
+**`machine-env`** (the machine — config repo, Keychain secret injection,
+account split, the guard on changing Hermes itself), and
+**`starter-catalog`** (the starter/boilerplate family — discovery, fit
+evaluation, and introduction when no repo exists yet). All are maps plus
+inspection recipes: never assert an environment fact from memory — run the
+recipe.
 
 </Goal>
 

@@ -22,6 +22,11 @@ mechanically, then rejoin the recorded session — never restart blind.
      (worktree preserved, session lost), re-seed the base from the attached
      Wave outline (`references/opencode.md` <OpenCodeLoop> "Base") before
      forking.
+   - **Gate check before any build run**: the current Wave must have its
+     `PROGRESS: Wave N phases confirmed` comment (opencode.md <OpenCodeLoop>
+     GO gate). Missing — the prior run died between decompose and confirm,
+     or skipped it — → run decompose → confirm for the Wave first; never
+     resume straight into a build fork without the gate artifact.
    - Blocked **mid-Wave** → continue that Wave's build fork:
      `opencode run -s <build-fork-id> '<follow-up incorporating the
      DECISION(s)>'` (wrapped per opencode.md <PermissionBridge>, same model).
@@ -54,3 +59,5 @@ mechanically, then rejoin the recorded session — never restart blind.
 - Effective Authority recomputed from body + all `AUTHORITY+:` comments.
 - The recorded session was rejoined (or a fresh fork from the base was
   justified by the DECISION); the outcome is logged as `PROGRESS:`.
+- Any resumed build run had the current Wave's phases-confirmed gate
+  artifact in the thread (or decompose → confirm was re-run first).
