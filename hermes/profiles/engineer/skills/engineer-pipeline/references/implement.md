@@ -54,15 +54,21 @@ Plan-approval is risk-tiered, not unconditional:
 0. **Know the executor.** If the goal leans on a capability you have not
    confirmed here (a technique OpenCode should own as a skill, a subagent, a
    tool, a model), load `opencode-env` and check — including <IntentCatalog>
-   for the intent's approach skill. Environment symptoms during the build
-   (missing keys, a launcher that "loses" its env, credential errors) are
-   `machine-env`'s subject, not the model's.
+   for the intent's approach skill and <InjectedLayer> for what every
+   session already knows. Knowing that layer is a **precondition for
+   writing dispatch prompts** (opencode.md <PromptContract>): you cannot
+   write the delta without knowing the baseline. Environment symptoms
+   during the build (missing keys, a launcher that "loses" its env,
+   credential errors) are `machine-env`'s subject, not the model's.
 1. **First move** per <IntentDispatch>; record its evidence.
 2. **Model + loop setup** — load `references/opencode.md`; route
    provider/model (<ModelRouting>); apply the <RiskGate>.
 3. **Run the Wave loop** per opencode.md <OpenCodeLoop>: decompose (plan
-   fork) → confirm → implement (build fork under <PermissionBridge>) →
-   verify → commit → `PROGRESS:` with ids. Read every run's output per
+   fork) → confirm (**the GO gate** — a `PROGRESS: Wave N phases confirmed`
+   comment must exist before the build fork; a detailed approved plan goes
+   through the derive variant, <DetailedPlanRule>, never straight to
+   build) → implement (build fork under <PermissionBridge>) → verify →
+   commit → `PROGRESS:` with ids. Read every run's output per
    <QuestionBridge>; interpose <InspectionPrimaries> where a Wave warrants
    it; recover per <CourseCorrect>. Low tier: one session, same bridges.
 4. **Verify per Wave and at the end** — load `references/verify.md`; run the
@@ -105,7 +111,12 @@ Procedure:
 2. **Establish** per the chosen path: `gh repo clone` / the named scaffolder
    (`npx degit`, `create-next-app`, `cargo new`, `uv init`, …; `git init` if
    it didn't) / `git init <path>` + the minimal asked-for skeleton. `gh repo
-   create --template` is a **B2** action.
+   create --template` is a **B2** action. When the path names a starter
+   from the local family, load the `starter-catalog` technic skill and
+   follow its <IntroductionPaths>: clone the named source, point `origin`
+   at the new repo (B2), wire the `upstream` remote to the parent —
+   rebranding the identity surface is NOT bootstrap (it is the follow-up
+   implement task's first Wave).
 3. **Initial commit** (`git -C <path> add -A && git -C <path> commit -m
    "chore: initial commit"`) unless clone history exists.
 4. **Remote (B2 only)** — `gh repo create <owner>/<repo> --<visibility>
@@ -135,6 +146,9 @@ it or block).
   push, architecture change) without a block round-trip.
 - Producing a Wave outline for work that already has a requirement Issue —
   the Issue is the outline; double-planning drifts the spec.
+- Insurance-prose prompts written without knowing the injected layer —
+  restating agent permissions, skill content, or the repo's own check
+  commands (opencode.md <PromptContract>) instead of prompting the delta.
 - Trusting a completion message without the verify.md pass — the classic.
 
 ## Verification
@@ -142,6 +156,8 @@ it or block).
 - The intent was named (body or inferred + noted); its first move ran with
   recorded evidence; the verify.md intent profile passed at every Wave close
   and at handback.
+- Every Wave's build fork was preceded by its `PROGRESS: Wave N phases
+  confirmed` gate artifact (opencode.md <OpenCodeLoop> confirm step).
 - RiskGate honored: medium/high work has the outline attached; high without
   a prior approved outline had an approval round-trip.
 - Engines were loaded at their stages (opencode.md before the first run,
