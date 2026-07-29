@@ -54,9 +54,12 @@ Plan-approval is risk-tiered, not unconditional:
 0. **Know the executor.** If the goal leans on a capability you have not
    confirmed here (a technique OpenCode should own as a skill, a subagent, a
    tool, a model), load `opencode-env` and check — including <IntentCatalog>
-   for the intent's approach skill. Environment symptoms during the build
-   (missing keys, a launcher that "loses" its env, credential errors) are
-   `machine-env`'s subject, not the model's.
+   for the intent's approach skill and <InjectedLayer> for what every
+   session already knows. Knowing that layer is a **precondition for
+   writing dispatch prompts** (opencode.md <PromptContract>): you cannot
+   write the delta without knowing the baseline. Environment symptoms
+   during the build (missing keys, a launcher that "loses" its env,
+   credential errors) are `machine-env`'s subject, not the model's.
 1. **First move** per <IntentDispatch>; record its evidence.
 2. **Model + loop setup** — load `references/opencode.md`; route
    provider/model (<ModelRouting>); apply the <RiskGate>.
@@ -138,6 +141,9 @@ it or block).
   push, architecture change) without a block round-trip.
 - Producing a Wave outline for work that already has a requirement Issue —
   the Issue is the outline; double-planning drifts the spec.
+- Insurance-prose prompts written without knowing the injected layer —
+  restating agent permissions, skill content, or the repo's own check
+  commands (opencode.md <PromptContract>) instead of prompting the delta.
 - Trusting a completion message without the verify.md pass — the classic.
 
 ## Verification
