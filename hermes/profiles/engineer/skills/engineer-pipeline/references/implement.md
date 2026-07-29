@@ -61,8 +61,11 @@ Plan-approval is risk-tiered, not unconditional:
 2. **Model + loop setup** — load `references/opencode.md`; route
    provider/model (<ModelRouting>); apply the <RiskGate>.
 3. **Run the Wave loop** per opencode.md <OpenCodeLoop>: decompose (plan
-   fork) → confirm → implement (build fork under <PermissionBridge>) →
-   verify → commit → `PROGRESS:` with ids. Read every run's output per
+   fork) → confirm (**the GO gate** — a `PROGRESS: Wave N phases confirmed`
+   comment must exist before the build fork; a detailed approved plan goes
+   through the derive variant, <DetailedPlanRule>, never straight to
+   build) → implement (build fork under <PermissionBridge>) → verify →
+   commit → `PROGRESS:` with ids. Read every run's output per
    <QuestionBridge>; interpose <InspectionPrimaries> where a Wave warrants
    it; recover per <CourseCorrect>. Low tier: one session, same bridges.
 4. **Verify per Wave and at the end** — load `references/verify.md`; run the
@@ -142,6 +145,8 @@ it or block).
 - The intent was named (body or inferred + noted); its first move ran with
   recorded evidence; the verify.md intent profile passed at every Wave close
   and at handback.
+- Every Wave's build fork was preceded by its `PROGRESS: Wave N phases
+  confirmed` gate artifact (opencode.md <OpenCodeLoop> confirm step).
 - RiskGate honored: medium/high work has the outline attached; high without
   a prior approved outline had an approval round-trip.
 - Engines were loaded at their stages (opencode.md before the first run,
