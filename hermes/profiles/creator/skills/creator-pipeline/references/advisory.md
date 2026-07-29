@@ -9,10 +9,10 @@ producible, through which chain, at what Budget — not the asset itself.
 - **Generate nothing.** No credits spent, no variants "to illustrate", no
   fan-out. The deliverable is an assessment.
 - **Answer from the catalog, not by trying.** Chain fit comes from
-  <AssetRouting> plus the profile's available-skills catalog (in-tree +
-  `skills.external_dirs` library); prerequisites (running desktop app /
-  MCP) are checked cheaply (`nc -z`, process check), never by launching a
-  production run.
+  `references/produce.md` <AssetRouting> plus the profile's
+  available-skills catalog (in-tree + `skills.external_dirs` library);
+  prerequisites (running desktop app / MCP) are checked cheaply (`nc -z`,
+  process check), never by launching a production run.
 - **Assume, don't block, by default** — label assumptions; block (per the
   core comment protocol) only when every plausible reading changes the
   verdict.
@@ -53,4 +53,5 @@ producible, through which chain, at what Budget — not the asset itself.
 ## Verification
 
 - Deliverable follows the format: verdict + chain + Budget estimate +
-  risks; assumptions labeled; zero generation spend.
+  risks; assumptions labeled; zero generation spend
+  (`references/verify.md`, advisory profile).

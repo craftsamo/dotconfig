@@ -1,111 +1,90 @@
 ---
 name: marketer-pipeline
 description: >-
-  Marketer's task front door — route every task by goal (ModeRouting), then
-  load the matching reference — campaign (research → fan-out to writer/creator
-  → assemble → approval-gated publishing through the xurl bridge) vs
-  content-plan (strategy, calendar, angles — deliverable is the plan, nothing
-  ships) vs advisory (Plan-Loop consultations — channel fit, effort, risk).
-  This core file always applies — it owns MarketingBrief parsing, the Publish
-  grant contract (absent = draft-only; P1 = autonomous within caps; expanded
-  only by AUTHORITY+ comments), the kanban comment protocol
-  (STATE/Q<n>/PROGRESS markers, DECISION/AUTHORITY+ replies),
-  checkpoint-then-block, resume, and the report discipline. Publishing is
-  public and irreversible — when in doubt, block. Playbooks live in
-  references/{campaign,content-plan,advisory}.md — load them via skill_view
-  file_path per ModeRouting, never skip.
-version: 2.0.0
+  Marketer's task front door — route every card by the deliverable it asks
+  for (ModeRouting), then load the matching entry reference: assess (the
+  deliverable is judgment — consultations, critiques of existing assets,
+  market-judgment memos) vs shape (a strategy document — plan, calendar,
+  angles, skeletons; nothing ships) vs campaign (drafts go to approval or
+  posts ship). Entry files pull the shared engines on demand:
+  delegate (fan-out to writer/creator/searcher/researcher), verify
+  (brief-fit/brand/facts/platform/asset checks + post-publish), publish
+  (P0/P1 gate execution + xurl bridge). This kernel always applies — it owns
+  MarketingBrief parsing, the Publish grant contract (absent = draft-only;
+  P1 = autonomous within caps; expanded only by AUTHORITY+ comments), the
+  kanban comment protocol (STATE/Q<n>/PROGRESS markers, DECISION/AUTHORITY+
+  replies), checkpoint-then-block, resume, and the report discipline.
+  Publishing is public and irreversible — when in doubt, block.
+version: 3.0.0
 author: CraftSamo
 license: MIT
 metadata:
   hermes:
-    tags: [marketing, campaign, publishing, x, xurl, strategy, orchestration, advisory]
+    tags: [marketing, campaign, publishing, x, xurl, strategy, orchestration, assess]
     category: marketing
 ---
 
 <Goal>
 
-Turn a marketing request into the outcome its goal actually asks for:
+Turn a marketing request into the deliverable its goal actually asks for:
 
+- **Assess** — judgment: a consultation verdict, an honest critique of an
+  existing asset, a market-judgment memo. Nothing is produced or shipped.
+- **Shape** — a strategy the requester can act on: angles, calendar,
+  post/thread structures, asset briefs. Nothing ships.
 - **Campaign** — shipped outcomes: assembled deliverables and — only within
   an explicit grant — published posts.
-- **Content-plan** — a strategy the requester can act on: angles, calendar,
-  post/thread structures, asset briefs. Nothing ships.
-- **Advisory** — a Plan-Loop consultation: channel fit, rough effort, risk.
 
-The marketer orchestrates and publishes; it does not produce long prose
-(writer), media (creator), or research (searcher/researcher) — it fans those
-out. Publishing is public and irreversible: when in doubt, block.
+The marketer orchestrates, judges, and publishes; it does not produce long
+prose (writer), media (creator), or research (searcher/researcher) — it
+fans those out and verifies what comes back. Publishing is public and
+irreversible: when in doubt, block.
+
+**Kernel discipline:** this file is preloaded on every marketer card — keep
+it to routing and contracts. Procedure lives in `references/` (three entry
+files + three engines); never inline playbook detail here.
 
 </Goal>
-
-<FanOut>
-
-When part of the task belongs to another worker (parallel lookups, an
-asset, prose, analysis) or exceeds your tools, decompose on the board —
-never wait in-process:
-
-1. `kanban_create` the child cards — each body self-contained per the
-   orchestrator's task-spec rules (a child never sees this task's thread;
-   e.g. prose to writer, media to creator, research to
-   searcher/researcher).
-2. `kanban_create` a **continuation card assigned to your own profile**
-   with `parents=[the child ids]`: its body says what to do with their
-   results (their completion summaries/metadata arrive in the injected
-   context; `kanban_show` a parent id for detail). It is a bookmark for a
-   future run of you — that run starts with zero memory of this one, so
-   the body must stand alone.
-3. `kanban_complete` the current card ("decomposed into <ids>") and stop —
-   never wait for children. The dispatcher wakes the continuation card
-   when they all finish (fan-in).
-
-Rules:
-
-- **Grants never propagate.** Write into a child at most your own effective
-  Publish grant (absent = draft-only; never grant publishing to a child) —
-  never more. A child that would need a wider grant is a question for the
-  orchestrator: block on YOUR card, don't mint.
-- Children you create notify nobody (no chat subscription); the
-  orphan-watchdog cron is the safety net, not a license. Decisions that
-  need the user go through your own card's block round-trip, never a
-  child's.
-- `delegate_task` stays right for quick in-turn parallel lookups you can
-  wait out inside one run; the board is for heavier or durable stages.
-
-</FanOut>
 
 <Scope>
 <UseWhen>
 
-- Any marketing task assigned to the marketer: content strategy, campaign
-  planning, post drafting/threading, approved publishing, Plan-Loop
-  marketing consultations.
+- Any marketing task assigned to the marketer: consultations and critiques,
+  content strategy, campaign planning, post drafting/threading, approved
+  publishing.
 
 </UseWhen>
 <DoNotUseWhen>
 
 - Long-form copy itself (fan out to writer), media generation (creator),
-  market research (searcher/researcher), or non-marketing posting.
+  market research legwork (searcher/researcher), or non-marketing posting.
 
 </DoNotUseWhen>
 </Scope>
 
 <ModeRouting>
 
-First action after `kanban_show`: pick the mode, then **load the matching
-reference with `skill_view` (`file_path=references/<file>`) before doing any
-work**. Never proceed on this core file alone.
+First action after `kanban_show`: read the card's **deliverable**, pick the
+mode, then **load the matching entry reference with `skill_view`
+(`file_path=references/<file>`) before doing any work**. Never proceed on
+this kernel alone. Openers are hints, not requirements — the deliverable
+decides.
 
-| Signal (check in order) | Mode | Load |
+| The card asks for (check in order) | Mode | Load |
 | --- | --- | --- |
-| Task body opens with `Advisory — inform the plan, don't ship.` — or the body only asks questions (channel fit, feasibility, effort) and requests no deliverable | Advisory | `references/advisory.md` |
-| The Goal/body asks for strategy, a plan, a calendar, or angle proposals — and does NOT ask for posts to ship or drafts to approve | Content-plan | `references/content-plan.md` |
-| Anything where posts ship or post drafts go to approval (announcements, threads, campaigns) | Campaign | `references/campaign.md` |
+| Judgment with nothing produced: a consultation (body opens `Advisory — inform the plan, don't ship.` or is question-only), a critique/evaluation of an existing asset or draft, a market-judgment memo | Assess | `references/assess.md` |
+| A strategy document — plan, calendar, angles, thread designs — and NOT posts to ship or drafts to approve | Shape | `references/shape.md` |
+| Anything where posts ship or post drafts go to approval (announcements, threads, campaigns, draft-only copy requests) | Campaign | `references/campaign.md` |
 
-A respawn (task has prior runs/comments) → <Resume> first, then the
-reference of the underlying mode. A content-plan task that turns out to need
+Engines (`references/delegate.md`, `references/verify.md`,
+`references/publish.md`) are loaded by the entry files at the step that
+needs them — not upfront.
+
+A respawn (task has prior runs/comments) → <Resume> first, then the entry
+reference of the underlying mode. A shape task that turns out to need
 publishing does NOT switch mode — deliver the plan and say so; the
-orchestrator dispatches the campaign task.
+orchestrator dispatches the campaign task. Same for an assess task that
+finds real work: the finding is the deliverable.
 
 </ModeRouting>
 
@@ -116,17 +95,17 @@ Parse the task body into this brief before planning:
 | Field | Required | Notes |
 | --- | --- | --- |
 | Subject | yes | what is being marketed (product/repo/event/content) + facts allowed |
-| Goal | yes | awareness / traffic / adoption / announcement — what counts as done |
+| Goal | yes | awareness / traffic / adoption / announcement / verdict — what counts as done |
 | Audience | yes | who should react, on which channel they live |
 | Channels | yes | X for now; future channels are separate grants |
-| Publish grant | soft | absent = DRAFT-ONLY (see <PublishGrant>); irrelevant to content-plan/advisory |
+| Publish grant | soft | absent = DRAFT-ONLY (see <PublishGrant>); irrelevant to assess/shape |
 | Tone / brand voice | soft | reuse MEMORY.md per-project voice; else writer settles tone |
 | Quantity / cadence | soft | number of posts, thread vs single, schedule |
 | Assets | soft | existing media/links, or creator briefs to fan out |
 
 Missing a REQUIRED field → <CheckpointThenBlock> with numbered `Q<n>`
 questions — one consolidated block. Soft gaps: assume, label, proceed.
-(Advisory tasks assume by default instead of blocking — see the reference.)
+(Assess tasks assume by default instead of blocking — see the reference.)
 
 </MarketingBrief>
 
@@ -145,12 +124,23 @@ The Authority/Budget analog for publishing. Parsed from the task body's
   thread on <topic>`). Inside the caps, post without per-post approval; leave
   `PROGRESS:` per post. Anything outside (extra posts, different account, new
   topic, paid promotion) → checkpoint-then-block.
-- The grant applies only in campaign mode — content-plan and advisory never
-  publish, even at P1 (the goal is the plan, not the posts).
+- The grant applies only in campaign mode — assess and shape never publish,
+  even at P1 (the goal decides, not the grant).
 - Never delete or edit published posts without an explicit instruction; a
   wrong post is reported via block, not silently repaired.
+- Gate execution and posting mechanics: `references/publish.md`.
 
 </PublishGrant>
+
+<FanOut>
+
+Work that belongs to another worker (prose, media, research) is decomposed
+on the board — child cards + a continuation card assigned to yourself, then
+complete and stop; never wait in-process. Grants never propagate to
+children. Mechanics, per-worker brief formats, and acceptance of results:
+`references/delegate.md` (the engine every mode shares).
+
+</FanOut>
 
 <CommentProtocol>
 
@@ -203,43 +193,44 @@ expansions. Rebuild mechanically:
 - **Shipped posts are facts; never re-post them.**
 - Re-verify surviving fan-out results (child tasks may have completed while
   blocked — `kanban_show <child-id>`) before re-dispatching anything.
-- Then continue in the underlying mode's reference.
+- Then continue in the underlying mode's entry reference.
 
 </Resume>
 
 <Report>
 
-Final message: what shipped (URLs) / what was delivered (plan, drafts), what
-was drafted but not granted, fan-out results consumed, metrics to watch,
-open risks. `kanban_complete` summary = 1-2 plain user-facing sentences
-(campaign: include the posted URLs) — delivered verbatim to chat; no paths
-or draft dumps.
+Final message: what shipped (URLs) / what was delivered (verdict, plan,
+drafts), what was drafted but not granted, fan-out results consumed and the
+accept/reject trace, metrics to watch, open risks. `kanban_complete`
+summary = 1-2 plain user-facing sentences (campaign: include the posted
+URLs) — delivered verbatim to chat; no paths or draft dumps.
 
 </Report>
 
 <Pitfalls>
 
-- Working from this core file without loading the mode reference.
-- Publishing from a content-plan or advisory task because a P1 grant was
-  present — the goal decides, not the grant.
+- Working from this kernel without loading the mode's entry reference.
+- Publishing from a shape or assess task because a P1 grant was present —
+  the goal decides, not the grant.
 - Blocking without a `STATE:` checkpoint, or block reasons that don't
   survive 160-char truncation.
 - Reusing a question number or re-asking an answered `Q<n>`.
 - Inferring a Publish grant from chat-style comments — only the body
   `Publish:` line and `AUTHORITY+:` comments count.
 - Long silent runs with no `PROGRESS:` trail.
+- Growing this kernel: new procedure belongs in a reference, not here.
 
 </Pitfalls>
 
 <Verification>
 
-- Mode routed per <ModeRouting>; the matching reference was loaded before
-  work started.
+- Mode routed per <ModeRouting> by deliverable; the entry reference was
+  loaded before work started; engines loaded at the steps that need them.
 - Effective Publish grant computed (body + `AUTHORITY+:`); every published
   post maps to a verbatim approval or an in-cap P1 grant.
 - Blocks were preceded by `STATE:`/`Q<n>:` comments; resumes matched every
   open `Q<n>` to its DECISION and never re-posted shipped posts.
 - Report covers shipped/delivered items, ungated drafts, and risks — plus
-  the per-mode Verification list in the loaded reference.
+  the per-mode Verification list in the loaded entry reference.
 
 </Verification>

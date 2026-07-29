@@ -89,24 +89,44 @@ implementation card is bounded by "implement feature X, tests pass, PR" —
 Wave/phase detail inside it belongs to the engineer's own plan altitude, not
 to your outline.
 
+Engineer **implementation** cards additionally honor the **one-intent
+boundary**: one card = one kind of work (feature / bugfix / refactor /
+rebuild / perf / deps) — never mix a refactor and a feature in one card (a
+preparatory cleanup is its own card, ordered before the feature).
+Consultation/decomposition cards (opener-hinted assess/shape slices) sit
+outside this list and carry their own contracts. When an implementation goal
+needs finer requirement-level slicing than you can ground, don't guess:
+put ONE engineer shape card (`Specify —` opener, S1/S2) in the graph and
+let its Issue decomposition drive the per-Issue implement cards — the
+engineer's split is the granularity source, yours is a copy.
+
 </GranularityRubric>
 
 <Roster>
 
 Two-tier vocabulary: **profile** (execution contract — model, tools, grant
 type) + **technic skills** (task-pinnable playbooks, passed as `skills:`).
-Pipelines load automatically per profile; you never name them. Keep this
-table in sync with `profile.yaml` descriptions and the orchestration skill's
-`<Workers>` table.
+Pipelines load automatically per profile; you never name them — with the
+PIN exceptions: **every engineer card carries
+`skills: ["engineer-pipeline"]`, every creator card
+`skills: ["creator-pipeline"]`, every writer card
+`skills: ["writer-pipeline"]`, every marketer card
+`skills: ["marketer-pipeline"]`, every researcher card
+`skills: ["researcher-pipeline"]`, and every searcher card
+`skills: ["searcher-pipeline"]`** (the dispatcher preloads pinned skills
+mechanically, making those workers' routing/grant kernels a guarantee
+instead of a prompt-level hope). Keep
+this table in sync with `profile.yaml` descriptions and the orchestration
+skill's `<Workers>` table.
 
 | Profile | Sweet spot | Technics you may pin | Grant |
 | --- | --- | --- | --- |
-| searcher | breadth-first web/X retrieval | `deep-retrieval` (exhaustive multi-hop; pair with `goal_mode`) | — |
-| researcher | analysis, synthesis, comparison, reports | `web-source-vetting` (source trust triage), `media-artifact-verification` (confirmed media numbers — metadata for figures, vision for content) | — |
-| engineer | code, tests, builds, PRs via OpenCode; altitudes chosen by body opener (`Orient —` / `Bootstrap —` / `Plan —` / implement) | — | Authority A1/A2/A3, B1/B2 |
-| creator | ALL media production (image/video/GIF/voice) | `contextual-image-gen`, `contextual-video-gen`, `hyperframes` (HTML/CSS motion compositions — entry point that routes the rest of the stack), `media-use` (asset resolution, TTS, captions) | Budget |
-| writer | reader-facing prose, drafts only | `japanese-writing` (all JP deliverables), `japanese-tech-prose` (long-form explanatory only), `japanese-prose-rhythm` (ONLY start-to-finish reading like blog/essay — never scannable copy/reference) | — |
-| marketer | campaign orchestration + approved publishing | `social-video-research` (platform-native format/spec recon) | Publish (absent = draft-only) |
+| searcher | retrieval, routed by deliverable: targeted lookups, enumerations/surveys with a coverage claim, exhaustive multi-hop hunts (signal with `goal_mode`) | `searcher-pipeline` (MANDATORY pin on every card); no optional technics — `deep-retrieval` is a deprecated stub, use `goal_mode` | — |
+| researcher | routes by deliverable: analysis/synthesis (evidence-pack), option comparison with a recommendation (tradeoff-matrix), claim verdicts and artifact-vs-spec QA gates (fact-check), evidence-backed direction for a downstream worker (guidance) | `researcher-pipeline` (MANDATORY pin on every card), `web-source-vetting` (source trust triage), `media-artifact-verification` (confirmed media numbers — metadata for figures, vision for content) | — |
+| engineer | code, tests, builds, PRs via OpenCode; routes by deliverable (assess / shape / implement) — openers (`Orient —` / `Advisory —` / `Bootstrap —` / `Specify —` / `Plan —`) remain valid altitude hints | `engineer-pipeline` (MANDATORY pin on every card), `opencode-env`, `machine-env` | Authority A1/A2/A3, B1/B2, S1/S2 |
+| creator | ALL media production (image/video/GIF/voice); media advisories + style-anchor plan rounds; revisions carry `Intent: revise` + previous-card pointers in Inputs | `creator-pipeline` (MANDATORY pin on every card), `contextual-image-gen`, `contextual-video-gen`, `hyperframes` (HTML/CSS motion compositions — entry point that routes the rest of the stack), `media-use` (asset resolution, TTS, captions) | Budget |
+| writer | reader-facing prose, drafts only | `writer-pipeline` (MANDATORY pin on every card); Japanese norms layers (`japanese-*`) auto-route inside the pipeline — never pin them | — |
+| marketer | routes by deliverable: assess (consultations, honest critiques of assets/drafts, market-judgment memos), shape (strategy/calendar — nothing ships), campaign (drafts to approval / ship within grant) | `marketer-pipeline` (MANDATORY pin on every card), `social-video-research` (platform-native format/spec recon) | Publish (absent = draft-only) |
 
 - Technic missing for a niche (e.g. pixel art)? Do NOT block: route to the
   profile's pipeline default, write the technique requirements into the card
@@ -130,7 +150,13 @@ cards:
   - key: <local-key>            # unique within this outline; assistant maps to task ids
     title: <imperative, <=80 chars>
     assignee: <profile name from <Roster>>
-    skills: [<technic>, ...]    # optional; only technics from <Roster>
+    skills: [<technic>, ...]    # optional; only technics from <Roster>.
+                                # engineer cards: ALWAYS include "engineer-pipeline";
+                                # creator cards: ALWAYS include "creator-pipeline";
+                                # writer cards: ALWAYS include "writer-pipeline";
+                                # marketer cards: ALWAYS include "marketer-pipeline";
+                                # researcher cards: ALWAYS include "researcher-pipeline";
+                                # searcher cards: ALWAYS include "searcher-pipeline"
     parents: [<local-key>, ...] # optional; omit for roots (roots run first)
     params:                     # optional kanban_create params
       workspace_kind: scratch|worktree|dir
@@ -149,6 +175,8 @@ cards:
       Review: required — <what to present>   # only when the user must sign off
       Authority: A1|A2|A3 ...   # engineer only
       Budget: ...               # creator only
+      Intent: new|revise|salvage  # creator produce cards; revise/salvage MUST
+                                  # carry source-card pointers in Inputs
       Publish: ...              # marketer only
 ```
 

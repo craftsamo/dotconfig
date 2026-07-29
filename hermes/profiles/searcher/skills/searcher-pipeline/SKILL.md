@@ -1,7 +1,7 @@
 ---
 name: searcher-pipeline
-description: Searcher's breadth-first retrieval — query expansion, source-class routing across web + x_search, dedup, and concise link-first findings handed off to researcher/coder.
-version: 1.0.0
+description: Searcher's retrieval kernel — pinned on every searcher card (skills:["searcher-pipeline"]). Routes by deliverable into one mode reference (lookup = targeted facts, sweep = enumeration with a coverage claim, hunt = multi-hop to saturation), and carries the always-on floors — link integrity, retrieval-not-synthesis, minimal kanban protocol.
+version: 2.0.0
 author: CraftSamo
 license: MIT
 metadata:
@@ -12,75 +12,61 @@ metadata:
 
 <Goal>
 
-Searcher gathers candidate sources fast and wide, then hands off. The job is
-coverage and link-first findings — not analysis or conclusions.
+Searcher retrieves: it gathers sourced findings and hands off. The deliverable
+is links + claims with an honest statement of coverage — never analysis,
+verdicts, or implementation (researcher / coder territory).
+
+This core file is the **kernel**: routing and floors only. The actual
+playbooks live in `references/` — keep this file lean; anything
+procedure-sized belongs in a mode reference.
 
 </Goal>
 
-<Scope>
-<UseWhen>
+<ModeRouting>
 
-- Any searcher retrieval task: "find sources / what's out there / latest on X".
+First action on a kanban task: `kanban_show` (read the full body and any
+comments), then pick ONE mode by the card's **deliverable** and **load the
+matching reference with `skill_view` (`file_path=references/<file>`) before
+searching**. Never proceed on this core file alone.
 
-</UseWhen>
+| The card wants | Mode | Load |
+| --- | --- | --- |
+| A specific answer: a fact, a link/doc, "latest on X", who-said-what (default when nothing else fits) | Lookup | `references/lookup.md` |
+| "Collect / enumerate / survey as many as possible" — candidates, examples, instances — or a quantified observation of public web state | Sweep | `references/sweep.md` |
+| An exhaustive source hunt: obscure topic, contested claim needing primary sources, provenance chase — usually dispatched with `goal_mode: true` | Hunt | `references/hunt.md` |
 
-<DoNotUseWhen>
+Openers are not required; infer from the body. A `goal_mode` dispatch is a
+strong Hunt signal but not proof — a goal-looped sweep stays a sweep.
 
-- Synthesis, deep analysis, or implementation — hand those to researcher / coder.
+</ModeRouting>
 
-</DoNotUseWhen>
-</Scope>
+<KanbanProtocol>
 
-<Steps>
+- **Empty or unusable body** (no discernible question or collection target):
+  don't guess a mission. Block once with `Q1: <what exactly to retrieve>` and
+  wait.
+- **Ambiguous but workable body**: assume, don't block — state the
+  interpretation as the first line of your findings ("Interpreted as: …") and
+  proceed. Retrieval is cheap; a labeled assumption beats a round-trip.
+- **Completion**: deliver the full findings in the final message (the scratch
+  workspace is deleted on completion — nothing survives in files). The
+  `kanban_complete` summary is 1-2 plain user-facing sentences; link lists
+  stay in the final message, not the summary.
 
-1. **Frame the query.** Restate it; pull out entities and keywords; generate a
-   few variants (synonyms, narrower/broader, site- or time-scoped).
-2. **Route by source class:**
-   - Official / primary (docs, specs, repos, filings) first.
-   - General web via `web_search`.
-   - `x_search` for real-time events, expert takes, and sentiment.
-   - Forums / community for lived experience.
-3. **Capture each hit shallowly** — title, URL, source/author, date (when
-   time-sensitive), and a one-line gist. Do **not** deep-read or summarize at length.
-4. **Deduplicate** by URL / domain / claim; drop SEO mirrors and reposts.
-5. **Flag** low-confidence, stale, or conflicting hits.
-6. **Hand off** a concise, link-first list, plus a short note of what still needs
-   verification or synthesis by researcher.
+</KanbanProtocol>
 
-</Steps>
+<Floors>
 
-<XSearchGuidance>
+Always on, every mode:
 
-- Use for breaking events, primary accounts, and expert commentary.
-- Virality / engagement is attention, not truth — mark it as such, never as corroboration.
+- **Link floor.** Report only URLs actually retrieved this run — never
+  reconstruct, guess, or pattern-fill a URL. A claim without a real source is
+  dropped, not decorated.
+- **Retrieval, not synthesis.** No verdicts, rankings, recommendations, or
+  essays; conflicts are flagged side by side, not adjudicated. Name the open
+  judgment calls under "Open for researcher".
+- **No write-actions on social platforms** (post / reply / like / follow / DM).
+- **Dates matter.** Time-sensitive claims carry the source's date; stale hits
+  are flagged, not silently mixed in.
 
-</XSearchGuidance>
-
-<OutputTemplate>
-
-Default:
-```text
-- <title / claim> — <URL> (<source>, <date?>) [flag: stale | low-confidence | conflicting?]
-…
-Open for researcher: <what needs verification / deeper reading>
-```
-Keep it link-first. No essays.
-
-</OutputTemplate>
-
-<Pitfalls>
-
-- Search ranking ≠ relevance ≠ trust.
-- Don't synthesize, conclude, or implement — that's the next profile's job.
-- Don't over-collect: stop when coverage is good, not exhaustive.
-- No write-actions on social platforms (post / reply / like / follow / DM).
-
-</Pitfalls>
-
-<Verification>
-
-- Every hit has a URL and an identified source.
-- Duplicates removed; low-confidence / stale / conflicting flagged.
-- Output is breadth (many sources, shallow) with a clear hand-off note.
-
-</Verification>
+</Floors>
