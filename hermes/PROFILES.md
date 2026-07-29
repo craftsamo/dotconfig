@@ -169,7 +169,8 @@ survives block/crash respawns (deleted only on completion) — resumes by
 inventorying surviving intermediates instead of re-spending credits.
 Details: creator's `creator-pipeline` skill. **marketer** speaks it with a
 **Publish** grant (publishing is public and irreversible: absent grant =
-draft-only + a needs_approval block showing the exact post
+draft-only + an `APPROVAL:`-headlined block — `kind=needs_input`, always
+relayed to the human like `REVIEW:` — showing the exact post
 text/attachments/destination; `P1` = autonomous within named caps —
 account, post count, content scope), leaves `PROGRESS:` with the posted URL
 per post, and treats shipped posts as immutable facts on resume. Details:

@@ -8,9 +8,10 @@ doubt, block.
 ## Gate (recap, kernel owns the contract)
 
 - **P0 (no `Publish:` line): approval block.** Before anything goes out,
-  `kanban_block(kind=needs_approval)` showing per post: exact final text,
-  attachments (filenames + what they show), destination (account/channel,
-  reply/quote target). Post ONLY what a `DECISION(Q<n>)` approves,
+  comment per post: exact final text, attachments (filenames + what they
+  show), destination (account/channel, reply/quote target); then
+  `kanban_block(kind=needs_input, reason="APPROVAL: …")` — the `APPROVAL:`
+  headline forces a human relay. Post ONLY what a `DECISION(Q<n>)` approves,
   verbatim — edited wording, however improved, needs re-approval.
 - **P1: autonomous within caps.** The grant names account, post-count cap,
   and content scope. Inside all caps, post without per-post approval.
