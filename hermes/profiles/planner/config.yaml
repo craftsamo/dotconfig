@@ -55,6 +55,13 @@ agent:
   max_turns: 300
   gateway_timeout: 1800
   reasoning_effort: high
+memory:
+  memory_enabled: true
+  user_profile_enabled: false
+  write_approval: false
+  memory_char_limit: 2200
+  user_char_limit: 1375
+  provider: ""
 kanban:
   auto_decompose: false
 skills:
