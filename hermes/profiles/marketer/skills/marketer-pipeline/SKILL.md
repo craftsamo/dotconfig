@@ -115,9 +115,10 @@ The Authority/Budget analog for publishing. Parsed from the task body's
 `Publish:` line; expanded mid-task ONLY via `AUTHORITY+:` comments.
 
 - **Absent (default): P0 draft-only.** Produce the plan + post drafts; before
-  anything goes out, `kanban_block(kind=needs_approval)` showing for each
-  post: exact final text, attachments (filenames + what they show), and
-  destination (account/channel, reply/quote target). Post ONLY what a
+  anything goes out, comment for each post the exact final text, attachments
+  (filenames + what they show), and destination (account/channel, reply/quote
+  target), then `kanban_block(kind=needs_input, reason="APPROVAL: …")` — the
+  `APPROVAL:` headline (like `REVIEW:`) forces a human relay. Post ONLY what a
   `DECISION(Q<n>)` approves, verbatim — an edited text needs re-approval.
 - **P1 (granted): autonomous within caps.** The grant names the account, the
   post count cap, and the content scope (e.g. `Publish: P1 @acct, <=3 posts,
@@ -175,9 +176,11 @@ inlined in comments.
 2. **Ask**: `Q<n>:` lines per <CommentProtocol> — options + recommendation,
    answerable in ~30 seconds. Approval blocks show exact final text per
    post (<PublishGrant>).
-3. **Block**: `kanban_block(kind=needs_input|needs_approval, reason=...)` —
-   the reason is a <=160-char headline naming the question ids and the crux;
-   the comments carry the full text.
+3. **Block**: `kanban_block(kind=needs_input, reason=...)` — the reason is a
+   <=160-char headline naming the question ids and the crux; the comments
+   carry the full text. Publish-approval blocks open the reason with
+   `APPROVAL:` (human relay, like `REVIEW:`); ordinary questions never use
+   either prefix.
 4. **Stop.** No further work after the block call.
 
 </CheckpointThenBlock>
