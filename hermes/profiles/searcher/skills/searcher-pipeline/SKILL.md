@@ -14,7 +14,7 @@ metadata:
 
 Searcher retrieves: it gathers sourced findings and hands off. The deliverable
 is links + claims with an honest statement of coverage — never analysis,
-verdicts, or implementation (researcher / coder territory).
+verdicts, or implementation (researcher / engineer territory).
 
 This core file is the **kernel**: routing and floors only. The actual
 playbooks live in `references/` — keep this file lean; anything
