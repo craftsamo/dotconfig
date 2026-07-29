@@ -20,10 +20,11 @@ mechanically, then rejoin the recorded session — never restart blind.
    - **Re-establish the base if needed.** The base plan session is recorded;
      reuse it if `opencode session list` still shows it. If it's gone
      (worktree preserved, session lost), re-seed the base from the attached
-     Wave outline (`references/implement.md` "Base") before forking.
+     Wave outline (`references/opencode.md` <OpenCodeLoop> "Base") before
+     forking.
    - Blocked **mid-Wave** → continue that Wave's build fork:
      `opencode run -s <build-fork-id> '<follow-up incorporating the
-     DECISION(s)>'` (wrapped per PermissionBridge, same model).
+     DECISION(s)>'` (wrapped per opencode.md <PermissionBridge>, same model).
    - **Between Waves** (or the DECISION invalidates the current Wave's
      approach) → fork fresh from the base for the current Wave per
      OpenCodeLoop (decompose → confirm → build); prior Waves are committed, so
@@ -31,8 +32,8 @@ mechanically, then rejoin the recorded session — never restart blind.
    - The DECISION **invalidates the outline itself** → the Waves changed:
      re-establish the base from the revised outline, attach it, note the
      supersession; Waves already committed stay as they are.
-   - **Read-only slice** (orient / advisory / plan) → no build sessions to
-     rejoin; fold the DECISION(s) into the deliverable recorded in the last
+   - **Read-only slice** (assess / shape) → no build sessions to rejoin;
+     fold the DECISION(s) into the deliverable recorded in the last
      `STATE:` and finish it.
 4. Record the outcome in a short `PROGRESS:` comment so the thread stays an
    audit trail.

@@ -1,5 +1,8 @@
-description: "Produces media assets: images, video, GIFs, posters, voice \u2014 via\
-  \ the generation plugin chains. Best for batch, long-render, or multi-asset production\
-  \ jobs; single quick assets are generated inline by the assistant. Delivers artifacts\
-  \ as kanban attachments. Not for code, research, or writing tasks."
+description: "Produces media assets: images, video, GIFs, posters, voice — via
+  the generation plugin chains. ALL media production routes here, single or
+  batch (never improvised inline); also media advisories (feasibility, chain
+  fit, cost), style-anchor plan rounds before expensive batches, revisions of
+  earlier deliveries (Intent: revise), and salvage of interrupted work
+  (Intent: salvage). Delivers artifacts as kanban attachments. Not for code,
+  research, or writing tasks."
 description_auto: false

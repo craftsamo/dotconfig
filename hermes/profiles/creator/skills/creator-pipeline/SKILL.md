@@ -1,29 +1,28 @@
 ---
 name: creator-pipeline
 description: >-
-  Creator's task front door — route every task by purpose (ModeRouting):
-  produce (the production loop, in this file) vs plan (lock the creative
-  direction on a cheap style-anchor sample before an expensive batch; playbook
-  in references/plan.md) vs advisory (Plan-Loop media consultations —
-  feasibility, chain fit, Budget estimate; playbook in references/advisory.md,
-  loaded via skill_view file_path). Production: parse
-  the brief and its Budget grant (defaults 4 image variants / 2 video renders
-  / 1 corrective pass; expanded only by AUTHORITY+ comments), route by asset
-  type to the right generation chain (image / video / GIF / poster / voice,
-  plus opt-in depth skills like blender-mcp for 3D), clarify creative
-  direction through structured STATE/Qn block round-trips instead of burning
-  credits on guesses, leave a per-asset PROGRESS trail, resume after unblock
-  by matching DECISION(Qn) answers and reusing intermediates surviving in the
-  task workspace, post-process with the bundled scripts, verify outputs
-  visually, and deliver every artifact through kanban_attach with a one-line
-  chat-ready summary. Deep per-type guidance lives in the sibling
-  contextual-image-gen / contextual-video-gen skills.
-version: 2.0.0
+  Creator's task front door — the mechanically-preloaded kernel (dispatchers
+  pin it via kanban_create skills:["creator-pipeline"]). Route every card by
+  its DELIVERABLE (ModeRouting): advisory (media judgment — feasibility,
+  chain fit, Budget estimate; no asset, zero spend) vs plan (a locked
+  creative direction — cheap style anchor + sign-off before an expensive
+  batch) vs produce (delivered assets), with resume as the re-entry overlay
+  after a block/respawn. Then triage the INTENT (IntentTriage): new / revise
+  / salvage — one token per card deciding the first move (spec discovery vs
+  inheritance vs inventory) and the verification floor. This kernel owns the
+  Budget grant contract (spend caps + AUTHORITY+ expansions), the kanban
+  comment protocol (STATE/Q<n>/PROGRESS, DECISION/AUTHORITY+),
+  checkpoint-then-block, and FanOut. Entry playbooks live in
+  references/{advisory,plan,produce,resume}.md; engines in
+  references/{iterate,verify,delivery}.md (feedback-driven revision, the
+  V1-V6 media checks with per-intent profiles, and attachment + Review gate
+  + evidence-backed reporting) — load via skill_view file_path, never skip.
+version: 3.0.0
 author: CraftSamo
 license: MIT
 metadata:
   hermes:
-    tags: [media, image, video, gif, tts, production, kanban, delivery]
+    tags: [media, image, video, gif, tts, production, kanban, delivery, verification, triage, intent]
     category: creative
     related_skills: [contextual-image-gen, contextual-video-gen]
 ---
@@ -31,8 +30,27 @@ metadata:
 <Goal>
 
 Turn a kanban media brief into delivered assets: right generation chain per
-asset type, credits spent deliberately, outputs verified with your own eyes,
-artifacts attached to the task — never stranded on disk.
+asset type, credits spent deliberately, outputs verified with your own
+eyes, artifacts attached to the task — never stranded on disk. You produce
+hands-on (generation toolsets, ffmpeg, the HyperFrames CLI), but the spend
+is granted, not discretionary: the Budget contract and the comment protocol
+in this kernel govern every mode.
+
+Three deliverable kinds = three modes (<ModeRouting>): **advisory** (media
+judgment, zero spend), **plan** (a locked direction — anchor before batch),
+**produce** (the assets themselves). Orthogonally, every produce card has
+ONE **intent** (<IntentTriage>) — new / revise / salvage — deciding its
+first move and its verification floor.
+
+The worker process is disposable (block ends the run; unblock respawns a
+fresh one), so continuity lives in durable layers only: the kanban comment
+thread (decisions, locked anchors, the spend tally), attachments, and the
+surviving task workspace. Never rely on a long-running session's memory —
+and never treat already-paid-for work as waste (`references/resume.md`).
+
+This kernel is mechanically preloaded on every card — keep it lean:
+routing, triage, and contracts live here; playbook detail lives in
+`references/` (loaded on demand) and must never migrate back in.
 
 </Goal>
 
@@ -40,7 +58,9 @@ artifacts attached to the task — never stranded on disk.
 <UseWhen>
 
 - Any kanban/delegated creator task: images, video, GIFs, poster frames,
-  loops, voice lines, batch or multi-asset production.
+  loops, voice lines, batch or multi-asset production, media
+  consultations, revisions of earlier deliveries, salvage of interrupted
+  work.
 
 </UseWhen>
 <DoNotUseWhen>
@@ -52,60 +72,65 @@ artifacts attached to the task — never stranded on disk.
 
 <ModeRouting>
 
-Pick the mode first:
+First action after `kanban_show`: classify the card by its **deliverable**,
+then **load the matching entry reference with `skill_view`
+(`file_path=references/<file>`) before doing any work** — plus
+`references/resume.md` FIRST when the task has prior runs. Never proceed on
+this kernel alone.
 
-| Signal (check in order) | Mode | Playbook |
+| The card's deliverable | Mode | Load |
 | --- | --- | --- |
-| Task body opens with `Advisory — inform the plan, don't ship.` — or only asks questions (media feasibility, chain fit, cost/Budget estimate) and requests no asset | Advisory | load `references/advisory.md` via `skill_view` (`file_path=references/advisory.md`) before doing any work |
-| Task body opens with `Plan —`, or delivers a **consistent multi-asset set / batch** or a **single high-cost asset** whose creative direction is not already pinned to an exact reference | Plan | load `references/plan.md` via `skill_view` before generating anything |
-| Anything else that delivers assets (one cheap asset, or an exact reference to match) | Produce | the rest of THIS file |
+| **Media judgment** — feasibility, chain fit, cost/Budget estimate; no asset requested | Advisory | `references/advisory.md` |
+| **A locked direction** — a consistent multi-asset set / batch, or a single high-cost asset, whose creative direction is not pinned to an exact reference yet | Plan | `references/plan.md` |
+| **Assets** — anything that delivers files (one cheap asset, an exact reference to match, an approved anchor to batch from) | Produce | `references/produce.md` |
+| **(Re-entry, not a mode)** — the task has prior runs/comments: respawn after a block, crash, or timeout | Resume overlay | `references/resume.md` **+** the underlying mode's file |
 
-Advisory tasks generate nothing — no credits spent, no assets delivered; an
-advisory task that turns out to need real production is reported as such,
-not silently produced. Plan spends only the cheap style-anchor sample, then
-continues into Produce for the batch once the orchestrator signs off — never
-render the batch before the anchor is approved.
+- **Openers are optional hints, not contracts.** `Advisory — inform the
+  plan, don't ship.` → Advisory; `Plan —` → Plan. A card with no opener
+  routes by deliverable; when it delivers assets, Produce is the default —
+  but a batch/high-cost card without a pinned reference belongs to Plan
+  even without the opener.
+- Advisory generates nothing — an advisory card that turns out to need
+  real production is reported as such, **never silently produced**. Plan
+  spends only the cheap anchor, then continues into Produce after
+  sign-off.
+- The engines — `references/{iterate,verify,delivery}.md` — are loaded by
+  the entry files at the stage that needs them.
 
 </ModeRouting>
 
-<CommentProtocol>
+<IntentTriage>
 
-Dialogue with the orchestrator travels as kanban comments with a fixed
-marker as the first token (shared contract across workers). You WRITE:
+For produce-mode cards, classify WHAT KIND of work the card is — **one
+token per card**. If the body carries `Intent: <token>`, use it; otherwise
+infer from the table and note the token in your first `STATE:`/`PROGRESS:`
+comment. The intent decides the **first move** (do it before any spend)
+and the **verification floor** (`references/verify.md` intent profiles).
 
-- `STATE:` — before a block: what's produced so far, what the question
-  decides, which intermediates sit in the workspace (they survive the
-  respawn — see <Resume>), and the **spend tally** so far (e.g.
-  `spend: img 3/4, corrective 0/1`) — surviving files alone can't tell how
-  much budget went into failed attempts.
-- `Q<n>: <question>` — numbered questions, 2-4 concrete options, your
-  recommendation marked. Numbering continues across the task's lifetime;
-  batch all pending questions into one block round-trip.
-- `PROGRESS: <one-two lines>` — per finished asset (or batch chunk): what's
-  delivered-ready, what's next, ending with the running spend tally
-  (`spend: img 3/4`). Comments are NOT pushed to chat; the orchestrator
-  reads them on demand, so keep them frequent but terse.
+| Intent | The card is about | First move | Also load |
+| --- | --- | --- | --- |
+| `new` | fresh assets from a brief | discover destination specs + style inputs; batch/high-cost without a pinned reference → the Plan gate first | — |
+| `revise` | changing an existing delivery (v2, «作り直し», «修正», `DECISION(REVIEW): changes`) | **inheritance**: read the previous card's DECISIONs + locked anchor before any spend | `references/iterate.md` FIRST |
+| `salvage` | recovering/canonicalizing work an earlier effort already paid for | **inventory** what survives before any spend | `references/resume.md` <Salvage> FIRST |
 
-You READ (written by the orchestrator):
+One card = one intent — a card that mixes them (revise these two, plus
+three new ones) is a granularity finding: report it, ask for a split, or
+handle it only when the Budget lines are explicitly separate.
 
-- `DECISION(Q<n>): <choice> — <reason>` — the binding answer to your Q<n>.
-- `AUTHORITY+: <grant line(s)>` — an expansion of the task's Budget (see
-  <Budget>). Grants only expand; nothing shrinks mid-task.
+Verification floors live in `references/verify.md`: `new` splits there
+into single vs batch/anchored rows; plan and advisory modes have their
+own rows.
 
-Block mechanics: `kanban_block(kind=needs_input, reason=...)` with the
-reason as a **<=160-char headline** naming the open question ids and the
-crux (the chat notification truncates it) — the full `Q<n>:` text lives in
-the comments. Stop producing after the block call.
-
-</CommentProtocol>
+</IntentTriage>
 
 <Brief>
 
-The task body is the whole brief (workers never see the chat). Extract before
-generating: purpose/audience, asset type(s) and count, style/tone references,
-dimensions/platform specs, delivery format, and the `Budget:` line
-(<Budget>). If creative direction is ambiguous and the body carries no
-reference (style, aspect, tone), do ONE block round-trip per
+The task body is the whole brief (workers never see the chat). Extract
+before generating: purpose/audience, asset type(s) and count, style/tone
+references, dimensions/platform specs, delivery format, the `Budget:` line
+(<Budget>) — and for revise/salvage, the source-card pointers the intent's
+first move needs. If creative direction is ambiguous and the body carries
+no reference (style, aspect, tone), do ONE block round-trip per
 <CommentProtocol>. Never burn generation credits guessing; never block
 twice for what one batched question could settle.
 
@@ -120,15 +145,14 @@ sets the caps; absent → the defaults:
 | --- | --- |
 | Still-image generations | 4 variants per asset |
 | Video renders | 2 per asset |
-| Corrective regeneration | 1 pass per asset (after <Verification>) |
+| Corrective regeneration | 1 pass per asset (after verification) |
 | Batch quantity | exactly the brief's count |
 | Plan-mode style anchor | 1-2 cheap samples per set, before the batch (Plan mode only) |
 
 - **Effective budget = body `Budget:` + all `AUTHORITY+:` comments**, in
-  comment order.
-- **Plan-mode anchor spend is small and up front**: the 1-2 samples that lock
-  the style are counted as plan-spend and settled by the sign-off (see
-  `references/plan.md`) — the batch budget applies only after approval.
+  comment order. Grants only expand; nothing shrinks mid-task.
+- Revise cards: the defaults apply **per revised asset** — untouched
+  assets cost nothing (`references/iterate.md`).
 - Need to exceed it (more variants, another render, a longer cut)? That is
   a block round-trip: `Q<n>` with the cost stated ("2 more renders,
   ~<estimate>"), never a silent overrun.
@@ -136,73 +160,59 @@ sets the caps; absent → the defaults:
 
 </Budget>
 
-<AssetRouting>
+<CommentProtocol>
 
-Load the matching sibling skill for depth (skill_view; they live beside this
-skill in this profile's skills tree):
+Dialogue with the orchestrator travels as kanban comments with a fixed
+marker as the first token (shared contract across workers). You WRITE:
 
-| Asset | Chain | Depth skill |
-| --- | --- | --- |
-| still image, logo, icon set, text card, social visual | `image_gen` tool (img-xai-codex-fal chain) | `contextual-image-gen` |
-| video clip, text-to-video, image-to-video | `video_gen` tool (vid-xai-fal chain) | `contextual-video-gen` |
-| HTML/CSS motion graphics, product tour, captioned narration, website-to-video | `hyperframes` CLI | `hyperframes` |
-| GIF, loop, poster frame | generate video first, then the bundled scripts (`to-gif.sh`, `make-loop.sh`, `poster-frame.sh`) | `contextual-video-gen` |
-| voice line / narration | `tts` toolset | — |
-| 3D modeling / scene / render | running desktop Blender via socket | `blender-mcp` |
+- `STATE:` — before a block: what's produced so far, what the question
+  decides, which intermediates sit in the workspace (they survive the
+  respawn — `references/resume.md`), the locked anchor values if any, and
+  the **spend tally** so far (e.g. `spend: img 3/4, corrective 0/1`) —
+  surviving files alone can't tell how much budget went into failed
+  attempts.
+- `Q<n>: <question>` — numbered questions, 2-4 concrete options, your
+  recommendation marked. Numbering continues across the task's lifetime;
+  batch all pending questions into one block round-trip.
+- `PROGRESS: <one-two lines>` — per finished asset (or batch chunk): what's
+  delivered-ready, what's next, ending with the running spend tally
+  (`spend: img 3/4`). Comments are NOT pushed to chat; the orchestrator
+  reads them on demand, so keep them frequent but terse.
 
-The table is not closed. This profile's **available-skills catalog** already
-carries far more than these core chains — the in-tree creative skills plus a
-whole upstream `creative/` + `media/` library on `skills.external_dirs`
-(comfyui, manim-video, ascii-video, p5js, excalidraw, touchdesigner-mcp,
-gif-search, songwriting-and-ai-music, …). Before declaring an asset type
-unsupported, scan that catalog and `skill_view` the match. Some carry an
-availability prerequisite — a running desktop app or MCP (`blender-mcp` →
-`nc -z -w2 localhost 9876`; comfyui / touchdesigner similarly). Prerequisite
-unmet → `Q<n>` block stating what must be started; never fake the asset
-another way.
+You READ (written by the orchestrator):
 
-A dispatch may **force-load a technique skill** (the task carried `skills:` —
-e.g. `pixel-art`, `meme-generation`, `concept-diagrams`,
-`baoyu-article-illustrator`, `baoyu-comic`). That skill supplies the craft for
-the asset: follow it, but keep THIS flow's Budget, verification, and delivery.
-The technique skill's own interactive steps (its `clarify` menus) do NOT apply
-here — style comes from the brief and the Budget-gated `Q<n>:` block protocol,
-not an inline `clarify`.
+- `DECISION(Q<n>): <choice> — <reason>` — the binding answer to your Q<n>.
+- `AUTHORITY+: <grant line(s)>` — an expansion of the task's Budget (see
+  <Budget>).
 
-**pixel-art specifics** (force-loaded `pixel-art`): its `pixel_art.py` converts
-an EXISTING image — it has no generator, so the base is yours to make. (1)
-`image_generate` a base first: a bold, flat-shaded subject on a simple
-background (pixel conversion collapses fine detail), sized a few× the target
-sprite so the downscale keeps shape. (2) Convert with the skill's own
-`pixel_art.py` (`--preset <name>` or `--palette <NAME> --block <n>`). For a
-**batch, lock ONE palette across every asset** so the set stays consistent —
-either the same named palette on each run, or, for a palette taken from an
-approved sample, derive-and-apply it once with this profile's
-`${HERMES_SKILL_DIR}/scripts/palette-extract.py apply <sample.png> <out_dir> <base…>`.
-Never let each asset quantize adaptively on its own — that drifts the set.
-Do NOT edit the upstream `pixel_art.py` (read-in-place, auto-updated); the
-sample-palette step lives here.
+Block mechanics: checkpoint first (attach work-so-far or name the
+workspace intermediates in the `STATE:` comment), then
+`kanban_block(kind=needs_input, reason=...)` with the reason as a
+**<=160-char headline** naming the open question ids and the crux (the
+chat notification truncates it) — the full `Q<n>:` text lives in the
+comments. Stop producing after the block call. The `REVIEW:` headline
+prefix is reserved for the human sign-off gate
+(`references/delivery.md` <ReviewGate>), never for ordinary questions.
 
-Post-process with terminal tools (ffmpeg, the skill scripts) in the task
-workspace; keep intermediate files out of the delivery.
-
-</AssetRouting>
+</CommentProtocol>
 
 <FanOut>
 
-When part of the task belongs to another worker (parallel lookups, an
-asset, prose, analysis) or exceeds your tools, decompose on the board —
-never wait in-process:
+When part of the task belongs to another worker (parallel lookups, prose,
+analysis) or exceeds your tools, decompose on the board — never wait
+in-process:
 
 1. `kanban_create` the child cards — each body self-contained per the
    orchestrator's task-spec rules (a child never sees this task's thread;
    e.g. a searcher reference hunt before an expensive render batch).
 2. `kanban_create` a **continuation card assigned to your own profile**
-   with `parents=[the child ids]`: its body says what to do with their
-   results (their completion summaries/metadata arrive in the injected
-   context; `kanban_show` a parent id for detail). It is a bookmark for a
-   future run of you — that run starts with zero memory of this one, so
-   the body must stand alone.
+   with `parents=[the child ids]` and `skills=["creator-pipeline"]`: its
+   body says what to do with their results (their completion
+   summaries/metadata arrive in the injected context; `kanban_show` a
+   parent id for detail). It is a bookmark for a future run of you — that
+   run starts with zero memory of this one, so the body must stand alone
+   (include the `Intent:` token, the effective Budget, and the locked
+   anchor values).
 3. `kanban_complete` the current card ("decomposed into <ids>") and stop —
    never wait for children. The dispatcher wakes the continuation card
    when they all finish (fan-in).
@@ -210,8 +220,7 @@ never wait in-process:
 Rules:
 
 - **Grants never propagate.** Write into a child at most your own effective
-  Budget (spend caps; a child's generation spend counts against nothing you
-  can expand yourself) — never more. A child that would need a wider grant
+  Budget (spend caps) — never more. A child that would need a wider grant
   is a question for the orchestrator: block on YOUR card, don't mint.
 - Children you create notify nobody (no chat subscription); the
   orphan-watchdog cron is the safety net, not a license. Decisions that
@@ -222,78 +231,65 @@ Rules:
 
 </FanOut>
 
-<Resume>
+<Steps>
 
-Every respawned run (task has prior runs/comments):
+1. **Intake.** `kanban_show`; parse the <Brief> and the <Budget> grant.
+2. **Route + triage.** Pick the mode per <ModeRouting>, load the entry
+   reference via `skill_view`; for produce cards classify the intent per
+   <IntentTriage> and load its companion file.
+3. **First move** per the intent row (spec discovery / inheritance /
+   inventory); record its outcome in a comment before spending.
+4. **Execute** the loaded playbook; the entry files load the engines
+   (`iterate.md` / `verify.md` / `delivery.md`) at their stages.
+5. **Dialogue.** Any material open decision → checkpoint, `STATE:` +
+   `Q<n>:`, block once per <CommentProtocol>; answers arrive as
+   `DECISION(Q<n>)` after a respawn.
+6. **Verify** every produced file per `references/verify.md` (the
+   intent's profile) — your eyes are the gate.
+7. **Deliver + report** per `references/delivery.md` (attachments, the
+   Review gate when the body carries `Review:`, evidence-backed report,
+   one-line chat summary); complete the task.
 
-1. `kanban_show <id>` — rebuild the dialogue state mechanically: match every
-   `Q<n>` against a `DECISION(Q<n>)` (unanswered + gating → re-block with the
-   same n), and recompute the effective Budget (body + `AUTHORITY+:`
-   comments).
-2. **Inventory the workspace** (`$HERMES_KANBAN_WORKSPACE`): scratch dirs
-   survive block/crash respawns — deletion happens only on completion. List
-   what's already generated. **Spent budget stays spent**: take the tally
-   from the latest `STATE:`/`PROGRESS:` comment (not from counting files —
-   failed attempts also cost); no recorded tally after a crash → count
-   conservatively (files present + 1).
-3. **Reuse, don't regenerate**: apply the DECISION to the surviving
-   intermediates (post-process, re-crop, continue the batch). Regenerate
-   only what the DECISION actually invalidates.
-4. Record the outcome in a short `PROGRESS:` comment.
-
-</Resume>
-
-<Verification>
-
-Before completing, inspect every produced file yourself (image/video input —
-vision): dimensions and format match the spec, no artifacts/garbled text, the
-style matches the brief. A clear miss gets the Budget's corrective pass
-(default: one per asset); if it still misses, deliver the best attempt and
-state the gap plainly — exceeding the budget instead is a `Q<n>` block, not
-a judgment call.
-
-</Verification>
-
-<Delivery>
-
-- `kanban_attach` every final artifact (scratch workspaces are deleted on
-  completion — a file not attached is a file lost).
-- Final message: assets produced (type, dimensions, format), chain/provider
-  used, prompts or seeds worth keeping, verification result, gaps or risks.
-- `kanban_complete` summary: one line of 1-2 plain user-facing sentences —
-  delivered verbatim to the requester's chat; no prompts, seeds, or paths.
-- **Review gate**: if the task body carries `Review:` (e.g. `Review:
-  required`), do NOT complete after verification — `kanban_attach` the
-  final assets first (attachments survive blocks), leave a `STATE:`
-  comment naming them, then `kanban_block(kind=needs_input,
-  reason="REVIEW: <one-line asset summary>")`. The `REVIEW:` prefix makes
-  the orchestrator relay to the human. On respawn: `DECISION(REVIEW):
-  approved` → complete as above; `changes — <list>` → apply within the
-  remaining Budget (a revision that needs more spend is a `Q<n>` round,
-  not silent overrun), then a fresh `REVIEW:` round.
-
-</Delivery>
+</Steps>
 
 <Pitfalls>
 
-- Generating before reading the whole brief (count, specs, platform, Budget).
-- Guessing style direction instead of one batched `Q<n>` block round-trip.
-- Silently exceeding the Budget (more variants "to be safe") — expansion is
-  the orchestrator's call via `AUTHORITY+:`, requested through a block.
-- Regenerating after a respawn what already sits in the workspace — the
-  scratch dir survives blocks; inventory before spending (<Resume>).
-- Block reasons that don't survive 160-char truncation, or full questions
-  living only in the reason instead of `Q<n>:` comments.
-- Long batch runs with no `PROGRESS:` trail — the orchestrator's only
-  mid-run visibility.
-- Declaring an asset type unsupported without checking the opt-in sibling
-  skills, or using an opt-in chain whose prerequisite isn't running.
-- Leaving artifacts only on disk / forgetting kanban_attach.
-- Completing without visually inspecting the output.
-- Completing a `Review: required` task without an approved `REVIEW:` round,
-  or using the `REVIEW:` prefix on an ordinary `Q<n>` question block.
-- Paths, prompts, or seeds in the kanban_complete summary line.
-- Endless regeneration loops — the budgeted corrective pass, then report
-  honestly.
+- Working from this kernel without loading the mode's entry reference —
+  the playbooks (chains, anchor procedure, inheritance, inventory) live
+  there.
+- Skipping the intent triage or its first move — a revise without
+  inheritance drifts the set; a salvage without inventory double-spends.
+- Generating before reading the whole brief (count, specs, platform,
+  Budget), or guessing style instead of one batched `Q<n>` round-trip.
+- Silently exceeding the Budget (more variants "to be safe") — expansion
+  is the orchestrator's call via `AUTHORITY+:`, requested through a block.
+- Blocking without checkpointing (attach/comment work-so-far first), block
+  reasons that don't survive 160-char truncation, or full questions living
+  only in the reason instead of `Q<n>:` comments.
+- Reusing a question number or re-asking an already-DECIDED `Q<n>`.
+- Long runs with no `PROGRESS:` trail — the orchestrator's only mid-run
+  visibility.
+- Producing an asset from an advisory card because it seemed cheap —
+  advisory never ships; report the finding instead.
+- Completing without the verify pass, or leaving artifacts only on disk —
+  `references/verify.md` and `references/delivery.md` are not optional
+  stages.
 
 </Pitfalls>
+
+<Verification>
+
+- The mode was routed by deliverable per <ModeRouting> and the entry
+  reference was loaded before work started; produce cards named their
+  intent (body or inferred + noted) and ran its first move before any
+  spend.
+- Effective Budget computed (body + `AUTHORITY+:` comments); every
+  generation maps to a cap or a granted expansion; the tally in the
+  report reconciles.
+- Blocks were preceded by a checkpoint + `STATE:`/`Q<n>:` comments, with a
+  <=160-char reason headline; `REVIEW:` used only for the sign-off gate.
+- Every deliverable passed its `references/verify.md` profile and reached
+  the requester via `references/delivery.md` — plus the per-mode
+  Verification list in the loaded reference.
+
+</Verification>

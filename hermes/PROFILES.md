@@ -66,9 +66,9 @@ in-turn). A Kanban worker may itself call `delegate_task` during its run.
 | **default** | CLI front door — assistant's CLI counterpart (neutral persona) | CLI | `.` (launch dir) | `web,browser,terminal,file,code_execution,vision,x_search,skills,todo,memory,clarify,delegation,cronjob,kanban` | — | yes |
 | **assistant** | messaging front door + dispatcher host | Telegram | `~/Workspaces` | `web,browser,terminal,file,vision,x_search,skills,todo,memory,clarify,delegation,cronjob,computer_use,kanban` | **yes** | yes (token per-machine) |
 | **planner** | multi-card decomposition into a dependency-graph outline for user approval; plan-only, never executes, never creates build cards | — (worker) | `.` (launch / task ws) | `file,web,skills,memory` | — | yes |
-| **engineer** | implement via OpenCode (git worktree, tests); confirms material decisions through kanban block round-trips | — (worker) | `.` (launch / task ws) | `terminal,file,web,skills,todo,memory,delegation` | — | yes |
+| **engineer** | implement via OpenCode (git worktree, tests) + GitHub flow (specify requirements into Issues, work from Issues, PR review response, Projects updates — writes via OpenCode); confirms material decisions through kanban block round-trips | — (worker) | `.` (launch / task ws) | `terminal,file,web,skills,todo,memory,delegation` | — | yes |
 | **researcher** | synthesize / analyze | — (worker) | `.` (launch / task ws) | `file,web,vision,video,skills,memory,delegation` | — | yes |
-| **searcher** | fast retrieval (web / x_search); deep multi-hop via `deep-retrieval` + `goal_mode` | — (worker) | `.` (launch / task ws) | `web,x_search,skills,memory` | — | yes |
+| **searcher** | retrieval routed by deliverable: lookup / sweep / hunt (multi-hop via `goal_mode`) | — (worker) | `.` (launch / task ws) | `web,x_search,skills,memory` | — | yes |
 | **creator** | ALL media production — image, video, GIF, voice, single and batch (front doors only brief and dispatch) | — (worker) | `.` (launch / task ws) | `terminal,file,vision,image_gen,video_gen,video,tts,skills,memory,delegation` + gen plugins | — | yes |
 | **writer** | reader-facing prose — marketing long copy, tech articles/blog, documentation (tone-calibrated, JP norms); never publishes | — (worker) | `.` (launch / task ws) | `file,web,skills,memory,delegation` | — | yes |
 | **marketer** | campaign orchestration + approved publishing (X via xurl); confirms every post through Publish-grant block round-trips | — (worker) | `.` (launch / task ws) | `terminal,file,web,browser,x_search,vision,skills,memory,delegation` | — | yes |
@@ -175,6 +175,34 @@ account, post count, content scope), leaves `PROGRESS:` with the posted URL
 per post, and treats shipped posts as immutable facts on resume. Details:
 marketer's `marketer-pipeline` skill.
 
+### Planning ladder — who plans at which altitude
+
+Planning happens at five altitudes. Each owner decides its own altitude ONLY
+and hands the deliverable one rung down; nothing plans two rungs deep.
+
+| Altitude | Owner | Deliverable | Durable home |
+| --- | --- | --- | --- |
+| High-level requirement — feature intent ("login feature", "blog feature"): what & why | assistant Plan Loop (L1, with the user) | TaskSpec (goal / scope / Authority / done) | chat + task body |
+| Multi-card decomposition — only when the work spans several workers/cards | planner | dependency-graph outline YAML, user-approved | kanban cards |
+| Low-level requirements — feature → concrete requirement units ("login" → account creation, email verification, session handling) | engineer **shape** mode, specify branch (S1/S2) | GitHub Issues (epic → purpose/work, OpenCode's `approach-github-projects` conventions), user-reviewed before registration, each unit intent-labeled | GitHub Issues / Projects |
+| Technical milestones — Wave outline | engineer **shape** mode, outline branch (or implement's self-generated base) | Wave list (coarse, one line each) | kanban attachment + base session |
+| Phase/unit decomposition — inside one Wave or one Issue | OpenCode plan agent (L3) | phase breakdown | OpenCode sessions + git |
+
+Feasibility (engineer **assess** mode, ex-advisory) is not a rung — it is a
+consultation that feeds the assistant's Plan Loop from any altitude.
+
+Two rules keep the ladder from collapsing back into confusion:
+
+- **GitHub-flow repos use Issues as the milestone layer.** When specify has
+  registered low-level requirement Issues, implement consumes an Issue (its
+  body is the outline; the PR closes it) — do NOT also produce a Wave
+  outline for the same work. The Wave outline is for repos/work outside the
+  GitHub Issue flow (scratch builds, small refactors, non-GitHub targets).
+- **Escalation moves one rung at a time** (same principle as the dialogue
+  loops): OpenCode's open question goes to the engineer; the engineer's
+  material ambiguity goes to the assistant as a `Q<n>` block; only the
+  assistant talks to the user.
+
 ### Default is the assistant's CLI counterpart (and stays a clean baseline)
 
 default and assistant are the two faces of the same front door: identical
@@ -242,9 +270,18 @@ Three per-profile layers, kept separate:
     assignable profiles/technics/grants; plan-only). No `external_dirs`: the
     pipeline is self-contained and the profile has no terminal, so upstream
     CLI-backed skills would only advertise capabilities it cannot run
-  - researcher → `researcher-pipeline` (search route + Admiralty/SIFT source evaluation; evidence discipline)
-  - searcher → `searcher-pipeline` (query expansion, source-class routing, link-first hand-off)
-    + `deep-retrieval` (explicit multi-hop hunts: `skills: ["deep-retrieval"]` + `goal_mode`)
+  - researcher → `researcher-pipeline` (kernel SKILL.md pinned on every
+    researcher card: deliverable-based mode routing — evidence-pack /
+    tradeoff-matrix / fact-check incl. artifact-vs-spec QA gates /
+    guidance for downstream workers — plus Admiralty/SIFT source
+    evaluation, citation rules, Review gate, and resume in the kernel;
+    retrieval strategy + searcher fan-out in references/gather.md)
+  - searcher → `searcher-pipeline` (kernel SKILL.md pinned on every searcher
+    card: deliverable-based mode routing — lookup (targeted facts) / sweep
+    (enumeration with a coverage claim, incl. measurements) / hunt (multi-hop
+    to saturation, signalled by `goal_mode`) — plus the link-integrity floor
+    and the minimal kanban protocol in the kernel; per-mode playbooks in
+    references/. `deep-retrieval` remains only as a deprecated stub)
   - creator → `creator-pipeline` (asset-type routing to the gen chains + the
     creative-skill catalog, Budget grant parsing, structured STATE/Qn block
     dialogue, per-asset PROGRESS, workspace-reuse resume, visual verification,
@@ -257,14 +294,16 @@ Three per-profile layers, kept separate:
     creator owns the creative cluster). MCP-backed entries in that cluster
     (`blender-mcp`, `touchdesigner-mcp`, `unreal-mcp`) are listed in
     `skills.disabled`: the profile runs `no_mcp`, so they can never execute
-  - writer → `writer-pipeline` (WritingBrief parsing; one-round tone
-    calibration via sample-variant blocks; deliverable-type routing onto the
-    layered Japanese norms; structure → draft → norms/humanizer/integrity
-    self-review; final-message delivery) + external skills shared via
-    `skills.external_dirs`: the opencode Japanese stack
-    (`~/.config/opencode/skills/japanese` — japanese-writing / tech-prose /
-    prose-rhythm, single-sourced with OpenCode) and upstream
-    `creative/humanizer`
+  - writer → `writer-pipeline` (kernel SKILL.md pinned on every writer card:
+    assess/write mode routing by deliverable, WritingBrief parsing, one-round
+    tone calibration; TypeTable routes copy/article/docs → references/prose.md
+    and 台本/絵コンテ/screenplay → references/script.md, with the four-pass
+    quality engine references/review.md shared by self-review and critique,
+    and consultations/critiques in references/assess.md) + external skills via
+    `skills.external_dirs`: the Japanese stack via the curated
+    `profiles/writer/external-skills/` symlink dir (japanese-writing /
+    tech-prose / prose-rhythm, single-sourced with the shared
+    `agents/skills/` store) and upstream `creative/humanizer`
   - marketer → `marketer-pipeline` (MarketingBrief + Publish-grant parsing;
     strategy → fan-out to writer/creator/searcher/researcher → assemble →
     approval-gated xurl publish bridge with per-post PROGRESS + URL
@@ -283,7 +322,7 @@ tools / isolation / durability? — then routes inline (conversation, quick
 lookups, workspace skills, cron registration) vs kanban: planner =
 multi-card decomposition (the Planner tree — dependency-graph outline for
 user approval; plan-only, never executes), searcher =
-retrieval/web/X (deep hunts via `deep-retrieval` + `goal_mode`), researcher =
+retrieval/web/X (deep hunts via `goal_mode`), researcher =
 analysis/synthesis, engineer = implementation, creator = ALL media production
 (the front door only collects the MediaBrief — purpose, destination specs,
 style references, quantity — and dispatches; it generates nothing itself),
@@ -330,8 +369,10 @@ Opus 5 as its T2 (see "Fable and the Max weekly pool" below), while
 **researcher** and **searcher** lead on `xai-oauth` — grok-4.5 and grok-4.3
 respectively, splitting the load across two flat-rate subscriptions instead of
 piling every worker onto the Max weekly pool. The coding model inside OpenCode
-remains a separate decision chosen per run by the engineer-pipeline's
-comparative QuotaGate.
+is a separate layer entirely: engineer-pipeline drives a **fixed ladder**
+(`claude-opus-5` → `gpt-5.6-sol` at `--variant high` → `grok-4.5` → OpenRouter),
+descending only on an error or a spent pool — never by pre-judging the task's
+weight.
 
 | Profile | T1 (primary) | T2 | T3 | T4 | `reasoning_effort` |
 | --- | --- | --- | --- | --- | --- |
@@ -415,7 +456,7 @@ calls):
   `gpt-5.6-sol` (`base_url: https://chatgpt.com/backend-api/codex`), as T2 on
   the Anthropic profiles and T3 on planner and researcher. The former
   `gpt-5.6-terra` profile routes were promoted to Sol; the engineer-pipeline's
-  OpenCode QuotaGate remains a separate model-routing layer.
+  OpenCode ProviderLadder remains a separate model-routing layer.
 - **Copilot retired from every chain** (2026-07): the subscription became
   unusable, and its catalog drift had already 404'd tiers silently once.
   Profile fallbacks now use Codex first and OpenRouter as the final tail.
