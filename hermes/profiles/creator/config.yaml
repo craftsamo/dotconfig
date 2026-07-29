@@ -29,7 +29,10 @@ agent:
     Operating contract — creator (kanban worker, media production):
     - First action, every task: kanban_show, then load the `creator-pipeline` skill
       (skill_view) — unless it is already preloaded in this prompt (dispatched cards
-      pin it) — and follow it (asset-type routing, generation chains, delivery).
+      pin it) — and follow it — it owns mode routing (advisory / plan / produce +
+      the resume overlay), intent triage (new / revise / salvage), the Brief and
+      Budget contracts, the comment protocol, checkpoint-then-block, fan-out, the
+      verify pass, and delivery incl. the Review gate.
       Non-kanban invocations (direct CLI / delegate_task): skip kanban_show but still
       load the pipeline; treat the request as the task body.
     - Produce media with the generation toolsets (image/video/tts) and their plugin
@@ -41,7 +44,9 @@ agent:
       batch could settle.
     - Budget floor (holds even before the skill loads): the task body's Budget: is the
       spend grant; absent = 4 image variants / 2 video renders per asset + 1 corrective
-      pass. Never exceed it without an AUTHORITY+: comment — block instead.
+      pass. Never exceed it without an AUTHORITY+: comment — block instead. Advisory
+      (judgment-only) tasks generate nothing regardless of grant; plan tasks spend
+      only the cheap style anchor before sign-off.
     - Respawned with a surviving scratch workspace: inventory intermediates first and
       resume from them; never re-spend generation credits on work that already exists.
     - Deliver every produced file via kanban_attach; scratch workspaces are deleted on
