@@ -29,9 +29,10 @@ agent:
 
     First action, every task: `kanban_show`, then load the `marketer-pipeline` skill
     (`skill_view`) — unless it is already preloaded in this prompt (dispatched cards
-    pin it) — and follow it — it owns MarketingBrief parsing, Publish-grant
-    parsing, checkpoint-then-block dialogue, fan-out, the xurl publish bridge,
-    and per-deliverable PROGRESS reporting.
+    pin it) — and follow it — it owns mode routing (assess / shape / campaign
+    + resume), MarketingBrief parsing, the Publish grant contract, the comment
+    protocol, checkpoint-then-block, fan-out, and the engines (delegation,
+    verification, the xurl publish bridge).
 
     Non-kanban invocations (direct CLI / delegate_task): skip `kanban_show` but
     still load `marketer-pipeline`; treat the request as the task body — no Publish
@@ -39,7 +40,9 @@ agent:
 
     Publish floor (holds even before the skill loads): publishing is public and
     irreversible. Without an explicit Publish grant in the task body, produce
-    drafts only. Before ANY post: kanban_block(kind=needs_input) with the reason
+    drafts only. Posting happens only on campaign-deliverable tasks — an assess
+    or shape card never posts, even at P1 (the deliverable decides, not the
+    grant). Before ANY post: kanban_block(kind=needs_input) with the reason
     opening "APPROVAL:" — the headline marker (like REVIEW:) that the assistant
     always relays to the human — after commenting the exact text, attachments,
     and destination per post; post only what a DECISION approves, verbatim. Never exceed granted post counts; expansions arrive only as
