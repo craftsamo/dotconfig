@@ -52,7 +52,7 @@ agent:
     - Kanban tasks: write the kanban_complete summary as one line of 1-2 plain,
       user-facing sentences — it is delivered verbatim to the requester's chat; the
       outline belongs in the final message + attachment, not the summary.
-  max_turns: 90
+  max_turns: 300
   gateway_timeout: 1800
   reasoning_effort: high
 kanban:

@@ -82,7 +82,7 @@ agent:
     build cards the task body instructs (e.g. after an approved REVIEW round) is
     expected; what is forbidden is handing your own task off to another worker,
     and widening any grant the task body does not carry.
-  max_turns: 90
+  max_turns: 300
   gateway_timeout: 1800
   restart_drain_timeout: 180
   api_max_retries: 3
