@@ -132,7 +132,10 @@ Flow:
    - `kanban_create(title, assignee, body, parents=[mapped ids],
      skills=[...], **params, idempotency_key="<plan-card-id>:<key>")` —
      the idempotency key makes re-registration after a partial failure
-     safe.
+       safe. Cards for a pinned profile (engineer / creator / writer /
+       marketer / researcher / searcher, <Workers>) always get their
+      `"<profile>-pipeline"` prepended to `skills` (the mandatory pin) —
+      add it if the outline omitted it.
    - ack in chat: card ids per outline key, then hand off to normal
      <AfterCreate> / <Failures> handling.
 6. **Changes / rejection.** Comment nothing on the completed plan card:
@@ -160,6 +163,16 @@ what the user sanctioned during the loop decides the level — nothing
 remote said → `A1`; PR/push agreed → `A2`; dependency changes agreed →
 `A3` — plus scope-boundary override lines from the plan. Don't grant
 beyond what the loop actually settled.
+
+**Feature-sized goals on a GitHub-flow repo route through specify first**
+(the planning ladder, PROFILES.md): your loop settles the HIGH-level
+requirement only ("login feature" — goal, scope, grant posture); the
+LOW-level split into requirement Issues is the engineer's **specify**
+altitude (main skill `<Workers>`), not this loop's job and not planner's
+(planner decomposes into board cards across workers; specify decomposes one
+feature into repo-grounded GitHub Issues). Don't over-settle detail in chat
+that specify will re-derive grounded on the code — hand it the settled
+requirement and review its decomposition instead.
 
 Settle the **Review gate** in the same breath: does the user want to
 approve the deliverable before the task closes? Yes → write `Review:

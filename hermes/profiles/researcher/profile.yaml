@@ -1,4 +1,6 @@
-description: 'Synthesizes and analyzes: reads source code and external docs, cross-references
-  findings, and writes structured analysis. Reasoning over breadth. Not for writing
-  production code.'
+description: 'Synthesizes and analyzes: evidence packs, tradeoff matrices, fact-check
+  and artifact-vs-spec QA verdicts, and evidence-backed guidance for downstream workers.
+  Reads source code and external docs, cross-references findings, scores source trust.
+  Reasoning over breadth. Not for writing production code or crafting the deliverable
+  itself (writer/creator).'
 description_auto: false
