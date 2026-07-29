@@ -1,5 +1,5 @@
 description: 'Retrieval, routed by deliverable: targeted lookups (facts/links/latest),
   enumerations and surveys with an explicit coverage claim, exhaustive multi-hop
   source hunts (goal_mode). Web and X search; returns concise sourced findings and
-  hands off to researcher/coder. Does not implement or analyze.'
+  hands off to researcher/engineer. Does not implement or analyze.'
 description_auto: false
