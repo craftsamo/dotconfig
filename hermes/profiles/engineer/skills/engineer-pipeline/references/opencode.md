@@ -113,13 +113,19 @@ Establish the base in-task — never depend on a session reaching across tasks
 visible here):
 
 - **An approved outline exists** (shape slice output in the task body / an
-  attachment): seed the base from it verbatim —
+  attachment): seed the base from its Wave lines verbatim —
 
   ```text
   opencode run --auto --agent plan --title "waves: <goal>" --model <m> \
     'This Wave outline is already approved — hold it as the plan to implement,
      do not re-plan: <the approved Waves, verbatim>'
   ```
+
+  **Seed ONLY the coarse Wave lines.** When the approved deliverable is a
+  detailed plan document (a long PLAN.md, a spec with per-file steps), do
+  not paste it wholesale into the base — reference it by path/attachment
+  and let each Wave's decompose read it (<DetailedPlanRule>). A base
+  bloated with phase detail poisons every fork taken from it.
 
   Optimization: if `opencode session list` in this worktree shows the shape
   slice's base session id, fork it directly and skip re-seeding.
@@ -140,7 +146,9 @@ visible here):
 ### Wave loop (Wave 1 → Wave 2 → …, in outline order)
 
 Per Wave, a decompose → confirm → build sub-cycle. **OpenCode owns the phase
-granularity; you judge it, you don't dictate it.**
+granularity; you judge it, you don't dictate it.** The sub-cycle is
+mandatory for every Wave — no risk tier, schedule pressure, or
+already-detailed plan waives it (<DetailedPlanRule>).
 
 1. **Decompose** — fork the base with the plan agent (read-only):
 
@@ -151,15 +159,20 @@ granularity; you judge it, you don't dictate it.**
       no code. If something material is undecided, say so.'
    ```
 
-2. **Confirm** — read the phase breakdown and sanity-check it: does it match
-   the Wave's intent, stay inside the granted scope, and hang together? This
-   is your review of OpenCode's plan — judge it, don't re-granularize it.
+2. **Confirm — the GO gate** — read the phase breakdown and sanity-check
+   it: does it match the Wave's intent, stay inside the granted scope, and
+   hang together? This is your review of OpenCode's plan — judge it, don't
+   re-granularize it.
    - Off target / too broad → correct via `run -c '<redirect>'`.
    - Reveals a need outside the grant (a dependency, a push, an
      architecture/public-API change) → **checkpoint-then-block** (core
      <CheckpointThenBlock>) — the Wave outline's approval does not cover a
      new grant.
-   - Leave a one-line `PROGRESS:` naming the confirmed phases (visibility).
+   - Accepted → write `PROGRESS: Wave N phases confirmed: <the phases, one
+     line>` with the plan-fork id. This comment is the **gate artifact**:
+     no build fork for Wave N may start until it exists. If you cannot
+     point at a phases-confirmed `PROGRESS:` for the Wave, you are not
+     cleared to build it.
 
 3. **Implement** — fork the confirmed phase-plan to build, wrapped per
    <PermissionBridge>:
@@ -193,7 +206,34 @@ whole goal — narrow scope is what buys quality.
 
 Escape hatch: if fork mechanics misbehave, commit the outline as `PLAN.md` in
 the worktree and run each Wave as a fresh session that reads `PLAN.md` + the
-current code.
+current code — and record in a `PROGRESS:` note that the escape hatch is in
+use. The decompose → confirm gate still applies per Wave: each fresh session
+starts as a plan run deriving the Wave's phases, confirmed before its build
+run.
+
+### DetailedPlanRule — a detailed plan never waives decompose
+
+An approved plan that already carries phase-level detail (a reviewed
+PLAN.md, a spec with per-file steps) is the situation MOST likely to tempt
+you into skipping the plan fork and pasting the plan's steps straight into
+a build prompt. Don't — that is double harm: it violates "prompt intent,
+don't paste procedure", and it ships a plan that was written before the
+current worktree existed (prior Waves have landed since; the plan may have
+drifted).
+
+Instead, change the decompose prompt for each Wave to a **derive** variant:
+
+```text
+opencode run --auto -s <base-id> --fork --agent plan --model <m> \
+  'Derive the phase breakdown for Wave N — "<wave intent>" — from the
+   approved plan at <path/attachment>, grounded on the CURRENT worktree
+   (prior Waves are committed). Flag every point where the plan and the
+   code have drifted. Phases only, no code.'
+```
+
+OpenCode still produces the breakdown; you still confirm it and write the
+gate artifact. The step costs one short plan run and buys a fresh
+grounding check on a stale document — it is never redundant.
 
 ## InspectionPrimaries
 
@@ -310,6 +350,12 @@ is cheaper than persuasion. Record what was discarded and why in a
   fork (`-s <fork-id>`, see `references/resume.md`).
 - Dictating the phase granularity instead of judging OpenCode's decomposition
   — or skipping the confirm step and building a bad breakdown.
+- Starting a build fork without that Wave's `phases confirmed` `PROGRESS:` —
+  the gate artifact is the license to build; "the plan was already detailed"
+  is the classic rationalization, answered by <DetailedPlanRule>.
+- Writing the phase procedure into the build prompt yourself because the
+  approved plan spelled it out — that skips decompose + confirm and pastes
+  a possibly-stale document over the current worktree.
 - Bare `opencode run` without the PermissionBridge env — edits get silently
   auto-rejected and the model "completes" around them.
 - `OPENCODE_PERMISSION='{"*":"allow"}'` — the merge would bury the global
@@ -337,8 +383,11 @@ is cheaper than persuasion. Record what was discarded and why in a
   (and variant) actually used, plus the reason for any descent.
 - The base was established in-task; base and fork ids are recorded in
   comments.
-- Each Wave ran decompose (plan fork) → confirm → implement (build fork);
-  no session crossed a Wave boundary; run outputs were read for open
-  questions (QuestionBridge).
+- Each Wave ran decompose (plan fork) → confirm → implement (build fork),
+  and a `PROGRESS: Wave N phases confirmed` comment exists for every Wave
+  with a timestamp BEFORE its build fork (the gate artifact); detailed
+  approved plans went through the derive variant (<DetailedPlanRule>),
+  never straight to build; no session crossed a Wave boundary; run outputs
+  were read for open questions (QuestionBridge).
 - Every build run carried the matching PermissionBridge env + `--auto`
   (including the issue/board tool denies when `issues: write` is absent).
