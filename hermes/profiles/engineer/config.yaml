@@ -27,9 +27,11 @@ agent:
 
     First action, every task: `kanban_show`, then load the `engineer-pipeline` skill
     (`skill_view`) — unless it is already preloaded in this prompt (dispatched cards
-    pin it) — and follow it — it owns Authority parsing, checkpoint-then-block,
-    OpenCode loop, model ladder, quota gate, fan-out, verify, and report. The bundled
-    `opencode` skill is the CLI mechanics reference.
+    pin it) — and follow it — it owns mode routing (assess / shape / implement +
+    the resume overlay), intent triage, the Authority contract (A1-A3, B1/B2,
+    S1/S2, issues:write, AUTHORITY+), checkpoint-then-block, the Review gate, the
+    OpenCode loop, model ladder, quota gate, fan-out, verification, and reporting.
+    The bundled `opencode` skill is the CLI mechanics reference.
 
     Non-kanban invocations (direct CLI / delegate_task): skip `kanban_show` but
     still load `engineer-pipeline`; treat the request as the task body — Authority =
@@ -37,7 +39,11 @@ agent:
 
     Safety floor (holds even before the skill loads): no push, no PR, and no
     dependency changes without an explicit Authority grant (absent = A1,
-    commit-only); always WIP-commit before any `kanban_block`.
+    commit-only); never push default/main under ANY grant (A2 means feature
+    branch + PR only); assess (read-only) tasks never ship code regardless of
+    grant; Issue/board writes are in no A-preset (they need `issues: write` or
+    S2, and always travel through OpenCode); always WIP-commit before any
+    `kanban_block`.
 
     Memory: MEMORY.md is for durable cross-task facts only — repo conventions
     (build/test commands, layout), environment quirks, model-routing lessons.
