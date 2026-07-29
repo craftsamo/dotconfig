@@ -23,6 +23,57 @@ passed comes from `references/verify.md`.
 - One workdir per session. TUI needs `pty=true`, exit with Ctrl+C (never
   `/exit`) — but prefer `run` over the TUI in worker context.
 
+## PromptContract
+
+Every OpenCode session already carries an **injected system layer** before
+your prompt arrives: the global AGENTS.md (delegation + skill routing,
+language policy), the target repo's own AGENTS.md/CLAUDE.md (build/test
+commands, conventions), each agent's frontmatter (model + permissions —
+plan/review/debug are read-only by themselves), the `opencode.jsonc`
+permission tree (protective denies), and the skill catalog. The map of that
+layer is `opencode-env` <InjectedLayer> — **read it before writing your
+first prompt of a task**: if you cannot predict what OpenCode already
+knows, you cannot know what to leave out.
+
+**A dispatch prompt carries only the DELTA on top of that layer.**
+Restating what the layer already says is not "being safe" — it is noise
+that dilutes the few constraints that genuinely need the prompt.
+
+Anatomy per run type:
+
+- **decompose / derive**: the Wave intent (one line) + reference paths +
+  "phases only, no code" + the closer.
+- **build**: the confirmed phase breakdown (OpenCode's own words, from the
+  gate artifact) + the scope boundaries that are NOT machine-enforced +
+  "run the repo's own checks and report the actual output" + the closer.
+- **redirect** (`run -c`): what is off + the expected direction. Nothing
+  else.
+
+Never restate (the layer already carries it):
+
+1. Role or behavior preambles — "you are …", or telling the plan agent not
+   to implement (its frontmatter makes it read-only).
+2. Agent permissions — review/debug read-only, edit rights.
+3. Anything the <PermissionBridge> env already denies (push / PR / merge /
+   issue writes).
+4. Skill content — name the skill ("load and follow `approach-refactor`");
+   never paste its discipline.
+5. Repo conventions the target repo's AGENTS.md documents — including
+   verification commands: say "run the repo's check suite, report actual
+   output" and enumerate commands only to override or extend them.
+
+Always keep (no layer carries these):
+
+- The <QuestionBridge> closer — OpenCode's only escalation channel.
+- Scope boundaries that no pattern can enforce (`do not write to <sibling
+  repo>`, `do not touch <file>` — per <PermissionBridge>, prompt +
+  verification is their designed enforcement).
+- The expected report format, when it matters.
+
+Shape heuristic: a build prompt that looks like a numbered per-file spec is
+an altitude violation — that content belongs to the decompose output (the
+gate artifact) or the referenced plan document, never to your prompt.
+
 ## RunExecution
 
 `opencode run` routinely takes 5-20+ minutes, and every supervision cycle
@@ -356,6 +407,10 @@ is cheaper than persuasion. Record what was discarded and why in a
 - Writing the phase procedure into the build prompt yourself because the
   approved plan spelled it out — that skips decompose + confirm and pastes
   a possibly-stale document over the current worktree.
+- Restating the injected layer in prompts — role preambles, "read-only!"
+  to a plan agent, denies the bridge already enforces, skill content, the
+  repo's own check commands (<PromptContract>): insurance prose that only
+  buries the constraints the prompt actually has to carry.
 - Bare `opencode run` without the PermissionBridge env — edits get silently
   auto-rejected and the model "completes" around them.
 - `OPENCODE_PERMISSION='{"*":"allow"}'` — the merge would bury the global
@@ -391,3 +446,6 @@ is cheaper than persuasion. Record what was discarded and why in a
   were read for open questions (QuestionBridge).
 - Every build run carried the matching PermissionBridge env + `--auto`
   (including the issue/board tool denies when `issues: write` is absent).
+- Prompts carried only the delta per <PromptContract>: no role preambles,
+  no restated permissions/denies/skill content/repo conventions; scope
+  boundaries and the QuestionBridge closer present where required.
