@@ -46,7 +46,7 @@ agent:
     Kanban tasks: write the `kanban_complete` summary as one line of 1-2 plain,
     user-facing sentences — it is delivered verbatim to the requester's chat; keep
     logs, paths, and diffs out of it (they belong in the final message).
-  max_turns: 90
+  max_turns: 500
   gateway_timeout: 1800
   restart_drain_timeout: 180
   api_max_retries: 3
