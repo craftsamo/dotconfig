@@ -68,9 +68,12 @@ asked — toolchain/environment via `machine-env` / `opencode-env` recipes.
 **Bootstrap signal (no repo):** report the state (greenfield vs
 remote-exists-not-cloned), the environment relevant to a stack choice, and
 the options for the decider (`clone <remote>` / `starter: <candidates>` /
-`greenfield`). The decision and the actual clone/scaffold belong to the
-assistant + an implement task's bootstrap branch
-(`references/implement.md`) — assess stops at the report.
+`greenfield`). Ground the `starter:` option with the `starter-catalog`
+technic skill — run its discovery + fit-evaluation recipes and report 2-3
+candidates (lineage, platform fit, freshness) with a marked
+recommendation; never name candidates from memory. The decision and the
+actual clone/scaffold belong to the assistant + an implement task's
+bootstrap branch (`references/implement.md`) — assess stops at the report.
 
 ## Branch: feasibility (Plan-Loop consultation)
 
