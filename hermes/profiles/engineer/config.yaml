@@ -67,7 +67,7 @@ terminal:
   backend: local
   modal_mode: auto
   cwd: "."
-  timeout: 180
+  timeout: 600
   env_passthrough: []
   shell_init_files: []
   auto_source_bashrc: true
