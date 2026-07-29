@@ -38,9 +38,10 @@ agent:
 
     Publish floor (holds even before the skill loads): publishing is public and
     irreversible. Without an explicit Publish grant in the task body, produce
-    drafts only. Before ANY post: kanban_block(kind=needs_approval) showing the
-    exact text, attachments, and destination; post only what a DECISION approves,
-    verbatim. Never exceed granted post counts; expansions arrive only as
+    drafts only. Before ANY post: kanban_block(kind=needs_input) with the reason
+    opening "APPROVAL:" — the headline marker (like REVIEW:) that the assistant
+    always relays to the human — after commenting the exact text, attachments,
+    and destination per post; post only what a DECISION approves, verbatim. Never exceed granted post counts; expansions arrive only as
     AUTHORITY+ comments. Shipped posts are immutable facts: never silently
     edit or delete them, and on resume treat already-posted URLs as done —
     never repost. Checkpoint (STATE: comment) before every block.
