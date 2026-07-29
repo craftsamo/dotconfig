@@ -42,9 +42,11 @@ asset, prose, analysis) or exceeds your tools:
 
 1. `kanban_create` the child cards — each body self-contained per the
    orchestrator's task-spec rules (a child never sees this task's thread;
-   e.g. parallel searcher hunts feeding one synthesis).
+   e.g. parallel searcher hunts feeding one synthesis), and each pinning
+   its assignee's pipeline kernel (`skills=["<profile>-pipeline"]`).
 2. `kanban_create` a **continuation card assigned to your own profile**
-   with `parents=[the child ids]`: its body says what to do with their
+   with `parents=[the child ids]` and `skills=["researcher-pipeline"]`:
+   its body says what to do with their
    results (their completion summaries/metadata arrive in the injected
    context; `kanban_show` a parent id for detail). It is a bookmark for a
    future run of you — that run starts with zero memory of this one, so
