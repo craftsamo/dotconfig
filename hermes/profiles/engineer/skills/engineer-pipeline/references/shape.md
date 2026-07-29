@@ -126,6 +126,16 @@ self-assessed, handed back for approval.
   responsive`), each a one-line intent, coarse enough to review in seconds.
 - **OpenCode owns everything below the Wave** — phase/unit decomposition
   happens at implement time, per Wave. Never write phase-level detail here.
+- **Detailed-plan cards** — when the card explicitly asks for a detailed
+  plan document (a full PLAN.md, per-file steps, command sequences), the
+  deliverable MUST keep two layers separate: a `## Waves` section (coarse,
+  one line each — the ONLY part implement consumes as its outline) and a
+  clearly-marked `## Reference detail (advisory)` appendix holding
+  everything finer. State in the document itself that the appendix is
+  advisory: implement re-derives each Wave's phases from it at build time
+  (opencode.md <DetailedPlanRule>) — it is never pasted into a build
+  prompt as a procedure. Detail that cannot be attached under a Wave goes
+  to the appendix, not into the Wave lines.
 - An Authority line never authorizes building; outline primaries run plain
   `--auto` (no permission env).
 
@@ -161,6 +171,9 @@ Procedure:
 <risks / uncertainties / what a reviewer should challenge — 3-6 lines>
 ## Base session
 opencode plan session <id> — implement forks each Wave from this
+## Reference detail (advisory)   ← only on detailed-plan cards
+<finer material, per Wave. Advisory: implement re-derives phases from this
+at build time (opencode.md DetailedPlanRule); never a build-prompt script.>
 ```
 
 ## MEMORY.md
@@ -199,6 +212,9 @@ if one surfaced (rare).
   drifts.
 - Bloating the outline into many thin Waves — if it reads like a checklist,
   it's too fine.
+- Delivering a detailed-plan card as one undifferentiated document — without
+  the Waves / advisory-appendix split, implement inherits a plan it can only
+  paste, and the per-Wave decompose gate gets rationalized away.
 - Shipping any code, or leaving a Wave outline behind for work the Issues
   now own (double-planning).
 
@@ -211,5 +227,7 @@ if one surfaced (rare).
   assumptions; the Review gate ran when required.
 - S2 registrations verified with `gh issue view` (bodies, labels, links,
   board items) and reported as numbers/URLs; S1 wrote nothing to GitHub.
-- Outline: Waves only, base session id recorded, self-assessment included.
+- Outline: Waves only, base session id recorded, self-assessment included;
+  on detailed-plan cards, fine detail lives in the advisory appendix and the
+  Wave lines stayed coarse.
 - No commits, edits, installs, pushes, or PRs.

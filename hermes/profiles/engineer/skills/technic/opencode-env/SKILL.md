@@ -5,15 +5,18 @@ description: >-
   configuration lives (opencode.jsonc, agent roster, the two skill trees, custom
   tools, always-on instructions), what it therefore does on its own (loads
   technique skills, delegates to subagents, runs custom git/board tools), the
-  IntentCatalog (which OpenCode skill implements each engineer intent — feature /
-  bugfix / refactor / rebuild / perf / deps / spec — on this machine), and the
-  inspection recipes that confirm all of it before you rely on it. Load it before
-  the first OpenCode run of an implement task, when an assess verdict depends on
-  what OpenCode can do here, when a facts report must cover the toolchain, or
-  when a run behaves oddly (auto-rejects, quota, auth). This is the capability
-  map — CLI syntax lives in the bundled `opencode` skill, and the drive loop
-  lives in engineer-pipeline's `references/opencode.md` engine.
-version: 1.1.0
+  InjectedLayer (what every session already knows before a prompt arrives — the
+  never-restate baseline for the PromptContract), the IntentCatalog (which
+  OpenCode skill implements each engineer intent — feature / bugfix / refactor /
+  rebuild / perf / deps / spec — on this machine), and the inspection recipes
+  that confirm all of it before you rely on it. Load it before the first
+  OpenCode run of an implement task — including before writing the first
+  dispatch prompt — when an assess verdict depends on what OpenCode can do
+  here, when a facts report must cover the toolchain, or when a run behaves
+  oddly (auto-rejects, quota, auth). This is the capability map — CLI syntax
+  lives in the bundled `opencode` skill, and the drive loop lives in
+  engineer-pipeline's `references/opencode.md` engine.
+version: 1.2.0
 author: CraftSamo
 license: MIT
 metadata:
@@ -84,6 +87,31 @@ repo (see `machine-env`), so history explains any surprise.
 exists. Read it as text; strict JSON parsers choke on it.
 
 </ConfigMap>
+
+<InjectedLayer>
+
+What every session **already knows before your prompt arrives** — the
+system layer OpenCode assembles on its own. This is the "never restate"
+baseline for engineer-pipeline's `references/opencode.md` <PromptContract>:
+a dispatch prompt carries only the delta on top of it.
+
+| Injected source | What the session already has |
+| --- | --- |
+| global `AGENTS.md` | delegation policy (which subagent for what), skill routing rules, language policy, exploration/verification discipline |
+| the worktree's `AGENTS.md` / `CLAUDE.md` | build/test/check commands, house conventions, commit style pointers |
+| `agent/<name>.md` frontmatter | the agent's model AND its permissions — plan/review/debug are read-only on their own; no prompt needs to say so |
+| `opencode.jsonc` permission tree | the protective denies (sudo, `.env` reads, `secret get`, …) plus whatever your `OPENCODE_PERMISSION` overlay adds |
+| skill catalog (both trees) | the full discipline of every skill — naming one is enough to activate it |
+| `instructions/*.md` | always-on policies (e.g. secrets handling) |
+
+**Predict before you prompt.** If you cannot predict how OpenCode will
+behave from this layer, you do not yet know what to leave out of the
+prompt — inspect first (<InspectionRecipes>: read the global AGENTS.md and
+the worktree's AGENTS.md, `head` the agent file), then write the delta.
+Re-stating this layer in prompts is the noise the PromptContract exists to
+prevent.
+
+</InjectedLayer>
 
 <CapabilitySurface>
 
@@ -172,6 +200,7 @@ inline interpreter, so the worker approval guard passes them.
 | Which skills can it load? | `ls ~/.config/opencode/skills` and `ls ~/.config/agents/skills` |
 | What does a skill actually cover? | `head -30 ~/.config/opencode/skills/<name>/SKILL.md` |
 | What are the delegation/skill routing rules? | `rg -n "subagent_type|skill" ~/.config/opencode/AGENTS.md` |
+| What does the injected layer already say? | `cat ~/.config/opencode/AGENTS.md` and `cat <worktree>/AGENTS.md` (see <InjectedLayer>) |
 | Which custom tools exist? | `ls ~/.config/opencode/tools` |
 | What is permitted by default? | `rg -n "permission" ~/.config/opencode/opencode.jsonc` |
 | Which plugins/MCP servers are active? | `rg -n "plugin|mcp" ~/.config/opencode/opencode.jsonc` |
@@ -202,6 +231,9 @@ honest:
 
 - Prompting OpenCode with the steps of a technique it already owns as a skill
   — you overwrite better instructions with worse ones.
+- Restating the <InjectedLayer> in a prompt (role preambles, read-only
+  reminders to plan/review agents, the repo's own check commands) — write
+  the delta, not the layer.
 - Decomposing to subagent level in a prompt; the roster is its business, the
   Wave is yours.
 - Claiming in an advisory verdict that OpenCode "can/cannot do X here" without
