@@ -111,7 +111,12 @@ Procedure:
 2. **Establish** per the chosen path: `gh repo clone` / the named scaffolder
    (`npx degit`, `create-next-app`, `cargo new`, `uv init`, …; `git init` if
    it didn't) / `git init <path>` + the minimal asked-for skeleton. `gh repo
-   create --template` is a **B2** action.
+   create --template` is a **B2** action. When the path names a starter
+   from the local family, load the `starter-catalog` technic skill and
+   follow its <IntroductionPaths>: clone the named source, point `origin`
+   at the new repo (B2), wire the `upstream` remote to the parent —
+   rebranding the identity surface is NOT bootstrap (it is the follow-up
+   implement task's first Wave).
 3. **Initial commit** (`git -C <path> add -A && git -C <path> commit -m
    "chore: initial commit"`) unless clone history exists.
 4. **Remote (B2 only)** — `gh repo create <owner>/<repo> --<visibility>
