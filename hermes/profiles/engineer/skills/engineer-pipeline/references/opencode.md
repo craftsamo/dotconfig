@@ -4,9 +4,9 @@ Load this before the FIRST OpenCode invocation of any task — implement always;
 assess/shape only when they actually run OpenCode sessions. The core file's
 Authority contract, comment protocol, and checkpoint-then-block apply
 throughout. This engine owns the HOW of delegation: session mechanics, model
-routing, the Wave loop, the permission/question bridges, and course
-correction. WHAT to produce comes from the mode file; whether it passed comes
-from `references/verify.md`.
+routing, run execution, the Wave loop, the permission/question bridges, and
+course correction. WHAT to produce comes from the mode file; whether it
+passed comes from `references/verify.md`.
 
 ## SessionBasics
 
@@ -22,6 +22,30 @@ from `references/verify.md`.
   `STATE:`/`PROGRESS:` comments — a respawn that can't find ids restarts blind.
 - One workdir per session. TUI needs `pty=true`, exit with Ctrl+C (never
   `/exit`) — but prefer `run` over the TUI in worker context.
+
+## RunExecution
+
+`opencode run` routinely takes 5-20+ minutes, and every supervision cycle
+spends turns from the same `max_turns` budget that funds the real work — past
+runs have died at `max_iterations_reached` on polling alone. Two execution
+shapes:
+
+- **Foreground by default**: `terminal(command="opencode run …", timeout=<generous>)`
+  — one turn per run. The per-call `timeout` is not clamped; size it to the
+  expected run (1800 for a build Wave is reasonable) instead of accepting the
+  default. While the run executes you have nothing else to do — blocking is
+  correct, not a problem.
+- **Background only when you must interleave** (two runs in parallel, or a
+  run that may outlive any sane single timeout): start it in background, then
+  wait in the longest slices the tool allows — `process` wait is clamped to
+  the profile's `terminal.timeout` (600 on this profile; requesting less is
+  pure waste). Cycle `wait(600)` → `kanban_heartbeat` → `wait(600)` …. The
+  wait's return already carries the output tail: add no status-check terminal
+  calls between waits, and read logs only after the wait reports exit.
+
+Budget math: a 180 s wait + status check + heartbeat cycle costs ~60
+turns/hour; `wait(600)` + heartbeat costs ~12. Heartbeat cadence of one per
+wait cycle is ample (staleness bound is hours, not minutes).
 
 ## ModelRouting
 
@@ -276,6 +300,10 @@ is cheaper than persuasion. Record what was discarded and why in a
 
 ## Pitfalls
 
+- Supervising a run with short poll cycles — 180 s waits, status-check calls
+  between waits, per-cycle log reads — instead of RunExecution's foreground
+  default or full-length `wait(600)` slices; polling is what starves
+  `max_turns`.
 - Carrying one session across a Wave boundary (cost + compaction creep) —
   fork fresh from the base per Wave and ground on git; or the opposite:
   restarting from scratch after an unblock instead of rejoining the recorded
