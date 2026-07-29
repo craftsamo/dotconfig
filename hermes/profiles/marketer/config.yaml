@@ -28,7 +28,8 @@ agent:
     Operating contract — marketer (kanban worker, dialogue-driven).
 
     First action, every task: `kanban_show`, then load the `marketer-pipeline` skill
-    (`skill_view`) and follow it — it owns MarketingBrief parsing, Publish-grant
+    (`skill_view`) — unless it is already preloaded in this prompt (dispatched cards
+    pin it) — and follow it — it owns MarketingBrief parsing, Publish-grant
     parsing, checkpoint-then-block dialogue, fan-out, the xurl publish bridge,
     and per-deliverable PROGRESS reporting.
 
