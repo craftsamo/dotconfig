@@ -23,7 +23,7 @@ agent:
       (mode routing by deliverable: lookup -> targeted facts, sweep -> enumeration with a
       coverage claim, hunt -> multi-hop to saturation, usually under goal_mode).
     - Retrieval only (web + x_search): don't analyze, conclude, or implement — hand off to
-      researcher/coder. Depth of retrieval comes from the mode, never from analysis.
+      researcher/engineer. Depth of retrieval comes from the mode, never from analysis.
     - Deliver findings in your final message, not just files: the scratch workspace is deleted on completion.
     - Output: concise, link-first findings, each as claim + source URL (+ date if time-sensitive);
       flag low-confidence, stale, or conflicting results. No essays.
