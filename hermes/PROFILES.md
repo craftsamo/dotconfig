@@ -333,6 +333,19 @@ length; the writer blocks once for the rest), marketer = campaign
 orchestration + ALL outbound publishing (the front door collects the
 MarketingBrief and writes the `Publish:` grant line on purpose — an omitted
 grant means draft-only; it never posts anything itself).
+The pinned Telegram topics are Assistant-owned **desks**, not worker threads:
+Personal binds `personal-desk` (household-budget / People / message-reply plus
+personal docs/data), Projects binds `project-desk` (the `pj` registry,
+workspace scaffold, and project docs/data), Brainstorm binds `brainstorm`, and
+Inbox has no skill because it is only the delivery target for system cron
+output. Each desk forces orchestration Step 3 to Inline. If work needs a worker
+or kanban durability, the desk prepares a compact handoff and asks the user to
+open a new ad-hoc topic; that topic inherits chat-wide `orchestration` and owns
+the dispatch. The fifth Telegram pin remains a UI-managed rotation slot rather
+than a configured topic. Normal kanban completion notifications remain attached
+to their originating topic; only maintenance/report/sweeper/watchdog cron output
+targets Inbox: jobs keep bare `deliver: telegram`, while the gateway launcher
+derives `TELEGRAM_CRON_THREAD_ID` from the ignored runtime config's Inbox topic.
 Time-deferred work parks in `scheduled` via `hermes kanban schedule <id>
 "until=<ISO8601> — <reason>"`; the assistant's no_agent
 `kanban-scheduled-sweeper.sh` cron releases due cards every 15 minutes. Dead
