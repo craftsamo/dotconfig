@@ -12,3 +12,4 @@ rust = "latest"
 "npm:mcp-hub" = "latest"
 "npm:nps" = "latest"
 "npm:@mermaid-js/mermaid-cli" = "latest" # mmdc — nvim snacks: mermaid diagram rendering
+"npm:vercel" = "58.1.0"
