@@ -112,8 +112,10 @@ profiles/<name>/     # assistant, planner, engineer, researcher, searcher, creat
                      #   — Hermes walks nested dirs and shows the parent as the
                      #   category, unlike the flat shared agents/skills tree;
                      #   planner-pipeline owns outline schema + granularity rubric;
-                     #   assistant keeps only its surface skills — orchestration
-                     #   lives in the shared skills/ tree above)
+                     #   assistant keeps only its surface skills — desks/ holds
+                     #   topic-bound personal-desk / project-desk / brainstorm
+                     #   (Inline-only; worker work spins into a new topic), while
+                     #   orchestration lives in the shared skills/ tree above)
   - cron/            # per-profile scheduled jobs (jobs.json; placeholder if empty)
                      # assistant/scripts/ holds cron scripts incl.
                      # kanban-scheduled-sweeper.sh and kanban-orphan-watchdog.sh
