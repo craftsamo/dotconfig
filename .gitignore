@@ -14,6 +14,16 @@ fish/
 # app-managed system skills (not user content)
 codex/skills/.system/
 
+# HyperFrames-managed skill symlinks: `hyperframes skills update` links its
+# store (~/.claude/skills, mirrored via ~/.agents/skills) into harness skill
+# dirs; tool-owned, per-machine, never repo content (see hermes/AGENTS.md)
+codex/skills/hyperframes*
+codex/skills/media-use
+copilot/skills/hyperframes*
+copilot/skills/media-use
+opencode/skills/hyperframes*
+opencode/skills/media-use
+
 # Shared cross-agent skill root (~/.agents/skills): NOT tracked by default —
 # it doubles as the `npx skills` install target, so third-party skills land
 # here. Own skills opt in once via `git add -f <path>` and stay tracked
