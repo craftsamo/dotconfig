@@ -54,6 +54,9 @@ gh api --paginate "/repos/OWNER/REPO/dependabot/alerts?state=open&per_page=100" 
   --jq '.[] | {n:.number, sev:.security_advisory.severity, eco:.dependency.package.ecosystem, pkg:.dependency.package.name, manifest:.dependency.manifest_path, range:.security_vulnerability.vulnerable_version_range, fixed:.security_vulnerability.first_patched_version.identifier, ghsa:.security_advisory.ghsa_id, cve:.security_advisory.cve_id, url:.html_url}'
 ```
 
+Keep each alert's `url` from `.html_url` as its canonical reference. Do not
+reconstruct it from the alert number.
+
 Render a table and classify every alert:
 
 - Fix: `fixed` / first patched version exists.
@@ -63,8 +66,15 @@ Render a table and classify every alert:
 
 Group fixes by `(ecosystem, package)`, or by manifest for monorepos. Also check
 whether Dependabot already opened security-update PRs:
-`gh pr list --author "app/dependabot" --state open`. If a sound PR exists,
-prefer reviewing/merging it over hand-fixing.
+
+```bash
+gh pr list --author "app/dependabot" --state open \
+  --json number,title,url \
+  --jq '.[] | "\(.title): \(.url)"'
+```
+
+If a sound PR exists, prefer reviewing/merging it over hand-fixing. Refer to
+that PR by its full `url`, not only by its number.
 
 Present the plan, grouped by fix / dismiss / defer, and get approval before any
 change.
@@ -88,8 +98,13 @@ For each approved group:
 
    ```bash
    git add <manifest> <lockfile>
-   git commit -m "fix(deps): bump <pkg> to <ver> (GHSA-xxxx / CVE-xxxx, alert #N)"
+   git commit -m "fix(deps): bump <pkg> to <ver> (GHSA-xxxx / CVE-xxxx)" \
+     -m "Dependabot alert: <ALERT_URL_1>" \
+     -m "Dependabot alert: <ALERT_URL_2>"
    ```
+
+   Add one commit-body entry per alert in the group and omit unused entries.
+   Use the canonical alert URLs collected during triage.
 
 Repeat until all approved groups are done. Keep groups in separate commits so
 review and revert stay clean. Never bundle unrelated bumps.
@@ -103,11 +118,23 @@ git push -u origin fix/dependabot-alerts
 ### 5. PR and dismissals
 
 ```bash
-gh pr create --fill --title "Fix Dependabot alerts"
+PR_URL=$(gh pr create --title "Fix Dependabot alerts" --body-file - <<'EOF'
+## Alerts
+
+- [Dependabot alert N](ALERT_URL): `<pkg>` `<old>` -> `<new>`; <severity>; <GHSA/CVE>
+
+## Deferred
+
+- [Dependabot alert N](ALERT_URL): <reason>
+EOF
+)
 ```
 
-The PR body should list each fixed alert with package old -> new, severity,
-GHSA/CVE, and anything deferred with a reason.
+Add one linked entry for every fixed alert and every deferred alert, omitting
+the Deferred section when empty. Replace `ALERT_URL` with the canonical
+`.html_url` value; do not represent an alert as a hash-prefixed number. Keep
+`PR_URL` and report that full URL to the user after creation. If an existing
+Dependabot PR was used instead, report its full `url` from the triage step.
 
 Dismissals are never automatic. Only after explicit per-alert user approval:
 
@@ -133,6 +160,9 @@ gh api -X PATCH "/repos/OWNER/REPO/dependabot/alerts/N" \
 - `fixed` is not manual: GitHub marks an alert fixed only after it re-scans the
   pushed change. Do not wait on it. Gate on local verification; the API state
   catches up after push.
+- Dependabot alert numbers are not Issue or PR references. Always use the
+  alert's canonical `.html_url`; a hash-prefixed number can link an unrelated
+  Issue or PR with the same repository number.
 
 </DecisionRules>
 
@@ -223,6 +253,9 @@ Use the same pattern:
 - Do not use routine dependency-upgrade behavior for a security alert workflow.
 - Do not forget `--paginate` for large alert lists.
 - Do not run `gh pr create` before the branch has been pushed.
+- Do not write a Dependabot alert as a hash-prefixed number in a commit, PR
+  body, or final report. Use its canonical `.html_url`. Use full PR URLs when
+  referring to existing or newly created PRs.
 - npm, pnpm, yarn, and cargo execute real code on install and inherit injected
   secrets via local shims; prefer minimal bumps and review what changed.
 
