@@ -25,4 +25,30 @@ eval "$(secret env -p global)"
 eval "$(secret env -p hermes)"
 unset DISCORD_BOT_TOKEN DISCORD_ALLOWED_USERS DISCORD_HOME_CHANNEL
 
+# Bare `deliver: telegram` cron jobs land in the configured system Inbox topic.
+# Hermes persists the topic id after creating it; derive it here so private
+# chat/thread identifiers stay in the ignored runtime config, not tracked jobs.
+ASSISTANT_CONFIG="$HOME/.hermes/profiles/assistant/config.yaml"
+unset TELEGRAM_CRON_THREAD_ID
+if [ -f "$ASSISTANT_CONFIG" ]; then
+  INBOX_THREAD_ID="$({
+    awk '
+      /^[[:space:]]*- name: Inbox[[:space:]]*$/ { inbox = 1; next }
+      inbox && /^[[:space:]]+thread_id:/ { print $2; exit }
+      inbox && /^[[:space:]]*- name:/ { exit }
+    ' "$ASSISTANT_CONFIG"
+  } || true)"
+fi
+case "${INBOX_THREAD_ID:-}" in
+  ''|*[!0-9]*)
+    # The first bootstrap must still start so Hermes can create/persist Inbox.
+    # A non-numeric explicit target fails before Telegram's stale numeric-topic
+    # recovery can retry at root DM. Restart after Inbox receives a thread_id.
+    TELEGRAM_CRON_THREAD_ID=disabled
+    echo "warning: Inbox thread_id unavailable; Telegram cron delivery is disabled until restart"
+    ;;
+  *) TELEGRAM_CRON_THREAD_ID="$INBOX_THREAD_ID" ;;
+esac
+export TELEGRAM_CRON_THREAD_ID
+
 exec "$HOME/.local/bin/hermes" -p assistant gateway run --replace --accept-hooks
