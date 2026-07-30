@@ -561,6 +561,9 @@ telegram:
       skills:
         - orchestration
   channel_prompts:
+    # On first startup Hermes creates the topics below and persists each thread_id.
+    # Replace the four *_THREAD_ID keys with those numeric ids, then restart once.
+    # Until that restart, Telegram cron delivery fails closed instead of using root DM.
     "YOUR_TELEGRAM_CHAT_ID": |
       Telegram-specific overrides:
       - This chat renders rich Markdown — lean into it: tables, headings, bullet/numbered
@@ -570,6 +573,34 @@ telegram:
         makes Telegram show the .md as plain text instead of rendering markdown.
       - Deliver the document by putting its bare file path on its own line; the
         gateway sends it as a native file and strips the path from the text.
+    "PERSONAL_THREAD_ID": |
+      Topic contract — Personal desk:
+      - Apply the personal-desk skill and complete recurring personal operations inline.
+      - Never dispatch workers from this topic. When execution must leave the Assistant,
+        prepare a compact handoff and ask for a new topic.
+      - Treat Personal and Projects/Personal data as sensitive; summarize and never expose
+        raw financial data, contacts, or PII.
+    "PROJECTS_THREAD_ID": |
+      Topic contract — Projects desk:
+      - Apply the project-desk skill and complete registry, scaffold, docs, and data
+        administration inline.
+      - Never dispatch workers from this topic. Code changes or other execution work get a
+        compact handoff and a new topic.
+      - Never commit or push without explicit approval.
+    "INBOX_THREAD_ID": |
+      Topic contract — system Inbox:
+      - This topic receives automated reports, maintenance notices, scheduled-task releases,
+        and watchdog alerts.
+      - Summarize or explain a notification when asked, but do not start or dispatch execution
+        work here. Prepare a handoff and ask for a new topic when action is required.
+      - Normal kanban completion notifications belong to the topic that created the work.
+    "BRAINSTORM_THREAD_ID": |
+      Topic contract — Brainstorm desk:
+      - Apply the brainstorm skill and keep ideation inline.
+      - Externalize durable decisions only when useful and with the correct workspace privacy
+        rules.
+      - Never dispatch workers from this topic. When an idea becomes execution, prepare a
+        compact handoff and ask for a new topic.
   allowed_chats: ''
 platforms:
   telegram:
@@ -581,21 +612,21 @@ platforms:
       dm_topics:
       - chat_id: 'YOUR_TELEGRAM_CHAT_ID'
         topics:
-        - name: General
-          icon_custom_emoji_id: '5417915203100613993'
-          icon_color: 7322096
-        - name: Creative
-          icon_custom_emoji_id: '5310039132297242441'
-          icon_color: 13338331
-        - name: Engineering
-          icon_custom_emoji_id: '5350554349074391003'
-          icon_color: 9367192
-        - name: Search
-          icon_custom_emoji_id: '5309965701241379366'
-          icon_color: 7322096
         - name: Personal
           icon_custom_emoji_id: '5312486108309757006'
           icon_color: 16766590
+          skill: personal-desk
+        - name: Projects
+          icon_custom_emoji_id: '5350554349074391003'
+          icon_color: 9367192
+          skill: project-desk
+        - name: Inbox
+          icon_custom_emoji_id: '5417915203100613993'
+          icon_color: 7322096
+        - name: Brainstorm
+          icon_custom_emoji_id: '5310039132297242441'
+          icon_color: 13338331
+          skill: brainstorm
 mattermost:
   require_mention: true
   free_response_channels: ''
