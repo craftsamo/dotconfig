@@ -71,7 +71,7 @@ pins an exact reference the batch must match (there is nothing left to lock).
 
 | Asset | Anchor carried into the batch |
 | --- | --- |
-| still image | the **locked style prompt** (text) reused verbatim, subject swapped — the image tool takes no seed/reference, so consistency IS the shared prompt; switch to a prompt-adherent provider (`img-codex-xai`) if it drifts |
+| still image | the **locked style prompt** (text) reused verbatim, subject swapped — the image tool takes no seed/reference, so consistency IS the shared prompt; tighten that prompt before re-sampling if it drifts |
 | pixel-art | the **locked palette** — one named palette on every run, or a sample-derived palette applied by the loaded `creator-pixel-art` technic; never adapt per asset |
 | video | the approved sample as `reference_image_urls` + a **fixed `seed`** on every render (both supported by `video_gen`) |
 | p5.js / HTML motion | the approved design file + hero frame, with the same palette/type/motion tokens and deterministic seed/timeline contract |

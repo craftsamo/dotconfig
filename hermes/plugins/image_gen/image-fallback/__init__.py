@@ -8,11 +8,11 @@ rate-limit / quota hit). This gives ``image_generate`` resilience the core tool
 does not provide natively (the active provider is a single value with no
 built-in failover).
 
-Both chains are always registered ("prepare both patterns"); pick one per
+All chains are always registered ("prepare both patterns"); pick one per
 profile via ``image_gen.provider`` in that profile's ``config.yaml``:
 
     image_gen:
-      provider: img-xai-codex-fal      # or img-codex-xai
+      provider: img-codex-xai-fal      # or img-xai-codex-fal
     plugins:
       enabled:
         - image-fallback
@@ -43,6 +43,7 @@ logger = logging.getLogger(__name__)
 # Ordered fallback chains. Keys are the values you put in image_gen.provider.
 _CHAINS: Dict[str, List[str]] = {
     "img-codex-xai": ["openai-codex", "xai"],
+    "img-codex-xai-fal": ["openai-codex", "xai", "fal"],
     "img-xai-codex-fal": ["xai", "openai-codex", "fal"],
 }
 

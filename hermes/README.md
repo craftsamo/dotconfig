@@ -47,7 +47,9 @@ symlinked, so a new plugin needs no re-`install.sh` — only `plugins.enabled` i
 the relevant `config.yaml`.
 
 - **image_gen / video_gen fallback chains** (`kind: backend`):
-  `image_gen/image-fallback` registers `img-xai-codex-fal` (xAI → Codex → FAL);
+  `image_gen/image-fallback` registers `img-codex-xai` (Codex → xAI),
+  `img-xai-codex-fal` (xAI → Codex → FAL), and `img-codex-xai-fal`
+  (Codex → xAI → FAL); Creator uses the Codex-first `img-codex-xai-fal` chain.
   `video_gen/video-fallback` registers `vid-xai-fal` (Grok Imagine → FAL) and the
   reverse `vid-fal-xai`. Pick one per profile via `image_gen.provider` /
   `video_gen.provider`.
