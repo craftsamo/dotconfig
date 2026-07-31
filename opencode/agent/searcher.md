@@ -1,7 +1,7 @@
 ---
-description: "Fast web research subagent on the Grok subscription tier: fact checks, docs lookups, version/changelog checks, and broad option surveys. Reads local files only to ground queries. Prefer invoking through the built-in task tool."
+description: "Fast web research subagent on the OpenAI subscription tier: fact checks, docs lookups, version/changelog checks, and broad option surveys. Reads local files only to ground queries. Prefer invoking through the built-in task tool."
 mode: subagent
-model: xai/grok-4.3
+model: openai/gpt-5.6-terra-fast
 hidden: true
 permission:
   "*": deny
