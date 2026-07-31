@@ -30,21 +30,30 @@ agent:
     - First action, every task: kanban_show, then load the `creator-pipeline` skill
       (skill_view) — unless it is already preloaded in this prompt (dispatched cards
       pin it) — and follow it — it owns mode routing (advisory / plan / produce +
-      the resume overlay), intent triage (new / revise / salvage), the Brief and
-      Budget contracts, the comment protocol, checkpoint-then-block, fan-out, the
-      verify pass, and delivery incl. the Review gate.
+      the resume overlay), intent triage (new / revise / salvage), the MediaBrief,
+      canonical capability routing, Budget contract, comment protocol,
+      checkpoint-then-block, fan-out, verify pass, and delivery incl. the Review
+      gate.
       Non-kanban invocations (direct CLI / delegate_task): skip kanban_show but still
       load the pipeline; treat the request as the task body.
     - Produce media with the generation toolsets (image/video/tts) and their plugin
       fallback chains; post-process with terminal tools (ffmpeg etc.) when needed.
+      Before production, report the capability identity (canonical creator-* leaf,
+      core:tts, or preflighted external:<skill>), version when applicable, concrete
+      backend/path, and preflight result in STATE:/PROGRESS:. A missing or ambiguous
+      required capability blocks before spend; never silently fall back to generic
+      generation.
     - Ambiguous creative direction (style, aspect, tone) with no reference in the task
       body -> ONE batched block round-trip: kanban_block(kind=needs_input) with numbered
       Q<n> questions (2-4 options + your recommendation each); comment a state note
       first. Never burn generation credits guessing, never block twice for what one
       batch could settle.
     - Budget floor (holds even before the skill loads): the task body's Budget: is the
-      spend grant; absent = 4 image variants / 2 video renders per asset + 1 corrective
-      pass. Never exceed it without an AUTHORITY+: comment — block instead. Advisory
+      spend grant; absent = 4 image variants / 2 video renders / 2 generated-audio
+      or song renders per asset / 1 TTS synthesis per requested voice asset + 1
+      corrective pass; local neural generation defaults to <=15 minutes per render
+      with CPU fallback forbidden. Never exceed it without
+      an AUTHORITY+: comment — block instead. Advisory
       (judgment-only) tasks generate nothing regardless of grant; plan tasks spend
       only the cheap style anchor before sign-off.
     - Respawned with a surviving scratch workspace: inventory intermediates first and
@@ -429,13 +438,20 @@ skills:
     - ~/ghq/github.com/NousResearch/hermes-agent/skills/autonomous-ai-agents
     - ~/ghq/github.com/NousResearch/hermes-agent/skills/creative
     - ~/ghq/github.com/NousResearch/hermes-agent/skills/media
-    - ~/ghq/github.com/NousResearch/hermes-agent/optional-skills/creative
+    - ~/ghq/github.com/NousResearch/hermes-agent/optional-skills/creative/baoyu-article-illustrator
+    - ~/ghq/github.com/NousResearch/hermes-agent/optional-skills/creative/audiocraft-audio-generation
+    - ~/ghq/github.com/NousResearch/hermes-agent/optional-skills/creative/pixel-art
+    - ~/ghq/github.com/NousResearch/hermes-agent/optional-skills/creative/baoyu-comic
+    - ~/ghq/github.com/NousResearch/hermes-agent/optional-skills/creative/meme-generation
+    - ~/ghq/github.com/NousResearch/hermes-agent/optional-skills/creative/concept-diagrams
+    - ~/ghq/github.com/NousResearch/hermes-agent/optional-skills/creative/heartmula
     - ~/.agents/skills
   disabled:
     - kanban-video-orchestrator
     - blender-mcp
     - touchdesigner-mcp
     - unreal-mcp
+    - pixel-art
   template_vars: true
   inline_shell: false
   inline_shell_timeout: 10
@@ -626,7 +642,7 @@ platform_toolsets:
   telegram: []
   discord: []
 image_gen:
-  provider: img-xai-codex-fal
+  provider: img-codex-xai-fal
 video_gen:
   provider: vid-xai-fal
 video_analyze:
@@ -639,6 +655,7 @@ plugins:
     - video-analyze-mimo
     - aivis
     - tts-fallback
+    - skill-topology
   entries:
     video-analyze-mimo:
       allow_tool_override: true

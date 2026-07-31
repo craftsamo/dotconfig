@@ -32,6 +32,10 @@ pins an exact reference the batch must match (there is nothing left to lock).
 
 ## Procedure
 
+0. **Preflight the capability.** Validate `references/brief.md`, load
+   `references/capabilities.md`, load the selected leaf or preflight the
+   core/external route, and write its capability handshake before making an
+   anchor. Plan mode spends too; it never bypasses the production gate.
 1. **Draft the plan** (no spend). Two parts, both reusable:
    - **Style spec** — the detailed, reusable description every asset shares:
      the prompt skeleton, palette, mood, composition rules, tokens. This is
@@ -67,9 +71,12 @@ pins an exact reference the batch must match (there is nothing left to lock).
 
 | Asset | Anchor carried into the batch |
 | --- | --- |
-| still image | the **locked style prompt** (text) reused verbatim, subject swapped — the image tool takes no seed/reference, so consistency IS the shared prompt; switch to a prompt-adherent provider (`img-codex-xai`) if it drifts |
-| pixel-art | the **locked palette** — one named palette on every run, or a sample-derived palette applied with `${HERMES_SKILL_DIR}/scripts/palette-extract.py` (see `references/produce.md` <AssetRouting> pixel-art specifics) |
+| still image | the **locked style prompt** (text) reused verbatim, subject swapped — the image tool takes no seed/reference, so consistency IS the shared prompt; tighten that prompt before re-sampling if it drifts |
+| pixel-art | the **locked palette** — one named palette on every run, or a sample-derived palette applied by the loaded `creator-pixel-art` technic; never adapt per asset |
 | video | the approved sample as `reference_image_urls` + a **fixed `seed`** on every render (both supported by `video_gen`) |
+| p5.js / HTML motion | the approved design file + hero frame, with the same palette/type/motion tokens and deterministic seed/timeline contract |
+| generated audio / music | the approved prompt, model/version, conditioning source, seed/sampling params, and short audio anchor |
+| vocal song | the approved lyrics + structural/musical tags, model/version, sampling params, and short audio anchor |
 | voice / narration | the same voice id and params across the set |
 
 ## Report

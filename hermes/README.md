@@ -16,12 +16,15 @@ into place.
 | `~/.hermes/skills`      | `hermes/skills/`    |
 | `~/.hermes/plugins`     | `hermes/plugins/`   |
 
-### Skills — agent-created are tracked, bundled are not
+### Skills — managed core tracked, learned library ignored
 
-`~/.hermes/skills` is symlinked to the repo, so **skills the agent creates land
-in `hermes/skills/`** and are version-controlled (the agent always writes new
-skills to `HERMES_HOME/skills`). The ~73 **bundled** skills are kept out of the
-repo: seeding is disabled — `hermes skills opt-out --remove` writes a
+`~/.hermes/skills` is symlinked to the repo. Maintainer-owned shared skills
+(`orchestration/` and `workspaces/`) are version-controlled; runtime-authored
+skills are mutable state under `learned/` and are git-ignored. The
+`skill-topology` plugin rewrites every normal `skill_manage(action=create)`
+call — including background review, curator and `/learn` — to
+`HERMES_HOME/skills/learned/<name>`. The ~73 **bundled** skills are also kept
+out of the repo: seeding is disabled — `hermes skills opt-out --remove` writes a
 `.no-bundled-skills` marker, which is tracked here and symlinked into
 `~/.hermes/` by `install.sh` so the opt-out reproduces on a fresh machine — and
 `config.yaml` points `skills.external_dirs` at the agent clone
@@ -47,7 +50,9 @@ symlinked, so a new plugin needs no re-`install.sh` — only `plugins.enabled` i
 the relevant `config.yaml`.
 
 - **image_gen / video_gen fallback chains** (`kind: backend`):
-  `image_gen/image-fallback` registers `img-xai-codex-fal` (xAI → Codex → FAL);
+  `image_gen/image-fallback` registers `img-codex-xai` (Codex → xAI),
+  `img-xai-codex-fal` (xAI → Codex → FAL), and `img-codex-xai-fal`
+  (Codex → xAI → FAL); Creator uses the Codex-first `img-codex-xai-fal` chain.
   `video_gen/video-fallback` registers `vid-xai-fal` (Grok Imagine → FAL) and the
   reverse `vid-fal-xai`. Pick one per profile via `image_gen.provider` /
   `video_gen.provider`.
@@ -68,6 +73,10 @@ the relevant `config.yaml`.
   `stt.fallback.chain` in order (default `groq → xai → openai → elevenlabs →
   local`) and returns the first successful transcript. Active via
   `stt.provider: stt-fallback` (see [Speech-to-text](#speech-to-text--fallback-chain)).
+- **skill-topology** (`kind: standalone`): request middleware that forces new
+  runtime-authored skills into `learned/`. It does not intercept dashboard
+  direct-create APIs or arbitrary terminal/file writes; the topology validator
+  catches those paths after the fact.
 
 ## User-managed content
 
@@ -77,8 +86,9 @@ the relevant `config.yaml`.
   this on load.
 - `SOUL.md` — global agent identity (system-prompt slot #1).
 - `mcp.json` — MCP server connections.
-- `skills/<name>/SKILL.md` — version-controlled skills (agent-created land here;
-  bundled are read from the clone via `external_dirs`, not tracked).
+- `skills/orchestration/` and `skills/workspaces/` — version-controlled shared
+  skills. `skills/learned/` is the untracked adaptive library; bundled skills
+  are read from the clone via `external_dirs`.
 - `cron/jobs.json` — scheduled job definitions (run-state churns in the same
   file; `cron/output/` and `cron/.tick.lock` are git-ignored).
 
@@ -99,7 +109,7 @@ injected for every profile.
 move them into the repo (clearing the real files) before linking:
 
 1. `hermes profile create <name>` — seeds state + the `~/.local/bin/<name>` alias.
-2. Stop bundled-skill seeding so only agent skills get tracked:
+2. Stop bundled-skill seeding so bundled skills stay in `external_dirs`:
    ```sh
    hermes -p <name> skills opt-out --remove --yes
    ```
@@ -115,6 +125,14 @@ move them into the repo (clearing the real files) before linking:
 
 State (`.env`, `memories/`, `sessions/`, `state.db*`, …) stays in
 `~/.hermes/profiles/<name>/` — never moved, never tracked.
+
+Each worker profile tracks exactly one `<profile>-pipeline/` and a `technic/`
+directory; the assistant tracks `desks/` and `technic/` while the shared
+`orchestration` skill is its pipeline equivalent. Every profile may grow an
+untracked `learned/` library. To promote a learned skill, review it, move the
+complete package into `technic/`, set `metadata.hermes.category: technic`, add
+it to the pipeline's capability registry when applicable, pin an agent-created
+source with `hermes -p <profile> curator pin <name>`, then commit it normally.
 
 ### Caveats
 

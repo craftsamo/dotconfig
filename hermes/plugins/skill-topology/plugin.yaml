@@ -1,0 +1,6 @@
+name: skill-topology
+version: 1.0.0
+description: >-
+  Keeps runtime-authored skills in the learned category so profile pipelines,
+  technics, and front-door surfaces remain maintainer-owned.
+kind: standalone
