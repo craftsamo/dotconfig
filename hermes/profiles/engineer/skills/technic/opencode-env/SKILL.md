@@ -22,7 +22,7 @@ license: MIT
 metadata:
   hermes:
     tags: [opencode, environment, capability, configuration, delegation, permissions, quota, inspection]
-    category: software-development
+    category: technic
     related_skills: [engineer-pipeline, opencode, machine-env]
 ---
 

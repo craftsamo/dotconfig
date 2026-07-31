@@ -256,6 +256,15 @@ Three per-profile layers, kept separate:
   knowledge becomes a skill), and `user_profile_enabled` is off for workers —
   they never converse with the human.
 - **skills/** — detailed, on-demand playbooks:
+  Every local library uses the same ownership types. A worker has one tracked
+  `<profile>-pipeline/` plus tracked, directly selectable `technic/` leaves.
+  The front doors share tracked `hermes/skills/orchestration/` as their
+  pipeline; assistant-only Telegram surfaces live in tracked `desks/`.
+  Runtime-authored skills from background review, curator, `/learn`, or normal
+  `skill_manage(create)` calls go to the untracked `learned/` category through
+  the `skill-topology` plugin. Moving a complete package from `learned/` to
+  `technic/` is the explicit maintainer-review boundary. External directories
+  remain provider-owned and never become local technics implicitly.
   - assistant + default → `orchestration` (shared front-door playbook, lives in
     default's tree at `hermes/skills/orchestration/`: 7-step pipeline
     (Classify → Locate → Approach → [Plan: Decompose → Register → Plan Loop] →
@@ -282,7 +291,7 @@ Three per-profile layers, kept separate:
     (enumeration with a coverage claim, incl. measurements) / hunt (multi-hop
     to saturation, signalled by `goal_mode`) — plus the link-integrity floor
     and the minimal kanban protocol in the kernel; per-mode playbooks in
-    references/. `deep-retrieval` remains only as a deprecated stub)
+    references/. `technic/deep-retrieval` remains only as a deprecated stub)
   - creator → `creator-pipeline` (the one MediaBrief + capability router,
     Budget grant parsing, structured STATE/Qn block dialogue, per-asset
     PROGRESS, workspace-reuse resume, visual verification, kanban_attach
