@@ -287,11 +287,16 @@ Three per-profile layers, kept separate:
     Budget grant parsing, structured STATE/Qn block dialogue, per-asset
     PROGRESS, workspace-reuse resume, visual verification, kanban_attach
     delivery) + directly selectable in-tree leaves under `skills/technic/`:
-    `creator-generated-image`, `creator-generated-video`,
-    `creator-logo-icons`, `creator-text-card`, `creator-pixel-art`,
-    `creator-pixel-video`, and `creator-brand-asset-sourcing`. Leaves own one
-    production grammar and its medium QA; styles/presets and same-tool modes
-    stay in references. The HyperFrames stack remains available via
+    `creator-generated-image`, `creator-article-illustration`,
+    `creator-infographic`, `creator-svg-diagram`,
+    `creator-excalidraw-diagram`, `creator-logo-icons`, `creator-text-card`,
+    `creator-generated-video`, `creator-ascii-video`,
+    `creator-manim-explainer`, `creator-pixel-art`, `creator-pixel-video`,
+    `creator-knowledge-comic`, and `creator-brand-asset-sourcing`. Leaves own
+    one production grammar and its medium QA; styles/presets and same-tool
+    modes stay in references. Official creative skills may be implementation
+    engines behind these canonical names, but never alternate dispatch
+    identities. The HyperFrames stack remains available via
     `skills.external_dirs` (`~/.agents/skills` — `hyperframes` is the entry
     point that routes the 6 sub-skills, plus `media-use` for asset resolution /
     TTS / captions; CLI-owned store, see AGENTS.md), and the upstream

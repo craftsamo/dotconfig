@@ -1,7 +1,7 @@
 ---
 name: planner-pipeline
 description: Planner's pipeline — turn a settled goal into an approved-ready dependency-graph outline (cards with assignees, technic skills, grants, parents) via tiered investigation and the boundary-based granularity rubric. Plan-only; never creates build cards.
-version: 1.0.0
+version: 1.1.0
 author: CraftSamo
 license: MIT
 metadata:
@@ -124,7 +124,7 @@ skill's `<Workers>` table.
 | searcher | retrieval, routed by deliverable: targeted lookups, enumerations/surveys with a coverage claim, exhaustive multi-hop hunts (signal with `goal_mode`) | `searcher-pipeline` (MANDATORY pin on every card); no optional technics — `deep-retrieval` is a deprecated stub, use `goal_mode` | — |
 | researcher | routes by deliverable: analysis/synthesis (evidence-pack), option comparison with a recommendation (tradeoff-matrix), claim verdicts and artifact-vs-spec QA gates (fact-check), evidence-backed direction for a downstream worker (guidance) | `researcher-pipeline` (MANDATORY pin on every card), `web-source-vetting` (source trust triage), `media-artifact-verification` (confirmed media numbers — metadata for figures, vision for content) | — |
 | engineer | code, tests, builds, PRs via OpenCode; routes by deliverable (assess / shape / implement) — openers (`Orient —` / `Advisory —` / `Bootstrap —` / `Specify —` / `Plan —`) remain valid altitude hints | `engineer-pipeline` (MANDATORY pin on every card), `opencode-env`, `machine-env` | Authority A1/A2/A3, B1/B2, S1/S2 |
-| creator | ALL media production (image/video/GIF/voice); media advisories + style-anchor plan rounds; revisions carry `Intent: revise` + previous-card pointers in Inputs | `creator-pipeline` (MANDATORY pin on every card); canonical leaves: `creator-generated-image`, `creator-generated-video`, `creator-logo-icons`, `creator-text-card`, `creator-pixel-art`, `creator-pixel-video`, `creator-brand-asset-sourcing`; external support: `hyperframes`, `media-use` | Budget |
+| creator | ALL media production (image/video/GIF/voice); media advisories + style-anchor plan rounds; revisions carry `Intent: revise` + previous-card pointers in Inputs | `creator-pipeline` (MANDATORY pin on every card); canonical leaves: `creator-generated-image`, `creator-article-illustration`, `creator-infographic`, `creator-svg-diagram`, `creator-excalidraw-diagram`, `creator-logo-icons`, `creator-text-card`, `creator-generated-video`, `creator-ascii-video`, `creator-manim-explainer`, `creator-pixel-art`, `creator-pixel-video`, `creator-knowledge-comic`, `creator-brand-asset-sourcing`; external support: `hyperframes`, `media-use` | Budget |
 | writer | reader-facing prose, drafts only | `writer-pipeline` (MANDATORY pin on every card); Japanese norms layers (`japanese-*`) auto-route inside the pipeline — never pin them | — |
 | marketer | routes by deliverable: assess (consultations, honest critiques of assets/drafts, market-judgment memos), shape (strategy/calendar — nothing ships), campaign (drafts to approval / ship within grant) | `marketer-pipeline` (MANDATORY pin on every card), `social-video-research` (platform-native format/spec recon) | Publish (absent = draft-only) |
 
