@@ -107,8 +107,9 @@ profiles/<name>/     # assistant, planner, engineer, researcher, searcher, creat
                      #   references are modes only when tools, spend class and QA
                      #   stay the same; styles/presets/formats remain references.
                      #   (searcher: none — modes live in pipeline references,
-                     #   deep-retrieval is a deprecated stub / creator: canonical
-                     #   creator-* image/video/icon/card/pixel/sourcing leaves;
+                      #   deep-retrieval is a deprecated stub / creator: canonical
+                      #   creator-* image/video/diagram/editorial/icon/card/pixel/
+                      #   sourcing leaves;
                      #   writer: Japanese stack via the curated external-skills
                      #   symlink dir / marketer: + upstream social-media/xurl;
                      #   engineer and creator group technics under skills/technic/

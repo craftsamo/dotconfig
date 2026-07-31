@@ -47,6 +47,13 @@ Do not infer a platform spec from habit when the repository states one.
 - source still/reference frames and one motion statement,
 - audio requirement and backend capability constraints.
 
+## Voice additions
+
+- exact script, language, pronunciations, voice identity, and pacing,
+- output format, sample rate, channel count, loudness, and duration target,
+- requested file count (each output file is one voice asset for Budget),
+- whether voice is standalone or supports a video/animation deliverable.
+
 ## Pixel additions
 
 - native grid and integer-scale destination,

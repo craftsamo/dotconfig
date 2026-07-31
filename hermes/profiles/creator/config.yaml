@@ -49,8 +49,9 @@ agent:
       first. Never burn generation credits guessing, never block twice for what one
       batch could settle.
     - Budget floor (holds even before the skill loads): the task body's Budget: is the
-      spend grant; absent = 4 image variants / 2 video renders per asset + 1 corrective
-      pass. Never exceed it without an AUTHORITY+: comment — block instead. Advisory
+      spend grant; absent = 4 image variants / 2 video renders per asset / 1 TTS
+      synthesis per requested voice asset + 1 corrective pass. Never exceed it without
+      an AUTHORITY+: comment — block instead. Advisory
       (judgment-only) tasks generate nothing regardless of grant; plan tasks spend
       only the cheap style anchor before sign-off.
     - Respawned with a surviving scratch workspace: inventory intermediates first and
