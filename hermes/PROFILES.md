@@ -256,6 +256,15 @@ Three per-profile layers, kept separate:
   knowledge becomes a skill), and `user_profile_enabled` is off for workers —
   they never converse with the human.
 - **skills/** — detailed, on-demand playbooks:
+  Every local library uses the same ownership types. A worker has one tracked
+  `<profile>-pipeline/` plus tracked, directly selectable `technic/` leaves.
+  The front doors share tracked `hermes/skills/orchestration/` as their
+  pipeline; assistant-only Telegram surfaces live in tracked `desks/`.
+  Runtime-authored skills from background review, curator, `/learn`, or normal
+  `skill_manage(create)` calls go to the untracked `learned/` category through
+  the `skill-topology` plugin. Moving a complete package from `learned/` to
+  `technic/` is the explicit maintainer-review boundary. External directories
+  remain provider-owned and never become local technics implicitly.
   - assistant + default → `orchestration` (shared front-door playbook, lives in
     default's tree at `hermes/skills/orchestration/`: 7-step pipeline
     (Classify → Locate → Approach → [Plan: Decompose → Register → Plan Loop] →
@@ -282,19 +291,37 @@ Three per-profile layers, kept separate:
     (enumeration with a coverage claim, incl. measurements) / hunt (multi-hop
     to saturation, signalled by `goal_mode`) — plus the link-integrity floor
     and the minimal kanban protocol in the kernel; per-mode playbooks in
-    references/. `deep-retrieval` remains only as a deprecated stub)
-  - creator → `creator-pipeline` (asset-type routing to the gen chains + the
-    creative-skill catalog, Budget grant parsing, structured STATE/Qn block
-    dialogue, per-asset PROGRESS, workspace-reuse resume, visual verification,
-    kanban_attach delivery) + the in-tree `contextual-image-gen` /
-    `contextual-video-gen` depth skills, the HyperFrames stack via
-    `skills.external_dirs` (`~/.agents/skills` — `hyperframes` is the entry
-    point that routes the 6 sub-skills, plus `media-use` for asset resolution /
-    TTS / captions; CLI-owned store, see AGENTS.md), and the upstream
-    `creative/` + `media/` libraries (comfyui, manim-video, gif-search, … —
-    creator owns the creative cluster). MCP-backed entries in that cluster
+    references/. `technic/deep-retrieval` remains only as a deprecated stub)
+  - creator → `creator-pipeline` (the one MediaBrief + capability router,
+    Budget grant parsing, structured STATE/Qn block dialogue, per-asset
+    PROGRESS, workspace-reuse resume, visual verification, kanban_attach
+    delivery) + directly selectable in-tree leaves under `skills/technic/`:
+    `creator-generated-image`, `creator-article-illustration`,
+    `creator-infographic`, `creator-svg-diagram`,
+    `creator-excalidraw-diagram`, `creator-logo-icons`, `creator-text-card`,
+    `creator-meme`, `creator-ascii-art`, `creator-audio-visualization`,
+    `creator-audio-generation`, `creator-song-generation`,
+    `creator-gif-sourcing`, `creator-generated-video`, `creator-html-motion`,
+    `creator-p5js-experience`, `creator-ascii-video`,
+    `creator-manim-explainer`, `creator-pixel-art`, `creator-pixel-video`,
+    `creator-knowledge-comic`, and `creator-brand-asset-sourcing`. Leaves own
+    one production grammar and its medium QA; styles/presets and same-tool
+    modes stay in references. Official creative skills may be implementation
+    engines behind these canonical names, but never alternate dispatch
+    identities. `creator-html-motion` uses the HyperFrames stack via
+    `skills.external_dirs` (`~/.agents/skills` - `hyperframes` is the entry
+    point that routes the domain/workflow skills, plus `media-use` for asset
+    resolution / TTS / captions; CLI-owned store, see AGENTS.md). The upstream
+    bundled `creative/` + `media/` libraries remain available, while optional
+    skills are exposed as a curated set of individual directories (article
+    illustration, AudioCraft, pixel art, comics, memes, concept diagrams, and
+    HeartMuLa) so the official optional `hyperframes` cannot collide with the
+    CLI-owned entry skill. MCP-backed entries in that cluster
     (`blender-mcp`, `touchdesigner-mcp`, `unreal-mcp`) are listed in
-    `skills.disabled`: the profile runs `no_mcp`, so they can never execute
+    `skills.disabled`: the profile runs `no_mcp`, so they can never execute.
+    The ambiguous external `pixel-art` name is disabled too; the canonical
+    Pixel leaves may use its scripts as opt-in implementation backends but are
+    the only stable dispatch identities
   - writer → `writer-pipeline` (kernel SKILL.md pinned on every writer card:
     assess/write mode routing by deliverable, WritingBrief parsing, one-round
     tone calibration; TypeTable routes copy/article/docs → references/prose.md
@@ -378,12 +405,13 @@ turn. The default profile already proves the YAML shape.
 
 Most profiles lead with **Claude Opus 5** for judgment and long-context work,
 fall back first to **GPT-5.6 Sol**, then keep a role-appropriate OpenRouter
-tail. Three exceptions: **planner** leads with **Claude Fable 5** and inserts
-Opus 5 as its T2 (see "Fable and the Max weekly pool" below), while
-**researcher** and **searcher** lead on `xai-oauth` — grok-4.5 and grok-4.3
-respectively, splitting the load across two flat-rate subscriptions instead of
-piling every worker onto the Max weekly pool. The coding model inside OpenCode
-is a separate layer entirely: engineer-pipeline drives a **fixed ladder**
+tail. The deliberate exceptions are **planner**, which leads with **Claude Fable
+5** and inserts Opus 5 as its T2 (see "Fable and the Max weekly pool" below),
+and **searcher**, which leads on `xai-oauth` / grok-4.3. **Researcher** leads
+with GPT-5.6 Sol, followed by Opus 5 and MiMo. xAI capacity is reserved for
+Searcher, X search, and Imagine video; Codex is shared because it also serves
+Researcher and Creator's images, alongside profile fallbacks. The coding model
+inside OpenCode is a separate layer entirely: engineer-pipeline drives a **fixed ladder**
 (`claude-opus-5` → `gpt-5.6-sol` at `--variant high` → `grok-4.5` → OpenRouter),
 descending only on an error or a spent pool — never by pre-judging the task's
 weight.
@@ -394,7 +422,7 @@ weight.
 | **assistant** | `anthropic` / claude-opus-5 | `openai-codex` / gpt-5.6-sol | `openrouter` / `xiaomi/mimo-v2.5` | — | `medium` |
 | **planner** | `anthropic` / **claude-fable-5** | `anthropic` / claude-opus-5 | `openai-codex` / gpt-5.6-sol | `openrouter` / `deepseek/deepseek-v4-flash` | `high` |
 | **engineer** | `anthropic` / claude-opus-5 | `openai-codex` / gpt-5.6-sol | `openrouter` / `deepseek/deepseek-v4-flash` | — | `high` |
-| **researcher** | `xai-oauth` / **grok-4.5** | `anthropic` / claude-opus-5 | `openai-codex` / gpt-5.6-sol | `openrouter` / `xiaomi/mimo-v2.5` | `medium` |
+| **researcher** | `openai-codex` / **gpt-5.6-sol** | `anthropic` / claude-opus-5 | `openrouter` / `xiaomi/mimo-v2.5` | — | `medium` |
 | **searcher** | `xai-oauth` / grok-4.3 | `openrouter` / `xiaomi/mimo-v2.5` | — | — | `low` |
 | **creator** | `anthropic` / claude-opus-5 | `openai-codex` / gpt-5.6-sol | `openrouter` / `minimax/minimax-m3` | — | `medium` |
 | **writer** | `anthropic` / claude-opus-5 | `openai-codex` / gpt-5.6-sol | `openrouter` / `deepseek/deepseek-v4-flash` | — | `medium` |
@@ -435,40 +463,37 @@ calls):
   `claude-fable-5` on planner, `claude-opus-5` everywhere else. OAuth resolves
   from the global Claude Code credential/token rather than per-profile
   `auth.json`.
-- **xAI (T1, researcher / searcher)** — both run `xai-oauth`
+- **xAI (T1, searcher only)** — searcher runs `xai-oauth`
   (`base_url: https://api.x.ai/v1`), which is a flat-rate **SuperGrok /
   Premium+ subscription**, not the metered `XAI_API_KEY` API. The published
-  per-token prices therefore do not apply to this path; what the two profiles
-  actually spend is subscription allowance, which is why they sit here rather
-  than adding two more consumers to the Max weekly pool.
+  per-token prices therefore do not apply to this path; searcher spends
+  subscription allowance, while xAI capacity is also reserved for X search and
+  Imagine video rather than adding another worker to the Max weekly pool.
 
-  The split is by job shape. **Researcher takes grok-4.5**, xAI's frontier
-  reasoning SKU, and stacks Opus 5 and Sol beneath it. **Searcher stays on
-  grok-4.3**, which xAI positions for *tool calling and instruction
-  following* — the right shape for link-first retrieval, and the only one of
-  the two whose reasoning can be switched off entirely (`none`). Grok 4.5
-  cannot disable reasoning and **defaults to `high` when the key is omitted**,
-  so an unset effort there is an expensive surprise rather than a cheap one.
-  Both are on the reasoning-capable allowlist
-  (`model_metadata.py:370-410`), so their `reasoning_effort` really is sent as
+  **Searcher stays on grok-4.3**, which xAI positions for *tool calling and
+  instruction following* — the right shape for link-first retrieval, and whose
+  reasoning can be switched off entirely (`none`). It is on the
+  reasoning-capable allowlist
+  (`model_metadata.py:370-410`), so its `reasoning_effort` really is sent as
   `reasoning: {effort: …}` — it is not a no-op. Non-allowlisted Grok models
   have the field dropped on purpose, because xAI answers an unsupported
   `reasoningEffort` with HTTP 400.
 
-  **A lapsed xAI OAuth does not degrade these two to their lower tiers.**
+  **A lapsed xAI OAuth does not degrade searcher to its lower tiers.**
   Credential resolution fails before the request is built, so the agent aborts
   with `xAI OAuth state is missing access_token` and `fallback_providers` never
-  engages — researcher and searcher stop dead rather than falling through, so
-  researcher's Opus 5 tier is no insurance against this particular failure. The
-  same gate hides the `x_search` tool from the schema, which `hermes doctor`
+  engages — searcher stops dead rather than falling through. The same gate hides
+  the `x_search` tool from the schema, which `hermes doctor`
   reports as `x_search (missing XAI_API_KEY)`; that wording is misleading,
   since the tool prefers the OAuth bearer and only falls back to the API key
   (`tools/xai_http.py:243-310`). Re-authenticate with `hermes model` from the
   **default** profile — never with `-p`, which would write the worker's own
   `auth.json` and shadow the inherited credential.
 - **Codex** — every profile except searcher carries `openai-codex` /
-  `gpt-5.6-sol` (`base_url: https://chatgpt.com/backend-api/codex`), as T2 on
-  the Anthropic profiles and T3 on planner and researcher. The former
+  `gpt-5.6-sol` (`base_url: https://chatgpt.com/backend-api/codex`), as T1 on
+  researcher, T2 on the Anthropic profiles, and T3 on planner. Researcher's
+  primary and Creator's Codex-first image chain make this a shared pool, not a
+  researcher-only tier. The former
   `gpt-5.6-terra` profile routes were promoted to Sol; the engineer-pipeline's
   OpenCode ProviderLadder remains a separate model-routing layer.
 - **Copilot retired from every chain** (2026-07): the subscription became
@@ -693,8 +718,8 @@ the orchestration and worker skills.
 
 Active profile-chain model slugs confirmed 2026-07 (provider checks +
 OpenRouter model pages): `anthropic` / `claude-opus-5`, `anthropic` /
-`claude-fable-5` (planner T1), `xai-oauth` / `grok-4.5` (researcher T1) and
-`grok-4.3` (searcher T1), `openai-codex` / `gpt-5.6-sol`, and the
+`claude-fable-5` (planner T1), `xai-oauth` / `grok-4.3` (searcher T1), and
+`openai-codex` / `gpt-5.6-sol` (researcher T1), plus the
 OpenRouter tails `xiaomi/mimo-v2.5` (vision; live on openrouter.ai but
 missing from a stale local model cache — refresh before trusting doctor),
 `minimax/minimax-m3` (image+video), `deepseek/deepseek-v4-flash`

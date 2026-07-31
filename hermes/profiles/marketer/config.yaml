@@ -608,3 +608,6 @@ platform_toolsets:
     - no_mcp
   telegram: []
   discord: []
+plugins:
+  enabled:
+    - skill-topology
