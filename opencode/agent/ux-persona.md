@@ -1,7 +1,7 @@
 ---
 description: "Read-only UX persona simulation subagent: embodies a caller-supplied user persona (hostile, reluctant, conscripted, novice, ...), attempts a task scenario against the running web app with agent-browser, and reports friction events with facts separated from in-character reactions. Never triages its own findings. Prefer invoking through the built-in task tool."
 mode: subagent
-model: openai/gpt-5.6-terra
+model: openai/gpt-5.6-terra-fast
 hidden: true
 options:
   reasoningEffort: medium
