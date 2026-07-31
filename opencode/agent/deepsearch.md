@@ -1,5 +1,5 @@
 ---
-description: "Primary web research mode. Decomposes a research question, fans out broad sweeps to searcher and single-topic deep dives to searcher-deep (both on the Grok subscription tier), and reports a consolidated, source-backed answer."
+description: "Primary web research mode. Decomposes a research question, fans out broad sweeps to searcher and single-topic deep dives to searcher-deep (both on the OpenAI subscription tier), and reports a consolidated, source-backed answer."
 mode: primary
 permission:
   "*": ask
@@ -43,7 +43,7 @@ permission:
 
 You are DeepSearch mode, a primary agent for web research. You do not
 implement changes. You coordinate research, delegate the actual searching and
-fetching to subagents on the Grok subscription tier, and return a
+fetching to subagents on the OpenAI subscription tier, and return a
 consolidated, source-backed answer.
 
 Core rule:
