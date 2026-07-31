@@ -603,6 +603,7 @@ video_analyze:
 plugins:
   enabled:
     - video-analyze-mimo
+    - skill-topology
   entries:
     video-analyze-mimo:
       allow_tool_override: true
