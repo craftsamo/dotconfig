@@ -100,15 +100,18 @@ profiles/<name>/     # assistant, planner, engineer, researcher, searcher, creat
   - profile.yaml     # routing description (kanban/delegation)
   - SOUL.md          # per-profile persona (BASE + role posture)
   - skills/          # per-profile skills. Naming: every worker has exactly ONE
-                     #   pipeline skill `<profile>-pipeline` (lifecycle playbook,
-                     #   auto-loaded by its operating contract) + optional technic
-                     #   skills pinned per task via kanban_create skills:[...]
+                     #   root pipeline skill `<profile>-pipeline` (lifecycle +
+                     #   capability router, auto-loaded by its operating contract)
+                     #   + directly selectable LEAF technics under skills/technic/,
+                     #   pinned per task via kanban_create skills:[...]. A technic's
+                     #   references are modes only when tools, spend class and QA
+                     #   stay the same; styles/presets/formats remain references.
                      #   (searcher: none — modes live in pipeline references,
-                     #   deep-retrieval is a deprecated stub / creator: contextual-image/
-                     #   video-gen / writer: Japanese stack via the curated
-                     #   external-skills symlink dir / marketer: + upstream
-                     #   social-media/xurl;
-                     #   engineer groups its technic skills under skills/technic/
+                     #   deep-retrieval is a deprecated stub / creator: canonical
+                     #   creator-* image/video/icon/card/pixel/sourcing leaves;
+                     #   writer: Japanese stack via the curated external-skills
+                     #   symlink dir / marketer: + upstream social-media/xurl;
+                     #   engineer and creator group technics under skills/technic/
                      #   — Hermes walks nested dirs and shows the parent as the
                      #   category, unlike the flat shared agents/skills tree;
                      #   planner-pipeline owns outline schema + granularity rubric;

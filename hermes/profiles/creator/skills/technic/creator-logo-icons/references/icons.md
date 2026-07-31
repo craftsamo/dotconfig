@@ -22,8 +22,8 @@ high-contrast mark is best — fine detail vanishes at 16px.
 | Android legacy | 48–192 | optional |
 
 Next.js app-dir conventions: place `app/icon.svg`, `app/apple-icon.png`,
-`app/favicon.ico`; the framework wires `<link rel>` automatically. Match whatever
-the codebase already uses (from `discovery.md`).
+`app/favicon.ico`; the framework wires `<link rel>` automatically. Match the
+destination constraints recorded in the pipeline MediaBrief.
 
 </StandardOutputs>
 

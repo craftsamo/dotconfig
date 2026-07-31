@@ -1,38 +1,24 @@
 ---
-name: contextual-video-gen
+name: creator-generated-video
 description: >-
-  Produce short generated videos that actually fit where they'll play. BEFORE
-  generating, discover the destination's constraints (duration, aspect ratio,
-  resolution, container/codec, file-size cap, autoplay/mute/loop behaviour) and
-  the source/brand (a still to animate, reference frames, palette, motion
-  language), then pick the right strategy — text-to-video, image-to-video
-  (animate a brand still), or reference-guided — generate, review, tune, and
-  post-process with ffmpeg to the exact target. Generation is slow and metered,
-  so confirm duration/count before producing a set. Triggers: generate/create
-  video, hero video, looping background, product demo, explainer clip, social
-  reel, animate this image, image-to-video, gif, animated gif, 動画生成, 動画作成,
-  ループ動画, デモ動画, リール, 静止画を動かす, アイキャッチ動画, GIF生成, GIF化,
-  GIFスタンプ, ループGIF.
-version: 0.1.0
+  Creator's leaf technic for metered generated video: text-to-video,
+  image-to-video, and reference-guided clips, followed by exact ffmpeg delivery.
+  The creator-pipeline owns intake, Budget, review, and delivery.
+version: 1.0.0
 author: CraftSamo
 license: MIT
 platforms: [macos, linux]
 metadata:
   hermes:
-    tags: [video-generation, motion, image-to-video, branding, creative]
-    category: creative
+    tags: [creator, technic, video-generation, motion, image-to-video, branding]
+    category: technic
 ---
 
 <Goal>
 
-Make a generated clip **fit its destination and brand** instead of prompting
-blind. The value of this skill is the work done *before* `video_generate`:
-figure out where the video plays, how long / what shape / what codec it must be,
-and whether you should animate an existing brand still — then choose the right
-strategy. Video is **slow and metered** (tens of seconds to minutes per clip,
-priced per second/clip), so the pre-work pays for itself.
-
-This is the motion sibling of `contextual-image-gen`; the philosophy is the same.
+Produce a generated clip that fits its destination and source identity. This is
+a leaf technic: text-to-video, image-to-video, and reference-guided are modes of
+the same metered generation tool and share one verification floor.
 
 </Goal>
 
@@ -49,7 +35,8 @@ This is the motion sibling of `contextual-image-gen`; the philosophy is the same
 
 <DoNotUseWhen>
 
-- Editing/trimming a user-supplied video (just run `scripts/video-postprocess.sh`).
+- Pixel-art animation (`creator-pixel-video`).
+- Editing/trimming a user-supplied video when no generation is requested.
 - Video *understanding* (that's `video_analyze`).
 - HTML/canvas-composited motion graphics, title cards, captions, or shader
   transitions (that's the bundled `hyperframes` skill).
@@ -72,8 +59,8 @@ Never jump straight to a prompt. Two homework passes drive everything downstream
    Palette, subject, and the **motion language** (locked vs moving camera, how
    much subject motion, pacing). See `references/image-to-video.md`.
 
-If you can't find these (no codebase, no brand, no source still), **ask the
-user** rather than guessing — a wrong 8-second 1080p clip is expensive to redo.
+If these are absent from the pipeline MediaBrief, use its single batched
+`Q<n>:` block protocol rather than guessing or calling `clarify`.
 
 </CorePrinciple>
 
