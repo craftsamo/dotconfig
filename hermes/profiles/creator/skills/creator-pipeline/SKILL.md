@@ -17,14 +17,14 @@ description: >-
   references/{iterate,verify,delivery}.md (feedback-driven revision, the
   V1-V6 media checks with per-intent profiles, and attachment + Review gate
   + evidence-backed reporting) — load via skill_view file_path, never skip.
-version: 3.0.0
+version: 4.0.0
 author: CraftSamo
 license: MIT
 metadata:
   hermes:
     tags: [media, image, video, gif, tts, production, kanban, delivery, verification, triage, intent]
     category: creative
-    related_skills: [contextual-image-gen, contextual-video-gen]
+    related_skills: [creator-generated-image, creator-generated-video, creator-logo-icons, creator-text-card, creator-pixel-art, creator-pixel-video, creator-brand-asset-sourcing]
 ---
 
 <Goal>
@@ -125,14 +125,13 @@ own rows.
 
 <Brief>
 
-The task body is the whole brief (workers never see the chat). Extract
-before generating: purpose/audience, asset type(s) and count, style/tone
-references, dimensions/platform specs, delivery format, the `Budget:` line
-(<Budget>) — and for revise/salvage, the source-card pointers the intent's
-first move needs. If creative direction is ambiguous and the body carries
-no reference (style, aspect, tone), do ONE block round-trip per
-<CommentProtocol>. Never burn generation credits guessing; never block
-twice for what one batched question could settle.
+The task body is the whole brief (workers never see the chat). Load and validate
+`references/brief.md` before production; it owns the common MediaBrief and its
+image/video/pixel additions. Extract the `Budget:` line here, and for
+revise/salvage require the source-card pointers the intent's first move needs.
+If a material direction is ambiguous, do ONE block round-trip per
+<CommentProtocol>. Never burn generation credits guessing; never let a leaf
+technic create a parallel intake schema or call `clarify`.
 
 </Brief>
 
@@ -237,7 +236,9 @@ Rules:
 
 1. **Intake.** `kanban_show`; parse the <Brief> and the <Budget> grant.
 2. **Route + triage.** Pick the mode per <ModeRouting>, load the entry
-   reference via `skill_view`; for produce cards classify the intent per
+   reference via `skill_view`; for every plan or produce card load
+   `references/capabilities.md`, select and handshake its leaf/core/external
+   capability before any spend. For produce cards, also classify the intent per
    <IntentTriage> and load its companion file.
 3. **First move** per the intent row (spec discovery / inheritance /
    inventory); record its outcome in a comment before spending.

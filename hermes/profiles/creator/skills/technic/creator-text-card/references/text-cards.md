@@ -18,8 +18,9 @@ generated image (AI text is unreliable); render it with a real font via
 
 <BackgroundOptions>
 
-1. **AI-generated** brand art (`ai-imagery.md`) at `landscape`, cropped to
-   1200×630 — keep a clear, lower-contrast zone where text will sit.
+1. **AI-generated** brand art from the separately loaded
+   `creator-generated-image` technic at `landscape`, cropped to 1200×630 — keep
+   a clear, lower-contrast zone where text will sit.
 2. **Solid / gradient brand fill** (no generation) — fastest, most legible,
    perfectly on-brand. Often the better choice for OG.
 
@@ -29,8 +30,8 @@ generated image (AI text is unreliable); render it with a real font via
 
 1. Get the title text, brand color(s), and font (default Geist — installed via the
    Brewfile cask). Confirm 1200×630 (or the discovered size).
-2. Prepare the background (option 1 or 2 above) at 1200×630 via
-   `scripts/img-postprocess.sh`.
+2. Prepare the background (option 1 or 2 above) at the exact target size. The
+   composition script cover-crops supplied backgrounds to its `--size`.
 3. Composite the title:
    ```
    ${HERMES_SKILL_DIR}/scripts/text-card.sh <bg.png|--solid "#E26E54"> \
@@ -47,7 +48,8 @@ generated image (AI text is unreliable); render it with a real font via
 
 - One short title + optional subtitle/logo. Avoid paragraphs.
 - High contrast: light text on the brand fill, or a dark scrim over busy art.
-- Place the logo (from `icons.md`/SVG) in a corner via compositing, not via AI.
+- Place an approved SVG logo in a corner via compositing, not via AI. Use
+  `creator-logo-icons` when an icon-set deliverable is also requested.
 - Keep a consistent template across pages for a cohesive set.
 
 </LayoutTips>

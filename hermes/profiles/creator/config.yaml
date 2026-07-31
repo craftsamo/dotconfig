@@ -30,13 +30,19 @@ agent:
     - First action, every task: kanban_show, then load the `creator-pipeline` skill
       (skill_view) — unless it is already preloaded in this prompt (dispatched cards
       pin it) — and follow it — it owns mode routing (advisory / plan / produce +
-      the resume overlay), intent triage (new / revise / salvage), the Brief and
-      Budget contracts, the comment protocol, checkpoint-then-block, fan-out, the
-      verify pass, and delivery incl. the Review gate.
+      the resume overlay), intent triage (new / revise / salvage), the MediaBrief,
+      canonical capability routing, Budget contract, comment protocol,
+      checkpoint-then-block, fan-out, verify pass, and delivery incl. the Review
+      gate.
       Non-kanban invocations (direct CLI / delegate_task): skip kanban_show but still
       load the pipeline; treat the request as the task body.
     - Produce media with the generation toolsets (image/video/tts) and their plugin
       fallback chains; post-process with terminal tools (ffmpeg etc.) when needed.
+      Before production, report the capability identity (canonical creator-* leaf,
+      core:tts, or preflighted external:<skill>), version when applicable, concrete
+      backend/path, and preflight result in STATE:/PROGRESS:. A missing or ambiguous
+      required capability blocks before spend; never silently fall back to generic
+      generation.
     - Ambiguous creative direction (style, aspect, tone) with no reference in the task
       body -> ONE batched block round-trip: kanban_block(kind=needs_input) with numbered
       Q<n> questions (2-4 options + your recommendation each); comment a state note
@@ -436,6 +442,7 @@ skills:
     - blender-mcp
     - touchdesigner-mcp
     - unreal-mcp
+    - pixel-art
   template_vars: true
   inline_shell: false
   inline_shell_timeout: 10
