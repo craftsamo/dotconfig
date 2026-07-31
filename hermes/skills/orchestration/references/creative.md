@@ -22,6 +22,10 @@ never has to block on style questions or burn credits guessing:
   (dimensions, aspect ratio, duration, format, file-size cap) when known.
 - **Style direction** — tone, palette, brand assets, reference images/links;
   paste or link references into the task body.
+- **Technique** — when the production method is clear, use the canonical
+  Creator technic from the table below and repeat it as a `Technique:` line in
+  the body. The body lets Creator recover even if an optional preload is
+  skipped.
 - **Quantity & variants** — how many, which sizes/crops.
 - **Budget** — generation-spend caps as a `Budget:` line. Omitted → creator
   applies its defaults (4 image variants / 2 video renders per asset, 1
@@ -41,25 +45,34 @@ dispatcher preloads pinned skills mechanically into the worker's system
 prompt, which turns creator's routing/Budget kernel from a prompt-level
 instruction into a guarantee (same rule as engineer's pipeline pin).
 
-When the request additionally names or clearly implies a specific
-craft/style, force-load the matching technique on top:
+When the final deliverable and production method clearly select a canonical
+technic, force-load it on top:
 `kanban_create(..., skills=["creator-pipeline", "<technique>"])`. Set a
 technique only when the request implies one; otherwise pin the pipeline
 alone and let creator route by asset type.
 
-| Request signal | skill |
+| Request signal / final method | Canonical skill |
 | --- | --- |
-| pixel art / retro sprite / ドット絵 | `pixel-art` |
-| meme / ミーム | `meme-generation` |
-| educational or non-software diagram / 概念図 / how-X-works figure | `concept-diagrams` |
-| article or blog illustration / 記事挿絵 | `baoyu-article-illustrator` |
-| knowledge comic / 漫画 / educational strip | `baoyu-comic` |
+| generated cover, hero, illustration, thumbnail, text-free social/document art | `creator-generated-image` |
+| favicon / Apple / PWA / app-icon set from a first-party SVG | `creator-logo-icons` |
+| OG / social / title card with exact text | `creator-text-card` |
+| text-to-video / image-to-video / reference-guided generated clip | `creator-generated-video` |
+| pixel-art still / retro sprite / ドット絵 | `creator-pixel-art` |
+| pixel animation / sprite motion / ドット絵動画 / pixel GIF | `creator-pixel-video` |
+| official third-party logo/mark sourcing | `creator-brand-asset-sourcing` |
 
-The catalog is larger than this curated set — creator scans it for other
-asset types (creator's `references/produce.md` <AssetRouting>). Some techniques need a
-running prerequisite (HTML-to-video `hyperframes` needs its toolchain,
-`blender` a Blender session); dispatch those only when the prereq is up, else
-creator blocks with a `Q<n>:` naming what to start.
+Before pinning any technic beyond `creator-pipeline`, verify that exact name on
+the Creator profile. Canonical leaves have matching files under
+`~/.hermes/profiles/creator/skills/technic/<name>/SKILL.md`. Never pin the bare
+external name `pixel-art`: official and shared copies can collide, and the
+canonical Pixel technics resolve their optional implementation scripts.
+
+The catalog is larger than this curated set — creator scans it for niche asset
+types. External techniques need an assignee-profile preflight and sometimes a
+running prerequisite (`hyperframes` needs its toolchain, Blender a desktop
+session). If availability is uncertain, put the requested method in the body
+and pin only `creator-pipeline`; Creator either resolves it or blocks before
+spend.
 
 ## Dispatching
 
@@ -71,6 +84,7 @@ main skill, with:
 - `skills: ["creator-pipeline"]` (+ any technique — see above)
 - `workspace_kind: scratch` (or `dir` if assets must land somewhere specific)
 - The MediaBrief fields in the body
+- A `Technique: <canonical-name>` line when the table resolves one
 - Output spec: file format(s); every final artifact is delivered via
   `kanban_attach` (scratch dies on completion), with
   `~/Workspaces/.deliverables/` only as an additional copy destination
@@ -124,3 +138,9 @@ as a desktop app for an opt-in chain); answer each with a
 `DECISION(Q<n>):` comment before unblocking, and grant extra generation
 spend with an `AUTHORITY+:` line. Its `PROGRESS:` comments land per
 finished asset — `<StatusCheck>` works the same as for engineer.
+
+Creator's first state/progress note also carries its capability handshake: a
+canonical leaf + version, `core:tts`, or a preflighted `external:<skill>`, plus
+the concrete backend/path and preflight result. A missing or mismatched required
+capability must be resolved before any generation spend; do not treat generic
+image/video output as an acceptable silent fallback.
