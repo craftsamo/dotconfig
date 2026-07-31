@@ -17,14 +17,14 @@ description: >-
   references/{iterate,verify,delivery}.md (feedback-driven revision, the
   V1-V6 media checks with per-intent profiles, and attachment + Review gate
   + evidence-backed reporting) — load via skill_view file_path, never skip.
-version: 4.2.0
+version: 4.3.0
 author: CraftSamo
 license: MIT
 metadata:
   hermes:
     tags: [media, image, video, gif, tts, production, kanban, delivery, verification, triage, intent]
     category: creative
-    related_skills: [creator-generated-image, creator-article-illustration, creator-infographic, creator-svg-diagram, creator-excalidraw-diagram, creator-logo-icons, creator-text-card, creator-meme, creator-ascii-art, creator-audio-visualization, creator-gif-sourcing, creator-generated-video, creator-ascii-video, creator-manim-explainer, creator-pixel-art, creator-pixel-video, creator-knowledge-comic, creator-brand-asset-sourcing]
+    related_skills: [creator-generated-image, creator-article-illustration, creator-infographic, creator-svg-diagram, creator-excalidraw-diagram, creator-logo-icons, creator-text-card, creator-meme, creator-ascii-art, creator-audio-visualization, creator-audio-generation, creator-song-generation, creator-gif-sourcing, creator-generated-video, creator-html-motion, creator-p5js-experience, creator-ascii-video, creator-manim-explainer, creator-pixel-art, creator-pixel-video, creator-knowledge-comic, creator-brand-asset-sourcing]
 ---
 
 <Goal>
@@ -58,7 +58,8 @@ routing, triage, and contracts live here; playbook detail lives in
 <UseWhen>
 
 - Any kanban/delegated creator task: images, video, GIFs, poster frames,
-  loops, voice lines, batch or multi-asset production, media
+  loops, browser-native visuals, music, sound effects, songs, voice lines,
+  batch or multi-asset production, media
   consultations, revisions of earlier deliveries, salvage of interrupted
   work.
 
@@ -144,15 +145,21 @@ sets the caps; absent → the defaults:
 | --- | --- |
 | Still-image generations | 4 variants per asset |
 | Video renders | 2 per asset |
+| Generated-audio or song renders | 2 per asset |
 | TTS syntheses | 1 primary render per requested voice asset |
 | Corrective regeneration | 1 pass per asset (after verification) |
 | Batch quantity | exactly the brief's count |
 | Plan-mode style anchor | 1-2 cheap samples per set, before the batch (Plan mode only) |
+| Local neural-generation runtime | <=15 minutes estimated per render; CPU fallback forbidden unless explicitly granted |
 
 - **Effective budget = body `Budget:` + all `AUTHORITY+:` comments**, in
   comment order. Grants only expand; nothing shrinks mid-task.
 - Revise cards: the defaults apply **per revised asset** — untouched
   assets cost nothing (`references/iterate.md`).
+- A body `Budget:` or later `AUTHORITY+:` may expand local runtime with
+  `Runtime: <=<minutes>/render` and may permit `CPU fallback: allowed`. Without
+  both an adequate runtime ceiling and explicit CPU permission, an estimate
+  beyond the default or a CPU-only neural path blocks before model load.
 - Need to exceed it (more variants, another render, a longer cut)? That is
   a block round-trip: `Q<n>` with the cost stated ("2 more renders,
   ~<estimate>"), never a silent overrun.

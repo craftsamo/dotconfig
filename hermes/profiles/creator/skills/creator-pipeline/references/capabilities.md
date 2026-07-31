@@ -18,8 +18,12 @@ only when they share tools, spend class, and verification.
 | classic-template or custom-scene meme with deterministic captions | `creator-meme` | sourced template or separately budgeted generated background; provenance required |
 | static banner, framed/message art, image conversion, or sourced ASCII art | `creator-ascii-art` | deterministic UTF-8 text master; ANSI only when requested |
 | spectrogram, mel/chroma, loudness, MFCC, or other view of existing audio | `creator-audio-visualization` | deterministic `songsee` render; never audio generation |
+| instrumental music, ambience, or sound effects generated with AudioCraft | `creator-audio-generation` | metered local MusicGen/AudioGen compute; model weights and reference rights require preflight |
+| full vocal song generated from approved lyrics and musical tags | `creator-song-generation` | metered HeartMuLa compute; high-cost work uses the plan/anchor gate |
 | existing reaction or communication GIF sourced from Tenor | `creator-gif-sourcing` | retrieval with provenance and rights caveat; never asset generation |
 | text-to-video, image-to-video, or reference-guided generated clip | `creator-generated-video` | metered `video_generate`; GIF/loop/poster may be delivery post-steps |
+| deterministic motion graphics, product/site tours, overlays, or captioned video authored in HTML/CSS/JS | `creator-html-motion` | HyperFrames source project + MP4/WebM; supporting generation is separately budgeted |
+| generative art, interactive canvas/WebGL experience, custom data visual, or p5.js export | `creator-p5js-experience` | seeded browser-native source; PNG/GIF/MP4/SVG are optional exports |
 | video-to-ASCII, audio-reactive, generative, hybrid, lyric, or TTS-backed ASCII motion | `creator-ascii-video` | deterministic Python/ffmpeg render; supporting generation/TTS is separately budgeted |
 | mathematical, algorithmic, data, paper, or 3D educational animation | `creator-manim-explainer` | deterministic Manim render; supporting TTS is separately budgeted |
 | still sprite, avatar, icon, logo reduction, or scene on a pixel grid | `creator-pixel-art` | native master + nearest-neighbor preview |
@@ -28,10 +32,10 @@ only when they share tools, spend class, and verification.
 | official third-party logo/mark acquisition and provenance | `creator-brand-asset-sourcing` | source, do not redraw |
 
 Voice lines currently use the `tts` toolset under the pipeline contract and
-identify as `core:tts`, without a dedicated technic. HTML/CSS motion identifies
-as `external:hyperframes` after preflight; `media-use` remains its external
-asset/TTS/caption support. Other niche assets may use an `external:<skill>`
-identity only after an availability preflight.
+identify as `core:tts`, without a dedicated technic. `creator-html-motion`
+loads the external HyperFrames router and its `media-use` asset/TTS/caption
+support as implementation engines. Other niche assets may use an
+`external:<skill>` identity only after an availability preflight.
 
 ## Selection rules
 
@@ -44,8 +48,9 @@ identity only after an availability preflight.
    `creator-generated-video`.
 3. Static terminal-safe ASCII output is `creator-ascii-art`; any timed or
    audio-reactive ASCII render is `creator-ascii-video`. Audio visualization
-   reads an existing source; synthesis remains `core:tts` or a separately
-   routed generation capability.
+   reads an existing source; speech synthesis is `core:tts`, instrumental/SFX
+   generation is `creator-audio-generation`, and lyrics-to-song generation is
+   `creator-song-generation`.
 4. Stack a supporting technic only when the brief truly spans methods. Example:
    a generated background plus exact title card loads
    `creator-generated-image` and `creator-text-card`, with separate spend lines.
@@ -56,6 +61,11 @@ identity only after an availability preflight.
    implementation engine. Report the canonical leaf as `capability` and the
    official skill plus concrete tool/path as `backend`; never expose the
    engine's bare name as the stable dispatch identity.
+7. Route by authorship method as well as container. A model-generated MP4 is
+   `creator-generated-video`; seekable HTML timeline motion is
+   `creator-html-motion`; p5.js canvas/WebGL work is
+   `creator-p5js-experience`; mathematical teaching animation is
+   `creator-manim-explainer`.
 
 ## Capability handshake
 

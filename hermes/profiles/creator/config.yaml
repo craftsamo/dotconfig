@@ -49,8 +49,10 @@ agent:
       first. Never burn generation credits guessing, never block twice for what one
       batch could settle.
     - Budget floor (holds even before the skill loads): the task body's Budget: is the
-      spend grant; absent = 4 image variants / 2 video renders per asset / 1 TTS
-      synthesis per requested voice asset + 1 corrective pass. Never exceed it without
+      spend grant; absent = 4 image variants / 2 video renders / 2 generated-audio
+      or song renders per asset / 1 TTS synthesis per requested voice asset + 1
+      corrective pass; local neural generation defaults to <=15 minutes per render
+      with CPU fallback forbidden. Never exceed it without
       an AUTHORITY+: comment — block instead. Advisory
       (judgment-only) tasks generate nothing regardless of grant; plan tasks spend
       only the cheap style anchor before sign-off.
@@ -436,7 +438,13 @@ skills:
     - ~/ghq/github.com/NousResearch/hermes-agent/skills/autonomous-ai-agents
     - ~/ghq/github.com/NousResearch/hermes-agent/skills/creative
     - ~/ghq/github.com/NousResearch/hermes-agent/skills/media
-    - ~/ghq/github.com/NousResearch/hermes-agent/optional-skills/creative
+    - ~/ghq/github.com/NousResearch/hermes-agent/optional-skills/creative/baoyu-article-illustrator
+    - ~/ghq/github.com/NousResearch/hermes-agent/optional-skills/creative/audiocraft-audio-generation
+    - ~/ghq/github.com/NousResearch/hermes-agent/optional-skills/creative/pixel-art
+    - ~/ghq/github.com/NousResearch/hermes-agent/optional-skills/creative/baoyu-comic
+    - ~/ghq/github.com/NousResearch/hermes-agent/optional-skills/creative/meme-generation
+    - ~/ghq/github.com/NousResearch/hermes-agent/optional-skills/creative/concept-diagrams
+    - ~/ghq/github.com/NousResearch/hermes-agent/optional-skills/creative/heartmula
     - ~/.agents/skills
   disabled:
     - kanban-video-orchestrator
