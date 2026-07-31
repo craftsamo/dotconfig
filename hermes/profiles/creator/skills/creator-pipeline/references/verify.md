@@ -1,4 +1,4 @@
-# Verification — your eyes are the gate (engine)
+# Verification — inspect what you ship (engine)
 
 Load this before accepting ANY produced file — every produce delivery, every
 plan anchor before its sign-off round, every revise pass. A generation
@@ -30,9 +30,12 @@ interpreters; the worker guard fails them):
   video; file size within any platform cap.
 - GIF/loop: seam check — first and last frames must join (extract both,
   compare); poster frame present when asked.
-- Voice: duration sane for the script length; format as briefed.
+- Audio/music/voice: duration, sample rate, channels, codec/container,
+  loudness/peak, clipping, silence, and file size as briefed.
+- Runnable HTML: target viewport, browser/runtime compatibility, asset loading,
+  console errors, interaction paths, and measured performance.
 
-## V3 — VisualCheck (look at every file)
+## V3 — PerceptualCheck (inspect every file)
 
 Inspect every deliverable with your own input tools:
 
@@ -46,14 +49,21 @@ Inspect every deliverable with your own input tools:
 - **Voice/narration**: transcribe the output back (stt) and diff against
   the script — wrong or skipped words are silent failures; spot-listen
   claims stay unverifiable, the transcript is evidence.
+- **Music/SFX/songs**: inspect waveform/spectrogram plus measured audio stats for
+  truncation, clipping, silence, and structural gaps. These do not prove timbre,
+  mix, lyric fidelity, or emotional fit; record a qualified listen-through or
+  state that perceptual limitation explicitly.
+- **Interactive HTML**: run the real page, exercise required inputs and resize,
+  inspect representative states, and compare repeat runs for seeded output.
 - Text IN media is guilty until read: read every rendered word back.
 
 ## V4 — ConsistencyCheck (the set holds together)
 
 For batches and anchored work (plan mode, revise): every asset against the
 locked anchor — same palette (pixel-art: one named/derived palette, never
-adaptive per asset), same style prompt, same seed/reference for video, same
-voice params. Spot-check pairs side by side with vision; one drifted asset
+adaptive per asset), same style prompt, same seed/reference for video and
+browser-native work, same audio model/prompt/conditioning parameters, same
+voice params. Spot-check pairs with the medium's evidence; one drifted asset
 breaks the set even when each file passes V3 alone.
 
 ## V5 — SpendCheck (budget reconciliation)

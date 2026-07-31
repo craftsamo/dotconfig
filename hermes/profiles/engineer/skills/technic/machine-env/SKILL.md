@@ -17,7 +17,7 @@ license: MIT
 metadata:
   hermes:
     tags: [environment, dotfiles, configuration, secrets, keychain, symlinks, accounts, self-modification]
-    category: software-development
+    category: technic
     related_skills: [engineer-pipeline, opencode-env]
 ---
 

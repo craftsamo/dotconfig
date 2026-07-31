@@ -613,6 +613,7 @@ plugins:
     - aivis
     - stt-fallback
     - tts-fallback
+    - skill-topology
 
 # ── Fallback Model ────────────────────────────────────────────────────
 # Automatic provider failover when primary is unavailable.

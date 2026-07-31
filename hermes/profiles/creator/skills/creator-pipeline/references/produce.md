@@ -14,54 +14,22 @@ Intent shapes the entry (kernel <IntentTriage>):
 - `salvage` — load `references/resume.md` <Salvage> FIRST; it owns the
   inventory; this loop then covers only what genuinely must be produced.
 
-## AssetRouting
+## CapabilityRouting
 
-Load the matching sibling skill for depth (skill_view; they live beside
-this skill in this profile's skills tree):
+Load `references/capabilities.md`, select the canonical leaf by final
+deliverable and production method, then `skill_view` it before work. The leaf
+owns craft and medium-specific QA; this pipeline continues to own Budget,
+questions, review, verification floor, and delivery.
 
-| Asset | Chain | Depth skill |
-| --- | --- | --- |
-| still image, logo, icon set, text card, social visual | `image_gen` tool (img-xai-codex-fal chain) | `contextual-image-gen` |
-| video clip, text-to-video, image-to-video | `video_gen` tool (vid-xai-fal chain) | `contextual-video-gen` |
-| HTML/CSS motion graphics, product tour, captioned narration, website-to-video | `hyperframes` CLI | `hyperframes` |
-| GIF, loop, poster frame | generate video first, then the bundled scripts (`to-gif.sh`, `make-loop.sh`, `poster-frame.sh`) | `contextual-video-gen` |
-| voice line / narration | `tts` toolset | — |
-| 3D modeling / scene / render | running desktop Blender via socket | `blender-mcp` |
+A dispatch may preload a canonical technic, but preload is not proof that it
+resolved. Perform the capability handshake from that reference before spend.
+The body remains authoritative enough to recover from a skipped optional pin;
+a missing canonical leaf is a block, not permission to improvise.
 
-The table is not closed. This profile's **available-skills catalog** already
-carries far more than these core chains — the in-tree creative skills plus a
-whole upstream `creative/` + `media/` library on `skills.external_dirs`
-(comfyui, manim-video, ascii-video, p5js, excalidraw, touchdesigner-mcp,
-gif-search, songwriting-and-ai-music, …). Before declaring an asset type
-unsupported, scan that catalog and `skill_view` the match. Some carry an
-availability prerequisite — a running desktop app or MCP (`blender-mcp` →
-`nc -z -w2 localhost 9876`; comfyui / touchdesigner similarly). Prerequisite
-unmet → `Q<n>` block stating what must be started; never fake the asset
-another way.
-
-A dispatch may **force-load a technique skill** (the task carried `skills:`
-beyond the pipeline pin — e.g. `pixel-art`, `meme-generation`,
-`concept-diagrams`, `baoyu-article-illustrator`, `baoyu-comic`). That skill
-supplies the craft for the asset: follow it, but keep THIS pipeline's
-Budget, verification, and delivery. The technique skill's own interactive
-steps (its `clarify` menus) do NOT apply here — style comes from the brief
-and the Budget-gated `Q<n>:` block protocol, not an inline `clarify`.
-
-### pixel-art specifics (force-loaded `pixel-art`)
-
-Its `pixel_art.py` converts an EXISTING image — it has no generator, so the
-base is yours to make. (1) `image_generate` a base first: a bold,
-flat-shaded subject on a simple background (pixel conversion collapses fine
-detail), sized a few× the target sprite so the downscale keeps shape. (2)
-Convert with the skill's own `pixel_art.py` (`--preset <name>` or
-`--palette <NAME> --block <n>`). For a **batch, lock ONE palette across
-every asset** so the set stays consistent — either the same named palette
-on each run, or, for a palette taken from an approved sample,
-derive-and-apply it once with this profile's
-`${HERMES_SKILL_DIR}/scripts/palette-extract.py apply <sample.png> <out_dir> <base…>`.
-Never let each asset quantize adaptively on its own — that drifts the set.
-Do NOT edit the upstream `pixel_art.py` (read-in-place, auto-updated); the
-sample-palette step lives here.
+The table is intentionally extensible. Before declaring a niche asset
+unsupported, scan the opt-in catalog and check prerequisites. External catalog
+skills do not become stable dispatch names automatically, and their inline
+`clarify` flows never override the kernel's `Q<n>:` block protocol.
 
 ## ProductionLoop
 
@@ -100,6 +68,8 @@ carries `Review:`, and the evidence-backed report + metadata.
   anchor first, batch after sign-off.
 - Declaring an asset type unsupported without scanning the opt-in catalog,
   or using an opt-in chain whose prerequisite isn't running.
+- Treating an external catalog name as a canonical dispatch identity, or
+  silently falling back when a requested canonical leaf fails its handshake.
 - Letting a technique skill's inline `clarify` override the block
   protocol.
 - Retrying a failed generation without reading WHY it failed — variants

@@ -582,4 +582,5 @@ video_analyze:
   provider: openrouter
   model: xiaomi/mimo-v2.5
 plugins:
-  enabled: []
+  enabled:
+    - skill-topology

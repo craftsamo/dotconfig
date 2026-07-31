@@ -1,15 +1,12 @@
 model:
-  default: grok-4.5
-  provider: xai-oauth
-  base_url: https://api.x.ai/v1
+  default: gpt-5.6-sol
+  provider: openai-codex
+  base_url: https://chatgpt.com/backend-api/codex
 providers: {}
 fallback_providers:
   - provider: anthropic
     model: claude-opus-5
     base_url: https://api.anthropic.com
-  - provider: openai-codex
-    model: gpt-5.6-sol
-    base_url: https://chatgpt.com/backend-api/codex
   - provider: openrouter
     model: xiaomi/mimo-v2.5
     base_url: https://openrouter.ai/api/v1
@@ -606,6 +603,7 @@ video_analyze:
 plugins:
   enabled:
     - video-analyze-mimo
+    - skill-topology
   entries:
     video-analyze-mimo:
       allow_tool_override: true
