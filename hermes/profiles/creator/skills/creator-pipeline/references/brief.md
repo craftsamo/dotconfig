@@ -47,6 +47,25 @@ Do not infer a platform spec from habit when the repository states one.
 - source still/reference frames and one motion statement,
 - audio requirement and backend capability constraints.
 
+## Interactive/browser additions
+
+- target browsers/devices, viewport and pixel density, responsive behavior,
+- interaction methods (mouse, touch, keyboard, mic) and accessibility fallback,
+- reproducibility seed/parameters, performance floor, and offline/CDN policy,
+- runnable HTML/source assets plus any still, vector, GIF, or video exports.
+
+## Generated audio/music additions
+
+- mode (instrumental, melody/style-conditioned, ambience/SFX, or vocal song),
+- duration, structure/sections, mood/genre/instrumentation, and prohibited style
+  or living-artist/voice imitation,
+- exact approved lyrics and tags for songs; lyric writing routes to writer,
+- model/version, seed/sampling parameters, conditioning sources and their rights,
+- output format, sample rate, channel layout, loudness/peak, looping/fades, and
+  whether a qualified listen-through is part of Review,
+- generated-audio/song render cap, hardware/runtime ceiling, and permission for
+  any model download or environment change.
+
 ## Voice additions
 
 - exact script, language, pronunciations, voice identity, and pacing,

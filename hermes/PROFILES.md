@@ -291,18 +291,23 @@ Three per-profile layers, kept separate:
     `creator-infographic`, `creator-svg-diagram`,
     `creator-excalidraw-diagram`, `creator-logo-icons`, `creator-text-card`,
     `creator-meme`, `creator-ascii-art`, `creator-audio-visualization`,
-    `creator-gif-sourcing`, `creator-generated-video`, `creator-ascii-video`,
+    `creator-audio-generation`, `creator-song-generation`,
+    `creator-gif-sourcing`, `creator-generated-video`, `creator-html-motion`,
+    `creator-p5js-experience`, `creator-ascii-video`,
     `creator-manim-explainer`, `creator-pixel-art`, `creator-pixel-video`,
     `creator-knowledge-comic`, and `creator-brand-asset-sourcing`. Leaves own
     one production grammar and its medium QA; styles/presets and same-tool
     modes stay in references. Official creative skills may be implementation
     engines behind these canonical names, but never alternate dispatch
-    identities. The HyperFrames stack remains available via
-    `skills.external_dirs` (`~/.agents/skills` — `hyperframes` is the entry
-    point that routes the 6 sub-skills, plus `media-use` for asset resolution /
-    TTS / captions; CLI-owned store, see AGENTS.md), and the upstream
-    `creative/` + `media/` libraries (comfyui, manim-video, gif-search, … —
-    creator owns the creative cluster). MCP-backed entries in that cluster
+    identities. `creator-html-motion` uses the HyperFrames stack via
+    `skills.external_dirs` (`~/.agents/skills` - `hyperframes` is the entry
+    point that routes the domain/workflow skills, plus `media-use` for asset
+    resolution / TTS / captions; CLI-owned store, see AGENTS.md). The upstream
+    bundled `creative/` + `media/` libraries remain available, while optional
+    skills are exposed as a curated set of individual directories (article
+    illustration, AudioCraft, pixel art, comics, memes, concept diagrams, and
+    HeartMuLa) so the official optional `hyperframes` cannot collide with the
+    CLI-owned entry skill. MCP-backed entries in that cluster
     (`blender-mcp`, `touchdesigner-mcp`, `unreal-mcp`) are listed in
     `skills.disabled`: the profile runs `no_mcp`, so they can never execute.
     The ambiguous external `pixel-art` name is disabled too; the canonical

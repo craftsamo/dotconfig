@@ -74,6 +74,9 @@ pins an exact reference the batch must match (there is nothing left to lock).
 | still image | the **locked style prompt** (text) reused verbatim, subject swapped — the image tool takes no seed/reference, so consistency IS the shared prompt; switch to a prompt-adherent provider (`img-codex-xai`) if it drifts |
 | pixel-art | the **locked palette** — one named palette on every run, or a sample-derived palette applied by the loaded `creator-pixel-art` technic; never adapt per asset |
 | video | the approved sample as `reference_image_urls` + a **fixed `seed`** on every render (both supported by `video_gen`) |
+| p5.js / HTML motion | the approved design file + hero frame, with the same palette/type/motion tokens and deterministic seed/timeline contract |
+| generated audio / music | the approved prompt, model/version, conditioning source, seed/sampling params, and short audio anchor |
+| vocal song | the approved lyrics + structural/musical tags, model/version, sampling params, and short audio anchor |
 | voice / narration | the same voice id and params across the set |
 
 ## Report

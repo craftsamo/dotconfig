@@ -108,8 +108,8 @@ profiles/<name>/     # assistant, planner, engineer, researcher, searcher, creat
                      #   stay the same; styles/presets/formats remain references.
                      #   (searcher: none — modes live in pipeline references,
                       #   deep-retrieval is a deprecated stub / creator: canonical
-                      #   creator-* image/video/audio/diagram/editorial/icon/card/
-                      #   meme/text-art/pixel/sourcing leaves;
+                      #   creator-* image/video/audio/music/browser-motion/diagram/
+                      #   editorial/icon/card/meme/text-art/pixel/sourcing leaves;
                      #   writer: Japanese stack via the curated external-skills
                      #   symlink dir / marketer: + upstream social-media/xurl;
                      #   engineer and creator group technics under skills/technic/
