@@ -7,7 +7,7 @@ license: MIT
 metadata:
   hermes:
     tags: [search, retrieval, deep-dive, deprecated]
-    category: research
+    category: technic
     related_skills: [searcher-pipeline]
 ---
 

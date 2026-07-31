@@ -56,13 +56,20 @@ hermes/**/SOUL.md
 # keep it local. The tracked config.example.yaml is the bootstrap template.
 hermes/profiles/assistant/config.yaml
 
-# Hermes skills: NOT tracked by default (Hermes authors skills itself).
-# Intentional/user-authored skills opt in once via `git add -f <path>`;
-# already-tracked skill files are unaffected by these patterns and stay
-# tracked, frozen at their committed snapshot via `git update-index
-# --skip-worktree` (list: `git ls-files -v | grep ^S`).
-hermes/skills/**
-hermes/profiles/*/skills/**
+# Hermes skills: maintainer-owned topology is tracked; adaptive libraries are not.
+# At the shared root, orchestration/ and workspaces/ are the managed surfaces.
+hermes/skills/*
+!hermes/skills/orchestration/
+!hermes/skills/workspaces/
+hermes/skills/learned/
+
+# Workers track one *-pipeline/ plus technic/ leaves. Assistant additionally
+# tracks desks/. The skill-topology plugin routes runtime creates to learned/.
+hermes/profiles/*/skills/*
+!hermes/profiles/*/skills/*-pipeline/
+!hermes/profiles/*/skills/technic/
+!hermes/profiles/assistant/skills/desks/
+hermes/profiles/*/skills/learned/
 
 # Hermes skills bookkeeping: bundled skills (read via skills.external_dirs
 # from the agent clone) + curator/hub/usage bookkeeping are never tracked
