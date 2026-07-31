@@ -1,7 +1,7 @@
 ---
 description: "Read-only codebase exploration for hard or ambiguous questions where explore-medium falls short."
 mode: subagent
-model: openai/gpt-5.6-terra
+model: openai/gpt-5.6-terra-fast
 hidden: true
 options:
   reasoningEffort: high
