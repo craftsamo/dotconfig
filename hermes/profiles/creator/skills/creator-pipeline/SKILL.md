@@ -17,14 +17,14 @@ description: >-
   references/{iterate,verify,delivery}.md (feedback-driven revision, the
   V1-V6 media checks with per-intent profiles, and attachment + Review gate
   + evidence-backed reporting) — load via skill_view file_path, never skip.
-version: 4.1.0
+version: 4.2.0
 author: CraftSamo
 license: MIT
 metadata:
   hermes:
     tags: [media, image, video, gif, tts, production, kanban, delivery, verification, triage, intent]
     category: creative
-    related_skills: [creator-generated-image, creator-article-illustration, creator-infographic, creator-svg-diagram, creator-excalidraw-diagram, creator-logo-icons, creator-text-card, creator-generated-video, creator-ascii-video, creator-manim-explainer, creator-pixel-art, creator-pixel-video, creator-knowledge-comic, creator-brand-asset-sourcing]
+    related_skills: [creator-generated-image, creator-article-illustration, creator-infographic, creator-svg-diagram, creator-excalidraw-diagram, creator-logo-icons, creator-text-card, creator-meme, creator-ascii-art, creator-audio-visualization, creator-gif-sourcing, creator-generated-video, creator-ascii-video, creator-manim-explainer, creator-pixel-art, creator-pixel-video, creator-knowledge-comic, creator-brand-asset-sourcing]
 ---
 
 <Goal>
