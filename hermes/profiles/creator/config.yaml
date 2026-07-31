@@ -642,7 +642,7 @@ platform_toolsets:
   telegram: []
   discord: []
 image_gen:
-  provider: img-xai-codex-fal
+  provider: img-codex-xai-fal
 video_gen:
   provider: vid-xai-fal
 video_analyze:
