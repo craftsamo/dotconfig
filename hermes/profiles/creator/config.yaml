@@ -655,6 +655,7 @@ plugins:
     - video-analyze-mimo
     - aivis
     - tts-fallback
+    - skill-topology
   entries:
     video-analyze-mimo:
       allow_tool_override: true
