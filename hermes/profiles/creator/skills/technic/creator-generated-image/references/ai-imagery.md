@@ -79,9 +79,9 @@ Swap only the `Subject:` line for the rest of the set.
 
 <BackendNote>
 
-The active backend is user-configured (here: `img-xai-codex-fal`, xai first) and
-**not** agent-selectable. Don't name models in the prompt. If prompt adherence
-drifts, suggest switching `image_gen.provider: img-codex-xai` (gpt-image-2 first)
-for brand work.
+The active backend is user-configured (here: `img-codex-xai-fal`, gpt-image-2
+first) and **not** agent-selectable. Don't name models in the prompt. Backend
+fallback is automatic; improve the prompt or reference inputs when adherence
+drifts.
 
 </BackendNote>
