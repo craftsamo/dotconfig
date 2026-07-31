@@ -290,7 +290,8 @@ Three per-profile layers, kept separate:
     `creator-generated-image`, `creator-article-illustration`,
     `creator-infographic`, `creator-svg-diagram`,
     `creator-excalidraw-diagram`, `creator-logo-icons`, `creator-text-card`,
-    `creator-generated-video`, `creator-ascii-video`,
+    `creator-meme`, `creator-ascii-art`, `creator-audio-visualization`,
+    `creator-gif-sourcing`, `creator-generated-video`, `creator-ascii-video`,
     `creator-manim-explainer`, `creator-pixel-art`, `creator-pixel-video`,
     `creator-knowledge-comic`, and `creator-brand-asset-sourcing`. Leaves own
     one production grammar and its medium QA; styles/presets and same-tool
