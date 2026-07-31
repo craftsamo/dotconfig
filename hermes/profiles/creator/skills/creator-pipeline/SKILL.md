@@ -17,14 +17,14 @@ description: >-
   references/{iterate,verify,delivery}.md (feedback-driven revision, the
   V1-V6 media checks with per-intent profiles, and attachment + Review gate
   + evidence-backed reporting) — load via skill_view file_path, never skip.
-version: 3.0.0
+version: 4.3.0
 author: CraftSamo
 license: MIT
 metadata:
   hermes:
     tags: [media, image, video, gif, tts, production, kanban, delivery, verification, triage, intent]
     category: creative
-    related_skills: [contextual-image-gen, contextual-video-gen]
+    related_skills: [creator-generated-image, creator-article-illustration, creator-infographic, creator-svg-diagram, creator-excalidraw-diagram, creator-logo-icons, creator-text-card, creator-meme, creator-ascii-art, creator-audio-visualization, creator-audio-generation, creator-song-generation, creator-gif-sourcing, creator-generated-video, creator-html-motion, creator-p5js-experience, creator-ascii-video, creator-manim-explainer, creator-pixel-art, creator-pixel-video, creator-knowledge-comic, creator-brand-asset-sourcing]
 ---
 
 <Goal>
@@ -58,7 +58,8 @@ routing, triage, and contracts live here; playbook detail lives in
 <UseWhen>
 
 - Any kanban/delegated creator task: images, video, GIFs, poster frames,
-  loops, voice lines, batch or multi-asset production, media
+  loops, browser-native visuals, music, sound effects, songs, voice lines,
+  batch or multi-asset production, media
   consultations, revisions of earlier deliveries, salvage of interrupted
   work.
 
@@ -125,14 +126,13 @@ own rows.
 
 <Brief>
 
-The task body is the whole brief (workers never see the chat). Extract
-before generating: purpose/audience, asset type(s) and count, style/tone
-references, dimensions/platform specs, delivery format, the `Budget:` line
-(<Budget>) — and for revise/salvage, the source-card pointers the intent's
-first move needs. If creative direction is ambiguous and the body carries
-no reference (style, aspect, tone), do ONE block round-trip per
-<CommentProtocol>. Never burn generation credits guessing; never block
-twice for what one batched question could settle.
+The task body is the whole brief (workers never see the chat). Load and validate
+`references/brief.md` before production; it owns the common MediaBrief and its
+image/video/voice/pixel additions. Extract the `Budget:` line here, and for
+revise/salvage require the source-card pointers the intent's first move needs.
+If a material direction is ambiguous, do ONE block round-trip per
+<CommentProtocol>. Never burn generation credits guessing; never let a leaf
+technic create a parallel intake schema or call `clarify`.
 
 </Brief>
 
@@ -145,14 +145,21 @@ sets the caps; absent → the defaults:
 | --- | --- |
 | Still-image generations | 4 variants per asset |
 | Video renders | 2 per asset |
+| Generated-audio or song renders | 2 per asset |
+| TTS syntheses | 1 primary render per requested voice asset |
 | Corrective regeneration | 1 pass per asset (after verification) |
 | Batch quantity | exactly the brief's count |
 | Plan-mode style anchor | 1-2 cheap samples per set, before the batch (Plan mode only) |
+| Local neural-generation runtime | <=15 minutes estimated per render; CPU fallback forbidden unless explicitly granted |
 
 - **Effective budget = body `Budget:` + all `AUTHORITY+:` comments**, in
   comment order. Grants only expand; nothing shrinks mid-task.
 - Revise cards: the defaults apply **per revised asset** — untouched
   assets cost nothing (`references/iterate.md`).
+- A body `Budget:` or later `AUTHORITY+:` may expand local runtime with
+  `Runtime: <=<minutes>/render` and may permit `CPU fallback: allowed`. Without
+  both an adequate runtime ceiling and explicit CPU permission, an estimate
+  beyond the default or a CPU-only neural path blocks before model load.
 - Need to exceed it (more variants, another render, a longer cut)? That is
   a block round-trip: `Q<n>` with the cost stated ("2 more renders,
   ~<estimate>"), never a silent overrun.
@@ -168,7 +175,7 @@ marker as the first token (shared contract across workers). You WRITE:
 - `STATE:` — before a block: what's produced so far, what the question
   decides, which intermediates sit in the workspace (they survive the
   respawn — `references/resume.md`), the locked anchor values if any, and
-  the **spend tally** so far (e.g. `spend: img 3/4, corrective 0/1`) —
+  the **spend tally** so far (e.g. `spend: img 3/4, tts 1/1, corrective 0/1`) —
   surviving files alone can't tell how much budget went into failed
   attempts.
 - `Q<n>: <question>` — numbered questions, 2-4 concrete options, your
@@ -176,7 +183,7 @@ marker as the first token (shared contract across workers). You WRITE:
   batch all pending questions into one block round-trip.
 - `PROGRESS: <one-two lines>` — per finished asset (or batch chunk): what's
   delivered-ready, what's next, ending with the running spend tally
-  (`spend: img 3/4`). Comments are NOT pushed to chat; the orchestrator
+  (`spend: img 3/4, tts 1/1`). Comments are NOT pushed to chat; the orchestrator
   reads them on demand, so keep them frequent but terse.
 
 You READ (written by the orchestrator):
@@ -237,7 +244,9 @@ Rules:
 
 1. **Intake.** `kanban_show`; parse the <Brief> and the <Budget> grant.
 2. **Route + triage.** Pick the mode per <ModeRouting>, load the entry
-   reference via `skill_view`; for produce cards classify the intent per
+   reference via `skill_view`; for every plan or produce card load
+   `references/capabilities.md`, select and handshake its leaf/core/external
+   capability before any spend. For produce cards, also classify the intent per
    <IntentTriage> and load its companion file.
 3. **First move** per the intent row (spec discovery / inheritance /
    inventory); record its outcome in a comment before spending.

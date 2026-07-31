@@ -84,7 +84,7 @@ config.yaml          # model/providers, toolsets, agent settings (Hermes-rewritt
 SOUL.md              # default persona (prompt slot #1)
 mcp.json             # MCP servers ({} = none)
 cron/                # jobs.json tracked; output/ + .tick.lock ignored
-skills/              # agent-created skills tracked; .hub/ etc. ignored
+skills/              # shared maintainer-owned skills tracked
   orchestration/     # orchestration skill (SKILL.md + references/<approach>.md) — shared
                      #   front-door playbook (default native; assistant via ~/.hermes/skills
                      #   external dir; Telegram chat-wide auto-load)
@@ -93,29 +93,36 @@ skills/              # agent-created skills tracked; .hub/ etc. ignored
                      #   contract, imported not executed; siblings call each other's CLI,
                      #   never each other's DB; scaffold is a helper outside the contract)
                      # (creative/ moved to profiles/creator/skills — creator owns media)
+  learned/           # runtime-authored adaptive skills; mutable and ignored
 plugins/             # backend chains (image/video gen) + tool overrides; source tracked, __pycache__ ignored
 launchd/             # LaunchAgents: assistant gateway + headless AivisSpeech engine
 profiles/<name>/     # assistant, planner, engineer, researcher, searcher, creator, writer, marketer
   - config.yaml      # model/fallback + agent.system_prompt (operating contract)
   - profile.yaml     # routing description (kanban/delegation)
   - SOUL.md          # per-profile persona (BASE + role posture)
-  - skills/          # per-profile skills. Naming: every worker has exactly ONE
-                     #   pipeline skill `<profile>-pipeline` (lifecycle playbook,
-                     #   auto-loaded by its operating contract) + optional technic
-                     #   skills pinned per task via kanban_create skills:[...]
-                     #   (searcher: none — modes live in pipeline references,
-                     #   deep-retrieval is a deprecated stub / creator: contextual-image/
-                     #   video-gen / writer: Japanese stack via the curated
-                     #   external-skills symlink dir / marketer: + upstream
-                     #   social-media/xurl;
-                     #   engineer groups its technic skills under skills/technic/
+  - skills/          # per-profile skills. Every worker has exactly ONE
+                     #   root pipeline skill `<profile>-pipeline` (lifecycle +
+                     #   capability router, auto-loaded by its operating contract)
+                     #   + directly selectable LEAF technics under skills/technic/,
+                     #   pinned per task via kanban_create skills:[...]. A technic's
+                     #   references are modes only when tools, spend class and QA
+                     #   stay the same; styles/presets/formats remain references.
+                     #   (searcher: deep-retrieval is a deprecated technic stub;
+                     #   creator: canonical creator-* image/video/audio/music/
+                     #   browser-motion/diagram/editorial/icon/card/meme/text-art/
+                     #   pixel/sourcing leaves;
+                     #   writer: Japanese stack via the curated external-skills
+                     #   symlink dir / marketer: + upstream social-media/xurl;
+                     #   engineer and creator group technics under skills/technic/
                      #   — Hermes walks nested dirs and shows the parent as the
                      #   category, unlike the flat shared agents/skills tree;
                      #   planner-pipeline owns outline schema + granularity rubric;
                      #   assistant keeps only its surface skills — desks/ holds
                      #   topic-bound personal-desk / project-desk / brainstorm
                      #   (Inline-only; worker work spins into a new topic), while
-                     #   orchestration lives in the shared skills/ tree above)
+                     #   orchestration lives in the shared skills/ tree above;
+                     #   every profile's learned/ holds mutable runtime-authored
+                     #   skills and is never a dispatch or Git ownership surface)
   - cron/            # per-profile scheduled jobs (jobs.json; placeholder if empty)
                      # assistant/scripts/ holds cron scripts incl.
                      # kanban-scheduled-sweeper.sh and kanban-orphan-watchdog.sh
@@ -156,22 +163,22 @@ Tracked: config / SOUL / `profile.yaml`, `plugins/` source, `cron/jobs.json`,
 `.curator_state`, `.usage*`, `cron/output/`, `cron/ticker_*`, `**/__pycache__/`,
 `*.pyc`. Never commit secrets, state, or host-rendered plists.
 
-**Skills are NOT tracked by default** (`hermes/skills/**` and
-`hermes/profiles/*/skills/**` are gitignored — Hermes authors skills itself and
-that churn stays out of the repo). To track a user-authored skill, opt in once
-with `git add -f <path>`; it then behaves like any tracked file. Skill files
-that were already tracked remain tracked but are **frozen at their committed
-snapshot** via `git update-index --skip-worktree` (also `cron/jobs.json`, which
-Hermes rewrites at runtime): later local changes never show in status/diff.
-List frozen files with `git ls-files -v | grep ^S`; to intentionally commit an
-update, `git update-index --no-skip-worktree <file>`, commit, then re-freeze.
-The skip-worktree flag is per-machine (index-local) — re-apply it after a fresh
-clone, and if upstream changes a frozen file, `git pull` stops until you
-unfreeze and resolve.
+**Skill ownership follows the directory type.** Shared `orchestration/` and
+`workspaces/`, every worker's `<profile>-pipeline/` and `technic/`, and the
+assistant's `desks/` are maintainer-owned and tracked normally. Runtime creates
+are forced into `learned/` by the `skill-topology` plugin; `learned/`, external
+skills and Hermes bookkeeping stay ignored. Do not use `skip-worktree` for
+managed skills: their changes must remain visible in `git status`. Promotion
+from `learned/` to `technic/` is an explicit review step; move the complete
+package, normalize its technic metadata and routing, pin it against curator
+writes on the current machine, then commit it.
 
 ## Commands
 
 - `./setup.sh` — install/refresh the hermes binary (uv venv); idempotent.
+- `./scripts/validate-profile-skills.py --all` — validate managed/learned skill
+  topology, metadata, routing registries and Git ownership; add `--strict-git`
+  in a staged/clean tree to fail on managed files that are still untracked.
 - `../install.sh` — create the `~/.hermes/` symlinks (run after adding files).
 - `hermes update` — git pull + re-sync (use this to update, not setup.sh).
 - `hermes doctor` — validate providers / model tiers.
