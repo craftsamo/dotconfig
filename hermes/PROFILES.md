@@ -283,18 +283,25 @@ Three per-profile layers, kept separate:
     to saturation, signalled by `goal_mode`) — plus the link-integrity floor
     and the minimal kanban protocol in the kernel; per-mode playbooks in
     references/. `deep-retrieval` remains only as a deprecated stub)
-  - creator → `creator-pipeline` (asset-type routing to the gen chains + the
-    creative-skill catalog, Budget grant parsing, structured STATE/Qn block
-    dialogue, per-asset PROGRESS, workspace-reuse resume, visual verification,
-    kanban_attach delivery) + the in-tree `contextual-image-gen` /
-    `contextual-video-gen` depth skills, the HyperFrames stack via
+  - creator → `creator-pipeline` (the one MediaBrief + capability router,
+    Budget grant parsing, structured STATE/Qn block dialogue, per-asset
+    PROGRESS, workspace-reuse resume, visual verification, kanban_attach
+    delivery) + directly selectable in-tree leaves under `skills/technic/`:
+    `creator-generated-image`, `creator-generated-video`,
+    `creator-logo-icons`, `creator-text-card`, `creator-pixel-art`,
+    `creator-pixel-video`, and `creator-brand-asset-sourcing`. Leaves own one
+    production grammar and its medium QA; styles/presets and same-tool modes
+    stay in references. The HyperFrames stack remains available via
     `skills.external_dirs` (`~/.agents/skills` — `hyperframes` is the entry
     point that routes the 6 sub-skills, plus `media-use` for asset resolution /
     TTS / captions; CLI-owned store, see AGENTS.md), and the upstream
     `creative/` + `media/` libraries (comfyui, manim-video, gif-search, … —
     creator owns the creative cluster). MCP-backed entries in that cluster
     (`blender-mcp`, `touchdesigner-mcp`, `unreal-mcp`) are listed in
-    `skills.disabled`: the profile runs `no_mcp`, so they can never execute
+    `skills.disabled`: the profile runs `no_mcp`, so they can never execute.
+    The ambiguous external `pixel-art` name is disabled too; the canonical
+    Pixel leaves may use its scripts as opt-in implementation backends but are
+    the only stable dispatch identities
   - writer → `writer-pipeline` (kernel SKILL.md pinned on every writer card:
     assess/write mode routing by deliverable, WritingBrief parsing, one-round
     tone calibration; TypeTable routes copy/article/docs → references/prose.md

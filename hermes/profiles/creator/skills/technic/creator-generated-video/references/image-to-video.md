@@ -12,8 +12,9 @@ frame). This is the motion analogue of the image skill's "derive-from-logo".
 Call: `video_generate(prompt=…, image_url=…, aspect_ratio=…, duration=…)`.
 
 - `image_url` accepts an **http(s) URL, a `data:image/…` URI, or a local file
-  path**. Generate/clean the still first (e.g. via `contextual-image-gen` +
-  `img-postprocess.sh`) so the first frame is already correct.
+  path**. Generate/clean the still first (for example with the separately
+  loaded `creator-generated-image` technic) so the first frame is already
+  correct.
 - The **prompt now describes motion only** — what should *move* and how the
   camera behaves — not the scene (the image defines the scene):
   > Gentle parallax push-in; soft particles drift; subtle shimmer on the logo.

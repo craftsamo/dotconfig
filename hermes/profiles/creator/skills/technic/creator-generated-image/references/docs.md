@@ -1,8 +1,8 @@
 <Goal>
 
-Images for slide decks, documents, and print. Mostly `generate` (illustrations,
-backgrounds) or `template + text` (title slides); icons still come from
-`icons.md`.
+Generated images for slide decks, documents, and print. Exact title-slide text
+belongs to `creator-text-card`; deterministic icons belong to
+`creator-logo-icons`.
 
 </Goal>
 
@@ -15,7 +15,8 @@ backgrounds) or `template + text` (title slides); icons still come from
 | Full-bleed background | match slide size | 16:9 / 4:3 |
 
 - Generate full-bleed art at `landscape`; crop to the exact slide size.
-- Leave a calm area for slide text, or supply the title via `text-cards.md`.
+- Leave a calm area for slide text, or compose the title with
+  `creator-text-card`.
 - Inset figures: generate `square`/`landscape`, export PNG (transparent if it sits
   on a colored slide).
 
