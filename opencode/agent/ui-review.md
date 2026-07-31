@@ -1,7 +1,7 @@
 ---
 description: "Read-only visual UI review subagent: drives the running web app with agent-browser, captures multi-viewport screenshots, and returns a severity-ranked design critique with concrete measurements and screenshot paths. Prefer invoking through the built-in task tool."
 mode: subagent
-model: openai/gpt-5.6-terra
+model: openai/gpt-5.6-terra-fast
 hidden: true
 options:
   reasoningEffort: medium
