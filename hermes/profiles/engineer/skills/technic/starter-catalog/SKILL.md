@@ -16,7 +16,7 @@ license: MIT
 metadata:
   hermes:
     tags: [bootstrap, starter, boilerplate, scaffolding, ghq, discovery]
-    category: software-development
+    category: technic
     related_skills: [engineer-pipeline, machine-env]
 ---
 
