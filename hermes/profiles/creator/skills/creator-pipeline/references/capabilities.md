@@ -9,11 +9,18 @@ only when they share tools, spend class, and verification.
 | Deliverable / production method | Canonical technic | Notes |
 | --- | --- | --- |
 | generated cover, hero, illustration, thumbnail, text-free social/document art | `creator-generated-image` | metered `image_generate`; exact text stays out |
+| consistent illustration set placed against an article | `creator-article-illustration` | metered `image_generate`; article analysis + placement map + shared style block |
+| information-led visual summary with a layout x style grammar | `creator-infographic` | metered `image_generate`; dense exact labels route to deterministic SVG |
+| precise architecture, scientific, educational, or general concept diagram | `creator-svg-diagram` | deterministic self-contained HTML + inline SVG; rendered preview required |
+| editable hand-drawn architecture, flow, sequence, or concept diagram | `creator-excalidraw-diagram` | deterministic `.excalidraw` JSON; compatible rendered preview required |
 | favicon, Apple, PWA, maskable, or app-icon set from an approved first-party SVG | `creator-logo-icons` | deterministic; zero generation spend |
 | OG/social/title card with exact copy and typography | `creator-text-card` | deterministic composition; generated background is an explicit supporting technic |
 | text-to-video, image-to-video, or reference-guided generated clip | `creator-generated-video` | metered `video_generate`; GIF/loop/poster may be delivery post-steps |
+| video-to-ASCII, audio-reactive, generative, hybrid, lyric, or TTS-backed ASCII motion | `creator-ascii-video` | deterministic Python/ffmpeg render; supporting generation/TTS is separately budgeted |
+| mathematical, algorithmic, data, paper, or 3D educational animation | `creator-manim-explainer` | deterministic Manim render; supporting TTS is separately budgeted |
 | still sprite, avatar, icon, logo reduction, or scene on a pixel grid | `creator-pixel-art` | native master + nearest-neighbor preview |
 | sprite/cel animation, procedural pixel loop, pixel MP4/GIF | `creator-pixel-video` | deterministic native-grid animation; never ordinary AI video |
+| educational, biography, or tutorial comic with storyboarded panels | `creator-knowledge-comic` | metered page art + deterministic lettering; multi-page work uses the plan/anchor gate |
 | official third-party logo/mark acquisition and provenance | `creator-brand-asset-sourcing` | source, do not redraw |
 
 Voice lines currently use the `tts` toolset under the pipeline contract and
@@ -36,6 +43,10 @@ identity only after an availability preflight.
 4. The task body's `Technique:` is a request. Validate it against this table;
    correct an objective mismatch in `STATE:`, and block only when the choice
    changes user intent or spend.
+5. A canonical leaf may load an official skill from `external_dirs` as its
+   implementation engine. Report the canonical leaf as `capability` and the
+   official skill plus concrete tool/path as `backend`; never expose the
+   engine's bare name as the stable dispatch identity.
 
 ## Capability handshake
 
