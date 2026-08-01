@@ -57,10 +57,16 @@ hb report --by <axis> [--month|--from|--to] [--type] [--scope] [--where axis=val
 hb subscriptions ; hb reimbursements [--month YYYY-MM]
 # data ops
 hb validate ; hb export --format both ; hb backup [--keep N] ; hb audit [--entity <id>]
-hb fx-refresh [--date YYYY-MM-DD] ; hb digest weekly|month-end [--format html|plain]
+hb fx-refresh [--date YYYY-MM-DD] ; hb digest weekly|month-end [--format html|markdown|plain]
 hb init [--seed] [--force] ; hb import-json [--src DIR] ; hb migrate
 ```
 `report --by`: `month|type|scope|category|store|item|account|currency|project|counterparty|tag:<axis>`.
+
+The rich Markdown digest is the scheduled analytical view. Weekly reports cover the
+previous complete Monday-Sunday period and compare it with the week before. Month-end
+reports compare the selected month with its predecessor. Spending and income exclude
+`ignored` transactions and stay separate; open reimbursements and review backlog are
+current operational totals, not historical snapshots.
 
 </Engine>
 
