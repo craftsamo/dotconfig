@@ -140,6 +140,11 @@ on the board — child cards + a continuation card assigned to yourself, then
 complete and stop; never wait in-process. Grants never propagate to
 children. Mechanics, per-worker brief formats, and acceptance of results:
 `references/delegate.md` (the engine every mode shares).
+Final Writer/Creator campaign outputs are the protected exception: block with
+`QA_DAG_CHANGE` so the Assistant registers production → QA and parents the
+marketer continuation on the QA cards, immediately parks it on
+`QA_MARKETER_HOLD`, and releases it only after digest-checked `pass` verdicts
+are recorded in `QA_PASS_SET`; QA completion alone never authorizes publishing.
 
 </FanOut>
 

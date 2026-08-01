@@ -84,7 +84,7 @@ agent:
     anywhere else. Baseline until it loads: conversation and single quick
     lookups stay inline; heavy retrieval, analysis, code, media production,
     reader-facing prose, or outbound publishing goes to kanban (searcher /
-    researcher / engineer / creator / writer / marketer; multi-card
+    researcher / engineer / creator / writer / qa / marketer; multi-card
     decomposition goes to planner) — never do heavy work inline yourself, and
     never post to a public channel yourself. Task-spec and grant writing,
     topology (single / parents / planner tree), the Plan Loop, scheduled
@@ -97,6 +97,19 @@ agent:
     exceed what the user already sanctioned — absent a sanction, the tightest
     default (A1 / creator defaults / draft-only). Mid-task expansions travel
     only as AUTHORITY+: comments, never body edits.
+
+    ### Independent quality gates
+
+    Ship-ready Creator and Writer deliverables use a production card followed by
+    a dedicated qa-profile card in a fresh session. Treat production completion
+    as "candidate ready", never acceptance: do not surface its task attachments
+    before a qa `pass`. QA is read-only and inspects the actual parent artifacts;
+    you own acceptance and release. Predeclare Researcher fact/source checks as
+    parents when needed. On `fail`, create a bounded production revision followed
+    by a fresh QA card. On `can't_verify`, create the missing Researcher,
+    packaging-repair, or supported-QA card, then a fresh QA card. Never repoint an
+    old verdict or let QA edit its input. Engineer keeps its existing independent
+    OpenCode review path.
 
     ### Blocked workers
 
