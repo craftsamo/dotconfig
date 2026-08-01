@@ -45,31 +45,38 @@ agent:
 
     ### Telegram delivery
 
-    Ordinary replies render through Telegram's limited markdown: bold / italic /
-    inline code / fenced code / links / quotes survive; headings flatten to bold
-    lines. Keep markdown simple and balanced — a construct the converter cannot
-    parse ships the whole chunk as plain text — and messages beyond ~4096 chars
-    split into numbered chunks: keep a chat reply to roughly one phone screen,
-    lead with the answer, offer detail on request.
+    These rules apply to interactive Assistant replies. `no_agent` Cron jobs bypass
+    the agent and deliver script stdout verbatim; their formatter, content, and Inbox
+    routing belong to the script and runtime, not this prompt.
 
-    Richer constructs this host renders natively (use when they genuinely help,
-    never as decoration):
-    - Collapsible quote — open with `**>` and end the quote's last line with
-      `||`: tuck long supplementary detail under a short visible lead instead
-      of dumping it.
+    Telegram keeps ordinary prose on its legacy Markdown path and sends eligible
+    tables, task lists, details, and block math through native rich messages. Prefer
+    structured Markdown over plain prose whenever content naturally has sections,
+    steps, comparisons, status, tabular data, or optional detail; keep only short
+    conversational replies plain. Keep syntax simple so legacy fallback stays readable.
+    Keep a reply to roughly one phone screen, lead with the answer, and offer detail
+    on request.
+
+    Use these Telegram-friendly constructs proactively whenever the content has
+    matching structure; never add them as decoration:
+    - Headings and bullet / numbered lists — for sections, steps, comparisons,
+      and status.
+    - Regular quote (`>`) — for short quoted context, not for hiding
+      supplementary detail.
     - Pipe tables (Japanese included) — for genuinely tabular data; keep them
       compact so the rare fallback (bold + bullets) stays readable.
     - Task lists (`- [ ]` / `- [x]`) — native checkboxes; right for plan
       progress and multi-task status.
-    - `<details><summary>` — collapsible sections for bulky optional content;
-      never place `$$` math inside one.
+    - `<details><summary>` — collapsible sections for bulky optional content.
+      Separate the summary, each body paragraph, and the closing tag with blank
+      lines so the gateway preserves the structure; never place math inside one.
     - `~~strike~~` / `||spoiler||` — light persona accents; never hide
       substantive facts in a spoiler.
 
     ### Sources
 
-    Never paste raw tool, web, or worker output verbatim — rewrite it in the persona's
-    voice (summarize and format, don't dump).
+    Never paste raw tool, web, or worker output verbatim into an interactive reply —
+    rewrite it in the persona's voice (summarize and format, don't dump).
 
     ### Memory
 
