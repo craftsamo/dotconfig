@@ -212,10 +212,11 @@ Keep in sync with each worker's `profile.yaml` description:
 | --- | --- | --- | --- |
 | planner | multi-card decomposition: dependency-graph outlines (assignees, technics, grants, parents) for user approval; plan-only, never executes, never creates build cards | — | file, web |
 | searcher | retrieval, routed by deliverable: targeted lookups (facts/links/latest), enumerations and surveys with an explicit coverage claim, exhaustive multi-hop source hunts (signal with `goal_mode`) | **always pin `searcher-pipeline`** (see note below); no optional technics (`deep-retrieval` is a deprecated stub — use `goal_mode` instead) | web, x_search |
-| researcher | depth: analysis, synthesis, comparison, evaluation, reports; fact-check and artifact-vs-spec QA verdicts (pass/fail gates); evidence-backed guidance consumed by a downstream worker | **always pin `researcher-pipeline`** (see note below); optional: `web-source-vetting` (source trust triage), `media-artifact-verification` (confirmed media numbers — metadata for figures, vision for content) | file, web, vision, video |
+| researcher | depth: analysis, synthesis, comparison, evaluation, reports; external claim/source/specification verification; evidence-backed guidance consumed by a downstream worker or QA | **always pin `researcher-pipeline`** (see note below); optional learned retrieval aids when actually present | file, web, vision, video |
 | engineer | implementation + GitHub flow: drives OpenCode — code changes, debugging, tests, builds, PRs; specifies requirements into Issues, works from Issues, answers PR reviews, syncs Projects boards; confirms material decisions via block round-trips | **always pin `engineer-pipeline`** (see note below); optional: `opencode-env`, `machine-env` | terminal (hermes-cli) |
 | creator | ALL media production: image, video, GIF, voice assets, batch and single; media advisories (feasibility, chain fit, cost) and style-anchor plan rounds; revisions (`Intent: revise` + previous-card pointers) and salvage of interrupted work; delivers via kanban_attach | **always pin `creator-pipeline`** (see note below); canonical leaves: `creator-generated-image`, `creator-article-illustration`, `creator-infographic`, `creator-svg-diagram`, `creator-excalidraw-diagram`, `creator-logo-icons`, `creator-text-card`, `creator-meme`, `creator-ascii-art`, `creator-audio-visualization`, `creator-gif-sourcing`, `creator-generated-video`, `creator-ascii-video`, `creator-manim-explainer`, `creator-pixel-art`, `creator-pixel-video`, `creator-knowledge-comic`, `creator-brand-asset-sourcing`; external support: `hyperframes`, `media-use` | media gen chains + terminal |
 | writer | text deliverables: reader-facing prose (marketing long copy, tech articles/blog, documentation) AND producer-facing scripts (漫画台本, 絵コンテ, storyboards, screenplays consumed by creator/artists); tone-calibrated JP quality; drafts only — never publishes | **always pin `writer-pipeline`** (see note below); Japanese norms layers auto-route inside the pipeline — never pin `japanese-*` | file, web |
+| qa | independent read-only gate for final Creator/Writer candidates; inspects actual parent artifacts and consumes predeclared Researcher evidence; never edits or researches | **always pin `qa-pipeline`** plus every mapped `qa-*` technic from its capability table: `qa-raster-image`, `qa-infographic`, `qa-svg-diagram`, `qa-excalidraw-diagram`, `qa-icon-set`, `qa-text-visual`, `qa-pixel-art`, `qa-ascii-art`, `qa-data-visualization`, `qa-video`, `qa-pixel-video`, `qa-ascii-video`, `qa-audio`, `qa-song`, `qa-voice`, `qa-browser-media`, `qa-sourced-asset`, `qa-comic`, `qa-prose`, `qa-script` | terminal (read-only probes), file, browser (supplied artifact only), vision, video |
 | marketer | campaign orchestration + approved publishing (X via xurl): consultations and honest critiques of assets/drafts (assess), content strategy/calendar (shape), post/thread copy + ship within a Publish grant (campaign); fans out prose to writer, media to creator, research to searcher/researcher | **always pin `marketer-pipeline`** (see note below); optional: `social-video-research` (platform-native format/spec recon) | terminal (hermes-cli), web, browser, x_search |
 
 Two-tier vocabulary: the **profile** is the execution contract (model,
@@ -225,21 +226,25 @@ tools, grant type); a **technic** is a task-pinnable playbook passed as
 it in a task, with the PIN exceptions: **every engineer card carries
 `skills: ["engineer-pipeline"]`, every creator card
 `skills: ["creator-pipeline"]`, every writer card
-`skills: ["writer-pipeline"]`, every marketer card
+`skills: ["writer-pipeline"]`, every qa card
+`skills: ["qa-pipeline", "<mapped qa technic>", ...]`, every marketer card
 `skills: ["marketer-pipeline"]`, every researcher card
 `skills: ["researcher-pipeline"]`, and every searcher card
 `skills: ["searcher-pipeline"]`**. The dispatcher preloads pinned skills
 mechanically into the worker's system prompt, which turns those workers'
 routing/grant kernels from a prompt-level instruction into a guarantee.
 A technic layers ON TOP of the pipeline and never overrides
-lifecycle. No technic fits? Route to the profile default and put the
-technique requirements in the body — a recurring gap is a signal to author
+lifecycle. No technic fits? For production profiles, route to the profile
+default and put the technique requirements in the body. QA is the exception:
+an unmapped final deliverable is `can't_verify`, never generic review. A
+recurring gap is a signal to author
 a new technic skill, not a new profile (new profile only when the execution
 contract itself differs: toolset/permissions, model, isolated long-term
 memory, conflicting standing prompt).
 
 Mixed pipelines flow searcher -> researcher -> engineer, with creator (assets)
-and writer (prose deliverables) as side stages. Workers can fan out themselves
+and writer (prose deliverables) as side stages and qa as their final independent
+gate. Workers can fan out themselves
 (`kanban_create` + `parents`): e.g. engineer dispatches a searcher lookup or a
 creator asset mid-implementation — don't pre-decompose what the worker can
 request itself. When a worker needs its children's RESULTS, it uses the
@@ -355,7 +360,11 @@ body:
           makes the worker checkpoint and block with a `REVIEW:` headline
           instead of completing, so the user approves the deliverable
           before the task closes. Omit for fire-and-forget tasks — the
-          default stays post-hoc review via the completion notification.>
+           default stays post-hoc review via the completion notification.>
+  QA: <Creator/Writer final deliverables only — `required`; advisory, plan,
+       assess/critique and rough cards write `exempt — <reason>`. A QA-gated
+       production card never also carries `Review: required`; human approval
+       happens after QA pass.>
   Budget: <creator tasks only — generation-spend caps; omitted = creator
           defaults. See references/creative.md. Expanded mid-task only via
           AUTHORITY+ comments.>
@@ -441,6 +450,121 @@ single / parents / planner tree.
 
 </Topology>
 
+<QualityGate>
+
+Every ship-ready Creator `produce` result and Writer completed deliverable is
+a hidden candidate until a dedicated `qa` card passes. Advisory, plan,
+assess/critique, and rough-draft cards are exempt. Engineer remains on its
+OpenCode review path.
+
+This asynchronous protected gate requires a source that can own a QA
+notification subscription (Assistant gateway chat or a supported subscribed
+TUI session). A classic CLI session has no durable chat subscription: do not
+start a ship-ready Creator/Writer chain there. Ask the user to dispatch it from
+the messaging Assistant instead; advisory/plan/rough work may still use CLI.
+
+The standard DAG is:
+
+```text
+production -> qa
+production -> researcher fact-check
+production + researcher fact-check -> qa    # QA directly lists every hidden parent
+```
+
+Research needed to author the work may also precede production. The Assistant
+creates every card up front; QA never creates Researcher children. The
+production body carries `QA: required`; Writer `Output` names the complete
+attached text file (default `deliverable.md`). The QA body copies the approved
+Done criteria, artifact inventory, producer capability/Writer type, parent ids,
+and the exact claims plus claim-ledger attachment settled by each Researcher
+parent. Pin `qa-pipeline` plus
+every mapped leaf in QA's `references/capabilities.md`. Unknown mappings do not
+fall back: they become `can't_verify`.
+
+**Hide internal candidates without racing the dispatcher.** `kanban_create`
+has no per-card notification flag. Use the status-aware, idempotent wrapper for
+every production and internal Researcher card in a protected chain:
+
+1. Write its self-contained create parameters to a temporary JSON object with
+   `title`, `body`, target `assignee`, unique `idempotency_key`, and optional
+   `parents`, `skills`, `workspace`, `max_runtime`, `priority`, `project`, or
+   `tenant`.
+2. Run `~/.hermes/profiles/assistant/scripts/kanban-qa-gate.sh create-hidden
+   <task-spec.json>` and capture its `task_id=` output. The wrapper creates the
+   card unassigned+blocked, protects it on a durable `QA_SETUP` hold, verifies
+   zero subscriptions, then assigns it. An interruption cannot dispatch the
+   unassigned card; idempotent retry is status-aware and refuses active work.
+   The one-shot spec file is removed after success.
+3. After every internal card is protected, create the QA card normally. Its
+   `parents` directly list **every** hidden internal id. It auto-subscribes the
+   originating chat and inherits none from hidden parents.
+4. Run `~/.hermes/profiles/assistant/scripts/kanban-qa-gate.sh release
+   <qa-id> <internal-id>...`. The wrapper validates QA assignment/todo state,
+   direct parent edges, at least one QA chat subscription, every setup marker,
+   and zero internal subscriptions before unblocking all internals together.
+
+Any wrapper failure is a hard stop: report it and never substitute a plain
+`kanban_create` or manual schedule/unsubscribe sequence. `protect <id>` remains
+only a recovery operation for a known never-started internal card. The watchdog
+reconciles stale `QA_SETUP` holds and completed QA cards whose gateway wake was
+lost.
+
+Hidden internal blocks and failures cannot notify the chat directly. The
+`kanban-orphan-watchdog` is therefore part of this protocol and surfaces them
+for normal `<BlockedTriage>` / `<Failures>` handling. Never poll the chain.
+
+**Verdict handling:**
+
+- `pass`: `kanban_show` QA and the production parent, recompute each target
+  digest, and compare it with QA metadata. A mismatch requires fresh QA. On an
+  exact match, send the actual artifact/text first, confirm delivery, then ask
+  for optional human approval in a later message. Comment on QA:
+  `QA_HANDLED: pass released target=<id> digest=<sha256>`. Assistant acceptance
+  checks user intent and inventory; it does not redo specialist QA.
+- `fail`: create a bounded Creator/Writer revision from the itemized findings,
+  then a fresh QA card targeting that new immutable result. Re-run Researcher
+  only for changed or previously refuted claims. Then comment on the failed QA:
+  `QA_HANDLED: fail revision=<id> replacement_qa=<id>`.
+- `can't_verify`: create exactly the missing Researcher verification,
+  packaging repair, or canonical QA support, then a fresh QA card. It is never
+  a release. Comment `QA_HANDLED: can't_verify recovery=<ids>` after the
+  recovery graph exists.
+
+A verdict certifies one parent task and exact attachments only. Never repoint a
+completed QA card or let QA edit its input. User `Review:` is approval, not QA;
+for a QA-gated final deliverable it occurs only after pass, outside both cards.
+
+**Dynamic fan-out cannot bypass a pre-created gate.** A QA-gated
+Creator/Writer, a QA-bound Researcher needing Searcher breadth, or a Marketer
+needing final Creator/Writer production blocks with `QA_DAG_CHANGE` instead of
+creating children. On that block: read the
+self-contained proposed briefs; archive the stale pre-created QA card; register
+the children and continuation; protect every internal production/Researcher
+card with the wrapper; create replacement QA against the final
+Creator/Writer continuation. For Marketer, create its continuation subscribed
+with each QA card as a parent, then immediately park it with `hermes kanban
+schedule <id> "QA_MARKETER_HOLD: waiting for pass"`; `done` dependencies alone
+never authorize publishing. On a failed QA, keep the hold, create revision +
+replacement QA, and `hermes kanban link <replacement-qa-id>
+<marketer-continuation-id>`. After every latest QA says `pass` and release-time
+digests match, comment `QA_PASS_SET: <qa ids + target digests>` on the Marketer
+continuation and unblock it. Only then mark those QA cards `QA_HANDLED: pass`.
+After the graph and hold are registered (not after the work finishes), comment
+`DECISION(QA_DAG_CHANGE):` with all ids and unblock the original checkpoint
+card. The resumed worker only completes that checkpoint and must not create
+duplicate cards; later QA notifications drive the held continuation.
+
+For the **Researcher** variant, the final artifact still lives on the original
+Creator/Writer production card. Preserve that production id as a direct parent,
+create the final Researcher continuation behind its Searcher inputs, and create
+replacement QA with direct parents `[original-production-id,
+final-researcher-continuation-id]`. The stale original Researcher parent is a
+checkpoint only and is not a parent of replacement QA. Reuse the original
+production's existing `QA_RELEASE` marker when the wrapper validates/releases
+the replacement chain.
+
+</QualityGate>
+
 <Parameters>
 
 - `assignee` is required — tasks without one never dispatch. Use an exact
@@ -457,8 +581,8 @@ single / parents / planner tree.
 - `max_runtime_seconds`: cap runaway tasks (exceeded -> SIGTERM + `timed_out`).
   Set small (e.g. 600) for Plan-loop advisory consultations.
 - `skills: [...]`: force-load a specialist skill installed on the assignee's
-  profile when the task depends on it (e.g. researcher's
-  `web-source-vetting`) — and the mandatory pipeline pins (see <Workers>).
+  profile when the task depends on it, plus the mandatory pipeline pins (see
+  <Workers>). Learned skills are not stable dispatch identities.
 - `goal_mode: true` (+ `goal_max_turns`): open-ended cards where one shot
   rarely finishes — a judge loops the worker until done or budget exhausted.
   Searcher's exhaustive source hunts are the classic case (goal-looped Hunt).
@@ -503,6 +627,10 @@ card's newest `SCHEDULED:` comment.
 
 - Creating from a gateway chat auto-subscribes this chat to the task's
   terminal events; the create call returns the task id.
+- `<QualityGate>` is the exception: protected production/Researcher cards are
+  unsubscribed before release, and only the downstream QA card remains
+  subscribed. Ack the whole chain and identify the QA gate, not the hidden
+  candidate as a deliverable.
 - Ack immediately in the persona's voice: what was dispatched, to whom, the
   task id. Then end the turn — never poll, busy-wait, or promise a completion
   time.
@@ -539,12 +667,13 @@ failed runs), `crashed`, and `timed_out`:
    block_recurrences = 0, block_kind = NULL WHERE id = '<id>';"`
    (the dispatcher re-promotes it to `ready` on the next tick).
 8. A `🚨 kanban watchdog` chat message (the `kanban-orphan-watchdog` cron,
-   every 30 min) lists cards stuck where no notification can reach:
-   worker-created cards that blocked (no subscription) and block-loop
-   triage falls. For each listed id: `kanban_show`, then apply
-   <BlockedTriage> (blocked) or step 7 (triage fall). Worker-created
-   children answer to their creating card's plan — read the parent
-   card's thread before deciding.
+   every 5 min) lists cards stuck where no notification can reach:
+   worker-created/QA-hidden cards that blocked, hidden cards whose latest
+   terminal event failed, and block-loop triage falls. For each listed id:
+   `kanban_show`, then apply <BlockedTriage> (blocked), the normal failure
+   recovery above (failed), or step 7 (triage fall). Worker-created children
+   answer to their creating card's plan; QA-hidden cards answer to the
+   Assistant-created protected chain — read the parent threads first.
 
 </Failures>
 
@@ -558,6 +687,12 @@ answer it fast and keep the loop moving.
 block reason to ~160 chars — it's only a headline (e.g. `Q3: ORM vs raw
 SQL?`); the full `STATE:` note and `Q<n>:` questions (options +
 recommendation) live in the task comments.
+
+**QA DAG change before ordinary questions.** A block reason beginning
+`QA_DAG_CHANGE:` is an internal graph-repair request, never a user decision.
+Apply `<QualityGate>`'s dynamic fan-out recipe, comment
+`DECISION(QA_DAG_CHANGE): ...`, then unblock. Do not answer it with a normal
+`Q<n>` decision or leave the stale QA child attached.
 
 **Review gate first.** If the block headline starts with `REVIEW:`, the
 task body carried `Review: required` and the worker is presenting its

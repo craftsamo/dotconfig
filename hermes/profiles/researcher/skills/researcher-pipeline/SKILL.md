@@ -4,8 +4,8 @@ description: >-
   Researcher's task kernel — pinned on every dispatched card. Routes every
   task by deliverable (ModeRouting): evidence-pack (deep synthesis, default)
   vs tradeoff-matrix (decision support — options × criteria with a
-  recommendation) vs fact-check (claim-by-claim verdicts; artifact-vs-spec
-  QA gates) vs guidance (evidence-backed direction for a downstream worker).
+  recommendation) vs fact-check (external claim/source/specification verdicts)
+  vs guidance (evidence-backed direction for a downstream worker or QA).
   This core file always applies — it owns the shared method: dual-axis
   source evaluation (reliability A-F × credibility 1-6, NATO/Admiralty +
   SIFT), the gather → cross-reference → counterevidence discipline that
@@ -31,8 +31,9 @@ shaped to what the caller actually asked for:
 - **Evidence-pack** — deep synthesis of a question (default).
 - **Tradeoff-matrix** — decision support: compare named options against
   criteria, recommend one (the Plan-Loop consultation form).
-- **Fact-check** — verify specific claims — or an artifact against a spec
-  (QA gate) — narrow and fast.
+- **Fact-check** — verify specific external claims, cited sources, or current
+  specifications — narrow and fast. An artifact may locate the claims, but
+  artifact-vs-brief quality gates belong to QA.
 - **Guidance** — evidence-backed direction (constraints, principles,
   dos/don'ts) for a downstream worker; the analysis, not the artifact.
 
@@ -57,7 +58,7 @@ deliver from this core file alone.
 | Signal (check in order) | Mode | Load |
 | --- | --- | --- |
 | Body opens with `Advisory — inform the plan, don't ship.` (legacy opener) — or asks to compare named options / pick between approaches for a decision | Tradeoff-matrix | `references/tradeoff-matrix.md` |
-| Body presents specific claim(s) to verify ("is it true that…", "confirm/refute…") — or an artifact to check against a spec / gating QA criteria | Fact-check | `references/fact-check.md` |
+| Body presents specific external claim(s), sources, or current specifications to verify ("is it true that…", "confirm/refute…") | Fact-check | `references/fact-check.md` |
 | Deliverable is direction a downstream worker (or the user) will act on — design principles, constraints, dos/don'ts derived from sources or parent results | Guidance | `references/guidance.md` |
 | Anything else (open question, landscape analysis, synthesis) | Evidence-pack | `references/evidence-pack.md` |
 
@@ -68,6 +69,16 @@ search route, searcher fan-out, technic choice — lives in
 direct lookups.
 
 </ModeRouting>
+
+<QABoundary>
+
+Research may inspect a final artifact to extract the exact factual claims it
+must verify. It does not judge composition, prose craft, media defects,
+dimensions, delivery completeness, or whether the artifact satisfies the user
+brief. A task asking for those verdicts is misrouted to `qa`; report the scope
+mismatch instead of producing an artifact-quality pass/fail.
+
+</QABoundary>
 
 <SourceEvaluation>
 
@@ -149,6 +160,16 @@ post-hoc review via the completion notification is the default.
 
 </CitationRules>
 
+<FactCheckHandoff>
+
+Fact-check cards that feed QA must write the complete verdict ledger, sources,
+trust scores, counterevidence, confidence, and open gaps to the filename named
+by `Output` (default `claim-ledger.md`) and attach it with `kanban_attach` before
+completion. The one-line `kanban_complete` summary is not evidence and never
+replaces this attachment. Record the attachment name in completion metadata.
+
+</FactCheckHandoff>
+
 <Resume>
 
 A task with prior runs or comments (respawn after a block, crash, or
@@ -180,5 +201,6 @@ brief `STATE:` note before continuing so the next respawn starts warmer.
 - Quotes are verbatim and short; metadata suffices for later verification.
 - Counterevidence was considered; confidence and open gaps are stated.
 - A `Review: required` body blocked at the gate instead of completing.
+- A fact-check feeding QA attached its complete claim ledger.
 
 </Verification>
