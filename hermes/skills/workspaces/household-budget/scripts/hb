@@ -1010,9 +1010,24 @@ def _nb(*parts) -> str:
     return "\u00A0".join(str(p) for p in parts)
 
 
+def _count(value, singular, plural=None) -> str:
+    return _nb(value, singular if value == 1 else (plural or singular + "s"))
+
+
 def _esc(s) -> str:
     """Escape text for Telegram HTML (& < > only; quotes are safe in body text)."""
     return html.escape(str(s), quote=False)
+
+
+def _md_esc(s) -> str:
+    """Escape dynamic inline text for Telegram rich Markdown."""
+    text = str(s).replace("\r", " ").replace("\n", " ")
+    return re.sub(r"([\\`*_\[\]()~>#+\-=|{}.!<>])", r"\\\1", text)
+
+
+def _md_details_esc(s) -> str:
+    """Escape rich details text without creating Hermes' inline-math marker."""
+    return _md_esc(s).replace(r"\(", "(").replace(r"\)", ")")
 
 
 def _disp_width(s) -> int:
@@ -1051,12 +1066,143 @@ def _expandable(title, lines) -> str:
             + "\n</blockquote>")
 
 
-def _digest_month_end(con, decs, month, html_mode):
+def _md_table(headers, rows, aligns=None) -> str:
+    """Render a compact GFM table for Telegram's native rich-message path."""
+    aligns = aligns or ["left"] * len(headers)
+    separator = ["---:" if align == "right" else ":---" for align in aligns]
+
+    def row(cells, escape=True):
+        values = [_md_esc(cell) if escape else str(cell) for cell in cells]
+        return "| " + " | ".join(values) + " |"
+
+    return "\n".join([row(headers), row(separator, escape=False), *(row(values) for values in rows)])
+
+
+def _md_expandable(title, lines) -> str:
+    """Render a collapsible section for Telegram's native rich Markdown."""
+    content = "\n\n".join(_md_details_esc(line) for line in lines)
+    return f"<details><summary>{_md_details_esc(title)}</summary>\n\n{content}\n\n</details>"
+
+
+def _transaction_rows(con, txn_type, *, date_from=None, date_to=None, month=None):
+    """Return non-ignored transactions of one type for a reporting period."""
+    where = ["type = ?", "status != 'ignored'"]
+    params = [txn_type]
+    if date_from:
+        where.append("date >= ?")
+        params.append(date_from)
+    if date_to:
+        where.append("date <= ?")
+        params.append(date_to)
+    if month:
+        where.append("month = ?")
+        params.append(month)
+    return con.execute(
+        f"SELECT * FROM transactions WHERE {' AND '.join(where)} ORDER BY date, id",
+        params,
+    ).fetchall()
+
+
+def _expense_rows(con, **period):
+    return _transaction_rows(con, "expense", **period)
+
+
+def _income_rows(con, **period):
+    return _transaction_rows(con, "income", **period)
+
+
+def _reporting_total(rows) -> Decimal:
+    return sum((D(row["reporting_value"]) for row in rows), Decimal(0))
+
+
+def _reporting_by(rows, key) -> dict:
+    totals = {}
+    for row in rows:
+        value = row[key]
+        totals[value] = totals.get(value, Decimal(0)) + D(row["reporting_value"])
+    return totals
+
+
+def _weekly_bounds(today=None):
+    """Return the previous and prior complete Monday-Sunday periods."""
+    today = today or datetime.now().date()
+    current_end = today - timedelta(days=today.weekday() + 1)
+    current_start = current_end - timedelta(days=6)
+    prior_end = current_start - timedelta(days=1)
+    prior_start = prior_end - timedelta(days=6)
+    return current_start, current_end, prior_start, prior_end
+
+
+def _previous_month(month: str) -> str:
+    first = datetime.strptime(month + "-01", "%Y-%m-%d")
+    return (first - timedelta(days=1)).strftime("%Y-%m")
+
+
+def _has_expense_history(con, before_date: str) -> bool:
+    return con.execute(
+        "SELECT 1 FROM transactions "
+        "WHERE type='expense' AND status!='ignored' AND date < ? LIMIT 1",
+        (before_date,),
+    ).fetchone() is not None
+
+
+def _signed_yen(value) -> str:
+    amount = int(D(value))
+    if amount > 0:
+        return f"+¥{amount:,}"
+    if amount < 0:
+        return f"-¥{abs(amount):,}"
+    return "±¥0"
+
+
+def _change_label(current, previous, has_history=True) -> str:
+    current, previous = D(current), D(previous)
+    if not has_history:
+        return "—"
+    delta = current - previous
+    if delta == 0:
+        return "±¥0 · 0%"
+    if previous == 0:
+        return f"{_signed_yen(delta)} · new"
+    percent = (delta * Decimal(100) / previous).quantize(Decimal(1), rounding=ROUND_HALF_UP)
+    return f"{_signed_yen(delta)} · {percent:+.0f}%"
+
+
+def _days_old(date_text: str, as_of=None):
+    as_of = as_of or datetime.now().date()
+    try:
+        value = datetime.strptime(date_text, "%Y-%m-%d").date()
+    except (TypeError, ValueError):
+        return None
+    return max(0, (as_of - value).days)
+
+
+def _review_backlog(con):
+    specs = [
+        ("Transactions", "transactions", "status"),
+        ("Transfers", "transfers", "status"),
+        ("Stores", "stores", "review_status"),
+        ("Items", "items", "review_status"),
+        ("Categories", "categories", "review_status"),
+        ("Accounts", "payment_accounts", "review_status"),
+        ("Counterparties", "counterparties", "review_status"),
+        ("Projects", "projects", "review_status"),
+        ("Subscriptions", "subscriptions", "review_status"),
+    ]
+    return [
+        (label, con.execute(f"SELECT COUNT(*) FROM {table} WHERE {column}='needs_review'").fetchone()[0])
+        for label, table, column in specs
+    ]
+
+
+def _digest_month_end(con, decs, month, output_format):
     month = month or (datetime.now().replace(day=1) - timedelta(days=1)).strftime("%Y-%m")
     rows = con.execute("SELECT * FROM transactions WHERE month = ?", (month,)).fetchall()
     title = f"Household Budget — {month}"
-    if not rows:
-        return f"<b>📊 {_esc(title)}</b>\n\nNo transactions." if html_mode else f"📊 {title}\n(no transactions)"
+    if not rows and output_format != "markdown":
+        if output_format == "html":
+            return f"<b>📊 {_esc(title)}</b>\n\nNo transactions."
+        return f"📊 {title}\n(no transactions)"
     catlabel = {r["id"]: r["label"] for r in con.execute("SELECT id, label FROM categories")}
     total, bycat, byscope, nr = Decimal(0), {}, {}, 0
     for t in rows:
@@ -1068,13 +1214,117 @@ def _digest_month_end(con, decs, month, html_mode):
         nr += 1 if t["status"] == "needs_review" else 0
     cats = sorted(bycat.items(), key=lambda x: (-x[1], x[0]))
     scopes = sorted(byscope.items(), key=lambda x: (-x[1], x[0]))
-    if not html_mode:
+    if output_format == "plain":
         sec = [[f"📊 {title}",
                 f"💴 Spending: {_yen(total)}  ·  {len(rows)} txns ({nr} need review)"]]
         sec.append(["Top categories"] + [f"・{catlabel.get(k, k)}  {_yen(v)}" for k, v in cats[:8]])
         sec.append(["Scope",
-                    "  ·  ".join(f"{SCOPE_LABEL.get(k, k)} {_yen(v)}" for k, v in scopes)])
+                     "  ·  ".join(f"{SCOPE_LABEL.get(k, k)} {_yen(v)}" for k, v in scopes)])
         return "\n\n".join("\n".join(s) for s in sec)
+    if output_format == "markdown":
+        period_rows = _expense_rows(con, month=month)
+        income_rows = _income_rows(con, month=month)
+        prior_month = _previous_month(month)
+        prior_rows = _expense_rows(con, month=prior_month)
+        period_total, prior_total = _reporting_total(period_rows), _reporting_total(prior_rows)
+        has_history = _has_expense_history(con, month + "-01")
+        period_review = sum(
+            row["status"] == "needs_review" for row in [*period_rows, *income_rows]
+        )
+
+        L = [f"## 📊 {_md_esc(title)}", "",
+             f"💴 Spending: **{_md_esc(_yen(period_total))}** · {_count(len(period_rows), 'txn')} "
+             f"· vs prior **{_md_esc(_change_label(period_total, prior_total, has_history))}**",
+             f"📋 Period review: {_count(period_review, 'txn')}"]
+        if income_rows:
+            L.append(
+                f"💵 Income: **{_md_esc(_yen(_reporting_total(income_rows)))}** · "
+                f"{_count(len(income_rows), 'txn')}"
+            )
+
+        period_bycat = _reporting_by(period_rows, "category_id")
+        prior_bycat = _reporting_by(prior_rows, "category_id")
+        categories = sorted(period_bycat.items(), key=lambda item: (-item[1], item[0]))
+        if categories:
+            L += ["", "### Top categories",
+                  _md_table(
+                      ["Category", "Amount", "Change"],
+                      [[catlabel.get(key, key), _yen(value),
+                        _change_label(value, prior_bycat.get(key, 0), has_history)]
+                       for key, value in categories[:5]],
+                      ["left", "right", "right"],
+                  )]
+        else:
+            L += ["", "No reportable expenses for this month."]
+
+        period_byscope = _reporting_by(period_rows, "budget_scope")
+        scopes = sorted(period_byscope.items(), key=lambda item: (-item[1], item[0]))
+        if scopes:
+            L += ["", "### By scope",
+                  _md_table(
+                      ["Scope", "Amount", "Share"],
+                      [[SCOPE_LABEL.get(key, key), _yen(value),
+                        f"{(value * Decimal(100) / period_total):.0f}%" if period_total else "—"]
+                       for key, value in scopes],
+                      ["left", "right", "right"],
+                  )]
+
+        details = []
+        if len(categories) > 5:
+            details.append("All categories")
+            details += [
+                f"{catlabel.get(key, key)} · {_yen(value)} · "
+                f"{_change_label(value, prior_bycat.get(key, 0), has_history)}"
+                for key, value in categories[:20]
+            ]
+            if len(categories) > 20:
+                details.append(f"…and {len(categories) - 20} more categories")
+
+        if period_rows:
+            store = {row["id"]: row["canonical_name"] for row in con.execute(
+                "SELECT id, canonical_name FROM stores"
+            )}
+            details.append("Largest expenses")
+            for row in sorted(period_rows, key=lambda item: (-D(item["reporting_value"]), item["id"]))[:5]:
+                details.append(
+                    f"{row['date'][5:]} · {store.get(row['store_id'], row['store_id'] or 'Unknown store')} "
+                    f"· {catlabel.get(row['category_id'], row['category_id'])} · {_yen(row['reporting_value'])}"
+                )
+
+            project_rows = [row for row in period_rows if row["project_id"]]
+            projects = sorted(
+                _reporting_by(project_rows, "project_id").items(),
+                key=lambda item: (-item[1], item[0]),
+            )
+            if projects:
+                project_label = {row["id"]: row["canonical_name"] for row in con.execute(
+                    "SELECT id, canonical_name FROM projects"
+                )}
+                details.append("Projects")
+                details += [f"{project_label.get(key, key)} · {_yen(value)}" for key, value in projects[:5]]
+                if len(projects) > 5:
+                    details.append(f"…and {len(projects) - 5} more projects")
+
+        open_rows = con.execute(
+            "SELECT t.date, t.reporting_value, c.counterparty_id "
+            "FROM transactions t JOIN claims c ON c.txn_id=t.id "
+            "WHERE t.budget_scope='reimbursable' "
+            "AND c.status NOT IN ('reimbursed','rejected','not_applicable') "
+            "ORDER BY t.date, t.id"
+        ).fetchall()
+        if open_rows:
+            open_total = _reporting_total(open_rows)
+            ages = [age for row in open_rows if (age := _days_old(row["date"])) is not None]
+            oldest = max(ages, default=None)
+            counterparties = len({row["counterparty_id"] for row in open_rows})
+            oldest_text = _count(oldest, "day") if oldest is not None else "unknown"
+            details += ["Open reimbursements now",
+                        f"{_yen(open_total)} · {len(open_rows)} open · "
+                        f"{_count(counterparties, 'counterparty', 'counterparties')} · oldest {oldest_text}"]
+
+        if details:
+            L += ["", _md_expandable("Details", details)]
+        return "\n".join(L)
     L = [f"<b>📊 {_esc(title)}</b>", "",
          f"💴 Spending: <b>{_yen(total)}</b> · {_nb(len(rows), 'txns')} ({_nb(nr, 'need', 'review')})", "",
          "<b>Top categories</b>",
@@ -1089,7 +1339,7 @@ def _digest_month_end(con, decs, month, html_mode):
     return "\n".join(L)
 
 
-def _digest_weekly(con, decs, cap, html_mode):
+def _digest_weekly(con, decs, cap, output_format, today=None):
     where = ("t.budget_scope = 'reimbursable' AND "
              "c.status NOT IN ('reimbursed','rejected','not_applicable')")
     rrows = con.execute(
@@ -1105,7 +1355,7 @@ def _digest_weekly(con, decs, cap, html_mode):
         bycp[r["counterparty_id"]] = bycp.get(r["counterparty_id"], Decimal(0)) + D(r["reporting_value"])
     cps = sorted(bycp.items(), key=lambda x: (-x[1], x[0]))
     title = "Household Budget — Weekly Reminder"
-    if not html_mode:
+    if output_format == "plain":
         sec = [[f"🧾 {title}",
                 f"💰 Unsettled: {_yen(rtotal)}  ·  {len(rrows)} open",
                 f"📋 Needs review: {s_nr} stores · {i_nr} items · {t_nr} txns"]]
@@ -1120,6 +1370,125 @@ def _digest_weekly(con, decs, cap, html_mode):
         sec.append(["💡 hb review to triage · hb confirm to approve"])
         return "\n\n".join("\n".join(s) for s in sec)
     review = " · ".join([_nb(s_nr, "stores"), _nb(i_nr, "items"), _nb(t_nr, "txns")])
+    if output_format == "markdown":
+        report_date = today or datetime.now().date()
+        start, end, prior_start, prior_end = _weekly_bounds(report_date)
+        period_rows = _expense_rows(
+            con, date_from=start.isoformat(), date_to=end.isoformat()
+        )
+        income_rows = _income_rows(
+            con, date_from=start.isoformat(), date_to=end.isoformat()
+        )
+        prior_rows = _expense_rows(
+            con, date_from=prior_start.isoformat(), date_to=prior_end.isoformat()
+        )
+        period_total, prior_total = _reporting_total(period_rows), _reporting_total(prior_rows)
+        has_history = _has_expense_history(con, start.isoformat())
+        period_review = sum(
+            row["status"] == "needs_review" for row in [*period_rows, *income_rows]
+        )
+        period_label = f"{start.isoformat()}–{end.strftime('%m-%d')}"
+        ages = [
+            age for row in rrows
+            if (age := _days_old(row["date"], report_date)) is not None
+        ]
+        oldest = max(ages, default=None)
+
+        L = ["## 🧾 Household Budget — Weekly", "",
+             f"📅 Period: **{_md_esc(period_label)}**",
+             f"💴 Spending: **{_md_esc(_yen(period_total))}** · {_count(len(period_rows), 'txn')} "
+             f"· vs prior **{_md_esc(_change_label(period_total, prior_total, has_history))}**",
+             f"📋 Period review: {_count(period_review, 'txn')}"]
+        if income_rows:
+            L.append(
+                f"💵 Income: **{_md_esc(_yen(_reporting_total(income_rows)))}** · "
+                f"{_count(len(income_rows), 'txn')}"
+            )
+        if rrows:
+            oldest_text = _count(oldest, "day") if oldest is not None else "unknown"
+            L.append(
+                f"⚠️ Open reimbursements: **{_md_esc(_yen(rtotal))}** · "
+                f"{_nb(len(rrows), 'open')} · oldest {_md_esc(oldest_text)}"
+            )
+        else:
+            L.append("✅ Open reimbursements: none")
+
+        category = {row["id"]: row["label"] for row in con.execute("SELECT id, label FROM categories")}
+        period_bycat = _reporting_by(period_rows, "category_id")
+        prior_bycat = _reporting_by(prior_rows, "category_id")
+        categories = sorted(period_bycat.items(), key=lambda item: (-item[1], item[0]))
+        if categories:
+            L += ["", "### Top categories",
+                  _md_table(
+                      ["Category", "Period", "Change"],
+                      [[category.get(key, key), _yen(value),
+                        _change_label(value, prior_bycat.get(key, 0), has_history)]
+                       for key, value in categories[:5]],
+                      ["left", "right", "right"],
+                  )]
+        else:
+            L += ["", "No spending recorded for this period."]
+
+        if cps:
+            party_stats = {}
+            for row in rrows:
+                stats = party_stats.setdefault(
+                    row["counterparty_id"], {"amount": Decimal(0), "count": 0, "oldest": None}
+                )
+                stats["amount"] += D(row["reporting_value"])
+                stats["count"] += 1
+                age = _days_old(row["date"], report_date)
+                if age is not None:
+                    stats["oldest"] = max(stats["oldest"] or 0, age)
+            ranked_parties = sorted(
+                party_stats.items(), key=lambda item: (-item[1]["amount"], item[0])
+            )
+            L += ["", "### Open by counterparty",
+                  _md_table(
+                      ["Counterparty", "Amount", "Open", "Oldest"],
+                      [[party.get(key, key), _yen(stats["amount"]), stats["count"],
+                        f"{stats['oldest']}d" if stats["oldest"] is not None else "unknown"]
+                       for key, stats in ranked_parties[:5]],
+                      ["left", "right", "right", "right"],
+                  )]
+
+        details = []
+        if period_rows:
+            store = {row["id"]: row["canonical_name"] for row in con.execute(
+                "SELECT id, canonical_name FROM stores"
+            )}
+            details.append("Largest expenses")
+            for row in sorted(period_rows, key=lambda item: (-D(item["reporting_value"]), item["id"]))[:5]:
+                details.append(
+                    f"{row['date'][5:]} · {store.get(row['store_id'], row['store_id'] or 'Unknown store')} "
+                    f"· {category.get(row['category_id'], row['category_id'])} · {_yen(row['reporting_value'])}"
+                )
+
+        backlog = [(label, count) for label, count in _review_backlog(con) if count]
+        if backlog:
+            details += ["Needs review backlog",
+                        " · ".join(f"{label} {count}" for label, count in backlog)]
+
+        if rrows:
+            details.append("Open reimbursement items")
+            items = []
+            for row in rrows[:cap]:
+                amount = _cur(row["amount_value"], row["amount_currency"], decs)
+                if row["amount_currency"] != REPORTING_CURRENCY:
+                    amount += f" / {_yen(row['reporting_value'])}"
+                items.append(
+                    f"{row['date'][5:]} · {party.get(row['counterparty_id'], row['counterparty_id'])} · {amount}"
+                )
+            if len(rrows) > cap:
+                items.append(f"…and {len(rrows) - cap} more items")
+            details += items
+            if len(party_stats) > 5:
+                details.append(f"…and {len(party_stats) - 5} more counterparties")
+
+        if details:
+            L += ["", _md_expandable("Details", details)]
+        L += ["", "*💡 `hb review` to triage · `hb confirm` to approve*"]
+        return "\n".join(L)
     L = [f"<b>🧾 {_esc(title)}</b>", "",
          f"💰 Unsettled: <b>{_yen(rtotal)}</b> · {_nb(len(rrows), 'open')}",
          f"📋 {_nb('Needs', 'review:')} {review}"]
@@ -1141,11 +1510,11 @@ def cmd_digest(args):
     con = connect(args)
     decs = decimals_map(con)
     cap = args.top if args.top and args.top > 0 else 20
-    html_mode = args.format == "html" and not args.plain
+    output_format = "plain" if args.plain else args.format
     if args.period == "month-end":
-        print(_digest_month_end(con, decs, args.month, html_mode))
+        print(_digest_month_end(con, decs, args.month, output_format))
     else:
-        print(_digest_weekly(con, decs, cap, html_mode))
+        print(_digest_weekly(con, decs, cap, output_format))
 
 
 # --------------------------------------------------------------------------- review / confirm / ignore
@@ -1694,13 +2063,14 @@ def build_parser():
 
     s = sub.add_parser("reimbursements"); s.add_argument("--month"); s.set_defaults(func=cmd_reimb)
 
-    s = sub.add_parser("digest", help="compact Telegram digest (weekly | month-end); HTML by default")
+    s = sub.add_parser("digest", help="Telegram budget digest (weekly | month-end); HTML by default")
     s.add_argument("period", choices=["weekly", "month-end"])
     s.add_argument("--month", help="YYYY-MM for month-end (default: previous month)")
-    s.add_argument("--top", type=int, default=20, help="cap rows in the collapsible breakdown")
-    s.add_argument("--format", choices=["html", "plain"], default="html",
+    s.add_argument("--top", type=int, default=20, help="cap open reimbursement rows in details")
+    s.add_argument("--format", choices=["html", "markdown", "plain"], default="html",
                    help="html = Telegram HTML (bold headings, <pre> tables, expandable blockquote, default); "
-                        "plain = text+emoji (terminal/debug)")
+                         "markdown = analytical Telegram rich Markdown (native tables/details); "
+                         "plain = text+emoji (terminal/debug)")
     s.add_argument("--plain", action="store_true", help="alias for --format plain (terminal/debug)")
     s.set_defaults(func=cmd_digest)
 
