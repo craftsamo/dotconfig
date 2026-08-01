@@ -24,9 +24,17 @@ WORKER_PROFILES = (
     "searcher",
     "creator",
     "writer",
+    "qa",
     "marketer",
 )
 ALL_PROFILES = ("assistant", *WORKER_PROFILES)
+QA_REQUIRED_NON_CREATOR_ROUTES = {
+    "core:tts",
+    "writer:marketing-copy",
+    "writer:technical-prose",
+    "writer:documentation",
+    "writer:script",
+}
 
 
 def load_yaml(path: Path) -> dict[str, Any]:
@@ -68,6 +76,23 @@ def capability_names(path: Path) -> set[str]:
         if len(cell) > 2 and cell.startswith("`") and cell.endswith("`"):
             names.add(cell[1:-1])
     return names
+
+
+def capability_routes(path: Path) -> list[tuple[str, str]]:
+    routes: list[tuple[str, str]] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if not line.startswith("|") or line.startswith("| ---"):
+            continue
+        cells = [cell.strip() for cell in line.strip("|").split("|")]
+        if len(cells) < 2:
+            continue
+        source, target = cells[:2]
+        if all(
+            len(cell) > 2 and cell.startswith("`") and cell.endswith("`")
+            for cell in (source, target)
+        ):
+            routes.append((source[1:-1], target[1:-1]))
+    return routes
 
 
 def relative(path: Path) -> str:
@@ -238,6 +263,36 @@ def validate_worker(
             errors.append(f"capability has no technic directory: {name}")
         for name in sorted(leaves.keys() - routed):
             errors.append(f"technic missing from capability table: {name}")
+
+        if profile == "qa":
+            creator_capabilities = (
+                HERMES_ROOT
+                / "profiles"
+                / "creator"
+                / "skills"
+                / "creator-pipeline"
+                / "references"
+                / "capabilities.md"
+            )
+            creator_leaves = capability_names(creator_capabilities)
+            qa_sources = {source for source, _ in capability_routes(capabilities)}
+            for name in sorted(creator_leaves - qa_sources):
+                errors.append(f"creator capability missing QA route: {name}")
+            for name in sorted(
+                source
+                for source in qa_sources
+                if source.startswith("creator-") and source not in creator_leaves
+            ):
+                errors.append(f"QA route names unknown creator capability: {name}")
+            for name in sorted(QA_REQUIRED_NON_CREATOR_ROUTES - qa_sources):
+                errors.append(f"non-Creator capability missing QA route: {name}")
+            for name in sorted(
+                source
+                for source in qa_sources
+                if (source.startswith("writer:") or source.startswith("core:"))
+                and source not in QA_REQUIRED_NON_CREATOR_ROUTES
+            ):
+                errors.append(f"QA route names unknown non-Creator capability: {name}")
 
     if dispatch:
         resolved = dispatch if dispatch.is_absolute() else HERMES_ROOT / dispatch
