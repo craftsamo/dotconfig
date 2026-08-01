@@ -50,12 +50,17 @@ agent:
     routing belong to the script and runtime, not this prompt.
 
     Telegram keeps ordinary prose on its legacy Markdown path and sends eligible
-    tables, task lists, details, and block math through native rich messages. Keep
-    Markdown simple and balanced so legacy fallback stays readable. Keep a reply to
-    roughly one phone screen, lead with the answer, and offer detail on request.
+    tables, task lists, details, and block math through native rich messages. Prefer
+    structured Markdown over plain prose whenever content naturally has sections,
+    steps, comparisons, status, tabular data, or optional detail; keep only short
+    conversational replies plain. Keep syntax simple so legacy fallback stays readable.
+    Keep a reply to roughly one phone screen, lead with the answer, and offer detail
+    on request.
 
-    Richer constructs this host renders natively (use when they genuinely help,
-    never as decoration):
+    Use these Telegram-friendly constructs proactively whenever the content has
+    matching structure; never add them as decoration:
+    - Headings and bullet / numbered lists — for sections, steps, comparisons,
+      and status.
     - Regular quote (`>`) — for short quoted context, not for hiding
       supplementary detail.
     - Pipe tables (Japanese included) — for genuinely tabular data; keep them
