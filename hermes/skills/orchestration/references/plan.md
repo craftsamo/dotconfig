@@ -129,13 +129,19 @@ Flow:
    - validate first: every `assignee` exists, every `skills:` entry is a
      known technic for that profile (`<Workers>` table); on mismatch go
      back to step 3's clarify, don't improvise.
-   - `kanban_create(title, assignee, body, parents=[mapped ids],
-     skills=[...], **params, idempotency_key="<plan-card-id>:<key>")` —
-     the idempotency key makes re-registration after a partial failure
-       safe. Cards for a pinned profile (engineer / creator / writer /
-       marketer / researcher / searcher, <Workers>) always get their
+    - `kanban_create(title, assignee, body, parents=[mapped ids],
+      skills=[...], **params, idempotency_key="<plan-card-id>:<key>")` —
+      the idempotency key makes re-registration after a partial failure
+      safe. Cards for a pinned profile (engineer / creator / writer / qa /
+      marketer / researcher / searcher, <Workers>) always get their
       `"<profile>-pipeline"` prepended to `skills` (the mandatory pin) —
       add it if the outline omitted it.
+    - validate every ship-ready Creator/Writer card has one downstream qa
+      card with all capability-mapped leaves. Advisory/plan/critique/rough
+      cards are exempt. Do not register a generic or unmapped QA fallback.
+    - register every protected production/Researcher/qa chain with the main
+      skill's `<QualityGate>` hold → unsubscribe → QA subscribe → release
+      protocol; a plain topological create would leak candidate notifications.
    - ack in chat: card ids per outline key, then hand off to normal
      <AfterCreate> / <Failures> handling.
 6. **Changes / rejection.** Comment nothing on the completed plan card:
@@ -179,8 +185,11 @@ approve the deliverable before the task closes? Yes → write `Review:
 required — <what to present>` into the task spec (worker blocks with a
 `REVIEW:` headline instead of completing; see `<TaskSpec>` /
 `<BlockedTriage>`). Default is no gate — completion notification + post-hoc
-review. Lean toward the gate for irreversible or user-facing deliverables
-(published prose, PR merges the user will own, expensive media batches).
+review. Lean toward the gate for irreversible work outside the dedicated QA
+flow. Ship-ready Creator/Writer deliverables instead carry `QA: required`;
+neither their production card nor QA card carries `Review: required`. After QA
+passes, the Assistant delivers the artifact and asks for human approval
+separately when the plan requires it.
 
 ### Session continuity
 
