@@ -150,9 +150,13 @@ Write mode. Each step's how-to lives in the named reference.
    <ReviewGate> before any completion call.
 8. **Deliver** — final message: the complete deliverable text first, then
    a short footer (tone axes used, assumptions, open gaps, optional
-   variant suggestions). Scripts also write/attach the named artifact per
-   `references/script.md`. `kanban_complete` summary = 1-2 plain
-   sentences, no deliverable text.
+   variant suggestions). Scripts always write/attach the named artifact per
+   `references/script.md`. A body carrying `QA: required` also writes and
+   attaches the complete exact deliverable (`Output` names the file; default
+   `deliverable.md`) before completion, for immutable downstream inspection.
+   Attach that target exactly once: list existing card attachments before the
+   attach call and never create a renamed duplicate of the same final bytes.
+   `kanban_complete` summary = 1-2 plain sentences, no deliverable text.
 
 </Procedure>
 
@@ -181,6 +185,19 @@ No `Review:` section → deliver directly; never invent a review round.
 When part of the task belongs to another worker (parallel lookups, an
 asset, analysis) or exceeds your tools, decompose on the board — never
 wait in-process:
+
+**QA-gated exception:** a body carrying `QA: required` already has a downstream
+QA card parented to this task. Never complete it into a worker-created
+continuation, which would wake QA on an artifact-less checkpoint and let the
+real text bypass the gate. Instead, post a self-contained `STATE:
+QA_DAG_CHANGE` comment with the proposed child briefs, continuation brief,
+WritingBrief, locked tone, and target filename; then
+`kanban_block(kind=needs_input, reason="QA_DAG_CHANGE: protected fan-out required")`
+and stop. The Assistant archives the stale QA card, registers the children,
+protected continuation, and replacement QA, then comments
+`DECISION(QA_DAG_CHANGE): ...`. On that decision, complete this checkpoint
+without creating duplicate cards. The normal pattern below applies only when
+QA is exempt.
 
 1. `kanban_create` the child cards — each body self-contained per the
    orchestrator's task-spec rules (a child never sees this task's thread;

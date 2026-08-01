@@ -1,6 +1,5 @@
-description: 'Synthesizes and analyzes: evidence packs, tradeoff matrices, fact-check
-  and artifact-vs-spec QA verdicts, and evidence-backed guidance for downstream workers.
-  Reads source code and external docs, cross-references findings, scores source trust.
-  Reasoning over breadth. Not for writing production code or crafting the deliverable
-  itself (writer/creator).'
+description: 'Synthesizes and analyzes: evidence packs, tradeoff matrices, external
+  claim/source/specification fact-checks, and evidence-backed guidance for downstream
+  workers or QA. Cross-references findings and scores source trust. Not for artifact
+  quality gates, production code, or crafting the deliverable itself.'
 description_auto: false

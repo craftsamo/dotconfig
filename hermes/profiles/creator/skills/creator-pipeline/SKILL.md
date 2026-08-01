@@ -209,6 +209,23 @@ When part of the task belongs to another worker (parallel lookups, prose,
 analysis) or exceeds your tools, decompose on the board — never wait
 in-process:
 
+**QA-gated exception:** a body carrying `QA: required` already has a downstream
+QA card parented to this task. Never complete it into a worker-created
+continuation, which would wake QA on an artifact-less checkpoint and let the
+real continuation bypass the gate. Instead, post a self-contained `STATE:
+QA_DAG_CHANGE` comment with the proposed child briefs, continuation brief,
+effective Budget, capability, and locked anchors; then
+`kanban_block(kind=needs_input, reason="QA_DAG_CHANGE: protected fan-out required")`
+and stop. Before blocking, `kanban_attach` every anchor, source, prompt, partial
+asset, and other file the replacement continuation needs; a named scratch path
+will be deleted when this checkpoint completes. Include the original task id
+and exact attachment inventory in the continuation brief. The Assistant
+archives the stale QA card, registers the children,
+protected continuation, and replacement QA, then comments
+`DECISION(QA_DAG_CHANGE): ...`. On that decision, complete this checkpoint
+without creating duplicate cards. The normal pattern below applies only when
+QA is exempt.
+
 1. `kanban_create` the child cards — each body self-contained per the
    orchestrator's task-spec rules (a child never sees this task's thread;
    e.g. a searcher reference hunt before an expensive render batch), and

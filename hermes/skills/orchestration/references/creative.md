@@ -85,6 +85,9 @@ main skill, with:
 - `workspace_kind: scratch` (or `dir` if assets must land somewhere specific)
 - The MediaBrief fields in the body
 - A `Technique: <canonical-name>` line when the table resolves one
+- `QA: required` for a ship-ready asset (`QA: exempt — advisory/plan/rough`
+  otherwise); create the dependent QA card per the main skill's
+  `<QualityGate>` protocol
 - Output spec: file format(s); every final artifact is delivered via
   `kanban_attach` (scratch dies on completion), with
   `~/Workspaces/.deliverables/` only as an additional copy destination
@@ -93,14 +96,14 @@ main skill, with:
 For a **consistent multi-asset set** or a **high-cost asset** (a long video),
 open the body with `Plan —`: creator locks the style on a cheap sample and
 blocks for sign-off before spending the batch budget (its plan mode). Approve
-the anchor with a `DECISION(Q<n>):`; when the brief set `Review: required`,
-creator blocks with a `REVIEW:` headline instead — relay it to the user and
-answer with `DECISION(REVIEW): approved` (or `changes — <list>`). The same
-task then continues into the batch. One cheap asset dispatches normally
-(produce).
+the anchor with a `DECISION(Q<n>):`. A QA-gated production card never uses the
+human `Review:` gate for its final candidate; QA runs first and the Assistant
+asks for human approval after pass. The same task then continues into the
+batch. One cheap asset dispatches normally (produce).
 
-Ack with the task id and deliver on the completion notification. Small
-single assets go to creator too — never improvise media inline.
+Ack with the production and QA task ids. The hidden production completion is
+not delivery; the QA notification wakes final acceptance. Small single assets
+go to creator too — never improvise media inline.
 
 ## Revision dispatches (redo / fix an earlier delivery)
 
