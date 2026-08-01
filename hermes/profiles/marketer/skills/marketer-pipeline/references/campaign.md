@@ -21,9 +21,11 @@ engines carry the mechanics — load each at the step that needs it:
    (market/competitor/trend scans, multi-source fact hunts) → step 3 —
    do not burn your turns on breadth.
 3. **Fan out production** (delegate engine): long copy → writer, media →
-   creator, research → searcher/researcher. Self-contained child briefs;
-   continuation card; complete and stop. On fan-in, accept or reject each
-   deliverable per the verify engine before using it.
+   creator, research → searcher/researcher. Final Writer/Creator outputs use
+   Assistant-registered protected production → QA chains; the marketer
+   continuation stays on `QA_MARKETER_HOLD` until the Assistant records a
+   digest-checked `QA_PASS_SET` and releases it. On fan-in, accept or reject
+   each deliverable per the verify engine before using it.
 4. **Assemble** — own the short-form text: post copy, thread breakdown,
    hooks, hashtags/mentions (only ones from the brief — never invented),
    link placement. Japanese post text follows `japanese-writing` notation
