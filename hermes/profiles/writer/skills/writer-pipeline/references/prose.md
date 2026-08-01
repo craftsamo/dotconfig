@@ -63,6 +63,13 @@ phrases) as the structural guide.
   heavy retrieval fans out per the kernel's FanOut rules.
 - Write the full text in one register; tone drift mid-document is a
   norms-pass failure.
+- A QA-gated body (`QA: required`) writes the complete final prose to the
+  filename declared in `Output` (default `deliverable.md`) and attaches that
+  exact file. The final message and attachment must contain substantively
+  identical deliverable text; the attachment is the immutable QA target.
+- Attach the QA target once. Check the card attachment inventory first; if the
+  exact final file is already present, do not attach it again under an automatic
+  `_1` suffix.
 
 ## Pitfalls
 
