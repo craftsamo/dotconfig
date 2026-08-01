@@ -96,7 +96,7 @@ skills/              # shared maintainer-owned skills tracked
   learned/           # runtime-authored adaptive skills; mutable and ignored
 plugins/             # backend chains (image/video gen) + tool overrides; source tracked, __pycache__ ignored
 launchd/             # LaunchAgents: assistant gateway + headless AivisSpeech engine
-profiles/<name>/     # assistant, planner, engineer, researcher, searcher, creator, writer, marketer
+profiles/<name>/     # assistant, planner, engineer, researcher, searcher, creator, writer, qa, marketer
   - config.yaml      # model/fallback + agent.system_prompt (operating contract)
   - profile.yaml     # routing description (kanban/delegation)
   - SOUL.md          # per-profile persona (BASE + role posture)
@@ -111,11 +111,17 @@ profiles/<name>/     # assistant, planner, engineer, researcher, searcher, creat
                      #   creator: canonical creator-* image/video/audio/music/
                      #   browser-motion/diagram/editorial/icon/card/meme/text-art/
                      #   pixel/sourcing leaves;
-                     #   writer: Japanese stack via the curated external-skills
-                     #   symlink dir / marketer: + upstream social-media/xurl;
-                     #   engineer and creator group technics under skills/technic/
-                     #   — Hermes walks nested dirs and shows the parent as the
-                     #   category, unlike the flat shared agents/skills tree;
+                     #   writer: Japanese stack via the curated external-skills symlink dir;
+                     #   qa: qa-pipeline + exactly these 20 flat canonical technics:
+                     #   qa-raster-image, qa-infographic, qa-svg-diagram, qa-excalidraw-diagram,
+                     #   qa-icon-set, qa-text-visual, qa-sourced-asset, qa-ascii-art,
+                     #   qa-data-visualization, qa-audio, qa-song, qa-video, qa-browser-media,
+                     #   qa-ascii-video, qa-pixel-art, qa-pixel-video, qa-comic, qa-voice,
+                     #   qa-prose, qa-script; each is one verification contract, while
+                     #   styles/presets are criteria or references, not technics;
+                     #   marketer: + upstream social-media/xurl;
+                     #   managed technics stay exactly one directory below skills/technic/
+                     #   because validate-profile-skills.py enforces flat canonical leaves;
                      #   planner-pipeline owns outline schema + granularity rubric;
                      #   assistant keeps only its surface skills — desks/ holds
                      #   topic-bound personal-desk / project-desk / brainstorm
@@ -125,7 +131,8 @@ profiles/<name>/     # assistant, planner, engineer, researcher, searcher, creat
                      #   skills and is never a dispatch or Git ownership surface)
   - cron/            # per-profile scheduled jobs (jobs.json; placeholder if empty)
                      # assistant/scripts/ holds cron scripts incl.
-                     # kanban-scheduled-sweeper.sh and kanban-orphan-watchdog.sh
+                     # kanban-scheduled-sweeper.sh / kanban-orphan-watchdog.sh,
+                     # plus kanban-qa-gate.sh for protected candidate setup/release
 setup.sh README.md PROFILES.md
 ```
 
@@ -134,7 +141,12 @@ setup.sh README.md PROFILES.md
 default (CLI front door — assistant's CLI counterpart, neutral persona) +
 assistant (messaging front door, hosts the
 gateway/dispatcher) + planner / engineer / researcher / searcher / creator /
-writer / marketer (kanban workers; engineer converses with the assistant via kanban block round-trips
+writer / qa / marketer (kanban workers; qa is the policy-enforced final
+Creator/Writer gate; Assistant rechecks artifact digests at release because
+terminal/file are not OS-level read-only mounts; protected chains use
+assistant/scripts/kanban-qa-gate.sh and dynamic fan-out blocks with
+QA_DAG_CHANGE; engineer converses
+with the assistant via kanban block round-trips
 under a structured comment protocol — Authority presets A1/A2/A3,
 `STATE:`/`Q<n>:`/`DECISION(Q<n>):`/`PROGRESS:`/`AUTHORITY+:`/`REVIEW:`
 (human sign-off gate) markers, plus scheduled parking in `scheduled` via
