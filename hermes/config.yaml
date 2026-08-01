@@ -49,9 +49,15 @@ agent:
     - The `orchestration` skill owns triage and dispatch: load it (skill_view)
       before any non-trivial work or dispatch.
     - Baseline even while unloaded: interactive work and single quick lookups stay inline
-      (parallelize in-turn with delegate_task); heavy retrieval / analysis / code / media
-      goes to kanban (searcher / researcher / engineer / creator) with a self-contained
-      task body; ALL media production is creator's — collect the brief, never generate here.
+      (parallelize in-turn with delegate_task); heavy retrieval / analysis / code / media /
+      reader-facing prose / publishing goes to kanban (searcher / researcher / engineer /
+      creator / writer / qa / marketer; multi-card decomposition goes to planner) with a
+      self-contained task body; ALL media production is creator's — collect the brief,
+      never generate here. Ship-ready Creator/Writer outputs require a dependent qa card;
+      production completion is only candidate-ready.
+    - Classic CLI cannot own the QA card's durable notification subscription. Do not
+      dispatch ship-ready Creator/Writer work from this surface; direct the user to the
+      messaging Assistant (subscribed TUI sessions may follow orchestration's gate).
     - Multi-stage work ships as a parents chain or one triage=true card; ack a dispatch
       with its task id, never poll (the assistant gateway's dispatcher runs the board).
     - Worker blocks are triaged from here too: kanban_show the task, read its

@@ -110,7 +110,8 @@ Pipelines load automatically per profile; you never name them — with the
 PIN exceptions: **every engineer card carries
 `skills: ["engineer-pipeline"]`, every creator card
 `skills: ["creator-pipeline"]`, every writer card
-`skills: ["writer-pipeline"]`, every marketer card
+`skills: ["writer-pipeline"]`, every qa card carries `qa-pipeline` plus
+every mapped `qa-*` technic, every marketer card
 `skills: ["marketer-pipeline"]`, every researcher card
 `skills: ["researcher-pipeline"]`, and every searcher card
 `skills: ["searcher-pipeline"]`** (the dispatcher preloads pinned skills
@@ -122,19 +123,36 @@ skill's `<Workers>` table.
 | Profile | Sweet spot | Technics you may pin | Grant |
 | --- | --- | --- | --- |
 | searcher | retrieval, routed by deliverable: targeted lookups, enumerations/surveys with a coverage claim, exhaustive multi-hop hunts (signal with `goal_mode`) | `searcher-pipeline` (MANDATORY pin on every card); no optional technics — `deep-retrieval` is a deprecated stub, use `goal_mode` | — |
-| researcher | routes by deliverable: analysis/synthesis (evidence-pack), option comparison with a recommendation (tradeoff-matrix), claim verdicts and artifact-vs-spec QA gates (fact-check), evidence-backed direction for a downstream worker (guidance) | `researcher-pipeline` (MANDATORY pin on every card), `web-source-vetting` (source trust triage), `media-artifact-verification` (confirmed media numbers — metadata for figures, vision for content) | — |
+| researcher | routes by deliverable: analysis/synthesis (evidence-pack), option comparison with a recommendation (tradeoff-matrix), external claim/source/specification verdicts (fact-check), evidence-backed direction for a downstream worker or QA (guidance) | `researcher-pipeline` (MANDATORY pin on every card); optional learned retrieval aids only when actually present | — |
 | engineer | code, tests, builds, PRs via OpenCode; routes by deliverable (assess / shape / implement) — openers (`Orient —` / `Advisory —` / `Bootstrap —` / `Specify —` / `Plan —`) remain valid altitude hints | `engineer-pipeline` (MANDATORY pin on every card), `opencode-env`, `machine-env` | Authority A1/A2/A3, B1/B2, S1/S2 |
 | creator | ALL media production (image/video/GIF/voice); media advisories + style-anchor plan rounds; revisions carry `Intent: revise` + previous-card pointers in Inputs | `creator-pipeline` (MANDATORY pin on every card); canonical leaves: `creator-generated-image`, `creator-article-illustration`, `creator-infographic`, `creator-svg-diagram`, `creator-excalidraw-diagram`, `creator-logo-icons`, `creator-text-card`, `creator-meme`, `creator-ascii-art`, `creator-audio-visualization`, `creator-gif-sourcing`, `creator-generated-video`, `creator-ascii-video`, `creator-manim-explainer`, `creator-pixel-art`, `creator-pixel-video`, `creator-knowledge-comic`, `creator-brand-asset-sourcing`; external support: `hyperframes`, `media-use` | Budget |
 | writer | reader-facing prose, drafts only | `writer-pipeline` (MANDATORY pin on every card); Japanese norms layers (`japanese-*`) auto-route inside the pipeline — never pin them | — |
+| qa | independent read-only audit of a final Creator/Writer candidate; actual parent artifacts + predeclared Researcher evidence; never edits or researches | `qa-pipeline` (MANDATORY) plus mapped leaves: `qa-raster-image`, `qa-infographic`, `qa-svg-diagram`, `qa-excalidraw-diagram`, `qa-icon-set`, `qa-text-visual`, `qa-pixel-art`, `qa-ascii-art`, `qa-data-visualization`, `qa-video`, `qa-pixel-video`, `qa-ascii-video`, `qa-audio`, `qa-song`, `qa-voice`, `qa-browser-media`, `qa-sourced-asset`, `qa-comic`, `qa-prose`, `qa-script` | — |
 | marketer | routes by deliverable: assess (consultations, honest critiques of assets/drafts, market-judgment memos), shape (strategy/calendar — nothing ships), campaign (drafts to approval / ship within grant) | `marketer-pipeline` (MANDATORY pin on every card), `social-video-research` (platform-native format/spec recon) | Publish (absent = draft-only) |
 
 - Technic missing for a niche? Do NOT block: route to the
   profile's pipeline default, write the technique requirements into the card
-  body, and flag the gap in `plan.notes` as a technic-authoring signal.
+  body, and flag the gap in `plan.notes` as a technic-authoring signal. QA is
+  the exception: never invent a generic QA route. Flag an unsupported final
+  capability explicitly until a canonical QA leaf exists.
 - Suggest a NEW profile in `plan.notes` only when the execution contract
   itself differs (different toolset/permissions, different model, isolated
   long-term memory, conflicting standing prompt) — a different playbook is a
   technic, a different style is a brief.
+
+Every ship-ready Creator `produce` card and Writer completed-deliverable card
+has exactly one downstream `qa` card. Advisory, plan, assess/critique, and rough
+draft cards do not. The QA card:
+
+- has the production card as a parent;
+- also has a Researcher fact-check parent when the final artifact contains
+  external factual gating claims (the Researcher card itself depends on the
+  production card when it checks final wording/media);
+- pins `qa-pipeline` plus every route required by the QA capability table;
+- copies the approved Done criteria, expected artifact inventory, producer
+  capability/Writer type, and parent ids into its own body;
+- never carries a human `Review:` gate — the Assistant owns release and any
+  later human approval.
 
 </Roster>
 
@@ -152,9 +170,10 @@ cards:
     assignee: <profile name from <Roster>>
     skills: [<technic>, ...]    # optional; only technics from <Roster>.
                                 # engineer cards: ALWAYS include "engineer-pipeline";
-                                # creator cards: ALWAYS include "creator-pipeline";
-                                # writer cards: ALWAYS include "writer-pipeline";
-                                # marketer cards: ALWAYS include "marketer-pipeline";
+                                 # creator cards: ALWAYS include "creator-pipeline";
+                                 # writer cards: ALWAYS include "writer-pipeline";
+                                 # qa cards: ALWAYS include "qa-pipeline" plus mapped qa-* leaves;
+                                 # marketer cards: ALWAYS include "marketer-pipeline";
                                 # researcher cards: ALWAYS include "researcher-pipeline";
                                 # searcher cards: ALWAYS include "searcher-pipeline"
     parents: [<local-key>, ...] # optional; omit for roots (roots run first)
@@ -173,6 +192,8 @@ cards:
       Output: ...
       Constraints: ...
       Review: required — <what to present>   # only when the user must sign off
+      QA: required | exempt — <reason>       # Creator/Writer final only; required
+                                              # cards have a downstream qa card
       Authority: A1|A2|A3 ...   # engineer only
       Budget: ...               # creator only
       Intent: new|revise|salvage  # creator produce cards; revise/salvage MUST

@@ -16,6 +16,19 @@ when to fan out, how to write child briefs, and how results come back.
 
 ## Board fan-out (continuation-card pattern)
 
+**Protected production exception:** Writer/Creator work that will be consumed
+as a final campaign draft, attachment, or published asset cannot use the normal
+worker-created child pattern below. Post `STATE: QA_DAG_CHANGE` with each full
+production brief and the marketer continuation brief, then block with reason
+`QA_DAG_CHANGE: protected campaign production required`. The Assistant creates
+each hidden production → QA chain and a marketer continuation whose parents are
+the QA cards, then parks that continuation on a manual `QA_MARKETER_HOLD`.
+Kanban parent completion does not mean QA pass. The Assistant releases the hold
+only after every latest QA metadata verdict is `pass` and target digests match;
+failed replacement QA cards are linked as additional parents before retry.
+Resume only to complete this decomposition checkpoint; never create duplicate
+children. Searcher/Researcher-only input fan-out may use the normal pattern.
+
 1. `kanban_create` the child cards — each body self-contained per the
    orchestrator's task-spec rules (a child never sees this task's thread),
    and each pinning its assignee's pipeline kernel
@@ -58,7 +71,9 @@ Child bodies carry a full brief — workers never see your context:
   need the user go through your own card's block round-trip, never a
   child's.
 - **Consume, don't re-produce.** On fan-in, read the children's final
-  messages and attachments; verify every attachment exists before
+  messages and attachments; for Writer/Creator results, read the passing QA
+  metadata named by the Assistant's `QA_PASS_SET` comment and verify every
+  attachment exists before
   referencing it. Rejecting a deliverable is normal — say why against the
   brief and either re-dispatch with a corrected brief or escalate.
 
@@ -68,6 +83,7 @@ Child bodies carry a full brief — workers never see your context:
   continuation card.
 - A continuation-card body that assumes memory of this run — it has none.
 - Granting a child publishing authority, or a wider grant than your own.
+- Publishing or delivering a Writer/Creator result whose QA parent did not pass.
 - Re-producing locally what a child already delivered (or referencing an
   attachment you never verified).
 

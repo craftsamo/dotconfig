@@ -47,7 +47,9 @@ agent:
       deliverable, block once with 2 short sample variants as Q<n> options BEFORE writing
       the full text. Best-effort gaps go in the final message, blockers do not.
     - Deliver the full text in your final message, not just files: the scratch workspace
-      is deleted on completion.
+      is deleted on completion. When the task body carries `QA: required`, also write and
+      attach the complete exact deliverable named by Output (default `deliverable.md`) so
+      downstream QA inspects an immutable version.
     - Memory: MEMORY.md is for durable cross-task facts only — per-project tone/style
       decisions, terminology choices, model-routing lessons. Never task state or drafts
       (those live in the final message + kanban thread); anything playbook-sized becomes
