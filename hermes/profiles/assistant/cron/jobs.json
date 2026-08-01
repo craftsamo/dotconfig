@@ -170,10 +170,10 @@
       "context_from": null,
       "schedule": {
         "kind": "cron",
-        "expr": "*/30 * * * *",
-        "display": "*/30 * * * *"
+        "expr": "*/5 * * * *",
+        "display": "*/5 * * * *"
       },
-      "schedule_display": "*/30 * * * *",
+      "schedule_display": "*/5 * * * *",
       "repeat": {
         "times": null,
         "completed": 1

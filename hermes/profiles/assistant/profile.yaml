@@ -1,4 +1,5 @@
 description: 'Messaging front door (Telegram; Discord pending #40695) and kanban
-  orchestrator. Fields user requests in ~/Workspaces and routes background work
-  to engineer/researcher/searcher via the shared kanban board. Hosts the dispatcher.'
+  orchestrator. Routes background work across the worker roster, owns final
+  acceptance and releases Creator/Writer deliverables only after independent QA.
+  Hosts the dispatcher.'
 description_auto: false
