@@ -87,7 +87,9 @@ the relevant `config.yaml`.
 - `SOUL.md` — global agent identity (system-prompt slot #1).
 - `mcp.json` — MCP server connections.
 - `skills/orchestration/` and `skills/workspaces/` — version-controlled shared
-  skills. `skills/learned/` is the untracked adaptive library; bundled skills
+  skills. `skills/orchestration/references/workflow-contract.yaml` is the
+  machine-readable authority for Worker modes, schemas, grants, bindings, and
+  QA routes. `skills/learned/` is the untracked adaptive library; bundled skills
   are read from the clone via `external_dirs`.
 - `cron/jobs.json` — scheduled job definitions (run-state churns in the same
   file; `cron/output/` and `cron/.tick.lock` are git-ignored).
@@ -95,7 +97,7 @@ the relevant `config.yaml`.
 ## Profiles
 
 Named profiles live under `~/.hermes/profiles/<name>/` — each its own
-`HERMES_HOME` with its own `config.yaml` / `.env` / `SOUL.md` / `skills/` /
+`HERMES_HOME` with its own `config.yaml` / `SOUL.md` / `skills/` /
 `cron/`. The alias `~/.local/bin/<name>` is just a wrapper that runs
 `exec hermes -p <name> "$@"` — **bare `hermes`**, so it still resolves through
 the `bin/hermes` shim and the shared `global` + `hermes` Keychain keys are
@@ -116,19 +118,21 @@ move them into the repo (clearing the real files) before linking:
 3. Move the version-controllable files into the repo (skip any that don't exist):
    ```sh
    mkdir -p ~/.config/hermes/profiles/<name>
-   mv ~/.hermes/profiles/<name>/{config.yaml,SOUL.md,mcp.json,cron,skills} \
+   mv ~/.hermes/profiles/<name>/{config.yaml,profile.yaml,SOUL.md,mcp.json,cron,skills} \
       ~/.config/hermes/profiles/<name>/
    ```
 4. In that profile's tracked `config.yaml`, point `skills.external_dirs` at the
    clone (`~/ghq/github.com/NousResearch/hermes-agent/skills`) — same as default.
 5. `./install.sh` — the `[hermes]` loop now symlinks them (no WARN).
 
-State (`.env`, `memories/`, `sessions/`, `state.db*`, …) stays in
+State (`memories/`, `sessions/`, `state.db*`, …) stays in
 `~/.hermes/profiles/<name>/` — never moved, never tracked.
 
 Each worker profile tracks exactly one `<profile>-pipeline/` and a `technic/`
-directory; the assistant tracks `desks/` and `technic/` while the shared
-`orchestration` skill is its pipeline equivalent. Every profile may grow an
+directory. Pipelines implement the shared `admit → route → act_or_plan → verify
+→ handoff → terminal` lifecycle; Workers never register Kanban cards. The
+assistant tracks `desks/` and `technic/` while the shared `orchestration` skill
+is its pipeline equivalent. Every profile may grow an
 untracked `learned/` library. To promote a learned skill, review it, move the
 complete package into `technic/`, set `metadata.hermes.category: technic`, add
 it to the pipeline's capability registry when applicable, pin an agent-created
@@ -142,12 +146,13 @@ source with `hermes -p <profile> curator pin <name>`, then commit it normally.
   the move-then-`install.sh` adoption above. Hermes itself still runs fine
   either way; only the symlink tracking is affected.
 - **Per-profile secrets aren't isolated by the shim.** The wrapper always calls
-  `hermes`, so every profile gets the same `global` + `hermes` layers.
-  Profile-specific secrets (e.g. a distinct `TELEGRAM_BOT_TOKEN`) go in that
-  profile's own `~/.hermes/profiles/<name>/.env` (untracked).
-- **Background / launchd profiles** (`hermes gateway install`) may run with a
-  PATH that excludes `~/.config/bin` and a locked Keychain, so the shim can't
-  inject — those rely on the profile `.env`.
+  `hermes`, so every profile gets the same `global` + `hermes` Keychain layers.
+  If a profile needs isolation, add a dedicated Keychain injection path rather
+  than introducing `.env` files.
+- **Background / launchd profiles** may start with a restricted `PATH`. The
+  tracked Assistant gateway launcher sets `PATH` explicitly and injects the
+  approved Keychain layers before `exec`; other services must follow the same
+  pattern.
 
 ## Secrets
 
@@ -244,7 +249,7 @@ hermes computer-use status       # verify
 
 ```sh
 secret set OPENROUTER_API_KEY -p hermes   # T3 fallback + moa + vision + video analysis (mimo)
-secret set GITHUB_TOKEN       -p hermes   # Skills Hub + copilot T2 fallback
+secret set GITHUB_TOKEN       -p hermes   # Skills Hub
 secret set EXA_API_KEY        -p hermes   # web_search / web_extract
 secret set GROQ_API_KEY       -p hermes   # cloud STT (local faster-whisper needs no key)
 ```
@@ -329,5 +334,5 @@ voice mode.
 
 ## Never tracked
 
-Per-machine state stays in `~/.hermes/`: `.env`, `auth.json`, `memories/`,
+Per-machine state stays in `~/.hermes/`: `auth.json`, `memories/`,
 `sessions/`, `state.db*`, `logs/`, `workspace/`, `plans/`, `*_cache/`, `local/`.

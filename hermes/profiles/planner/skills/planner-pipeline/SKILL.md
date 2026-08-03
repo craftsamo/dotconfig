@@ -1,275 +1,354 @@
 ---
 name: planner-pipeline
-description: Planner's pipeline — turn a settled goal into an approved-ready dependency-graph outline (cards with assignees, technic skills, grants, parents) via tiered investigation and the boundary-based granularity rubric. Plan-only; never creates build cards.
-version: 1.2.0
+description: >-
+  Final planning compiler for workflow-contract.yaml v1. In Mode: integrate,
+  read the approved RequirementSpec and PlanningGraph plus every final
+  SpecialistPlan parent, reconcile them into one schema-valid
+  ExecutionOutline, and return execution-outline.yaml for the Assistant's
+  second approval. Plan-only: never investigates anew, executes, or creates
+  cards.
+version: 2.0.0
 author: CraftSamo
 license: MIT
 metadata:
   hermes:
-    tags: [planning, decomposition, outline, kanban, routing, granularity]
+    tags: [planning, integration, execution-outline, kanban, routing, granularity]
     category: orchestration
 ---
 
 <Goal>
 
-Turn the task body's goal into a **dependency-graph outline** the assistant can
-register verbatim after user approval: which cards, who runs each (profile +
-technic skills), what each may do (grants), and what depends on what. The
-outline is the deliverable — planning ends here; execution belongs to others.
+Compile approved specialist planning results into one executable proposal. The
+Planner receives settled requirements and final SpecialistPlans; it does not
+rediscover the problem or replace specialist judgment. Its only deliverable is
+an `ExecutionOutline` that the Assistant can validate, render for approval, and
+register verbatim after approval gate 2.
 
 </Goal>
+
+<LifecycleContract>
+
+Follow the canonical lifecycle from `workflow-contract.yaml`:
+`admit -> route -> act_or_plan -> verify -> handoff -> terminal`. `admit` the
+complete integration TaskSpec and approved planning identities, `route` only to
+`Mode: integrate`, `act_or_plan` by reconciling final SpecialistPlans, `verify`
+the ExecutionOutline, `handoff` its attached YAML and metadata, then `terminal`
+as `complete` or `block`. Planner never fans out or registers cards.
+
+Every completion returns exactly one `metadata.completion` and, because the
+ExecutionOutline is attached, exactly one `metadata.artifact_handoff`. The
+role-specific `metadata.execution_outline` remains alongside them. A block
+returns none of these completion envelopes.
+
+</LifecycleContract>
+
+<CompletionContract>
+Every TaskSpec body must contain exactly one literal single-line field
+`Input attachments: <single-line JSON array>`. When there are no inputs, the
+line must be exactly `Input attachments: []`. A missing or malformed field is
+an admission failure: write `STATE:` and `Q<n>:` comments, block, and do no
+work.
+
+Decide `FINAL_SUMMARY` exactly once. The terminal call must use
+`kanban_complete(summary=FINAL_SUMMARY, metadata={"completion":{"status":"completed","summary":FINAL_SUMMARY,"metadata":ROLE_METADATA,...}, ...})`.
+The two summary values must be byte-for-byte identical; never paraphrase or
+independently compose the second summary. `metadata.execution_outline` is a
+sibling of `completion` directly under the `kanban_complete` metadata argument,
+never inside `completion`. Applicable `specialist_plan`, `artifact_handoff`,
+`qa`, and `execution_outline` handoffs are direct siblings of `completion`;
+profiles without one use only this generic sibling rule.
+`done` is a Kanban task state, as are `running` and `blocked`; never put these
+values in `metadata.completion.status`. Normal completion status is always the
+string `completed`.
+</CompletionContract>
 
 <Scope>
 <UseWhen>
 
-- Any planner kanban task: a settled goal that needs multi-card decomposition
-  and user-approvable routing/grants.
+- A Kanban card has `Mode: integrate` and direct parents that are exactly the
+  latest final SpecialistPlan tasks for an approved PlanningGraph.
 
 </UseWhen>
 <DoNotUseWhen>
 
-- Requirements are still unsettled (that is the assistant's chat Plan Loop —
-  block with Q<n> instead of guessing).
-- The work fits one card (report that in the outline: a single-card plan is a
-  valid outcome).
-- In-repo Wave planning for an implementation card — that is the engineer's
-  plan altitude; your outline carries ONE engineer card and delegates Wave
-  detail to it.
+- Requirements or the PlanningGraph are unsettled.
+- A specialist branch is missing, still blocked on `FAN_OUT_READY:`, or ended
+  at a checkpoint rather than a final SpecialistPlan.
+- The request is a single task or an obvious short chain that does not use the
+  planned workflow.
 
 </DoNotUseWhen>
 </Scope>
 
-<Steps>
+<InputContract>
 
-1. **Read the card.** `kanban_show` the task; parse Goal / Inputs / Done
-   criteria / Constraints. A premise that decides the plan's *shape* is
-   missing (goal, scope, success criterion) → <Blocking>, don't guess.
-2. **Read the parents.** Each parent id in Inputs carries an orient/advisory
-   result — `kanban_show` it; summaries name attachments, read those paths.
-3. **Investigate (tiered).** See <InvestigationTiers>. Default is Tier 1:
-   read the repo/workspace and do light web verification yourself.
-4. **Decompose by boundaries.** Apply <GranularityRubric>: split only at
-   coordination boundaries, never at process steps. Map every card to a
-   profile + technic per <Roster>; write grants per card (Authority for
-   engineer, Budget for creator, Publish for marketer, Review where the user
-   must sign off on a deliverable).
-5. **Write the outline.** Exactly the <OutlineSchema> YAML. Every card body
-   must be self-contained (the worker never sees this plan's context beyond
-   its own body + parent summaries).
-6. **Deliver.** Write the YAML to the workspace (e.g. `outline.yaml`), put the
-   full YAML plus a 5-10 line human summary (shape, risks, grants asked) in
-   the final message, then `kanban_complete` with a one-line summary and
-   `artifacts: [<abs path to outline.yaml>]`.
-   - The planner profile has **no terminal tool**, so `kanban_attach` (which
-     needs base64 bytes) is impractical for a multi-KB YAML. Passing the path
-     in `kanban_complete(artifacts=[...])` copies the scratch file into the
-     task's durable attachments before workspace cleanup — same end state.
-     Use `kanban_attach` only for something you can inline by hand.
+First run `kanban_show` and require a self-contained body with:
 
-</Steps>
-
-<GranularityRubric>
-
-A card = one worker session's worth of work with verifiable Done criteria.
-Split **only** at coordination boundaries:
-
-| Boundary | Split because |
-| --- | --- |
-| assignee changes | different profile = different process/identity |
-| parallelizable | independent branches should fan out |
-| human approval gate | Review-gated deliverable isolates the sign-off |
-| time deferral | scheduled parts park independently |
-| failure isolation | risky step gets its own retry unit |
-| fan-in join | synthesis waits on several results |
-
-Never split a straight line of same-profile work into micro-cards (each card
-costs a dispatch tick + spawn + context rebuild). Workers fan out sub-tasks
-themselves mid-run — don't pre-chop what the worker can request. An engineer
-implementation card is bounded by "implement feature X, tests pass, PR" —
-Wave/phase detail inside it belongs to the engineer's own plan altitude, not
-to your outline.
-
-Engineer **implementation** cards additionally honor the **one-intent
-boundary**: one card = one kind of work (feature / bugfix / refactor /
-rebuild / perf / deps) — never mix a refactor and a feature in one card (a
-preparatory cleanup is its own card, ordered before the feature).
-Consultation/decomposition cards (opener-hinted assess/shape slices) sit
-outside this list and carry their own contracts. When an implementation goal
-needs finer requirement-level slicing than you can ground, don't guess:
-put ONE engineer shape card (`Specify —` opener, S1/S2) in the graph and
-let its Issue decomposition drive the per-Issue implement cards — the
-engineer's split is the granularity source, yours is a copy.
-
-</GranularityRubric>
-
-<Roster>
-
-Two-tier vocabulary: **profile** (execution contract — model, tools, grant
-type) + **technic skills** (task-pinnable playbooks, passed as `skills:`).
-Pipelines load automatically per profile; you never name them — with the
-PIN exceptions: **every engineer card carries
-`skills: ["engineer-pipeline"]`, every creator card
-`skills: ["creator-pipeline"]`, every writer card
-`skills: ["writer-pipeline"]`, every qa card carries `qa-pipeline` plus
-every mapped `qa-*` technic, every marketer card
-`skills: ["marketer-pipeline"]`, every researcher card
-`skills: ["researcher-pipeline"]`, and every searcher card
-`skills: ["searcher-pipeline"]`** (the dispatcher preloads pinned skills
-mechanically, making those workers' routing/grant kernels a guarantee
-instead of a prompt-level hope). Keep
-this table in sync with `profile.yaml` descriptions and the orchestration
-skill's `<Workers>` table.
-
-| Profile | Sweet spot | Technics you may pin | Grant |
-| --- | --- | --- | --- |
-| searcher | retrieval, routed by deliverable: targeted lookups, enumerations/surveys with a coverage claim, exhaustive multi-hop hunts (signal with `goal_mode`) | `searcher-pipeline` (MANDATORY pin on every card); no optional technics — `deep-retrieval` is a deprecated stub, use `goal_mode` | — |
-| researcher | routes by deliverable: analysis/synthesis (evidence-pack), option comparison with a recommendation (tradeoff-matrix), external claim/source/specification verdicts (fact-check), evidence-backed direction for a downstream worker or QA (guidance) | `researcher-pipeline` (MANDATORY pin on every card); optional learned retrieval aids only when actually present | — |
-| engineer | code, tests, builds, PRs via OpenCode; routes by deliverable (assess / shape / implement) — openers (`Orient —` / `Advisory —` / `Bootstrap —` / `Specify —` / `Plan —`) remain valid altitude hints | `engineer-pipeline` (MANDATORY pin on every card), `opencode-env`, `machine-env` | Authority A1/A2/A3, B1/B2, S1/S2 |
-| creator | ALL media production (image/video/GIF/voice); media advisories + style-anchor plan rounds; revisions carry `Intent: revise` + previous-card pointers in Inputs | `creator-pipeline` (MANDATORY pin on every card); canonical leaves: `creator-generated-image`, `creator-article-illustration`, `creator-infographic`, `creator-svg-diagram`, `creator-excalidraw-diagram`, `creator-logo-icons`, `creator-text-card`, `creator-meme`, `creator-ascii-art`, `creator-audio-visualization`, `creator-gif-sourcing`, `creator-generated-video`, `creator-ascii-video`, `creator-manim-explainer`, `creator-pixel-art`, `creator-pixel-video`, `creator-knowledge-comic`, `creator-brand-asset-sourcing`; external support: `hyperframes`, `media-use` | Budget |
-| writer | reader-facing prose, drafts only | `writer-pipeline` (MANDATORY pin on every card); Japanese norms layers (`japanese-*`) auto-route inside the pipeline — never pin them | — |
-| qa | independent read-only audit of a final Creator/Writer candidate; actual parent artifacts + predeclared Researcher evidence; never edits or researches | `qa-pipeline` (MANDATORY) plus mapped leaves: `qa-raster-image`, `qa-infographic`, `qa-svg-diagram`, `qa-excalidraw-diagram`, `qa-icon-set`, `qa-text-visual`, `qa-pixel-art`, `qa-ascii-art`, `qa-data-visualization`, `qa-video`, `qa-pixel-video`, `qa-ascii-video`, `qa-audio`, `qa-song`, `qa-voice`, `qa-browser-media`, `qa-sourced-asset`, `qa-comic`, `qa-prose`, `qa-script` | — |
-| marketer | routes by deliverable: assess (consultations, honest critiques of assets/drafts, market-judgment memos), shape (strategy/calendar — nothing ships), campaign (drafts to approval / ship within grant) | `marketer-pipeline` (MANDATORY pin on every card), `social-video-research` (platform-native format/spec recon) | Publish (absent = draft-only) |
-
-- Technic missing for a niche? Do NOT block: route to the
-  profile's pipeline default, write the technique requirements into the card
-  body, and flag the gap in `plan.notes` as a technic-authoring signal. QA is
-  the exception: never invent a generic QA route. Flag an unsupported final
-  capability explicitly until a canonical QA leaf exists.
-- Suggest a NEW profile in `plan.notes` only when the execution contract
-  itself differs (different toolset/permissions, different model, isolated
-  long-term memory, conflicting standing prompt) — a different playbook is a
-  technic, a different style is a brief.
-
-Every ship-ready Creator `produce` card and Writer completed-deliverable card
-has exactly one downstream `qa` card. Advisory, plan, assess/critique, and rough
-draft cards do not. The QA card:
-
-- has the production card as a parent;
-- also has a Researcher fact-check parent when the final artifact contains
-  external factual gating claims (the Researcher card itself depends on the
-  production card when it checks final wording/media);
-- pins `qa-pipeline` plus every route required by the QA capability table;
-- copies the approved Done criteria, expected artifact inventory, producer
-  capability/Writer type, and parent ids into its own body;
-- never carries a human `Review:` gate — the Assistant owns release and any
-  later human approval.
-
-</Roster>
-
-<OutlineSchema>
-
-```yaml
-plan:
-  goal: <one line — what the user gets when this DAG completes>
-  notes: |
-    <assumptions, risks, best-effort gaps, missing-technic signals,
-     new-profile suggestions (rare)>
-cards:
-  - key: <local-key>            # unique within this outline; assistant maps to task ids
-    title: <imperative, <=80 chars>
-    assignee: <profile name from <Roster>>
-    skills: [<technic>, ...]    # optional; only technics from <Roster>.
-                                # engineer cards: ALWAYS include "engineer-pipeline";
-                                 # creator cards: ALWAYS include "creator-pipeline";
-                                 # writer cards: ALWAYS include "writer-pipeline";
-                                 # qa cards: ALWAYS include "qa-pipeline" plus mapped qa-* leaves;
-                                 # marketer cards: ALWAYS include "marketer-pipeline";
-                                # researcher cards: ALWAYS include "researcher-pipeline";
-                                # searcher cards: ALWAYS include "searcher-pipeline"
-    parents: [<local-key>, ...] # optional; omit for roots (roots run first)
-    params:                     # optional kanban_create params
-      workspace_kind: scratch|worktree|dir
-      workspace_path: <abs path, worktree/dir only>
-      project: <slug>
-      goal_mode: true
-      goal_max_turns: <n>
-      max_runtime_seconds: <n>
-      priority: <int>
-    body: |
-      Goal: ...
-      Inputs: ...               # include parent local-keys as "results of <key>"
-      Done criteria: ...
-      Output: ...
-      Constraints: ...
-      Review: required — <what to present>   # only when the user must sign off
-      QA: required | exempt — <reason>       # Creator/Writer final only; required
-                                              # cards have a downstream qa card
-      Authority: A1|A2|A3 ...   # engineer only
-      Budget: ...               # creator only
-      Intent: new|revise|salvage  # creator produce cards; revise/salvage MUST
-                                  # carry source-card pointers in Inputs
-      Publish: ...              # marketer only
+```text
+Mode: integrate
+Request run: <RequirementSpec request_id>
+Goal: Integrate the approved specialist plans into one ExecutionOutline.
+Inputs: <complete RequirementSpec, approved PlanningGraph key/attachment,
+  final specialist task ids, and attachment names>
+Input attachments: []
+Done criteria: <schema, coverage, DAG, grant, QA, and granularity checks>
+Output: execution-outline.yaml plus metadata summary
+Constraints: plan only; do not investigate, execute, publish, or create cards
 ```
 
-Rules:
-- Grants are outline text the user approves — grant only what the task body
-  or the requester already sanctioned; when in doubt, the tighter preset plus
-  a note in `plan.notes`.
-- Every body is written for a worker with zero context beyond that body and
-  its parents' summaries.
-- Registration mechanics (topological order, idempotency keys) are the
-  assistant's job, not yours.
+`Request run: <RequirementSpec request_id>` is the canonical request identity.
+The `request_id` in `metadata.execution_outline`,
+`metadata.completion.metadata`, and `execution-outline.yaml` must exactly match
+this value. An alternate request-identity label is forbidden; use `Request run:`
+only.
+The RequirementSpec and PlanningGraph share one `request_id`. Every direct
+parent must return exactly one `metadata.specialist_plan` with:
 
-</OutlineSchema>
+```yaml
+origin_task_id: <that final parent task id>
+branch_key: <one approved PlanningGraph branch key>
+summary: <specialist recommendation>
+proposed_cards: [<child_spec objects>]
+assumptions: [<optional>]
+evidence: [<optional parent ids, URLs, or attachment names>]
+```
 
-<InvestigationTiers>
+Reject duplicate branch keys, origin/task mismatches, unknown branches,
+checkpoint-only parents, or a missing approved branch. Do not fill a missing
+specialty with Planner guesses. Block with one batched `Q<n>` package only when
+the Assistant must repair or replace an input.
 
-1. **Tier 1 — yourself (default).** Read the repo/workspace with file tools;
-   verify library/tool existence with quick web checks. Most plans end here,
-   in a single run.
-2. **Tier 2 — parents.** The assistant pre-seeded orient/advisory cards as
-   your parents; their summaries + attachments are your ground truth. Prefer
-   them over re-deriving.
-3. **Tier 3 — advisory fan-out (continuation pattern).** Only when the plan
-   hinges on a specialist assessment you cannot make (engineer feasibility,
-   creator chain/Budget estimate, deep source landscape):
-   1. Create advisory cards — body opens
-      `Advisory — inform the plan, don't ship.`, `workspace_kind: scratch`,
-      small `max_runtime_seconds` (e.g. 600). Breadth sweeps go to searcher
-      here — never burn your own turns on exhaustive search.
-   2. Create ONE continuation card assigned to `planner`,
-      `parents: [advisory ids]`, body = original card id + your working notes
-      (attach interim `outline-draft.yaml` if useful).
-   3. `kanban_complete` this card (one line: "investigating via N advisories,
-      continuation <id>"). Never wait in-process.
-4. **Card-creation floor.** Advisory cards + your own continuation card are
-   the ONLY cards you ever create. No build/execution cards, ever — those are
-   registered by the assistant after user approval.
+</InputContract>
 
-</InvestigationTiers>
+<CanonicalContract>
+
+Read the canonical registry at:
+
+```text
+~/.hermes/skills/orchestration/references/workflow-contract.yaml
+```
+
+Use it for Worker modes, mandatory pipeline pins, active/deprecated technics,
+TaskSpec fields, grants, QA routes, and the exact `execution_outline` and
+`child_spec` schemas. Do not maintain a second roster in this skill and do not
+invent a generic QA fallback.
+
+</CanonicalContract>
+
+<Procedure>
+
+1. **Validate identity.** Confirm `Mode: integrate`, request id equality, the
+   PlanningGraph digest/key supplied by the Assistant, and the exact direct
+   parent set.
+2. **Read final parents.** `kanban_show` each final specialist task and inspect
+   its completion metadata and named attachments. Evidence is only a planning
+   input; it is not permission to execute.
+3. **Account for every proposal.** Map each proposed card to one outcome in the
+   RequirementSpec. Merge duplicate candidates only when their goal, assignee,
+   inputs, done criteria, and grant are materially the same. Record rejected or
+   superseded proposals in `notes` with the reason.
+4. **Split at coordination boundaries.** Apply <Granularity>. Preserve useful
+   parallel branches and explicit fan-in. Do not split one Worker session into
+   process-step micro-cards.
+5. **Normalize contracts.** Give every card an exact `child_spec`, mandatory
+   pipeline pin, known technics, API-only `params`, self-contained TaskSpec,
+   minimum grant, and explicit `fan_out_policy` or `forbidden`.
+6. **Build the DAG.** Resolve proposed local parents into final outline keys.
+   Every parent key exists, the graph is acyclic, and every downstream TaskSpec
+   names the exact parent result it consumes.
+7. **Apply gates.** Add the canonical QA route to every ship-ready
+   Creator/Writer result. Keep irreversible descendants behind QA, Review, or
+   Publish approval as required. QA cards inspect immutable candidate artifacts
+   and never repair them.
+8. **Write and deliver.** Produce exactly <ExecutionOutlineSchema>, save it as
+   `execution-outline.yaml`, and complete per <Delivery>.
+
+</Procedure>
+
+<Granularity>
+
+One card is one Worker session with objective done criteria. Split at these
+boundaries:
+
+| Boundary | Reason |
+| --- | --- |
+| assignee changes | different execution contract or tool authority |
+| independent work can run in parallel | useful fan-out |
+| several results must be combined | explicit fan-in |
+| human approval or protected QA | isolated gate |
+| time deferral | independently scheduled work |
+| risky action needs isolated retry | failure boundary |
+| Engineer intent changes | feature, bugfix, refactor, rebuild, perf, and deps stay separate |
+
+Do not create cards for internal steps such as reading a file, drafting a
+prompt, running one command, or performing one verification check. Engineer
+Wave detail stays inside one Engineer execute card. Creator asset batches may
+stay together when they share one brief, direction, Budget, and QA boundary.
+
+</Granularity>
+
+<ExecutionOutlineSchema>
+
+Write exactly this top-level shape:
+
+```yaml
+request_id: <RequirementSpec request_id>
+goal: <one-line user outcome>
+assumptions: [<explicit best-effort assumptions>]
+risks: [<material execution or release risks>]
+notes: |
+  <merge decisions, rejected proposals, capability gaps, and approval notes>
+cards:
+  - key: <stable unique outline key>
+    title: <imperative, <=80 chars>
+    assignee: <known Worker profile>
+    skills: [<mandatory pipeline pin>, <active technics>]
+    parents: [<outline key>, ...]
+      params:
+        workspace_kind: <scratch|worktree|dir>
+        max_runtime_seconds: <bounded integer>
+      task_spec:
+        mode: <mode allowed for the assignee>
+        goal: <one outcome>
+        inputs: <self-contained facts, paths, links, and parent results>
+        input_attachments: []
+        done_criteria: <objective checks>
+        output: <result/artifact and completion shape>
+        constraints: <scope and prohibited actions>
+      review: <optional human gate>
+      qa: <optional Creator/Writer gate>
+      grant: <optional minimum Authority, Budget, or Publish proposal>
+      fan_out_policy: <forbidden or bounded policy>
+```
+
+The required top-level fields are `request_id`, `goal`, and `cards`; the other
+top-level fields are optional. Every card has exactly the seven `child_spec`
+fields: `key`, `title`, `assignee`, `skills`, `parents`, `params`, and
+`task_spec`. Every TaskSpec has `goal`, `inputs`, `done_criteria`, `output`, and
+`constraints`; use only optional fields listed by the canonical contract.
+
+`params` contains only Kanban creation parameters such as workspace, project,
+priority, runtime, goal mode, or model/provider overrides. Domain briefs,
+planning identity, grants, and QA requirements belong in `task_spec`.
+
+</ExecutionOutlineSchema>
+
+<ReconciliationRules>
+
+- The RequirementSpec is the outcome authority. SpecialistPlans refine how to
+  achieve it but cannot widen its scope.
+- A PlanningGraph approval authorizes planning only. Proposed cards and grants
+  remain inert until the user approves this ExecutionOutline.
+- Use the minimum grant. Engineer gets only the required Authority preset and
+  overrides; Creator gets a bounded Budget; Marketer defaults to P0 unless the
+  RequirementSpec explicitly supports a bounded P1 proposal.
+- A SpecialistPlan conflict is not resolved by silently choosing one domain.
+  Preserve the conflict in `risks` or block when the choice changes topology,
+  scope, cost, grant, or the user-visible result.
+- Unknown profiles and technics are notes/capability gaps, not fabricated
+  routing. Unknown final Creator/Writer capabilities cannot receive generic QA.
+- Every proposed fan-out slot is explicit. Missing policy means `forbidden`.
+
+</ReconciliationRules>
 
 <Blocking>
 
-- Block (`kanban_block(kind=needs_input)`) only for premises that decide the
-  plan's shape: the goal itself, scope boundaries, success criteria, or a
-  grant posture the requester must pick (e.g. "may the engineer push?").
-- Before blocking: comment `STATE:` (what you've read, what's drafted), then
-  numbered `Q<n>:` questions — 2-4 options + your recommendation each.
-- Everything else is best-effort: proceed and record the assumption in
-  `plan.notes`.
-- After unblock, a fresh worker resumes from the comments — keep them
-  mechanical (`DECISION(Q<n>):` answers are your input).
+Before a block, comment `STATE:` with validated request/graph identity, parent
+coverage, the draft outline attachment if useful, and what the answer changes.
+Ask all related `Q<n>:` questions in one batch with 2-4 options and a
+recommendation, then `kanban_block(kind=needs_input, reason=<short headline>)`
+and stop. On respawn, reread the full thread and apply only matching
+`DECISION(Q<n>):` answers.
+
+Do not fan out. Missing specialist work returns to the Assistant's
+PlanningGraph flow; the Planner never creates a manifest or card.
 
 </Blocking>
 
+<Delivery>
+
+Write `execution-outline.yaml` in the task workspace. Put a compact summary in
+the final message: branch coverage, card/dependency shape, grants, QA/Review
+gates, assumptions, and risks. Then call:
+
+```text
+kanban_complete(
+  summary=<one user-facing sentence>,
+  artifacts=[<absolute path to execution-outline.yaml>],
+  metadata={
+    "completion": {
+      "status": "completed",
+      "summary": <same user-facing sentence>,
+      "metadata": {
+        "mode": "integrate",
+        "request_id": <request id>,
+        "specialist_task_ids": [<final parent ids>],
+        "card_count": <count>,
+        "residual_risk": <remaining risk or none>
+      },
+      "artifacts": ["execution-outline.yaml"]
+    },
+    "artifact_handoff": {
+      "artifacts": [{
+        "name": "execution-outline.yaml",
+        "sha256": "pending-assistant-probe",
+        "purpose": "approval gate 2 and execution registration",
+        "source_task_id": <this planner task id>
+      }],
+      "verification": ["schema", "branch coverage", "DAG", "grants", "QA routes"],
+      "qa": {
+        "status": "exempt",
+        "reason": "planning artifact; approval gate 2 is the acceptance gate"
+      }
+    },
+    "execution_outline": {
+      "request_id": <request id>,
+      "attachment": "execution-outline.yaml",
+      "sha256": "pending-assistant-probe",
+      "specialist_task_ids": [<final parent ids>],
+      "card_count": <count>
+    }
+  }
+)
+```
+
+The Planner has no terminal tool. `artifacts=[...]` copies the file into the
+task's durable attachments, so both digest fields use the
+`pending-assistant-probe` sentinel. The Assistant computes and records the real
+digest on the integration card, renders approval gate 2 with that digest, and
+owns all later card registration.
+
+</Delivery>
+
 <AntiPatterns>
 
-- Doing the work: writing implementation code, producing media/prose, running
-  builds. The outline is the only deliverable.
-- Creating build cards, or any card that doesn't open with `Advisory —`
-  (except your own continuation card).
-- Micro-cards along a straight line of same-profile work ("git init" as a
-  card); pre-chopping what a worker can fan out itself.
-- Wave/phase detail inside an engineer implementation card's body — delegate
-  to the engineer's plan altitude.
-- Pinning technics not in <Roster>, or inventing profile names — unknown
-  needs are `plan.notes` signals, not fabricated assignees.
-- Minting grants the requester never sanctioned; widening grants "to be
-  safe".
-- Blocking for anything answerable by Tier 1 reading, or blocking instead of
-  noting a best-effort assumption.
-- Exhaustive web research yourself (searcher advisory exists for that);
-  burning Opus turns on breadth.
-- Outline only in prose — the YAML attachment is the registration artifact.
+- Investigating requirements or the web again instead of integrating supplied
+  specialist evidence.
+- Creating cards, a FanOutManifest, or a continuation.
+- Returning the old `outline.yaml` schema or a prose-only plan.
+- Putting domain briefs or grants in `params`.
+- Adding Wave/process micro-cards or duplicating equivalent specialist cards.
+- Minting a grant, profile, technic, or generic QA route.
+- Treating SpecialistPlan proposals or PlanningGraph approval as execution
+  authorization.
 
 </AntiPatterns>
+
+<Verification>
+
+- `Mode: integrate`, request identity, PlanningGraph, direct parent set, and
+  every final SpecialistPlan origin/branch were validated.
+- Every approved branch appears exactly once; checkpoint-only and duplicate
+  branches were rejected.
+- The output matches `execution_outline`; each card matches `child_spec`; each
+  TaskSpec and mode matches the canonical contract.
+- The DAG is acyclic, parent results are named by consumers, and cards split
+  only at coordination boundaries.
+- Grants are minimal, fan-out policies are bounded, canonical QA routes are
+  complete, and irreversible descendants remain gated.
+- `execution-outline.yaml` is attached with the required metadata. No work was
+  executed and no card or manifest was created. The completion carries exactly
+  one `metadata.completion`, one `metadata.artifact_handoff`, and the existing
+  `metadata.execution_outline` role envelope.
+
+</Verification>

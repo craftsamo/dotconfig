@@ -62,11 +62,40 @@ attached, a measurement you took, or a tally you reconciled.
 - **Gaps stated plainly** — a best-attempt delivery names what misses the
   brief and why the budgeted passes couldn't close it; honesty here is what
   keeps the corrective-pass economy working.
-- **Machine-readable handoff** — `kanban_complete(metadata={...})`:
-  `assets` (attachment names + specs), `verification` (checks run),
-  `spend` (final tally), `anchor` (locked style/palette/seed/voice values,
-  when any), `retry_notes`, `residual_risk`. No prompts-as-blobs, no local
-  paths.
+- **Machine-readable handoff** - `kanban_complete(metadata={...})` contains
+  exactly one completion envelope:
+
+  ```yaml
+  metadata:
+    completion:
+      status: completed
+      summary: <one or two user-facing sentences>
+      artifacts: [<exact durable output attachment names>]
+      metadata:
+        assets: [<attached asset names and specs>]
+        verification: [<V1-V6 checks and outcomes>]
+        spend: <final Budget tally>
+        anchor: <locked style, palette, seed, or voice values>
+        retry_notes: [<failed attempts and corrective passes>]
+        residual_risk: [<remaining gaps>]
+    artifact_handoff:
+      artifacts: [<name, sha256, purpose, source_task_id>]
+      verification: [<attachment and digest checks>]
+      qa:
+        status: required
+        capability: <canonical Creator capability or core:tts>
+        routes: [<all canonical QA technics required by the actual output>]
+      reusable_anchors: [<anchor artifact names or values>]
+  ```
+
+  Ship-ready Produce requires `qa.status: required`, its canonical producer
+  capability, and every QA route required by the actual output. Advisory,
+  Direction samples, and rough outputs use `qa.status: exempt` with an explicit
+  `reason`.
+  `completion.artifacts` and `artifact_handoff.artifacts` name exactly the same
+  durable output attachment inventory. If no final artifact is attached, set
+  `completion.artifacts: []` and omit `artifact_handoff`; the role payload still
+  stays under `metadata.completion.metadata`. No prompts-as-blobs, no local paths.
 - **Chat summary** — the `kanban_complete` summary is 1-2 plain sentences a
   non-creator can act on, delivered verbatim to the requester's chat. No
   prompts, seeds, or file paths — those live one layer down in the report.
