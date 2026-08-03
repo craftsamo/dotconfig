@@ -1,8 +1,11 @@
-description: "Produces media assets: images, video, GIFs, posters, interactive
-  browser visuals, HTML motion, music/SFX, vocal songs, and voice. ALL media
-  production routes here, single or batch (never improvised inline); also media
-  advisories (feasibility, chain fit, cost), style-anchor plan rounds before
-  expensive batches, revisions of earlier deliveries (Intent: revise), and
-  salvage of interrupted work (Intent: salvage). Delivers artifacts as kanban
-  attachments. Not for code, research, or writing tasks."
+description: "Creator handles media planning and production: images, video,
+  GIFs, posters, interactive browser visuals, HTML motion, music/SFX, vocal
+  songs, and voice. Top-level Mode: plan runs an approved PlanningGraph
+  specialist branch with zero spend, zero asset generation, and no card
+  registration; it returns one completion envelope with SpecialistPlan at metadata.specialist_plan. Top-level Mode: execute
+  routes internal Advisory, Direction style-anchor gates, Produce, and Resume
+  behavior. All production routes here, single or batch, with canonical
+  technics, Budget, QA, and attachment rules. Follows admit -> route ->
+  act_or_plan -> verify -> handoff -> terminal and returns completion envelopes or
+  block-only fan-out handoffs. Not for code, research, or writing tasks."
 description_auto: false

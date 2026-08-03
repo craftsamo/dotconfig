@@ -33,47 +33,31 @@ Virality != truth. A high search rank is not reliability.
   but are not stable dispatch identities and are never pinned by the
   orchestrator. Load one internally only when its retrieval method fits.
 
-## Fan-out — decompose on the board, never wait in-process
+## Fan-out — manifest handoff only
 
-When part of the task belongs to another worker (parallel lookups, an
-asset, prose, analysis) or exceeds your tools:
+Researcher does not register cards or create child work. For heavy breadth that
+fits the approved `fan_out_policy`, prepare exactly one attached `fan-out.yaml`
+with the canonical fields `origin_task_id`, `checkpoint_key`, `children`,
+`continuation`, and `attachments`. Each child is a self-contained `searcher`
+TaskSpec in `Mode: retrieve`, and the continuation is a self-contained
+Researcher TaskSpec in `Mode: analyze` with the same deliverable, consumer,
+claims, and attachment purposes. Each attachment entry has `name`, `sha256`,
+`purpose`, and `source_task_id`; probe its digest before handoff.
 
-**QA-evidence exception:** when the body names QA as the consumer or requires
-an attached `claim-ledger.md`, a downstream QA card is already parented to this
-Researcher task. Never complete this card into a worker-created continuation;
-that would wake QA before the final ledger exists. Post a self-contained
-`STATE: QA_DAG_CHANGE` comment with the Searcher child briefs, Researcher
-continuation brief, exact claims, and ledger filename; then block with reason
-`QA_DAG_CHANGE: protected Researcher fan-out required`. The Assistant archives
-the stale QA card and registers Searcher children, the final Researcher
-continuation, and replacement QA. On `DECISION(QA_DAG_CHANGE)`, complete this
-checkpoint without creating duplicate cards. The normal pattern below applies
-only when no QA card consumes this result.
+After attaching the manifest, write `STATE:` with the checkpoint and current
+findings, then block with `FAN_OUT_READY:`. This is a terminal block, not a
+completion: return no completion envelope and no result summary. The Assistant
+validates the policy, registers eligible Searcher roots, and preserves dependent
+children plus the same Researcher continuation as pending specs. It registers
+each only after direct parents pass completion admission.
 
-1. `kanban_create` the child cards — each body self-contained per the
-   orchestrator's task-spec rules (a child never sees this task's thread;
-   e.g. parallel searcher hunts feeding one synthesis), and each pinning
-   its assignee's pipeline kernel (`skills=["<profile>-pipeline"]`).
-2. `kanban_create` a **continuation card assigned to your own profile**
-   with `parents=[the child ids]` and `skills=["researcher-pipeline"]`:
-   its body says what to do with their
-   results (their completion summaries/metadata arrive in the injected
-   context; `kanban_show` a parent id for detail). It is a bookmark for a
-   future run of you — that run starts with zero memory of this one, so
-   the body must stand alone.
-3. `kanban_complete` the current card ("decomposed into <ids>") and stop —
-   never wait for children. The dispatcher wakes the continuation card
-   when they all finish (fan-in).
+On respawn, read the complete thread. If `DECISION(FAN_OUT_READY):` names the
+live children, pending keys, registration anchor, and digest, verify the checkpoint and retire the
+origin. Do not resume or re-gather its result; complete the obsolete origin
+with exactly one `metadata.completion` whose status is `superseded`. The
+eventual continuation alone owns the final analysis and its normal completion.
 
-Rules:
-
-- **Grants never propagate.** Write into a child at most your own
-  effective grant (advisory tasks stay read-only) — never more. A child
-  that would need a wider grant is a question for the orchestrator: block
-  on YOUR card, don't mint.
-- Children you create notify nobody (no chat subscription); the
-  orphan-watchdog cron is the safety net, not a license. Decisions that
-  need the user go through your own card's block round-trip, never a
-  child's.
-- `delegate_task` stays right for quick in-turn parallel lookups; the
-  board is for heavier or durable stages.
+For quick parallel lookups that fit the current run, use `delegate_task` and
+wait for the results. If the approved policy is missing or the requested fan-out
+exceeds its assignees, child count, purpose, cost cap, or grant ceiling, block on
+the Researcher card rather than widening the manifest.

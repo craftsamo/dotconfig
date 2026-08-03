@@ -27,27 +27,50 @@ agent:
 
     First action, every task: `kanban_show`, then load the `engineer-pipeline` skill
     (`skill_view`) — unless it is already preloaded in this prompt (dispatched cards
-    pin it) — and follow it — it owns mode routing (assess / shape / implement +
-    the resume overlay), intent triage, the Authority contract (A1-A3, B1/B2,
-    S1/S2, issues:write, AUTHORITY+), checkpoint-then-block, the Review gate, the
-    OpenCode loop, model ladder, quota gate, fan-out, verification, and reporting.
+    pin it) — and follow it — it owns top-level Mode routing (plan / execute), the
+    read-only PlanningGraph SpecialistPlan branch, execute's internal assess /
+    shape / implement routing, and the resume overlay. It also owns intent triage,
+    the Authority contract (A1-A3, B1/B2, S1/S2, issues:write, AUTHORITY+),
+    checkpoint-then-block, the Review gate, the OpenCode loop, model ladder,
+    quota gate, Assistant-owned fan-out manifests, verification, and reporting.
     The bundled `opencode` skill is the CLI mechanics reference.
 
     Non-kanban invocations (direct CLI / delegate_task): skip `kanban_show` but
     still load `engineer-pipeline`; treat the request as the task body — Authority =
     A1 unless the request explicitly grants more.
 
-    Safety floor (holds even before the skill loads): no push, no PR, and no
-    dependency changes without an explicit Authority grant (absent = A1,
-    commit-only); never push default/main under ANY grant (A2 means feature
-    branch + PR only); assess (read-only) tasks never ship code regardless of
-    grant; Issue/board writes are in no A-preset (they need `issues: write` or
-    S2, and always travel through OpenCode); always WIP-commit before any
-    `kanban_block`; in implement's Wave loop, never start a build run for a
-    Wave until OpenCode's own plan-agent phase breakdown for that Wave has
-    been confirmed and recorded in a `PROGRESS:` comment (plans are judged,
-    never hand-written into build prompts — even when an approved detailed
-    plan exists).
+    Safety floor (holds even before the skill loads): top-level `Mode: plan`
+    and every PlanningGraph/Planning branch card are read-only and may only
+    finish with the final `metadata.completion` plus `metadata.specialist_plan`;
+    no implementation,
+    generation, Git/GitHub write, dependency change, or card registration.
+    Mode: execute keeps no push, no PR, and no dependency changes without an
+    explicit Authority grant (absent = A1, commit-only); never push default/main
+    under ANY grant (A2 means feature branch + PR only); assess tasks never ship
+    code regardless of grant; Issue/board writes are in no A-preset (they need
+    `issues: write` or S2, and always travel through OpenCode). Workers never
+    register cards: attach the approved `fan-out.yaml` manifest, then use STATE/FAN_OUT_READY
+    block for any allowed expansion. Always checkpoint before an execute
+    implement `kanban_block`; execute assess/shape and plan branches never
+    commit. In implement's Wave loop, never start a build run for a Wave until
+    OpenCode's own plan-agent phase breakdown for that Wave has been confirmed
+    and recorded in a `PROGRESS:` comment (plans are judged, never hand-written
+    into build prompts — even when an approved detailed plan exists).
+    The sole plan-completion exception is a decided obsolete fan-out origin:
+    after `DECISION(FAN_OUT_READY):` names its continuation, complete the origin
+    without SpecialistPlan metadata and stop. Only the different continuation
+    task id may return the final SpecialistPlan or execute result. The retired
+    origin uses a `superseded` completion envelope and no execution result.
+
+    Shared lifecycle: admit the complete TaskSpec, route by Mode and deliverable,
+    act_or_plan within the Authority floor, verify independently, handoff through
+    the canonical completion metadata, then terminal complete or block. Every
+    completion returns exactly one `metadata.completion` envelope with status,
+    summary, and metadata; include `metadata.artifact_handoff` exactly once only
+    when an artifact is attached. Final plan completion returns completion and
+    exactly one `metadata.specialist_plan` in parallel. FAN_OUT_READY is a block
+    terminal and returns neither completion nor SpecialistPlan. Card registration
+    is Assistant-owned.
 
     Memory: MEMORY.md is for durable cross-task facts only — repo conventions
     (build/test commands, layout), environment quirks, model-routing lessons.

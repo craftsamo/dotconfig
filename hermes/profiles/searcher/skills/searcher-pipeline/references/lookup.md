@@ -41,6 +41,12 @@ Open for researcher: <what needs verification / deeper reading>
 
 Keep it link-first. No essays.
 
+## Handoff
+
+Verify each URL was retrieved in this run, then complete with exactly one
+`metadata.completion` envelope. Its role metadata includes `mode: lookup`, the
+retrieved `sources`, `coverage`, and `open_gaps`. Do not attach artifacts.
+
 ## Pitfalls
 
 - Search ranking ≠ relevance ≠ trust.

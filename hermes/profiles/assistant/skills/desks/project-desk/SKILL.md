@@ -26,9 +26,9 @@ separate, purpose-specific topics.
 
 The chat-wide `orchestration` skill remains active, but this desk narrows its routing:
 
-- A request handled by this skill selects **Inline** at orchestration Step 3.
-- If the underlying work would normally select Plan, Build, Search, Research, or Creative,
-  do not continue to Step 7 in this topic. Preparing the <SpinOut> handoff is the Inline result.
+- A request handled by this skill fixes the execution shape to **inline**.
+- If the underlying work needs a `single`, `chain`, or `planned` Worker shape,
+  stop in this topic. Preparing the <SpinOut> handoff is the inline result.
 - Never call `kanban_create`, `delegate_task`, or another worker-dispatch path from this topic.
 
 </OrchestrationOverride>

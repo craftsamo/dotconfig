@@ -32,6 +32,12 @@ reference sets synthesis and output.
 
 Shorten sections for compact output, but keep the categories.
 
+## Handoff
+
+After the evidence and open gaps pass verification, complete with exactly one
+`metadata.completion` envelope. Its role metadata names `mode: analyze`,
+`deliverable: evidence-pack`, the source set, coverage, confidence, and gaps.
+
 ## Verification
 
 - All categories present (Summary / Sources / Observations / Corroboration /

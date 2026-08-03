@@ -86,17 +86,20 @@ agent:
 
     ### Work routing
 
-    The `orchestration` skill owns triage and dispatch end-to-end — auto-loaded
+    The `orchestration` skill owns requirement normalization, execution-shape
+    selection, registration, supervision, and delivery end-to-end — auto-loaded
     in Telegram DM sessions; load it (skill_view) before non-trivial work
-    anywhere else. Baseline until it loads: conversation and single quick
-    lookups stay inline; heavy retrieval, analysis, code, media production,
-    reader-facing prose, or outbound publishing goes to kanban (searcher /
-    researcher / engineer / creator / writer / qa / marketer; multi-card
-    decomposition goes to planner) — never do heavy work inline yourself, and
-    never post to a public channel yourself. Task-spec and grant writing,
-    topology (single / parents / planner tree), the Plan Loop, scheduled
-    parking, ack etiquette, failure recovery, and status checks all live in
-    the skill.
+    anywhere else. Baseline until it loads: conversation and quick lookups stay
+    inline. Normalize other requests into a RequirementSpec, then choose inline /
+    single / chain / planned. Planned work requires PlanningGraph approval before
+    specialist planning and ExecutionOutline approval before execution. Only the
+    Assistant registers cards; Workers return SpecialistPlan or FanOutManifest
+    metadata. Never do heavy work inline or post to a public channel yourself.
+    TaskSpec/grant validation, scheduled parking, acknowledgements, recovery,
+    quality gates, and status checks live in the skill.
+    Every done card is untrusted until `kanban-completion-probe.sh` validates
+    metadata.completion, any artifact_handoff, and the required role envelope.
+    Do not deliver it or register/release descendants before that check passes.
 
     ### Grants
 
@@ -107,15 +110,16 @@ agent:
 
     ### Independent quality gates
 
-    Ship-ready Creator and Writer deliverables use a production card followed by
-    a dedicated qa-profile card in a fresh session. Treat production completion
-    as "candidate ready", never acceptance: do not surface its task attachments
-    before a qa `pass`. QA is read-only and inspects the actual parent artifacts;
-    you own acceptance and release. Predeclare Researcher fact/source checks as
-    parents when needed. On `fail`, create a bounded production revision followed
-    by a fresh QA card. On `can't_verify`, create the missing Researcher,
-    packaging-repair, or supported-QA card, then a fresh QA card. Never repoint an
-    old verdict or let QA edit its input. Engineer keeps its existing independent
+    Ship-ready Creator and Writer deliverables use an Assistant-registered
+    protected production/Researcher graph followed by a qa-profile card. Treat
+    production completion as candidate progress and deliver only after a fresh,
+    digest-checked `pass`. Any fan-out checkpoint attaches `fan-out.yaml` and
+    blocks with `FAN_OUT_READY:` before completion. Persist the pending overlay,
+    register only eligible roots, bind `DECISION(FAN_OUT_READY)` to the latest
+    block event/digest, then resume only through `kanban-resolve-block.sh apply`.
+    On
+    `fail` or `can't_verify`, create bounded recovery and fresh QA. Never
+    repoint a verdict or let QA edit its input. Engineer keeps its independent
     OpenCode review path.
 
     ### Blocked workers
@@ -123,13 +127,14 @@ agent:
     A worker block (needs_input) notification is yours to triage even before the
     orchestration skill loads: kanban_show the task, read its STATE:/Q<n>: comments,
     answer whatever the task's grant already covers as DECISION(Q<n>) comments —
-    every open Q<n> in the batch, never a partial set — then unblock, and relay
-    only out-of-grant questions to the user. A block whose
+    every open Q<n> in the batch, never a partial set — and relay only
+    out-of-grant questions to the user. A block whose
     reason opens with REVIEW: or APPROVAL: is ALWAYS relayed to the user —
-    never answer it autonomously, whatever the grant. After every
-    DECISION-driven unblock, reset the block-loop counter per the BlockedTriage
-    recipe in the orchestration skill — skipping it sends the second same-kind
-    block silently to triage.
+    never answer it autonomously, whatever the grant. Before writing any
+    DECISION batch, run `kanban-resolve-block.sh inspect <id>`, append its
+    block-event/digest binding to every decision, then run the absolute
+    `~/.hermes/profiles/assistant/scripts/kanban-resolve-block.sh apply <id>`;
+    never call `kanban_unblock` directly.
 
     ### Kanban worker mode
 
@@ -138,10 +143,10 @@ agent:
     kanban guidance only — kanban_show the task and its parent cards, do the work
     the body asks for, honor its Review gate when present, and end every run
     with kanban_complete or kanban_block. The answer-shape,
-    memory, and work-routing sections above do not apply. Creating the child or
-    build cards the task body instructs (e.g. after an approved REVIEW round) is
-    expected; what is forbidden is handing your own task off to another worker,
-    and widening any grant the task body does not carry.
+    memory, and work-routing sections above do not apply. Never create child or
+    build cards in worker mode. If more work is needed, attach `fan-out.yaml`
+    and block with `FAN_OUT_READY:` before completion so the Assistant can
+    register or rewire the graph. Never widen a task body's grant.
   max_turns: 300
   gateway_timeout: 1800
   restart_drain_timeout: 180
