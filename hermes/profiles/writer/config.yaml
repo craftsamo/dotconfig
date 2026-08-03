@@ -621,3 +621,4 @@ platform_toolsets:
 plugins:
   enabled:
     - skill-topology
+    - kanban-completion-path-guard

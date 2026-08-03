@@ -102,29 +102,33 @@ public channels.
 
 ### Dedicated QA gate
 
-The final Creator/Writer flow is: **hidden production candidate** → optional
-Assistant-predeclared Researcher fact-check → **qa** → Assistant release →
+The final Creator/Writer flow is: **production candidate** → optional
+Assistant-predeclared Researcher fact-check → **qa** → Assistant delivery →
 User approval. Advisory, plan, critique, and rough outputs are exempt. QA is
 read-only and returns only `pass`, `fail`, or `can't_verify`; `can't_verify` is
-non-passing. A revision always receives fresh production and fresh QA. A
+non-passing. A revision always receives fresh production, followed by
+late-bound fresh QA after completion admission and digest resolution. A
 Writer QA-gated output attaches the complete immutable text, not an excerpt or
 summary.
 
-The status-aware `kanban-qa-gate.sh` wrapper creates internal
-production/Researcher cards through `create-hidden`, protects and assigns them
-only after a durable hold and zero-subscription check, creates QA normally, then
-releases the chain only after verifying exact parents, subscriptions, and setup
-markers; **QA alone is subscribed**. It refuses active idempotent retries. The
-orphan watchdog runs every 5 minutes, reporting unsubscribed blocks/failures,
-stale setup holds, and completed QA cards not marked handled.
+The Assistant creates production and Researcher evidence with ordinary
+`kanban_create`, requires `subscribed=true` and a task-spec probe, and late-binds
+QA after candidate and evidence CompletionAdmission. All cards are subscribed;
+the orphan watchdog runs every 5 minutes and reports unsubscribed blocks or
+failures, FAN_OUT handoffs, QA-required completions not materialized, and
+completed QA cards not marked handled.
 Dynamic Worker fan-out attaches one digest-checked `fan-out.yaml` and blocks
 with `FAN_OUT_READY:`. The Assistant validates the full DAG, persists an
 `ORCHESTRATION_PENDING_OVERLAY`, registers only eligible roots, and leaves
-dependent children, continuation, and fresh QA pending until their direct
-parents pass CompletionAdmission. It then records an event-bound
+dependent children and continuation pending. QA remains an immutable producer
+requirement until candidate/evidence CompletionAdmission resolves actual
+digests, then the Assistant records `QA_MATERIALIZED:` with the derived task and
+contract digest plus the producer/completion-event binding. The exact normalized
+QA spec and key are first persisted as `QA_PENDING_MATERIALIZATION:` so a crash
+after create can reconcile the same idempotent card. It then records an event-bound
 `DECISION(FAN_OUT_READY)` and resumes through the guarded block resolver.
-The protected asynchronous gate requires a gateway-chat or supported subscribed
-TUI owner. Classic CLI sessions do not dispatch ship-ready Creator/Writer work;
+The asynchronous gate requires a gateway-chat or supported subscribed TUI owner.
+Classic CLI sessions do not dispatch ship-ready Creator/Writer work;
 they hand it to the messaging Assistant because they cannot receive the QA wake.
 
 The org stays **flat by design**: profiles are global and the board is one
@@ -136,7 +140,7 @@ subscriptions and deterministic keys. A same-profile continuation becomes
 eligible only after all of its direct parents pass CompletionAdmission. Grants
 never propagate to children.
 QA-gated producers and Marketer production use the same Assistant-owned handoff
-inside the protected graph protocol.
+inside the normal graph protocol.
 A live supervising mid-manager isn't possible anyway — block/done
 notifications reach gateway chat sessions, never a parent worker.
 
@@ -317,7 +321,7 @@ Three per-profile layers, kept separate:
     Normalize → Shape → Register → Supervise → Deliver; RequirementSpec;
     `inline` / `single` / `chain` / `planned`; two-gate planned flow;
     Assistant-only registration; pending manifests/overlays; CompletionAdmission;
-    protected QA; guarded BlockedTriage and recovery. The machine-readable
+    subscribed QA; guarded BlockedTriage and recovery. The machine-readable
     roster, schemas, bindings, grants, and QA routes live in
     `references/workflow-contract.yaml`; shape details remain in the other
     reference files.)
@@ -459,8 +463,8 @@ handoffs, and artifact digests. Fan-out extends a graph through a pending
 overlay rather than eagerly creating descendants. Blocked cards resume only
 after `kanban-resolve-block.sh` binds a complete `DECISION(...)` batch to the
 latest block event/digest. The no_agent `kanban-orphan-watchdog.sh` cron runs
-every 5 minutes and surfaces unsubscribed blocks, hidden terminal failures,
-pending FAN_OUT handoffs, stale protected setup holds, unhandled QA completions,
+every 5 minutes and surfaces no-subscription blocks, terminal failures,
+pending FAN_OUT handoffs, unhandled QA completions,
 and silent block-loop triage falls to chat.
 
 `auto_decompose` stays off because the upstream decomposer cannot carry the
@@ -785,21 +789,21 @@ T1–T3 tiers resolve (doctor + live probes) and default-created tasks
 dispatch/route to each. Assistant gateway runs keychain-pure (LaunchAgent,
 Telegram-only per #40695); the embedded dispatcher auto-claims tasks across
 ticks (`dispatch_interval_seconds: 15` for fast block round-trips).
-The dedicated **qa** profile was added 2026-07 as the protected, read-only
+The dedicated **qa** profile was added 2026-07 as the independent, read-only
 Creator/Writer release gate with its `qa-pipeline` and 20 canonical technics;
 live Kanban smoke tests confirmed parent promotion, immutable attachment
 inspection, Creator ASCII `pass`, Writer defect detection (`fail`), and the
 bounded Writer revision → fresh QA `pass` loop. A Researcher-backed QA smoke
 also confirmed verbatim claim-ledger attachment/consumption and autonomous
-pre/post digest probes; wrapper edge tests covered idempotent create, collision
-rejection, exact-parent release, and partial-release refusal without model runs.
+pre/post digest probes; ordinary registration tests covered idempotent create,
+collision rejection, exact-parent wiring, and partial-registration refusal without model runs.
 `install.sh` links every tracked profile (incl. `profile.yaml`) with no WARN.
 Workflow contract v1 replaces the earlier Planner-tree and worker-created
 continuation conventions with RequirementSpec normalization, four execution
 shapes, two-gate planned execution, SpecialistPlans, Planner integration,
 Assistant-owned pending manifests/overlays, CompletionAdmission, and guarded
-block resolution. The protected QA wrapper, scheduled sweeper, and orphan
-watchdog remain the asynchronous safety mechanisms around that contract.
+block resolution. The scheduled sweeper and orphan watchdog remain the
+asynchronous safety mechanisms around that contract.
 
 Active profile-chain model slugs confirmed 2026-07 (provider checks +
 OpenRouter model pages): `anthropic` / `claude-opus-5`, `anthropic` /
@@ -814,8 +818,8 @@ missing from a stale local model cache — refresh before trusting doctor),
 Phase 7 verification completed 2026-08-03: the contract validator and 89 Python
 tests passed; every profile discovered its required pipeline and technics; live
 Searcher/Researcher and specialist-plan canaries passed CompletionAdmission;
-Planner produced a probe-valid `execution-outline.yaml`; and a protected hidden
-Writer candidate completed through subscribed QA with an immutable digest-checked
+Planner produced a probe-valid `execution-outline.yaml`; and a Writer candidate
+completed through subscribed QA with an immutable digest-checked
 `pass`. The gateway-chat notification reached the Telegram Inbox, the restarted
 gateway had exactly one poller, and a fresh Telegram topic confirmed the new rule
 that only the Assistant registers Kanban cards. Canary cards were archived after

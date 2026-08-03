@@ -65,9 +65,9 @@ handoff.
    the pipeline skill. Do not create a card or broaden the policy.
    Searcher children use `mode: retrieve`; Researcher children use
    `mode: analyze` (`retrieve|analyze` in generic examples).
-7. Propose the smallest execution DAG. Creator execution cards and any needed
-   QA cards are proposals for Assistant/Planner integration. They are never
-   live cards created by this worker.
+7. Propose the smallest execution DAG. Put the immutable QA requirement and
+   canonical routes on each ship-ready Creator TaskSpec; do not propose a QA
+   card before the candidate and evidence digests exist.
 
 ## Proposed card shape
 
@@ -99,18 +99,25 @@ task_spec:
     MediaBrief constraints and production method.
     Fan-out policy: <approved policy or forbidden>
   qa: required
+  producer_qa_requirement:
+    candidate_key: <this card key>
+    evidence_keys: [<final Researcher evidence card keys>]
+    capability: <canonical Creator capability>
+    routes: [<all required QA technics>]
+    criteria: [<approved acceptance criteria>]
+    done_criteria: <copied objective Done criteria>
+    output_inventory: [<expected durable attachment names and purposes>]
   grant: "Budget: <minimum settled generation-spend grant>"
   fan_out_policy: <approved policy or forbidden>
 ```
 
 The proposed Budget is the minimum required by this MediaBrief, not the
 profile default. Preserve the exact Intent and QA route in the body that
-Assistant/Planner later integrates. Use a QA `child_spec` when the final
-Creator result is ship-ready and needs an independent route. It must carry
-the mapped `qa-pipeline` and canonical QA technic, the source Creator card as
-its parent, the artifact digest requirement, and no production grant. It is
-still only a proposal; Assistant/Planner integrates it and registers any live
-execution graph after the separate approval gate.
+Assistant/Planner later integrates. QA is not a `child_spec` at planning time.
+The Creator TaskSpec carries the closed `producer_qa_requirement` object as the
+immutable QA requirement, and the Assistant
+materializes the QA card only after candidate/evidence completion admission and
+digest resolution.
 
 ## Final envelope
 
@@ -125,7 +132,7 @@ summary: <domain plan, method, minimum Budget, QA route, and recommendation>
 proposed_cards:
   - key: <stable key>
     title: <imperative title>
-    assignee: creator|qa
+    assignee: creator
     skills: [<mandatory pipeline pin>, <canonical technic when applicable>]
     parents: [<local parent keys>]
     params: {workspace_kind: scratch, max_runtime_seconds: 900}
@@ -188,6 +195,6 @@ The final `FINAL_SUMMARY` is byte-for-byte identical in the
 - The Creator proposal uses a canonical technic, complete MediaBrief,
   minimum Budget, Intent, QA route, and approved Fan-out policy.
 - Every proposal has the exact `child_spec` item shape and a schema-valid
-  TaskSpec; any QA proposal is independent and non-live.
+  TaskSpec; no QA card is proposed before digest resolution.
 - The final completion contains exactly one `metadata.specialist_plan`, or a
   `FAN_OUT_READY:` checkpoint with an attached manifest, never both.

@@ -38,6 +38,74 @@ class WorkflowContractTest(unittest.TestCase):
     def test_repository_contract_is_valid(self) -> None:
         self.assertEqual([], self.validate(self.contract))
 
+    def test_qa_policy_requires_normal_late_bound_delivery(self) -> None:
+        contract = copy.deepcopy(self.contract)
+        contract["registration"]["qa_policy"]["candidate_completion"] = "delivery"
+
+        errors = self.validate(contract)
+
+        self.assertTrue(any("QA policy" in error for error in errors), errors)
+
+    def test_qa_policy_requires_resolved_input_digests(self) -> None:
+        contract = copy.deepcopy(self.contract)
+        contract["registration"]["qa_policy"]["qa_task_input_digests"] = "sentinel"
+
+        errors = self.validate(contract)
+
+        self.assertTrue(any("QA policy" in error for error in errors), errors)
+
+    def test_managed_text_rejects_hidden_qa_markers(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            marker = "create-" + "hidden"
+            (root / "managed.md").write_text(marker + "\n", encoding="utf-8")
+            errors: list[str] = []
+
+            VALIDATOR.validate_managed_qa_suppression_text(errors, root)
+
+        self.assertTrue(any(marker in error for error in errors), errors)
+
+    def test_managed_text_ignores_runtime_owned_surfaces(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            marker = "QA_" + "SETUP"
+            learned = root / "profiles" / "writer" / "skills" / "learned" / "draft"
+            learned.mkdir(parents=True)
+            (learned / "SKILL.md").write_text(marker + "\n", encoding="utf-8")
+            assistant = root / "profiles" / "assistant"
+            assistant.mkdir(parents=True)
+            (assistant / "config.yaml").write_text(marker + "\n", encoding="utf-8")
+            (assistant / "SOUL.md").write_text(marker + "\n", encoding="utf-8")
+            cron_output = assistant / "cron" / "output"
+            cron_output.mkdir(parents=True)
+            (cron_output / "history.txt").write_text(marker + "\n", encoding="utf-8")
+            achievements = root / "plugins" / "hermes-achievements"
+            achievements.mkdir(parents=True)
+            (achievements / "state.json").write_text(marker + "\n", encoding="utf-8")
+            errors: list[str] = []
+
+            VALIDATOR.validate_managed_qa_suppression_text(errors, root)
+
+        self.assertEqual([], errors)
+
+    def test_completion_guard_is_required_for_delivery_profiles(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            config = Path(directory) / "config.yaml"
+            config.write_text(
+                "plugins:\n  enabled:\n    - skill-topology\n", encoding="utf-8"
+            )
+            creator_errors: list[str] = []
+            engineer_errors: list[str] = []
+
+            VALIDATOR.validate_plugin_enabled("creator", config, creator_errors)
+            VALIDATOR.validate_plugin_enabled("engineer", config, engineer_errors)
+
+        self.assertTrue(
+            any("kanban-completion-path-guard" in error for error in creator_errors),
+            creator_errors,
+        )
+        self.assertEqual([], engineer_errors)
+
     def test_missing_worker_is_rejected(self) -> None:
         contract = copy.deepcopy(self.contract)
         del contract["workers"]["planner"]
@@ -430,6 +498,30 @@ class AssistantOrchestrationContractTest(unittest.TestCase):
 
         self.assertEqual([], errors)
 
+    def test_fanout_overlay_must_precede_child_creation(self) -> None:
+        errors: list[str] = []
+        VALIDATOR.validate_fanout_write_ahead(
+            "See <FanOutManifest> for the protocol.\n"
+            "ORCHESTRATION_PENDING_OVERLAY:\n"
+            "<FanOutManifest>\n"
+            "3. Create only child roots.\n"
+            "ORCHESTRATION_PENDING_OVERLAY:\n"
+            "</FanOutManifest>\n",
+            errors,
+        )
+
+        self.assertTrue(any("before creating child roots" in error for error in errors))
+
+    def test_qa_pending_marker_must_precede_creation(self) -> None:
+        errors: list[str] = []
+        VALIDATOR.validate_qa_write_ahead(
+            "<QualityGate>\nCreate\nQA exactly from it\n"
+            "QA_PENDING_MATERIALIZATION:\n</QualityGate>\n",
+            errors,
+        )
+
+        self.assertTrue(any("before creating QA" in error for error in errors))
+
     def test_planning_graph_task_spec_requires_input_attachments(self) -> None:
         plan_reference = (
             VALIDATOR.HERMES_ROOT
@@ -640,6 +732,32 @@ class SpecialistPlanningContractTest(unittest.TestCase):
             errors,
         )
 
+    def test_specialist_plan_cannot_propose_qa_card(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.copy_specialist_contracts(root)
+            reference = (
+                root
+                / "profiles"
+                / "creator"
+                / "skills"
+                / "creator-pipeline"
+                / "references"
+                / "specialist-plan.md"
+            )
+            reference.write_text(
+                reference.read_text(encoding="utf-8")
+                + "\n```yaml\nassignee: qa\n```\n",
+                encoding="utf-8",
+            )
+            errors: list[str] = []
+
+            VALIDATOR.validate_specialist_planning_contract(errors, root)
+
+        self.assertTrue(
+            any("must not propose a QA card" in error for error in errors), errors
+        )
+
     def test_specialist_profiles_match_workflow_contract(self) -> None:
         errors: list[str] = []
         contract = VALIDATOR.load_workflow_contract(
@@ -764,7 +882,7 @@ class WorkerPipelineContractTest(unittest.TestCase):
 
         self.assertEqual([], errors)
 
-    def test_qa_digest_lifecycle_token_is_required(self) -> None:
+    def test_qa_task_spec_requires_resolved_digests(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             self.copy_worker_contracts(root)
@@ -778,7 +896,7 @@ class WorkerPipelineContractTest(unittest.TestCase):
             )
             pipeline.write_text(
                 pipeline.read_text(encoding="utf-8").replace(
-                    "The sentinel alone is not a finding.", "", 1
+                    "QA TaskSpec never carries `pending-assistant-probe`;", "", 1
                 ),
                 encoding="utf-8",
             )
@@ -788,7 +906,7 @@ class WorkerPipelineContractTest(unittest.TestCase):
 
         self.assertTrue(
             any(
-                "missing 'The sentinel alone is not a finding.'" in error
+                "missing 'QA TaskSpec never carries `pending-assistant-probe`'" in error
                 for error in errors
             ),
             errors,

@@ -16,6 +16,279 @@ ASSISTANT_SCRIPTS = HERMES_ROOT / "profiles" / "assistant" / "scripts"
 
 
 class AssistantScriptTest(unittest.TestCase):
+    def test_watchdog_repeats_qa_candidate_until_materialized(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            db = root / "kanban.db"
+            state = root / "watchdog.json"
+            now = int(time.time())
+            metadata = {
+                "artifact_handoff": {
+                    "artifacts": [{"name": "draft.md"}],
+                    "verification": [],
+                    "qa": {
+                        "status": "required",
+                        "capability": "writer:technical-prose",
+                        "routes": ["qa-prose"],
+                    },
+                }
+            }
+            conn = sqlite3.connect(db)
+            conn.executescript(
+                """
+                CREATE TABLE tasks (
+                    id TEXT PRIMARY KEY, title TEXT, assignee TEXT, status TEXT,
+                    created_by TEXT, created_at INTEGER, completed_at INTEGER
+                );
+                CREATE TABLE task_events (
+                    id INTEGER PRIMARY KEY, task_id TEXT, kind TEXT,
+                    payload TEXT, created_at INTEGER
+                );
+                CREATE TABLE task_runs (
+                    id INTEGER PRIMARY KEY, task_id TEXT, outcome TEXT, metadata TEXT
+                );
+                CREATE TABLE task_links (parent_id TEXT, child_id TEXT);
+                CREATE TABLE kanban_notify_subs (task_id TEXT);
+                CREATE TABLE task_comments (
+                    id INTEGER PRIMARY KEY, task_id TEXT, body TEXT,
+                    created_at INTEGER, author TEXT
+                );
+                """
+            )
+            conn.execute(
+                "INSERT INTO tasks VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (
+                    "writer-1",
+                    "write",
+                    "writer",
+                    "done",
+                    "assistant",
+                    now - 900,
+                    now - 600,
+                ),
+            )
+            conn.execute(
+                "INSERT INTO task_events VALUES (?, ?, ?, ?, ?)",
+                (41, "writer-1", "completed", "{}", now - 600),
+            )
+            conn.execute(
+                "INSERT INTO task_runs VALUES (?, ?, ?, ?)",
+                (7, "writer-1", "completed", json.dumps(metadata)),
+            )
+            conn.execute(
+                "INSERT INTO tasks VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (
+                    "research-1",
+                    "verify claims",
+                    "researcher",
+                    "blocked",
+                    "assistant",
+                    now - 800,
+                    None,
+                ),
+            )
+            conn.execute(
+                "INSERT INTO task_links VALUES (?, ?)",
+                ("writer-1", "research-1"),
+            )
+            conn.executemany(
+                "INSERT INTO task_events VALUES (?, ?, ?, ?, ?)",
+                [
+                    (42, "research-1", "blocked", "{}", now - 500),
+                    (43, "research-1", "gave_up", "{}", now - 400),
+                ],
+            )
+            conn.commit()
+            conn.close()
+
+            env = {
+                **os.environ,
+                "HERMES_KANBAN_DB": str(db),
+                "HERMES_WATCHDOG_STATE": str(state),
+            }
+            script = ASSISTANT_SCRIPTS / "kanban-orphan-watchdog.sh"
+            first = subprocess.run(
+                [str(script)], env=env, check=True, capture_output=True, text=True
+            )
+            second = subprocess.run(
+                [str(script)], env=env, check=True, capture_output=True, text=True
+            )
+            self.assertIn("writer-1", first.stdout)
+            self.assertIn("writer-1", second.stdout)
+
+            conn = sqlite3.connect(db)
+            conn.execute(
+                "UPDATE tasks SET status = 'ready' WHERE id = ?", ("research-1",)
+            )
+            conn.execute(
+                "UPDATE task_events SET kind = 'timed_out' WHERE id = ?", (43,)
+            )
+            conn.commit()
+            conn.close()
+            retrying = subprocess.run(
+                [str(script)], env=env, check=True, capture_output=True, text=True
+            )
+            self.assertNotIn("writer-1", retrying.stdout)
+
+            conn = sqlite3.connect(db)
+            conn.execute(
+                "INSERT INTO task_comments VALUES (?, ?, ?, ?, ?)",
+                (
+                    1,
+                    "writer-1",
+                    "QA_MATERIALIZED: requirement=draft task=qa-1 producer=writer-1 "
+                    "completion_event=41 contract_digest=abc inputs_digest=def",
+                    now - 300,
+                    "assistant",
+                ),
+            )
+            conn.commit()
+            conn.close()
+            handled = subprocess.run(
+                [str(script)], env=env, check=True, capture_output=True, text=True
+            )
+            self.assertNotIn("writer-1", handled.stdout)
+
+    def test_fanout_probe_rejects_predeclared_qa(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            db = root / "kanban.db"
+            manifest = root / "fan-out.yaml"
+            manifest.write_text(
+                """origin_task_id: origin-1
+checkpoint_key: expand-1
+children:
+  - key: draft
+    title: Draft the report
+    assignee: writer
+    skills: [writer-pipeline]
+    parents: []
+    params: {}
+    task_spec:
+      goal: Draft the report
+      inputs: approved facts
+      input_attachments: []
+      done_criteria: complete report
+      output: report.md
+      constraints: no publishing
+      qa: required
+      producer_qa_requirement:
+        candidate_key: draft
+        evidence_keys: []
+        capability: writer:technical-prose
+        routes: [qa-prose]
+        criteria: [complete and accurate]
+        done_criteria: complete report
+        output_inventory: [report.md]
+continuation:
+  title: Resume engineering
+  assignee: engineer
+  skills: [engineer-pipeline]
+  parents: [draft]
+  params: {}
+  task_spec:
+    goal: Integrate the report
+    inputs: completed draft
+    input_attachments: []
+    done_criteria: integration complete
+    output: summary
+    constraints: no scope expansion
+attachments: []
+""",
+                encoding="utf-8",
+            )
+            conn = sqlite3.connect(db)
+            conn.executescript(
+                """
+                CREATE TABLE tasks (id TEXT PRIMARY KEY, assignee TEXT, status TEXT);
+                CREATE TABLE task_attachments (id INTEGER PRIMARY KEY, task_id TEXT,
+                    filename TEXT, stored_path TEXT);
+                """
+            )
+            conn.execute(
+                "INSERT INTO tasks VALUES (?, ?, ?)",
+                ("origin-1", "engineer", "blocked"),
+            )
+            conn.execute(
+                "INSERT INTO task_attachments VALUES (?, ?, ?, ?)",
+                (1, "origin-1", "fan-out.yaml", str(manifest)),
+            )
+            conn.commit()
+            conn.close()
+
+            script = ASSISTANT_SCRIPTS / "kanban-fanout-manifest-probe.sh"
+            valid = subprocess.run(
+                [str(script), "origin-1"],
+                env={**os.environ, "HERMES_KANBAN_DB": str(db)},
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            valid_payload = json.loads(valid.stdout)
+            self.assertTrue(valid_payload["valid"])
+            self.assertRegex(valid_payload["manifest_digest"], r"^[0-9a-f]{64}$")
+            replay = subprocess.run(
+                [str(script), "origin-1"],
+                env={**os.environ, "HERMES_KANBAN_DB": str(db)},
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(
+                valid_payload["manifest_digest"],
+                json.loads(replay.stdout)["manifest_digest"],
+            )
+
+            for original, replacement, expected in (
+                ("assignee: writer", "assignee: qa", "children[0] cannot assign qa"),
+                ("assignee: engineer", "assignee: qa", "continuation cannot assign qa"),
+            ):
+                with self.subTest(expected=expected):
+                    text = manifest.read_text(encoding="utf-8")
+                    manifest.write_text(
+                        text.replace(original, replacement, 1), encoding="utf-8"
+                    )
+                    rejected = subprocess.run(
+                        [str(script), "origin-1"],
+                        env={**os.environ, "HERMES_KANBAN_DB": str(db)},
+                        check=False,
+                        capture_output=True,
+                        text=True,
+                    )
+                    self.assertEqual(1, rejected.returncode)
+                    self.assertTrue(
+                        any(
+                            expected in error
+                            for error in json.loads(rejected.stdout)["errors"]
+                        )
+                    )
+                    manifest.write_text(text, encoding="utf-8")
+
+            text = manifest.read_text(encoding="utf-8")
+            manifest.write_text(
+                text.replace(
+                    "      producer_qa_requirement:",
+                    "      missing_qa_requirement:",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+            missing_requirement = subprocess.run(
+                [str(script), "origin-1"],
+                env={**os.environ, "HERMES_KANBAN_DB": str(db)},
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(1, missing_requirement.returncode)
+            self.assertTrue(
+                any(
+                    "producer_qa_requirement must be the closed canonical object"
+                    in error
+                    for error in json.loads(missing_requirement.stdout)["errors"]
+                )
+            )
+
     def test_watchdog_repeats_unhandled_fan_out(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -105,7 +378,7 @@ class AssistantScriptTest(unittest.TestCase):
 
             self.assertNotIn("fan-1", handled.stdout)
 
-    def test_watchdog_reports_subscribed_loopfall_and_scheduled_qa_gap(self) -> None:
+    def test_watchdog_reports_loopfall_and_generic_no_subscription(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             board = root / "kanban" / "boards" / "named"
@@ -137,10 +410,37 @@ class AssistantScriptTest(unittest.TestCase):
                     ("loop-1", "loop", "engineer", "triage", "assistant", now - 900, None),
                     (
                         "qa-gap",
-                        "hidden",
+                        "unsubscribed",
+                        "creator",
+                        "blocked",
+                        "assistant",
+                        now - 900,
                         None,
-                        "scheduled",
-                        "assistant:qa-gate",
+                    ),
+                    (
+                        "failed-1",
+                        "terminal failure",
+                        "writer",
+                        "blocked",
+                        "assistant",
+                        now - 900,
+                        now - 600,
+                    ),
+                    (
+                        "done-1",
+                        "normally completed",
+                        "researcher",
+                        "done",
+                        "assistant",
+                        now - 900,
+                        now - 600,
+                    ),
+                    (
+                        "reblocked-1",
+                        "blocked after retry",
+                        "engineer",
+                        "blocked",
+                        "assistant",
                         now - 900,
                         None,
                     ),
@@ -150,7 +450,11 @@ class AssistantScriptTest(unittest.TestCase):
                 "INSERT INTO task_events VALUES (?, ?, ?, ?, ?)",
                 [
                     (1, "loop-1", "block_loop_detected", "{}", now - 600),
-                    (2, "qa-gap", "created", "{}", now - 900),
+                    (2, "qa-gap", "blocked", json.dumps({"reason": "missing subscription"}), now - 600),
+                    (3, "failed-1", "gave_up", json.dumps({"reason": "failed"}), now - 600),
+                    (4, "done-1", "completed", json.dumps({"outcome": "done"}), now - 600),
+                    (5, "reblocked-1", "gave_up", json.dumps({"reason": "old failure"}), now - 500),
+                    (6, "reblocked-1", "blocked", json.dumps({"reason": "Q1: retry input"}), now - 400),
                 ],
             )
             conn.execute("INSERT INTO kanban_notify_subs VALUES (?)", ("loop-1",))
@@ -173,6 +477,10 @@ class AssistantScriptTest(unittest.TestCase):
 
             self.assertIn("loop-1", result.stdout)
             self.assertIn("qa-gap", result.stdout)
+            self.assertIn("failed-1", result.stdout)
+            self.assertEqual(1, result.stdout.count("failed-1"))
+            self.assertNotIn("done-1", result.stdout)
+            self.assertEqual(1, result.stdout.count("reblocked-1"))
 
     def test_block_resolver_requires_decision_and_resets_counter(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -466,219 +774,6 @@ if args[0:2] == ["kanban", "list"]:
             self.assertEqual("", result.stdout)
             self.assertFalse(any(call[1:2] == ["unblock"] for call in invoked))
 
-    def test_qa_gate_rejects_idempotency_collision_in_runtime_fields(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            fake = root / "hermes"
-            spec = root / "spec.json"
-            db = root / "kanban.db"
-            conn = sqlite3.connect(db)
-            conn.execute(
-                """CREATE TABLE tasks (
-                    id TEXT PRIMARY KEY, status TEXT, assignee TEXT, created_by TEXT,
-                    title TEXT, body TEXT, idempotency_key TEXT, skills TEXT,
-                    workspace_kind TEXT, workspace_path TEXT, max_runtime_seconds INTEGER,
-                    priority INTEGER, project_id TEXT, tenant TEXT
-                )"""
-            )
-            conn.execute(
-                "INSERT INTO tasks VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                (
-                    "hidden-1",
-                    "blocked",
-                    None,
-                    "assistant:qa-gate",
-                    "Hidden",
-                    "Mode: execute",
-                    "hidden:key",
-                    json.dumps(["creator-pipeline"]),
-                    "dir",
-                    "/wrong",
-                    None,
-                    0,
-                    None,
-                    None,
-                ),
-            )
-            conn.commit()
-            conn.close()
-            fake.write_text(
-                """#!/usr/bin/env python3
-import json, sys
-args = sys.argv[1:]
-if args[0:2] == ["kanban", "create"]:
-    print(json.dumps({"id": "hidden-1"}))
-elif args[0:2] == ["kanban", "show"]:
-    print(json.dumps({"task": {
-        "id": "hidden-1", "status": "blocked", "assignee": None,
-        "created_by": "assistant:qa-gate", "title": "Hidden", "body": "Mode: execute",
-        "idempotency_key": "hidden:key", "parents": [],
-        "skills": ["creator-pipeline"], "workspace_path": "/wrong"
-    }, "comments": []}))
-""",
-                encoding="utf-8",
-            )
-            fake.chmod(0o755)
-            spec.write_text(
-                json.dumps(
-                    {
-                        "title": "Hidden",
-                        "body": "Mode: execute",
-                        "assignee": "creator",
-                        "parents": [],
-                        "skills": ["creator-pipeline"],
-                        "idempotency_key": "hidden:key",
-                    }
-                ),
-                encoding="utf-8",
-            )
-
-            result = subprocess.run(
-                [
-                    str(ASSISTANT_SCRIPTS / "kanban-qa-gate.sh"),
-                    "create-hidden",
-                    str(spec),
-                ],
-                env={
-                    **os.environ,
-                    "HERMES_BIN": str(fake),
-                    "HERMES_KANBAN_DB": str(db),
-                },
-                check=False,
-                capture_output=True,
-                text=True,
-            )
-
-            self.assertEqual(1, result.returncode)
-            self.assertIn("different workspace", result.stderr)
-
-            conn = sqlite3.connect(db)
-            conn.execute(
-                "UPDATE tasks SET workspace_kind='scratch', workspace_path=NULL, priority=5 "
-                "WHERE id='hidden-1'"
-            )
-            conn.commit()
-            conn.close()
-            runtime_collision = subprocess.run(
-                [
-                    str(ASSISTANT_SCRIPTS / "kanban-qa-gate.sh"),
-                    "create-hidden",
-                    str(spec),
-                ],
-                env={
-                    **os.environ,
-                    "HERMES_BIN": str(fake),
-                    "HERMES_KANBAN_DB": str(db),
-                },
-                check=False,
-                capture_output=True,
-                text=True,
-            )
-            self.assertEqual(1, runtime_collision.returncode)
-            self.assertIn("different priority", runtime_collision.stderr)
-
-    def test_qa_gate_accepts_project_linked_workspace(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            hermes_home = root / "assistant-home"
-            hermes_home.mkdir()
-            projects = sqlite3.connect(hermes_home / "projects.db")
-            projects.execute(
-                "CREATE TABLE projects (id TEXT PRIMARY KEY, slug TEXT, primary_path TEXT)"
-            )
-            projects.execute(
-                "INSERT INTO projects VALUES (?, ?, ?)",
-                ("p_123", "proj", "/repo"),
-            )
-            projects.commit()
-            projects.close()
-            fake = root / "hermes"
-            spec = root / "spec.json"
-            db = root / "kanban.db"
-            conn = sqlite3.connect(db)
-            conn.execute(
-                """CREATE TABLE tasks (
-                    id TEXT PRIMARY KEY, status TEXT, assignee TEXT, created_by TEXT,
-                    title TEXT, body TEXT, idempotency_key TEXT, skills TEXT,
-                    workspace_kind TEXT, workspace_path TEXT, max_runtime_seconds INTEGER,
-                    priority INTEGER, project_id TEXT, tenant TEXT
-                )"""
-            )
-            conn.execute(
-                "INSERT INTO tasks VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                (
-                    "hidden-1",
-                    "scheduled",
-                    "creator",
-                    "assistant:qa-gate",
-                    "Hidden",
-                    "Mode: execute",
-                    "hidden:key",
-                    json.dumps(["creator-pipeline"]),
-                    "worktree",
-                    "/repo/.worktrees/hidden-1",
-                    900,
-                    3,
-                    "p_123",
-                    None,
-                ),
-            )
-            conn.commit()
-            conn.close()
-            fake.write_text(
-                """#!/usr/bin/env python3
-import json, sys
-args = sys.argv[1:]
-if args[0:2] == ["kanban", "create"]:
-    print(json.dumps({"id": "hidden-1"}))
-elif args[0:2] == ["kanban", "show"]:
-    print(json.dumps({"task": {
-        "id": "hidden-1", "status": "scheduled", "assignee": "creator",
-        "started_at": None, "parents": []
-    }, "comments": [{"body": "QA_SETUP: protected candidate notifications"}]}))
-elif args[0:2] == ["kanban", "notify-list"]:
-    print("[]")
-""",
-                encoding="utf-8",
-            )
-            fake.chmod(0o755)
-            spec.write_text(
-                json.dumps(
-                    {
-                        "title": "Hidden",
-                        "body": "Mode: execute",
-                        "assignee": "creator",
-                        "parents": [],
-                        "skills": ["creator-pipeline"],
-                        "project": "proj",
-                        "max_runtime": 900,
-                        "priority": 3,
-                        "idempotency_key": "hidden:key",
-                    }
-                ),
-                encoding="utf-8",
-            )
-
-            result = subprocess.run(
-                [
-                    str(ASSISTANT_SCRIPTS / "kanban-qa-gate.sh"),
-                    "create-hidden",
-                    str(spec),
-                ],
-                env={
-                    **os.environ,
-                    "HERMES_BIN": str(fake),
-                    "HERMES_KANBAN_DB": str(db),
-                    "HERMES_HOME": str(hermes_home),
-                },
-                check=True,
-                capture_output=True,
-                text=True,
-            )
-
-            self.assertIn("hidden task_id=hidden-1", result.stdout)
-            self.assertFalse(spec.exists())
-
     def test_completion_probe_resolves_named_board(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -825,6 +920,32 @@ elif args[0:2] == ["kanban", "notify-list"]:
                 hashlib.sha256(body.encode()).hexdigest(), data["body_sha256"]
             )
 
+            conn = sqlite3.connect(db)
+            conn.execute(
+                "UPDATE tasks SET assignee = ?, body = ? WHERE id = ?",
+                (
+                    "writer",
+                    "Mode: execute\nQA: required\nCandidate key: write",
+                    "task-1",
+                ),
+            )
+            conn.commit()
+            conn.close()
+            missing_requirement = subprocess.run(
+                [str(script), "task-1"],
+                env={
+                    **os.environ,
+                    "HERMES_KANBAN_DB": "",
+                    "HERMES_KANBAN_HOME": str(root),
+                    "HERMES_KANBAN_BOARD": "named",
+                },
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(1, missing_requirement.returncode)
+            self.assertIn("Producer QA requirement", missing_requirement.stderr)
+
     def test_completion_probe_accepts_canonical_envelope(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             db = Path(directory) / "kanban.db"
@@ -886,12 +1007,41 @@ elif args[0:2] == ["kanban", "notify-list"]:
 
             self.assertTrue(json.loads(result.stdout)["valid"])
 
+            conn = sqlite3.connect(db)
+            conn.execute(
+                "UPDATE tasks SET body = ? WHERE id = ?",
+                (
+                    "Mode: retrieve\nInput attachments: []\n"
+                    "Input attachments: []",
+                    "task-1",
+                ),
+            )
+            conn.commit()
+            conn.close()
+            duplicate_inputs = subprocess.run(
+                [str(script), "task-1"],
+                env={**os.environ, "HERMES_KANBAN_DB": str(db)},
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+
+            self.assertEqual(1, duplicate_inputs.returncode)
+            self.assertIn(
+                "TaskSpec must declare Input attachments exactly once",
+                json.loads(duplicate_inputs.stdout)["errors"],
+            )
+
             metadata["artifact_handoff"] = {
                 "artifacts": [],
                 "verification": [],
                 "qa": None,
             }
             conn = sqlite3.connect(db)
+            conn.execute(
+                "UPDATE tasks SET body = ? WHERE id = ?",
+                ("Mode: retrieve\nInput attachments: []", "task-1"),
+            )
             conn.execute(
                 "UPDATE task_runs SET metadata = ? WHERE id = ?",
                 (json.dumps(metadata), 1),
@@ -1091,6 +1241,243 @@ elif args[0:2] == ["kanban", "notify-list"]:
                 json.loads(malformed.stdout)["errors"],
             )
 
+    def test_completion_probe_rejects_qa_in_specialist_plan(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            db = Path(directory) / "kanban.db"
+            summary = "Prepared the specialist plan."
+            metadata = {
+                "completion": {
+                    "status": "completed",
+                    "summary": summary,
+                    "metadata": {"mode": "plan"},
+                },
+                "specialist_plan": {
+                    "origin_task_id": "plan-1",
+                    "branch_key": "writer-plan",
+                    "summary": "Use one writing card.",
+                    "proposed_cards": [
+                        {
+                            "key": "qa-card",
+                            "title": "Review the output",
+                            "assignee": "qa",
+                            "skills": [],
+                            "parents": [],
+                            "params": {},
+                            "task_spec": {
+                                "goal": "Review the output",
+                                "inputs": "the output",
+                                "input_attachments": [],
+                                "done_criteria": "review complete",
+                                "output": "review result",
+                                "constraints": "read-only",
+                            },
+                        }
+                    ],
+                },
+            }
+            conn = sqlite3.connect(db)
+            conn.executescript(
+                """
+                CREATE TABLE tasks (id TEXT PRIMARY KEY, assignee TEXT, body TEXT, status TEXT, skills TEXT);
+                CREATE TABLE task_runs (id INTEGER PRIMARY KEY, task_id TEXT, outcome TEXT,
+                    started_at INTEGER, summary TEXT, metadata TEXT);
+                CREATE TABLE task_attachments (id INTEGER PRIMARY KEY, task_id TEXT,
+                    filename TEXT, stored_path TEXT, created_at INTEGER);
+                CREATE TABLE task_links (parent_id TEXT, child_id TEXT);
+                """
+            )
+            conn.execute(
+                "INSERT INTO tasks VALUES (?, ?, ?, ?, ?)",
+                (
+                    "plan-1",
+                    "writer",
+                    "Mode: plan\nPlanning branch: writer-plan\nInput attachments: []",
+                    "done",
+                    json.dumps(["writer-pipeline"]),
+                ),
+            )
+            conn.execute(
+                "INSERT INTO task_runs VALUES (?, ?, ?, ?, ?, ?)",
+                (1, "plan-1", "completed", 100, summary, json.dumps(metadata)),
+            )
+            conn.commit()
+            conn.close()
+
+            result = subprocess.run(
+                [str(ASSISTANT_SCRIPTS / "kanban-completion-probe.sh"), "plan-1"],
+                env={**os.environ, "HERMES_KANBAN_DB": str(db)},
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+
+            errors = json.loads(result.stdout)["errors"]
+            self.assertEqual(1, result.returncode)
+            self.assertIn(
+                "metadata.specialist_plan.proposed_cards[0] cannot assign qa: "
+                "QA must be late-bound after CompletionAdmission/digest resolution",
+                errors,
+            )
+
+            metadata["specialist_plan"]["proposed_cards"][0].update(
+                {"key": "write", "title": "Write the output", "assignee": "writer"}
+            )
+            metadata["specialist_plan"]["proposed_cards"][0]["task_spec"][
+                "qa"
+            ] = "required"
+            conn = sqlite3.connect(db)
+            conn.execute(
+                "UPDATE task_runs SET metadata = ? WHERE id = ?",
+                (json.dumps(metadata), 1),
+            )
+            conn.commit()
+            conn.close()
+            missing_requirement = subprocess.run(
+                [str(ASSISTANT_SCRIPTS / "kanban-completion-probe.sh"), "plan-1"],
+                env={**os.environ, "HERMES_KANBAN_DB": str(db)},
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(1, missing_requirement.returncode)
+            self.assertTrue(
+                any(
+                    "producer_qa_requirement must be the closed canonical object"
+                    in error
+                    for error in json.loads(missing_requirement.stdout)["errors"]
+                )
+            )
+
+    def test_completion_probe_parses_outline_and_rejects_qa_cards(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            db = root / "kanban.db"
+            outline = root / "execution-outline.yaml"
+            outline.write_text(
+                """request_id: request-1
+goal: Integrate the approved plans.
+cards:
+  - key: write
+    title: Write the result
+    assignee: writer
+    skills:
+      - writer-pipeline
+    parents: []
+    params: {}
+    task_spec:
+      goal: Write the result
+      inputs: approved plan
+      done_criteria: result is written
+      output: result.md
+      constraints: no extra research
+""",
+                encoding="utf-8",
+            )
+            summary = "Prepared the execution outline."
+            metadata = {
+                "completion": {
+                    "status": "completed",
+                    "summary": summary,
+                    "metadata": {"mode": "integrate", "request_id": "request-1"},
+                    "artifacts": ["execution-outline.yaml"],
+                },
+                "artifact_handoff": {
+                    "artifacts": [
+                        {
+                            "name": "execution-outline.yaml",
+                            "sha256": "pending-assistant-probe",
+                            "purpose": "approval gate 2",
+                            "source_task_id": "planner-1",
+                        }
+                    ],
+                    "verification": ["schema"],
+                    "qa": {"status": "exempt", "reason": "planning artifact"},
+                },
+                "execution_outline": {
+                    "request_id": "request-1",
+                    "attachment": "execution-outline.yaml",
+                    "sha256": "pending-assistant-probe",
+                    "specialist_task_ids": ["specialist-1"],
+                    "card_count": 1,
+                },
+            }
+            conn = sqlite3.connect(db)
+            conn.executescript(
+                """
+                CREATE TABLE tasks (id TEXT PRIMARY KEY, assignee TEXT, body TEXT, status TEXT, skills TEXT);
+                CREATE TABLE task_runs (id INTEGER PRIMARY KEY, task_id TEXT, outcome TEXT,
+                    started_at INTEGER, summary TEXT, metadata TEXT);
+                CREATE TABLE task_attachments (id INTEGER PRIMARY KEY, task_id TEXT,
+                    filename TEXT, stored_path TEXT, created_at INTEGER);
+                CREATE TABLE task_links (parent_id TEXT, child_id TEXT);
+                """
+            )
+            conn.execute(
+                "INSERT INTO tasks VALUES (?, ?, ?, ?, ?)",
+                (
+                    "specialist-1",
+                    "writer",
+                    "Mode: plan\nInput attachments: []",
+                    "done",
+                    json.dumps(["writer-pipeline"]),
+                ),
+            )
+            conn.execute(
+                "INSERT INTO tasks VALUES (?, ?, ?, ?, ?)",
+                (
+                    "planner-1",
+                    "planner",
+                    "Mode: integrate\nRequest run: request-1\nInput attachments: []",
+                    "done",
+                    json.dumps(["planner-pipeline"]),
+                ),
+            )
+            conn.execute(
+                "INSERT INTO task_runs VALUES (?, ?, ?, ?, ?, ?)",
+                (1, "planner-1", "completed", 100, summary, json.dumps(metadata)),
+            )
+            conn.execute(
+                "INSERT INTO task_attachments VALUES (?, ?, ?, ?, ?)",
+                (1, "planner-1", "execution-outline.yaml", str(outline), 110),
+            )
+            conn.execute(
+                "INSERT INTO task_links VALUES (?, ?)", ("specialist-1", "planner-1")
+            )
+            conn.commit()
+            conn.close()
+
+            script = ASSISTANT_SCRIPTS / "kanban-completion-probe.sh"
+            valid = subprocess.run(
+                [str(script), "planner-1"],
+                env={**os.environ, "HERMES_KANBAN_DB": str(db)},
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            self.assertTrue(json.loads(valid.stdout)["valid"])
+
+            outline.write_text(
+                outline.read_text(encoding="utf-8").replace(
+                    "assignee: writer", "assignee: qa", 1
+                ),
+                encoding="utf-8",
+            )
+            rejected = subprocess.run(
+                [str(script), "planner-1"],
+                env={**os.environ, "HERMES_KANBAN_DB": str(db)},
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+
+            errors = json.loads(rejected.stdout)["errors"]
+            self.assertEqual(1, rejected.returncode)
+            self.assertIn(
+                "execution outline cards[0] cannot assign qa: "
+                "QA must be late-bound after CompletionAdmission/digest resolution",
+                errors,
+            )
+
     def test_completion_probe_rejects_nonexistent_declared_artifact(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             db = Path(directory) / "kanban.db"
@@ -1250,6 +1637,17 @@ elif args[0:2] == ["kanban", "notify-list"]:
             artifact = root / "final.png"
             artifact.write_bytes(b"final")
             digest = hashlib.sha256(artifact.read_bytes()).hexdigest()
+            qa_inputs = json.dumps(
+                [
+                    {
+                        "name": "final.png",
+                        "sha256": digest,
+                        "purpose": "QA candidate",
+                        "source_task_id": "producer-1",
+                    }
+                ],
+                separators=(",", ":"),
+            )
             producer_metadata = {
                 "completion": {
                     "status": "completed",
@@ -1321,7 +1719,7 @@ elif args[0:2] == ["kanban", "notify-list"]:
                 [
                     ("producer-1", "creator", "Mode: execute", "done", json.dumps(["creator-pipeline"])),
                     ("research-1", "researcher", "Mode: analyze", "done", json.dumps(["researcher-pipeline"])),
-                    ("qa-1", "qa", "Mode: verify\nInput attachments: []", "done", json.dumps(["qa-pipeline", "qa-raster-image"])),
+                    ("qa-1", "qa", f"Mode: verify\nInput attachments: {qa_inputs}", "done", json.dumps(["qa-pipeline", "qa-raster-image"])),
                 ],
             )
             conn.executemany(
@@ -1403,7 +1801,7 @@ elif args[0:2] == ["kanban", "notify-list"]:
                 (
                     "qa-2",
                     "qa",
-                    "Mode: verify\nInput attachments: []",
+                    f"Mode: verify\nInput attachments: {qa_inputs}",
                     "done",
                     json.dumps(["qa-pipeline", "qa-raster-image"]),
                 ),
