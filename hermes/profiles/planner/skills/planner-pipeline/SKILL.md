@@ -158,8 +158,10 @@ invent a generic QA fallback.
    names the exact parent result it consumes.
 7. **Apply gates.** Add the canonical QA route to every ship-ready
    Creator/Writer result. Keep irreversible descendants behind QA, Review, or
-   Publish approval as required. QA cards inspect immutable candidate artifacts
-   and never repair them.
+   Publish approval as required. Do not emit a QA card in the ExecutionOutline;
+   store the immutable QA requirement on the producer TaskSpec so the Assistant
+   can materialize QA after candidate/evidence completion admission and digest
+   resolution. QA inspects immutable candidate artifacts and never repairs them.
 8. **Write and deliver.** Produce exactly <ExecutionOutlineSchema>, save it as
    `execution-outline.yaml`, and complete per <Delivery>.
 
@@ -175,7 +177,7 @@ boundaries:
 | assignee changes | different execution contract or tool authority |
 | independent work can run in parallel | useful fan-out |
 | several results must be combined | explicit fan-in |
-| human approval or protected QA | isolated gate |
+| human approval or QA | isolated gate |
 | time deferral | independently scheduled work |
 | risky action needs isolated retry | failure boundary |
 | Engineer intent changes | feature, bugfix, refactor, rebuild, perf, and deps stay separate |
@@ -217,6 +219,7 @@ cards:
         constraints: <scope and prohibited actions>
       review: <optional human gate>
       qa: <optional Creator/Writer gate>
+      producer_qa_requirement: <closed object, mandatory when qa is required>
       grant: <optional minimum Authority, Budget, or Publish proposal>
       fan_out_policy: <forbidden or bounded policy>
 ```
@@ -230,6 +233,12 @@ fields: `key`, `title`, `assignee`, `skills`, `parents`, `params`, and
 `params` contains only Kanban creation parameters such as workspace, project,
 priority, runtime, goal mode, or model/provider overrides. Domain briefs,
 planning identity, grants, and QA requirements belong in `task_spec`.
+Any Creator/Writer TaskSpec with `qa: required` must preserve the closed
+`producer_qa_requirement` semantic fields from its SpecialistPlan; never
+synthesize them from prose. Build one deterministic local-to-outline key map
+before writing cards, then rebind only `candidate_key` and every `evidence_keys`
+entry through that map. The rebound keys must name the final ExecutionOutline
+cards and are included in its approved digest.
 
 </ExecutionOutlineSchema>
 

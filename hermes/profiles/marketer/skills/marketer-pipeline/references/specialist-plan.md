@@ -118,19 +118,18 @@ only these fields:
 | marketer, writer, creator | `execute` |
 | searcher | `retrieve` |
 | researcher | `analyze` |
-| qa | `verify` |
 
 ```yaml
 key: <stable execution key>
 title: <execution title>
-assignee: marketer|writer|creator|searcher|researcher|qa
+assignee: marketer|writer|creator|searcher|researcher
 skills: [<mandatory pipeline pin>, <optional technic pins>]
 parents: [<local parent keys>]
 params:
   workspace_kind: scratch
   max_runtime_seconds: <bounded value>
 task_spec:
-  mode: <execute|retrieve|analyze|verify, mapped from assignee>
+  mode: <execute|retrieve|analyze, mapped from assignee>
   goal: <card goal>
   inputs: <self-contained role brief, facts, attachments, and parent outputs>
   input_attachments: []
@@ -147,8 +146,11 @@ task_spec:
 
 For a Marketer card, `inputs` contains the complete MarketingBrief and explicit
 QA/release dependencies, and `grant` is P0 unless a bounded P1 proposal was
-sanctioned. Writer and Creator cards carry their WritingBrief or MediaBrief and
-`qa: required`; QA cards pin the mapped QA technics and omit `qa` and grants.
+sanctioned. Writer and Creator cards carry their WritingBrief or MediaBrief,
+`qa: required` and the closed `producer_qa_requirement` object containing its
+candidate/evidence keys, capability, routes, criteria, Done criteria, and output
+inventory. Do not propose a
+QA card before candidate/evidence completion admission and digest resolution.
 Searcher and Researcher cards carry only their evidence question and omit
 production/release grants.
 

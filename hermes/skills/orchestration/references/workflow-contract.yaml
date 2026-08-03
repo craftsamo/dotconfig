@@ -79,6 +79,7 @@ schemas:
       - mode
       - review
       - qa
+      - producer_qa_requirement
       - grant
       - plan_id
       - outline_key
@@ -191,6 +192,16 @@ schemas:
       - consumer
       - ledger
       - reason
+  producer_qa_requirement:
+    required:
+      - candidate_key
+      - evidence_keys
+      - capability
+      - routes
+      - criteria
+      - done_criteria
+      - output_inventory
+    optional: []
   execution_outline_handoff:
     required:
       - request_id
@@ -246,6 +257,7 @@ bindings:
   fan_out_manifest:
     marker: "FAN_OUT_READY:"
     attachment: fan-out.yaml
+    probe: kanban-fanout-manifest-probe.sh
     scope: all_origins_before_completion
     cardinality: zero_or_one
   specialist_plan:
@@ -277,9 +289,24 @@ bindings:
     marker: "ORCHESTRATION_PENDING_OVERLAY:"
     storage: fan_out_origin_comment
     cardinality: one_per_fan_out_checkpoint
+  qa_pending_materialization:
+    marker: "QA_PENDING_MATERIALIZATION:"
+    storage: origin_or_integration_comment
+    cardinality: exactly_one_per_qa_contract_before_create
 
 registration:
   subscription: required
+  qa_policy:
+    all_cards_subscription_required: true
+    qa_registration: late_bound_after_candidate_and_evidence_completion_admission
+    qa_task_input_digests: resolved
+    pending_form: producer_qa_requirement
+    pending_schema: producer_qa_requirement
+    pending_materialization_marker: "QA_PENDING_MATERIALIZATION:"
+    materialization_marker: "QA_MATERIALIZED:"
+    materialization_event_binding: producer_and_completion_event
+    candidate_completion: progress
+    formal_delivery: digest_checked_pass
   retry_semantics:
     transport_replay: same_key_same_immutable_spec
     replacement: fresh_key_changed_spec

@@ -12,6 +12,7 @@ exec /usr/bin/python3 - "$1" <<'PY'
 import hashlib
 import json
 import os
+import re
 import sqlite3
 import sys
 from pathlib import Path
@@ -68,6 +69,71 @@ if isinstance(skills, str):
         skills = None
 
 body = value("body") or ""
+if re.search(r"(?mi)^QA:\s*required\s*$", body):
+    candidate_matches = re.findall(r"(?m)^Candidate key:\s*(\S+)\s*$", body)
+    if len(candidate_matches) != 1:
+        print("QA-required TaskSpec must declare one Candidate key", file=sys.stderr)
+        raise SystemExit(1)
+    matches = re.findall(r"(?m)^Producer QA requirement:\s*(\{[^\n]*\})\s*$", body)
+    if len(matches) != 1:
+        print(
+            "QA-required TaskSpec must declare one Producer QA requirement JSON object",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
+    try:
+        requirement = json.loads(matches[0])
+    except json.JSONDecodeError as exc:
+        print(f"Producer QA requirement is invalid JSON: {exc}", file=sys.stderr)
+        raise SystemExit(1)
+    required = {
+        "candidate_key",
+        "evidence_keys",
+        "capability",
+        "routes",
+        "criteria",
+        "done_criteria",
+        "output_inventory",
+    }
+    if not isinstance(requirement, dict) or set(requirement) != required:
+        print(
+            "Producer QA requirement must be the closed canonical object",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
+    if not all(
+        isinstance(requirement[field], str) and requirement[field]
+        for field in ("candidate_key", "capability")
+    ):
+        print("Producer QA requirement identity is invalid", file=sys.stderr)
+        raise SystemExit(1)
+    if requirement["candidate_key"] != candidate_matches[0]:
+        print("Producer QA requirement candidate_key must match Candidate key", file=sys.stderr)
+        raise SystemExit(1)
+    if not isinstance(requirement["evidence_keys"], list) or not all(
+        isinstance(item, str) and item for item in requirement["evidence_keys"]
+    ):
+        print("Producer QA requirement evidence_keys is invalid", file=sys.stderr)
+        raise SystemExit(1)
+    if not isinstance(requirement["routes"], list) or not all(
+        isinstance(route, str) and route.startswith("qa-")
+        for route in requirement["routes"]
+    ):
+        print("Producer QA requirement routes are invalid", file=sys.stderr)
+        raise SystemExit(1)
+    if any(
+        requirement[field] in (None, "", [], {})
+        for field in ("routes", "criteria", "done_criteria", "output_inventory")
+    ):
+        print("Producer QA requirement is incomplete", file=sys.stderr)
+        raise SystemExit(1)
+    for field in ("criteria", "output_inventory"):
+        value = requirement[field]
+        if not isinstance(value, list) or not all(
+            isinstance(item, (str, dict)) and bool(item) for item in value
+        ):
+            print(f"Producer QA requirement {field} is invalid", file=sys.stderr)
+            raise SystemExit(1)
 parents = [
     item[0]
     for item in conn.execute(
