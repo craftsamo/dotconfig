@@ -7,7 +7,7 @@ throughout; this file owns the chain routing and the per-asset loop.
 Intent shapes the entry (kernel <IntentTriage>):
 
 - `new` — this file, top to bottom. A consistent batch or a high-cost
-  asset without a pinned reference belongs to plan mode first
+  asset without a pinned reference belongs to the execute Direction route first
   (`references/plan.md`) — check before spending.
 - `revise` — load `references/iterate.md` FIRST; it owns inheritance and
   feedback triage, then re-enters this loop for the actual re-rendering.
@@ -64,7 +64,7 @@ carries `Review:`, and the evidence-backed report + metadata.
 
 - Generating before reading the whole brief (count, specs, platform,
   Budget) or before the spec/anchor is pinned.
-- Skipping the plan gate on a batch because production "can start now" —
+- Skipping the Direction gate on a batch because production "can start now" —
   anchor first, batch after sign-off.
 - Declaring an asset type unsupported without scanning the opt-in catalog,
   or using an opt-in chain whose prerequisite isn't running.

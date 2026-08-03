@@ -172,8 +172,9 @@ kanban thread.
 - `kanban_complete` summary = 1-2 plain sentences carrying the headline
   (state / verdict / cause / review verdict) — delivered verbatim to the
   requester's chat.
-- Facts for downstream dispatch go in `metadata` (e.g. `{"repo": "none"}`
-  for a bootstrap signal).
+- Facts for downstream dispatch go in the role payload at
+  `metadata.completion.metadata` (e.g. `{"repo": "none"}` for a bootstrap
+  signal), inside the required completion envelope.
 
 ## Pitfalls
 

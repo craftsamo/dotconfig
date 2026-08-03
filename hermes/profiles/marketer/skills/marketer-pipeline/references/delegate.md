@@ -1,95 +1,130 @@
-# Delegate engine — fan-out to producer workers
+# Assistant-owned fan-out manifest
 
-Shared engine, loaded by any mode that hands work to another worker. The
-marketer orchestrates; it does not produce long prose (writer), media
-(creator), or research (searcher/researcher). This file owns the mechanics:
-when to fan out, how to write child briefs, and how results come back.
+This reference is shared by assess, shape, campaign, and specialist-plan
+routes whenever another worker is needed. The marketer prepares a manifest and
+the Assistant owns card registration, parent wiring, subscriptions, and
+continuation creation. The worker never creates cards and never waits
+in-process for a child.
 
-## When to fan out (vs doing it in-turn)
+Contract bindings: `card_registration_owner: assistant` and
+`worker_card_creation: forbidden`.
 
-- `delegate_task` — quick parallel lookups you can wait out inside one run
-  (a fact check, a handful of sources). Nothing durable.
-- **Board fan-out** (below) — anything heavier or durable: an asset, article
-  copy, a market scan. Never wait in-process for a child card.
-- Neither — short-form post copy, thread breakdowns, hooks: that assembly
-  is the marketer's own hands, always.
+## When to request fan-out
 
-## Board fan-out (continuation-card pattern)
+- Use a manifest for durable or cross-worker work: Writer prose, Creator media,
+  Searcher retrieval, or Researcher synthesis.
+- Any additional research beyond supplied inputs uses the manifest and its
+  checkpoint handoff; do not expand research silently in-turn.
+- In `Mode: plan`, only Searcher or Researcher children allowed by the
+  approved branch Fan-out policy may be requested.
+- In `Mode: execute`, use the same manifest contract. Writer and Creator
+  production that feeds a final campaign candidate is protected production and
+  must include its QA and release dependencies.
 
-**Protected production exception:** Writer/Creator work that will be consumed
-as a final campaign draft, attachment, or published asset cannot use the normal
-worker-created child pattern below. Post `STATE: QA_DAG_CHANGE` with each full
-production brief and the marketer continuation brief, then block with reason
-`QA_DAG_CHANGE: protected campaign production required`. The Assistant creates
-each hidden production → QA chain and a marketer continuation whose parents are
-the QA cards, then parks that continuation on a manual `QA_MARKETER_HOLD`.
-Kanban parent completion does not mean QA pass. The Assistant releases the hold
-only after every latest QA metadata verdict is `pass` and target digests match;
-failed replacement QA cards are linked as additional parents before retry.
-Resume only to complete this decomposition checkpoint; never create duplicate
-children. Searcher/Researcher-only input fan-out may use the normal pattern.
+## Manifest contract
 
-1. `kanban_create` the child cards — each body self-contained per the
-   orchestrator's task-spec rules (a child never sees this task's thread),
-   and each pinning its assignee's pipeline kernel
-   (`skills=["<profile>-pipeline"]`).
-2. `kanban_create` a **continuation card assigned to your own profile** with
-   `parents=[the child ids]` and `skills=["marketer-pipeline"]`: its body
-   says what to do with their results
-   (their completion summaries/metadata arrive in the injected context;
-   `kanban_show` a parent id for detail). It is a bookmark for a future run
-   of you — that run starts with zero memory of this one, so the body must
-   stand alone: restate the brief, the effective Publish grant, and the
-   acceptance bar the results must clear.
-3. `kanban_complete` the current card ("decomposed into <ids>") and stop —
-   the dispatcher wakes the continuation card when all children finish
-   (fan-in). Record dispatched child ids in a `PROGRESS:` comment first.
+Attach one `fan-out.yaml` containing exactly these top-level fields:
 
-## Child briefs per worker
+```yaml
+origin_task_id: <current task id>
+checkpoint_key: <stable checkpoint key>
+children: [<child_spec objects>]
+continuation: <continuation_spec object>
+attachments: [<attachment_spec objects>]
+```
 
-Child bodies carry a full brief — workers never see your context:
+Each attachment object, when present, has exactly `name`, `sha256`, `purpose`,
+and `source_task_id`.
 
-- **writer** — long copy, article-length text, tone-sensitive wording. Pass
-  the WritingBrief fields: audience, purpose, medium, tone, length, and the
-  facts allowed (from your MarketingBrief — never let a child invent
-  claims).
-- **creator** — images/video/GIF. Pass a full MediaBrief + destination
-  specs (X: 16:9 or 1:1, alt text; name the exact deliverable files
-  expected back as attachments).
-- **searcher/researcher** — market/competitor/trend input you lack. Scope
-  the question tightly; a searcher sweep and a researcher synthesis are
-  different cards.
+The manifest is valid only when every child is within the approved Fan-out
+policy. Grants never propagate to children. A child body is self-contained
+and includes its own complete TaskSpec, facts, inputs, constraints, output,
+and acceptance criteria.
 
-## Rules
+The continuation is always the same profile and route as the originating
+work. For a marketer plan it must have:
 
-- **Grants never propagate.** Child bodies carry NO `Publish:` line, ever —
-  children produce drafts and research, they never publish. A child that
-  would need any grant is a question for the orchestrator: block on YOUR
-  card, don't mint.
-- Children you create notify nobody (no chat subscription); the
-  orphan-watchdog cron is the safety net, not a license. Decisions that
-  need the user go through your own card's block round-trip, never a
-  child's.
-- **Consume, don't re-produce.** On fan-in, read the children's final
-  messages and attachments; for Writer/Creator results, read the passing QA
-  metadata named by the Assistant's `QA_PASS_SET` comment and verify every
-  attachment exists before
-  referencing it. Rejecting a deliverable is normal — say why against the
-  brief and either re-dispatch with a corrected brief or escalate.
+```yaml
+continuation:
+  title: <resume the same marketer branch>
+  assignee: marketer
+  skills: [marketer-pipeline]
+  parents: [<all evidence or QA child keys>]
+  params:
+    workspace_kind: scratch
+    max_runtime_seconds: <bounded value>
+  task_spec:
+    mode: plan
+    goal: <resume the same marketer branch>
+    inputs: <same PlanningGraph, Request run, Planning branch, brief, parents, and attachments>
+    input_attachments: []
+    done_criteria: <final SpecialistPlan requirements>
+    output: summary plus metadata.specialist_plan
+    constraints: same branch; no draft production, posting, publishing, or card creation
+    fan_out_policy: <same approved bounded policy>
+```
 
-## Pitfalls
+For execute work, it has `assignee: marketer`,
+`skills: [marketer-pipeline]`, `task_spec.mode: execute`, API-only `params`, and the same campaign
+brief, acceptance bar, grant ceiling, and release dependencies.
 
-- Waiting in-process for a child card instead of completing with a
-  continuation card.
-- A continuation-card body that assumes memory of this run — it has none.
-- Granting a child publishing authority, or a wider grant than your own.
-- Publishing or delivering a Writer/Creator result whose QA parent did not pass.
-- Re-producing locally what a child already delivered (or referencing an
-  attachment you never verified).
+## Protected Writer and Creator production
+
+The manifest is the complete Assistant-owned production contract. For each
+Writer or Creator output that may become a final campaign candidate, include:
+
+- the self-contained Writer or Creator child spec;
+- the exact QA route and required QA technic;
+- the artifact name and expected digest handoff;
+- the release dependency on a digest-checked QA pass set;
+- the marketer continuation held until all required QA results pass.
+
+The Assistant creates the Writer/Creator production -> QA chain, adds the QA
+cards as parents of the held marketer continuation, and releases that
+continuation only after the required pass set and artifact digests match.
+QA completion alone does not authorize publication. A failed result is
+replaced or escalated through the Assistant-owned manifest; it is not silently
+accepted or repaired by the marketer.
+
+## Checkpoint handoff
+
+After attaching `fan-out.yaml`, write a complete state checkpoint. Then block
+with the marker below and stop:
+
+```text
+STATE: fan-out manifest attached; origin=<origin-task-id>; checkpoint=<checkpoint-key>; children=<keys>; continuation=<same-profile-and-mode>
+FAN_OUT_READY: fan-out.yaml=<attachment-name>; policy=<allowed profiles, max count, purpose>; continuation=<profile>/<mode>/<branch>
+```
+
+The checkpoint returns no `metadata.specialist_plan`. In plan mode, the
+Assistant's continuation remains the same marketer, `Mode: plan`, and
+`Planning branch`; only that resumed continuation returns the final
+SpecialistPlan. In execute mode, the continuation resumes the same internal
+route after its declared dependencies pass.
+
+`FAN_OUT_READY` and a final `metadata.specialist_plan` are mutually exclusive.
+Do not place either handoff in the same completion.
+
+## Worker briefs
+
+- Writer: pass a complete WritingBrief with audience, purpose, medium, tone,
+  length, language, allowed facts, terminology, and expected output.
+- Creator: pass a complete MediaBrief with asset type, destination specs,
+  source assets, accessibility requirements, exact filename, and expected
+  attachment.
+- Searcher: pass a narrow retrieval question, source coverage, recency, and
+  citation requirements.
+- Researcher: pass the synthesis question, decision criteria, evidence
+  standard, counterevidence requirement, and uncertainty fields.
 
 ## Verification
 
-- Every dispatched child id is recorded in a `PROGRESS:` comment.
-- Continuation card exists with `parents` set and a self-contained body
-  (brief + effective grant + acceptance bar restated).
-- No child body carries a Publish grant.
+- `fan-out.yaml` has exactly the five manifest fields and is attached before
+  the block.
+- The policy allows every child profile, purpose, count, and cost.
+- The continuation preserves profile, Mode, Planning branch, grant ceiling,
+  inputs, and acceptance criteria.
+- Writer and Creator production includes QA route, digest checks, and release
+  dependency before marketer fan-in.
+- `STATE:` precedes `FAN_OUT_READY:`; no SpecialistPlan is returned at the
+  checkpoint; the worker performs no card registration.

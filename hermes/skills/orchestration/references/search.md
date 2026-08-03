@@ -1,7 +1,8 @@
-# Search approach — reference
+# Searcher capability reference
 
-Loaded after Step 3 picks **Approach=Search**. Dispatches retrieval work to
-searcher.
+Load when an execution shape needs durable web/X retrieval. Searcher is a
+specialist capability inside `single`, `chain`, or `planned`, not an exclusive
+request approach.
 
 ## When to pick Search
 
@@ -10,8 +11,8 @@ searcher.
 - Examples: "what's new in X 2026", "find the docs for library Y version
   Z", "collect real examples of X", "find everything about topic Y".
 
-For analysis/synthesis/comparison, use Research instead
-(`references/research.md`).
+For analysis/synthesis/comparison, add Researcher instead
+(`references/research.md`). A planned graph may contain both.
 
 ## Dispatching
 
@@ -48,6 +49,6 @@ multi-hop).
 
 ## After dispatch
 
-Standard Step 7 mechanics. Searcher rarely blocks (only an empty/unusable
+Standard <AfterCreate> mechanics. Searcher rarely blocks (only an empty/unusable
 body triggers a `Q1`); on completion, summarize the findings in chat —
 don't paste raw worker output.

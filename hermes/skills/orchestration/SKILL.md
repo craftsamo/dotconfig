@@ -1,54 +1,33 @@
 ---
 name: orchestration
 description: >-
-  Front-door playbook shared by both profiles (assistant on Telegram, default
-  on the CLI) — walk every request through a 7-step pipeline: Classify
-  (Projects / Personal / cross-cutting / neither), Locate (workspace group +
-  repo), Approach (Plan / Build / Search / Research / Creative / Inline —
-  exclusive), then for Plan only: Decompose the goal with the inlined
-  methodology, Register the steps in the session `todo`, run the Plan Loop with
-  the user (worker consultations via kanban, advisory; multi-card graphs are
-  drafted by the planner profile and registered only after user approval —
-  the Planner tree). On sign-off,
-  Dispatch via the existing topology (single / parents / planner tree) with
-  self-contained task specs (engineer tasks carry an Authority grant —
-  preset A1/A2/A3 + overrides; media tasks carry a MediaBrief; deliverables
-  needing human sign-off carry a Review gate), ack with
-  the task id, answer engineer questions within the granted authority
-  autonomously via `DECISION(Q<n>):` comments (always resetting the
-  block-loop counter after a DECISION unblock), relay `REVIEW:` blocks to
-  the user untouched, expand grants only through
-  `AUTHORITY+:` comments, park time-deferred work in `scheduled` with an
-  `until=` comment (the sweeper cron releases it), answer progress
-  questions from the task's PROGRESS
-  trail (StatusCheck), recover from blocked/gave_up/crashed/timed_out
-  events and silent block-loop triage falls, and close dead cards via CLI
-  archive. Auto-loaded into each Telegram
-  DM session via the chat-wide skill binding; load it via skill_view
-  before non-trivial work elsewhere. Prefer the `clarify` tool over
-  plain-chat questions whenever options exist. Each approach has its own
-  reference under `references/<approach>.md` — load the matching one after
-  Step 3.
-version: 3.7.0
+  Front-door control plane shared by assistant on Telegram and default on the
+  CLI. Normalize every request into a RequirementSpec, choose the cheapest
+  execution shape (inline / single / chain / planned), and keep every Kanban
+  registration under Assistant ownership. Planned work uses two explicit
+  approvals: a PlanningGraph before specialist planning, then an
+  ExecutionOutline before execution. Workers hand off typed FanOutManifest or
+  SpecialistPlan data instead of registering cards. Preserve scoped grants,
+  protected QA, scheduled parking, structured block decisions, status reporting,
+  idempotent recovery, and truthful archival.
+version: 4.0.0
 author: CraftSamo
 license: MIT
 metadata:
   hermes:
-    tags: [orchestration, pipeline, classify, locate, approach, plan, dispatch, triage, routing, kanban, delegation, task-spec, workers]
+    tags: [orchestration, pipeline, requirement-spec, planning-graph, execution-outline, dispatch, routing, kanban, delegation, task-spec, workers]
     category: orchestration
     related_skills: []
 ---
 
 <Goal>
 
-Walk every request through a 7-step pipeline and dispatch well at the end.
-
-Classify → Locate → Approach → (if Plan: Decompose → Register → Plan Loop,
-detailed in `references/plan.md`) → Dispatch. At every user-facing choice,
-prefer the `clarify` tool over plain-chat questions. When dispatching,
-produce board tasks the dispatcher can run unattended: right worker,
-self-contained spec, cheapest topology that fits, clean ack, sane failure
-recovery.
+Turn each request into an explicit outcome and choose the least expensive safe
+way to produce it. Inline work ends in chat. Direct work becomes one Assistant-
+registered card or a short dependency chain. Planned work follows
+`RequirementSpec → PlanningGraph approval → specialist plans → ExecutionOutline
+approval → execution registration`. Every card must be self-contained,
+subscribed or deliberately hidden behind QA, grant-bounded, and recoverable.
 
 </Goal>
 
@@ -65,9 +44,8 @@ recovery.
 </UseWhen>
 <DoNotUseWhen>
 
-- Never skip <Pipeline>; the sections from <Workers> onward apply only to
-  requests that route to dispatch (Plan / Build / Search / Research /
-  Creative).
+- Never skip <Pipeline>; the sections from <Workers> onward apply only when the
+  selected execution shape uses Kanban.
 
 </DoNotUseWhen>
 </Scope>
@@ -83,9 +61,8 @@ question, no chat noise.
 Use `clarify` for:
 - Step 1 ambiguity (Projects vs Personal vs cross-cutting)
 - Step 2 ambiguity (which group/repo)
-- Step 3 ambiguity (Plan vs Build, which approach)
-- Plan Loop iterations (approach pick, scope cut, sign-off gate — see
-  `references/plan.md`)
+- RequirementSpec gaps that change the outcome, scope, cost, or grant
+- PlanningGraph and ExecutionOutline approval gates (`references/plan.md`)
 - <BlockedTriage> relays (worker questions that come with options)
 
 Plain chat is fine only when:
@@ -104,28 +81,27 @@ Rules:
 
 <Pipeline>
 
-Every request walks these steps once. Approach is **exclusive** — one entry
-mode per request. Plan handles the request through to dispatch; the other
-approaches hand off to dispatch (or end inline) right after Step 3.
+Every request walks the same front door. Capability references are composable
+dispatch aids, not mutually exclusive request approaches.
 
 ```
-Step 1  Classify    Projects | Personal | cross-cutting | neither
-Step 2  Locate      <Group> (and repo if Projects)
-Step 3  Approach    Plan | Build | Search | Research | Creative | Inline
-                     │  load references/<approach>.md
-                     │
-                     ├─ Inline            → done (no dispatch)
-                     ├─ Build/Search/      → Step 7
-                     │  Research/Creative
-                     └─ Plan              → references/plan.md
-                                          (Decompose → Register → Plan Loop)
-                                          → Step 7
-Step 7  Dispatch   <Topology> → <Parameters> → <AfterCreate> → <Failures>
+Step 1  Classify     Projects | Personal | cross-cutting | neither
+Step 2  Locate       <Group> (and repo if Projects)
+Step 3  Normalize    RequirementSpec
+Step 4  Shape        inline | single | chain | planned
+                       ├─ inline  → answer and stop
+                       ├─ single  → register one TaskSpec
+                       ├─ chain   → register 2-3 settled TaskSpecs
+                       └─ planned → references/plan.md (two approvals)
+Step 5  Register     Assistant only; validate grants, skills, parents, keys
+Step 6  Supervise    notifications, manifest handoffs, blocks, QA, failures
+Step 7  Deliver      verified result in the front-door persona
 ```
 
-Each reference owns its approach's trigger and dispatch notes; load the
-matching one right after Step 3. Classify and Locate are silent — never
-name the categories in chat unless genuine ambiguity merits a `clarify`.
+Classify, Locate, normalization, and shape selection are silent unless a
+material ambiguity requires `clarify`. Load `references/inline.md`, `build.md`,
+`search.md`, `research.md`, or `creative.md` only for the capabilities present
+in the selected shape. Planned work always loads `references/plan.md` too.
 
 </Pipeline>
 
@@ -171,38 +147,43 @@ several groups/repos.
 
 </Step2Locate>
 
-<Step3Approach>
+<RequirementAndShape>
 
-Pick **exactly one** entry mode — they are exclusive. Each approach has its
-own reference; load `references/<approach>.md` after selecting for the
-trigger details and approach-specific dispatch notes:
+Normalize the request into this in-memory `RequirementSpec` before doing work:
 
-| Approach | Reference | Next step |
+```yaml
+request_id: <new stable run id for this user request>
+goal: <outcome and beneficiary>
+done_criteria: [<observable checks>]
+constraints: [<scope, deadline, prohibited actions>]
+audience: <optional>
+scope: <optional workspace/repo boundary>
+inputs: [<paths, URLs, task ids, supplied facts>]
+open_questions: [<only material unresolved decisions>]
+```
+
+Infer fields from the request, workspace, and stable preferences. Ask one
+`clarify` only when an unresolved item changes the outcome, scope, cost,
+irreversible action, or grant. Do not turn obvious requests into a form-filling
+interview.
+
+Choose one execution shape:
+
+| Shape | Use when | Approval |
 | --- | --- | --- |
-| **Plan** | `references/plan.md` | Steps 4-6 (in the reference) → Step 7 |
-| **Build** | `references/build.md` | Step 7 |
-| **Search** | `references/search.md` | Step 7 |
-| **Research** | `references/research.md` | Step 7 |
-| **Creative** | `references/creative.md` (includes MediaBrief) | Step 7 |
-| **Inline** | `references/inline.md` | (no dispatch) |
+| `inline` | conversation, local workspace operation, cron registration, or a quick lookup | only the operation's own confirmation |
+| `single` | one settled outcome owned by one Worker | no planning approval; normal grant/Review rules still apply |
+| `chain` | 2-3 settled stages with obvious dependencies and no specialist planning decision | no planning approval; each TaskSpec must already be settled |
+| `planned` | 3+ likely cards, 2+ specialist profiles, fan-out/fan-in, distributed grants, meaningful uncertainty, or irreversible coordination | PlanningGraph and ExecutionOutline approvals |
 
-Decision rule:
-- **Implementation work always enters Plan** (standing rule). Build is only
-  for cases where the user has already specified scope and approach in
-  detail.
-- For non-implementation, enter Plan when the request is ambiguous,
-  multi-stage, or destructive/irreversible; otherwise pick the matching
-  worker approach (Build / Search / Research / Creative) or Inline.
-- When unsure between Plan and Build, default to **Plan** for
-  implementation.
-- When unsure between Inline and a worker approach, fire one `clarify`.
+Implementation is `planned` when architecture, scope, dependency, migration,
+or grant decisions remain. A narrow implementation whose RequirementSpec and
+method are already settled may be `single`. When uncertain between `chain` and
+`planned`, choose `planned`; when uncertain between `inline` and Kanban, ask one
+question. Medium parallel lookups for a waiting user may use `delegate_task` in
+turn. Dispatch ticks run roughly every 15 seconds, so keep quick work inline.
 
-Exception — `delegate_task` (in-turn subagents): for medium parallel
-lookups the user is actively waiting on; anything heavier goes to kanban.
-Dispatch ticks run ~every 15s, so never send quick jobs to the board — a
-30-second job still takes noticeably longer via kanban.
-
-</Step3Approach>
+</RequirementAndShape>
 
 <Workers>
 
@@ -210,11 +191,11 @@ Keep in sync with each worker's `profile.yaml` description:
 
 | Assignee | Sweet spot | Technics (pin via `skills:`) | Tools |
 | --- | --- | --- | --- |
-| planner | multi-card decomposition: dependency-graph outlines (assignees, technics, grants, parents) for user approval; plan-only, never executes, never creates build cards | — | file, web |
+| planner | integrates approved specialist plans into one ExecutionOutline (assignees, technics, grants, parents) for the second user approval; plan-only, never executes or registers cards | — | file, web |
 | searcher | retrieval, routed by deliverable: targeted lookups (facts/links/latest), enumerations and surveys with an explicit coverage claim, exhaustive multi-hop source hunts (signal with `goal_mode`) | **always pin `searcher-pipeline`** (see note below); no optional technics (`deep-retrieval` is a deprecated stub — use `goal_mode` instead) | web, x_search |
 | researcher | depth: analysis, synthesis, comparison, evaluation, reports; external claim/source/specification verification; evidence-backed guidance consumed by a downstream worker or QA | **always pin `researcher-pipeline`** (see note below); optional learned retrieval aids when actually present | file, web, vision, video |
 | engineer | implementation + GitHub flow: drives OpenCode — code changes, debugging, tests, builds, PRs; specifies requirements into Issues, works from Issues, answers PR reviews, syncs Projects boards; confirms material decisions via block round-trips | **always pin `engineer-pipeline`** (see note below); optional: `opencode-env`, `machine-env` | terminal (hermes-cli) |
-| creator | ALL media production: image, video, GIF, voice assets, batch and single; media advisories (feasibility, chain fit, cost) and style-anchor plan rounds; revisions (`Intent: revise` + previous-card pointers) and salvage of interrupted work; delivers via kanban_attach | **always pin `creator-pipeline`** (see note below); canonical leaves: `creator-generated-image`, `creator-article-illustration`, `creator-infographic`, `creator-svg-diagram`, `creator-excalidraw-diagram`, `creator-logo-icons`, `creator-text-card`, `creator-meme`, `creator-ascii-art`, `creator-audio-visualization`, `creator-gif-sourcing`, `creator-generated-video`, `creator-ascii-video`, `creator-manim-explainer`, `creator-pixel-art`, `creator-pixel-video`, `creator-knowledge-comic`, `creator-brand-asset-sourcing`; external support: `hyperframes`, `media-use` | media gen chains + terminal |
+| creator | ALL media production: image, video, GIF, voice assets, batch and single; media advisories (feasibility, chain fit, cost) and style-anchor plan rounds; revisions (`Intent: revise` + previous-card pointers) and salvage of interrupted work; delivers via kanban_attach | **always pin `creator-pipeline`** (see note below); canonical leaves come from `workflow-contract.yaml`, including generated/deterministic image, diagram, audio/song, sourced GIF/brand assets, generated/browser/Manim/ASCII/pixel video, p5.js, and comic routes; external support: `hyperframes`, `media-use` | media gen chains + terminal |
 | writer | text deliverables: reader-facing prose (marketing long copy, tech articles/blog, documentation) AND producer-facing scripts (漫画台本, 絵コンテ, storyboards, screenplays consumed by creator/artists); tone-calibrated JP quality; drafts only — never publishes | **always pin `writer-pipeline`** (see note below); Japanese norms layers auto-route inside the pipeline — never pin `japanese-*` | file, web |
 | qa | independent read-only gate for final Creator/Writer candidates; inspects actual parent artifacts and consumes predeclared Researcher evidence; never edits or researches | **always pin `qa-pipeline`** plus every mapped `qa-*` technic from its capability table: `qa-raster-image`, `qa-infographic`, `qa-svg-diagram`, `qa-excalidraw-diagram`, `qa-icon-set`, `qa-text-visual`, `qa-pixel-art`, `qa-ascii-art`, `qa-data-visualization`, `qa-video`, `qa-pixel-video`, `qa-ascii-video`, `qa-audio`, `qa-song`, `qa-voice`, `qa-browser-media`, `qa-sourced-asset`, `qa-comic`, `qa-prose`, `qa-script` | terminal (read-only probes), file, browser (supplied artifact only), vision, video |
 | marketer | campaign orchestration + approved publishing (X via xurl): consultations and honest critiques of assets/drafts (assess), content strategy/calendar (shape), post/thread copy + ship within a Publish grant (campaign); fans out prose to writer, media to creator, research to searcher/researcher | **always pin `marketer-pipeline`** (see note below); optional: `social-video-research` (platform-native format/spec recon) | terminal (hermes-cli), web, browser, x_search |
@@ -242,18 +223,19 @@ a new technic skill, not a new profile (new profile only when the execution
 contract itself differs: toolset/permissions, model, isolated long-term
 memory, conflicting standing prompt).
 
-Mixed pipelines flow searcher -> researcher -> engineer, with creator (assets)
-and writer (prose deliverables) as side stages and qa as their final independent
-gate. Workers can fan out themselves
-(`kanban_create` + `parents`): e.g. engineer dispatches a searcher lookup or a
-creator asset mid-implementation — don't pre-decompose what the worker can
-request itself. When a worker needs its children's RESULTS, it uses the
-**continuation-card pattern** (each worker skill's `<FanOut>` section):
-children + a card assigned back to itself gated on them, then complete —
-never waiting in-process. Grants never propagate to worker-created
-children, and such children notify nobody (the orphan-watchdog cron is
-the safety net). Writer vs researcher: researcher's deliverable is a verified
-conclusion; writer's is the text itself (voice, structure, reader experience).
+Mixed work commonly flows searcher -> researcher -> engineer, with creator
+(assets) and writer (prose) as specialist stages and qa as their final
+independent gate. **Only the Assistant registers cards.** When a Worker needs
+children, it attaches one `fan-out.yaml` matching `<FanOutManifest>` and blocks
+with `FAN_OUT_READY:`. Validate the full DAG, persist its pending overlay,
+register only eligible roots, then record an event-bound decision and resume the
+obsolete checkpoint through the guarded resolver. The same-profile continuation
+remains pending until every direct parent passes CompletionAdmission. Grants do
+not propagate: each child TaskSpec carries only the minimum approved grant.
+Because the Assistant creates every card, each ordinary child and continuation
+must return `subscribed=true`; protected QA internals follow `<QualityGate>`.
+Writer vs researcher: researcher's deliverable is a verified conclusion;
+writer's is the text itself (voice, structure, reader experience).
 Writer tasks: pass the WritingBrief fields you already know — deliverable
 type (copy / article / documentation / script), audience, purpose, medium,
 tone, length/budget, source links — in the body; the writer routes prose
@@ -262,9 +244,10 @@ missing premises) rather than guessing. Script cards for downstream
 production (comic panels, video) should name the artifact file and any
 unit/field conventions the producer expects.
 
-During Plan Loop, workers can also be **consulted at advisory altitude**
-(see `references/plan.md` "Worker consultations") — the same roster, but
-the deliverable is an assessment, not the work product itself.
+In a planned workflow, approved specialist branches run in **plan-only mode**
+(see `references/plan.md`). Their deliverable is a `SpecialistPlan`, not the
+work product. Searcher and Researcher may supply evidence through an
+Assistant-registered FanOutManifest.
 
 The engineer routes internally by **deliverable** (its `assess` / `shape` /
 `implement` modes) — the openers below remain supported as explicit hints
@@ -277,7 +260,7 @@ engineer task whose body opens with `Orient — inform the plan, don't judge
 or ship.` and it reports repo / GitHub / env state (structure, conventions,
 build/test, open PRs — or "no repo, bootstrap needed") without judging
 feasibility or touching code. Use it to ground a plan before Wave 1, or
-when the user just asks "what's the state of X"; it needs no Plan gate
+when the user just asks "what's the state of X"; it needs no planned-work gate
 (nothing ships). Distinct from advisory, which judges a proposed change.
 
 When orient reports **"no repo, bootstrap needed"**, the repo must be
@@ -303,7 +286,7 @@ branch).
 
 The engineer's **specify altitude** concretizes a requirement you settled with
 the user. You own the HIGH-level requirement ("login feature", "blog
-feature" — what & why, settled in your Plan Loop); the engineer owns the
+feature" — what & why, settled in the RequirementSpec); the engineer owns the
 LOW-level split ("account creation", "email verification"), grounded on the
 repo and registered as GitHub Issues (epic → sub-issues) via OpenCode's own
 conventions. Dispatch an engineer task on the repo whose body opens with
@@ -349,14 +332,20 @@ self-contained:
 ```text
 title: <imperative, <=80 chars>
 body:
+  Mode: <integrate | plan | execute | analyze | retrieve | verify; use the
+         assignee's canonical mode from workflow-contract.yaml>
   Goal: <what outcome, for whom — one short paragraph>
   Inputs: <links, paths, parent task ids, pasted data the worker needs>
+  Input attachments: [{"name":"...","sha256":"...","purpose":"...",
+                      "source_task_id":"..."}, ...]  # exact JSON array of
+                      # attachment_spec objects; [] when none.
   Done criteria: <objective checks the worker can verify itself>
   Output: <shape of the final message: language, format, length; name any
           artifact files to produce>
   Constraints: <scope limits, deadlines, things NOT to do>
-  Review: <optional — human-approval gate, decided at Plan sign-off (see
-          references/plan.md). "Review: required — <what to present>"
+  Review: <optional — human-approval gate, decided in the RequirementSpec or
+           approved ExecutionOutline (see references/plan.md).
+           "Review: required — <what to present>"
           makes the worker checkpoint and block with a `REVIEW:` headline
           instead of completing, so the user approves the deliverable
           before the task closes. Omit for fire-and-forget tasks — the
@@ -369,8 +358,8 @@ body:
           defaults. See references/creative.md. Expanded mid-task only via
           AUTHORITY+ comments.>
   Authority: <engineer tasks only — the pre-approval grant, carried over
-             from the Plan Loop sign-off (or written tight when Build skips
-             Plan — see references/build.md). Open with a preset level,
+              from the approved ExecutionOutline or written tight for a
+              settled direct task (see references/build.md). Open with a preset level,
              then optional override lines. Anything not granted forces the
              engineer into a block round-trip, so grant what the user has
              already sanctioned and no more.>
@@ -381,6 +370,15 @@ body:
            count, content scope), e.g. "Publish: P1 @acct, <=3 posts".
            Expanded mid-task only via AUTHORITY+ comments. Publishing is
            irreversible — grant only what the user already sanctioned.>
+  Plan: <integration task id; planned execution only>
+  Outline key: <stable ExecutionOutline card key; planned execution only>
+  Fan-out policy: <forbidden, or allowed assignees / max children / purpose /
+                   optional cost cap approved by the graph or outline>
+  Registration anchor: <pending-registration anchor; multistage work only>
+  Pending manifest digest: <sha256; multistage work only>
+  Pending overlay task: <FanOut origin task id; dynamic expansion only>
+  Pending overlay digest: <FanOut overlay sha256; dynamic expansion only>
+  Pending overlay lineage: [{"task_id":"...","digest":"..."}, ...]
 ```
 
 Authority presets (shared contract with engineer's `engineer-pipeline` skill):
@@ -388,7 +386,7 @@ Authority presets (shared contract with engineer's `engineer-pipeline` skill):
 | Preset | Grants | Give when |
 | --- | --- | --- |
 | `A1` | commit to the worktree only | **default** — user hasn't sanctioned anything remote |
-| `A2` | A1 + push feature branch + open PR | user already asked for a PR / push in chat or Plan sign-off |
+| `A2` | A1 + push feature branch + open PR | user already asked for a PR / push or approved it in the ExecutionOutline |
 | `A3` | A2 + dependency additions/upgrades | user explicitly sanctioned dependency changes |
 
 - **Repo-establishment work** (no worktree yet) uses `B1`/`B2` instead:
@@ -418,37 +416,238 @@ Authority presets (shared contract with engineer's `engineer-pipeline` skill):
 
 </TaskSpec>
 
-<Topology>
+<PendingRegistration>
 
-Pick the cheapest shape that fits:
+Every `chain` and approved ExecutionOutline with descendants has one immutable
+pending-registration manifest matching `workflow-contract.yaml`:
 
-1. **Single task** (default) — one clear job, one worker:
-   `kanban_create(title=..., assignee=..., body=...)`.
-2. **Parents chain** — the stages are obvious and few (2-3): create each stage
-   with `parents` set to the prior stage's task id(s). A child stays `todo`
-   until every parent is `done`, then auto-promotes to `ready`. Fan-in works
-   (several searcher tasks -> one researcher synthesis). Tell each downstream
-   body to read its parents' results and list the parent ids.
-3. **Planner tree** — the work needs a multi-card dependency graph (3+
-   cards, 2+ profiles, distributed grants, or the user wants to see the
-   structure first): optional investigation parents + one planner-assigned
-   plan card that delivers an outline YAML; you render it, the user
-   approves, **you** register the cards in topological order with
-   idempotency keys. Conditions, flow, and the registration recipe:
-   `references/plan.md` "Planner tree". Never pre-chop the graph yourself,
-   and never let any worker create build cards.
+```yaml
+anchor: <stable request-run chain key or integration task id>
+digest: <sha256 of normalized cards>
+cards: [<ordered child_spec objects>]
+request_id: <request id, when planned>
+integration_task_id: <planner task id, when planned>
+```
 
-Note: `triage=true` auto-decompose is retired here (`auto_decompose:
-false` — the aux decomposer's prompt is hardcoded upstream and can't carry
-our TaskSpec/grant/granularity conventions). Fuzzy multi-card work goes
-through the Planner tree; for "全部任せる" cases keep the approval light
-(one-line graph summary + a single clarify).
+For a chain, include the complete normalized manifest and digest atomically in
+the root body. For planned execution, comment the complete manifest on the
+completed integration card with `ORCHESTRATION_PENDING:` before registering any
+root. Every root, late-created descendant, replacement, and FanOut continuation
+carries `Registration anchor:` and `Pending manifest digest:` in its TaskSpec.
+Those fields identify the sole durable pending-state source after a session
+reset or origin replacement.
 
-Coming out of a Plan Loop (`references/plan.md`), the topology choice is
-usually obvious from the signed-off plan — the plan's shape dictates
-single / parents / planner tree.
+Progress is append-only on the anchor:
+`PROGRESS: registration valid=<key:id,...> pending=<keys...> replacement=<old:new,...>`.
+Never reconstruct pending work from notification order or an obsolete task's
+memory. A changed card set gets a new digest and, when approval covered the old
+set, the corresponding approval gate again.
 
-</Topology>
+A FanOut does not mutate or fork this base manifest. It appends one typed
+overlay on the blocked origin:
+
+```yaml
+overlay_task_id: <FanOut origin task id>
+overlay_key: <checkpoint key>
+digest: <sha256 of normalized overlay cards>
+cards: [<dependent child and continuation specs>]
+lineage: [<ordered prior overlay task/digest identities>]
+base_anchor: <Registration anchor, when the origin belongs to a base graph>
+base_digest: <Pending manifest digest, when the origin belongs to a base graph>
+replaces_key: <base card key replaced by the continuation, when any>
+```
+
+Comment it as `ORCHESTRATION_PENDING_OVERLAY:`. A direct single or protected
+card with no base graph omits `base_anchor` and `base_digest`; its immutable root
+is the overlay task/digest itself. Every overlay child and continuation carries
+the unchanged base identity when present, plus `Pending overlay task:`, `Pending
+overlay digest:`, and the full ordered `Pending overlay lineage:`. A nested
+FanOut appends its parent overlay identity to that lineage. The effective
+pending state is the optional base manifest plus this explicit overlay chain; it
+is never inferred from obsolete origin memory.
+
+</PendingRegistration>
+
+<FanOutManifest>
+
+A Worker that discovers additional work does not call `kanban_create` and does
+not complete first. It attaches one manifest as `fan-out.yaml`, comments its
+checkpoint state, and blocks with `FAN_OUT_READY:`. This durable block remains
+the retry trigger across notification loss, partial registration, and Assistant
+restart. The TaskSpec's approved Fan-out policy bounds what may be registered.
+
+```yaml
+origin_task_id: <current task id>
+checkpoint_key: <stable name, unique within the origin task>
+children:
+  - key: <stable child key>
+    title: <imperative, <=80 chars>
+    assignee: <Workers roster name>
+    skills: [<mandatory pipeline pin>, <optional technics>]
+    parents: [<child key or existing task id>, ...]
+    params: {workspace_kind: scratch, max_runtime_seconds: 600}
+    task_spec:
+      goal: ...
+      inputs: ...
+      input_attachments: []
+      done_criteria: ...
+      output: ...
+      constraints: ...
+continuation:
+  title: <resume title>
+  assignee: <same profile as origin>
+  skills: [<mandatory pipeline pin>, ...]
+  parents: [<child key>, ...]
+  params: {...}
+  task_spec:
+    goal: ...
+    inputs: ...
+    input_attachments: []
+    done_criteria: ...
+    output: ...
+    constraints: ...
+attachments:
+  - name: <durable task attachment name>
+    sha256: <digest>
+    purpose: <how a child or continuation consumes it>
+    source_task_id: <origin task id>
+```
+
+On the block/watchdog notification:
+
+1. Reject more than one manifest, a mismatched `origin_task_id`, reused
+   `checkpoint_key`, unknown assignee/skill, missing TaskSpec field, parent
+   cycle, unresolved parent key, widened grant, or continuation assigned to a
+   different profile. Do not improvise a repair; create a corrected replacement
+   checkpoint or relay a material decision.
+    - If the origin carries `Planning graph:` or `Plan:`, compare the manifest
+     with its approved `Fan-out policy`. Only the named profiles, purpose, child
+     count, cost cap, and grant ceiling may expand automatically. Missing policy
+      means `forbidden`. Anything else is a PlanningGraph or ExecutionOutline
+      revision and requires the corresponding user approval before registration.
+    - Copy any `Registration anchor:` and `Pending manifest digest:` into every
+      child and continuation. Whether or not a base exists, add the current
+      origin id/digest and append the prior overlay pointer to the full `Pending
+      overlay lineage:`. The continuation replaces only the origin's live result
+      owner; it does not mutate the base manifest or prior overlays.
+   - Before blocking, the Worker must attach every scratch file needed after its
+     completion. Probe each listed attachment, compare its SHA-256, and verify
+     every child/continuation Input names the attachment and purpose. An empty
+     list is valid only when no intermediate file is needed. Never rely on an
+      origin scratch path; it is deleted after completion.
+      The `task_spec.input_attachments` field must be `[]` when no attachment is
+      consumed, or a single-line JSON array of normalized `attachment_spec`
+      objects when an existing attachment is consumed.
+2. Validate the complete child DAG, but create only child roots. Use
+   `<origin-task-id>:fanout:<checkpoint-key>:child:<child-key>` as each
+   idempotency key. Map local
+   parent keys to returned task ids and require `subscribed=true` for ordinary
+   cards. Keep dependent children in the origin's canonical
+   pending-registration overlay. Before creation, normalize each live TaskSpec with an exact
+   `Input attachments: [...]` JSON array of attachment_spec objects derived from the manifest attachments
+   that task consumes; use `[]` when none. Protected production/Researcher
+   children use `<QualityGate>` instead.
+3. Keep the continuation as a pending spec with key
+   `<origin-task-id>:fanout:<checkpoint-key>:continuation`. Register dependent
+   children and finally the continuation only after every direct parent passes
+   <CompletionAdmission>. Require `subscribed=true` unless the continuation is
+   deliberately held behind protected QA.
+4. Comment the complete normalized overlay with
+   `ORCHESTRATION_PENDING_OVERLAY:`, then `PROGRESS: fan_out checkpoint=<checkpoint>
+   live=<key:id,...> pending=<child-keys...,continuation>` on the origin task.
+   This typed manifest and map are the restart source.
+5. For a pending downstream, record `replaces_key` in the overlay so it consumes
+   the continuation when later registered; never mutate the base manifest. For every already-live
+   downstream, record its current status, then redirect it
+   before origin completion: first `hermes kanban link <continuation-id>
+   <downstream-id>`, then `hermes kanban unlink <origin-id> <downstream-id>`.
+   Verify the continuation edge exists, the origin edge is gone, and the
+   downstream is not `ready` or `running`. Preserve legitimate `scheduled`,
+   sticky `blocked`, and `triage` parking states; an ordinary waiting descendant
+   remains `todo`. For protected QA, archive stale QA first and create/protect
+   replacement internals and QA instead of preserving the old QA edge.
+6. After running the resolver inspection, comment
+   `DECISION(FAN_OUT_READY): live_children=<ids>
+   pending=<keys> anchor=<anchor> base_digest=<digest> overlay_task=<id>
+   overlay_digest=<digest> replacement_qa=<id-if-any>
+   block_event=<id> block_digest=<sha256>` and run the resolver `apply`
+   operation only after every pending spec, link, hold, and QA check is durable.
+   The resumed Worker completes only the obsolete checkpoint. A leaf has no
+   downstream to rewire but still requires this guarded decision/resume handshake.
+7. Ack live and pending branches. Never poll; subscribed child completion wakes
+   the Assistant, which probes the handoff before registering the next stage.
+
+A repeated block is safe: replay the same deterministic keys and verify returned
+ids and rewired edges match the recorded map. A changed manifest under the same
+checkpoint key is a protocol error; use a replacement checkpoint key.
+
+</FanOutManifest>
+
+<ExecutionRegistration>
+
+The selected execution shape determines registration:
+
+1. **`single`**: create one settled TaskSpec with an explicit assignee, mandatory
+   pipeline pin, and deterministic key derived from the request/session anchor.
+2. **`chain`**: validate all 2-3 TaskSpecs first, but register only the root.
+   Include the complete normalized pending manifest, digest, and deterministic
+   keys atomically in that root body. After creation, comment only a pointer and
+   progress line on the root; the comment is not a second manifest. After a root completes, run
+   <CompletionAdmission>; register the next card only when every input parent
+   passes. Downstream bodies list the validated parent ids and exact results
+   they consume. This late registration prevents runtime parent promotion from
+   bypassing handoff validation.
+3. **`planned`**: follow `references/plan.md`. Do not create specialist plan
+   cards before PlanningGraph approval, and do not create execution cards before
+   ExecutionOutline approval. Execution keys are
+   `<integration-task-id>:execution:<card-key>`.
+
+For every ordinary create, validate <Parameters>, call `kanban_create`, require
+`subscribed=true`, then run
+`~/.hermes/profiles/assistant/scripts/kanban-task-spec-probe.sh <id>`. Compare
+every immutable create parameter: title/body digest, assignee, parent set,
+skills, workspace kind/path, project/tenant, priority, runtime/goal-mode/model
+parameters, and the created event. Any mismatch or unobservable field is an
+idempotency collision and a hard stop.
+If subscription is false, retry once with the same key; if still false, stop and
+report. If an idempotent create returns `done`, process its completion
+metadata/artifacts synchronously and update the durable map instead of waiting
+for a past notification. `blocked`, terminal failure, archived, or active
+existing cards enter their normal recovery/status path; never acknowledge them
+as a fresh registration. Runtime auto-decomposition stays disabled
+(`auto_decompose: false`); no fallback decomposer carries this TaskSpec, grant,
+manifest, or QA contract.
+
+</ExecutionRegistration>
+
+<CompletionAdmission>
+
+Every `done` notification is untrusted until its run metadata passes the
+canonical completion contract. Before delivery, SpecialistPlan integration,
+downstream registration, QA release, or Publish release, run:
+
+```text
+~/.hermes/profiles/assistant/scripts/kanban-completion-probe.sh <task-id>
+```
+
+The probe validates `metadata.completion`, summary equality, attached artifact
+handoffs, and required role envelopes. A nonzero result is fail-closed:
+
+1. Do not deliver the result or consume it as a parent.
+2. Do not register or release any pending descendant. Newly registered chains
+   and ExecutionOutlines keep descendants as pending specs until all direct
+   parents pass this probe.
+3. Comment `CONTRACT_INVALID: <probe errors>` on the task and report the
+   malformed handoff. A done card is immutable; create a bounded replacement
+   with a fresh recovery key rather than pretending the metadata was repaired.
+4. For a protected production chain, QA must return `can't_verify`; never let a
+   digest-only pass compensate for a missing completion or artifact envelope.
+
+When an idempotent create returns an old `done` card, probe it synchronously
+before reuse. Cards completed before this fully enforced contract are not valid
+inputs to a new graph; replace them under a fresh run/key.
+
+</CompletionAdmission>
 
 <QualityGate>
 
@@ -497,11 +696,23 @@ every production and internal Researcher card in a protected chain:
    The one-shot spec file is removed after success.
 3. After every internal card is protected, create the QA card normally. Its
    `parents` directly list **every** hidden internal id. It auto-subscribes the
-   originating chat and inherits none from hidden parents.
+   originating chat and inherits none from hidden parents. Its deterministic
+   key is `<target-task-id>:qa:<qa-contract-digest>`; the digest covers the
+   target artifact inventory, producer capability, QA routes, Done criteria,
+   Researcher ledgers, and QA body version.
 4. Run `~/.hermes/profiles/assistant/scripts/kanban-qa-gate.sh release
    <qa-id> <internal-id>...`. The wrapper validates QA assignment/todo state,
    direct parent edges, at least one QA chat subscription, every setup marker,
    and zero internal subscriptions before unblocking all internals together.
+
+At QA pre-registration the actual candidate digest is unknown, so the
+`pending-assistant-probe` sentinel remains in the producer handoff and QA
+TaskSpec. The sentinel alone is not a finding. QA resolves the actual digest
+with mandatory before/after `qa-file-probe.sh` probes and records it in
+`metadata.qa.target_artifacts`; the Assistant does not rewrite the pre-registered
+TaskSpec. After QA passes, the Assistant runs CompletionAdmission on both the
+producer and QA, recomputes the target digest, and compares it with
+`metadata.qa.target_artifacts` before release.
 
 Any wrapper failure is a hard stop: report it and never substitute a plain
 `kanban_create` or manual schedule/unsubscribe sequence. `protect <id>` remains
@@ -515,53 +726,66 @@ for normal `<BlockedTriage>` / `<Failures>` handling. Never poll the chain.
 
 **Verdict handling:**
 
-- `pass`: `kanban_show` QA and the production parent, recompute each target
-  digest, and compare it with QA metadata. A mismatch requires fresh QA. On an
+- `pass`: run <CompletionAdmission> for QA, the production parent, and every
+  Researcher evidence parent, then `kanban_show` them, recompute each target
+  digest, and compare it with QA metadata. A missing or malformed completion
+  envelope is non-passing and requires recovery. On an
   exact match, send the actual artifact/text first, confirm delivery, then ask
   for optional human approval in a later message. Comment on QA:
   `QA_HANDLED: pass released target=<id> digest=<sha256>`. Assistant acceptance
   checks user intent and inventory; it does not redo specialist QA.
-- `fail`: create a bounded Creator/Writer revision from the itemized findings,
-  then a fresh QA card targeting that new immutable result. Re-run Researcher
-  only for changed or previously refuted claims. Then comment on the failed QA:
+- `fail`: create a bounded Creator/Writer revision from the itemized findings
+  with key `<failed-qa-id>:revision:<spec-digest>` and a `Recovery lineage`
+  object naming the failed QA and replaced producer. Then create fresh QA with
+  key `<recovery-task-id>:qa:<qa-contract-digest>` targeting that new immutable
+  result. Re-run Researcher only for changed or previously refuted claims. Then
+  comment on the failed QA:
   `QA_HANDLED: fail revision=<id> replacement_qa=<id>`.
 - `can't_verify`: create exactly the missing Researcher verification,
-  packaging repair, or canonical QA support, then a fresh QA card. It is never
-  a release. Comment `QA_HANDLED: can't_verify recovery=<ids>` after the
-  recovery graph exists.
+  packaging repair, or canonical QA support with key
+  `<source-task-id>:recovery:<kind>:<spec-digest>`, then fresh QA under the
+  replacement-QA key above. It is never a release. Comment `QA_HANDLED:
+  can't_verify recovery=<ids>` after the recovery graph exists.
 
 A verdict certifies one parent task and exact attachments only. Never repoint a
 completed QA card or let QA edit its input. User `Review:` is approval, not QA;
 for a QA-gated final deliverable it occurs only after pass, outside both cards.
 
-**Dynamic fan-out cannot bypass a pre-created gate.** A QA-gated
-Creator/Writer, a QA-bound Researcher needing Searcher breadth, or a Marketer
-needing final Creator/Writer production blocks with `QA_DAG_CHANGE` instead of
-creating children. On that block: read the
-self-contained proposed briefs; archive the stale pre-created QA card; register
-the children and continuation; protect every internal production/Researcher
-card with the wrapper; create replacement QA against the final
-Creator/Writer continuation. For Marketer, create its continuation subscribed
-with each QA card as a parent, then immediately park it with `hermes kanban
-schedule <id> "QA_MARKETER_HOLD: waiting for pass"`; `done` dependencies alone
-never authorize publishing. On a failed QA, keep the hold, create revision +
-replacement QA, and `hermes kanban link <replacement-qa-id>
-<marketer-continuation-id>`. After every latest QA says `pass` and release-time
-digests match, comment `QA_PASS_SET: <qa ids + target digests>` on the Marketer
-continuation and unblock it. Only then mark those QA cards `QA_HANDLED: pass`.
-After the graph and hold are registered (not after the work finishes), comment
-`DECISION(QA_DAG_CHANGE):` with all ids and unblock the original checkpoint
-card. The resumed worker only completes that checkpoint and must not create
-duplicate cards; later QA notifications drive the held continuation.
+**Fan-out cannot bypass a protected gate.** A QA-gated Creator/Writer,
+QA-bound Researcher, or Marketer checkpoint attaches `fan-out.yaml` and blocks
+with `FAN_OUT_READY:` before completion; it never creates cards. The watchdog
+surfaces this zero-subscription block. While the origin is still blocked:
+
+1. Validate the manifest per <FanOutManifest>. Archive any stale pre-created QA
+   whose direct parents no longer identify the final candidate; an old verdict
+   is never repointed.
+2. Persist children, the same-profile continuation, fresh QA specification, and
+   any later Marketer continuation in one pending-registration overlay. Register
+   only eligible child roots. The continuation and QA remain pending specs; no
+   dependency may auto-promote before completion admission.
+3. Once every continuation parent passes <CompletionAdmission>, create the
+   Creator/Writer or Researcher continuation with `kanban-qa-gate.sh
+   create-hidden`. Then create fresh QA whose direct parents are that pending
+   candidate plus every final evidence continuation, and release the hidden
+   continuation with the wrapper. QA now exists before candidate dispatch, but
+   the candidate was registered only after its own parents passed.
+4. Register a Marketer continuation only after every latest QA passes
+   <CompletionAdmission> and release-time digests match. Put
+   `QA_PASS_SET: <qa ids + target digests>` in its TaskSpec/comment before
+   dispatch. A failed QA creates revision and replacement-QA pending specs; it
+   never releases or links an already-live publisher.
+5. Comment `DECISION(FAN_OUT_READY): ...` and retire the origin once the overlay,
+   eligible roots, hidden-candidate/QA pending specs, and replacement mapping are
+   durable. QA need not exist yet. The resumed origin completes only its
+   obsolete checkpoint; subscribed roots or the watchdog drive later stages.
 
 For the **Researcher** variant, the final artifact still lives on the original
-Creator/Writer production card. Preserve that production id as a direct parent,
-create the final Researcher continuation behind its Searcher inputs, and create
-replacement QA with direct parents `[original-production-id,
-final-researcher-continuation-id]`. The stale original Researcher parent is a
-checkpoint only and is not a parent of replacement QA. Reuse the original
-production's existing `QA_RELEASE` marker when the wrapper validates/releases
-the replacement chain.
+Creator/Writer production card. Preserve that production id in the pending QA
+spec, register the final Researcher continuation only after its Searcher inputs
+pass, then create replacement QA with direct parents `[original-production-id,
+final-researcher-continuation-id]`. The original Researcher task is a checkpoint,
+not a replacement-QA parent. Reuse the production's existing `QA_RELEASE` marker
+when the wrapper validates/releases the continuation and replacement QA.
 
 </QualityGate>
 
@@ -571,7 +795,7 @@ the replacement chain.
   roster name from <Workers>; the dispatcher never validates it, and a card
   with an unknown assignee sits unclaimed with no error.
 - `workspace_kind`: `scratch` (fresh tmp, deleted on completion) is right for
-  searcher/researcher and for Plan-loop advisory consultations. Coder work
+  searcher/researcher and specialist planning branches. Coder work
   on a repo: `worktree` + absolute `workspace_path`, or `project: <slug>`
   for a deterministic project branch. `dir` (shared directory, absolute
   path, no isolation) is rare.
@@ -579,7 +803,7 @@ the replacement chain.
 - `idempotency_key`: set when retrying or re-dispatching — a duplicate card
   returns the existing task id instead of forking work.
 - `max_runtime_seconds`: cap runaway tasks (exceeded -> SIGTERM + `timed_out`).
-  Set small (e.g. 600) for Plan-loop advisory consultations.
+  Set small (e.g. 600-900) for specialist planning and retrieval branches.
 - `skills: [...]`: force-load a specialist skill installed on the assignee's
   profile when the task depends on it, plus the mandatory pipeline pins (see
   <Workers>). Learned skills are not stable dispatch identities.
@@ -649,8 +873,13 @@ failed runs), `crashed`, and `timed_out`:
 1. `kanban_show <id>` — read status, comments, and the worker's last report.
 2. State the cause plainly in chat; never hide a failure.
 3. Blocked on a question -> apply <BlockedTriage> below.
-4. Broken or impossible spec -> fix the spec and re-create with an
-   `idempotency_key`; don't re-run the same failure unchanged.
+4. Separate replay from replacement. A transient create/subscription transport
+   failure may replay the **same immutable spec** under the same key. A broken,
+   impossible, or changed spec is a replacement with key
+   `<source-task-id>:recovery:<kind>:<spec-digest>` and a `Recovery lineage`
+   object containing `kind`, `source_task_id`, `reason`, `spec_digest`, and when
+   applicable `failed_qa_id` / `replaces_task_id`. Never reuse an old key for
+   changed work or re-run the same terminal failure unchanged.
 5. Wrong worker or scope -> re-route to a new task with the right assignee and
    close out the dead card (step 6), so the board stays truthful.
 6. Dead card (superseded spec, duplicate, wrong worker) -> archive via
@@ -662,18 +891,18 @@ failed runs), `crashed`, and `timed_out`:
    -> it hit the block-loop breaker (see <BlockedTriage> — this transition
    does NOT notify chat). Auto-decompose is disabled, so the card just
    sits in `triage` untouched; answer the open `Q<n>`/`REVIEW:` questions
-   as usual and restore the card:
-   `sqlite3 ~/.hermes/kanban.db "UPDATE tasks SET status = 'todo',
-   block_recurrences = 0, block_kind = NULL WHERE id = '<id>';"`
-   (the dispatcher re-promotes it to `ready` on the next tick).
+    as usual, record every required `DECISION(...)`, then restore the card with
+    `~/.hermes/profiles/assistant/scripts/kanban-resolve-block.sh apply <id>`. The
+   wrapper verifies a decision follows the latest block, restores `triage` to
+   `todo`, resets recurrence state, and lets the dispatcher promote it.
 8. A `🚨 kanban watchdog` chat message (the `kanban-orphan-watchdog` cron,
    every 5 min) lists cards stuck where no notification can reach:
-   worker-created/QA-hidden cards that blocked, hidden cards whose latest
+   manifest-registered/QA-hidden cards that blocked, hidden cards whose latest
    terminal event failed, and block-loop triage falls. For each listed id:
    `kanban_show`, then apply <BlockedTriage> (blocked), the normal failure
-   recovery above (failed), or step 7 (triage fall). Worker-created children
-   answer to their creating card's plan; QA-hidden cards answer to the
-   Assistant-created protected chain — read the parent threads first.
+   recovery above (failed), or step 7 (triage fall). Manifest children answer
+   to the durable fan-out map on their origin checkpoint; QA-hidden cards answer
+   to the Assistant-created protected chain — read those threads first.
 
 </Failures>
 
@@ -688,62 +917,77 @@ block reason to ~160 chars — it's only a headline (e.g. `Q3: ORM vs raw
 SQL?`); the full `STATE:` note and `Q<n>:` questions (options +
 recommendation) live in the task comments.
 
-**QA DAG change before ordinary questions.** A block reason beginning
-`QA_DAG_CHANGE:` is an internal graph-repair request, never a user decision.
-Apply `<QualityGate>`'s dynamic fan-out recipe, comment
-`DECISION(QA_DAG_CHANGE): ...`, then unblock. Do not answer it with a normal
-`Q<n>` decision or leave the stale QA child attached.
+A graph-change block is an internal handoff, not a user question. For
+`FAN_OUT_READY:`, read the attached `fan-out.yaml`, apply <FanOutManifest> and,
+when protected, <QualityGate> atomically, persist the pending overlay, and
+register only eligible roots. Then run the resolver inspection, comment
+`DECISION(FAN_OUT_READY):` with its event/digest binding, and resume through
+the resolver `apply` operation. Any noncanonical graph-change marker is a protocol error after
+migration: do not normalize or register it; require a replacement Worker run
+that emits the canonical manifest. Never unblock until descendants are rewired
+and any stale QA is gone.
 
 **Review gate first.** If the block headline starts with `REVIEW:`, the
 task body carried `Review: required` and the worker is presenting its
 deliverable for human sign-off. NEVER answer it autonomously, whatever the
 grant — relay to the user (a `clarify`: approve / request changes, with
 the worker's summary and artifacts). On approve: comment
-`DECISION(REVIEW): approved` + `kanban_unblock` (+ counter reset below) —
-the worker completes. On change requests: `DECISION(REVIEW): changes —
-<list>` + unblock (+ reset); the worker revises and opens a fresh
-`REVIEW:` round.
+`DECISION(REVIEW): approved` with the latest event/digest binding, then run the
+resolver `apply` operation so the worker completes. On change requests, comment
+`DECISION(REVIEW): changes — <list>` with the same binding and use the resolver;
+the worker revises and opens a fresh `REVIEW:` round.
 
 For everything else, the grant that frames every answer is the task's
 **effective grant**: for
-engineer, the body's `Authority:` preset + overrides (artifact of the
-Plan Loop sign-off, `references/plan.md`, or written tight when Build skips
-Plan, `references/build.md`); for creator, the body's `Budget:` caps
+engineer, the body's `Authority:` preset + overrides (from the approved
+ExecutionOutline, `references/plan.md`, or a settled direct task,
+`references/build.md`); for creator, the body's `Budget:` caps
 (`references/creative.md`); for marketer, the body's `Publish:` line
 (absent = draft-only) — each plus any prior `AUTHORITY+:` comments.
 Two altitudes to keep straight:
 
-- **Feasibility altitude** (the Plan was wrong on a material point: an
-  assumption turned out impossible, scope needs re-thinking, architecture
-  has to change) — this is a Plan revision. Relay to the user as such; on
-  answer, update the plan, comment the resolution as `DECISION(Q<n>)` (plus
-  `AUTHORITY+:` lines if the revision widens the grant), `kanban_unblock`.
+- **Feasibility altitude** (the approved premise was wrong on a material point:
+  an assumption turned out impossible, scope needs re-thinking, architecture
+  has to change) — this changes the approved contract. Relay it to the user.
+  For `planned`, rerun approval gate 1 when the PlanningGraph changes or create
+  a Planner revision and rerun approval gate 2 when the ExecutionOutline
+  changes. Replace affected live cards instead of widening their bodies. For a
+  direct shape, normalize a replacement TaskSpec. Resolve the blocked origin
+  only as superseded through an event-bound decision and the resolver.
 - **Execution altitude** (a tactical call inside the agreed plan: which
   library, how to name a symbol, whether to add a test for an edge case)
   — handle inside the effective Authority:
   - **Within the Authority / the user's already-stated intent** -> answer
     autonomously (pick the worker's recommendation unless the grant argues
-    otherwise), then `kanban_unblock`. Report the decision to the user in
+    otherwise), bind the decision to the latest block, and resume through the
+    resolver. Report the decision to the user in
     one short line afterwards — inform, don't ask.
   - **Outside the grant** (push/PR not sanctioned, spend, scope expansion,
     destructive/irreversible, or genuinely the user's call) -> relay the
     question to the user. Prefer a `clarify` with the worker's options +
-    recommendation; on reply, comment + `kanban_unblock`.
+    recommendation; on reply, bind the decision and resume through the resolver.
   - **Marketer P0 publish approvals are always the user's call.** An
     `APPROVAL:` block headline (kind=needs_input — same always-relay
     contract as `REVIEW:`) marks it; the exact post
     text/attachments/destination live in the task comments and are relayed
     verbatim (publishing is public and irreversible — never approve a post
     autonomously, whatever the chat context); the approved text is echoed
-    back in the `DECISION(Q<n>)` so the worker ships it verbatim.
+    back in `DECISION(APPROVAL):` with the latest event/digest binding so the
+    worker ships it verbatim.
 
-Answer format — the respawned worker parses comments mechanically
-(`kanban_unblock` itself carries no message):
+Answer format — the respawned worker parses comments mechanically (the resolver
+does not carry the decision text):
 
+- First run
+  `~/.hermes/profiles/assistant/scripts/kanban-resolve-block.sh inspect <id>`.
+  It returns the latest blocking event ID and a digest of that event's reason
+  plus exact question/gate comments. Append the returned
+  `block_event=<id> block_digest=<sha256>` binding verbatim to every decision in
+  this batch; a stale decision from an earlier block must never authorize the
+  current one.
 - One `DECISION(Q<n>): <choice> — <short reason>` comment line per open
-  question, using the worker's numbering. Answer **every** open `Q<n>` in
-  the batch before unblocking — a half-answered batch forces another
-  round-trip.
+  question, using the worker's numbering and the binding above. Answer **every**
+  open `Q<n>` in the batch before resolving — a half-answered batch is rejected.
 - If the answer grants something new (push, PR, deps, wider scope — or for
   creator, extra generation spend beyond the Budget), add an
   `AUTHORITY+: <grant line>` comment — never rely on prose in the decision,
@@ -754,12 +998,10 @@ answer from the grant or the chat context; never unblock without the
 `DECISION(Q<n>)` comments (the respawned worker reads only the comments to
 resume).
 
-**After every DECISION-driven unblock, reset the block-loop counter** via
-terminal:
+**After recording every DECISION, resolve through the block wrapper**:
 
 ```
-sqlite3 ~/.hermes/kanban.db \
-  "UPDATE tasks SET block_recurrences = 0, block_kind = NULL WHERE id = '<id>';"
+~/.hermes/profiles/assistant/scripts/kanban-resolve-block.sh apply <id>
 ```
 
 Why: the board escalates the SECOND same-kind block of a task's life
@@ -767,11 +1009,11 @@ straight to `triage` — silently (no chat notification), where it sits
 untouched until you notice (`BLOCK_RECURRENCE_LIMIT = 2`;
 unblock deliberately never resets the counter, only completion does).
 That breaker exists to stop *blind cron-unblock loops*; your answered
-`DECISION` comments ARE the human-in-the-loop it wants to force, so the
-reset is the correct semantic. Never run the reset from automation or
-without actually having answered the open questions — that would recreate
-the loop the breaker guards against. (Recovery when a task already fell
-to `triage`: <Failures> step 7.)
+`DECISION` comments ARE the human-in-the-loop it wants to force. The wrapper
+requires an Assistant decision after the latest blocking event, unblocks the
+card, and resets the counter as one guarded operation. Never use it from
+automation or without answering every open question. It also handles recovery
+after a card fell to `triage` (<Failures> step 7).
 
 </BlockedTriage>
 
@@ -801,17 +1043,16 @@ event the board is silent by design. Mid-run visibility is on-demand:
 
 <AntiPatterns>
 
-- Skipping Plan for implementation work (standing rule: code/tests/builds/
-  restructure always enters Plan, even if it looks small).
+- Dispatching before the RequirementSpec has `goal`, `done_criteria`, and
+  `constraints`, or asking the user to restate fields already evident.
 - Bypassing `clarify` for plain-chat questions whenever the user has options
   to pick from.
 - Asking the user more than one `clarify` question at a time, or stacking
   options outside the `clarify` call (worker block batches are different:
   answer every open `Q<n>` in one round-trip).
-- Using `delegate_task` for Plan-loop worker consultations — they go to
-  kanban (advisory, scratch, small `max_runtime_seconds`).
-- Treating a Plan-loop advisory consultation as a deliverable (it informs
-  the plan; it doesn't ship).
+- Using `delegate_task` for durable specialist planning — approved planning
+  branches go to Kanban with plan-only TaskSpecs.
+- Treating a SpecialistPlan as an execution deliverable or live grant.
 - Quick lookups on the board (dispatch ticks) — answer them inline. Media is
   the deliberate exception: it always goes to creator, with a full brief
   from `references/creative.md`.
@@ -828,11 +1069,11 @@ event the board is silent by design. Mid-run visibility is on-demand:
   `AUTHORITY+:` comments; shrinks are a plan revision).
 - Unblocking without a `DECISION(Q<n>)` comment per open question, or
   answering only part of a question batch.
-- Unblocking after a DECISION without the `block_recurrences` sqlite reset
-  (<BlockedTriage>) — the next same-kind block silently escalates to
+- Calling `kanban_unblock` directly after a DECISION instead of
+  `kanban-resolve-block.sh` — the next same-kind block silently escalates to
   `triage`.
-- Resetting `block_recurrences` from automation, or without having
-  actually answered the open questions.
+- Calling the block resolver from automation, or without having answered every
+  open question.
 - Answering a `REVIEW:` block yourself, however obvious the approval —
   the review gate exists precisely for the user's own sign-off.
 - Moving a card into the `review` column (UI drag or otherwise) — it has
@@ -848,18 +1089,15 @@ event the board is silent by design. Mid-run visibility is on-demand:
 - Polling the board after dispatch (notifications are automatic;
   <StatusCheck> is user-initiated only).
 - Duplicate cards for the same ask (use `idempotency_key` on retries).
-- Hand-decomposing a multi-card requirement into thin cards yourself — the
-  dependency graph is the planner's deliverable (Planner tree), and the
-  user approves it before anything is registered.
-- Registering build cards before the user approved the outline, or letting
-  any worker (planner included) create build cards — registration is yours,
-  post-approval, in topological order with idempotency keys.
+- Registering specialist plan cards before PlanningGraph approval, or execution
+  cards before ExecutionOutline approval.
+- Letting any Worker or Planner create cards. They return SpecialistPlan or
+  FanOutManifest metadata; registration is Assistant-owned, topological,
+  subscribed, and idempotent.
 - Pinning a `skills:` technic that isn't in the <Workers> table for that
   profile — unknown needs go into the card body + a technic-authoring note.
-- Sending a small or interactive planning session to a Planner tree —
-  the chat Plan Loop is the default; the tree costs a dispatch hop per
-  stage and hides the loop from an engaged user. Single-card work never
-  needs the planner.
+- Sending `single` or obvious `chain` work through the planned workflow. The
+  Planner integrates multi-specialist work; it is not a tax on settled tasks.
 - Raw worker reports pasted into chat.
 - Naming pipeline categories or this skill's mechanics in chat — the routing
   is silent; the user hears the persona, not the machinery.
