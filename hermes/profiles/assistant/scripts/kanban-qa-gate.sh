@@ -34,8 +34,10 @@ fi
 exec /usr/bin/python3 - "$HERMES" "$@" <<'PY'
 import json
 import os
+import sqlite3
 import subprocess
 import sys
+from pathlib import Path
 
 
 HERMES = sys.argv[1]
@@ -55,6 +57,91 @@ def run(*args):
 def fail(message):
     print(f"kanban-qa-gate: {message}", file=sys.stderr)
     sys.exit(1)
+
+
+def kanban_root():
+    override = os.environ.get("HERMES_KANBAN_HOME", "").strip()
+    if override:
+        return Path(override).expanduser()
+    home = Path(os.environ.get("HERMES_HOME", "~/.hermes")).expanduser()
+    return home.parent.parent if home.parent.name == "profiles" else home
+
+
+def kanban_db_path():
+    override = os.environ.get("HERMES_KANBAN_DB", "").strip()
+    if override:
+        return Path(override).expanduser()
+    root = kanban_root()
+    board = os.environ.get("HERMES_KANBAN_BOARD", "").strip()
+    if not board:
+        try:
+            board = (root / "kanban" / "current").read_text().strip()
+        except OSError:
+            board = ""
+    if not board or board == "default":
+        return root / "kanban.db"
+    return root / "kanban" / "boards" / board / "kanban.db"
+
+
+def db_task(task_id):
+    try:
+        conn = sqlite3.connect(str(kanban_db_path()))
+        conn.row_factory = sqlite3.Row
+        row = conn.execute("SELECT * FROM tasks WHERE id = ?", (task_id,)).fetchone()
+        conn.close()
+    except sqlite3.Error as exc:
+        fail(f"cannot inspect active board for {task_id}: {exc}")
+    if row is None:
+        fail(f"task not found in active board: {task_id}")
+    return dict(row)
+
+
+def expected_project(project):
+    if not project:
+        return None, None
+    home = Path(os.environ.get("HERMES_HOME", "~/.hermes")).expanduser()
+    project_db = home / "projects.db"
+    if not project_db.is_file():
+        return str(project), None
+    try:
+        conn = sqlite3.connect(str(project_db))
+        row = conn.execute(
+            "SELECT id, primary_path FROM projects WHERE id = ? OR slug = ? LIMIT 1",
+            (str(project), str(project).lower()),
+        ).fetchone()
+        conn.close()
+    except sqlite3.Error:
+        return str(project), None
+    return (str(row[0]), row[1]) if row else (str(project), None)
+
+
+def expected_workspace(workspace):
+    if workspace in (None, "", "scratch"):
+        return "scratch", None
+    if workspace == "worktree":
+        return "worktree", None
+    for prefix in ("dir:", "worktree:"):
+        if str(workspace).startswith(prefix):
+            path = os.path.expanduser(str(workspace)[len(prefix):].strip())
+            return prefix[:-1], path
+    fail(f"invalid workspace value: {workspace}")
+
+
+def board_default_workdir():
+    root = kanban_root()
+    board = os.environ.get("HERMES_KANBAN_BOARD", "").strip()
+    if not board:
+        try:
+            board = (root / "kanban" / "current").read_text().strip()
+        except OSError:
+            board = ""
+    board = board or "default"
+    metadata = root / "kanban" / "boards" / board / "board.json"
+    try:
+        value = json.loads(metadata.read_text()).get("default_workdir")
+    except (OSError, AttributeError, json.JSONDecodeError):
+        return None
+    return os.path.expanduser(str(value)) if value else None
 
 
 def cli_error(action, result):
@@ -211,6 +298,15 @@ def create_hidden(spec_path):
     for required in ("title", "body", "assignee", "idempotency_key"):
         if not isinstance(spec.get(required), str) or not spec[required]:
             fail(f"hidden-task spec requires non-empty {required}")
+    for field in ("parents", "skills"):
+        values = spec.get(field, [])
+        if not isinstance(values, list) or not all(
+            isinstance(item, str) and item for item in values
+        ):
+            fail(f"hidden-task spec {field} must be a string list")
+    for field in ("max_runtime", "priority"):
+        if field in spec and type(spec[field]) is not int:
+            fail(f"hidden-task spec {field} must be an integer")
 
     args = [
         "create", "--json", "--initial-status", "blocked",
@@ -257,21 +353,64 @@ def create_hidden(spec_path):
     # protection cannot dispatch it. Assignment happens only after the durable
     # QA_SETUP hold and zero-subscription check succeed.
     task, _, detail = show(task_id)
-    current_assignee = task.get("assignee")
+    stored = db_task(task_id)
+    current_assignee = stored.get("assignee")
     if current_assignee not in (None, "", spec["assignee"]):
         fail(f"{task_id} idempotency collision has assignee {current_assignee}")
-    if task.get("created_by") != "assistant:qa-gate":
+    if stored.get("created_by") != "assistant:qa-gate":
         fail(f"{task_id} was not created by assistant:qa-gate")
-    if task.get("title") != spec["title"] or task.get("body") != spec["body"]:
+    if stored.get("title") != spec["title"] or stored.get("body") != spec["body"]:
         fail(f"{task_id} idempotency collision has different title/body")
+    if stored.get("idempotency_key") != spec["idempotency_key"]:
+        fail(f"{task_id} idempotency collision has a different key")
     actual_parents = set(parent_ids(task, detail))
     expected_parents = {str(parent) for parent in spec.get("parents", [])}
     if actual_parents != expected_parents:
         fail(f"{task_id} idempotency collision has different parents")
-    actual_skills = set(task.get("skills") or [])
+    actual_skill_values = stored.get("skills") or []
+    if isinstance(actual_skill_values, str):
+        try:
+            actual_skill_values = json.loads(actual_skill_values)
+        except json.JSONDecodeError:
+            fail(f"{task_id} has unreadable skills")
+    if not isinstance(actual_skill_values, list):
+        fail(f"{task_id} has invalid skills")
+    actual_skills = set(actual_skill_values)
     expected_skills = {str(skill) for skill in spec.get("skills", [])}
     if actual_skills != expected_skills:
         fail(f"{task_id} idempotency collision has different skills")
+    project_id, project_primary = expected_project(spec.get("project"))
+    expected_kind, expected_path = expected_workspace(spec.get("workspace", "scratch"))
+    if project_id and project_primary and expected_kind == "scratch":
+        expected_kind = "worktree"
+        expected_path = os.path.join(str(project_primary), ".worktrees", task_id)
+    elif (
+        project_id
+        and project_primary
+        and expected_kind == "worktree"
+        and expected_path is None
+    ):
+        expected_path = os.path.join(str(project_primary), ".worktrees", task_id)
+    elif expected_kind in ("dir", "worktree") and expected_path is None:
+        expected_path = board_default_workdir()
+    if stored.get("workspace_kind") != expected_kind:
+        fail(f"{task_id} idempotency collision has different workspace kind")
+    actual_path = stored.get("workspace_path")
+    if (actual_path is None) != (expected_path is None) or (
+        actual_path is not None
+        and expected_path is not None
+        and os.path.normpath(str(actual_path)) != os.path.normpath(expected_path)
+    ):
+        fail(f"{task_id} idempotency collision has different workspace path")
+    immutable_fields = {
+        "max_runtime": ("max_runtime_seconds", spec.get("max_runtime")),
+        "priority": ("priority", spec.get("priority", 0)),
+        "project": ("project_id", project_id),
+        "tenant": ("tenant", spec.get("tenant")),
+    }
+    for spec_field, (column, expected) in immutable_fields.items():
+        if str(stored.get(column)) != str(expected):
+            fail(f"{task_id} idempotency collision has different {spec_field}")
 
     protect(task_id)
     task, _, _ = show(task_id)
