@@ -384,7 +384,8 @@ SpecialistPlan or execute deliverable.
   schema-valid `metadata.specialist_plan` on final completion.
 - Every proposed creator execute card has child_spec shape, a canonical
   creator technic, complete MediaBrief, minimum Budget, Intent, QA route, and
-  approved Fan-out policy. Proposed QA cards are not live cards.
+  approved Fan-out policy. QA is a producer requirement that the Assistant
+  materializes only after candidate/evidence completion admission.
 - Effective Budget computed (body + `AUTHORITY+:` comments); every
   generation maps to a cap or a granted expansion; the tally in the
   report reconciles.

@@ -97,6 +97,14 @@ task_spec:
   constraints: <scope, no publishing, and no card registration>
   mode: execute|retrieve|analyze
   qa: <required for writer; omit for searcher/researcher>
+  producer_qa_requirement:
+    candidate_key: <writer card key>
+    evidence_keys: [<final Researcher evidence card keys>]
+    capability: writer:<writer type>
+    routes: [<qa-prose|qa-script>]
+    criteria: [<approved acceptance criteria>]
+    done_criteria: <copied objective Done criteria>
+    output_inventory: [<expected durable attachment names and purposes>]
   fan_out_policy:
     allowed_assignees: [searcher, researcher]
     max_children: <bounded count>
@@ -106,12 +114,14 @@ task_spec:
 
 The required `task_spec` fields are `goal`, `inputs`, `input_attachments`,
 `done_criteria`, `output`, and `constraints`. Optional fields must come only from the workflow
-contract: `mode`, `review`, `qa`, `grant`, `plan_id`, `outline_key`, and
-`fan_out_policy`. Do not add unlisted child or production fields anywhere.
+contract: `mode`, `review`, `qa`, `producer_qa_requirement`, `grant`, `plan_id`,
+`outline_key`, and `fan_out_policy`. Do not add unlisted child or production
+fields anywhere.
 
 The writer card uses `mode: execute`; Searcher and Researcher cards use
 `mode: retrieve` and `mode: analyze` respectively and omit `qa`. The writer
-card's `constraints` must say that it is draft-only and cannot
+card also carries the closed `producer_qa_requirement` object. Its `constraints`
+must say that it is draft-only and cannot
 publish. Its `output` must name the exact artifact when `qa: required`. Its
 `fan_out_policy` is `forbidden` when no further research is permitted, or the
 approved bounded policy when research may still be needed.

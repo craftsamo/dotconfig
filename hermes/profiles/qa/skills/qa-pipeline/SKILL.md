@@ -102,10 +102,12 @@ Every QA card must provide:
 - a completed Creator or Writer production parent id;
 - the production parent's valid `metadata.completion` and
   `metadata.artifact_handoff` objects, with the handoff naming every candidate
-  artifact and its QA requirement. Writer and Researcher handoffs may carry the
-  `pending-assistant-probe` sentinel because those profiles have no terminal
-  digest tool. Pre-registered QA may receive that sentinel before production
-  runs; it is resolved during QA, not rewritten into the QA TaskSpec.
+  artifact and its QA requirement. A parent handoff may carry the
+  `pending-assistant-probe` sentinel when that profile has no terminal digest
+  tool, but the Assistant resolves it before creating QA;
+- `Input attachments:` containing every candidate artifact and Researcher
+  evidence attachment with its measured SHA-256 and source task id.
+  QA TaskSpec never carries `pending-assistant-probe`;
 - the acceptance criteria and expected deliverables, copied from the approved
   TaskSpec rather than reconstructed from chat;
 - the canonical producer capability or Writer deliverable type;
@@ -120,13 +122,8 @@ The production parent must expose the exact candidate version:
   potentially truncated final message.
 
 A malformed or incomplete QA card is not repaired in place. Audit what is
-recoverable and return `can't_verify` with the missing contract item.
-
-The sentinel alone is not a finding. QA resolves the actual digest with
-mandatory before/after `qa-file-probe.sh` probes and records the actual digest
-in `metadata.qa.target_artifacts`. When parent identity, the sole/expected
-attachment inventory, and both probes agree, the sentinel alone is not a
-finding, residual risk, fail, or `can't_verify` result.
+recoverable and return `can't_verify` with the missing contract item. A
+sentinel or missing digest in the QA TaskSpec is malformed input.
 
 </Inputs>
 
@@ -135,9 +132,11 @@ finding, residual risk, fail, or `can't_verify` result.
 1. **Resolve.** `kanban_show` this card and every parent. Identify exactly one
    production parent and zero or more predeclared Researcher parents. Validate
    the parent's `metadata.completion` and `metadata.artifact_handoff` before
-   substantive inspection. Missing or inconsistent envelopes are
-   `can't_verify`. Record the target task id, attachment names, and available
-   version/hash metadata.
+   substantive inspection. Match every candidate and evidence attachment to an
+   `Input attachments:` entry with an actual SHA-256 and the correct source
+   parent. Missing or inconsistent envelopes, inventories, or digests are
+   `can't_verify`. Record the target task id, attachment names, and version/hash
+   metadata.
 2. **Lock the candidate.** Open every required attachment. For each local
    attachment run exactly one outer command, never a chained command or inline
    interpreter: `~/.hermes/profiles/qa/skills/qa-pipeline/scripts/qa-file-probe.sh

@@ -252,13 +252,12 @@ mode. Its continuation is assigned to `marketer`, uses
 `Planning branch:`. The plan branch returns no SpecialistPlan at the
 checkpoint; the resumed continuation returns the sole final SpecialistPlan.
 
-In execute mode the same Assistant-owned manifest contract applies. Writer and
-Creator production is protected: the manifest includes the production card,
-its required QA chain, digest-checked QA pass, and release dependency. The
-Assistant creates the protected Writer/Creator production -> QA chain and the
-held marketer continuation, and releases it only after the required QA pass
-set. QA completion alone never authorizes publishing. Grants never propagate
-to child cards. See `references/delegate.md`.
+ In execute mode the same Assistant-owned manifest contract applies. Writer and
+ Creator production is registered normally with subscriptions; after candidate
+ and evidence CompletionAdmission, the Assistant late-binds QA and records its
+ digest-checked pass as the marketer continuation's dependency. QA completion
+ alone never authorizes publishing. Grants never propagate to child cards. See
+ `references/delegate.md`.
 
 </FanOut>
 

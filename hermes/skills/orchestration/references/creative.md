@@ -100,9 +100,10 @@ human `Review:` gate for its final candidate; QA runs first and the Assistant
 asks for human approval after pass. The same task then continues into the
 batch. One cheap asset dispatches normally (produce).
 
-Ack with the production and QA task ids. The hidden production completion is
-not delivery; the QA notification wakes final acceptance. Small single assets
-go to creator too — never improvise media inline.
+Ack with the production task id. Production completion is candidate progress,
+not delivery; after completion admission the Assistant creates QA and reports
+its task id separately. The normal QA notification wakes final acceptance.
+Small single assets go to creator too — never improvise media inline.
 
 ## Revision dispatches (redo / fix an earlier delivery)
 

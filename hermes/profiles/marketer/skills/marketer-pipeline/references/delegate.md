@@ -18,8 +18,9 @@ Contract bindings: `card_registration_owner: assistant` and
 - In `Mode: plan`, only Searcher or Researcher children allowed by the
   approved branch Fan-out policy may be requested.
 - In `Mode: execute`, use the same manifest contract. Writer and Creator
-  production that feeds a final campaign candidate is protected production and
-  must include its QA and release dependencies.
+  production that feeds a final campaign candidate uses subscribed production
+  and evidence cards, followed by late-bound QA and its digest-checked pass
+  dependency.
 
 ## Manifest contract
 
@@ -68,7 +69,7 @@ For execute work, it has `assignee: marketer`,
 `skills: [marketer-pipeline]`, `task_spec.mode: execute`, API-only `params`, and the same campaign
 brief, acceptance bar, grant ceiling, and release dependencies.
 
-## Protected Writer and Creator production
+## Writer and Creator production with QA
 
 The manifest is the complete Assistant-owned production contract. For each
 Writer or Creator output that may become a final campaign candidate, include:
@@ -76,11 +77,11 @@ Writer or Creator output that may become a final campaign candidate, include:
 - the self-contained Writer or Creator child spec;
 - the exact QA route and required QA technic;
 - the artifact name and expected digest handoff;
-- the release dependency on a digest-checked QA pass set;
-- the marketer continuation held until all required QA results pass.
+- the late-bound QA dependency on a digest-checked pass set;
+- the marketer continuation registered only after all required QA results pass.
 
-The Assistant creates the Writer/Creator production -> QA chain, adds the QA
-cards as parents of the held marketer continuation, and releases that
+The Assistant creates the Writer/Creator production and evidence cards normally,
+late-binds QA after their CompletionAdmission, and registers the marketer
 continuation only after the required pass set and artifact digests match.
 QA completion alone does not authorize publication. A failed result is
 replaced or escalated through the Assistant-owned manifest; it is not silently

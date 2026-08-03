@@ -435,7 +435,7 @@ Final message:
   candidates. The final completion call returns exactly one
   `metadata.specialist_plan` object with `origin_task_id`, `branch_key`,
   `summary`, and `proposed_cards`, plus optional `assumptions` and `evidence`;
-  no legacy child or production wrappers. `origin_task_id` is the final
+  no legacy child or production wrapper handoffs. `origin_task_id` is the final
   continuation's own task id and `branch_key` matches the Planning branch.
   Evidence contains only parent task ids, URLs, or attachment names. A
   `FAN_OUT_READY:` checkpoint returns no SpecialistPlan and does not complete.

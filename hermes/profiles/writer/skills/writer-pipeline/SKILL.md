@@ -374,7 +374,7 @@ QA attachment is still the declared artifact.
   same-branch; plan continuation uses `Mode: plan`.
 - Execute mode preserves the assess/write internal routes, review gate, exact
   deliverable attachment, QA route, and draft-only grant.
-- No worker procedure registers cards or uses a legacy protected-fan-out handoff.
+- No worker procedure registers cards or uses a legacy fan-out handoff.
 - Every completed card has exactly one completion envelope, with the role payload
   under `metadata.completion.metadata`; an attached final draft has exactly one
   artifact handoff with canonical writer capability and required QA.

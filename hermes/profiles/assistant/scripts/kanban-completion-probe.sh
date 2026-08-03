@@ -17,6 +17,8 @@ import sqlite3
 import sys
 from pathlib import Path
 
+import yaml
+
 task_id = sys.argv[1]
 
 
@@ -103,15 +105,68 @@ def latest_metadata(source_task_id):
     return value if isinstance(value, dict) else None
 
 errors = []
-input_match = re.search(
+
+
+def validate_producer_qa_requirement(spec, location, assignee, expected_key):
+    if assignee not in ("creator", "writer") or spec.get("qa") != "required":
+        return
+    requirement = spec.get("producer_qa_requirement")
+    required = {
+        "candidate_key",
+        "evidence_keys",
+        "capability",
+        "routes",
+        "criteria",
+        "done_criteria",
+        "output_inventory",
+    }
+    if not isinstance(requirement, dict) or set(requirement) != required:
+        errors.append(
+            f"{location}.producer_qa_requirement must be the closed canonical object"
+        )
+        return
+    for field in ("candidate_key", "capability"):
+        if not isinstance(requirement[field], str) or not requirement[field].strip():
+            errors.append(f"{location}.producer_qa_requirement.{field} must be non-empty")
+    if requirement["candidate_key"] != expected_key:
+        errors.append(
+            f"{location}.producer_qa_requirement.candidate_key must match the card key"
+        )
+    if not isinstance(requirement["evidence_keys"], list) or not all(
+        isinstance(item, str) and item for item in requirement["evidence_keys"]
+    ):
+        errors.append(
+            f"{location}.producer_qa_requirement.evidence_keys must be a string list"
+        )
+    if not isinstance(requirement["routes"], list) or not all(
+        isinstance(item, str) and item.startswith("qa-") for item in requirement["routes"]
+    ):
+        errors.append(f"{location}.producer_qa_requirement.routes must be QA routes")
+    for field in ("criteria", "output_inventory"):
+        value = requirement[field]
+        if not isinstance(value, list) or not all(
+            isinstance(item, (str, dict)) and bool(item) for item in value
+        ):
+            errors.append(f"{location}.producer_qa_requirement.{field} must be a list")
+    if not requirement["routes"] or not requirement["criteria"] or not requirement["output_inventory"]:
+        errors.append(f"{location}.producer_qa_requirement QA lists must be non-empty")
+    if requirement["done_criteria"] in (None, "", [], {}):
+        errors.append(
+            f"{location}.producer_qa_requirement.done_criteria must be non-empty"
+        )
+
+
+input_matches = re.findall(
     r"(?m)^Input attachments:\s*(\[[^\n]*\])\s*$", task["body"] or ""
 )
 input_attachments = []
-if input_match is None:
+if not input_matches:
     errors.append("TaskSpec must declare Input attachments as a JSON array")
 else:
+    if len(input_matches) != 1:
+        errors.append("TaskSpec must declare Input attachments exactly once")
     try:
-        input_attachments = json.loads(input_match.group(1))
+        input_attachments = json.loads(input_matches[0])
     except json.JSONDecodeError as exc:
         errors.append(f"Input attachments is invalid JSON: {exc}")
     if not isinstance(input_attachments, list):
@@ -328,13 +383,25 @@ if "Mode: plan" in body and completion_status != "superseded":
                 "params",
                 "task_spec",
             }
-            task_fields = {"goal", "inputs", "done_criteria", "output", "constraints"}
+            task_fields = {
+                "goal",
+                "inputs",
+                "input_attachments",
+                "done_criteria",
+                "output",
+                "constraints",
+            }
             for index, card in enumerate(specialist["proposed_cards"]):
                 if not isinstance(card, dict):
                     errors.append(
                         f"metadata.specialist_plan.proposed_cards[{index}] must be an object"
                     )
                     continue
+                if card.get("assignee") == "qa":
+                    errors.append(
+                        f"metadata.specialist_plan.proposed_cards[{index}] cannot assign qa: "
+                        "QA must be late-bound after CompletionAdmission/digest resolution"
+                    )
                 missing = sorted(child_fields - set(card))
                 if missing:
                     errors.append(
@@ -363,10 +430,20 @@ if "Mode: plan" in body and completion_status != "superseded":
                         f"metadata.specialist_plan.proposed_cards[{index}].params must be an object"
                     )
                 if isinstance(spec, dict):
+                    validate_producer_qa_requirement(
+                        spec,
+                        f"metadata.specialist_plan.proposed_cards[{index}].task_spec",
+                        card.get("assignee"),
+                        card.get("key"),
+                    )
                     for field in task_fields:
-                        if spec.get(field) in (None, "", [], {}):
+                        if field == "input_attachments":
+                            invalid = not isinstance(spec.get(field), list)
+                        else:
+                            invalid = spec.get(field) in (None, "", [], {})
+                        if invalid:
                             errors.append(
-                                f"metadata.specialist_plan.proposed_cards[{index}].task_spec.{field} must be non-empty"
+                                f"metadata.specialist_plan.proposed_cards[{index}].task_spec.{field} is invalid"
                             )
 if task["assignee"] == "planner":
     outline = metadata.get("execution_outline")
@@ -408,20 +485,73 @@ if task["assignee"] == "planner":
             errors.append("Planner execution outline sha256 must use probe sentinel")
         outline_path = output_paths.get(outline_name)
         if outline_path:
+            outline_document = None
             try:
                 outline_text = open(outline_path, encoding="utf-8").read()
             except (OSError, UnicodeError) as exc:
                 errors.append(f"execution outline is unreadable: {exc}")
             else:
+                try:
+                    outline_document = yaml.safe_load(outline_text)
+                except yaml.YAMLError:
+                    errors.append("execution outline YAML parse failed")
+                else:
+                    if not isinstance(outline_document, dict):
+                        errors.append("execution outline YAML must be a mapping")
+                    else:
+                        cards = outline_document.get("cards")
+                        if not isinstance(cards, list):
+                            errors.append("execution outline cards must be a list")
+                        else:
+                            for index, card in enumerate(cards):
+                                if not isinstance(card, dict):
+                                    errors.append(
+                                        f"execution outline cards[{index}] must be a mapping"
+                                    )
+                                elif not isinstance(card.get("assignee"), str) or not card[
+                                    "assignee"
+                                ].strip():
+                                    errors.append(
+                                        f"execution outline cards[{index}] must have a non-empty string assignee"
+                                    )
+                                elif card["assignee"] == "qa":
+                                    errors.append(
+                                        f"execution outline cards[{index}] cannot assign qa: "
+                                        "QA must be late-bound after CompletionAdmission/digest resolution"
+                                    )
+                                else:
+                                    spec = card.get("task_spec")
+                                    if isinstance(spec, dict):
+                                        validate_producer_qa_requirement(
+                                            spec,
+                                            f"execution outline cards[{index}].task_spec",
+                                            card["assignee"],
+                                            card.get("key"),
+                                        )
                 request_line = re.search(r"(?m)^request_id:\s*([^\s#]+)", outline_text)
                 if request_line is None or request_line.group(1) != outline.get("request_id"):
                     errors.append("execution outline request_id mismatches handoff")
-                actual_card_count = len(re.findall(r"(?m)^  - key:\s*", outline_text))
-                if actual_card_count != outline.get("card_count"):
-                    errors.append("execution outline card_count mismatches attachment")
+                if isinstance(outline_document, dict) and isinstance(
+                    outline_document.get("cards"), list
+                ):
+                    actual_card_count = len(outline_document["cards"])
+                    if actual_card_count != outline.get("card_count"):
+                        errors.append("execution outline card_count mismatches attachment")
         if actual_outline_digest:
             output_digests[outline_name] = actual_outline_digest
 if task["assignee"] == "qa":
+    qa_input_inventory = {}
+    for item in input_attachments:
+        if not isinstance(item, dict):
+            continue
+        key = (item.get("source_task_id"), item.get("name"))
+        digest = item.get("sha256")
+        if key in qa_input_inventory:
+            errors.append("QA TaskSpec Input attachments contains a duplicate artifact")
+        qa_input_inventory[key] = digest
+        if digest == "pending-assistant-probe":
+            errors.append("QA TaskSpec Input attachments must use resolved digests")
+    expected_qa_inputs = {}
     qa = metadata.get("qa")
     if not isinstance(qa, dict):
         errors.append("QA completion requires metadata.qa")
@@ -619,6 +749,8 @@ if task["assignee"] == "qa":
                     except OSError:
                         pass
             producer_inventory[name] = digest
+            if production_parents and isinstance(name, str):
+                expected_qa_inputs[(production_parents[0], name)] = digest
         producer_qa = (
             producer_handoff.get("qa") if isinstance(producer_handoff, dict) else None
         )
@@ -670,6 +802,26 @@ if task["assignee"] == "qa":
                 errors.append(
                     f"Researcher parent {researcher_parent} claim ledger is not attached"
                 )
+            else:
+                ledger_spec = next(
+                    (
+                        item
+                        for item in researcher_specs
+                        if isinstance(item, dict) and item.get("name") == ledger
+                    ),
+                    None,
+                )
+                ledger_digest = (
+                    ledger_spec.get("sha256") if isinstance(ledger_spec, dict) else None
+                )
+                if ledger_digest == "pending-assistant-probe":
+                    row = attachment_row(researcher_parent, ledger)
+                    if row is not None:
+                        try:
+                            ledger_digest = file_sha256(row["stored_path"])
+                        except OSError:
+                            pass
+                expected_qa_inputs[(researcher_parent, ledger)] = ledger_digest
         targets = qa.get("target_artifacts")
         if not isinstance(targets, list) or not targets:
             errors.append("metadata.qa.target_artifacts must be a non-empty list")
@@ -700,6 +852,10 @@ if task["assignee"] == "qa":
                             errors.append("metadata.qa target artifact digest mismatch")
                 if not isinstance(target.get("sha256"), str) or not target.get("sha256"):
                     errors.append("metadata.qa target artifact sha256 is required")
+        if qa_input_inventory != expected_qa_inputs:
+            errors.append(
+                "QA TaskSpec Input attachments must exactly match candidate and evidence artifacts with resolved digests"
+            )
     if handoff is not None:
         errors.append("QA completion must not emit metadata.artifact_handoff")
 

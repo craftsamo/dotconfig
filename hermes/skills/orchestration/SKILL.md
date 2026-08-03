@@ -8,7 +8,7 @@ description: >-
   approvals: a PlanningGraph before specialist planning, then an
   ExecutionOutline before execution. Workers hand off typed FanOutManifest or
   SpecialistPlan data instead of registering cards. Preserve scoped grants,
-  protected QA, scheduled parking, structured block decisions, status reporting,
+  QA, scheduled parking, structured block decisions, status reporting,
   idempotent recovery, and truthful archival.
 version: 4.0.0
 author: CraftSamo
@@ -27,7 +27,7 @@ way to produce it. Inline work ends in chat. Direct work becomes one Assistant-
 registered card or a short dependency chain. Planned work follows
 `RequirementSpec → PlanningGraph approval → specialist plans → ExecutionOutline
 approval → execution registration`. Every card must be self-contained,
-subscribed or deliberately hidden behind QA, grant-bounded, and recoverable.
+subscribed, grant-bounded, and recoverable.
 
 </Goal>
 
@@ -233,7 +233,7 @@ obsolete checkpoint through the guarded resolver. The same-profile continuation
 remains pending until every direct parent passes CompletionAdmission. Grants do
 not propagate: each child TaskSpec carries only the minimum approved grant.
 Because the Assistant creates every card, each ordinary child and continuation
-must return `subscribed=true`; protected QA internals follow `<QualityGate>`.
+must return `subscribed=true`; QA cards follow `<QualityGate>`.
 Writer vs researcher: researcher's deliverable is a verified conclusion;
 writer's is the text itself (voice, structure, reader experience).
 Writer tasks: pass the WritingBrief fields you already know — deliverable
@@ -352,8 +352,12 @@ body:
            default stays post-hoc review via the completion notification.>
   QA: <Creator/Writer final deliverables only — `required`; advisory, plan,
        assess/critique and rough cards write `exempt — <reason>`. A QA-gated
-       production card never also carries `Review: required`; human approval
-       happens after QA pass.>
+        production card never also carries `Review: required`; human approval
+        happens after QA pass.>
+  Candidate key: <stable card key; mandatory when QA is required>
+  Producer QA requirement: <single-line canonical JSON object; mandatory when
+        QA is required, with candidate_key, evidence_keys, capability, routes,
+        criteria, done_criteria, and output_inventory>
   Budget: <creator tasks only — generation-spend caps; omitted = creator
           defaults. See references/creative.md. Expanded mid-task only via
           AUTHORITY+ comments.>
@@ -437,6 +441,15 @@ carries `Registration anchor:` and `Pending manifest digest:` in its TaskSpec.
 Those fields identify the sole durable pending-state source after a session
 reset or origin replacement.
 
+Every QA-bound TaskSpec stores one closed `producer_qa_requirement` object with
+`candidate_key`, `evidence_keys`, `capability`, `routes`, `criteria`,
+`done_criteria`, and `output_inventory`. Normalize these fields as part of the
+card spec and pending-manifest or overlay digest. Do not reconstruct them from
+free-form body prose after restart.
+Planner integration may deterministically rebind only `candidate_key` and
+`evidence_keys` from SpecialistPlan-local keys to final ExecutionOutline keys;
+the approved outline fixes that rebound object before execution registration.
+
 Progress is append-only on the anchor:
 `PROGRESS: registration valid=<key:id,...> pending=<keys...> replacement=<old:new,...>`.
 Never reconstruct pending work from notification order or an obsolete task's
@@ -457,7 +470,7 @@ base_digest: <Pending manifest digest, when the origin belongs to a base graph>
 replaces_key: <base card key replaced by the continuation, when any>
 ```
 
-Comment it as `ORCHESTRATION_PENDING_OVERLAY:`. A direct single or protected
+Comment it as `ORCHESTRATION_PENDING_OVERLAY:`. A direct single or QA-gated
 card with no base graph omits `base_anchor` and `base_digest`; its immutable root
 is the overlay task/digest itself. Every overlay child and continuation carries
 the unchanged base identity when present, plus `Pending overlay task:`, `Pending
@@ -493,6 +506,7 @@ children:
       done_criteria: ...
       output: ...
       constraints: ...
+      producer_qa_requirement: <closed object when qa is required>
 continuation:
   title: <resume title>
   assignee: <same profile as origin>
@@ -515,7 +529,10 @@ attachments:
 
 On the block/watchdog notification:
 
-1. Reject more than one manifest, a mismatched `origin_task_id`, reused
+1. Run `~/.hermes/profiles/assistant/scripts/kanban-fanout-manifest-probe.sh
+   <origin-task-id>` before persisting an overlay or creating any card. Reject
+   any probe failure, including a predeclared QA child or continuation. Then
+   reject a reused
    `checkpoint_key`, unknown assignee/skill, missing TaskSpec field, parent
    cycle, unresolved parent key, widened grant, or continuation assigned to a
    different profile. Do not improvise a repair; create a corrected replacement
@@ -538,40 +555,45 @@ On the block/watchdog notification:
       The `task_spec.input_attachments` field must be `[]` when no attachment is
       consumed, or a single-line JSON array of normalized `attachment_spec`
       objects when an existing attachment is consumed.
-2. Validate the complete child DAG, but create only child roots. Use
+2. Validate the complete child DAG and normalize every TaskSpec with an exact
+   `Input attachments: [...]` JSON array of attachment_spec objects derived from
+   the manifest attachments that task consumes; use `[]` when none. Before any
+   card creation, persist the complete child, continuation, and replacement
+   specs with `ORCHESTRATION_PENDING_OVERLAY:`. For each QA-bound candidate,
+   persist only the immutable QA requirement already carried by its TaskSpec:
+   candidate/evidence keys, capability, routes, criteria, and Done criteria.
+   A QA `child_spec`, artifact digest, and QA idempotency key do not exist yet.
+   This write-ahead overlay and its digest are the restart source.
+3. Create only child roots. Use
    `<origin-task-id>:fanout:<checkpoint-key>:child:<child-key>` as each
-   idempotency key. Map local
-   parent keys to returned task ids and require `subscribed=true` for ordinary
-   cards. Keep dependent children in the origin's canonical
-   pending-registration overlay. Before creation, normalize each live TaskSpec with an exact
-   `Input attachments: [...]` JSON array of attachment_spec objects derived from the manifest attachments
-   that task consumes; use `[]` when none. Protected production/Researcher
-   children use `<QualityGate>` instead.
-3. Keep the continuation as a pending spec with key
+   idempotency key, require `subscribed=true` for every card, and run the
+   task-spec probe. Comment `PROGRESS: fan_out checkpoint=<checkpoint>
+   live=<key:id,...> pending=<child-keys...,continuation>` after the returned ids
+   match the write-ahead overlay. Ship-ready production and Researcher children
+   use the ordinary late-bound QA registration sequence.
+4. Keep the continuation as a pending spec with key
    `<origin-task-id>:fanout:<checkpoint-key>:continuation`. Register dependent
    children and finally the continuation only after every direct parent passes
-   <CompletionAdmission>. Require `subscribed=true` unless the continuation is
-   deliberately held behind protected QA.
-4. Comment the complete normalized overlay with
-   `ORCHESTRATION_PENDING_OVERLAY:`, then `PROGRESS: fan_out checkpoint=<checkpoint>
-   live=<key:id,...> pending=<child-keys...,continuation>` on the origin task.
-   This typed manifest and map are the restart source.
+   <CompletionAdmission>. Require `subscribed=true` for the continuation.
 5. For a pending downstream, record `replaces_key` in the overlay so it consumes
-   the continuation when later registered; never mutate the base manifest. For every already-live
-   downstream, record its current status, then redirect it
-   before origin completion: first `hermes kanban link <continuation-id>
+   the continuation when later registered; never mutate the base manifest. A
+   new graph should have no live downstream because descendants are registered
+   only after CompletionAdmission. If a legacy or partially migrated downstream
+   is already live, keep the origin blocked until the continuation exists, then
+   redirect it before origin completion: first `hermes kanban link <continuation-id>
    <downstream-id>`, then `hermes kanban unlink <origin-id> <downstream-id>`.
    Verify the continuation edge exists, the origin edge is gone, and the
    downstream is not `ready` or `running`. Preserve legitimate `scheduled`,
-   sticky `blocked`, and `triage` parking states; an ordinary waiting descendant
-   remains `todo`. For protected QA, archive stale QA first and create/protect
-   replacement internals and QA instead of preserving the old QA edge.
+   sticky `blocked`, and `triage` parking states; a waiting descendant remains
+   `todo`. Never repoint stale QA; the replacement candidate receives fresh
+   late-bound QA after CompletionAdmission.
 6. After running the resolver inspection, comment
    `DECISION(FAN_OUT_READY): live_children=<ids>
    pending=<keys> anchor=<anchor> base_digest=<digest> overlay_task=<id>
    overlay_digest=<digest> replacement_qa=<id-if-any>
    block_event=<id> block_digest=<sha256>` and run the resolver `apply`
-   operation only after every pending spec, link, hold, and QA check is durable.
+   operation only after every pending spec, created root, required link, and
+   late-bound QA requirement is durable.
    The resumed Worker completes only the obsolete checkpoint. A leaf has no
    downstream to rewire but still requires this guarded decision/resume handshake.
 7. Ack live and pending branches. Never poll; subscribed child completion wakes
@@ -602,7 +624,7 @@ The selected execution shape determines registration:
    ExecutionOutline approval. Execution keys are
    `<integration-task-id>:execution:<card-key>`.
 
-For every ordinary create, validate <Parameters>, call `kanban_create`, require
+For every create, validate <Parameters>, call `kanban_create`, require
 `subscribed=true`, then run
 `~/.hermes/profiles/assistant/scripts/kanban-task-spec-probe.sh <id>`. Compare
 every immutable create parameter: title/body digest, assignee, parent set,
@@ -624,7 +646,7 @@ manifest, or QA contract.
 
 Every `done` notification is untrusted until its run metadata passes the
 canonical completion contract. Before delivery, SpecialistPlan integration,
-downstream registration, QA release, or Publish release, run:
+downstream registration, QA registration, or Publish release, run:
 
 ```text
 ~/.hermes/profiles/assistant/scripts/kanban-completion-probe.sh <task-id>
@@ -640,7 +662,7 @@ handoffs, and required role envelopes. A nonzero result is fail-closed:
 3. Comment `CONTRACT_INVALID: <probe errors>` on the task and report the
    malformed handoff. A done card is immutable; create a bounded replacement
    with a fresh recovery key rather than pretending the metadata was repaired.
-4. For a protected production chain, QA must return `can't_verify`; never let a
+4. For a production chain, QA must return `can't_verify`; never let a
    digest-only pass compensate for a missing completion or artifact envelope.
 
 When an idempotent create returns an old `done` card, probe it synchronously
@@ -651,78 +673,72 @@ inputs to a new graph; replace them under a fresh run/key.
 
 <QualityGate>
 
-Every ship-ready Creator `produce` result and Writer completed deliverable is
-a hidden candidate until a dedicated `qa` card passes. Advisory, plan,
-assess/critique, and rough-draft cards are exempt. Engineer remains on its
-OpenCode review path.
+Every ship-ready Creator `produce` result and Writer completed deliverable is a
+candidate until a dedicated `qa` card passes. Advisory, plan, assess/critique,
+and rough-draft cards are exempt. Engineer remains on its OpenCode review path.
 
-This asynchronous protected gate requires a source that can own a QA
-notification subscription (Assistant gateway chat or a supported subscribed
-TUI session). A classic CLI session has no durable chat subscription: do not
+This asynchronous QA gate requires a source that can own a QA notification
+subscription. A classic CLI session has no durable chat subscription: do not
 start a ship-ready Creator/Writer chain there. Ask the user to dispatch it from
 the messaging Assistant instead; advisory/plan/rough work may still use CLI.
 
 The standard DAG is:
 
 ```text
-production -> qa
-production -> researcher fact-check
-production + researcher fact-check -> qa    # QA directly lists every hidden parent
+production -> final Researcher fact-check -> qa
+production -------------------------------> qa
 ```
 
-Research needed to author the work may also precede production. The Assistant
-creates every card up front; QA never creates Researcher children. The
-production body carries `QA: required`; Writer `Output` names the complete
-attached text file (default `deliverable.md`). The QA body copies the approved
-Done criteria, artifact inventory, producer capability/Writer type, parent ids,
-and the exact claims plus claim-ledger attachment settled by each Researcher
-parent. Pin `qa-pipeline` plus
-every mapped leaf in QA's `references/capabilities.md`. Unknown mappings do not
-fall back: they become `can't_verify`.
+The Assistant creates ship-ready production and any necessary Researcher
+evidence with ordinary `kanban_create`, requires `subscribed=true`, and runs
+the task-spec probe for every card. Production completion is candidate
+progress, not delivery. After verifying the completion probe and artifact
+inventory/digest, the Assistant late-binds the necessary final Researcher
+fact-check as a normal card. After production and evidence pass
+CompletionAdmission, it late-binds QA as a normal subscribed card. QA directly
+lists the production card and final Researcher evidence as its parents.
+Use idempotency key `<target-task-id>:qa:<qa-contract-digest>` for QA.
 
-**Hide internal candidates without racing the dispatcher.** `kanban_create`
-has no per-card notification flag. Use the status-aware, idempotent wrapper for
-every production and internal Researcher card in a protected chain:
+Research needed to author the work may also precede production. The production
+body carries `QA: required`; Writer `Output` names the complete attached text
+file (default `deliverable.md`). The QA body copies the approved Done criteria,
+artifact inventory, producer capability/Writer type, parent ids, and the exact
+claims plus claim-ledger attachment settled by each Researcher parent. Pin
+`qa-pipeline` plus every mapped leaf in QA's `references/capabilities.md`.
+Unknown mappings do not fall back: they become `can't_verify`.
 
-1. Write its self-contained create parameters to a temporary JSON object with
-   `title`, `body`, target `assignee`, unique `idempotency_key`, and optional
-   `parents`, `skills`, `workspace`, `max_runtime`, `priority`, `project`, or
-   `tenant`.
-2. Run `~/.hermes/profiles/assistant/scripts/kanban-qa-gate.sh create-hidden
-   <task-spec.json>` and capture its `task_id=` output. The wrapper creates the
-   card unassigned+blocked, protects it on a durable `QA_SETUP` hold, verifies
-   zero subscriptions, then assigns it. An interruption cannot dispatch the
-   unassigned card; idempotent retry is status-aware and refuses active work.
-   The one-shot spec file is removed after success.
-3. After every internal card is protected, create the QA card normally. Its
-   `parents` directly list **every** hidden internal id. It auto-subscribes the
-   originating chat and inherits none from hidden parents. Its deterministic
-   key is `<target-task-id>:qa:<qa-contract-digest>`; the digest covers the
-   target artifact inventory, producer capability, QA routes, Done criteria,
-   Researcher ledgers, and QA body version.
-4. Run `~/.hermes/profiles/assistant/scripts/kanban-qa-gate.sh release
-   <qa-id> <internal-id>...`. The wrapper validates QA assignment/todo state,
-   direct parent edges, at least one QA chat subscription, every setup marker,
-   and zero internal subscriptions before unblocking all internals together.
+Before QA registration, resolve every candidate and evidence attachment to its
+actual SHA-256. A producer that cannot compute its own digest may use the
+`pending-assistant-probe` sentinel in its completion handoff, but the Assistant
+must replace that sentinel with the measured digest in the late-bound QA
+TaskSpec. QA then runs mandatory before/after `qa-file-probe.sh` probes and
+records the measured digest in `metadata.qa.target_artifacts`. After QA passes,
+the Assistant runs CompletionAdmission on production, every Researcher evidence
+parent, and QA, recomputes the target digest, and compares it with
+`metadata.qa.target_artifacts`. Formal delivery requires this digest-checked
+pass.
 
-At QA pre-registration the actual candidate digest is unknown, so the
-`pending-assistant-probe` sentinel remains in the producer handoff and QA
-TaskSpec. The sentinel alone is not a finding. QA resolves the actual digest
-with mandatory before/after `qa-file-probe.sh` probes and records it in
-`metadata.qa.target_artifacts`; the Assistant does not rewrite the pre-registered
-TaskSpec. After QA passes, the Assistant runs CompletionAdmission on both the
-producer and QA, recomputes the target digest, and compares it with
-`metadata.qa.target_artifacts` before release.
+Materialization never mutates the pending overlay. Compute the normalized QA
+TaskSpec and `<qa-contract-digest>` from the immutable QA requirement plus the
+resolved candidate/evidence attachment specs. Before creation, comment
+`QA_PENDING_MATERIALIZATION: <canonical-single-line-JSON>` on the origin or
+integration card. The JSON contains the complete normalized QA TaskSpec,
+producer completion event, idempotency key, contract digest, and input digest.
+This write-ahead marker is the sole create/reconcile source after restart. Create
+QA exactly from it with key `<target-task-id>:qa:<qa-contract-digest>`, verify an
+idempotent result matches it, then comment
+`QA_MATERIALIZED: requirement=<candidate-key> task=<qa-id>
+producer=<target-task-id> completion_event=<producer-completed-event-id>
+contract_digest=<qa-contract-digest> inputs_digest=<attachment-set-digest>` on
+the origin or integration card. The producer and completion event binding is
+mandatory; it lets the watchdog recover a lost completion wake without accepting
+a stale materialization. This binding is the restart and replay source.
 
-Any wrapper failure is a hard stop: report it and never substitute a plain
-`kanban_create` or manual schedule/unsubscribe sequence. `protect <id>` remains
-only a recovery operation for a known never-started internal card. The watchdog
-reconciles stale `QA_SETUP` holds and completed QA cards whose gateway wake was
-lost.
-
-Hidden internal blocks and failures cannot notify the chat directly. The
-`kanban-orphan-watchdog` is therefore part of this protocol and surfaces them
-for normal `<BlockedTriage>` / `<Failures>` handling. Never poll the chain.
+Every block, failure, and completion notification is normal and wakes the
+Assistant. A missing subscription is an invariant violation handled by the
+watchdog, not a delivery mechanism. The watchdog also reconciles QA-required
+candidates whose materialization wake was lost and completed QA cards whose
+handling wake was lost. Never poll the chain.
 
 **Verdict handling:**
 
@@ -734,58 +750,62 @@ for normal `<BlockedTriage>` / `<Failures>` handling. Never poll the chain.
   for optional human approval in a later message. Comment on QA:
   `QA_HANDLED: pass released target=<id> digest=<sha256>`. Assistant acceptance
   checks user intent and inventory; it does not redo specialist QA.
-- `fail`: create a bounded Creator/Writer revision from the itemized findings
-  with key `<failed-qa-id>:revision:<spec-digest>` and a `Recovery lineage`
-  object naming the failed QA and replaced producer. Then create fresh QA with
-  key `<recovery-task-id>:qa:<qa-contract-digest>` targeting that new immutable
-  result. Re-run Researcher only for changed or previously refuted claims. Then
-  comment on the failed QA:
+- `fail`: create a bounded, normally subscribed Creator/Writer revision from
+  the itemized findings with key `<failed-qa-id>:revision:<spec-digest>` and a
+  `Recovery lineage` object naming the failed QA and replaced producer. Keep
+  fresh QA as a pending requirement until the revision and any changed Researcher
+  evidence pass CompletionAdmission and their actual digests are known. Then
+  create QA with key `<recovery-task-id>:qa:<qa-contract-digest>` and comment on
+  the failed QA:
   `QA_HANDLED: fail revision=<id> replacement_qa=<id>`.
-- `can't_verify`: create exactly the missing Researcher verification,
-  packaging repair, or canonical QA support with key
-  `<source-task-id>:recovery:<kind>:<spec-digest>`, then fresh QA under the
-  replacement-QA key above. It is never a release. Comment `QA_HANDLED:
-  can't_verify recovery=<ids>` after the recovery graph exists.
+- `can't_verify`: create exactly the missing, normally subscribed Researcher
+  verification, packaging repair, or canonical QA support with key
+  `<source-task-id>:recovery:<kind>:<spec-digest>`. Keep fresh QA pending until
+  every recovery parent passes CompletionAdmission and its actual digest is
+  known, then register it under the replacement-QA key above. It is never a
+  release. Comment `QA_HANDLED: can't_verify recovery=<ids>` after the recovery
+  graph exists.
 
 A verdict certifies one parent task and exact attachments only. Never repoint a
 completed QA card or let QA edit its input. User `Review:` is approval, not QA;
 for a QA-gated final deliverable it occurs only after pass, outside both cards.
 
-**Fan-out cannot bypass a protected gate.** A QA-gated Creator/Writer,
+**Fan-out cannot bypass a QA gate.** A QA-gated Creator/Writer,
 QA-bound Researcher, or Marketer checkpoint attaches `fan-out.yaml` and blocks
-with `FAN_OUT_READY:` before completion; it never creates cards. The watchdog
-surfaces this zero-subscription block. While the origin is still blocked:
+with `FAN_OUT_READY:` before completion; it never creates cards. While the
+origin is still blocked, the FAN_OUT_READY origin remains normally subscribed;
+the watchdog is not its normal notification path:
 
-1. Validate the manifest per <FanOutManifest>. Archive any stale pre-created QA
-   whose direct parents no longer identify the final candidate; an old verdict
-   is never repointed.
-2. Persist children, the same-profile continuation, fresh QA specification, and
-   any later Marketer continuation in one pending-registration overlay. Register
-   only eligible child roots. The continuation and QA remain pending specs; no
-   dependency may auto-promote before completion admission.
-3. Once every continuation parent passes <CompletionAdmission>, create the
-   Creator/Writer or Researcher continuation with `kanban-qa-gate.sh
-   create-hidden`. Then create fresh QA whose direct parents are that pending
-   candidate plus every final evidence continuation, and release the hidden
-   continuation with the wrapper. QA now exists before candidate dispatch, but
-   the candidate was registered only after its own parents passed.
+1. Validate the manifest per <FanOutManifest>. An existing QA verdict is never
+   repointed to a continuation or replacement candidate; every new immutable
+   candidate receives fresh late-bound QA.
+2. Persist children, the same-profile continuation, each candidate's immutable
+   QA requirement, and any later Marketer continuation in one
+   pending-registration overlay. Register only eligible child roots. The
+   continuation remains a pending spec; QA is materialized only after candidate
+   and evidence completion admission and digest resolution.
+3. As pending children become eligible, register them and finally the
+   same-profile continuation with `kanban_create` and `subscribed=true`. After a
+   Creator/Writer continuation completes and passes CompletionAdmission,
+   late-bind fresh QA with direct parents consisting of that continuation and
+   every final Researcher evidence continuation. QA is a normal subscribed
+   card.
 4. Register a Marketer continuation only after every latest QA passes
-   <CompletionAdmission> and release-time digests match. Put
+   <CompletionAdmission> and digest checks match. Put
    `QA_PASS_SET: <qa ids + target digests>` in its TaskSpec/comment before
    dispatch. A failed QA creates revision and replacement-QA pending specs; it
    never releases or links an already-live publisher.
 5. Comment `DECISION(FAN_OUT_READY): ...` and retire the origin once the overlay,
-   eligible roots, hidden-candidate/QA pending specs, and replacement mapping are
+   eligible roots, candidate specs, QA requirements, and replacement mapping are
    durable. QA need not exist yet. The resumed origin completes only its
-   obsolete checkpoint; subscribed roots or the watchdog drive later stages.
+   obsolete checkpoint; subscribed roots drive later stages.
 
 For the **Researcher** variant, the final artifact still lives on the original
 Creator/Writer production card. Preserve that production id in the pending QA
 spec, register the final Researcher continuation only after its Searcher inputs
-pass, then create replacement QA with direct parents `[original-production-id,
-final-researcher-continuation-id]`. The original Researcher task is a checkpoint,
-not a replacement-QA parent. Reuse the production's existing `QA_RELEASE` marker
-when the wrapper validates/releases the continuation and replacement QA.
+pass, then late-bind fresh QA with direct parents
+`[original-production-id, final-researcher-continuation-id]`. The original
+Researcher task is a checkpoint, not a replacement-QA parent.
 
 </QualityGate>
 
@@ -851,10 +871,9 @@ card's newest `SCHEDULED:` comment.
 
 - Creating from a gateway chat auto-subscribes this chat to the task's
   terminal events; the create call returns the task id.
-- `<QualityGate>` is the exception: protected production/Researcher cards are
-  unsubscribed before release, and only the downstream QA card remains
-  subscribed. Ack the whole chain and identify the QA gate, not the hidden
-  candidate as a deliverable.
+- `<QualityGate>` uses the same subscription contract as every other card.
+  Ack the production, evidence, and QA stages separately; candidate completion
+  is progress and formal delivery follows the digest-checked QA pass.
 - Ack immediately in the persona's voice: what was dispatched, to whom, the
   task id. Then end the turn — never poll, busy-wait, or promise a completion
   time.
@@ -896,13 +915,12 @@ failed runs), `crashed`, and `timed_out`:
    wrapper verifies a decision follows the latest block, restores `triage` to
    `todo`, resets recurrence state, and lets the dispatcher promote it.
 8. A `🚨 kanban watchdog` chat message (the `kanban-orphan-watchdog` cron,
-   every 5 min) lists cards stuck where no notification can reach:
-   manifest-registered/QA-hidden cards that blocked, hidden cards whose latest
-   terminal event failed, and block-loop triage falls. For each listed id:
+   every 5 min) lists generic no-subscription invariant violations, completed
+   QA cards whose handling wake was lost, and block-loop triage falls. For each listed id:
    `kanban_show`, then apply <BlockedTriage> (blocked), the normal failure
    recovery above (failed), or step 7 (triage fall). Manifest children answer
-   to the durable fan-out map on their origin checkpoint; QA-hidden cards answer
-   to the Assistant-created protected chain — read those threads first.
+   to the durable fan-out map on their origin checkpoint; read the relevant
+   production, evidence, and QA threads first.
 
 </Failures>
 
@@ -918,8 +936,9 @@ SQL?`); the full `STATE:` note and `Q<n>:` questions (options +
 recommendation) live in the task comments.
 
 A graph-change block is an internal handoff, not a user question. For
-`FAN_OUT_READY:`, read the attached `fan-out.yaml`, apply <FanOutManifest> and,
-when protected, <QualityGate> atomically, persist the pending overlay, and
+`FAN_OUT_READY:`, read the attached `fan-out.yaml`, apply <FanOutManifest>, and
+run `kanban-fanout-manifest-probe.sh` before any mutation. Apply <QualityGate>
+atomically, persist the pending overlay, and
 register only eligible roots. Then run the resolver inspection, comment
 `DECISION(FAN_OUT_READY):` with its event/digest binding, and resume through
 the resolver `apply` operation. Any noncanonical graph-change marker is a protocol error after
