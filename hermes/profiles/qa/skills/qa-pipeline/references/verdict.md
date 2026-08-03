@@ -4,13 +4,18 @@ Use this schema verbatim enough that the Assistant can parse the gate without
 reinterpreting prose. Evidence is an observation or measurement, not the word
 "verified."
 
+This object is stored at `metadata.qa`. The same completion also carries the
+common `metadata.completion` envelope from the pipeline; its status and summary
+must agree with this verdict. QA never emits `metadata.artifact_handoff`
+because it certifies, but does not transfer or replace, the producer artifact.
+
 ```yaml
 qa:
   target_task: "<production task id>"
   producer_capability: "<creator-* | core:tts | writer:marketing-copy | writer:technical-prose | writer:documentation | writer:script>"
   target_artifacts:
     - name: "<attachment or complete text file>"
-      sha256: "<digest | unavailable>"
+      sha256: "<sha256 digest>"
   research_parents: ["<task id>"]
   technics: ["<qa-*>"]
   verdict: pass | fail | can't_verify

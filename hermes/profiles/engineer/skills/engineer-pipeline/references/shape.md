@@ -16,7 +16,9 @@ Wave milestones (non-Issue work only) → OpenCode owns phases/units at
 implement time. Each rung decides its own altitude ONLY. On GitHub-flow
 repos the registered Issues ARE the milestone layer — implement consumes one
 Issue per task and no Wave outline is produced for the same work. Never
-double-plan.
+double-plan. The legacy `Plan —` opener is this Execute/Shape outline branch;
+it is not the top-level `Mode: plan` PlanningGraph specialist branch, which
+returns a `SpecialistPlan` instead of a Wave outline.
 
 ## Floor rules (both branches)
 
@@ -157,7 +159,7 @@ Procedure:
    challenge.
 5. **Record the base session id** (`opencode session list`) — this is the
    base implement will fork each Wave from. Put it in the report, a
-   `PROGRESS:` comment, and `kanban_complete` metadata.
+   `PROGRESS:` comment, and `metadata.completion.metadata`.
 6. **Report** and complete; approval is the orchestrator's post-completion
    call. `Review: required` in the body → core <ReviewGate> instead.
 
@@ -191,10 +193,12 @@ if one surfaced (rare).
   into 4 requirement Issues (#12-#15) under epic #11; ready to implement per
   Issue." / "4-Wave outline: theme → layout → sections → responsive; base
   session s_ab12.") — delivered verbatim to the requester's chat.
-- `metadata`: specify → `{"epic": "<url-or-#>", "issues": ["#12", …]}` (S2)
-  or `{"draft": "<attachment>"}` (S1); outline → `{"waves": [...],
-  "base_session": "<id>"}` — so the orchestrator dispatches follow-up cards
-  without re-reading prose.
+- `metadata.completion.metadata`: specify → `{"epic": "<url-or-#>",
+  "issues": ["#12", …]}` (S2) or `{"draft": "<attachment>"}` (S1);
+  outline → `{"waves": [...], "base_session": "<id>"}` — so the
+  orchestrator dispatches follow-up cards without re-reading prose. Include the
+  standard changed-files, verification, dependency, retry, and residual-risk
+  keys as required by the completion envelope.
 
 ## Pitfalls
 

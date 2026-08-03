@@ -1,0 +1,568 @@
+version: 1
+
+migration:
+  state: worker_pipelines_enforced
+  pending_enforcement: []
+
+orchestration:
+  card_registration_owner: assistant
+  worker_card_creation: forbidden
+  requirement_interview: risk_and_ambiguity_only
+  execution_shapes:
+    - inline
+    - single
+    - chain
+    - planned
+  approval_gates:
+    - planning_graph
+    - execution_outline
+  specialist_planners:
+    - engineer
+    - creator
+    - writer
+    - marketer
+  evidence_workers:
+    - searcher
+    - researcher
+  planning_flow:
+    - normalize_requirement
+    - approve_planning_graph
+    - collect_specialist_plans
+    - integrate_execution_outline
+    - approve_execution_outline
+    - register_execution_graph
+
+worker_lifecycle:
+  phases:
+    - admit
+    - route
+    - act_or_plan
+    - verify
+    - handoff
+    - terminal
+  terminal_actions:
+    - complete
+    - block
+  completion_binding: metadata.completion
+  artifact_binding: metadata.artifact_handoff
+  completion_probe: assistant/scripts/kanban-completion-probe.sh
+  digest_resolution:
+    sentinel: pending-assistant-probe
+    profiles:
+      - planner
+      - writer
+      - researcher
+  fan_out_terminal: block
+  registration_owner: assistant
+
+schemas:
+  requirement_spec:
+    required:
+      - request_id
+      - goal
+      - done_criteria
+      - constraints
+    optional:
+      - audience
+      - scope
+      - inputs
+      - open_questions
+  task_spec:
+    required:
+      - goal
+      - inputs
+      - done_criteria
+      - output
+      - constraints
+      - input_attachments
+    optional:
+      - mode
+      - review
+      - qa
+      - grant
+      - plan_id
+      - outline_key
+      - fan_out_policy
+      - registration_anchor
+      - pending_manifest_digest
+      - pending_overlay_task
+      - pending_overlay_digest
+      - pending_overlay_lineage
+  planning_graph:
+    required:
+      - request_id
+      - goal
+      - branches
+    optional:
+      - assumptions
+      - estimated_cost
+      - grants
+  planning_branch:
+    required:
+      - key
+      - title
+      - assignee
+      - skills
+      - task_spec
+    optional:
+      - parents
+      - params
+      - fan_out_policy
+  specialist_plan:
+    required:
+      - origin_task_id
+      - branch_key
+      - summary
+      - proposed_cards
+    optional:
+      - assumptions
+      - evidence
+  execution_outline:
+    required:
+      - request_id
+      - goal
+      - cards
+    optional:
+      - assumptions
+      - risks
+      - notes
+  fan_out_manifest:
+    required:
+      - origin_task_id
+      - checkpoint_key
+      - children
+      - continuation
+      - attachments
+    optional: []
+  attachment_spec:
+    required:
+      - name
+      - sha256
+      - purpose
+      - source_task_id
+    optional: []
+  fan_out_policy:
+    required:
+      - allowed_assignees
+      - max_children
+      - purpose
+    optional:
+      - cost_cap
+  child_spec:
+    required:
+      - key
+      - title
+      - assignee
+      - skills
+      - parents
+      - params
+      - task_spec
+    optional: []
+  continuation_spec:
+    required:
+      - title
+      - assignee
+      - skills
+      - parents
+      - params
+      - task_spec
+    optional: []
+  completion_envelope:
+    required:
+      - status
+      - summary
+      - metadata
+    optional:
+      - artifacts
+  artifact_handoff:
+    required:
+      - artifacts
+      - verification
+      - qa
+    optional:
+      - evidence
+      - reusable_anchors
+  qa_handoff:
+    required:
+      - status
+    optional:
+      - capability
+      - routes
+      - consumer
+      - ledger
+      - reason
+  execution_outline_handoff:
+    required:
+      - request_id
+      - attachment
+      - sha256
+      - specialist_task_ids
+      - card_count
+    optional: []
+  qa_verdict:
+    required:
+      - target_task
+      - producer_capability
+      - target_artifacts
+      - research_parents
+      - technics
+      - verdict
+      - criteria
+      - findings
+      - residual_risk
+      - reviewer_scope
+    optional: []
+  recovery_lineage:
+    required:
+      - kind
+      - source_task_id
+      - reason
+      - spec_digest
+    optional:
+      - failed_qa_id
+      - replaces_task_id
+  pending_registration_manifest:
+    required:
+      - anchor
+      - digest
+      - cards
+    optional:
+      - request_id
+      - integration_task_id
+      - execution_outline_sha256
+  pending_registration_overlay:
+    required:
+      - overlay_task_id
+      - overlay_key
+      - digest
+      - cards
+      - lineage
+    optional:
+      - base_anchor
+      - base_digest
+      - replaces_key
+
+bindings:
+  fan_out_manifest:
+    marker: "FAN_OUT_READY:"
+    attachment: fan-out.yaml
+    scope: all_origins_before_completion
+    cardinality: zero_or_one
+  specialist_plan:
+    envelope_path: metadata.specialist_plan
+    cardinality: exactly_one_on_final_plan_completion
+    exclusive_with: FAN_OUT_READY
+  completion_envelope:
+    envelope_path: metadata.completion
+    cardinality: exactly_one_on_every_completion
+    absent_during: FAN_OUT_READY
+    summary_match: kanban_complete.summary
+    statuses:
+      workers:
+        - completed
+        - superseded
+      qa:
+        - pass
+        - fail
+        - can't_verify
+  artifact_handoff:
+    envelope_path: metadata.artifact_handoff
+    cardinality: exactly_one_when_current_outputs_declared
+    absent_when: no_current_output_inventory
+  pending_registration_manifest:
+    marker: "ORCHESTRATION_PENDING:"
+    storage: root_body_or_integration_comment
+    cardinality: exactly_one_per_multistage_graph
+  pending_registration_overlay:
+    marker: "ORCHESTRATION_PENDING_OVERLAY:"
+    storage: fan_out_origin_comment
+    cardinality: one_per_fan_out_checkpoint
+
+registration:
+  subscription: required
+  retry_semantics:
+    transport_replay: same_key_same_immutable_spec
+    replacement: fresh_key_changed_spec
+  idempotency_keys:
+    planning_branch: "<request-run-id>:planning:<planning-graph-digest>:branch:<branch-key>"
+    planner_integration: "<request-run-id>:integration:<specialist-id-set-digest>:<revision-digest>"
+    execution_card: "<integration-task-id>:execution:<card-key>"
+    fan_out_child: "<origin-task-id>:fanout:<checkpoint-key>:child:<child-key>"
+    fan_out_continuation: "<origin-task-id>:fanout:<checkpoint-key>:continuation"
+    qa: "<target-task-id>:qa:<qa-contract-digest>"
+    revision: "<failed-qa-id>:revision:<spec-digest>"
+    recovery: "<source-task-id>:recovery:<kind>:<spec-digest>"
+    replacement_qa: "<recovery-task-id>:qa:<qa-contract-digest>"
+
+dialogue_events:
+  state:
+    marker: "STATE:"
+    required:
+      - summary
+      - checkpoint
+  question:
+    marker: "Q<n>:"
+    required:
+      - id
+      - prompt
+      - options
+      - recommendation
+  decision:
+    marker: "DECISION(Q<n>):"
+    required:
+      - question_id
+      - choice
+      - block_event
+      - block_digest
+  progress:
+    marker: "PROGRESS:"
+    required:
+      - summary
+  authority_expansion:
+    marker: "AUTHORITY+:"
+    required:
+      - grant
+  review:
+    marker: "REVIEW:"
+    required:
+      - subject
+  approval:
+    marker: "APPROVAL:"
+    required:
+      - subject
+  scheduled:
+    marker: "SCHEDULED:"
+    required:
+      - reason
+    optional:
+      - until
+
+grants:
+  authority:
+    owner: engineer
+    task_field: Authority
+    presets:
+      - A1
+      - A2
+      - A3
+      - B1
+      - B2
+      - S1
+      - S2
+  budget:
+    owner: creator
+    task_field: Budget
+    presets: []
+  publish:
+    owner: marketer
+    task_field: Publish
+    presets:
+      - P0
+      - P1
+
+workers:
+  planner:
+    pipeline: planner-pipeline
+    modes:
+      - integrate
+    grant: null
+    technics:
+      active: []
+      deprecated: []
+  engineer:
+    pipeline: engineer-pipeline
+    modes:
+      - plan
+      - execute
+    grant: authority
+    technics:
+      active:
+        - machine-env
+        - opencode-env
+        - starter-catalog
+      deprecated: []
+  researcher:
+    pipeline: researcher-pipeline
+    modes:
+      - analyze
+    grant: null
+    technics:
+      active: []
+      deprecated: []
+  searcher:
+    pipeline: searcher-pipeline
+    modes:
+      - retrieve
+    grant: null
+    technics:
+      active: []
+      deprecated:
+        - deep-retrieval
+  creator:
+    pipeline: creator-pipeline
+    modes:
+      - plan
+      - execute
+    grant: budget
+    technics:
+      active:
+        - creator-generated-image
+        - creator-article-illustration
+        - creator-infographic
+        - creator-svg-diagram
+        - creator-excalidraw-diagram
+        - creator-logo-icons
+        - creator-text-card
+        - creator-meme
+        - creator-ascii-art
+        - creator-audio-visualization
+        - creator-audio-generation
+        - creator-song-generation
+        - creator-gif-sourcing
+        - creator-generated-video
+        - creator-html-motion
+        - creator-p5js-experience
+        - creator-ascii-video
+        - creator-manim-explainer
+        - creator-pixel-art
+        - creator-pixel-video
+        - creator-knowledge-comic
+        - creator-brand-asset-sourcing
+      deprecated: []
+  writer:
+    pipeline: writer-pipeline
+    modes:
+      - plan
+      - execute
+    grant: null
+    technics:
+      active: []
+      deprecated: []
+  qa:
+    pipeline: qa-pipeline
+    modes:
+      - verify
+    grant: null
+    technics:
+      active:
+        - qa-raster-image
+        - qa-infographic
+        - qa-svg-diagram
+        - qa-excalidraw-diagram
+        - qa-icon-set
+        - qa-text-visual
+        - qa-sourced-asset
+        - qa-ascii-art
+        - qa-data-visualization
+        - qa-audio
+        - qa-song
+        - qa-video
+        - qa-browser-media
+        - qa-ascii-video
+        - qa-pixel-art
+        - qa-pixel-video
+        - qa-comic
+        - qa-voice
+        - qa-prose
+        - qa-script
+      deprecated: []
+  marketer:
+    pipeline: marketer-pipeline
+    modes:
+      - plan
+      - execute
+    grant: publish
+    technics:
+      active: []
+      deprecated: []
+
+qa_routes:
+  creator-generated-image:
+    - technic: qa-raster-image
+      condition: always
+  creator-article-illustration:
+    - technic: qa-raster-image
+      condition: always
+  creator-infographic:
+    - technic: qa-infographic
+      condition: always
+  creator-svg-diagram:
+    - technic: qa-svg-diagram
+      condition: always
+  creator-excalidraw-diagram:
+    - technic: qa-excalidraw-diagram
+      condition: always
+  creator-logo-icons:
+    - technic: qa-icon-set
+      condition: always
+  creator-text-card:
+    - technic: qa-text-visual
+      condition: always
+  creator-meme:
+    - technic: qa-text-visual
+      condition: always
+    - technic: qa-sourced-asset
+      condition: sourced_template
+  creator-ascii-art:
+    - technic: qa-ascii-art
+      condition: always
+  creator-audio-visualization:
+    - technic: qa-data-visualization
+      condition: always
+  creator-audio-generation:
+    - technic: qa-audio
+      condition: always
+  creator-song-generation:
+    - technic: qa-song
+      condition: always
+  creator-gif-sourcing:
+    - technic: qa-sourced-asset
+      condition: always
+    - technic: qa-video
+      condition: always
+  creator-generated-video:
+    - technic: qa-video
+      condition: always
+  creator-html-motion:
+    - technic: qa-browser-media
+      condition: always
+    - technic: qa-video
+      condition: exported_video
+  creator-p5js-experience:
+    - technic: qa-browser-media
+      condition: always
+    - technic: qa-video
+      condition: exported_time_based_media
+  creator-ascii-video:
+    - technic: qa-ascii-video
+      condition: always
+  creator-manim-explainer:
+    - technic: qa-video
+      condition: always
+  creator-pixel-art:
+    - technic: qa-pixel-art
+      condition: always
+  creator-pixel-video:
+    - technic: qa-pixel-video
+      condition: always
+  creator-knowledge-comic:
+    - technic: qa-comic
+      condition: always
+  creator-brand-asset-sourcing:
+    - technic: qa-sourced-asset
+      condition: always
+  core:tts:
+    - technic: qa-voice
+      condition: always
+  writer:marketing-copy:
+    - technic: qa-prose
+      condition: always
+  writer:technical-prose:
+    - technic: qa-prose
+      condition: always
+  writer:documentation:
+    - technic: qa-prose
+      condition: always
+  writer:script:
+    - technic: qa-script
+      condition: always

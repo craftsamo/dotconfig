@@ -1,4 +1,4 @@
-# Shape mode — strategy deliverable, nothing ships
+# Shape route (Mode: execute) - strategy deliverable, nothing ships
 
 Loaded when the goal is a plan: content strategy, calendar, angles, thread
 designs, campaign structure. The deliverable is the plan itself — **no post

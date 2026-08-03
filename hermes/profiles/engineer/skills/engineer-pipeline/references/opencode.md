@@ -180,7 +180,7 @@ visible here):
 
   Optimization: if `opencode session list` in this worktree shows the shape
   slice's base session id, fork it directly and skip re-seeding.
-- **No outline** (Build path, Medium/High): generate it yourself —
+- **No outline** (direct execute path, Medium/High): generate it yourself —
 
   ```text
   opencode run --auto --agent plan --title "waves: <goal>" --model <m> \

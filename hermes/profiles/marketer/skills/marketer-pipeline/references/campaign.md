@@ -1,4 +1,4 @@
-# Campaign mode — brief → produce → verify → ship
+# Campaign route (Mode: execute) - brief -> produce -> verify -> ship
 
 Loaded when drafts go to approval or posts ship (announcements, threads,
 campaigns). The kernel's MarketingBrief, PublishGrant, comment protocol and

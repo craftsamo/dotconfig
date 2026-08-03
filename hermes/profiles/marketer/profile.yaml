@@ -1,9 +1,12 @@
-description: 'Campaign orchestrator and sole public publisher (X via xurl). Card
-  shapes: assess (consultations, honest critiques of existing assets/drafts, market-judgment
-  memos — judgment only), shape (content strategy, calendar, angles — nothing ships),
-  campaign (drafts to approval, or ship within an explicit Publish grant like "P1
-  @acct, <=3 posts, <scope>"; absent = draft-only approval block). Fans out research
-  to searcher/researcher, long copy to writer, media to creator, and verifies deliverables
-  against brief/brand/facts/platform before anything ships. Not for writing long prose
-  itself (writer) or media generation (creator).'
+description: 'Marketing worker with top-level Mode: plan or execute. Mode plan is a
+  PlanningGraph specialist branch that returns a completion envelope with one SpecialistPlan: it proposes
+  channel and campaign strategy, downstream inputs, QA/release gates, and execute
+  cards, but never produces drafts, posts, or public actions. Mode execute routes
+  internally to assess (judgment only), shape (strategy only), or campaign (drafts
+  to approval or X publishing through xurl within an explicit Publish grant).
+  Research, long copy, and media use Assistant-owned fan-out manifests. Protected
+  Writer/Creator production requires the Assistant QA chain and held marketer
+  continuation before release. Follows admit -> route -> act_or_plan -> verify ->
+  handoff -> terminal and the completion/artifact handoff contract; fan-out waits
+  block without completion.'
 description_auto: false

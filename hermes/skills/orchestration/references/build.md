@@ -1,24 +1,26 @@
-# Build approach — reference
+# Engineer execution reference
 
-Loaded after Step 3 picks **Approach=Build**. Skips the Plan Loop and
-dispatches implementation directly to engineer.
+Load when an execution shape includes Engineer work. It supplies the direct
+TaskSpec and Authority rules; it does not replace RequirementSpec normalization
+or either approval required by a `planned` shape.
 
-## When to pick Build
+## When direct execution fits
 
 - The user has **already specified scope and approach in detail** — clear
   goal, known file(s)/area, no architecture decisions left open.
 - Examples: "fix the off-by-one in `foo()`, the test is `bar_test.py`",
   "add field X to schema Y and the matching API endpoint we did for Z".
 
-If there's any meaningful ambiguity in scope/approach, **default to Plan**
-(`references/plan.md`) — Build is the exception, not the default, for
-implementation work.
+If architecture, scope, dependencies, migration shape, or grants remain
+materially unsettled, choose `planned` and load `references/plan.md`. A clear
+2-3 stage implementation may use `chain`; do not hide planning decisions inside
+a direct Engineer card.
 
 ## Writing a tight Authority
 
-Because Plan was skipped, the Authority grant in the task body is the only
-place the engineer learns what's pre-approved. Use the preset table in
-`<TaskSpec>`, explicit and minimal:
+For `single` or `chain`, the Authority line is the only durable record of what
+the user pre-approved. For `planned`, copy it exactly from the approved
+ExecutionOutline. Use the preset table in `<TaskSpec>`, explicit and minimal:
 
 - **`A1`** (commit only) is the default — stay there unless the user has
   already said otherwise in chat.
@@ -50,7 +52,7 @@ Standard `<TaskSpec>` shape with:
 
 ## After dispatch
 
-Standard Step 7 mechanics: `<AfterCreate>` ack, `<Failures>` recovery,
+Standard `<AfterCreate>` ack, `<Failures>` recovery,
 `<BlockedTriage>` for any engineer block. The dialogue loop is the safety
 net — engineer blocks on questions outside the grant; within the grant,
 answer autonomously and inform.

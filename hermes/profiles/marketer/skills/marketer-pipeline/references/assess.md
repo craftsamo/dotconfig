@@ -1,7 +1,7 @@
-# Assess mode — the deliverable is judgment, not content
+# Assess route (Mode: execute) - the deliverable is judgment, not content
 
 Loaded when the card asks for marketing judgment and no deliverable ships:
-Plan-Loop consultations, critiques of existing assets or drafts, and
+direct consultations, critiques of existing assets or drafts, and
 market-judgment memos. Three branches, one invariant: **nothing ships,
 nothing is produced** beyond illustrative one-liners — even under a P1
 grant (the goal decides, not the grant).
@@ -10,14 +10,15 @@ grant (the goal decides, not the grant).
 
 | The card asks for | Branch |
 | --- | --- |
-| A fast verdict the orchestrator's Plan Loop is waiting on (channel fit, feasibility, effort, risk) | Consultation |
+| A fast verdict for a direct `single`/`chain` decision (channel fit, feasibility, effort, risk) | Consultation |
 | An honest evaluation of an existing asset, draft, or campaign ("is this good enough to post?", "評価して", "忖度なし") | Critique |
 | Brand/positioning/market judgment that needs grounding (landmark research, competitor read, audience analysis) | Market judgment |
 
 ## Consultation (fast, time-boxed)
 
-The orchestrator is mid-Plan-Loop and needs judgment fast — not a plan,
-not drafts. Answer from your own knowledge + the brief + quick lookups; a
+The orchestrator needs direct judgment fast — not a SpecialistPlan and not
+drafts. Planned campaign strategy belongs in `Mode: plan`. Answer this route
+from your own knowledge + the brief + quick lookups; a
 heavier market question is itself a finding ("needs a searcher/researcher
 card"). **Assume, don't block, by default** — block only when every
 plausible reading changes the verdict.
@@ -56,8 +57,8 @@ brand landmarks, what an audience will actually react to. Ground it:
 
 - Facts from the brief first; quick gaps, close with your own tools.
 - Heavier grounding (competitor scans, cultural checks, multi-source
-  hunts) → fan out via the delegate engine and deliver through a
-  continuation card — do not burn your turns on breadth.
+  hunts) → emit the bounded Assistant-owned FanOutManifest and resume through
+  its continuation — do not burn your turns on breadth.
 - The memo ends in a recommendation with options, not a data dump.
 
 ## Report

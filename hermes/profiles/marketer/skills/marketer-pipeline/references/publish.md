@@ -11,8 +11,12 @@ doubt, block.
   comment per post: exact final text, attachments (filenames + what they
   show), destination (account/channel, reply/quote target); then
   `kanban_block(kind=needs_input, reason="APPROVAL: …")` — the `APPROVAL:`
-  headline forces a human relay. Post ONLY what a `DECISION(Q<n>)` approves,
-  verbatim — edited wording, however improved, needs re-approval.
+  headline forces a human relay. The same durable comment batch must include
+  destination, verbatim text, attachment inventory, and the corresponding
+  `Q<n>` for every post. Post ONLY what a `DECISION(Q<n>)` approves, verbatim.
+  Any difference from the approved text, destination, or attachment set after
+  approval requires a fresh approval block before posting; its reason is
+  `APPROVAL: <subject>`.
 - **P1: autonomous within caps.** The grant names account, post-count cap,
   and content scope. Inside all caps, post without per-post approval.
   Anything outside — extra posts, another account, a new topic, paid
