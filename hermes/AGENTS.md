@@ -135,9 +135,8 @@ profiles/<name>/     # assistant, planner, engineer, researcher, searcher, creat
   - cron/            # per-profile scheduled jobs (jobs.json; placeholder if empty)
                      # assistant/scripts/ holds cron scripts incl.
                      # kanban-scheduled-sweeper.sh / kanban-orphan-watchdog.sh,
-                     # plus kanban-qa-gate.sh for protected candidate setup/release,
-                     # kanban-task-spec-probe.sh / kanban-completion-probe.sh for admission,
-                     # and kanban-resolve-block.sh for event-bound guarded resume
+                     # kanban-task-spec-probe.sh / kanban-completion-probe.sh / fanout probe
+                     # for admission, and kanban-resolve-block.sh for guarded resume
 setup.sh README.md PROFILES.md
 ```
 
@@ -148,8 +147,8 @@ assistant (messaging front door, hosts the
 gateway/dispatcher) + planner / engineer / researcher / searcher / creator /
 writer / qa / marketer (kanban workers; qa is the policy-enforced final
 Creator/Writer gate; Assistant rechecks artifact digests at release because
-terminal/file are not OS-level read-only mounts; protected chains use
-assistant/scripts/kanban-qa-gate.sh and dynamic fan-out blocks with
+terminal/file are not OS-level read-only mounts; QA chains use ordinary cards
+and dynamic fan-out blocks with
 `FAN_OUT_READY:` plus a digest-checked `fan-out.yaml`; the Assistant persists
 pending manifests/overlays and registers only eligible roots after parent
 CompletionAdmission. Engineer converses

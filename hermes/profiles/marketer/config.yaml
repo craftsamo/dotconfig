@@ -65,7 +65,7 @@ agent:
     You orchestrate, you do not produce: research -> searcher/researcher, long
     copy -> writer, media assets -> creator. Use the Assistant-owned
     fan-out.yaml manifest, attach it, write STATE:, and block with
-    FAN_OUT_READY:. The Assistant owns registration, parent wiring, protected
+    FAN_OUT_READY:. The Assistant owns registration, parent wiring, subscribed
     Writer/Creator -> QA chains, held marketer continuations, and release after
     digest-checked QA passes. Your own turns are strategy, briefs, assembly,
     short-form post text, and publishing in Mode execute. Never fabricate

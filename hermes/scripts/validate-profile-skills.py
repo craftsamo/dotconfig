@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import subprocess
 from pathlib import Path
 from typing import Any
@@ -69,6 +70,8 @@ REQUIRED_CONTINUATION_FIELDS = {
     "task_spec",
 }
 ALL_PROFILES = ("assistant", *WORKER_PROFILES)
+COMPLETION_PATH_GUARD_PLUGIN = "kanban-completion-path-guard"
+COMPLETION_PATH_GUARD_PROFILES = {"creator", "writer"}
 QA_REQUIRED_NON_CREATOR_ROUTES = {
     "core:tts",
     "writer:marketing-copy",
@@ -91,6 +94,7 @@ REQUIRED_WORKFLOW_SCHEMAS = {
     "completion_envelope",
     "artifact_handoff",
     "qa_handoff",
+    "producer_qa_requirement",
     "execution_outline_handoff",
     "qa_verdict",
     "recovery_lineage",
@@ -148,6 +152,12 @@ ASSISTANT_FORBIDDEN_TEXT = {
     "metadata.production_specs",
     "metadata.fan_out",
     "Workers can fan out themselves",
+}
+QA_SUPPRESSION_FORBIDDEN_TEXT = {
+    "create-" + "hidden",
+    "QA_" + "SETUP",
+    "kanban-" + "qa-gate.sh",
+    "zero-" + "subscription",
 }
 REGISTRATION_KEY_TEMPLATES = {
     "planning_branch": (
@@ -703,6 +713,15 @@ def validate_workflow_contract_data(
                 "cards",
                 "lineage",
             },
+            "producer_qa_requirement": {
+                "candidate_key",
+                "evidence_keys",
+                "capability",
+                "routes",
+                "criteria",
+                "done_criteria",
+                "output_inventory",
+            },
         }
         for name, expected in exact_schema_fields.items():
             schema = schemas.get(name)
@@ -724,6 +743,7 @@ def validate_workflow_contract_data(
             "fan_out_manifest": {
                 "marker": "FAN_OUT_READY:",
                 "attachment": "fan-out.yaml",
+                "probe": "kanban-fanout-manifest-probe.sh",
                 "scope": "all_origins_before_completion",
                 "cardinality": "zero_or_one",
             },
@@ -752,6 +772,11 @@ def validate_workflow_contract_data(
                 "storage": "fan_out_origin_comment",
                 "cardinality": "one_per_fan_out_checkpoint",
             },
+            "qa_pending_materialization": {
+                "marker": "QA_PENDING_MATERIALIZATION:",
+                "storage": "origin_or_integration_comment",
+                "cardinality": "exactly_one_per_qa_contract_before_create",
+            },
         }
         if set(bindings) != set(expected_bindings):
             errors.append(
@@ -778,6 +803,26 @@ def validate_workflow_contract_data(
     else:
         if registration.get("subscription") != "required":
             errors.append("workflow contract registration subscription must be required")
+        if registration.get("qa_policy") != {
+            "all_cards_subscription_required": True,
+            "qa_registration": (
+                "late_bound_after_candidate_and_evidence_completion_admission"
+            ),
+            "qa_task_input_digests": "resolved",
+            "pending_form": "producer_qa_requirement",
+            "pending_schema": "producer_qa_requirement",
+            "pending_materialization_marker": "QA_PENDING_MATERIALIZATION:",
+            "materialization_marker": "QA_MATERIALIZED:",
+            "materialization_event_binding": "producer_and_completion_event",
+            "candidate_completion": "progress",
+            "formal_delivery": "digest_checked_pass",
+        }:
+            errors.append(
+                "workflow contract registration QA policy must require subscriptions,"
+                " late-bind QA after candidate/evidence CompletionAdmission, require"
+                " resolved QA input digests, materialize from producer QA requirements, treat"
+                " candidate completion as progress, and require a digest-checked pass"
+            )
         if registration.get("retry_semantics") != {
             "transport_replay": "same_key_same_immutable_spec",
             "replacement": "fresh_key_changed_spec",
@@ -1078,6 +1123,108 @@ def validate_workflow_contract(errors: list[str]) -> int | None:
     return version if type(version) is int else None
 
 
+def validate_managed_qa_suppression_text(
+    errors: list[str], hermes_root: Path = HERMES_ROOT
+) -> None:
+    managed_text_extensions = {".json", ".md", ".yaml", ".yml", ".sh", ".txt"}
+    runtime_parts = {
+        ".archive",
+        ".hub",
+        ".restore-backups",
+        "__pycache__",
+        "hermes-achievements",
+        "index-cache",
+        "learned",
+        "output",
+    }
+
+    paths = set(
+        path
+        for path in hermes_root.iterdir()
+        if path.is_file()
+        and path.suffix in managed_text_extensions
+        and path.name != "SOUL.md"
+    )
+    for relative_root in (
+        "skills/orchestration",
+        "skills/workspaces",
+        "plugins",
+        "scripts",
+        "launchd",
+    ):
+        root = hermes_root / relative_root
+        if root.is_dir():
+            paths.update(root.rglob("*"))
+    for relative_file in ("cron/jobs.json",):
+        path = hermes_root / relative_file
+        if path.is_file():
+            paths.add(path)
+    profiles = hermes_root / "profiles"
+    if profiles.is_dir():
+        for profile in profiles.iterdir():
+            if not profile.is_dir():
+                continue
+            for name in ("profile.yaml", "config.example.yaml"):
+                path = profile / name
+                if path.is_file():
+                    paths.add(path)
+            if profile.name != "assistant" and (profile / "config.yaml").is_file():
+                paths.add(profile / "config.yaml")
+            for relative_root in ("skills", "scripts"):
+                root = profile / relative_root
+                if root.is_dir():
+                    paths.update(root.rglob("*"))
+            jobs = profile / "cron" / "jobs.json"
+            if jobs.is_file():
+                paths.add(jobs)
+
+    for path in sorted(paths):
+        if not path.is_file() or path.suffix not in managed_text_extensions:
+            continue
+        if runtime_parts.intersection(path.parts):
+            continue
+        text = path.read_text(encoding="utf-8")
+        for token in sorted(QA_SUPPRESSION_FORBIDDEN_TEXT):
+            if token in text:
+                errors.append(
+                    f"Managed Hermes text retains forbidden QA suppression {token!r}: {path}"
+                )
+
+
+def validate_fanout_write_ahead(text: str, errors: list[str]) -> None:
+    match = re.search(
+        r"(?ms)^<FanOutManifest>\s*$\n(.*?)^</FanOutManifest>\s*$",
+        text,
+    )
+    if match is None:
+        errors.append("Assistant FanOutManifest section is missing")
+        return
+    fanout = match.group(1)
+    overlay = fanout.find("ORCHESTRATION_PENDING_OVERLAY:")
+    create = fanout.find("Create only child roots")
+    if overlay == -1 or create == -1 or overlay > create:
+        errors.append(
+            "Assistant FanOutManifest must persist ORCHESTRATION_PENDING_OVERLAY before creating child roots"
+        )
+
+
+def validate_qa_write_ahead(text: str, errors: list[str]) -> None:
+    match = re.search(
+        r"(?ms)^<QualityGate>\s*$\n(.*?)^</QualityGate>\s*$",
+        text,
+    )
+    if match is None:
+        errors.append("Assistant QualityGate section is missing")
+        return
+    quality_gate = match.group(1)
+    pending = quality_gate.find("QA_PENDING_MATERIALIZATION:")
+    create = quality_gate.find("Create\nQA exactly from it")
+    if pending == -1 or create == -1 or pending > create:
+        errors.append(
+            "Assistant QualityGate must persist QA_PENDING_MATERIALIZATION before creating QA"
+        )
+
+
 def validate_assistant_orchestration_contract(errors: list[str]) -> None:
     orchestration_skill = HERMES_ROOT / "skills" / "orchestration" / "SKILL.md"
     plan_reference = (
@@ -1088,7 +1235,7 @@ def validate_assistant_orchestration_contract(errors: list[str]) -> None:
     assistant_scripts = HERMES_ROOT / "profiles" / "assistant" / "scripts"
     task_probe = assistant_scripts / "kanban-task-spec-probe.sh"
     completion_probe = assistant_scripts / "kanban-completion-probe.sh"
-    qa_gate = assistant_scripts / "kanban-qa-gate.sh"
+    fanout_probe = assistant_scripts / "kanban-fanout-manifest-probe.sh"
     watchdog = assistant_scripts / "kanban-orphan-watchdog.sh"
     sweeper = assistant_scripts / "kanban-scheduled-sweeper.sh"
     block_resolver = assistant_scripts / "kanban-resolve-block.sh"
@@ -1113,8 +1260,10 @@ def validate_assistant_orchestration_contract(errors: list[str]) -> None:
             "ORCHESTRATION_PENDING:",
             "ORCHESTRATION_PENDING_OVERLAY:",
             "Input attachments:",
-            "The sentinel alone is not a finding.",
-            "QA resolves the actual digest",
+            "Before QA registration",
+            "must replace that sentinel with the measured digest",
+            "completion_event=<producer-completed-event-id>",
+            "QA_PENDING_MATERIALIZATION:",
             "hermes kanban link",
             "hermes kanban unlink",
         },
@@ -1151,6 +1300,7 @@ def validate_assistant_orchestration_contract(errors: list[str]) -> None:
             "goal_max_turns",
             "task_links",
             '"skills": skills',
+            "Producer QA requirement",
         },
         completion_probe: {
             "PRAGMA query_only = ON",
@@ -1160,6 +1310,15 @@ def validate_assistant_orchestration_contract(errors: list[str]) -> None:
             "metadata.specialist_plan",
             "metadata.execution_outline",
             "metadata.qa",
+            "producer_qa_requirement",
+        },
+        fanout_probe: {
+            "PRAGMA query_only = ON",
+            "kanban_db_path",
+            "fan-out.yaml",
+            "cannot assign qa",
+            "manifest_digest",
+            "producer_qa_requirement",
         },
         profiles_doc: {"FAN_OUT_READY:", "Workers never register cards"},
         agents_doc: {"FAN_OUT_READY:", "Assistant alone registers"},
@@ -1168,6 +1327,8 @@ def validate_assistant_orchestration_contract(errors: list[str]) -> None:
             "fanout_pending",
             "repeat_until_handled",
             "DECISION(FAN_OUT_READY):",
+            "qa_candidates_unmaterialized",
+            "completion_event=",
         },
         sweeper: {"ORDER BY id DESC LIMIT 1", "kanban_db_path"},
         block_resolver: {
@@ -1176,7 +1337,6 @@ def validate_assistant_orchestration_contract(errors: list[str]) -> None:
             "block_recurrences = 0",
             "block_loop_detected",
         },
-        qa_gate: {"expected_workspace", "expected_project", "kanban_db_path"},
     }
 
     texts: dict[Path, str] = {}
@@ -1199,6 +1359,10 @@ def validate_assistant_orchestration_contract(errors: list[str]) -> None:
         text = texts.get(path)
         if text is not None:
             validate_markdown_contract_examples(text, location, errors)
+    orchestration_text = texts.get(orchestration_skill)
+    if orchestration_text is not None:
+        validate_fanout_write_ahead(orchestration_text, errors)
+        validate_qa_write_ahead(orchestration_text, errors)
 
     all_orchestration_text = "\n".join(
         path.read_text(encoding="utf-8")
@@ -1208,6 +1372,7 @@ def validate_assistant_orchestration_contract(errors: list[str]) -> None:
     for token in sorted(ASSISTANT_FORBIDDEN_TEXT):
         if token in all_orchestration_text:
             errors.append(f"Assistant orchestration retains forbidden text {token!r}")
+    validate_managed_qa_suppression_text(errors)
     for path in (profiles_doc, agents_doc):
         if not path.is_file():
             continue
@@ -1255,7 +1420,7 @@ def validate_assistant_orchestration_contract(errors: list[str]) -> None:
         errors.append(f"Kanban task probe must be executable: {task_probe}")
     if completion_probe.is_file() and not os.access(completion_probe, os.X_OK):
         errors.append(f"Kanban completion probe must be executable: {completion_probe}")
-    for script in (qa_gate, watchdog, sweeper, block_resolver):
+    for script in (watchdog, sweeper, block_resolver):
         if script.is_file() and not os.access(script, os.X_OK):
             errors.append(f"Assistant Kanban script must be executable: {script}")
 
@@ -1333,6 +1498,11 @@ def validate_specialist_planning_contract(
             },
             description: {"plan", "execute", "SpecialistPlan"},
         }
+        if profile in {"creator", "writer", "marketer"}:
+            required_by_file[specialist_reference] = (
+                required_by_file[specialist_reference]
+                | {"producer_qa_requirement"}
+            )
         texts: dict[Path, str] = {}
         for path, required in required_by_file.items():
             if not path.is_file():
@@ -1352,6 +1522,11 @@ def validate_specialist_planning_contract(
             for path in sorted(pipeline_dir.rglob("*.md"))
             if path.is_file()
         )
+        specialist_text = texts.get(specialist_reference, "")
+        if re.search(r"(?m)^\s*assignee:\s*[^\n]*\bqa\b", specialist_text):
+            errors.append(
+                f"{profile} SpecialistPlan must not propose a QA card before digest resolution"
+            )
         for token in sorted(forbidden_tokens):
             if token in pipeline_text:
                 errors.append(
@@ -1376,6 +1551,8 @@ def validate_specialist_planning_contract(
             "metadata.specialist_plan",
             "never creates",
             "Request run:",
+            "producer_qa_requirement",
+            "local-to-outline key map",
         },
         planner_config: {
             "Mode: integrate",
@@ -1538,8 +1715,8 @@ def validate_worker_pipeline_contract(
             "does not emit `metadata.artifact_handoff`",
             '"status":FINAL_VERDICT',
             "FINAL_VERDICT",
-            "The sentinel alone is not a finding.",
-            "QA resolves the actual digest",
+            "QA TaskSpec never carries `pending-assistant-probe`",
+            "Match every candidate and evidence attachment",
         },
         "marketer": {
             "Mode: plan",
@@ -1673,6 +1850,7 @@ def untracked_managed_files() -> list[str]:
             "hermes/profiles/*/skills/technic/**",
             "hermes/profiles/assistant/skills/desks/**",
             "hermes/plugins/skill-topology/**",
+            "hermes/plugins/kanban-completion-path-guard/**",
         ],
         cwd=REPO_ROOT,
         check=True,
@@ -1728,24 +1906,31 @@ def validate_git_boundary(
 
 
 def validate_plugin_source(errors: list[str]) -> None:
-    plugin = HERMES_ROOT / "plugins" / "skill-topology"
-    manifest = plugin / "plugin.yaml"
-    implementation = plugin / "__init__.py"
-    if not manifest.is_file():
-        errors.append(f"skill-topology manifest not found: {manifest}")
-    elif load_yaml(manifest).get("name") != "skill-topology":
-        errors.append(f"skill-topology manifest has the wrong name: {manifest}")
-    if not implementation.is_file():
-        errors.append(f"skill-topology implementation not found: {implementation}")
+    for name in ("skill-topology", COMPLETION_PATH_GUARD_PLUGIN):
+        plugin = HERMES_ROOT / "plugins" / name
+        manifest = plugin / "plugin.yaml"
+        implementation = plugin / "__init__.py"
+        if not manifest.is_file():
+            errors.append(f"{name} manifest not found: {manifest}")
+        elif load_yaml(manifest).get("name") != name:
+            errors.append(f"{name} manifest has the wrong name: {manifest}")
+        if not implementation.is_file():
+            errors.append(f"{name} implementation not found: {implementation}")
 
 
-def validate_plugin_enabled(config: Path, errors: list[str]) -> None:
+def validate_plugin_enabled(profile: str, config: Path, errors: list[str]) -> None:
     if not config.is_file():
         errors.append(f"profile config not found: {config}")
         return
     enabled = load_yaml(config).get("plugins", {}).get("enabled", [])
     if not isinstance(enabled, list) or "skill-topology" not in enabled:
         errors.append(f"skill-topology plugin is not enabled: {config}")
+    if profile in COMPLETION_PATH_GUARD_PROFILES and (
+        not isinstance(enabled, list) or COMPLETION_PATH_GUARD_PLUGIN not in enabled
+    ):
+        errors.append(
+            f"{COMPLETION_PATH_GUARD_PLUGIN} plugin is not enabled: {config}"
+        )
 
 
 def validate_worker(
@@ -1839,7 +2024,7 @@ def validate_worker(
                     errors.append(f"dispatch reference does not name {name}")
 
     validate_git_boundary([pipeline_dir, technic_dir], learned_dir, errors)
-    validate_plugin_enabled(profile_root / "config.yaml", errors)
+    validate_plugin_enabled(profile, profile_root / "config.yaml", errors)
     return len(leaves), len(learned)
 
 
@@ -1897,8 +2082,8 @@ def validate_assistant(errors: list[str]) -> tuple[int, int, int]:
 
     validate_git_boundary([desks_dir, technic_dir], learned_dir, errors)
     if config.is_file():
-        validate_plugin_enabled(config, errors)
-    validate_plugin_enabled(profile_root / "config.example.yaml", errors)
+        validate_plugin_enabled("assistant", config, errors)
+    validate_plugin_enabled("assistant", profile_root / "config.example.yaml", errors)
     return len(groups["desks"]), len(groups["technic"]), len(groups["learned"])
 
 
@@ -1933,7 +2118,7 @@ def validate_shared(errors: list[str]) -> tuple[int, int]:
     allowed.update(("learned", name, "SKILL.md") for name in learned)
     validate_allowed_skill_roots(skills, allowed, errors)
     validate_git_boundary([orchestration, workspaces], learned_dir, errors)
-    validate_plugin_enabled(HERMES_ROOT / "config.yaml", errors)
+    validate_plugin_enabled("default", HERMES_ROOT / "config.yaml", errors)
     return len(managed), len(learned)
 
 

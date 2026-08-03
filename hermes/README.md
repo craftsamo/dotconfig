@@ -89,7 +89,8 @@ the relevant `config.yaml`.
 - `skills/orchestration/` and `skills/workspaces/` — version-controlled shared
   skills. `skills/orchestration/references/workflow-contract.yaml` is the
   machine-readable authority for Worker modes, schemas, grants, bindings, and
-  QA routes. `skills/learned/` is the untracked adaptive library; bundled skills
+  QA routes, required subscriptions, and late-bound QA admission. `skills/learned/`
+  is the untracked adaptive library; bundled skills
   are read from the clone via `external_dirs`.
 - `cron/jobs.json` — scheduled job definitions (run-state churns in the same
   file; `cron/output/` and `cron/.tick.lock` are git-ignored).

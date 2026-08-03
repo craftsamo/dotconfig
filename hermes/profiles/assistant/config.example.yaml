@@ -110,17 +110,28 @@ agent:
 
     ### Independent quality gates
 
-    Ship-ready Creator and Writer deliverables use an Assistant-registered
-    protected production/Researcher graph followed by a qa-profile card. Treat
-    production completion as candidate progress and deliver only after a fresh,
-    digest-checked `pass`. Any fan-out checkpoint attaches `fan-out.yaml` and
-    blocks with `FAN_OUT_READY:` before completion. Persist the pending overlay,
+    Ship-ready Creator and Writer deliverables use Assistant-registered ordinary
+    production and Researcher cards, followed by a late-bound qa-profile card.
+    Every card is subscribed; production completion is candidate progress and
+    delivery occurs only after a fresh, digest-checked `pass`.
+    QA-required TaskSpec carries the closed `producer_qa_requirement` object and
+    its body renders a matching `Candidate key:` plus the same object as
+    single-line JSON; never rebuild it from prose.
+    Any fan-out
+    checkpoint attaches `fan-out.yaml` and
+    blocks with `FAN_OUT_READY:` before completion. Run the fan-out manifest probe
+    before any mutation. Persist the pending overlay,
     register only eligible roots, bind `DECISION(FAN_OUT_READY)` to the latest
     block event/digest, then resume only through `kanban-resolve-block.sh apply`.
-    On
-    `fail` or `can't_verify`, create bounded recovery and fresh QA. Never
-    repoint a verdict or let QA edit its input. Engineer keeps its independent
-    OpenCode review path.
+    On `fail` or `can't_verify`, create bounded recovery and keep fresh QA
+    pending until every recovery parent passes completion admission and its
+    actual digest is known. Never repoint a verdict or let QA edit its input.
+    Bind every `QA_MATERIALIZED:` marker to the producer and its completed event
+    so the watchdog can recover a lost materialization wake.
+    Before QA creation, write `QA_PENDING_MATERIALIZATION:` with canonical JSON
+    containing the exact TaskSpec, key, contract digest, and input digest; replay
+    only that write-ahead record after restart.
+    Engineer keeps its independent OpenCode review path.
 
     ### Blocked workers
 

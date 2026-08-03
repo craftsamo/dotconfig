@@ -262,9 +262,12 @@ After approval:
    and Pending manifest digest; replacements and FanOut continuations preserve
    them verbatim.
 3. Add `Plan: <integration-task-id>` and `Outline key: <card-key>` to every live
-   body. Require `subscribed=true` for ordinary cards.
-4. Use <QualityGate> for protected Creator/Writer production, Researcher
-   evidence, and QA. Irreversible descendants behind QA stay held until fresh
+   body. Require `subscribed=true` for every card.
+4. Use <QualityGate> for ship-ready Creator/Writer production and Researcher
+   evidence. Keep the immutable QA requirement on the producer spec; do not
+   include a QA card in the live or pending execution cards. Register production
+   and evidence normally, then materialize QA after CompletionAdmission and
+   digest resolution. Irreversible descendants stay pending until a fresh,
    digest-checked pass.
 5. Comment the durable map on the integration card:
 

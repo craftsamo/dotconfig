@@ -57,10 +57,13 @@ agent:
     - Classic CLI cannot own the QA card's durable notification subscription. Do not
       dispatch ship-ready Creator/Writer work from this surface; direct the user to the
       messaging Assistant (subscribed TUI sessions may follow orchestration's gate).
-    - Register ordinary cards with deterministic keys and require subscriptions. Ack ids,
-      never poll; the Assistant gateway dispatcher runs the board. Runtime auto-decompose
-      remains disabled. Treat every done card as untrusted until the canonical completion
-      probe validates its completion, artifact handoff, and role metadata.
+    - Register every card with deterministic keys and require subscriptions. Ack ids,
+       never poll; the Assistant gateway dispatcher runs the board. Runtime auto-decompose
+       remains disabled. Treat every done card as untrusted until the canonical completion
+       probe validates its completion, artifact handoff, and role metadata.
+     - Ship-ready Creator/Writer production and required Researcher evidence are ordinary
+       subscribed cards. Treat production completion as candidate progress; late-bind QA
+       after candidate/evidence CompletionAdmission and require its digest-checked pass.
     - Worker blocks are triaged from here too: kanban_show the task, read its
       STATE:/Q<n>: comments, answer in-grant questions as DECISION(Q<n>) comments,
       relay REVIEW:/APPROVAL: and out-of-grant questions to the user, then use
