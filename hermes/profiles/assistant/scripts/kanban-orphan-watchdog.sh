@@ -1,12 +1,11 @@
 #!/bin/sh
 # kanban-orphan-watchdog — surface silently-stuck kanban cards.
 #
-# Six blind spots exist by design (verified against hermes v0.18.x):
-#   1. Cards created BY a worker (kanban_create from a dispatcher-spawned
-#      run) get no kanban_notify_subs row — when such a card blocks,
-#      nobody is notified and it sleeps forever.
-#   2. Unsubscribed cards can fall through the block-loop breaker into triage
-#      without any remaining route to chat.
+# Seven blind spots exist by design (verified against hermes v0.18.x):
+#   1. Assistant-registered hidden/manifest cards may intentionally have no
+#      subscription while an internal gate owns their lifecycle.
+#   2. Any card can fall through the block-loop breaker into triage without a
+#      notification for that transition, even while a subscription still exists.
 #   3. QA-protected production/Researcher cards deliberately remove their
 #      chat subscription so candidate completion stays hidden. Their blocked
 #      and failed terminal events therefore need this out-of-band route.
@@ -15,6 +14,9 @@
 #   5. A completed QA card can lose its gateway wake before release.
 #   6. A killed create-hidden wrapper can leave its deliberately unassigned,
 #      blocked card before the QA_SETUP marker is written.
+#   7. A FAN_OUT_READY notification can advance its subscription cursor before
+#      the Assistant wake finishes. The block remains durable but emits no new
+#      event, so it must be repeated until a matching decision exists.
 #
 # This watchdog scans the default board read-only every 5 min and
 # reports them once per new occurrence (dedup keyed on the newest
@@ -30,11 +32,36 @@ import json
 import os
 import sqlite3
 import sys
+from pathlib import Path
 
 HOME = os.path.expanduser("~")
-DB = os.environ.get("HERMES_KANBAN_DB") or os.path.join(
-    HOME, ".hermes", "kanban.db"
-)
+
+
+def kanban_root():
+    override = os.environ.get("HERMES_KANBAN_HOME", "").strip()
+    if override:
+        return Path(override).expanduser()
+    home = Path(os.environ.get("HERMES_HOME", "~/.hermes")).expanduser()
+    return home.parent.parent if home.parent.name == "profiles" else home
+
+
+def kanban_db_path():
+    override = os.environ.get("HERMES_KANBAN_DB", "").strip()
+    if override:
+        return Path(override).expanduser()
+    root = kanban_root()
+    board = os.environ.get("HERMES_KANBAN_BOARD", "").strip()
+    if not board:
+        try:
+            board = (root / "kanban" / "current").read_text().strip()
+        except OSError:
+            board = ""
+    if not board or board == "default":
+        return root / "kanban.db"
+    return root / "kanban" / "boards" / board / "kanban.db"
+
+
+DB = str(kanban_db_path())
 STATE = os.environ.get("HERMES_WATCHDOG_STATE") or os.path.join(
     HOME, ".hermes", ".kanban-watchdog-state.json"
 )
@@ -112,10 +139,8 @@ loopfalls = conn.execute(
       FROM tasks t
       JOIN task_events e
         ON e.task_id = t.id AND e.kind = 'block_loop_detected'
-      LEFT JOIN kanban_notify_subs s ON s.task_id = t.id
-      WHERE t.status = 'triage'
-        AND s.task_id IS NULL
-      GROUP BY t.id
+       WHERE t.status = 'triage'
+       GROUP BY t.id
     """
 ).fetchall()
 
@@ -132,7 +157,7 @@ qa_setup_missing = conn.execute(
                 AND e2.kind = 'created'
            )
      WHERE t.created_by = 'assistant:qa-gate'
-       AND t.status IN ('blocked', 'todo', 'ready')
+       AND t.status IN ('blocked', 'todo', 'ready', 'scheduled')
        AND t.created_at <= CAST(strftime('%s', 'now') AS INTEGER) - 300
        AND NOT EXISTS (
              SELECT 1
@@ -193,6 +218,27 @@ completed_qa_unreleased = conn.execute(
            )
     """
 ).fetchall()
+
+# 7. FAN_OUT_READY is an acknowledged handoff. Repeat it regardless of
+#    subscription while the task remains blocked. A DECISION(FAN_OUT_READY):
+#    comment is not enough: the Assistant may stop before kanban_unblock.
+#    Deterministic keys make partial-registration replay safe.
+fanout_pending = conn.execute(
+    """
+    SELECT t.id, t.title, t.assignee, e.id AS ev, e.payload
+      FROM tasks t
+      JOIN task_events e
+        ON e.id = (
+             SELECT MAX(e2.id)
+               FROM task_events e2
+              WHERE e2.task_id = t.id
+                AND e2.kind IN ('blocked', 'spawn_auto_blocked')
+           )
+     WHERE t.status = 'blocked'
+       AND e.created_at <= CAST(strftime('%s', 'now') AS INTEGER) - 300
+       AND e.payload LIKE '%FAN_OUT_READY%'
+    """
+).fetchall()
 conn.close()
 
 
@@ -213,20 +259,22 @@ def reason_of(row):
 alerts = []
 new_state = {}
 
-for kind, rows, label in (
-    ("orphan", orphans, "blocked, no subscription"),
-    ("hidden_failure", hidden_failures, "failed, no subscription"),
-    ("loopfall", loopfalls, "block-loop triage fall, no subscription"),
-    ("qa_setup_missing", qa_setup_missing, "QA hidden-create missing setup"),
-    ("stale_qa_setup", stale_qa_setup, "stale QA setup hold"),
+for kind, rows, label, repeat_until_handled in (
+    ("orphan", orphans, "blocked, no subscription", False),
+    ("hidden_failure", hidden_failures, "failed, no subscription", False),
+    ("loopfall", loopfalls, "block-loop triage fall", False),
+    ("qa_setup_missing", qa_setup_missing, "QA hidden-create missing setup", False),
+    ("stale_qa_setup", stale_qa_setup, "stale QA setup hold", False),
     ("completed_qa_unreleased", completed_qa_unreleased,
-     "QA finished but not handled"),
+     "QA finished but not handled", False),
+    ("fanout_pending", fanout_pending,
+     "FAN_OUT_READY awaiting Assistant decision", True),
 ):
     for row in rows:
         key = f"{kind}:{row['id']}"
         ev = int(row["ev"] or 0)
         new_state[key] = max(ev, seen(key))
-        if ev <= seen(key):
+        if not repeat_until_handled and ev <= seen(key):
             continue  # already alerted for this occurrence
         reason = reason_of(row)
         alerts.append(
@@ -253,6 +301,7 @@ print(
     f"{len(qa_setup_missing)} QA setups missing, "
     f"{len(stale_qa_setup)} stale QA setup holds, "
     f"{len(completed_qa_unreleased)} completed QA unreleased, "
+    f"{len(fanout_pending)} FAN_OUT_READY pending, "
     f"{len(alerts)} new alerts",
     file=sys.stderr,
 )
