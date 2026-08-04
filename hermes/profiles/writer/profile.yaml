@@ -1,6 +1,10 @@
-description: 'Writes text deliverables: reader-facing prose (marketing long copy,
-  tech articles/blog posts, documentation) and producer-facing scripts (漫画台本,
-  絵コンテ, storyboards, screenplays). Reader-first Japanese quality (notation/
-  argumentation/rhythm norms, auto-routed by deliverable type). Not for analysis
-  with verified conclusions (researcher) or publishing/posting (marketer).'
+description: 'Plans and executes text deliverables: reader-facing prose (marketing
+  copy, technical articles, documentation) and producer-facing scripts (comic
+  scripts, storyboards, screenplays). Mode plan returns a PlanningGraph
+  SpecialistPlan with WritingBrief, structure, source needs, QA route, and
+  proposed execution cards; it never writes the completed text. Mode execute
+  retains assess/write routing and draft-only delivery. Follows admit -> route ->
+  act_or_plan -> verify -> handoff -> terminal and the completion/artifact handoff
+  contract. Not for verified
+  research conclusions or publishing/posting.'
 description_auto: false

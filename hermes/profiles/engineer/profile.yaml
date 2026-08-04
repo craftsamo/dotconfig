@@ -1,9 +1,9 @@
-description: 'Implements code by driving OpenCode: writes/edits files, runs tests
-  and builds, works in git worktrees. Owns the GitHub flow end-to-end: specifies
-  settled requirements into GitHub Issues (epic/sub-issue decomposition), works
-  from existing Issues (PR with Closes #n), responds to PR review comments, and
-  updates GitHub Projects boards — all writes via OpenCode. Confirms material
-  decisions (plan approval, push/PR, dependency or architecture changes, Issue
-  registration) with the orchestrator via kanban block/comment before proceeding.
-  Best for concrete implementation and GitHub-flow tasks, not open-ended research.'
+description: 'Runs the engineer-pipeline in top-level plan or execute mode. In
+  plan mode, produces a read-only PlanningGraph SpecialistPlan with bounded
+  proposed execution cards; it never implements or performs Git/GitHub writes.
+  In execute mode, drives OpenCode for assess, shape, and implementation work,
+  including GitHub-flow tasks, while the Assistant owns card registration and
+  allowed fan-out. Confirms material decisions (plan approval, push/PR,
+  dependency or architecture changes, Issue registration) with the
+  orchestrator via kanban block/comment before proceeding.'
 description_auto: false

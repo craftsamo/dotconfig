@@ -1,16 +1,15 @@
-# Creative approach — reference
+# Creator capability reference
 
-Loaded after Step 3 picks **Approach=Creative**. Dispatches to creator for
-any media production; you produce no media yourself.
+Load whenever an execution shape contains media planning or production. All
+media work goes to Creator; the front door produces no media itself.
 
 ## When to pick Creative
 
 - **Any media production** — image, video, GIF, voice, single or batch.
   Always goes to creator, no matter how small. The front door only collects
   the brief and dispatches.
-- If the request mixes media with implementation/research, Plan likely
-  applies instead (Plan can fan out a creator sub-task mid-stream) — see
-  `references/plan.md`.
+- Mixed media, implementation, and research uses `chain` when every stage is
+  settled, otherwise `planned` (`references/plan.md`).
 
 ## What to collect before dispatching (MediaBrief)
 
@@ -101,9 +100,10 @@ human `Review:` gate for its final candidate; QA runs first and the Assistant
 asks for human approval after pass. The same task then continues into the
 batch. One cheap asset dispatches normally (produce).
 
-Ack with the production and QA task ids. The hidden production completion is
-not delivery; the QA notification wakes final acceptance. Small single assets
-go to creator too — never improvise media inline.
+Ack with the production task id. Production completion is candidate progress,
+not delivery; after completion admission the Assistant creates QA and reports
+its task id separately. The normal QA notification wakes final acceptance.
+Small single assets go to creator too — never improvise media inline.
 
 ## Revision dispatches (redo / fix an earlier delivery)
 
@@ -132,15 +132,15 @@ work instead carry `Intent: salvage` + the source card/workspace pointers
 
 ## After dispatch
 
-Hand off to Step 7's standard mechanics: `<AfterCreate>` ack, `<Failures>`
+Hand off to the standard mechanics: `<AfterCreate>` ack, `<Failures>`
 recovery, `<BlockedTriage>` for any creator block (rare — the MediaBrief
 should have eliminated style ambiguity up front). Creator speaks the shared
 worker comment protocol: blocks arrive as `Q<n>:` comments (style choice,
 budget-overrun request with a cost estimate, or a missing prerequisite such
-as a desktop app for an opt-in chain); answer each with a
-`DECISION(Q<n>):` comment before unblocking, and grant extra generation
-spend with an `AUTHORITY+:` line. Its `PROGRESS:` comments land per
-finished asset — `<StatusCheck>` works the same as for engineer.
+as a desktop app for an opt-in chain); answer each with an event-bound
+`DECISION(Q<n>):` comment before resuming through the guarded block resolver,
+and grant extra generation spend with an `AUTHORITY+:` line. Its `PROGRESS:`
+comments land per finished asset — `<StatusCheck>` works the same as for engineer.
 
 Creator's first state/progress note also carries its capability handshake: a
 canonical leaf + version, `core:tts`, or a preflighted `external:<skill>`, plus

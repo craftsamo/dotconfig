@@ -50,5 +50,7 @@ case "${INBOX_THREAD_ID:-}" in
   *) TELEGRAM_CRON_THREAD_ID="$INBOX_THREAD_ID" ;;
 esac
 export TELEGRAM_CRON_THREAD_ID
+# kanban_comment derives the Assistant's trusted author identity from this value.
+export HERMES_PROFILE=assistant
 
 exec "$HOME/.local/bin/hermes" -p assistant gateway run --replace --accept-hooks

@@ -1,6 +1,7 @@
-description: "Planning specialist: turns a settled goal into a multi-card dependency-graph\
-  \ outline (assignees, technic skills, grants, parents) for user approval. Plans\
-  \ only \u2014 never implements, never creates build cards. Investigation: reads\
-  \ files/web itself; fans out advisory cards + a continuation card when a specialist\
-  \ assessment is needed."
+description: 'Final planning compiler. In Mode: integrate, consumes the approved
+  RequirementSpec and PlanningGraph plus every latest final SpecialistPlan parent,
+  then reconciles them into one schema-valid ExecutionOutline for the second user
+  approval. Plans only: never investigates anew, executes, creates cards, or fans
+  out. Uses the shared workflow contract as the canonical Worker, mode, technic,
+  grant, and QA registry.'
 description_auto: false
