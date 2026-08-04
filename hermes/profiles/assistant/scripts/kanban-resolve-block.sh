@@ -14,29 +14,17 @@ else
   exit 2
 fi
 
-HERMES=${HERMES_BIN:-}
-if [ -z "$HERMES" ]; then
-  HERMES=$(command -v hermes 2>/dev/null || :)
-fi
-if [ -z "$HERMES" ]; then
-  HERMES="${HOME:-}/.local/bin/hermes"
-fi
-if [ ! -x "$HERMES" ]; then
-  echo "kanban-resolve-block: hermes CLI not found" >&2
-  exit 1
-fi
-
-exec /usr/bin/python3 - "$HERMES" "$OP" "$TASK_ID" <<'PY'
+exec /usr/bin/python3 - "$OP" "$TASK_ID" <<'PY'
 import hashlib
 import json
 import os
 import re
 import sqlite3
-import subprocess
 import sys
+import time
 from pathlib import Path
 
-hermes, operation, task_id = sys.argv[1:]
+operation, task_id = sys.argv[1:]
 if not re.fullmatch(r"[A-Za-z0-9._:-]+", task_id):
     print("kanban-resolve-block: invalid task id", file=sys.stderr)
     raise SystemExit(2)
@@ -185,21 +173,6 @@ if missing:
 
 original_recurrences = task["block_recurrences"]
 original_kind = task["block_kind"]
-if task["status"] == "blocked":
-    result = subprocess.run(
-        [hermes, "kanban", "unblock", "--reason", "decision recorded", task_id],
-        capture_output=True,
-        text=True,
-        timeout=120,
-    )
-    if result.returncode != 0:
-        detail = (result.stderr or result.stdout).strip().replace("\n", " ")
-        print(
-            "kanban-resolve-block: unblock failed" + (f": {detail}" if detail else ""),
-            file=sys.stderr,
-        )
-        raise SystemExit(1)
-
 conn.execute("BEGIN IMMEDIATE")
 latest_event = conn.execute(
     "SELECT id FROM task_events WHERE task_id = ? "
@@ -208,12 +181,13 @@ latest_event = conn.execute(
     (task_id,),
 ).fetchone()
 current = conn.execute(
-    "SELECT status, block_recurrences, block_kind FROM tasks WHERE id = ?",
+    "SELECT * FROM tasks WHERE id = ?",
     (task_id,),
 ).fetchone()
 if (
     latest_event is None
     or latest_event["id"] != event["id"]
+    or current["status"] not in ("blocked", "triage")
     or current["block_recurrences"] != original_recurrences
     or current["block_kind"] != original_kind
 ):
@@ -224,22 +198,84 @@ if (
     )
     raise SystemExit(1)
 try:
-    if task["status"] == "triage":
-        updated = conn.execute(
-            "UPDATE tasks SET status = 'todo', block_recurrences = 0, "
-            "block_kind = NULL WHERE id = ? AND status = 'triage' "
-            "AND block_recurrences IS ? AND block_kind IS ?",
-            (task_id, original_recurrences, original_kind),
-        )
+    table_names = {
+        row[0]
+        for row in conn.execute(
+            "SELECT name FROM sqlite_master WHERE type = 'table'"
+        ).fetchall()
+    }
+    task_columns = {
+        row[1] for row in conn.execute("PRAGMA table_info(tasks)").fetchall()
+    }
+    if current["status"] == "triage":
+        new_status = "todo"
     else:
-        updated = conn.execute(
-            "UPDATE tasks SET block_recurrences = 0, block_kind = NULL "
-            "WHERE id = ? AND status NOT IN ('blocked', 'triage') "
-            "AND block_recurrences IS ? AND block_kind IS ?",
-            (task_id, original_recurrences, original_kind),
-        )
+        undone_parent = None
+        if "task_links" in table_names:
+            undone_parent = conn.execute(
+                "SELECT 1 FROM task_links l JOIN tasks p ON p.id = l.parent_id "
+                "WHERE l.child_id = ? AND p.status != 'done' LIMIT 1",
+                (task_id,),
+            ).fetchone()
+        new_status = "todo" if undone_parent else "ready"
+
+    current_run_id = (
+        current["current_run_id"] if "current_run_id" in task_columns else None
+    )
+    if current_run_id and "task_runs" in table_names:
+        run_columns = {
+            row[1] for row in conn.execute("PRAGMA table_info(task_runs)").fetchall()
+        }
+        required_run_columns = {
+            "status",
+            "outcome",
+            "summary",
+            "ended_at",
+            "claim_lock",
+            "claim_expires",
+            "worker_pid",
+        }
+        if required_run_columns <= run_columns:
+            conn.execute(
+                "UPDATE task_runs SET status = 'reclaimed', outcome = 'reclaimed', "
+                "summary = COALESCE(summary, 'invariant recovery on unblock'), "
+                "ended_at = ?, claim_lock = NULL, claim_expires = NULL, "
+                "worker_pid = NULL WHERE id = ? AND ended_at IS NULL",
+                (int(time.time()), current_run_id),
+            )
+
+    assignments = [
+        "status = ?",
+        "block_recurrences = 0",
+        "block_kind = NULL",
+    ]
+    values = [new_status]
+    for column, value in (
+        ("current_run_id", None),
+        ("consecutive_failures", 0),
+        ("last_failure_error", None),
+    ):
+        if column in task_columns:
+            assignments.append(f"{column} = ?")
+            values.append(value)
+    values.extend((task_id, original_recurrences, original_kind))
+    updated = conn.execute(
+        f"UPDATE tasks SET {', '.join(assignments)} "
+        "WHERE id = ? AND status IN ('blocked', 'triage') "
+        "AND block_recurrences IS ? AND block_kind IS ?",
+        values,
+    )
     if updated.rowcount != 1:
-        raise RuntimeError("task state changed before recurrence reset")
+        raise RuntimeError("task state changed before atomic unblock")
+    conn.execute(
+        "INSERT INTO task_events (task_id, kind, created_at, payload) "
+        "VALUES (?, 'unblocked', ?, ?)",
+        (
+            task_id,
+            int(time.time()),
+            json.dumps({"status": new_status, "reason": "decision recorded"}),
+        ),
+    )
     conn.commit()
 except Exception as exc:
     conn.rollback()
