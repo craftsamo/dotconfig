@@ -1,6 +1,6 @@
 ---
 name: manage-github-projects
-description: Use to record and manage persistent, cross-session tasks and notes on a GitHub Projects (v2) "Roadmap" board via the github_project_* tools, instead of writing local TODO/plan/notes files (GitHub Projects, project board, roadmap, draft issue, project item, 起票, タスク管理, ロードマップ, ボードに追加, 進捗更新, ファイルを残さない). Covers the two-tier personal/org board topology and owner resolution, the Status/Kind/Area/_Repository/_Milestone schema, board granularity (epic on the board; purpose / work issues in the repo), saved views (Kanban / Backlog / roadmap via a copied template), per-Kind and three-tier (epic / purpose / work) body formats, and add/start/done/list/note/promote recipes. Use ONLY for GitHub Project board task management, not general gh usage.
+description: Use to record and manage persistent, cross-session tasks and notes on a GitHub Projects (v2) "Roadmap" board via the github_project_* tools, instead of writing local TODO/plan/notes files (GitHub Projects, project board, roadmap, draft issue, project item, 起票, タスク管理, ロードマップ, ボードに追加, 進捗更新, ファイルを残さない). Covers the two-tier personal/org board topology and owner resolution, the Status/Kind/Area/_Repository/_Milestone schema, board granularity (epic on the board; purpose issues in the repo; PR slices as stack layers, not issues), saved views (Kanban / Backlog / roadmap via a copied template), per-Kind and epic-structured (epic / purpose / stack-layer PR) body formats, and add/start/done/list/note/promote recipes. Use ONLY for GitHub Project board task management, not general gh usage.
 author: CraftSamo
 license: MIT
 ---
@@ -118,18 +118,20 @@ What goes on the board, and how large work is broken down:
 
 - A board item is a **standalone task** or an **epic** — never an epic's
   descendants. Keep the board a roadmap of efforts, not a flat task dump: a
-  team's org Roadmap showing every purpose / work issue is noise.
+  team's org Roadmap showing every purpose issue is noise.
 - Break large multi-step work into an **epic**: one parent issue whose body
   follows the Epic format in `<BodyGuidance>` (Overview + a Plan of dependency
   waves — ordering lives in the body, there is no Wave field). Its direct
   sub-issues are **purpose issues** (the execution unit, sized 1–3 PRs), each
-  of which gets its own PR-sized **work sub-issues** at kickoff. Tier
+  of which executes as a native GitHub stack of PRs at kickoff. Tier
   selection, spec lifecycle, and branch topology live in
   `approach-github-projects`.
-- Purpose and work issues stay in the repo and are **not** added to the board.
-  Link each tier under its parent with `github_project_issue_link` (it also
-  sets the sub-issue's Issue Type to `Task`). Progress shows on each parent
-  via its sub-issue bar (e.g. `2/5`).
+- Issues stop at the purpose: a purpose's PR slices are **stack layers, not
+  sub-issues**. Purpose issues stay in the repo and are **not** added to the
+  board. Link each purpose under its epic with `github_project_issue_link` (it
+  also sets the sub-issue's Issue Type to `Task`). Epic progress shows via its
+  sub-issue bar (e.g. `2/5`); a purpose's progress is its outline checklist
+  plus `gh stack view`.
 - **Milestone** is a high-level **theme** grouping epics over time. Assign it to the
   **epic**, not to each sub-task; a later epic on the same theme joins the same
   milestone while it is open.
@@ -219,9 +221,9 @@ Common optional section (any Kind, when the work will be implemented):
   Requirements / Acceptance already make the work obvious. Distinct from an
   epic's `## Plan` (which orders sub-issues into phases).
 
-Three-tier formats (epic-structured work — supersede the per-Kind body; tier
-selection, spec lifecycle, research model, and branches live in
-`approach-github-projects`):
+Epic-structured formats (supersede the per-Kind body; tier selection, spec
+lifecycle, research model, and branches live in `approach-github-projects`).
+Two issue tiers — epic and purpose — plus the stack-layer PR body:
 
 **Epic** (a parent issue whose sub-issues are purpose issues):
 
@@ -254,8 +256,11 @@ selection, spec lifecycle, research model, and branches live in
   provider comparisons). Transcribe, don't just link — the purpose must stay
   self-contained when source issues close. Fold into `## Requirements` when
   short.
-- `## Implementation outline` — expected PR slices (prose bullets). At
-  kickoff, replaced by the linked work sub-issue `#n` list.
+- `## Implementation outline` — the expected PR slices. Draft: prose bullets.
+  Fixed (at kickoff): a `- [ ]` checklist of stack layers, bottom to top, one
+  line each; tick a layer when its PR lands and append its `#n` inline. This
+  checklist — not a set of sub-issues — is the purpose's decomposition, so it
+  can be re-sliced with a text edit while the layers above are unwritten.
 - `## Open decisions` — what must be settled at kickoff. Removed when Fixed
   (each decision resolved into Requirements); re-add it when an escalated
   mid-implementation discovery raises a new decision.
@@ -264,17 +269,25 @@ selection, spec lifecycle, research model, and branches live in
 - `## Evidence` — links to research originals (epic comments), decision
   issues, superseded predecessors.
 
-**Work sub-issue** (one reviewable PR; sub-issue of a purpose, created at its
-kickoff):
+**Stack-layer PR** (one reviewable slice of a purpose — a PR body, not an
+issue; this is where the retired work sub-issue's content now lives):
 
-- `## Purpose` — one line.
+- `## Purpose` — one line, plus a back-reference to the purpose: `Refs
+  #<purpose>` on an intermediate layer, `Closes #<purpose>` on the layer that
+  completes it (the closing keyword references it too — never write both).
+  Keywords fire from any layer of a default-branch-rooted stack, so writing
+  `Closes` earlier would end the purpose mid-flight.
 - `## Scope` — what is included (bullets).
 - `## Out of scope` — explicit exclusions (optional).
 - `## Acceptance` — done checks, including verification commands.
-- `## Dependencies` — sibling work issues (`#n`).
-- No `## Research` here — implementation-detail findings go into the PR
-  itself; out-of-scope discoveries escalate to the purpose's
+- No `## Dependencies` — the layer below is the dependency, and the stack
+  already encodes it.
+- No `## Research` here — implementation-detail findings stay in the PR
+  discussion; out-of-scope discoveries escalate to the purpose's
   `## Open decisions` (or an epic comment), never absorbed silently.
+
+`git-pullrequest` owns how this body is rendered against the repo's own PR
+convention and template.
 
 On a shared repo that already provides Issue Forms, prefer that form for real
 issues rather than this guidance.
@@ -324,12 +337,13 @@ After promote — wire the issue into the development lifecycle (the
 
 - Branch + Development link: `github_project_issue_develop`
   `{ issue, branch?, base?, checkout?, repo? }` — creates a linked development
-  branch (or reuses an existing one); a PR opened from it links in the issue's
-  Development panel automatically. A purpose issue branches off the default
-  branch; a work sub-issue points `base` at its purpose branch so the PR
-  stacks under it. Epics get no branch (tracking only).
-- Sub-issue under a parent (purpose under epic, work under purpose):
-  `github_project_issue_link`
+  branch (or reuses an existing one). A PR opened from it enters the issue's
+  `closingIssuesReferences` **even with no closing keyword**, so merging that
+  PR closes the issue. Use it only when closing on the first merge is correct:
+  a standalone task, or a purpose that is a single PR. A multi-layer purpose
+  uses plain branches — see `approach-github-projects` `<BranchTopology>`.
+  Epics get no branch (tracking only).
+- Sub-issue under a parent (purpose under epic): `github_project_issue_link`
   `{ parent, subs, subType?: "Task" }` — links the sub-issues under the parent
   and sets each sub's Issue Type to `Task` (best-effort: warns and continues on
   repos without Issue Types).
