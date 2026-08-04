@@ -92,7 +92,9 @@ class WorkflowContractTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             config = Path(directory) / "config.yaml"
             config.write_text(
-                "plugins:\n  enabled:\n    - skill-topology\n", encoding="utf-8"
+                "plugins:\n  enabled:\n    - skill-topology\n"
+                "    - kanban-worker-mutation-guard\n",
+                encoding="utf-8",
             )
             creator_errors: list[str] = []
             engineer_errors: list[str] = []
@@ -105,6 +107,20 @@ class WorkflowContractTest(unittest.TestCase):
             creator_errors,
         )
         self.assertEqual([], engineer_errors)
+
+    def test_worker_mutation_guard_is_required_for_every_worker(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            config = Path(directory) / "config.yaml"
+            config.write_text(
+                "plugins:\n  enabled:\n    - skill-topology\n", encoding="utf-8"
+            )
+            errors: list[str] = []
+
+            VALIDATOR.validate_plugin_enabled("engineer", config, errors)
+
+        self.assertTrue(
+            any("kanban-worker-mutation-guard" in error for error in errors), errors
+        )
 
     def test_missing_worker_is_rejected(self) -> None:
         contract = copy.deepcopy(self.contract)
@@ -598,6 +614,24 @@ class AssistantOrchestrationContractTest(unittest.TestCase):
 
 
 class SpecialistPlanningContractTest(unittest.TestCase):
+    def test_execution_outline_example_keeps_card_fields_at_one_level(self) -> None:
+        pipeline = (
+            VALIDATOR.HERMES_ROOT
+            / "profiles"
+            / "planner"
+            / "skills"
+            / "planner-pipeline"
+            / "SKILL.md"
+        ).read_text(encoding="utf-8")
+        schema = pipeline.split("<ExecutionOutlineSchema>", 1)[1].split(
+            "</ExecutionOutlineSchema>", 1
+        )[0]
+
+        self.assertIn("\n    params:\n", schema)
+        self.assertIn("\n    task_spec:\n", schema)
+        self.assertNotIn("\n      params:\n", schema)
+        self.assertNotIn("\n      task_spec:\n", schema)
+
     def copy_specialist_contracts(self, root: Path) -> None:
         for profile in VALIDATOR.PLANNING_SPECIALIST_PROFILES:
             source = VALIDATOR.HERMES_ROOT / "profiles" / profile

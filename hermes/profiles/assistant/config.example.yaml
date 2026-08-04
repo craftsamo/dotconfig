@@ -99,6 +99,13 @@ agent:
     quality gates, and status checks live in the skill.
     Every done card is untrusted until `kanban-completion-probe.sh` validates
     metadata.completion, any artifact_handoff, and the required role envelope.
+    After handling a successful ordinary completion and all immediate graph transitions,
+    write `COMPLETION_HANDLED:` with its task and completion event ids. QA and
+    QA-required producers use their dedicated handled/materialized markers instead.
+    The completion probe supplies the exact event id. For every invalid non-QA
+    completion, including a QA-required producer, write
+    `COMPLETION_HANDLED: ... outcome=invalid-recovery` only after registering the
+    bounded replacement. Invalid candidates never receive `QA_MATERIALIZED:`.
     Do not deliver it or register/release descendants before that check passes.
 
     ### Grants

@@ -8,7 +8,23 @@ if [ "$#" -ne 1 ]; then
   exit 2
 fi
 
-exec /usr/bin/python3 - "$1" <<'PY'
+PYTHON=${HERMES_PYTHON:-}
+if [ -z "$PYTHON" ]; then
+  HERMES_ENTRY=${HERMES_BIN:-"${HOME:-}/.local/bin/hermes"}
+  HERMES_TARGET=$(readlink "$HERMES_ENTRY" 2>/dev/null || :)
+  if [ -z "$HERMES_TARGET" ]; then
+    HERMES_TARGET=$HERMES_ENTRY
+  elif [ "${HERMES_TARGET#/}" = "$HERMES_TARGET" ]; then
+    HERMES_TARGET=$(dirname "$HERMES_ENTRY")/$HERMES_TARGET
+  fi
+  PYTHON=$(dirname "$HERMES_TARGET")/python
+fi
+if [ ! -x "$PYTHON" ]; then
+  echo "kanban-fanout-manifest-probe: Hermes Python not found; set HERMES_PYTHON" >&2
+  exit 1
+fi
+
+exec "$PYTHON" - "$1" <<'PY'
 import hashlib
 import json
 import os

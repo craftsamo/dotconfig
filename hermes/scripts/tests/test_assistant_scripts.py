@@ -16,6 +16,82 @@ ASSISTANT_SCRIPTS = HERMES_ROOT / "profiles" / "assistant" / "scripts"
 
 
 class AssistantScriptTest(unittest.TestCase):
+    def test_watchdog_repeats_general_completion_until_event_is_handled(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            db = root / "kanban.db"
+            state = root / "watchdog.json"
+            now = int(time.time())
+            conn = sqlite3.connect(db)
+            conn.executescript(
+                """
+                CREATE TABLE tasks (
+                    id TEXT PRIMARY KEY, title TEXT, assignee TEXT, status TEXT,
+                    created_by TEXT, created_at INTEGER, completed_at INTEGER
+                );
+                CREATE TABLE task_events (
+                    id INTEGER PRIMARY KEY, task_id TEXT, kind TEXT,
+                    payload TEXT, created_at INTEGER
+                );
+                CREATE TABLE task_runs (
+                    id INTEGER PRIMARY KEY, task_id TEXT, outcome TEXT, metadata TEXT
+                );
+                CREATE TABLE task_links (parent_id TEXT, child_id TEXT);
+                CREATE TABLE kanban_notify_subs (task_id TEXT);
+                CREATE TABLE task_comments (
+                    id INTEGER PRIMARY KEY, task_id TEXT, body TEXT,
+                    created_at INTEGER, author TEXT
+                );
+                """
+            )
+            conn.execute(
+                "INSERT INTO tasks VALUES (?, ?, ?, ?, ?, ?, ?)",
+                ("search-1", "search", "searcher", "done", "assistant", now - 900, now - 600),
+            )
+            conn.execute(
+                "INSERT INTO task_events VALUES (?, ?, ?, ?, ?)",
+                (31, "search-1", "completed", "{}", now - 600),
+            )
+            conn.execute(
+                "INSERT INTO task_runs VALUES (?, ?, ?, ?)",
+                (3, "search-1", "completed", json.dumps({"completion": {}})),
+            )
+            conn.commit()
+            conn.close()
+
+            env = {
+                **os.environ,
+                "HERMES_KANBAN_DB": str(db),
+                "HERMES_WATCHDOG_STATE": str(state),
+            }
+            script = ASSISTANT_SCRIPTS / "kanban-orphan-watchdog.sh"
+            first = subprocess.run(
+                [str(script)], env=env, check=True, capture_output=True, text=True
+            )
+            second = subprocess.run(
+                [str(script)], env=env, check=True, capture_output=True, text=True
+            )
+            self.assertIn("search-1", first.stdout)
+            self.assertIn("search-1", second.stdout)
+
+            conn = sqlite3.connect(db)
+            conn.execute(
+                "INSERT INTO task_comments VALUES (?, ?, ?, ?, ?)",
+                (
+                    1,
+                    "search-1",
+                    "COMPLETION_HANDLED: task=search-1 completion_event=31 outcome=delivered",
+                    now - 300,
+                    "default",
+                ),
+            )
+            conn.commit()
+            conn.close()
+            handled = subprocess.run(
+                [str(script)], env=env, check=True, capture_output=True, text=True
+            )
+            self.assertNotIn("search-1", handled.stdout)
+
     def test_watchdog_repeats_qa_candidate_until_materialized(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -62,7 +138,7 @@ class AssistantScriptTest(unittest.TestCase):
                     "write",
                     "writer",
                     "done",
-                    "assistant",
+                    "default",
                     now - 900,
                     now - 600,
                 ),
@@ -118,6 +194,30 @@ class AssistantScriptTest(unittest.TestCase):
 
             conn = sqlite3.connect(db)
             conn.execute(
+                "INSERT INTO task_comments VALUES (?, ?, ?, ?, ?)",
+                (
+                    2,
+                    "writer-1",
+                    "COMPLETION_HANDLED: task=writer-1 completion_event=41 "
+                    "outcome=invalid-recovery",
+                    now - 350,
+                    "default",
+                ),
+            )
+            conn.commit()
+            conn.close()
+            recovered = subprocess.run(
+                [str(script)], env=env, check=True, capture_output=True, text=True
+            )
+            self.assertNotIn("writer-1", recovered.stdout)
+
+            conn = sqlite3.connect(db)
+            conn.execute("DELETE FROM task_comments WHERE id = 2")
+            conn.commit()
+            conn.close()
+
+            conn = sqlite3.connect(db)
+            conn.execute(
                 "UPDATE tasks SET status = 'ready' WHERE id = ?", ("research-1",)
             )
             conn.execute(
@@ -139,7 +239,7 @@ class AssistantScriptTest(unittest.TestCase):
                     "QA_MATERIALIZED: requirement=draft task=qa-1 producer=writer-1 "
                     "completion_event=41 contract_digest=abc inputs_digest=def",
                     now - 300,
-                    "assistant",
+                    "default",
                 ),
             )
             conn.commit()
@@ -636,7 +736,7 @@ conn.close()
                 ("blocked-1",),
             ).fetchone()
             conn.close()
-            self.assertEqual(("todo", 0, None), task)
+            self.assertEqual(("ready", 0, None), task)
 
     def test_block_resolver_preserves_a_new_block_generation(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -674,24 +774,9 @@ conn.close()
             )
             conn.commit()
             conn.close()
-            fake.write_text(
-                """#!/usr/bin/env python3
-import json, os, sqlite3, sys
-db = os.environ["HERMES_KANBAN_DB"]
-task_id = sys.argv[-1]
-conn = sqlite3.connect(db)
-conn.execute("UPDATE tasks SET status='blocked', block_recurrences=2, block_kind='needs_input' WHERE id=?", (task_id,))
-conn.execute("INSERT INTO task_events VALUES (2, ?, 'blocked', 101, ?)", (task_id, json.dumps({"reason": "Q1 newer"})))
-conn.commit()
-conn.close()
-""",
-                encoding="utf-8",
-            )
-            fake.chmod(0o755)
             env = {
                 **os.environ,
                 "HERMES_KANBAN_DB": str(db),
-                "HERMES_BIN": str(fake),
             }
             script = ASSISTANT_SCRIPTS / "kanban-resolve-block.sh"
             inspected = subprocess.run(
@@ -706,6 +791,11 @@ conn.close()
                 "INSERT INTO task_comments VALUES (?, ?, ?, ?, ?)",
                 (2, "race-1", f"DECISION(Q1): choose {inspected}", 100, "assistant"),
             )
+            conn.execute("UPDATE tasks SET block_recurrences=2 WHERE id='race-1'")
+            conn.execute(
+                "INSERT INTO task_events VALUES (?, ?, ?, ?, ?)",
+                (2, "race-1", "blocked", 101, json.dumps({"reason": "Q1 newer"})),
+            )
             conn.commit()
             conn.close()
 
@@ -718,13 +808,88 @@ conn.close()
             )
 
             self.assertEqual(1, result.returncode)
-            self.assertIn("changed while resolving", result.stderr)
+            self.assertIn("no typed question or gate", result.stderr)
             conn = sqlite3.connect(db)
             task = conn.execute(
                 "SELECT status, block_recurrences, block_kind FROM tasks WHERE id='race-1'"
             ).fetchone()
             conn.close()
             self.assertEqual(("blocked", 2, "needs_input"), task)
+
+    def test_block_resolver_rolls_back_unblock_when_reset_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            db = Path(directory) / "kanban.db"
+            conn = sqlite3.connect(db)
+            conn.executescript(
+                """
+                CREATE TABLE tasks (
+                    id TEXT PRIMARY KEY, status TEXT, block_recurrences INTEGER,
+                    block_kind TEXT
+                );
+                CREATE TABLE task_events (
+                    id INTEGER PRIMARY KEY, task_id TEXT, kind TEXT,
+                    created_at INTEGER, payload TEXT
+                );
+                CREATE TABLE task_comments (
+                    id INTEGER PRIMARY KEY, task_id TEXT, body TEXT,
+                    created_at INTEGER, author TEXT
+                );
+                """
+            )
+            conn.execute(
+                "INSERT INTO tasks VALUES (?, ?, ?, ?)",
+                ("rollback-1", "blocked", 1, "needs_input"),
+            )
+            conn.execute(
+                "INSERT INTO task_events VALUES (?, ?, ?, ?, ?)",
+                (1, "rollback-1", "blocked", 100, json.dumps({"reason": "Q1"})),
+            )
+            conn.execute(
+                "INSERT INTO task_comments VALUES (?, ?, ?, ?, ?)",
+                (1, "rollback-1", "Q1: choose", 99, "engineer"),
+            )
+            conn.commit()
+            conn.close()
+            env = {**os.environ, "HERMES_KANBAN_DB": str(db)}
+            script = ASSISTANT_SCRIPTS / "kanban-resolve-block.sh"
+            binding = subprocess.run(
+                [str(script), "inspect", "rollback-1"],
+                env=env,
+                check=True,
+                capture_output=True,
+                text=True,
+            ).stdout.strip()
+            conn = sqlite3.connect(db)
+            conn.execute(
+                "INSERT INTO task_comments VALUES (?, ?, ?, ?, ?)",
+                (2, "rollback-1", f"DECISION(Q1): choose {binding}", 100, "assistant"),
+            )
+            conn.execute(
+                "CREATE TRIGGER reject_unblock BEFORE UPDATE ON tasks "
+                "BEGIN SELECT RAISE(ABORT, 'reset failed'); END"
+            )
+            conn.commit()
+            conn.close()
+
+            result = subprocess.run(
+                [str(script), "apply", "rollback-1"],
+                env=env,
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+
+            self.assertEqual(1, result.returncode)
+            conn = sqlite3.connect(db)
+            task = conn.execute(
+                "SELECT status, block_recurrences, block_kind FROM tasks"
+            ).fetchone()
+            unblocked = conn.execute(
+                "SELECT COUNT(*) FROM task_events WHERE kind='unblocked'"
+            ).fetchone()[0]
+            conn.close()
+            self.assertEqual(("blocked", 1, "needs_input"), task)
+            self.assertEqual(0, unblocked)
 
     def test_sweeper_uses_newest_scheduled_comment(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -796,6 +961,9 @@ if args[0:2] == ["kanban", "list"]:
                     stored_path TEXT, created_at INTEGER
                 );
                 CREATE TABLE task_links (parent_id TEXT, child_id TEXT);
+                CREATE TABLE task_events (
+                    id INTEGER PRIMARY KEY, task_id TEXT, kind TEXT
+                );
                 """
             )
             summary = "Retrieved one source."
@@ -820,6 +988,10 @@ if args[0:2] == ["kanban", "list"]:
                 "INSERT INTO task_runs VALUES (?, ?, ?, ?, ?, ?)",
                 (1, "named-1", "completed", 1, summary, json.dumps(metadata)),
             )
+            conn.execute(
+                "INSERT INTO task_events VALUES (?, ?, ?)",
+                (1, "named-1", "completed"),
+            )
             conn.commit()
             conn.close()
 
@@ -837,6 +1009,27 @@ if args[0:2] == ["kanban", "list"]:
             )
 
             self.assertTrue(json.loads(result.stdout)["valid"])
+            self.assertEqual(1, json.loads(result.stdout)["completion_event"])
+
+            conn = sqlite3.connect(db)
+            conn.execute("DELETE FROM task_runs")
+            conn.commit()
+            conn.close()
+            missing_run = subprocess.run(
+                [str(ASSISTANT_SCRIPTS / "kanban-completion-probe.sh"), "named-1"],
+                env={
+                    **os.environ,
+                    "HERMES_KANBAN_HOME": str(root),
+                    "HERMES_KANBAN_BOARD": "named",
+                    "HERMES_KANBAN_DB": "",
+                },
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(1, missing_run.returncode)
+            self.assertEqual(1, json.loads(missing_run.stdout)["completion_event"])
+            self.assertIn("completed run not found", json.loads(missing_run.stdout)["errors"])
 
     def test_task_probe_includes_runtime_registration_fields(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -1130,6 +1323,80 @@ if args[0:2] == ["kanban", "list"]:
                 "metadata.artifact_handoff is required for attached artifacts",
                 data["errors"],
             )
+
+            requirement = {
+                "candidate_key": "final-image",
+                "evidence_keys": [],
+                "capability": "creator-generated-image",
+                "routes": ["qa-raster-image"],
+                "criteria": ["matches the approved brief"],
+                "done_criteria": "final image is attached",
+                "output_inventory": ["final.png"],
+            }
+            metadata["artifact_handoff"] = {
+                "artifacts": [
+                    {
+                        "name": "final.png",
+                        "sha256": hashlib.sha256(artifact.read_bytes()).hexdigest(),
+                        "purpose": "final image",
+                        "source_task_id": "task-2",
+                    }
+                ],
+                "verification": ["dimensions inspected"],
+                "qa": {"status": "exempt", "reason": "worker downgrade"},
+            }
+            conn = sqlite3.connect(db)
+            conn.execute(
+                "UPDATE tasks SET body = ? WHERE id = ?",
+                (
+                    "Mode: execute\nInput attachments: []\nQA: required\n"
+                    "Candidate key: final-image\nProducer QA requirement: "
+                    + json.dumps(requirement, separators=(",", ":")),
+                    "task-2",
+                ),
+            )
+            conn.execute(
+                "UPDATE task_runs SET metadata = ? WHERE id = ?",
+                (json.dumps(metadata), 2),
+            )
+            conn.commit()
+            conn.close()
+            downgraded = subprocess.run(
+                [str(script), "task-2"],
+                env={
+                    **os.environ,
+                    "HERMES_KANBAN_DB": str(db),
+                    "PYTHONNOUSERSITE": "1",
+                },
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(1, downgraded.returncode)
+            self.assertTrue(downgraded.stdout, downgraded.stderr)
+            self.assertIn(
+                "QA-required TaskSpec requires a required artifact handoff",
+                json.loads(downgraded.stdout)["errors"],
+            )
+
+            metadata["completion"]["status"] = "superseded"
+            metadata["completion"]["artifacts"] = []
+            metadata.pop("artifact_handoff")
+            conn = sqlite3.connect(db)
+            conn.execute(
+                "UPDATE task_runs SET metadata = ? WHERE id = ?",
+                (json.dumps(metadata), 2),
+            )
+            conn.commit()
+            conn.close()
+            retired = subprocess.run(
+                [str(script), "task-2"],
+                env={**os.environ, "HERMES_KANBAN_DB": str(db)},
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            self.assertTrue(json.loads(retired.stdout)["valid"])
 
     def test_completion_probe_excludes_declared_input_attachment(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
