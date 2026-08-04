@@ -96,7 +96,8 @@ skills/              # shared maintainer-owned skills tracked
                      #   never each other's DB; scaffold is a helper outside the contract)
                      # (creative/ moved to profiles/creator/skills — creator owns media)
   learned/           # runtime-authored adaptive skills; mutable and ignored
-plugins/             # backend chains (image/video gen) + tool overrides; source tracked, __pycache__ ignored
+plugins/             # backend chains, tool overrides, completion and Worker
+                     # mutation guards; source tracked, __pycache__ ignored
 launchd/             # LaunchAgents: assistant gateway + headless AivisSpeech engine
 profiles/<name>/     # assistant, planner, engineer, researcher, searcher, creator, writer, qa, marketer
   - config.yaml      # model/fallback + agent.system_prompt (operating contract)
@@ -136,7 +137,8 @@ profiles/<name>/     # assistant, planner, engineer, researcher, searcher, creat
                      # assistant/scripts/ holds cron scripts incl.
                      # kanban-scheduled-sweeper.sh / kanban-orphan-watchdog.sh,
                      # kanban-task-spec-probe.sh / kanban-completion-probe.sh / fanout probe
-                     # for admission, and kanban-resolve-block.sh for guarded resume
+                     # for admission, and kanban-resolve-block.sh for guarded resume;
+                     # watchdog also repeats lost successful-completion wakes
 setup.sh README.md PROFILES.md
 ```
 

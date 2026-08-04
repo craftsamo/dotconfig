@@ -622,3 +622,4 @@ plugins:
   enabled:
     - skill-topology
     - kanban-completion-path-guard
+    - kanban-worker-mutation-guard
