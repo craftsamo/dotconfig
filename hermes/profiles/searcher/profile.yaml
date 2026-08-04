@@ -1,5 +1,5 @@
-description: 'Retrieval, routed by deliverable: targeted lookups (facts/links/latest),
-  enumerations and surveys with an explicit coverage claim, exhaustive multi-hop
-  source hunts (goal_mode). Web and X search; returns concise sourced findings and
-  hands off to researcher/engineer. Does not implement or analyze.'
+description: 'Mode: retrieve terminal evidence worker. Admits a complete TaskSpec,
+  routes lookup, sweep, or hunt, retrieves real web/X sources, verifies URL and
+  coverage floors, and hands off bounded findings with open gaps. Never analyzes,
+  decomposes, creates fan-out manifests, or registers cards.'
 description_auto: false

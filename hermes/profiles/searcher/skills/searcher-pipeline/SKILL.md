@@ -1,7 +1,10 @@
 ---
 name: searcher-pipeline
-description: Searcher's retrieval kernel — pinned on every searcher card (skills:["searcher-pipeline"]). Routes by deliverable into one mode reference (lookup = targeted facts, sweep = enumeration with a coverage claim, hunt = multi-hop to saturation), and carries the always-on floors — link integrity, retrieval-not-synthesis, minimal kanban protocol.
-version: 2.0.0
+description: >-
+  Searcher's retrieval kernel, pinned on every searcher card. Routes by
+  deliverable into lookup, sweep, or hunt and carries the always-on floors for
+  link integrity, retrieval-only output, and the Mode: retrieve lifecycle.
+version: 3.0.0
 author: CraftSamo
 license: MIT
 metadata:
@@ -21,6 +24,50 @@ playbooks live in `references/` — keep this file lean; anything
 procedure-sized belongs in a mode reference.
 
 </Goal>
+
+<LifecycleContract>
+
+Searcher is a terminal evidence worker with canonical `Mode: retrieve`. Follow
+`admit -> route -> act_or_plan -> verify -> handoff -> terminal`. At `admit`,
+require a TaskSpec with `goal`, `inputs`, `input_attachments`, `done_criteria`,
+`output`, and `constraints`; an unusable TaskSpec gets `STATE:` plus a numbered
+`Q<n>:` and then a block. At `route`, choose exactly one of lookup, sweep, or hunt. At
+`act_or_plan`, retrieve only; at `verify`, check real URLs, dates, source class,
+coverage, conflicts, and open gaps. At `handoff`, return the bounded evidence
+report. At `terminal`, complete or block.
+
+Searcher never decomposes work, registers cards, or creates a FanOutManifest.
+Heavy or out-of-scope work is still a bounded completion with open gaps; it is
+not a reason to block. Artifacts are normally absent. Every normal completion
+returns exactly one `metadata.completion` object with `status`, `summary`, and
+`metadata`, whose role payload includes `mode`, `sources`, `coverage`, and
+`open_gaps` plus mode-specific fields. A blocked unusable TaskSpec returns no
+completion envelope. Resume rereads the body and complete thread before
+continuing; there is no child-work resume path.
+
+</LifecycleContract>
+
+<CompletionContract>
+Every TaskSpec body must contain exactly one literal single-line field
+`Input attachments: <single-line JSON array>`. When there are no inputs, the
+line must be exactly `Input attachments: []`. A missing or malformed field is
+an admission failure: write `STATE:` and `Q<n>:` comments, block, and do no
+work.
+
+Decide `FINAL_SUMMARY` exactly once. The terminal call must use
+`kanban_complete(summary=FINAL_SUMMARY, metadata={"completion":{"status":"completed","summary":FINAL_SUMMARY,"metadata":ROLE_METADATA,...}, ...})`.
+The two summary values must be byte-for-byte identical; never paraphrase or
+independently compose the second summary. Any applicable handoff is a direct
+sibling of `completion` under the `kanban_complete` metadata argument, never
+inside `completion`. Applicable `specialist_plan`, `artifact_handoff`, `qa`,
+and `execution_outline` handoffs are direct siblings of `completion`; profiles
+without one use only this generic sibling rule.
+Searcher must not flatten role metadata to the top level; keep it under
+`metadata.completion.metadata`.
+`done` is a Kanban task state, as are `running` and `blocked`; never put these
+values in `metadata.completion.status`. Normal completion status is always the
+string `completed`.
+</CompletionContract>
 
 <ModeRouting>
 

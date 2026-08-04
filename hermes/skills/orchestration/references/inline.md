@@ -1,7 +1,7 @@
-# Inline approach — reference
+# Inline execution reference
 
-Loaded after Step 3 picks **Approach=Inline**. Handled in-chat by you — no
-dispatch.
+Load when <RequirementAndShape> selects `inline`. Handle the request in chat;
+do not register a card.
 
 ## When to pick Inline
 
@@ -18,7 +18,7 @@ dispatch.
 If the user is actively waiting on a **medium** parallel lookup that's
 heavier than a single fact but lighter than a board job, `delegate_task`
 (in-turn subagents) is the exception — fire parallel lookups inline. For
-anything heavier, route to a worker approach.
+anything heavier, select `single`, `chain`, or `planned`.
 
 ## Workspace data ops — sensitive data rule
 

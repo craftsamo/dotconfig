@@ -1,7 +1,8 @@
-# Research approach — reference
+# Researcher capability reference
 
-Loaded after Step 3 picks **Approach=Research**. Dispatches analysis work
-to researcher.
+Load when an execution shape needs analysis, synthesis, comparison, or external
+verification. Researcher is a specialist capability, not an exclusive request
+approach.
 
 ## When to pick Research
 
@@ -12,9 +13,9 @@ to researcher.
   "verify the claims in this render against primary sources", "derive design
   guidance from these examples". Artifact-vs-brief quality gates use `qa`.
 
-For pure retrieval (get the facts), use Search (`references/search.md`).
-For mixed search→analyze→build, Plan applies (`references/plan.md`) so the
-pipeline can fan-in parent results.
+For pure retrieval (get the facts), add Searcher (`references/search.md`). A
+mixed search→analyze→build request normally uses `chain` when settled and
+`planned` when specialist judgment or graph design remains.
 
 ## Deliverable types
 
@@ -52,6 +53,6 @@ no need to specify it in the body.
 
 ## After dispatch
 
-Standard Step 7 mechanics. On completion, present the analysis in the
+Standard <AfterCreate> mechanics. On completion, present the analysis in the
 persona's voice; never paste the raw report — summarize and offer to
 `kanban_show` for detail.

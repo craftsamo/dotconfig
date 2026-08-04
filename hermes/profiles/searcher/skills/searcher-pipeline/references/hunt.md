@@ -46,6 +46,13 @@ Open for researcher: <what needs synthesis or adjudication>
 
 Primary/secondary marked on every entry; conflicts flagged, not resolved.
 
+## Handoff
+
+Verify every source URL and its primary/secondary mark, then complete with
+exactly one `metadata.completion` envelope. Its role metadata includes
+`mode: hunt`, `sources`, hop `coverage`, and `open_gaps`. Do not attach
+artifacts.
+
 ## Pitfalls
 
 - Re-searching the same phrasing each hop instead of following extracted leads.

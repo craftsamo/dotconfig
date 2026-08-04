@@ -1,0 +1,6 @@
+name: kanban-worker-mutation-guard
+version: 1.0.0
+description: >-
+  Prevents dispatcher workers from creating, linking, or releasing Kanban cards
+  outside the Assistant-owned registration path.
+kind: standalone

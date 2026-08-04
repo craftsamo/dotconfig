@@ -75,11 +75,19 @@ you ran, a diff you read, or an artifact you attached.
 - **Pointers over payloads** — branch names, PR/Issue URLs, commit shas,
   attachment names. Bulky evidence (diffs, assessments, logs, outlines)
   goes through `kanban_attach`; the message carries the substance.
-- **Machine-readable handoff** — `kanban_complete(metadata={...})` with the
-  board convention: `changed_files`, `verification` (the commands run),
-  `dependencies`, `retry_notes`, `residual_risk` — plus mode-specific keys
-  the mode file names (e.g. `issues`, `base_session`). No secrets or raw
-  logs.
+- **Machine-readable handoff** — `kanban_complete(metadata={...})` contains
+  exactly one completion envelope at `metadata.completion` with `status`,
+  `summary`, and `metadata`. Put the board convention keys `changed_files`,
+  `verification` (the commands run), `dependencies`, `retry_notes`, and
+  `residual_risk` in that nested metadata, plus mode-specific keys such as
+  `issues` or `base_session`. When an artifact is attached, also return exactly
+  one `metadata.artifact_handoff` with `artifacts`, `verification`, and `qa`.
+  Every artifact entry carries `name`, `sha256`, `purpose`, and this task's
+  `source_task_id`.
+  `metadata.completion.artifacts` and the handoff name the exact same durable
+  output inventory; use an empty completion artifact list when no output file
+  was attached.
+  No secrets or raw logs.
 - **Chat summary** — the `kanban_complete` summary is 1-2 plain sentences a
   non-engineer can act on; it is delivered verbatim to the requester's chat.
 

@@ -49,6 +49,13 @@ moving.
 - <labeled assumptions; Unknown cells and what would resolve them>
 ```
 
+## Handoff
+
+After every option and criterion is checked, complete with exactly one
+`metadata.completion` envelope. Its role metadata names `mode: analyze`,
+`deliverable: tradeoff-matrix`, sources, coverage, recommendation confidence,
+and open gaps.
+
 ## Pitfalls
 
 - A matrix with no recommendation — the caller asked to be helped deciding.

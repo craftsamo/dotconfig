@@ -85,16 +85,19 @@ SOUL.md              # default persona (prompt slot #1)
 mcp.json             # MCP servers ({} = none)
 cron/                # jobs.json tracked; output/ + .tick.lock ignored
 skills/              # shared maintainer-owned skills tracked
-  orchestration/     # orchestration skill (SKILL.md + references/<approach>.md) — shared
-                     #   front-door playbook (default native; assistant via ~/.hermes/skills
-                     #   external dir; Telegram chat-wide auto-load)
+  orchestration/     # shared front-door playbook (default native; assistant via
+                     #   ~/.hermes/skills external dir; Telegram chat-wide auto-load)
+                     #   SKILL.md owns RequirementSpec → execution shape → registration /
+                     #   supervision / delivery; references/workflow-contract.yaml is the
+                     #   machine-readable roster/schema/grant/QA-route authority
   workspaces/        # ~/Workspaces data-skill cluster (people/pp, household-budget/hb,
                      #   projects/pj, message-reply, scaffold) + _cross.py (shared cross-skill
                      #   contract, imported not executed; siblings call each other's CLI,
                      #   never each other's DB; scaffold is a helper outside the contract)
                      # (creative/ moved to profiles/creator/skills — creator owns media)
   learned/           # runtime-authored adaptive skills; mutable and ignored
-plugins/             # backend chains (image/video gen) + tool overrides; source tracked, __pycache__ ignored
+plugins/             # backend chains, tool overrides, completion and Worker
+                     # mutation guards; source tracked, __pycache__ ignored
 launchd/             # LaunchAgents: assistant gateway + headless AivisSpeech engine
 profiles/<name>/     # assistant, planner, engineer, researcher, searcher, creator, writer, qa, marketer
   - config.yaml      # model/fallback + agent.system_prompt (operating contract)
@@ -122,7 +125,8 @@ profiles/<name>/     # assistant, planner, engineer, researcher, searcher, creat
                      #   marketer: + upstream social-media/xurl;
                      #   managed technics stay exactly one directory below skills/technic/
                      #   because validate-profile-skills.py enforces flat canonical leaves;
-                     #   planner-pipeline owns outline schema + granularity rubric;
+                     #   planner-pipeline is the final planning compiler: Mode: integrate
+                     #   consumes approved SpecialistPlans and emits ExecutionOutline;
                      #   assistant keeps only its surface skills — desks/ holds
                      #   topic-bound personal-desk / project-desk / brainstorm
                      #   (Inline-only; worker work spins into a new topic), while
@@ -132,7 +136,9 @@ profiles/<name>/     # assistant, planner, engineer, researcher, searcher, creat
   - cron/            # per-profile scheduled jobs (jobs.json; placeholder if empty)
                      # assistant/scripts/ holds cron scripts incl.
                      # kanban-scheduled-sweeper.sh / kanban-orphan-watchdog.sh,
-                     # plus kanban-qa-gate.sh for protected candidate setup/release
+                     # kanban-task-spec-probe.sh / kanban-completion-probe.sh / fanout probe
+                     # for admission, and kanban-resolve-block.sh for guarded resume;
+                     # watchdog also repeats lost successful-completion wakes
 setup.sh README.md PROFILES.md
 ```
 
@@ -143,26 +149,28 @@ assistant (messaging front door, hosts the
 gateway/dispatcher) + planner / engineer / researcher / searcher / creator /
 writer / qa / marketer (kanban workers; qa is the policy-enforced final
 Creator/Writer gate; Assistant rechecks artifact digests at release because
-terminal/file are not OS-level read-only mounts; protected chains use
-assistant/scripts/kanban-qa-gate.sh and dynamic fan-out blocks with
-QA_DAG_CHANGE; engineer converses
+terminal/file are not OS-level read-only mounts; QA chains use ordinary cards
+and dynamic fan-out blocks with
+`FAN_OUT_READY:` plus a digest-checked `fan-out.yaml`; the Assistant persists
+pending manifests/overlays and registers only eligible roots after parent
+CompletionAdmission. Engineer converses
 with the assistant via kanban block round-trips
 under a structured comment protocol — Authority presets A1/A2/A3,
 `STATE:`/`Q<n>:`/`DECISION(Q<n>):`/`PROGRESS:`/`AUTHORITY+:`/`REVIEW:`
-(human sign-off gate) markers, plus scheduled parking in `scheduled` via
-`SCHEDULED: until=` comments and the assistant sweeper cron — multi-card
-plans run through the Planner tree: a planner card (Claude Fable 5,
-plan-only) delivers a dependency-graph outline YAML, the user approves it
-in chat, and the assistant registers the cards topologically with
-idempotency keys (`auto_decompose` is OFF — the upstream aux decomposer's
-prompt is hardcoded and can't carry our TaskSpec/grant conventions); all
-workers use the continuation-card fan-out pattern — engineer drives
+(human sign-off gate) markers. Every resume uses an event/digest-bound
+`DECISION(...)` and `kanban-resolve-block.sh`; scheduled parking remains in
+`scheduled` via `SCHEDULED: until=` comments and the assistant sweeper cron.
+Planned work uses two approvals: the Assistant's PlanningGraph launches
+Engineer/Creator/Writer/Marketer plan branches, Planner `Mode: integrate`
+combines their final SpecialistPlans into an ExecutionOutline, and only its
+approval authorizes execution registration (`auto_decompose` is OFF). The
+Assistant alone registers Worker-proposed children and same-profile
+continuations from FanOutManifest handoffs — engineer drives
 OpenCode through a P0-plan + per-unit-fork loop with permission /
 question bridges; creator speaks the same comment protocol with a Budget
 grant (generation-spend caps), marketer with a Publish grant (absent =
 draft-only; posting needs verbatim approval or in-cap P1) — see PROFILES.md
-"Engineer dialogue loop";
-workers fan out sub-tasks via kanban_create). Tracked per
+"Engineer dialogue loop"). Tracked per
 profile: `config.yaml`, `profile.yaml`, `SOUL.md`, `skills/`, `.no-bundled-skills`.
 Create with `hermes profile create <name> --description "…"`, then adopt into the
 repo (move real files → `../install.sh`); see `README.md` / `PROFILES.md`.
