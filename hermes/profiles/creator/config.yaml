@@ -681,6 +681,7 @@ plugins:
     - tts-fallback
     - skill-topology
     - kanban-completion-path-guard
+    - kanban-worker-mutation-guard
   entries:
     video-analyze-mimo:
       allow_tool_override: true

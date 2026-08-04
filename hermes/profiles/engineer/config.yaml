@@ -631,3 +631,4 @@ video_analyze:
 plugins:
   enabled:
     - skill-topology
+    - kanban-worker-mutation-guard
