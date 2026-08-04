@@ -72,6 +72,7 @@ REQUIRED_CONTINUATION_FIELDS = {
 ALL_PROFILES = ("assistant", *WORKER_PROFILES)
 COMPLETION_PATH_GUARD_PLUGIN = "kanban-completion-path-guard"
 COMPLETION_PATH_GUARD_PROFILES = {"creator", "writer"}
+WORKER_MUTATION_GUARD_PLUGIN = "kanban-worker-mutation-guard"
 QA_REQUIRED_NON_CREATOR_ROUTES = {
     "core:tts",
     "writer:marketing-copy",
@@ -777,10 +778,16 @@ def validate_workflow_contract_data(
                 "storage": "origin_or_integration_comment",
                 "cardinality": "exactly_one_per_qa_contract_before_create",
             },
+            "completion_handled": {
+                "marker": "COMPLETION_HANDLED:",
+                "storage": "completed_task_comment",
+                "event_binding": "task_and_completion_event",
+                "scope": "non_qa_success_or_invalid_recovery",
+            },
         }
         if set(bindings) != set(expected_bindings):
             errors.append(
-                "workflow contract bindings must define fan-out, specialist, completion, artifact, and pending-registration handoffs"
+                "workflow contract bindings must define fan-out, specialist, completion, artifact, handling, and pending-registration handoffs"
             )
         for name, expected in expected_bindings.items():
             binding = bindings.get(name)
@@ -803,6 +810,14 @@ def validate_workflow_contract_data(
     else:
         if registration.get("subscription") != "required":
             errors.append("workflow contract registration subscription must be required")
+        if registration.get("classic_cli_dispatch") != "forbidden":
+            errors.append(
+                "workflow contract classic CLI dispatch must be forbidden"
+            )
+        if registration.get("completion_watchdog_cutoff") != 1785801600:
+            errors.append(
+                "workflow contract completion watchdog cutoff is invalid"
+            )
         if registration.get("qa_policy") != {
             "all_cards_subscription_required": True,
             "qa_registration": (
@@ -1851,6 +1866,7 @@ def untracked_managed_files() -> list[str]:
             "hermes/profiles/assistant/skills/desks/**",
             "hermes/plugins/skill-topology/**",
             "hermes/plugins/kanban-completion-path-guard/**",
+            "hermes/plugins/kanban-worker-mutation-guard/**",
         ],
         cwd=REPO_ROOT,
         check=True,
@@ -1906,7 +1922,11 @@ def validate_git_boundary(
 
 
 def validate_plugin_source(errors: list[str]) -> None:
-    for name in ("skill-topology", COMPLETION_PATH_GUARD_PLUGIN):
+    for name in (
+        "skill-topology",
+        COMPLETION_PATH_GUARD_PLUGIN,
+        WORKER_MUTATION_GUARD_PLUGIN,
+    ):
         plugin = HERMES_ROOT / "plugins" / name
         manifest = plugin / "plugin.yaml"
         implementation = plugin / "__init__.py"
@@ -1930,6 +1950,12 @@ def validate_plugin_enabled(profile: str, config: Path, errors: list[str]) -> No
     ):
         errors.append(
             f"{COMPLETION_PATH_GUARD_PLUGIN} plugin is not enabled: {config}"
+        )
+    if profile in WORKER_PROFILES and (
+        not isinstance(enabled, list) or WORKER_MUTATION_GUARD_PLUGIN not in enabled
+    ):
+        errors.append(
+            f"{WORKER_MUTATION_GUARD_PLUGIN} plugin is not enabled: {config}"
         )
 
 

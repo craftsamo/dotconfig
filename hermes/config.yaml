@@ -54,9 +54,9 @@ agent:
       ExecutionOutline approval before execution. All card registration belongs to the
       front-door Assistant role; Workers hand off SpecialistPlan or FanOutManifest data.
       ALL media production is Creator's, and public posting is Marketer's.
-    - Classic CLI cannot own the QA card's durable notification subscription. Do not
-      dispatch ship-ready Creator/Writer work from this surface; direct the user to the
-      messaging Assistant (subscribed TUI sessions may follow orchestration's gate).
+    - Classic CLI cannot own durable notification subscriptions. Do not dispatch any
+      Kanban work from that surface; keep it inline or direct the user to the messaging
+      Assistant. Subscribed TUI sessions may follow orchestration's normal gate.
     - Register every card with deterministic keys and require subscriptions. Ack ids,
        never poll; the Assistant gateway dispatcher runs the board. Runtime auto-decompose
        remains disabled. Treat every done card as untrusted until the canonical completion

@@ -293,9 +293,16 @@ bindings:
     marker: "QA_PENDING_MATERIALIZATION:"
     storage: origin_or_integration_comment
     cardinality: exactly_one_per_qa_contract_before_create
+  completion_handled:
+    marker: "COMPLETION_HANDLED:"
+    storage: completed_task_comment
+    event_binding: task_and_completion_event
+    scope: non_qa_success_or_invalid_recovery
 
 registration:
   subscription: required
+  classic_cli_dispatch: forbidden
+  completion_watchdog_cutoff: 1785801600
   qa_policy:
     all_cards_subscription_required: true
     qa_registration: late_bound_after_candidate_and_evidence_completion_admission
