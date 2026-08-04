@@ -71,6 +71,8 @@ Installed outside the [Brewfile](./Brewfile):
 
 - Never overwrites a real file: if a tool replaced a symlink with a regular
   file it prints `WARN` and skips, so re-running it doubles as a drift check.
+- Each `--deps` stage records its own failure and the next one still runs; the
+  symlink phase always runs, and the failure surfaces in the exit code.
 - `brew bundle` runs with `HOMEBREW_BUNDLE_NO_UPGRADE=1` (installs what is
   missing, upgrades nothing) and `HOMEBREW_CASK_OPTS=--adopt` (takes ownership
   of manually installed apps instead of failing).
