@@ -3,7 +3,8 @@
 # Bootstrap this dotconfig repo.
 #
 #   ./install.sh          recreate symlinks only (idempotent, offline)
-#   ./install.sh --deps   also bootstrap Homebrew (if missing) + `brew bundle`
+#   ./install.sh --deps   also bootstrap Homebrew (if missing), `brew bundle`,
+#                         GitHub CLI extensions and `mise install`
 #
 # Symlink policy: real files live in this repo; tool dirs (~/.claude, ~/.codex,
 # ...) only hold symlinks. This script never overwrites a real file — if a
@@ -15,12 +16,21 @@ set -euo pipefail
 DOTFILES="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 status=0
 
+# GitHub CLI extensions. `gh` has no manifest of its own — the installed set is
+# only discoverable via `gh extension list` — so this array is the declaration.
+#   github/gh-stack  native stacked pull requests; required by the
+#                    git-pullrequest and approach-github-projects skills
+GH_EXTENSIONS=(
+  github/gh-stack
+)
+
 usage() {
   cat <<'EOF'
 Usage: ./install.sh [--deps] [--help]
 
   (no args)  recreate symlinks only (idempotent, offline)
-  --deps     additionally bootstrap Homebrew if missing and run `brew bundle`
+  --deps     additionally bootstrap Homebrew if missing, run `brew bundle`,
+             install the declared GitHub CLI extensions, and run `mise install`
   --help     show this help
 EOF
 }
@@ -40,6 +50,28 @@ find_brew() {
   return 1
 }
 
+# Idempotent: `gh extension install` errors on an already-installed extension,
+# so only install what `gh extension list` does not already report.
+install_gh_extensions() {
+  local bindir="$1" gh_bin installed ext rc=0
+  gh_bin="$bindir/gh"
+  [ -x "$gh_bin" ] || gh_bin="$(command -v gh || true)"
+  if [ ! -x "$gh_bin" ]; then
+    echo "[deps] gh not found — skipping GitHub CLI extensions"
+    return 1
+  fi
+  installed="$("$gh_bin" extension list 2>/dev/null || true)"
+  for ext in "${GH_EXTENSIONS[@]}"; do
+    if printf '%s\n' "$installed" | grep -qF -- "$ext"; then
+      echo "[deps] gh extension $ext already installed"
+      continue
+    fi
+    echo "[deps] gh extension install $ext"
+    "$gh_bin" extension install "$ext" || rc=1
+  done
+  return $rc
+}
+
 install_deps() {
   local rc=0
   local brew
@@ -55,6 +87,9 @@ install_deps() {
   # NO_UPGRADE: only install what's missing; never upgrade behind your back.
   HOMEBREW_CASK_OPTS="--adopt" HOMEBREW_BUNDLE_NO_UPGRADE=1 \
     "$brew" bundle --file="$DOTFILES/Brewfile" || rc=1
+
+  # GitHub CLI extensions — `gh` itself comes from the Brewfile above.
+  install_gh_extensions "$(dirname "$brew")" || rc=1
 
   # Language runtimes + global npm CLIs declared in mise/config.toml
   local mise_bin
