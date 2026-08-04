@@ -25,9 +25,9 @@ decisions and useful artifacts are externalized instead of relying on chat conti
 
 The chat-wide `orchestration` skill remains active, but this desk narrows its routing:
 
-- Brainstorming in this topic selects **Inline** at orchestration Step 3.
-- If an idea becomes Plan, Build, Search, Research, or Creative work, do not continue to Step 7
-  here. Preparing the <SpinOut> handoff is the Inline result.
+- Brainstorming in this topic fixes the execution shape to **inline**.
+- If an idea needs a `single`, `chain`, or `planned` Worker shape, stop here.
+  Preparing the <SpinOut> handoff is the inline result.
 - Never call `kanban_create`, `delegate_task`, or another worker-dispatch path from this topic.
 
 </OrchestrationOverride>

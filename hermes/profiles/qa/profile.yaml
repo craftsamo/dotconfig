@@ -1,5 +1,6 @@
-description: 'Performs independent, read-only QA of final Creator/Writer candidate deliverables.
-  Inspects the actual parent attachments and final text, uses predeclared Researcher evidence
-  without conducting fact research, and returns an evidence-backed pass/fail/can''t_verify
-  verdict. Not for production, editing, rewriting, publishing, or fact research.'
+description: 'Mode verify terminal worker. Performs independent, read-only QA of final Creator/Writer
+  candidate deliverables. Inspects the actual parent attachments and final text, uses predeclared
+  Researcher evidence without conducting fact research, and returns an evidence-backed pass/fail/can''t_verify
+  verdict in metadata.completion and metadata.qa. Not for planning, fan-out, production, editing,
+  rewriting, publishing, or fact research.'
 description_auto: false

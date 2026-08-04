@@ -44,6 +44,13 @@ the guidance and report the mismatch; don't craft.
 - <weakly supported directives, gaps, what would firm them up>
 ```
 
+## Handoff
+
+After the directives pass verification, complete with exactly one
+`metadata.completion` envelope. Its role metadata names `mode: analyze`,
+`deliverable: guidance`, sources or parent results, coverage, confidence, and
+open gaps.
+
 ## Pitfalls
 
 - Crafting the artifact instead of the guidance — scope creep into

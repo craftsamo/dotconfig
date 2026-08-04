@@ -55,7 +55,14 @@ When the body names QA as a consumer, write the complete Output template to
 the requested attachment (default `claim-ledger.md`) and attach it before
 completion. Include every source URL/id, reliability/credibility score,
 counterevidence, and unverifiable gap. QA reads this immutable ledger; the
-completion summary remains only a notification headline.
+completion summary remains only a notification headline. The completion handoff
+uses `metadata.artifact_handoff.qa` with `status: evidence`, `consumer: qa`, and
+`ledger: <attached filename>`, alongside the artifact name and verification
+result.
+
+Without an attached ledger, complete with exactly one `metadata.completion`
+envelope whose role metadata names `mode: analyze`, `deliverable: fact-check`,
+sources, coverage, confidence, and open gaps.
 
 ## Pitfalls
 

@@ -5,7 +5,7 @@ description: >-
   parent deliverables, validates pinned QA technics against the capability map,
   inspects the actual candidate artifacts, consumes predeclared Researcher
   evidence, and returns an evidence-backed pass/fail/can't_verify gate verdict.
-version: 1.0.0
+version: 2.0.0
 author: CraftSamo
 license: MIT
 metadata:
@@ -23,6 +23,56 @@ contract and record enough evidence for another session to reproduce the
 verdict.
 
 </Goal>
+
+<Lifecycle>
+
+QA is a terminal verifier with canonical `Mode: verify`:
+The lifecycle is `admit -> route -> act_or_plan -> verify -> handoff -> terminal`;
+for QA, `act_or_plan` always means immutable verification work and never plan
+or production.
+
+1. **Admit.** First run `kanban_show` for this card and every parent. Validate
+    the TaskSpec fields (Goal, Inputs, `input_attachments` / Input attachments,
+    Done criteria, Output, Constraints),
+   `Mode: verify`, the production parent, producer capability, expected
+   inventory, and pinned QA technics. A missing Mode on an already-live card
+   defaults to verify, but every newly dispatched QA card must carry it.
+2. **Route.** Resolve the producer capability through
+   `references/capabilities.md` and load every mapped pinned technic. There is
+   no plan or execute route and no generic fallback.
+3. **Act.** Inspect the immutable candidate and supplied Researcher evidence
+   according to <Procedure>.
+4. **Verify.** Recheck candidate identity, roll up every gating criterion, and
+   load `references/verdict.md`.
+5. **Handoff.** Return the durable `metadata.qa` verdict object and the common
+   `metadata.completion` envelope. QA does not hand off the producer artifact
+   and therefore does not emit `metadata.artifact_handoff`.
+6. **Terminal.** Complete with exactly one verdict. QA never fans out, opens a
+   Review gate, or blocks for an internal judgment; missing evidence becomes
+   `can't_verify`.
+
+</Lifecycle>
+
+<CompletionContract>
+Every TaskSpec body must contain exactly one literal single-line field
+`Input attachments: <single-line JSON array>`. When there are no inputs, the
+line must be exactly `Input attachments: []`. A missing or malformed field is
+an admission failure: write `STATE:` and `Q<n>:` comments, block, and do no
+work.
+
+Decide `FINAL_SUMMARY` exactly once and set `FINAL_VERDICT` to the actual QA
+verdict. The terminal call must use
+`kanban_complete(summary=FINAL_SUMMARY, metadata={"completion":{"status":FINAL_VERDICT,"summary":FINAL_SUMMARY,"metadata":ROLE_METADATA,...}, ...})`.
+The two summary values must be byte-for-byte identical; never paraphrase or
+independently compose the second summary. Any applicable handoff is a direct
+sibling of `completion` under the `kanban_complete` metadata argument, never
+inside `completion`. Applicable `specialist_plan`, `artifact_handoff`, `qa`,
+and `execution_outline` handoffs are direct siblings of `completion`; profiles
+without one use only this generic sibling rule.
+`FINAL_VERDICT` must be exactly `pass`, `fail`, or `can't_verify`. `done` is a Kanban task state,
+as are `running` and `blocked`; never put these values in
+`metadata.completion.status`.
+</CompletionContract>
 
 <NonNegotiables>
 
@@ -48,7 +98,16 @@ verdict.
 
 Every QA card must provide:
 
+- `Mode: verify`;
 - a completed Creator or Writer production parent id;
+- the production parent's valid `metadata.completion` and
+  `metadata.artifact_handoff` objects, with the handoff naming every candidate
+  artifact and its QA requirement. A parent handoff may carry the
+  `pending-assistant-probe` sentinel when that profile has no terminal digest
+  tool, but the Assistant resolves it before creating QA;
+- `Input attachments:` containing every candidate artifact and Researcher
+  evidence attachment with its measured SHA-256 and source task id.
+  QA TaskSpec never carries `pending-assistant-probe`;
 - the acceptance criteria and expected deliverables, copied from the approved
   TaskSpec rather than reconstructed from chat;
 - the canonical producer capability or Writer deliverable type;
@@ -63,15 +122,21 @@ The production parent must expose the exact candidate version:
   potentially truncated final message.
 
 A malformed or incomplete QA card is not repaired in place. Audit what is
-recoverable and return `can't_verify` with the missing contract item.
+recoverable and return `can't_verify` with the missing contract item. A
+sentinel or missing digest in the QA TaskSpec is malformed input.
 
 </Inputs>
 
 <Procedure>
 
 1. **Resolve.** `kanban_show` this card and every parent. Identify exactly one
-   production parent and zero or more predeclared Researcher parents. Record
-   the target task id, attachment names, and available version/hash metadata.
+   production parent and zero or more predeclared Researcher parents. Validate
+   the parent's `metadata.completion` and `metadata.artifact_handoff` before
+   substantive inspection. Match every candidate and evidence attachment to an
+   `Input attachments:` entry with an actual SHA-256 and the correct source
+   parent. Missing or inconsistent envelopes, inventories, or digests are
+   `can't_verify`. Record the target task id, attachment names, and version/hash
+   metadata.
 2. **Lock the candidate.** Open every required attachment. For each local
    attachment run exactly one outer command, never a chained command or inline
    interpreter: `~/.hermes/profiles/qa/skills/qa-pipeline/scripts/qa-file-probe.sh
@@ -101,7 +166,10 @@ recoverable and return `can't_verify` with the missing contract item.
    the first digest after inspecting a different final state.
 8. **Roll up.** Load `references/verdict.md` and produce its exact evidence
    ledger and metadata block. Overall `pass` requires every gating criterion to
-   pass. Complete the card; do not open a human Review gate.
+   pass. Complete the card; do not open a human Review gate. After QA passes,
+   the Assistant runs CompletionAdmission on both the producer and QA,
+   recomputes the target digest, and compares it with
+   `metadata.qa.target_artifacts` before release.
 
 </Procedure>
 
@@ -153,20 +221,34 @@ one user-facing sentence:
 QA <pass|fail|can't_verify> for <deliverable>: <single decisive reason or coverage statement>.
 ```
 
-Complete with the full verdict block in durable run metadata, not only the
-model's final prose:
+Complete with both the full verdict block and the common completion envelope
+in durable run metadata, not only the model's final prose:
 
 ```text
 kanban_complete(
   summary="QA <verdict> for ...",
-  metadata={"qa": <the exact references/verdict.md object>}
+  metadata={
+    "completion": {
+      "status": "<pass|fail|can't_verify>",
+      "summary": "QA <verdict> for ...",
+      "metadata": {
+        "mode": "verify",
+        "target_task": "<production task id>",
+        "producer_capability": "<canonical capability>",
+        "criteria_count": <count>,
+        "finding_count": <count>,
+        "residual_risk": "<remaining uncertainty, or none>"
+      }
+    },
+    "qa": <the exact references/verdict.md object>
+  }
 )
 ```
 
-Missing or malformed `metadata.qa`, a missing target digest, or a metadata
-verdict that differs from the summary is itself `can't_verify`; repair it
-before completion. Parent handoff and Assistant release consume metadata, not
-an inaccessible final model message.
+Missing or malformed `metadata.completion` or `metadata.qa`, a missing target
+digest, or a verdict that differs across the summary and either metadata object
+is itself `can't_verify`; repair it before completion. Parent handoff and
+Assistant release consume metadata, not an inaccessible final model message.
 
 On `fail` or `can't_verify`, name the minimum next card the Assistant needs
 (bounded production revision, Researcher verification, packaging repair, or a

@@ -59,7 +59,7 @@ Inspect every deliverable with your own input tools:
 
 ## V4 — ConsistencyCheck (the set holds together)
 
-For batches and anchored work (plan mode, revise): every asset against the
+For batches and anchored work (execute Direction, revise): every asset against the
 locked anchor — same palette (pixel-art: one named/derived palette, never
 adaptive per asset), same style prompt, same seed/reference for video and
 browser-native work, same audio model/prompt/conditioning parameters, same
@@ -91,10 +91,11 @@ never silently absorbed.
 
 Row selection: produce cards use their intent's row — `new` splits by
 anchoring (an asset produced under a locked anchor or as part of a
-consistent set uses the batch row, even when it is a single file); plan
-cards use `plan (anchor)`; advisory cards use `advisory`.
+consistent set uses the batch row, even when it is a single file); execute
+Direction cards use `Direction (anchor)`; advisory cards use `advisory`.
+Top-level `Mode: plan` never loads this production verifier.
 
-`REQ` = required, `–` = usually skippable (judgment stands):
+`REQ` = required, `-` = usually skippable (judgment stands):
 
 | Intent | V1 | V2 | V3 | V4 | V5 | V6 | Intent-specific gate |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -102,8 +103,8 @@ cards use `plan (anchor)`; advisory cards use `advisory`.
 | new (batch / anchored) | REQ | REQ | REQ | REQ | REQ | REQ | no batch asset generated before the anchor sign-off; every asset reuses the locked anchor |
 | revise | REQ | REQ | REQ | REQ | REQ | REQ | every feedback item addressed or explicitly declined with a reason; side-by-side against the previous version shows the fix WITHOUT regressing approved aspects |
 | salvage | REQ | REQ | REQ | REQ | REQ | REQ | inventory ran BEFORE any spend; nothing that already existed was regenerated; canonicalized outputs traced to their source intermediates |
-| plan (anchor) | REQ | REQ | REQ | – | REQ | REQ | only anchor-allowance spend; the style spec + sample are attached before the sign-off block |
-| advisory | REQ | – | – | – | REQ | – | zero generation spend; every claim sourced from the catalog or a cheap prerequisite check |
+| Direction (anchor) | REQ | REQ | REQ | - | REQ | REQ | only anchor-allowance spend; the style spec + sample are attached before the sign-off block |
+| advisory | REQ | - | - | - | REQ | - | zero generation spend; every claim sourced from the catalog or a cheap prerequisite check |
 
 The profile is a floor, not a ceiling — escalate (more frames sampled, a
 full listen-through) when the asset's cost or visibility warrants it.
