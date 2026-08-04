@@ -8,7 +8,23 @@ if [ "$#" -ne 1 ]; then
   exit 2
 fi
 
-exec /usr/bin/python3 - "$1" <<'PY'
+PYTHON=${HERMES_PYTHON:-}
+if [ -z "$PYTHON" ]; then
+  HERMES_ENTRY=${HERMES_BIN:-"${HOME:-}/.local/bin/hermes"}
+  HERMES_TARGET=$(readlink "$HERMES_ENTRY" 2>/dev/null || :)
+  if [ -z "$HERMES_TARGET" ]; then
+    HERMES_TARGET=$HERMES_ENTRY
+  elif [ "${HERMES_TARGET#/}" = "$HERMES_TARGET" ]; then
+    HERMES_TARGET=$(dirname "$HERMES_ENTRY")/$HERMES_TARGET
+  fi
+  PYTHON=$(dirname "$HERMES_TARGET")/python
+fi
+if [ ! -x "$PYTHON" ]; then
+  echo "kanban-completion-probe: Hermes Python not found; set HERMES_PYTHON" >&2
+  exit 1
+fi
+
+exec "$PYTHON" - "$1" <<'PY'
 import hashlib
 import json
 import os
@@ -65,6 +81,16 @@ run = conn.execute(
     "WHERE task_id = ? AND outcome = 'completed' ORDER BY id DESC LIMIT 1",
     (task_id,),
 ).fetchone()
+has_task_events = conn.execute(
+    "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'task_events'"
+).fetchone()
+completed_event = None
+if has_task_events:
+    completed_event = conn.execute(
+        "SELECT id FROM task_events WHERE task_id = ? AND kind = 'completed' "
+        "ORDER BY id DESC LIMIT 1",
+        (task_id,),
+    ).fetchone()
 parents = [
     row[0]
     for row in conn.execute(
@@ -156,6 +182,41 @@ def validate_producer_qa_requirement(spec, location, assignee, expected_key):
         )
 
 
+body = task["body"] or ""
+task_qa_status = None
+producer_qa_requirement = None
+if task["assignee"] in ("creator", "writer"):
+    qa_matches = re.findall(r"(?mi)^QA:\s*(required|exempt)(?:\s+[^\n]*)?$", body)
+    if len(qa_matches) > 1:
+        errors.append("TaskSpec must declare QA at most once")
+    if qa_matches:
+        task_qa_status = qa_matches[0].lower()
+    if task_qa_status == "required":
+        candidate_matches = re.findall(r"(?m)^Candidate key:\s*(\S+)\s*$", body)
+        requirement_matches = re.findall(
+            r"(?m)^Producer QA requirement:\s*(\{[^\n]*\})\s*$", body
+        )
+        if len(candidate_matches) != 1:
+            errors.append("QA-required TaskSpec must declare one Candidate key")
+        if len(requirement_matches) != 1:
+            errors.append(
+                "QA-required TaskSpec must declare one Producer QA requirement JSON object"
+            )
+        if len(requirement_matches) == 1:
+            try:
+                producer_qa_requirement = json.loads(requirement_matches[0])
+            except json.JSONDecodeError as exc:
+                errors.append(f"Producer QA requirement is invalid JSON: {exc}")
+            else:
+                expected_key = candidate_matches[0] if len(candidate_matches) == 1 else ""
+                validate_producer_qa_requirement(
+                    {"qa": "required", "producer_qa_requirement": producer_qa_requirement},
+                    "TaskSpec",
+                    task["assignee"],
+                    expected_key,
+                )
+
+
 input_matches = re.findall(
     r"(?m)^Input attachments:\s*(\[[^\n]*\])\s*$", task["body"] or ""
 )
@@ -200,7 +261,9 @@ if task["status"] != "done":
     errors.append(f"task status is {task['status']}, expected done")
 if run is None:
     errors.append("completed run not found")
-else:
+if has_task_events and completed_event is None:
+    errors.append("completed event not found")
+if run is not None:
     try:
         metadata = json.loads(run["metadata"] or "null")
     except json.JSONDecodeError as exc:
@@ -357,7 +420,31 @@ if has_output_artifact:
         ):
             errors.append("QA evidence ledger must name an output artifact")
 
-body = task["body"] or ""
+if task_qa_status == "required" and completion_status != "superseded":
+    if not isinstance(qa_handoff, dict) or qa_handoff.get("status") != "required":
+        errors.append("QA-required TaskSpec requires a required artifact handoff")
+    elif isinstance(producer_qa_requirement, dict):
+        if qa_handoff.get("capability") != producer_qa_requirement.get("capability"):
+            errors.append("QA handoff capability must match Producer QA requirement")
+        if sorted(qa_handoff.get("routes") or []) != sorted(
+            producer_qa_requirement.get("routes") or []
+        ):
+            errors.append("QA handoff routes must match Producer QA requirement")
+        required_inventory = artifact_names(
+            producer_qa_requirement.get("output_inventory")
+        )
+        if sorted(set(declared_names)) != sorted(set(required_inventory)):
+            errors.append(
+                "completion artifact inventory must match Producer QA requirement"
+            )
+elif task_qa_status == "exempt" and isinstance(qa_handoff, dict):
+    if qa_handoff.get("status") == "required":
+        errors.append("QA-exempt TaskSpec cannot emit a required QA handoff")
+
+if completion_status == "superseded" and task["assignee"] in ("creator", "writer"):
+    if declared_names or handoff is not None:
+        errors.append("superseded producer origin must not emit artifacts or a handoff")
+
 if "Mode: plan" in body and completion_status != "superseded":
     specialist = metadata.get("specialist_plan")
     if not isinstance(specialist, dict):
@@ -863,6 +950,7 @@ result = {
     "id": task_id,
     "assignee": task["assignee"],
     "status": task["status"],
+    "completion_event": completed_event["id"] if completed_event else None,
     "valid": not errors,
     "errors": errors,
     "input_attachments": input_attachments,

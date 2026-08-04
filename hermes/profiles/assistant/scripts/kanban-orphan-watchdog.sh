@@ -1,7 +1,7 @@
 #!/bin/sh
 # kanban-orphan-watchdog — surface silently-stuck kanban cards.
 #
-# Five blind spots exist by design (verified against hermes v0.18.x):
+# Six blind spots exist by design (verified against hermes v0.18.x):
 #   1. Every card should have a notification subscription. A missing
 #      subscription is an invariant violation that needs an out-of-band alert.
 #   2. Any card can fall through the block-loop breaker into triage without a
@@ -13,6 +13,8 @@
 #   5. A QA-required producer completion can lose its wake before late-bound QA
 #      materialization. Its terminal event remains durable after subscription
 #      removal, so it must be repeated until an event-bound marker exists.
+#   6. Any other successful completion can lose its Assistant wake after the
+#      notifier advances its cursor and removes the subscription.
 #
 # This watchdog scans the default board read-only every 5 min and
 # reports them once per new occurrence (dedup keyed on the newest
@@ -31,6 +33,9 @@ import sys
 from pathlib import Path
 
 HOME = os.path.expanduser("~")
+COMPLETION_CONTRACT_CUTOFF = int(
+    os.environ.get("HERMES_COMPLETION_CONTRACT_CUTOFF", "1785801600")
+)
 
 
 def kanban_root():
@@ -182,7 +187,7 @@ completed_qa_unreleased = conn.execute(
              SELECT 1
                FROM task_comments c
               WHERE c.task_id = t.id
-                 AND c.author = 'assistant'
+                  AND c.author IN ('assistant', 'default')
                  AND c.body LIKE 'QA_HANDLED:%'
            )
     """
@@ -239,8 +244,17 @@ if table_exists("task_runs") and table_exists("task_links"):
     materialization_comments = [
         row[0]
         for row in conn.execute(
-            "SELECT body FROM task_comments WHERE author = 'assistant' "
+            "SELECT body FROM task_comments WHERE author IN ('assistant', 'default') "
             "AND body LIKE 'QA_MATERIALIZED:%'"
+        ).fetchall()
+    ]
+    invalid_recovery_comments = [
+        row[0]
+        for row in conn.execute(
+            "SELECT body FROM task_comments "
+            "WHERE author IN ('assistant', 'default') "
+            "AND body LIKE 'COMPLETION_HANDLED:%' "
+            "AND body LIKE '%outcome=invalid-recovery%'"
         ).fetchall()
     ]
     for row in candidate_rows:
@@ -253,10 +267,16 @@ if table_exists("task_runs") and table_exists("task_links"):
         if not isinstance(qa, dict) or qa.get("status") != "required":
             continue
         producer_token = f"producer={row['id']}"
+        task_token = f"task={row['id']}"
         event_token = f"completion_event={row['ev']}"
         if any(
             producer_token in body and event_token in body
             for body in materialization_comments
+        ):
+            continue
+        if any(
+            task_token in body and event_token in body
+            for body in invalid_recovery_comments
         ):
             continue
         active_research = conn.execute(
@@ -286,6 +306,58 @@ if table_exists("task_runs") and table_exists("task_links"):
         ).fetchone()
         if active_research is None:
             qa_candidates_unmaterialized.append(row)
+
+# 7. Reconcile every other successful completion until the Assistant records
+#    that admission and all immediate graph transitions finished for the exact
+#    terminal event. QA and QA-required candidates use their stronger markers.
+general_completions_unhandled = []
+if table_exists("task_runs"):
+    completed_rows = conn.execute(
+        """
+        SELECT t.id, t.title, t.assignee, e.id AS ev, e.payload, r.metadata
+          FROM tasks t
+          JOIN task_events e
+            ON e.id = (
+                 SELECT MAX(e2.id)
+                   FROM task_events e2
+                  WHERE e2.task_id = t.id AND e2.kind = 'completed'
+               )
+          JOIN task_runs r
+            ON r.id = (
+                 SELECT MAX(r2.id)
+                   FROM task_runs r2
+                  WHERE r2.task_id = t.id AND r2.outcome = 'completed'
+               )
+         WHERE t.assignee != 'qa'
+           AND t.status = 'done'
+           AND t.created_at >= ?
+           AND t.completed_at <= CAST(strftime('%s', 'now') AS INTEGER) - 300
+        """
+        , (COMPLETION_CONTRACT_CUTOFF,)
+    ).fetchall()
+    handled_comments = [
+        row[0]
+        for row in conn.execute(
+            "SELECT body FROM task_comments WHERE author IN ('assistant', 'default') "
+            "AND body LIKE 'COMPLETION_HANDLED:%'"
+        ).fetchall()
+    ]
+    for row in completed_rows:
+        try:
+            metadata = json.loads(row["metadata"] or "{}")
+        except (TypeError, json.JSONDecodeError):
+            metadata = {}
+        handoff = metadata.get("artifact_handoff")
+        qa = handoff.get("qa") if isinstance(handoff, dict) else None
+        if isinstance(qa, dict) and qa.get("status") == "required":
+            continue
+        task_token = f"task={row['id']}"
+        event_token = f"completion_event={row['ev']}"
+        if any(
+            task_token in body and event_token in body for body in handled_comments
+        ):
+            continue
+        general_completions_unhandled.append(row)
 conn.close()
 
 
@@ -317,6 +389,8 @@ for kind, rows, label, repeat_until_handled in (
      "FAN_OUT_READY awaiting Assistant decision", True),
     ("qa_candidate_unmaterialized", qa_candidates_unmaterialized,
      "QA-required completion awaiting materialization", True),
+    ("general_completion_unhandled", general_completions_unhandled,
+     "completion awaiting Assistant handling", True),
 ):
     for row in rows:
         key = f"{kind}:{row['id']}"

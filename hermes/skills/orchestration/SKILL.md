@@ -659,7 +659,9 @@ handoffs, and required role envelopes. A nonzero result is fail-closed:
 2. Do not register or release any pending descendant. Newly registered chains
    and ExecutionOutlines keep descendants as pending specs until all direct
    parents pass this probe.
-3. Comment `CONTRACT_INVALID: <probe errors>` on the task and report the
+3. Comment
+   `CONTRACT_INVALID: task=<id> completion_event=<probe event-id> <probe errors>`
+   on the task and report the
    malformed handoff. A done card is immutable; create a bounded replacement
    with a fresh recovery key rather than pretending the metadata was repaired.
 4. For a production chain, QA must return `can't_verify`; never let a
@@ -669,6 +671,18 @@ When an idempotent create returns an old `done` card, probe it synchronously
 before reuse. Cards completed before this fully enforced contract are not valid
 inputs to a new graph; replace them under a fresh run/key.
 
+After a successful probe and every immediate transition for a non-QA,
+non-QA-required completion, comment
+`COMPLETION_HANDLED: task=<id> completion_event=<event-id> outcome=<delivered|registered|integrated|no-op>`.
+Write the marker only after delivery or pending descendant registration has
+finished. For an invalid completion, write it with
+`outcome=invalid-recovery` only after the bounded replacement is registered;
+this exception applies to every non-QA invalid completion, including a
+QA-required producer that cannot be materialized. QA cards use `QA_HANDLED:`.
+A valid QA-required producer uses `QA_MATERIALIZED:` instead. The watchdog
+repeats an unmarked terminal event so a lost gateway wake cannot strand a chain
+or plan.
+
 </CompletionAdmission>
 
 <QualityGate>
@@ -677,10 +691,10 @@ Every ship-ready Creator `produce` result and Writer completed deliverable is a
 candidate until a dedicated `qa` card passes. Advisory, plan, assess/critique,
 and rough-draft cards are exempt. Engineer remains on its OpenCode review path.
 
-This asynchronous QA gate requires a source that can own a QA notification
-subscription. A classic CLI session has no durable chat subscription: do not
-start a ship-ready Creator/Writer chain there. Ask the user to dispatch it from
-the messaging Assistant instead; advisory/plan/rough work may still use CLI.
+This asynchronous orchestration requires a source that can own durable card
+subscriptions. A classic CLI session cannot do that, so it must not dispatch
+any Kanban card. Keep work inline or ask the user to continue from the messaging
+Assistant. A subscribed TUI session may follow the normal orchestration path.
 
 The standard DAG is:
 

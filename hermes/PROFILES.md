@@ -115,8 +115,11 @@ The Assistant creates production and Researcher evidence with ordinary
 `kanban_create`, requires `subscribed=true` and a task-spec probe, and late-binds
 QA after candidate and evidence CompletionAdmission. All cards are subscribed;
 the orphan watchdog runs every 5 minutes and reports unsubscribed blocks or
-failures, FAN_OUT handoffs, QA-required completions not materialized, and
-completed QA cards not marked handled.
+failures, FAN_OUT handoffs, ordinary completions not marked handled,
+QA-required completions not materialized, and completed QA cards not marked
+handled.
+The ordinary-completion scan starts at the workflow-contract rollout cutoff so
+pre-contract history does not become an endless recovery backlog.
 Dynamic Worker fan-out attaches one digest-checked `fan-out.yaml` and blocks
 with `FAN_OUT_READY:`. The Assistant validates the full DAG, persists an
 `ORCHESTRATION_PENDING_OVERLAY`, registers only eligible roots, and leaves
@@ -127,9 +130,9 @@ contract digest plus the producer/completion-event binding. The exact normalized
 QA spec and key are first persisted as `QA_PENDING_MATERIALIZATION:` so a crash
 after create can reconcile the same idempotent card. It then records an event-bound
 `DECISION(FAN_OUT_READY)` and resumes through the guarded block resolver.
-The asynchronous gate requires a gateway-chat or supported subscribed TUI owner.
-Classic CLI sessions do not dispatch ship-ready Creator/Writer work;
-they hand it to the messaging Assistant because they cannot receive the QA wake.
+The asynchronous workflow requires a gateway-chat or supported subscribed TUI
+owner. Classic CLI sessions do not dispatch Kanban work; they keep work inline
+or hand it to the messaging Assistant because they cannot own durable wakes.
 
 The org stays **flat by design**: profiles are global and the board is one
 shared queue, so "hierarchy" is expressed as routing policy + `parents`
