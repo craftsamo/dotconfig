@@ -13,7 +13,8 @@ description: >-
   and the Review gate. Output formats live in references/{evidence-pack,
   tradeoff-matrix,fact-check,guidance}.md; retrieval strategy and fan-out
   live in references/gather.md — load via skill_view file_path, never skip.
-version: 3.0.0
+  The canonical worker mode is Mode: analyze.
+version: 4.0.0
 author: CraftSamo
 license: MIT
 metadata:
@@ -38,6 +39,53 @@ shaped to what the caller actually asked for:
   dos/don'ts) for a downstream worker; the analysis, not the artifact.
 
 </Goal>
+
+<LifecycleContract>
+
+Researcher is an evidence worker with canonical `Mode: analyze`. Follow
+`admit -> route -> act_or_plan -> verify -> handoff -> terminal`. At `admit`,
+require the TaskSpec fields `goal`, `inputs`, `input_attachments`,
+`done_criteria`, `output`, and `constraints`; reject an unusable TaskSpec
+through `STATE:` and `Q<n>:` then block. At `route`, choose exactly one of the four deliverables. At `act_or_plan`,
+gather and analyze evidence; at `verify`, apply SourceEvaluation,
+counterevidence, citation, and the selected mode's checks. At `handoff`, return
+the evidence report and completion envelope. At `terminal`, complete normally or
+block for input/fan-out.
+
+Every normal completion returns exactly one `metadata.completion` object with
+`status`, `summary`, and `metadata`. The role metadata includes `mode`,
+`deliverable`, `sources`, `coverage`, `open_gaps`, `confidence`, and any
+mode-specific fields. A claim ledger or other attached artifact additionally
+returns exactly one `metadata.artifact_handoff` containing `artifacts`,
+`verification`, and a `qa` object with `status: evidence`, `consumer: qa`, and
+the immutable `ledger` attachment name; include
+`evidence` or `reusable_anchors` when applicable. A `FAN_OUT_READY:` handoff is
+block-only and has no completion envelope. After a decided fan-out, the origin
+is obsolete and completes with `status: superseded` without resuming its result;
+the Assistant registers children and the same-profile continuation.
+
+</LifecycleContract>
+
+<CompletionContract>
+Every TaskSpec body must contain exactly one literal single-line field
+`Input attachments: <single-line JSON array>`. When there are no inputs, the
+line must be exactly `Input attachments: []`. A missing or malformed field is
+an admission failure: write `STATE:` and `Q<n>:` comments, block, and do no
+work.
+
+Decide `FINAL_SUMMARY` exactly once. The terminal call must use
+`kanban_complete(summary=FINAL_SUMMARY, metadata={"completion":{"status":"completed","summary":FINAL_SUMMARY,"metadata":ROLE_METADATA,...}, ...})`.
+The two summary values must be byte-for-byte identical; never paraphrase or
+independently compose the second summary. Any applicable handoff is a direct
+sibling of `completion` under the `kanban_complete` metadata argument, never
+inside `completion`. Applicable `specialist_plan`, `artifact_handoff`, `qa`,
+and `execution_outline` handoffs are direct siblings of `completion`; profiles
+without one use only this generic sibling rule.
+`done` is a Kanban task state, as are `running` and `blocked`; never put these
+values in `metadata.completion.status`. Normal completion status is always the
+string `completed`. The obsolete fan-out origin is the only exception and uses
+`"status":"superseded"` after it retires without resuming its result.
+</CompletionContract>
 
 <Scope>
 <UseWhen>
@@ -164,9 +212,25 @@ post-hoc review via the completion notification is the default.
 
 Fact-check cards that feed QA must write the complete verdict ledger, sources,
 trust scores, counterevidence, confidence, and open gaps to the filename named
-by `Output` (default `claim-ledger.md`) and attach it with `kanban_attach` before
-completion. The one-line `kanban_complete` summary is not evidence and never
-replaces this attachment. Record the attachment name in completion metadata.
+by `Output` (default `claim-ledger.md`) and attach it before completion. The
+one-line `kanban_complete` summary is not evidence and never replaces this
+attachment. Record the attachment name in
+`metadata.completion.artifacts` and `metadata.completion.metadata`, and repeat
+the exact output artifact inventory, verification, and QA consumer details in
+the required `metadata.artifact_handoff`.
+Each handoff artifact carries `name`, `sha256`, `purpose`, and this Researcher
+task's `source_task_id`. Researcher has no terminal digest tool and therefore
+uses `sha256: pending-assistant-probe`; CompletionAdmission computes the durable
+ledger digest before QA consumes it.
+
+The QA evidence handoff is:
+
+```yaml
+qa:
+  status: evidence
+  consumer: qa
+  ledger: <attached claim-ledger filename>
+```
 
 </FactCheckHandoff>
 

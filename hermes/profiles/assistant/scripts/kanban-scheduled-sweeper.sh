@@ -33,9 +33,11 @@ exec /usr/bin/env python3 - <<'PY'
 import json
 import os
 import re
+import sqlite3
 import subprocess
 import sys
 from datetime import datetime
+from pathlib import Path
 
 HERMES = os.environ["HERMES_BIN"]
 UNTIL_RE = re.compile(r"until=([0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}(?::[0-9]{2})?(?:[+-][0-9]{2}:?[0-9]{2}|Z)?)")
@@ -64,6 +66,30 @@ def is_due(dt):
     return dt <= now
 
 
+def kanban_root():
+    override = os.environ.get("HERMES_KANBAN_HOME", "").strip()
+    if override:
+        return Path(override).expanduser()
+    home = Path(os.environ.get("HERMES_HOME", "~/.hermes")).expanduser()
+    return home.parent.parent if home.parent.name == "profiles" else home
+
+
+def kanban_db_path():
+    override = os.environ.get("HERMES_KANBAN_DB", "").strip()
+    if override:
+        return Path(override).expanduser()
+    root = kanban_root()
+    board = os.environ.get("HERMES_KANBAN_BOARD", "").strip()
+    if not board:
+        try:
+            board = (root / "kanban" / "current").read_text().strip()
+        except OSError:
+            board = ""
+    if not board or board == "default":
+        return root / "kanban.db"
+    return root / "kanban" / "boards" / board / "kanban.db"
+
+
 listing = run("list", "--status", "scheduled", "--json")
 if listing.returncode != 0:
     print(f"sweeper: kanban list failed: {listing.stderr.strip()}", file=sys.stderr)
@@ -76,25 +102,25 @@ except json.JSONDecodeError as exc:
     sys.exit(0)
 
 released = held = 0
+try:
+    conn = sqlite3.connect(str(kanban_db_path()))
+    conn.execute("PRAGMA query_only = ON")
+except sqlite3.Error as exc:
+    print(f"sweeper: cannot open active board: {exc}", file=sys.stderr)
+    sys.exit(0)
 for task in tasks:
     tid = task.get("id")
     if not tid:
         continue
-    show = run("show", tid, "--json")
-    if show.returncode != 0:
-        print(f"sweeper: show {tid} failed: {show.stderr.strip()}", file=sys.stderr)
-        continue
-    try:
-        detail = json.loads(show.stdout)
-    except json.JSONDecodeError:
-        print(f"sweeper: bad show JSON for {tid}", file=sys.stderr)
-        continue
-    sched = [c for c in detail.get("comments", [])
-             if str(c.get("body", "")).strip().startswith("SCHEDULED:")]
-    if not sched:
+    latest = conn.execute(
+        "SELECT body FROM task_comments WHERE task_id = ? "
+        "AND body LIKE 'SCHEDULED:%' ORDER BY id DESC LIMIT 1",
+        (tid,),
+    ).fetchone()
+    if latest is None:
         held += 1
         continue  # parked without a SCHEDULED: comment — manual hold
-    until = parse_until(str(sched[-1].get("body", "")))
+    until = parse_until(str(latest[0] or ""))
     if until is None:
         held += 1
         continue  # newest SCHEDULED: has no parseable until= — manual hold
@@ -110,6 +136,8 @@ for task in tasks:
         print(f"⏰ scheduled task released: {tid} {title}".rstrip())
     else:
         print(f"sweeper: unblock {tid} failed: {unblock.stderr.strip()}", file=sys.stderr)
+
+conn.close()
 
 print(f"sweeper: {len(tasks)} scheduled, {released} released, {held} held",
       file=sys.stderr)

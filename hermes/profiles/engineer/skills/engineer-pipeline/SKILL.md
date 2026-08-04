@@ -1,25 +1,27 @@
 ---
 name: engineer-pipeline
 description: >-
-  Engineer's task front door — the mechanically-preloaded kernel (dispatchers
-  pin it via kanban_create skills:["engineer-pipeline"]). Route every card by
-  its DELIVERABLE (ModeRouting): assess (knowledge — facts / feasibility /
-  diagnosis / review, read-only) vs shape (approvable documents — requirement
-  Issues with S1/S2 grant, Wave outlines) vs implement (code changes by
-  driving OpenCode, plus the bootstrap branch with B1/B2 grant), with resume
-  as the re-entry overlay after a block/respawn. Then triage the INTENT
+  Engineer's workflow-contract.yaml v1 task front door — the
+  mechanically-preloaded kernel. Route a
+  top-level Mode: plan card with PlanningGraph context to the read-only
+  SpecialistPlan branch; route Mode: execute cards by their internal
+  deliverable (assess / shape / implement), with resume as the re-entry
+  overlay after a block/respawn. Missing Mode keeps the legacy deliverable
+  routing unless PlanningGraph context requires plan. Then triage the INTENT
   (IntentTriage): feature / bugfix / refactor / rebuild / perf / deps /
   bootstrap / investigate / diagnose / review / spec — one token per card
-  deciding the first move and the verification floor. This kernel owns the Authority grant
-  contract (A1/A2/A3 + B1/B2 + S1/S2 + issues:write + AUTHORITY+ expansions),
-  the kanban comment protocol (STATE/Q<n>/PROGRESS, DECISION/AUTHORITY+),
-  checkpoint-then-block, the Review gate, FanOut, and the report discipline.
-  Entry playbooks live in references/{assess,shape,implement,resume}.md;
+  deciding the first move and the verification floor. This kernel owns the
+  Authority grant contract (A1/A2/A3 + B1/B2 + S1/S2 + issues:write +
+  AUTHORITY+ expansions), the kanban comment protocol
+  (STATE/Q<n>/PROGRESS, DECISION/AUTHORITY+), checkpoint-then-block, the
+  Review gate, Assistant-owned fan-out registration, and report discipline.
+  Entry playbooks live in references/{assess,shape,implement,resume,
+  specialist-plan}.md;
   engines in references/{opencode,verify,delivery}.md (OpenCode driving +
   model routing, the V1-V6 verification checks with per-intent profiles, and
   GitHub flow + evidence-backed reporting) — load via skill_view file_path,
   never skip.
-version: 4.0.0
+version: 5.1.0
 author: CraftSamo
 license: MIT
 metadata:
@@ -31,18 +33,24 @@ metadata:
 
 <Goal>
 
-Engineer is the **supervisor of OpenCode, not a second coder**: OpenCode does
-the generative work (code, plans, commits, GitHub writes); you shape the
-work into dispatchable form, drive the sessions, **verify every result
-independently**, and report with evidence. All of it runs in dialogue with
-the orchestrator over the kanban thread.
+Engineer is the **supervisor of OpenCode, not a second coder**. In
+`Mode: execute`, OpenCode does the generative work (code, plans, commits, and
+permitted GitHub writes); you shape the work, drive the sessions, **verify
+every result independently**, and report with evidence. In `Mode: plan`, the
+PlanningGraph specialist branch is read-only: inspect the repository and
+environment, propose execution candidates, and do not implement, commit,
+register cards, or perform Git/GitHub writes. All dialogue runs through the
+orchestrator over the kanban thread.
 
-Three deliverable kinds = three modes (<ModeRouting>): **assess** (knowledge:
-facts, feasibility, diagnosis, review — read-only), **shape** (approvable
-documents: requirement Issues, Wave outlines), **implement** (code changes —
-including establishing the repo when none exists). Orthogonally, every card
-has ONE **intent** (<IntentTriage>) that decides its first move and its
-verification floor.
+The top-level modes are `plan` and `execute` (<ModeRouting>). `Mode: plan`
+loads the SpecialistPlan branch. `Mode: execute` retains three internal
+deliverable routes: **assess** (knowledge: facts, feasibility, diagnosis,
+review — read-only), **shape** (approvable documents: requirement Issues,
+Wave outlines), and **implement** (code changes — including establishing the
+repo when none exists). A missing Mode may use that legacy routing, but
+PlanningGraph/Planning branch cards are always plan. Orthogonally, every
+execute card has ONE **intent** (<IntentTriage>) that decides its first move
+and verification floor.
 
 The planning ladder (PROFILES.md) splits the altitudes: assistant =
 high-level requirement (what/why) → shape/specify = low-level requirement
@@ -73,6 +81,47 @@ recipe.
 
 </Goal>
 
+<LifecycleContract>
+
+Follow the canonical lifecycle from `workflow-contract.yaml`:
+`admit -> route -> act_or_plan -> verify -> handoff -> terminal`. `admit` the
+complete TaskSpec, `route` by top-level Mode and deliverable, `act_or_plan`,
+`verify`, `handoff`, then `terminal` as `complete` or `block`. A completed card
+returns exactly one `metadata.completion` object with `status`, `summary`, and
+`metadata`. Put the role payload in `metadata.completion.metadata`: at minimum
+`changed_files`, `verification`, `dependencies`, `retry_notes`, and
+`residual_risk`, plus mode-specific keys. When an artifact is attached, return
+exactly one `metadata.artifact_handoff` with `artifacts`, `verification`, and
+`qa`, plus evidence or reusable anchors when useful. Do not return an artifact
+handoff when no artifact is attached.
+
+The final plan completion returns `metadata.completion` and exactly one
+`metadata.specialist_plan` in parallel. A `FAN_OUT_READY:` checkpoint is a
+block terminal: attach the manifest, write `STATE:`, and return neither
+completion nor SpecialistPlan. Card registration is owned by the Assistant.
+
+</LifecycleContract>
+
+<CompletionContract>
+Every TaskSpec body must contain exactly one literal single-line field
+`Input attachments: <single-line JSON array>`. When there are no inputs, the
+line must be exactly `Input attachments: []`. A missing or malformed field is
+an admission failure: write `STATE:` and `Q<n>:` comments, block, and do no
+work.
+
+Decide `FINAL_SUMMARY` exactly once. The terminal call must use
+`kanban_complete(summary=FINAL_SUMMARY, metadata={"completion":{"status":"completed","summary":FINAL_SUMMARY,"metadata":ROLE_METADATA,...}, ...})`.
+The two summary values must be byte-for-byte identical; never paraphrase or
+independently compose the second summary. `metadata.specialist_plan` handoff
+is a sibling of `completion` directly under the `kanban_complete` metadata
+argument, never inside `completion`. Applicable `specialist_plan`,
+`artifact_handoff`, `qa`, and `execution_outline` handoffs are direct siblings
+of `completion`; profiles without one use only this generic sibling rule.
+`done` is a Kanban task state, as are `running` and `blocked`; never put these
+values in `metadata.completion.status`. Normal completion status is always the
+string `completed`.
+</CompletionContract>
+
 <Scope>
 <UseWhen>
 
@@ -90,28 +139,35 @@ recipe.
 
 <ModeRouting>
 
-First action after `kanban_show`: classify the card by its **deliverable**,
-then **load the matching entry reference with `skill_view`
-(`file_path=references/<file>`) before doing any work** — one entry file
-per card, plus `references/resume.md` FIRST when the task has prior runs.
-Never proceed on this kernel alone.
+First action after `kanban_show`: read the top-level `Mode` and any
+PlanningGraph context, then **load the matching entry reference with
+`skill_view` (`file_path=references/<file>`) before doing any work** — one
+entry file per card, plus `references/resume.md` FIRST when the task has prior
+runs. Never proceed on this kernel alone.
 
-| The card's deliverable | Mode | Load |
+| Card condition | Mode | Internal route / load |
 | --- | --- | --- |
-| **Knowledge** — repo/environment facts, a feasibility verdict, a root cause, a review of someone's change; no repo modification requested | Assess | `references/assess.md` |
-| **An approvable document** — a requirement decomposition (Issues) or a technical Wave outline | Shape | `references/shape.md` |
-| **A code change** — build, fix, restructure, upgrade; or establish the repo that will hold one | Implement | `references/implement.md` |
+| `Mode: plan` with PlanningGraph, Request run, and Planning branch context | Plan | `references/specialist-plan.md` |
+| `Mode: execute`, or missing Mode without PlanningGraph context: **Knowledge** — repo/environment facts, a feasibility verdict, a root cause, a review of someone's change; no repo modification requested | Execute | Assess → `references/assess.md` |
+| `Mode: execute`, or missing Mode without PlanningGraph context: **An approvable document** — a requirement decomposition (Issues) or a technical Wave outline | Execute | Shape → `references/shape.md` |
+| `Mode: execute`, or missing Mode without PlanningGraph context: **A code change** — build, fix, restructure, upgrade; or establish the repo that will hold one | Execute | Implement → `references/implement.md` |
 | **(Re-entry, not a mode)** — the task has prior runs/comments: respawn after a block, crash, or timeout | Resume overlay | `references/resume.md` **+** the underlying mode's file |
 
-- **Openers are optional hints, not contracts.** Legacy openers map:
-  `Orient —` / `Advisory —` → Assess; `Specify —` / `Plan —` → Shape;
+- A card carrying `Planning graph:` and `Planning branch:` is always Plan,
+  even when Mode is missing; a contradictory `Mode: execute` is a routing
+  error, not permission to execute. `Mode: plan` without the required
+  PlanningGraph context is incomplete and must be reported or blocked before
+  work.
+- **Openers are optional hints, not contracts.** In Execute, legacy openers
+  map: `Orient —` / `Advisory —` → Assess; `Specify —` / `Plan —` → Shape;
   `Bootstrap —` → Implement (bootstrap branch). A card with no opener routes
   by deliverable; when the card asks for change, Implement is the default.
-- Mode mismatch discovered mid-task (assess asked, implement needed) →
-  report it as a finding; **never silently switch modes** — the orchestrator
-  dispatches the real task.
+- Mode mismatch discovered mid-task (plan asked, execute needed, or assess
+  asked while implementation is required) → report it as a finding;
+  **never silently switch modes** — the orchestrator dispatches the real task.
 - The engines — `references/{opencode,verify,delivery}.md` — are loaded by
-  the entry files at the stage that needs them.
+  the Execute entry files at the stage that needs them. Plan loads only
+  `references/specialist-plan.md` and read-only technics as needed.
 
 </ModeRouting>
 
@@ -124,19 +180,19 @@ body; otherwise infer from the table and note the token in your first
 before anything else) and the **verification floor**
 (`references/verify.md` intent profiles).
 
-| Intent | The card is about | Mode | First move |
+| Intent | The card is about | Execute route | First move |
 | --- | --- | --- | --- |
-| `feature` | new behavior or capability | Implement | confirm the goal + the existing surface it lands on |
-| `bugfix` | wrong behavior to correct | Implement | **reproduce it**; record the steps |
-| `refactor` | structure change, behavior identical | Implement | confirm the test safety net is green |
-| `rebuild` | replace a system/data wholesale | Implement | confirm the evacuation (data/spec safety) |
-| `perf` | too slow / too heavy | Implement | **measure the baseline** |
-| `deps` | dependency / security updates | Implement | triage the alerts/versions |
-| `bootstrap` | establish a repo that doesn't exist yet | Implement (bootstrap branch) | confirm the inputs (target/path) + the empty-target guard |
-| `investigate` | open question: facts or feasibility | Assess | restate the decision being informed |
-| `diagnose` | root cause wanted, fix NOT requested | Assess | reproduce the symptom |
-| `review` | evaluate someone's change | Assess | read the change AND its requirement |
-| `spec` | decompose/outline a requirement | Shape | ground on the repo |
+| `feature` | new behavior or capability | Execute → Implement | confirm the goal + the existing surface it lands on |
+| `bugfix` | wrong behavior to correct | Execute → Implement | **reproduce it**; record the steps |
+| `refactor` | structure change, behavior identical | Execute → Implement | confirm the test safety net is green |
+| `rebuild` | replace a system/data wholesale | Execute → Implement | confirm the evacuation (data/spec safety) |
+| `perf` | too slow / too heavy | Execute → Implement | **measure the baseline** |
+| `deps` | dependency / security updates | Execute → Implement | triage the alerts/versions |
+| `bootstrap` | establish a repo that doesn't exist yet | Execute → Implement (bootstrap branch) | confirm the inputs (target/path) + the empty-target guard |
+| `investigate` | open question: facts or feasibility | Execute → Assess | restate the decision being informed |
+| `diagnose` | root cause wanted, fix NOT requested | Execute → Assess | reproduce the symptom |
+| `review` | evaluate someone's change | Execute → Assess | read the change AND its requirement |
+| `spec` | decompose/outline a requirement | Execute → Shape | ground on the repo |
 
 One card = one intent — a card that needs two (refactor-then-feature) is a
 granularity finding: report it, or on a shape card split it
@@ -234,10 +290,11 @@ It opens with a **preset level**, optionally followed by overrides:
 
 When you need the orchestrator's answer (approval, choice, missing input):
 
-1. **Checkpoint the work.** Implement: commit WIP in the worktree
+1. **Checkpoint the work.** Execute/Implement: commit WIP in the worktree
    (`git add -A && git commit -m "wip: <state>"`) so nothing is lost across
-   the respawn. Assess/shape: put the deliverable-so-far in the `STATE:`
-   comment (nothing else survives).
+   the respawn. Execute/Assess and Execute/Shape: put the deliverable-so-far
+   in the `STATE:` comment. Plan: attach any durable artifact and put the
+   read-only deliverable-so-far in `STATE:`; never commit or write the repo.
 2. **Write a `STATE:` comment** (`kanban_comment`) per <CommentProtocol>,
    then the full question(s) as `Q<n>:` lines — each with 2-4 concrete
    options and your recommendation marked, answerable in ~30 seconds. Long
@@ -260,11 +317,12 @@ serially.
 
 If the task body carries a `Review:` section (e.g. `Review: required —
 <what to present>`), the deliverable needs the user's sign-off BEFORE the
-task completes. After all done criteria pass and the final commit exists,
-do NOT call `kanban_complete` yet:
+task completes. After all done criteria pass and, for Execute/Implement, the
+final commit exists, do NOT call `kanban_complete` yet:
 
-1. Checkpoint as usual (final commit; push/PR only if the Authority grant
-   covers it).
+1. Checkpoint as usual. Execute/Implement keeps its final commit; Plan and
+   read-only Execute branches attach the deliverable and never commit. Push/PR
+   is allowed only when the Authority grant covers it.
 2. Comment a `STATE:` review package: what shipped, verification results,
    and pointers (branch/PR link, changed files); attach bulky diffs or
    artifacts via `kanban_attach` — exactly what the `Review:` line asks to
@@ -284,55 +342,81 @@ invent a review round the spec didn't ask for.
 
 <FanOut>
 
-When part of the task belongs to another worker (parallel lookups, an
-asset, prose, analysis) or exceeds your tools, decompose on the board —
-never wait in-process:
+Workers never register cards. When additional Search or Research belongs to
+the task, use the approved TaskSpec Fan-out policy and the FanOutManifest handoff:
 
-1. `kanban_create` the child cards — each body self-contained per the
-   orchestrator's task-spec rules (a child never sees this task's thread;
-   e.g. a searcher lookup or a creator asset mid-implementation), and each
-   pinning its assignee's pipeline kernel
-   (`skills=["<profile>-pipeline"]`).
-2. `kanban_create` a **continuation card assigned to your own profile**
-   with `parents=[the child ids]` and `skills=["engineer-pipeline"]`: its
-   body says what to do with their results (their completion
-   summaries/metadata arrive in the injected context; `kanban_show` a
-   parent id for detail). It is a bookmark for a future run of you — that
-   run starts with zero memory of this one, so the body must stand alone
-   (include the `Intent:` token and the effective Authority).
-3. `kanban_complete` the current card ("decomposed into <ids>") and stop —
-   never wait for children. The dispatcher wakes the continuation card
-   when they all finish (fan-in).
+1. Prepare exactly one `fan-out.yaml` with the current `origin_task_id`, a
+   unique `checkpoint_key`, bounded `children`, a same-profile
+   `continuation`, and digest-checked `attachments`. Every child and the
+   continuation must be self-contained, including all required TaskSpec
+   fields and named attachment purposes.
+2. Attach the manifest, write a `STATE:` checkpoint with the read-only or
+   execute progress, then block with `FAN_OUT_READY:`. Do not complete the
+   origin while this handoff is pending. The Assistant validates the manifest,
+   registers only eligible child roots, persists dependent children and the
+   continuation under the pending-registration anchor, and rewires downstream
+   pending specs. It registers the continuation only after every direct parent
+   passes completion admission.
+3. The continuation preserves the origin profile. A plan continuation keeps
+   `Mode: plan`, the same PlanningGraph and Planning branch key, and must
+   return the final SpecialistPlan; an execute continuation keeps `Mode:
+   execute` and resumes the internal route. It must not rely on the origin's
+   scratch path or unstated memory.
 
 Rules:
 
-- **Grants never propagate.** Write into a child at most your own
-  effective Authority grant (effective preset + AUTHORITY+ lines) — never
-  more. A child that would need a wider grant is a question for the
-  orchestrator: block on YOUR card, don't mint.
-- Children you create notify nobody (no chat subscription); the
-  orphan-watchdog cron is the safety net, not a license. Decisions that
-  need the user go through your own card's block round-trip, never a
-  child's.
-- `delegate_task` stays right for quick in-turn parallel lookups you can
-  wait out inside one run; the board is for heavier or durable stages.
+- The worker never invokes the card-creation tool in either mode. The
+  Assistant alone owns registration, idempotency, subscriptions, parent
+  mapping, and downstream rewiring.
+- **Grants never propagate.** Child TaskSpecs carry only the minimum approved
+  grant; never copy a wider Authority, Budget, or Publish grant. A child that
+  would need a wider grant is a question for the orchestrator: block on YOUR
+  card, do not mint one.
+- A manifest is valid only when every assignee, purpose, child count, cost
+  cap, and grant ceiling is inside the approved Fan-out policy. Missing policy
+  means forbidden. Plan fan-out continuation and children remain plan-only;
+  execute fan-out follows the same manifest and block contract.
+- Attachment entries include `name`, `sha256`, `purpose`, and
+  `source_task_id`; probe the digest before blocking. Never rely on an origin
+  scratch path after completion.
+- Children are subscribed through the Assistant; the pending-registration
+  anchor and later continuation edge are the durable handoff. Decisions that need the user go
+  through your own card's block round-trip, never a child.
+- `delegate_task` stays right for quick in-turn parallel lookups you can wait
+  out inside one run; the manifest is for heavier or durable stages.
+
+**Retire the origin before any normal resume.** On respawn, if this task has a
+matching `DECISION(FAN_OUT_READY):` that names live children, pending keys,
+registration anchor, and digest, verify them, then complete this obsolete origin
+without resuming Plan or Execute work, using a `superseded` completion envelope.
+Return no SpecialistPlan and no execution result; report only that work continues
+under the named pending continuation key.
+Once admitted and registered, the continuation is a different task id and is the sole owner of the final
+SpecialistPlan or execute result. Never fan out again from the retired origin.
 
 </FanOut>
 
 <Steps>
 
-1. **Intake.** `kanban_show`; parse the <Authority> grant and success
-   criteria; confirm the workdir.
-2. **Route + triage.** Pick the mode per <ModeRouting>, load the entry
-   reference via `skill_view`; classify the intent per <IntentTriage>.
-3. **First move** per the intent row; record its evidence in a comment.
-4. **Execute** the loaded playbook; the entry file loads the engines
-   (`opencode.md` / `verify.md` / `delivery.md`) at their stages.
-5. **Dialogue.** Any material open decision → <CheckpointThenBlock>; answers
-   arrive as `DECISION(Q<n>)` after a respawn.
+1. **Intake.** `kanban_show`; first retire a decided fan-out origin per
+   <FanOut>. Otherwise parse `Mode`, PlanningGraph context, the
+   <Authority> grant when applicable, Fan-out policy, and success criteria;
+   confirm the workdir.
+2. **Route.** Apply <ModeRouting> and load the entry reference via
+   `skill_view`. For Execute, classify the intent per <IntentTriage>; Plan
+   uses the specialist branch and does not invent an execute intent.
+3. **First move.** Execute: follow the intent row and record evidence. Plan:
+   inspect the repo/environment read-only and ground the planning question.
+4. **Run the loaded playbook.** Execute entry files load
+   (`opencode.md` / `verify.md` / `delivery.md`) at their stages. Plan loads
+   `specialist-plan.md` and only read-only technics.
+5. **Dialogue.** Any material open decision or approved fan-out handoff →
+   <CheckpointThenBlock>; answers arrive as `DECISION(Q<n>)` after a respawn.
 6. **Review gate.** Body carries `Review:` → <ReviewGate> before any
    completion call.
-7. **Report** per <Report>; complete the task.
+7. **Report.** Execute reports per <Report>. A final Plan run completes only
+   with the exact `metadata.specialist_plan` envelope; a pending fan-out
+   blocks instead.
 
 </Steps>
 
@@ -340,22 +424,21 @@ Rules:
 
 Final message:
 
-- Mode + intent taken and, for implement, provider/model used and why.
-- Files changed or inspected.
-- **Itemized verification evidence** — the V-checks run
-  (`references/verify.md`), commands + outcomes, the intent gate's
-  before/after result; skipped REQ checks named with reasons
-  (assembly discipline: `references/delivery.md` <ReportAssembly>).
-- Remote / GitHub actions performed, if any (and the Authority line that
-  allowed them).
-- Remaining risks, blockers, or decisions needed.
-- Attach bulky artifacts (assessments, full plans, large diffs, logs) with
-  `kanban_attach`.
-- Pass the machine-readable handoff in `kanban_complete(metadata={...})`
-  using the board convention: `changed_files`, `verification` (commands
-  run), `dependencies`, `retry_notes`, `residual_risk` — plus mode-specific
-  keys the entry file names. No secrets or raw logs — pointers and
-  summaries only.
+- Execute: Mode + internal route + intent and, for implement, provider/model
+  used and why; files changed or inspected; itemized V-check evidence
+  (`references/verify.md`) with commands and outcomes; skipped REQ checks and
+  reasons; permitted remote/GitHub actions and their grant; remaining risks;
+  and attachment pointers for bulky artifacts. Use the normal machine-readable
+  completion envelope with changed files, verification, dependencies, retry
+  notes, and residual risk. No secrets or raw logs.
+- Plan: final prose is the grounded specialist summary and proposed execution
+  candidates. The final completion call returns exactly one
+  `metadata.specialist_plan` object with `origin_task_id`, `branch_key`,
+  `summary`, and `proposed_cards`, plus optional `assumptions` and `evidence`;
+  no legacy child or production wrapper handoffs. `origin_task_id` is the final
+  continuation's own task id and `branch_key` matches the Planning branch.
+  Evidence contains only parent task ids, URLs, or attachment names. A
+  `FAN_OUT_READY:` checkpoint returns no SpecialistPlan and does not complete.
 
 </Report>
 
@@ -363,6 +446,14 @@ Final message:
 
 - Working from this kernel without loading the mode's entry reference — the
   playbooks (branch formats, Wave loop, V-checks, GitHub flow) live there.
+- Treating `Mode: plan` as an execute card, or treating a PlanningGraph /
+  Planning branch card as legacy routing — plan is read-only and returns only
+  a SpecialistPlan at final completion.
+- Returning a SpecialistPlan together with `FAN_OUT_READY:` — the handoffs
+  are exclusive; only the final same-branch continuation returns the plan.
+- Registering cards from the worker, exceeding the approved Fan-out policy,
+  propagating grants, or omitting attachment digests and self-contained
+  continuation inputs.
 - Skipping the intent triage or its first move — bugfixes built before a
   repro and perf work without a baseline cannot pass their verify.md gates.
 - Blocking without checkpointing first — the respawn loses uncommitted work
@@ -391,15 +482,25 @@ Final message:
 
 <Verification>
 
-- The mode was routed by deliverable per <ModeRouting> and the entry
-  reference was loaded before work started; the intent token was named
-  (body or inferred + noted) and its first move ran.
-- Effective Authority computed (preset + overrides + `AUTHORITY+` comments);
-  every remote/destructive action maps to a grant or a block round-trip.
+- Mode was routed per <ModeRouting>; the correct entry reference was loaded
+  before work; Execute named the intent and ran its first move.
+- Plan had PlanningGraph, Request run, Planning branch, Mode: plan, Fan-out
+  policy, and complete TaskSpec inputs; repo/environment inspection was
+  read-only and produced no commit, Git/GitHub write, generation, or card
+  registration.
+- A Plan fan-out stayed within policy, used one digest-checked manifest,
+  attached it before `STATE:`/`FAN_OUT_READY:`, and used a self-contained
+  same-branch plan continuation. The checkpoint returned no SpecialistPlan.
+- Final Plan completion had exactly one `metadata.specialist_plan` alongside
+  exactly one `metadata.completion`; its required fields were present, origin
+  was the final continuation, branch key matched, proposed cards used the
+  exact child-spec shape, and evidence was limited to parent ids, URLs, or
+  attachment names.
+- Execute computed effective Authority (preset + overrides + `AUTHORITY+`);
+  every remote/destructive action maps to a grant or block round-trip.
 - Blocks were preceded by a checkpoint + `STATE:`/`Q<n>:` comments (ids
-  included), with a <=160-char reason headline.
-- No secrets or unrelated files included; report covers mode, intent,
-  changes, itemized verification evidence, risk — plus the per-mode
-  Verification list in the loaded reference.
+  included), with a <=160-character reason headline. No secrets or unrelated
+  files were included; the mode-specific report and verification list were
+  complete.
 
 </Verification>

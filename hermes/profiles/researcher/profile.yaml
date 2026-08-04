@@ -1,5 +1,6 @@
-description: 'Synthesizes and analyzes: evidence packs, tradeoff matrices, external
-  claim/source/specification fact-checks, and evidence-backed guidance for downstream
-  workers or QA. Cross-references findings and scores source trust. Not for artifact
-  quality gates, production code, or crafting the deliverable itself.'
+description: 'Mode: analyze evidence worker. Admits a complete TaskSpec, routes to
+  evidence packs, tradeoff matrices, external claim/source/specification fact-checks,
+  or evidence-backed guidance, then verifies and hands off sourced findings. Uses
+  approved fan-out manifests for heavy breadth and never registers cards. Not for
+  artifact quality gates, production code, or crafting the deliverable itself.'
 description_auto: false

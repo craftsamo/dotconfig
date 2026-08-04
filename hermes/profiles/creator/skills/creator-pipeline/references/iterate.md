@@ -31,7 +31,7 @@ then classify EACH item — the class decides the cheapest correct move:
 | --- | --- | --- |
 | **tweak** | a parameter-level change (crop, duration, text fix, color nudge, one word of narration) | re-process or re-render the affected asset with the ONE knob changed; anchor untouched |
 | **partial regen** | one asset / segment / scene is wrong, the rest approved | regenerate only that piece, reusing the locked anchor (same prompt skeleton / palette / seed / voice) |
-| **direction change** | the look/concept itself is rejected («全面組み直し», new style, different concept) | STOP — the anchor is invalid. This is plan-mode work: lock a NEW cheap anchor and get sign-off (`references/plan.md`) BEFORE any full re-render. Say so in a comment; if the card's Budget can't carry an anchor round, block. |
+| **direction change** | the look/concept itself is rejected (new style, different concept) | STOP - the anchor is invalid. This is execute Direction work: lock a NEW cheap anchor and get sign-off (`references/plan.md`) BEFORE any full re-render. Say so in a comment; if the card's Budget cannot carry an anchor round, block. |
 
 Mixed feedback is normal: run tweaks and partial regens under the inherited
 anchor; a single direction-change item freezes full-batch spend until the
@@ -56,7 +56,7 @@ identically:
 A revise card carries its own `Budget:`; absent → the standard defaults
 apply **per revised asset** (not per asset of the original set — untouched
 assets cost nothing). Direction changes add an anchor allowance (1-2 cheap
-samples) only via plan-mode sign-off or an explicit grant. The inherited
+samples) only via execute Direction sign-off or an explicit grant. The inherited
 delivery is free; spending to re-make what could be reused is the overrun
 to catch in V5.
 
