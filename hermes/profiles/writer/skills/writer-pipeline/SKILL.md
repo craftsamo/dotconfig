@@ -344,9 +344,10 @@ approval flow.
 After a block or respawn, reread the task body, all `STATE:` comments, every
 `DECISION`, the latest `FAN_OUT_READY:` decision, and all attachment digests.
 If the current task is the origin of a matching `DECISION(FAN_OUT_READY):`,
-verify the checkpoint key, child ids, and continuation id, then complete this
+verify the checkpoint key, child ids, pending continuation key, and overlay
+digest, then complete this
 obsolete origin immediately. Return no SpecialistPlan and no writing result;
-the different continuation task id owns the sole final result. Do not resume
+the later continuation task owns the sole final result. Do not resume
 drafting or request another fan-out from the retired origin.
 For plan mode, verify that the same branch key and request run are retained.
 For execute mode, verify that no draft is completed twice and that the exact
