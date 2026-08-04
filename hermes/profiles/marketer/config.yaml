@@ -629,3 +629,4 @@ platform_toolsets:
 plugins:
   enabled:
     - skill-topology
+    - kanban-worker-mutation-guard
