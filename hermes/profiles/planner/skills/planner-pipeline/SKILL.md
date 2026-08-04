@@ -206,17 +206,17 @@ cards:
     assignee: <known Worker profile>
     skills: [<mandatory pipeline pin>, <active technics>]
     parents: [<outline key>, ...]
-      params:
-        workspace_kind: <scratch|worktree|dir>
-        max_runtime_seconds: <bounded integer>
-      task_spec:
-        mode: <mode allowed for the assignee>
-        goal: <one outcome>
-        inputs: <self-contained facts, paths, links, and parent results>
-        input_attachments: []
-        done_criteria: <objective checks>
-        output: <result/artifact and completion shape>
-        constraints: <scope and prohibited actions>
+    params:
+      workspace_kind: <scratch|worktree|dir>
+      max_runtime_seconds: <bounded integer>
+    task_spec:
+      mode: <mode allowed for the assignee>
+      goal: <one outcome>
+      inputs: <self-contained facts, paths, links, and parent results>
+      input_attachments: []
+      done_criteria: <objective checks>
+      output: <result/artifact and completion shape>
+      constraints: <scope and prohibited actions>
       review: <optional human gate>
       qa: <optional Creator/Writer gate>
       producer_qa_requirement: <closed object, mandatory when qa is required>
