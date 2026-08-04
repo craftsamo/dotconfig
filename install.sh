@@ -41,6 +41,7 @@ find_brew() {
 }
 
 install_deps() {
+  local rc=0
   local brew
   if ! brew="$(find_brew)"; then
     echo "[deps] Homebrew not found — installing per-user into ~/.homebrew"
@@ -53,18 +54,20 @@ install_deps() {
   # --adopt: take ownership of manually installed apps instead of failing.
   # NO_UPGRADE: only install what's missing; never upgrade behind your back.
   HOMEBREW_CASK_OPTS="--adopt" HOMEBREW_BUNDLE_NO_UPGRADE=1 \
-    "$brew" bundle --file="$DOTFILES/Brewfile"
+    "$brew" bundle --file="$DOTFILES/Brewfile" || rc=1
 
   # Language runtimes + global npm CLIs declared in mise/config.toml
   local mise_bin
   mise_bin="$(dirname "$brew")/mise"
   if [ -x "$mise_bin" ]; then
     echo "[deps] mise install (runtimes from mise/config.toml)"
-    "$mise_bin" install --yes
+    "$mise_bin" install --yes || rc=1
   else
     echo "[deps] mise not found next to brew — skipping runtime install"
-    return 1
+    rc=1
   fi
+
+  return $rc
 }
 
 link() {
