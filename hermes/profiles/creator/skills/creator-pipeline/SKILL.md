@@ -305,9 +305,10 @@ checkpoint returns no SpecialistPlan. A final plan completion returns no
 fan-out handoff; it returns only the final `metadata.specialist_plan`.
 
 On respawn, handle a matching `DECISION(FAN_OUT_READY):` before normal route
-resume. Verify its checkpoint key, child ids, and continuation id, then complete
+resume. Verify its checkpoint key, child ids, pending continuation key, and
+overlay digest, then complete
 this obsolete origin with no SpecialistPlan, production result, or additional
-fan-out. The different continuation task id is the sole owner of the final
+fan-out. The later continuation task is the sole owner of the final
 SpecialistPlan or execute deliverable.
 
 </FanOut>

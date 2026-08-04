@@ -310,9 +310,10 @@ A respawn after block/crash: reread the kanban thread first — `STATE:` plan,
 expansions. Rebuild mechanically:
 
 - If this task originated a matching `DECISION(FAN_OUT_READY):`, verify the
-  checkpoint key, child ids, continuation id, and any QA hold, then complete
+  checkpoint key, child ids, pending continuation key, overlay digest, and any
+  QA hold, then complete
   the obsolete origin immediately with no SpecialistPlan, campaign result, or
-  additional fan-out. The different continuation task id owns the sole final
+  additional fan-out. The later continuation task owns the sole final
   result.
 - Match every `Q<n>` to its `DECISION(Q<n>)`; unanswered + gating → re-block
   with the same n. Recompute the effective Publish grant.
