@@ -434,6 +434,7 @@ goals:
 skills:
   external_dirs:
     - ~/ghq/github.com/NousResearch/hermes-agent/skills
+    - ${HERMES_PRIVATE_SKILLS}/skills
   template_vars: true
   inline_shell: false
   inline_shell_timeout: 10

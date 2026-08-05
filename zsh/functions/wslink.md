@@ -13,7 +13,10 @@ and `fzf`, no daemons. Loaded automatically by [`config.zsh`](../config.zsh).
 ## Requirements
 
 `fzf` (browser), `jq` (registry JSON), `ghq` (clone listing) and `pj` (the
-projects registry CLI, exposed as [`bin/pj`](../../bin/pj)).
+projects registry CLI). [`bin/pj`](../../bin/pj) is a launcher: the registry
+skill itself lives in a private checkout, so it resolves the implementation
+through `PJ_BIN` or `${HERMES_PRIVATE_SKILLS}` and fails with a clear message
+when neither is set.
 
 ## Quick start
 
