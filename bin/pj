@@ -6,7 +6,7 @@ set -euo pipefail
 
 pj_bin="${PJ_BIN:-}"
 if [[ -z $pj_bin && -n ${HERMES_PRIVATE_SKILLS:-} ]]; then
-  pj_bin="$HERMES_PRIVATE_SKILLS/skills/workspaces/projects/scripts/pj"
+  pj_bin="$HERMES_PRIVATE_SKILLS/skills/workspaces/projects/registry/scripts/pj"
 fi
 
 if [[ -z $pj_bin || ! -f $pj_bin ]]; then
