@@ -16,6 +16,13 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
 - **`config.yaml` is rewritten by Hermes on load.** Expect re-serialization churn;
   match Hermes' output format (block style, key order), keep diffs minimal — don't
   hand-reformat or alphabetize.
+- **`cron/jobs.json` is tracked but flagged `skip-worktree`.** Hermes rewrites it on
+  every tick (run counters, `last_run_at`, `next_run_at`), so the flag keeps that churn
+  out of `git status` — which also makes a NEW job invisible to Git. After
+  `hermes -p <profile> cron create|resume`, publish it explicitly:
+  `git update-index --no-skip-worktree hermes/profiles/<p>/cron/jobs.json`, stage only
+  the new job's hunk, commit, then re-set `--skip-worktree`. Skip this and the schedule
+  never reaches another machine.
 - **`platform_toolsets.<platform>` is the effective tool allowlist.** Keep it granular;
   `hermes-cli` / `hermes-telegram` expand to a broad surface and strip default-off
   tools such as `video` / `video_gen`. Mirror the role in top-level `toolsets`, but
@@ -90,10 +97,10 @@ skills/              # shared maintainer-owned skills tracked
                      #   SKILL.md owns RequirementSpec → execution shape → registration /
                      #   supervision / delivery; references/workflow-contract.yaml is the
                      #   machine-readable roster/schema/grant/QA-route authority
-  workspaces/        # ~/Workspaces data-skill cluster (people/pp, household-budget/hb,
-                     #   projects/pj, message-reply, scaffold) + _cross.py (shared cross-skill
-                     #   contract, imported not executed; siblings call each other's CLI,
-                     #   never each other's DB; scaffold is a helper outside the contract)
+                     # (the ~/Workspaces data-skill cluster — people/pp, household-budget/hb,
+                     #   projects/pj, business-prospects/bp, message-reply, scaffold + _cross.py —
+                     #   moved to a private checkout, read via skills.external_dirs
+                     #   as ${HERMES_PRIVATE_SKILLS}/skills; this repo is public)
                      # (creative/ moved to profiles/creator/skills — creator owns media)
   learned/           # runtime-authored adaptive skills; mutable and ignored
 plugins/             # backend chains, tool overrides, completion and Worker
@@ -183,9 +190,9 @@ Tracked: config / SOUL / `profile.yaml`, `plugins/` source, `cron/jobs.json`,
 `.curator_state`, `.usage*`, `cron/output/`, `cron/ticker_*`, `**/__pycache__/`,
 `*.pyc`. Never commit secrets, state, or host-rendered plists.
 
-**Skill ownership follows the directory type.** Shared `orchestration/` and
-`workspaces/`, every worker's `<profile>-pipeline/` and `technic/`, and the
-assistant's `desks/` are maintainer-owned and tracked normally. Runtime creates
+**Skill ownership follows the directory type.** Shared `orchestration/`, every
+worker's `<profile>-pipeline/` and `technic/`, and the assistant's `desks/` are
+maintainer-owned and tracked normally. Runtime creates
 are forced into `learned/` by the `skill-topology` plugin; `learned/`, external
 skills and Hermes bookkeeping stay ignored. Do not use `skip-worktree` for
 managed skills: their changes must remain visible in `git status`. Promotion

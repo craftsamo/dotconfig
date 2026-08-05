@@ -1162,7 +1162,6 @@ def validate_managed_qa_suppression_text(
     )
     for relative_root in (
         "skills/orchestration",
-        "skills/workspaces",
         "plugins",
         "scripts",
         "launchd",
@@ -1860,7 +1859,6 @@ def untracked_managed_files() -> list[str]:
             "--exclude-standard",
             "--",
             "hermes/skills/orchestration/**",
-            "hermes/skills/workspaces/**",
             "hermes/profiles/*/skills/*-pipeline/**",
             "hermes/profiles/*/skills/technic/**",
             "hermes/profiles/assistant/skills/desks/**",
@@ -2116,7 +2114,6 @@ def validate_assistant(errors: list[str]) -> tuple[int, int, int]:
 def validate_shared(errors: list[str]) -> tuple[int, int]:
     skills = HERMES_ROOT / "skills"
     orchestration = skills / "orchestration"
-    workspaces = skills / "workspaces"
     learned_dir = skills / "learned"
 
     managed: dict[str, Path] = {}
@@ -2127,11 +2124,6 @@ def validate_shared(errors: list[str]) -> tuple[int, int]:
     else:
         errors.append(f"missing shared orchestration skill: {orchestration_skill}")
 
-    for path in sorted(workspaces.glob("*/SKILL.md")):
-        name = path.parent.name
-        validate_skill(path, name, errors)
-        managed[name] = path
-
     learned: dict[str, Path] = {}
     if learned_dir.is_dir():
         for path in sorted(learned_dir.glob("*/SKILL.md")):
@@ -2140,10 +2132,9 @@ def validate_shared(errors: list[str]) -> tuple[int, int]:
             learned[name] = path
 
     allowed = {("orchestration", "SKILL.md")}
-    allowed.update(("workspaces", name, "SKILL.md") for name in managed if name != "orchestration")
     allowed.update(("learned", name, "SKILL.md") for name in learned)
     validate_allowed_skill_roots(skills, allowed, errors)
-    validate_git_boundary([orchestration, workspaces], learned_dir, errors)
+    validate_git_boundary([orchestration], learned_dir, errors)
     validate_plugin_enabled("default", HERMES_ROOT / "config.yaml", errors)
     return len(managed), len(learned)
 

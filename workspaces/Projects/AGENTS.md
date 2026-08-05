@@ -22,7 +22,7 @@ team memberships, and flexible tags** — live in the **central registry**, not 
   `tag-*`), `repo-set`/`link-repo`, `member-set` (+ `mtag-*`), ops `validate`/`export`/`backup`.
   Don't hand-edit `projects.db` or the mirror. Full model: the `projects` skill's `data-model.md`.
 
-## Cross-skill linkage (read each other's CLI, never the other's DB/files — see skills/workspaces/_cross.py)
+## Cross-skill linkage (read each other's CLI, never the other's DB/files — see the shared cross-skill contract)
 - **People** rebuilds its membership mirror from `pj members --json` (`pp import-projects`);
   members reference People by `person_id`.
 - **HouseholdBudget** `proj_*` masters reconcile to a registry project by `dir_path`/aliases;
