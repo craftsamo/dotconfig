@@ -1,9 +1,17 @@
 # Personal — data & automation (no git, grouped)
 
 Each subdirectory is a **group** (topic, e.g. a people ledger). No code repos here
-(`Projects/` holds all git-managed code). A group holds:
-- `data/` — data files (e.g. `data/*.json`). **Sensitive.**
-- `docs/` — notes / docs.
+(`Projects/` holds all git-managed code). A group holds **typed** subdirs; when a group
+has entities, namespace every tree by the same slug (e.g. `data/<slug>/`, `docs/<slug>/`):
+- `data/` — structured records (e.g. `data/*.json`). **Sensitive.** Not a catch-all:
+  binaries, prose, and scripts go to their own typed dirs below.
+- `docs/` — notes / docs / canonical spec documents (prose).
+- `assets/` — reusable reference media, source files only (images, audio, brand
+  material). Optional; create on demand.
+- `scripts/` — group automation (self-contained, absolute paths). Optional; on demand.
+- `archive/` — quarantine for unadopted or agent-generated (rogue) outputs. Nothing in
+  it is canon; adopting content back requires explicit human agreement per item.
+  Deletion is the human's call. Optional; on demand.
 
 ## Data-handling rules (strict)
 - Treat contents as sensitive: summarize; never paste raw values, balances, account
