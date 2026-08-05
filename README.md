@@ -61,16 +61,26 @@ Installed outside the [Brewfile](./Brewfile):
 - **Language runtimes** (Node.js, Python, Ruby, Rust, Bun) and global npm
   CLIs — declared in [`mise/config.toml`](./mise/config.toml);
   `install.sh --deps` runs `mise install` after `brew bundle`
+- **GitHub CLI extensions** — `gh` has no manifest of its own, so they are
+  declared in the `GH_EXTENSIONS` array at the top of
+  [`install.sh`](./install.sh) and installed after `brew bundle`. Currently
+  `github/gh-stack` (native stacked PRs), which the `git-pullrequest` and
+  `approach-github-projects` skills require
 
 ## install.sh
 
 ```sh
 ./install.sh          # symlinks only — idempotent, offline, safe to re-run
-./install.sh --deps   # + Homebrew bootstrap (if missing) + brew bundle
+./install.sh --deps   # + Homebrew bootstrap (if missing), brew bundle,
+                      #   gh extensions, mise install
 ```
 
 - Never overwrites a real file: if a tool replaced a symlink with a regular
   file it prints `WARN` and skips, so re-running it doubles as a drift check.
+- Each `--deps` stage records its own failure and the next one still runs; the
+  symlink phase always runs, and the failure surfaces in the exit code.
+- `GH_EXTENSIONS` is installed idempotently — already-present extensions are
+  skipped rather than re-installed (`gh extension install` errors on those).
 - `brew bundle` runs with `HOMEBREW_BUNDLE_NO_UPGRADE=1` (installs what is
   missing, upgrades nothing) and `HOMEBREW_CASK_OPTS=--adopt` (takes ownership
   of manually installed apps instead of failing).
