@@ -16,6 +16,13 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
 - **`config.yaml` is rewritten by Hermes on load.** Expect re-serialization churn;
   match Hermes' output format (block style, key order), keep diffs minimal — don't
   hand-reformat or alphabetize.
+- **`cron/jobs.json` is tracked but flagged `skip-worktree`.** Hermes rewrites it on
+  every tick (run counters, `last_run_at`, `next_run_at`), so the flag keeps that churn
+  out of `git status` — which also makes a NEW job invisible to Git. After
+  `hermes -p <profile> cron create|resume`, publish it explicitly:
+  `git update-index --no-skip-worktree hermes/profiles/<p>/cron/jobs.json`, stage only
+  the new job's hunk, commit, then re-set `--skip-worktree`. Skip this and the schedule
+  never reaches another machine.
 - **`platform_toolsets.<platform>` is the effective tool allowlist.** Keep it granular;
   `hermes-cli` / `hermes-telegram` expand to a broad surface and strip default-off
   tools such as `video` / `video_gen`. Mirror the role in top-level `toolsets`, but
