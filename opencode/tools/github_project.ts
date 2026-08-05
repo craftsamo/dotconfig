@@ -685,7 +685,7 @@ export const issue_link = tool({
 
 export const issue_develop = tool({
   description:
-    "Create a linked development branch for an issue (and optionally check it out), or reuse the existing linked branch if one already exists. Backed by `gh issue develop`. The branch shows in the issue's Development panel; a PR opened from it links there automatically. Validates the `base` exists on remote (guards the known silent-fallback bug). Stacked PRs: point `base` at a parent issue's branch. Operates on the current repo, or pass `repo` as owner/repo.",
+    "Create a linked development branch for an issue (and optionally check it out), or reuse the existing linked branch if one already exists. Backed by `gh issue develop`. The branch shows in the issue's Development panel, and a PR opened from it enters the issue's closingIssuesReferences EVEN WITHOUT a closing keyword — merging that PR closes the issue. Use it only when closing on the first merge is correct (a standalone task, or a purpose that is a single PR); a multi-layer stacked purpose must use plain branches or its first landed layer closes it prematurely. Validates the `base` exists on remote (guards the known silent-fallback bug). Operates on the current repo, or pass `repo` as owner/repo.",
   args: {
     issue: tool.schema.string().describe("Issue number or URL to create/reuse a development branch for."),
     branch: tool.schema
