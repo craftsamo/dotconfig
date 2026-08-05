@@ -48,8 +48,8 @@ The chat-wide `orchestration` skill remains active, but this desk narrows its ro
 - Editing application code, implementing a feature, debugging, running a substantial code
   review, producing media, or doing sustained research.
 - Creating or dispatching a kanban card inside this pinned topic.
-- Treating `~/Workspaces/Projects/Personal` as generic personal storage; personal-facing work
-  for that group belongs at the Personal desk.
+- Personal-data work under `~/Workspaces/Personal/` — the household ledger, the People
+  registry, and message drafting all belong at the Personal desk.
 
 </DoNotUseWhen>
 </Scope>

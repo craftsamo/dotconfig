@@ -1,6 +1,18 @@
 #!/usr/bin/env bash
+# Thin launcher for the projects registry CLI, which lives outside this
+# repository. Point PJ_BIN at it directly, or set HERMES_PRIVATE_SKILLS to the
+# checkout holding the workspaces skill cluster (see zsh/local.zsh, untracked).
 set -euo pipefail
 
-pj_bin="${PJ_BIN:-$HOME/.hermes/skills/workspaces/projects/scripts/pj}"
+pj_bin="${PJ_BIN:-}"
+if [[ -z $pj_bin && -n ${HERMES_PRIVATE_SKILLS:-} ]]; then
+  pj_bin="$HERMES_PRIVATE_SKILLS/skills/workspaces/projects/scripts/pj"
+fi
+
+if [[ -z $pj_bin || ! -f $pj_bin ]]; then
+  echo "pj: cannot locate the projects registry CLI." >&2
+  echo "pj: set PJ_BIN, or HERMES_PRIVATE_SKILLS to the checkout that holds it." >&2
+  exit 127
+fi
 
 exec python3 "$pj_bin" "$@"

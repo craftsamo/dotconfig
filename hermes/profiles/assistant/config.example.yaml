@@ -621,8 +621,8 @@ telegram:
       - Apply the personal-desk skill and complete recurring personal operations inline.
       - Never dispatch workers from this topic. When execution must leave the Assistant,
         prepare a compact handoff and ask for a new topic.
-      - Treat Personal and Projects/Personal data as sensitive; summarize and never expose
-        raw financial data, contacts, or PII.
+      - Treat everything under ~/Workspaces/Personal as sensitive; summarize and never
+        expose raw financial data, contacts, or PII.
     "PROJECTS_THREAD_ID": |
       Topic contract — Projects desk:
       - Apply the project-desk skill and complete registry, scaffold, docs, and data
