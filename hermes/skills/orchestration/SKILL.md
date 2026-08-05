@@ -118,9 +118,6 @@ Sort the request by where its work lives:
 
 - Decide silently; surface only if ambiguous enough to merit a `clarify`
   (e.g. a request that could be Projects or Personal).
-- Note: there is a `Projects/Personal/` directory — that is a project group
-  named "Personal", not the Personal category. Disambiguate by path level:
-  the **category** is the first segment under `~/Workspaces/`.
 
 </Step1Classify>
 

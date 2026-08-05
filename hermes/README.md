@@ -18,8 +18,10 @@ into place.
 
 ### Skills — managed core tracked, learned library ignored
 
-`~/.hermes/skills` is symlinked to the repo. Maintainer-owned shared skills
-(`orchestration/` and `workspaces/`) are version-controlled; runtime-authored
+`~/.hermes/skills` is symlinked to the repo. The maintainer-owned shared
+`orchestration/` skill is version-controlled; the ~/Workspaces data-skill
+cluster lives in a private checkout (this repo is public) and is read through
+`skills.external_dirs` as `${HERMES_PRIVATE_SKILLS}/skills`. Runtime-authored
 skills are mutable state under `learned/` and are git-ignored. The
 `skill-topology` plugin rewrites every normal `skill_manage(action=create)`
 call — including background review, curator and `/learn` — to
@@ -86,12 +88,14 @@ the relevant `config.yaml`.
   this on load.
 - `SOUL.md` — global agent identity (system-prompt slot #1).
 - `mcp.json` — MCP server connections.
-- `skills/orchestration/` and `skills/workspaces/` — version-controlled shared
-  skills. `skills/orchestration/references/workflow-contract.yaml` is the
+- `skills/orchestration/` — the version-controlled shared skill.
+  `skills/orchestration/references/workflow-contract.yaml` is the
   machine-readable authority for Worker modes, schemas, grants, bindings, and
-  QA routes, required subscriptions, and late-bound QA admission. `skills/learned/`
-  is the untracked adaptive library; bundled skills
-  are read from the clone via `external_dirs`.
+  QA routes, required subscriptions, and late-bound QA admission. The
+  ~/Workspaces data-skill cluster lives in a private checkout, read through
+  `skills.external_dirs` as `${HERMES_PRIVATE_SKILLS}/skills`.
+  `skills/learned/` is the untracked adaptive library; bundled skills are read
+  from the clone via `external_dirs`.
 - `cron/jobs.json` — scheduled job definitions (run-state churns in the same
   file; `cron/output/` and `cron/.tick.lock` are git-ignored).
 

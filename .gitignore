@@ -57,10 +57,11 @@ hermes/**/SOUL.md
 hermes/profiles/assistant/config.yaml
 
 # Hermes skills: maintainer-owned topology is tracked; adaptive libraries are not.
-# At the shared root, orchestration/ and workspaces/ are the managed surfaces.
+# At the shared root, orchestration/ is the only managed surface — the
+# ~/Workspaces data-skill cluster is kept in a separate private checkout and
+# reached through skills.external_dirs.
 hermes/skills/*
 !hermes/skills/orchestration/
-!hermes/skills/workspaces/
 hermes/skills/learned/
 
 # Workers track one *-pipeline/ plus technic/ leaves. Assistant additionally
@@ -70,6 +71,11 @@ hermes/profiles/*/skills/*
 !hermes/profiles/*/skills/technic/
 !hermes/profiles/assistant/skills/desks/
 hermes/profiles/*/skills/learned/
+
+# Cron entry scripts for work that lives outside this repo. Hermes' scheduler
+# only runs a script resolving inside <HERMES_HOME>/scripts, so such a job needs
+# a real wrapper here; the owning repo generates it and it stays machine-local.
+hermes/profiles/*/scripts/local-*.sh
 
 # Hermes skills bookkeeping: bundled skills (read via skills.external_dirs
 # from the agent clone) + curator/hub/usage bookkeeping are never tracked
@@ -100,3 +106,8 @@ hermes/**/*.pyc
 # here — the hermes-achievements plugin persists badge state + a session-scan
 # cache, incl. session titles/timestamps; per-machine, never committed)
 hermes/plugins/hermes-achievements/
+
+# Machine-local shell environment. config.zsh already sources every
+# ~/.config/zsh/*.zsh; this one is generated (it points at checkouts that live
+# outside this repo, e.g. HERMES_PRIVATE_SKILLS) and must stay untracked.
+zsh/local.zsh

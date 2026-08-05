@@ -224,7 +224,7 @@ done
 
 echo "[workspaces]"
 # Assistant's terminal.cwd. Symlink the tracked area/ops AGENTS.md (link() creates the
-# parent dirs); groups + repos under Projects/Personal are local, scaffolded on demand.
+# parent dirs); groups + repos under Projects/ and Personal/ are local, scaffolded on demand.
 link "$DOTFILES/workspaces/AGENTS.md"               "$HOME/Workspaces/AGENTS.md"
 link "$DOTFILES/workspaces/Projects/AGENTS.md"      "$HOME/Workspaces/Projects/AGENTS.md"
 link "$DOTFILES/workspaces/Personal/AGENTS.md"      "$HOME/Workspaces/Personal/AGENTS.md"
