@@ -71,6 +71,11 @@ hermes/profiles/*/skills/*
 !hermes/profiles/assistant/skills/desks/
 hermes/profiles/*/skills/learned/
 
+# Cron entry scripts for work that lives outside this repo. Hermes' scheduler
+# only runs a script resolving inside <HERMES_HOME>/scripts, so such a job needs
+# a real wrapper here; the owning repo generates it and it stays machine-local.
+hermes/profiles/*/scripts/local-*.sh
+
 # Hermes skills bookkeeping: bundled skills (read via skills.external_dirs
 # from the agent clone) + curator/hub/usage bookkeeping are never tracked
 hermes/**/.bundled_manifest
