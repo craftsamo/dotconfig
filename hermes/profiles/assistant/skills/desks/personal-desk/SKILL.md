@@ -3,8 +3,8 @@ name: personal-desk
 description: >-
   Assistant-owned desk for recurring personal operations that should complete inline:
   household-budget records and reports, People registry maintenance, message interpretation
-  and reply drafting, and personal docs/data under ~/Workspaces/Personal or
-  ~/Workspaces/Projects/Personal. Use in the pinned Personal Telegram topic.
+  and reply drafting, and personal docs/data under ~/Workspaces/Personal.
+  Use in the pinned Personal Telegram topic.
 version: 1.0.0
 author: CraftSamo
 license: MIT
@@ -39,8 +39,6 @@ The chat-wide `orchestration` skill remains active, but this desk narrows its ro
 - Look up or maintain people, contacts, relationships, and communication preferences.
 - Interpret an incoming message and draft a reply for the user to send.
 - Read or update `~/Workspaces/Personal/<Group>/{data,docs}`.
-- Read or update personal-facing `data/` or `docs/` under
-  `~/Workspaces/Projects/Personal`.
 
 </UseWhen>
 
@@ -48,7 +46,8 @@ The chat-wide `orchestration` skill remains active, but this desk narrows its ro
 
 - The request requires a worker, a kanban card, sustained implementation, or long-running
   research. Keep this topic inline; ask the user to open a new topic for that work.
-- Editing code or repositories under `~/Workspaces/Projects/Personal/github/`.
+- Anything under `~/Workspaces/Projects/` — groups, their docs/data, and their
+  repositories all belong at the Projects desk.
 - Sending a drafted message or exporting personal data externally without explicit approval.
 
 </DoNotUseWhen>
@@ -74,12 +73,9 @@ contract. Never open a sibling skill's database directly.
 <WorkspaceRules>
 
 - Read `~/Workspaces/AGENTS.md` and the closest nested `AGENTS.md` before file work.
-- `~/Workspaces/Personal/**` and personal-facing content in
-  `~/Workspaces/Projects/Personal/{docs,data}` are sensitive. Summarize; never dump raw
-  financial records, contacts, or PII into chat, logs, or a <SpinOut> handoff.
-- `~/Workspaces/Projects/Personal` is a Projects group despite its name. Its `docs/` and
-  `data/` may be handled here, but repository/code work spins out to a new topic.
-- Use the owning CLI for canonical stores (`hb`, `pp`, `pj`); direct edits are only for
+- `~/Workspaces/Personal/**` is sensitive. Summarize; never dump raw financial records,
+  contacts, or PII into chat, logs, or a <SpinOut> handoff.
+- Use the owning CLI for canonical stores (`hb`, `pp`); direct edits are only for
   ordinary docs/data not governed by a store.
 - Ask before destructive changes or external sends. Never send a drafted reply automatically.
 
