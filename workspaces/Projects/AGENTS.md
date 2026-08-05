@@ -8,6 +8,9 @@ e.g. `ExampleProject`), which is the cross-system join key. A group holds:
   (Hermes coder, OpenCode, Codex, Cursor). Keep tool-specific instructions out of it.
 - `docs/` — design notes, specs, prose project knowledge (`docs/about/`). Not in the registry DB.
 - `data/` — datasets (optional; created only when a group actually has data).
+- `assets/` — local media for the group (logos, screenshots, generated marketing
+  material). Lives here precisely so it is **never committed into the repos** —
+  public repos must not carry personal/local assets. Optional; on demand.
 
 Structured facts about groups — **identity (slug/aliases/dir_path), repos, official links,
 team memberships, and flexible tags** — live in the **central registry**, not in loose files:
