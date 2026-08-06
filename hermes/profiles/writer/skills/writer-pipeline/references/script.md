@@ -53,12 +53,11 @@ scene-by-scene video script).
 ## Artifact delivery
 
 - The brief names a file (storyboard.md, a screenplay path) → write that
-  file exactly where instructed, at a durable path (kanban mode: also
-  `kanban_attach` — workspace files don't survive completion). The report
-  names the path and summarizes the structure.
-- Downstream cards consume this script by unit number — never renumber in
-  a revision round; mark dropped units as `(削除)` to keep numbering
-  stable.
+  complete file exactly where instructed, at a durable path. The reply names
+  the path and summarizes the structure.
+- The downstream producer consumes this script by unit number — never
+  renumber in a revision round; mark dropped units as `(削除)` to keep
+  numbering stable.
 
 ## Self-review additions
 
