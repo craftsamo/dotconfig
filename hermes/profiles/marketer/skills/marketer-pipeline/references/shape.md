@@ -11,7 +11,7 @@ grant** (the goal decides, not the grant).
    covers, what "actionable" means to the requester (a calendar? angle
    options? a full playbook?). One consolidated block if a required field
    is missing.
-2. **Ground.** Facts from the brief first; fan out to searcher/researcher
+2. **Ground.** Facts from the brief first; request searcher/researcher legwork
    via the delegate engine for market/competitor/trend input worth having —
    only when it materially shapes the plan (deliver through a continuation
    card).

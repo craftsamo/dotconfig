@@ -16,11 +16,10 @@ grant (the goal decides, not the grant).
 
 ## Consultation (fast, time-boxed)
 
-The orchestrator needs direct judgment fast — not a SpecialistPlan and not
-drafts. Planned campaign strategy belongs in `Mode: plan`. Answer this route
-from your own knowledge + the brief + quick lookups; a
-heavier market question is itself a finding ("needs a searcher/researcher
-card"). **Assume, don't block, by default** — block only when every
+The orchestrator needs direct judgment fast — not drafts. Answer this
+route from your own knowledge + the brief + quick lookups; a
+heavier market question is itself a finding ("needs searcher/researcher
+legwork"). **Assume, don't block, by default** — block only when every
 plausible reading changes the verdict.
 
 ```markdown
@@ -81,5 +80,5 @@ brand landmarks, what an audience will actually react to. Ground it:
 
 - Deliverable follows its branch's format; verdict explicit; assumptions
   labeled; findings name checks + evidence + severity.
-- Nothing was produced or shipped; heavy grounding went through fan-out,
-  not in-turn grinding.
+- Nothing was produced or shipped; heavy grounding was requested via
+  `references/delegate.md`, not ground in-turn.
