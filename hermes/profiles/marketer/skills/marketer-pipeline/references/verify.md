@@ -28,18 +28,18 @@ same checks apply everywhere — only how the result is used differs.
   Japanese copy follows `japanese-writing` notation norms (writer output
   arrives compliant; your own assembly must be too).
 - **V6 Post-publish.** After each shipped post: re-fetch the returned
-  id/URL once to confirm it is live, then record the URL in a `PROGRESS:`
-  comment. A returned id is not proof the post is up.
+   id/URL once to confirm it is live, then report the URL in your session
+   reply. A returned id is not proof the post is up.
 
 ## Where each check runs
 
 | Situation | Checks | On failure |
 | --- | --- | --- |
-| Fan-in: accepting a child's deliverable | V1 V3 V4 V5 | Reject against the brief: re-dispatch with a corrected brief (delegate engine) or escalate |
+| Accepting a requested specialist input | V1 V3 V4 V5 | Reject against the brief: state the corrected request in your reply and wait for the assistant to decide whether to orchestrate it |
 | Draft delivery (no grant / draft-only goal) | V1 V2 V3 V4 | Fix before delivering; label residual assumptions |
-| Pre-publish gate (before approval block or in-cap P1 post) | V1-V5, all | Do not ship; fix or block — publishing is irreversible |
+| Pre-publish gate (before the approval message or in-cap P1 post) | V1-V5, all | Do not ship; fix or ask the assistant — publishing is irreversible |
 | Critique task (assess mode: judge an existing asset/draft) | V1-V5 as the rubric | The findings ARE the deliverable — report severity-ranked, no fixing |
-| After publishing | V6 | Mid-thread failure → checkpoint-then-block (publish engine); never re-post shipped items |
+| After publishing | V6 | Mid-thread failure → report what shipped and what remains in your reply, then wait for the assistant; never re-post shipped items |
 
 ## Verdict discipline
 
@@ -56,7 +56,7 @@ same checks apply everywhere — only how the result is used differs.
 
 - Rubber-stamping requested inputs because rejecting feels expensive —
   a revision round is cheaper than a bad post.
-- Verifying your own assembly less rigorously than a child's deliverable.
+- Verifying your own assembly less rigorously than a specialist's deliverable.
 - Treating V4 platform memory as current — specs drift; refetch when it
   matters.
 - Fixing the asset inside a critique task — critique reports, it does not

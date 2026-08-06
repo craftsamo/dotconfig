@@ -1,6 +1,6 @@
 # Assess route (Mode: execute) - the deliverable is judgment, not content
 
-Loaded when the card asks for marketing judgment and no deliverable ships:
+Loaded when the session asks for marketing judgment and no deliverable ships:
 direct consultations, critiques of existing assets or drafts, and
 market-judgment memos. Three branches, one invariant: **nothing ships,
 nothing is produced** beyond illustrative one-liners — even under a P1
@@ -8,7 +8,7 @@ grant (the goal decides, not the grant).
 
 ## Branch routing
 
-| The card asks for | Branch |
+| The session asks for | Branch |
 | --- | --- |
 | A fast verdict for a direct `single`/`chain` decision (channel fit, feasibility, effort, risk) | Consultation |
 | An honest evaluation of an existing asset, draft, or campaign ("is this good enough to post?", "評価して", "忖度なし") | Critique |
@@ -19,7 +19,7 @@ grant (the goal decides, not the grant).
 The orchestrator needs direct judgment fast — not drafts. Answer this
 route from your own knowledge + the brief + quick lookups; a
 heavier market question is itself a finding ("needs searcher/researcher
-legwork"). **Assume, don't block, by default** — block only when every
+legwork"). **Assume, don't ask, by default** — ask only when every
 plausible reading changes the verdict.
 
 ```markdown
@@ -46,7 +46,7 @@ Load the verify engine and judge the asset against V1-V5: brief fit, brand
   severity-ranked, each naming the failing check + concrete evidence.
 - Honest over comfortable — the owner asked precisely because they want
   the un-flattered read. "Do not ship this" is a complete, useful answer.
-- **Report, don't repair.** Fixing the asset is a new card for its
+- **Report, don't repair.** Fixing the asset is a separate follow-up for its
   producer; at most sketch the one highest-leverage fix per finding.
 
 ## Market judgment
@@ -56,15 +56,17 @@ brand landmarks, what an audience will actually react to. Ground it:
 
 - Facts from the brief first; quick gaps, close with your own tools.
 - Heavier grounding (competitor scans, cultural checks, multi-source
-  hunts) → emit the bounded Assistant-owned FanOutManifest and resume through
-  its continuation — do not burn your turns on breadth.
+  hunts) → state the recommended follow-up in your reply: what is needed,
+  which specialist should handle it, and why. The assistant decides whether
+  to orchestrate it and supplies the result in a later message; do not burn
+  your turns on breadth.
 - The memo ends in a recommendation with options, not a data dump.
 
 ## Report
 
-- Final message = the assessment/critique/memo (attach via `kanban_attach`
-  if long). `kanban_complete` summary = 1-2 plain sentences carrying the
-  verdict.
+- Final reply = the assessment/critique/memo; write a long deliverable to the
+  durable path named by the brief and name it in the reply. Summarize the
+  verdict in 1-2 plain sentences.
 
 ## Pitfalls
 
