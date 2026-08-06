@@ -92,13 +92,8 @@ SOUL.md              # default persona (prompt slot #1)
 mcp.json             # MCP servers ({} = none)
 cron/                # jobs.json tracked; output/ + .tick.lock ignored
 skills/              # shared maintainer-owned skills tracked
-  orchestration/     # shared front-door playbook (default native; assistant via
-                     #   ~/.hermes/skills external dir; Telegram chat-wide auto-load)
-                     #   SKILL.md owns modes Chat/Plan/Execute/QA over tiers
-                     #   inline / resident / kanban; references/qa/ holds the
-                     #   assistant-run QA contracts; kanban-lite.md the lean card
-                     #   contract; workflow-contract.yaml (v2) is the
-                     #   machine-readable roster/tier/grant authority
+  default-pipeline/  # thin CLI adapter for default; points at the assistant's
+                     #   assistant-pipeline reference tree and records CLI deltas
                      # (the ~/Workspaces data-skill cluster — people/pp, household-budget/hb,
                      #   projects/pj, business-prospects/bp, message-reply, scaffold + _cross.py —
                      #   moved to a private checkout, read via skills.external_dirs
@@ -127,10 +122,12 @@ profiles/<name>/     # assistant, engineer, researcher, searcher, creator, write
                      #   marketer: + upstream social-media/xurl;
                      #   managed technics stay exactly one directory below skills/technic/
                      #   because validate-profile-skills.py enforces flat canonical leaves;
-                     #   assistant keeps only its surface skills — desks/ holds
+                     #   assistant keeps its front-door pipeline in
+                     #   profiles/assistant/skills/assistant-pipeline/ (mode-first
+                     #   chat/plan/execute/quality-assurance references) plus its
+                     #   surface skills — desks/ holds
                      #   topic-bound personal-desk / project-desk / brainstorm
-                     #   (Inline-only; specialist work spins into a new topic), while
-                     #   orchestration lives in the shared skills/ tree above;
+                     #   (Inline-only; specialist work spins into a new topic);
                      #   every profile's learned/ holds mutable runtime-authored
                      #   skills and is never a dispatch or Git ownership surface)
   - cron/            # per-profile scheduled jobs (jobs.json; placeholder if empty)
@@ -151,12 +148,16 @@ assistant starts through `assistant/scripts/resident-session.sh` and
 supervises conversationally; the kanban board is only for fire-and-forget,
 cron-originated, mass-parallel, and `scheduled` work with a lean card
 contract (no manifests/digests/probes — the v4 machinery is retired, see the
-2026-08-06 rebuild). The assistant itself is the quality gate (contracts
-under `skills/orchestration/references/qa/`) and owns GitHub bookkeeping.
+2026-08-06 rebuild). The assistant itself is the quality gate (contracts under
+`profiles/assistant/skills/assistant-pipeline/references/quality-assurance/`)
+and owns GitHub bookkeeping.
 Planning is one conversational approval. On cards, specialists speak the
 `STATE:`/`Q<n>:`/`DECISION(Q<n>):`/`PROGRESS:`/`AUTHORITY+:`/`REVIEW:`
 comment protocol; resumes go through `kanban-resolve-block.sh`; scheduled
 parking uses `SCHEDULED: until=` comments and the assistant sweeper cron.
+Workers batch questions into one `needs_input` block; a second block,
+`capability` block, or spec gap pulls the card back to a resident session or
+re-plan.
 Grants: engineer Authority A1/A2/A3 + B1/B2 (GitHub bookkeeping is never
 the engineer's), creator Budget caps, marketer Publish (absent =
 draft-only; posting needs verbatim approval or in-cap P1) — see PROFILES.md
@@ -173,9 +174,10 @@ Tracked: config / SOUL / `profile.yaml`, `plugins/` source, `cron/jobs.json`,
 `.curator_state`, `.usage*`, `cron/output/`, `cron/ticker_*`, `**/__pycache__/`,
 `*.pyc`. Never commit secrets, state, or host-rendered plists.
 
-**Skill ownership follows the directory type.** Shared `orchestration/`, every
-worker's `<profile>-pipeline/` and `technic/`, and the assistant's `desks/` are
-maintainer-owned and tracked normally. Runtime creates
+**Skill ownership follows the directory type.** Shared `default-pipeline/`, the
+assistant's `assistant-pipeline/`, every worker's `<profile>-pipeline/` and
+`technic/`, and the assistant's `desks/` are maintainer-owned and tracked
+normally. Runtime creates
 are forced into `learned/` by the `skill-topology` plugin; `learned/`, external
 skills and Hermes bookkeeping stay ignored. Do not use `skip-worktree` for
 managed skills: their changes must remain visible in `git status`. Promotion

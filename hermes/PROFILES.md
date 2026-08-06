@@ -93,7 +93,7 @@ lists, and assistant's disabled Discord list are empty by design.
 
 Role split: **the assistant** plans with the user, supervises specialists,
 performs the quality gate itself (the QA contracts under
-`skills/orchestration/references/qa/`), owns GitHub bookkeeping, and
+`profiles/assistant/skills/assistant-pipeline/references/quality-assurance/`), owns GitHub bookkeeping, and
 delivers; the **producer** self-verifies before reporting. The normal flow
 stays **searcher (retrieve) → researcher (synthesize) → engineer
 (implement)**, with **creator** (media) and **writer** (prose/scripts) as
@@ -106,7 +106,7 @@ assistant's own verification, not instead of it.
 The assistant is the quality gate. Every specialist deliverable — a resident
 session reply or a card completion — is a candidate until the assistant
 verified the actual artifact per the contracts under
-`skills/orchestration/references/qa/` (vision on images/frames, ffprobe on av
+`profiles/assistant/skills/assistant-pipeline/references/quality-assurance/` (vision on images/frames, ffprobe on av
 media, read the prose, spot-check sources; `delegate_task` fans out
 per-artifact checks on large sets). Defects go back to the same resident
 session as itemized feedback — a minutes-scale loop, not a card cycle.
@@ -166,7 +166,7 @@ checkpoint-then-block (WIP commit → `STATE:` → `Q<n>:` comments →
 `Review: required` presents the deliverable for human sign-off before the
 job closes — always relayed to the user. GitHub bookkeeping (Issues, boards,
 merges) is the assistant's own `gh` work, after approvals. Details:
-engineer's `engineer-pipeline` skill and the orchestration skill.
+engineer's `engineer-pipeline` skill and the front-door pipeline.
 
 The dialogue discipline is specialist-generic, not engineer-specific:
 **creator** and **writer** also honor the `Review: required` gate; creator
@@ -217,10 +217,10 @@ Two rules keep the ladder from collapsing back into confusion:
 ### Default is the assistant's CLI counterpart (and stays a clean baseline)
 
 default and assistant are the two faces of the same front door: identical
-orchestration behavior (both run `orchestration`, which lives in
-default's skills tree at `hermes/skills/orchestration/` — default loads it
-natively, assistant through its `~/.hermes/skills` external dir; the Telegram
-chat-wide auto-load keeps working since resolution goes through `skill_view`),
+workflow behavior (assistant runs its own `assistant-pipeline`; default runs
+the thin `default-pipeline` adapter over the assistant tree at
+`~/.hermes/profiles/assistant/skills/assistant-pipeline/references/`), with the
+Telegram chat-wide auto-load bound to `assistant-pipeline`,
 the same worker roster, the same media-full-delegation rule. The differences: platform
 (CLI vs Telegram gateway), persona (default stays **neutral** — every
 `--clone` inherits its `config.yaml`, so voice/character stays out), and
@@ -260,7 +260,8 @@ Three per-profile layers, kept separate:
   approval or an in-cap P1 grant; posted URLs verified; shipped posts never
   silently edited or deleted); front doors = heavy work never runs in their
   own turn, deliverables are verified before delivery, and blocked cards
-  resolve only through the guarded resolver after a complete DECISION batch.
+  resolve only through the guarded resolver after the one complete DECISION
+  batch; a second block or a capability/spec-gap block pulls the card back.
   Each profile also states its **MEMORY.md policy**: durable cross-task facts
   only (task state lives in the kanban thread + git/board; playbook-sized
   knowledge becomes a skill), and `user_profile_enabled` is off for workers —
@@ -268,22 +269,21 @@ Three per-profile layers, kept separate:
 - **skills/** — detailed, on-demand playbooks:
   Every local library uses the same ownership types. A worker has one tracked
   `<profile>-pipeline/` plus tracked, directly selectable `technic/` leaves.
-  The front doors share tracked `hermes/skills/orchestration/` as their
-  pipeline; assistant-only Telegram surfaces live in tracked `desks/`.
+  The assistant owns tracked `assistant-pipeline/` and its mode-first reference
+  tree; default owns the shared tracked `default-pipeline/` adapter. Assistant-only
+  Telegram surfaces live in tracked `desks/`.
   Runtime-authored skills from background review, curator, `/learn`, or normal
   `skill_manage(create)` calls go to the untracked `learned/` category through
   the `skill-topology` plugin. Moving a complete package from `learned/` to
   `technic/` is the explicit maintainer-review boundary. External directories
   remain provider-owned and never become local technics implicitly.
-  - assistant + default → `orchestration` v5 (shared front-door playbook,
-    lives in default's tree at `hermes/skills/orchestration/`: modes Chat /
-    Plan / Execute / QA over tiers inline / resident / kanban; resident
-    sessions via `resident-session.sh`; assistant-run QA against
-    `references/qa/`; the lean kanban card contract in
-    `references/kanban-lite.md`; capability playbooks in
-    `references/{creative,engineering,research,writing,marketing}.md`. The
-    machine-readable roster, tiers, grants, and retired markers live in
-    `references/workflow-contract.yaml`.)
+  - assistant → `assistant-pipeline` (front-door playbook: modes Chat / Plan /
+    Execute / Quality Assurance over tiers inline / resident / kanban; the
+    mode-first reference tree at `references/{chat,plan,execute,quality-assurance}/`;
+    resident sessions via `resident-session.sh`; assistant-run QA contracts;
+    and the closed `card_units` catalog in `execute/**` front matter). Default
+    runs the thin `default-pipeline` CLI adapter over this tree; it records only
+    terminal-specific deltas.
   - engineer → `engineer-pipeline` (dual runtime; assess / shape / implement
     routing with intent triage; Authority parsing + dialogue discipline;
     base-session seeding + per-Wave forks with permission/question bridges;
@@ -346,13 +346,13 @@ Three per-profile layers, kept separate:
     immutable) + the upstream `social-media/xurl` skill via
     `skills.external_dirs`
 
-Routing (assistant): `orchestration` v5 owns it. The skill is
+Routing (assistant): `assistant-pipeline` owns it. The skill is
 **auto-loaded into every new Telegram DM session** via the chat-wide
 `telegram.channel_skill_bindings` entry (root DM plus fixed and user-created
 topics; gateway injects the skill body into the session's first turn;
 `compression.protect_first_n` keeps it alive; existing sessions pick it up
 after `/new` or an idle reset). Every request flows Classify → Locate → Mode
-(Chat / Plan / Execute / QA) → Deliver. Questions are risk/ambiguity driven:
+(Chat / Plan / Execute / Quality Assurance) → Deliver. Questions are risk/ambiguity driven:
 a settled request does not pay an interview tax. Tier selection is by context
 dependence, not size: `inline` for conversation/quick local work, a
 **resident session** for anything the user will give feedback on (the
@@ -361,13 +361,23 @@ cron-originated, mass-parallel, or `scheduled` work. Plan mode ends in one
 conversational approval that sanctions the grants; Execute supervises the
 sessions turn by turn; QA verifies actual artifacts before delivery.
 
+The kanban catalog is closed: its machine-readable surface is the union of
+`card_units` front matter across `assistant-pipeline/references/execute/**`.
+A card must match one unit and carry every required input; otherwise the work
+stays resident or is decomposed during planning. Composites are never one card
+(never send 0→10 as one card). Seeded units are creative:
+`anchored-image-batch`, `tts-voice`, `deterministic-render`; and research:
+`survey-enumeration`, `exhaustive-hunt`, `evidence-pack`. Engineering, writing,
+and marketing remain resident-only. All six worker pipelines fail fast at the
+Unit gate with `kanban_block(kind=capability)` for composite or malformed cards.
+
 The pinned Telegram topics are Assistant-owned **desks**, not worker threads:
 Personal binds `personal-desk` (household-budget / People / message-reply plus
 personal docs/data), Projects binds `project-desk` (the `pj` registry,
 workspace scaffold, and project docs/data), Brainstorm binds `brainstorm`, and
 Inbox has no skill because it is only the delivery target for system cron
 output. Each desk fixes the tier to `inline`; work that needs a specialist
-hands off to a new ad-hoc topic, which inherits chat-wide `orchestration` and
+hands off to a new ad-hoc topic, which inherits chat-wide `assistant-pipeline` and
 owns the sessions. The fifth Telegram pin remains a UI-managed rotation slot
 rather than a configured topic. Kanban completion notifications remain
 attached to their originating topic; only maintenance/report/sweeper cron
@@ -376,9 +386,12 @@ launcher derives `TELEGRAM_CRON_THREAD_ID` from the ignored runtime config's
 Inbox topic. Time-deferred work parks in `scheduled` via `hermes kanban
 schedule <id> "until=<ISO8601> — <reason>"`; the assistant's no_agent
 `kanban-scheduled-sweeper.sh` cron releases due cards every 15 minutes. Dead
-cards close via `hermes kanban archive <id>`. Blocked cards resume only
-through `kanban-resolve-block.sh apply` after a complete `DECISION(...)`
-batch.
+cards close via `hermes kanban archive <id>`. Only terminal events
+(completed / blocked / gave_up / crashed / timed_out) wake the assistant;
+ comments do not. Workers batch questions into one `needs_input` block, and
+ the assistant answers once via `DECISION(Q<n>):` comments plus
+ `kanban-resolve-block.sh apply`. A second block, any `capability` block, or a
+ spec-gap question pulls the card back for a resident session or re-plan.
 
 `auto_decompose` stays off — decomposition is a conversation, not a runtime
 fallback. `delegate_task` covers medium parallel lookups the user is actively
@@ -700,10 +713,11 @@ profiles were retired. Heavy work now runs in resident specialist sessions
 (`resident-session.sh`: per-key serialization, session-id recapture,
 close-on-acceptance; smoke-tested against creator with retained context);
 the assistant owns planning (one conversational approval), the quality gate
-(contracts under `orchestration/references/qa/`), and GitHub bookkeeping;
+(contracts under `assistant-pipeline/references/quality-assurance/`), and GitHub bookkeeping;
 the board shrank to fire-and-forget / cron / mass-parallel / `scheduled`
 with a lean card contract. The completion path-guard plugin, admission
 probes, and the 5-minute orphan watchdog were removed (the sweeper and the
-guarded block resolver remain); the validator now enforces workflow
-contract v2. Remaining live verification: a real short-video production run
+guarded block resolver remain); the validator now enforces the
+assistant-pipeline topology, routing completeness, `card_units` schema and
+required QA contracts. Remaining live verification: a real short-video production run
 through the new flow.
