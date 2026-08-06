@@ -149,7 +149,12 @@ def validate_index_routes(directory: Path, errors: list[str]) -> None:
             )
 
 
-def validate_card_units(path: Path, seen: dict[str, Path], errors: list[str]) -> int:
+def validate_card_units(
+    path: Path,
+    seen: dict[str, Path],
+    errors: list[str],
+    catalog: dict[str, str] | None = None,
+) -> int:
     units = frontmatter(path).get("card_units")
     if units is None:
         return 0
@@ -173,6 +178,14 @@ def validate_card_units(path: Path, seen: dict[str, Path], errors: list[str]) ->
                 f"and {rel_pipeline(path)}"
             )
         seen[name] = path
+        assignee = unit.get("assignee")
+        if assignee not in WORKER_PROFILES:
+            errors.append(
+                f"card unit {name} assignee must be a worker profile "
+                f"({assignee!r}): {rel_pipeline(path)}"
+            )
+        elif catalog is not None:
+            catalog[name] = assignee
         inputs = unit.get("required_inputs")
         if (
             not isinstance(inputs, list)
@@ -200,21 +213,48 @@ def validate_card_units(path: Path, seen: dict[str, Path], errors: list[str]) ->
     return count
 
 
-def validate_assistant_pipeline(errors: list[str]) -> tuple[int, int]:
+def collect_card_catalog() -> dict[str, str]:
+    """Best-effort card catalog (unit name -> assignee) from the execute tree.
+
+    Used when validating a single worker profile without the full assistant
+    pass; schema errors are ignored here (the --all pass reports them).
+    """
+    catalog: dict[str, str] = {}
+    execute = ASSISTANT_PIPELINE / "references" / "execute"
+    if not execute.is_dir():
+        return catalog
+    for path in sorted(execute.rglob("*.md")):
+        units = frontmatter(path).get("card_units")
+        if not isinstance(units, list):
+            continue
+        for unit in units:
+            if not isinstance(unit, dict):
+                continue
+            name = unit.get("name")
+            assignee = unit.get("assignee")
+            if isinstance(name, str) and assignee in WORKER_PROFILES:
+                catalog[name] = assignee
+    return catalog
+
+
+def validate_assistant_pipeline(
+    errors: list[str],
+) -> tuple[int, dict[str, str]]:
     """Validate the assistant-pipeline skill and its reference tree.
 
-    Returns (markdown reference file count, card unit count).
+    Returns (markdown reference file count, card catalog name -> assignee).
     """
+    catalog: dict[str, str] = {}
     skill = ASSISTANT_PIPELINE / "SKILL.md"
     if not skill.is_file():
         errors.append(f"missing assistant pipeline skill: {skill}")
-        return 0, 0
+        return 0, catalog
     validate_skill(skill, "assistant-pipeline", errors, expected_category="orchestration")
 
     references = ASSISTANT_PIPELINE / "references"
     if not references.is_dir():
         errors.append(f"missing assistant pipeline references: {references}")
-        return 0, 0
+        return 0, catalog
 
     for entry in sorted(references.iterdir()):
         if entry.name.startswith("."):
@@ -246,7 +286,7 @@ def validate_assistant_pipeline(errors: list[str]) -> tuple[int, int]:
                     continue
                 files += 1
                 if mode == "execute":
-                    validate_card_units(entry, units, errors)
+                    validate_card_units(entry, units, errors, catalog)
                 elif "card_units" in frontmatter(entry):
                     errors.append(
                         f"card_units are only legal under execute/: "
@@ -276,7 +316,7 @@ def validate_assistant_pipeline(errors: list[str]) -> tuple[int, int]:
                     continue
                 files += 1
                 if mode == "execute":
-                    validate_card_units(leaf, units, errors)
+                    validate_card_units(leaf, units, errors, catalog)
                 elif "card_units" in frontmatter(leaf):
                     errors.append(
                         f"card_units are only legal under execute/: "
@@ -294,7 +334,7 @@ def validate_assistant_pipeline(errors: list[str]) -> tuple[int, int]:
                 f"QA contract file missing: quality-assurance/{capability}/{name}"
             )
 
-    return files, len(units)
+    return files, catalog
 
 
 # ── Git ownership ───────────────────────────────────────────────────────
@@ -429,10 +469,57 @@ def validate_plugin_enabled(profile: str, config: Path, errors: list[str]) -> No
         )
 
 
+def validate_worker_card_gate(
+    profile: str, catalog: dict[str, str], errors: list[str]
+) -> None:
+    """The kernel's unit gate must mirror the assistant's card catalog.
+
+    A worker with catalog units must name each of them (backticked) in its
+    kernel; a worker with none must declare itself card-free. Every kernel
+    must carry the capability-refusal call, and none may claim another
+    profile's unit.
+    """
+    pipeline = (
+        HERMES_ROOT
+        / "profiles"
+        / profile
+        / "skills"
+        / f"{profile}-pipeline"
+        / "SKILL.md"
+    )
+    if not pipeline.is_file():
+        return
+    # Normalize whitespace so prose wrapped across lines still matches.
+    text = " ".join(pipeline.read_text(encoding="utf-8").split())
+    mine = sorted(name for name, who in catalog.items() if who == profile)
+    theirs = sorted(name for name, who in catalog.items() if who != profile)
+    for name in mine:
+        if f"`{name}`" not in text:
+            errors.append(
+                f"{profile} kernel does not name its catalog unit `{name}`"
+            )
+    if not mine and "defines no card units" not in text:
+        errors.append(
+            f"{profile} has no catalog units; its kernel must declare "
+            f'"defines no card units"'
+        )
+    if "kanban_block(kind=capability)" not in text:
+        errors.append(
+            f"{profile} kernel must refuse non-catalog cards with "
+            f"kanban_block(kind=capability)"
+        )
+    for name in theirs:
+        if f"`{name}`" in text:
+            errors.append(
+                f"{profile} kernel names another profile's catalog unit `{name}`"
+            )
+
+
 def validate_worker(
     profile: str,
     errors: list[str],
     dispatch: Path | None = None,
+    catalog: dict[str, str] | None = None,
 ) -> tuple[int, int]:
     profile_root = HERMES_ROOT / "profiles" / profile
     skills = profile_root / "skills"
@@ -491,19 +578,23 @@ def validate_worker(
                 if f"`{name}`" not in dispatch_text:
                     errors.append(f"dispatch reference does not name {name}")
 
+    if catalog is not None:
+        validate_worker_card_gate(profile, catalog, errors)
     validate_git_boundary([pipeline_dir, technic_dir], learned_dir, errors)
     validate_plugin_enabled(profile, profile_root / "config.yaml", errors)
     return len(leaves), len(learned)
 
 
-def validate_assistant(errors: list[str]) -> tuple[int, int, int, int, int]:
+def validate_assistant(
+    errors: list[str],
+) -> tuple[int, dict[str, str], int, int, int]:
     profile_root = HERMES_ROOT / "profiles" / "assistant"
     skills = profile_root / "skills"
     desks_dir = skills / "desks"
     technic_dir = skills / "technic"
     learned_dir = skills / "learned"
 
-    refs, units = validate_assistant_pipeline(errors)
+    refs, catalog = validate_assistant_pipeline(errors)
     if not desks_dir.is_dir():
         errors.append(f"missing assistant desks directory: {desks_dir}")
     if not technic_dir.is_dir():
@@ -555,7 +646,7 @@ def validate_assistant(errors: list[str]) -> tuple[int, int, int, int, int]:
     validate_plugin_enabled("assistant", profile_root / "config.example.yaml", errors)
     return (
         refs,
-        units,
+        catalog,
         len(groups["desks"]),
         len(groups["technic"]),
         len(groups["learned"]),
@@ -630,13 +721,13 @@ def main() -> int:
         validate_plugin_source(errors)
         managed, learned = validate_shared(errors)
         summaries.append(f"shared={managed} managed/{learned} learned")
-        refs, units, desks, technics, learned = validate_assistant(errors)
+        refs, catalog, desks, technics, learned = validate_assistant(errors)
         summaries.append(
-            f"assistant-pipeline={refs} refs/{units} card-units; "
+            f"assistant-pipeline={refs} refs/{len(catalog)} card-units; "
             f"assistant={desks} desks/{technics} technics/{learned} learned"
         )
         for profile in WORKER_PROFILES:
-            technics, learned = validate_worker(profile, errors)
+            technics, learned = validate_worker(profile, errors, catalog=catalog)
             summaries.append(f"{profile}={technics} technics/{learned} learned")
         for path in tracked_learned_files():
             errors.append(f"learned skill file must not be tracked: {path}")
@@ -644,13 +735,15 @@ def main() -> int:
             message = f"managed skill file is untracked: {path}"
             (errors if args.strict_git else warnings).append(message)
     elif args.profile == "assistant":
-        refs, units, desks, technics, learned = validate_assistant(errors)
+        refs, catalog, desks, technics, learned = validate_assistant(errors)
         summaries.append(
-            f"assistant-pipeline={refs} refs/{units} card-units; "
+            f"assistant-pipeline={refs} refs/{len(catalog)} card-units; "
             f"assistant={desks} desks/{technics} technics/{learned} learned"
         )
     else:
-        technics, learned = validate_worker(args.profile, errors, args.dispatch)
+        technics, learned = validate_worker(
+            args.profile, errors, args.dispatch, catalog=collect_card_catalog()
+        )
         summaries.append(f"{args.profile}={technics} technics/{learned} learned")
 
     for warning in warnings:
