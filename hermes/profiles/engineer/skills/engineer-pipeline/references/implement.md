@@ -1,6 +1,6 @@
 # Implement mode — deliver a code change by driving OpenCode
 
-Loaded when the card's deliverable is a **code change** (or the repo that
+Loaded when the brief's deliverable is a **code change** (or the repo that
 will hold one — see <BootstrapBranch>). This file is the flow skeleton; the
 mechanics live in three engines, loaded at the stage that needs them:
 
@@ -11,23 +11,24 @@ mechanics live in three engines, loaded at the stage that needs them:
 - `references/delivery.md` — GitHub flow, PR upkeep, the evidence-backed
   report. Load when work leaves the worktree.
 
-Implement consumes a **Wave outline** — from a shape slice
-(`references/shape.md`), or self-generated per RiskGate — or, on GitHub-flow
-repos, a **requirement Issue** (the Issue IS the outline; see delivery.md).
-Never double-plan: one task consumes either an Issue or a Wave outline, not
-both. Session context is NOT the durable layer — the outline/Issue (text),
-git history, and kanban comments are.
+Implement consumes a plan from the brief: the assistant's approved **base
+plan session** (`Base session: <id>` — seed the Wave loop from it), a
+**requirement Issue** on GitHub-flow repos (the Issue IS the outline; see
+delivery.md), or — when the brief supplies neither — a Wave outline you
+self-generate per RiskGate. Never double-plan: one job consumes exactly
+one of these. Session context is NOT the durable layer — the
+outline/Issue (text), git history, and your session reports are.
 
 ## IntentDispatch
 
-The core file's <IntentTriage> classified the card (`feature` / `bugfix` /
+The core file's <IntentTriage> classified the job (`feature` / `bugfix` /
 `refactor` / `rebuild` / `perf` / `deps`). The intent shapes three things:
 
 1. **The first move** (from the triage table) — e.g. bugfix reproduces
    BEFORE any OpenCode build run; perf measures the baseline; refactor
    confirms the test safety net is green; rebuild confirms the evacuation.
-   Do it, record the evidence in a `PROGRESS:`/`STATE:` comment — it is the
-   before-side of the intent gate in `references/verify.md`.
+   Do it, record the evidence in your report — it is the before-side of
+   the intent gate in `references/verify.md`.
 2. **What OpenCode loads** — this machine's OpenCode owns a matching
    approach skill for most intents; the catalog lives in `opencode-env`
    <IntentCatalog>. Name it in the dispatch prompt ("load and follow
@@ -36,8 +37,8 @@ The core file's <IntentTriage> classified the card (`feature` / `bugfix` /
 3. **The verification profile** — `references/verify.md` intent rows are the
    acceptance floor for every Wave close and the final handback.
 
-Cards from a shape slice carry `Intent:` in the body; absent → infer per the
-core table and note the inferred token in your first `PROGRESS:` comment.
+The brief may carry `Intent:` explicitly; absent → infer per the core
+table and note the inferred token in your first report.
 
 ## RiskGate
 
@@ -46,8 +47,8 @@ Plan-approval is risk-tiered, not unconditional:
 | Tier | Examples | Gate |
 | --- | --- | --- |
 | Low | mechanical fix, docs, small test, cleanup within scope | no base, no Waves; implement directly in one session |
-| Medium | standard feature/refactor inside granted scope | establish the base (Wave outline), run the Wave loop, self-review; attach the outline (kanban_attach) for the audit trail |
-| High | architecture change, public API/schema change, dependency change, anything outside Authority | establish the base, then — unless a shape slice already produced an **approved** outline — checkpoint-then-block with the outline attached, wait for approval before the loop |
+| Medium | standard feature/refactor inside granted scope | establish the base (the supplied plan session, or a self-generated Wave outline), run the Wave loop, self-review; keep the outline as a worktree file for the audit trail |
+| High | architecture change, public API/schema change, dependency change, anything outside Authority | establish the base, then — unless the brief already supplies an **approved** base session or outline — checkpoint-then-block with the outline in your reply, wait for approval before the loop |
 
 ## Steps
 
@@ -64,11 +65,11 @@ Plan-approval is risk-tiered, not unconditional:
 2. **Model + loop setup** — load `references/opencode.md`; route
    provider/model (<ModelRouting>); apply the <RiskGate>.
 3. **Run the Wave loop** per opencode.md <OpenCodeLoop>: decompose (plan
-   fork) → confirm (**the GO gate** — a `PROGRESS: Wave N phases confirmed`
-   comment must exist before the build fork; a detailed approved plan goes
+   fork) → confirm (**the GO gate** — a `Wave N phases confirmed` line
+   must be reported before the build fork; a detailed approved plan goes
    through the derive variant, <DetailedPlanRule>, never straight to
    build) → implement (build fork under <PermissionBridge>) → verify →
-   commit → `PROGRESS:` with ids. Read every run's output per
+   commit → report with ids. Read every run's output per
    <QuestionBridge>; interpose <InspectionPrimaries> where a Wave warrants
    it; recover per <CourseCorrect>. Low tier: one session, same bridges.
 4. **Verify per Wave and at the end** — load `references/verify.md`; run the
@@ -84,11 +85,12 @@ before completion.
 
 ## BootstrapBranch — no repo yet
 
-When the card says to establish a repo that does not exist (the assistant
+When the brief says to establish a repo that does not exist (the assistant
 decided the path after an assess bootstrap signal), this is the one **write
 path that does not use OpenCode** — there is no codebase for it to operate
-on. Work with `git` / `gh` / the scaffolder directly. Establish the skeleton
-+ initial commit; never plan Waves or build features in the same card.
+on. Work with `git` / `gh` / the scaffolder directly. Establish the
+skeleton + initial commit; never plan Waves or build features in the same
+job.
 
 **Authority — B1/B2, not A1-3** (there is no worktree yet):
 
@@ -97,16 +99,16 @@ on. Work with `git` / `gh` / the scaffolder directly. Establish the skeleton
 | `B1` (default) | create the repo **locally only** — clone / scaffold / `git init` at the target ghq path (the chosen starter's own dependency install included), initial commit. No remote. |
 | `B2` | B1 + `gh repo create` (the named repo + visibility from the body) + push the initial commit. |
 
-Inputs the body must supply (block if missing): **target** (`owner`/`repo` +
-absolute ghq path — the durable home; the task itself runs in a `scratch`
-workspace, so always operate on the absolute path: `git -C <path>`,
-`<scaffolder> <path>`), **path** (`clone <url|owner/repo>` /
-`starter <scaffolder + source>` / `greenfield`), **visibility** (B2 only).
+Inputs the brief must supply (ask if missing): **target** (`owner`/`repo`
++ absolute ghq path — the durable home; always operate on the absolute
+path: `git -C <path>`, `<scaffolder> <path>`), **path**
+(`clone <url|owner/repo>` / `starter <scaffolder + source>` /
+`greenfield`), **visibility** (B2 only).
 
 Procedure:
 
 1. **Guard.** The target must not already contain a repo (`git -C <path>
-   rev-parse` fails / dir absent or empty). Non-empty target → block, never
+   rev-parse` fails / dir absent or empty). Non-empty target → ask, never
    overwrite.
 2. **Establish** per the chosen path: `gh repo clone` / the named scaffolder
    (`npx degit`, `create-next-app`, `cargo new`, `uv init`, …; `git init` if
@@ -128,8 +130,8 @@ Procedure:
 
 Bootstrap pitfalls: opening OpenCode (no codebase yet); remote/push at B1;
 overwriting a non-empty target; speculative scaffolding beyond the asked
-skeleton; shopping for a starter (the orchestrator chose the path — execute
-it or block).
+skeleton; shopping for a starter (the orchestrator chose the path —
+execute it or ask).
 
 ## Pitfalls
 
@@ -138,8 +140,7 @@ it or block).
   no before-side to compare against.
 - Treating the intent label as decoration — it decides the OpenCode approach
   skill and the verification floor; an inferred intent that feels wrong
-  mid-task is a finding for a `PROGRESS:` note (and a `Q<n>` if it changes
-  scope).
+  mid-job is a finding to report (and a `Q<n>` if it changes scope).
 - Working from this skeleton without loading the engine the stage needs —
   the bridges, V-checks, and GitHub flow live there, not here.
 - Building a Wave whose decompose surfaced an out-of-grant need (dependency,
@@ -156,10 +157,11 @@ it or block).
 - The intent was named (body or inferred + noted); its first move ran with
   recorded evidence; the verify.md intent profile passed at every Wave close
   and at handback.
-- Every Wave's build fork was preceded by its `PROGRESS: Wave N phases
+- Every Wave's build fork was preceded by its reported `Wave N phases
   confirmed` gate artifact (opencode.md <OpenCodeLoop> confirm step).
-- RiskGate honored: medium/high work has the outline attached; high without
-  a prior approved outline had an approval round-trip.
+- RiskGate honored: medium/high work has the outline preserved in the
+  worktree; high without a prior approved base/outline had an approval
+  round-trip.
 - Engines were loaded at their stages (opencode.md before the first run,
   verify.md before acceptance, delivery.md before remote actions).
 - Bootstrap branch: the guard ran; remote/push only under B2; pj untouched;

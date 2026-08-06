@@ -1,15 +1,15 @@
 # Assess mode — read-only findings
 
-Loaded when the card wants **knowledge, not changes**: the deliverable is
+Loaded when the brief wants **knowledge, not changes**: the deliverable is
 facts, a feasibility verdict, a root-cause diagnosis, or a review — never
 code. Absorbs the former orient and advisory modes (their openers still
-route here). Four branches share the same floor rules; pick by what the card
-asks for:
+route here). Four branches share the same floor rules; pick by what the
+brief asks for:
 
-| Branch | The card asks | Deliverable |
+| Branch | The brief asks | Deliverable |
 | --- | --- | --- |
 | **facts** (ex-orient) | "what IS the state of the repo / environment / GitHub?" — no judgment requested | ground-truth report |
-| **feasibility** (ex-advisory) | "is this buildable? shape? risk? size?" — a Plan-Loop consultation | verdict + shape + risks + size |
+| **feasibility** (ex-advisory) | "is this buildable? shape? risk? size?" — a plan consultation | verdict + shape + risks + size |
 | **diagnosis** | "why is this broken / what's the root cause?" — no fix requested | evidence-backed cause + fix direction |
 | **review** | "evaluate this PR / diff / implementation" | verdict + concerns with evidence |
 
@@ -75,12 +75,11 @@ recommendation; never name candidates from memory. The decision and the
 actual clone/scaffold belong to the assistant + an implement task's
 bootstrap branch (`references/implement.md`) — assess stops at the report.
 
-## Branch: feasibility (Plan-Loop consultation)
+## Branch: feasibility (plan consultation)
 
-Dispatch contract (orchestration side): scratch workspace, small
-`max_runtime_seconds` (~600), deliverable at the **feasibility altitude** —
-not implementation altitude. Restate the decision the plan is waiting on in
-one line, inspect, then:
+The assistant is mid-plan with the user and needs a fast verdict at the
+**feasibility altitude** — not implementation altitude. Restate the
+decision the plan is waiting on in one line, inspect, then:
 
 ```markdown
 ## Question
@@ -98,9 +97,9 @@ one line, inspect, then:
 ```
 
 If the question genuinely cannot be answered without building, that IS the
-answer ("needs a spike"). A **Wave outline** is not a feasibility deliverable
-— that is shape's outline branch (`references/shape.md`); say so and give
-the verdict inline.
+answer ("needs a spike"). A **Wave outline** is not a feasibility
+deliverable — planning belongs to the assistant's own OpenCode plan
+session; say so and give the verdict inline.
 
 ## Branch: diagnosis (root cause, no fix)
 
@@ -160,10 +159,10 @@ via OpenCode (`references/delivery.md`), never raw `gh`.
 
 ## MEMORY.md
 
-Persist only durable, cross-task repo facts (build/test/lint commands,
-layout, environment quirks, commit convention) so later tasks start
-informed. Never task state or transient report bodies — those live in the
-kanban thread.
+Persist only durable, cross-job repo facts (build/test/lint commands,
+layout, environment quirks, commit convention) so later jobs start
+informed. Never job state or transient report bodies — those live in the
+session dialogue.
 
 ## Report
 
@@ -176,7 +175,7 @@ kanban thread.
 
 ## Pitfalls
 
-- Writing anything — assess is read-only; the fix belongs to a bugfix card,
+- Writing anything — assess is read-only; the fix belongs to a bugfix job,
   the scaffold to implement's bootstrap branch.
 - Branch drift: facts drifting into judgment, feasibility into solution
   design, diagnosis into patching, review into rewriting. Report at the

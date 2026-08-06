@@ -5,8 +5,8 @@ description: >-
   repositories and their platform derivatives are named, discovered at
   runtime (ghq + gh, never from memory), evaluated for fit, and introduced
   when bootstrapping a new repository (implement.md's B1/B2 bootstrap
-  branch). Load it when an assess card reports a bootstrap signal and needs
-  grounded starter candidates, or when a bootstrap card's chosen path names
+  branch). Load it when an assess job reports a bootstrap signal and needs
+  grounded starter candidates, or when a bootstrap job's chosen path names
   a starter from the local family. Generic by design: this file carries
   conventions and recipes only — concrete family names are discovered per
   task and persisted to MEMORY.md, never written into this skill.
@@ -37,9 +37,9 @@ here. Discover them at runtime; persist durable findings to MEMORY.md.
 <Scope>
 <UseWhen>
 
-- An assess (facts) card hits the bootstrap signal — no repo exists — and
+- An assess (facts) job hits the bootstrap signal — no repo exists — and
   the report should include grounded `starter:` candidates.
-- A bootstrap card (implement.md <BootstrapBranch>) whose chosen path names
+- A bootstrap job (implement.md <BootstrapBranch>) whose chosen path names
   a starter from the local family, and you need the introduction mechanics
   (clone source, remote wiring).
 - A feasibility verdict depends on whether a suitable starter exists here.
@@ -85,7 +85,7 @@ Two conventions travel with the tree:
 - **Rebranding is not bootstrap.** Changing the identity surface (README
   title/intro/clone URLs, package names, container names) to the new
   repo's own is the first Wave of the FIRST implement task on the new
-  repo — the bootstrap card only establishes the clone, the remotes, and
+  repo — the bootstrap job only establishes the clone, the remotes, and
   the initial commit state.
 
 </FamilyConvention>
@@ -128,7 +128,7 @@ never a decision:
 
 <IntroductionPaths>
 
-Executed only on a bootstrap card, under its B grant
+Executed only on a bootstrap job, under its B grant
 (implement.md <BootstrapBranch> owns the full contract — guard, initial
 commit, report):
 
@@ -141,7 +141,7 @@ commit, report):
 - Rebranding stays out (see <FamilyConvention>) — report it as the
   expected first Wave of the follow-up implement task instead.
 - Preserving upstream history vs a squashed start is a **path decision the
-  card body must state** (plain clone keeps history; `--template` or
+  brief must state** (plain clone keeps history; `--template` or
   `degit`-style copies do not) — absent, block rather than pick.
 
 </IntroductionPaths>
@@ -164,7 +164,7 @@ this file, a report template, or any tracked config.
   recommendation go UP (assess report / `Q<n>`); the orchestrator decides.
 - Cloning a derivative without wiring the `upstream` remote — it silently
   leaves the family.
-- Rebranding, feature work, or Wave planning inside the bootstrap card.
+- Rebranding, feature work, or Wave planning inside the bootstrap job.
 - Instantiating a template repo on a B1 grant — template creation is
   remote-first, therefore B2.
 - Writing discovered repo names into this skill or other tracked files —
@@ -176,7 +176,7 @@ this file, a report template, or any tracked config.
 
 - Every candidate named in a report came from a recipe run in THIS task,
   with lineage and freshness noted.
-- The path decision was made by the orchestrator (card body or DECISION),
+- The path decision was made by the orchestrator's brief or answer,
   not by this skill's user; fit evaluation stayed read-only.
 - An introduced derivative has `origin` pointing at its own repo and
   `upstream` at its parent; remote actions occurred only under B2.
