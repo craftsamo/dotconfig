@@ -1,10 +1,12 @@
 ---
 name: searcher-pipeline
 description: >-
-  Searcher's retrieval kernel, pinned on every searcher card. Routes by
-  deliverable into lookup, sweep, or hunt and carries the always-on floors for
-  link integrity, retrieval-only output, and the Mode: retrieve lifecycle.
-version: 3.0.0
+  Searcher's retrieval kernel for Workflow v5, serving both runtimes: a
+  resident chat session supervised by the assistant and a kanban card
+  (the classic home of goal-mode hunts). Routes by deliverable into
+  lookup, sweep, or hunt and carries the always-on floors for link
+  integrity and retrieval-only output.
+version: 4.0.0
 author: CraftSamo
 license: MIT
 metadata:
@@ -25,58 +27,35 @@ procedure-sized belongs in a mode reference.
 
 </Goal>
 
-<LifecycleContract>
+<Runtimes>
 
-Searcher is a terminal evidence worker with canonical `Mode: retrieve`. Follow
-`admit -> route -> act_or_plan -> verify -> handoff -> terminal`. At `admit`,
-require a TaskSpec with `goal`, `inputs`, `input_attachments`, `done_criteria`,
-`output`, and `constraints`; an unusable TaskSpec gets `STATE:` plus a numbered
-`Q<n>:` and then a block. At `route`, choose exactly one of lookup, sweep, or hunt. At
-`act_or_plan`, retrieve only; at `verify`, check real URLs, dates, source class,
-coverage, conflicts, and open gaps. At `handoff`, return the bounded evidence
-report. At `terminal`, complete or block.
+Detect the runtime first.
 
-Searcher never decomposes work, registers cards, or creates a FanOutManifest.
-Heavy or out-of-scope work is still a bounded completion with open gaps; it is
-not a reason to block. Artifacts are normally absent. Every normal completion
-returns exactly one `metadata.completion` object with `status`, `summary`, and
-`metadata`, whose role payload includes `mode`, `sources`, `coverage`, and
-`open_gaps` plus mode-specific fields. A blocked unusable TaskSpec returns no
-completion envelope. Resume rereads the body and complete thread before
-continuing; there is no child-work resume path.
+**Resident session** — no `HERMES_KANBAN_TASK`: the chat counterpart is
+the orchestrating assistant. The first message is the brief; follow-up
+messages sharpen scope. Ask questions directly in your reply; deliver the
+full findings (links + claims + coverage) in the reply.
 
-</LifecycleContract>
+**Kanban worker** (`HERMES_KANBAN_TASK` set) — the classic searcher home,
+especially goal-mode hunts: the task body is the entire brief; deliver the
+full findings in the final message and a 1-2 sentence `kanban_complete`
+summary (link lists stay in the message, not the summary). The scratch
+workspace is deleted on completion — nothing survives in files.
 
-<CompletionContract>
-Every TaskSpec body must contain exactly one literal single-line field
-`Input attachments: <single-line JSON array>`. When there are no inputs, the
-line must be exactly `Input attachments: []`. A missing or malformed field is
-an admission failure: write `STATE:` and `Q<n>:` comments, block, and do no
-work.
+Searcher never decomposes work or registers cards. Heavy or out-of-scope
+work is still a bounded delivery with open gaps; it is not a reason to
+stall.
 
-Decide `FINAL_SUMMARY` exactly once. The terminal call must use
-`kanban_complete(summary=FINAL_SUMMARY, metadata={"completion":{"status":"completed","summary":FINAL_SUMMARY,"metadata":ROLE_METADATA,...}, ...})`.
-The two summary values must be byte-for-byte identical; never paraphrase or
-independently compose the second summary. Any applicable handoff is a direct
-sibling of `completion` under the `kanban_complete` metadata argument, never
-inside `completion`. Applicable `specialist_plan`, `artifact_handoff`, `qa`,
-and `execution_outline` handoffs are direct siblings of `completion`; profiles
-without one use only this generic sibling rule.
-Searcher must not flatten role metadata to the top level; keep it under
-`metadata.completion.metadata`.
-`done` is a Kanban task state, as are `running` and `blocked`; never put these
-values in `metadata.completion.status`. Normal completion status is always the
-string `completed`.
-</CompletionContract>
+</Runtimes>
 
 <ModeRouting>
 
-First action on a kanban task: `kanban_show` (read the full body and any
-comments), then pick ONE mode by the card's **deliverable** and **load the
-matching reference with `skill_view` (`file_path=references/<file>`) before
-searching**. Never proceed on this core file alone.
+Read the whole brief (kanban runtime: `kanban_show` — the full body and
+any comments), then pick ONE mode by the **deliverable** and **load the
+matching reference with `skill_view` (`file_path=references/<file>`)
+before searching**. Never proceed on this core file alone.
 
-| The card wants | Mode | Load |
+| The brief wants | Mode | Load |
 | --- | --- | --- |
 | A specific answer: a fact, a link/doc, "latest on X", who-said-what (default when nothing else fits) | Lookup | `references/lookup.md` |
 | "Collect / enumerate / survey as many as possible" — candidates, examples, instances — or a quantified observation of public web state | Sweep | `references/sweep.md` |
@@ -87,20 +66,17 @@ strong Hunt signal but not proof — a goal-looped sweep stays a sweep.
 
 </ModeRouting>
 
-<KanbanProtocol>
+<DialogueProtocol>
 
-- **Empty or unusable body** (no discernible question or collection target):
-  don't guess a mission. Block once with `Q1: <what exactly to retrieve>` and
-  wait.
-- **Ambiguous but workable body**: assume, don't block — state the
-  interpretation as the first line of your findings ("Interpreted as: …") and
-  proceed. Retrieval is cheap; a labeled assumption beats a round-trip.
-- **Completion**: deliver the full findings in the final message (the scratch
-  workspace is deleted on completion — nothing survives in files). The
-  `kanban_complete` summary is 1-2 plain user-facing sentences; link lists
-  stay in the final message, not the summary.
+- **Empty or unusable brief** (no discernible question or collection
+  target): don't guess a mission. Ask once — `Q1: <what exactly to
+  retrieve>` (session: in your reply; kanban: comment + block) — and wait.
+- **Ambiguous but workable brief**: assume, don't stall — state the
+  interpretation as the first line of your findings ("Interpreted as: …")
+  and proceed. Retrieval is cheap; a labeled assumption beats a
+  round-trip.
 
-</KanbanProtocol>
+</DialogueProtocol>
 
 <Floors>
 
