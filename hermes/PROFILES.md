@@ -13,21 +13,30 @@ its own `config.yaml` / `SOUL.md` / `skills/` / `cron/` / state, and a
 ## Topology
 
 ```
-   human (terminal)            human (Discord / Telegram)
+   human (terminal)            human (Telegram)
           │                              │
         default ──┐                  assistant ──┐   (runs the gateway + kanban dispatcher)
         (CLI)     │                (~/Workspaces)│
                   │                              │
                   └──────────┬───────────────────┘
-                             │ create kanban tasks
-                             ▼
-                 ~/.hermes/kanban.db  (one shared board)
-                             │ dispatcher (in assistant's gateway) spawns
-                 ┌──────────────┼──────────────┬──────────────┬──────────────┬──────────────┬──────────────┬──────────────┬──────────────┐
-                 ▼              ▼              ▼              ▼              ▼              ▼              ▼              ▼
-             planner      searcher      researcher       engineer       creator        writer        marketer        qa
-             (integrate)  (retrieve)    (analyze)        (plan/execute) (plan/execute)  (plan/execute) (plan/execute)  (verify)
+                             │
+        ┌────────────────────┼──────────────────────┐
+        │ resident sessions  │ lean kanban cards    │ delegate_task
+        │ (default for       │ (fire-and-forget,    │ (in-turn parallel
+        │  heavy work)       │  cron, mass-parallel,│  lookups)
+        ▼                    ▼  scheduled)          ▼
+  hermes -p <specialist>   ~/.hermes/kanban.db    anonymous subagents
+  chat --resume <id>         │ dispatcher spawns
+        │              ┌─────┴────┬─────────┬────────┬────────┬────────┐
+        ▼              ▼          ▼         ▼        ▼        ▼        ▼
+   searcher/researcher/engineer/creator/writer/marketer  (same six profiles)
 ```
+
+Heavy interactive work runs in **resident sessions**: the assistant starts a
+persistent `hermes -p <specialist> chat` conversation through
+`assistant/scripts/resident-session.sh` (background + completion notify,
+per-key serialization, close-on-acceptance) and supervises it turn by turn.
+The board remains for work where conversation adds nothing.
 
 Verified against the source clone
 (`~/ghq/github.com/NousResearch/hermes-agent`):
@@ -46,18 +55,20 @@ Verified against the source clone
   (`kanban_db.py:6705-6837,6607`). Workers therefore get the `global` + `hermes`
   Keychain layers injected automatically — **no per-worker secret is needed.**
 
-## Two delegation layers
+## Three delegation layers
 
-| | Kanban | `delegate_task` |
-| --- | --- | --- |
-| Worker | **named profile** (planner/engineer/researcher/searcher/creator/writer/qa/marketer) | anonymous subagent |
-| Durability | persistent queue, resumable, human-in-loop | synchronous, dies with the turn |
-| Requires | a running gateway (the dispatcher) | nothing — fires automatically |
-| Use for | cross-agent / long / auditable work | in-turn parallel research or refactor |
+| | Resident session | Kanban | `delegate_task` |
+| --- | --- | --- | --- |
+| Worker | **named profile** session with living context | **named profile**, fresh process per run | anonymous subagent |
+| Dialogue | conversational turns (feedback in minutes) | STATE/Q<n>/DECISION comments + block round-trips | none — one shot |
+| Durability | session registry + durable-path files | persistent queue, resumable | dies with the turn |
+| Requires | terminal + the wrapper script | a running gateway (the dispatcher) | nothing |
+| Use for | **default for heavy work**: anything you expect to give feedback on | fire-and-forget, cron-originated, mass-parallel, `scheduled` parking | in-turn parallel lookups |
 
-**Fallback story:** gateway up → durable named-worker delegation via Kanban.
-Gateway down → `default` still parallelizes via `delegate_task` (anonymous,
-in-turn). A Kanban worker may itself call `delegate_task` during its run.
+**Fallback story:** resident sessions work whenever `hermes` runs — no
+gateway needed. Gateway up adds the board for fire-and-forget work; gateway
+down, `default` still parallelizes via `delegate_task`. A specialist may
+itself call `delegate_task` during its run.
 
 ## Profile roster
 
@@ -65,14 +76,12 @@ in-turn). A Kanban worker may itself call `delegate_task` during its run.
 | --- | --- | --- | --- | --- | --- | --- |
 | **default** | CLI front door — assistant's CLI counterpart (neutral persona) | CLI | `.` (launch dir) | `web,browser,terminal,file,code_execution,vision,x_search,skills,todo,memory,clarify,delegation,cronjob,kanban` | — | yes |
 | **assistant** | messaging front door + dispatcher host | Telegram | `~/Workspaces` | `web,browser,terminal,file,vision,x_search,skills,todo,memory,clarify,delegation,cronjob,computer_use,kanban` | **yes** | yes (token per-machine) |
-| **planner** | final planning compiler; `Mode: integrate` reconciles approved final SpecialistPlans into one ExecutionOutline and never investigates, executes, fans out, or registers cards | — (worker) | `.` (launch / task ws) | `file,web,skills,memory` | — | yes |
-| **engineer** | `Mode: plan` proposes a read-only technical SpecialistPlan; `Mode: execute` implements via OpenCode and the GitHub flow under an Authority grant | — (worker) | `.` (launch / task ws) | `terminal,file,web,skills,todo,memory,delegation` | — | yes |
-| **researcher** | `Mode: analyze` produces evidence-backed synthesis, comparisons, fact checks, or guidance; heavy retrieval uses a bounded FanOutManifest | — (worker) | `.` (launch / task ws) | `file,web,vision,video,skills,memory,delegation` | — | yes |
-| **searcher** | terminal `Mode: retrieve` worker for lookup / sweep / hunt (multi-hop via `goal_mode`); never fans out | — (worker) | `.` (launch / task ws) | `web,x_search,skills,memory` | — | yes |
-| **creator** | `Mode: plan` proposes media production; `Mode: execute` produces image, video, GIF, audio, song, and voice assets under a Budget grant | — (worker) | `.` (launch / task ws) | `terminal,file,vision,image_gen,video_gen,video,tts,skills,memory,delegation` + gen plugins | — | yes |
-| **writer** | `Mode: plan` proposes structure, sources, and QA routes; `Mode: execute` writes reader-facing prose or producer-facing scripts and never publishes | — (worker) | `.` (launch / task ws) | `file,web,skills,memory,delegation` | — | yes |
-| **marketer** | `Mode: plan` proposes campaign execution; `Mode: execute` assesses, shapes, drafts, and publishes only within a Publish grant | — (worker) | `.` (launch / task ws) | `terminal,file,web,browser,x_search,vision,skills,memory,delegation` | — | yes |
-| **qa** | terminal `Mode: verify` worker and independent read-only gate for immutable Creator/Writer candidates | — (worker) | `.` (launch / task ws) | `terminal,file,browser,vision,video,skills,memory` | — | yes |
+| **engineer** | supervises OpenCode: assess (read-only) / shape (draft decompositions, outlines) / implement, under an Authority grant; GitHub bookkeeping stays with the assistant | — (specialist) | `.` (launch / task ws) | `terminal,file,web,skills,todo,memory,delegation` | — | yes |
+| **researcher** | evidence-backed synthesis, comparisons, fact checks, and guidance; heavy breadth is requested from the orchestrator | — (specialist) | `.` (launch / task ws) | `file,web,vision,video,skills,memory,delegation` | — | yes |
+| **searcher** | retrieval: lookup / sweep / hunt (multi-hop via `goal_mode` on cards) | — (specialist) | `.` (launch / task ws) | `web,x_search,skills,memory` | — | yes |
+| **creator** | all media production — image, video, GIF, audio, song, voice — under a Budget grant, with advisory and style-anchor rounds | — (specialist) | `.` (launch / task ws) | `terminal,file,vision,image_gen,video_gen,video,tts,skills,memory,delegation` + gen plugins | — | yes |
+| **writer** | reader-facing prose and producer-facing scripts; draft-only, never publishes | — (specialist) | `.` (launch / task ws) | `file,web,skills,memory,delegation` | — | yes |
+| **marketer** | campaign assess/shape/drafts, and publishing only within a Publish grant | — (specialist) | `.` (launch / task ws) | `terminal,file,web,browser,x_search,vision,skills,memory,delegation` | — | yes |
 
 The table lists each role's native capability allowlist. `platform_toolsets` is
 the runtime authority; top-level `toolsets` mirrors it and retains `kanban` on
@@ -81,71 +90,35 @@ task-scoped Kanban lifecycle tools automatically. `no_mcp` is present in every
 active platform allowlist but omitted from the table because it is a denial
 sentinel, not a capability. Worker Telegram / Discord lists, default's messaging
 lists, and assistant's disabled Discord list are empty by design.
-QA has no generation, web, or delegation toolsets. Browser access is limited by
-policy to supplied local/browser artifacts; terminal/file read-only behavior is
-also policy-enforced rather than an OS-level immutable mount, so QA and the
-Assistant both recheck artifact digests around the verdict/release boundary.
 
-Role split: **Assistant** owns acceptance/release and user-intent coverage;
-the **producer** self-verifies; **searcher** retrieves; **researcher** supplies
-external facts, sources, and specifications; and **qa** performs the actual,
-independent artifact-vs-TaskSpec audit. **User approval follows a QA pass.**
-Researcher no longer owns artifact-vs-brief QA. This preserves the normal
-**searcher (retrieve) → researcher (synthesize) → engineer (implement)** flow,
-mirroring the `delegate_task` toolset patterns (`["web"]` /
-`["file","web"]` / `["terminal","file"]`), with **creator** (produce media)
-and **writer** (produce reader-facing prose — the deliverable is the text
-itself, vs researcher's verified conclusions) as side stages, and **marketer**
-as the outbound end stage: it orchestrates campaigns (fanning out to
-writer/creator/searcher/researcher) and is the only profile that publishes to
-public channels.
+Role split: **the assistant** plans with the user, supervises specialists,
+performs the quality gate itself (the QA contracts under
+`skills/orchestration/references/qa/`), owns GitHub bookkeeping, and
+delivers; the **producer** self-verifies before reporting. The normal flow
+stays **searcher (retrieve) → researcher (synthesize) → engineer
+(implement)**, with **creator** (media) and **writer** (prose/scripts) as
+production stages and **marketer** as the outbound end stage — the only
+profile that publishes to public channels. User approval follows the
+assistant's own verification, not instead of it.
 
-### Dedicated QA gate
+### Assistant quality gate
 
-The final Creator/Writer flow is: **production candidate** → optional
-Assistant-predeclared Researcher fact-check → **qa** → Assistant delivery →
-User approval. Advisory, plan, critique, and rough outputs are exempt. QA is
-read-only and returns only `pass`, `fail`, or `can't_verify`; `can't_verify` is
-non-passing. A revision always receives fresh production, followed by
-late-bound fresh QA after completion admission and digest resolution. A
-Writer QA-gated output attaches the complete immutable text, not an excerpt or
-summary.
+The assistant is the quality gate. Every specialist deliverable — a resident
+session reply or a card completion — is a candidate until the assistant
+verified the actual artifact per the contracts under
+`skills/orchestration/references/qa/` (vision on images/frames, ffprobe on av
+media, read the prose, spot-check sources; `delegate_task` fans out
+per-artifact checks on large sets). Defects go back to the same resident
+session as itemized feedback — a minutes-scale loop, not a card cycle.
+Delivery happens only after verification; the session is closed on
+acceptance. External factual claims still ride researcher evidence supplied
+in the flow.
 
-The Assistant creates production and Researcher evidence with ordinary
-`kanban_create`, requires `subscribed=true` and a task-spec probe, and late-binds
-QA after candidate and evidence CompletionAdmission. All cards are subscribed;
-the orphan watchdog runs every 5 minutes and reports unsubscribed blocks or
-failures, FAN_OUT handoffs, ordinary completions not marked handled,
-QA-required completions not materialized, and completed QA cards not marked
-handled.
-The ordinary-completion scan starts at the workflow-contract rollout cutoff so
-pre-contract history does not become an endless recovery backlog.
-Dynamic Worker fan-out attaches one digest-checked `fan-out.yaml` and blocks
-with `FAN_OUT_READY:`. The Assistant validates the full DAG, persists an
-`ORCHESTRATION_PENDING_OVERLAY`, registers only eligible roots, and leaves
-dependent children and continuation pending. QA remains an immutable producer
-requirement until candidate/evidence CompletionAdmission resolves actual
-digests, then the Assistant records `QA_MATERIALIZED:` with the derived task and
-contract digest plus the producer/completion-event binding. The exact normalized
-QA spec and key are first persisted as `QA_PENDING_MATERIALIZATION:` so a crash
-after create can reconcile the same idempotent card. It then records an event-bound
-`DECISION(FAN_OUT_READY)` and resumes through the guarded block resolver.
-The asynchronous workflow requires a gateway-chat or supported subscribed TUI
-owner. Classic CLI sessions do not dispatch Kanban work; they keep work inline
-or hand it to the messaging Assistant because they cannot own durable wakes.
-
-The org stays **flat by design**: profiles are global and the board is one
-shared queue, so "hierarchy" is expressed as routing policy + `parents`
-fan-in, not nested profiles. Workers never register cards. When durable child
-work is needed, a Worker returns a bounded FanOutManifest and blocks; the
-Assistant persists the complete overlay and registers eligible children with
-subscriptions and deterministic keys. A same-profile continuation becomes
-eligible only after all of its direct parents pass CompletionAdmission. Grants
-never propagate to children.
-QA-gated producers and Marketer production use the same Assistant-owned handoff
-inside the normal graph protocol.
-A live supervising mid-manager isn't possible anyway — block/done
-notifications reach gateway chat sessions, never a parent worker.
+The org stays **flat by design**: profiles are global, sessions are owned by
+the assistant, and the board is one shared queue. Specialists never register
+cards; follow-up work they propose returns in their reply or completion
+summary, and the assistant decides. Grants never propagate between
+specialists.
 
 ### Engineer dialogue loop (the four layered loops)
 
@@ -154,9 +127,9 @@ channel, its own durable state, and its own decision altitude:
 
 | # | Loop | Channel | Durable state | Decides |
 | --- | --- | --- | --- | --- |
-| L1 requirements | user ↔ assistant | chat + risk/ambiguity-driven `clarify` | RequirementSpec; PlanningGraph anchor after approval gate 1 | what/why: goal, done criteria, constraints, grant posture |
-| L2 detail | assistant ↔ engineer | kanban block round-trips (`Q<n>`/`DECISION`) | kanban comment thread | how (shape): feasibility, plan revision, in-grant calls |
-| L3 implementation | engineer ↔ OpenCode | `opencode run` (P0 master-plan session + per-unit forks) | P0 session + git history + plan attachment | how (detail): unit split, tactics, model, verification |
+| L1 requirements | user ↔ assistant | chat + risk/ambiguity-driven `clarify` | the approved plan (one gate); the assistant's OpenCode base plan session | what/why: goal, done criteria, constraints, grant posture |
+| L2 detail | assistant ↔ engineer | resident-session turns (default) or kanban block round-trips | session registry + replies; kanban thread on cards | how (shape): feasibility, plan revision, in-grant calls |
+| L3 implementation | engineer ↔ OpenCode | `opencode run` (base plan session + per-Wave forks) | base session + git history + plan document | how (detail): unit split, tactics, model, verification |
 | L4 in-run | OpenCode ↔ its subagents (reviewer/debugger/…) | OpenCode task tool, per the `opencode/` config | subagent sessions | code-level: review findings, root causes |
 
 Three principles hold the stack together: **escalation moves one layer at a
@@ -168,14 +141,14 @@ speaking OpenCode — prompts, forks, permission env); **L4 is hands-off**
 (the engineer judges results by independent verification, never micromanages
 the subagents).
 
-Workers are disposable processes (a `kanban_block` ends the run; unblock
-respawns a fresh one), so continuity lives in the durable layers above —
-never in a long-running session. In L3 the engineer plans once in a lean
-**P0** session (`--agent plan`; unit split + architecture only), then
-implements each PR-sized unit in a short-lived **fork** of P0
-(`run -s <P0> --fork`), ending every unit with verify → commit →
-`PROGRESS:` comment carrying the session ids; review/debug primaries run as
-fresh read-only sessions. Two bridges wire L3 to OpenCode's non-interactive
+In a resident session, L2 continuity lives in the session itself; on kanban
+cards the worker process stays disposable and continuity lives in the
+comment thread + git. In L3 the engineer starts from the **base** plan
+session — normally created and approved at L1 by the assistant and handed
+over in the brief (`Base session: <id>`) — then implements each Wave in a
+short-lived **fork** of it (`run -s <base> --fork`), ending every Wave with
+verify → commit → a report carrying the session ids; review/debug primaries
+run as fresh read-only sessions. Two bridges wire L3 to OpenCode's non-interactive
 reality (both verified against source): the **Permission Bridge** — bare
 `run` auto-rejects every `ask`, so the engineer translates the Authority
 grant into an `OPENCODE_PERMISSION` overlay (deep-merged; deny beats
@@ -183,34 +156,21 @@ grant into an `OPENCODE_PERMISSION` overlay (deep-merged; deny beats
 question tool, so OpenCode escalates only via its final output text, which
 the engineer answers with `run -c` or translates into an L2 block.
 
-The L2 protocol: the task body carries an **Authority** grant — a preset
-(`A1` commit-only / `A2` +feature-branch push+PR / `A3` +deps; absent = A1)
-plus scope overrides, expanded mid-task only via `AUTHORITY+:` comments.
-Anything outside the effective grant triggers **checkpoint-then-block**
-(WIP commit → `STATE:` comment → numbered `Q<n>:` questions with options +
-recommendation → block reason as a ≤160-char headline, since the chat
-notification truncates it). The assistant `kanban_show`s the thread, runs
-`kanban-resolve-block.sh inspect`, answers autonomously within the grant with
-one event/digest-bound `DECISION(Q<n>):` per open question, then resumes only
-through `kanban-resolve-block.sh apply`; out-of-grant questions go to the
-human. When the spec says `Review: required — <what to present>`, the worker
-checkpoints and blocks with a `REVIEW:` headline (`kind=needs_input`) for human
-sign-off; the assistant always relays that block rather than answering
-autonomously, then records an event/digest-bound `DECISION(REVIEW): approved`
-or `changes — <list>` and invokes the guarded resolver. The resolver validates
-the latest blocking event and complete decision batch, performs the unblock or
-triage recovery, and resets recurrence state as one operation. Mid-run
-visibility is on-demand: engineer
-leaves `PROGRESS:` comments at unit boundaries (comments never notify chat) and
-the assistant summarizes them when asked (`orchestration` `<StatusCheck>`).
-The gateway's
-`kanban.dispatch_interval_seconds` is lowered to **15** so a round-trip costs
-roughly the answer time + ~20 s. Details: engineer's `engineer-pipeline` skill and
-assistant's `orchestration` `<BlockedTriage>`.
+The L2 protocol: the brief carries an **Authority** grant — a preset
+(`A1` commit-only / `A2` +feature-branch push+own PR / `A3` +deps; absent =
+A1) plus scope overrides, expanded only by later explicit grants. Anything
+outside the effective grant is a question: in a resident session, numbered
+questions in the reply, answered in the next turn; on a card,
+checkpoint-then-block (WIP commit → `STATE:` → `Q<n>:` comments →
+`DECISION(Q<n>):` answers → the guarded `kanban-resolve-block.sh apply`).
+`Review: required` presents the deliverable for human sign-off before the
+job closes — always relayed to the user. GitHub bookkeeping (Issues, boards,
+merges) is the assistant's own `gh` work, after approvals. Details:
+engineer's `engineer-pipeline` skill and the orchestration skill.
 
-The comment protocol is worker-generic, not engineer-specific: **creator** and
-**writer** also honor the `Review: required` gate; creator speaks the same
-markers with a **Budget** grant as its Authority analog
+The dialogue discipline is specialist-generic, not engineer-specific:
+**creator** and **writer** also honor the `Review: required` gate; creator
+speaks the same protocol with a **Budget** grant as its Authority analog
 (generation-spend caps; defaults 4 image variants / 2 video renders per
 asset + 1 corrective pass, expanded only via `AUTHORITY+:`), leaves
 `PROGRESS:` per finished asset, and — since a task's scratch workspace
@@ -227,22 +187,20 @@ marketer's `marketer-pipeline` skill.
 
 ### Planning ladder — who plans at which altitude
 
-Planning happens at seven altitudes. Each owner decides its own altitude only and
-hands a typed result to the next owner; no layer silently authorizes execution.
+Planning happens at five altitudes. Each owner decides its own altitude only
+and hands a typed result to the next owner; one conversational approval
+authorizes execution.
 
 | Altitude | Owner | Deliverable | Durable home |
 | --- | --- | --- | --- |
-| High-level requirement — what outcome and constraints matter | assistant with the user | RequirementSpec | chat before dispatch; copied into planning anchors/cards |
-| Specialist planning graph — which domains must plan and what evidence they may request | assistant with the user | approved PlanningGraph (approval gate 1) | `planning-graph.yaml` + graph anchor comments |
-| Domain contribution — technical, media, writing, or campaign proposal | engineer / creator / writer / marketer in `Mode: plan` | SpecialistPlan; bounded Searcher/Researcher FanOutManifest when approved | final specialist cards + attachments |
-| Executable multi-card integration | planner in `Mode: integrate` | ExecutionOutline (approval gate 2) | `execution-outline.yaml` + integration card |
-| Low-level requirements — feature → concrete requirement units ("login" → account creation, email verification, session handling) | engineer **shape** mode, specify branch (S1/S2) | GitHub Issues (epic → purpose/work, OpenCode's `approach-github-projects` conventions), user-reviewed before registration, each unit intent-labeled | GitHub Issues / Projects |
-| Technical milestones — Wave outline | engineer **shape** mode, outline branch (or implement's self-generated base) | Wave list (coarse, one line each) | kanban attachment + base session |
+| High-level requirement + plan — what outcome, which specialists, what grants | assistant with the user (consulting resident sessions for feasibility/cost) | the approved plan (one `clarify` gate) | chat + the session briefs it produces |
+| Repo grounding — Wave outline for code work | assistant's OpenCode plan session in the repo | Wave outline + base session id | the OpenCode session (handed to engineer) |
+| Low-level requirements — feature → concrete requirement units | engineer **shape** (specify), draft-only | decomposition document, user-reviewed; the assistant registers the Issues | GitHub Issues / Projects (assistant-registered) |
+| Technical milestones — Wave outline for non-Issue work | engineer **shape** (outline) | Wave list (coarse, one line each) | report + base session |
 | Phase/unit decomposition — inside one Wave or one Issue | OpenCode plan agent (L3) | phase breakdown | OpenCode sessions + git |
 
-Feasibility in a direct `single`/`chain` task (engineer **assess** route) is not
-a planning rung. In `planned`, feasibility belongs in the Engineer
-SpecialistPlan or its approved evidence fan-out.
+Feasibility questions are consultation turns to the relevant specialist
+session, not a planning rung of their own.
 
 Two rules keep the ladder from collapsing back into confusion:
 
@@ -292,19 +250,17 @@ Three per-profile layers, kept separate:
 
   Every contract also carries an always-on **safety floor** — the rules that must
   hold even when the profile's skill never loads: engineer = the Authority floor
-  (absent grant ⇒ A1 commit-only; WIP-commit before blocking) + a non-kanban
-  invocation branch; creator = the Budget/spend floor (default caps, inventory a
-  surviving workspace before regenerating); researcher = evidence integrity (no
-  fabricated citations) + a block baseline for missing premises; searcher = link
-  integrity (only URLs actually retrieved); writer = deliverable integrity (no
-  fabricated facts/quotes/URLs; assumptions labeled) + never publishes + a
-  tone-sample block before long unsettled-tone deliverables; planner = integrate
-  only, no new investigation/fan-out/registration; marketer = the
-  Publish floor (absent grant ⇒ draft-only; every post needs a verbatim
-  DECISION approval or an in-cap P1 grant; posted URLs verified; shipped
-  posts never silently edited or deleted); front doors = the guarded
-  blocked-triage baseline (`kanban_show` → resolver `inspect` → complete,
-  event-bound `DECISION(...)` batch → resolver `apply`; relay the rest).
+  (absent grant ⇒ A1 commit-only; WIP-commit before pausing; no GitHub
+  bookkeeping ever); creator = the Budget/spend floor (default caps, inventory
+  surviving work before regenerating); researcher = evidence integrity (no
+  fabricated citations); searcher = link integrity (only URLs actually
+  retrieved); writer = deliverable integrity (no fabricated
+  facts/quotes/URLs; assumptions labeled) + never publishes; marketer = the
+  Publish floor (absent grant ⇒ draft-only; every post needs verbatim
+  approval or an in-cap P1 grant; posted URLs verified; shipped posts never
+  silently edited or deleted); front doors = heavy work never runs in their
+  own turn, deliverables are verified before delivery, and blocked cards
+  resolve only through the guarded resolver after a complete DECISION batch.
   Each profile also states its **MEMORY.md policy**: durable cross-task facts
   only (task state lives in the kanban thread + git/board; playbook-sized
   knowledge becomes a skill), and `user_profile_enabled` is off for workers —
@@ -319,45 +275,33 @@ Three per-profile layers, kept separate:
   the `skill-topology` plugin. Moving a complete package from `learned/` to
   `technic/` is the explicit maintainer-review boundary. External directories
   remain provider-owned and never become local technics implicitly.
-  - assistant + default → `orchestration` (shared front-door playbook, lives in
-    default's tree at `hermes/skills/orchestration/`: Classify → Locate →
-    Normalize → Shape → Register → Supervise → Deliver; RequirementSpec;
-    `inline` / `single` / `chain` / `planned`; two-gate planned flow;
-    Assistant-only registration; pending manifests/overlays; CompletionAdmission;
-    subscribed QA; guarded BlockedTriage and recovery. The machine-readable
-    roster, schemas, bindings, grants, and QA routes live in
-    `references/workflow-contract.yaml`; shape details remain in the other
-    reference files.)
-  - engineer → `engineer-pipeline` (`Mode: plan` returns a read-only technical
-    SpecialistPlan; `Mode: execute` delegates implementation to OpenCode;
-    Authority parsing + checkpoint-then-block dialogue; P0 master-plan +
-    per-unit forks with permission/question bridges; bounded Assistant-owned
-    evidence fan-out; quota-gated provider/model routing; verify/report)
-  - planner → `planner-pipeline` (`Mode: integrate` consumes the approved
-    RequirementSpec and PlanningGraph plus every latest final SpecialistPlan,
-    applies the boundary-based granularity rubric, and returns
-    `execution-outline.yaml`; no new investigation, fan-out, registration, or
-    execution). No `external_dirs`: the pipeline and canonical workflow contract
-    are sufficient, and the profile has no terminal
-  - researcher → `researcher-pipeline` (kernel SKILL.md pinned on every
-    researcher card: deliverable-based mode routing — evidence-pack /
-    tradeoff-matrix / fact-check for external facts, sources, and
-    specifications, plus guidance for downstream workers — plus Admiralty/SIFT
-    source evaluation, citation rules, Review gate, and resume in the kernel;
-    researcher supplies evidence and does not own artifact-vs-brief QA;
-    retrieval strategy + bounded Assistant-owned Searcher fan-out in
-    references/gather.md)
-  - searcher → `searcher-pipeline` (kernel SKILL.md pinned on every searcher
-    card: deliverable-based mode routing — lookup (targeted facts) / sweep
-    (enumeration with a coverage claim, incl. measurements) / hunt (multi-hop
-    to saturation, signalled by `goal_mode`) — plus the link-integrity floor
-    and the minimal kanban protocol in the kernel; per-mode playbooks in
-    references/. `technic/deep-retrieval` remains only as a deprecated stub)
-  - creator → `creator-pipeline` (`Mode: plan` returns a zero-spend media
-    SpecialistPlan; `Mode: execute` owns the MediaBrief + capability router,
-    Budget grant parsing, structured STATE/Qn block dialogue, bounded
-    Assistant-owned fan-out, per-asset PROGRESS, workspace-reuse resume, visual
-    verification, and attached delivery) + directly selectable in-tree leaves under `skills/technic/`:
+  - assistant + default → `orchestration` v5 (shared front-door playbook,
+    lives in default's tree at `hermes/skills/orchestration/`: modes Chat /
+    Plan / Execute / QA over tiers inline / resident / kanban; resident
+    sessions via `resident-session.sh`; assistant-run QA against
+    `references/qa/`; the lean kanban card contract in
+    `references/kanban-lite.md`; capability playbooks in
+    `references/{creative,engineering,research,writing,marketing}.md`. The
+    machine-readable roster, tiers, grants, and retired markers live in
+    `references/workflow-contract.yaml`.)
+  - engineer → `engineer-pipeline` (dual runtime; assess / shape / implement
+    routing with intent triage; Authority parsing + dialogue discipline;
+    base-session seeding + per-Wave forks with permission/question bridges;
+    quota-gated provider/model routing; verify/report)
+  - researcher → `researcher-pipeline` (dual runtime; deliverable-based
+    routing — evidence-pack / tradeoff-matrix / fact-check / guidance — plus
+    Admiralty/SIFT source evaluation, citation rules, Review gate, and resume
+    in the kernel; researcher supplies evidence and does not own
+    artifact-vs-brief QA; retrieval strategy in references/gather.md)
+  - searcher → `searcher-pipeline` (dual runtime; deliverable-based routing —
+    lookup (targeted facts) / sweep (enumeration with a coverage claim) /
+    hunt (multi-hop to saturation, signalled by `goal_mode` on cards) — plus
+    the link-integrity floor; per-mode playbooks in references/.
+    `technic/deep-retrieval` remains only as a deprecated stub)
+  - creator → `creator-pipeline` (dual runtime; Advisory / Direction /
+    Produce routing with intent triage; the MediaBrief + capability router,
+    Budget grant parsing, dialogue discipline, workspace-reuse resume, visual
+    verification, and durable-path delivery) + directly selectable in-tree leaves under `skills/technic/`:
     `creator-generated-image`, `creator-article-illustration`,
     `creator-infographic`, `creator-svg-diagram`,
     `creator-excalidraw-diagram`, `creator-logo-icons`, `creator-text-card`,
@@ -384,9 +328,9 @@ Three per-profile layers, kept separate:
     The ambiguous external `pixel-art` name is disabled too; the canonical
     Pixel leaves may use its scripts as opt-in implementation backends but are
     the only stable dispatch identities
-  - writer → `writer-pipeline` (`Mode: plan` returns a WritingBrief-grounded
-    SpecialistPlan; `Mode: execute` routes assess/write by deliverable, parses
-    the WritingBrief, and performs one-round tone calibration; TypeTable routes copy/article/docs → references/prose.md
+  - writer → `writer-pipeline` (dual runtime; routes assess/write by
+    deliverable, parses the WritingBrief, and performs one-round tone
+    calibration; TypeTable routes copy/article/docs → references/prose.md
     and 台本/絵コンテ/screenplay → references/script.md, with the four-pass
     quality engine references/review.md shared by self-review and critique,
     and consultations/critiques in references/assess.md) + external skills via
@@ -394,89 +338,51 @@ Three per-profile layers, kept separate:
     `profiles/writer/external-skills/` symlink dir (japanese-writing /
     tech-prose / prose-rhythm, single-sourced with the shared
     `agents/skills/` store) and upstream `creative/humanizer`
-  - qa → `qa-pipeline` (read-only candidate resolution, common acceptance
-    checks, Researcher evidence reconciliation, and verdict roll-up) + exactly
-    these 20 flat canonical technics under `skills/technic/`: `qa-raster-image`,
-    `qa-infographic`, `qa-svg-diagram`, `qa-excalidraw-diagram`, `qa-icon-set`,
-    `qa-text-visual`, `qa-sourced-asset`, `qa-ascii-art`,
-    `qa-data-visualization`, `qa-audio`, `qa-song`, `qa-video`,
-    `qa-browser-media`, `qa-ascii-video`, `qa-pixel-art`, `qa-pixel-video`,
-    `qa-comic`, `qa-voice`, `qa-prose`, and `qa-script`. Flat granularity means
-    each technic is one verification contract; styles and presets are criteria
-    or references, never technics.
-  - marketer → `marketer-pipeline` (`Mode: plan` returns a draft-only campaign
-    SpecialistPlan; `Mode: execute` parses MarketingBrief + Publish grant and
-    routes assess/shape/campaign; bounded Assistant-owned fan-out to
-    writer/creator/searcher/researcher → assemble → approval-gated xurl publish bridge with per-post PROGRESS + URL
-    verification; channel extension points for future Discord/IG/TikTok
-    accounts; kanban-thread resume treating shipped posts as immutable) +
-    the upstream `social-media/xurl` skill via `skills.external_dirs`
+  - marketer → `marketer-pipeline` (dual runtime; parses MarketingBrief +
+    Publish grant and routes assess/shape/campaign; requests prose/media/
+    research inputs from the orchestrator → assemble → approval-gated xurl
+    publish bridge with per-post URL verification; channel extension points
+    for future Discord/IG/TikTok accounts; resume treating shipped posts as
+    immutable) + the upstream `social-media/xurl` skill via
+    `skills.external_dirs`
 
-Routing (assistant): `orchestration` owns it. The skill is
+Routing (assistant): `orchestration` v5 owns it. The skill is
 **auto-loaded into every new Telegram DM session** via the chat-wide
 `telegram.channel_skill_bindings` entry (root DM plus fixed and user-created
 topics; gateway injects the skill body into the session's first turn;
 `compression.protect_first_n` keeps it alive; existing sessions pick it up
-after `/new` or an idle reset). It first classifies and locates the work, then
-normalizes a RequirementSpec. Questions are risk/ambiguity driven: a settled
-request does not pay an interview tax. The Assistant selects one execution
-shape: `inline` for conversation/quick local work, `single` for one settled
-Worker task, `chain` for an obvious 2-3 stage dependency, or `planned` for
-cross-domain, fan-out/fan-in, distributed-grant, high-cost, or structurally
-uncertain work.
+after `/new` or an idle reset). Every request flows Classify → Locate → Mode
+(Chat / Plan / Execute / QA) → Deliver. Questions are risk/ambiguity driven:
+a settled request does not pay an interview tax. Tier selection is by context
+dependence, not size: `inline` for conversation/quick local work, a
+**resident session** for anything the user will give feedback on (the
+default for heavy work), and a lean kanban card only for fire-and-forget,
+cron-originated, mass-parallel, or `scheduled` work. Plan mode ends in one
+conversational approval that sanctions the grants; Execute supervises the
+sessions turn by turn; QA verifies actual artifacts before delivery.
 
-`planned` uses two immutable artifacts and two user approvals. The Assistant
-drafts a PlanningGraph whose branches are Engineer/Creator/Writer/Marketer in
-`Mode: plan`; approval gate 1 authorizes specialist planning only. Approved
-Searcher/Researcher evidence fan-out is proposed through FanOutManifest and
-registered by the Assistant. Once every branch returns a final SpecialistPlan,
-Planner `Mode: integrate` compiles them into an ExecutionOutline. Approval gate
-2 sanctions that exact DAG and its grants. The Assistant then persists an
-`ORCHESTRATION_PENDING` manifest and registers roots only; descendants become
-eligible after every direct parent passes CompletionAdmission. The Assistant is
-the sole card-registration owner for every shape.
-
-Worker routing follows `workflow-contract.yaml`: Searcher retrieves,
-Researcher analyzes, Engineer plans/executes code, Creator plans/produces all
-media, Writer plans/writes prose and scripts, Marketer plans/executes campaigns
-and is the only public publisher, Planner only integrates, and QA only verifies
-immutable Creator/Writer candidates. The front door collects the relevant
-TaskSpec/grant fields and never performs heavy Worker work or publishes itself.
 The pinned Telegram topics are Assistant-owned **desks**, not worker threads:
 Personal binds `personal-desk` (household-budget / People / message-reply plus
 personal docs/data), Projects binds `project-desk` (the `pj` registry,
 workspace scaffold, and project docs/data), Brainstorm binds `brainstorm`, and
 Inbox has no skill because it is only the delivery target for system cron
-output. Each desk fixes the execution shape to `inline`. If work needs a
-`single`, `chain`, or `planned` Worker shape, the desk prepares a compact handoff and asks the user to
-open a new ad-hoc topic; that topic inherits chat-wide `orchestration` and owns
-the dispatch. The fifth Telegram pin remains a UI-managed rotation slot rather
-than a configured topic. Normal kanban completion notifications remain attached
-to their originating topic; only maintenance/report/sweeper/watchdog cron output
-targets Inbox: jobs keep bare `deliver: telegram`, while the gateway launcher
-derives `TELEGRAM_CRON_THREAD_ID` from the ignored runtime config's Inbox topic.
-Time-deferred work parks in `scheduled` via `hermes kanban schedule <id>
-"until=<ISO8601> — <reason>"`; the assistant's no_agent
+output. Each desk fixes the tier to `inline`; work that needs a specialist
+hands off to a new ad-hoc topic, which inherits chat-wide `orchestration` and
+owns the sessions. The fifth Telegram pin remains a UI-managed rotation slot
+rather than a configured topic. Kanban completion notifications remain
+attached to their originating topic; only maintenance/report/sweeper cron
+output targets Inbox: jobs keep bare `deliver: telegram`, while the gateway
+launcher derives `TELEGRAM_CRON_THREAD_ID` from the ignored runtime config's
+Inbox topic. Time-deferred work parks in `scheduled` via `hermes kanban
+schedule <id> "until=<ISO8601> — <reason>"`; the assistant's no_agent
 `kanban-scheduled-sweeper.sh` cron releases due cards every 15 minutes. Dead
-cards close via `hermes kanban archive <id>`.
-Every create uses a deterministic key, requires an Assistant subscription, and
-is checked by `kanban-task-spec-probe.sh`. Every done card remains untrusted
-until `kanban-completion-probe.sh` validates `metadata.completion`, role-specific
-handoffs, and artifact digests. Fan-out extends a graph through a pending
-overlay rather than eagerly creating descendants. Blocked cards resume only
-after `kanban-resolve-block.sh` binds a complete `DECISION(...)` batch to the
-latest block event/digest. The no_agent `kanban-orphan-watchdog.sh` cron runs
-every 5 minutes and surfaces no-subscription blocks, terminal failures,
-pending FAN_OUT handoffs, unhandled QA completions,
-and silent block-loop triage falls to chat.
+cards close via `hermes kanban archive <id>`. Blocked cards resume only
+through `kanban-resolve-block.sh apply` after a complete `DECISION(...)`
+batch.
 
-`auto_decompose` stays off because the upstream decomposer cannot carry the
-TaskSpec, grant, workflow schema, and approval bindings. `delegate_task` remains
-an exception for
-medium parallel lookups the user is actively waiting on. The contract keeps a
-fallback tripwire for surfaces without the auto-load (CLI, other platforms);
-workers write a one-line chat-ready `kanban_complete` summary (the notifier
-delivers its first line to the requester's chat verbatim). Keep routing in
+`auto_decompose` stays off — decomposition is a conversation, not a runtime
+fallback. `delegate_task` covers medium parallel lookups the user is actively
+waiting on, and absorbs per-artifact QA checks on large sets. Keep routing in
 sync with each `profile.yaml` description.
 
 ## Models and fallback chains
@@ -488,10 +394,8 @@ turn. The default profile already proves the YAML shape.
 
 Most profiles lead with **Claude Opus 5** for judgment and long-context work,
 fall back first to **GPT-5.6 Sol**, then keep a role-appropriate OpenRouter
-tail. The deliberate exceptions are **planner**, which leads with **Claude Fable
-5** and inserts Opus 5 as its T2 (see "Fable and the Max weekly pool" below),
-**researcher**, which leads with GPT-5.6 Sol, and **searcher**, which leads on
-`xai-oauth` / grok-4.3. xAI capacity is reserved for
+tail. The deliberate exceptions are **researcher**, which leads with GPT-5.6
+Sol, and **searcher**, which leads on `xai-oauth` / grok-4.3. xAI capacity is reserved for
 Searcher, X search, and Imagine video; Codex is shared because it also serves
 Researcher and Creator's images, alongside profile fallbacks. The coding model
 inside OpenCode is a separate layer entirely: engineer-pipeline drives a **fixed ladder**
@@ -503,17 +407,15 @@ weight.
 | --- | --- | --- | --- | --- | --- |
 | **default** | `anthropic` / claude-opus-5 | `openai-codex` / gpt-5.6-sol | `openrouter` / `xiaomi/mimo-v2.5` | — | `medium` |
 | **assistant** | `anthropic` / claude-opus-5 | `openai-codex` / gpt-5.6-sol | `openrouter` / `xiaomi/mimo-v2.5` | — | `medium` |
-| **planner** | `anthropic` / **claude-fable-5** | `anthropic` / claude-opus-5 | `openai-codex` / gpt-5.6-sol | `openrouter` / `deepseek/deepseek-v4-flash` | `high` |
 | **engineer** | `anthropic` / claude-opus-5 | `openai-codex` / gpt-5.6-sol | `openrouter` / `deepseek/deepseek-v4-flash` | — | `high` |
 | **researcher** | `openai-codex` / **gpt-5.6-sol** | `anthropic` / claude-opus-5 | `openrouter` / `xiaomi/mimo-v2.5` | — | `medium` |
 | **searcher** | `xai-oauth` / grok-4.3 | `openrouter` / `xiaomi/mimo-v2.5` | — | — | `low` |
 | **creator** | `anthropic` / claude-opus-5 | `openai-codex` / gpt-5.6-sol | `openrouter` / `minimax/minimax-m3` | — | `medium` |
 | **writer** | `anthropic` / claude-opus-5 | `openai-codex` / gpt-5.6-sol | `openrouter` / `deepseek/deepseek-v4-flash` | — | `medium` |
 | **marketer** | `anthropic` / claude-opus-5 | `openai-codex` / gpt-5.6-sol | `openrouter` / `xiaomi/mimo-v2.5` | — | `medium` |
-| **qa** | `anthropic` / claude-opus-5 | `openai-codex` / gpt-5.6-sol | `openrouter` / `xiaomi/mimo-v2.5` | — | `medium` |
 
 ```yaml
-# example — planner's ~/.hermes/profiles/planner/config.yaml (the 4-tier shape)
+# example — a 4-tier chain (the shape any profile may use)
 model:
   default: claude-fable-5
   provider: anthropic
@@ -543,10 +445,9 @@ Model facts confirmed during the build (live `provider_models_cache.json` + test
 calls):
 
 - **Anthropic native (T1)** — every profile except `researcher` / `searcher`
-  leads with `anthropic` (`base_url: https://api.anthropic.com`):
-  `claude-fable-5` on planner, `claude-opus-5` everywhere else. OAuth resolves
-  from the global Claude Code credential/token rather than per-profile
-  `auth.json`.
+  leads with `anthropic` (`base_url: https://api.anthropic.com`) on
+  `claude-opus-5`. OAuth resolves from the global Claude Code
+  credential/token rather than per-profile `auth.json`.
 - **xAI (T1, searcher only)** — searcher runs `xai-oauth`
   (`base_url: https://api.x.ai/v1`), which is a flat-rate **SuperGrok /
   Premium+ subscription**, not the metered `XAI_API_KEY` API. The published
@@ -575,11 +476,11 @@ calls):
   `auth.json` and shadow the inherited credential.
 - **Codex** — every profile except searcher carries `openai-codex` /
   `gpt-5.6-sol` (`base_url: https://chatgpt.com/backend-api/codex`), as T1 on
-  researcher, T2 on the Anthropic profiles, and T3 on planner.
-  Researcher's primary chain, QA's fallback, and Creator's Codex-first image chain
-  make this a shared pool, not a researcher-only tier. The former
-  `gpt-5.6-terra` profile routes were promoted to Sol; the engineer-pipeline's
-  OpenCode ProviderLadder remains a separate model-routing layer.
+  researcher and T2 on the Anthropic profiles. Researcher's primary chain and
+  Creator's Codex-first image chain make this a shared pool, not a
+  researcher-only tier. The former `gpt-5.6-terra` profile routes were
+  promoted to Sol; the engineer-pipeline's OpenCode ProviderLadder remains a
+  separate model-routing layer.
 - **Copilot retired from every chain** (2026-07): the subscription became
   unusable, and its catalog drift had already 404'd tiers silently once.
   Profile fallbacks now use Codex first and OpenRouter as the final tail.
@@ -590,12 +491,12 @@ calls):
   refs were planning guesses).
 - **OpenRouter tail split (vision vs text-only)** — profiles whose fallback
   turns may need to SEE something keep a vision-capable tail:
-  `default` / `assistant` / `researcher` / `qa` / `searcher` / `marketer` use
+  `default` / `assistant` / `researcher` / `searcher` / `marketer` use
   `xiaomi/mimo-v2.5` (omnimodal, cheap; video analysis stays decoupled via
   the `video-analyze-mimo` plugin — see `README.md` "Plugins"), and
   `creator` uses `minimax/minimax-m3` (image + video input) so it can still
   eyeball generated assets. Text-only work rides the cheaper
-  `deepseek/deepseek-v4-flash` (`planner`, `engineer`, `writer` tail). Researcher and
+  `deepseek/deepseek-v4-flash` (`engineer`, `writer` tail). Researcher and
   searcher gained vision in the 2026-07 copilot removal as a side effect of
   standardizing on mimo.
 
@@ -604,8 +505,9 @@ assistant to route `delegate_task` subagents to a cheap model.
 
 ### Fable and the Max weekly pool
 
-Only **planner** runs Fable 5, and the `anthropic` / `claude-opus-5` T2 beneath
-it exists for exactly one failure mode. Four facts drive the design:
+No profile currently leads with Fable 5 (the planner profile that did was
+retired in the v5 rebuild), but the facts below still govern any future
+Fable tier:
 
 1. **Fable is not a separate quota tank.** On Max it is included but capped at
    **≤50% of the plan's weekly pool**, drawn from the *same* pool as Opus, and
@@ -626,18 +528,17 @@ it exists for exactly one failure mode. Four facts drive the design:
    this week" message carries no parseable reset, so a fixed **1-hour** local
    cooldown is applied (`credential_pool.py:117`), while the agent-level
    fallback cooldown is only **60 seconds** (`chat_completion_helpers.py:1549`).
-   At t+61s the primary is restored and Fable is retried. Once the weekly cap is
-   hit this costs **one wasted request per turn until the week rolls over** —
-   accepted deliberately, and a reason planner (low turn count) carries Fable
-   while assistant (highest turn count, latency-sensitive) does not.
+   At t+61s the primary is restored and Fable is retried. Once the weekly cap
+   is hit this costs **one wasted request per turn until the week rolls
+   over** — acceptable only on a low-turn-count profile, never on the
+   latency-sensitive assistant.
 4. **Adaptive thinking, not manual budgets.** Modern Claude — Fable 5 included —
    gets `thinking: {type: adaptive}` + `output_config: {effort: …}`, so the
    effort level passes straight through (`minimal→low`, `ultra→max`); the
-   legacy 4k/8k/16k/32k `budget_tokens` table does **not** apply. planner sits
-   at `high` rather than `xhigh` because its deliverable is a long outline YAML
-   and Hermes can otherwise burn the whole output budget on reasoning
-   (`conversation_loop.py:2600`). If that warning ever appears, drop to
-   `medium` or raise `max_tokens`.
+   legacy 4k/8k/16k/32k `budget_tokens` table does **not** apply. Long
+   structured outputs prefer `high` over `xhigh`: Hermes can otherwise burn
+   the whole output budget on reasoning (`conversation_loop.py:2600`). If
+   that warning ever appears, drop to `medium` or raise `max_tokens`.
 
 ### `agent.*` does not inherit from the root profile
 
@@ -781,50 +682,28 @@ Routing quality depends on `profile.yaml` descriptions — create workers with
 
 ## Status (as-built)
 
-Built and verified: default (kanban orchestrator), engineer (ex-coder, promoted
-2026-07: dialogue-driven OpenCode worker), researcher, searcher, creator
-(added 2026-07: media production worker), writer (added 2026-07: prose
-worker; skills shared from the opencode Japanese
-stack via external_dirs), and marketer (added 2026-07: campaign/publishing
-worker; posts to X via the bundled xurl skill + external CLI under the
-Publish-grant floor) workers —
-T1–T3 tiers resolve (doctor + live probes) and default-created tasks
-dispatch/route to each. Assistant gateway runs keychain-pure (LaunchAgent,
-Telegram-only per #40695); the embedded dispatcher auto-claims tasks across
-ticks (`dispatch_interval_seconds: 15` for fast block round-trips).
-The dedicated **qa** profile was added 2026-07 as the independent, read-only
-Creator/Writer release gate with its `qa-pipeline` and 20 canonical technics;
-live Kanban smoke tests confirmed parent promotion, immutable attachment
-inspection, Creator ASCII `pass`, Writer defect detection (`fail`), and the
-bounded Writer revision → fresh QA `pass` loop. A Researcher-backed QA smoke
-also confirmed verbatim claim-ledger attachment/consumption and autonomous
-pre/post digest probes; ordinary registration tests covered idempotent create,
-collision rejection, exact-parent wiring, and partial-registration refusal without model runs.
-`install.sh` links every tracked profile (incl. `profile.yaml`) with no WARN.
-Workflow contract v1 replaces the earlier Planner-tree and worker-created
-continuation conventions with RequirementSpec normalization, four execution
-shapes, two-gate planned execution, SpecialistPlans, Planner integration,
-Assistant-owned pending manifests/overlays, CompletionAdmission, and guarded
-block resolution. The scheduled sweeper and orphan watchdog remain the
-asynchronous safety mechanisms around that contract.
-
-Active profile-chain model slugs confirmed 2026-07 (provider checks +
-OpenRouter model pages): `anthropic` / `claude-opus-5`, `anthropic` /
-`claude-fable-5` (planner T1), `xai-oauth` / `grok-4.3` (searcher T1), and
-`openai-codex` / `gpt-5.6-sol` (researcher T1 and the other non-searcher
-profiles' fallback chains), plus the
-OpenRouter tails `xiaomi/mimo-v2.5` (vision; live on openrouter.ai but
-missing from a stale local model cache — refresh before trusting doctor),
+Built and verified through v4 (2026-07 → 2026-08-03): the six specialists,
+the assistant gateway (keychain-pure LaunchAgent, Telegram-only per #40695,
+`dispatch_interval_seconds: 15`), model chains (doctor + live probes), and
+the v4 contract's Phase 7 verification (89 tests, live canaries, subscribed
+QA). Active model slugs confirmed 2026-07: `anthropic` / `claude-opus-5`,
+`xai-oauth` / `grok-4.3` (searcher T1), `openai-codex` / `gpt-5.6-sol`
+(researcher T1 + fallbacks), OpenRouter tails `xiaomi/mimo-v2.5` (vision),
 `minimax/minimax-m3` (image+video), `deepseek/deepseek-v4-flash`
 (text-only).
 
-Phase 7 verification completed 2026-08-03: the contract validator and 89 Python
-tests passed; every profile discovered its required pipeline and technics; live
-Searcher/Researcher and specialist-plan canaries passed CompletionAdmission;
-Planner produced a probe-valid `execution-outline.yaml`; and a Writer candidate
-completed through subscribed QA with an immutable digest-checked
-`pass`. The gateway-chat notification reached the Telegram Inbox, the restarted
-gateway had exactly one poller, and a fresh Telegram topic confirmed the new rule
-that only the Assistant registers Kanban cards. Canary cards were archived after
-verification. `hermes doctor` still reports the upstream config-version migration
-and build-tool dependency advisories; neither blocked the workflow checks.
+**Workflow v5 rebuild (2026-08-06)** — driven by the 45s-PV postmortem (38
+cards / 9 hours, over half spent on registration accidents, packaging
+repair, and QA admission protocol): the v4 shape system, double approval,
+fan-out manifests, digest/probe admission, QA cards, and the planner/qa
+profiles were retired. Heavy work now runs in resident specialist sessions
+(`resident-session.sh`: per-key serialization, session-id recapture,
+close-on-acceptance; smoke-tested against creator with retained context);
+the assistant owns planning (one conversational approval), the quality gate
+(contracts under `orchestration/references/qa/`), and GitHub bookkeeping;
+the board shrank to fire-and-forget / cron / mass-parallel / `scheduled`
+with a lean card contract. The completion path-guard plugin, admission
+probes, and the 5-minute orphan watchdog were removed (the sweeper and the
+guarded block resolver remain); the validator now enforces workflow
+contract v2. Remaining live verification: a real short-video production run
+through the new flow.

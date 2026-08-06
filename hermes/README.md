@@ -89,11 +89,11 @@ the relevant `config.yaml`.
 - `SOUL.md` — global agent identity (system-prompt slot #1).
 - `mcp.json` — MCP server connections.
 - `skills/orchestration/` — the version-controlled shared skill.
-  `skills/orchestration/references/workflow-contract.yaml` is the
-  machine-readable authority for Worker modes, schemas, grants, bindings, and
-  QA routes, required subscriptions, and late-bound QA admission. The
-  ~/Workspaces data-skill cluster lives in a private checkout, read through
-  `skills.external_dirs` as `${HERMES_PRIVATE_SKILLS}/skills`.
+  `skills/orchestration/references/workflow-contract.yaml` (v2) is the
+  machine-readable authority for the specialist roster, execution tiers,
+  grants, the resident-session contract, and the lean kanban card contract.
+  The ~/Workspaces data-skill cluster lives in a private checkout, read
+  through `skills.external_dirs` as `${HERMES_PRIVATE_SKILLS}/skills`.
   `skills/learned/` is the untracked adaptive library; bundled skills are read
   from the clone via `external_dirs`.
 - `cron/jobs.json` — scheduled job definitions (run-state churns in the same
