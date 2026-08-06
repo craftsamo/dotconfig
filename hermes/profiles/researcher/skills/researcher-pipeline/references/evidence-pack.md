@@ -2,7 +2,7 @@
 
 The default research deliverable: an open question answered with verifiable
 evidence. The core <Method>, <SourceEvaluation>, and <CitationRules> govern
-the gathering (route and fan-out per `references/gather.md`); this
+the gathering (route and delegation per `references/gather.md`); this
 reference sets synthesis and output.
 
 ## Synthesis
