@@ -53,15 +53,9 @@ scene-by-scene video script).
 ## Artifact delivery
 
 - The brief names a file (storyboard.md, a screenplay path) → write that
-  file exactly where instructed AND attach it via `kanban_attach`
-  (workspace files don't survive completion). The final message still
-  carries the full script per kernel delivery rules.
-- A QA-gated body (`QA: required`) always names or defaults the attached
-  target (`deliverable.md`) even if no downstream producer path was requested.
-  The attachment is the immutable QA target and must contain the complete
-  script delivered in the final message.
-- Attach the QA target exactly once; inspect the card inventory before calling
-  `kanban_attach` so retries do not create `_1` duplicates.
+  file exactly where instructed, at a durable path (kanban mode: also
+  `kanban_attach` — workspace files don't survive completion). The report
+  names the path and summarizes the structure.
 - Downstream cards consume this script by unit number — never renumber in
   a revision round; mark dropped units as `(削除)` to keep numbering
   stable.
