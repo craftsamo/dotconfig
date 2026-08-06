@@ -6,7 +6,7 @@ description: >-
   (the classic home of goal-mode hunts). Routes by deliverable into
   lookup, sweep, or hunt and carries the always-on floors for link
   integrity and retrieval-only output.
-version: 4.0.0
+version: 4.1.0
 author: CraftSamo
 license: MIT
 metadata:
@@ -33,8 +33,14 @@ Detect the runtime first.
 
 **Resident session** — no `HERMES_KANBAN_TASK`: the chat counterpart is
 the orchestrating assistant. The first message is the brief; follow-up
-messages sharpen scope. Ask questions directly in your reply; deliver the
-full findings (links + claims + coverage) in the reply.
+messages sharpen scope. Questions go directly in your reply (`Q1:`,
+`Q2:`, 2-4 concrete options + your recommendation) — but only when
+<DialogueProtocol> demands one. Deliver the full findings (links +
+claims + coverage) in the reply; when the brief names a durable path,
+also write large enumerations (tables, long link lists) to a file there
+and name it. The assistant owns the session lifecycle: it may close or
+reseed the session after acceptance; never carry unrelated jobs in one
+session.
 
 **Kanban worker** (`HERMES_KANBAN_TASK` set) — the classic searcher home,
 especially goal-mode hunts: the task body is the entire brief; deliver the
@@ -46,14 +52,17 @@ Searcher never decomposes work or registers cards. Heavy retrieval within
 a proper unit is still a bounded delivery with open gaps; it is not a
 reason to stall.
 
-**Unit gate — check before hunting.** A card must be one retrieval unit
-with a settled spec: a `survey-enumeration` (floor count + per-item
-fields) or an `exhaustive-hunt` (done criteria + exclusions). A card that
-actually asks for production, analysis/synthesis, or a composite of
-stages → `kanban_block(kind=capability)` immediately with a one-line
-reason — that work belongs to another profile or a decomposed plan, and
-grinding it as retrieval wastes the run. Gaps inside a proper unit are
-delivered as gaps, never blocked on.
+**Unit gate — check before hunting.** Retrieval defines exactly two card
+units in the execute catalog, and a card must be one of them with every
+required input settled: a `survey-enumeration` (settled question +
+coverage claim/floor count + per-item fields) or an `exhaustive-hunt`
+(settled question + done criteria + scope exclusions). A card missing a
+required input, or one that actually asks for production,
+analysis/synthesis, or a composite of stages →
+`kanban_block(kind=capability)` immediately with a one-line reason —
+that work belongs to another profile or a decomposed plan, and grinding
+it as retrieval wastes the run. Gaps inside a proper unit are delivered
+as gaps, never blocked on.
 
 </Runtimes>
 

@@ -8,7 +8,7 @@ description: >-
   intent triage (new / revise / salvage), capability routing, verification,
   and delivery to durable paths; internal routes are Advisory, Direction
   (the style-anchor gate), and Produce.
-version: 6.0.0
+version: 6.1.0
 author: CraftSamo
 license: MIT
 metadata:
@@ -45,7 +45,9 @@ assistant (not the end user):
 - The first message is the brief (<Brief>); later messages are feedback,
   approvals, Budget expansions, and course corrections. The session
   persists: your own context holds the anchors, seeds, spend tally, and
-  history — use it.
+  history — use it. The assistant owns the session lifecycle: it may
+  close or reseed the session after acceptance; never carry unrelated
+  jobs in one session.
 - Questions are asked directly in your reply: number them (`Q1:`, `Q2:`),
   give 2-4 concrete options and your recommendation, and stop before
   spending on the ambiguous part. The next message answers them.
@@ -180,9 +182,10 @@ sets the caps; absent → the defaults:
 <KanbanMode>
 
 **Unit gate — check before any work or spend.** A card must be ONE
-catalog unit: the body names `Unit: <type>` (e.g. `anchored-image-batch`,
-`tts-voice`, `deterministic-render`) and carries every settled input that
-unit requires (an approved style anchor, a final script, fixed data).
+catalog unit: the body names `Unit: <type>` — exactly one of the catalog
+units `anchored-image-batch`, `tts-voice`, `deterministic-render`, a
+closed list — and carries every settled input that unit requires (an
+approved style anchor, a final script, fixed data).
 Composite work (a whole video, multi-stage production, anchor exploration),
 a missing or unsettled required input, or work outside creator's units →
 `kanban_block(kind=capability)` immediately with a one-line reason and a
@@ -212,8 +215,9 @@ workspace intermediates in `STATE:`), then
 `kanban_block(kind=needs_input, reason=...)` with a **<=160-char
 headline** naming the open question ids (the notification truncates); the
 full `Q<n>:` text lives in comments. Stop producing after the block call.
-The `REVIEW:` headline prefix is reserved for the human sign-off gate
-(`references/delivery.md` <ReviewGate>).
+A card body carrying `Review: required` is malformed — a catalog card is
+fire-and-forget by definition; `kanban_block(kind=capability)` instead of
+running it (human sign-off belongs to the resident runtime).
 
 End every run with `kanban_complete` (summary naming every artifact +
 spend tally; attach the files and also copy them to the durable
