@@ -63,9 +63,9 @@ highest-leverage fix. If the text is a script, apply the
 
 ## Report
 
-- Final message = the assessment or critique (attach via `kanban_attach`
-  if long).
-- `kanban_complete` summary = 1-2 plain sentences carrying the verdict.
+- Final report = the assessment or critique; write it to the durable
+  path when long (kanban mode: also `kanban_attach`).
+- The reply/summary = 1-2 plain sentences carrying the verdict.
 
 ## Pitfalls
 
