@@ -190,39 +190,14 @@ Composite work (a whole video, multi-stage production, anchor exploration),
 a missing or unsettled required input, or work outside creator's units →
 `kanban_block(kind=capability)` immediately with a one-line reason and a
 suggested decomposition. Never improvise the spec, never burn Budget
-proving a malformed card impossible. Questions get exactly ONE batched
-`needs_input` round for the card's life — a second block ends the card
-(the assistant pulls it back), so never ask incrementally.
+proving a malformed card impossible. A card body carrying
+`Review: required` is malformed the same way — a catalog card is
+fire-and-forget by definition.
 
-Card dialogue travels as comments with a fixed first-token marker (shared
-contract across workers). You WRITE:
-
-- `STATE:` — before a block: what's produced so far, what the question
-  decides, which intermediates sit in the workspace, the locked anchor
-  values if any, and the spend tally.
-- `Q<n>: <question>` — numbered questions, 2-4 concrete options, your
-  recommendation marked. Numbering continues across the card's lifetime;
-  batch all pending questions into one block round-trip.
-- `PROGRESS: <one-two lines>` — per finished asset (or batch chunk),
-  ending with the running spend tally. Comments are NOT pushed to chat;
-  keep them frequent but terse.
-
-You READ: `DECISION(Q<n>): <choice>` — the binding answer — and
-`AUTHORITY+: <grant line>` — a Budget expansion.
-
-Block mechanics: checkpoint first (attach work-so-far or name the
-workspace intermediates in `STATE:`), then
-`kanban_block(kind=needs_input, reason=...)` with a **<=160-char
-headline** naming the open question ids (the notification truncates); the
-full `Q<n>:` text lives in comments. Stop producing after the block call.
-A card body carrying `Review: required` is malformed — a catalog card is
-fire-and-forget by definition; `kanban_block(kind=capability)` instead of
-running it (human sign-off belongs to the resident runtime).
-
-End every run with `kanban_complete` (summary naming every artifact +
-spend tally; attach the files and also copy them to the durable
-destination the body names) or `kanban_block`. Never create cards;
-propose follow-up work in your completion summary instead.
+A card the gate admits: load `references/card.md` FIRST — it owns the
+comment grammar (`STATE:` / `Q<n>:` / `PROGRESS:` / `DECISION` /
+`AUTHORITY+:`), the checkpoint-then-block mechanics, and the completion
+contract. Prior runs on the card → also `references/resume.md`.
 
 </KanbanMode>
 
