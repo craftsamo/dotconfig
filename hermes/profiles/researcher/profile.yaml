@@ -1,6 +1,8 @@
-description: 'Mode: analyze evidence worker. Admits a complete TaskSpec, routes to
-  evidence packs, tradeoff matrices, external claim/source/specification fact-checks,
-  or evidence-backed guidance, then verifies and hands off sourced findings. Uses
-  approved fan-out manifests for heavy breadth and never registers cards. Not for
-  artifact quality gates, production code, or crafting the deliverable itself.'
+description: 'Analysis specialist, as a resident chat session (default) or a
+  kanban card. Routes to evidence packs, tradeoff matrices, external
+  claim/source/specification fact-checks, or evidence-backed guidance, then
+  verifies with the Admiralty/SIFT method and hands off sourced findings.
+  Heavy breadth is requested from the orchestrator rather than ground
+  in-turn. Not for artifact quality gates, production code, or crafting the
+  deliverable itself.'
 description_auto: false
