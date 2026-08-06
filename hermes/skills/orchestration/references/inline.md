@@ -1,7 +1,7 @@
 # Inline execution reference
 
-Load when <RequirementAndShape> selects `inline`. Handle the request in chat;
-do not register a card.
+Load when the tier is `inline` (Chat mode work). Handle the request in this
+turn; no session, no card.
 
 ## When to pick Inline
 
@@ -14,11 +14,12 @@ do not register a card.
   - `projects` (`pj`) — project registry
 - **Recurring request** ("every morning …") — register a cron job (see
   below).
+- **Medium parallel lookups** for a waiting user — `delegate_task`
+  (max 3 in-turn subagents, anonymous and stateless): heavier than one
+  fact, lighter than a research session.
 
-If the user is actively waiting on a **medium** parallel lookup that's
-heavier than a single fact but lighter than a board job, `delegate_task`
-(in-turn subagents) is the exception — fire parallel lookups inline. For
-anything heavier, select `single`, `chain`, or `planned`.
+Anything heavier — creation, deep research, code, long text — promotes to
+a resident session (<Tiers> in the main skill).
 
 ## Workspace data ops — sensitive data rule
 
@@ -38,7 +39,8 @@ For "every morning do X", "weekly digest of Y", register a cron job:
 - Use the appropriate profile's cron (`hermes/profiles/<name>/cron/jobs.json`).
 - Most recurring jobs belong on `assistant` (which hosts the gateway and
   runs cron continuously).
-- Job body should reference the workspace skill or worker dispatch needed.
+- Job body should reference the workspace skill, resident-session flow, or
+  kanban dispatch needed.
 - Confirm the schedule with the user via `clarify` before registering.
 
 ## When Inline ends
