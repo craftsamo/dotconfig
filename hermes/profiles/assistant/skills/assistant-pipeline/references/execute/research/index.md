@@ -1,14 +1,17 @@
 ---
 card_units:
   - name: survey-enumeration
+    assignee: searcher
     required_inputs: [settled-question, coverage-claim, per-item-fields]
     unit_cap: "one enumeration/survey with an explicit floor count and per-item field list"
     runtime_cap: 1800
   - name: exhaustive-hunt
+    assignee: searcher
     required_inputs: [settled-question, done-criteria, scope-exclusions]
     unit_cap: "one goal-mode multi-hop source hunt; goal_mode: true + goal_max_turns"
     runtime_cap: 3600
   - name: evidence-pack
+    assignee: researcher
     required_inputs: [claims-list, source-requirements]
     unit_cap: "verification of one fixed list of claims, each with sources and verdicts"
     runtime_cap: 1800
