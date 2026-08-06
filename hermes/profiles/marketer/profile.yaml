@@ -1,12 +1,8 @@
-description: 'Marketing worker with top-level Mode: plan or execute. Mode plan is a
-  PlanningGraph specialist branch that returns a completion envelope with one SpecialistPlan: it proposes
-  channel and campaign strategy, downstream inputs, QA/release gates, and execute
-  cards, but never produces drafts, posts, or public actions. Mode execute routes
-  internally to assess (judgment only), shape (strategy only), or campaign (drafts
-  to approval or X publishing through xurl within an explicit Publish grant).
-  Research, long copy, and media use Assistant-owned fan-out manifests. Protected
-  Writer/Creator production requires the Assistant QA chain and held marketer
-  continuation before release. Follows admit -> route -> act_or_plan -> verify ->
-  handoff -> terminal and the completion/artifact handoff contract; fan-out waits
-  block without completion.'
+description: 'Campaign specialist, as a resident chat session (default) or a
+  kanban card. Routes internally to assess (judgment only), shape (strategy
+  only), and campaign (drafts to approval, or X publishing through xurl
+  within an explicit Publish grant; draft-only without one, verbatim
+  approval per post). Research, long copy, and media are requests to the
+  orchestrating assistant, which hands back verified inputs. Never posts
+  from assess/shape and never fabricates facts or URLs.'
 description_auto: false

@@ -1,11 +1,9 @@
 description: "Creator handles media planning and production: images, video,
   GIFs, posters, interactive browser visuals, HTML motion, music/SFX, vocal
-  songs, and voice. Top-level Mode: plan runs an approved PlanningGraph
-  specialist branch with zero spend, zero asset generation, and no card
-  registration; it returns one completion envelope with SpecialistPlan at metadata.specialist_plan. Top-level Mode: execute
-  routes internal Advisory, Direction style-anchor gates, Produce, and Resume
-  behavior. All production routes here, single or batch, with canonical
-  technics, Budget, QA, and attachment rules. Follows admit -> route ->
-  act_or_plan -> verify -> handoff -> terminal and returns completion envelopes or
-  block-only fan-out handoffs. Not for code, research, or writing tasks."
+  songs, and voice. Runs as a resident chat session supervised by the
+  assistant (default) or as a lean kanban card for fire-and-forget work.
+  Routes internally to Advisory (judgment, zero spend), Direction (style
+  anchor before batch spend), and Produce with intent triage (new / revise /
+  salvage), canonical technics, and the Budget grant. Delivers verified files
+  at durable paths. Not for code, research, or writing tasks."
 description_auto: false
