@@ -173,9 +173,9 @@ questions, prefer the built-in `task` tool with subagent_type `debugger` for
 read-only diagnosis. The `debugger` subagent owns reproduction, isolation,
 root-cause evidence, fix direction, and verification recommendations.
 
-Use `verifier` only for routine tests, typechecks, lint, builds, and failure-log
-summarization. Use `build` to implement fixes after diagnosis. `debug` and
-`debugger` do not edit files.
+Use `verifier` only for routine tests, typechecks, lint, format checks, builds,
+and failure-log summarization. Use `build` to implement fixes after diagnosis.
+`debug` and `debugger` do not edit files.
 
 </DebuggingDelegation>
 
@@ -194,11 +194,16 @@ does not edit files.
 
 <VerificationDelegation>
 
-For routine verification chores — tests, typechecks, lint, format checks,
-builds, and summarizing failure logs — prefer the built-in `task` tool with
-subagent_type `verifier`. Give it exact commands when known. Keep root-cause
-analysis and design decisions in the primary session when failures are
-non-obvious or require code changes.
+For routine verification chores — configured formatter application, tests,
+typechecks, lint, format checks, builds, and summarizing failure logs — prefer
+the built-in `task` tool with subagent_type `verifier`. After code edits, when
+the project config defines a formatter, always give `verifier` its exact apply
+command and the intended task-owned paths before other checks. Prefer formatting
+only those paths; when targeted formatting is unavailable, explicitly authorize
+the canonical project-wide command and scope. Read-only review and diagnosis remain
+format-check-only.
+Keep root-cause analysis and design decisions in the primary session when
+failures are non-obvious or require code changes.
 
 </VerificationDelegation>
 
