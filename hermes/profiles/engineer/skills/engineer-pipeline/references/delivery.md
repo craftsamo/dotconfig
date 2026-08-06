@@ -53,11 +53,8 @@ Review comments arrived on your PR (the task body or a comment says so):
 
 ### Board sync
 
-With `issues: write` granted, close the loop on the board after the work
-ships: move the Issue's project item status, check off satisfied checklist
-items, comment completion pointers — via OpenCode (its
-`manage-github-projects` conventions). Without the grant, board state is the
-orchestrator's job; just report what shipped.
+Board state is always the orchestrator's job — just report what shipped
+(Issue numbers, PR link, commits) so it can close the loop.
 
 ## ReportAssembly
 
@@ -73,23 +70,11 @@ you ran, a diff you read, or an artifact you attached.
   report cites the Authority line (or `AUTHORITY+:` comment) that allowed
   it.
 - **Pointers over payloads** — branch names, PR/Issue URLs, commit shas,
-  attachment names. Bulky evidence (diffs, assessments, logs, outlines)
-  goes through `kanban_attach`; the message carries the substance.
-- **Machine-readable handoff** — `kanban_complete(metadata={...})` contains
-  exactly one completion envelope at `metadata.completion` with `status`,
-  `summary`, and `metadata`. Put the board convention keys `changed_files`,
-  `verification` (the commands run), `dependencies`, `retry_notes`, and
-  `residual_risk` in that nested metadata, plus mode-specific keys such as
-  `issues` or `base_session`. When an artifact is attached, also return exactly
-  one `metadata.artifact_handoff` with `artifacts`, `verification`, and `qa`.
-  Every artifact entry carries `name`, `sha256`, `purpose`, and this task's
-  `source_task_id`.
-  `metadata.completion.artifacts` and the handoff name the exact same durable
-  output inventory; use an empty completion artifact list when no output file
-  was attached.
-  No secrets or raw logs.
-- **Chat summary** — the `kanban_complete` summary is 1-2 plain sentences a
-  non-engineer can act on; it is delivered verbatim to the requester's chat.
+  file paths. Bulky evidence (diffs, assessments, logs, outlines) lives in
+  worktree files you name (kanban runtime: `kanban_attach`); the message
+  carries the substance. No secrets or raw logs.
+- **Headline** — the reply/summary opens with 1-2 plain sentences a
+  non-engineer can act on; the itemized evidence follows.
 
 ## Pitfalls
 
@@ -102,8 +87,8 @@ you ran, a diff you read, or an artifact you attached.
 - Pushing or opening a PR because the work "deserves" it — grants, not
   quality, decide remote actions.
 - Merging anything, ever — `gh pr merge` is never yours at any grant.
-- Writing Issues/board items on an A-preset alone — that needs
-  `issues: write` (a PR's `Closes #n` is the no-grant way to close one).
+- Writing Issues/board items at any grant — GitHub bookkeeping is the
+  orchestrator's (a PR's `Closes #n` is the no-grant way to close one).
 
 ## Verification
 
