@@ -148,7 +148,12 @@ assistant starts through `assistant/scripts/resident-session.sh` and
 supervises conversationally; the kanban board is only for fire-and-forget,
 cron-originated, mass-parallel, and `scheduled` work with a lean card
 contract (no manifests/digests/probes — the v4 machinery is retired, see the
-2026-08-06 rebuild). The assistant itself is the quality gate (contracts under
+2026-08-06 rebuild). The card catalog is CLOSED and per-assignee: creator
+(`anchored-image-batch`, `tts-voice`, `deterministic-render`), searcher
+(`survey-enumeration`, `exhaustive-hunt`), researcher (`evidence-pack`);
+writer, engineer and marketer are resident-only and refuse every card.
+The validator cross-checks worker kernels against the catalog's
+`assignee` front matter. The assistant itself is the quality gate (contracts under
 `profiles/assistant/skills/assistant-pipeline/references/quality-assurance/`)
 and owns GitHub bookkeeping.
 Planning is one conversational approval. On cards, specialists speak the
@@ -158,10 +163,12 @@ parking uses `SCHEDULED: until=` comments and the assistant sweeper cron.
 Workers batch questions into one `needs_input` block; a second block,
 `capability` block, or spec gap pulls the card back to a resident session or
 re-plan.
-Grants: engineer Authority A1/A2/A3 + B1/B2 (GitHub bookkeeping is never
-the engineer's), creator Budget caps, marketer Publish (absent =
-draft-only; posting needs verbatim approval or in-cap P1) — see PROFILES.md
-"Engineer dialogue loop". Tracked per
+Grants: engineer Authority A1/A2/A3 + B1/B2 (planning documents and
+GitHub bookkeeping are never the engineer's — the assistant plans in its
+own OpenCode session and hands over `Base session:` / `Issue: #n`),
+creator Budget caps, marketer Publish (absent = draft-only; posting needs
+verbatim approval or in-cap P1) — see PROFILES.md "Engineer dialogue
+loop". Tracked per
 profile: `config.yaml`, `profile.yaml`, `SOUL.md`, `skills/`, `.no-bundled-skills`.
 Create with `hermes profile create <name> --description "…"`, then adopt into the
 repo (move real files → `../install.sh`); see `README.md` / `PROFILES.md`.
