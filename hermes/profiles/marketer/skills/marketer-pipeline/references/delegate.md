@@ -18,8 +18,7 @@ verification.
 
 ## How to request
 
-State the need in your dialogue channel (session reply, or a `Q<n>:`
-comment in kanban runtime), one line per input:
+State the need in your session reply, one line per input:
 
 - **What** — deliverable type and exact spec (dimensions, duration,
   length, format, platform constraints).

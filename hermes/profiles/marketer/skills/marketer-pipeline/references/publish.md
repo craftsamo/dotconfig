@@ -3,24 +3,21 @@
 Shared engine for shipping posts. Loaded only when a campaign task reaches
 its publish stage. The kernel's <PublishGrant> decides WHETHER anything may
 ship; this file owns HOW. Publishing is public and irreversible — when in
-doubt, block.
+doubt, ask.
 
 ## Gate (recap, kernel owns the contract)
 
-- **P0 (no `Publish:` line): approval block.** Before anything goes out,
-  comment per post: exact final text, attachments (filenames + what they
-  show), destination (account/channel, reply/quote target); then
-  `kanban_block(kind=needs_input, reason="APPROVAL: …")` — the `APPROVAL:`
-  headline forces a human relay. The same durable comment batch must include
-  destination, verbatim text, attachment inventory, and the corresponding
-  `Q<n>` for every post. Post ONLY what a `DECISION(Q<n>)` approves, verbatim.
-  Any difference from the approved text, destination, or attachment set after
-  approval requires a fresh approval block before posting; its reason is
-  `APPROVAL: <subject>`.
+- **P0 (no `Publish:` line): approval required.** Before anything goes out,
+  present in your session reply, for each post: exact final text, attachments
+  (filenames + what they show), and destination (account/channel,
+  reply/quote target). Wait for an explicit approval message from the
+  assistant. Post ONLY what that approval covers, verbatim. Any difference
+  from the approved text, destination, or attachment set requires presenting
+  the full candidate again and waiting for fresh approval.
 - **P1: autonomous within caps.** The grant names account, post-count cap,
   and content scope. Inside all caps, post without per-post approval.
   Anything outside — extra posts, another account, a new topic, paid
-  promotion — is a checkpoint-then-block, not an interpretation.
+  promotion — ask in your reply and wait for an explicit instruction.
 - Run the verify engine's pre-publish gate (V1-V5) before either path.
 
 ## xurl bridge (X, live)
@@ -32,15 +29,15 @@ post:
 2. `xurl` create the post (text + media ids).
 3. Take the returned post id/URL and **re-fetch it once** to confirm it is
    live (verify engine V6).
-4. `PROGRESS:` comment with the URL — one per shipped post.
+4. Report the live URL in your session reply — one per shipped post.
 
 Threads are an ordered reply chain: post 1, reply to it with post 2, and so
-on. On a mid-thread failure: checkpoint-then-block with what shipped (URLs)
-and what remains — **never re-post already-shipped items**; resume continues
-the chain from the recorded URLs.
+on. On a mid-thread failure: report in your reply what shipped (URLs) and
+what remains, then wait for the assistant's next message — **never re-post
+already-shipped items**.
 
-Auth problems (`xurl auth status` fails, token errors) are a block, not a
-retry loop.
+Auth problems (`xurl auth status` fails, token errors) require asking in your
+reply; do not retry in a loop.
 
 ## Channels
 
@@ -53,17 +50,17 @@ retry loop.
 ## After shipping
 
 - Shipped posts are immutable facts: never delete or edit a published post
-  without an explicit instruction. A wrong post is surfaced via a block
+  without an explicit instruction. A wrong post is reported in your reply
   (what shipped, what is wrong, options), not silently repaired.
-- Every shipped URL lives in a `PROGRESS:` comment — that trail is what a
-  respawn uses to avoid double-posting, and what the report cites.
+- Every shipped URL is reported in the session reply and included in the
+  final report.
 
 ## Pitfalls
 
 - Shipping anything not covered by a verbatim approval or an in-cap P1
   grant — including approved text you then "improved".
 - Skipping the live re-fetch — a returned id is not proof the post is up.
-- Retrying auth failures instead of blocking.
+- Retrying auth failures instead of asking in your reply.
 - Re-posting shipped items after a partial failure.
 - Posting from a shape or assess task because a P1 grant exists —
   the goal decides, not the grant (kernel rule).
@@ -71,6 +68,6 @@ retry loop.
 ## Verification
 
 - Every shipped post maps to its approval or in-cap grant, passed V1-V5
-  before shipping, and has a live-verified URL in a `PROGRESS:` comment.
+  before shipping, and has a live-verified URL reported in the session reply.
 - No published post was edited, deleted, or re-posted; failures were
-  blocked with the shipped/remaining split stated.
+  reported with the shipped/remaining split stated.

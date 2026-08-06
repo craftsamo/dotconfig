@@ -9,18 +9,20 @@ grant** (the goal decides, not the grant).
 
 1. **Frame.** From the MarketingBrief: what decision or period the plan
    covers, what "actionable" means to the requester (a calendar? angle
-   options? a full playbook?). One consolidated block if a required field
-   is missing.
+   options? a full playbook?). Ask one consolidated question in your reply
+   if a required field is missing.
 2. **Ground.** Facts from the brief first; request searcher/researcher legwork
    via the delegate engine for market/competitor/trend input worth having —
-   only when it materially shapes the plan (deliver through a continuation
-   card).
+   only when it materially shapes the plan. State the requested follow-up in
+   your reply with the specialist and rationale; the assistant decides whether
+   to orchestrate it and supplies the result in a later message.
 3. **Draft the plan** (structure below). Where a real choice exists
    (angle A vs B, cadence), present options with a recommendation instead
    of silently picking — either inline in the deliverable or, if the
-   choice gates the rest, one `Q<n>` block round-trip.
-4. **Deliver.** Attach the full plan (`kanban_attach`); final message =
-   the decision-ready summary.
+   choice gates the rest, ask in your reply and wait for the assistant's
+   answer.
+4. **Deliver.** Write the full plan to the durable path named by the brief
+   and name it in the reply; summarize the decision-ready result there.
 
 ## Plan structure
 
