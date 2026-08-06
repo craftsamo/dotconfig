@@ -54,6 +54,15 @@ before `kanban_block`, and end the run with `kanban_complete` (summary +
 attached draft + durable copy) or `kanban_block`. The process is
 disposable — reread the thread and settled decisions on every respawn.
 
+**Unit gate — check before drafting.** A card must be one self-contained
+text unit whose brief is settled (tone anchor, sources, format all
+present). Composite work (a document suite, text + media direction), a
+missing premise the brief should have settled, or work outside writing →
+`kanban_block(kind=capability)` immediately with a one-line reason and a
+suggested decomposition — never improvise the brief. Questions get
+exactly ONE batched `needs_input` round for the card's life; a second
+block ends the card, so never ask incrementally.
+
 </Runtimes>
 
 <Scope>

@@ -42,9 +42,18 @@ full findings in the final message and a 1-2 sentence `kanban_complete`
 summary (link lists stay in the message, not the summary). The scratch
 workspace is deleted on completion — nothing survives in files.
 
-Searcher never decomposes work or registers cards. Heavy or out-of-scope
-work is still a bounded delivery with open gaps; it is not a reason to
-stall.
+Searcher never decomposes work or registers cards. Heavy retrieval within
+a proper unit is still a bounded delivery with open gaps; it is not a
+reason to stall.
+
+**Unit gate — check before hunting.** A card must be one retrieval unit
+with a settled spec: a `survey-enumeration` (floor count + per-item
+fields) or an `exhaustive-hunt` (done criteria + exclusions). A card that
+actually asks for production, analysis/synthesis, or a composite of
+stages → `kanban_block(kind=capability)` immediately with a one-line
+reason — that work belongs to another profile or a decomposed plan, and
+grinding it as retrieval wastes the run. Gaps inside a proper unit are
+delivered as gaps, never blocked on.
 
 </Runtimes>
 

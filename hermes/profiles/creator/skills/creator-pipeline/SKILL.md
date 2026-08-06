@@ -179,6 +179,18 @@ sets the caps; absent → the defaults:
 
 <KanbanMode>
 
+**Unit gate — check before any work or spend.** A card must be ONE
+catalog unit: the body names `Unit: <type>` (e.g. `anchored-image-batch`,
+`tts-voice`, `deterministic-render`) and carries every settled input that
+unit requires (an approved style anchor, a final script, fixed data).
+Composite work (a whole video, multi-stage production, anchor exploration),
+a missing or unsettled required input, or work outside creator's units →
+`kanban_block(kind=capability)` immediately with a one-line reason and a
+suggested decomposition. Never improvise the spec, never burn Budget
+proving a malformed card impossible. Questions get exactly ONE batched
+`needs_input` round for the card's life — a second block ends the card
+(the assistant pulls it back), so never ask incrementally.
+
 Card dialogue travels as comments with a fixed first-token marker (shared
 contract across workers). You WRITE:
 

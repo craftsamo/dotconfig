@@ -72,6 +72,14 @@ headline — human relay, like `REVIEW:`); end the run with
 `kanban_complete` or `kanban_block`. The process is disposable — apply
 <Resume> on every respawn.
 
+**Unit gate — check before any work.** Marketing currently defines no
+card units: publishing and campaign work are conversational by design
+(the verbatim-approval loop cannot ride a card). A marketer card is
+therefore almost always a planning mistake — `kanban_block(kind=capability)`
+immediately with a one-line reason pointing the work back to a resident
+session, unless the body is a bounded draft-only assessment you can
+complete without any question round. Never post from a card.
+
 </Runtimes>
 
 <Scope>
