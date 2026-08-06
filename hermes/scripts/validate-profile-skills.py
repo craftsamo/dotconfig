@@ -5,16 +5,21 @@
 # ///
 """Validate Hermes skill topology, metadata, routing, and Git ownership.
 
-Workflow v5: the machine-readable authority is
-skills/orchestration/references/workflow-contract.yaml (version 2). This
-validator checks that contract's shape, the files it points at, and the
-skill-tree topology (managed pipelines/technics vs runtime learned/ dirs,
-frontmatter, plugin enablement, Git ownership boundaries).
+Workflow v5 (assistant-pipeline): the assistant profile owns the front-door
+reference tree at profiles/assistant/skills/assistant-pipeline/references/
+— modes chat / plan / execute / quality-assurance, each with optional
+capability subdirectories and work-category leaves. The kanban card catalog
+is the union of `card_units` front matter across the execute mode tree and
+is validated structurally here. The `default-pipeline` skill in the shared
+skills/ dir is a thin CLI adapter over that tree. This validator checks the
+tree topology, the catalog schema, index routing completeness, worker
+pipeline/technic topology, plugin enablement, and Git ownership boundaries.
 """
 
 from __future__ import annotations
 
 import argparse
+import re
 import subprocess
 from pathlib import Path
 from typing import Any
@@ -24,12 +29,8 @@ import yaml
 
 HERMES_ROOT = Path(__file__).resolve().parents[1]
 REPO_ROOT = HERMES_ROOT.parent
-WORKFLOW_CONTRACT = (
-    HERMES_ROOT
-    / "skills"
-    / "orchestration"
-    / "references"
-    / "workflow-contract.yaml"
+ASSISTANT_PIPELINE = (
+    HERMES_ROOT / "profiles" / "assistant" / "skills" / "assistant-pipeline"
 )
 WORKER_PROFILES = (
     "engineer",
@@ -41,10 +42,7 @@ WORKER_PROFILES = (
 )
 ALL_PROFILES = ("assistant", *WORKER_PROFILES)
 WORKER_MUTATION_GUARD_PLUGIN = "kanban-worker-mutation-guard"
-EXPECTED_MODES = ["chat", "plan", "execute", "qa"]
-EXPECTED_TIERS = ["inline", "resident", "kanban"]
-EXPECTED_GRANT_KINDS = {"authority", "budget", "publish"}
-EXPECTED_KANBAN_USES = {"fire_and_forget", "cron", "mass_parallel", "scheduled"}
+EXPECTED_MODES = ("chat", "plan", "execute", "quality-assurance")
 EXPECTED_CAPABILITIES = {
     "creative",
     "writing",
@@ -52,83 +50,44 @@ EXPECTED_CAPABILITIES = {
     "engineering",
     "marketing",
 }
-EXPECTED_BRIEF_FIELDS = {"goal", "context", "inputs", "deliverable", "constraints"}
-QA_CONTRACT_FILES = {
-    "index.md",
-    "ascii-art.md",
-    "ascii-video.md",
-    "audio.md",
-    "browser-media.md",
-    "comic.md",
-    "data-visualization.md",
-    "excalidraw-diagram.md",
-    "icon-set.md",
-    "infographic.md",
-    "pixel-art.md",
-    "pixel-video.md",
-    "prose.md",
-    "raster-image.md",
-    "script.md",
-    "song.md",
-    "sourced-asset.md",
-    "svg-diagram.md",
-    "text-visual.md",
-    "video.md",
-    "voice.md",
+# Capability subdirectories are allowed in these modes; chat stays flat.
+CAPABILITY_MODES = {"plan", "execute", "quality-assurance"}
+# Files that must exist directly inside a mode dir (beyond index.md).
+REQUIRED_MODE_FILES = {
+    "chat": {"workspace-ops.md", "cron.md", "lookups.md"},
+    "execute": {"resident-sessions.md", "kanban-lite.md", "scheduled.md"},
 }
-
-
-class UniqueKeyLoader(yaml.SafeLoader):
-    pass
-
-
-def construct_unique_mapping(
-    loader: UniqueKeyLoader, node: yaml.MappingNode, deep: bool = False
-) -> dict[Any, Any]:
-    mapping: dict[Any, Any] = {}
-    for key_node, value_node in node.value:
-        key = loader.construct_object(key_node, deep=deep)
-        try:
-            hash(key)
-        except TypeError as error:
-            raise yaml.constructor.ConstructorError(
-                "while constructing a mapping",
-                node.start_mark,
-                "found an unhashable mapping key",
-                key_node.start_mark,
-            ) from error
-        if key in mapping:
-            raise yaml.constructor.ConstructorError(
-                "while constructing a mapping",
-                node.start_mark,
-                f"found duplicate key {key!r}",
-                key_node.start_mark,
-            )
-        mapping[key] = loader.construct_object(value_node, deep=deep)
-    return mapping
-
-
-UniqueKeyLoader.add_constructor(
-    yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG,
-    construct_unique_mapping,
-)
+# Verification contracts that must exist (migration-loss guard); extra
+# leaves may grow beside them as long as the dir index routes them.
+REQUIRED_QA_CONTRACTS = {
+    "creative": {
+        "ascii-art.md",
+        "ascii-video.md",
+        "audio.md",
+        "browser-media.md",
+        "comic.md",
+        "data-visualization.md",
+        "excalidraw-diagram.md",
+        "icon-set.md",
+        "infographic.md",
+        "pixel-art.md",
+        "pixel-video.md",
+        "raster-image.md",
+        "song.md",
+        "sourced-asset.md",
+        "svg-diagram.md",
+        "text-visual.md",
+        "video.md",
+        "voice.md",
+    },
+    "writing": {"prose.md", "script.md"},
+}
+CARD_UNIT_NAME = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
 
 
 def load_yaml(path: Path) -> dict[str, Any]:
     data = yaml.safe_load(path.read_text(encoding="utf-8"))
     return data if isinstance(data, dict) else {}
-
-
-def load_workflow_contract(path: Path, errors: list[str]) -> dict[str, Any] | None:
-    try:
-        data = yaml.load(path.read_text(encoding="utf-8"), Loader=UniqueKeyLoader)
-    except (OSError, yaml.YAMLError) as error:
-        errors.append(f"invalid workflow contract YAML: {path}: {error}")
-        return None
-    if not isinstance(data, dict):
-        errors.append(f"workflow contract must be a mapping: {path}")
-        return None
-    return data
 
 
 def frontmatter(path: Path) -> dict[str, Any]:
@@ -167,144 +126,175 @@ def capability_names(path: Path) -> set[str]:
     return names
 
 
-# ── Workflow contract (v2) ──────────────────────────────────────────────
+# ── Assistant pipeline tree ─────────────────────────────────────────────
 
 
-def validate_workflow_contract_data(
-    data: dict[str, Any], errors: list[str]
-) -> int | None:
-    version = data.get("version")
-    if version != 2:
-        errors.append("workflow contract version must be 2")
+def rel_pipeline(path: Path) -> str:
+    return path.relative_to(ASSISTANT_PIPELINE).as_posix()
 
-    orchestration = data.get("orchestration")
-    if not isinstance(orchestration, dict):
-        errors.append("workflow contract orchestration must be a mapping")
-        orchestration = {}
-    if orchestration.get("front_door") != "assistant":
-        errors.append("workflow contract front door must be assistant")
-    if orchestration.get("modes") != EXPECTED_MODES:
-        errors.append(
-            "workflow contract modes must be chat, plan, execute, and qa"
-        )
-    if orchestration.get("tiers") != EXPECTED_TIERS:
-        errors.append(
-            "workflow contract tiers must be inline, resident, and kanban"
-        )
-    if orchestration.get("default_heavy_tier") != "resident":
-        errors.append("workflow contract default heavy tier must be resident")
-    if orchestration.get("approval_gates") != ["plan"]:
-        errors.append("workflow contract approval gates must be exactly plan")
-    if orchestration.get("card_registration_owner") != "assistant":
-        errors.append("workflow contract card registration owner must be assistant")
-    if orchestration.get("worker_card_creation") != "forbidden":
-        errors.append("workflow contract must forbid worker card creation")
-    if orchestration.get("qa_owner") != "assistant":
-        errors.append("workflow contract qa owner must be assistant")
 
-    grants = data.get("grants")
-    if not isinstance(grants, dict) or set(grants) != EXPECTED_GRANT_KINDS:
-        errors.append(
-            "workflow contract grants must be authority, budget, and publish"
-        )
-        grants = {}
-    authority = grants.get("authority", {})
-    if isinstance(authority, dict):
-        if authority.get("presets") != ["A1", "A2", "A3"]:
-            errors.append("authority grant presets must be A1, A2, A3")
-        if authority.get("default") != "A1":
-            errors.append("authority grant default must be A1")
-    publish = grants.get("publish", {})
-    if isinstance(publish, dict) and publish.get("default") != "draft_only":
-        errors.append("publish grant default must be draft_only")
-
-    specialists = data.get("specialists")
-    if not isinstance(specialists, dict):
-        errors.append("workflow contract specialists must be a mapping")
-        specialists = {}
-    if set(specialists) != set(WORKER_PROFILES):
-        errors.append(
-            "workflow contract specialists must be exactly: "
-            + ", ".join(WORKER_PROFILES)
-        )
-    references = HERMES_ROOT / "skills" / "orchestration" / "references"
-    for name, spec in specialists.items():
-        if not isinstance(spec, dict):
-            errors.append(f"specialist {name} must be a mapping")
+def validate_index_routes(directory: Path, errors: list[str]) -> None:
+    """Every non-index .md beside an index.md must be named in it."""
+    index = directory / "index.md"
+    if not index.is_file():
+        errors.append(f"missing index.md: {rel_pipeline(directory)}")
+        return
+    index_text = index.read_text(encoding="utf-8")
+    for leaf in sorted(directory.glob("*.md")):
+        if leaf.name == "index.md":
             continue
-        if spec.get("pipeline") != f"{name}-pipeline":
-            errors.append(f"specialist {name} pipeline must be {name}-pipeline")
-        capability = spec.get("capability")
-        if capability not in EXPECTED_CAPABILITIES:
-            errors.append(f"specialist {name} has an unknown capability: {capability}")
-        elif not (references / f"{capability}.md").is_file():
+        if leaf.name not in index_text:
             errors.append(
-                f"specialist {name} capability reference missing: {capability}.md"
+                f"index.md does not route {leaf.name}: {rel_pipeline(directory)}"
             )
-        grant = spec.get("grant")
-        if grant is not None and grant not in EXPECTED_GRANT_KINDS:
-            errors.append(f"specialist {name} has an unknown grant kind: {grant}")
 
-    resident = data.get("resident_session")
-    if not isinstance(resident, dict):
-        errors.append("workflow contract resident_session must be a mapping")
-        resident = {}
-    wrapper = resident.get("wrapper")
-    if not isinstance(wrapper, str) or not (
-        HERMES_ROOT / "profiles" / wrapper
-    ).is_file():
-        errors.append(f"resident session wrapper script missing: {wrapper}")
-    if resident.get("lifecycle") != "close_on_acceptance":
-        errors.append("resident session lifecycle must be close_on_acceptance")
-    brief = resident.get("brief_fields", {})
-    required = set(brief.get("required", [])) if isinstance(brief, dict) else set()
-    if required != EXPECTED_BRIEF_FIELDS:
-        errors.append(
-            "resident session brief required fields must be goal, context, "
-            "inputs, deliverable, and constraints"
+
+def validate_card_units(path: Path, seen: dict[str, Path], errors: list[str]) -> int:
+    units = frontmatter(path).get("card_units")
+    if units is None:
+        return 0
+    if not isinstance(units, list) or not units:
+        errors.append(f"card_units must be a non-empty list: {rel_pipeline(path)}")
+        return 0
+    count = 0
+    for unit in units:
+        if not isinstance(unit, dict):
+            errors.append(f"card_units entry must be a mapping: {rel_pipeline(path)}")
+            continue
+        name = unit.get("name")
+        if not isinstance(name, str) or not CARD_UNIT_NAME.match(name):
+            errors.append(
+                f"card_units name must be kebab-case: {name!r} in {rel_pipeline(path)}"
+            )
+            continue
+        if name in seen:
+            errors.append(
+                f"duplicate card unit {name}: {rel_pipeline(seen[name])} "
+                f"and {rel_pipeline(path)}"
+            )
+        seen[name] = path
+        inputs = unit.get("required_inputs")
+        if (
+            not isinstance(inputs, list)
+            or not inputs
+            or any(not isinstance(item, str) or not item for item in inputs)
+        ):
+            errors.append(
+                f"card unit {name} required_inputs must be a non-empty "
+                f"string list: {rel_pipeline(path)}"
+            )
+        if not isinstance(unit.get("unit_cap"), str) or not unit["unit_cap"]:
+            errors.append(
+                f"card unit {name} unit_cap must be a non-empty string: "
+                f"{rel_pipeline(path)}"
+            )
+        runtime_cap = unit.get("runtime_cap")
+        if not isinstance(runtime_cap, int) or isinstance(runtime_cap, bool) or (
+            runtime_cap <= 0
+        ):
+            errors.append(
+                f"card unit {name} runtime_cap must be a positive integer: "
+                f"{rel_pipeline(path)}"
+            )
+        count += 1
+    return count
+
+
+def validate_assistant_pipeline(errors: list[str]) -> tuple[int, int]:
+    """Validate the assistant-pipeline skill and its reference tree.
+
+    Returns (markdown reference file count, card unit count).
+    """
+    skill = ASSISTANT_PIPELINE / "SKILL.md"
+    if not skill.is_file():
+        errors.append(f"missing assistant pipeline skill: {skill}")
+        return 0, 0
+    validate_skill(skill, "assistant-pipeline", errors, expected_category="orchestration")
+
+    references = ASSISTANT_PIPELINE / "references"
+    if not references.is_dir():
+        errors.append(f"missing assistant pipeline references: {references}")
+        return 0, 0
+
+    for entry in sorted(references.iterdir()):
+        if entry.name.startswith("."):
+            continue
+        if entry.is_file():
+            errors.append(f"references root must hold mode dirs only: {entry.name}")
+        elif entry.name not in EXPECTED_MODES:
+            errors.append(f"unexpected mode directory: {entry.name}")
+    for mode in EXPECTED_MODES:
+        if not (references / mode).is_dir():
+            errors.append(f"missing mode directory: {mode}")
+
+    files = 0
+    units: dict[str, Path] = {}
+    for mode in EXPECTED_MODES:
+        mode_dir = references / mode
+        if not mode_dir.is_dir():
+            continue
+        validate_index_routes(mode_dir, errors)
+        for name in sorted(REQUIRED_MODE_FILES.get(mode, set())):
+            if not (mode_dir / name).is_file():
+                errors.append(f"missing required mode file: {mode}/{name}")
+        for entry in sorted(mode_dir.iterdir()):
+            if entry.name.startswith("."):
+                continue
+            if entry.is_file():
+                if entry.suffix != ".md":
+                    errors.append(f"non-markdown reference: {rel_pipeline(entry)}")
+                    continue
+                files += 1
+                if mode == "execute":
+                    validate_card_units(entry, units, errors)
+                elif "card_units" in frontmatter(entry):
+                    errors.append(
+                        f"card_units are only legal under execute/: "
+                        f"{rel_pipeline(entry)}"
+                    )
+                continue
+            # capability subdirectory
+            if mode not in CAPABILITY_MODES:
+                errors.append(
+                    f"{mode}/ must stay flat; unexpected dir: {rel_pipeline(entry)}"
+                )
+                continue
+            if entry.name not in EXPECTED_CAPABILITIES:
+                errors.append(f"unexpected capability dir: {rel_pipeline(entry)}")
+                continue
+            validate_index_routes(entry, errors)
+            for leaf in sorted(entry.iterdir()):
+                if leaf.name.startswith("."):
+                    continue
+                if leaf.is_dir():
+                    errors.append(
+                        f"no nesting below capability dirs: {rel_pipeline(leaf)}"
+                    )
+                    continue
+                if leaf.suffix != ".md":
+                    errors.append(f"non-markdown reference: {rel_pipeline(leaf)}")
+                    continue
+                files += 1
+                if mode == "execute":
+                    validate_card_units(leaf, units, errors)
+                elif "card_units" in frontmatter(leaf):
+                    errors.append(
+                        f"card_units are only legal under execute/: "
+                        f"{rel_pipeline(leaf)}"
+                    )
+
+    qa_root = references / "quality-assurance"
+    for capability, required in REQUIRED_QA_CONTRACTS.items():
+        directory = qa_root / capability
+        present = (
+            {p.name for p in directory.glob("*.md")} if directory.is_dir() else set()
         )
+        for name in sorted(required - present):
+            errors.append(
+                f"QA contract file missing: quality-assurance/{capability}/{name}"
+            )
 
-    kanban = data.get("kanban")
-    if not isinstance(kanban, dict):
-        errors.append("workflow contract kanban must be a mapping")
-        kanban = {}
-    if set(kanban.get("uses", [])) != EXPECTED_KANBAN_USES:
-        errors.append(
-            "kanban uses must be fire_and_forget, cron, mass_parallel, and "
-            "scheduled"
-        )
-    if kanban.get("pipeline_pin") != "required":
-        errors.append("kanban pipeline pin must be required")
-    for key in ("block_resolver", "scheduled_sweeper"):
-        script = kanban.get(key)
-        if not isinstance(script, str) or not (
-            HERMES_ROOT / "profiles" / script
-        ).is_file():
-            errors.append(f"kanban {key} script missing: {script}")
-    markers = kanban.get("retired_markers")
-    if not isinstance(markers, list) or not markers or any(
-        not isinstance(marker, str) for marker in markers
-    ):
-        errors.append("kanban retired_markers must be a non-empty string list")
-
-    qa_dir = references / "qa"
-    present = {path.name for path in qa_dir.glob("*.md")} if qa_dir.is_dir() else set()
-    for name in sorted(QA_CONTRACT_FILES - present):
-        errors.append(f"QA contract file missing: references/qa/{name}")
-    for name in sorted(present - QA_CONTRACT_FILES):
-        errors.append(f"unexpected QA contract file: references/qa/{name}")
-
-    return version if isinstance(version, int) else None
-
-
-def validate_workflow_contract(errors: list[str]) -> int | None:
-    if not WORKFLOW_CONTRACT.is_file():
-        errors.append(f"workflow contract not found: {WORKFLOW_CONTRACT}")
-        return None
-    data = load_workflow_contract(WORKFLOW_CONTRACT, errors)
-    if data is None:
-        return None
-    return validate_workflow_contract_data(data, errors)
+    return files, len(units)
 
 
 # ── Git ownership ───────────────────────────────────────────────────────
@@ -348,7 +338,7 @@ def untracked_managed_files() -> list[str]:
             "--others",
             "--exclude-standard",
             "--",
-            "hermes/skills/orchestration/**",
+            "hermes/skills/default-pipeline/**",
             "hermes/profiles/*/skills/*-pipeline/**",
             "hermes/profiles/*/skills/technic/**",
             "hermes/profiles/assistant/skills/desks/**",
@@ -506,15 +496,14 @@ def validate_worker(
     return len(leaves), len(learned)
 
 
-def validate_assistant(errors: list[str]) -> tuple[int, int, int]:
+def validate_assistant(errors: list[str]) -> tuple[int, int, int, int, int]:
     profile_root = HERMES_ROOT / "profiles" / "assistant"
     skills = profile_root / "skills"
     desks_dir = skills / "desks"
     technic_dir = skills / "technic"
     learned_dir = skills / "learned"
 
-    if not (HERMES_ROOT / "skills" / "orchestration" / "SKILL.md").is_file():
-        errors.append("assistant pipeline equivalent is missing: shared orchestration")
+    refs, units = validate_assistant_pipeline(errors)
     if not desks_dir.is_dir():
         errors.append(f"missing assistant desks directory: {desks_dir}")
     if not technic_dir.is_dir():
@@ -538,7 +527,7 @@ def validate_assistant(errors: list[str]) -> tuple[int, int, int]:
             )
             groups[category][name] = path
 
-    allowed: set[tuple[str, ...]] = set()
+    allowed: set[tuple[str, ...]] = {("assistant-pipeline", "SKILL.md")}
     for category, skills_by_name in groups.items():
         allowed.update((category, name, "SKILL.md") for name in skills_by_name)
     validate_allowed_skill_roots(skills, allowed, errors)
@@ -558,25 +547,38 @@ def validate_assistant(errors: list[str]) -> tuple[int, int, int]:
                 if skill and skill not in groups["desks"]:
                     errors.append(f"Telegram topic binds a non-desk skill: {skill}")
 
-    validate_git_boundary([desks_dir, technic_dir], learned_dir, errors)
+    validate_git_boundary(
+        [ASSISTANT_PIPELINE, desks_dir, technic_dir], learned_dir, errors
+    )
     if config.is_file():
         validate_plugin_enabled("assistant", config, errors)
     validate_plugin_enabled("assistant", profile_root / "config.example.yaml", errors)
-    return len(groups["desks"]), len(groups["technic"]), len(groups["learned"])
+    return (
+        refs,
+        units,
+        len(groups["desks"]),
+        len(groups["technic"]),
+        len(groups["learned"]),
+    )
 
 
 def validate_shared(errors: list[str]) -> tuple[int, int]:
     skills = HERMES_ROOT / "skills"
-    orchestration = skills / "orchestration"
+    default_pipeline = skills / "default-pipeline"
     learned_dir = skills / "learned"
 
     managed: dict[str, Path] = {}
-    orchestration_skill = orchestration / "SKILL.md"
-    if orchestration_skill.is_file():
-        validate_skill(orchestration_skill, "orchestration", errors)
-        managed["orchestration"] = orchestration_skill
+    default_skill = default_pipeline / "SKILL.md"
+    if default_skill.is_file():
+        validate_skill(
+            default_skill,
+            "default-pipeline",
+            errors,
+            expected_category="orchestration",
+        )
+        managed["default-pipeline"] = default_skill
     else:
-        errors.append(f"missing shared orchestration skill: {orchestration_skill}")
+        errors.append(f"missing default pipeline skill: {default_skill}")
 
     learned: dict[str, Path] = {}
     if learned_dir.is_dir():
@@ -585,10 +587,10 @@ def validate_shared(errors: list[str]) -> tuple[int, int]:
             validate_skill(path, name, errors)
             learned[name] = path
 
-    allowed = {("orchestration", "SKILL.md")}
+    allowed = {("default-pipeline", "SKILL.md")}
     allowed.update(("learned", name, "SKILL.md") for name in learned)
     validate_allowed_skill_roots(skills, allowed, errors)
-    validate_git_boundary([orchestration], learned_dir, errors)
+    validate_git_boundary([default_pipeline], learned_dir, errors)
     validate_plugin_enabled("default", HERMES_ROOT / "config.yaml", errors)
     return len(managed), len(learned)
 
@@ -625,14 +627,12 @@ def main() -> int:
     summaries: list[str] = []
 
     if args.all:
-        workflow_version = validate_workflow_contract(errors)
-        if workflow_version is not None:
-            summaries.append(f"workflow-contract=v{workflow_version}")
         validate_plugin_source(errors)
         managed, learned = validate_shared(errors)
         summaries.append(f"shared={managed} managed/{learned} learned")
-        desks, technics, learned = validate_assistant(errors)
+        refs, units, desks, technics, learned = validate_assistant(errors)
         summaries.append(
+            f"assistant-pipeline={refs} refs/{units} card-units; "
             f"assistant={desks} desks/{technics} technics/{learned} learned"
         )
         for profile in WORKER_PROFILES:
@@ -644,8 +644,9 @@ def main() -> int:
             message = f"managed skill file is untracked: {path}"
             (errors if args.strict_git else warnings).append(message)
     elif args.profile == "assistant":
-        desks, technics, learned = validate_assistant(errors)
+        refs, units, desks, technics, learned = validate_assistant(errors)
         summaries.append(
+            f"assistant-pipeline={refs} refs/{units} card-units; "
             f"assistant={desks} desks/{technics} technics/{learned} learned"
         )
     else:
