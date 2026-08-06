@@ -7,7 +7,7 @@ branches:
 
 | Branch | Altitude | Deliverable |
 | --- | --- | --- |
-| **specify** (ex-specify) | WHAT — high-level requirement → low-level requirement units | intent-labeled unit decomposition; with S2, registered GitHub Issues |
+| **specify** (ex-specify) | WHAT — high-level requirement → low-level requirement units | intent-labeled unit decomposition (draft; the assistant registers the Issues) |
 | **outline** (ex-plan) | HOW — implementation goal → coarse Wave milestones | Wave outline + base session id |
 
 The planning ladder (PROFILES.md): assistant owns what/why at feature level →
@@ -16,14 +16,12 @@ Wave milestones (non-Issue work only) → OpenCode owns phases/units at
 implement time. Each rung decides its own altitude ONLY. On GitHub-flow
 repos the registered Issues ARE the milestone layer — implement consumes one
 Issue per task and no Wave outline is produced for the same work. Never
-double-plan. The legacy `Plan —` opener is this Execute/Shape outline branch;
-it is not the top-level `Mode: plan` PlanningGraph specialist branch, which
-returns a `SpecialistPlan` instead of a Wave outline.
+double-plan. The legacy `Plan —` opener maps to this outline branch.
 
 ## Floor rules (both branches)
 
-- **Read-only on the repo.** No commits, edits, scaffolding, installs. The
-  only writes are GitHub registrations under S2.
+- **Read-only on the repo.** No commits, edits, scaffolding, installs, and
+  no GitHub writes — the decomposition is a draft the assistant registers.
 - **A repo must exist.** Shape grounds on a codebase. No repo → report "no
   repo, bootstrap needed" and stop (assess's bootstrap signal); never shape
   against an empty workspace.
@@ -37,15 +35,12 @@ returns a `SpecialistPlan` instead of a Wave outline.
 
 ## Branch: specify (requirement → Issues)
 
-### The S grant — specify's Authority analog
+### Draft-only, always
 
-| Preset | Grants |
-| --- | --- |
-| `S1` (default) | draft only — deliver the decomposition as an attachment; write NOTHING to GitHub |
-| `S2` | S1 + register the approved decomposition (Issues, sub-issue links, board items) via OpenCode |
-
-Missing or unparseable → `S1`. `gh issue delete` is never granted, at any
-preset. `AUTHORITY+:` comments can expand S1 → S2 mid-task.
+Specify writes NOTHING to GitHub: the deliverable is the decomposition
+document, and the assistant registers the approved Issues/board items
+itself. (The former S1/S2 grant split is retired — there is no
+registration grant to ask for.)
 
 ### Units — requirement altitude, one intent each
 
@@ -81,23 +76,9 @@ preset. `AUTHORITY+:` comments can expand S1 → S2 mid-task.
 5. **Review gate** — with `Review: required`, attach the draft and block with
    a `REVIEW:` headline per core <ReviewGate>. Never register an unapproved
    decomposition.
-6. **Register (S2 only, after approval)** — drive OpenCode:
-
-   ```text
-   OPENCODE_PERMISSION='{"bash":{"*":"allow","git push*":"deny","gh pr create*":"deny","gh pr merge*":"deny","gh issue delete*":"deny","npm publish*":"deny"}}' \
-     opencode run --auto --agent build --model <m> \
-     'Register this approved requirement decomposition on GitHub per your
-      github-projects conventions (epic issue + sub-issues, board items):
-      <the approved decomposition, verbatim — including each unit's
-      Intent: label>. Report every created issue number and URL.'
-   ```
-
-   Issue/board writes are open here (that is the point of S2); code-shipping
-   remains denied — specify never pushes or opens PRs.
-7. **Verify independently** (`references/verify.md` spec profile) —
-   `gh issue view` the created Issues: bodies match the approved draft
-   (intent labels included), sub-issue/parent links exist, board items
-   present. Never trust the run's summary alone.
+6. **Hand off** — deliver the approved decomposition (each unit carrying
+   its `Intent:` label) as the final document; the assistant registers the
+   Issues and dispatches implement per Issue.
 
 ### Decomposition format
 
@@ -158,8 +139,8 @@ Procedure:
    uncertain, where the ordering could be wrong, what a reviewer should
    challenge.
 5. **Record the base session id** (`opencode session list`) — this is the
-   base implement will fork each Wave from. Put it in the report, a
-   `PROGRESS:` comment, and `metadata.completion.metadata`.
+   base implement will fork each Wave from. Put it in the report (kanban
+   runtime: also a `PROGRESS:` comment).
 6. **Report** and complete; approval is the orchestrator's post-completion
    call. `Review: required` in the body → core <ReviewGate> instead.
 
@@ -186,19 +167,15 @@ if one surfaced (rare).
 
 ## Report
 
-- Final message = the decomposition summary (+ S2: created Issue
-  numbers/URLs and the epic link, + assumed vs decided) or the Wave outline
-  + self-assessment + base session id.
-- `kanban_complete` summary = 1-2 plain sentences (e.g. "Login feature split
-  into 4 requirement Issues (#12-#15) under epic #11; ready to implement per
-  Issue." / "4-Wave outline: theme → layout → sections → responsive; base
-  session s_ab12.") — delivered verbatim to the requester's chat.
-- `metadata.completion.metadata`: specify → `{"epic": "<url-or-#>",
-  "issues": ["#12", …]}` (S2) or `{"draft": "<attachment>"}` (S1);
-  outline → `{"waves": [...], "base_session": "<id>"}` — so the
-  orchestrator dispatches follow-up cards without re-reading prose. Include the
-  standard changed-files, verification, dependency, retry, and residual-risk
-  keys as required by the completion envelope.
+- Final message = the decomposition summary (+ assumed vs decided) or the
+  Wave outline + self-assessment + base session id.
+- The reply/summary = 1-2 plain sentences (e.g. "Login feature split into
+  4 requirement units under one epic draft; ready for registration." /
+  "4-Wave outline: theme → layout → sections → responsive; base session
+  s_ab12.").
+- Name the machine-consumable facts plainly at the end of the report:
+  specify → the draft document path; outline → the Waves and the base
+  session id — so the orchestrator can act without re-reading prose.
 
 ## Pitfalls
 
@@ -207,9 +184,8 @@ if one surfaced (rare).
 - A unit mixing intents (refactor buried inside a feature unit) — split and
   order instead; the granularity rules exist for the dispatcher copying
   units into cards.
-- Registering without the Review gate passing, or on S1.
-- Hand-crafting Issues with raw `gh issue create` — OpenCode's conventions
-  (epic/purpose/work bodies, links, board fields) are the contract.
+- Registering anything on GitHub yourself — the assistant owns Issue and
+  board registration.
 - Serial ambiguity blocks — batch every requirement question into one round.
 - Ungrounded units ("add auth module" with no repo surface named).
 - Forgetting the base session id — implement re-plans and the outline
@@ -229,8 +205,7 @@ if one surfaced (rare).
   phase/file detail. Granularity rules hold (no mixed-intent units).
 - Material choices went through one batched `Q<n>` round or are labeled
   assumptions; the Review gate ran when required.
-- S2 registrations verified with `gh issue view` (bodies, labels, links,
-  board items) and reported as numbers/URLs; S1 wrote nothing to GitHub.
+- Nothing was written to GitHub; the draft document path is reported.
 - Outline: Waves only, base session id recorded, self-assessment included;
   on detailed-plan cards, fine detail lives in the advisory appendix and the
   Wave lines stayed coarse.

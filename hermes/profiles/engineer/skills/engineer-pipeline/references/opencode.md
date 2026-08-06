@@ -319,9 +319,8 @@ OPENCODE_PERMISSION='{"edit":"allow","bash":{"*":"allow",<authority-denies>},<to
 | A2 | drop the push/PR-create/comment/edit/review denies — A2 includes maintaining YOUR OWN PR (reply to review comments, edit the body, re-request review); keep `"gh pr merge*":"deny"` (merging is never yours) + the issue-write denies below |
 | A3 | same as A2 |
 
-**Issue/board writes are in NO A-preset** — only the override line
-`issues: write` (or an `AUTHORITY+:` expansion) grants them. Until granted,
-every build run also carries:
+**Issue/board writes are never granted** — GitHub bookkeeping belongs to
+the orchestrator. Every build run therefore also carries:
 
 - bash: `"gh issue create*":"deny","gh issue edit*":"deny","gh issue comment*":"deny","gh issue close*":"deny","gh project *":"deny"`
 - `<tool-denies>` — OpenCode's custom GitHub Projects tools are `allow` in its
@@ -329,9 +328,7 @@ every build run also carries:
   `"github_project_create":"deny","github_project_field_ensure":"deny","github_project_item_add":"deny","github_project_item_set":"deny","github_project_item_note":"deny","github_project_item_promote":"deny","github_project_view_ensure":"deny","github_project_issue_link":"deny","github_project_issue_develop":"deny"`
   (`github_project_item_list` stays allowed — read-only).
 
-With `issues: write`: drop the issue/board denies above, but ALWAYS keep
-`"gh issue delete*":"deny"` (deleting is never yours, mirroring the tools'
-own no-delete policy). Reading (`gh issue view/list`, `gh pr view/diff`,
+Reading (`gh issue view/list`, `gh pr view/diff`,
 `github_project_item_list`) is never denied at any grant.
 
 Verified mechanics this relies on:
@@ -445,7 +442,7 @@ is cheaper than persuasion. Record what was discarded and why in a
   never straight to build; no session crossed a Wave boundary; run outputs
   were read for open questions (QuestionBridge).
 - Every build run carried the matching PermissionBridge env + `--auto`
-  (including the issue/board tool denies when `issues: write` is absent).
+  (including the issue/board tool denies).
 - Prompts carried only the delta per <PromptContract>: no role preambles,
   no restated permissions/denies/skill content/repo conventions; scope
   boundaries and the QuestionBridge closer present where required.
