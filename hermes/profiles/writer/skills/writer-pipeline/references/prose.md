@@ -60,16 +60,13 @@ phrases) as the structural guide.
   `references/review.md`) right at outline time — restructuring a full
   draft costs a whole rewrite.
 - Read every supplied source before the outline, not during the draft;
-  heavy retrieval fans out per the kernel's FanOut rules.
+  heavy retrieval follows the kernel's source-retrieval guidance.
 - Write the full text in one register; tone drift mid-document is a
   norms-pass failure.
-- A QA-gated body (`QA: required`) writes the complete final prose to the
-  filename declared in `Output` (default `deliverable.md`) and attaches that
-  exact file. The final message and attachment must contain substantively
-  identical deliverable text; the attachment is the immutable QA target.
-- Attach the QA target once. Check the card attachment inventory first; if the
-  exact final file is already present, do not attach it again under an automatic
-  `_1` suffix.
+- Write the complete final prose to the durable path named by the brief. The
+  assistant's own quality-assurance pass inspects that completed file; in the
+  reply, name the file and summarize its structure rather than pasting the
+  whole draft.
 
 ## Pitfalls
 
