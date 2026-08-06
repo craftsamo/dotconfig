@@ -17,7 +17,8 @@ Intent shapes the entry (kernel <IntentTriage>):
 
 Load `references/capabilities.md`, select the canonical leaf by final
 deliverable and production method, then `skill_view` it before work. The leaf
-owns craft and medium-specific QA; this pipeline continues to own Budget,
+owns craft and medium-specific production details; this pipeline continues to
+own Budget,
 questions, review, verification floor, and delivery.
 
 A dispatch may preload a canonical technic, but preload is not proof that it

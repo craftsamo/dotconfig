@@ -10,8 +10,9 @@ packages its evidence; it never substitutes for it.
 - **Every final artifact lands at a durable path** — the destination the
   brief names (default `~/Workspaces/.deliverables/<job>/`). A file that
   exists only in a tool cache, tmp dir, or scratch workspace is a file
-  lost. In kanban mode additionally `kanban_attach` every final (scratch
-  dies on completion), BEFORE any Review block.
+  lost. In a resident session, name every path in the reply. In kanban mode,
+  `kanban_attach` every final, copy it to the durable destination, and name it
+  in the completion summary.
 - Deliver the set, not the darkroom floor: intermediates, rejected
   variants, and raw source frames stay out unless the brief asked for
   them.
@@ -27,28 +28,30 @@ packages its evidence; it never substitutes for it.
 
 ## ReviewGate
 
-If the brief carries `Review: required`, the user signs off BEFORE the job
-closes. After verification passes:
+If the brief carries `Review: required`, the resident session presents the
+human sign-off (`<ReviewGate>`) in the reply BEFORE the job closes. A kanban
+card carrying `Review: required` is malformed per the kernel and must not
+run. After verification passes:
 
 1. Land the final assets (and anchor artifacts) at the durable path.
 2. Present the review package: per asset — type, dimensions, format; the
    spend tally; verification results; the file paths.
-3. Session runtime: put the package in your reply and wait — the assistant
+3. Resident session: put the package in your reply and wait — the assistant
    relays it for sign-off; the next message brings the verdict. Kanban
-   runtime: comment the package as `STATE:`, then
-   `kanban_block(kind=needs_input, reason="REVIEW: <one-line summary>")` —
-   the `REVIEW:` prefix makes the orchestrator relay to the human.
+   runtime has no Review block or sign-off round; its card contract is
+   `kanban_attach`, durable copy, and completion summary only.
 4. `approved` → finish per <ReportAssembly>; `changes — <list>` → treat as
    revise feedback (`references/iterate.md` <FeedbackTriage>) within the
    remaining Budget — a change needing more spend is a question round,
    never a silent overrun — then open a fresh review round.
 
 No `Review:` in the brief → deliver directly; never invent a review round
-the spec didn't ask for.
+the spec didn't ask for. This applies to resident sessions; kanban cards are
+fire-and-forget and a Review requirement is malformed.
 
 ## ReportAssembly
 
-The report — final session reply, or `kanban_complete` summary + metadata —
+The report — final session reply, or `kanban_complete` summary —
 is **evidence-backed**: every claim points at a file, a measurement, or a
 reconciled tally.
 
@@ -66,11 +69,9 @@ reconciled tally.
 - **Gaps stated plainly** — a best-attempt delivery names what misses the
   brief and why the budgeted passes couldn't close it; honesty here keeps
   the corrective-pass economy working.
-- Kanban runtime: the `kanban_complete` summary is 1-2 plain sentences a
-  non-creator can act on; the detail above goes in the completion
-  metadata (`assets` / `verification` / `spend` / `anchor` /
-  `retry_notes` / `residual_risk`). No prompts or seeds in the summary
-  line.
+- Kanban runtime: the `kanban_complete` summary names every artifact and the
+  spend tally in 1-2 plain sentences a non-creator can act on. No review
+  round, prompts, or seeds in the summary.
 
 ## Pitfalls
 
@@ -91,4 +92,4 @@ reconciled tally.
   durable path (kanban: and is attached); no intermediates shipped.
 - The report itemizes V-checks + outcomes, reconciles the spend, and
   names every path and anchor value.
-- Review-gated jobs finished only after an explicit approval.
+- Review-gated resident-session jobs finished only after an explicit approval.
