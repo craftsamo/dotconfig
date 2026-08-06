@@ -32,7 +32,7 @@ shaped to what the caller actually asked for:
 
 - **Evidence-pack** — deep synthesis of a question (default).
 - **Tradeoff-matrix** — decision support: compare named options against
-  criteria, recommend one (the Plan-Loop consultation form).
+  criteria, recommend one (the plan consultation form).
 - **Fact-check** — verify specific external claims, cited sources, or current
   specifications — narrow and fast. An artifact may locate the claims, but
   artifact-vs-brief quality gates belong to QA.

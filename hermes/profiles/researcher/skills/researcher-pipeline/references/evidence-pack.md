@@ -34,9 +34,13 @@ Shorten sections for compact output, but keep the categories.
 
 ## Handoff
 
-After the evidence and open gaps pass verification, complete with exactly one
-`metadata.completion` envelope. Its role metadata names `mode: analyze`,
-`deliverable: evidence-pack`, the source set, coverage, confidence, and gaps.
+After the evidence and open gaps pass verification, deliver according to the
+runtime:
+
+- **Session runtime (default):** deliver the structured report in your reply,
+  and write artifacts/ledgers to the durable path when the brief names one.
+- **Card runtime:** deliver the full report in the final message, add a 1–2
+  sentence completion summary, and attach artifact files.
 
 ## Verification
 
