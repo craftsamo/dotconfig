@@ -49,20 +49,14 @@ claim-level `supported` / `refuted` / `partly true` / `unverifiable` verdicts
 for QA to consume. Do not judge the artifact's craft, rendering, mechanical
 specification, completeness, or fit to its brief.
 
-## QA handoff artifact
+## QA ledger artifact
 
-When the body names QA as a consumer, write the complete Output template to
-the requested attachment (default `claim-ledger.md`) and attach it before
-completion. Include every source URL/id, reliability/credibility score,
-counterevidence, and unverifiable gap. QA reads this immutable ledger; the
-completion summary remains only a notification headline. The completion handoff
-uses `metadata.artifact_handoff.qa` with `status: evidence`, `consumer: qa`, and
-`ledger: <attached filename>`, alongside the artifact name and verification
-result.
-
-Without an attached ledger, complete with exactly one `metadata.completion`
-envelope whose role metadata names `mode: analyze`, `deliverable: fact-check`,
-sources, coverage, confidence, and open gaps.
+When the brief names QA as a consumer, write the complete Output template
+to the requested file (default `claim-ledger.md`) at the durable path
+before finishing. Include every source URL/id, reliability/credibility
+score, counterevidence, and unverifiable gap. The downstream QA reads this
+ledger; the summary/reply remains only a headline that names the file.
+(Kanban runtime: also `kanban_attach` it.)
 
 ## Pitfalls
 
@@ -82,4 +76,5 @@ sources, coverage, confidence, and open gaps.
   counterevidence was searched per claim, not just per topic.
 - Origins traced for load-bearing claims; shared-origin echoes not counted
   twice.
-- QA-bound work attached the complete claim ledger named in Output.
+- QA-bound work wrote the complete claim ledger named in Output to the
+  durable path.
