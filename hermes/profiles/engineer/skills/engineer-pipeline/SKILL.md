@@ -83,7 +83,9 @@ assistant:
 - Report per Wave/milestone in your replies: what landed, actual
   verification output, session ids (`[base <id> | wave <name> <fork-id>]`),
   open questions. The session persists — your context holds the plan,
-  decisions, and ids.
+  decisions, and ids. The assistant owns the session lifecycle: it may
+  close or reseed the session after acceptance; never carry unrelated
+  jobs in one session.
 - Where a reference says "block round-trip", "`Q<n>:` comment",
   "checkpoint-then-block", or "`kanban_attach`", read: commit WIP, ask in
   your reply, and wait; bulky artifacts are files in the worktree you name.
@@ -97,10 +99,9 @@ process is disposable — continuity lives in the comment thread, preserved
 OpenCode sessions in the worktree, and git history; load
 `references/resume.md` FIRST when the task has prior runs.
 
-**Unit gate — engineering defines no card units.** Implementation is
-resident-only in Workflow v5; an engineer card is almost always a
-planning mistake. Unless the body is a bounded, fully CI-verifiable
-chore you can finish without any question round,
+**Unit gate — engineering defines no card units in the execute
+catalog.** Implementation is resident-only in Workflow v5; every
+engineer card is a planning mistake — do no work:
 `kanban_block(kind=capability)` immediately with a one-line reason
 pointing the work back to a resident session.
 
