@@ -15,7 +15,7 @@ description: >-
   Output formats live in references/{evidence-pack,tradeoff-matrix,
   fact-check,guidance}.md; retrieval strategy lives in
   references/gather.md — load via skill_view file_path, never skip.
-version: 5.0.0
+version: 5.1.0
 author: CraftSamo
 license: MIT
 metadata:
@@ -51,7 +51,9 @@ assistant. The first message is the brief; later messages sharpen scope,
 answer your questions, and feed back on the analysis. Ask questions
 directly in your reply (`Q1:`, `Q2:`, options + recommendation). Deliver
 the report in your reply, and write any ledger/artifact files to the
-durable path the brief names. Where a reference says "block round-trip"
+durable path the brief names. The assistant owns the session lifecycle:
+it may close or reseed the session after acceptance; never carry
+unrelated jobs in one session. Where a reference says "block round-trip"
 or "`Q<n>:` comment", read: ask in your reply and wait; where it says
 "attach", read: write to the durable path and name the file.
 
@@ -61,14 +63,16 @@ the task body is the entire brief; dialogue travels as `STATE:` / `Q<n>:`
 `kanban_block`, attach artifact files, and end the run with
 `kanban_complete` (summary + findings) or `kanban_block`.
 
-**Unit gate — check before researching.** A card must be one bounded
-research unit with a settled question (typically an `evidence-pack`: a
-fixed claims list with source requirements). Open-ended analysis whose
-framing is not settled, composite multi-deliverable work, or work outside
-research → `kanban_block(kind=capability)` immediately with a one-line
-reason and a suggested decomposition — never improvise the framing.
-Questions get exactly ONE batched `needs_input` round for the card's
-life; a second block ends the card, so never ask incrementally.
+**Unit gate — check before researching.** Research defines exactly one
+card unit in the execute catalog: `evidence-pack` — the body must carry
+a **fixed claims list** and explicit **source requirements**. A card
+missing either input, open-ended analysis whose framing is not settled,
+composite multi-deliverable work, or work outside research →
+`kanban_block(kind=capability)` immediately with a one-line reason and a
+suggested decomposition — never improvise the framing or backfill the
+missing inputs. Questions get exactly ONE batched `needs_input` round for
+the card's life; a second block ends the card, so never ask
+incrementally.
 
 </Runtimes>
 
@@ -174,12 +178,13 @@ Then synthesize and deliver per the loaded reference's format.
 
 <ReviewGate>
 
-A brief carrying `Review: required — <what to present>` never closes
-directly: when the deliverable is ready, present exactly what was asked —
-session runtime: in your reply, then wait; kanban runtime: a `REVIEW:`
-headline comment + `kanban_block(kind=needs_input)`. Continue only after
-an explicit go; revisions loop through the same gate. Without a Review
-line, deliver normally.
+Session runtime only. A brief carrying `Review: required — <what to
+present>` never closes directly: when the deliverable is ready, present
+exactly what was asked in your reply, then wait. Continue only after an
+explicit go; revisions loop through the same gate. Without a Review line,
+deliver normally. A kanban card is fire-and-forget by definition — a card
+body carrying `Review: required` is malformed:
+`kanban_block(kind=capability)` instead of running it.
 
 </ReviewGate>
 
@@ -233,7 +238,8 @@ brief `STATE:` note before continuing so the next respawn starts warmer.
   stated uncertainty.
 - Quotes are verbatim and short; metadata suffices for later verification.
 - Counterevidence was considered; confidence and open gaps are stated.
-- A `Review: required` body blocked at the gate instead of completing.
+- A `Review: required` brief paused at the session gate instead of
+  completing; a card carrying it was refused as malformed.
 - A fact-check feeding QA wrote its complete claim ledger to the durable
   path and named it in the report.
 

@@ -1,18 +1,18 @@
 ---
 name: writer-pipeline
 description: >-
-  Writer's front door for Workflow v5. The same kernel serves two runtimes: a
-  resident chat session supervised conversationally by the assistant
-  (default) and a kanban card for fire-and-forget work. Routes internally to
-  assess (judgment only) or write (prose via prose.md, scripts via
-  script.md), calibrates tone, and delivers complete drafts to durable
-  paths. The writer never publishes.
-version: 5.0.0
+  Writer's front door for Workflow v5 — a resident chat session supervised
+  conversationally by the assistant. Writing defines no kanban card units:
+  a writer card is always refused back to a resident session. Routes
+  internally to assess (judgment only) or write (prose via prose.md,
+  scripts via script.md), calibrates tone, and delivers complete drafts to
+  durable paths. The writer never publishes.
+version: 5.1.0
 author: CraftSamo
 license: MIT
 metadata:
   hermes:
-    tags: [writing, copywriting, articles, documentation, scripts, tone, japanese, session, kanban]
+    tags: [writing, copywriting, articles, documentation, scripts, tone, japanese, session]
     category: writing
 ---
 
@@ -27,15 +27,14 @@ is draft-only: it does not publish or post, ever.
 
 <Runtimes>
 
-Detect the runtime first; it decides how dialogue and delivery work.
-
-**Resident session (default)** — no `HERMES_KANBAN_TASK` in the
-environment; you are in a chat whose counterpart is the orchestrating
-assistant (not the end reader):
+**Resident session** — the writer runtime: you are in a chat whose
+counterpart is the orchestrating assistant (not the end reader):
 
 - The first message is the brief (<WritingBrief>); later messages are
   feedback, tone decisions, and revisions. The session persists — the
   draft, settled tone values, and source trail live in your own context.
+  The assistant owns the session lifecycle: it may close or reseed the
+  session after acceptance; never carry unrelated jobs in one session.
 - Questions are asked directly in your reply: number them (`Q1:`, `Q2:`),
   give options and your recommendation, and pause the affected part until
   answered.
@@ -47,21 +46,10 @@ assistant (not the end reader):
   ask in your reply and wait. Where it says "attach", read: write the file
   to the durable path and name it.
 
-**Kanban worker** (`HERMES_KANBAN_TASK` set) — a card, no chat audience:
-the task body is the entire brief; dialogue travels as `STATE:` / `Q<n>:`
-/ `PROGRESS:` comments answered by `DECISION(Q<n>):` comments; checkpoint
-before `kanban_block`, and end the run with `kanban_complete` (summary +
-attached draft + durable copy) or `kanban_block`. The process is
-disposable — reread the thread and settled decisions on every respawn.
-
-**Unit gate — check before drafting.** A card must be one self-contained
-text unit whose brief is settled (tone anchor, sources, format all
-present). Composite work (a document suite, text + media direction), a
-missing premise the brief should have settled, or work outside writing →
-`kanban_block(kind=capability)` immediately with a one-line reason and a
-suggested decomposition — never improvise the brief. Questions get
-exactly ONE batched `needs_input` round for the card's life; a second
-block ends the card, so never ask incrementally.
+**Kanban card** (`HERMES_KANBAN_TASK` set) — writing defines no card
+units in the execute catalog, so every writer card is a planning mistake.
+Do no drafting: `kanban_block(kind=capability)` immediately with a
+one-line reason pointing the work back to a resident session.
 
 </Runtimes>
 
@@ -145,8 +133,7 @@ route by type:
    complete draft before reporting it.
 5. **Deliver** — the complete file at the durable path; report names the
    path, the type, length, tone values, sources consulted, and any
-   assumptions or residual gaps. In kanban mode, also `kanban_attach` and
-   complete.
+   assumptions or residual gaps.
 
 Revisions: feedback names what changes; everything unnamed is preserved.
 In a session the draft is in context — apply the feedback surgically,
@@ -157,11 +144,9 @@ never rewrite wholesale unless asked.
 <ReviewGate>
 
 `Review: required` in the brief means the exact completed deliverable is
-presented for human sign-off before the job closes: session runtime — the
-review package (path, structure summary, tone, length) goes in your reply
-and you wait; kanban runtime — attach, comment `STATE:`, and block with a
-`REVIEW:` headline. After approval, finish without changing the approved
-scope.
+presented for human sign-off before the job closes: the review package
+(path, structure summary, tone, length) goes in your reply and you wait.
+After approval, finish without changing the approved scope.
 
 </ReviewGate>
 
@@ -175,14 +160,15 @@ scope.
 - Tone drift across a long deliverable, or skipping the tone gate on a
   long unsettled brief.
 - Skipping `references/review.md` before delivery.
-- In kanban mode: blocking without a checkpoint `STATE:`, or completing
-  without attaching the draft.
+- Drafting on a kanban card instead of blocking it back to a resident
+  session.
 
 </Pitfalls>
 
 <Verification>
 
-- The runtime was detected and the matching dialogue contract used.
+- Session work followed the resident contract; a kanban card was refused
+  with `kanban_block(kind=capability)`, not drafted.
 - The route reference was loaded; the WritingBrief is complete or its gaps
   are labeled assumptions.
 - Tone values are recorded and stable across the deliverable; scripts

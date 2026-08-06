@@ -1,22 +1,22 @@
 ---
 name: marketer-pipeline
 description: >-
-  Marketer's front door for Workflow v5. The same kernel serves two runtimes:
-  a resident chat session supervised conversationally by the assistant
-  (default) and a kanban card for fire-and-forget work. Routes the
+  Marketer's front door for Workflow v5 — a resident chat session supervised
+  conversationally by the assistant. Marketing defines no kanban card units:
+  a marketer card is always refused back to a resident session. Routes the
   deliverable internally to assess (judgment), shape (strategy), or campaign
   (deliverables + gated publishing). Entry files pull the shared engines on
   demand: verify (brief-fit/brand/facts/platform/asset checks +
   post-publish) and publish (P0/P1 gate execution + xurl bridge). This
   kernel owns MarketingBrief parsing, the Publish grant contract, dialogue
-  discipline, resume, and report discipline. Publishing is public and
+  discipline, and report discipline. Publishing is public and
   irreversible — when in doubt, ask.
-version: 5.0.0
+version: 5.1.0
 author: CraftSamo
 license: MIT
 metadata:
   hermes:
-    tags: [marketing, campaign, publishing, x, xurl, strategy, session, kanban, assess]
+    tags: [marketing, campaign, publishing, x, xurl, strategy, session, assess]
     category: marketing
 ---
 
@@ -44,15 +44,14 @@ it to routing and contracts. Procedure lives in `references/` (entry files
 
 <Runtimes>
 
-Detect the runtime first; it decides how dialogue and delivery work.
-
-**Resident session (default)** — no `HERMES_KANBAN_TASK` in the
-environment; you are in a chat whose counterpart is the orchestrating
-assistant (never the public):
+**Resident session** — the marketer runtime: you are in a chat whose
+counterpart is the orchestrating assistant (never the public):
 
 - The first message is the brief (<MarketingBrief>); later messages are
   answers, approvals, and grant expansions. The session persists — drafts,
-  shipped URLs, and the effective grant live in your own context.
+  shipped URLs, and the effective grant live in your own context. The
+  assistant owns the session lifecycle: it may close or reseed the
+  session after acceptance; never carry unrelated jobs in one session.
 - Questions go directly in your reply (`Q1:`, `Q2:`, options +
   recommendation). P0 publish approvals present the exact final text,
   attachments, and destination in the reply and wait for an explicit
@@ -64,21 +63,12 @@ assistant (never the public):
   "checkpoint-then-block", read: ask in your reply and wait. Where it says
   "attach", read: write to the durable path and name the file.
 
-**Kanban worker** (`HERMES_KANBAN_TASK` set) — a card, no chat audience:
-the body is the entire brief; dialogue travels as `STATE:` / `Q<n>:` /
-`PROGRESS:` comments answered by `DECISION(Q<n>):` / `AUTHORITY+:`;
-checkpoint before `kanban_block` (P0 approvals use an `APPROVAL:`
-headline — human relay, like `REVIEW:`); end the run with
-`kanban_complete` or `kanban_block`. The process is disposable — apply
-<Resume> on every respawn.
-
-**Unit gate — check before any work.** Marketing currently defines no
-card units: publishing and campaign work are conversational by design
-(the verbatim-approval loop cannot ride a card). A marketer card is
-therefore almost always a planning mistake — `kanban_block(kind=capability)`
-immediately with a one-line reason pointing the work back to a resident
-session, unless the body is a bounded draft-only assessment you can
-complete without any question round. Never post from a card.
+**Kanban card** (`HERMES_KANBAN_TASK` set) — marketing defines no card
+units in the execute catalog: publishing and campaign work are
+conversational by design (the verbatim-approval loop cannot ride a
+card). Every marketer card is a planning mistake — do no work:
+`kanban_block(kind=capability)` immediately with a one-line reason
+pointing the work back to a resident session. Never post from a card.
 
 </Runtimes>
 
@@ -144,8 +134,7 @@ assume, label, proceed. (Assess assumes by default — see the reference.)
 
 The Authority/Budget analog for publishing. It applies only to the
 campaign route. Parse it from the brief's `Publish:` line; it expands only
-through later explicit grants (a follow-up message, or `AUTHORITY+:` on a
-card).
+through later explicit grants in follow-up messages.
 
 - **Absent (default): P0 draft-only.** Produce the plan + post drafts;
   before anything goes out, present for each post the exact final text,
@@ -168,8 +157,8 @@ card).
 
 <Steps>
 
-1. Detect the runtime; read the whole brief (kanban: `kanban_show` + all
-   comments; respawn → <Resume> first).
+1. Read the whole brief (the first session message); a kanban card is
+   refused per <Runtimes>.
 2. Select the route and load exactly its entry reference before work.
 3. Parse the MarketingBrief; ask one consolidated round for missing
    required fields.
@@ -179,18 +168,6 @@ card).
 5. Publish only per <PublishGrant>. Report per <Report>.
 
 </Steps>
-
-<Resume>
-
-Kanban runtime (a session keeps its own context). A respawn after
-block/crash: reread the thread first — `STATE:` plan, `Q<n>`/`DECISION`
-pairs, `PROGRESS:` lines with shipped URLs, `AUTHORITY+:` expansions.
-Rebuild mechanically: match every `Q<n>` to its `DECISION(Q<n>)`
-(unanswered + gating → re-ask with the same n), recompute the effective
-Publish grant, and — **shipped posts are facts; never re-post them.**
-Then continue in the route's entry reference.
-
-</Resume>
 
 <Report>
 
@@ -212,18 +189,18 @@ draft dumps in the summary line.
 - Inferring a Publish grant from conversational vibes — only the brief's
   `Publish:` line and later explicit grants count.
 - Producing prose, media, or research yourself instead of requesting it.
-- Re-posting shipped posts after a respawn, or editing/deleting published
-  posts without instruction.
-- In kanban mode: blocking without a `STATE:` checkpoint, reusing a
-  question number, or long silent runs with no `PROGRESS:` trail.
+- Editing or deleting published posts without an explicit instruction.
+- Working a kanban card instead of blocking it back to a resident
+  session.
 - Growing this kernel: new procedure belongs in a reference, not here.
 
 </Pitfalls>
 
 <Verification>
 
-- The runtime was detected and the route's entry reference loaded before
-  work; engines loaded at the steps that need them.
+- Session work followed the resident contract (a kanban card was refused,
+  not worked); the route's entry reference loaded before work; engines
+  loaded at the steps that need them.
 - The MarketingBrief is complete or its gaps are labeled assumptions.
 - The effective Publish grant is computed (brief + explicit expansions);
   every published post maps to a verbatim approval or an in-cap P1 grant.
