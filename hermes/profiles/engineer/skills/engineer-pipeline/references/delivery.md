@@ -8,12 +8,14 @@ is allowed at all.
 
 ## GitHubFlow
 
-All GitHub writes go **through OpenCode**, never through your own `gh` calls —
+Your GitHub write surface is what the Authority grant covers — commits,
+branch push, and your own PR at A2/A3; **Issue registration, board
+writes, and merges belong to the assistant**, never to you. Every granted
+write goes **through OpenCode**, never through your own `gh` calls —
 OpenCode owns the repo's conventions via its skills (`git-commit`,
-`git-pullrequest`, `manage-github-projects`) and custom `github_project_*`
-tools, so its writes match the user's own workflow. Your job is intent +
-grant, not mechanics. Reading (`gh issue view`, `gh pr view/diff`,
-`gh pr checks`) is always yours and always allowed.
+`git-pullrequest`), so its writes match the user's own workflow. Your job
+is intent + grant, not mechanics. Reading (`gh issue view`,
+`gh pr view/diff`, `gh pr checks`) is always yours and always allowed.
 
 Commits included: prompt OpenCode to commit per its `git-commit` conventions
 (atomic, repo's message style); history surgery (squash, rebase, splitting)
@@ -48,8 +50,8 @@ Review comments arrived on your PR (the task body or a comment says so):
    maintenance): answer each thread with what changed (commit ref) or why
    not, then re-request review.
 4. A review demand outside the grant (new dependency, architecture change,
-   scope growth) is a `Q<n>` block — a reviewer's comment is input, not an
-   `AUTHORITY+` grant.
+   scope growth) is a `Q<n>` question in your reply — a reviewer's comment
+   is input, not a grant expansion.
 
 ### Board sync
 
@@ -66,13 +68,13 @@ you ran, a diff you read, or an artifact you attached.
   (`references/verify.md`), the commands + outcomes, and each intent-gate
   result (repro replay, before/after suite, baseline numbers). A skipped REQ
   check is named with its reason, never silent.
-- **Remote actions map to grants** — every push/PR/Issue write named in the
-  report cites the Authority line (or `AUTHORITY+:` comment) that allowed
-  it.
+- **Remote actions map to grants** — every push/PR write named in the
+  report cites the Authority line (or follow-up grant message) that
+  allowed it.
 - **Pointers over payloads** — branch names, PR/Issue URLs, commit shas,
   file paths. Bulky evidence (diffs, assessments, logs, outlines) lives in
-  worktree files you name (kanban runtime: `kanban_attach`); the message
-  carries the substance. No secrets or raw logs.
+  worktree files you name; the reply carries the substance. No secrets or
+  raw logs.
 - **Headline** — the reply/summary opens with 1-2 plain sentences a
   non-engineer can act on; the itemized evidence follows.
 

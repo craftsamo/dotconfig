@@ -8,7 +8,7 @@ description: >-
   InjectedLayer (what every session already knows before a prompt arrives — the
   never-restate baseline for the PromptContract), the IntentCatalog (which
   OpenCode skill implements each engineer intent — feature / bugfix / refactor /
-  rebuild / perf / deps / spec — on this machine), and the inspection recipes
+  rebuild / perf / deps — on this machine), and the inspection recipes
   that confirm all of it before you rely on it. Load it before the first
   OpenCode run of an implement task — including before writing the first
   dispatch prompt — when an assess verdict depends on what OpenCode can do
@@ -44,10 +44,10 @@ what stays true.
 <UseWhen>
 
 - Before the first OpenCode run of an implement task — including resolving the
-  card's intent to this machine's approach skill (<IntentCatalog>) — or when
+  job's intent to this machine's approach skill (<IntentCatalog>) — or when
   the goal touches a capability you have not confirmed (a technique skill, a
   subagent, a custom tool, a model).
-- Assess/shape work whose verdict depends on what OpenCode can actually do in
+- Assess work whose verdict depends on what OpenCode can actually do in
   this environment.
 - Assess facts reports that must cover the toolchain available for the work.
 - A run behaves unexpectedly: permissions auto-reject, a quota or auth error,
@@ -132,16 +132,16 @@ laws.
   set (history/convention digest, hunk staging, secret scan, commit lint,
   provenance) and GitHub Projects operations. Ask for the outcome; it will
   reach for them.
-- **It owns the GitHub write conventions.** Commit style (`git-commit`), PR
-  title/body/linking (`git-pullrequest`), and the epic → purpose → work
-  Issue/board formats (`approach-github-projects`, `manage-github-projects`)
-  are OpenCode skills — the same ones the user's own sessions run. That is
-  why engineer-pipeline routes EVERY GitHub write (Issues, PRs, review
-  replies, board items) through an OpenCode run instead of raw `gh`: the
-  output matches the user's own workflow and history. The
-  `github_project_*` tools are `allow` in the global config — the
-  PermissionBridge's per-run tool denies are what enforce the Authority
-  boundary on them.
+- **It owns the GitHub write conventions.** Commit style (`git-commit`)
+  and PR title/body/linking (`git-pullrequest`) are OpenCode skills — the
+  same ones the user's own sessions run. That is why engineer-pipeline
+  routes every GRANTED GitHub write (commits, branch push, own-PR
+  creation and upkeep) through an OpenCode run instead of raw `gh`: the
+  output matches the user's own workflow and history. Issue and board
+  writes are never the engineer's at any grant (the assistant owns that
+  bookkeeping); the `github_project_*` tools are `allow` in OpenCode's
+  global config, so the PermissionBridge's per-run tool denies are what
+  enforce that boundary.
 - **Agent frontmatter beats your invocation.** Read-only agents keep their own
   permissions no matter what environment you pass — that is why review/debug
   runs need no permission bridge.
@@ -158,7 +158,7 @@ laws.
 
 <IntentCatalog>
 
-The engineer-pipeline kernel's <IntentTriage> classifies every card with one
+The engineer-pipeline kernel's <IntentTriage> classifies every job with one
 intent token; THIS table says which of this machine's OpenCode skills/agents
 implements each intent. It is **environment knowledge** — skill names change
 when the OpenCode config changes, so verify with <InspectionRecipes> (`ls`
@@ -174,7 +174,6 @@ paste its steps.
 | `rebuild` | `approach-rebuild-migration` skill | evacuate → build-alongside → cutover sequence |
 | `perf` | `approach-performance` skill | measure → bottleneck → improve → re-measure |
 | `deps` | `resolve-dependabot-alerts` skill | GHSA/CVE triage + lockfile verification |
-| `spec` (S2 registration) | `approach-github-projects` + `manage-github-projects` skills | epic → purpose → work bodies and board conventions; the outline branch uses a plain `--agent plan` primary instead |
 | `bootstrap` | — no OpenCode | there is no codebase yet; git/gh/scaffolder directly (implement.md bootstrap branch) |
 | `investigate` | own tools first; `--agent plan` / `--agent explore` read-only primaries for heavier recon | assess mode; only when a repo exists |
 | `diagnose` | `--agent debug` (read-only) | assess mode; no build fork follows |

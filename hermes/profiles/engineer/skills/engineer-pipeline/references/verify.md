@@ -1,10 +1,9 @@
 # Verification — never trust the self-report (engine)
 
 Load this whenever OpenCode produced something you are about to accept —
-every implement Wave close, every shape registration, every assess
-deliverable that leaned on an OpenCode run. OpenCode does the work; **you own
-the judgment that it is right**. A completion message is a claim, not
-evidence.
+every implement Wave close, every assess deliverable that leaned on an
+OpenCode run. OpenCode does the work; **you own the judgment that it is
+right**. A completion message is a claim, not evidence.
 
 Six checks, V1-V6. Run the ones the intent profile (below) marks required;
 record commands + outcomes as you go — they become the report's
@@ -108,7 +107,6 @@ see `references/delivery.md`):
 | deps | REQ | REQ | – | REQ | – | REQ | lockfile resolves to the patched version; build + tests pass; no unrelated bumps |
 | bootstrap | REQ | – | – | – | – | REQ | empty-target guard ran; initial commit exists; remote/push only under B2; pj untouched |
 | investigate / diagnose / review | REQ | – | – | – | – | – | worktree untouched (`git status` clean); every claim carries evidence (file/line, repro output) |
-| spec | REQ | – | – | – | – | – | specify branch: units grounded on real repo surfaces, acceptance criteria testable; outline branch: Waves coarse + base session id recorded (see `references/shape.md`) |
 
 The profile is a floor, not a ceiling — escalate checks when the diff's risk
 warrants it regardless of intent.
