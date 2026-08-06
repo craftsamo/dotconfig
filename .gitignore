@@ -57,11 +57,11 @@ hermes/**/SOUL.md
 hermes/profiles/assistant/config.yaml
 
 # Hermes skills: maintainer-owned topology is tracked; adaptive libraries are not.
-# At the shared root, orchestration/ is the only managed surface — the
+# At the shared root, default-pipeline/ is the only managed surface — the
 # ~/Workspaces data-skill cluster is kept in a separate private checkout and
 # reached through skills.external_dirs.
 hermes/skills/*
-!hermes/skills/orchestration/
+!hermes/skills/default-pipeline/
 hermes/skills/learned/
 
 # Workers track one *-pipeline/ plus technic/ leaves. Assistant additionally
