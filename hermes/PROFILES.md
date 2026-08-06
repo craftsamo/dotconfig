@@ -76,7 +76,7 @@ itself call `delegate_task` during its run.
 | --- | --- | --- | --- | --- | --- | --- |
 | **default** | CLI front door — assistant's CLI counterpart (neutral persona) | CLI | `.` (launch dir) | `web,browser,terminal,file,code_execution,vision,x_search,skills,todo,memory,clarify,delegation,cronjob,kanban` | — | yes |
 | **assistant** | messaging front door + dispatcher host | Telegram | `~/Workspaces` | `web,browser,terminal,file,vision,x_search,skills,todo,memory,clarify,delegation,cronjob,computer_use,kanban` | **yes** | yes (token per-machine) |
-| **engineer** | supervises OpenCode: assess (read-only) / shape (draft decompositions, outlines) / implement, under an Authority grant; GitHub bookkeeping stays with the assistant | — (specialist) | `.` (launch / task ws) | `terminal,file,web,skills,todo,memory,delegation` | — | yes |
+| **engineer** | supervises OpenCode: assess (read-only) / implement (from the assistant's plan session or an Issue; bootstrap when no repo), under an Authority grant; planning documents and GitHub bookkeeping stay with the assistant | — (specialist) | `.` (launch / task ws) | `terminal,file,web,skills,todo,memory,delegation` | — | yes |
 | **researcher** | evidence-backed synthesis, comparisons, fact checks, and guidance; heavy breadth is requested from the orchestrator | — (specialist) | `.` (launch / task ws) | `file,web,vision,video,skills,memory,delegation` | — | yes |
 | **searcher** | retrieval: lookup / sweep / hunt (multi-hop via `goal_mode` on cards) | — (specialist) | `.` (launch / task ws) | `web,x_search,skills,memory` | — | yes |
 | **creator** | all media production — image, video, GIF, audio, song, voice — under a Budget grant, with advisory and style-anchor rounds | — (specialist) | `.` (launch / task ws) | `terminal,file,vision,image_gen,video_gen,video,tts,skills,memory,delegation` + gen plugins | — | yes |
@@ -128,7 +128,7 @@ channel, its own durable state, and its own decision altitude:
 | # | Loop | Channel | Durable state | Decides |
 | --- | --- | --- | --- | --- |
 | L1 requirements | user ↔ assistant | chat + risk/ambiguity-driven `clarify` | the approved plan (one gate); the assistant's OpenCode base plan session | what/why: goal, done criteria, constraints, grant posture |
-| L2 detail | assistant ↔ engineer | resident-session turns (default) or kanban block round-trips | session registry + replies; kanban thread on cards | how (shape): feasibility, plan revision, in-grant calls |
+| L2 detail | assistant ↔ engineer | resident-session turns (engineering defines no card units) | session registry + replies | how: feasibility, plan revision, in-grant calls |
 | L3 implementation | engineer ↔ OpenCode | `opencode run` (base plan session + per-Wave forks) | base session + git history + plan document | how (detail): unit split, tactics, model, verification |
 | L4 in-run | OpenCode ↔ its subagents (reviewer/debugger/…) | OpenCode task tool, per the `opencode/` config | subagent sessions | code-level: review findings, root causes |
 
@@ -195,8 +195,8 @@ authorizes execution.
 | --- | --- | --- | --- |
 | High-level requirement + plan — what outcome, which specialists, what grants | assistant with the user (consulting resident sessions for feasibility/cost) | the approved plan (one `clarify` gate) | chat + the session briefs it produces |
 | Repo grounding — Wave outline for code work | assistant's OpenCode plan session in the repo | Wave outline + base session id | the OpenCode session (handed to engineer) |
-| Low-level requirements — feature → concrete requirement units | engineer **shape** (specify), draft-only | decomposition document, user-reviewed; the assistant registers the Issues | GitHub Issues / Projects (assistant-registered) |
-| Technical milestones — Wave outline for non-Issue work | engineer **shape** (outline) | Wave list (coarse, one line each) | report + base session |
+| Low-level requirements — feature → concrete requirement units | assistant Plan mode (grounded via engineer assess turns), user-reviewed | registered GitHub Issues | GitHub Issues / Projects (assistant-registered) |
+| Technical milestones — Wave outline for non-Issue work | assistant's OpenCode plan session (or engineer self-generated per RiskGate when no base is supplied) | Wave list (coarse, one line each) | plan session / worktree outline file |
 | Phase/unit decomposition — inside one Wave or one Issue | OpenCode plan agent (L3) | phase breakdown | OpenCode sessions + git |
 
 Feasibility questions are consultation turns to the relevant specialist
@@ -204,8 +204,9 @@ session, not a planning rung of their own.
 
 Two rules keep the ladder from collapsing back into confusion:
 
-- **GitHub-flow repos use Issues as the milestone layer.** When specify has
-  registered low-level requirement Issues, implement consumes an Issue (its
+- **GitHub-flow repos use Issues as the milestone layer.** When the
+  assistant has registered low-level requirement Issues, implement
+  consumes an Issue (its
   body is the outline; the PR closes it) — do NOT also produce a Wave
   outline for the same work. The Wave outline is for repos/work outside the
   GitHub Issue flow (scratch builds, small refactors, non-GitHub targets).
@@ -284,21 +285,27 @@ Three per-profile layers, kept separate:
     and the closed `card_units` catalog in `execute/**` front matter). Default
     runs the thin `default-pipeline` CLI adapter over this tree; it records only
     terminal-specific deltas.
-  - engineer → `engineer-pipeline` (dual runtime; assess / shape / implement
-    routing with intent triage; Authority parsing + dialogue discipline;
-    base-session seeding + per-Wave forks with permission/question bridges;
-    quota-gated provider/model routing; verify/report)
-  - researcher → `researcher-pipeline` (dual runtime; deliverable-based
+  - engineer → `engineer-pipeline` (resident-only, cards refused; assess /
+    implement routing with intent triage; Authority parsing + dialogue
+    discipline; base-session seeding + per-Wave forks with
+    permission/question bridges; quota-gated provider/model routing;
+    verify/report)
+  - researcher → `researcher-pipeline` (dual runtime — cards only for the
+    `evidence-pack` catalog unit; deliverable-based
     routing — evidence-pack / tradeoff-matrix / fact-check / guidance — plus
     Admiralty/SIFT source evaluation, citation rules, Review gate, and resume
     in the kernel; researcher supplies evidence and does not own
     artifact-vs-brief QA; retrieval strategy in references/gather.md)
-  - searcher → `searcher-pipeline` (dual runtime; deliverable-based routing —
+  - searcher → `searcher-pipeline` (dual runtime — cards only for the
+    `survey-enumeration` / `exhaustive-hunt` catalog units;
+    deliverable-based routing —
     lookup (targeted facts) / sweep (enumeration with a coverage claim) /
     hunt (multi-hop to saturation, signalled by `goal_mode` on cards) — plus
     the link-integrity floor; per-mode playbooks in references/.
     `technic/deep-retrieval` remains only as a deprecated stub)
-  - creator → `creator-pipeline` (dual runtime; Advisory / Direction /
+  - creator → `creator-pipeline` (dual runtime — cards only for the
+    `anchored-image-batch` / `tts-voice` / `deterministic-render` catalog
+    units; Advisory / Direction /
     Produce routing with intent triage; the MediaBrief + capability router,
     Budget grant parsing, dialogue discipline, workspace-reuse resume, visual
     verification, and durable-path delivery) + directly selectable in-tree leaves under `skills/technic/`:
@@ -328,7 +335,8 @@ Three per-profile layers, kept separate:
     The ambiguous external `pixel-art` name is disabled too; the canonical
     Pixel leaves may use its scripts as opt-in implementation backends but are
     the only stable dispatch identities
-  - writer → `writer-pipeline` (dual runtime; routes assess/write by
+  - writer → `writer-pipeline` (resident-only, cards refused; routes
+    assess/write by
     deliverable, parses the WritingBrief, and performs one-round tone
     calibration; TypeTable routes copy/article/docs → references/prose.md
     and 台本/絵コンテ/screenplay → references/script.md, with the four-pass
@@ -338,11 +346,12 @@ Three per-profile layers, kept separate:
     `profiles/writer/external-skills/` symlink dir (japanese-writing /
     tech-prose / prose-rhythm, single-sourced with the shared
     `agents/skills/` store) and upstream `creative/humanizer`
-  - marketer → `marketer-pipeline` (dual runtime; parses MarketingBrief +
+  - marketer → `marketer-pipeline` (resident-only, cards refused; parses
+    MarketingBrief +
     Publish grant and routes assess/shape/campaign; requests prose/media/
     research inputs from the orchestrator → assemble → approval-gated xurl
     publish bridge with per-post URL verification; channel extension points
-    for future Discord/IG/TikTok accounts; resume treating shipped posts as
+    for future Discord/IG/TikTok accounts; shipped posts treated as
     immutable) + the upstream `social-media/xurl` skill via
     `skills.external_dirs`
 
