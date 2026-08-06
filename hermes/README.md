@@ -95,8 +95,9 @@ the relevant `config.yaml`.
   `profiles/assistant/skills/assistant-pipeline/references/`, whose mode-first
   tree owns the front-door workflow and quality-assurance contracts.
   The closed kanban catalog is the union of `card_units` front matter across
-  `execute/**`; topology, routing, schema, and required QA contracts are
-  structural constants in `scripts/validate-profile-skills.py`.
+  `execute/**` (each unit names its `assignee` worker); topology, routing,
+  schema, required QA contracts, and the worker-kernel unit-gate parity are
+  enforced by `scripts/validate-profile-skills.py`.
   The ~/Workspaces data-skill cluster lives in a private checkout, read
   through `skills.external_dirs` as `${HERMES_PRIVATE_SKILLS}/skills`.
   `skills/learned/` is the untracked adaptive library; bundled skills are read
