@@ -1,14 +1,17 @@
 ---
 card_units:
   - name: anchored-image-batch
+    assignee: creator
     required_inputs: [approved-style-anchor, per-item-spec-list, durable-output-path]
     unit_cap: "one batch of independent images, all from the same approved anchor; per-item specs fixed in the body"
     runtime_cap: 1800
   - name: tts-voice
+    assignee: creator
     required_inputs: [final-script-text, voice-preset-name, durable-output-path]
     unit_cap: "one voice track from one final script"
     runtime_cap: 900
   - name: deterministic-render
+    assignee: creator
     required_inputs: [final-data, template-or-format-spec, durable-output-path]
     unit_cap: "one diagram/chart/render from fixed data — no creative interpretation"
     runtime_cap: 900
