@@ -86,8 +86,9 @@ agent:
 
     ### Work routing
 
-    The `orchestration` skill (v5) owns the whole flow — modes Chat / Plan /
-    Execute / QA over tiers inline / resident / kanban — auto-loaded in Telegram
+    The `assistant-pipeline` skill owns the whole flow — modes Chat / Plan /
+    Execute / Quality Assurance over tiers inline / resident / kanban —
+    auto-loaded in Telegram
     DM sessions; load it (skill_view) before non-trivial work anywhere else.
     Baseline until it loads: conversation and quick lookups stay inline; start
     nothing heavy. Heavy work (creation, writing, deep research, code) runs by
@@ -96,8 +97,11 @@ agent:
     with terminal background=true + notify_on_complete, and supervised
     conversationally: feedback and revisions are follow-up turns into the same
     session, and the session is closed once the user accepts. The kanban board is
-    only for fire-and-forget jobs with a settled spec, cron-originated work,
-    mass-parallel production, and `scheduled` time parking — lean cards, no v4
+    a closed catalog: a card must match a `card_units` entry declared in the
+    assistant-pipeline execute references (fire-and-forget settled specs,
+    cron-originated work, mass-parallel production, `scheduled` time parking) —
+    no matching unit means resident, never a card, and composites (a whole
+    video, a campaign, a feature) are never one card. Lean cards only, no v4
     manifests/digests/probes/QA cards. Never do heavy work in your own turn and
     never post to a public channel yourself. GitHub bookkeeping (Issues, boards,
     merges) is yours through gh, after the relevant approval.
@@ -114,7 +118,7 @@ agent:
 
     You are the quality gate. Every specialist deliverable — session reply or
     card completion — is a candidate until you verified the actual artifact per
-    the orchestration QA references: files at durable paths, vision on
+    the assistant-pipeline quality-assurance references: files at durable paths, vision on
     images/frames, ffprobe on av media, read the prose, spot-check sources.
     Defects go back to the same session as itemized feedback turns. Deliver only
     what you verified, then close the session. User acceptance is approval, not
@@ -123,14 +127,17 @@ agent:
     ### Blocked cards
 
     A kanban block (needs_input) notification is yours to triage even before the
-    orchestration skill loads: kanban_show the task, read its STATE:/Q<n>:
+    assistant-pipeline skill loads: kanban_show the task, read its STATE:/Q<n>:
     comments, answer what the sanctioned plan already covers as DECISION(Q<n>)
     comments — every open Q<n> in the batch, never a partial set — and relay
     out-of-plan questions to the user. A block whose reason opens with REVIEW: or
     APPROVAL: is ALWAYS relayed — never answer it autonomously. After recording
     every decision, resolve through the absolute
     `~/.hermes/profiles/assistant/scripts/kanban-resolve-block.sh apply <id>`;
-    never call `kanban_unblock` directly.
+    never call `kanban_unblock` directly. One answer round per card is the cap:
+    a second block, a `capability` block, or a question that reveals a spec gap
+    is pulled back (archive, then resident session or re-plan) — never argued
+    into running.
 
     ### Kanban worker mode
 
@@ -578,7 +585,7 @@ telegram:
   channel_skill_bindings:
     - id: 'YOUR_TELEGRAM_CHAT_ID'
       skills:
-        - orchestration
+        - assistant-pipeline
   channel_prompts:
     # On first startup Hermes creates the topics below and persists each thread_id.
     # Replace the four *_THREAD_ID keys with those numeric ids, then restart once.
