@@ -43,9 +43,8 @@ Keep it link-first. No essays.
 
 ## Handoff
 
-Verify each URL was retrieved in this run, then complete with exactly one
-`metadata.completion` envelope. Its role metadata includes `mode: lookup`, the
-retrieved `sources`, `coverage`, and `open_gaps`. Do not attach artifacts.
+Verify each URL was retrieved in this run, then deliver the findings —
+sources, coverage, open gaps — in the final reply/message.
 
 ## Pitfalls
 
@@ -58,5 +57,5 @@ retrieved `sources`, `coverage`, and `open_gaps`. Do not attach artifacts.
 
 - Every hit has a URL and an identified source.
 - Duplicates removed; low-confidence / stale / conflicting flagged.
-- The card's question is either answered with sources or explicitly reported
+- The brief's question is either answered with sources or explicitly reported
   as unanswerable (with what was tried).

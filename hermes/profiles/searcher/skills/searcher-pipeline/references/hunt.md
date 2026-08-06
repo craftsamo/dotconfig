@@ -48,10 +48,8 @@ Primary/secondary marked on every entry; conflicts flagged, not resolved.
 
 ## Handoff
 
-Verify every source URL and its primary/secondary mark, then complete with
-exactly one `metadata.completion` envelope. Its role metadata includes
-`mode: hunt`, `sources`, hop `coverage`, and `open_gaps`. Do not attach
-artifacts.
+Verify every source URL and its primary/secondary mark, then deliver the
+findings — sources, hop coverage, gaps — in the final reply/message.
 
 ## Pitfalls
 

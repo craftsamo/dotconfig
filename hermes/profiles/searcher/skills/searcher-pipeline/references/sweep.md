@@ -59,10 +59,9 @@ Open for researcher: <what needs verification, comparison, or a verdict>
 
 ## Handoff
 
-Verify the enumerated URLs and the coverage statement, then complete with
-exactly one `metadata.completion` envelope. Its role metadata includes
-`mode: sweep`, `sources`, the searched and unsearched `coverage`, and
-`open_gaps`. Do not attach artifacts.
+Verify the enumerated URLs and the coverage statement, then deliver the
+findings — items, searched/unsearched coverage, open gaps — in the final
+reply/message.
 
 ## Pitfalls
 
