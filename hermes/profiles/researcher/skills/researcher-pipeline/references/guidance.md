@@ -16,8 +16,9 @@ the guidance and report the mismatch; don't craft.
 1. **Name the consumer and their decision points.** Who acts on this, and
    which choices must the guidance close? A missing consumer is an
    assumption to label — or a block, when it changes what to research.
-2. **Gather** per the core <Method>. Inputs are often parent-task results
-   (`kanban_show` each parent id) plus targeted fills; guidance derived
+2. **Gather** per the core <Method>. Inputs are often prior results the
+   brief names (in kanban runtime, `kanban_show` each parent id) plus
+   targeted fills; guidance derived
    from examples cites the examples like any other source.
 3. **Convert findings into directives.** Each directive traces to evidence.
    Separate MUST (constraints the evidence strongly supports) from SHOULD

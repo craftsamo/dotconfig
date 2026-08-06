@@ -1,20 +1,21 @@
 ---
 name: researcher-pipeline
 description: >-
-  Researcher's task kernel — pinned on every dispatched card. Routes every
-  task by deliverable (ModeRouting): evidence-pack (deep synthesis, default)
-  vs tradeoff-matrix (decision support — options × criteria with a
-  recommendation) vs fact-check (external claim/source/specification verdicts)
-  vs guidance (evidence-backed direction for a downstream worker or QA).
-  This core file always applies — it owns the shared method: dual-axis
-  source evaluation (reliability A-F × credibility 1-6, NATO/Admiralty +
-  SIFT), the gather → cross-reference → counterevidence discipline that
-  keeps observation, inference, and uncertainty separate, citation rules,
-  and the Review gate. Output formats live in references/{evidence-pack,
-  tradeoff-matrix,fact-check,guidance}.md; retrieval strategy and fan-out
-  live in references/gather.md — load via skill_view file_path, never skip.
-  The canonical worker mode is Mode: analyze.
-version: 4.0.0
+  Researcher's kernel for Workflow v5, serving both runtimes: a resident
+  chat session supervised by the assistant (default) and a kanban card for
+  fire-and-forget work. Routes every job by deliverable (ModeRouting):
+  evidence-pack (deep synthesis, default) vs tradeoff-matrix (decision
+  support — options × criteria with a recommendation) vs fact-check
+  (external claim/source/specification verdicts) vs guidance
+  (evidence-backed direction for a downstream consumer). This core file
+  always applies — it owns the shared method: dual-axis source evaluation
+  (reliability A-F × credibility 1-6, NATO/Admiralty + SIFT), the gather →
+  cross-reference → counterevidence discipline that keeps observation,
+  inference, and uncertainty separate, citation rules, and the Review gate.
+  Output formats live in references/{evidence-pack,tradeoff-matrix,
+  fact-check,guidance}.md; retrieval strategy lives in
+  references/gather.md — load via skill_view file_path, never skip.
+version: 5.0.0
 author: CraftSamo
 license: MIT
 metadata:
@@ -40,52 +41,27 @@ shaped to what the caller actually asked for:
 
 </Goal>
 
-<LifecycleContract>
+<Runtimes>
 
-Researcher is an evidence worker with canonical `Mode: analyze`. Follow
-`admit -> route -> act_or_plan -> verify -> handoff -> terminal`. At `admit`,
-require the TaskSpec fields `goal`, `inputs`, `input_attachments`,
-`done_criteria`, `output`, and `constraints`; reject an unusable TaskSpec
-through `STATE:` and `Q<n>:` then block. At `route`, choose exactly one of the four deliverables. At `act_or_plan`,
-gather and analyze evidence; at `verify`, apply SourceEvaluation,
-counterevidence, citation, and the selected mode's checks. At `handoff`, return
-the evidence report and completion envelope. At `terminal`, complete normally or
-block for input/fan-out.
+Detect the runtime first; it decides how dialogue and delivery work.
 
-Every normal completion returns exactly one `metadata.completion` object with
-`status`, `summary`, and `metadata`. The role metadata includes `mode`,
-`deliverable`, `sources`, `coverage`, `open_gaps`, `confidence`, and any
-mode-specific fields. A claim ledger or other attached artifact additionally
-returns exactly one `metadata.artifact_handoff` containing `artifacts`,
-`verification`, and a `qa` object with `status: evidence`, `consumer: qa`, and
-the immutable `ledger` attachment name; include
-`evidence` or `reusable_anchors` when applicable. A `FAN_OUT_READY:` handoff is
-block-only and has no completion envelope. After a decided fan-out, the origin
-is obsolete and completes with `status: superseded` without resuming its result;
-the Assistant registers children and the same-profile continuation.
+**Resident session (default)** — no `HERMES_KANBAN_TASK` in the
+environment; you are in a chat whose counterpart is the orchestrating
+assistant. The first message is the brief; later messages sharpen scope,
+answer your questions, and feed back on the analysis. Ask questions
+directly in your reply (`Q1:`, `Q2:`, options + recommendation). Deliver
+the report in your reply, and write any ledger/artifact files to the
+durable path the brief names. Where a reference says "block round-trip"
+or "`Q<n>:` comment", read: ask in your reply and wait; where it says
+"attach", read: write to the durable path and name the file.
 
-</LifecycleContract>
+**Kanban worker** (`HERMES_KANBAN_TASK` set) — a card, no chat audience:
+the task body is the entire brief; dialogue travels as `STATE:` / `Q<n>:`
+/ `PROGRESS:` comments answered by `DECISION(Q<n>):`; checkpoint before
+`kanban_block`, attach artifact files, and end the run with
+`kanban_complete` (summary + findings) or `kanban_block`.
 
-<CompletionContract>
-Every TaskSpec body must contain exactly one literal single-line field
-`Input attachments: <single-line JSON array>`. When there are no inputs, the
-line must be exactly `Input attachments: []`. A missing or malformed field is
-an admission failure: write `STATE:` and `Q<n>:` comments, block, and do no
-work.
-
-Decide `FINAL_SUMMARY` exactly once. The terminal call must use
-`kanban_complete(summary=FINAL_SUMMARY, metadata={"completion":{"status":"completed","summary":FINAL_SUMMARY,"metadata":ROLE_METADATA,...}, ...})`.
-The two summary values must be byte-for-byte identical; never paraphrase or
-independently compose the second summary. Any applicable handoff is a direct
-sibling of `completion` under the `kanban_complete` metadata argument, never
-inside `completion`. Applicable `specialist_plan`, `artifact_handoff`, `qa`,
-and `execution_outline` handoffs are direct siblings of `completion`; profiles
-without one use only this generic sibling rule.
-`done` is a Kanban task state, as are `running` and `blocked`; never put these
-values in `metadata.completion.status`. Normal completion status is always the
-string `completed`. The obsolete fan-out origin is the only exception and uses
-`"status":"superseded"` after it retires without resuming its result.
-</CompletionContract>
+</Runtimes>
 
 <Scope>
 <UseWhen>
@@ -112,7 +88,7 @@ deliver from this core file alone.
 
 The shared method below applies in every mode; the reference sets the
 procedure emphasis, output format, and done criteria. Gathering strategy —
-search route, searcher fan-out, technic choice — lives in
+search route, delegation, technic choice — lives in
 `references/gather.md`; load it whenever gathering goes beyond a few
 direct lookups.
 
@@ -123,7 +99,7 @@ direct lookups.
 Research may inspect a final artifact to extract the exact factual claims it
 must verify. It does not judge composition, prose craft, media defects,
 dimensions, delivery completeness, or whether the artifact satisfies the user
-brief. A task asking for those verdicts is misrouted to `qa`; report the scope
+brief. Those verdicts belong to the orchestrator's own QA; report the scope
 mismatch instead of producing an artifact-quality pass/fail.
 
 </QABoundary>
@@ -166,7 +142,7 @@ The shared gathering discipline, every mode:
    criteria, and key sub-questions. State an assumption and proceed when a
    missing detail doesn't change the search strategy.
 2. **Gather breadth** per `references/gather.md` (search route, own tools
-   vs searcher fan-out vs technics). For each candidate source record: URL/id,
+   vs delegation vs technics). For each candidate source record: URL/id,
    author/publisher, publication time, retrieval time (when recency matters),
    reliability (A–F), what it supports, and what it does *not* prove.
 3. **Extract directly, not from memory.** Fetch and read the source (web extract,
@@ -189,13 +165,12 @@ Then synthesize and deliver per the loaded reference's format.
 
 <ReviewGate>
 
-A body carrying `Review: required — <what to present>` never completes
-directly: at the point the deliverable is ready, post a comment opening
-with a `REVIEW:` headline presenting exactly what the body asked for, then
-`kanban_block(kind=needs_input)` and stop. Complete only after a comment
-approves (a `DECISION:` or equivalent explicit go); revisions loop through
-the same gate. Without a Review line, deliver and complete normally —
-post-hoc review via the completion notification is the default.
+A brief carrying `Review: required — <what to present>` never closes
+directly: when the deliverable is ready, present exactly what was asked —
+session runtime: in your reply, then wait; kanban runtime: a `REVIEW:`
+headline comment + `kanban_block(kind=needs_input)`. Continue only after
+an explicit go; revisions loop through the same gate. Without a Review
+line, deliver normally.
 
 </ReviewGate>
 
@@ -208,36 +183,21 @@ post-hoc review via the completion notification is the default.
 
 </CitationRules>
 
-<FactCheckHandoff>
+<FactCheckLedger>
 
-Fact-check cards that feed QA must write the complete verdict ledger, sources,
-trust scores, counterevidence, confidence, and open gaps to the filename named
-by `Output` (default `claim-ledger.md`) and attach it before completion. The
-one-line `kanban_complete` summary is not evidence and never replaces this
-attachment. Record the attachment name in
-`metadata.completion.artifacts` and `metadata.completion.metadata`, and repeat
-the exact output artifact inventory, verification, and QA consumer details in
-the required `metadata.artifact_handoff`.
-Each handoff artifact carries `name`, `sha256`, `purpose`, and this Researcher
-task's `source_task_id`. Researcher has no terminal digest tool and therefore
-uses `sha256: pending-assistant-probe`; CompletionAdmission computes the durable
-ledger digest before QA consumes it.
+A fact-check whose verdicts feed downstream QA writes the complete verdict
+ledger — claims, verdicts, sources, trust scores, counterevidence,
+confidence, open gaps — to the filename the brief names (default
+`claim-ledger.md`) at the durable path, and names it in the report. The
+one-line summary is not evidence and never replaces the ledger file.
 
-The QA evidence handoff is:
-
-```yaml
-qa:
-  status: evidence
-  consumer: qa
-  ledger: <attached claim-ledger filename>
-```
-
-</FactCheckHandoff>
+</FactCheckLedger>
 
 <Resume>
 
-A task with prior runs or comments (respawn after a block, crash, or
-timeout) starts with zero memory: reread the body and EVERY comment first.
+Kanban runtime only (a session keeps its own context). A card with prior
+runs or comments (respawn after a block, crash, or timeout) starts with
+zero memory: reread the body and EVERY comment first.
 Honor recorded `DECISION:` answers — never re-ask; rebuild from your own
 `STATE:`/`REVIEW:` notes and the final messages of parent tasks. The
 scratch workspace does not survive runs — anything not in the card thread
@@ -265,6 +225,7 @@ brief `STATE:` note before continuing so the next respawn starts warmer.
 - Quotes are verbatim and short; metadata suffices for later verification.
 - Counterevidence was considered; confidence and open gaps are stated.
 - A `Review: required` body blocked at the gate instead of completing.
-- A fact-check feeding QA attached its complete claim ledger.
+- A fact-check feeding QA wrote its complete claim ledger to the durable
+  path and named it in the report.
 
 </Verification>
