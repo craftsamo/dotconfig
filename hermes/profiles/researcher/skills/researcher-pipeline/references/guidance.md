@@ -47,10 +47,12 @@ the guidance and report the mismatch; don't craft.
 
 ## Handoff
 
-After the directives pass verification, complete with exactly one
-`metadata.completion` envelope. Its role metadata names `mode: analyze`,
-`deliverable: guidance`, sources or parent results, coverage, confidence, and
-open gaps.
+After the directives pass verification, deliver according to the runtime:
+
+- **Session runtime (default):** deliver the structured report in your reply,
+  and write artifacts/ledgers to the durable path when the brief names one.
+- **Card runtime:** deliver the full report in the final message, add a 1–2
+  sentence completion summary, and attach artifact files.
 
 ## Pitfalls
 

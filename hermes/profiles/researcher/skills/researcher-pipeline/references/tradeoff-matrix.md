@@ -1,7 +1,8 @@
-# Tradeoff-matrix mode — decision support / Plan-Loop consultations
+# Tradeoff-matrix mode — decision support / Plan mode consultations
 
-Loaded when the caller must pick between named options (the Plan-Loop
-`Advisory —` consultation form, or any explicit comparison request). The
+Loaded when the caller must pick between named options (the assistant's
+Plan mode consultation dispatched to the researcher as a session brief, or any
+explicit comparison request). The
 deliverable is a decision aid: options × criteria, scored from evidence,
 with a recommendation — delivered fast enough to keep a live planning loop
 moving.
@@ -9,8 +10,8 @@ moving.
 ## Rules
 
 - **Time-boxed.** Depth per option is bounded by the decision's stakes —
-  a Plan-Loop consultation gets hours-of-work compressed into the task's
-  runtime budget, not an exhaustive survey. Gaps become `Unknown` cells
+  an assistant Plan mode consultation gets hours-of-work compressed into the
+  task's runtime budget, not an exhaustive survey. Gaps become `Unknown` cells
   with a note, never guesses.
 - **Criteria before evidence.** Fix the comparison axes first (from the
   caller's decision context; add the 2-3 they forgot — ops burden,
@@ -51,10 +52,12 @@ moving.
 
 ## Handoff
 
-After every option and criterion is checked, complete with exactly one
-`metadata.completion` envelope. Its role metadata names `mode: analyze`,
-`deliverable: tradeoff-matrix`, sources, coverage, recommendation confidence,
-and open gaps.
+After every option and criterion is checked, deliver according to the runtime:
+
+- **Session runtime (default):** deliver the structured report in your reply,
+  and write artifacts/ledgers to the durable path when the brief names one.
+- **Card runtime:** deliver the full report in the final message, add a 1–2
+  sentence completion summary, and attach artifact files.
 
 ## Pitfalls
 

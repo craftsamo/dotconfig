@@ -46,16 +46,19 @@ that artifact only to transcribe the claim byte-for-byte and its context
 accurately. Then
 verify it against external sources using the normal procedure. Return the
 claim-level `supported` / `refuted` / `partly true` / `unverifiable` verdicts
-for QA to consume. Do not judge the artifact's craft, rendering, mechanical
+for the assistant's quality-assurance pass to consume. Do not judge the
+artifact's craft, rendering, mechanical
 specification, completeness, or fit to its brief.
 
-## QA ledger artifact
+## Quality-assurance ledger artifact
 
-When the brief names QA as a consumer, write the complete Output template
+When the brief names the assistant's quality-assurance pass as a consumer,
+write the complete Output template
 to the requested file (default `claim-ledger.md`) at the durable path
 before finishing. Include every source URL/id, reliability/credibility
-score, counterevidence, and unverifiable gap. The downstream QA reads this
-ledger; the summary/reply remains only a headline that names the file.
+score, counterevidence, and unverifiable gap. The assistant's quality-assurance
+pass reads this ledger; the report names the file, and the ledger remains the
+complete record.
 (Kanban runtime: also `kanban_attach` it.)
 
 ## Pitfalls
@@ -76,5 +79,5 @@ ledger; the summary/reply remains only a headline that names the file.
   counterevidence was searched per claim, not just per topic.
 - Origins traced for load-bearing claims; shared-origin echoes not counted
   twice.
-- QA-bound work wrote the complete claim ledger named in Output to the
-  durable path.
+- Quality-assurance-bound work wrote the complete claim ledger named in Output
+  to the durable path.
