@@ -50,8 +50,8 @@ mechanically, then rejoin the recorded session — never restart blind.
 - Re-asking an answered `Q<n>` or renumbering an open one.
 - Missing an `AUTHORITY+:` comment and re-blocking for something already
   granted.
-- Treating child fan-out tasks as still pending — they may have completed
-  during the block; `kanban_show <child-id>` before re-dispatching.
+- Treating related child tasks as still pending — they may have completed
+  during the block; `kanban_show <child-id>` before asking again.
 
 ## Verification
 

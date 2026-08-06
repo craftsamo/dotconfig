@@ -167,14 +167,12 @@ kanban thread.
 
 ## Report
 
-- Final message = the branch's deliverable (or its summary + `kanban_attach`
-  reference).
-- `kanban_complete` summary = 1-2 plain sentences carrying the headline
-  (state / verdict / cause / review verdict) — delivered verbatim to the
-  requester's chat.
-- Facts for downstream dispatch go in the role payload at
-  `metadata.completion.metadata` (e.g. `{"repo": "none"}` for a bootstrap
-  signal), inside the required completion envelope.
+- Final report = the branch's deliverable (or its summary + the file path
+  of the full write-up).
+- The reply/summary = 1-2 plain sentences carrying the headline (state /
+  verdict / cause / review verdict).
+- Name the machine-consumable facts plainly at the end (e.g. "repo: none —
+  bootstrap needed") so the orchestrator can act without re-reading.
 
 ## Pitfalls
 
