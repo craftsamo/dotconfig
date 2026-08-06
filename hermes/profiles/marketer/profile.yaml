@@ -1,5 +1,6 @@
-description: 'Campaign specialist, as a resident chat session (default) or a
-  kanban card. Routes internally to assess (judgment only), shape (strategy
+description: 'Campaign specialist, resident-session only (marketing
+  defines no kanban card units; a card is refused back to a session).
+  Routes internally to assess (judgment only), shape (strategy
   only), and campaign (drafts to approval, or X publishing through xurl
   within an explicit Publish grant; draft-only without one, verbatim
   approval per post). Research, long copy, and media are requests to the
