@@ -7,7 +7,7 @@
 # cards. Runs as an assistant-profile cron script (no_agent — zero LLM
 # cost), every 15 min.
 #
-# Contract (see the orchestration skill, <Scheduled>):
+# Contract (see assistant-pipeline references/execute/scheduled.md):
 #   - The assistant parks a card via
 #       hermes kanban schedule <id> "until=<ISO8601> — <reason>"
 #     which stores a `SCHEDULED: until=… — <reason>` comment.

@@ -14,7 +14,7 @@
 #   resident-session.sh list
 #   resident-session.sh close <key> [--note "<note>"]
 #
-# Contract (see the orchestration skill, <ResidentSessions>):
+# Contract (see assistant-pipeline references/execute/resident-sessions.md):
 #   - One key = one live specialist session, scoped to a chat topic and
 #     purpose (e.g. "12116-creator-pv"). Keys are [a-zA-Z0-9._-]+.
 #   - Turns are strictly serialized per key (mkdir lock). A busy key
