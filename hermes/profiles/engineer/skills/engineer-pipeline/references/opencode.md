@@ -1,9 +1,9 @@
 # Driving OpenCode — sessions, models, bridges (engine)
 
-Load this before the FIRST OpenCode invocation of any task — implement always;
-assess/shape only when they actually run OpenCode sessions. The core file's
-Authority contract, comment protocol, and checkpoint-then-block apply
-throughout. This engine owns the HOW of delegation: session mechanics, model
+Load this before the FIRST OpenCode invocation of any job — implement
+always; assess only when it actually runs OpenCode sessions. The core
+file's Authority contract, dialogue protocol, and checkpoint-then-block
+apply throughout. This engine owns the HOW of delegation: session mechanics, model
 routing, run execution, the Wave loop, the permission/question bridges, and
 course correction. WHAT to produce comes from the mode file; whether it
 passed comes from `references/verify.md`.
@@ -18,8 +18,8 @@ passed comes from `references/verify.md`.
 - `--auto`, the permission env, `--model <m>` and `--variant` are
   **per-invocation** — wrap every call, including `-c`/`-s` resumes.
 - Session context is NOT the durable layer: outlines/Issues (text), git
-  history, and kanban comments are. Record every base/fork id in
-  `STATE:`/`PROGRESS:` comments — a respawn that can't find ids restarts blind.
+  history, and your session reports are. Record every base/fork id in your
+  replies — a resumed job that can't find ids restarts blind.
 - One workdir per session. TUI needs `pty=true`, exit with Ctrl+C (never
   `/exit`) — but prefer `run` over the TUI in worker context.
 
@@ -90,13 +90,12 @@ shapes:
   run that may outlive any sane single timeout): start it in background, then
   wait in the longest slices the tool allows — `process` wait is clamped to
   the profile's `terminal.timeout` (600 on this profile; requesting less is
-  pure waste). Cycle `wait(600)` → `kanban_heartbeat` → `wait(600)` …. The
-  wait's return already carries the output tail: add no status-check terminal
-  calls between waits, and read logs only after the wait reports exit.
+  pure waste). Cycle `wait(600)` → `wait(600)` …. The wait's return already
+  carries the output tail: add no status-check terminal calls between
+  waits, and read logs only after the wait reports exit.
 
-Budget math: a 180 s wait + status check + heartbeat cycle costs ~60
-turns/hour; `wait(600)` + heartbeat costs ~12. Heartbeat cadence of one per
-wait cycle is ample (staleness bound is hours, not minutes).
+Budget math: a 180 s wait + status check cycle costs ~60 turns/hour;
+`wait(600)` costs ~12.
 
 ## ModelRouting
 
@@ -157,14 +156,15 @@ terminal(command="npx -y @slkiser/opencode-quota show", workdir="<wd>", timeout=
 The medium/high-risk build choreography: a base plan session holds the Wave
 outline; each Wave forks from it.
 
-### Base — the Wave outline (established in THIS task)
+### Base — the plan the Waves fork from
 
-Establish the base in-task — never depend on a session reaching across tasks
-(opencode sessions are project-keyed; a prior task's session may not be
-visible here):
-
-- **An approved outline exists** (shape slice output in the task body / an
-  attachment): seed the base from its Wave lines verbatim —
+- **The brief names a `Base session: <id>`** (the assistant's approved
+  OpenCode plan session in this repo): that IS the base — verify it is
+  visible here (`opencode session list` in the worktree), fork Waves
+  straight from it, and never re-plan what it holds. Not visible (wrong
+  project key, pruned) → ask; do not silently re-plan.
+- **An approved outline exists as text** (in the brief / a worktree
+  file): seed the base from its Wave lines verbatim —
 
   ```text
   opencode run --auto --agent plan --title "waves: <goal>" --model <m> \
@@ -174,13 +174,11 @@ visible here):
 
   **Seed ONLY the coarse Wave lines.** When the approved deliverable is a
   detailed plan document (a long PLAN.md, a spec with per-file steps), do
-  not paste it wholesale into the base — reference it by path/attachment
-  and let each Wave's decompose read it (<DetailedPlanRule>). A base
-  bloated with phase detail poisons every fork taken from it.
-
-  Optimization: if `opencode session list` in this worktree shows the shape
-  slice's base session id, fork it directly and skip re-seeding.
-- **No outline** (direct execute path, Medium/High): generate it yourself —
+  not paste it wholesale into the base — reference it by path and let
+  each Wave's decompose read it (<DetailedPlanRule>). A base bloated with
+  phase detail poisons every fork taken from it.
+- **Neither** (direct execute path, Medium/High): generate the outline
+  yourself —
 
   ```text
   opencode run --auto --agent plan --title "waves: <goal>" --model <m> \
@@ -190,9 +188,9 @@ visible here):
 
   then self-review it (risks, ordering). High tier additionally blocks for
   approval (the mode file's RiskGate) before the loop.
-- Recover the base id (`opencode session list`), record it in a `PROGRESS:`
-  comment, and attach the outline (`kanban_attach`). The **durable handoff is
-  the outline text + git**; the session id is just the fork handle.
+- Recover the base id (`opencode session list`), record it in your reply,
+  and keep the outline as a worktree file. The **durable handoff is the
+  outline text + git**; the session id is just the fork handle.
 
 ### Wave loop (Wave 1 → Wave 2 → …, in outline order)
 
@@ -219,11 +217,11 @@ already-detailed plan waives it (<DetailedPlanRule>).
      architecture/public-API change) → **checkpoint-then-block** (core
      <CheckpointThenBlock>) — the Wave outline's approval does not cover a
      new grant.
-   - Accepted → write `PROGRESS: Wave N phases confirmed: <the phases, one
-     line>` with the plan-fork id. This comment is the **gate artifact**:
-     no build fork for Wave N may start until it exists. If you cannot
-     point at a phases-confirmed `PROGRESS:` for the Wave, you are not
-     cleared to build it.
+   - Accepted → report `Wave N phases confirmed: <the phases, one line>`
+     with the plan-fork id in your reply. This line is the **gate
+     artifact**: no build fork for Wave N may start until it exists. If
+     you cannot point at a phases-confirmed line for the Wave, you are
+     not cleared to build it.
 
 3. **Implement** — fork the confirmed phase-plan to build, wrapped per
    <PermissionBridge>:
@@ -242,7 +240,7 @@ already-detailed plan waives it (<DetailedPlanRule>).
    result by your own verification (`references/verify.md`).
 
 4. **Close the Wave** — verify per `references/verify.md` → commit
-   (sub-commits per phase are fine) → `PROGRESS:` with ids (`[base <id> |
+   (sub-commits per phase are fine) → report with ids (`[base <id> |
    wave <name> <build-fork-id> | phases: …]`) → discard the Wave's forks. The
    **next Wave forks fresh from the base** — never carry a session across a
    Wave boundary (that is how cost and compaction creep back in).
@@ -257,7 +255,7 @@ whole goal — narrow scope is what buys quality.
 
 Escape hatch: if fork mechanics misbehave, commit the outline as `PLAN.md` in
 the worktree and run each Wave as a fresh session that reads `PLAN.md` + the
-current code — and record in a `PROGRESS:` note that the escape hatch is in
+current code — and record in your reply that the escape hatch is in
 use. The decompose → confirm gate still applies per Wave: each fresh session
 starts as a plan run deriving the Wave's phases, confirmed before its build
 run.
@@ -383,8 +381,8 @@ When a run drifts, pick the cheapest recovery that restores quality:
    decompose with what you learned, then build fresh.
 
 Never argue with a degraded session for more than one redirect — re-forking
-is cheaper than persuasion. Record what was discarded and why in a
-`PROGRESS:` note so a respawn doesn't repeat it.
+is cheaper than persuasion. Record what was discarded and why in your
+reply so a later resume doesn't repeat it.
 
 ## Pitfalls
 
@@ -394,11 +392,11 @@ is cheaper than persuasion. Record what was discarded and why in a
   `max_turns`.
 - Carrying one session across a Wave boundary (cost + compaction creep) —
   fork fresh from the base per Wave and ground on git; or the opposite:
-  restarting from scratch after an unblock instead of rejoining the recorded
-  fork (`-s <fork-id>`, see `references/resume.md`).
+  restarting from scratch after an interruption instead of rejoining the
+  recorded fork (`-s <fork-id>` from the ids in your replies).
 - Dictating the phase granularity instead of judging OpenCode's decomposition
   — or skipping the confirm step and building a bad breakdown.
-- Starting a build fork without that Wave's `phases confirmed` `PROGRESS:` —
+- Starting a build fork without that Wave's reported `phases confirmed` line —
   the gate artifact is the license to build; "the plan was already detailed"
   is the classic rationalization, answered by <DetailedPlanRule>.
 - Writing the phase procedure into the build prompt yourself because the
@@ -414,8 +412,7 @@ is cheaper than persuasion. Record what was discarded and why in a
   protective denies; set only `edit`/`bash` keys plus the Authority denies.
 - Ignoring `auto-rejecting` lines or unstated-assumption text in run output —
   that is OpenCode's only voice (QuestionBridge).
-- Un-recorded base / fork ids — ids belong in every `STATE:`/`PROGRESS:`
-  comment.
+- Un-recorded base / fork ids — ids belong in every per-Wave report.
 - Bloating the base with phase detail (keep it the coarse Wave outline), or
   prompting "the whole goal" in one Wave instead of that Wave only.
 - Treating `claude auth status` as the quota gate, or reading Anthropic
@@ -433,10 +430,10 @@ is cheaper than persuasion. Record what was discarded and why in a
 - The run started at ProviderLadder rung 1 unless a recorded error or
   QuotaCheck reading forced a descent; the report names the provider/model
   (and variant) actually used, plus the reason for any descent.
-- The base was established in-task; base and fork ids are recorded in
-  comments.
+- The base is the brief's plan session (or a seeded/self-generated
+  outline); base and fork ids are recorded in the replies.
 - Each Wave ran decompose (plan fork) → confirm → implement (build fork),
-  and a `PROGRESS: Wave N phases confirmed` comment exists for every Wave
+  and a reported `Wave N phases confirmed` line exists for every Wave
   with a timestamp BEFORE its build fork (the gate artifact); detailed
   approved plans went through the derive variant (<DetailedPlanRule>),
   never straight to build; no session crossed a Wave boundary; run outputs
