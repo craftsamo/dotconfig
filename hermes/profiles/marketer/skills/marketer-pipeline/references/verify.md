@@ -1,7 +1,7 @@
 # Verify engine — never trust a deliverable, including your own
 
-Shared engine for every act of marketing judgment: accepting fan-out
-deliverables, gating drafts before approval or publishing, and critique
+Shared engine for every act of marketing judgment: accepting requested
+inputs, gating drafts before approval or publishing, and critique
 tasks where the assessment itself is the deliverable (assess mode). The
 same checks apply everywhere — only how the result is used differs.
 
@@ -20,7 +20,7 @@ same checks apply everywhere — only how the result is used differs.
 - **V4 Platform compliance.** Current specs of the destination surface:
   text limits, media formats/aspect ratios, alt text, thread mechanics.
   Specs drift — when staleness matters (video encodings, new surfaces),
-  refetch official sources or fan out a research card rather than trusting
+  refetch official sources or request research rather than trusting
   memory.
 - **V5 Asset inspection.** For writer/creator deliverables: the files
   actually exist as attachments, open/play, match destination specs, and
@@ -54,17 +54,17 @@ same checks apply everywhere — only how the result is used differs.
 
 ## Pitfalls
 
-- Rubber-stamping fan-out deliverables because rejecting feels expensive —
-  a re-dispatch is cheaper than a bad post.
+- Rubber-stamping requested inputs because rejecting feels expensive —
+  a revision round is cheaper than a bad post.
 - Verifying your own assembly less rigorously than a child's deliverable.
 - Treating V4 platform memory as current — specs drift; refetch when it
   matters.
 - Fixing the asset inside a critique task — critique reports, it does not
-  repair (that is a new card).
+  repair (that is a revision request).
 
 ## Verification
 
 - Every shipped post passed V1-V5 before its approval/grant and V6 after.
-- Every consumed fan-out deliverable has an explicit accept/reject trace
+- Every consumed input has an explicit accept/reject trace
   (accepted into the assembly, or rejected with the failing check named).
 - Critique deliverables name checks + evidence + severity for each finding.

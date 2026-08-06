@@ -7,8 +7,8 @@ engines carry the mechanics — load each at the step that needs it:
 
 | Engine | Load at | Owns |
 | --- | --- | --- |
-| `references/delegate.md` | step 3 | fan-out briefs, continuation cards, grant non-propagation |
-| `references/verify.md` | steps 4-6 | fan-in acceptance, pre-publish gate, post-publish check |
+| `references/delegate.md` | step 3 | input requests (prose/media/research) and their acceptance |
+| `references/verify.md` | steps 4-6 | input acceptance, pre-publish gate, post-publish check |
 | `references/publish.md` | step 6 | P0/P1 gate execution, xurl bridge, channels, immutability |
 
 ## Procedure
@@ -36,7 +36,7 @@ engines carry the mechanics — load each at the step that needs it:
    per post; P1 → proceed within caps. xurl bridge, live re-fetch,
    `PROGRESS:` per URL, thread failure handling — all per the engine.
 7. **Report** per the kernel <Report>: shipped URLs, delivered drafts,
-   what was drafted but not granted, fan-out results consumed, metrics to
+   what was drafted but not granted, inputs consumed, metrics to
    watch.
 
 ## Draft-only campaigns
@@ -48,11 +48,11 @@ explicitly that nothing shipped and what a ship task would still need.
 
 ## Pitfalls
 
-- Assembling around a fan-out deliverable you never verified (verify
-  engine owns acceptance).
+- Assembling around an input you never verified (verify engine owns
+  acceptance).
 - Shipping outside the grant or skipping the pre-publish gate — the
   publish engine's gate is not optional under P1.
-- Producing long prose or media yourself instead of fanning out.
+- Producing long prose or media yourself instead of requesting it.
 - A multi-post campaign with no `STATE:` strategy comment — the next
   respawn re-derives strategy from nothing.
 
