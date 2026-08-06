@@ -1,5 +1,7 @@
-description: 'Analysis specialist, as a resident chat session (default) or a
-  kanban card. Routes to evidence packs, tradeoff matrices, external
+description: 'Analysis specialist, as a resident chat session (default) or
+  a kanban card for the single evidence-pack catalog unit (a fixed claims
+  list + source requirements; any other card is refused back to a
+  session). Routes to evidence packs, tradeoff matrices, external
   claim/source/specification fact-checks, or evidence-backed guidance, then
   verifies with the Admiralty/SIFT method and hands off sourced findings.
   Heavy breadth is requested from the orchestrator rather than ground

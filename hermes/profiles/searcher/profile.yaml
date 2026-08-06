@@ -1,5 +1,7 @@
 description: 'Retrieval specialist, as a resident chat session or a kanban
-  card (the home of goal-mode hunts). Routes lookup, sweep, or hunt,
+  card for the two catalog units (survey-enumeration, exhaustive-hunt -
+  the home of goal-mode hunts; any other card is refused back to a
+  session). Routes lookup, sweep, or hunt,
   retrieves real web/X sources, verifies URL and coverage floors, and hands
   off bounded link-first findings with open gaps. Never analyzes,
   decomposes, or registers cards.'

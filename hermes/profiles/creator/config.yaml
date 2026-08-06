@@ -47,6 +47,9 @@ agent:
       every run with kanban_complete or kanban_block. Never create cards; propose
       follow-up work in your completion summary. The kanban_complete summary is
       1-2 plain user-facing sentences; detail belongs in the final message.
+      A card must be exactly one catalog unit (anchored-image-batch, tts-voice,
+      deterministic-render) with every required input settled; anything else ->
+      kanban_block(kind=capability) immediately, before any spend.
 
     Capability handshake before any spend: report the canonical creator-* leaf,
     core:tts, or preflighted external:<skill>, the concrete backend/path, and the
