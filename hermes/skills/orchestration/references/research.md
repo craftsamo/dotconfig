@@ -1,58 +1,60 @@
-# Researcher capability reference
+# Research capability — plan / execute / qa
 
-Load when an execution shape needs analysis, synthesis, comparison, or external
-verification. Researcher is a specialist capability, not an exclusive request
-approach.
+Load when the work needs external information: retrieval (facts, links,
+enumerations, source hunts) or depth (analysis, synthesis, comparison,
+verification). Two specialists share this capability:
 
-## When to pick Research
+| Need | Route |
+| --- | --- |
+| A quick fact/link, one source, ~a minute | inline — answer it yourself |
+| Several parallel lookups for a waiting user | inline — `delegate_task` (max 3, anonymous, stateless) |
+| Durable retrieval: enumerations/surveys with a coverage claim, exhaustive multi-hop hunts | **searcher** session (or kanban card for fire-and-forget hunts) |
+| Depth: analysis, synthesis, tradeoffs, evaluation, claim verification, evidence-backed guidance | **researcher** session |
 
-- **Analysis / synthesis / comparison / evaluation / external verification /
-  reports** — depth work, not retrieval.
-- Examples: "compare approaches A/B/C for X", "evaluate library Y against
-  our constraints", "synthesize a report on topic Z from these sources",
-  "verify the claims in this render against primary sources", "derive design
-  guidance from these examples". Artifact-vs-brief quality gates use `qa`.
+Searcher's deliverable is the facts with sources; researcher's is a
+verified conclusion. A crafted artifact (台本, copy, media) built on that
+conclusion is writer/creator work consuming it.
 
-For pure retrieval (get the facts), add Searcher (`references/search.md`). A
-mixed search→analyze→build request normally uses `chain` when settled and
-`planned` when specialist judgment or graph design remains.
+## Plan
 
-## Deliverable types
+- Fix the question before the session: what decision does this research
+  serve, and what does "answered" look like (the done criteria)? For
+  enumerations give a floor count and per-item fields ("≥15 candidates,
+  each with pricing URL and date"). For comparisons name the axes.
+- Uncertain scope → open the researcher session with the open question and
+  let its first reply size the work before you promise depth to the user.
 
-The researcher routes internally by deliverable — no opener needed. Write
-the Done criteria to match the type; each type has an input it cannot work
-without:
+## Execute
 
-| Deliverable | Done criteria should fix | Must be in Inputs/Body |
-| --- | --- | --- |
-| Evidence-pack (default: open question, landscape, synthesis) | the question + decision context | sources/paths if known |
-| Tradeoff-matrix (compare named options, recommend one) | the comparison axes (e.g. "the 4 axes we discussed") | the option set |
-| Fact-check (external claim/source/specification verdicts) | the claims, enumerated | where each claim was made; attach the final artifact when wording/context matters |
-| Guidance (direction a downstream worker acts on) | who consumes it and for what decisions | parent ids / example sources |
+Start the session with the SessionBrief; the pipeline routes internally by
+deliverable (evidence-pack / tradeoff-matrix / fact-check / guidance for
+researcher; lookup / survey / hunt for searcher) — write what you want,
+not how.
 
-Guidance vs writer/creator: researcher delivers the evidence-backed
-direction; the crafted artifact itself (台本, copy, media) is a separate
-writer/creator card that consumes it.
+- Follow-ups sharpen scope in place: "その3件を深掘り", "2024年以前は除外".
+  The session keeps its source trail, so refinement is cheap.
+- An exhaustive hunt that should grind unattended is the classic kanban
+  case: `assignee: searcher`, `skills: ["searcher-pipeline"]`,
+  `goal_mode: true` (+ `goal_max_turns`) — fire, forget, read the
+  completion.
+- Research feeding another specialist: wait for the turn, QA it, then
+  paste the conclusions (not a pointer) into the consuming session's
+  brief.
 
-## Dispatching
+## QA
 
-Standard `<TaskSpec>` shape with:
+- Sources exist and support the claims — spot-check the load-bearing ones
+  (links resolve, quotes match, dates/versions right).
+- Coverage claims match the ask (floor counts met; exclusions honored).
+- Conclusions distinguish evidence from inference; uncertainty is stated,
+  not smoothed over.
+- Defects (dead links, thin coverage, unsupported leaps) go back as a
+  feedback turn.
 
-- `assignee: researcher`
-- `skills: ["researcher-pipeline"]` — **always** (kernel pin)
-- `workspace_kind: scratch`
-- Body: Goal / Inputs (links, paths, parent task ids, pasted data) /
-  Done criteria (objective checks per the type table) / Output (format,
-  length, language) / Constraints / Review (only when the user must sign
-  off before the card closes).
-- A fact-check consumed by QA names and attaches the complete
-  `claim-ledger.md`; its body lists the exact claims and QA consumer.
+## Pitfalls
 
-Researcher's kernel runs Admiralty/SIFT source evaluation automatically —
-no need to specify it in the body.
-
-## After dispatch
-
-Standard <AfterCreate> mechanics. On completion, present the analysis in the
-persona's voice; never paste the raw report — summarize and offer to
-`kanban_show` for detail.
+- Sending a 30-second lookup to a session or the board.
+- Deep multi-hop research inline — it floods your own context; that is
+  exactly what the specialists are for.
+- Briefs that ask "research X" with no decision context or done criteria.
+- Forwarding conclusions whose load-bearing sources you never opened.
