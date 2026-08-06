@@ -6,8 +6,8 @@ producible, through which chain, at what Budget — not the asset itself.
 
 ## Rules
 
-- **Generate nothing.** No credits spent, no variants "to illustrate", no
-  fan-out. The deliverable is an assessment.
+- **Generate nothing.** No credits spent, no variants "to illustrate".
+  The deliverable is an assessment.
 - **Answer from the catalog, not by trying.** Chain fit comes from
   `references/produce.md` <AssetRouting> plus the profile's
   available-skills catalog (in-tree + `skills.external_dirs` library);

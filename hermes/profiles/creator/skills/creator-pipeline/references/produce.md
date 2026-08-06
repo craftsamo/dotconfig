@@ -1,8 +1,7 @@
 # Produce — the production loop (entry)
 
-Loaded for produce-mode cards: the brief describes assets to deliver. The
-kernel's contracts (Budget caps, comment protocol, fan-out) apply
-throughout; this file owns the chain routing and the per-asset loop.
+Loaded for Produce work: the brief describes assets to deliver. The
+kernel's contracts (Budget caps, dialogue contract) apply throughout; this file owns the chain routing and the per-asset loop.
 
 Intent shapes the entry (kernel <IntentTriage>):
 

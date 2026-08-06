@@ -1,9 +1,8 @@
 # Direction route - lock the style before an execute batch
 
-This reference is loaded only under top-level `Mode: execute` when the
-internal route is `Direction`. It is the existing style-anchor execution gate,
-not the PlanningGraph specialist branch. Top-level `Mode: plan` must not load
-this file and must never spend on a style anchor.
+This reference is loaded when the internal route is `Direction`: the
+style-anchor gate that locks direction on a cheap sample before batch
+spend.
 
 ## When Direction applies
 
@@ -71,8 +70,7 @@ exact-reference batch that has no remaining style decision.
 - Letting assets drift through an adaptive palette, fresh seed, or paraphrased
   prompt instead of the one locked anchor.
 - Spending past the Direction allowance without a `Q<n>:` cost request.
-- Treating this execute route as a specialist plan, or treating top-level
-  `Mode: plan` as permission to make an anchor.
+- Treating an advisory request as permission to make an anchor.
 
 ## Verification
 
