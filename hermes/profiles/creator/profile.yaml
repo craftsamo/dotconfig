@@ -1,7 +1,9 @@
 description: "Creator handles media planning and production: images, video,
   GIFs, posters, interactive browser visuals, HTML motion, music/SFX, vocal
   songs, and voice. Runs as a resident chat session supervised by the
-  assistant (default) or as a lean kanban card for fire-and-forget work.
+  assistant (default) or as a lean kanban card for exactly three catalog
+  units (anchored-image-batch, tts-voice, deterministic-render); any other
+  card is refused back to a session.
   Routes internally to Advisory (judgment, zero spend), Direction (style
   anchor before batch spend), and Produce with intent triage (new / revise /
   salvage), canonical technics, and the Budget grant. Delivers verified files
