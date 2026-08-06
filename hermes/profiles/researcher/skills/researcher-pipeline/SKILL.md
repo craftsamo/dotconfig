@@ -61,6 +61,15 @@ the task body is the entire brief; dialogue travels as `STATE:` / `Q<n>:`
 `kanban_block`, attach artifact files, and end the run with
 `kanban_complete` (summary + findings) or `kanban_block`.
 
+**Unit gate — check before researching.** A card must be one bounded
+research unit with a settled question (typically an `evidence-pack`: a
+fixed claims list with source requirements). Open-ended analysis whose
+framing is not settled, composite multi-deliverable work, or work outside
+research → `kanban_block(kind=capability)` immediately with a one-line
+reason and a suggested decomposition — never improvise the framing.
+Questions get exactly ONE batched `needs_input` round for the card's
+life; a second block ends the card, so never ask incrementally.
+
 </Runtimes>
 
 <Scope>

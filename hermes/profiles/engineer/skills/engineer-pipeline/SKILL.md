@@ -97,6 +97,13 @@ process is disposable — continuity lives in the comment thread, preserved
 OpenCode sessions in the worktree, and git history; load
 `references/resume.md` FIRST when the task has prior runs.
 
+**Unit gate — engineering defines no card units.** Implementation is
+resident-only in Workflow v5; an engineer card is almost always a
+planning mistake. Unless the body is a bounded, fully CI-verifiable
+chore you can finish without any question round,
+`kanban_block(kind=capability)` immediately with a one-line reason
+pointing the work back to a resident session.
+
 </Runtimes>
 
 <Scope>
