@@ -47,6 +47,7 @@ EXPECTED_CAPABILITIES = {
     "creative",
     "writing",
     "research",
+    "search",
     "engineering",
     "marketing",
 }
@@ -80,6 +81,7 @@ REQUIRED_QA_CONTRACTS = {
         "video.md",
         "voice.md",
     },
+    "search": {"lookup.md", "sweep.md", "hunt.md"},
     "writing": {"prose.md", "script.md"},
 }
 CARD_UNIT_NAME = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
@@ -721,6 +723,44 @@ def validate_writing_alignment(errors: list[str]) -> None:
         errors.append(f"writing QA contract claimed by no plan leaf: {name}")
 
 
+# ── Search plan-QA alignment ────────────────────────────────────────────
+#
+# Every search plan leaf must name the QA contract that gates its unit
+# (the literal `QA `contract`` mapping line), and every search QA
+# contract must be claimed by at least one leaf — a new retrieval unit
+# can never ship with an ungated contract mapping.
+
+SEARCH_PLAN_DIR = ASSISTANT_PIPELINE / "references" / "plan" / "search"
+SEARCH_QA_DIR = (
+    ASSISTANT_PIPELINE / "references" / "quality-assurance" / "search"
+)
+
+
+def validate_search_alignment(errors: list[str]) -> None:
+    if not (SEARCH_PLAN_DIR.is_dir() and SEARCH_QA_DIR.is_dir()):
+        return  # missing roots are reported by the tree validators
+
+    contracts = {
+        path.stem for path in SEARCH_QA_DIR.glob("*.md")
+    } - {"index"}
+    claimed: set[str] = set()
+    for leaf in sorted(SEARCH_PLAN_DIR.glob("*.md")):
+        if leaf.name == "index.md":
+            continue
+        match = re.search(r"QA `([a-z-]+)`", leaf.read_text(encoding="utf-8"))
+        if not match:
+            errors.append(f"search plan leaf missing QA mapping line: {leaf.name}")
+            continue
+        contract = match.group(1)
+        if contract not in contracts:
+            errors.append(
+                f"search plan leaf {leaf.name} names missing QA contract: {contract}"
+            )
+        claimed.add(contract)
+    for name in sorted(contracts - claimed):
+        errors.append(f"search QA contract claimed by no plan leaf: {name}")
+
+
 def validate_assistant(
     errors: list[str],
 ) -> tuple[int, dict[str, str], int, int, int]:
@@ -868,6 +908,7 @@ def main() -> int:
         validate_creative_alignment(errors)
         validate_engineering_alignment(errors)
         validate_writing_alignment(errors)
+        validate_search_alignment(errors)
         for path in tracked_learned_files():
             errors.append(f"learned skill file must not be tracked: {path}")
         for path in untracked_managed_files():
