@@ -13,5 +13,6 @@ is outcome-level, applied per unit before the next one is released:
 - For UI work, a rendered screenshot exists — code-only inspection is
   not verification.
 
-Defects → feedback turn into the same session. Accepted → GitHub ops
-(`../../execute/engineering/index.md`), then close.
+Defects → feedback turn into the same session. Accepted → unit
+close-out (`../../execute/engineering/github-ops.md`), then release
+the next unit or close.
