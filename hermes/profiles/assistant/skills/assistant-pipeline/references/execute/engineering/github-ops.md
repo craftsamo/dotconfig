@@ -54,23 +54,34 @@ the next unit is released against the updated default branch.
 ## Repo lifecycle — bootstrap steps
 
 Decisions arrive fixed from `../../plan/engineering/bootstrap.md`
-(sanctioned by the plan approval); execute them in this order.
-Worktree-side establishment is delegable under an explicit,
-user-sanctioned `B1`/`B2` grant — the GitHub/registry steps never
-are:
+(sanctioned by the plan approval); execute them in this order. The
+GitHub/registry steps are never delegable; only worktree-side
+establishment inside the clone (step 3a) may go to the engineer
+under an explicit, user-sanctioned `B1`/`B2` grant (`B1` =
+scaffolder/skeleton/deps + initial commit in the clone, `B2` = +
+push to the existing `origin` — repo creation is never the
+engineer's):
 
 1. **Group missing** → the private `scaffold` skill's
    `ws-new.sh group projects <Group>` (dirs + group `AGENTS.md` +
    registry row).
-2. **Create on GitHub first**:
-   `gh repo create <owner>/<repo> --private` — with
-   `--template <starter>` when the chosen starter is a template
-   repo, or from a plain starter clone via `--source … --push` plus
-   an `upstream` remote (family wiring per starter-catalog). Never
-   `ws-new.sh repo` — its local `git init` bypasses the ghq layout
-   and leaves an unlinked, remoteless repo.
-3. **Clone via ghq**: `ghq get <owner>/<repo>` →
-   `~/ghq/github.com/<owner>/<repo>`.
+2. **Create on GitHub first**, per the sanctioned History posture:
+   - Template starter (squashed start) →
+     `gh repo create <owner>/<repo> --private --template <starter>`.
+   - Plain starter (history kept) → clone the starter to the target
+     ghq path, then `gh repo create <owner>/<repo> --private
+     --source <path> --push` (repoints `origin` at the new repo) and
+     `git -C <path> remote add upstream <starter-url>` — the
+     derivative stays wired to its family.
+   - Scratch → `gh repo create <owner>/<repo> --private` bare.
+   Never `ws-new.sh repo` — its local `git init` bypasses the ghq
+   layout and leaves an unlinked, remoteless repo.
+3. **Clone via ghq** (template/scratch paths): `ghq get
+   <owner>/<repo>` → `~/ghq/github.com/<owner>/<repo>`.
+   3a. *(optional, granted)* — a scaffolder-based skeleton
+   (`create-next-app`, `cargo new`, `uv init`, …) inside the clone
+   is an engineer `B1`/`B2` job; release it as a unit with the
+   target path and the named scaffolder.
 4. **Register + link**:
    `pj repo-set --project <Group> --name <repo> --owner <owner>`,
    then `pj link-repo --project <Group> --name <repo>` —
