@@ -194,6 +194,11 @@ outline; each Wave forks from it.
 
 ### Wave loop (Wave 1 → Wave 2 → …, in outline order)
 
+The loop covers only the Waves the assistant has released this turn
+(the resident pacing contract, kernel <Runtimes>); at the boundary of
+the released set, close the Wave, report, and wait for the next
+release.
+
 Per Wave, a decompose → confirm → build sub-cycle. **OpenCode owns the phase
 granularity; you judge it, you don't dictate it.** The sub-cycle is
 mandatory for every Wave — no risk tier, schedule pressure, or
