@@ -37,7 +37,7 @@ real decision is needed.
 
 | Capability | File | Owns |
 | --- | --- | --- |
-| engineering | `engineering/index.md` | repo grounding, OpenCode plan session, Authority |
+| engineering | `engineering/index.md` | repo grounding, unit decomposition, Authority |
 | creative | `creative/index.md` | MediaBrief, style anchor, Budget |
 | writing | `writing/index.md` | WritingBrief |
 | research | `research/index.md` | question fixing, coverage claims |

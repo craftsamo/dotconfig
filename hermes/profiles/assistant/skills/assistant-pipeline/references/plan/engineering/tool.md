@@ -1,24 +1,25 @@
 # Script / CLI / automation — plan recipe
 
-The smallest deliverable class; ceremony is the enemy. Most tools are
-settled enough to skip the base session (index invariant) — use one
-only when the tool has real architecture (multiple commands, external
-services, scheduled operation).
+The smallest archetype; ceremony is the enemy. Most tools are settled
+enough to release as a **single whole-job unit** — state the intent,
+straight to Execute. Decompose only when the tool has real
+architecture (multiple commands, external services, scheduled
+operation).
 
 ## Brief — fix before the session
 
 - **Contract** — input → output, one line each; failure behavior.
 - **Runtime & where it runs** — Python/Node/shell; manual, cron,
-  launchd, or called by Hermes. A worker-executed script must obey the
-  approval guard: no inline interpreters, wrap logic in files.
+  launchd, or called by Hermes. A worker-executed script must obey
+  the approval guard: no inline interpreters, wrap logic in files.
 - **Data touched** — paths, APIs, credentials (Keychain), and whether
   anything is sensitive (`Personal/` rules apply).
 - **Repo or not** — durable tool → github-first repo like everything
-  else (bootstrap, usually scratch — starters rarely fit); throwaway →
-  `.scratch/`, no repo, no ceremony.
+  else (bootstrap first, usually scratch — starters rarely fit);
+  throwaway → `.scratch/`, no repo, no ceremony.
 - **Done criteria** — runs on real input, exits nonzero on failure.
 
-## Wave prompt — only when a session is warranted
+## Decomposition prompt — only when decomposition is warranted
 
 > Small tool. Expect 1–3 Waves: working core against real input →
 > hardening (errors, edge cases) → wiring (cron/launchd/docs). No
@@ -33,6 +34,9 @@ services, scheduled operation).
 
 ## Defaults
 
+- Units: one whole-job unit for settled tools; Waves when decomposed.
+  Never Issue ceremony — a tool that wants an epic is not this
+  archetype (reclassify: webapp or existing-change).
 - New repo: scratch (no starter) via `bootstrap.md` first; skip repo
   entirely for throwaways.
 - Authority `A1`; dependency additions need `A3` even here.
