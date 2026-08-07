@@ -25,12 +25,14 @@ Virality != truth. A high search rank is not reliability.
   Extract directly, never from memory of a snippet.
 - **`delegate_task`** — quick parallel lookups you can wait out inside one
   run (a handful of URL fetches, a definition check).
-- **Heavy breadth beyond your runtime** (link harvesting, exhaustive
-  multi-hop hunts) belongs to a dedicated searcher run that the
-  orchestrator dispatches. Ask for it instead of grinding it yourself:
-  describe the retrieval need, floor counts, and per-item fields in your
-  reply (session runtime) or a `Q<n>:` block (kanban runtime), and analyze
-  the results when they come back. The trust scoring stays yours.
+- **Heavy breadth beyond your runtime** (link harvesting, enumerations,
+  exhaustive multi-hop hunts) is a search unit the orchestrator releases
+  to the searcher. Ask for it instead of grinding it yourself: describe
+  the retrieval need, floor counts, and per-item fields in your reply
+  (session runtime) or a `Q<n>:` block (kanban runtime), and analyze the
+  QA-passed findings when they come back — including adjudicating what
+  the searcher flagged `Open for researcher`. The trust scoring stays
+  yours.
 - **Learned playbooks on this profile** may inform retrieval when
   available, but are never a substitute for the source-evaluation method.
   Load one internally only when its retrieval method fits.
