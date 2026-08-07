@@ -105,7 +105,7 @@ see `references/delivery.md`):
 | rebuild | REQ | REQ | REQ | REQ | REQ | REQ | cutover criteria from the task met; data parity / old-path evacuation verified |
 | perf | REQ | REQ | – | REQ | REQ | REQ | baseline measured BEFORE, re-measured AFTER under the same conditions; target met, suite not regressed |
 | deps | REQ | REQ | – | REQ | – | REQ | lockfile resolves to the patched version; build + tests pass; no unrelated bumps |
-| bootstrap | REQ | – | – | – | – | REQ | empty-target guard ran; initial commit exists; remote/push only under B2; pj untouched |
+| bootstrap | REQ | – | – | – | – | REQ | established-clone guard ran; initial commit exists; push only under B2 to the existing `origin`; no repo creation/remote surgery; pj untouched |
 | investigate / diagnose / review | REQ | – | – | – | – | – | worktree untouched (`git status` clean); every claim carries evidence (file/line, repro output) |
 
 The profile is a floor, not a ceiling — escalate checks when the diff's risk
