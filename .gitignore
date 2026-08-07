@@ -100,6 +100,7 @@ hermes/**/cron/executions.db*
 # Hermes plugins: source IS tracked; Python bytecode (written into the symlinked
 # plugins dir when Hermes loads a plugin) is not
 hermes/**/__pycache__/
+agents/**/__pycache__/
 hermes/**/*.pyc
 # Plugin runtime data written back through the symlinked plugins dir (no source
 # here — the hermes-achievements plugin persists badge state + a session-scan
