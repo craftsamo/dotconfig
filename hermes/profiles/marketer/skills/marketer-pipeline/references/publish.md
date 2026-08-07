@@ -1,73 +1,69 @@
 # Publish engine — the only irreversible act
 
-Shared engine for shipping posts. Loaded only when a campaign task reaches
-its publish stage. The kernel's <PublishGrant> decides WHETHER anything may
-ship; this file owns HOW. Publishing is public and irreversible — when in
-doubt, ask.
+Loaded when a unit actually ships. The kernel's <PublishGrant>
+decides WHETHER; this file owns HOW. The four-stage inspection
+(`verify.md`) has already passed on the exact candidate — shipping
+un-inspected content is a red-floor violation, not a shortcut.
 
-## Gate (recap, kernel owns the contract)
+## Gate execution
 
-- **P0 (no `Publish:` line): approval required.** Before anything goes out,
-  present in your session reply, for each post: exact final text, attachments
-  (filenames + what they show), and destination (account/channel,
-  reply/quote target). Wait for an explicit approval message from the
-  assistant. Post ONLY what that approval covers, verbatim. Any difference
-  from the approved text, destination, or attachment set requires presenting
-  the full candidate again and waiting for fresh approval.
-- **P1: autonomous within caps.** The grant names account, post-count cap,
-  and content scope. Inside all caps, post without per-post approval.
-  Anything outside — extra posts, another account, a new topic, paid
-  promotion — ask in your reply and wait for an explicit instruction.
-- Run the verify engine's pre-publish gate (V1-V5) before either path.
+- **P0**: the reply presented exact text + attachments +
+  destination; the approval message arrived; ship precisely that.
+  Any difference — wording, attachment set, reply target — means
+  re-present, not ship.
+- **P1**: consume **approved inventory** within the named caps
+  (account, count, scope). New claims or appeals never become
+  green by cap arithmetic. Outside any cap: ask and wait.
+- Reconcile one-to-one: each shipped post maps to its approval or
+  its approved-queue entry; dispatch is idempotent — a retried
+  turn must not double-post.
 
 ## xurl bridge (X, live)
 
-Load the external `xurl` skill for mechanics before the first call. Per
-post:
+Load the external `xurl` skill for mechanics before the first call.
+Per post:
 
 1. Media first: upload attachments, collect media ids.
-2. `xurl` create the post (text + media ids).
-3. Take the returned post id/URL and **re-fetch it once** to confirm it is
-   live (verify engine V6).
-4. Report the live URL in your session reply — one per shipped post.
+2. Create the post (text + media ids).
+3. **Re-fetch the returned id once** — a returned id is not proof
+   the post is live.
+4. Report the live URL in your reply, one per shipped post.
 
-Threads are an ordered reply chain: post 1, reply to it with post 2, and so
-on. On a mid-thread failure: report in your reply what shipped (URLs) and
-what remains, then wait for the assistant's next message — **never re-post
-already-shipped items**.
-
-Auth problems (`xurl auth status` fails, token errors) require asking in your
-reply; do not retry in a loop.
+Threads are an ordered reply chain. Mid-thread failure: report what
+shipped (URLs) and what remains, then wait — never re-post shipped
+items; resumption covers only the unshipped tail. Auth failures
+(`xurl auth status`, token errors): ask in your reply; never retry
+in a loop.
 
 ## Channels
 
-- **X (live)** — via `xurl` (OAuth pre-configured on this machine).
-- **Future (not granted by default)** — Discord / Instagram / TikTok etc.
-  arrive as per-channel accounts + per-channel grant lines. A brief naming
-  a channel with no live integration → deliver drafts formatted for that
-  channel and say so; never improvise posting through other tools.
+- **X (live)** — via `xurl` (OAuth pre-configured).
+- **Everything else** — no live integration: deliver
+  destination-formatted drafts and say so. A future channel arrives
+  as its own integration + per-channel grant line; never improvise
+  posting through other tools.
 
 ## After shipping
 
-- Shipped posts are immutable facts: never delete or edit a published post
-  without an explicit instruction. A wrong post is reported in your reply
-  (what shipped, what is wrong, options), not silently repaired.
-- Every shipped URL is reported in the session reply and included in the
-  final report.
+- Shipped posts are immutable facts: no edits, no deletions, no
+  re-posts without an explicit instruction. A wrong post is
+  reported — what shipped, what is wrong, options — never silently
+  repaired. Deletion, when instructed, is itself an approval-gated
+  action.
+- Collect the unit's measurements (impressions, clicks,
+  destination attribution) into the campaign's records; the weekly
+  improvement turn interprets them.
+- The final report carries every live URL, the reconciliation
+  against approvals/queue, and spend against caps.
 
 ## Pitfalls
 
-- Shipping anything not covered by a verbatim approval or an in-cap P1
-  grant — including approved text you then "improved".
-- Skipping the live re-fetch — a returned id is not proof the post is up.
-- Retrying auth failures instead of asking in your reply.
-- Re-posting shipped items after a partial failure.
-- Posting from a shape or assess task because a P1 grant exists —
-  the goal decides, not the grant (kernel rule).
-
-## Verification
-
-- Every shipped post maps to its approval or in-cap grant, passed V1-V5
-  before shipping, and has a live-verified URL reported in the session reply.
-- No published post was edited, deleted, or re-posted; failures were
-  reported with the shipped/remaining split stated.
+- Shipping approved text you then "improved" — verbatim means
+  verbatim.
+- Skipping the live re-fetch, or reporting ids instead of URLs.
+- Treating a P1 cap as covering a new appeal because the count
+  allows it.
+- Retrying a failed thread from the top, duplicating shipped
+  posts.
+- Posting from a grounding turn because a grant exists — grounding
+  never publishes.
