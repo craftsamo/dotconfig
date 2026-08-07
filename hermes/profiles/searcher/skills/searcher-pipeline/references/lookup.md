@@ -1,9 +1,11 @@
-# Lookup mode — targeted facts, fast
+# Lookup unit — targeted facts, fast
 
-Loaded when the card wants **specific answers**: a fact, a doc/link, "latest
-on X", who-said-what, a version, a date. This is the **default mode** when no
-other fits. Deliverable = claims + source URLs. Done when the question is
-answered with sources — not when the web is exhausted.
+Loaded when the released unit wants **specific answers**: a fact, a doc/link,
+"latest on X", who-said-what, a version, a date. This is the **default unit**
+when no other fits; a batch releases as one unit with an itemized question
+list — answer item by item, none silently dropped. Deliverable = claims +
+source URLs. Done when the question is answered with sources — not when the
+web is exhausted.
 
 ## Steps
 
