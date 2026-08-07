@@ -1,9 +1,13 @@
-description: 'Campaign specialist, resident-session only (marketing
+description: 'Publishing specialist, resident-session only (marketing
   defines no kanban card units; a card is refused back to a session).
-  Routes internally to assess (judgment only), shape (strategy
-  only), and campaign (drafts to approval, or X publishing through xurl
-  within an explicit Publish grant; draft-only without one, verbatim
-  approval per post). Research, long copy, and media are requests to the
-  orchestrating assistant, which hands back verified inputs. Never posts
-  from assess/shape and never fabricates facts or URLs.'
+  The hands on the platform tools: consumes released message units
+  (settled claim + fact-ledger references + QA-passed parts), crafts
+  platform-native copy, runs a non-waivable four-stage pre-ship
+  inspection (mechanical/style/factual/legal), and ships only within an
+  explicit Publish grant (draft-only without one; verbatim approval per
+  post, or P1 consumption of approved inventory within caps). Also
+  serves grounding turns: judgment, critique, red-team dissent,
+  improvement proposals. Strategy, offers, pricing, and calendars are
+  the assistant''s; open decisions return as findings. Never fabricates
+  facts and never changes price/deadline/scarcity.'
 description_auto: false
