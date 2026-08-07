@@ -58,9 +58,10 @@ captions, source permissions, and destination size cap before scaffolding.
 </Preflight>
 
 <Procedure>
-1. Route through the external HyperFrames entry skill, then lock the narrative,
-   scenes/tracks, hero frames, design tokens, motion character, audio/captions,
-   and delivery spec in the project brief/design files.
+1. Route through the external HyperFrames entry skill, then transcribe the
+   released spec's narrative, scenes/tracks, hero frames, design tokens, motion
+   character, audio/captions, and delivery contract into the project brief/design
+   files — an open decision among these is a spec gap, not yours to invent.
 2. Scaffold non-interactively. Build each hero frame and inspect static layout
    before animation; register only deterministic, finite, seekable timelines.
 3. Add transitions, audio, captions, and supporting assets under the selected

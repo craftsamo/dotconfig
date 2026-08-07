@@ -59,8 +59,9 @@ automatically. The official setup script may be run only for diagnosis.
 <Procedure>
 1. Load the official engine with `skill_view(name="ascii-video")`, confirm the
    MediaBrief and destination, and write `plan.md` plus a project script.
-2. Lock cell size, brightness mapping, character set, palette, scene changes,
-   frame rate, audio timing, loop/GIF requirements, and output dimensions.
+2. Confirm cell size, brightness mapping, character set, palette, scene changes,
+   frame rate, audio timing, loop/GIF requirements, and output dimensions from the
+   released spec; an open one is a spec gap.
 3. Render representative keyframes first. Inspect glyph readability, brightness,
    character density, palette, and scene coherence before a full render.
 4. Run the full render through the project or official script. Keep numbered

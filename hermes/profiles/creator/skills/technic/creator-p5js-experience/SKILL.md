@@ -50,8 +50,9 @@ pixel density, interaction devices, and destination browser support.
 </Preflight>
 
 <Procedure>
-1. Lock the concept, mode, canvas/viewport, renderer, interaction model, seed,
-   palette, motion vocabulary, performance target, and export formats.
+1. Take the concept, mode, canvas/viewport, renderer, interaction model, seed,
+   palette, motion vocabulary, performance target, and export formats from the
+   released spec; an open one is a spec gap (kernel <UnitDiscipline>).
 2. Load the official engine and write one project HTML file. Separate immutable
    configuration and palette from mutable state; seed every visual random/noise
    path and record any deliberately non-deterministic input.
