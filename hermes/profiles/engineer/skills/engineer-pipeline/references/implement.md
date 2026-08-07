@@ -16,9 +16,13 @@ Implement consumes **released units**, one per turn (core <Runtimes>
 pacing): a purpose (`Issue: #n` — the Issue text is the spec), a Wave
 (`Base session: <id>` + the Wave to implement), or a whole small job
 released as one unit. The assistant owns the decomposition; never
-double-plan. Work that turns out bigger than its released unit is a
-**granularity finding** — checkpoint, report, let the assistant re-plan;
-never absorb it silently or write an outline yourself. Session context is
+double-plan. Two finding kinds go back instead of being absorbed:
+work bigger than its released unit is a **granularity finding**, and a
+spec that fails to determine the unit — missing done criteria, an
+undecided material choice the Issue/outline should have fixed — is a
+**spec-gap finding**. Checkpoint, report, let the assistant re-plan or
+re-spec; deciding it locally is the assistant's job outsourced, never
+initiative. Session context is
 NOT the durable layer — the Issue/outline text, git history, and your
 session reports are.
 
@@ -154,6 +158,9 @@ execute it or ask).
 - Writing a unit decomposition yourself — for work that already has an
   Issue (the Issue is the spec; double-planning drifts it) or for a job
   that turned out multi-unit (a granularity finding, not your outline).
+- Filling a spec gap with a plausible local default — an undecided
+  material choice returns as a spec-gap finding, whatever the schedule
+  pressure.
 - Running past the released unit — the next Wave/Issue needs a release or
   an explicit batch grant.
 - Insurance-prose prompts written without knowing the injected layer —
