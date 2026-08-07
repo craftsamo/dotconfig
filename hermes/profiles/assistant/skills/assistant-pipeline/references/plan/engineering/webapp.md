@@ -39,8 +39,9 @@ Brief and land in the earliest units. Webapps default to
 ## Registration & handoff — yours
 
 Per the index: you draft the epic + purpose split in your own plan
-session, the user approves it once, and you register it via `gh`
-(sub-issues linked to the epic, the user's Roadmap board in sync).
+session, the user approves it once, and you register it through an
+OpenCode run in the repo (sub-issues linked to the epic, bodies
+grounded in the code), then sync the user's Roadmap board directly.
 Execution then hands the engineer **one `Issue: #n` at a time** — the
 Issue text is the spec; no base session rides along. At `A2` a
 multi-PR purpose grows as a stack, one layer at a time.

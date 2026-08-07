@@ -9,7 +9,8 @@ chat what the plan session reads better from the worktree.
 - **`Issue: #n` already exists** → the Issue IS the unit; hand it
   over as-is. Only when the Issue is coarser than one handoff do you
   split it first — draft the purpose split in your plan session, get
-  approval, register the sub-issues via `gh`.
+  approval, register the sub-issues through an OpenCode run in the
+  repo.
 - **Issue-tracked repo, or the change spans sessions** → purposes
   (epic + sub-issues sized 1–3 PRs), as in `webapp.md`.
 - **Small linear change** → Waves from a base session.
