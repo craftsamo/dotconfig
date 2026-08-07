@@ -528,7 +528,14 @@ skills:
   - ~/ghq/github.com/NousResearch/hermes-agent/skills/research
   - ~/ghq/github.com/NousResearch/hermes-agent/skills/smart-home
   - ~/ghq/github.com/NousResearch/hermes-agent/skills/social-media
+  - ~/ghq/github.com/NousResearch/hermes-agent/optional-skills/communication/one-three-one-rule
+  - ~/ghq/github.com/NousResearch/hermes-agent/optional-skills/devops/watchers
   - ~/.hermes/skills
+  disabled:
+  - comfyui
+  - touchdesigner-mcp
+  - manim-video
+  - ascii-video
   template_vars: true
   inline_shell: false
   inline_shell_timeout: 10

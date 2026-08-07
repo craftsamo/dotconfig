@@ -432,6 +432,14 @@ skills:
     - ~/ghq/github.com/NousResearch/hermes-agent/skills/autonomous-ai-agents
     - ~/ghq/github.com/NousResearch/hermes-agent/skills/software-development
     - ~/ghq/github.com/NousResearch/hermes-agent/skills/github
+    - ~/ghq/github.com/NousResearch/hermes-agent/optional-skills/software-development/code-wiki
+    - ~/ghq/github.com/NousResearch/hermes-agent/optional-skills/software-development/rest-graphql-debug
+    - ~/ghq/github.com/NousResearch/hermes-agent/optional-skills/software-development/subagent-driven-development
+    - ~/ghq/github.com/NousResearch/hermes-agent/optional-skills/devops/docker-management
+    - ~/ghq/github.com/NousResearch/hermes-agent/optional-skills/devops/pinggy-tunnel
+    - ~/ghq/github.com/NousResearch/hermes-agent/optional-skills/mcp/fastmcp
+    - ~/ghq/github.com/NousResearch/hermes-agent/optional-skills/mcp/mcporter
+    - ~/ghq/github.com/NousResearch/hermes-agent/optional-skills/web-development/cloudflare-temporary-deploy
   template_vars: true
   inline_shell: false
   inline_shell_timeout: 10

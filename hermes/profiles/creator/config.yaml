@@ -470,6 +470,7 @@ skills:
     - ~/ghq/github.com/NousResearch/hermes-agent/optional-skills/creative/meme-generation
     - ~/ghq/github.com/NousResearch/hermes-agent/optional-skills/creative/concept-diagrams
     - ~/ghq/github.com/NousResearch/hermes-agent/optional-skills/creative/heartmula
+    - ~/ghq/github.com/NousResearch/hermes-agent/optional-skills/creative/creative-ideation
     - ~/.agents/skills
   disabled:
     - kanban-video-orchestrator
