@@ -411,7 +411,7 @@ Three per-profile layers, kept separate:
     `skills.external_dirs`: the Japanese stack via the curated
     `profiles/writer/external-skills/` symlink dir (japanese-writing /
     tech-prose / prose-rhythm, single-sourced with the shared
-    `agents/skills/` store) and upstream `creative/humanizer`
+    `agents/curated/` store) and upstream `creative/humanizer`
   - marketer → `marketer-pipeline` (resident-only, cards refused; consumes
     released message units under the Publish grant + red floor; engines
     ground / produce / parts / verify / publish — grounding judgment and
