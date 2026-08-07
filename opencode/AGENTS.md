@@ -98,19 +98,31 @@ in the primary session); triage stays in the primary per the skill's rubric.
 
 <JapaneseWritingSkills>
 
-Japanese deliverable text is governed by a three-layer skill stack; load the
-layers that match the deliverable (they compose, lower layers always apply):
+Japanese deliverable text is governed by a five-skill stack; load the
+layers that match the deliverable (they compose, the notation layer always
+applies, and the inspection layer runs on any finished draft):
 
 - `japanese-writing` (notation layer) — ALL Japanese deliverables:
   documentation, README, code comments, commit messages, PR bodies, UI copy,
   release notes. Typography, terminology, notation, style consistency.
 - `japanese-tech-prose` (argumentation layer) — long-form explanatory prose:
   articles, tutorials, book chapters, design docs, README explanatory
-  sections. Paragraph argumentation, rigor, LLM-phrase bans, redundancy.
-  NOT for reference docs, commit messages, or UI copy.
+  sections. Paragraph argumentation, rigor, LLM-phrase judgment, redundancy.
+  NOT for reference docs, commit messages, UI copy, or business documents.
+- `japanese-business-docs` (document-design layer) — business/work documents:
+  meeting minutes, research/analysis reports, internal guides & manuals,
+  memos / proposals, slide outlines. Pre-draft design (main message, heading
+  skeleton, density contrast, evidence) plus the 12-article generation-time
+  constitution and per-doctype patterns. NOT for explanatory articles.
 - `japanese-prose-rhythm` (pacing layer) — ONLY text meant to be read
   start-to-finish as engaging prose: blog posts, essays, book chapters.
-  NOT for anything readers scan; flat is correct there.
+  NOT for anything readers scan; flat is correct there. Never for business
+  documents.
+- `japanese-inspection` (inspection layer, cross-cutting) — inspect, de-AI-
+  flavor, score, or converge ANY finished Japanese draft: mechanical uv
+  lint (`--genre`, `--baseline`) + fix-or-keep ledger loop, readability
+  catalogs, and a no-rewrite score mode. Layer it on top of any of the
+  above; it owns judgment loops, not document design.
 
 None apply to conversational replies (LanguagePolicy governs those) or to
 i18n/translation-file workflows.
