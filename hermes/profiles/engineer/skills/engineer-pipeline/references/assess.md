@@ -69,11 +69,12 @@ asked — toolchain/environment via `machine-env` / `opencode-env` recipes.
 remote-exists-not-cloned), the environment relevant to a stack choice, and
 the options for the decider (`clone <remote>` / `starter: <candidates>` /
 `greenfield`). Ground the `starter:` option with the `starter-catalog`
-technic skill — run its discovery + fit-evaluation recipes and report 2-3
-candidates (lineage, platform fit, freshness) with a marked
-recommendation; never name candidates from memory. The decision and the
-actual clone/scaffold belong to the assistant + an implement task's
-bootstrap branch (`references/implement.md`) — assess stops at the report.
+technic skill — run its discovery recipes and report 2-3 candidates
+(lineage, platform fit, freshness) with a marked recommendation; never
+name candidates from memory. The decision and the repo's establishment
+belong to the assistant (worktree-side scaffolding may come back to you
+as a delegated `B1`/`B2` bootstrap job, `references/implement.md`
+<BootstrapBranch>) — assess stops at the report.
 
 ## Branch: feasibility (plan consultation)
 
@@ -176,7 +177,7 @@ session dialogue.
 ## Pitfalls
 
 - Writing anything — assess is read-only; the fix belongs to a bugfix job,
-  the scaffold to implement's bootstrap branch.
+  the scaffold to a delegated bootstrap job.
 - Branch drift: facts drifting into judgment, feasibility into solution
   design, diagnosis into patching, review into rewriting. Report at the
   asked altitude.
