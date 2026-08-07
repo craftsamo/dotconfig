@@ -7,8 +7,10 @@ One playbook, two callers:
 - **Assess mode, critique branch** — run the same passes on someone else's
   text and report findings instead of fixing.
 
-The passes are the writer's quality floor. Never skip one because the text
-is short — short copy fails the integrity pass as easily as a long article.
+The passes are the writer's quality floor and are **non-waivable**: no
+deadline, brevity, or instruction — including the assistant's — skips
+one. Never skip a pass because the text is short; short copy fails the
+integrity pass as easily as a long article.
 
 ## Passes (run in this order)
 

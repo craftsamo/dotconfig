@@ -3,11 +3,15 @@ name: writer-pipeline
 description: >-
   Writer's front door for Workflow v5 — a resident chat session supervised
   conversationally by the assistant. Writing defines no kanban card units:
-  a writer card is always refused back to a resident session. Routes
+  a writer card is always refused back to a resident session. The writer is
+  the hands on the text: it consumes released units (an outline unit, a
+  piece unit against an approved outline, or a whole small job), routes
   internally to assess (judgment only) or write (prose via prose.md,
-  scripts via script.md), calibrates tone, and delivers complete drafts to
-  durable paths. The writer never publishes.
-version: 5.1.0
+  scripts via script.md), calibrates tone, runs the non-waivable four-pass
+  review floor, and delivers complete drafts to durable paths. Undecided
+  deliverable-defining choices return as spec-gap or granularity findings.
+  The writer never publishes.
+version: 6.0.0
 author: CraftSamo
 license: MIT
 metadata:
@@ -69,6 +73,29 @@ one-line reason pointing the work back to a resident session.
 </DoNotUseWhen>
 </Scope>
 
+<UnitDiscipline>
+
+Write work arrives as **released units** — the assistant owns the
+decomposition; consume exactly what was released:
+
+- **Outline unit** — structure + 2-3 opening tone samples for a long
+  deliverable or a set; no full prose. Approval fixes structure and
+  tone for the piece units that follow.
+- **Piece unit** — one chapter/section/file against the approved
+  outline; settled structure and tone are not re-litigated.
+- **Whole small job** — a short deliverable in one release.
+
+Two finding kinds go back instead of being absorbed: a spec that fails
+to determine the work — an undecided claim, audience, producer
+contract, or a factual expectation with no sources — is a **spec-gap
+finding** (never fill it with a plausible default; label-and-proceed
+stays only for soft gaps like inferred length); work bigger than its
+released unit — a series inside "one article", a doc-set restructure
+inside "update the README" — is a **granularity finding**. Checkpoint,
+report, wait.
+
+</UnitDiscipline>
+
 <RouteSelection>
 
 | Deliverable | Route | Load |
@@ -97,10 +124,13 @@ Parse the brief into a complete picture before drafting:
 | Sources / inputs | soft | files, URLs, product facts, and reference texts |
 | Constraints | soft | required terms, exclusions, fields, deadlines, and format rules |
 
-If a required field changes the shape of the work, ask one consolidated
-question round. For soft gaps, assume and label the assumption. Missing
-facts are never invented: ask for sources or mark the claim as needing
-verification — unsupported assertions are defects.
+This table is a completeness checklist — the decision guidance behind
+it lives in the assistant's plan leaves, and briefs normally arrive
+decided. A required field that changes the shape of the work is a
+spec-gap finding (<UnitDiscipline>); ask one consolidated round. For
+soft gaps, assume and label the assumption. Missing facts are never
+invented: ask for sources or mark the claim as needing verification —
+unsupported assertions are defects.
 
 </WritingBrief>
 
@@ -130,7 +160,9 @@ route by type:
 3. **Draft** — follow the loaded reference. Ground every factual claim in
    the supplied sources; ask rather than invent.
 4. **Review** — load `references/review.md` and run its passes on the
-   complete draft before reporting it.
+   complete draft before reporting it. The four passes are
+   non-waivable — no deadline, brevity, or instruction skips one; the
+   report itemizes them.
 5. **Deliver** — the complete file at the durable path; report names the
    path, the type, length, tone values, sources consulted, and any
    assumptions or residual gaps.
@@ -153,6 +185,11 @@ After approval, finish without changing the approved scope.
 <Pitfalls>
 
 - Publishing, posting, or registering anything anywhere — draft-only.
+- Filling a spec gap with a plausible default, or absorbing multi-work
+  scope — findings go back (<UnitDiscipline>), whatever the schedule
+  pressure.
+- Drafting full prose inside an outline unit, or re-opening
+  outline-settled structure/tone in a piece unit.
 - Pasting the whole draft into the reply/summary instead of delivering a
   file at a durable path.
 - Inventing facts instead of asking for sources or flagging the claim.
@@ -169,6 +206,8 @@ After approval, finish without changing the approved scope.
 
 - Session work followed the resident contract; a kanban card was refused
   with `kanban_block(kind=capability)`, not drafted.
+- Work mapped one-to-one to released units; spec-gap and granularity
+  findings were reported rather than absorbed.
 - The route reference was loaded; the WritingBrief is complete or its gaps
   are labeled assumptions.
 - Tone values are recorded and stable across the deliverable; scripts

@@ -58,7 +58,10 @@ phrases) as the structural guide.
 
 - Outline before prose; get the structure pass (see
   `references/review.md`) right at outline time — restructuring a full
-  draft costs a whole rewrite.
+  draft costs a whole rewrite. On long-form work the outline is its own
+  **released unit** (kernel <UnitDiscipline>): deliver structure + 2-3
+  opening samples, wait for the gate, then draft the piece units it
+  fixed.
 - Read every supplied source before the outline, not during the draft;
   heavy retrieval follows the kernel's source-retrieval guidance.
 - Write the full text in one register; tone drift mid-document is a
