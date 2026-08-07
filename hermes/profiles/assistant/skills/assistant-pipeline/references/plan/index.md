@@ -40,5 +40,6 @@ real decision is needed.
 | engineering | `engineering/index.md` | repo grounding, unit decomposition, Authority |
 | creative | `creative/index.md` | MediaBrief, style anchor, Budget |
 | writing | `writing/index.md` | type decisions, unit decomposition (outline / piece), sources |
-| research | `research/index.md` | question fixing, coverage claims |
+| research | `research/index.md` | question fixing, depth framing (analysis / verification) |
+| search | `search/index.md` | retrieval decomposition (lookup / sweep / hunt), coverage claims |
 | marketing | `marketing/index.md` | positioning/offer/funnel decisions, campaign decomposition, Publish stance |
