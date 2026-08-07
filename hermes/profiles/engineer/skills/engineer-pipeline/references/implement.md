@@ -72,6 +72,10 @@ Plan-approval is risk-tiered, not unconditional:
    commit → report with ids. Read every run's output per
    <QuestionBridge>; interpose <InspectionPrimaries> where a Wave warrants
    it; recover per <CourseCorrect>. Low tier: one session, same bridges.
+   Scope: loop only over the unit(s) the assistant released this turn
+   (core <Runtimes> pacing) — a small job released whole loops
+   internally as usual; otherwise report and stop at each unit
+   boundary unless a batch grant covers more.
 4. **Verify per Wave and at the end** — load `references/verify.md`; run the
    intent profile's REQ checks + the intent gate. Findings loop back into
    the Wave's build fork; failures never hand back silently.
