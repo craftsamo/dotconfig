@@ -61,6 +61,31 @@ subagents (`explore-medium`, `reviewer`, ...) or opencode-only tools
 [`opencode/skills/`](../opencode/skills) — sharing it would tell other agents
 to call tools they do not have.
 
+## Provenance of the Japanese writing stack
+
+The five curated `japanese-*` skills re-author ideas from external sources.
+Their prose is original to this repo (meaning preserved, wording fully
+re-expressed), so no upstream license text is carried in the skill files:
+
+- `japanese-business-docs` and `japanese-inspection` — adapted from
+  [coji/natural-japanese](https://github.com/coji/natural-japanese) v1.3.0
+  (`b54954f`, MIT): doctype patterns, the 12-article constitution, the
+  detection scripts and judgment catalogs. The Python scripts under
+  `japanese-inspection/scripts/` are carried nearly verbatim and each keeps a
+  one-line SPDX/MIT attribution header (that header must stay). Dropped from
+  upstream: essay/blog authoring scope, style profiles, the no-uv manual
+  checklist, examples.md, `semantic.py`, `calibrate.py`.
+- `japanese-tech-prose` — adapted from k16shikano's japanese-tech-writing
+  gist (Unlicense); the LLM-phrase catalog now lives in `japanese-inspection`.
+- `japanese-prose-rhythm` — adapted from k16shikano's cognitive-rhythm-writing
+  gist (Unlicense).
+
+To pull upstream improvements: diff the upstream repo against the recorded
+ref, then re-express the delta in the affected skill (never paste prose
+verbatim) and update the ref here.
+
+## Third-party skills
+
 Third-party skills are never committed; they are restored from their source.
 The HyperFrames set is reinstalled with the HyperFrames CLI
 (`npm i -g hyperframes`):
