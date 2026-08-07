@@ -81,6 +81,12 @@ REQUIRED_QA_CONTRACTS = {
         "video.md",
         "voice.md",
     },
+    "research": {
+        "evidence-pack.md",
+        "tradeoff-matrix.md",
+        "fact-check.md",
+        "guidance.md",
+    },
     "search": {"lookup.md", "sweep.md", "hunt.md"},
     "writing": {"prose.md", "script.md"},
 }
@@ -761,6 +767,44 @@ def validate_search_alignment(errors: list[str]) -> None:
         errors.append(f"search QA contract claimed by no plan leaf: {name}")
 
 
+# ── Research plan-QA alignment ──────────────────────────────────────────
+#
+# Every research plan leaf must name the QA contract that gates its unit
+# (the literal `QA `contract`` mapping line), and every research QA
+# contract must be claimed by at least one leaf — a new depth unit can
+# never ship with an ungated contract mapping.
+
+RESEARCH_PLAN_DIR = ASSISTANT_PIPELINE / "references" / "plan" / "research"
+RESEARCH_QA_DIR = (
+    ASSISTANT_PIPELINE / "references" / "quality-assurance" / "research"
+)
+
+
+def validate_research_alignment(errors: list[str]) -> None:
+    if not (RESEARCH_PLAN_DIR.is_dir() and RESEARCH_QA_DIR.is_dir()):
+        return  # missing roots are reported by the tree validators
+
+    contracts = {
+        path.stem for path in RESEARCH_QA_DIR.glob("*.md")
+    } - {"index"}
+    claimed: set[str] = set()
+    for leaf in sorted(RESEARCH_PLAN_DIR.glob("*.md")):
+        if leaf.name == "index.md":
+            continue
+        match = re.search(r"QA `([a-z-]+)`", leaf.read_text(encoding="utf-8"))
+        if not match:
+            errors.append(f"research plan leaf missing QA mapping line: {leaf.name}")
+            continue
+        contract = match.group(1)
+        if contract not in contracts:
+            errors.append(
+                f"research plan leaf {leaf.name} names missing QA contract: {contract}"
+            )
+        claimed.add(contract)
+    for name in sorted(contracts - claimed):
+        errors.append(f"research QA contract claimed by no plan leaf: {name}")
+
+
 def validate_assistant(
     errors: list[str],
 ) -> tuple[int, dict[str, str], int, int, int]:
@@ -909,6 +953,7 @@ def main() -> int:
         validate_engineering_alignment(errors)
         validate_writing_alignment(errors)
         validate_search_alignment(errors)
+        validate_research_alignment(errors)
         for path in tracked_learned_files():
             errors.append(f"learned skill file must not be tracked: {path}")
         for path in untracked_managed_files():
