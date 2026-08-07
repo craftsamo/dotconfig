@@ -419,6 +419,8 @@ skills:
   external_dirs:
     - ~/ghq/github.com/NousResearch/hermes-agent/skills/research
     - ~/ghq/github.com/NousResearch/hermes-agent/skills/social-media
+    - ~/ghq/github.com/NousResearch/hermes-agent/optional-skills/research/duckduckgo-search
+    - ~/ghq/github.com/NousResearch/hermes-agent/optional-skills/research/domain-intel
   template_vars: true
   inline_shell: false
   inline_shell_timeout: 10

@@ -436,6 +436,9 @@ skills:
     - ~/ghq/github.com/NousResearch/hermes-agent/skills/research
     - ~/ghq/github.com/NousResearch/hermes-agent/skills/productivity
     - ~/ghq/github.com/NousResearch/hermes-agent/skills/note-taking
+    - ~/ghq/github.com/NousResearch/hermes-agent/optional-skills/research/domain-intel
+    - ~/ghq/github.com/NousResearch/hermes-agent/optional-skills/research/osint-investigation
+    - ~/ghq/github.com/NousResearch/hermes-agent/optional-skills/research/duckduckgo-search
   template_vars: true
   inline_shell: false
   inline_shell_timeout: 10
