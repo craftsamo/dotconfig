@@ -75,6 +75,13 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
   WHOLE command; skipped when it contains `&&` `|` `>` `;`) and stays empty on
   purpose — allowing `bash -c *` would reopen exactly what the guard exists to
   catch. The hardline floor (`rm -rf /`, `$HOME`, system dirs) blocks regardless.
+- **Upstream skill wiring is external_dirs-only.** Official `skills/` libraries
+  attach per category directory, `optional-skills/` per individual skill
+  directory, pruned via `skills.disabled` (see each profile's `config.yaml`).
+  Never run `hermes skills install` — it copies into `~/.hermes/skills`, i.e.
+  this repo (that's what the `.no-bundled-skills` opt-out protects against).
+  The setup-gated candidate backlog lives in `PROFILES.md`
+  ("Upstream wiring pattern").
 - **HyperFrames skills live outside the repo, on purpose.** `creator` reaches the
   `hyperframes*` / `media-use` playbooks through `skills.external_dirs`
   (`~/.agents/skills`) — a harness-neutral store owned by `hyperframes skills
@@ -124,7 +131,7 @@ profiles/<name>/     # assistant, engineer, researcher, searcher, creator, write
                      #   pixel/sourcing/assembly leaves (1:1 with the assistant's
                      #   plan/creative decision leaves; validator-enforced);
                      #   writer: Japanese stack via the curated external-skills symlink dir;
-                     #   marketer: + upstream social-media/xurl;
+                     #   marketer: + upstream social-media/xurl + creative/humanizer;
                      #   managed technics stay exactly one directory below skills/technic/
                      #   because validate-profile-skills.py enforces flat canonical leaves;
                      #   assistant keeps its front-door pipeline in

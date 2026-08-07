@@ -324,21 +324,35 @@ Three per-profile layers, kept separate:
     Execute / Quality Assurance over tiers inline / resident / kanban; the
     mode-first reference tree at `references/{chat,plan,execute,quality-assurance}/`;
     resident sessions via `resident-session.sh`; assistant-run QA contracts;
-    and the closed `card_units` catalog in `execute/**` front matter). Default
+    and the closed `card_units` catalog in `execute/**` front matter).      Default
     runs the thin `default-pipeline` CLI adapter over this tree; it records only
-    terminal-specific deltas.
+    terminal-specific deltas. The assistant also reads the upstream official
+    libraries (apple / creative / email / github / media / note-taking /
+    productivity / research / smart-home / social-media) plus optional
+    `one-three-one-rule` (decision framing) and `watchers` (RSS/API polling
+    for cron sweeps) via `skills.external_dirs`; heavy tool-bound creative
+    entries (`comfyui`, `touchdesigner-mcp`, `manim-video`, `ascii-video`)
+    sit in `skills.disabled` — media production is creator's.
   - engineer → `engineer-pipeline` (resident-only, cards refused; assess /
     implement routing with intent triage; Authority parsing + dialogue
     discipline; the unit cycle over released units with
     permission/question bridges; quota-gated provider/model routing;
-    verify/report)
+    verify/report) + upstream libraries via `skills.external_dirs`: official
+    `autonomous-ai-agents` / `software-development` / `github` plus optional
+    per-skill dirs `code-wiki`, `rest-graphql-debug`,
+    `subagent-driven-development`, `docker-management`, `pinggy-tunnel`,
+    `fastmcp`, `mcporter`, and `cloudflare-temporary-deploy` (all key-free,
+    script/CLI-based via uv / npx / docker)
   - researcher → `researcher-pipeline` (dual runtime — cards only for the
     `claim-verification` catalog unit; consumes released units with unit
     discipline — evidence-pack / tradeoff-matrix / fact-check /
     guidance — returning spec-gap and granularity findings, plus
     Admiralty/SIFT source evaluation, citation rules, Review gate, and resume
     in the kernel; researcher supplies evidence and does not own
-    artifact-vs-brief QA; retrieval strategy in references/gather.md)
+    artifact-vs-brief QA; retrieval strategy in references/gather.md) +
+    optional research skills via `skills.external_dirs`: `domain-intel` and
+    `osint-investigation` (stdlib-only recon / public-records) plus keyless
+    `duckduckgo-search` (run through `uvx ddgs`)
   - searcher → `searcher-pipeline` (dual runtime — cards only for the
     `survey-enumeration` / `exhaustive-hunt` catalog units; consumes
     released units with unit discipline — lookup (targeted facts) /
@@ -346,7 +360,9 @@ Three per-profile layers, kept separate:
     saturation, signalled by `goal_mode` on cards) — returning spec-gap
     and granularity findings, plus the link-integrity floor; per-unit
     playbooks in references/; no technics — the deprecated
-    `deep-retrieval` stub was removed in the search rebuild)
+    `deep-retrieval` stub was removed in the search rebuild) + keyless
+    optional retrieval skills via `skills.external_dirs`:
+    `duckduckgo-search` and `domain-intel`
   - creator → `creator-pipeline` (dual runtime — cards only for the
     `anchored-image-batch` / `tts-voice` / `deterministic-render` catalog
     units; Advisory / Direction /
@@ -374,9 +390,11 @@ Three per-profile layers, kept separate:
     resolution / TTS / captions; CLI-owned store, see AGENTS.md). The upstream
     bundled `creative/` + `media/` libraries remain available, while optional
     skills are exposed as a curated set of individual directories (article
-    illustration, AudioCraft, pixel art, comics, memes, concept diagrams, and
-    HeartMuLa) so the official optional `hyperframes` cannot collide with the
-    CLI-owned entry skill. MCP-backed entries in that cluster
+    illustration, AudioCraft, pixel art, comics, memes, concept diagrams,
+    HeartMuLa, and creative ideation) so the official optional `hyperframes`
+    cannot collide with the CLI-owned entry skill (the official optional
+    `tldraw-offline` stays unwired for the same reason — the `~/.agents/skills`
+    store already owns that name). MCP-backed entries in that cluster
     (`blender-mcp`, `touchdesigner-mcp`, `unreal-mcp`) are listed in
     `skills.disabled`: the profile runs `no_mcp`, so they can never execute.
     The ambiguous external `pixel-art` name is disabled too; the canonical
@@ -402,7 +420,18 @@ Three per-profile layers, kept separate:
     approval-gated xurl publish bridge with per-post URL verification;
     channel extension points for future Discord/IG/TikTok accounts;
     shipped posts treated as immutable) + the upstream `social-media/xurl`
-    skill via `skills.external_dirs`
+    and `creative/humanizer` skills via `skills.external_dirs`
+
+  Upstream wiring pattern: official `skills/` libraries attach per category
+  directory, `optional-skills/` per individual skill directory, and unwanted
+  names are pruned with `skills.disabled` — never `hermes skills install`,
+  which would copy into the symlinked repo store. Setup-gated candidates stay
+  on the backlog until their prerequisite exists: `sherlock` (docker image),
+  `qmd` (~2 GB local models), `scrapling` (browser install), `parallel-cli` /
+  `searxng-search` / `agentmail` / `page-agent` / inference.sh `cli`
+  (accounts, keys, or servers), `jupyter-notebook` (JupyterLab + hamelnb),
+  `media/gif-search` for marketer (`TENOR_API_KEY`), and the `mlops/`
+  library (HF-account-centric).
 
 Routing (assistant): `assistant-pipeline` owns it. The skill is
 **auto-loaded into every new Telegram DM session** via the chat-wide
