@@ -230,6 +230,10 @@ already-detailed plan waives it (<DetailedPlanRule>).
      architecture/public-API change) → **checkpoint-then-block** (core
      <CheckpointThenBlock>) — the decomposition's approval does not
      cover a new grant.
+   - The plan run says something material is undecided (the decompose
+     prompts' "say so" line exists exactly for this) → a **spec-gap
+     finding** back to the assistant (`Q<n>` / report), never a local
+     decision — the spec, not your judgment, must determine the unit.
    - Accepted → report `<unit ref> phases confirmed: <the phases, one
      line>` (e.g. `Wave 2 phases confirmed:` / `Issue #12 phases
      confirmed:`) with the plan-run id in your reply. This line is
