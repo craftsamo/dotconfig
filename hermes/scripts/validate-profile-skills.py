@@ -585,6 +585,68 @@ def validate_worker(
     return len(leaves), len(learned)
 
 
+# ── Creative three-layer alignment ──────────────────────────────────────
+#
+# Plan decides, creator produces, QA verifies — all keyed by the creator's
+# canonical families. The assistant's plan/creative family leaves must pair
+# 1:1 with creator technics (plus core:tts as voice.md), and the creative
+# QA index's Covers column must map every canonical family to exactly one
+# contract.
+
+CREATIVE_PLAN_DIR = ASSISTANT_PIPELINE / "references" / "plan" / "creative"
+CREATIVE_QA_DIR = (
+    ASSISTANT_PIPELINE / "references" / "quality-assurance" / "creative"
+)
+CREATIVE_NON_FAMILY_LEAVES = {"index.md", "composite-media.md", "asset-set.md"}
+CREATIVE_EXTRA_FAMILIES = {"voice.md": "core:tts"}
+
+
+def validate_creative_alignment(errors: list[str]) -> None:
+    technic_dir = HERMES_ROOT / "profiles" / "creator" / "skills" / "technic"
+    if not (technic_dir.is_dir() and CREATIVE_PLAN_DIR.is_dir()):
+        return  # missing roots are reported by the profile validators
+
+    technics = {path.parent.name for path in technic_dir.glob("*/SKILL.md")}
+    canonical = technics | set(CREATIVE_EXTRA_FAMILIES.values())
+
+    leaves = {
+        path.name for path in CREATIVE_PLAN_DIR.glob("*.md")
+    } - CREATIVE_NON_FAMILY_LEAVES
+    expected = {
+        f"{name.removeprefix('creator-')}.md" for name in technics
+    } | set(CREATIVE_EXTRA_FAMILIES)
+    for name in sorted(expected - leaves):
+        errors.append(f"creative plan leaf missing for canonical family: {name}")
+    for name in sorted(leaves - expected):
+        errors.append(f"creative plan leaf has no canonical family: {name}")
+
+    qa_index = CREATIVE_QA_DIR / "index.md"
+    if not qa_index.is_file():
+        errors.append(f"missing creative QA index: {qa_index}")
+        return
+    covered: list[str] = []
+    for line in qa_index.read_text(encoding="utf-8").splitlines():
+        if not line.startswith("|") or line.startswith("| ---"):
+            continue
+        cells = [cell.strip() for cell in line.strip("|").split("|")]
+        if len(cells) < 3 or cells[1] == "Contract":
+            continue
+        contract = cells[1].strip("`")
+        if contract.endswith(".md") and not (CREATIVE_QA_DIR / contract).is_file():
+            errors.append(f"creative QA route names missing contract: {contract}")
+        covered.extend(re.findall(r"`([^`]+)`", cells[2]))
+    for name in sorted(canonical):
+        count = covered.count(name)
+        if count == 0:
+            errors.append(f"creative QA Covers misses canonical family: {name}")
+        elif count > 1:
+            errors.append(
+                f"creative QA Covers lists {name} {count} times (must be once)"
+            )
+    for name in sorted(set(covered) - canonical):
+        errors.append(f"creative QA Covers names unknown family: {name}")
+
+
 def validate_assistant(
     errors: list[str],
 ) -> tuple[int, dict[str, str], int, int, int]:
@@ -729,6 +791,7 @@ def main() -> int:
         for profile in WORKER_PROFILES:
             technics, learned = validate_worker(profile, errors, catalog=catalog)
             summaries.append(f"{profile}={technics} technics/{learned} learned")
+        validate_creative_alignment(errors)
         for path in tracked_learned_files():
             errors.append(f"learned skill file must not be tracked: {path}")
         for path in untracked_managed_files():
