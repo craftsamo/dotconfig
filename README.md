@@ -17,7 +17,7 @@ their config from here natively; the rest get symlinks created by
 | [opencode](./opencode/README.md) | `opencode/` | XDG native                                                            |
 | [Shared agent skills](./agents/README.md) | `agents/` | curated tree in `agents/curated/`, linked per skill into the machine-local `~/.agents/skills` root (installer-writable); `~/.claude/skills` bridges there |
 | Git                        | `git/`         | XDG fallback (`~/.gitconfig` must not exist); `git/credentials` ignored  |
-| [Claude Code](./claude/README.md) | `claude/` | 6 symlinks in `~/.claude/`                                             |
+| [Claude Code](./claude/README.md) | `claude/` | 5 symlinks in `~/.claude/` (`agents/` is machine-local, installer-written) |
 | [Codex](./codex/README.md) | `codex/`       | 2 symlinks in `~/.codex/` (`skills/` and `config.toml` are machine-local, app/installer-managed) |
 | [Gemini CLI](./gemini/README.md) | `gemini/`  | 3 symlinks in `~/.gemini/`                                              |
 | [GitHub Copilot](./copilot/README.md) | `copilot/` | 3 symlinks in `~/.copilot/` (`skills/` is machine-local; `config.json` is app-managed; auth dir `github-copilot/` git-ignored) |

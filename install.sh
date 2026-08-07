@@ -195,7 +195,9 @@ link "$DOTFILES/claude/keybindings.json" "$HOME/.claude/keybindings.json"
 # (`hyperframes skills`) treat ~/.claude/skills as a write target, and their
 # cross-CLI symlinks resolve through this path.
 link "$HOME/.agents/skills"              "$HOME/.claude/skills"
-link "$DOTFILES/claude/agents"           "$HOME/.claude/agents"
+# ~/.claude/agents is machine-local, NOT linked: app installers (e.g. tldraw
+# Desktop) replace the symlink with a real dir and drop subagent files into
+# it, so a repo link only produces recurring drift warnings.
 link "$DOTFILES/claude/commands"         "$HOME/.claude/commands"
 
 # codex and copilot have no repo-curated skills (both read ~/.agents/skills);
