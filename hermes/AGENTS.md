@@ -155,7 +155,7 @@ cron-originated, mass-parallel, and `scheduled` work with a lean card
 contract (no manifests/digests/probes — the v4 machinery is retired, see the
 2026-08-06 rebuild). The card catalog is CLOSED and per-assignee: creator
 (`anchored-image-batch`, `tts-voice`, `deterministic-render`), searcher
-(`survey-enumeration`, `exhaustive-hunt`), researcher (`evidence-pack`);
+(`survey-enumeration`, `exhaustive-hunt`), researcher (`claim-verification`);
 writer, engineer and marketer are resident-only and refuse every card.
 The validator cross-checks worker kernels against the catalog's
 `assignee` front matter. The assistant itself is the quality gate (contracts under
