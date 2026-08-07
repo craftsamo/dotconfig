@@ -35,10 +35,12 @@ skills do not become stable dispatch names automatically, and their inline
 
 Per asset (or batch chunk):
 
-1. **Spec first.** Destination constraints (platform, dimensions, format,
-   caps) and brand/style inputs come before the first generation — the
-   depth skills open with exactly this discovery. An anchored batch reuses
-   the locked anchor verbatim (`references/plan.md` <AnchorByType>).
+1. **Spec first.** The released spec carries the decisions; validate it
+   against `references/brief.md`'s family checklist and discover only
+   mechanical destination facts before the first generation. A missing
+   decision is a spec gap (kernel <UnitDiscipline>) — never improvised.
+   An anchored batch reuses the locked anchor verbatim
+   (`references/plan.md` <AnchorByType>).
 2. **Generate deliberately** within the Budget caps: variants are for
    real alternatives, not retries of an unread failure. Post-process with
    terminal tools (ffmpeg, the bundled scripts) in the task workspace;

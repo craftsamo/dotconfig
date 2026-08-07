@@ -37,7 +37,8 @@ the official `meme-generation` skill is its implementation engine.
 </Contract>
 
 <Procedure>
-1. Lock premise, audience, tone, destination, mode, and captions. For each
+1. Confirm premise, audience, tone, destination, mode, and captions from the
+   released spec (open ones are spec gaps). For each
    supplied caption, compare it with `" ".join(caption.split())`; any mismatch
    is an exact whitespace invariant, including leading/trailing, repeated,
    non-breaking, full-width, tab, or newline whitespace.
