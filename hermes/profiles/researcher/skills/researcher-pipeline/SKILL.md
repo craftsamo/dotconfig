@@ -64,8 +64,8 @@ the task body is the entire brief; dialogue travels as `STATE:` / `Q<n>:`
 `kanban_complete` (summary + findings) or `kanban_block`.
 
 **Unit gate — check before researching.** Research defines exactly one
-card unit in the execute catalog: `evidence-pack` — the body must carry
-a **fixed claims list** and explicit **source requirements**. A card
+card unit in the execute catalog: `claim-verification` — the body must
+carry a **fixed claims list** and explicit **source requirements**. A card
 missing either input, open-ended analysis whose framing is not settled,
 composite multi-deliverable work, or work outside research →
 `kanban_block(kind=capability)` immediately with a one-line reason and a
