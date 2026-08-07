@@ -51,7 +51,7 @@ publishing deliverable gets the full contract.
 | Capability | Contracts |
 | --- | --- |
 | creative (all media) | `creative/index.md` — routes 18 family contracts |
-| writing | `writing/index.md` — prose / script |
+| writing | `writing/index.md` — per-unit gate (outline / full) + prose / script contracts |
 | engineering | `engineering/index.md` — per-unit gate + inspection / acceptance |
 | research | `research/index.md` — sources, coverage, inference |
 | marketing | `marketing/index.md` — per-unit gate: ledger trace, inspection spot-check, live match |
