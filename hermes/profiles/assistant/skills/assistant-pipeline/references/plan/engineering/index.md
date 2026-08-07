@@ -23,19 +23,23 @@ Purposes are the default whenever the work is issue-tracked or
 outlives one session; Waves cover small linear work where Issue
 ceremony costs more than it buys (each leaf sets its default). Both
 decompositions are **drafted by you in your own OpenCode plan
-session, approved by the user once, and registered by you** (`gh`
-for epic + sub-issues, board sync included). The engineer never
-drafts, registers, or re-plans a decomposition — it details one unit
-inside OpenCode when handed that unit.
+session, approved by the user once, and registered by you** — the
+epic + sub-issues through an OpenCode run in the repo (Issue bodies
+stay grounded in the codebase), the Roadmap board synced directly.
+The engineer never drafts, registers, or re-plans a decomposition —
+it details one unit inside OpenCode when handed that unit.
 
 ## Invariants (apply to every leaf)
 
 - **The assistant manages repos; the engineer only works inside
   them.** Repo creation, ghq clone, workspace symlinks, `pj`
-  registry, Issue/board registration, and merges are yours, through
-  your own `gh`/`ghq`/`pj`. Worktree-side repo establishment is
-  delegable only under an explicit, user-sanctioned `B1`/`B2` grant —
-  the GitHub/registry side stays yours even then.
+  registry, Issue/board registration, and merges are yours —
+  bookkeeping (repo lifecycle, board, merges) through your own
+  `gh`/`ghq`/`pj`, Issue registration through an OpenCode run in the
+  repo (codebase-dependent writes go through OpenCode; see the
+  execute file). Worktree-side repo establishment is delegable only
+  under an explicit, user-sanctioned `B1`/`B2` grant — the
+  GitHub/registry side stays yours even then.
 - **Locate the repo** — `pj show --id <Group>` → the
   `~/Workspaces/Projects/<Group>/github/<repo>` symlink (a `~/ghq`
   clone). No repo yet → `bootstrap.md` runs first; the base session
