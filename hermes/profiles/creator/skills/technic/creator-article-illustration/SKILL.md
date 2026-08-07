@@ -42,7 +42,9 @@ than literally depict, the argument.
 <Procedure>
 1. Read the approved MediaBrief and article without exposing source secrets.
 2. Analyze thesis, audience, sections, factual anchors, tone, and candidate
-   placements. Produce a placement outline before choosing images.
+   placements. Produce a placement outline and present it in your reply for
+   approval (the anchor stage) — never proceed to generation on your own
+   approval.
 3. For each placement, lock `Type x Style x Palette`, density, aspect, crop,
    and a concept that is metaphorical or structural rather than literal.
 4. Inspect supplied reference images with vision and record reusable traits

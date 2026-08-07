@@ -48,7 +48,9 @@ exposes the key. If the key is missing, block before production.
 2. Search with
    `python3 "${HERMES_SKILL_DIR}/scripts/tenor-gif.py" search`; it writes a
    sanitized metadata file without the key. Request enough results to compare
-   3-5 previews. Never blindly choose the first ranked item.
+   3-5 previews. Never blindly choose the first ranked item; honor the spec's
+    selection latitude (pick-and-recommend vs present options for the
+    assistant/user to choose).
 3. Save a provenance record containing source URL, Tenor item ID, query, locale,
    content filter, format, dimensions, duration, file size, and selection reason.
 4. Download the selected result with `python3` and the helper's `download`
