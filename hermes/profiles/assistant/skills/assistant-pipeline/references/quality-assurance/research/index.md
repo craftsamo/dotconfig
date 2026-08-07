@@ -1,17 +1,20 @@
-# Research QA — sources, coverage, inference
+# Research QA — sources, verdicts, inference
 
-Applies to searcher/researcher deliverables (session turns and cards).
-The common floor in `../index.md` always applies.
+Applies to researcher deliverables (session turns and `evidence-pack`
+cards); searcher retrieval gates through `../search/index.md`. The
+common floor in `../index.md` always applies.
 
 - Sources exist and support the claims — spot-check the load-bearing
   ones (links resolve, quotes match, dates/versions right).
-- Coverage claims match the ask (floor counts met; exclusions honored) —
-  for `survey-enumeration` / `exhaustive-hunt` cards, measure against
-  the coverage claim in the card body.
 - Conclusions distinguish evidence from inference; uncertainty is
-  stated, not smoothed over.
+  stated, not smoothed over; the reasoning from source to verdict is
+  visible, not asserted.
+- Comparisons cover the axes the brief named — no axis silently
+  dropped, no candidate scored on axes it was never checked against.
 - For `evidence-pack` results: every claim in the list has a verdict and
   sources; no claim silently dropped.
-- Defects (dead links, thin coverage, unsupported leaps) go back as a
+- Searcher parts consumed by the unit were QA-passed going in; a defect
+  traced to the part goes back as a search gap, not a researcher fault.
+- Defects (unsupported leaps, missing verdicts, dead links) go back as a
   feedback turn — or, for cards, a narrowed gap-fill card
   (`../../execute/research/index.md`).
