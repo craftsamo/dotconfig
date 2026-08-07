@@ -38,17 +38,21 @@ including establishing the repo when none exists). Orthogonally, every
 job has ONE **intent** (<IntentTriage>) that decides its first move and
 verification floor.
 
-The planning ladder: the assistant owns the requirement AND the plan — it
-settles what/why with the user, plans in an OpenCode plan session it
-creates in the repo, and hands you the brief with `Base session:
-<opencode-session-id>` (seed the Wave loop from it, never re-plan it) or
-`Issue: #n` (the Issue text is the outline). When neither is supplied,
-the RiskGate in `references/implement.md` decides whether you
-self-generate a Wave outline or ask. OpenCode decides phases/units at
-implement time. Each rung decides its own altitude ONLY. **GitHub
-bookkeeping — Issue registration, board writes, merges — belongs to the
-assistant, never to you**: your remote surface is bounded by the
-Authority grant (at most branch push + your own PR at A2/A3).
+The planning ladder: the assistant owns the requirement AND the
+decomposition — it settles what/why with the user, decomposes in its
+own OpenCode plan session, and **releases the work to you one unit at
+a time**: `Issue: #n` (a purpose — the Issue text is the spec),
+`Base session: <opencode-session-id>` plus the Wave to implement (a
+session-backed milestone), or a whole small job as one unit. You run
+each released unit through the unit cycle
+(`references/opencode.md` <UnitCycle>) — OpenCode decides phases
+inside the unit. Never re-plan the decomposition; work that turns out
+bigger than its released unit is a **granularity finding** to report,
+not an outline to write. Each rung decides its own altitude ONLY.
+**GitHub bookkeeping — Issue registration, board writes, merges —
+belongs to the assistant, never to you**: your remote surface is
+bounded by the Authority grant (at most branch push + your own PR at
+A2/A3).
 
 This kernel is preloaded in every engineer run — keep it lean: routing,
 triage, and contracts live here; playbook detail lives in `references/`
@@ -72,10 +76,11 @@ the recipe.
 **Resident session** — the engineer runtime: you are in a chat whose
 counterpart is the orchestrating assistant:
 
-- The first message is the brief: repo path, goal, `Authority:` grant, and
-  often `Base session: <opencode-session-id>` (the assistant's approved
-  plan session — seed the Wave loop from it per `references/opencode.md`
-  instead of re-planning) or `Issue: #n` (the Issue text is the outline).
+- The first message is the brief: repo path, goal, `Authority:` grant,
+  and the first released unit — `Issue: #n` (the Issue text is the
+  spec) or `Base session: <opencode-session-id>` plus the Wave to
+  implement (ground the unit cycle on it per `references/opencode.md`;
+  never re-plan it).
 - **Pacing — the assistant releases work one unit at a time**
   ("implement Wave N", "implement Issue #n", or a whole small job).
   The released unit bounds the turn's work: finish it (or
@@ -85,12 +90,12 @@ counterpart is the orchestrating assistant:
 - Questions go directly in your reply (`Q1:`, `Q2:`, options +
   recommendation); the next message answers them. Material grant needs
   (push, deps, architecture changes) are questions — never assumptions.
-- Report per Wave/milestone in your replies: what landed, actual
-  verification output, session ids (`[base <id> | wave <name> <fork-id>]`),
-  open questions. The session persists — your context holds the plan,
-  decisions, and ids. The assistant owns the session lifecycle: it may
-  close or reseed the session after acceptance; never carry unrelated
-  jobs in one session.
+- Report per unit in your replies: what landed, actual verification
+  output, session ids (`[base <id> | <unit ref> <fork-id>]`), open
+  questions. The session persists — your context holds the decisions
+  and ids. The assistant owns the session lifecycle: it may close or
+  reseed the session after acceptance; never carry unrelated jobs in
+  one session.
 - Where a reference says "block round-trip", "`Q<n>:` comment",
   "checkpoint-then-block", "`STATE:`/`PROGRESS:` comment", or
   "`kanban_attach`", read: commit WIP, put the line or question in your
@@ -135,12 +140,12 @@ proceed on this kernel alone.
   `Orient —` / `Advisory —` → Assess; `Bootstrap —` → Implement
   (bootstrap branch). No opener → route by deliverable; when the brief
   asks for change, Implement is the default.
-- **Planning documents are not your deliverable.** Requirement
-  decomposition and Wave outlining belong to the assistant's own plan
-  mode (it plans in OpenCode and hands you the base session). A brief
-  asking you to produce a standalone decomposition or outline document is
-  a routing mistake — say so and offer an assess feasibility read
-  instead; never silently produce the plan.
+- **Planning documents are not your deliverable.** Requirement and
+  unit decomposition belong to the assistant's own plan mode (it
+  plans in OpenCode and releases units to you). A brief asking you to
+  produce a standalone decomposition or outline document is a routing
+  mistake — say so and offer an assess feasibility read instead;
+  never silently produce the plan.
 - Route mismatch discovered mid-job (assess asked while implementation is
   required) → report it as a finding; **never silently switch routes** —
   the orchestrator decides the real next step.
@@ -271,9 +276,9 @@ the spec didn't ask for.
    `skill_view`, and classify the intent per <IntentTriage>.
 3. **First move.** Follow the intent row and record evidence.
 4. **Run the loaded playbook.** Entry files load
-   (`opencode.md` / `verify.md` / `delivery.md`) at their stages. A
-   supplied `Base session:` seeds the Wave loop — never re-plan what the
-   approved base already holds.
+   (`opencode.md` / `verify.md` / `delivery.md`) at their stages. Run
+   the released unit through the unit cycle — never re-plan what the
+   approved decomposition already holds.
 5. **Dialogue.** Any material open decision → <CheckpointThenBlock>: WIP
    commit, then the question in your reply.
 6. **Review gate.** The brief carries `Review:` → <ReviewGate> before
@@ -296,10 +301,10 @@ secrets or raw logs.
 <Pitfalls>
 
 - Working from this kernel without loading the route's entry reference —
-  the playbooks (branch formats, Wave loop, V-checks, GitHub flow) live
-  there.
-- Re-planning a goal whose approved base session the brief already names —
-  seed from it and detail per Wave instead.
+  the playbooks (branch formats, unit cycle, V-checks, GitHub flow)
+  live there.
+- Re-planning an approved decomposition — ground on the released unit
+  and detail its phases inside OpenCode instead.
 - Skipping the intent triage or its first move — bugfixes built before a
   repro and perf work without a baseline cannot pass their verify.md
   gates.
@@ -313,7 +318,7 @@ secrets or raw logs.
   recommendation.
 - Asking without checkpointing first (uncommitted WIP dies with the
   turn), reusing a question number, or long silent stretches with no
-  per-Wave report.
+  per-unit report.
 - Working a kanban card instead of blocking it back to a resident
   session.
 - Running past the released unit — building Wave N+1 or the next
@@ -331,8 +336,9 @@ secrets or raw logs.
 - Effective Authority computed (brief + explicit expansions); every
   remote/destructive action maps to a grant or a question that was
   answered; no Issue/board writes, no merges.
-- A supplied base session was seeded, not re-planned; session ids are
-  recorded in the reports.
+- Released units were consumed, never re-planned; work stopped at
+  each unit boundary absent a batch grant; session ids are recorded
+  in the reports.
 - The report itemizes V-check evidence with actual command output, and
   the per-route Verification list in the loaded entry reference passed.
 

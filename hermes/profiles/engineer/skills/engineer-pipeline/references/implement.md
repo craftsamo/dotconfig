@@ -4,20 +4,23 @@ Loaded when the brief's deliverable is a **code change** (or the repo that
 will hold one — see <BootstrapBranch>). This file is the flow skeleton; the
 mechanics live in three engines, loaded at the stage that needs them:
 
-- `references/opencode.md` — driving OpenCode: model routing, the Wave loop,
-  permission/question bridges, course correction. Load before the first run.
+- `references/opencode.md` — driving OpenCode: model routing, the unit
+  cycle, permission/question bridges, course correction. Load before the
+  first run.
 - `references/verify.md` — the V-checks + per-intent profiles. Load before
-  accepting any Wave/result.
+  accepting any unit/result.
 - `references/delivery.md` — GitHub flow, PR upkeep, the evidence-backed
   report. Load when work leaves the worktree.
 
-Implement consumes a plan from the brief: the assistant's approved **base
-plan session** (`Base session: <id>` — seed the Wave loop from it), a
-**requirement Issue** on GitHub-flow repos (the Issue IS the outline; see
-delivery.md), or — when the brief supplies neither — a Wave outline you
-self-generate per RiskGate. Never double-plan: one job consumes exactly
-one of these. Session context is NOT the durable layer — the
-outline/Issue (text), git history, and your session reports are.
+Implement consumes **released units**, one per turn (core <Runtimes>
+pacing): a purpose (`Issue: #n` — the Issue text is the spec), a Wave
+(`Base session: <id>` + the Wave to implement), or a whole small job
+released as one unit. The assistant owns the decomposition; never
+double-plan. Work that turns out bigger than its released unit is a
+**granularity finding** — checkpoint, report, let the assistant re-plan;
+never absorb it silently or write an outline yourself. Session context is
+NOT the durable layer — the Issue/outline text, git history, and your
+session reports are.
 
 ## IntentDispatch
 
@@ -35,20 +38,21 @@ The core file's <IntentTriage> classified the job (`feature` / `bugfix` /
    `approach-refactor`") so OpenCode's own discipline kicks in — prompt
    intent, don't paste procedure.
 3. **The verification profile** — `references/verify.md` intent rows are the
-   acceptance floor for every Wave close and the final handback.
+   acceptance floor for every unit close and the final handback.
 
 The brief may carry `Intent:` explicitly; absent → infer per the core
 table and note the inferred token in your first report.
 
-## RiskGate
+## RiskDiscipline
 
-Plan-approval is risk-tiered, not unconditional:
+Risk shapes rigor **inside** the cycle — never planning ownership (the
+assistant decomposes; you consume released units at every risk level):
 
-| Tier | Examples | Gate |
+| Risk | Examples | Discipline |
 | --- | --- | --- |
-| Low | mechanical fix, docs, small test, cleanup within scope | no base, no Waves; implement directly in one session |
-| Medium | standard feature/refactor inside granted scope | establish the base (the supplied plan session, or a self-generated Wave outline), run the Wave loop, self-review; keep the outline as a worktree file for the audit trail |
-| High | architecture change, public API/schema change, dependency change, anything outside Authority | establish the base, then — unless the brief already supplies an **approved** base session or outline — checkpoint-then-block with the outline in your reply, wait for approval before the loop |
+| Low | mechanical fix, docs, small test, cleanup within scope | the cycle in one session; confirm gate still mandatory |
+| Medium | standard feature/refactor inside granted scope | full cycle + a review primary (<InspectionPrimaries>) before handback |
+| High | architecture change, public API/schema change, dependency change, anything near the grant's edge | full cycle; confirmed phases that touch the grant's edge go through checkpoint-then-block BEFORE the build fork; review primary mandatory |
 
 ## Steps
 
@@ -62,24 +66,22 @@ Plan-approval is risk-tiered, not unconditional:
    during the build (missing keys, a launcher that "loses" its env,
    credential errors) are `machine-env`'s subject, not the model's.
 1. **First move** per <IntentDispatch>; record its evidence.
-2. **Model + loop setup** — load `references/opencode.md`; route
-   provider/model (<ModelRouting>); apply the <RiskGate>.
-3. **Run the Wave loop** per opencode.md <OpenCodeLoop>: decompose (plan
-   fork) → confirm (**the GO gate** — a `Wave N phases confirmed` line
-   must be reported before the build fork; a detailed approved plan goes
-   through the derive variant, <DetailedPlanRule>, never straight to
-   build) → implement (build fork under <PermissionBridge>) → verify →
-   commit → report with ids. Read every run's output per
-   <QuestionBridge>; interpose <InspectionPrimaries> where a Wave warrants
-   it; recover per <CourseCorrect>. Low tier: one session, same bridges.
-   Scope: loop only over the unit(s) the assistant released this turn
-   (core <Runtimes> pacing) — a small job released whole loops
-   internally as usual; otherwise report and stop at each unit
-   boundary unless a batch grant covers more.
-4. **Verify per Wave and at the end** — load `references/verify.md`; run the
-   intent profile's REQ checks + the intent gate. Findings loop back into
-   the Wave's build fork; failures never hand back silently.
-5. **Deliver** — load `references/delivery.md`: commits/PR/Issue flow via
+2. **Model + cycle setup** — load `references/opencode.md`; route
+   provider/model (<ModelRouting>).
+3. **Run the unit cycle** for the released unit per opencode.md
+   <UnitCycle>: ground (base fork / Issue plan run / the brief) →
+   decompose → confirm (**the GO gate** — a `<unit ref> phases confirmed`
+   line must be reported before the build fork; a detailed approved plan
+   or Issue goes through the derive variant, <DetailedPlanRule>, never
+   straight to build) → implement (build fork under <PermissionBridge>) →
+   verify → commit → report, then stop at the unit boundary (batch only
+   under an explicit grant). Read every run's output per <QuestionBridge>;
+   interpose <InspectionPrimaries> per <RiskDiscipline>; recover per
+   <CourseCorrect>.
+4. **Verify per unit** — load `references/verify.md`; run the intent
+   profile's REQ checks + the intent gate. Findings loop back into the
+   unit's build fork; failures never hand back silently.
+5. **Deliver** — load `references/delivery.md`: commits/PR flow via
    OpenCode under the Authority grant, audit the results (verify.md V6),
    assemble the evidence-backed report, complete.
 
@@ -93,8 +95,8 @@ When the brief says to establish a repo that does not exist (the assistant
 decided the path after an assess bootstrap signal), this is the one **write
 path that does not use OpenCode** — there is no codebase for it to operate
 on. Work with `git` / `gh` / the scaffolder directly. Establish the
-skeleton + initial commit; never plan Waves or build features in the same
-job.
+skeleton + initial commit; never decompose units or build features in the
+same job.
 
 **Authority — B1/B2, not A1-3** (there is no worktree yet):
 
@@ -122,7 +124,7 @@ Procedure:
    follow its <IntroductionPaths>: clone the named source, point `origin`
    at the new repo (B2), wire the `upstream` remote to the parent —
    rebranding the identity surface is NOT bootstrap (it is the follow-up
-   implement task's first Wave).
+   implement task's first unit).
 3. **Initial commit** (`git -C <path> add -A && git -C <path> commit -m
    "chore: initial commit"`) unless clone history exists.
 4. **Remote (B2 only)** — `gh repo create <owner>/<repo> --<visibility>
@@ -147,10 +149,13 @@ execute it or ask).
   mid-job is a finding to report (and a `Q<n>` if it changes scope).
 - Working from this skeleton without loading the engine the stage needs —
   the bridges, V-checks, and GitHub flow live there, not here.
-- Building a Wave whose decompose surfaced an out-of-grant need (dependency,
+- Building a unit whose decompose surfaced an out-of-grant need (dependency,
   push, architecture change) without a block round-trip.
-- Producing a Wave outline for work that already has a requirement Issue —
-  the Issue is the outline; double-planning drifts the spec.
+- Writing a unit decomposition yourself — for work that already has an
+  Issue (the Issue is the spec; double-planning drifts it) or for a job
+  that turned out multi-unit (a granularity finding, not your outline).
+- Running past the released unit — the next Wave/Issue needs a release or
+  an explicit batch grant.
 - Insurance-prose prompts written without knowing the injected layer —
   restating agent permissions, skill content, or the repo's own check
   commands (opencode.md <PromptContract>) instead of prompting the delta.
@@ -159,13 +164,13 @@ execute it or ask).
 ## Verification
 
 - The intent was named (body or inferred + noted); its first move ran with
-  recorded evidence; the verify.md intent profile passed at every Wave close
-  and at handback.
-- Every Wave's build fork was preceded by its reported `Wave N phases
-  confirmed` gate artifact (opencode.md <OpenCodeLoop> confirm step).
-- RiskGate honored: medium/high work has the outline preserved in the
-  worktree; high without a prior approved base/outline had an approval
-  round-trip.
+  recorded evidence; the verify.md intent profile passed at every unit
+  close and at handback.
+- Every unit's build fork was preceded by its reported `<unit ref> phases
+  confirmed` gate artifact (opencode.md <UnitCycle> confirm step).
+- Work consumed released units only — no self-generated decomposition;
+  granularity findings were reported, never silently absorbed; work
+  stopped at each unit boundary absent a batch grant.
 - Engines were loaded at their stages (opencode.md before the first run,
   verify.md before acceptance, delivery.md before remote actions).
 - Bootstrap branch: the guard ran; remote/push only under B2; pj untouched;
