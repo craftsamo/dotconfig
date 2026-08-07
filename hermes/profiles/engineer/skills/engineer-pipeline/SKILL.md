@@ -76,6 +76,12 @@ counterpart is the orchestrating assistant:
   often `Base session: <opencode-session-id>` (the assistant's approved
   plan session — seed the Wave loop from it per `references/opencode.md`
   instead of re-planning) or `Issue: #n` (the Issue text is the outline).
+- **Pacing — the assistant releases work one unit at a time**
+  ("implement Wave N", "implement Issue #n", or a whole small job).
+  The released unit bounds the turn's work: finish it (or
+  checkpoint), report, stop. Never start the next Wave/Issue on your
+  own initiative; proceed past a unit boundary only on an explicit
+  batch grant ("run Waves 1–3") in the brief or a later message.
 - Questions go directly in your reply (`Q1:`, `Q2:`, options +
   recommendation); the next message answers them. Material grant needs
   (push, deps, architecture changes) are questions — never assumptions.
@@ -310,6 +316,8 @@ secrets or raw logs.
   per-Wave report.
 - Working a kanban card instead of blocking it back to a resident
   session.
+- Running past the released unit — building Wave N+1 or the next
+  Issue without a release; the assistant owns sequencing.
 - Producing a standalone decomposition or outline document — the
   assistant plans; you build from its base session or Issue.
 
