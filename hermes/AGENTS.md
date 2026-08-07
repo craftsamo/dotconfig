@@ -118,7 +118,8 @@ profiles/<name>/     # assistant, engineer, researcher, searcher, creator, write
                      #   (searcher: deep-retrieval is a deprecated technic stub;
                      #   creator: canonical creator-* image/video/audio/music/
                      #   browser-motion/diagram/editorial/icon/card/meme/text-art/
-                     #   pixel/sourcing leaves;
+                     #   pixel/sourcing/assembly leaves (1:1 with the assistant's
+                     #   plan/creative decision leaves; validator-enforced);
                      #   writer: Japanese stack via the curated external-skills symlink dir;
                      #   marketer: + upstream social-media/xurl;
                      #   managed technics stay exactly one directory below skills/technic/

@@ -79,7 +79,7 @@ itself call `delegate_task` during its run.
 | **engineer** | supervises OpenCode: assess (read-only) / implement (from the assistant's plan session or an Issue; bootstrap when no repo), under an Authority grant; planning documents and GitHub bookkeeping stay with the assistant | — (specialist) | `.` (launch / task ws) | `terminal,file,web,skills,todo,memory,delegation` | — | yes |
 | **researcher** | evidence-backed synthesis, comparisons, fact checks, and guidance; heavy breadth is requested from the orchestrator | — (specialist) | `.` (launch / task ws) | `file,web,vision,video,skills,memory,delegation` | — | yes |
 | **searcher** | retrieval: lookup / sweep / hunt (multi-hop via `goal_mode` on cards) | — (specialist) | `.` (launch / task ws) | `web,x_search,skills,memory` | — | yes |
-| **creator** | all media production — image, video, GIF, audio, song, voice — under a Budget grant, with advisory and style-anchor rounds | — (specialist) | `.` (launch / task ws) | `terminal,file,vision,image_gen,video_gen,video,tts,skills,memory,delegation` + gen plugins | — | yes |
+| **creator** | all media production and assembly — image, video, GIF, audio, song, voice, part assembly — consuming released units (decided specs) under a Budget grant, with advisory and anchor-unit rounds | — (specialist) | `.` (launch / task ws) | `terminal,file,vision,image_gen,video_gen,video,tts,skills,memory,delegation` + gen plugins | — | yes |
 | **writer** | reader-facing prose and producer-facing scripts; draft-only, never publishes | — (specialist) | `.` (launch / task ws) | `file,web,skills,memory,delegation` | — | yes |
 | **marketer** | campaign assess/shape/drafts, and publishing only within a Publish grant | — (specialist) | `.` (launch / task ws) | `terminal,file,web,browser,x_search,vision,skills,memory,delegation` | — | yes |
 
@@ -179,7 +179,12 @@ asset + 1 corrective pass, expanded only via `AUTHORITY+:`), leaves
 `PROGRESS:` per finished asset, and — since a task's scratch workspace
 survives block/crash respawns (deleted only on completion) — resumes by
 inventorying surviving intermediates instead of re-spending credits.
-Details: creator's `creator-pipeline` skill. **marketer** speaks it with a
+Creator consumes **released units** (anchor / part / assembly) whose
+deliverable-defining decisions the assistant fixed in its plan family
+leaves; a spec gap or implied composite returns as a finding, input
+parts are consumed verbatim, and the production boundary keeps every
+content-altering transform on the creator side (the assistant handles
+bytes, never re-encodes). Details: creator's `creator-pipeline` skill. **marketer** speaks it with a
 **Publish** grant (publishing is public and irreversible: absent grant =
 draft-only + an `APPROVAL:`-headlined block — `kind=needs_input`, always
 relayed to the human like `REVIEW:` — showing the exact post
@@ -308,7 +313,9 @@ Three per-profile layers, kept separate:
   - creator → `creator-pipeline` (dual runtime — cards only for the
     `anchored-image-batch` / `tts-voice` / `deterministic-render` catalog
     units; Advisory / Direction /
-    Produce routing with intent triage; the MediaBrief + capability router,
+    Produce routing with intent triage + the unit discipline (released-spec
+    consumption, spec-gap findings, verbatim part inputs); the MediaBrief
+    validation contract + capability router,
     Budget grant parsing, dialogue discipline, workspace-reuse resume, visual
     verification, and durable-path delivery) + directly selectable in-tree leaves under `skills/technic/`:
     `creator-generated-image`, `creator-article-illustration`,
@@ -319,7 +326,8 @@ Three per-profile layers, kept separate:
     `creator-gif-sourcing`, `creator-generated-video`, `creator-html-motion`,
     `creator-p5js-experience`, `creator-ascii-video`,
     `creator-manim-explainer`, `creator-pixel-art`, `creator-pixel-video`,
-    `creator-knowledge-comic`, and `creator-brand-asset-sourcing`. Leaves own
+    `creator-knowledge-comic`, `creator-brand-asset-sourcing`, and
+    `creator-media-assembly`. Leaves own
     one production grammar and its medium QA; styles/presets and same-tool
     modes stay in references. Official creative skills may be implementation
     engines behind these canonical names, but never alternate dispatch
