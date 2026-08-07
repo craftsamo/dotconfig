@@ -41,6 +41,21 @@ review gate, and delivery; this file owns how each prose type is built.
 - README openers: what this is + who it serves within the first screen,
   judged in ~30 seconds by a stranger.
 
+### Business document (議事録, 調査レポート, 社内ガイド, メモ・企画書, スライド構成)
+
+- Owned end-to-end by the `japanese-business-docs` norms layer: follow
+  its Workflow (reader/purpose → one-sentence main message →
+  conclusion-bearing heading skeleton → density contrast → evidence),
+  draft under its 12-article constitution, and load the matching
+  doctype file from its `references/doctypes/`.
+- Minutes from a transcript are a restructuring job, not a polishing
+  job: decisions / action items (owner + due date) / carried-over
+  topics get pulled out of the discussion flow per the minutes doctype.
+- Flat is correct — never load `japanese-prose-rhythm`; scannability
+  beats narrative pull in every business doctype.
+- At review time run the `japanese-inspection` lint with
+  `--genre business` (kernel review gate, `references/review.md`).
+
 ## Length
 
 Brief gives a range → hit it. Brief is silent → infer from the medium
