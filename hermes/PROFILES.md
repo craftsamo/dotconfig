@@ -127,9 +127,9 @@ channel, its own durable state, and its own decision altitude:
 
 | # | Loop | Channel | Durable state | Decides |
 | --- | --- | --- | --- | --- |
-| L1 requirements | user ↔ assistant | chat + risk/ambiguity-driven `clarify` | the approved plan (one gate); the assistant's OpenCode base plan session | what/why: goal, done criteria, constraints, grant posture |
-| L2 detail | assistant ↔ engineer | resident-session turns (engineering defines no card units) | session registry + replies | how: feasibility, plan revision, in-grant calls |
-| L3 implementation | engineer ↔ OpenCode | `opencode run` (base plan session + per-Wave forks) | base session + git history + plan document | how (detail): unit split, tactics, model, verification |
+| L1 requirements | user ↔ assistant | chat + risk/ambiguity-driven `clarify` | the approved plan + unit decomposition (one gate): registered purpose Issues or the assistant's OpenCode base plan session | what/why: goal, done criteria, constraints, grant posture |
+| L2 detail | assistant ↔ engineer | resident-session turns — the assistant releases one unit per turn (engineering defines no card units) | session registry + replies | how: unit release/pacing, feasibility, plan revision, in-grant calls |
+| L3 implementation | engineer ↔ OpenCode | `opencode run` (the unit cycle: per-unit plan runs/forks) | Issue/outline text + git history + session reports | how (detail): phase split, tactics, model, verification |
 | L4 in-run | OpenCode ↔ its subagents (reviewer/debugger/…) | OpenCode task tool, per the `opencode/` config | subagent sessions | code-level: review findings, root causes |
 
 Three principles hold the stack together: **escalation moves one layer at a
@@ -143,12 +143,13 @@ the subagents).
 
 In a resident session, L2 continuity lives in the session itself; on kanban
 cards the worker process stays disposable and continuity lives in the
-comment thread + git. In L3 the engineer starts from the **base** plan
-session — normally created and approved at L1 by the assistant and handed
-over in the brief (`Base session: <id>`) — then implements each Wave in a
-short-lived **fork** of it (`run -s <base> --fork`), ending every Wave with
-verify → commit → a report carrying the session ids; review/debug primaries
-run as fresh read-only sessions. Two bridges wire L3 to OpenCode's non-interactive
+comment thread + git. In L3 the engineer consumes **released units**: a
+purpose Issue grounds a fresh plan run; a Wave forks the assistant's
+approved base plan session (`run -s <base> --fork`). Each unit ends with
+verify → commit → a report carrying the session ids, and the engineer
+stops at the unit boundary until the next release (batch runs only under
+an explicit grant); review/debug primaries run as fresh read-only
+sessions. Two bridges wire L3 to OpenCode's non-interactive
 reality (both verified against source): the **Permission Bridge** — bare
 `run` auto-rejects every `ask`, so the engineer translates the Authority
 grant into an `OPENCODE_PERMISSION` overlay (deep-merged; deny beats
@@ -164,9 +165,11 @@ questions in the reply, answered in the next turn; on a card,
 checkpoint-then-block (WIP commit → `STATE:` → `Q<n>:` comments →
 `DECISION(Q<n>):` answers → the guarded `kanban-resolve-block.sh apply`).
 `Review: required` presents the deliverable for human sign-off before the
-job closes — always relayed to the user. GitHub bookkeeping (Issues, boards,
-merges) is the assistant's own `gh` work, after approvals. Details:
-engineer's `engineer-pipeline` skill and the front-door pipeline.
+job closes — always relayed to the user. GitHub bookkeeping stays with the
+assistant, split by the write boundary: merges and board sync are its own
+direct `gh` work, while Issue/epic registration runs through an OpenCode
+session in the repo (codebase-grounded bodies) — all after approvals.
+Details: engineer's `engineer-pipeline` skill and the front-door pipeline.
 
 The dialogue discipline is specialist-generic, not engineer-specific:
 **creator** and **writer** also honor the `Review: required` gate; creator
@@ -194,10 +197,10 @@ authorizes execution.
 | Altitude | Owner | Deliverable | Durable home |
 | --- | --- | --- | --- |
 | High-level requirement + plan — what outcome, which specialists, what grants | assistant with the user (consulting resident sessions for feasibility/cost) | the approved plan (one `clarify` gate) | chat + the session briefs it produces |
-| Repo grounding — Wave outline for code work | assistant's OpenCode plan session in the repo | Wave outline + base session id | the OpenCode session (handed to engineer) |
-| Low-level requirements — feature → concrete requirement units | assistant Plan mode (grounded via engineer assess turns), user-reviewed | registered GitHub Issues | GitHub Issues / Projects (assistant-registered) |
-| Technical milestones — Wave outline for non-Issue work | assistant's OpenCode plan session (or engineer self-generated per RiskGate when no base is supplied) | Wave list (coarse, one line each) | plan session / worktree outline file |
-| Phase/unit decomposition — inside one Wave or one Issue | OpenCode plan agent (L3) | phase breakdown | OpenCode sessions + git |
+| Repo grounding — unit decomposition for code work | assistant's OpenCode plan session in the repo | purpose split (epic + Issues sized 1–3 PRs) or Wave outline + base session id | registered Issues (purposes) / the OpenCode session (Waves) |
+| Low-level requirements — feature → purpose Issues sized 1–3 PRs | assistant Plan mode (grounded via engineer assess turns), user-reviewed | registered GitHub Issues (via an assistant OpenCode run in the repo) | GitHub Issues / Projects |
+| Technical milestones — Wave outline for non-Issue work | assistant's OpenCode plan session | Wave list (coarse, one line each) | plan session / worktree outline file |
+| Phase decomposition — inside one released unit | OpenCode plan agent (L3) | phase breakdown | OpenCode sessions + git |
 
 Feasibility questions are consultation turns to the relevant specialist
 session, not a planning rung of their own.
@@ -205,9 +208,8 @@ session, not a planning rung of their own.
 Two rules keep the ladder from collapsing back into confusion:
 
 - **GitHub-flow repos use Issues as the milestone layer.** When the
-  assistant has registered low-level requirement Issues, implement
-  consumes an Issue (its
-  body is the outline; the PR closes it) — do NOT also produce a Wave
+  assistant has registered purpose Issues, implement consumes an Issue
+  (its body is the spec; the PR closes it) — do NOT also produce a Wave
   outline for the same work. The Wave outline is for repos/work outside the
   GitHub Issue flow (scratch builds, small refactors, non-GitHub targets).
 - **Escalation moves one rung at a time** (same principle as the dialogue
@@ -287,7 +289,7 @@ Three per-profile layers, kept separate:
     terminal-specific deltas.
   - engineer → `engineer-pipeline` (resident-only, cards refused; assess /
     implement routing with intent triage; Authority parsing + dialogue
-    discipline; base-session seeding + per-Wave forks with
+    discipline; the unit cycle over released units with
     permission/question bridges; quota-gated provider/model routing;
     verify/report)
   - researcher → `researcher-pipeline` (dual runtime — cards only for the
