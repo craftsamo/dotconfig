@@ -1,15 +1,15 @@
-# Sweep mode — enumeration with a coverage claim
+# Sweep unit — enumeration with a coverage claim
 
-Loaded when the card wants **"collect / enumerate / survey as many as
-possible"**: candidates, examples, instances — or a measured observation of
-public web state ("how exposed is X", "how many results for Y"). Deliverable
-= a deduped list **plus an explicit coverage statement** (what was searched,
-what was not). Done criteria usually carries a floor count — treat it as a
-floor, not a target to stop at exactly.
+Loaded when the released unit wants **"collect / enumerate / survey as many
+as possible"**: candidates, examples, instances — or a measured observation
+of public web state ("how exposed is X", "how many results for Y").
+Deliverable = a deduped list **plus an explicit coverage statement** (what
+was searched, what was not). The brief's coverage claim carries a floor
+count — treat it as a floor, not a target to stop at exactly.
 
 ## Steps
 
-1. **Build a coverage matrix first.** Derive the axes from the card (e.g.
+1. **Build a coverage matrix first.** Derive the axes from the brief (e.g.
    platform × category × time window; or the candidate space's own
    dimensions). Write the query families per cell BEFORE searching — this is
    what makes the coverage claim honest later.
@@ -17,7 +17,7 @@ floor, not a target to stop at exactly.
    `web_search`, `x_search` for current/community signal, forums for lived
    experience. Rotate phrasings inside a cell before declaring it thin.
 3. **Capture per item** — name/title, URL, source, date, one-line gist, plus
-   whatever per-item fields the card's Done criteria requires (the evidence a
+   whatever per-item fields the brief requires (the evidence a
    downstream researcher needs to judge each candidate).
 4. **Deduplicate by canonical identity** (the product / event / account /
    document itself), not just by URL — the same candidate reached via two
@@ -31,7 +31,7 @@ floor, not a target to stop at exactly.
 
 ## Measurement variant
 
-When the card asks for a quantified observation (counts, exposure, share of
+When the brief asks for a quantified observation (counts, exposure, share of
 results):
 
 - Record the **method** inline: engine, exact queries, date/time, page depth
@@ -48,7 +48,7 @@ results):
 
 ```text
 ## Findings (<n> items, deduped)
-- <name / title> — <URL> (<source>, <date?>) <per-item fields the card asked for> [flag?]
+- <name / title> — <URL> (<source>, <date?>) <per-item fields the brief asked for> [flag?]
 …
 ## Coverage
 - Searched: <cells / query families actually run>
