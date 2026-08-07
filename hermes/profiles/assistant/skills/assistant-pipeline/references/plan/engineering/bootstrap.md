@@ -1,10 +1,12 @@
-# Bootstrap — new-repo Wave 0 (assistant-owned)
+# Bootstrap — new-repo prelude (assistant-owned)
 
 A human bootstraps a project by rhythm; you cannot. The repo does not
 exist yet, so nothing can be grounded — not even the base plan session
-— until Wave 0 lands. Every step below is **yours** (`gh` / `ghq` /
-`pj` are assistant tools); the engineer first appears when a worktree
-exists to code in.
+— until bootstrap lands. It runs before any unit decomposition. Every
+step below is **yours** (`gh` / `ghq` / `pj` are assistant tools); the
+engineer first appears when a worktree exists to code in. Worktree-side
+establishment may be delegated under an explicit, user-sanctioned
+`B1`/`B2` grant — the GitHub/registry steps below never are.
 
 This file is conventions only. **Concrete repo names, owners, and the
 starter inventory are never written here** (this config repo is
@@ -50,10 +52,11 @@ fit evaluation apply to you unchanged.
    present, `AGENTS.md` is filled (not the stub).
 
 Deploy credentials go through the Keychain shims — never a committed
-`.env`. Wiring the deploy target is a normal Wave in the type leaf,
-not part of Wave 0. Rebranding (README identity, package names) is the
-first Wave of implementation, never part of bootstrap.
+`.env`. Wiring the deploy target is a normal unit in the archetype
+leaf, not part of bootstrap. Rebranding (README identity, package
+names) is the first unit of implementation, never part of bootstrap.
 
 Then create the **base plan session inside the new repo** (see
 `index.md`) — with a starter there is real code for the plan agent to
-ground the Waves in; the type leaf's wave prompt takes over from here.
+ground the decomposition in; the archetype leaf's prompt takes over
+from here.
