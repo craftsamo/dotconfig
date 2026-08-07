@@ -52,7 +52,7 @@ publishing deliverable gets the full contract.
 | --- | --- |
 | creative (all media) | `creative/index.md` — routes 18 family contracts |
 | writing | `writing/index.md` — prose / script |
-| engineering | `engineering/index.md` — outcome-level gate |
+| engineering | `engineering/index.md` — per-unit gate + inspection / acceptance |
 | research | `research/index.md` — sources, coverage, inference |
 | marketing | `marketing/index.md` — pre-publish and post-publish checks |
 

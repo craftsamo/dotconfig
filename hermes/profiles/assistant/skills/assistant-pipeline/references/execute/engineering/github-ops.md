@@ -44,8 +44,10 @@ user's Roadmap board directly. The engineer never registers Issues.
 
 ## Merge — user-gated, direct, yours
 
-Merge only on the user's explicit go; never autonomous, never the
-engineer's. After merging a stack layer, tell the engineer in the
+Merge only on the user's explicit go — asked with readiness
+verified per `../../quality-assurance/engineering/acceptance.md` —
+never autonomous, never the engineer's. After merging a stack
+layer, tell the engineer in the
 next turn so the remaining layers are rebased/retargeted in-session;
 the next unit is released against the updated default branch.
 
