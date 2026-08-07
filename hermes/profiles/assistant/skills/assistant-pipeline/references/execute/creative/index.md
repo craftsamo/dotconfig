@@ -19,50 +19,82 @@ card_units:
 
 # Creative — execute
 
-All media production runs through the **creator** profile; the assistant
-produces no media itself, ever. Default tier is a resident session;
-the card units above are the only creator work that may ride kanban.
+The specialist is the **creator** resident session — your hands on
+the generation tools. You release the approved decomposition **one
+unit at a time** (anchor, part, assembly — `../../plan/creative/`)
+and hold the QA gate between units. Everything around the units —
+part handoff, packaging, delivery, the Budget ledger — is yours,
+per `media-ops.md`: content-altering work through the creator,
+byte-preserving handling direct. The card units above are the only
+creator work that may ride kanban.
 
 ## Resident session
 
-Start `resident-session.sh start <topic>-creator …` with the SessionBrief
-carrying the MediaBrief (`../../plan/creative/index.md`). Then supervise:
+Start `resident-session.sh start <topic>-creator …` with the
+SessionBrief carrying the first unit's spec (decision core + family
+leaf decisions + `Budget:` line). **One session per job**, spanning
+its units: the session context IS the asset — anchors, seeds, locked
+specs, and spend history live there, which is why revisions cost
+only the changed assets. Close it when the job is accepted; never
+carry unrelated jobs in one session.
 
-- Production lands as files at the durable path named in `Deliverable:`
-  (default `~/Workspaces/.deliverables/<job>/`); the reply names every
-  file. Scratch-only output is a defect — say so in the next turn.
-- Feedback and revisions are turns in the same session, itemized per
-  asset ("C2: 白紙束ではなく開いた本に", "C9: 最後2秒は開眼"). Everything
-  unnamed is preserved — the session already holds the style anchors,
-  seeds, and history, so revisions cost only the changed assets.
-- Budget expansion requests come back as a question in the reply; approve
-  within what the user sanctioned, relay beyond it.
-- A wholesale direction change («全面組み直し», new concept) re-anchors:
-  new cheap sample + sign-off before any full re-render.
+## The unit loop
 
-## Card units
+1. **Release one unit** — "produce the anchor", "produce parts C1–C8
+   from the locked anchor", "assemble per this edit spec". Never
+   hand the whole composite ("make the video") — sequencing is
+   yours; the creator returns wholesale briefs as spec-gap findings.
+   Release a unit only when its family-leaf decisions are complete
+   and its inputs passed your QA (the frontier rule).
+2. **Receive the report** — files at durable paths, verification
+   evidence, spend tally, reuse anchors. A reply without files at
+   durable paths, or a tally that doesn't reconcile, is a defect.
+3. **Gate** — the QA contract for the family
+   (`../../quality-assurance/creative/index.md`). Feedback is
+   itemized per asset in the next turn ("C2: 白紙束ではなく開いた本に");
+   everything unnamed is preserved. A failed gate is a course
+   correction on the SAME unit.
+4. **Close out** per `media-ops.md` (ledger, packaging when due),
+   then release the next unit — assembly last, only when every
+   input part passed.
 
-- `anchored-image-batch` — mass-parallel independent images AFTER the
-  style anchor passed QA and the user approved it. The body carries the
-  anchor (path/reference), the complete per-item spec list, and a
-  `Budget:` line. Anchor exploration, first-of-kind samples, and anything
-  whose look is still being decided are NOT this unit.
-- `tts-voice` — voice generation from a **final** script (your QA already
-  passed the text). Voice preset named; no script editing on the card.
-- `deterministic-render` — a render fully determined by its inputs
-  (settled data + named template/format). If taste enters, it is not
-  deterministic.
+Mid-unit questions: answer in-spec ones yourself; relay taste and
+Budget-expansion beyond the sanctioned plan to the user. A spec gap
+or capability signal pulls the work back to Plan, not into another
+turn. A wholesale direction change re-anchors (new sample +
+sign-off) before any full re-render.
 
-Revisions of card output go to the resident session
-(`../resident-sessions.md`), seeded with the artifact paths + itemized
-defects — never a fresh card, except a purely mechanical re-render with
-identical spec.
+## Parallel units
+
+Independent parts may run in parallel — a second resident session
+(`<topic>-creator-<part>`, style-independent parts only) or the
+card units:
+
+- `anchored-image-batch` — mass-parallel images AFTER the anchor
+  passed QA and was approved; body carries anchor, complete
+  per-item specs, `Budget:`.
+- `tts-voice` — one voice track from a **final** (QA-passed)
+  script; preset named; no script editing on the card.
+- `deterministic-render` — output fully determined by settled data
+  + named template; if taste enters, it is not deterministic.
+
+Parts sharing an anchor or feeding the same assembly stage
+sequence through your gate; never parallelize what shares an
+unsettled dependency. Card revisions go to the resident session
+seeded with artifact paths + itemized defects — never a fresh card
+(except a purely mechanical re-render with identical spec).
 
 ## Pitfalls
 
-- Generating or improvising media yourself, whatever the tier.
-- Starting production without a Budget the user's plan sanctions.
-- Letting a batch run — session or card — before its style anchor passed.
-- Re-briefing style in a revision turn — the session holds the anchors;
-  name only what changes.
-- Accepting "done" replies without files at durable paths.
+- Producing or altering media yourself, whatever the tier — the
+  production boundary (`media-ops.md`) is absolute.
+- Releasing a unit whose family decisions are still open — that is
+  Plan work; the bounce-back costs a turn.
+- Letting a batch run before its anchor passed, or an assembly run
+  before every part passed.
+- Starting production without a sanctioned `Budget:` line, or
+  approving expansion beyond what the user sanctioned.
+- Re-briefing style in a revision turn — the session holds the
+  anchors; name only what changes.
+- Accepting "done" without files at durable paths and a reconciled
+  tally.
