@@ -84,7 +84,7 @@ Two conventions travel with the tree:
   it is cut off from its family.
 - **Rebranding is not bootstrap.** Changing the identity surface (README
   title/intro/clone URLs, package names, container names) to the new
-  repo's own is the first Wave of the FIRST implement task on the new
+  repo's own is the first unit of the FIRST implement task on the new
   repo — the bootstrap job only establishes the clone, the remotes, and
   the initial commit state.
 
@@ -139,7 +139,7 @@ commit, report):
 | Template-repo instantiation | `gh repo create --template <starter>` — remote-first, so **B2 only**; clone the result to the ghq path; template copies carry no upstream remote — add one if family sync is wanted | B2 |
 
 - Rebranding stays out (see <FamilyConvention>) — report it as the
-  expected first Wave of the follow-up implement task instead.
+  expected first unit of the follow-up implement task instead.
 - Preserving upstream history vs a squashed start is a **path decision the
   brief must state** (plain clone keeps history; `--template` or
   `degit`-style copies do not) — absent, block rather than pick.
@@ -164,7 +164,7 @@ this file, a report template, or any tracked config.
   recommendation go UP (assess report / `Q<n>`); the orchestrator decides.
 - Cloning a derivative without wiring the `upstream` remote — it silently
   leaves the family.
-- Rebranding, feature work, or Wave planning inside the bootstrap job.
+- Rebranding, feature work, or unit planning inside the bootstrap job.
 - Instantiating a template repo on a B1 grant — template creation is
   remote-first, therefore B2.
 - Writing discovered repo names into this skill or other tracked files —
