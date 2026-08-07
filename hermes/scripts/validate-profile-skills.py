@@ -683,6 +683,44 @@ def validate_engineering_alignment(errors: list[str]) -> None:
         errors.append(f"engineering QA inspection row has no plan leaf: {name}")
 
 
+# ── Writing plan-QA alignment ───────────────────────────────────────────
+#
+# Every plan/writing type leaf must declare its QA contract via a
+# "QA `<contract>`" mapping line, the named contract file must exist,
+# and every writing QA contract must be claimed by at least one leaf —
+# a new text type can never ship with an ungated contract mapping.
+
+WRITING_PLAN_DIR = ASSISTANT_PIPELINE / "references" / "plan" / "writing"
+WRITING_QA_DIR = (
+    ASSISTANT_PIPELINE / "references" / "quality-assurance" / "writing"
+)
+
+
+def validate_writing_alignment(errors: list[str]) -> None:
+    if not (WRITING_PLAN_DIR.is_dir() and WRITING_QA_DIR.is_dir()):
+        return  # missing roots are reported by the tree validators
+
+    contracts = {
+        path.stem for path in WRITING_QA_DIR.glob("*.md")
+    } - {"index"}
+    claimed: set[str] = set()
+    for leaf in sorted(WRITING_PLAN_DIR.glob("*.md")):
+        if leaf.name == "index.md":
+            continue
+        match = re.search(r"QA `([a-z-]+)`", leaf.read_text(encoding="utf-8"))
+        if not match:
+            errors.append(f"writing plan leaf missing QA mapping line: {leaf.name}")
+            continue
+        contract = match.group(1)
+        if contract not in contracts:
+            errors.append(
+                f"writing plan leaf {leaf.name} names missing QA contract: {contract}"
+            )
+        claimed.add(contract)
+    for name in sorted(contracts - claimed):
+        errors.append(f"writing QA contract claimed by no plan leaf: {name}")
+
+
 def validate_assistant(
     errors: list[str],
 ) -> tuple[int, dict[str, str], int, int, int]:
@@ -829,6 +867,7 @@ def main() -> int:
             summaries.append(f"{profile}={technics} technics/{learned} learned")
         validate_creative_alignment(errors)
         validate_engineering_alignment(errors)
+        validate_writing_alignment(errors)
         for path in tracked_learned_files():
             errors.append(f"learned skill file must not be tracked: {path}")
         for path in untracked_managed_files():
