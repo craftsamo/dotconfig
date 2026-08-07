@@ -15,12 +15,12 @@ their config from here natively; the rest get symlinks created by
 | lazygit                    | `lazygit/`     | XDG native                                                               |
 | mise                       | `mise/`        | XDG native; declares language runtimes + global npm CLIs                 |
 | [opencode](./opencode/README.md) | `opencode/` | XDG native                                                            |
-| [Shared agent skills](./agents/README.md) | `agents/` | `~/.agents/skills` + `~/.claude/skills` symlinks; one skill tree for every AI CLI |
+| [Shared agent skills](./agents/README.md) | `agents/` | curated tree in `agents/curated/`, linked per skill into the machine-local `~/.agents/skills` root (installer-writable); `~/.claude/skills` bridges there |
 | Git                        | `git/`         | XDG fallback (`~/.gitconfig` must not exist); `git/credentials` ignored  |
 | [Claude Code](./claude/README.md) | `claude/` | 6 symlinks in `~/.claude/`                                             |
-| [Codex](./codex/README.md) | `codex/`       | 3 symlinks in `~/.codex/` (`skills/.system` and `config.toml` are app-managed, git-ignored) |
+| [Codex](./codex/README.md) | `codex/`       | 2 symlinks in `~/.codex/` (`skills/` and `config.toml` are machine-local, app/installer-managed) |
 | [Gemini CLI](./gemini/README.md) | `gemini/`  | 3 symlinks in `~/.gemini/`                                              |
-| [GitHub Copilot](./copilot/README.md) | `copilot/` | 4 symlinks in `~/.copilot/` (`config.json` is app-managed; auth dir `github-copilot/` git-ignored) |
+| [GitHub Copilot](./copilot/README.md) | `copilot/` | 3 symlinks in `~/.copilot/` (`skills/` is machine-local; `config.json` is app-managed; auth dir `github-copilot/` git-ignored) |
 | [Grok Build](./grok/README.md) | `grok/`    | `AGENTS.md` symlinked, `config.toml` seeded (CLI-owned); state/auth stay in `~/.grok/`; installed via official installer, not brew |
 | [Hermes Agent](./hermes/README.md) | `hermes/`   | symlinks in `~/.hermes/` (+ per profile); skills via `external_dirs`; keys via Keychain shim |
 

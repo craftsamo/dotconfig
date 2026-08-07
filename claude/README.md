@@ -10,7 +10,7 @@ creates six symlinks into `~/.claude/`:
 | `~/.claude/keybindings.json` | `claude/keybindings.json` |
 | `~/.claude/agents`           | `claude/agents/`          |
 | `~/.claude/commands`         | `claude/commands/`        |
-| `~/.claude/skills`           | `agents/skills/`          |
+| `~/.claude/skills`           | `~/.agents/skills/` (machine-local shared root) |
 
 ## User-managed content
 
@@ -22,8 +22,11 @@ creates six symlinks into `~/.claude/`:
   to the command arguments)
 
 Skills are not kept here. Claude Code is the only CLI that does not read the
-shared `~/.agents/skills` root, so its skill dir is bridged to
-[`agents/skills/`](../agents/README.md) instead.
+shared `~/.agents/skills` root, so its skill dir is bridged to that root —
+the machine-local mutable dir that third-party installers write into, holding
+per-skill links to the repo-curated tree
+([`agents/curated/`](../agents/README.md)). The bridge deliberately points at
+the mutable root, not into the repo.
 
 ## Never tracked
 

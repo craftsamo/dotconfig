@@ -21,7 +21,7 @@ Empty directories carry a `.gitkeep` so the skeleton survives a fresh clone.
 
 `skills/` holds only the skills that depend on opencode itself — its
 subagents, custom tools, or the Plan/Build handoff. Skills any agent can
-follow live in [`agents/skills/`](../agents/README.md) and are picked up here
+follow live in [`agents/curated/`](../agents/README.md) and are picked up here
 too, since opencode scans `~/.agents/skills` alongside this directory.
 
 ## Web access
