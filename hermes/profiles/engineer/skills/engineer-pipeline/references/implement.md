@@ -93,54 +93,56 @@ Any material decision outside the grant at any step →
 <CheckpointThenBlock>. `Review: required` in the body → core <ReviewGate>
 before completion.
 
-## BootstrapBranch — no repo yet
+## BootstrapBranch — worktree establishment, delegated
 
-When the brief says to establish a repo that does not exist (the assistant
-decided the path after an assess bootstrap signal), this is the one **write
-path that does not use OpenCode** — there is no codebase for it to operate
-on. Work with `git` / `gh` / the scaffolder directly. Establish the
-skeleton + initial commit; never decompose units or build features in the
-same job.
+Bootstrap's GitHub/registry side is never yours: the assistant creates
+the repo, wires starter content and remotes, and registers it as its
+own boundary operation. What a brief can delegate to you is the
+**worktree side** of a repo the assistant already established — this
+is the one write path that does not use OpenCode (there is no codebase
+yet to operate on). Work with `git` and the named scaffolder directly;
+never decompose units or build features in the same job.
 
-**Authority — B1/B2, not A1-3** (there is no worktree yet):
+**Authority — B1/B2, not A1-3** (no reviewable codebase yet):
 
 | Preset | Grants |
 | --- | --- |
-| `B1` (default) | create the repo **locally only** — clone / scaffold / `git init` at the target ghq path (the chosen starter's own dependency install included), initial commit. No remote. |
-| `B2` | B1 + `gh repo create` (the named repo + visibility from the body) + push the initial commit. |
+| `B1` (default) | establish INSIDE the existing clone at the named ghq path — run the named scaffolder (`create-next-app`, `cargo new`, `uv init`, …), install its own dependencies, lay the asked-for skeleton, initial commit. No remote writes. |
+| `B2` | B1 + push to the **existing** `origin`. |
 
-Inputs the brief must supply (ask if missing): **target** (`owner`/`repo`
-+ absolute ghq path — the durable home; always operate on the absolute
-path: `git -C <path>`, `<scaffolder> <path>`), **path**
-(`clone <url|owner/repo>` / `starter <scaffolder + source>` /
-`greenfield`), **visibility** (B2 only).
+Never, under any B grant: `gh repo create`, template instantiation,
+remote creation or rewiring, `pj`/board writes — those are the
+assistant's boundary operations. A brief asking you for them is
+malformed: question it, don't execute it.
+
+Inputs the brief must supply (ask if missing): **target** (the
+absolute ghq path of the established clone — always operate on it:
+`git -C <path>`, `<scaffolder> <path>`), **skeleton** (the named
+scaffolder + args, or the minimal file set), and for `B2` that
+`origin` already exists.
 
 Procedure:
 
-1. **Guard.** The target must not already contain a repo (`git -C <path>
-   rev-parse` fails / dir absent or empty). Non-empty target → ask, never
-   overwrite.
-2. **Establish** per the chosen path: `gh repo clone` / the named scaffolder
-   (`npx degit`, `create-next-app`, `cargo new`, `uv init`, …; `git init` if
-   it didn't) / `git init <path>` + the minimal asked-for skeleton. `gh repo
-   create --template` is a **B2** action. When the path names a starter
-   from the local family, load the `starter-catalog` technic skill and
-   follow its <IntroductionPaths>: clone the named source, point `origin`
-   at the new repo (B2), wire the `upstream` remote to the parent —
-   rebranding the identity surface is NOT bootstrap (it is the follow-up
+1. **Guard.** The target must be an established clone (`git -C <path>
+   rev-parse` succeeds) without a prior scaffold; unexpected content →
+   ask, never overwrite. Not a repo at all → stop: the assistant's
+   GitHub-side step hasn't run — report, don't `git init` around it.
+2. **Establish**: run the named scaffolder / lay the skeleton —
+   exactly what the brief asks, no speculative structure. Rebranding
+   the identity surface is NOT bootstrap (it is the follow-up
    implement task's first unit).
-3. **Initial commit** (`git -C <path> add -A && git -C <path> commit -m
-   "chore: initial commit"`) unless clone history exists.
-4. **Remote (B2 only)** — `gh repo create <owner>/<repo> --<visibility>
-   --source <path> --remote origin --push`.
-5. **Report** the handoff facts: ghq path, path taken + initial sha, remote
-   url (or "none — B1"), stack, and the suggested `pj repo-set` /
-   `pj link-repo` line. **Never run pj yourself** — registration is the
-   assistant's post-bootstrap step.
+3. **Initial commit** (`git -C <path> add -A && git -C <path> commit
+   -m "chore: initial commit"`) unless the clone already carries
+   history and the brief says to extend it.
+4. **Push (B2 only)** to the existing `origin`.
+5. **Report** the handoff facts: ghq path, what was laid down +
+   sha, pushed or not ("local only — B1"). Registration (`pj`) and
+   board sync remain the assistant's step — **never run pj yourself**.
 
-Bootstrap pitfalls: opening OpenCode (no codebase yet); remote/push at B1;
-overwriting a non-empty target; speculative scaffolding beyond the asked
-skeleton; shopping for a starter (the orchestrator chose the path —
+Bootstrap pitfalls: opening OpenCode (no codebase yet); any repo
+creation or remote surgery, whatever the grant; pushing at B1;
+overwriting non-empty content; speculative scaffolding beyond the
+asked skeleton; shopping for a starter (the plan chose the path —
 execute it or ask).
 
 ## Pitfalls

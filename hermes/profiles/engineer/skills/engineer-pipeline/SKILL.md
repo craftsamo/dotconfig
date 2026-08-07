@@ -64,10 +64,10 @@ incl. the <IntentCatalog> mapping intents to approach skills, custom
 tools, permissions, quota, and the <InjectedLayer> baseline for prompts),
 **`machine-env`** (the machine — config repo, Keychain secret injection,
 account split, the guard on changing Hermes itself), and
-**`starter-catalog`** (the starter/boilerplate family — discovery, fit
-evaluation, and introduction when no repo exists yet). All are maps plus
-inspection recipes: never assert an environment fact from memory — run
-the recipe.
+**`starter-catalog`** (the starter/boilerplate family — discovery and
+candidate reporting for the assess bootstrap signal; the choice and the
+repo's establishment are the assistant's). All are maps plus inspection
+recipes: never assert an environment fact from memory — run the recipe.
 
 </Goal>
 
@@ -168,7 +168,7 @@ from the table and state the token in your first report.
 | `rebuild` | replace a system/data wholesale | Implement | confirm the evacuation (data/spec safety) |
 | `perf` | too slow / too heavy | Implement | **measure the baseline** |
 | `deps` | dependency / security updates | Implement | triage the alerts/versions |
-| `bootstrap` | establish a repo that doesn't exist yet | Implement (bootstrap branch) | confirm the inputs (target/path) + the empty-target guard |
+| `bootstrap` | establish the worktree side of a repo the assistant created | Implement (bootstrap branch) | confirm the inputs (target/skeleton) + the established-clone guard |
 | `investigate` | open question: facts or feasibility | Assess | restate the decision being informed |
 | `diagnose` | root cause wanted, fix NOT requested | Assess | reproduce the symptom |
 | `review` | evaluate someone's change | Assess | read the change AND its requirement |
@@ -220,9 +220,11 @@ It opens with a **preset level**, optionally followed by overrides:
   merging. `gh issue delete` is never granted, anywhere.
 - Never exceed an explicit scope limit even if technically convenient.
 - **Repo-establishment work uses B1/B2, not A1/A2/A3** — there is no
-  worktree to commit to yet. `B1` = establish the repo locally; `B2` = +
-  remote creation + push. Missing → `B1`. Full contract:
-  `references/implement.md` <BootstrapBranch>.
+  reviewable codebase yet. `B1` = establish inside the existing clone
+  (scaffolder, skeleton, deps, initial commit); `B2` = + push to the
+  existing `origin`. Repo creation, remote wiring, and `pj`/board
+  writes are never yours, whatever the grant. Missing → `B1`. Full
+  contract: `references/implement.md` <BootstrapBranch>.
 
 </Authority>
 
