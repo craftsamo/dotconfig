@@ -1,6 +1,6 @@
 ---
 card_units:
-  - name: evidence-pack
+  - name: claim-verification
     assignee: researcher
     required_inputs: [claims-list, source-requirements]
     unit_cap: "verification of one fixed list of claims, each with sources and verdicts"
@@ -13,7 +13,7 @@ The specialist is the **researcher** — depth: analysis, synthesis,
 comparison, evaluation, verification, evidence-backed guidance
 (`../../plan/research/index.md` has the routing table; retrieval is
 the searcher's — `../search/index.md`). Sessions are the default;
-`evidence-pack` above is the only research work that may ride
+`claim-verification` above is the only research work that may ride
 kanban.
 
 ## Resident session
@@ -34,9 +34,9 @@ fact-check / guidance) — write what you want, not how.
 
 ## Card units
 
-- `evidence-pack` — a fixed claims list to verify; the card returns
-  per-claim verdicts + sources. Framing still moving → researcher
-  session, not a card.
+- `claim-verification` — a fixed claims list to verify; the card
+  returns per-claim verdicts + sources. Framing still moving →
+  researcher session, not a card.
 - Analysis, synthesis, and anything whose framing may move with the
   user stay resident — no unit exists for them on purpose.
 
