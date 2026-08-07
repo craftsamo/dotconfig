@@ -77,7 +77,7 @@ itself call `delegate_task` during its run.
 | **default** | CLI front door — assistant's CLI counterpart (neutral persona) | CLI | `.` (launch dir) | `web,browser,terminal,file,code_execution,vision,x_search,skills,todo,memory,clarify,delegation,cronjob,kanban` | — | yes |
 | **assistant** | messaging front door + dispatcher host | Telegram | `~/Workspaces` | `web,browser,terminal,file,vision,x_search,skills,todo,memory,clarify,delegation,cronjob,computer_use,kanban` | **yes** | yes (token per-machine) |
 | **engineer** | supervises OpenCode: assess (read-only) / implement (from the assistant's plan session or an Issue; delegated worktree bootstrap in a repo the assistant created), under an Authority grant; planning documents, repo creation, and GitHub bookkeeping stay with the assistant | — (specialist) | `.` (launch / task ws) | `terminal,file,web,skills,todo,memory,delegation` | — | yes |
-| **researcher** | evidence-backed synthesis, comparisons, fact checks, and guidance; heavy breadth is requested from the orchestrator | — (specialist) | `.` (launch / task ws) | `file,web,vision,video,skills,memory,delegation` | — | yes |
+| **researcher** | verified conclusions from released units: evidence-pack / tradeoff-matrix / fact-check / guidance; heavy breadth is requested from the orchestrator as a search unit | — (specialist) | `.` (launch / task ws) | `file,web,vision,video,skills,memory,delegation` | — | yes |
 | **searcher** | retrieval from released units: lookup / sweep / hunt (multi-hop via `goal_mode` on cards) | — (specialist) | `.` (launch / task ws) | `web,x_search,skills,memory` | — | yes |
 | **creator** | all media production and assembly — image, video, GIF, audio, song, voice, part assembly — consuming released units (decided specs) under a Budget grant, with advisory and anchor-unit rounds | — (specialist) | `.` (launch / task ws) | `terminal,file,vision,image_gen,video_gen,video,tts,skills,memory,delegation` + gen plugins | — | yes |
 | **writer** | reader-facing prose and producer-facing scripts from released units (outline / piece / whole job); draft-only, never publishes | — (specialist) | `.` (launch / task ws) | `file,web,skills,memory,delegation` | — | yes |
@@ -212,6 +212,18 @@ card-eligible forms of sweep and hunt. The assistant's search plan
 leaves (`plan/search/`) fix the decisions, and search QA gates each
 unit against lookup/sweep/hunt contracts (validator-enforced mapping).
 Details: searcher's `searcher-pipeline` skill.
+**researcher** consumes released depth units the same way — an
+evidence-pack unit (settled question + done criteria), a
+tradeoff-matrix unit (closed option set + criteria), a fact-check unit
+(fixed claims list + source requirements; card-eligible as
+`claim-verification`), or a guidance unit (consumer + decision
+points + evidence base) — under the evidence-integrity floor and the
+Admiralty/SIFT method, returning undecided briefs as spec-gap or
+granularity findings. The assistant's research plan leaves
+(`plan/research/`) fix the decisions, and research QA gates each unit
+against evidence-pack/tradeoff-matrix/fact-check/guidance contracts
+(validator-enforced mapping). Details: researcher's
+`researcher-pipeline` skill.
 
 ### Planning ladder — who plans at which altitude
 
@@ -321,8 +333,9 @@ Three per-profile layers, kept separate:
     permission/question bridges; quota-gated provider/model routing;
     verify/report)
   - researcher → `researcher-pipeline` (dual runtime — cards only for the
-    `evidence-pack` catalog unit; deliverable-based
-    routing — evidence-pack / tradeoff-matrix / fact-check / guidance — plus
+    `claim-verification` catalog unit; consumes released units with unit
+    discipline — evidence-pack / tradeoff-matrix / fact-check /
+    guidance — returning spec-gap and granularity findings, plus
     Admiralty/SIFT source evaluation, citation rules, Review gate, and resume
     in the kernel; researcher supplies evidence and does not own
     artifact-vs-brief QA; retrieval strategy in references/gather.md)
@@ -412,8 +425,8 @@ A card must match one unit and carry every required input; otherwise the work
 stays resident or is decomposed during planning. Composites are never one card
 (never send 0→10 as one card). Seeded units are creative:
 `anchored-image-batch`, `tts-voice`, `deterministic-render`; search:
-`survey-enumeration`, `exhaustive-hunt`; and research: `evidence-pack`.
-Engineering, writing,
+`survey-enumeration`, `exhaustive-hunt`; and research: `claim-verification`
+(the card-eligible form of a fact-check unit). Engineering, writing,
 and marketing remain resident-only. All six worker pipelines fail fast at the
 Unit gate with `kanban_block(kind=capability)` for composite or malformed cards.
 
