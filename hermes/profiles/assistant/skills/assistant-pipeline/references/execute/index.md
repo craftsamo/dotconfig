@@ -28,7 +28,7 @@ Keep in sync with each profile's `profile.yaml` description:
 | creator | ALL media production + assembly: image, video, GIF, voice, music, part assembly — advisories, anchor units, production, revision | `creative/index.md`; Budget grant; consumes released units (decided specs) |
 | writer | text deliverables from released units: reader-facing prose and producer-facing scripts (台本, 絵コンテ); drafts only, never publishes | `writing/index.md` |
 | researcher | depth: analysis, synthesis, comparison, evaluation, verification, evidence-backed guidance | `research/index.md` |
-| searcher | retrieval: targeted lookups, enumerations/surveys, exhaustive source hunts | `research/index.md` |
+| searcher | retrieval from released units: targeted lookups, enumerations/surveys, exhaustive source hunts | `search/index.md` |
 | engineer | implementation: drives OpenCode on a repo — code, tests, debugging, PR prep | `engineering/index.md`; Authority grant; receives the OpenCode plan-session handle |
 | marketer | platform copy from released message units + gated publishing (X via xurl); grounding judgment and honest critique | `marketing/index.md`; Publish grant; draft-only by default |
 

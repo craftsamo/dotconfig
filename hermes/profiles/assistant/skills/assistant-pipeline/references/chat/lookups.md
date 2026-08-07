@@ -13,5 +13,6 @@ in-turn with `delegate_task`.
   gathering per-item facts across a short list, per-artifact QA checks
   fanned out from Quality Assurance mode.
 - Wrong for: anything needing follow-up questions to the same child
-  (resident session), exhaustive hunts (kanban `exhaustive-hunt` unit),
-  or depth/synthesis (researcher session).
+  (resident session), durable retrieval with a coverage claim — sweeps
+  and hunts are searcher units (`../plan/search/index.md`) — or
+  depth/synthesis (researcher session).
