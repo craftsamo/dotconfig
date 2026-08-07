@@ -78,7 +78,7 @@ itself call `delegate_task` during its run.
 | **assistant** | messaging front door + dispatcher host | Telegram | `~/Workspaces` | `web,browser,terminal,file,vision,x_search,skills,todo,memory,clarify,delegation,cronjob,computer_use,kanban` | **yes** | yes (token per-machine) |
 | **engineer** | supervises OpenCode: assess (read-only) / implement (from the assistant's plan session or an Issue; delegated worktree bootstrap in a repo the assistant created), under an Authority grant; planning documents, repo creation, and GitHub bookkeeping stay with the assistant | — (specialist) | `.` (launch / task ws) | `terminal,file,web,skills,todo,memory,delegation` | — | yes |
 | **researcher** | evidence-backed synthesis, comparisons, fact checks, and guidance; heavy breadth is requested from the orchestrator | — (specialist) | `.` (launch / task ws) | `file,web,vision,video,skills,memory,delegation` | — | yes |
-| **searcher** | retrieval: lookup / sweep / hunt (multi-hop via `goal_mode` on cards) | — (specialist) | `.` (launch / task ws) | `web,x_search,skills,memory` | — | yes |
+| **searcher** | retrieval from released units: lookup / sweep / hunt (multi-hop via `goal_mode` on cards) | — (specialist) | `.` (launch / task ws) | `web,x_search,skills,memory` | — | yes |
 | **creator** | all media production and assembly — image, video, GIF, audio, song, voice, part assembly — consuming released units (decided specs) under a Budget grant, with advisory and anchor-unit rounds | — (specialist) | `.` (launch / task ws) | `terminal,file,vision,image_gen,video_gen,video,tts,skills,memory,delegation` + gen plugins | — | yes |
 | **writer** | reader-facing prose and producer-facing scripts from released units (outline / piece / whole job); draft-only, never publishes | — (specialist) | `.` (launch / task ws) | `file,web,skills,memory,delegation` | — | yes |
 | **marketer** | platform copy from released message units, four-stage pre-ship inspection, grounding judgment, and publishing only within a Publish grant | — (specialist) | `.` (launch / task ws) | `terminal,file,web,browser,x_search,vision,skills,memory,delegation` | — | yes |
@@ -203,6 +203,15 @@ non-waivable four-stage pre-ship inspection (mechanical / style /
 factual / legal); strategy, offers, pricing, and calendars stay with the
 assistant, and open decisions return as spec-gap or granularity
 findings. Details: marketer's `marketer-pipeline` skill.
+**searcher** consumes released retrieval units the same way — a lookup
+unit (settled question), a sweep unit (coverage claim/floor + per-item
+fields), or a hunt unit (done criteria + scope exclusions) — under the
+link-integrity and retrieval-only floors, returning undecided briefs as
+spec-gap or granularity findings; its two catalog cards are the
+card-eligible forms of sweep and hunt. The assistant's search plan
+leaves (`plan/search/`) fix the decisions, and search QA gates each
+unit against lookup/sweep/hunt contracts (validator-enforced mapping).
+Details: searcher's `searcher-pipeline` skill.
 
 ### Planning ladder — who plans at which altitude
 
@@ -318,12 +327,13 @@ Three per-profile layers, kept separate:
     in the kernel; researcher supplies evidence and does not own
     artifact-vs-brief QA; retrieval strategy in references/gather.md)
   - searcher → `searcher-pipeline` (dual runtime — cards only for the
-    `survey-enumeration` / `exhaustive-hunt` catalog units;
-    deliverable-based routing —
-    lookup (targeted facts) / sweep (enumeration with a coverage claim) /
-    hunt (multi-hop to saturation, signalled by `goal_mode` on cards) — plus
-    the link-integrity floor; per-mode playbooks in references/.
-    `technic/deep-retrieval` remains only as a deprecated stub)
+    `survey-enumeration` / `exhaustive-hunt` catalog units; consumes
+    released units with unit discipline — lookup (targeted facts) /
+    sweep (enumeration with a coverage claim) / hunt (multi-hop to
+    saturation, signalled by `goal_mode` on cards) — returning spec-gap
+    and granularity findings, plus the link-integrity floor; per-unit
+    playbooks in references/; no technics — the deprecated
+    `deep-retrieval` stub was removed in the search rebuild)
   - creator → `creator-pipeline` (dual runtime — cards only for the
     `anchored-image-batch` / `tts-voice` / `deterministic-render` catalog
     units; Advisory / Direction /
@@ -401,8 +411,9 @@ The kanban catalog is closed: its machine-readable surface is the union of
 A card must match one unit and carry every required input; otherwise the work
 stays resident or is decomposed during planning. Composites are never one card
 (never send 0→10 as one card). Seeded units are creative:
-`anchored-image-batch`, `tts-voice`, `deterministic-render`; and research:
-`survey-enumeration`, `exhaustive-hunt`, `evidence-pack`. Engineering, writing,
+`anchored-image-batch`, `tts-voice`, `deterministic-render`; search:
+`survey-enumeration`, `exhaustive-hunt`; and research: `evidence-pack`.
+Engineering, writing,
 and marketing remain resident-only. All six worker pipelines fail fast at the
 Unit gate with `kanban_block(kind=capability)` for composite or malformed cards.
 

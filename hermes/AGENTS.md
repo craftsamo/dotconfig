@@ -115,7 +115,10 @@ profiles/<name>/     # assistant, engineer, researcher, searcher, creator, write
                      #   pinned per card via kanban_create skills:[...]. A technic's
                      #   references are modes only when tools, spend class and QA
                      #   stay the same; styles/presets/formats remain references.
-                     #   (searcher: deep-retrieval is a deprecated technic stub;
+                     #   (searcher: no technics — the lookup/sweep/hunt unit
+                     #   playbooks are searcher-pipeline references, paired with
+                     #   the assistant's plan/search and quality-assurance/search
+                     #   leaves (validator-enforced QA mapping);
                      #   creator: canonical creator-* image/video/audio/music/
                      #   browser-motion/diagram/editorial/icon/card/meme/text-art/
                      #   pixel/sourcing/assembly leaves (1:1 with the assistant's
