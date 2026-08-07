@@ -96,7 +96,8 @@ Deliver; trivial requests live and die in Chat.
 **Reference routing** — load `references/<mode>/index.md` for the mode's
 core procedure, then `references/<mode>/<capability>/index.md` for each
 capability the work touches (`engineering`, `creative`, `writing`,
-`research`, `marketing`), then any work-category leaf the index routes to
+`research`, `search`, `marketing`), then any work-category leaf the index
+routes to
 (e.g. `execute/creative/pixel-art.md`). Missing capability dir or leaf =
 no special rules beyond the index above it.
 
