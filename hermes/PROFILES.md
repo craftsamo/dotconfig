@@ -81,7 +81,7 @@ itself call `delegate_task` during its run.
 | **searcher** | retrieval: lookup / sweep / hunt (multi-hop via `goal_mode` on cards) | — (specialist) | `.` (launch / task ws) | `web,x_search,skills,memory` | — | yes |
 | **creator** | all media production and assembly — image, video, GIF, audio, song, voice, part assembly — consuming released units (decided specs) under a Budget grant, with advisory and anchor-unit rounds | — (specialist) | `.` (launch / task ws) | `terminal,file,vision,image_gen,video_gen,video,tts,skills,memory,delegation` + gen plugins | — | yes |
 | **writer** | reader-facing prose and producer-facing scripts; draft-only, never publishes | — (specialist) | `.` (launch / task ws) | `file,web,skills,memory,delegation` | — | yes |
-| **marketer** | campaign assess/shape/drafts, and publishing only within a Publish grant | — (specialist) | `.` (launch / task ws) | `terminal,file,web,browser,x_search,vision,skills,memory,delegation` | — | yes |
+| **marketer** | platform copy from released message units, four-stage pre-ship inspection, grounding judgment, and publishing only within a Publish grant | — (specialist) | `.` (launch / task ws) | `terminal,file,web,browser,x_search,vision,skills,memory,delegation` | — | yes |
 
 The table lists each role's native capability allowlist. `platform_toolsets` is
 the runtime authority; top-level `toolsets` mirrors it and retains `kanban` on
@@ -188,10 +188,15 @@ bytes, never re-encodes). Details: creator's `creator-pipeline` skill. **markete
 **Publish** grant (publishing is public and irreversible: absent grant =
 draft-only + an `APPROVAL:`-headlined block — `kind=needs_input`, always
 relayed to the human like `REVIEW:` — showing the exact post
-text/attachments/destination; `P1` = autonomous within named caps —
-account, post count, content scope), leaves `PROGRESS:` with the posted URL
-per post, and treats shipped posts as immutable facts on resume. Details:
-marketer's `marketer-pipeline` skill.
+text/attachments/destination; `P1` = consuming approved inventory within
+named caps — account, post count, content scope — never new claims),
+leaves `PROGRESS:` with the posted URL per post, and treats shipped posts
+as immutable facts on resume. It consumes **released message units**
+(settled claim + fact-ledger references + QA-passed parts) under a
+non-waivable four-stage pre-ship inspection (mechanical / style /
+factual / legal); strategy, offers, pricing, and calendars stay with the
+assistant, and open decisions return as spec-gap or granularity
+findings. Details: marketer's `marketer-pipeline` skill.
 
 ### Planning ladder — who plans at which altitude
 
@@ -264,9 +269,11 @@ Three per-profile layers, kept separate:
   fabricated citations); searcher = link integrity (only URLs actually
   retrieved); writer = deliverable integrity (no fabricated
   facts/quotes/URLs; assumptions labeled) + never publishes; marketer = the
-  Publish floor (absent grant ⇒ draft-only; every post needs verbatim
-  approval or an in-cap P1 grant; posted URLs verified; shipped posts never
-  silently edited or deleted); front doors = heavy work never runs in their
+  Publish + red floor (absent grant ⇒ draft-only; every post needs verbatim
+  approval or in-cap consumption of approved inventory; claims resolve to
+  the fact ledger; no price/deadline/scarcity changes; the four-stage
+  pre-ship inspection is never skipped; posted URLs verified; shipped posts
+  never silently edited or deleted); front doors = heavy work never runs in their
   own turn, deliverables are verified before delivery, and blocked cards
   resolve only through the guarded resolver after the one complete DECISION
   batch; a second block or a capability/spec-gap block pulls the card back.
@@ -356,14 +363,15 @@ Three per-profile layers, kept separate:
     `profiles/writer/external-skills/` symlink dir (japanese-writing /
     tech-prose / prose-rhythm, single-sourced with the shared
     `agents/skills/` store) and upstream `creative/humanizer`
-  - marketer → `marketer-pipeline` (resident-only, cards refused; parses
-    MarketingBrief +
-    Publish grant and routes assess/shape/campaign; requests prose/media/
-    research inputs from the orchestrator → assemble → approval-gated xurl
-    publish bridge with per-post URL verification; channel extension points
-    for future Discord/IG/TikTok accounts; shipped posts treated as
-    immutable) + the upstream `social-media/xurl` skill via
-    `skills.external_dirs`
+  - marketer → `marketer-pipeline` (resident-only, cards refused; consumes
+    released message units under the Publish grant + red floor; engines
+    ground / produce / parts / verify / publish — grounding judgment and
+    red-team dissent, platform copy craft, QA-passed part consumption, the
+    four-stage pre-ship inspection with Japanese ad-law triage, and the
+    approval-gated xurl publish bridge with per-post URL verification;
+    channel extension points for future Discord/IG/TikTok accounts;
+    shipped posts treated as immutable) + the upstream `social-media/xurl`
+    skill via `skills.external_dirs`
 
 Routing (assistant): `assistant-pipeline` owns it. The skill is
 **auto-loaded into every new Telegram DM session** via the chat-wide
