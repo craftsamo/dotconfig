@@ -11,16 +11,6 @@ yarn/
 # fish is unused here; the Grok Build installer/updater drops completions into it
 fish/
 
-# app-managed system skills (not user content)
-codex/skills/.system/
-
-# HyperFrames-managed skill symlinks: `hyperframes skills update` links its
-# store into harness skill dirs; tool-owned, per-machine, never repo content
-codex/skills/hyperframes*
-codex/skills/media-use
-copilot/skills/hyperframes*
-copilot/skills/media-use
-
 # ~/.config/agents/skills is a registered install target of third-party skill
 # installers (`hyperframes skills` mirrors into it as the amp/universal agent
 # dir) — surrendered to tool droppings and ignored wholesale. The repo-curated
@@ -32,6 +22,7 @@ agents/skills/
 # its store into every agent dir it recognizes). Allowlist: ignore everything,
 # re-include curated entries. A NEW curated skill needs its negation line here
 # or it stays silently untracked — check `git status` after adding one.
+# (codex/copilot skill dirs are machine-local real dirs, nothing to ignore.)
 opencode/skills/*
 !opencode/skills/approach/
 !opencode/skills/git/
