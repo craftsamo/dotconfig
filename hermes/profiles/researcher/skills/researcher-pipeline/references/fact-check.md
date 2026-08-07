@@ -1,11 +1,14 @@
-# Fact-check mode — claim-by-claim verdicts
+# Fact-check unit — claim-by-claim verdicts
 
-Loaded when the task presents specific external claims, cited sources, or
-current specifications to verify. A final artifact may be supplied so the
-claims can be extracted verbatim, but the deliverable remains a verdict per
-claim, not an artifact-quality gate or a survey of the topic. The core <Method>
-applies scoped to each claim — corroboration and counterevidence matter more
-than breadth.
+Loaded when the released unit presents specific external claims, cited
+sources, or current specifications to verify — every `claim-verification`
+card is this unit in card form (fixed claims list + source requirements
+settled in the body). A final artifact may be supplied so the claims can
+be extracted verbatim, but the deliverable remains a verdict per claim,
+not an artifact-quality gate or a survey of the topic. The core <Method>
+applies scoped to each claim — corroboration and counterevidence matter
+more than breadth. A moving claims list is a spec-gap finding; a claims
+list sprouting a topic survey is a granularity finding.
 
 ## Procedure
 

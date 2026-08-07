@@ -1,11 +1,11 @@
-# Tradeoff-matrix mode — decision support / Plan mode consultations
+# Tradeoff-matrix unit — decision support / Plan consultations
 
-Loaded when the caller must pick between named options (the assistant's
-Plan mode consultation dispatched to the researcher as a session brief, or any
-explicit comparison request). The
-deliverable is a decision aid: options × criteria, scored from evidence,
-with a recommendation — delivered fast enough to keep a live planning loop
-moving.
+Loaded when the released unit compares named options (the assistant's
+Plan consultation dispatched as a session brief, or any explicit
+comparison request). The unit releases with a closed option set and fixed
+criteria; the deliverable is a decision aid: options × criteria, scored
+from evidence, with a recommendation — delivered fast enough to keep a
+live planning loop moving.
 
 ## Rules
 
@@ -17,8 +17,9 @@ moving.
   caller's decision context; add the 2-3 they forgot — ops burden,
   reversibility, maturity); gather against them, so every option is judged
   on the same axes.
-- **Assume, don't block, by default** — label assumptions; block only when
-  the option set itself is ambiguous.
+- **Assume, don't block, by default** — label assumptions; an ambiguous
+  or still-growing option set is the exception: a spec-gap (or
+  granularity) finding back to the assistant, never a guessed roster.
 
 ## Procedure
 
