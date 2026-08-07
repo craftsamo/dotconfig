@@ -41,4 +41,4 @@ real decision is needed.
 | creative | `creative/index.md` | MediaBrief, style anchor, Budget |
 | writing | `writing/index.md` | WritingBrief |
 | research | `research/index.md` | question fixing, coverage claims |
-| marketing | `marketing/index.md` | campaign frame, Publish stance |
+| marketing | `marketing/index.md` | positioning/offer/funnel decisions, campaign decomposition, Publish stance |
