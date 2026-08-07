@@ -114,7 +114,7 @@ Parse the brief into a complete picture before drafting:
 
 | Field | Required | Notes |
 | --- | --- | --- |
-| Deliverable type | yes | marketing copy, article, documentation, or script |
+| Deliverable type | yes | marketing copy, article, documentation, business document, or script |
 | Audience | yes | end reader; for scripts also name the producer |
 | Purpose | yes | what the reader should understand or do |
 | Medium / destination | yes | blog, README, landing page, release note, video script, and so on |
@@ -145,9 +145,15 @@ route by type:
 | Deliverable | Writer type | Norm layers |
 | --- | --- | --- |
 | Marketing copy | `marketing-copy` | `japanese-writing`; `japanese-tech-prose` if long |
-| Technical article or blog | `technical-prose` | all three Japanese layers for long-form reading |
-| Documentation | `documentation` | `japanese-writing`; `japanese-tech-prose` for explanations; never rhythm for reference text |
+| Technical article or blog | `technical-prose` | `japanese-writing` + `japanese-tech-prose` + `japanese-prose-rhythm` for long-form reading |
+| Documentation (README, reference, product docs) | `documentation` | `japanese-writing`; `japanese-tech-prose` for explanations; never rhythm for reference text |
+| Business document (議事録, 調査レポート, 社内ガイド・マニュアル, メモ・企画書, スライド構成) | `business-document` | `japanese-writing` + `japanese-business-docs` (doctype + constitution + design); never rhythm |
 | Comic script, storyboard, screenplay | `script` | `japanese-writing`; `japanese-tech-prose` for explanatory narration; never rhythm |
+
+Every Japanese deliverable additionally gets the `japanese-inspection`
+layer at review time (see `references/review.md`) — it is an
+inspection pass, not a tone layer, so it appears there rather than
+here.
 
 </ToneCalibration>
 
