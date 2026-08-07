@@ -647,6 +647,42 @@ def validate_creative_alignment(errors: list[str]) -> None:
         errors.append(f"creative QA Covers names unknown family: {name}")
 
 
+# ── Engineering plan-QA alignment ───────────────────────────────────────
+#
+# Every plan/engineering archetype leaf must have a matching inspection
+# row in the engineering QA inspection leaf (its verification default's
+# receiving side), and vice versa — a new archetype without an inspection
+# row would ship with an ungated verification default.
+
+ENGINEERING_PLAN_DIR = ASSISTANT_PIPELINE / "references" / "plan" / "engineering"
+ENGINEERING_QA_INSPECTION = (
+    ASSISTANT_PIPELINE
+    / "references"
+    / "quality-assurance"
+    / "engineering"
+    / "inspection.md"
+)
+
+
+def validate_engineering_alignment(errors: list[str]) -> None:
+    if not (ENGINEERING_PLAN_DIR.is_dir() and ENGINEERING_QA_INSPECTION.is_file()):
+        return  # missing roots are reported by the tree validators
+
+    leaves = {path.stem for path in ENGINEERING_PLAN_DIR.glob("*.md")} - {"index"}
+    rows: set[str] = set()
+    for line in ENGINEERING_QA_INSPECTION.read_text(encoding="utf-8").splitlines():
+        if not line.startswith("|") or line.startswith("| ---"):
+            continue
+        cells = [cell.strip() for cell in line.strip("|").split("|")]
+        if not cells or cells[0] in ("Archetype", ""):
+            continue
+        rows.add(cells[0])
+    for name in sorted(leaves - rows):
+        errors.append(f"engineering QA inspection misses plan archetype: {name}")
+    for name in sorted(rows - leaves):
+        errors.append(f"engineering QA inspection row has no plan leaf: {name}")
+
+
 def validate_assistant(
     errors: list[str],
 ) -> tuple[int, dict[str, str], int, int, int]:
@@ -792,6 +828,7 @@ def main() -> int:
             technics, learned = validate_worker(profile, errors, catalog=catalog)
             summaries.append(f"{profile}={technics} technics/{learned} learned")
         validate_creative_alignment(errors)
+        validate_engineering_alignment(errors)
         for path in tracked_learned_files():
             errors.append(f"learned skill file must not be tracked: {path}")
         for path in untracked_managed_files():
