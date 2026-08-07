@@ -24,7 +24,7 @@ services, scheduled operation).
 > hardening (errors, edge cases) → wiring (cron/launchd/docs). No
 > speculative features.
 
-## Expected outline — inspection standard
+## Expected decomposition — inspection standard
 
 - 1–3 Waves; core-first, wiring last.
 - Red flags: frameworks or plugin systems for a script; config
@@ -33,7 +33,7 @@ services, scheduled operation).
 
 ## Defaults
 
-- New repo: scratch (no starter) via bootstrap Wave 0; skip repo
+- New repo: scratch (no starter) via `bootstrap.md` first; skip repo
   entirely for throwaways.
 - Authority `A1`; dependency additions need `A3` even here.
 - Verification: execute on real input and inspect output + exit code;

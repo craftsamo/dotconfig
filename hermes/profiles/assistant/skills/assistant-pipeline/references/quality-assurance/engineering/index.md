@@ -1,8 +1,8 @@
 # Engineering QA — outcome-level gate
 
-The engineer's own loop already verifies each Wave (repo checks +
+The engineer's own loop already verifies each unit (repo checks +
 OpenCode review agent) — do not re-review diffs line by line. Your gate
-is outcome-level:
+is outcome-level, applied per unit before the next one is released:
 
 - The reported check/test output is actual (not claimed) — spot-check by
   running the named command or reading the named log.
