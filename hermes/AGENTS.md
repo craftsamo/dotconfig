@@ -41,9 +41,10 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
   (`resolve_anthropic_token()`) ALWAYS prefers the default Keychain entry
   `Claude Code-credentials` over the credential pool (pool entries and
   `suppressed_sources` never override it). That default entry must stay logged
-  into the **Hermes** account (REDACTED). OpenCode runs on the **sub account**
-  (craftsamo) via the `opencode-claude-auth` plugin pinned to the suffixed entry
-  `Claude Code-credentials-REDACTED` (`CLAUDE_CONFIG_DIR=~/.claude-sub`,
+  into the **Hermes** account. OpenCode runs on the **sub account** via the
+  `opencode-claude-auth` plugin pinned to a suffixed entry
+  (`Claude Code-credentials-<suffix>`; the concrete name lives in the untracked
+  `claude-account-source.txt`; `CLAUDE_CONFIG_DIR=~/.claude-sub`,
   alias `claude-sub`). A plain `claude /login` re-login therefore changes
   **Hermes'** account, not OpenCode's — after one, verify with
   `security find-generic-password -s "Claude Code-credentials"` + the OAuth
