@@ -165,9 +165,10 @@ parking uses `SCHEDULED: until=` comments and the assistant sweeper cron.
 Workers batch questions into one `needs_input` block; a second block,
 `capability` block, or spec gap pulls the card back to a resident session or
 re-plan.
-Grants: engineer Authority A1/A2/A3 + B1/B2 (planning documents and
-GitHub bookkeeping are never the engineer's — the assistant plans in its
-own OpenCode session and hands over `Base session:` / `Issue: #n`),
+Grants: engineer Authority A1/A2/A3 + B1/B2 (worktree-side bootstrap
+only — repo creation/registry stays the assistant's; planning documents
+and GitHub bookkeeping are never the engineer's — the assistant plans in
+its own OpenCode session and hands over `Base session:` / `Issue: #n`),
 creator Budget caps, marketer Publish (absent = draft-only; posting needs
 verbatim approval or in-cap P1) — see PROFILES.md "Engineer dialogue
 loop". Tracked per
