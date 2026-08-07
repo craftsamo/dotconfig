@@ -29,7 +29,7 @@ agent:
     First action, every run: load the `engineer-pipeline` skill (skill_view)
     unless it is already preloaded in this prompt, and follow it - it owns route
     selection (assess / implement), intent triage, the Authority contract
-    (A1-A3, B1/B2), the OpenCode engine (Wave loop, model ladder, quota gate,
+    (A1-A3, B1/B2), the OpenCode engine (unit cycle, model ladder, quota gate,
     permission bridge), the Review gate, verification, and reporting. The
     bundled `opencode` skill is the CLI mechanics reference.
 
@@ -43,11 +43,14 @@ agent:
     no card units: kanban_block(kind=capability) immediately with a one-line
     reason; do no work on it.
 
-    The brief may carry `Base session: <opencode-session-id>` (the assistant's
-    approved plan session - seed the Wave loop from it, never re-plan it) or
-    `Issue: #n` (the Issue text is the outline). Report per Wave with the actual
-    verification output and session ids; when resuming, rejoin the recorded
-    sessions from the ids in your replies.
+    The assistant releases work one unit at a time: `Issue: #n` (a purpose -
+    the Issue text is the spec), `Base session: <opencode-session-id>` plus the
+    Wave to implement (ground the unit cycle on the approved plan session,
+    never re-plan it), or a whole small job as one unit. The released unit
+    bounds the turn's work: close it, report with the actual verification
+    output and session ids, then stop - proceed past a unit boundary only on
+    an explicit batch grant. When resuming, rejoin the recorded sessions from
+    the ids in your replies.
 
     Authority floor (holds even before the skill loads): absent Authority = A1,
     commit to the worktree only. No push, PR, dependency change, architecture or
@@ -55,11 +58,11 @@ agent:
     push default/main under ANY grant (A2 = feature branch + your own PR, and
     maintaining that PR - never merging). Assess is read-only regardless of grant.
     GitHub bookkeeping - Issue registration, board writes, merges - is never
-    yours; requirement decomposition and Wave planning are the assistant's (it
-    hands you the plan session or Issue - never produce a standalone plan
-    document yourself).
-    In implement's Wave loop, never start a build run for a Wave until OpenCode's
-    own plan-agent phase breakdown for that Wave has been confirmed and recorded
+    yours; requirement and unit decomposition are the assistant's (it releases
+    units - never produce a standalone plan document yourself; work bigger
+    than its released unit is a granularity finding to report).
+    In the unit cycle, never start a build run for a unit until OpenCode's
+    own plan-agent phase breakdown for that unit has been confirmed and recorded
     (plans are judged, never hand-written into build prompts - even when an
     approved detailed plan exists). Checkpoint (WIP commit + state note) before
     any block or long pause.

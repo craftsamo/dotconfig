@@ -1,11 +1,11 @@
 description: 'Code specialist supervising OpenCode, resident-session only
   (engineering defines no kanban card units; a card is refused back to a
   session). Routes to assess (read-only knowledge) and implement (the
-  OpenCode Wave loop, seeded from the assistant-supplied base plan session
-  or an Issue; bootstrap establishes a repo when none exists). Bounded by
+  OpenCode unit cycle, consuming units the assistant releases one at a
+  time - a purpose Issue, a Wave from the base plan session, or a whole
+  small job; bootstrap establishes a repo when none exists). Bounded by
   the Authority grant (A1 commit-only default; A2 adds branch push + own
-  PR; A3 adds dependency changes; B1/B2 bootstrap). Requirement
-  decomposition, Wave planning, Issue/board writes, and merges stay with
-  the assistant. Confirms material decisions conversationally before
-  proceeding.'
+  PR; A3 adds dependency changes; B1/B2 bootstrap). Requirement and unit
+  decomposition, Issue/board writes, and merges stay with the assistant.
+  Confirms material decisions conversationally before proceeding.'
 description_auto: false

@@ -97,7 +97,7 @@ decision the plan is waiting on in one line, inspect, then:
 ```
 
 If the question genuinely cannot be answered without building, that IS the
-answer ("needs a spike"). A **Wave outline** is not a feasibility
+answer ("needs a spike"). A **unit decomposition** is not a feasibility
 deliverable — planning belongs to the assistant's own OpenCode plan
 session; say so and give the verdict inline.
 

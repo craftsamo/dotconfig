@@ -1,7 +1,7 @@
 # Verification — never trust the self-report (engine)
 
 Load this whenever OpenCode produced something you are about to accept —
-every implement Wave close, every assess deliverable that leaned on an
+every implement unit close, every assess deliverable that leaned on an
 OpenCode run. OpenCode does the work; **you own the judgment that it is
 right**. A completion message is a claim, not evidence.
 

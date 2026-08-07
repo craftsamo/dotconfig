@@ -21,15 +21,15 @@ Commits included: prompt OpenCode to commit per its `git-commit` conventions
 (atomic, repo's message style); history surgery (squash, rebase, splitting)
 is also OpenCode's hands — you specify the target shape, then audit with V6.
 
-### Work from an Issue
+### Work from an Issue (purpose unit)
 
-Task body names an Issue (`Issue: #42` / a URL) — the Issue is the outline:
+The released unit names an Issue (`Issue: #42` / a URL) — the Issue is
+the spec:
 
 1. Read it first (`gh issue view 42 --comments`): acceptance criteria,
    linked parent/sub-issues, discussion.
-2. Treat its checklist/criteria as the Wave list; where the RiskGate needs a
-   base, seed the base session from the Issue body verbatim
-   (`references/opencode.md` <OpenCodeLoop>).
+2. Ground the unit cycle's decompose on it — a fresh plan run, no base
+   session (`references/opencode.md` <UnitCycle>).
 3. Prompts tell OpenCode the Issue context: branch names reference it
    (OpenCode's conventions handle this), the PR body carries `Closes #42`
    (A2 — the merge closes the Issue; no issue-write grant needed).
@@ -37,13 +37,22 @@ Task body names an Issue (`Issue: #42` / a URL) — the Issue is the outline:
    block, same as any material decision — never silently reinterpret a
    registered requirement.
 
+### Stacked PRs (multi-PR purpose, A2)
+
+A purpose sized for more than one PR grows as a **native GitHub stack,
+one layer at a time**: prompt OpenCode to open each layer through its
+PR skill ("push this as the next layer of the stack"), never all
+layers at once. After the orchestrator merges a layer it will tell you
+to rebase/retarget the remaining layers — run that through OpenCode
+too, then audit with V6 (no dropped commits).
+
 ### PR review response
 
 Review comments arrived on your PR (the task body or a comment says so):
 
 1. Read the review state first: `gh pr view <n> --comments` /
    `gh pr diff <n>` — group the comments into concerns.
-2. Each concern is a normal change: fix in the current Wave's build fork (or
+2. Each concern is a normal change: fix in the current unit's build fork (or
    a fresh fork for a reopened task), verify (`references/verify.md`),
    commit, push (A2 covers pushing to your own PR branch).
 3. Replies and re-request go through OpenCode (A2 covers own-PR

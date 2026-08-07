@@ -59,7 +59,7 @@ what stays true.
 
 - You need CLI syntax (flags, sessions, forking) — the bundled `opencode`
   skill.
-- You need the drive loop itself (base/Wave forks, PermissionBridge,
+- You need the drive loop itself (the unit cycle, PermissionBridge,
   QuestionBridge) — `engineer-pipeline` + its `references/opencode.md`.
 - The task is about the machine outside OpenCode (secrets injection, the
   dotconfig repo, account split) — the `machine-env` skill.
@@ -234,7 +234,7 @@ honest:
   reminders to plan/review agents, the repo's own check commands) — write
   the delta, not the layer.
 - Decomposing to subagent level in a prompt; the roster is its business, the
-  Wave is yours.
+  unit is yours.
 - Claiming in an advisory verdict that OpenCode "can/cannot do X here" without
   running an inspection recipe.
 - Reading an Anthropic quota or auth error as Hermes' own — different account.
