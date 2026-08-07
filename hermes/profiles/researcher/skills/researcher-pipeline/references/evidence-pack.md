@@ -1,9 +1,12 @@
-# Evidence-pack mode — deep synthesis (default)
+# Evidence-pack unit — deep synthesis (default)
 
-The default research deliverable: an open question answered with verifiable
-evidence. The core <Method>, <SourceEvaluation>, and <CitationRules> govern
-the gathering (route and delegation per `references/gather.md`); this
-reference sets synthesis and output.
+The default research unit: one settled question answered with verifiable
+evidence, released with its decision context and done criteria. The core
+<Method>, <SourceEvaluation>, and <CitationRules> govern the gathering
+(route and delegation per `references/gather.md`); this reference sets
+synthesis and output. A brief with no discernible question is a spec-gap
+finding; a question that is several questions is a granularity finding —
+report, don't absorb.
 
 ## Synthesis
 

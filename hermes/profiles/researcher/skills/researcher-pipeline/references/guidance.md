@@ -1,21 +1,24 @@
-# Guidance mode — evidence-backed direction for a downstream worker
+# Guidance unit — evidence-backed direction for a downstream worker
 
-Loaded when the deliverable is direction someone else will act on: design
-principles, constraints, dos/don'ts, selection rules — derived from evidence
-(sources and/or parent-task results), not the crafted artifact itself. The
-core <Method> applies; the extra discipline is converting findings into
-directives a consumer can execute without rereading the sources.
+Loaded when the released unit is direction someone else will act on:
+design principles, constraints, dos/don'ts, selection rules — derived from
+evidence (sources and/or parent-task results), not the crafted artifact
+itself. The unit releases with the consumer, their decision points, and
+the evidence base. The core <Method> applies; the extra discipline is
+converting findings into directives a consumer can execute without
+rereading the sources.
 
 Boundary: if the caller wants the artifact itself, that is another worker's
-card — 台本 / 絵コンテ / copy → writer, media → creator, code → engineer.
-This mode produces the guidance such a card consumes. Asked for both, deliver
+unit — 台本 / 絵コンテ / copy → writer, media → creator, code → engineer.
+This unit produces the guidance such work consumes. Asked for both, deliver
 the guidance and report the mismatch; don't craft.
 
 ## Procedure
 
 1. **Name the consumer and their decision points.** Who acts on this, and
-   which choices must the guidance close? A missing consumer is an
-   assumption to label — or a block, when it changes what to research.
+   which choices must the guidance close? A missing consumer is a
+   spec-gap finding when it changes what to research; otherwise a labeled
+   assumption.
 2. **Gather** per the core <Method>. Inputs are often prior results the
    brief names (in kanban runtime, `kanban_show` each parent id) plus
    targeted fills; guidance derived
