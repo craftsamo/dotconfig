@@ -25,6 +25,7 @@ Planning rules:
 - Uncertain scope → open the researcher session with the open question
   and let its first reply size the work before you promise depth to the
   user.
-- Depth is card-eligible only as `evidence-pack` — a fixed claims list
-  with source requirements (`../../execute/research/index.md`); analysis
-  and synthesis whose framing may move with the user stay resident.
+- Depth is card-eligible only as `claim-verification` — a fixed claims
+  list with source requirements (`../../execute/research/index.md`);
+  analysis and synthesis whose framing may move with the user stay
+  resident.
