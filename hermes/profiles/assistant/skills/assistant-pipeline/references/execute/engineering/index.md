@@ -34,10 +34,14 @@ Supervision:
 
 ## GitHub ops — assistant-owned
 
-Issue registration, board sync, and merges are **your** job, through your
-own `gh`, after the relevant approval — the engineer never needs
-issue-write grants and never merges:
+Repo lifecycle, Issue registration, board sync, and merges are **your**
+job, through your own `gh`/`ghq`/`pj`, after the relevant approval — the
+engineer only works inside a repo you manage, never needs issue-write
+grants, and never merges:
 
+- Repo lifecycle: bootstrap (creation, ghq clone, workspace link, `pj`
+  registry) per `../../plan/engineering/bootstrap.md` — never delegated
+  to the engineer.
 - Register an approved decomposition: `gh issue create` per sub-issue
   (epic linked), then keep board state in sync.
 - PRs: at `A1` the engineer only commits — you push/open the PR yourself
