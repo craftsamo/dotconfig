@@ -1,27 +1,47 @@
 # Creative QA contracts — routes
 
-Pick the contract file(s) by the deliverable family; every contract is a
-read-only inspection you run yourself — with `delegate_task` fanning out
-per-artifact checks when the set is large. The common floor in
-`../index.md` always applies.
+Pick the contract file(s) by the deliverable family; every contract
+is a read-only inspection you run yourself — with `delegate_task`
+fanning out per-artifact checks when the set is large. The common
+floor in `../index.md` always applies.
 
-| Deliverable family | Contract | Notes |
+Contracts are keyed by **inspection method**, so several canonical
+families may share one contract; the Covers column is the total
+mapping (validator-checked — every canonical technic appears exactly
+once). In a composite, **every part gates on its own contract when
+its unit completes**; the assembled final gates on `assembly.md` —
+part checks are not repeated there.
+
+| Deliverable family | Contract | Covers (canonical) |
 | --- | --- | --- |
-| Generated raster image (cover, hero, illustration, thumbnail) | `raster-image.md` | native size, destination crop, set consistency |
-| Infographic | `infographic.md` | information hierarchy, label/data fidelity, legibility |
-| SVG diagram | `svg-diagram.md` | source structure plus rendered preview |
-| Excalidraw diagram | `excalidraw-diagram.md` | JSON/editability plus rendered preview |
-| Icon / logo set | `icon-set.md` | source fidelity, complete size/maskable set |
-| Text card / meme (exact copy on image) | `text-visual.md` | exact copy readback, typography, safe areas; sourced template → also `sourced-asset.md` |
-| ASCII art | `ascii-art.md` | UTF-8 text master and terminal geometry |
-| Data visualization | `data-visualization.md` | source-to-render correspondence, measured labels |
-| Generated audio / ambience / SFX | `audio.md` | integrity, duration, levels |
-| Song (music + vocals) | `song.md` | lyrics, vocal structure, audio integrity |
-| Voice line (TTS) | `voice.md` | verbatim back-transcription plus delivery checks |
-| Video (generated, sourced GIF, Manim explainer) | `video.md` | sampled temporal inspection plus mechanical probe; explainer claims need evidence |
-| Browser-native media (HTML motion, p5.js) | `browser-media.md` | runnable source, states, deterministic timeline; exported av → also `video.md` |
-| ASCII video | `ascii-video.md` | temporal text geometry, glyph stability |
-| Pixel art still | `pixel-art.md` | native grid, fixed palette, integer preview |
-| Pixel animation | `pixel-video.md` | pixel-grid checks over time, loop integrity |
-| Comic | `comic.md` | panel sequence, lettering, continuity, source-backed claims |
-| Sourced third-party asset (GIF, brand mark) | `sourced-asset.md` | identity, provenance, rights caveat, unchanged asset |
+| Generated raster image (cover, hero, illustration, set) | `raster-image.md` | `creator-generated-image`, `creator-article-illustration` |
+| Infographic | `infographic.md` | `creator-infographic` |
+| SVG diagram | `svg-diagram.md` | `creator-svg-diagram` |
+| Excalidraw diagram | `excalidraw-diagram.md` | `creator-excalidraw-diagram` |
+| Icon / logo set | `icon-set.md` | `creator-logo-icons` |
+| Text card / meme (exact copy on image) | `text-visual.md` | `creator-text-card`, `creator-meme` |
+| ASCII art | `ascii-art.md` | `creator-ascii-art` |
+| Data visualization | `data-visualization.md` | `creator-audio-visualization` |
+| Generated audio / ambience / SFX | `audio.md` | `creator-audio-generation` |
+| Song (music + vocals) | `song.md` | `creator-song-generation` |
+| Voice line (TTS) | `voice.md` | `core:tts` |
+| Video (generated, Manim explainer, GIF export) | `video.md` | `creator-generated-video`, `creator-manim-explainer` |
+| Browser-native media (HTML motion, p5.js) | `browser-media.md` | `creator-html-motion`, `creator-p5js-experience` |
+| ASCII video | `ascii-video.md` | `creator-ascii-video` |
+| Pixel art still | `pixel-art.md` | `creator-pixel-art` |
+| Pixel animation | `pixel-video.md` | `creator-pixel-video` |
+| Comic | `comic.md` | `creator-knowledge-comic` |
+| Sourced third-party asset (GIF, brand mark) | `sourced-asset.md` | `creator-gif-sourcing`, `creator-brand-asset-sourcing` |
+| Assembled composite (mux/concat/mix/overlay) | `assembly.md` | `creator-media-assembly` |
+
+Selection rules:
+
+1. Route from the actual final deliverable, not the file extension
+   alone; one deliverable may need several contracts (e.g. p5.js +
+   exported MP4).
+2. Styles and presets (NES, PICO-8, palette names, aspect ratios,
+   house style) are criteria inside the brief, not separate
+   contracts.
+3. An unmapped deliverable family is NOT verifiable — say so and
+   decide with the user; never fall back to a generic look-over for
+   a publishing deliverable.
