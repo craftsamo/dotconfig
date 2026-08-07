@@ -78,7 +78,7 @@ repo (see `machine-env`), so history explains any surprise.
 | `agent/*.md` | the agent roster — primary modes and subagents; each file's frontmatter carries its own model and permissions |
 | `AGENTS.md` | always-on global instructions: skill routing rules and the delegation policy (which subagent for which kind of work) |
 | `skills/` | OpenCode-only skills — ones that name its subagents or its custom tools, so they cannot be shared |
-| `~/.config/agents/skills/` | the harness-neutral shared skill tree (also reachable as `~/.agents/skills`); OpenCode reads it too |
+| `~/.config/agents/curated/` | repo-curated shared skills, linked into the harness-neutral `~/.agents/skills` root; OpenCode reads that root too |
 | `tools/*.ts` | custom tools built for this machine (git workflow, GitHub Projects, X search) |
 | `instructions/*.md` | always-on policy injected into every session (e.g. the secrets policy) |
 | the worktree's own `AGENTS.md` | project rules OpenCode reads on its own — you do not need to restate them |
@@ -196,7 +196,7 @@ inline interpreter, so the worker approval guard passes them.
 | Which CLI version is installed? | `opencode --version` |
 | What agents/subagents exist? | `ls ~/.config/opencode/agent` |
 | What does one agent do (model, permissions)? | `head -20 ~/.config/opencode/agent/<name>.md` |
-| Which skills can it load? | `ls ~/.config/opencode/skills` and `ls ~/.config/agents/skills` |
+| Which skills can it load? | `ls ~/.config/opencode/skills` and `ls ~/.agents/skills` |
 | What does a skill actually cover? | `head -30 ~/.config/opencode/skills/<name>/SKILL.md` |
 | What are the delegation/skill routing rules? | `rg -n "subagent_type|skill" ~/.config/opencode/AGENTS.md` |
 | What does the injected layer already say? | `cat ~/.config/opencode/AGENTS.md` and `cat <worktree>/AGENTS.md` (see <InjectedLayer>) |
