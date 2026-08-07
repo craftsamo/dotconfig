@@ -80,7 +80,7 @@ itself call `delegate_task` during its run.
 | **researcher** | evidence-backed synthesis, comparisons, fact checks, and guidance; heavy breadth is requested from the orchestrator | — (specialist) | `.` (launch / task ws) | `file,web,vision,video,skills,memory,delegation` | — | yes |
 | **searcher** | retrieval: lookup / sweep / hunt (multi-hop via `goal_mode` on cards) | — (specialist) | `.` (launch / task ws) | `web,x_search,skills,memory` | — | yes |
 | **creator** | all media production and assembly — image, video, GIF, audio, song, voice, part assembly — consuming released units (decided specs) under a Budget grant, with advisory and anchor-unit rounds | — (specialist) | `.` (launch / task ws) | `terminal,file,vision,image_gen,video_gen,video,tts,skills,memory,delegation` + gen plugins | — | yes |
-| **writer** | reader-facing prose and producer-facing scripts; draft-only, never publishes | — (specialist) | `.` (launch / task ws) | `file,web,skills,memory,delegation` | — | yes |
+| **writer** | reader-facing prose and producer-facing scripts from released units (outline / piece / whole job); draft-only, never publishes | — (specialist) | `.` (launch / task ws) | `file,web,skills,memory,delegation` | — | yes |
 | **marketer** | platform copy from released message units, four-stage pre-ship inspection, grounding judgment, and publishing only within a Publish grant | — (specialist) | `.` (launch / task ws) | `terminal,file,web,browser,x_search,vision,skills,memory,delegation` | — | yes |
 
 The table lists each role's native capability allowlist. `platform_toolsets` is
@@ -184,7 +184,13 @@ deliverable-defining decisions the assistant fixed in its plan family
 leaves; a spec gap or implied composite returns as a finding, input
 parts are consumed verbatim, and the production boundary keeps every
 content-altering transform on the creator side (the assistant handles
-bytes, never re-encodes). Details: creator's `creator-pipeline` skill. **marketer** speaks it with a
+bytes, never re-encodes). Details: creator's `creator-pipeline` skill.
+**writer** consumes released units the same way — an outline unit
+(structure + tone samples, gated before drafting), piece units against
+the approved outline, or a whole small job — under a non-waivable
+four-pass review floor, returning undecided deliverable-defining
+choices as spec-gap or granularity findings. Details: writer's
+`writer-pipeline` skill. **marketer** speaks it with a
 **Publish** grant (publishing is public and irreversible: absent grant =
 draft-only + an `APPROVAL:`-headlined block — `kind=needs_input`, always
 relayed to the human like `REVIEW:` — showing the exact post
@@ -268,7 +274,8 @@ Three per-profile layers, kept separate:
   surviving work before regenerating); researcher = evidence integrity (no
   fabricated citations); searcher = link integrity (only URLs actually
   retrieved); writer = deliverable integrity (no fabricated
-  facts/quotes/URLs; assumptions labeled) + never publishes; marketer = the
+  facts/quotes/URLs; assumptions labeled; the four-pass review floor
+  never skipped) + never publishes; marketer = the
   Publish + red floor (absent grant ⇒ draft-only; every post needs verbatim
   approval or in-cap consumption of approved inventory; claims resolve to
   the fact ledger; no price/deadline/scarcity changes; the four-stage
@@ -352,13 +359,14 @@ Three per-profile layers, kept separate:
     The ambiguous external `pixel-art` name is disabled too; the canonical
     Pixel leaves may use its scripts as opt-in implementation backends but are
     the only stable dispatch identities
-  - writer → `writer-pipeline` (resident-only, cards refused; routes
-    assess/write by
-    deliverable, parses the WritingBrief, and performs one-round tone
-    calibration; TypeTable routes copy/article/docs → references/prose.md
-    and 台本/絵コンテ/screenplay → references/script.md, with the four-pass
-    quality engine references/review.md shared by self-review and critique,
-    and consultations/critiques in references/assess.md) + external skills via
+  - writer → `writer-pipeline` (resident-only, cards refused; consumes
+    released units — outline / piece / whole job — with spec-gap and
+    granularity findings, routes assess/write by deliverable, and performs
+    one-round tone calibration; TypeTable routes copy/article/docs →
+    references/prose.md and 台本/絵コンテ/screenplay →
+    references/script.md, with the non-waivable four-pass quality engine
+    references/review.md shared by self-review and critique, and
+    consultations/critiques in references/assess.md) + external skills via
     `skills.external_dirs`: the Japanese stack via the curated
     `profiles/writer/external-skills/` symlink dir (japanese-writing /
     tech-prose / prose-rhythm, single-sourced with the shared
