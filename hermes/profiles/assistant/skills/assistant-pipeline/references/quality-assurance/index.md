@@ -54,7 +54,7 @@ publishing deliverable gets the full contract.
 | writing | `writing/index.md` — prose / script |
 | engineering | `engineering/index.md` — per-unit gate + inspection / acceptance |
 | research | `research/index.md` — sources, coverage, inference |
-| marketing | `marketing/index.md` — pre-publish and post-publish checks |
+| marketing | `marketing/index.md` — per-unit gate: ledger trace, inspection spot-check, live match |
 
 Selection rules:
 
