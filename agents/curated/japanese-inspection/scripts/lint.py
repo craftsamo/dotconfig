@@ -7,28 +7,22 @@
 #     "sudachidict-core>=20240409",
 # ]
 # ///
-"""lint.py — AI臭い日本語文章を決定的に検出する lint スクリプト。
+"""lint.py — AI 臭い日本語文章を決定的に検出する lint スクリプト。
 
-設計思想（HANDOFF.md 参照）:
-    「AI は自分自身の AI 臭さを認識できない」→ 機械的・決定的に検出して
-    人間（または AI 自身の別セッション）に突きつけ、直すかどうかの判断は
-    委ねる。これは CI ゲートではなく lint であるため、検出件数に関わらず
-    exit code は常に 0 にする。
-    ただし、これは「文章の中身」に関する判断を保留するという意味であり、
-    ファイルが読めない・存在しない・ディレクトリが指定された等の
-    「そもそも lint を実行できない」入力エラーとは区別する。
-    入力エラーの場合はエラーメッセージを表示し、exit code 1 で終了する。
+目的:
+    定型表現、構文、文長、語彙、具体性などの検出結果を提示し、修正要否の判断材料を
+    作る。finding の解釈は同スキルの references/findings.md を参照する。
 
 使い方:
     uv run scripts/lint.py <file.md> [--json]
 
-実装メモ:
-    - sudachipy の Tokenizer 生成（辞書ロード）は重いので、プロセス内で
-      一度だけ生成し使い回す（lazy シングルトン、textcore.get_tokenizer）。
-    - 文分割は「。」「！」「？」「\\n」を区切りとする簡易実装（textcore.split_sentences_with_lines）。
-      厳密な文境界解析ではないが、決定的検出のプロトタイプとしてはこれで十分。
-    - sudachi トークナイザ初期化・Markdown構造マスク・文分割・ファイル読み込みなどの
-      共有基盤は textcore.py にある（scripts/outline.py, scripts/terms.py と共用）。
+終了コード:
+    検出件数に関わらず 0。ファイル不在、ディレクトリ指定、読み取り不可などの入力
+    エラーだけ 1 とする。
+
+共有基盤:
+    Sudachi tokenizer、Markdown 構造マスク、文分割、ファイル読み込みは textcore.py
+    を使う。outline.py と terms.py も同じ基盤を共有する。
 """
 
 from __future__ import annotations
@@ -55,24 +49,11 @@ from textcore import (
     split_sentences_with_lines,
 )
 
-# ---------------------------------------------------------------------------
-# 辞書: 禁止語・LLM 常套句カタログ
-# ここは「拡張前提」のカタログ。新しい手癖フレーズに気づいたら追記していく。
-# 出典: HANDOFF.md 55-62行目、および note記事「禁止語60語超」の言及。
-#
-# 2026-07 コーパス校正（corpus/reports/archive/deep-analysis.md §4a）による見直し:
-# 実コーパス（人間103文書 + AI 81文書）で forbidden_phrase 全体の文書発火率が
-# human 58〜67% > ai 30〜33% と逆転していた。単語別ヒット数を見ると、
-# 「最後に」（人間48回 vs AI 2回）と「まさに」（人間24回 vs AI 0回）の2語だけで
-# 人間側ヒットの63%を占めており、これらは単なる日常語であって AI 特有の
-# 手癖ではないと判明したため削除した（deep-analysis.md §5 の明示的な推奨）。
-# 「重要なのは」「このように」「不可欠」「ポイントは」「さて、」は人間側でも
-# 一定数ヒットする（人間6〜15回 vs AI 2回前後）ため削除まではせず、
-# FORBIDDEN_PHRASES_WEAK_SIGNAL に移して severity を info に格下げしている
-# （検出は残すが「重大な逆向きシグナル」としては扱わない）。
-# 逆に「いかがでしょうか」「大切なのは」「根本的な」「まとめると」は
-# AI側ヒットの方が優勢で、当初の設計意図どおりの語として warn のまま残す。
-# ---------------------------------------------------------------------------
+# --- forbidden_phrase: 禁止語と LLM 常套句を辞書照合する ---
+# 拡張前提のカタログ。2026-07 校正では human 103 文書、AI 81 文書で文書発火率が
+# human 58〜67% > AI 30〜33% と逆転し、「最後に」48 回 vs 2 回、「まさに」24 回 vs 0 回は削除した。
+# 「重要なのは」「このように」「不可欠」「ポイントは」「さて、」は人間 6〜15 回 vs AI 2 回前後のため info に格下げし、
+# 「いかがでしょうか」「大切なのは」「根本的な」「まとめると」は AI 側優勢のため warn のまま残した。
 FORBIDDEN_PHRASES: list[str] = [
     # 結論の押し付け・まとめ口調
     "と言えるでしょう",
@@ -111,13 +92,13 @@ FORBIDDEN_PHRASES: list[str] = [
     "一概には言えません",
     "個人差がありますが",
     "あくまで一例ですが",
-    # 正面から系（出典: japanese-tech-writing の規範から。中身の代わりに姿勢だけを宣言する）
+    # 正面から系（中身の代わりに姿勢だけを宣言する）
     "正面から扱う",
     "正面から見る",
     "正面から書く",
     "正面から立てる",
     "正面から回収する",
-    # 空虚な形容（出典: japanese-tech-writing の規範から。主張の中身を説明せず強調・網羅感だけ付ける）
+    # 空虚な形容（主張の中身を説明せず、強調・網羅感だけを付ける）
     "不可欠",
     "核心的",
     "鍵となる",
@@ -125,7 +106,7 @@ FORBIDDEN_PHRASES: list[str] = [
     "多角的",
     "包括的",
     "総合的",
-    # 空虚な動詞・予告口調（出典: japanese-tech-writing の規範から。何をどう書いたか示さず終わる）
+    # 空虚な動詞・予告口調（何をどう書いたか示さず終わる）
     "掘り下げる",
     "深掘りする",
     "言語化する",
@@ -133,10 +114,8 @@ FORBIDDEN_PHRASES: list[str] = [
     "を探求する",
 ]
 
-# コーパス校正で「人間側でも一定数ヒットするため弱いシグナル」と判定した語。
-# 削除はせず検出は残すが、severity を warn ではなく info に下げる
-# （deep-analysis.md §4a: 人間6〜15回 vs AI 2回前後、比率は逆転していないが
-# 絶対数として人間の日常的な使用がそれなりにある語）。
+# 2026-07 校正で人間 6〜15 回 vs AI 2 回前後の弱いシグナルと判定した語。
+# 削除せず検出は残すが、severity を warn から info に下げる。
 FORBIDDEN_PHRASES_WEAK_SIGNAL: set[str] = {
     "重要なのは",
     "このように",
@@ -145,9 +124,7 @@ FORBIDDEN_PHRASES_WEAK_SIGNAL: set[str] = {
     "さて、",
 }
 
-# ---------------------------------------------------------------------------
-# 辞書: 翻訳調パターン（英語直訳っぽい構文）
-# ---------------------------------------------------------------------------
+# --- translationese: 英語直訳らしい構文を表層パターンで検出する ---
 TRANSLATIONESE_PATTERNS: list[str] = [
     r"することができ(る|ます|た)",
     r"することが可能(です|だ|になる)",
@@ -161,7 +138,7 @@ TRANSLATIONESE_PATTERNS: list[str] = [
     r"に他ならない",
 ]
 
-# 段落頭に来ると「AI が構成を接続詞で誤魔化しがち」な語
+# --- paragraph_lead_conjunction: 段落頭の接続詞による構成の連結を疑う ---
 PARAGRAPH_CONJUNCTIONS: list[str] = [
     "しかし",
     "また",
@@ -177,112 +154,53 @@ PARAGRAPH_CONJUNCTIONS: list[str] = [
     "ただし",
 ]
 
-# 否定→肯定対比の手癖パターン（正規表現）
+# --- antithesis_repetition: 否定から肯定へ続く対比表現の反復を疑う ---
 ANTITHESIS_PATTERNS = [
     re.compile(r"ではなく、?.{0,30}"),
     re.compile(r"だけでなく.{0,10}も"),
 ]
 
-# ---------------------------------------------------------------------------
-# 検出器の閾値パラメータ（デフォルト値付きモジュールレベル定数）
-#
-# 各検出器のヒット判定に使う「回数/割合/最低サンプル数」の閾値を、関数内の
-# リテラルではなくここに集約する。scripts/calibrate.py が閾値スイープで
-# パラメータを変えて検出器を直接呼べるようにするための整理であり、
-# ここに定義した値はすべて元のリテラルと同じ（CLI 挙動・検出結果は完全に不変）。
-# 各検出関数は同名のキーワード引数でこれらをデフォルト値として受け取り、
-# 呼び出し側から上書きできる。
-# ---------------------------------------------------------------------------
+# --- detector thresholds: 検出器の回数・割合・最低サンプル数を定数で管理する ---
+# 各検出関数は同名のキーワード引数で定数をデフォルト値として受け取り、呼び出し側から上書きできる。
 ANTITHESIS_REPETITION_THRESHOLD = 3
-# 2026-07 コーパス校正2（corpus/reports/antithesis-recalibration.md）: 絶対回数閾値
-# （3回以上）だけで severity=critical を出す旧仕様は、長文書（例: 12,000文規模の
-# 白書）では検出数が薄まって比率としてはノイズ同然でも critical 連打になる一方、
-# 質の高い書き手の修辞技法（誤解を先に否定してから定義する等）にも無差別に発火して
-# いた。実測（human quality:high、web+aozora、n=81）では絶対回数閾値ヒット率が
-# 23.5%（19文書）に達したが、そのヒット文書の「検出数/総文数」比率分布は中央値
-# 1.5%・90パーセンタイル2.4%・最大4.6%にとどまる。一方 AI 側のヒット文書
-# （hits>=3、n=48）の比率分布は中央値8.3%・最小でも2.65%と、human とほぼ重ならない
-# 分布を示した。この比率を使い、絶対回数閾値は維持しつつ severity を3段階化する:
-# ratio < ANTITHESIS_RATE_INFO_BELOW は info（薄い比率＝人間の技法との区別がつかない）、
-# ratio >= ANTITHESIS_RATE_CRITICAL_ABOVE は critical（高頻度＝真陽性の実測あり）、
-# その中間は warn。閾値0.02/0.03で human 全体の critical化率は4.9%（<5%目標達成）。
-# ただし tech ジャンルのみ human critical化率が11.1%と高く出たため、
-# GENRE_PROFILES["tech"]["antithesis_rate_critical_above"] で0.045に緩めている
-# （tech human critical化率は0%に低下、AI側もcritical 9/84 + warn 6/84 で検出は維持）。
+# 2026-07 校正では、旧仕様の「3 回以上なら全件 critical」が human quality:high（n = 81）で
+# 23.5% に発火し、ヒット文書の比率は中央値 1.5%・90 パーセンタイル 2.4% だった。AI（n = 48）は中央値 8.3%・最小 2.65% だった。
+# 比率 0.02 / 0.03 で info・warn・critical に分け、human の critical 化率は 4.9%（5% 未満）。tech は 11.1% だったため 0.045 に緩め、human 0%、AI critical 9/84 + warn 6/84を維持した。
 ANTITHESIS_RATE_INFO_BELOW = 0.02
 ANTITHESIS_RATE_CRITICAL_ABOVE = 0.03
 SENTENCE_VARIANCE_MIN_SENTENCES = 5
 SENTENCE_VARIANCE_CV_THRESHOLD = 0.25
 NOMINAL_ENDING_MIN_SENTENCES = 5
-# 2026-07 コーパス校正で検出方向を反転（corpus/reports/archive/deep-analysis.md §3, §4b）。
-# 体言止めは AI の手癖ではなく人間の修辞技法で、essayジャンルでは人間60%が使う一方
-# AIは0%（essay同ジャンル比較、n=50/37）。「多用」を警告する検出器としては
-# 前提が誤りだったため、「長文なのに体言止めが1つもない」ことを人間的修辞の
-# 欠如（AIらしさの一側面）として検出する方向に反転した。
-# NOMINAL_ENDING_RATIO_THRESHOLD は「この比率以下なら欠如とみなす」閾値
-# （反転前は「以上で警告」だった）。NOMINAL_ENDING_MIN_CHARS は
-# 「~2000字ビンで human 67% vs ai 0%」という長さ依存の知見を踏まえたガード
-# （短文書は人間でも体言止めがゼロなことが珍しくないため対象外にする）。
+# 2026-07 校正で方向を反転した。体言止めは人間の修辞技法で、essay は human 60% vs AI 0%（n = 50/37）だったため、
+# 「多用」ではなく「長文なのに 0 件」を欠如として検出する。約 2000 字ビンは human 67% vs AI 0% で、短文書は対象外とする。
 NOMINAL_ENDING_RATIO_THRESHOLD = 0.0
 NOMINAL_ENDING_MIN_CHARS = 2000
 PARAGRAPH_CONJ_MIN_PARAGRAPHS = 3
 PARAGRAPH_CONJ_RATIO_THRESHOLD = 0.3
 UNIFORM_PARAGRAPH_MIN_PARAGRAPHS = 4
 UNIFORM_PARAGRAPH_CV_THRESHOLD = 0.15
-# NESTED_ATTRIBUTIVE_THRESHOLD は 2026-07 コーパス校正で検出器ごと削除（弁別力なし）。
+# 連体修飾の入れ子検出器は 2026-07 校正で弁別力なしと判定し、検出器ごと削除した。
 BURSTINESS_MIN_TOKENIZED = 6
-# 2026-07 コーパス校正（corpus/reports/archive/sweep_low_burstiness.md）: 旧値-0.62では
-# human/aiとも0%/0%で「無反応」だった。sweepで-0.9〜-0.2を走査した結果、
-# -0.24で human FP率2.4%・AI検出率100.0%と、他の統計系検出器の中では唯一
-# 弁別力を示したため、この値を採用する。ただしAI標本はn=3と極めて小さく、
-# コーパス拡充後に再sweepして確定させる必要がある暫定値。
+# 2026-07 校正では旧値 -0.62 が human/AI とも 0% で無反応だったため走査し、-0.24 で
+# human FP 率 2.4%・AI 検出率 100.0% となった。ただし AI 標本は n = 3 と小さく、暫定値とする。
 BURSTINESS_THRESHOLD = -0.24
 AUTOCORR_MIN_XS = 4
 AUTOCORR_THRESHOLD = 0.6
-# 2026-07 コーパス校正で閾値を大幅に引き上げ、severityも格下げ（deep-analysis.md
-# §3, §4）。文頭反復は human_web 93% vs ai 41%（文書発火率）と人間側で
-# 圧倒的に多く、essay同ジャンルでも人間92% vs AI35%と逆転していた。
-# 人間の書き手が意図的にリズムとして文頭を反復する技法と、AIの反復癖を
-# この検出器だけでは区別できないため、閾値を3→6に引き上げて「明らかな
-# 過剰反復」だけを拾うようにし、severityもwarnからinfoに下げて
-# 判断材料の提示にとどめる。
+# 2026-07 校正では文頭反復が human_web 93% vs AI 41%、essay でも human 92% vs AI 35% だった。
+# 人間の意図的な反復と区別できないため、閾値を 3 から 6 に上げ、severity を warn から info に下げた。
 NGRAM_LEAD_REPEAT_THRESHOLD = 6
 NGRAM_TEMPLATE_MIN_COUNT = 6
 NGRAM_TEMPLATE_RATIO_THRESHOLD = 0.4
 LEXDIV_MIN_TOKENS = 30
 TTR_THRESHOLD = 0.45
 MTLD_THRESHOLD = 40
-# 2026-07 コーパス校正（corpus/reports/archive/length_analysis.md）: TTRが意味のある
-# 差を示すのは文書長4000字以上のビンのみ（それ未満は human/ai とも0%で無意味）。
+# 2026-07 校正では TTR が差を示したのは文書長 4000 字以上のビンだけで、それ未満は human / AI とも 0% だった。
 LEXDIV_MIN_DOC_CHARS = 4000
 
-# ---------------------------------------------------------------------------
-# low_specificity（具体性/一般論臭）検出器のパラメータ
-#
-# Phase 3（HANDOFF.md 参照）: 「固有名詞・数値・実例がなく、抽象名詞ばかりの
-# 段落」は、表層の禁止語や統語パターンとは別種のAI臭（＝素材不足のサイン）で、
-# 既存の検出器では拾えない。段落単位で具体性シグナルを合成スコア化し、
-# 閾値未満なら info で指摘する。
-#
-# 合成式: score = 固有名詞密度*重み + 数値密度*重み + 例示マーカー加点
-#                - 抽象名詞率*重み
-# 「密度」「率」は内容語（名詞/動詞/形容詞/副詞）数に対する割合。
-# 閾値・重みはこの時点では暫定値であり、scripts/calibrate.py の corpus/ 校正
-# （sweep --detector low_specificity）で確定させる前提（このコミット時点の値も
-# 校正済み。閾値変更の経緯は corpus/reports/archive/sweep_low_specificity.md 参照）。
-# ---------------------------------------------------------------------------
-# 2026-07 コーパス校正（corpus/reports/archive/sweep_low_specificity.md、grid search
-# ログはコミットしていないが手順は本ファイルのコメントに残す）: 当初の重み
-# （proper=3.0, numeric=4.0, abstract=1.0, threshold=0.05）は human FP率が
-# 46.6%（!）に達し、実用にならなかった。原因は「固有名詞も数値も例示マーカーも
-# 一切ない段落」が多数を占め、それらが score=0 ちょうどに集中して閾値0付近で
-# 一斉に発火していたため。閾値を負に大きくズラして「明確に抽象名詞が勝っている」
-# 段落だけを拾うよう調整し、あわせて重みを小さくして score の分散を滑らかにした。
-# 現在値は human FP率 3.9%（<5%目標達成）、AI全体検出率 7.4%、
-# claude-haiku-4-5 サブセット検出率 5.9%（n=34）。
-# 弁別力自体は他の校正済み検出器と比べて弱いが、コーパス標本数が小さい
-# （human n=103, ai n=81）中での探索結果であり、コーパス拡充後に再校正すべき
-# 暫定値として明示しておく。
+# --- low_specificity: 具体性の乏しい段落を合成スコアで疑う ---
+# 固有名詞密度・数値密度・例示マーカーを加点し、抽象名詞率を減点する。短い段落は対象外とする。
+# 2026-07 校正では当初設定の human FP 率が 46.6% だったため閾値と重みを調整し、現在は human 3.9%、AI 7.4%、
+# claude-haiku-4-5 は 5.9%（n = 34）。human n = 103、AI n = 81 の探索結果であり、コーパス拡充後に再校正する暫定値。
 LOW_SPECIFICITY_MIN_CHARS = 80
 LOW_SPECIFICITY_MIN_CONTENT_WORDS = 15
 LOW_SPECIFICITY_PROPER_NOUN_WEIGHT = 1.0
@@ -291,12 +209,8 @@ LOW_SPECIFICITY_EXAMPLE_MARKER_BONUS = 0.1
 LOW_SPECIFICITY_ABSTRACT_NOUN_WEIGHT = 1.5
 LOW_SPECIFICITY_SCORE_THRESHOLD = -0.15
 
-# 形式名詞・抽象名詞のカタログ（拡張前提）。出典: HANDOFF.md の一般論臭の説明、
-# および japanese-tech-writing の「空句」規範。辞書形（dictionary_form）で比較する。
-#
-# 「こと」「もの」「の」はコーパス校正で除外した: 出現頻度が極端に高く
-# （human 82/103文書、ai 72/81文書で出現）、機能語に近い一般的な形式名詞のため
-# 弁別力がない（corpus/reports/archive/sweep_low_specificity.md 参照）。
+# 形式名詞・抽象名詞のカタログ（拡張前提）。辞書形（dictionary_form）で比較する。
+# 「こと」「もの」「の」は human 82/103 文書、AI 72/81 文書に出現し、弁別力がないため除外した。
 ABSTRACT_NOUN_WORDS: set[str] = {
     "側面",
     "観点",
@@ -345,61 +259,28 @@ NUMERIC_QUANTITY_RE = re.compile(
     r"(年代|年間|世紀|年|月|日|時間|時|分|秒|人|円|%|％|kg|km|cm|mm|g|m|回|件|個|つ|割|倍|台|社|名|冊|本|杯|軒)?"
 )
 
-# ---------------------------------------------------------------------------
-# --genre プロファイル（2026-07 コーパス校正で新設）
-#
-# deep-analysis.md はジャンル別（essay/tech/business）に人間・AI差の大きさが
-# 異なることを示した: essay は nominal_ending・repeated_sentence_lead の逆転が
-# 最も強く出るジャンル、tech は人間の書き手も見出し・箇条書き・太字を多用する
-# ため AI との差が縮む傾向にある。business はコーパスが薄く
-# （人間側n=10、AI側n=0）、単独でのプロファイル確定は時期尚早なので、
-# 指示どおり tech と同じ値を使う。
-# genre 未指定（デフォルト）はどのジャンルにも偏らない共通の保守的閾値
-# （モジュール定数のデフォルト値そのもの）を使う。
-# ---------------------------------------------------------------------------
+# --- genre profile: ジャンル別に校正した閾値を適用する ---
+# essay は体言止め欠如と文頭反復の差が大きく、tech は人間も構造を多用するため差が縮む。
+# business は human n = 10、AI n = 0 と標本が薄いため、tech と同じ値を使い、衝突しやすい構造検出を無効化する。
+# genre 未指定時は、モジュール定数の共通で保守的なデフォルト値を使う。
 GENRE_PROFILES: dict[str, dict] = {
     "essay": {
-        # essayジャンルは体言止め欠如シグナルが最も強く出る（人間60% vs AI 0%）ため、
-        # 共通閾値よりやや短い文書長からでも欠如を拾えるようにする。
+        # essay は体言止め欠如が human 60% vs AI 0% と強く出るため、短い文書長から拾う。
         "nominal_min_chars": 1500,
-        # essayも文頭反復の逆転が大きい（人間92% vs AI35%）ジャンルだが、
-        # 依然として人間の意図的反復技法との区別はつかないため、共通閾値より
-        # わずかに低いだけに留める（過検出を避ける）。
+        # essay は文頭反復も human 92% vs AI 35% と差が大きいが、意図的反復と区別できないため保守的に調整する。
         "lead_repeat_threshold": 5,
     },
     "tech": {
-        # tech記事は人間もAIも見出し・箇条書き構成に寄るため差が縮む。
-        # 誤検知を避けるため共通閾値よりやや保守的（緩め）にする。
+        # tech は human も AI も見出し・箇条書き構成に寄るため、誤検知を避けて保守的に調整する。
         "nominal_min_chars": 3000,
         "lead_repeat_threshold": 7,
-        # antithesis_repetition の2026-07コーパス校正2（corpus/reports/
-        # antithesis-recalibration.md）: tech ジャンルは共通閾値0.03だと
-        # human quality:high の critical化率が11.1%（zennの技術記事2本）と
-        # 目標の5%を超えたため、0.045に緩める（tech human critical化率0%に低下、
-        # AI側もcritical 9/84 + warn 6/84 で検出は維持）。
+        # tech は共通閾値 0.03 で human critical 化率 11.1% となったため 0.045 に緩めた。
+        # human は 0% に低下し、AI は critical 9/84 + warn 6/84 で検出を維持した。
         "antithesis_rate_critical_above": 0.045,
     },
-    # business は 2026-07 の実地校正（corpus/reports/business-calibration.md）で
-    # 実測した。人間側コーパスは corpus/human/web の biz-* 10件のみと薄いため、
-    # 「AIで強く光る検出器を厳しくする」方向の調整はせず、事業文書の正当な慣習
-    # （箇条書き・太字強調・定型見出し・フェーズ表現）と衝突しうる検出器は
-    # 無効化するに留めている（詳細は上記レポート参照）。
-    #   - nominal_min_chars: tech と同値（3000）を維持。実測では business
-    #     コーパス（人間・AIとも）で nominal_ending が閾値に関わらず一度も
-    #     発火しなかった（文書が短くAI/人間どちらの誤検知リスクも無い）ため、
-    #     変更する実測的根拠がない。
-    #   - lead_repeat_threshold: tech と同値（7）を維持。実測でこの値が
-    #     human_business の誤検知（デフォルト閾値6で20%→閾値7で10%）を
-    #     半減させつつ ai_business の検出率（4%）を落とさない局所最適点。
-    #   - disabled_categories: high_bullet_ratio・high_bold_density・
-    #     boilerplate_heading・numbered_phase_structure は、事業文書
-    #     （報告書・提案書・議事録等）で箇条書き・太字強調・「まとめ」等の
-    #     定型見出し・フェーズ/ステップ表現が正当に多用されるため、
-    #     AI側の発火率がどうであれ business ジャンルでは無効化する。
-    #     これらはいずれも EXPERIMENTAL_CATEGORIES に属し、デフォルトでは
-    #     既に出力されない（--experimental 指定時のみ影響する）が、将来
-    #     デフォルト化された場合の誤検知を防ぐため、ジャンル側でも明示的に
-    #     無効化しておく。
+    # business は human n = 10、AI n = 0 と標本が薄いため、実験的な構造検出器との衝突を避けて無効化する。
+    # nominal_min_chars は 3000、lead_repeat_threshold は 7 を維持する。後者は human の誤検知を 20% から 10% に下げ、
+    # AI の検出率 4% を保った局所最適点である。
     "business": {
         "nominal_min_chars": 3000,
         "lead_repeat_threshold": 7,
@@ -419,14 +300,8 @@ def format_related_lines(related_lines: list[int]) -> str:
     return "対応箇所: " + ", ".join(f"L{n}" for n in uniq_sorted)
 
 
-# ---------------------------------------------------------------------------
-# --baseline 差分モード
-#
-# スキルの利用フローは「lint → 台帳に直した/残すを仕分け → 修正 → 再lint →
-# 新規findingが出なくなるまで繰り返す」という収束駆動ループになっている。
-# ループのたびに全件を目視で見比べるのは負担が大きいので、前回の --json 出力
-# （baseline）と今回の結果を比較し、resolved（解消）/ new（新規）/
-# persisting（継続）に分類する。
+# --- baseline diff: 前回の JSON と今回の finding を比較する ---
+# 前回の --json 出力と今回の結果を比較し、resolved（解消）/ new（新規）/ persisting（継続）に分類する。
 #
 # 同一性キーの設計判断:
 #   行番号は修正のたびに増減してズレるため、キーに含めない
@@ -571,9 +446,7 @@ def compute_baseline_diff(
 
 
 
-# ---------------------------------------------------------------------------
-# 各検出器
-# ---------------------------------------------------------------------------
+# --- detector implementations: 各検出器の実装 ---
 
 
 def _raw_or_masked(raw_lines_by_no: dict[int, str] | None, no: int, fallback: str) -> str:
@@ -648,13 +521,9 @@ def detect_antithesis_repetition(
     """「〜ではなく、〜」「〜だけでなく〜も」を文書全体で数え、threshold回（デフォルト3回）
     以上なら反復として検出する。
 
-    2026-07 コーパス校正2（corpus/reports/antithesis-recalibration.md、モジュール定数
-    ANTITHESIS_RATE_INFO_BELOW / ANTITHESIS_RATE_CRITICAL_ABOVE のコメントも参照）:
-    出現ごとに severity=critical を付けていた旧仕様は、長文書での薄い頻度でも
-    critical が連打されノイズ化する一方、人間の意図的な修辞技法にも無差別に発火して
-    いた。「検出数/総文数」の比率で severity を3段階化する: 比率が低ければ info
-    （人間の技法との区別がつかない参考情報）、高ければ critical（実測で真陽性が
-    多い高頻度パターン）、その中間は warn。
+    2026-07 校正で、出現ごとに severity=critical を付ける旧仕様は長文書でも
+    critical が連打され、人間の意図的な修辞技法にも発火していた。「検出数/総文数」の
+    比率で severity を3段階化し、低ければ info、高ければ critical、その中間は warn とする。
 
     どの文同士が反復としてカウントされたか追えるよう、全ヒット行番号を
     related_lines / detail の両方に含める。excerpt は原文から切り出す。
@@ -669,8 +538,7 @@ def detect_antithesis_repetition(
 
     findings = []
     if len(hits) >= threshold:
-        # 文書全体の総文数に対する検出数の比率で severity を決める（絶対回数の閾値
-        # 判定とは別に、比率が文書の長さに関わらず一貫した「密度」の指標になる）。
+        # 文書全体の総文数に対する検出数の比率で severity を決める。
         total_sentences = len(split_sentences_with_lines(lines, raw_lines_by_no))
         ratio = len(hits) / total_sentences if total_sentences else 0.0
         if ratio < rate_info_below:
@@ -1227,8 +1095,7 @@ def detect_lexical_diversity(
     """内容語（名詞/動詞/形容詞/副詞）の基本形を対象に TTR と MTLD を計測する。
     語彙が使い回されている（AIが同じ言い回しをループしがち）と TTR/MTLD が低くなる。
 
-    2026-07 コーパス校正（corpus/reports/archive/length_analysis.md）: TTR は文書長
-    ~4000字未満のビンではhuman/aiとも一律0%で、統計として機能していない
+    2026-07 校正で TTR は文書長 4000 字未満のビンでは human/AI とも一律 0% で、統計として機能していない
     ことが判明した。4000字以上のビンで初めて意味のある差（human 77%）が
     出るため、文書全体の文字数が min_doc_chars 未満の場合は「文書が短いため
     未評価」として明示的にスキップする（閾値ではなく適用条件でガードする、
@@ -1298,10 +1165,8 @@ def detect_low_specificity(
     短い段落は誰が書いてもある程度抽象的になりうるため、文字数・内容語数の
     両方が最低ラインを超えた段落だけを判定対象にする（gate）。
 
-    これは文体（言い回し）の問題ではなく、段落を支える固有名詞・数値・一次情報
-    そのものが足りていない「素材不足」のサインであるため、detail では
-    書き直しではなく情報収集を検討するよう促す
-    （references/revision-guide.md の「素材不足の分岐」参照）。
+    これは文体の問題ではなく、段落を支える固有名詞・数値・一次情報が足りない
+    「素材不足」のサインである。detail では書き直しより情報収集を促す。
     """
     tokenizer = get_tokenizer()
     from sudachipy import SplitMode
@@ -1371,7 +1236,7 @@ def detect_low_specificity(
                         f"抽象名詞率={abstract_noun_ratio:.3f}, 例示マーカー={'あり' if has_example_marker else 'なし'}。"
                         "固有名詞・数値・実例が乏しく一般論に留まっている疑い。"
                         "素材不足のサインであり、文体の修正でなく情報収集を検討する"
-                        "（revision-guide.md の素材不足の分岐を参照）"
+                        "（japanese-business-docs の references/design.md「素材不足の分岐」を参照）"
                     ),
                 )
             )
@@ -1383,17 +1248,10 @@ def detect_low_specificity(
     return findings, stats
 
 
-# nested_attributive（連体修飾の入れ子検出）は 2026-07 コーパス校正で削除した。
-# sweep_nested_attributive.md: 閾値1〜6のどの値でも人間FP率が5%を切らず
-# （閾値3で人間85.4%が発火、AIも100%発火。閾値6まで緩めても人間51.2%が発火）、
-# deep-analysis.md でも essay同ジャンルで人間100% vs AI 92〜100%とほぼ差がない
-# 「全発火・弁別力なし」と判定された。閾値調整では救えないノイズだったため、
-# 検出器そのものと専用ヘルパー（旧 build_line_to_paragraph_map）を削除している。
-# 経緯は references/translationese.md の該当節にも記載。
+# nested_attributive（連体修飾の入れ子検出）は 2026-07 校正で削除した。
+# 閾値 1〜6 の human FP 率は 5% 未満にならず、閾値 3 では human 85.4%・AI 100%、閾値 6 でも human 51.2% が発火し、弁別力がなかった。
 
-# ---------------------------------------------------------------------------
-# 英語統語の検出（挑戦枠）
-# ---------------------------------------------------------------------------
+# --- english_syntax: 英語直訳らしい無生物主語構文を表層で疑う ---
 
 # 無生物主語（＋こと/事実など形式名詞化）+ 他動詞的な述語、という
 # 「英語を日本語に直訳した構文」のシグナルをまず正規表現で粗く拾う。
@@ -1512,20 +1370,9 @@ def detect_inanimate_subject_morph(tokenized: list[TokenizedSentence]) -> list[F
 
 
 # ---------------------------------------------------------------------------
-# 構造層検出器（2026-07 コーパス校正で新設）
-#
-# ここまでの検出器はすべて Markdown 構造をマスクした「地の文」に対して働く。
-# しかし deep-analysis.md §4c の5文書精読では、AI 生成文（特に claude-haiku-4-5
-# のtech系）に「太字の多用」「番号付きフェーズ構造」「『まとめ』『おわりに』
-# 定型見出しでの締め」といった、文章そのものではなく Markdown 構造レベルの
-# 教科書的な癖が繰り返し観測された。この一群は逆にマスク前の raw テキストを
-# 見る必要があるため、run_lint() 内で mask_markdown_structure() より前に
-# 呼び出す専用の検出器ファミリーとして新設する。
-#
-# 注意: この一群はまだ deep-analysis.md の定量コーパス計測を経ておらず、
-# 5文書の質的観察のみが根拠（暫定閾値）。EXPERIMENTAL_CATEGORIES に含めて
-# デフォルト無効化し、--experimental フラグを付けたときだけ有効にする。
-# ---------------------------------------------------------------------------
+# --- structural_ai_habits: Markdown 構造に現れる教科書的な AI 癖を実験的に疑う ---
+# 太字の多用、番号付きフェーズ、定型見出し、箇条書き、絵文字を raw テキストから検出する。
+# 定量校正前の暫定検出器のため、EXPERIMENTAL_CATEGORIES に含め、--experimental 時だけ有効にする。
 BOLD_SPAN_RE = re.compile(r"\*\*[^*\n]+\*\*")
 BOLD_DENSITY_PER_1000_THRESHOLD = 3.0
 BULLET_LINE_RATIO_THRESHOLD = 0.35
@@ -1559,7 +1406,7 @@ def detect_structural_ai_habits(raw_text: str) -> tuple[list[Finding], dict]:
     raw_lines = iter_lines_with_no(raw_text)
     total_chars = len(raw_text) or 1
 
-    # 1) 太字密度
+    # --- high_bold_density: 太字スパンの密度を疑う ---
     bold_hits = list(BOLD_SPAN_RE.finditer(raw_text))
     bold_per_1000 = len(bold_hits) / total_chars * 1000
     if bold_per_1000 >= BOLD_DENSITY_PER_1000_THRESHOLD and len(bold_hits) >= 3:
@@ -1577,7 +1424,7 @@ def detect_structural_ai_habits(raw_text: str) -> tuple[list[Finding], dict]:
             )
         )
 
-    # 2) 箇条書き行比率
+    # --- high_bullet_ratio: 箇条書き行への偏りを疑う ---
     non_blank_lines = [(no, line) for no, line in raw_lines if line.strip()]
     bullet_lines = [no for no, line in non_blank_lines if _LIST_ITEM_RE.match(line)]
     if len(non_blank_lines) >= BULLET_LINE_MIN_LINES:
@@ -1597,7 +1444,7 @@ def detect_structural_ai_habits(raw_text: str) -> tuple[list[Finding], dict]:
                 )
             )
 
-    # 3) 定型見出し（「まとめ」「おわりに」等）
+    # --- boilerplate_heading: 定型見出しによる構成を疑う ---
     boilerplate_lines = []
     for no, line in iter_lines_with_no(raw_text):
         m = _HEADING_RE.match(line)
@@ -1622,7 +1469,7 @@ def detect_structural_ai_habits(raw_text: str) -> tuple[list[Finding], dict]:
             )
         )
 
-    # 4) 番号付きフェーズ構造（「フェーズ1」「ステップ2」等が3回以上）
+    # --- numbered_phase_structure: 番号付きフェーズ表現の反復を疑う ---
     phase_hits = list(NUMBERED_PHASE_RE.finditer(raw_text))
     if len(phase_hits) >= NUMBERED_PHASE_MIN_COUNT:
         first_line = raw_text[: phase_hits[0].start()].count("\n") + 1
@@ -1639,7 +1486,7 @@ def detect_structural_ai_habits(raw_text: str) -> tuple[list[Finding], dict]:
             )
         )
 
-    # 5) 絵文字・装飾記号の密度
+    # --- high_emoji_symbol_density: 絵文字と装飾記号の密度を疑う ---
     emoji_hits = list(EMOJI_SYMBOL_RE.finditer(raw_text))
     emoji_per_1000 = len(emoji_hits) / total_chars * 1000
     if emoji_per_1000 >= EMOJI_SYMBOL_PER_1000_THRESHOLD and len(emoji_hits) >= 3:
@@ -1670,17 +1517,11 @@ def detect_structural_ai_habits(raw_text: str) -> tuple[list[Finding], dict]:
     return findings, stats
 
 
-# ---------------------------------------------------------------------------
-# メイン処理
-# ---------------------------------------------------------------------------
+# --- lint pipeline: 検出器を前処理、実行、集計の順に組み合わせる ---
 
-# 2026-07 コーパス校正で「無反応」（human/aiともにほぼ0%発火）と判定された
-# 検出器（corpus/reports/archive/deep-analysis.md §3, §5）。sweepで閾値を緩めても
-# low_burstiness 以外は弁別力を示す根拠データがまだない（sweepレポート未生成）ため、
-# 削除はせず「実験的（experimental）」としてデフォルト無効化する。
-# 加えて、新設の構造層検出器（high_bold_density 等）もまだ定量校正前なので
-# 同様に実験的カテゴリに含める。
-# --experimental フラグを付けたときだけ、これらのカテゴリの finding を残す。
+# 2026-07 校正でほぼ無反応（human/AI とも発火率がほぼ 0%）だった検出器は削除せず、
+# 実験的カテゴリとしてデフォルト無効化する。構造層検出器も定量校正前のため同じ扱いとする。
+# --experimental 時だけ、これらのカテゴリの finding を残す。
 EXPERIMENTAL_CATEGORIES: set[str] = {
     "high_length_autocorrelation",
     "paragraph_lead_conjunction",
@@ -1706,7 +1547,8 @@ def run_lint(
     """
     profile = GENRE_PROFILES.get(genre, {})
 
-    # --- 構造層検出器は Markdown マスクより前のテキストを解析するが、HTML コメント内の
+    # --- structural preprocessing: Markdown マスク前に構造層検出器を実行する ---
+    # HTML コメント内の
     # 太字・番号付きフェーズ・絵文字を誤検知しないよう、HTML コメントのみを同じ長さの
     # 空白に置換したテキストを渡す（行番号・オフセットは raw_text と一致するため、
     # 検出器内で raw_text から excerpt を切り出す既存ロジックはそのまま使える）。
@@ -1725,7 +1567,7 @@ def run_lint(
 
     findings: list[Finding] = []
     findings += structural_findings
-    # --- 表層（正規表現）ベースの検出器 ---
+    # --- surface detectors: 正規表現で表層パターンを検出する ---
     findings += detect_forbidden_phrases(lines, raw_lines_by_no)
     findings += detect_translationese(lines, raw_lines_by_no)
     findings += detect_antithesis_repetition(
@@ -1736,7 +1578,7 @@ def run_lint(
     findings += detect_low_sentence_length_variance(sentences)
     findings += detect_english_syntax_smell(lines, raw_lines_by_no)
 
-    # --- 形態素解析ベースの検出器（拡張: 品詞列・活用形マッチ） ---
+    # --- morphological detectors: 品詞列と活用形を検出する ---
     nominal_and_conj_findings, morph_stats = detect_nominal_ending_and_paragraph_conjunctions(
         lines,
         tokenized,
@@ -1936,4 +1778,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
-
