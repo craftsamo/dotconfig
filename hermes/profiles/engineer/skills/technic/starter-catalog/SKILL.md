@@ -1,16 +1,18 @@
 ---
 name: starter-catalog
 description: >-
-  Engineer's map of the local starter/boilerplate ecosystem — how starter
-  repositories and their platform derivatives are named, discovered at
-  runtime (ghq + gh, never from memory), evaluated for fit, and introduced
-  when bootstrapping a new repository (implement.md's B1/B2 bootstrap
-  branch). Load it when an assess card reports a bootstrap signal and needs
-  grounded starter candidates, or when a bootstrap card's chosen path names
-  a starter from the local family. Generic by design: this file carries
-  conventions and recipes only — concrete family names are discovered per
-  task and persisted to MEMORY.md, never written into this skill.
-version: 1.0.0
+  Engineer's observation kit for the local starter/boilerplate ecosystem —
+  how starter repositories and their platform derivatives are named and
+  discovered at runtime (ghq + gh, never from memory), so an assess job can
+  ground the bootstrap signal's starter candidates, and how family remote
+  wiring is verified from inside a worktree. The starter DECISION and the
+  repo's establishment are the assistant's (its bootstrap plan leaf owns
+  the fit rubric; its github-ops boundary owns creation and wiring) — this
+  skill observes and reports, and executes nothing beyond a delegated
+  worktree job's own scope. Generic by design: conventions and recipes
+  only — concrete family names are discovered per task and persisted to
+  MEMORY.md, never written into this skill.
+version: 2.0.0
 author: CraftSamo
 license: MIT
 metadata:
@@ -23,35 +25,38 @@ metadata:
 <Goal>
 
 New repositories on this machine usually start from a maintained
-starter/boilerplate family, not from `git init`. Knowing how that family is
-structured, how to OBSERVE it (discovery + fit evaluation, read-only), and
-how to INTRODUCE it (clone + remote wiring under the B grant) turns "no
-repo yet" from a guess into a grounded report and a mechanical bootstrap.
+starter/boilerplate family, not from `git init`. Knowing how that family
+is structured and how to OBSERVE it (read-only discovery) turns an assess
+bootstrap signal from a guess into a grounded candidate report. Choosing
+a starter and introducing the repo are the assistant's; your output is
+observations.
 
-This skill is **conventions plus recipes, never an inventory**. The family
-grows and this config repo is public — concrete repo names never live
-here. Discover them at runtime; persist durable findings to MEMORY.md.
+This skill is **conventions plus recipes, never an inventory**. The
+family grows and this config repo is public — concrete repo names never
+live here. Discover them at runtime; persist durable findings to
+MEMORY.md.
 
 </Goal>
 
 <Scope>
 <UseWhen>
 
-- An assess (facts) card hits the bootstrap signal — no repo exists — and
+- An assess (facts) job hits the bootstrap signal — no repo exists — and
   the report should include grounded `starter:` candidates.
-- A bootstrap card (implement.md <BootstrapBranch>) whose chosen path names
-  a starter from the local family, and you need the introduction mechanics
-  (clone source, remote wiring).
 - A feasibility verdict depends on whether a suitable starter exists here.
+- Work inside a family worktree needs its lineage verified (upstream-sync
+  jobs, or a delegated bootstrap job checking its ground).
 
 </UseWhen>
 <DoNotUseWhen>
 
-- Choosing the path — clone vs starter vs greenfield is the orchestrator's
-  decision; this skill informs it and executes it, never makes it.
-- Generic public scaffolders (`create-next-app`, `cargo new`, `uv init`) —
-  implement.md's bootstrap branch covers them directly.
-- Work inside an existing repo.
+- Choosing the starter or the path — clone vs starter vs greenfield is
+  the assistant's decision (its bootstrap plan leaf carries the fit
+  rubric); this skill informs it, never makes it.
+- Creating repos, wiring remotes, template instantiation — the
+  assistant's github-ops boundary operations, never yours.
+- Generic public scaffolders (`create-next-app`, `cargo new`, `uv init`)
+  — implement.md's <BootstrapBranch> covers running them directly.
 
 </DoNotUseWhen>
 </Scope>
@@ -66,27 +71,13 @@ Starters form a **derivation tree**, expressed in repo names:
 - Variant derivative: `<root>-with-<platform>-<variant>` — a derivative
   specialized further.
 
-Illustrative shape (names are fictional — discover the real family with
-<DiscoveryRecipes>, never assert from this file):
-
-```
-acme-starter                        ← root
-├─ acme-starter-with-paas           ← platform derivative
-└─ acme-starter-with-k8s
-   └─ acme-starter-with-k8s-bot     ← variant derivative
-```
-
-Two conventions travel with the tree:
-
-- **Derivatives track their parent** via an `upstream` git remote (`origin`
-  = the derivative's own repo, `upstream` = the parent starter). Periodic
-  upstream-sync work depends on this wiring — a derivative cloned without
-  it is cut off from its family.
-- **Rebranding is not bootstrap.** Changing the identity surface (README
-  title/intro/clone URLs, package names, container names) to the new
-  repo's own is the first Wave of the FIRST implement task on the new
-  repo — the bootstrap card only establishes the clone, the remotes, and
-  the initial commit state.
+Operationally, a family member carries `origin` = its own repo and
+`upstream` = its parent starter; a worktree missing that `upstream` has
+silently left the family — report the drift (upstream-sync work depends
+on the wiring), and repair it only when the job's grant names it.
+Rebranding is not bootstrap: the identity surface (README, package
+names, container names) changes as the first unit of the first
+implement task, never in an establishment job.
 
 </FamilyConvention>
 
@@ -106,45 +97,20 @@ scans all owners; `gh` resolves the authenticated account at runtime):
 
 </DiscoveryRecipes>
 
-<FitEvaluation>
+<CandidateReport>
 
-Read-only, assess altitude — the output is candidates for the decider,
-never a decision:
+For an assess bootstrap signal, the observation deliverable is:
 
 1. **Inventory** the family (<DiscoveryRecipes>), locally and remotely.
-2. **Shortlist by platform distance** — prefer the nearest derivative to
-   the target need (a repo destined for platform X starts from
-   `-with-<X>` if it exists, else the root; a new variant starts from its
-   nearest sibling, not the root).
-3. **Read the shortlisted candidates**: README (what it claims to be),
+2. **Read the plausible candidates**: README (what it claims to be),
    `AGENTS.md`/`CLAUDE.md` (conventions a builder inherits), top-level
-   layout (workspaces/apps/packages), and freshness (recipes above).
-4. **Report 2-3 candidates** with one line each — lineage, platform fit,
+   layout, freshness (recipes above).
+3. **Report 2-3 candidates** with one line each — lineage, platform fit,
    freshness — plus a marked recommendation and its reason. This slots
    into the assess bootstrap signal's `starter: <candidates>` option
-   (`references/assess.md`).
+   (`references/assess.md`). The fit call itself is the assistant's.
 
-</FitEvaluation>
-
-<IntroductionPaths>
-
-Executed only on a bootstrap card, under its B grant
-(implement.md <BootstrapBranch> owns the full contract — guard, initial
-commit, report):
-
-| Chosen path | Mechanics | Grant |
-| --- | --- | --- |
-| New project from a starter | clone the starter to the target ghq path → point `origin` at the NEW repo (`gh repo create --source … --push` does both) → add `upstream` = the starter | remote creation/push = B2; local-only stops before the remote step (B1) |
-| New family derivative | same as above; the clone source is the **nearest sibling** (per <FitEvaluation>), `upstream` = that sibling | B1/B2 as above |
-| Template-repo instantiation | `gh repo create --template <starter>` — remote-first, so **B2 only**; clone the result to the ghq path; template copies carry no upstream remote — add one if family sync is wanted | B2 |
-
-- Rebranding stays out (see <FamilyConvention>) — report it as the
-  expected first Wave of the follow-up implement task instead.
-- Preserving upstream history vs a squashed start is a **path decision the
-  card body must state** (plain clone keeps history; `--template` or
-  `degit`-style copies do not) — absent, block rather than pick.
-
-</IntroductionPaths>
+</CandidateReport>
 
 <MemoryDiscipline>
 
@@ -159,14 +125,15 @@ this file, a report template, or any tracked config.
 <Pitfalls>
 
 - Asserting family membership, template status, or freshness from memory
-  (or from this file's fictional examples) — run the recipes.
-- Shopping: turning fit evaluation into a path decision. Candidates +
-  recommendation go UP (assess report / `Q<n>`); the orchestrator decides.
-- Cloning a derivative without wiring the `upstream` remote — it silently
-  leaves the family.
-- Rebranding, feature work, or Wave planning inside the bootstrap card.
-- Instantiating a template repo on a B1 grant — template creation is
-  remote-first, therefore B2.
+  (or from this file's naming shapes) — run the recipes.
+- Shopping: turning observation into a path decision. Candidates +
+  recommendation go UP (assess report / `Q<n>`); the assistant decides.
+- Executing establishment from here — repo creation, remote wiring, and
+  template instantiation are the assistant's boundary operations; a
+  delegated bootstrap job's own scope lives in implement.md
+  <BootstrapBranch>, not in this skill.
+- Repairing a missing `upstream` remote without a grant that names it —
+  observe and report the drift.
 - Writing discovered repo names into this skill or other tracked files —
   MEMORY.md is the private layer for them.
 
@@ -176,10 +143,9 @@ this file, a report template, or any tracked config.
 
 - Every candidate named in a report came from a recipe run in THIS task,
   with lineage and freshness noted.
-- The path decision was made by the orchestrator (card body or DECISION),
-  not by this skill's user; fit evaluation stayed read-only.
-- An introduced derivative has `origin` pointing at its own repo and
-  `upstream` at its parent; remote actions occurred only under B2.
+- No decision was made here: the report carries candidates and a marked
+  recommendation, and stops.
+- Nothing was created, cloned, rewired, or instantiated from this skill.
 - No concrete family names were added to tracked files; durable findings
   went to MEMORY.md.
 

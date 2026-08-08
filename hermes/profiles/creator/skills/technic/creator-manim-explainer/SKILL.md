@@ -55,9 +55,9 @@ pipeline.
 </Preflight>
 
 <Procedure>
-1. Load `skill_view(name="manim-video")`, lock the lesson objective, audience,
-   notation, scene order, narration/subtitle timing, and delivery contract in
-   `plan.md`.
+1. Load `skill_view(name="manim-video")`, transcribe the released spec's lesson
+   objective, audience, notation, scene order, narration/subtitle timing, and
+   delivery contract into `plan.md` (open decisions are spec gaps).
 2. Implement one Manim class per scene. Keep equations, labels, colors, camera
    framing, and transitions explicit; do not let a scene silently depend on
    mutable state from another scene.

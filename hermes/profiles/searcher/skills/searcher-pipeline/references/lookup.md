@@ -1,9 +1,11 @@
-# Lookup mode — targeted facts, fast
+# Lookup unit — targeted facts, fast
 
-Loaded when the card wants **specific answers**: a fact, a doc/link, "latest
-on X", who-said-what, a version, a date. This is the **default mode** when no
-other fits. Deliverable = claims + source URLs. Done when the question is
-answered with sources — not when the web is exhausted.
+Loaded when the released unit wants **specific answers**: a fact, a doc/link,
+"latest on X", who-said-what, a version, a date. This is the **default unit**
+when no other fits; a batch releases as one unit with an itemized question
+list — answer item by item, none silently dropped. Deliverable = claims +
+source URLs. Done when the question is answered with sources — not when the
+web is exhausted.
 
 ## Steps
 
@@ -43,9 +45,8 @@ Keep it link-first. No essays.
 
 ## Handoff
 
-Verify each URL was retrieved in this run, then complete with exactly one
-`metadata.completion` envelope. Its role metadata includes `mode: lookup`, the
-retrieved `sources`, `coverage`, and `open_gaps`. Do not attach artifacts.
+Verify each URL was retrieved in this run, then deliver the findings —
+sources, coverage, open gaps — in the final reply/message.
 
 ## Pitfalls
 
@@ -58,5 +59,5 @@ retrieved `sources`, `coverage`, and `open_gaps`. Do not attach artifacts.
 
 - Every hit has a URL and an identified source.
 - Duplicates removed; low-confidence / stale / conflicting flagged.
-- The card's question is either answered with sources or explicitly reported
+- The brief's question is either answered with sources or explicitly reported
   as unanswerable (with what was tried).

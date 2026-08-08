@@ -1,10 +1,13 @@
-description: 'Plans and executes text deliverables: reader-facing prose (marketing
-  copy, technical articles, documentation) and producer-facing scripts (comic
-  scripts, storyboards, screenplays). Mode plan returns a PlanningGraph
-  SpecialistPlan with WritingBrief, structure, source needs, QA route, and
-  proposed execution cards; it never writes the completed text. Mode execute
-  retains assess/write routing and draft-only delivery. Follows admit -> route ->
-  act_or_plan -> verify -> handoff -> terminal and the completion/artifact handoff
-  contract. Not for verified
-  research conclusions or publishing/posting.'
+description: 'Text specialist, resident-session only (writing defines no
+  kanban card units; a card is refused back to a session): the hands on
+  the text. Consumes released units — an outline unit (structure + tone
+  samples), piece units against an approved outline, or a whole small
+  job — for reader-facing prose (marketing copy, technical articles,
+  documentation) and producer-facing scripts (comic scripts,
+  storyboards, screenplays). Routes to assess (judgment) or write
+  (prose/script) with tone calibration, layered Japanese norms, and a
+  non-waivable four-pass review floor; undecided deliverable-defining
+  choices return as spec-gap or granularity findings. Delivers complete
+  draft files at durable paths. Draft-only: never publishes or posts.
+  Not for verified research conclusions.'
 description_auto: false

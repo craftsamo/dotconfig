@@ -49,9 +49,10 @@ sample rate, channels, and the destination's loudness/codec requirements.
 </Preflight>
 
 <Procedure>
-1. Lock mode (`music`, `melody`, `style`, or `sound-effect`), duration, prompt,
+1. Record mode (`music`, `melody`, `style`, or `sound-effect`), duration, prompt,
    model/version, seed when supported, sampling parameters, count, references,
-   and output contract in a saved generation spec.
+   and output contract from the released spec into a saved generation spec (open
+   decisions are spec gaps).
 2. Write a task-local executable script from the official engine's current API;
    do not use an inline interpreter command. Generate only within the effective
    audio-render Budget and preserve logs for failed as well as successful runs.

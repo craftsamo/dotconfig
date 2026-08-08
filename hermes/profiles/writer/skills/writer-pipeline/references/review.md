@@ -7,8 +7,10 @@ One playbook, two callers:
 - **Assess mode, critique branch** — run the same passes on someone else's
   text and report findings instead of fixing.
 
-The passes are the writer's quality floor. Never skip one because the text
-is short — short copy fails the integrity pass as easily as a long article.
+The passes are the writer's quality floor and are **non-waivable**: no
+deadline, brevity, or instruction — including the assistant's — skips
+one. Never skip a pass because the text is short; short copy fails the
+integrity pass as easily as a long article.
 
 ## Passes (run in this order)
 
@@ -18,10 +20,22 @@ is short — short copy fails the integrity pass as easily as a long article.
    - Script type: the unit-integrity rules in `references/script.md`
      (continuous numbering, complete per-unit fields, verbatim text
      isolated from instructions, budgets respected).
-2. **Norms pass** — the layered japanese-* checklists the kernel's
+2. **Norms pass** — the layered `japanese-writing` checklists the kernel's
    TypeTable assigned to this deliverable (notation always for Japanese
-   text; argumentation and rhythm only where the table says so). Load each
-   assigned layer via `skill_view` if not already loaded.
+   text; argumentation and rhythm only where the table says so). Read each
+   assigned layer file under the `japanese-writing` skill's references/
+   if not already loaded.
+   For Japanese deliverables this pass has a mechanical half: run
+   `uv run ~/.agents/skills/japanese-writing/scripts/lint.py --json
+   <file> --genre <tech|business|essay>` and route every finding through
+   the fix-or-keep ledger (判断台帳) per the inspection layer's Workflow
+   (`references/inspection/workflow.md`) — findings
+   are suspicions, not orders; keep-with-reason is a valid verdict. Re-run
+   with `--baseline` after fixes until no new findings appear (its
+   divergence guard applies). `scripts/outline.py` extracts the skeleton
+   for the structure pass; business documents are also checked against
+   their doctype's 必須要素 and failure catalog
+   (`japanese-writing/references/business/doctypes/`).
 3. **Humanizer pass** — load `humanizer`; strip AI-writing patterns:
    hollow intensifiers, symmetric filler, list-shaped prose, em-dash
    crutches, theatrical closers.

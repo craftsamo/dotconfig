@@ -67,7 +67,7 @@ warns instead).
 | `~/.config/<subtree>/AGENTS.md` | authoritative rules for that subtree — read before touching it |
 | `~/.config/install.sh` | creates every symlink; run it after adding new files |
 | `~/.config/bin/` | PATH shims that inject secrets into wrapped commands |
-| `~/.config/agents/skills/` | the harness-neutral skill tree shared by every AI CLI here (also `~/.agents/skills`, `~/.claude/skills`) |
+| `~/.config/agents/curated/` | repo-curated shared skills, linked per skill into the harness-neutral `~/.agents/skills` root (a machine-local real dir that installers also write into; `~/.claude/skills` bridges there) |
 | `~/.hermes/`, `~/.claude/`, other tool homes | **symlinks back into this repo** — edit the repo, never these |
 
 Consequence: editing `~/.hermes/config.yaml` and editing
@@ -95,7 +95,7 @@ Operationally that means:
   `printenv` to inspect them.
 - Depth (injection modes, wrapping a new tool, debugging a missing variable)
   lives in the shared skill — read
-  `~/.config/agents/skills/keychain-secrets/SKILL.md` when you need it.
+  `~/.config/agents/curated/keychain-secrets/SKILL.md` when you need it.
 
 </Secrets>
 

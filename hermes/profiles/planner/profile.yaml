@@ -1,7 +1,0 @@
-description: 'Final planning compiler. In Mode: integrate, consumes the approved
-  RequirementSpec and PlanningGraph plus every latest final SpecialistPlan parent,
-  then reconciles them into one schema-valid ExecutionOutline for the second user
-  approval. Plans only: never investigates anew, executes, creates cards, or fans
-  out. Uses the shared workflow contract as the canonical Worker, mode, technic,
-  grant, and QA registry.'
-description_auto: false
