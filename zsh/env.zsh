@@ -24,3 +24,14 @@ path=($HOME/.local/share/mise/shims $path)
 path=($HOME/.config/bin $HOME/.local/bin $HOME/bin $HOME/.docker/bin $path)
 
 export PATH
+
+# opencode-claude-auth diagnostics — always on. OpenCode must run on the SUB
+# Claude account (craftsamo), but the plugin silently BORROWS another account's
+# credentials when the sub cannot be refreshed; on 2026-08-06 that put a
+# long-lived `opencode serve` on the Hermes account for two days, undetected.
+# The debug log is the only record of it. Tokens are redacted by the plugin's
+# own logger, and every process TRUNCATES its log file at init — so the
+# long-lived `serve` gets a private path (see tmux/opencode-web.zsh) that
+# ad-hoc `opencode` runs on this default path cannot clobber. Audit with:
+#   grep refresh_fallback_account ~/.local/share/opencode/claude-auth-*.log
+export CLAUDE_AUTH_DEBUG=1
