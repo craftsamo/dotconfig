@@ -1,19 +1,21 @@
 # SPDX-License-Identifier: MIT
 # Derived from coji/natural-japanese <https://github.com/coji/natural-japanese> (c) coji, MIT License.
-"""textcore.py — 検査層3スクリプト（lint.py / outline.py / terms.py）の共有基盤。
+"""textcore.py — lint.py、outline.py、terms.py が共有する検査基盤。
 
-エントリポイントではない（単体実行を想定しない）ため PEP 723 インラインメタデータは
-持たない。依存（sudachipy / sudachidict-core）は各エントリスクリプト側で宣言する。
-`uv run scripts/lint.py` 等の実行時は sys.path[0] が scripts/ ディレクトリになるため、
-同ディレクトリの `import textcore` がそのまま解決できる。
+目的:
+    Sudachi tokenizer、Markdown 処理、文と段落の分割、ファイル読み込み、Finding を
+    共通化し、3 つのエントリスクリプトの挙動をそろえる。
 
-提供するもの:
-    - sudachipy Tokenizer の遅延初期化（get_tokenizer）
-    - 文分割（split_sentences_with_lines 等）
-    - Markdown構造のマスク処理（mask_markdown_structure / mask_html_comments）
-    - 行番号付き反復・段落分割ユーティリティ
-    - 入力ファイルの読み込みと入力エラー処理（read_source_file）
-    - 共有データ構造（Finding）
+使い方:
+    単体では実行せず、uv run scripts/lint.py、uv run scripts/outline.py、または
+    uv run scripts/terms.py から import して使う。
+
+終了コード:
+    本モジュールは終了コードを決めない。各エントリスクリプトは検出件数に関わらず 0、
+    入力エラーだけ 1 とする。
+
+依存関係:
+    PEP 723 メタデータと sudachipy / sudachidict-core の宣言は各エントリスクリプトが持つ。
 """
 
 from __future__ import annotations
@@ -72,14 +74,7 @@ def get_tokenizer():
     return _tokenizer_obj
 
 
-# ---------------------------------------------------------------------------
-# 体言止め判定（lint.py の nominal_ending 検出器と outline.py の見出し統計で共用）。
-#
-# TRAILING_SYMBOL_POS / NOUN_ENDING_POS / strip_trailing_symbols() は元々
-# lint.py 側だけに定義されていたが、outline.py の見出し統計（体言止め率）でも
-# 同じ判定ロジックが必要になったため、共有基盤である textcore.py に移設した。
-# lint.py は本モジュールから import して使う（値は移設前と完全に同一）。
-# ---------------------------------------------------------------------------
+# --- nominal ending: lint.py と outline.py で体言止め判定を共有する ---
 NOUN_ENDING_POS = {"名詞"}
 TRAILING_SYMBOL_POS = {"補助記号", "空白"}
 
