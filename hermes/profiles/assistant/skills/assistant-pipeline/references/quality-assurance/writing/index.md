@@ -53,7 +53,7 @@ Japanese deliverables: notation consistency (表記ゆれ), register
 stability, no LLM-smell filler — the writer's norms passes own the
 checklists; you spot-check that they ran, citing the finding when
 one clearly did not. Your spot-check has a mechanical arm: run
-`uv run ~/.agents/skills/japanese-inspection/scripts/lint.py --json
+`uv run ~/.agents/skills/japanese-writing/scripts/lint.py --json
 <delivered file> --genre <tech|business|essay>` on the actual file.
 Detection is mechanical, judgment stays yours — findings are
 feedback material to quote in an itemized fail, never a count gate,

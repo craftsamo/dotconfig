@@ -43,11 +43,11 @@ scene-by-scene video script).
 
 ## Layers
 
-- `japanese-writing` (notation): always, for all Japanese verbatim text —
+- Notation layer (`japanese-writing` SKILL.md): always, for all Japanese verbatim text —
   dialogue, captions, headlines.
-- `japanese-tech-prose` (argumentation): narration that explains (knowledge
+- Argumentation layer (`japanese-writing/references/tech-prose.md`): narration that explains (knowledge
   comics, tutorial videos) — clarity rules apply to the narration line.
-- `japanese-prose-rhythm`: NEVER. Producers scan scripts; rhythm belongs
+- Rhythm layer (`references/prose-rhythm.md`): NEVER. Producers scan scripts; rhythm belongs
   inside a unit's dialogue, not across the document.
 
 ## Artifact delivery
