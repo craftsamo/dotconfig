@@ -773,8 +773,8 @@ Per-profile, tracked in `hermes/profiles/<name>/` and symlinked by
 **`profile.yaml`** (holds the routing `description`).
 
 - **`install.sh`** links `config.yaml` / `profile.yaml` / `SOUL.md` / `skills/`
-  / `.no-bundled-skills` per profile (`mcp.json` / `cron/` when present).
-- `cron/` is tracked only where automation lives (assistant, if any).
+  / `.no-bundled-skills` per profile (`mcp.json` when present).
+- `cron/` is never linked or tracked — Hermes owns it machine-local.
 - Auto-untracked (outside the symlink set): `~/.hermes/kanban.db`, `kanban/`,
   `workspace/`, `auth.json`, `.env`, `memories/`, `sessions/`, `state.db*`.
 

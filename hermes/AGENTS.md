@@ -16,13 +16,16 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
 - **`config.yaml` is rewritten by Hermes on load.** Expect re-serialization churn;
   match Hermes' output format (block style, key order), keep diffs minimal — don't
   hand-reformat or alphabetize.
-- **`cron/jobs.json` is tracked but flagged `skip-worktree`.** Hermes rewrites it on
-  every tick (run counters, `last_run_at`, `next_run_at`), so the flag keeps that churn
-  out of `git status` — which also makes a NEW job invisible to Git. After
-  `hermes -p <profile> cron create|resume`, publish it explicitly:
-  `git update-index --no-skip-worktree hermes/profiles/<p>/cron/jobs.json`, stage only
-  the new job's hunk, commit, then re-set `--skip-worktree`. Skip this and the schedule
-  never reaches another machine.
+- **`cron/` is not in this repo at all.** Hermes `mkdir -p`s its own cron dir and owns
+  everything in it — `jobs.json`, `output/`, `executions.db`, `.tick.lock`,
+  `.jobs.lock`, `ticker_*`, `catch_up_occurrences`, `suggestions.json` — so
+  `install.sh` leaves `~/.hermes/**/cron` a real machine-local directory and links
+  nothing. Do **not** re-link it, and do **not** re-add it with `skip-worktree`: that
+  flag hid new jobs from `git status` and made every branch switch fail on a
+  dirty-but-invisible file. A missing `jobs.json` is read as **zero jobs, silently**
+  (`cron/jobs.py:1013-1018`) — back it up before touching that directory. Schedules
+  for the private `local-*` jobs are recorded as runnable `hermes cron create`
+  commands in `hermes-private-skills/scripts/install.sh`.
 - **`platform_toolsets.<platform>` is the effective tool allowlist.** Keep it granular;
   `hermes-cli` / `hermes-telegram` expand to a broad surface and strip default-off
   tools such as `video` / `video_gen`. Mirror the role in top-level `toolsets`, but
@@ -98,7 +101,7 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
 config.yaml          # model/providers, toolsets, agent settings (Hermes-rewritten)
 SOUL.md              # default persona (prompt slot #1)
 mcp.json             # MCP servers ({} = none)
-cron/                # jobs.json tracked; output/ + .tick.lock ignored
+                     # (no cron/ — Hermes owns ~/.hermes/cron, machine-local)
 skills/              # shared maintainer-owned skills tracked
   default-pipeline/  # thin CLI adapter for default; points at the assistant's
                      #   assistant-pipeline reference tree and records CLI deltas
@@ -145,7 +148,7 @@ profiles/<name>/     # assistant, engineer, researcher, searcher, creator, write
                      #   (Inline-only; specialist work spins into a new topic);
                      #   every profile's learned/ holds mutable runtime-authored
                      #   skills and is never a dispatch or Git ownership surface)
-  - cron/            # per-profile scheduled jobs (jobs.json; placeholder if empty)
+                     # (no cron/ here either; scheduled jobs live machine-local)
                      # assistant/scripts/ holds resident-session.sh (the resident
                      # specialist-session wrapper), kanban-scheduled-sweeper.sh,
                      # kanban-resolve-block.sh for guarded resume, and the
@@ -191,11 +194,12 @@ repo (move real files → `../install.sh`); see `README.md` / `PROFILES.md`.
 
 ## Tracked vs ignored
 
-Tracked: config / SOUL / `profile.yaml`, `plugins/` source, `cron/jobs.json`,
-`launchd/`, docs. Ignored (see `../.gitignore`): `auth.json`, `.env`,
-`memories/`, `sessions/`, `state.db*`, `logs/`, `workspace/`, `.hub/`,
-`.curator_state`, `.usage*`, `cron/output/`, `cron/ticker_*`, `**/__pycache__/`,
-`*.pyc`. Never commit secrets, state, or host-rendered plists.
+Tracked: config / SOUL / `profile.yaml`, `plugins/` source, `launchd/`, docs.
+Ignored (see `../.gitignore`): `auth.json`, `.env`, `memories/`, `sessions/`,
+`state.db*`, `logs/`, `workspace/`, `.hub/`, `.curator_state`, `.usage*`,
+`**/__pycache__/`, `*.pyc`. `cron/` is absent entirely — it is not linked, so
+nothing it writes ever reaches the repo. Never commit secrets, state, or
+host-rendered plists.
 
 **Skill ownership follows the directory type.** Shared `default-pipeline/`, the
 assistant's `assistant-pipeline/`, every worker's `<profile>-pipeline/` and
