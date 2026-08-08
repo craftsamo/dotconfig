@@ -9,13 +9,29 @@
     // which left us on 1.5.4 for months and caused daily auth expiry. 2.1.x adds
     // proactive token refresh (#238), recovery after external credential
     // rotation (#252), and CLAUDE_CONFIG_DIR support (#239). Bump manually.
-    // Verified against 2.1.4 dist: claude-account-source.txt still selects the
+    // Verified against 2.1.6 dist: claude-account-source.txt still selects the
     // active account at init, and the CLI-fallback refresh auto-resolves the
-    // suffix hash to ~/.claude-sub (no CLAUDE_CONFIG_DIR needed). CAVEAT: if the
-    // SUB account cannot be refreshed at all, 2.1.x's last resort BORROWS the
-    // primary (Hermes) credentials — watch for "refresh_fallback_account" in
-    // CLAUDE_AUTH_DEBUG=1 logs and re-auth the sub account promptly.
-    "opencode-claude-auth@2.1.4",
+    // suffix hash to ~/.claude-sub (no CLAUDE_CONFIG_DIR needed).
+    // CAVEAT (borrowing): if the SUB account cannot be refreshed, the last
+    // resort still BORROWS another account's credentials — 2026-08-06..08 that
+    // silently ran a long-lived `opencode serve` on the Hermes account for two
+    // days. 2.1.6 makes the borrow RECOVERABLE (borrowedCredentialAccounts:
+    // borrowed tokens are never used as a refresh source, never written back to
+    // the borrower's store, and are released once the real account recovers) but
+    // does NOT prevent it. Detection: CLAUDE_AUTH_DEBUG is exported globally in
+    // zsh/env.zsh — grep "refresh_fallback_account" in
+    // ~/.local/share/opencode/claude-auth-*.log, then re-auth via `claude-sub`
+    // promptly. Ground truth is auth.json's token vs the Keychain entry, not
+    // this file.
+    // CAVEAT (stray Keychain entries): refreshViaCli() exports
+    // CLAUDE_CONFIG_DIR=<configDir> and runs `claude -p .`, so Claude Code mints
+    // a NEW Keychain item named Claude Code-credentials-<sha256(configDir)[:8]>.
+    // That is how "Claude Code-credentials-bbc17b0c" (= ~/.claude = Hermes,
+    // duplicate of the unsuffixed entry) appeared and turned into a wrong-account
+    // borrow target; deleted 2026-08-08. `opencode auth login` lists one option
+    // per Keychain item, so a third option reappearing means a stray was minted
+    // again — check `security dump-keychain | grep "Claude Code-credentials"`.
+    "opencode-claude-auth@2.1.6",
     // quota: pinned — its cached dist/lib/anthropic.js is locally PATCHED to read
     // the sub-account Keychain entry above (upstream hardcodes the default entry
     // and would display Hermes' usage). Re-apply the patch after a version bump.
