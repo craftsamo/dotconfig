@@ -4,8 +4,8 @@
 読者は通常、全文を読みません。
 目次やブラウザ内検索で目的の章へ移り、そこだけ確認して作業へ戻ります。
 したがって、通読時の完成度より、拾い読みしたときに迷わない導線を作れているかが成否を分けます。
-文レベルの確認には検査層スキル `japanese-inspection` の `references/readability-principles.md`、
-ビジネス文書一般の PREP 構成には同じ検査層スキルの `references/genre-notes.md` を使い、ここでは章立てと導線を扱います。
+文レベルの確認には `references/inspection/readability-principles.md` を、
+ビジネス文書一般の PREP 構成には `references/inspection/genre-notes.md` を使い、ここでは章立てと導線を扱います。
 
 ## 必須要素
 

@@ -14,11 +14,11 @@
 | `low_burstiness` | 文長のメリハリが乏しい。コーパス実測で AI 86% vs 人間8〜16%と強い弁別力が確認されている | 同上。他の検出器より信頼度の高いシグナルとして扱ってよい |
 | `nominal_ending` | 反転済み：体言止めが「1つもない」ことを、人間的修辞の欠如の疑いとして見る（多用の検出ではない） | 体言止めを増やせという意味ではない。機械的に足すとかえって不自然になりやすいので、他の finding と合わせた総合判断の参考情報にとどめる |
 | `paragraph_lead_conjunction` | 段落頭の接続詞が多い（EXPERIMENTAL、デフォルト無効。`--experimental` でのみ出力） | 接続詞なしで前の段落とつながる書き方を探す。無理なら残してよい |
-| `uniform_paragraph_structure` | 段落あたりの文数が揃いすぎている | 濃淡設計（`japanese-business-docs` の `references/design.md`）に立ち返り、重要な段落を長く、そうでない段落を短くする |
+| `uniform_paragraph_structure` | 段落あたりの文数が揃いすぎている | 濃淡設計（`references/business/design.md`）に立ち返り、重要な段落を長く、そうでない段落を短くする |
 | `repeated_sentence_lead` | 文頭の型の使い回し。閾値を3→6に引き上げ、severity を info に格下げ済み（人間の意図的な反復技法と区別がつかないため） | 冒頭の言い回しを変えるか、その文自体を疑問形・体言止め・引用始まりなど別の構造に組み替える。ただし強く直すべき指摘ではない |
 | `repeated_syntax_template` | 構文テンプレートの使い回し（EXPERIMENTAL、デフォルト無効） | 同上 |
 | `low_lexical_diversity_ttr` / `_mtld` | 語彙の使い回し。文書長4000字未満はスキップ（それ以下では統計として機能しないことをコーパスで確認済み） | 類語辞典的な言い換えではなく、より具体的な語（固有名詞、数値、感覚的な描写）への置き換えを探す |
-| `low_specificity` | 固有名詞・数値・実例のない一般論段落（info） | 書き方でなく素材の問題。`japanese-business-docs` の `references/design.md` の「素材不足の分岐」に従い、素材を集め直してから書き直す |
+| `low_specificity` | 固有名詞・数値・実例のない一般論段落（info） | 書き方でなく素材の問題。`references/business/design.md` の「素材不足の分岐」に従い、素材を集め直してから書き直す |
 | ~~`nested_attributive`~~ | 削除済み（連体修飾の入れ子）。コーパス校正でほぼ全文書型に発火（人間85%以上、AI も同水準）し、閾値調整では救えない弁別力ゼロの検出器と判明したため廃止 | 機械検出は不可。`translationese.md` の連体修飾節の Before/After、または `readability-antipatterns.md` の「係り受けの曖昧さ」を手がかりに人手で判断する |
 | `english_syntax_inanimate_subject` / `inanimate_subject_morph` | 無生物主語 + 他動詞 | 主語を人や状況に戻すか、述語を状態描写に変える |
 | `english_syntax_cleft_because` | 「それは〜。なぜなら〜」型（EXPERIMENTAL、デフォルト無効） | 理由を先に書くか、1文にまとめる |

@@ -1,11 +1,8 @@
----
-name: japanese-tech-prose
-description: Use when writing or revising long-form explanatory Japanese prose — technical articles, tutorials, book chapters, design documents, README explanatory sections (解説記事, チュートリアル, 技術書, 章を書く, 原稿, 推敲, リライト, 論証, 段落構成, パラグラフライティング, LLMっぽい, AI臭い, 冗長, 長文ドキュメント). Covers paragraph-level argumentation (one topic per paragraph, explicit logical connectives), argumentative rigor (no unsupported assertions, preserve uncertainty, name the mechanism behind causal claims), reader cognitive-load management, voice and narration, restraint of theatrics, judgment guards for hollow LLM-style phrases (重要なのは, 正面から, 掘り下げる, 多角的 — full catalog and mechanical detection live in `japanese-inspection`), redundancy elimination, and headings. This is the argumentation (meso) layer of the Japanese writing stack — notation/terminology rules live in `japanese-writing` (always load it too); narrative pacing lives in `japanese-prose-rhythm`; business documents (議事録/レポート/ガイド/メモ/スライド) belong to `japanese-business-docs` instead; run `japanese-inspection` on the finished draft. Do NOT use for reference docs, commit messages, UI copy, or short boilerplate text.
----
+# 論証層：日本語の技術的な長文の規範
 
 <Goal>
 
-本スキルは、
+この層は、
 
 - 解説記事
 - チュートリアル
@@ -24,19 +21,18 @@ description: Use when writing or revising long-form explanatory Japanese prose �
 解説記事、チュートリアル、技術書の章と草稿、長文の設計文書や ADR、README の解説部分が対象です。
 
 API リファレンス、runbook、コミットメッセージ、PR 本文、UI コピー、エラーメッセージ、短い定型文は対象外です。
-これらは走査して読まれる文書であり、本スキルの「論証の流れ」の規則はむしろ害になります。
-議事録、調査レポート、社内ガイド、企画書、スライドの構成といった仕事の文書も対象外で、そちらは `japanese-business-docs` が受け持ちます。
+これらは走査して読まれる文書であり、この層の「論証の流れ」の規則はむしろ害になります。
+議事録、調査レポート、社内ガイド、企画書、スライドの構成といった仕事の文書も対象外で、そちらはビジネス文書層（`references/business/overview.md`）が受け持ちます。
 
-表記、用語、和欧混植、一文一行の規則は `japanese-writing` が持ちます。
-必ず併読してください。
-読み物としての緩急（拍と緊張の管理）が要るときは、さらに `japanese-prose-rhythm` を重ねます。
-書き上げた草稿への機械検出と収束ループは `japanese-inspection` が受け持ちます。
+表記、用語、和欧混植、一文一行の規則は、SKILL.md の表記層が持ちます。
+読み物としての緩急（拍と緊張の管理）が要るときは、さらに緩急層（`references/prose-rhythm.md`）を重ねます。
+書き上げた草稿への機械検出と収束ループは、検査層（`references/inspection/workflow.md`）が受け持ちます。
 
 </WhenToApply>
 
 <Formatting>
 
-長文原稿に固有の整形の規則です（一文一行やダッシュ、中黒といった表記そのものは `japanese-writing` に従います）。
+長文原稿に固有の整形の規則です（一文一行やダッシュ、中黒といった表記そのものは SKILL.md の表記層に従います）。
 
 - 用語の由来や定式化の名称など、本筋から一段外れる補足は本文に並べず、脚注（`[^ラベル]`）へ降ろす。
 - 用語を本文で初めて定義（導入）するときは、その語を太字にする。
@@ -188,7 +184,7 @@ LLM が大量生成する、中身のない型を使わないための規則で�
 文書内で定義した術語を議論に使うのはかまいません。
 空虚な装飾として使うのが問題です。
 ここに挙げるのは判断のための分類と代表例です。
-網羅的な語彙カタログと機械検出は `japanese-inspection`（`references/forbidden-patterns.md` と `scripts/lint.py`）が持ちます。
+網羅的な語彙カタログと機械検出は、検査層（`references/inspection/forbidden-patterns.md` と `scripts/lint.py`）が持ちます。
 
 次のような言い回しは、論点を増やさず「ちゃんと書いている感」だけを付ける LLM 口調です。使いません。
 
@@ -265,12 +261,12 @@ LLM が大量生成する、中身のない型を使わないための規則で�
 
 草稿を書き上げたら、次の順で機械的に点検します。
 
-1. **機械検出**：`japanese-inspection` の `scripts/lint.py` を `--genre tech` で実行し、禁止語、翻訳調、構文反復の finding を判断台帳で仕分ける（uv が使えない環境では、<NoLlmPhrases> の代表語彙と `japanese-inspection` のカタログを検索で手動チェックする）。
-2. **段落テスト**：各段落について「一トピックか」「冒頭文で話題がわかるか」「前段落との論理関係が明示されているか」を確かめる。骨組みの抽出には `japanese-inspection` の `scripts/outline.py` が使える。
+1. **機械検出**：`scripts/lint.py` を `--genre tech` で実行し、禁止語、翻訳調、構文反復の finding を判断台帳で仕分ける（uv が使えない環境では、<NoLlmPhrases> の代表語彙と `references/inspection/` のカタログを検索で手動チェックする）。
+2. **段落テスト**：各段落について「一トピックか」「冒頭文で話題がわかるか」「前段落との論理関係が明示されているか」を確かめる。骨組みの抽出には `scripts/outline.py` が使える。
 3. **断定と推量の点検**：断定文は本文内の根拠で確定しているか、推量文は不確実性を表す正当な理由があるかを確かめる。機械的な断定化と機械的な緩和のどちらもしていないこと。
 4. **伏線の回収確認**：「後述する」「次節で扱う」型の前方参照を列挙し、実際に回収されている位置を指す。指せないものは回収を書くか、参照ごと削る。
 5. **用語の一貫性**：導入した術語で全体を通しているか、曖昧語（「AI」「ツール」「文脈」）へ後退していないかを確かめる。
 6. **譲歩の宙吊り確認**：「ただし」「とはいえ」で終わって論が進んでいない箇所がないかを確かめる。
-7. **表記の点検**：`japanese-writing` の Verification に従う（textlint があれば実行する）。
+7. **表記の点検**：SKILL.md の Verification に従う（textlint があれば実行する）。
 
 </Verification>

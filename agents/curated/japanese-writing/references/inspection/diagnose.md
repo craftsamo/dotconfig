@@ -2,14 +2,14 @@
 
 診断モードでは文書を一切書き換えません。
 返すのは、スコア、その根拠、直すなら何からかの3点です。
-「この文章、AI っぽい?」「どれくらい AI 臭いか採点して」という依頼に応えるモードで、リライトを求められたら通常の検査ループ（SKILL.md の Workflow）へ切り替えます。
+「この文章、AI っぽい?」「どれくらい AI 臭いか採点して」という依頼に応えるモードで、リライトを求められたら通常の検査ループ（`references/inspection/workflow.md` の Workflow）へ切り替えます。
 
 ## 2段階の深さ
 
 - **quick（既定）**：`scripts/lint.py --json`（ジャンルがわかれば `--genre` つき）を1回実行し、スケルトンを一瞥する。
   30秒程度で終える。
 - **full**：quick に加えて `scripts/outline.py` と `scripts/terms.py` を実行し、構造レビューと読みやすさレビューの所見（`revision.md` の観点）を判断に織り込む。
-  対象の文書型が定まっている場合は `japanese-business-docs` の doctype 照合も行う。
+  対象の文書型が定まっている場合は `references/business/doctypes/` の doctype 照合も行う。
   診断では収束ループを回さず、1周の評価で完結させる。
   数分かかる。
 
