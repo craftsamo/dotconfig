@@ -1236,7 +1236,7 @@ def detect_low_specificity(
                         f"抽象名詞率={abstract_noun_ratio:.3f}, 例示マーカー={'あり' if has_example_marker else 'なし'}。"
                         "固有名詞・数値・実例が乏しく一般論に留まっている疑い。"
                         "素材不足のサインであり、文体の修正でなく情報収集を検討する"
-                        "（japanese-business-docs の references/design.md「素材不足の分岐」を参照）"
+                        "（japanese-writing の references/business/design.md「素材不足の分岐」を参照）"
                     ),
                 )
             )
