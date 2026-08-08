@@ -105,6 +105,36 @@ install_deps() {
   return $rc
 }
 
+# Populate a real, machine-local skill root with one symlink per repo-curated
+# skill (flat: <root>/<name> -> <repo>/agents/curated/<name>). The root is NOT
+# a symlink into the repo: it doubles as the install target of third-party
+# skill installers (`skills` CLI, `hyperframes skills`), whose writes must
+# land machine-local instead of inside the repo. Installer-owned entries are
+# left untouched; dangling links into the repo agents/ tree (skill deleted or
+# relocated) are pruned.
+link_skills_into() {
+  local src="$1" root="$2" entry name
+  if [ -L "$root" ]; then
+    rm "$root"
+    echo "  migrated: $root was a symlink — now a real directory"
+  fi
+  mkdir -p "$root"
+  for entry in "$src"/*/; do
+    [ -d "$entry" ] || continue
+    name="$(basename "$entry")"
+    link "${entry%/}" "$root/$name"
+  done
+  for entry in "$root"/*; do
+    [ -L "$entry" ] && [ ! -e "$entry" ] || continue
+    case "$(readlink "$entry")" in
+      "$DOTFILES"/agents/*)
+        rm "$entry"
+        echo "  pruned dangling: $entry"
+        ;;
+    esac
+  done
+}
+
 link() {
   local target="$1" dest="$2"
   if [ ! -e "$target" ]; then
@@ -145,32 +175,42 @@ fi
 
 # Shared skill root: ~/.agents/skills is the cross-agent convention honored by
 # codex, opencode, copilot, grok and gemini (claude reads ~/.claude/skills, so
-# that one is bridged to the same dir below). Only skills/ is linked — the
-# installer's ~/.agents/.skill-lock.json is per-machine update state and stays
-# out of the repo, same split as hermes/.
+# that one is bridged to the same dir below). It stays a REAL machine-local
+# directory — third-party installers write into it — and repo-curated skills
+# are linked in one by one from agents/curated/. The curated tree deliberately
+# does NOT live at agents/skills: ~/.config/agents/skills is a registered
+# install target of `hyperframes skills` (amp/universal convention), so that
+# path is surrendered to tool droppings and git-ignored wholesale. The
+# installer's ~/.agents/.skill-lock.json is per-machine update state and
+# stays out of the repo, same split as hermes/.
 echo "[agents]"
-link "$DOTFILES/agents/skills" "$HOME/.agents/skills"
+link_skills_into "$DOTFILES/agents/curated" "$HOME/.agents/skills"
 
 echo "[claude]"
 link "$DOTFILES/claude/CLAUDE.md"        "$HOME/.claude/CLAUDE.md"
 link "$DOTFILES/claude/settings.json"    "$HOME/.claude/settings.json"
 link "$DOTFILES/claude/keybindings.json" "$HOME/.claude/keybindings.json"
 # Claude Code is the one CLI that does not read ~/.agents/skills, so its skill
-# dir is bridged to the shared root instead of holding a claude-only tree.
-link "$DOTFILES/agents/skills"           "$HOME/.claude/skills"
-link "$DOTFILES/claude/agents"           "$HOME/.claude/agents"
+# dir is bridged to the shared MUTABLE root, never into the repo: installers
+# (`hyperframes skills`) treat ~/.claude/skills as a write target, and their
+# cross-CLI symlinks resolve through this path.
+link "$HOME/.agents/skills"              "$HOME/.claude/skills"
+# ~/.claude/agents is machine-local, NOT linked: app installers (e.g. tldraw
+# Desktop) replace the symlink with a real dir and drop subagent files into
+# it, so a repo link only produces recurring drift warnings.
 link "$DOTFILES/claude/commands"         "$HOME/.claude/commands"
 
+# codex and copilot have no repo-curated skills (both read ~/.agents/skills);
+# their ~/.*/skills dirs stay REAL and machine-local so app-seeded content
+# (codex skills/.system) and installer droppings never land inside the repo.
 echo "[codex]"
 link "$DOTFILES/codex/AGENTS.md"   "$HOME/.codex/AGENTS.md"
 link "$DOTFILES/codex/prompts"     "$HOME/.codex/prompts"
-link "$DOTFILES/codex/skills"      "$HOME/.codex/skills"
 
 echo "[copilot]"
 link "$DOTFILES/copilot/copilot-instructions.md" "$HOME/.copilot/copilot-instructions.md"
 link "$DOTFILES/copilot/mcp-config.json"         "$HOME/.copilot/mcp-config.json"
 link "$DOTFILES/copilot/agents"                  "$HOME/.copilot/agents"
-link "$DOTFILES/copilot/skills"                  "$HOME/.copilot/skills"
 
 echo "[gemini]"
 link "$DOTFILES/gemini/settings.json" "$HOME/.gemini/settings.json"

@@ -36,7 +36,8 @@ the same metered generation tool and share one verification floor.
 <DoNotUseWhen>
 
 - Pixel-art animation (`creator-pixel-video`).
-- Editing/trimming a user-supplied video when no generation is requested.
+- Editing/trimming a user-supplied video when no generation is requested (that's
+  `creator-media-assembly`).
 - Video *understanding* (that's `video_analyze`).
 - HTML/canvas-composited motion graphics, title cards, captions, or shader
   transitions (that's the bundled `hyperframes` skill).
@@ -47,7 +48,8 @@ the same metered generation tool and share one verification floor.
 
 <CorePrinciple>
 
-Never jump straight to a prompt. Two homework passes drive everything downstream:
+Never jump straight to a prompt. The released spec fixes two decision sets;
+validate both before any spend:
 
 1. **Destination** — where will it play? Exact **duration**, **aspect ratio**,
    **resolution**, **container/codec** (mp4/H.264, webm/VP9), **max file size**,
@@ -59,8 +61,9 @@ Never jump straight to a prompt. Two homework passes drive everything downstream
    Palette, subject, and the **motion language** (locked vs moving camera, how
    much subject motion, pacing). See `references/image-to-video.md`.
 
-If these are absent from the pipeline MediaBrief, use its single batched
-`Q<n>:` block protocol rather than guessing or calling `clarify`.
+If either set is absent or contradicted by discovery, that is a spec gap: use the
+pipeline's single batched `Q<n>:` block protocol rather than guessing or calling
+`clarify`.
 
 </CorePrinciple>
 
@@ -79,8 +82,9 @@ If these are absent from the pipeline MediaBrief, use its single batched
    | **text-to-video** | no source; concept/atmosphere clip | `video_generate(prompt=…)` → `references/text-to-video.md` |
    | **reference-guided** | identity must persist across shots (xAI: up to 7 refs) | `reference_image_urls=[…]` → `references/image-to-video.md` |
 
-4. **Confirm tradeoffs** with the user before producing a set (cost × duration ×
-   count; audio yes/no; text-in-video = no). See below.
+4. **Validate tradeoffs** against the released spec (cost × duration × count;
+   audio yes/no; text-in-video = no) — a tradeoff the spec left open goes back as
+   a spec gap. See below.
 5. **Produce → review → tune → iterate** (dials below). Write the final prompt +
    params to `prompts/NN-<slug>.md` first so it is reproducible and cheap to
    re-run on another backend.
@@ -95,7 +99,8 @@ If these are absent from the pipeline MediaBrief, use its single batched
 
 <Tradeoffs>
 
-Video is expensive and slow — confirm up front (mirror the user's language):
+Video is expensive and slow — these arrive decided in the spec; flag any the spec
+missed before spending:
 
 - **Duration & count** — each second costs money and time. Generate **one**
   short proof first (≤ the target, often 4–6s), review, then scale. Don't batch

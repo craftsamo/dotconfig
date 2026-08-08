@@ -43,28 +43,21 @@ scene-by-scene video script).
 
 ## Layers
 
-- `japanese-writing` (notation): always, for all Japanese verbatim text —
+- Notation layer (`japanese-writing` SKILL.md): always, for all Japanese verbatim text —
   dialogue, captions, headlines.
-- `japanese-tech-prose` (argumentation): narration that explains (knowledge
+- Argumentation layer (`japanese-writing/references/tech-prose.md`): narration that explains (knowledge
   comics, tutorial videos) — clarity rules apply to the narration line.
-- `japanese-prose-rhythm`: NEVER. Producers scan scripts; rhythm belongs
+- Rhythm layer (`references/prose-rhythm.md`): NEVER. Producers scan scripts; rhythm belongs
   inside a unit's dialogue, not across the document.
 
 ## Artifact delivery
 
 - The brief names a file (storyboard.md, a screenplay path) → write that
-  file exactly where instructed AND attach it via `kanban_attach`
-  (workspace files don't survive completion). The final message still
-  carries the full script per kernel delivery rules.
-- A QA-gated body (`QA: required`) always names or defaults the attached
-  target (`deliverable.md`) even if no downstream producer path was requested.
-  The attachment is the immutable QA target and must contain the complete
-  script delivered in the final message.
-- Attach the QA target exactly once; inspect the card inventory before calling
-  `kanban_attach` so retries do not create `_1` duplicates.
-- Downstream cards consume this script by unit number — never renumber in
-  a revision round; mark dropped units as `(削除)` to keep numbering
-  stable.
+  complete file exactly where instructed, at a durable path. The reply names
+  the path and summarizes the structure.
+- The downstream producer consumes this script by unit number — never
+  renumber in a revision round; mark dropped units as `(削除)` to keep
+  numbering stable.
 
 ## Self-review additions
 

@@ -98,22 +98,30 @@ in the primary session); triage stays in the primary per the skill's rubric.
 
 <JapaneseWritingSkills>
 
-Japanese deliverable text is governed by a three-layer skill stack; load the
-layers that match the deliverable (they compose, lower layers always apply):
+ALL Japanese deliverable text — writing, revising, inspecting, or scoring —
+is governed by the single `japanese-writing` skill. Load it for any Japanese
+deliverable; its SKILL.md is the always-on notation layer plus a router
+(`<Layers>`), and the other layers are read on demand from its references/:
 
-- `japanese-writing` (notation layer) — ALL Japanese deliverables:
-  documentation, README, code comments, commit messages, PR bodies, UI copy,
-  release notes. Typography, terminology, notation, style consistency.
-- `japanese-tech-prose` (argumentation layer) — long-form explanatory prose:
-  articles, tutorials, book chapters, design docs, README explanatory
-  sections. Paragraph argumentation, rigor, LLM-phrase bans, redundancy.
-  NOT for reference docs, commit messages, or UI copy.
-- `japanese-prose-rhythm` (pacing layer) — ONLY text meant to be read
-  start-to-finish as engaging prose: blog posts, essays, book chapters.
-  NOT for anything readers scan; flat is correct there.
+- SKILL.md (notation layer) — every Japanese deliverable: typography,
+  terminology, notation, per-deliverable style.
+- `references/tech-prose.md` (argumentation layer) — long-form explanatory
+  prose. NOT for reference docs, commit messages, UI copy, or business
+  documents.
+- `references/business/overview.md` (document-design layer) — business/work
+  documents: minutes, reports, guides & manuals, memos / proposals, slide
+  outlines (constitution / design / doctypes live beside it). NOT for
+  explanatory articles.
+- `references/prose-rhythm.md` (pacing layer) — ONLY text read
+  start-to-finish as engaging prose. Never for business documents or
+  anything readers scan.
+- `references/inspection/workflow.md` (inspection layer, cross-cutting) —
+  inspect, de-AI-flavor, score, or converge ANY finished Japanese draft:
+  mechanical uv lint + fix-or-keep ledger loop, readability catalogs, and a
+  no-rewrite score mode.
 
-None apply to conversational replies (LanguagePolicy governs those) or to
-i18n/translation-file workflows.
+It does not apply to conversational replies (LanguagePolicy governs those)
+or to i18n/translation-file workflows.
 
 </JapaneseWritingSkills>
 </SkillRouting>

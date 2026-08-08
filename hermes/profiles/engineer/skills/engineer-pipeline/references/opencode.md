@@ -1,10 +1,10 @@
 # Driving OpenCode — sessions, models, bridges (engine)
 
-Load this before the FIRST OpenCode invocation of any task — implement always;
-assess/shape only when they actually run OpenCode sessions. The core file's
-Authority contract, comment protocol, and checkpoint-then-block apply
-throughout. This engine owns the HOW of delegation: session mechanics, model
-routing, run execution, the Wave loop, the permission/question bridges, and
+Load this before the FIRST OpenCode invocation of any job — implement
+always; assess only when it actually runs OpenCode sessions. The core
+file's Authority contract, dialogue protocol, and checkpoint-then-block
+apply throughout. This engine owns the HOW of delegation: session mechanics, model
+routing, run execution, the unit cycle, the permission/question bridges, and
 course correction. WHAT to produce comes from the mode file; whether it
 passed comes from `references/verify.md`.
 
@@ -18,8 +18,8 @@ passed comes from `references/verify.md`.
 - `--auto`, the permission env, `--model <m>` and `--variant` are
   **per-invocation** — wrap every call, including `-c`/`-s` resumes.
 - Session context is NOT the durable layer: outlines/Issues (text), git
-  history, and kanban comments are. Record every base/fork id in
-  `STATE:`/`PROGRESS:` comments — a respawn that can't find ids restarts blind.
+  history, and your session reports are. Record every base/fork id in your
+  replies — a resumed job that can't find ids restarts blind.
 - One workdir per session. TUI needs `pty=true`, exit with Ctrl+C (never
   `/exit`) — but prefer `run` over the TUI in worker context.
 
@@ -41,7 +41,7 @@ that dilutes the few constraints that genuinely need the prompt.
 
 Anatomy per run type:
 
-- **decompose / derive**: the Wave intent (one line) + reference paths +
+- **decompose / derive**: the unit intent (one line) + reference paths +
   "phases only, no code" + the closer.
 - **build**: the confirmed phase breakdown (OpenCode's own words, from the
   gate artifact) + the scope boundaries that are NOT machine-enforced +
@@ -83,20 +83,19 @@ shapes:
 
 - **Foreground by default**: `terminal(command="opencode run …", timeout=<generous>)`
   — one turn per run. The per-call `timeout` is not clamped; size it to the
-  expected run (1800 for a build Wave is reasonable) instead of accepting the
+  expected run (1800 for a build unit is reasonable) instead of accepting the
   default. While the run executes you have nothing else to do — blocking is
   correct, not a problem.
 - **Background only when you must interleave** (two runs in parallel, or a
   run that may outlive any sane single timeout): start it in background, then
   wait in the longest slices the tool allows — `process` wait is clamped to
   the profile's `terminal.timeout` (600 on this profile; requesting less is
-  pure waste). Cycle `wait(600)` → `kanban_heartbeat` → `wait(600)` …. The
-  wait's return already carries the output tail: add no status-check terminal
-  calls between waits, and read logs only after the wait reports exit.
+  pure waste). Cycle `wait(600)` → `wait(600)` …. The wait's return already
+  carries the output tail: add no status-check terminal calls between
+  waits, and read logs only after the wait reports exit.
 
-Budget math: a 180 s wait + status check + heartbeat cycle costs ~60
-turns/hour; `wait(600)` + heartbeat costs ~12. Heartbeat cadence of one per
-wait cycle is ample (staleness bound is hours, not minutes).
+Budget math: a 180 s wait + status check cycle costs ~60 turns/hour;
+`wait(600)` costs ~12.
 
 ## ModelRouting
 
@@ -104,7 +103,8 @@ A **fixed ladder**, not a per-task weighing. Always start at the top rung and
 descend only when the rung above is unusable. You do **not** pre-classify the
 work as heavy or light to pick a cheaper model — OpenCode is the only layer
 that can measure the real weight of a job, and it does that inside the run.
-Your risk tier (implement.md) shapes the Wave loop, never the model.
+Risk shapes the unit cycle's rigor (implement.md <RiskDiscipline>),
+never the model.
 
 ### ProviderLadder
 
@@ -152,150 +152,175 @@ terminal(command="npx -y @slkiser/opencode-quota show", workdir="<wd>", timeout=
   matters even on rung 1.
 - `claude auth status` is never the gate.
 
-## OpenCodeLoop
+## UnitCycle
 
-The medium/high-risk build choreography: a base plan session holds the Wave
-outline; each Wave forks from it.
+The build choreography for every released unit: ground the unit's
+plan context, decompose into phases, confirm, build, close. The
+pacing contract (kernel <Runtimes>) bounds each turn to the released
+unit(s); at the boundary of the released set, close the unit, report,
+and wait for the next release.
 
-### Base — the Wave outline (established in THIS task)
+### Grounding — where the unit's plan context comes from
 
-Establish the base in-task — never depend on a session reaching across tasks
-(opencode sessions are project-keyed; a prior task's session may not be
-visible here):
-
-- **An approved outline exists** (shape slice output in the task body / an
-  attachment): seed the base from its Wave lines verbatim —
-
-  ```text
-  opencode run --auto --agent plan --title "waves: <goal>" --model <m> \
-    'This Wave outline is already approved — hold it as the plan to implement,
-     do not re-plan: <the approved Waves, verbatim>'
-  ```
-
-  **Seed ONLY the coarse Wave lines.** When the approved deliverable is a
-  detailed plan document (a long PLAN.md, a spec with per-file steps), do
-  not paste it wholesale into the base — reference it by path/attachment
-  and let each Wave's decompose read it (<DetailedPlanRule>). A base
-  bloated with phase detail poisons every fork taken from it.
-
-  Optimization: if `opencode session list` in this worktree shows the shape
-  slice's base session id, fork it directly and skip re-seeding.
-- **No outline** (direct execute path, Medium/High): generate it yourself —
+- **Wave unit** (`Base session: <id>` + the Wave to implement): the
+  assistant's approved plan session IS the base — verify it is
+  visible here (`opencode session list` in the worktree), fork the
+  unit's decompose straight from it, and never re-plan what it holds.
+  Not visible (wrong project key, pruned) → ask; do not silently
+  re-plan.
+- **Purpose unit** (`Issue: #n`): no base session — the Issue text is
+  the spec. Read it first (`gh issue view <n> --comments`); the
+  unit's decompose is a fresh plan run grounded on the Issue and the
+  current worktree (see the cycle below).
+- **Whole small job** (no base, no Issue): the brief itself grounds
+  the unit; the job runs as ONE unit through the same cycle. If the
+  decompose reveals the job is really several units, that is a
+  granularity finding — checkpoint and report; the assistant
+  re-plans. Never self-generate a multi-unit outline.
+- **An approved Wave outline exists only as text** (in the brief / a
+  worktree file): seed a base from its unit lines verbatim —
 
   ```text
   opencode run --auto --agent plan --title "waves: <goal>" --model <m> \
-    'Split this goal into WAVES only — coarse milestones and their dependency
-     order, one line each. No phase/unit detail. <goal, constraints, done>'
+    'This outline is already approved — hold it as the plan to implement,
+     do not re-plan: <the approved units, verbatim>'
   ```
 
-  then self-review it (risks, ordering). High tier additionally blocks for
-  approval (the mode file's RiskGate) before the loop.
-- Recover the base id (`opencode session list`), record it in a `PROGRESS:`
-  comment, and attach the outline (`kanban_attach`). The **durable handoff is
-  the outline text + git**; the session id is just the fork handle.
+  **Seed ONLY the coarse unit lines.** When the approved deliverable
+  is a detailed plan document (a long PLAN.md, a spec with per-file
+  steps), do not paste it wholesale into the base — reference it by
+  path and let the unit's decompose read it (<DetailedPlanRule>). A
+  base bloated with phase detail poisons every fork taken from it.
+- Record every base / plan-run id (`opencode session list`) in your
+  replies. The **durable handoff is the Issue/outline text + git**;
+  the session id is just the resume handle.
 
-### Wave loop (Wave 1 → Wave 2 → …, in outline order)
+### The cycle — per released unit
 
-Per Wave, a decompose → confirm → build sub-cycle. **OpenCode owns the phase
-granularity; you judge it, you don't dictate it.** The sub-cycle is
-mandatory for every Wave — no risk tier, schedule pressure, or
+Decompose → confirm → build → close. **OpenCode owns the phase
+granularity; you judge it, you don't dictate it.** The cycle is
+mandatory for every unit — no risk level, schedule pressure, or
 already-detailed plan waives it (<DetailedPlanRule>).
 
-1. **Decompose** — fork the base with the plan agent (read-only):
+1. **Decompose** — a read-only plan run producing the unit's phases.
+   Wave unit — fork the base:
 
    ```text
    opencode run --auto -s <base-id> --fork --agent plan --model <m> \
-     'Decompose Wave N — "<wave intent>" — into phases/units, grounded on the
-      current worktree (prior Waves are already committed here). Phases only,
-      no code. If something material is undecided, say so.'
+     'Decompose Wave N — "<unit intent>" — into phases, grounded on the
+      current worktree (prior units are already committed here). Phases
+      only, no code. If something material is undecided, say so.'
    ```
 
-2. **Confirm — the GO gate** — read the phase breakdown and sanity-check
-   it: does it match the Wave's intent, stay inside the granted scope, and
-   hang together? This is your review of OpenCode's plan — judge it, don't
-   re-granularize it.
+   Purpose unit — fresh plan run, no fork:
+
+   ```text
+   opencode run --auto --agent plan --model <m> \
+     'Decompose the implementation of Issue #<n> into phases, grounded
+      on the Issue (gh issue view <n>) and the current worktree. Phases
+      only, no code. If something material is undecided, say so.'
+   ```
+
+2. **Confirm — the GO gate** — read the phase breakdown and
+   sanity-check it: does it match the unit's intent, stay inside the
+   granted scope, and hang together? This is your review of
+   OpenCode's plan — judge it, don't re-granularize it.
    - Off target / too broad → correct via `run -c '<redirect>'`.
    - Reveals a need outside the grant (a dependency, a push, an
      architecture/public-API change) → **checkpoint-then-block** (core
-     <CheckpointThenBlock>) — the Wave outline's approval does not cover a
-     new grant.
-   - Accepted → write `PROGRESS: Wave N phases confirmed: <the phases, one
-     line>` with the plan-fork id. This comment is the **gate artifact**:
-     no build fork for Wave N may start until it exists. If you cannot
-     point at a phases-confirmed `PROGRESS:` for the Wave, you are not
-     cleared to build it.
+     <CheckpointThenBlock>) — the decomposition's approval does not
+     cover a new grant.
+   - The plan run says something material is undecided (the decompose
+     prompts' "say so" line exists exactly for this) → a **spec-gap
+     finding** back to the assistant (`Q<n>` / report), never a local
+     decision — the spec, not your judgment, must determine the unit.
+   - Accepted → report `<unit ref> phases confirmed: <the phases, one
+     line>` (e.g. `Wave 2 phases confirmed:` / `Issue #12 phases
+     confirmed:`) with the plan-run id in your reply. This line is
+     the **gate artifact**: no build fork for the unit may start
+     until it exists. If you cannot point at a phases-confirmed line
+     for the unit, you are not cleared to build it.
 
-3. **Implement** — fork the confirmed phase-plan to build, wrapped per
+3. **Implement** — fork the confirmed phase plan to build, wrapped per
    <PermissionBridge>:
 
    ```text
    OPENCODE_PERMISSION='<per PermissionBridge>' opencode run --auto \
      -s <phase-plan-id> --fork --agent build --model <m> \
-     'Implement these phases for Wave N: <the confirmed breakdown>. Prior Waves
-      are committed — build on them. If something material is undecided, stop
-      and state it in your final message instead of guessing.'
+     'Implement these phases for <unit ref>: <the confirmed breakdown>.
+      Prior units are committed — build on them. If something material is
+      undecided, stop and state it in your final message instead of
+      guessing.'
    ```
 
-   Follow-ups within the Wave: `opencode run -c '<follow-up>'` (or
+   Follow-ups within the unit: `opencode run -c '<follow-up>'` (or
    `-s <build-fork-id>`). OpenCode handles the phases' own
    sub-steps/subagents; **don't micromanage its internals** — judge the
    result by your own verification (`references/verify.md`).
 
-4. **Close the Wave** — verify per `references/verify.md` → commit
-   (sub-commits per phase are fine) → `PROGRESS:` with ids (`[base <id> |
-   wave <name> <build-fork-id> | phases: …]`) → discard the Wave's forks. The
-   **next Wave forks fresh from the base** — never carry a session across a
-   Wave boundary (that is how cost and compaction creep back in).
+4. **Close the unit** — verify per `references/verify.md` → commit
+   (sub-commits per phase are fine; delivery writes per
+   `references/delivery.md` when the grant covers them) → report with
+   ids (`[base <id> | <unit ref> <build-fork-id> | phases: …]`) →
+   discard the unit's forks — the next unit starts from a fresh plan
+   context, never a carried session (that is how cost and compaction
+   creep back in) — then **stop at the released set's boundary** and
+   wait for the next release (continue only under an explicit batch
+   grant).
 
-Grounding: prior Waves are committed, so each Wave's decompose/build reads
-the **current worktree** for context — grounding travels through git, not
-through session lineage. You only ever track two live ids: the base and the
-current Wave's fork.
+Grounding: prior units are committed, so each unit's decompose/build
+reads the **current worktree** for context — grounding travels
+through git, not through session lineage. You only ever track two
+live ids: the grounding session (base or the unit's plan run) and the
+current build fork.
 
-Prompt scoping rule: every decompose/build prompt names ONE Wave, never the
-whole goal — narrow scope is what buys quality.
+Prompt scoping rule: every decompose/build prompt names ONE unit,
+never the whole goal — narrow scope is what buys quality.
 
-Escape hatch: if fork mechanics misbehave, commit the outline as `PLAN.md` in
-the worktree and run each Wave as a fresh session that reads `PLAN.md` + the
-current code — and record in a `PROGRESS:` note that the escape hatch is in
-use. The decompose → confirm gate still applies per Wave: each fresh session
-starts as a plan run deriving the Wave's phases, confirmed before its build
-run.
+Escape hatch: if fork mechanics misbehave, commit the outline as
+`PLAN.md` in the worktree and run the unit as a fresh session that
+reads `PLAN.md` + the current code — and record in your reply that
+the escape hatch is in use. The decompose → confirm gate still
+applies: the fresh session starts as a plan run deriving the unit's
+phases, confirmed before its build run.
 
 ### DetailedPlanRule — a detailed plan never waives decompose
 
-An approved plan that already carries phase-level detail (a reviewed
-PLAN.md, a spec with per-file steps) is the situation MOST likely to tempt
-you into skipping the plan fork and pasting the plan's steps straight into
-a build prompt. Don't — that is double harm: it violates "prompt intent,
-don't paste procedure", and it ships a plan that was written before the
-current worktree existed (prior Waves have landed since; the plan may have
+An approved artifact that already carries phase-level detail (a
+reviewed PLAN.md, a spec with per-file steps, a richly specified
+Issue body) is the situation MOST likely to tempt you into skipping
+the plan run and pasting its steps straight into a build prompt.
+Don't — that is double harm: it violates "prompt intent, don't paste
+procedure", and it ships a plan that was written before the current
+worktree existed (prior units have landed since; the plan may have
 drifted).
 
-Instead, change the decompose prompt for each Wave to a **derive** variant:
+Instead, change the unit's decompose prompt to a **derive** variant:
 
 ```text
 opencode run --auto -s <base-id> --fork --agent plan --model <m> \
-  'Derive the phase breakdown for Wave N — "<wave intent>" — from the
-   approved plan at <path/attachment>, grounded on the CURRENT worktree
-   (prior Waves are committed). Flag every point where the plan and the
-   code have drifted. Phases only, no code.'
+  'Derive the phase breakdown for <unit ref> from the approved plan at
+   <path/attachment>, grounded on the CURRENT worktree (prior units are
+   committed). Flag every point where the plan and the code have
+   drifted. Phases only, no code.'
 ```
 
-OpenCode still produces the breakdown; you still confirm it and write the
-gate artifact. The step costs one short plan run and buys a fresh
-grounding check on a stale document — it is never redundant.
+(For a purpose unit the same derive prompt runs as a fresh plan run
+against the Issue body.) OpenCode still produces the breakdown; you
+still confirm it and write the gate artifact. The step costs one
+short plan run and buys a fresh grounding check on a stale document —
+it is never redundant.
 
 ## InspectionPrimaries
 
 Fresh sessions, not forks — usable from any mode (assess uses them
-standalone; implement interposes them where a Wave warrants it):
+standalone; implement interposes them where a unit warrants it):
 
 - `opencode run --auto --agent review --model <m> '<review this worktree's
-  diff …>'` — after a Wave or before handing back; unbiased eyes, read-only
+  diff …>'` — after a unit or before handing back; unbiased eyes, read-only
   by its own permissions (plain `--auto`, no env).
 - `opencode run --auto --agent debug --model <m> '<symptom, repro …>'` —
-  stubborn bugs; read-only diagnosis. Apply the fix in the Wave's build fork
+  stubborn bugs; read-only diagnosis. Apply the fix in the unit's build fork
   (`run -c`).
 - Their findings flow back as `run -c` follow-ups into the build fork. Both
   delegate internally (reviewer/debugger subagents) per the opencode config —
@@ -319,9 +344,8 @@ OPENCODE_PERMISSION='{"edit":"allow","bash":{"*":"allow",<authority-denies>},<to
 | A2 | drop the push/PR-create/comment/edit/review denies — A2 includes maintaining YOUR OWN PR (reply to review comments, edit the body, re-request review); keep `"gh pr merge*":"deny"` (merging is never yours) + the issue-write denies below |
 | A3 | same as A2 |
 
-**Issue/board writes are in NO A-preset** — only the override line
-`issues: write` (or an `AUTHORITY+:` expansion) grants them. Until granted,
-every build run also carries:
+**Issue/board writes are never granted** — GitHub bookkeeping belongs to
+the orchestrator. Every build run therefore also carries:
 
 - bash: `"gh issue create*":"deny","gh issue edit*":"deny","gh issue comment*":"deny","gh issue close*":"deny","gh project *":"deny"`
 - `<tool-denies>` — OpenCode's custom GitHub Projects tools are `allow` in its
@@ -329,9 +353,7 @@ every build run also carries:
   `"github_project_create":"deny","github_project_field_ensure":"deny","github_project_item_add":"deny","github_project_item_set":"deny","github_project_item_note":"deny","github_project_item_promote":"deny","github_project_view_ensure":"deny","github_project_issue_link":"deny","github_project_issue_develop":"deny"`
   (`github_project_item_list` stays allowed — read-only).
 
-With `issues: write`: drop the issue/board denies above, but ALWAYS keep
-`"gh issue delete*":"deny"` (deleting is never yours, mirroring the tools'
-own no-delete policy). Reading (`gh issue view/list`, `gh pr view/diff`,
+Reading (`gh issue view/list`, `gh pr view/diff`,
 `github_project_item_list`) is never denied at any grant.
 
 Verified mechanics this relies on:
@@ -382,12 +404,12 @@ When a run drifts, pick the cheapest recovery that restores quality:
 2. **Re-fork** — the session context itself is poisoned (compaction, wrong
    assumptions baked in): discard the fork, fork the base again with a
    corrected prompt. Cheap because the base holds the plan.
-3. **Restart the Wave** — the breakdown was wrong, not the build: re-run
+3. **Restart the unit** — the breakdown was wrong, not the build: re-run
    decompose with what you learned, then build fresh.
 
 Never argue with a degraded session for more than one redirect — re-forking
-is cheaper than persuasion. Record what was discarded and why in a
-`PROGRESS:` note so a respawn doesn't repeat it.
+is cheaper than persuasion. Record what was discarded and why in your
+reply so a later resume doesn't repeat it.
 
 ## Pitfalls
 
@@ -395,13 +417,13 @@ is cheaper than persuasion. Record what was discarded and why in a
   between waits, per-cycle log reads — instead of RunExecution's foreground
   default or full-length `wait(600)` slices; polling is what starves
   `max_turns`.
-- Carrying one session across a Wave boundary (cost + compaction creep) —
-  fork fresh from the base per Wave and ground on git; or the opposite:
-  restarting from scratch after an unblock instead of rejoining the recorded
-  fork (`-s <fork-id>`, see `references/resume.md`).
+- Carrying one session across a unit boundary (cost + compaction creep) —
+  ground each unit's fresh plan context on git; or the opposite:
+  restarting from scratch after an interruption instead of rejoining the
+  recorded fork (`-s <fork-id>` from the ids in your replies).
 - Dictating the phase granularity instead of judging OpenCode's decomposition
   — or skipping the confirm step and building a bad breakdown.
-- Starting a build fork without that Wave's `phases confirmed` `PROGRESS:` —
+- Starting a build fork without that unit's reported `phases confirmed` line —
   the gate artifact is the license to build; "the plan was already detailed"
   is the classic rationalization, answered by <DetailedPlanRule>.
 - Writing the phase procedure into the build prompt yourself because the
@@ -417,10 +439,11 @@ is cheaper than persuasion. Record what was discarded and why in a
   protective denies; set only `edit`/`bash` keys plus the Authority denies.
 - Ignoring `auto-rejecting` lines or unstated-assumption text in run output —
   that is OpenCode's only voice (QuestionBridge).
-- Un-recorded base / fork ids — ids belong in every `STATE:`/`PROGRESS:`
-  comment.
-- Bloating the base with phase detail (keep it the coarse Wave outline), or
-  prompting "the whole goal" in one Wave instead of that Wave only.
+- Un-recorded base / fork ids — ids belong in every per-unit report.
+- Bloating a base with phase detail (keep it the coarse unit outline), or
+  prompting "the whole goal" in one unit instead of that unit only.
+- Running past the released set — the next unit needs a release or an
+  explicit batch grant (kernel <Runtimes>).
 - Treating `claude auth status` as the quota gate, or reading Anthropic
   "Unavailable (not detected)" as "no Claude" — rung 1 descends on errors, not
   on the meter.
@@ -436,16 +459,18 @@ is cheaper than persuasion. Record what was discarded and why in a
 - The run started at ProviderLadder rung 1 unless a recorded error or
   QuotaCheck reading forced a descent; the report names the provider/model
   (and variant) actually used, plus the reason for any descent.
-- The base was established in-task; base and fork ids are recorded in
-  comments.
-- Each Wave ran decompose (plan fork) → confirm → implement (build fork),
-  and a `PROGRESS: Wave N phases confirmed` comment exists for every Wave
+- Each unit's grounding matches its kind (base fork for a Wave, a
+  fresh Issue-grounded plan run for a purpose, the brief for a whole
+  small job); grounding and fork ids are recorded in the replies.
+- Each unit ran decompose (plan run) → confirm → implement (build fork),
+  and a reported `<unit ref> phases confirmed` line exists for every unit
   with a timestamp BEFORE its build fork (the gate artifact); detailed
   approved plans went through the derive variant (<DetailedPlanRule>),
-  never straight to build; no session crossed a Wave boundary; run outputs
-  were read for open questions (QuestionBridge).
+  never straight to build; no session crossed a unit boundary; work
+  stopped at the released set's boundary; run outputs were read for
+  open questions (QuestionBridge).
 - Every build run carried the matching PermissionBridge env + `--auto`
-  (including the issue/board tool denies when `issues: write` is absent).
+  (including the issue/board tool denies).
 - Prompts carried only the delta per <PromptContract>: no role preambles,
   no restated permissions/denies/skill content/repo conventions; scope
   boundaries and the QuestionBridge closer present where required.

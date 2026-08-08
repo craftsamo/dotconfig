@@ -1,8 +1,7 @@
 # Produce — the production loop (entry)
 
-Loaded for produce-mode cards: the brief describes assets to deliver. The
-kernel's contracts (Budget caps, comment protocol, fan-out) apply
-throughout; this file owns the chain routing and the per-asset loop.
+Loaded for Produce work: the brief describes assets to deliver. The
+kernel's contracts (Budget caps, dialogue contract) apply throughout; this file owns the chain routing and the per-asset loop.
 
 Intent shapes the entry (kernel <IntentTriage>):
 
@@ -18,7 +17,8 @@ Intent shapes the entry (kernel <IntentTriage>):
 
 Load `references/capabilities.md`, select the canonical leaf by final
 deliverable and production method, then `skill_view` it before work. The leaf
-owns craft and medium-specific QA; this pipeline continues to own Budget,
+owns craft and medium-specific production details; this pipeline continues to
+own Budget,
 questions, review, verification floor, and delivery.
 
 A dispatch may preload a canonical technic, but preload is not proof that it
@@ -35,10 +35,12 @@ skills do not become stable dispatch names automatically, and their inline
 
 Per asset (or batch chunk):
 
-1. **Spec first.** Destination constraints (platform, dimensions, format,
-   caps) and brand/style inputs come before the first generation — the
-   depth skills open with exactly this discovery. An anchored batch reuses
-   the locked anchor verbatim (`references/plan.md` <AnchorByType>).
+1. **Spec first.** The released spec carries the decisions; validate it
+   against `references/brief.md`'s family checklist and discover only
+   mechanical destination facts before the first generation. A missing
+   decision is a spec gap (kernel <UnitDiscipline>) — never improvised.
+   An anchored batch reuses the locked anchor verbatim
+   (`references/plan.md` <AnchorByType>).
 2. **Generate deliberately** within the Budget caps: variants are for
    real alternatives, not retries of an unread failure. Post-process with
    terminal tools (ffmpeg, the bundled scripts) in the task workspace;

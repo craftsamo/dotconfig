@@ -1,6 +1,8 @@
-# Resume — continuity across respawns and salvage cards (entry overlay)
+# Resume — continuity across respawns and salvage cards (entry reference)
 
-Two continuity cases, same discipline: **work that already cost credits is
+This reference is card-only and applies to the catalog units
+`anchored-image-batch`, `tts-voice`, and `deterministic-render`. Two continuity
+cases, same discipline: **work that already cost credits is
 raw material, never waste**. Resume covers re-entering the SAME card after
 a block/crash/timeout; <Salvage> covers a FRESH card asked to recover
 another effort's surviving work.
@@ -31,7 +33,7 @@ Every respawned run (the task has prior runs/comments):
 ## Salvage — a fresh card recovering another effort's work (intent)
 
 The card's job is to rescue, complete, or canonicalize assets an earlier
-card already paid for (an interrupted batch, candidates needing a canonical
+card already paid for (an interrupted batch, surviving assets needing a canonical
 export, work stranded by a crash or an archived chain).
 
 1. **Locate the source** — the body's Inputs must point at it: the source
@@ -47,7 +49,7 @@ export, work stranded by a crash or an archived chain).
    anchor; genuinely missing → produce fresh (`references/produce.md`),
    counted against THIS card's Budget.
 4. **Canonicalize** — exact target specs (dimensions, format, naming) per
-   the brief; the point of salvage is usually turning candidates into the
+   the brief; the point of salvage is usually turning surviving assets into the
    one true set.
 5. Verify per `references/verify.md` (salvage profile: the gate is the
    inventory trail — nothing regenerated that existed), deliver per

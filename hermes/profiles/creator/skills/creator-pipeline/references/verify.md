@@ -93,7 +93,7 @@ Row selection: produce cards use their intent's row — `new` splits by
 anchoring (an asset produced under a locked anchor or as part of a
 consistent set uses the batch row, even when it is a single file); execute
 Direction cards use `Direction (anchor)`; advisory cards use `advisory`.
-Top-level `Mode: plan` never loads this production verifier.
+Advisory work never loads this production verifier.
 
 `REQ` = required, `-` = usually skippable (judgment stands):
 

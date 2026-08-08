@@ -30,6 +30,7 @@ only when they share tools, spend class, and verification.
 | sprite/cel animation, procedural pixel loop, pixel MP4/GIF | `creator-pixel-video` | deterministic native-grid animation; never ordinary AI video |
 | educational, biography, or tutorial comic with storyboarded panels | `creator-knowledge-comic` | metered page art + deterministic lettering; multi-page work uses the plan/anchor gate |
 | official third-party logo/mark acquisition and provenance | `creator-brand-asset-sourcing` | source, do not redraw |
+| assembly of QA-passed parts — mux, concat, mix, overlay, trim, re-container per a fixed edit spec | `creator-media-assembly` | deterministic ffmpeg; parts consumed verbatim; zero generation spend |
 
 Voice lines currently use the `tts` toolset under the pipeline contract and
 identify as `core:tts`, without a dedicated technic. `creator-html-motion`

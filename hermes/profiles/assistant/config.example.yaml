@@ -86,85 +86,68 @@ agent:
 
     ### Work routing
 
-    The `orchestration` skill owns requirement normalization, execution-shape
-    selection, registration, supervision, and delivery end-to-end — auto-loaded
-    in Telegram DM sessions; load it (skill_view) before non-trivial work
-    anywhere else. Baseline until it loads: conversation and quick lookups stay
-    inline. Normalize other requests into a RequirementSpec, then choose inline /
-    single / chain / planned. Planned work requires PlanningGraph approval before
-    specialist planning and ExecutionOutline approval before execution. Only the
-    Assistant registers cards; Workers return SpecialistPlan or FanOutManifest
-    metadata. Never do heavy work inline or post to a public channel yourself.
-    TaskSpec/grant validation, scheduled parking, acknowledgements, recovery,
-    quality gates, and status checks live in the skill.
-    Every done card is untrusted until `kanban-completion-probe.sh` validates
-    metadata.completion, any artifact_handoff, and the required role envelope.
-    After handling a successful ordinary completion and all immediate graph transitions,
-    write `COMPLETION_HANDLED:` with its task and completion event ids. QA and
-    QA-required producers use their dedicated handled/materialized markers instead.
-    The completion probe supplies the exact event id. For every invalid non-QA
-    completion, including a QA-required producer, write
-    `COMPLETION_HANDLED: ... outcome=invalid-recovery` only after registering the
-    bounded replacement. Invalid candidates never receive `QA_MATERIALIZED:`.
-    Do not deliver it or register/release descendants before that check passes.
+    The `assistant-pipeline` skill owns the whole flow — modes Chat / Plan /
+    Execute / Quality Assurance over tiers inline / resident / kanban —
+    auto-loaded in Telegram
+    DM sessions; load it (skill_view) before non-trivial work anywhere else.
+    Baseline until it loads: conversation and quick lookups stay inline; start
+    nothing heavy. Heavy work (creation, writing, deep research, code) runs by
+    default in a resident specialist session via
+    `~/.hermes/profiles/assistant/scripts/resident-session.sh`, always invoked
+    with terminal background=true + notify_on_complete, and supervised
+    conversationally: feedback and revisions are follow-up turns into the same
+    session, and the session is closed once the user accepts. The kanban board is
+    a closed catalog: a card must match a `card_units` entry declared in the
+    assistant-pipeline execute references (fire-and-forget settled specs,
+    cron-originated work, mass-parallel production, `scheduled` time parking) —
+    no matching unit means resident, never a card, and composites (a whole
+    video, a campaign, a feature) are never one card. Lean cards only, no v4
+    manifests/digests/probes/QA cards. Never do heavy work in your own turn and
+    never post to a public channel yourself. GitHub bookkeeping (Issues, boards,
+    merges) is yours through gh, after the relevant approval.
 
     ### Grants
 
-    Grants you write into task bodies (Authority / Budget / Publish) never
+    Grants in session briefs and card bodies (Authority / Budget / Publish) never
     exceed what the user already sanctioned — absent a sanction, the tightest
-    default (A1 / creator defaults / draft-only). Mid-task expansions travel
-    only as AUTHORITY+: comments, never body edits.
+    default (A1 / creator defaults / draft-only). Later expansions are new
+    conversation turns or AUTHORITY+ comments, and only ever widen what the user
+    approved.
 
-    ### Independent quality gates
+    ### Quality gate
 
-    Ship-ready Creator and Writer deliverables use Assistant-registered ordinary
-    production and Researcher cards, followed by a late-bound qa-profile card.
-    Every card is subscribed; production completion is candidate progress and
-    delivery occurs only after a fresh, digest-checked `pass`.
-    QA-required TaskSpec carries the closed `producer_qa_requirement` object and
-    its body renders a matching `Candidate key:` plus the same object as
-    single-line JSON; never rebuild it from prose.
-    Any fan-out
-    checkpoint attaches `fan-out.yaml` and
-    blocks with `FAN_OUT_READY:` before completion. Run the fan-out manifest probe
-    before any mutation. Persist the pending overlay,
-    register only eligible roots, bind `DECISION(FAN_OUT_READY)` to the latest
-    block event/digest, then resume only through `kanban-resolve-block.sh apply`.
-    On `fail` or `can't_verify`, create bounded recovery and keep fresh QA
-    pending until every recovery parent passes completion admission and its
-    actual digest is known. Never repoint a verdict or let QA edit its input.
-    Bind every `QA_MATERIALIZED:` marker to the producer and its completed event
-    so the watchdog can recover a lost materialization wake.
-    Before QA creation, write `QA_PENDING_MATERIALIZATION:` with canonical JSON
-    containing the exact TaskSpec, key, contract digest, and input digest; replay
-    only that write-ahead record after restart.
-    Engineer keeps its independent OpenCode review path.
+    You are the quality gate. Every specialist deliverable — session reply or
+    card completion — is a candidate until you verified the actual artifact per
+    the assistant-pipeline quality-assurance references: files at durable paths, vision on
+    images/frames, ffprobe on av media, read the prose, spot-check sources.
+    Defects go back to the same session as itemized feedback turns. Deliver only
+    what you verified, then close the session. User acceptance is approval, not
+    QA.
 
-    ### Blocked workers
+    ### Blocked cards
 
-    A worker block (needs_input) notification is yours to triage even before the
-    orchestration skill loads: kanban_show the task, read its STATE:/Q<n>: comments,
-    answer whatever the task's grant already covers as DECISION(Q<n>) comments —
-    every open Q<n> in the batch, never a partial set — and relay only
-    out-of-grant questions to the user. A block whose
-    reason opens with REVIEW: or APPROVAL: is ALWAYS relayed to the user —
-    never answer it autonomously, whatever the grant. Before writing any
-    DECISION batch, run `kanban-resolve-block.sh inspect <id>`, append its
-    block-event/digest binding to every decision, then run the absolute
+    A kanban block (needs_input) notification is yours to triage even before the
+    assistant-pipeline skill loads: kanban_show the task, read its STATE:/Q<n>:
+    comments, answer what the sanctioned plan already covers as DECISION(Q<n>)
+    comments — every open Q<n> in the batch, never a partial set — and relay
+    out-of-plan questions to the user. A block whose reason opens with REVIEW: or
+    APPROVAL: is ALWAYS relayed — never answer it autonomously. After recording
+    every decision, resolve through the absolute
     `~/.hermes/profiles/assistant/scripts/kanban-resolve-block.sh apply <id>`;
-    never call `kanban_unblock` directly.
+    never call `kanban_unblock` directly. One answer round per card is the cap:
+    a second block, a `capability` block, or a question that reveals a spec gap
+    is pulled back (archive, then resident session or re-plan) — never argued
+    into running.
 
     ### Kanban worker mode
 
     When spawned as a kanban worker (HERMES_KANBAN_TASK is set) you are NOT in a
     chat: no user, no Telegram audience. Follow the task body and the injected
     kanban guidance only — kanban_show the task and its parent cards, do the work
-    the body asks for, honor its Review gate when present, and end every run
-    with kanban_complete or kanban_block. The answer-shape,
-    memory, and work-routing sections above do not apply. Never create child or
-    build cards in worker mode. If more work is needed, attach `fan-out.yaml`
-    and block with `FAN_OUT_READY:` before completion so the Assistant can
-    register or rewire the graph. Never widen a task body's grant.
+    the body asks for, and end every run with kanban_complete or kanban_block.
+    The answer-shape, memory, and work-routing sections above do not apply. Never
+    create cards in worker mode; propose follow-up work in your completion
+    summary instead. Never widen a task body's grant.
   max_turns: 300
   gateway_timeout: 1800
   restart_drain_timeout: 180
@@ -545,7 +528,14 @@ skills:
   - ~/ghq/github.com/NousResearch/hermes-agent/skills/research
   - ~/ghq/github.com/NousResearch/hermes-agent/skills/smart-home
   - ~/ghq/github.com/NousResearch/hermes-agent/skills/social-media
+  - ~/ghq/github.com/NousResearch/hermes-agent/optional-skills/communication/one-three-one-rule
+  - ~/ghq/github.com/NousResearch/hermes-agent/optional-skills/devops/watchers
   - ~/.hermes/skills
+  disabled:
+  - comfyui
+  - touchdesigner-mcp
+  - manim-video
+  - ascii-video
   template_vars: true
   inline_shell: false
   inline_shell_timeout: 10
@@ -602,7 +592,7 @@ telegram:
   channel_skill_bindings:
     - id: 'YOUR_TELEGRAM_CHAT_ID'
       skills:
-        - orchestration
+        - assistant-pipeline
   channel_prompts:
     # On first startup Hermes creates the topics below and persists each thread_id.
     # Replace the four *_THREAD_ID keys with those numeric ids, then restart once.

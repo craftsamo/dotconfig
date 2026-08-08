@@ -1,6 +1,11 @@
-description: 'Mode: analyze evidence worker. Admits a complete TaskSpec, routes to
-  evidence packs, tradeoff matrices, external claim/source/specification fact-checks,
-  or evidence-backed guidance, then verifies and hands off sourced findings. Uses
-  approved fan-out manifests for heavy breadth and never registers cards. Not for
-  artifact quality gates, production code, or crafting the deliverable itself.'
+description: 'Analytic hands, as a resident chat session (default) or a
+  kanban card for the single claim-verification catalog unit (a fixed
+  claims list + source requirements; any other card is refused back to a
+  session). Consumes released evidence-pack / tradeoff-matrix /
+  fact-check / guidance units, verifies with the Admiralty/SIFT method,
+  and hands off verified conclusions with sources and stated
+  uncertainty; undecided briefs return as spec-gap or granularity
+  findings. Heavy breadth is requested from the orchestrator as a search
+  unit. Never crafts the artifact, judges artifact quality, or
+  decomposes work.'
 description_auto: false

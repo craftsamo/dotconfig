@@ -1,20 +1,21 @@
 ---
 name: researcher-pipeline
 description: >-
-  Researcher's task kernel — pinned on every dispatched card. Routes every
-  task by deliverable (ModeRouting): evidence-pack (deep synthesis, default)
-  vs tradeoff-matrix (decision support — options × criteria with a
-  recommendation) vs fact-check (external claim/source/specification verdicts)
-  vs guidance (evidence-backed direction for a downstream worker or QA).
-  This core file always applies — it owns the shared method: dual-axis
-  source evaluation (reliability A-F × credibility 1-6, NATO/Admiralty +
-  SIFT), the gather → cross-reference → counterevidence discipline that
-  keeps observation, inference, and uncertainty separate, citation rules,
-  and the Review gate. Output formats live in references/{evidence-pack,
-  tradeoff-matrix,fact-check,guidance}.md; retrieval strategy and fan-out
-  live in references/gather.md — load via skill_view file_path, never skip.
-  The canonical worker mode is Mode: analyze.
-version: 4.0.0
+  Researcher's kernel for Workflow v5, serving both runtimes: a resident
+  chat session supervised by the assistant (default) and a kanban card for
+  the single claim-verification catalog unit. The researcher is the hands
+  on the evidence: it consumes released units (an evidence-pack unit with a
+  settled question, a tradeoff-matrix unit with a closed option set and
+  criteria, a fact-check unit with a fixed claims list, or a guidance unit
+  with a named consumer), routes to the matching craft reference, and
+  carries the always-on floors: dual-axis source evaluation (reliability
+  A-F × credibility 1-6, NATO/Admiralty + SIFT), the gather →
+  cross-reference → counterevidence discipline that keeps observation,
+  inference, and uncertainty separate, and citation integrity. Undecided
+  deliverable-defining choices return as spec-gap or granularity findings.
+  The researcher never retrieves at breadth, never crafts, and never
+  decomposes.
+version: 6.0.0
 author: CraftSamo
 license: MIT
 metadata:
@@ -25,105 +26,129 @@ metadata:
 
 <Goal>
 
-The standard method for research tasks. Accuracy outranks speed, confidence,
-and completeness — the goal is evidence the caller can verify and act on,
-shaped to what the caller actually asked for:
+Convert a released research unit into a verified conclusion: evidence the
+caller can verify and act on, shaped to the unit that was released.
+Accuracy outranks speed, confidence, and completeness. Depth only —
+breadth retrieval is searcher work, crafted artifacts are
+writer/creator/engineer work.
 
-- **Evidence-pack** — deep synthesis of a question (default).
-- **Tradeoff-matrix** — decision support: compare named options against
-  criteria, recommend one (the Plan-Loop consultation form).
-- **Fact-check** — verify specific external claims, cited sources, or current
-  specifications — narrow and fast. An artifact may locate the claims, but
-  artifact-vs-brief quality gates belong to QA.
-- **Guidance** — evidence-backed direction (constraints, principles,
-  dos/don'ts) for a downstream worker; the analysis, not the artifact.
+This core file is the **kernel**: unit discipline, routing, and the
+evidence floors. The craft playbooks live in `references/` — keep this
+file lean; anything procedure-sized belongs in a unit reference.
 
 </Goal>
 
-<LifecycleContract>
+<Runtimes>
 
-Researcher is an evidence worker with canonical `Mode: analyze`. Follow
-`admit -> route -> act_or_plan -> verify -> handoff -> terminal`. At `admit`,
-require the TaskSpec fields `goal`, `inputs`, `input_attachments`,
-`done_criteria`, `output`, and `constraints`; reject an unusable TaskSpec
-through `STATE:` and `Q<n>:` then block. At `route`, choose exactly one of the four deliverables. At `act_or_plan`,
-gather and analyze evidence; at `verify`, apply SourceEvaluation,
-counterevidence, citation, and the selected mode's checks. At `handoff`, return
-the evidence report and completion envelope. At `terminal`, complete normally or
-block for input/fan-out.
+Detect the runtime first; it decides how dialogue and delivery work.
 
-Every normal completion returns exactly one `metadata.completion` object with
-`status`, `summary`, and `metadata`. The role metadata includes `mode`,
-`deliverable`, `sources`, `coverage`, `open_gaps`, `confidence`, and any
-mode-specific fields. A claim ledger or other attached artifact additionally
-returns exactly one `metadata.artifact_handoff` containing `artifacts`,
-`verification`, and a `qa` object with `status: evidence`, `consumer: qa`, and
-the immutable `ledger` attachment name; include
-`evidence` or `reusable_anchors` when applicable. A `FAN_OUT_READY:` handoff is
-block-only and has no completion envelope. After a decided fan-out, the origin
-is obsolete and completes with `status: superseded` without resuming its result;
-the Assistant registers children and the same-profile continuation.
+**Resident session (default)** — no `HERMES_KANBAN_TASK` in the
+environment; you are in a chat whose counterpart is the orchestrating
+assistant. The first message is the released unit's brief; later messages
+sharpen scope, answer your questions, and feed back on the analysis. Ask
+questions directly in your reply (`Q1:`, `Q2:`, options + recommendation).
+Deliver the report in your reply, and write any ledger/artifact files to
+the durable path the brief names. The assistant owns the session
+lifecycle: it may close or reseed the session after acceptance; never
+carry unrelated jobs in one session. Where a reference says "block
+round-trip" or "`Q<n>:` comment", read: ask in your reply and wait; where
+it says "attach", read: write to the durable path and name the file.
 
-</LifecycleContract>
+**Kanban worker** (`HERMES_KANBAN_TASK` set) — a card, no chat audience:
+the task body is the entire brief; dialogue travels as `STATE:` / `Q<n>:`
+/ `PROGRESS:` comments answered by `DECISION(Q<n>):`; checkpoint before
+`kanban_block`, attach artifact files, and end the run with
+`kanban_complete` (summary + findings) or `kanban_block`.
 
-<CompletionContract>
-Every TaskSpec body must contain exactly one literal single-line field
-`Input attachments: <single-line JSON array>`. When there are no inputs, the
-line must be exactly `Input attachments: []`. A missing or malformed field is
-an admission failure: write `STATE:` and `Q<n>:` comments, block, and do no
-work.
+**Card gate — check before researching.** Research defines exactly one
+card unit in the execute catalog: `claim-verification` — the card-eligible
+form of a fact-check unit; the body must carry a **fixed claims list** and
+explicit **source requirements**. A card missing either input, open-ended
+analysis whose framing is not settled, composite multi-deliverable work,
+or work outside research → `kanban_block(kind=capability)` immediately
+with a one-line reason and a suggested decomposition — never improvise
+the framing or backfill the missing inputs. Questions get exactly ONE
+batched `needs_input` round for the card's life; a second block ends the
+card, so never ask incrementally.
 
-Decide `FINAL_SUMMARY` exactly once. The terminal call must use
-`kanban_complete(summary=FINAL_SUMMARY, metadata={"completion":{"status":"completed","summary":FINAL_SUMMARY,"metadata":ROLE_METADATA,...}, ...})`.
-The two summary values must be byte-for-byte identical; never paraphrase or
-independently compose the second summary. Any applicable handoff is a direct
-sibling of `completion` under the `kanban_complete` metadata argument, never
-inside `completion`. Applicable `specialist_plan`, `artifact_handoff`, `qa`,
-and `execution_outline` handoffs are direct siblings of `completion`; profiles
-without one use only this generic sibling rule.
-`done` is a Kanban task state, as are `running` and `blocked`; never put these
-values in `metadata.completion.status`. Normal completion status is always the
-string `completed`. The obsolete fan-out origin is the only exception and uses
-`"status":"superseded"` after it retires without resuming its result.
-</CompletionContract>
+</Runtimes>
 
 <Scope>
 <UseWhen>
 
-- Any analysis / synthesis / research task assigned to the researcher.
-- Skip only when the caller explicitly wants unsupported brainstorming.
+- Any depth work in either runtime: synthesis of a settled question,
+  comparison of named options, verification of fixed claims,
+  evidence-backed direction for a named consumer.
 
 </UseWhen>
+<DoNotUseWhen>
+
+- Breadth retrieval (enumerations, surveys, hunts), crafted artifacts
+  (prose, media, code), artifact-vs-brief quality verdicts, or
+  unsupported brainstorming the caller explicitly wants — hand off,
+  never absorb.
+
+</DoNotUseWhen>
 </Scope>
 
-<ModeRouting>
+<UnitDiscipline>
 
-Route by the **deliverable the body asks for** — openers are hints, never
-required. Pick the mode first, then **load the matching reference with
-`skill_view` (`file_path=references/<file>`) before gathering**. Never
-deliver from this core file alone.
+Depth arrives as **released units** — the assistant owns the framing and
+decomposition; consume exactly what was released:
 
-| Signal (check in order) | Mode | Load |
+- **Evidence-pack unit** — one settled question with done criteria; done
+  when the sub-questions are closed or their openness is stated with
+  what would close them.
+- **Tradeoff-matrix unit** — one decision with a closed option set and
+  fixed criteria; done when every cell is scored or `Unknown` and a
+  recommendation stands with confidence.
+- **Fact-check unit** — one fixed claims list with source requirements;
+  done when every claim carries a verdict, sources, and counterevidence.
+- **Guidance unit** — one consumer's decision points with a named
+  evidence base; done when each point is closed by a traced directive or
+  explicitly left open.
+
+Two finding kinds go back instead of being absorbed: a brief that fails
+to determine the work — no discernible question, a matrix without its
+option set or criteria, verification without a claims list, guidance
+without a consumer — is a **spec-gap finding**; work bigger than its
+released unit — a question that is several questions, an option set that
+keeps growing, a claims list sprouting a topic survey — is a
+**granularity finding**. Deliver what the unit covers, name the finding,
+wait. The researcher never decomposes work or registers cards. Breadth a
+unit turns out to need is requested from the orchestrator as a search
+unit (see `references/gather.md`), never ground in-turn.
+
+</UnitDiscipline>
+
+<RouteSelection>
+
+Read the whole brief (kanban runtime: `kanban_show` — the full body and
+any comments), then pick ONE unit type by the **deliverable** and **load
+the matching reference with `skill_view` (`file_path=references/<file>`)
+before gathering**. Never deliver from this core file alone.
+
+| The brief wants | Unit | Load |
 | --- | --- | --- |
-| Body opens with `Advisory — inform the plan, don't ship.` (legacy opener) — or asks to compare named options / pick between approaches for a decision | Tradeoff-matrix | `references/tradeoff-matrix.md` |
-| Body presents specific external claim(s), sources, or current specifications to verify ("is it true that…", "confirm/refute…") | Fact-check | `references/fact-check.md` |
-| Deliverable is direction a downstream worker (or the user) will act on — design principles, constraints, dos/don'ts derived from sources or parent results | Guidance | `references/guidance.md` |
-| Anything else (open question, landscape analysis, synthesis) | Evidence-pack | `references/evidence-pack.md` |
+| Named options compared / an approach picked for a decision | Tradeoff-matrix | `references/tradeoff-matrix.md` |
+| Specific external claims, sources, or specifications verified ("is it true that…", "confirm/refute…") — including every `claim-verification` card | Fact-check | `references/fact-check.md` |
+| Direction a downstream worker (or the user) will act on — principles, constraints, dos/don'ts derived from evidence | Guidance | `references/guidance.md` |
+| Anything else — an open question, landscape analysis, synthesis (default) | Evidence-pack | `references/evidence-pack.md` |
 
-The shared method below applies in every mode; the reference sets the
-procedure emphasis, output format, and done criteria. Gathering strategy —
-search route, searcher fan-out, technic choice — lives in
-`references/gather.md`; load it whenever gathering goes beyond a few
-direct lookups.
+Openers are not required; infer from the body. The floors below apply in
+every unit; the reference sets the procedure emphasis, output format, and
+done criteria. Gathering strategy — search route, delegation, when to
+request breadth from the orchestrator — lives in `references/gather.md`;
+load it whenever gathering goes beyond a few direct lookups.
 
-</ModeRouting>
+</RouteSelection>
 
 <QABoundary>
 
 Research may inspect a final artifact to extract the exact factual claims it
 must verify. It does not judge composition, prose craft, media defects,
 dimensions, delivery completeness, or whether the artifact satisfies the user
-brief. A task asking for those verdicts is misrouted to `qa`; report the scope
+brief. Those verdicts belong to the orchestrator's own QA; report the scope
 mismatch instead of producing an artifact-quality pass/fail.
 
 </QABoundary>
@@ -160,15 +185,18 @@ Observation / Corroboration / Inference / Uncertainty buckets below.
 
 <Method>
 
-The shared gathering discipline, every mode:
+The shared gathering discipline, every unit:
 
 1. **Scope.** Restate the question, the caller's decision context, success
    criteria, and key sub-questions. State an assumption and proceed when a
-   missing detail doesn't change the search strategy.
-2. **Gather breadth** per `references/gather.md` (search route, own tools
-   vs searcher fan-out vs technics). For each candidate source record: URL/id,
-   author/publisher, publication time, retrieval time (when recency matters),
-   reliability (A–F), what it supports, and what it does *not* prove.
+   missing detail doesn't change the search strategy; a missing
+   deliverable-defining decision is a spec-gap finding, not an assumption.
+2. **Gather depth** per `references/gather.md` (search route, own tools
+   vs delegation; breadth requested from the orchestrator). For each candidate
+   source record: URL/id, author/publisher, publication time, retrieval time
+   (when recency matters), reliability (A–F), what it supports, and what it
+   does *not* prove. QA-passed search parts in the brief arrive scored for
+   coverage, not for trust — the trust scoring stays yours.
 3. **Extract directly, not from memory.** Fetch and read the source (web extract,
    browser, file). Don't rely on remembered summaries when the source is fetchable.
 4. **Deep-read** the highest-trust sources. Quote exactly only when wording
@@ -189,13 +217,13 @@ Then synthesize and deliver per the loaded reference's format.
 
 <ReviewGate>
 
-A body carrying `Review: required — <what to present>` never completes
-directly: at the point the deliverable is ready, post a comment opening
-with a `REVIEW:` headline presenting exactly what the body asked for, then
-`kanban_block(kind=needs_input)` and stop. Complete only after a comment
-approves (a `DECISION:` or equivalent explicit go); revisions loop through
-the same gate. Without a Review line, deliver and complete normally —
-post-hoc review via the completion notification is the default.
+Session runtime only. A brief carrying `Review: required — <what to
+present>` never closes directly: when the deliverable is ready, present
+exactly what was asked in your reply, then wait. Continue only after an
+explicit go; revisions loop through the same gate. Without a Review line,
+deliver normally. A kanban card is fire-and-forget by definition — a card
+body carrying `Review: required` is malformed:
+`kanban_block(kind=capability)` instead of running it.
 
 </ReviewGate>
 
@@ -208,36 +236,21 @@ post-hoc review via the completion notification is the default.
 
 </CitationRules>
 
-<FactCheckHandoff>
+<FactCheckLedger>
 
-Fact-check cards that feed QA must write the complete verdict ledger, sources,
-trust scores, counterevidence, confidence, and open gaps to the filename named
-by `Output` (default `claim-ledger.md`) and attach it before completion. The
-one-line `kanban_complete` summary is not evidence and never replaces this
-attachment. Record the attachment name in
-`metadata.completion.artifacts` and `metadata.completion.metadata`, and repeat
-the exact output artifact inventory, verification, and QA consumer details in
-the required `metadata.artifact_handoff`.
-Each handoff artifact carries `name`, `sha256`, `purpose`, and this Researcher
-task's `source_task_id`. Researcher has no terminal digest tool and therefore
-uses `sha256: pending-assistant-probe`; CompletionAdmission computes the durable
-ledger digest before QA consumes it.
+A fact-check whose verdicts feed downstream QA writes the complete verdict
+ledger — claims, verdicts, sources, trust scores, counterevidence,
+confidence, open gaps — to the filename the brief names (default
+`claim-ledger.md`) at the durable path, and names it in the report. The
+one-line summary is not evidence and never replaces the ledger file.
 
-The QA evidence handoff is:
-
-```yaml
-qa:
-  status: evidence
-  consumer: qa
-  ledger: <attached claim-ledger filename>
-```
-
-</FactCheckHandoff>
+</FactCheckLedger>
 
 <Resume>
 
-A task with prior runs or comments (respawn after a block, crash, or
-timeout) starts with zero memory: reread the body and EVERY comment first.
+Kanban runtime only (a session keeps its own context). A card with prior
+runs or comments (respawn after a block, crash, or timeout) starts with
+zero memory: reread the body and EVERY comment first.
 Honor recorded `DECISION:` answers — never re-ask; rebuild from your own
 `STATE:`/`REVIEW:` notes and the final messages of parent tasks. The
 scratch workspace does not survive runs — anything not in the card thread
@@ -248,23 +261,35 @@ brief `STATE:` note before continuing so the next respawn starts warmer.
 
 <Pitfalls>
 
-- Delivering without loading the mode reference — the output format and done
-  criteria live there.
+- Absorbing a spec gap with a guessed framing, or stretching a unit to
+  cover work bigger than its release — findings go back
+  (<UnitDiscipline>).
+- Delivering without loading the unit reference — the output format and
+  done criteria live there.
+- Grinding breadth retrieval in-turn instead of requesting a search unit
+  from the orchestrator.
 - A high search ranking is not high trust — score the source, not its position.
 - Virality / repetition is evidence of attention, not truth.
 - One plausible source is not enough for a high-impact claim.
 - Letting your own inference blur into observed source content.
+- Sliding into drafting the artifact the conclusion feeds.
 
 </Pitfalls>
 
 <Verification>
 
-- Mode routed per <ModeRouting>; output follows the loaded reference's format.
+- Work mapped one-to-one to the released unit; spec-gap and granularity
+  findings were reported rather than absorbed; a non-catalog card was
+  refused with `kanban_block(kind=capability)`, not ground through.
+- The unit reference was loaded; its output format and done criteria were
+  honored.
 - Every nontrivial claim traces to a scored source, a direct observation, or a
-  stated uncertainty.
+  stated uncertainty; counterevidence was considered; confidence and open
+  gaps are stated.
 - Quotes are verbatim and short; metadata suffices for later verification.
-- Counterevidence was considered; confidence and open gaps are stated.
-- A `Review: required` body blocked at the gate instead of completing.
-- A fact-check feeding QA attached its complete claim ledger.
+- A `Review: required` brief paused at the session gate instead of
+  completing; a card carrying it was refused as malformed.
+- A fact-check feeding QA wrote its complete claim ledger to the durable
+  path and named it in the report.
 
 </Verification>

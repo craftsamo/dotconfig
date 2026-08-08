@@ -1,5 +1,9 @@
-description: 'Mode: retrieve terminal evidence worker. Admits a complete TaskSpec,
-  routes lookup, sweep, or hunt, retrieves real web/X sources, verifies URL and
-  coverage floors, and hands off bounded findings with open gaps. Never analyzes,
-  decomposes, creates fan-out manifests, or registers cards.'
+description: 'Retrieval hands, as a resident chat session or a kanban
+  card for the two catalog units (survey-enumeration, exhaustive-hunt -
+  the home of goal-mode hunts; any other card is refused back to a
+  session). Consumes released lookup / sweep / hunt units, retrieves
+  real web/X sources, verifies URL and coverage floors, and hands off
+  bounded link-first findings with open gaps; undecided briefs return
+  as spec-gap or granularity findings. Never analyzes, decomposes, or
+  registers cards.'
 description_auto: false

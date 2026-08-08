@@ -23,7 +23,7 @@ session, with durable state held by the workspace stores and files rather than c
 
 <OrchestrationOverride>
 
-The chat-wide `orchestration` skill remains active, but this desk narrows its routing:
+The chat-wide `assistant-pipeline` skill remains active, but this desk narrows its routing:
 
 - A request handled by this skill fixes the execution shape to **inline**.
 - If the underlying work needs a `single`, `chain`, or `planned` Worker shape,
@@ -91,7 +91,7 @@ or substantial external research:
    identity or save a short brief).
 2. Summarize the handoff context in a compact, reusable block.
 3. Ask the user to open a new Telegram topic and paste or reference that block there. The new
-   topic inherits the chat-wide `orchestration` skill and owns any kanban dispatch.
+   topic inherits the chat-wide `assistant-pipeline` skill and owns any kanban dispatch.
 
 </SpinOut>
 

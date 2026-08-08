@@ -28,7 +28,7 @@ permission:
     # parsed and doctor-validated but NOT enforced by the daemon (upstream
     # gap), so the flag is forward-compat only — the deny patterns below are
     # the actual mechanical boundary. Last match wins.
-    "agent-browser --action-policy /Users/REDACTED/.config/opencode/agent-browser/research-policy.json *": allow
+    "agent-browser --action-policy */.config/opencode/agent-browser/research-policy.json *": allow
     # Arbitrary code / command smuggling
     "agent-browser --action-policy * eval*": deny
     "agent-browser --action-policy * batch*": deny
@@ -105,7 +105,7 @@ Browser fallback (agent-browser):
   example, how a documented widget or form validates input).
 - Every invocation MUST carry the action policy flag — other forms are
   blocked by permissions:
-  `agent-browser --action-policy /Users/REDACTED/.config/opencode/agent-browser/research-policy.json <command...>`
+  `agent-browser --action-policy ~/.config/opencode/agent-browser/research-policy.json <command...>`
 - eval, batch, downloads, uploads, network manipulation, cookie/storage
   injection, credentials, CDP attach, chat, and plugins are blocked by
   permissions. Do not try to work around a denied command — if a step needs

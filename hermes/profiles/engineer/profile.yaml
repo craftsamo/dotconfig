@@ -1,9 +1,13 @@
-description: 'Runs the engineer-pipeline in top-level plan or execute mode. In
-  plan mode, produces a read-only PlanningGraph SpecialistPlan with bounded
-  proposed execution cards; it never implements or performs Git/GitHub writes.
-  In execute mode, drives OpenCode for assess, shape, and implementation work,
-  including GitHub-flow tasks, while the Assistant owns card registration and
-  allowed fan-out. Confirms material decisions (plan approval, push/PR,
-  dependency or architecture changes, Issue registration) with the
-  orchestrator via kanban block/comment before proceeding.'
+description: 'Code specialist supervising OpenCode, resident-session only
+  (engineering defines no kanban card units; a card is refused back to a
+  session). Routes to assess (read-only knowledge) and implement (the
+  OpenCode unit cycle, consuming units the assistant releases one at a
+  time - a purpose Issue, a Wave from the base plan session, or a whole
+  small job; bootstrap establishes the worktree side of a repo the
+  assistant created). Bounded by the Authority grant (A1 commit-only
+  default; A2 adds branch push + own PR; A3 adds dependency changes;
+  B1/B2 worktree bootstrap - repo creation never). Requirement and unit
+  decomposition, Issue/board writes, repo creation, and merges stay with
+  the assistant.
+  Confirms material decisions conversationally before proceeding.'
 description_auto: false

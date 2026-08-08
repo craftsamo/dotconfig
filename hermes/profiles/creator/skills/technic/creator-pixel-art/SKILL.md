@@ -42,8 +42,10 @@ Before work, the pipeline MediaBrief must pin:
 - source-fidelity vs deliberate-redraw intent,
 - transparency, tile/sprite-sheet, and batch consistency requirements.
 
-A thin logo, glyph, diagonal, or circular mark needs a grid-size fork before
-production. Do not discover at review that the requested grid cannot carry it.
+A thin logo, glyph, diagonal, or circular mark needs the grid-size fork settled in
+the released spec. If the spec did not settle it, that is a spec gap (kernel
+<UnitDiscipline>) — do not discover at review that the requested grid cannot
+carry it.
 
 <Backend>
 
