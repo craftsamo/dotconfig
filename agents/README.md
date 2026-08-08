@@ -63,26 +63,51 @@ to call tools they do not have.
 
 ## Provenance of the Japanese writing stack
 
-The five curated `japanese-*` skills re-author ideas from external sources.
-Their prose is original to this repo (meaning preserved, wording fully
-re-expressed), so no upstream license text is carried in the skill files:
+The curated `japanese-writing` skill bundles the whole Japanese writing
+stack (notation SKILL.md + tech-prose / prose-rhythm / business / inspection
+layers under references/). Several layers re-author ideas from external
+sources. Their prose is original to this repo (meaning preserved, wording
+fully re-expressed), so no upstream license text is carried in the files:
 
-- `japanese-business-docs` and `japanese-inspection` — adapted from
+- `references/business/` and `references/inspection/` — adapted from
   [coji/natural-japanese](https://github.com/coji/natural-japanese) v1.3.0
   (`b54954f`, MIT): doctype patterns, the 12-article constitution, the
   detection scripts and judgment catalogs. The Python scripts under
-  `japanese-inspection/scripts/` are carried nearly verbatim and each keeps a
+  `japanese-writing/scripts/` are carried nearly verbatim and each keeps a
   one-line SPDX/MIT attribution header (that header must stay). Dropped from
   upstream: essay/blog authoring scope, style profiles, the no-uv manual
   checklist, examples.md, `semantic.py`, `calibrate.py`.
-- `japanese-tech-prose` — adapted from k16shikano's japanese-tech-writing
-  gist (Unlicense); the LLM-phrase catalog now lives in `japanese-inspection`.
-- `japanese-prose-rhythm` — adapted from k16shikano's cognitive-rhythm-writing
-  gist (Unlicense).
+- `references/tech-prose.md` — adapted from k16shikano's japanese-tech-writing
+  gist (Unlicense); the LLM-phrase catalog now lives in
+  `references/inspection/`.
+- `references/prose-rhythm.md` — adapted from k16shikano's
+  cognitive-rhythm-writing gist (Unlicense).
 
 To pull upstream improvements: diff the upstream repo against the recorded
 ref, then re-express the delta in the affected skill (never paste prose
 verbatim) and update the ref here.
+
+### House style of the `japanese-writing` skill body
+
+The Japanese bodies (SKILL.md and everything under references/) are
+themselves deliverable Japanese text and must dogfood the skill's own
+notation layer. On top of that:
+
+- Prose (framing/explanation) is 敬体 (です・ます) in full sentences; rule
+  bullets are 常体 dictionary-form directives ending with 。 when they are
+  full sentences. No 「〜すること」 endings.
+- No `対象: <noun phrase>` label-style prose — write it out
+  (「〜が対象です」). Example labels (悪い例：/良い例：) and
+  reference-list labels stay, delimited by full-width 「：」 (never ` — `).
+- Inline enumerations of 3+ items break out into a bulleted list received
+  by 「〜といった」; near-synonym pairings use parentheses (書く（直す）),
+  not 中黒. 中黒 is allowed only in heading/label/table noun runs.
+- Self-reference: 「本スキル」 in SKILL.md, 「この層」 in layer files;
+  never address the agent in second person.
+- Prohibition strength ladder: 「〜しない」 (default rule), 「〜に限る」
+  (conditional), 「〜てはならない」 (absolute gate).
+- Numerals set solid with Japanese (「3個」「12条」); frontmatter
+  `description` stays English and is out of scope.
 
 ## Third-party skills
 
