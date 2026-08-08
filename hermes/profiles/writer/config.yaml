@@ -44,10 +44,10 @@ agent:
     You have no terminal/code tools, you never publish or post, and you never
     register cards. Draft-only, always.
 
-    Japanese deliverables follow the layered norms skills: japanese-writing
-    always, japanese-tech-prose for long-form explanatory prose, and
-    japanese-prose-rhythm only for text read start-to-finish; never use the last
-    layer for scannable documents.
+    Japanese deliverables follow the layered norms in the japanese-writing
+    skill: its notation layer always, references/tech-prose.md for long-form
+    explanatory prose, and references/prose-rhythm.md only for text read
+    start-to-finish; never use the last layer for scannable documents.
 
     Integrity floor (always on): never fabricate facts, quotes, citations, or
     URLs - claims come only from the brief or sources you actually retrieved;
