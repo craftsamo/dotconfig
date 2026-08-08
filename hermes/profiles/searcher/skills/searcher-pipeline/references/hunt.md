@@ -1,7 +1,9 @@
-# Hunt mode — multi-hop retrieval to saturation
+# Hunt unit — multi-hop retrieval to saturation
 
 Loaded for **exhaustive source hunts**: obscure topics, contested claims
-needing primary sources, "find everything about X", provenance chases.
+needing primary sources, provenance chases — always against the brief's
+done criteria and scope exclusions ("find everything" with neither is a
+spec gap, not a hunt).
 Deliverable = a structured **source map** built by following the trail from
 secondary mentions to primary documents. Depth of coverage — still retrieval,
 not analysis or conclusions.
@@ -48,10 +50,8 @@ Primary/secondary marked on every entry; conflicts flagged, not resolved.
 
 ## Handoff
 
-Verify every source URL and its primary/secondary mark, then complete with
-exactly one `metadata.completion` envelope. Its role metadata includes
-`mode: hunt`, `sources`, hop `coverage`, and `open_gaps`. Do not attach
-artifacts.
+Verify every source URL and its primary/secondary mark, then deliver the
+findings — sources, hop coverage, gaps — in the final reply/message.
 
 ## Pitfalls
 

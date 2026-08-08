@@ -41,9 +41,10 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
   (`resolve_anthropic_token()`) ALWAYS prefers the default Keychain entry
   `Claude Code-credentials` over the credential pool (pool entries and
   `suppressed_sources` never override it). That default entry must stay logged
-  into the **Hermes** account (REDACTED). OpenCode runs on the **sub account**
-  (craftsamo) via the `opencode-claude-auth` plugin pinned to the suffixed entry
-  `Claude Code-credentials-REDACTED` (`CLAUDE_CONFIG_DIR=~/.claude-sub`,
+  into the **Hermes** account. OpenCode runs on the **sub account** via the
+  `opencode-claude-auth` plugin pinned to a suffixed entry
+  (`Claude Code-credentials-<suffix>`; the concrete name lives in the untracked
+  `claude-account-source.txt`; `CLAUDE_CONFIG_DIR=~/.claude-sub`,
   alias `claude-sub`). A plain `claude /login` re-login therefore changes
   **Hermes'** account, not OpenCode's — after one, verify with
   `security find-generic-password -s "Claude Code-credentials"` + the OAuth
@@ -74,6 +75,13 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
   WHOLE command; skipped when it contains `&&` `|` `>` `;`) and stays empty on
   purpose — allowing `bash -c *` would reopen exactly what the guard exists to
   catch. The hardline floor (`rm -rf /`, `$HOME`, system dirs) blocks regardless.
+- **Upstream skill wiring is external_dirs-only.** Official `skills/` libraries
+  attach per category directory, `optional-skills/` per individual skill
+  directory, pruned via `skills.disabled` (see each profile's `config.yaml`).
+  Never run `hermes skills install` — it copies into `~/.hermes/skills`, i.e.
+  this repo (that's what the `.no-bundled-skills` opt-out protects against).
+  The setup-gated candidate backlog lives in `PROFILES.md`
+  ("Upstream wiring pattern").
 - **HyperFrames skills live outside the repo, on purpose.** `creator` reaches the
   `hyperframes*` / `media-use` playbooks through `skills.external_dirs`
   (`~/.agents/skills`) — a harness-neutral store owned by `hyperframes skills
@@ -92,11 +100,8 @@ SOUL.md              # default persona (prompt slot #1)
 mcp.json             # MCP servers ({} = none)
 cron/                # jobs.json tracked; output/ + .tick.lock ignored
 skills/              # shared maintainer-owned skills tracked
-  orchestration/     # shared front-door playbook (default native; assistant via
-                     #   ~/.hermes/skills external dir; Telegram chat-wide auto-load)
-                     #   SKILL.md owns RequirementSpec → execution shape → registration /
-                     #   supervision / delivery; references/workflow-contract.yaml is the
-                     #   machine-readable roster/schema/grant/QA-route authority
+  default-pipeline/  # thin CLI adapter for default; points at the assistant's
+                     #   assistant-pipeline reference tree and records CLI deltas
                      # (the ~/Workspaces data-skill cluster — people/pp, household-budget/hb,
                      #   projects/pj, business-prospects/bp, message-reply, scaffold + _cross.py —
                      #   moved to a private checkout, read via skills.external_dirs
@@ -106,7 +111,7 @@ skills/              # shared maintainer-owned skills tracked
 plugins/             # backend chains, tool overrides, completion and Worker
                      # mutation guards; source tracked, __pycache__ ignored
 launchd/             # LaunchAgents: assistant gateway + headless AivisSpeech engine
-profiles/<name>/     # assistant, planner, engineer, researcher, searcher, creator, writer, qa, marketer
+profiles/<name>/     # assistant, engineer, researcher, searcher, creator, writer, marketer
   - config.yaml      # model/fallback + agent.system_prompt (operating contract)
   - profile.yaml     # routing description (kanban/delegation)
   - SOUL.md          # per-profile persona (BASE + role posture)
@@ -114,70 +119,72 @@ profiles/<name>/     # assistant, planner, engineer, researcher, searcher, creat
                      #   root pipeline skill `<profile>-pipeline` (lifecycle +
                      #   capability router, auto-loaded by its operating contract)
                      #   + directly selectable LEAF technics under skills/technic/,
-                     #   pinned per task via kanban_create skills:[...]. A technic's
+                     #   pinned per card via kanban_create skills:[...]. A technic's
                      #   references are modes only when tools, spend class and QA
                      #   stay the same; styles/presets/formats remain references.
-                     #   (searcher: deep-retrieval is a deprecated technic stub;
+                     #   (searcher: no technics — the lookup/sweep/hunt unit
+                     #   playbooks are searcher-pipeline references, paired with
+                     #   the assistant's plan/search and quality-assurance/search
+                     #   leaves (validator-enforced QA mapping);
                      #   creator: canonical creator-* image/video/audio/music/
                      #   browser-motion/diagram/editorial/icon/card/meme/text-art/
-                     #   pixel/sourcing leaves;
-                     #   writer: Japanese stack via the curated external-skills symlink dir;
-                     #   qa: qa-pipeline + exactly these 20 flat canonical technics:
-                     #   qa-raster-image, qa-infographic, qa-svg-diagram, qa-excalidraw-diagram,
-                     #   qa-icon-set, qa-text-visual, qa-sourced-asset, qa-ascii-art,
-                     #   qa-data-visualization, qa-audio, qa-song, qa-video, qa-browser-media,
-                     #   qa-ascii-video, qa-pixel-art, qa-pixel-video, qa-comic, qa-voice,
-                     #   qa-prose, qa-script; each is one verification contract, while
-                     #   styles/presets are criteria or references, not technics;
-                     #   marketer: + upstream social-media/xurl;
+                     #   pixel/sourcing/assembly leaves (1:1 with the assistant's
+                     #   plan/creative decision leaves; validator-enforced);
+                     #   writer: the japanese-writing skill (notation +
+                     #   tech-prose / prose-rhythm / business doctypes /
+                     #   inspection lint layers) via the curated
+                     #   external-skills symlink dir;
+                     #   marketer: + upstream social-media/xurl + creative/humanizer;
                      #   managed technics stay exactly one directory below skills/technic/
                      #   because validate-profile-skills.py enforces flat canonical leaves;
-                     #   planner-pipeline is the final planning compiler: Mode: integrate
-                     #   consumes approved SpecialistPlans and emits ExecutionOutline;
-                     #   assistant keeps only its surface skills — desks/ holds
+                     #   assistant keeps its front-door pipeline in
+                     #   profiles/assistant/skills/assistant-pipeline/ (mode-first
+                     #   chat/plan/execute/quality-assurance references) plus its
+                     #   surface skills — desks/ holds
                      #   topic-bound personal-desk / project-desk / brainstorm
-                     #   (Inline-only; worker work spins into a new topic), while
-                     #   orchestration lives in the shared skills/ tree above;
+                     #   (Inline-only; specialist work spins into a new topic);
                      #   every profile's learned/ holds mutable runtime-authored
                      #   skills and is never a dispatch or Git ownership surface)
   - cron/            # per-profile scheduled jobs (jobs.json; placeholder if empty)
-                     # assistant/scripts/ holds cron scripts incl.
-                     # kanban-scheduled-sweeper.sh / kanban-orphan-watchdog.sh,
-                     # kanban-task-spec-probe.sh / kanban-completion-probe.sh / fanout probe
-                     # for admission, and kanban-resolve-block.sh for guarded resume;
-                     # watchdog also repeats lost successful-completion wakes
+                     # assistant/scripts/ holds resident-session.sh (the resident
+                     # specialist-session wrapper), kanban-scheduled-sweeper.sh,
+                     # kanban-resolve-block.sh for guarded resume, and the
+                     # local-* cron scripts
 setup.sh README.md PROFILES.md
 ```
 
 ## Profiles
 
 default (CLI front door — assistant's CLI counterpart, neutral persona) +
-assistant (messaging front door, hosts the
-gateway/dispatcher) + planner / engineer / researcher / searcher / creator /
-writer / qa / marketer (kanban workers; qa is the policy-enforced final
-Creator/Writer gate; Assistant rechecks artifact digests at release because
-terminal/file are not OS-level read-only mounts; QA chains use ordinary cards
-and dynamic fan-out blocks with
-`FAN_OUT_READY:` plus a digest-checked `fan-out.yaml`; the Assistant persists
-pending manifests/overlays and registers only eligible roots after parent
-CompletionAdmission. Engineer converses
-with the assistant via kanban block round-trips
-under a structured comment protocol — Authority presets A1/A2/A3,
+assistant (messaging front door, hosts the gateway/dispatcher) + engineer /
+researcher / searcher / creator / writer / marketer (Workflow v5
+specialists). Heavy work runs by default in resident chat sessions the
+assistant starts through `assistant/scripts/resident-session.sh` and
+supervises conversationally; the kanban board is only for fire-and-forget,
+cron-originated, mass-parallel, and `scheduled` work with a lean card
+contract (no manifests/digests/probes — the v4 machinery is retired, see the
+2026-08-06 rebuild). The card catalog is CLOSED and per-assignee: creator
+(`anchored-image-batch`, `tts-voice`, `deterministic-render`), searcher
+(`survey-enumeration`, `exhaustive-hunt`), researcher (`claim-verification`);
+writer, engineer and marketer are resident-only and refuse every card.
+The validator cross-checks worker kernels against the catalog's
+`assignee` front matter. The assistant itself is the quality gate (contracts under
+`profiles/assistant/skills/assistant-pipeline/references/quality-assurance/`)
+and owns GitHub bookkeeping.
+Planning is one conversational approval. On cards, specialists speak the
 `STATE:`/`Q<n>:`/`DECISION(Q<n>):`/`PROGRESS:`/`AUTHORITY+:`/`REVIEW:`
-(human sign-off gate) markers. Every resume uses an event/digest-bound
-`DECISION(...)` and `kanban-resolve-block.sh`; scheduled parking remains in
-`scheduled` via `SCHEDULED: until=` comments and the assistant sweeper cron.
-Planned work uses two approvals: the Assistant's PlanningGraph launches
-Engineer/Creator/Writer/Marketer plan branches, Planner `Mode: integrate`
-combines their final SpecialistPlans into an ExecutionOutline, and only its
-approval authorizes execution registration (`auto_decompose` is OFF). The
-Assistant alone registers Worker-proposed children and same-profile
-continuations from FanOutManifest handoffs — engineer drives
-OpenCode through a P0-plan + per-unit-fork loop with permission /
-question bridges; creator speaks the same comment protocol with a Budget
-grant (generation-spend caps), marketer with a Publish grant (absent =
-draft-only; posting needs verbatim approval or in-cap P1) — see PROFILES.md
-"Engineer dialogue loop"). Tracked per
+comment protocol; resumes go through `kanban-resolve-block.sh`; scheduled
+parking uses `SCHEDULED: until=` comments and the assistant sweeper cron.
+Workers batch questions into one `needs_input` block; a second block,
+`capability` block, or spec gap pulls the card back to a resident session or
+re-plan.
+Grants: engineer Authority A1/A2/A3 + B1/B2 (worktree-side bootstrap
+only — repo creation/registry stays the assistant's; planning documents
+and GitHub bookkeeping are never the engineer's — the assistant plans in
+its own OpenCode session and hands over `Base session:` / `Issue: #n`),
+creator Budget caps, marketer Publish (absent = draft-only; posting needs
+verbatim approval or in-cap P1) — see PROFILES.md "Engineer dialogue
+loop". Tracked per
 profile: `config.yaml`, `profile.yaml`, `SOUL.md`, `skills/`, `.no-bundled-skills`.
 Create with `hermes profile create <name> --description "…"`, then adopt into the
 repo (move real files → `../install.sh`); see `README.md` / `PROFILES.md`.
@@ -190,9 +197,10 @@ Tracked: config / SOUL / `profile.yaml`, `plugins/` source, `cron/jobs.json`,
 `.curator_state`, `.usage*`, `cron/output/`, `cron/ticker_*`, `**/__pycache__/`,
 `*.pyc`. Never commit secrets, state, or host-rendered plists.
 
-**Skill ownership follows the directory type.** Shared `orchestration/`, every
-worker's `<profile>-pipeline/` and `technic/`, and the assistant's `desks/` are
-maintainer-owned and tracked normally. Runtime creates
+**Skill ownership follows the directory type.** Shared `default-pipeline/`, the
+assistant's `assistant-pipeline/`, every worker's `<profile>-pipeline/` and
+`technic/`, and the assistant's `desks/` are maintainer-owned and tracked
+normally. Runtime creates
 are forced into `learned/` by the `skill-topology` plugin; `learned/`, external
 skills and Hermes bookkeeping stay ignored. Do not use `skip-worktree` for
 managed skills: their changes must remain visible in `git status`. Promotion

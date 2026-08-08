@@ -68,10 +68,11 @@ Decide which case you're in early, then verify what you got.
    permission is revocable, and any "not more prominent than your own
    mark" clause. Put this in the report — the requester may be shipping
    commercially.
-7. **No official mark? Fall back explicitly.** Use a plain text wordmark
-   badge set in the deliverable's own typography. Say so in the report and
-   name the reason. Do NOT substitute a third-party redraw or an
-   AI-generated lookalike.
+7. **No official mark? Apply the spec's fallback policy explicitly.** The
+   released spec says whether to fall back to a plain text wordmark badge (set
+   in the deliverable's own typography) or stop and ask; absent a policy, that is
+   a spec gap. Say so in the report and name the reason. Do NOT substitute a
+   third-party redraw or an AI-generated lookalike.
 
 </Steps>
 

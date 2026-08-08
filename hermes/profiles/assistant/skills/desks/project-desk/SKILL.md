@@ -24,7 +24,7 @@ separate, purpose-specific topics.
 
 <OrchestrationOverride>
 
-The chat-wide `orchestration` skill remains active, but this desk narrows its routing:
+The chat-wide `assistant-pipeline` skill remains active, but this desk narrows its routing:
 
 - A request handled by this skill fixes the execution shape to **inline**.
 - If the underlying work needs a `single`, `chain`, or `planned` Worker shape,
@@ -97,7 +97,7 @@ multi-stage execution, or substantial research:
 2. Produce a compact handoff with the exact group, repo/path, goal, constraints, and relevant
    docs/data.
 3. Ask the user to open a new Telegram topic for the execution work. That topic inherits the
-   chat-wide `orchestration` skill and owns any kanban dispatch.
+   chat-wide `assistant-pipeline` skill and owns any kanban dispatch.
 
 </SpinOut>
 

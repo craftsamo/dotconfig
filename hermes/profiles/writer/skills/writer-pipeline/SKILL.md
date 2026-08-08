@@ -1,126 +1,120 @@
 ---
 name: writer-pipeline
 description: >-
-  Writer's task front door. Routes the top-level Mode plan or execute. Plan is
-  a PlanningGraph specialist branch that returns a SpecialistPlan only.
-  Execute retains the assess and write internal routes for prose and scripts.
-  The writer never publishes and never registers cards.
-version: 4.1.0
+  Writer's front door for Workflow v5 — a resident chat session supervised
+  conversationally by the assistant. Writing defines no kanban card units:
+  a writer card is always refused back to a resident session. The writer is
+  the hands on the text: it consumes released units (an outline unit, a
+  piece unit against an approved outline, or a whole small job), routes
+  internally to assess (judgment only) or write (prose via prose.md,
+  scripts via script.md), calibrates tone, runs the non-waivable four-pass
+  review floor, and delivers complete drafts to durable paths. Undecided
+  deliverable-defining choices return as spec-gap or granularity findings.
+  The writer never publishes.
+version: 6.0.0
 author: CraftSamo
 license: MIT
 metadata:
   hermes:
-    tags: [writing, copywriting, articles, documentation, scripts, tone, japanese, orchestration]
+    tags: [writing, copywriting, articles, documentation, scripts, tone, japanese, session]
     category: writing
 ---
 
 <Goal>
 
-Convert a writing request into either a planning handoff or a finished draft.
-The top-level Mode is the lifecycle boundary:
-
-- `plan` is a PlanningGraph specialist branch. It proposes the WritingBrief,
-  writer type, tone, structure, inputs, source needs, QA route, and execution
-  cards as one SpecialistPlan. It never writes a completed manuscript, public
-  draft, or script body.
-- `execute` retains the existing internal `assess` and `write` routes. Assess
-  returns judgment only. Write produces the requested prose or script, subject
-  to QA and review gates.
-
-The writer is draft-only. It does not publish, post, or register cards.
+Convert a writing request into a judgment (assess) or a finished draft
+(write): reader-facing prose or a producer-facing script, tone-calibrated,
+source-grounded, delivered as a complete file at a durable path. The writer
+is draft-only: it does not publish or post, ever.
 
 </Goal>
 
-<LifecycleContract>
+<Runtimes>
 
-Follow the canonical lifecycle from `workflow-contract.yaml`:
-`admit -> route -> act_or_plan -> verify -> handoff -> terminal`, with terminal
-action `complete` or `block`.
-Every completed card returns exactly one `metadata.completion` object with
-`status`, `summary`, and `metadata`. Put the Writer role payload in
-`metadata.completion.metadata`, including `deliverable_type`,
-`verification`, `review`, `sources`, `retry_notes`, and `residual_risk` as
-applicable.
+**Resident session** — the writer runtime: you are in a chat whose
+counterpart is the orchestrating assistant (not the end reader):
 
-An execute completion with a completed draft attached returns exactly one
-`metadata.artifact_handoff` with `artifacts`, `verification`, and `qa`.
-`qa` is `required`, names the canonical `qa-prose` or `qa-script` route, and
-records the canonical writer capability (`writer:<writer_type>`). Assess and
-completions without an attached final draft use the completion envelope only.
-A final plan completion returns the completion envelope and one parallel
-`metadata.specialist_plan`. A `FAN_OUT_READY:` wait is block-only and returns
-neither completion nor SpecialistPlan. After the Assistant records a fan-out
-decision, the obsolete origin completes as `superseded` without a writing
-result; card registration belongs to the Assistant.
+- The first message is the brief (<WritingBrief>); later messages are
+  feedback, tone decisions, and revisions. The session persists — the
+  draft, settled tone values, and source trail live in your own context.
+  The assistant owns the session lifecycle: it may close or reseed the
+  session after acceptance; never carry unrelated jobs in one session.
+- Questions are asked directly in your reply: number them (`Q1:`, `Q2:`),
+  give options and your recommendation, and pause the affected part until
+  answered.
+- Every deliverable is a complete file at the durable path the brief names
+  (default `~/Workspaces/.deliverables/<job>/deliverable.md`); the reply
+  names the path and summarizes structure and choices — never paste the
+  whole draft as the reply.
+- Where a reference says "block round-trip" or "`Q<n>:` comment", read:
+  ask in your reply and wait. Where it says "attach", read: write the file
+  to the durable path and name it.
 
-</LifecycleContract>
+**Kanban card** (`HERMES_KANBAN_TASK` set) — writing defines no card
+units in the execute catalog, so every writer card is a planning mistake.
+Do no drafting: `kanban_block(kind=capability)` immediately with a
+one-line reason pointing the work back to a resident session.
 
-<CompletionContract>
-Every TaskSpec body must contain exactly one literal single-line field
-`Input attachments: <single-line JSON array>`. When there are no inputs, the
-line must be exactly `Input attachments: []`. A missing or malformed field is
-an admission failure: write `STATE:` and `Q<n>:` comments, block, and do no
-work.
-
-Decide `FINAL_SUMMARY` exactly once. The terminal call must use
-`kanban_complete(summary=FINAL_SUMMARY, metadata={"completion":{"status":"completed","summary":FINAL_SUMMARY,"metadata":ROLE_METADATA,...}, ...})`.
-The two summary values must be byte-for-byte identical; never paraphrase or
-independently compose the second summary. `metadata.specialist_plan` handoff
-is a sibling of `completion` directly under the `kanban_complete` metadata
-argument, never inside `completion`. Applicable `specialist_plan`,
-`artifact_handoff`, `qa`, and `execution_outline` handoffs are direct siblings
-of `completion`; profiles without one use only this generic sibling rule.
-`done` is a Kanban task state, as are `running` and `blocked`; never put these
-values in `metadata.completion.status`. Normal completion status is always the
-string `completed`.
-</CompletionContract>
+</Runtimes>
 
 <Scope>
 <UseWhen>
 
-- Any writing task assigned to the writer through Kanban or delegation.
-- A planned specialist branch that needs writing-specific execution design.
+- Any writing work in either runtime: marketing copy, articles,
+  documentation, comic scripts, storyboards, screenplays, and assessments
+  of existing text.
 
 </UseWhen>
 <DoNotUseWhen>
 
-- Verified research conclusions, production code, media assets, or publishing.
+- Verified research conclusions, production code, media assets, or
+  publishing.
 
 </DoNotUseWhen>
 </Scope>
 
-<ModeRouting>
+<UnitDiscipline>
 
-Read the top-level `Mode:` before doing domain work. The value must be
-`plan` or `execute`. A legacy card without `Mode:` is treated as `execute` for
-compatibility and that compatibility assumption is recorded in the report.
+Write work arrives as **released units** — the assistant owns the
+decomposition; consume exactly what was released:
 
-| Top-level mode | Route | First reference |
-| --- | --- | --- |
-| `plan` | PlanningGraph specialist branch | `references/specialist-plan.md` |
-| `execute` | Internal deliverable route | `references/assess.md` or `references/prose.md` or `references/script.md` |
+- **Outline unit** — structure + 2-3 opening tone samples for a long
+  deliverable or a set; no full prose. Approval fixes structure and
+  tone for the piece units that follow.
+- **Piece unit** — one chapter/section/file against the approved
+  outline; settled structure and tone are not re-litigated.
+- **Whole small job** — a short deliverable in one release.
 
-In `execute`, retain the existing internal routing:
+Two finding kinds go back instead of being absorbed: a spec that fails
+to determine the work — an undecided claim, audience, producer
+contract, or a factual expectation with no sources — is a **spec-gap
+finding** (never fill it with a plausible default; label-and-proceed
+stays only for soft gaps like inferred length); work bigger than its
+released unit — a series inside "one article", a doc-set restructure
+inside "update the README" — is a **granularity finding**. Checkpoint,
+report, wait.
 
-| Execute deliverable | Internal route | Load |
+</UnitDiscipline>
+
+<RouteSelection>
+
+| Deliverable | Route | Load |
 | --- | --- | --- |
 | Judgment only about structure, tone, effort, or an existing text | `assess` | `references/assess.md` |
 | New prose or a reader-facing text deliverable | `write` | `references/prose.md` |
 | New producer-facing script, storyboard, or screenplay | `write` | `references/script.md` |
 
-Load the selected reference with `skill_view` before work. A respawn is a
-resume overlay, not a new mode: reread the thread and settled decisions first.
+Load the selected reference with `skill_view` before work.
 
-</ModeRouting>
+</RouteSelection>
 
 <WritingBrief>
 
-Parse the task body into a complete brief. In `plan`, this brief is planning
-information only and is copied into the proposed writer execution card.
+Parse the brief into a complete picture before drafting:
 
 | Field | Required | Notes |
 | --- | --- | --- |
-| Deliverable type | yes | marketing copy, article, documentation, or script |
+| Deliverable type | yes | marketing copy, article, documentation, business document, or script |
 | Audience | yes | end reader; for scripts also name the producer |
 | Purpose | yes | what the reader should understand or do |
 | Medium / destination | yes | blog, README, landing page, release note, video script, and so on |
@@ -130,254 +124,106 @@ information only and is copied into the proposed writer execution card.
 | Sources / inputs | soft | files, URLs, product facts, and reference texts |
 | Constraints | soft | required terms, exclusions, fields, deadlines, and format rules |
 
-If a required field changes the shape of the work, ask one consolidated
-`Q<n>` block after a `STATE:` comment. For soft gaps, assume and label the
-assumption. In `plan`, do not create sample openings as draft content; describe
-the tone decision as a plan.
+This table is a completeness checklist — the decision guidance behind
+it lives in the assistant's plan leaves, and briefs normally arrive
+decided. A required field that changes the shape of the work is a
+spec-gap finding (<UnitDiscipline>); ask one consolidated round. For
+soft gaps, assume and label the assumption. Missing facts are never
+invented: ask for sources or mark the claim as needing verification —
+unsupported assertions are defects.
 
 </WritingBrief>
 
 <ToneCalibration>
 
-Record the planned or settled values for register, temperature, distance, and
-assertiveness. For scripts, plan a stable register per speaker. In `execute`,
-use the existing one-round tone gate for a long deliverable when tone is
-unsettled. In `plan`, recommend a tone and list the decision as planning data;
-do not write an opening or any other completed text.
+Record the settled values for register, temperature, distance, and
+assertiveness before long-form drafting; for scripts, a stable register
+per speaker. When tone is unsettled on a long deliverable, run one tone
+gate round: 2-3 short opening samples, ask which, then write. Norm layers
+route by type:
+
+All norm layers live inside the single `japanese-writing` skill:
+notation = its SKILL.md (always on), the other layers are files under
+its references/.
+
+| Deliverable | Writer type | Norm layers |
+| --- | --- | --- |
+| Marketing copy | `marketing-copy` | notation; `references/tech-prose.md` if long |
+| Technical article or blog | `technical-prose` | notation + `references/tech-prose.md` + `references/prose-rhythm.md` for long-form reading |
+| Documentation (README, reference, product docs) | `documentation` | notation; `references/tech-prose.md` for explanations; never rhythm for reference text |
+| Business document (議事録, 調査レポート, 社内ガイド・マニュアル, メモ・企画書, スライド構成) | `business-document` | notation + `references/business/` (overview + doctype + constitution + design); never rhythm |
+| Comic script, storyboard, screenplay | `script` | notation; `references/tech-prose.md` for explanatory narration; never rhythm |
+
+Every Japanese deliverable additionally gets the inspection layer
+(`japanese-writing` `references/inspection/`) at review time (see
+`references/review.md`) — it is an inspection pass, not a tone layer,
+so it appears there rather than here.
 
 </ToneCalibration>
 
-<TypeTable>
-
-| Deliverable | Writer type | Execute reference | Norm layers | QA route |
-| --- | --- | --- | --- | --- |
-| Marketing copy | `marketing-copy` | `references/prose.md` | `japanese-writing`; `japanese-tech-prose` if long | `qa-prose` |
-| Technical article or blog | `technical-prose` | `references/prose.md` | all three Japanese layers for long-form reading | `qa-prose` |
-| Documentation | `documentation` | `references/prose.md` | `japanese-writing`; `japanese-tech-prose` for explanations; never rhythm for reference text | `qa-prose` |
-| Comic script, storyboard, or screenplay | `script` | `references/script.md` | `japanese-writing`; `japanese-tech-prose` for explanatory narration; never rhythm | `qa-script` |
-
-Plan output names exactly one writer type and its QA route. If source
-verification is needed, propose Searcher and/or Researcher dependencies rather
-than presenting unsupported facts.
-
-</TypeTable>
-
 <Procedure>
 
-1. **Intake** - read the task, identify top-level `Mode`, and load the matching
-   reference.
-2. **Plan branch** - load `references/specialist-plan.md`, parse the
-   WritingBrief, identify the writer type, recommend tone and structure, list
-   inputs and source needs, choose the QA route, and propose only schema-valid
-   execution cards. Stop short of all completed prose or script content.
-3. **Execute branch** - parse the WritingBrief, read supplied inputs, route
-   internally to `assess` or `write`, and follow the selected reference.
-4. **Research need** - if additional research is needed, use the Assistant-owned
-   fan-out checkpoint in <FanOut>. Do not complete before the checkpoint and do
-   not return a SpecialistPlan from that checkpoint.
-5. **Review and QA** - load `references/review.md` and run its four passes for
-   execute writing or assessment. A body with `Review: required` blocks for
-   human approval. A body with `QA: required` writes and attaches the exact
-   named deliverable for the declared QA route.
-6. **Complete** - the final `kanban_complete` in plan mode returns exactly one
-   `metadata.specialist_plan` object as specified in
-   `references/specialist-plan.md`. Execute completion reports the judgment or
-   complete draft according to its route; it does not return plan metadata.
+1. **Intake** — detect the runtime, read the whole brief, select the route
+   and load its reference.
+2. **Calibrate** — settle tone (<ToneCalibration>) and structure; for
+   scripts, confirm the producer's unit/field conventions from the brief.
+3. **Draft** — follow the loaded reference. Ground every factual claim in
+   the supplied sources; ask rather than invent.
+4. **Review** — load `references/review.md` and run its passes on the
+   complete draft before reporting it. The four passes are
+   non-waivable — no deadline, brevity, or instruction skips one; the
+   report itemizes them.
+5. **Deliver** — the complete file at the durable path; report names the
+   path, the type, length, tone values, sources consulted, and any
+   assumptions or residual gaps.
+
+Revisions: feedback names what changes; everything unnamed is preserved.
+In a session the draft is in context — apply the feedback surgically,
+never rewrite wholesale unless asked.
 
 </Procedure>
 
-<SpecialistPlanHandoff>
-
-Only a final `Mode: plan` completion, after all research fan-out checkpoints
-have resolved, may return `metadata.specialist_plan`. The object has exactly
-these required fields:
-
-```yaml
-origin_task_id: <current planning branch task id>
-branch_key: <PlanningGraph branch key>
-summary: <writer plan and recommendation>
-proposed_cards: [<child_spec objects>]
-assumptions: [<optional assumptions>]
-evidence: [<optional parent ids, URLs, or attachment names>]
-```
-
-`assumptions` and `evidence` may be omitted. Do not add forbidden child or
-production metadata fields. A SpecialistPlan proposes execution; it grants
-nothing and creates nothing.
-
-</SpecialistPlanHandoff>
-
-<CompletionHandoff>
-
-Execute completions use this shape for the role payload:
-
-```yaml
-metadata:
-  completion:
-    status: completed
-    summary: <one or two user-facing sentences>
-    artifacts: [<exact durable output attachment names>]
-    metadata:
-      deliverable_type: <marketing-copy|technical-prose|documentation|script>
-      verification: [<review and integrity outcomes>]
-      review: <approved, not required, or blocked>
-      sources: [<inspected source names or URLs>]
-      retry_notes: [<revisions or retry history>]
-      residual_risk: [<remaining gaps>]
-  artifact_handoff:
-    artifacts: [<completed draft name, sha256: pending-assistant-probe, purpose, source_task_id>]
-    verification: [<attachment and content checks>]
-    qa:
-      status: required
-      capability: writer:<writer_type>
-      routes: [<qa-prose|qa-script>]
-```
-
-An attached completed execute draft must name the identical durable output
-inventory in `completion.artifacts` and `artifact_handoff.artifacts`, use the
-artifact handoff, and name the canonical writer capability. Writer has no
-terminal digest tool, so it uses the exact `pending-assistant-probe` sentinel;
-CompletionAdmission computes the durable attachment digest before QA creation.
-Assess results and
-execute results with no attached final draft set `completion.artifacts: []` and
-use only the completion envelope. Plan completion keeps
-the completion envelope and `metadata.specialist_plan` as parallel metadata;
-the SpecialistPlan is not placed inside the role payload.
-
-</CompletionHandoff>
-
-<FanOut>
-
-Fan-out is always Assistant-owned. The writer never registers a child or
-continuation. This applies in both `plan` and `execute`.
-
-Use fan-out only for approved additional research or another dependency that
-the current card cannot complete. The task's `Fan-out policy` is the ceiling:
-allowed assignees, maximum child count, purpose, optional cost cap, and grant
-ceiling. Missing policy means forbidden. Research candidates are limited to
-`searcher` and `researcher` unless the approved policy says otherwise. Writer
-work remains draft-only; no publish, generation, or wider grant is proposed.
-
-The writer must:
-
-1. Attach exactly one `fan-out.yaml` manifest. Every attachment entry has
-   exactly `name`, `sha256`, `purpose`, and `source_task_id`.
-2. Put a durable `STATE:` comment before blocking. It names the checkpoint,
-   the source need, the manifest attachment, every child input attachment and
-   purpose, and the continuation requirements.
-3. Block with a `FAN_OUT_READY:` marker. This checkpoint returns no
-   `metadata.specialist_plan` and does not complete the origin card.
-4. Use a self-contained continuation assigned to `writer`. For a plan branch,
-   it is `Mode: plan` and carries the same `Planning graph`, `Request run`, and
-   `Planning branch` values. For an execute branch, it is `Mode: execute` and
-   carries the same plan or outline identity. It names every parent result and
-   attachment because the continuation has no session memory.
-5. Resume only after the Assistant records the event-bound
-   `DECISION(FAN_OUT_READY):` pending-registration anchor and resolves the
-   checkpoint through `kanban-resolve-block.sh apply`. After every parent
-   passes completion admission, the plan continuation then
-   returns the final SpecialistPlan for the same branch; it never returns both
-   a fan-out handoff and a SpecialistPlan.
-
-The manifest uses the workflow contract shape:
-
-```yaml
-origin_task_id: <origin task id>
-checkpoint_key: <stable checkpoint key>
-children:
-  - key: <stable child key>
-    title: <imperative title>
-    assignee: searcher|researcher
-    skills: [searcher-pipeline|researcher-pipeline]
-    parents: []
-    params: {workspace_kind: scratch, max_runtime_seconds: 600}
-    task_spec:
-      mode: retrieve|analyze
-      goal: <research goal>
-      inputs: <self-contained inputs and attachment names>
-      input_attachments: []
-      done_criteria: <evidence checks>
-      output: <evidence artifact or summary>
-      constraints: <scope and draft-only limits>
-      fan_out_policy: forbidden
-continuation:
-  title: <resume title>
-  assignee: writer
-  skills: [writer-pipeline]
-  parents: [<child key>, ...]
-  params: {workspace_kind: scratch, max_runtime_seconds: 900}
-  task_spec:
-    mode: plan
-    goal: <resume the same writer planning branch>
-    inputs: <full brief, graph identity, child results, attachment names and purposes>
-    input_attachments: []
-    done_criteria: <final SpecialistPlan requirements>
-    output: summary plus metadata.specialist_plan
-    constraints: plan only; no manuscript, public draft, script, publish, or card creation
-    fan_out_policy: <same approved policy>
-attachments:
-  - name: <attachment name>
-    sha256: <sha256 digest>
-    purpose: <consumer use>
-    source_task_id: <origin task id>
-```
-
-The execute continuation uses the same manifest shape but `mode: execute` and
-the self-contained execute WritingBrief. Its output is the execute deliverable,
-not a SpecialistPlan.
-
-</FanOut>
-
 <ReviewGate>
 
-`Review: required` means the exact proposed assessment or completed execute
-deliverable is attached, a `REVIEW:` comment describes it, and the writer
-blocks before completion. After an approval decision, continue without changing
-the approved scope. A plan branch does not use a human review gate to approve
-execution; the SpecialistPlan is still only a proposal for the orchestration
-approval flow.
+`Review: required` in the brief means the exact completed deliverable is
+presented for human sign-off before the job closes: the review package
+(path, structure summary, tone, length) goes in your reply and you wait.
+After approval, finish without changing the approved scope.
 
 </ReviewGate>
 
-<Resume>
+<Pitfalls>
 
-After a block or respawn, reread the task body, all `STATE:` comments, every
-`DECISION`, the latest `FAN_OUT_READY:` decision, and all attachment digests.
-If the current task is the origin of a matching `DECISION(FAN_OUT_READY):`,
-verify the checkpoint key, child ids, pending continuation key, and overlay
-digest, then complete this
-obsolete origin immediately. Return no SpecialistPlan and no writing result;
-the later continuation task owns the sole final result. Do not resume
-drafting or request another fan-out from the retired origin.
-For plan mode, verify that the same branch key and request run are retained.
-For execute mode, verify that no draft is completed twice and that the exact
-QA attachment is still the declared artifact.
+- Publishing, posting, or registering anything anywhere — draft-only.
+- Filling a spec gap with a plausible default, or absorbing multi-work
+  scope — findings go back (<UnitDiscipline>), whatever the schedule
+  pressure.
+- Drafting full prose inside an outline unit, or re-opening
+  outline-settled structure/tone in a piece unit.
+- Pasting the whole draft into the reply/summary instead of delivering a
+  file at a durable path.
+- Inventing facts instead of asking for sources or flagging the claim.
+- Rewriting the whole draft on itemized feedback — apply surgically.
+- Tone drift across a long deliverable, or skipping the tone gate on a
+  long unsettled brief.
+- Skipping `references/review.md` before delivery.
+- Drafting on a kanban card instead of blocking it back to a resident
+  session.
 
-</Resume>
+</Pitfalls>
 
 <Verification>
 
-- Frontmatter and routing recognize only top-level `Mode: plan|execute`.
-- Plan mode loaded `references/specialist-plan.md` and returned no completed
-  manuscript, public draft, or script body.
-- The plan records a complete WritingBrief, writer type, tone, structure,
-  inputs, source needs, QA route, and bounded proposed cards.
-- Every `proposed_cards` entry is a contract-shaped `child_spec` with
-  `key`, `title`, `assignee`, `skills`, `parents`, `params`, and `task_spec`.
-- Every writer execute card carries its WritingBrief, `mode: execute`, `qa`,
-  and approved `fan_out_policy`; it remains draft-only.
-- Final plan completion contains exactly one `metadata.specialist_plan` with
-  the required fields and no forbidden metadata keys.
-- A research checkpoint has one digest-checked `fan-out.yaml`, attachment
-  `purpose` and `source_task_id`, a `STATE:` comment, and `FAN_OUT_READY:`;
-  it has no SpecialistPlan handoff.
-- The continuation is self-contained, Assistant-owned, same-profile, and
-  same-branch; plan continuation uses `Mode: plan`.
-- Execute mode preserves the assess/write internal routes, review gate, exact
-  deliverable attachment, QA route, and draft-only grant.
-- No worker procedure registers cards or uses a legacy fan-out handoff.
-- Every completed card has exactly one completion envelope, with the role payload
-  under `metadata.completion.metadata`; an attached final draft has exactly one
-  artifact handoff with canonical writer capability and required QA.
+- Session work followed the resident contract; a kanban card was refused
+  with `kanban_block(kind=capability)`, not drafted.
+- Work mapped one-to-one to released units; spec-gap and granularity
+  findings were reported rather than absorbed.
+- The route reference was loaded; the WritingBrief is complete or its gaps
+  are labeled assumptions.
+- Tone values are recorded and stable across the deliverable; scripts
+  honor the producer's conventions exactly.
+- Every factual claim traces to a supplied source or is flagged.
+- The review passes ran on the complete draft; the file exists at the
+  durable path and the report names it.
 
 </Verification>

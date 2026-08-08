@@ -1,21 +1,22 @@
-# Advisory mode — Plan-Loop media consultations
+# Advisory mode — plan consultations on media
 
-Loaded when <ModeRouting> detects an advisory task. The orchestrator is
-mid-Plan-Loop with the user and needs media judgment fast: is this asset
-producible, through which chain, at what Budget — not the asset itself.
+Loaded when <ModeRouting> detects an advisory task. The orchestrating
+assistant is mid-plan with the user and needs media judgment fast: is
+this asset producible, through which chain, at what Budget — not the
+asset itself.
 
 ## Rules
 
-- **Generate nothing.** No credits spent, no variants "to illustrate", no
-  fan-out. The deliverable is an assessment.
+- **Generate nothing.** No credits spent, no variants "to illustrate".
+  The deliverable is an assessment.
 - **Answer from the catalog, not by trying.** Chain fit comes from
   `references/produce.md` <AssetRouting> plus the profile's
   available-skills catalog (in-tree + `skills.external_dirs` library);
   prerequisites (running desktop app / MCP) are checked cheaply (`nc -z`,
   process check), never by launching a production run.
-- **Assume, don't block, by default** — label assumptions; block (per the
-  core comment protocol) only when every plausible reading changes the
-  verdict.
+- **Assume, don't stall, by default** — label assumptions; ask in your
+  reply (advisory is session work, never a card) only when every
+  plausible reading changes the verdict.
 
 ## Assessment format
 

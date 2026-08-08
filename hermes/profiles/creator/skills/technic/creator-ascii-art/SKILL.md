@@ -48,9 +48,9 @@ tools block that mode; do not install them.
 </Preflight>
 
 <Procedure>
-1. Load the official engine, validate the pipeline brief, and lock mode, input,
-   destination, terminal width and height, monospace font, glyph set, and line
-   width before rendering.
+1. Load the official engine, validate the pipeline brief, and confirm mode,
+   input, destination, terminal width and height, monospace font, glyph set, and
+   line width from the released spec before rendering.
 2. Keep a UTF-8 plain-text master. Emit ANSI only when explicitly requested;
    otherwise strip escapes and preserve meaningful trailing whitespace rules.
 3. Save the exact command, flags, source paths, URLs, and render parameters in

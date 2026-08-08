@@ -1,70 +1,91 @@
-# Verify engine — never trust a deliverable, including your own
+# Verify engine — the four-stage pre-ship inspection
 
-Shared engine for every act of marketing judgment: accepting fan-out
-deliverables, gating drafts before approval or publishing, and critique
-tasks where the assessment itself is the deliverable (assess mode). The
-same checks apply everywhere — only how the result is used differs.
+Every public candidate passes four stages **in order**: mechanical →
+style → factual → legal. The floor is non-waivable (kernel
+<RedFloor>): no grant, deadline, or instruction skips a stage.
+Drafts and internal documents are the only exception. Changed copy —
+even one word after approval — re-enters inspection; **numeric
+claims always take the double check** (factual AND legal).
 
-## Checks
+## Stage 1 — mechanical
 
-- **V1 Brief fit.** Does the deliverable do what the MarketingBrief asks —
-  subject, goal, audience, channel? A beautiful post aimed at the wrong
-  audience fails here, not at V2.
-- **V2 Brand & voice.** Tone matches the brief / per-project voice; audience
-  fit over volume or hype. Would shipping this embarrass the owner in front
-  of exactly the people it targets?
-- **V3 Fact grounding.** Every claim, metric, name, URL, hashtag and mention
-  traces to the brief or retrieved facts. Nothing is invented — an
-  ungrounded claim is a defect even when plausible. Links resolve; handles
-  exist.
-- **V4 Platform compliance.** Current specs of the destination surface:
-  text limits, media formats/aspect ratios, alt text, thread mechanics.
-  Specs drift — when staleness matters (video encodings, new surfaces),
-  refetch official sources or fan out a research card rather than trusting
-  memory.
-- **V5 Asset inspection.** For writer/creator deliverables: the files
-  actually exist as attachments, open/play, match destination specs, and
-  match what the copy references (a post naming a chart needs the chart).
-  Japanese copy follows `japanese-writing` notation norms (writer output
-  arrives compliant; your own assembly must be too).
-- **V6 Post-publish.** After each shipped post: re-fetch the returned
-  id/URL once to confirm it is live, then record the URL in a `PROGRESS:`
-  comment. A returned id is not proof the post is up.
+Machine-checkable form, on the RENDERED output, not the source:
 
-## Where each check runs
+- Platform limits: length, media formats/aspect, alt text, thread
+  mechanics — verified against current specs (refetch when
+  staleness could matter; memory of a platform spec is not a spec).
+- Formatting: no exposed markup, no stray placeholders, links
+  resolve, mentions/hashtags exist and come from the brief.
+- Text hygiene: banned expressions from the brief/voice canon,
+  foreign-script contamination, mandatory elements present.
+- Sweeps run across the whole approved inventory when it changes,
+  not only the newest draft.
 
-| Situation | Checks | On failure |
-| --- | --- | --- |
-| Fan-in: accepting a child's deliverable | V1 V3 V4 V5 | Reject against the brief: re-dispatch with a corrected brief (delegate engine) or escalate |
-| Draft delivery (no grant / draft-only goal) | V1 V2 V3 V4 | Fix before delivering; label residual assumptions |
-| Pre-publish gate (before approval block or in-cap P1 post) | V1-V5, all | Do not ship; fix or block — publishing is irreversible |
-| Critique task (assess mode: judge an existing asset/draft) | V1-V5 as the rubric | The findings ARE the deliverable — report severity-ranked, no fixing |
-| After publishing | V6 | Mid-thread failure → checkpoint-then-block (publish engine); never re-post shipped items |
+## Stage 2 — style
 
-## Verdict discipline
+- Compare against the positioning record's voice, as evidence-based
+  comparison, not taste: register, vocabulary, rhythm.
+- Emotional narration and plain factual matter (prices, dates,
+  numbers, links, conditions) stay separated — facts are stated
+  flat.
+- Flag stock phrasing, uniform rhythm, and empty politeness; fix
+  surgically — never rewrite an approved draft wholesale to
+  "improve" it.
 
-- Findings name the check they fail (V1-V6) and the concrete evidence —
-  "V3: the 40% metric appears nowhere in the brief or research", not "feels
-  off".
-- Severity: blocker (do not ship) / fix-first (fix before approval) /
-  note (ship, but record). In critique tasks, rank findings and lead with
-  the verdict.
-- Honest verdicts over comfortable ones — "do not ship this" is a valid,
-  complete outcome (SOUL: don't ship a post that shouldn't ship).
+## Stage 3 — factual
 
-## Pitfalls
+- **Extract every claim** — performance numbers, testimonials,
+  quotes, names, URLs, dates, product facts — and resolve each to a
+  fact-ledger entry. No entry → remove the claim or return a
+  spec-gap finding asking the assistant to register it (with
+  source). Plausibility is not evidence.
+- Time-sensitive figures: check the entry's date against use;
+  expired facts are findings.
+- Anonymize identifiable third parties unless consent is on the
+  ledger.
+- Record the trace: which claims checked, matched where, what was
+  removed/queried — accepted AND rejected.
 
-- Rubber-stamping fan-out deliverables because rejecting feels expensive —
-  a re-dispatch is cheaper than a bad post.
-- Verifying your own assembly less rigorously than a child's deliverable.
-- Treating V4 platform memory as current — specs drift; refetch when it
-  matters.
-- Fixing the asset inside a critique task — critique reports, it does not
-  repair (that is a new card).
+## Stage 4 — legal (triage, not judgment)
 
-## Verification
+Output per candidate: **pass / needs-specialist / block** — a pass
+is triage, never a guarantee of legality. Checks by domain:
 
-- Every shipped post passed V1-V5 before its approval/grant and V6 after.
-- Every consumed fan-out deliverable has an explicit accept/reject trace
-  (accepted into the assembly, or rejected with the failing check named).
-- Critique deliverables name checks + evidence + severity for each finding.
+- **景表法** — superiority claims ("No.1", "cheapest", "guaranteed",
+  efficacy) require objective substantiation, with survey source,
+  scope, and date stated. Reference/strikethrough prices must
+  reflect real sales history (the recent-sales standard) — no
+  fictitious regular prices, no perpetual discounts.
+- **ステマ規制** — paid, affiliated, or supplied-product content is
+  clearly marked as advertising/PR.
+- **特商法** — sales paths show required seller disclosures; total
+  cost, recurring commitments, duration, and cancellation method
+  are clear BEFORE the final confirmation; nothing obscures
+  cancellation.
+- **特電法** — commercial mail only to opted-in recipients, sender
+  identified, working unsubscribe honored immediately.
+- **薬機法** — no cure/prevention/improvement claims for
+  supplements or cosmetics; testimonials stay inside authorized
+  efficacy bounds.
+- **Categorical blocks** — unsupported investment returns,
+  income-guarantee, token/crypto performance claims.
+
+Anything in the needs-specialist band goes up as a finding with the
+concrete doubt named; block means the candidate does not leave the
+session in that form.
+
+## Where the stages run
+
+| Situation | Stages |
+| --- | --- |
+| Accepting a supplied part (`parts.md`) | 1 + 3 (+ 4 when the part carries claims) |
+| Draft delivery (no ship) | 1–4, results itemized in the report |
+| Pre-publish (P0 relay or in-cap P1) | 1–4, all, freshly on the exact candidate |
+| Critique rubric (`ground.md`) | 1–4 as findings, severity-ranked, no fixing |
+
+## Report discipline
+
+Findings name the stage and the concrete evidence ("factual: the
+40% figure has no ledger entry"), with severity: block / fix-first /
+note. An unnamed check did not happen; "inspected: pass" without the
+four stages itemized is itself a finding against the report.

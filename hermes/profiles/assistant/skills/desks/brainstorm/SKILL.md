@@ -23,7 +23,7 @@ decisions and useful artifacts are externalized instead of relying on chat conti
 
 <OrchestrationOverride>
 
-The chat-wide `orchestration` skill remains active, but this desk narrows its routing:
+The chat-wide `assistant-pipeline` skill remains active, but this desk narrows its routing:
 
 - Brainstorming in this topic fixes the execution shape to **inline**.
 - If an idea needs a `single`, `chain`, or `planned` Worker shape, stop here.
@@ -44,7 +44,7 @@ The chat-wide `orchestration` skill remains active, but this desk narrows its ro
 <DoNotUseWhen>
 
 - The user is already asking for implementation, publication, media generation, or sustained
-  research. Those belong in a new topic with chat-wide orchestration.
+  research. Those belong in a new topic with chat-wide assistant-pipeline.
 - The request has a known answer and only needs a lookup; answer inline without performing a
   theatrical brainstorming process.
 - Creating or dispatching a kanban card inside this pinned topic.
@@ -99,7 +99,7 @@ Never claim an outcome was saved unless the file or registry operation actually 
 When an idea becomes execution work, stop before dispatch. Produce a compact handoff containing
 the goal, selected direction, constraints, acceptance signal, relevant workspace path, and open
 risks. Ask the user to open a new Telegram topic for execution; the new topic inherits the
-chat-wide `orchestration` skill and owns any kanban work.
+chat-wide `assistant-pipeline` skill and owns any kanban work.
 
 </SpinOut>
 

@@ -1,6 +1,0 @@
-name: kanban-completion-path-guard
-version: 1.0.0
-description: >-
-  Prevents kanban completion payloads from carrying artifact fields or existing
-  local paths outside the intended artifact handoff.
-kind: standalone

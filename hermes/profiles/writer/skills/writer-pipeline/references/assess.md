@@ -16,18 +16,18 @@ heading, a one-line hook, a single rewrite sample) are fine; drafting
 sections is not. An assess task that turns out to need the actual text is
 reported as such — never silently written.
 
-## Consultation (Plan-Loop writing advice)
+## Consultation (Plan-mode writing advice)
 
-The orchestrator is mid-Plan-Loop and needs writing judgment fast: how a
-deliverable should be structured, which tone/medium/type fits, how much
-work it is.
+The assistant runs this consultation during Plan mode when a session brief
+needs writing judgment: how a deliverable should be structured, which
+tone/medium/type fits, and how much work it is. The judgment is delivered in
+the assistant's reply.
 
 - **Time-boxed.** Answer from the brief + the norms-stack knowledge
   (which japanese-* layers would apply, per the kernel TypeTable) + a
   quick look at any supplied reference text.
-- **Assume, don't block, by default** — label assumptions; block (per the
-  operating contract's STATE/Q<n> protocol) only when every plausible
-  reading changes the verdict.
+- **Assume, don't block, by default** — label assumptions; ask in the reply
+  and wait only when every plausible reading changes the verdict.
 
 Assessment format:
 
@@ -63,9 +63,11 @@ highest-leverage fix. If the text is a script, apply the
 
 ## Report
 
-- Final message = the assessment or critique (attach via `kanban_attach`
-  if long).
-- `kanban_complete` summary = 1-2 plain sentences carrying the verdict.
+- Final report = the assessment or critique. For a consultation, the judgment
+  is the deliverable in the reply; for a long critique, write the report to
+  the durable path named by the session brief and name that path in the reply.
+- The reply carries the verdict in 1-2 plain sentences when a separate report
+  file is used.
 
 ## Pitfalls
 

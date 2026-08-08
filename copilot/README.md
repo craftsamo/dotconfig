@@ -3,14 +3,13 @@
 User-level configuration for the GitHub Copilot CLI (`copilot`) and the
 desktop app — both installed via the repo [Brewfile](../Brewfile)
 (`copilot-cli`, `github-copilot-app`). [`install.sh`](../install.sh) creates
-four symlinks into `~/.copilot/`:
+three symlinks into `~/.copilot/`:
 
 | Symlink                              | Target                            |
 | ------------------------------------ | --------------------------------- |
 | `~/.copilot/copilot-instructions.md` | `copilot/copilot-instructions.md` |
 | `~/.copilot/mcp-config.json`         | `copilot/mcp-config.json`         |
 | `~/.copilot/agents`                  | `copilot/agents/`                 |
-| `~/.copilot/skills`                  | `copilot/skills/`                 |
 
 ## User-managed content
 
@@ -18,7 +17,11 @@ four symlinks into `~/.copilot/`:
 - `mcp-config.json` — MCP servers (edited via `copilot mcp` or by hand)
 - `agents/*.agent.md` — personal custom agents (markdown + YAML frontmatter;
   created via `/agent` -> "User" or by hand)
-- `skills/<name>/SKILL.md` — personal skills, shared across projects
+
+Skills are not kept here. Copilot reads the shared `~/.agents/skills` root
+(see [`agents/README.md`](../agents/README.md)); `~/.copilot/skills` stays a
+real machine-local directory so third-party installer droppings never land
+inside the repo.
 
 ## Never tracked
 
