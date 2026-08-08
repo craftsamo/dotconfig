@@ -130,9 +130,10 @@ profiles/<name>/     # assistant, engineer, researcher, searcher, creator, write
                      #   browser-motion/diagram/editorial/icon/card/meme/text-art/
                      #   pixel/sourcing/assembly leaves (1:1 with the assistant's
                      #   plan/creative decision leaves; validator-enforced);
-                     #   writer: 5-skill Japanese stack (writing/tech-prose/
-                     #   prose-rhythm + business-docs doctypes + inspection
-                     #   lint scripts) via the curated external-skills symlink dir;
+                     #   writer: the japanese-writing skill (notation +
+                     #   tech-prose / prose-rhythm / business doctypes /
+                     #   inspection lint layers) via the curated
+                     #   external-skills symlink dir;
                      #   marketer: + upstream social-media/xurl + creative/humanizer;
                      #   managed technics stay exactly one directory below skills/technic/
                      #   because validate-profile-skills.py enforces flat canonical leaves;

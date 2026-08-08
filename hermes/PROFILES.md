@@ -409,9 +409,10 @@ Three per-profile layers, kept separate:
     references/review.md shared by self-review and critique, and
     consultations/critiques in references/assess.md) + external skills via
     `skills.external_dirs`: the Japanese stack via the curated
-    `profiles/writer/external-skills/` symlink dir (japanese-writing /
-    tech-prose / prose-rhythm, single-sourced with the shared
-    `agents/curated/` store) and upstream `creative/humanizer`
+    `profiles/writer/external-skills/` symlink dir (the single
+    `japanese-writing` skill bundling the notation / tech-prose /
+    prose-rhythm / business-docs / inspection layers, single-sourced with
+    the shared `agents/curated/` store) and upstream `creative/humanizer`
   - marketer → `marketer-pipeline` (resident-only, cards refused; consumes
     released message units under the Publish grant + red floor; engines
     ground / produce / parts / verify / publish — grounding judgment and

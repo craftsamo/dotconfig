@@ -142,18 +142,22 @@ per speaker. When tone is unsettled on a long deliverable, run one tone
 gate round: 2-3 short opening samples, ask which, then write. Norm layers
 route by type:
 
+All norm layers live inside the single `japanese-writing` skill:
+notation = its SKILL.md (always on), the other layers are files under
+its references/.
+
 | Deliverable | Writer type | Norm layers |
 | --- | --- | --- |
-| Marketing copy | `marketing-copy` | `japanese-writing`; `japanese-tech-prose` if long |
-| Technical article or blog | `technical-prose` | `japanese-writing` + `japanese-tech-prose` + `japanese-prose-rhythm` for long-form reading |
-| Documentation (README, reference, product docs) | `documentation` | `japanese-writing`; `japanese-tech-prose` for explanations; never rhythm for reference text |
-| Business document (議事録, 調査レポート, 社内ガイド・マニュアル, メモ・企画書, スライド構成) | `business-document` | `japanese-writing` + `japanese-business-docs` (doctype + constitution + design); never rhythm |
-| Comic script, storyboard, screenplay | `script` | `japanese-writing`; `japanese-tech-prose` for explanatory narration; never rhythm |
+| Marketing copy | `marketing-copy` | notation; `references/tech-prose.md` if long |
+| Technical article or blog | `technical-prose` | notation + `references/tech-prose.md` + `references/prose-rhythm.md` for long-form reading |
+| Documentation (README, reference, product docs) | `documentation` | notation; `references/tech-prose.md` for explanations; never rhythm for reference text |
+| Business document (議事録, 調査レポート, 社内ガイド・マニュアル, メモ・企画書, スライド構成) | `business-document` | notation + `references/business/` (overview + doctype + constitution + design); never rhythm |
+| Comic script, storyboard, screenplay | `script` | notation; `references/tech-prose.md` for explanatory narration; never rhythm |
 
-Every Japanese deliverable additionally gets the `japanese-inspection`
-layer at review time (see `references/review.md`) — it is an
-inspection pass, not a tone layer, so it appears there rather than
-here.
+Every Japanese deliverable additionally gets the inspection layer
+(`japanese-writing` `references/inspection/`) at review time (see
+`references/review.md`) — it is an inspection pass, not a tone layer,
+so it appears there rather than here.
 
 </ToneCalibration>
 

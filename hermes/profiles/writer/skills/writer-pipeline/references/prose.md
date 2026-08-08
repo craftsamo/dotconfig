@@ -18,8 +18,9 @@ review gate, and delivery; this file owns how each prose type is built.
     Facts from the brief only — never embellish scope.
   - LP / 告知: one reader, one promise, one CTA; proof (numbers, quotes)
     only from supplied sources.
-- Long-form argumentative copy also gets the `japanese-tech-prose`
-  argumentation discipline (per the kernel TypeTable).
+- Long-form argumentative copy also gets the tech-prose argumentation
+  discipline (`japanese-writing/references/tech-prose.md`, per the
+  kernel TypeTable).
 
 ### Tech article / blog / tutorial
 
@@ -29,31 +30,33 @@ review gate, and delivery; this file owns how each prose type is built.
 - Tutorials: steps in execution order; each step states its observable
   result so the reader can self-verify.
 - All three Japanese layers apply — this is the only prose type where
-  `japanese-prose-rhythm` is loaded (readers go start-to-finish).
+  the rhythm layer (`japanese-writing/references/prose-rhythm.md`) is
+  loaded (readers go start-to-finish).
 
 ### Documentation (README, manual, reference)
 
 - Task-ordered sections the reader can scan; every heading answers "can
   I skip this?". Flat is correct — NEVER load the rhythm layer.
 - Explanatory sections (design rationale, background) get the
-  `japanese-tech-prose` argumentation rules; reference tables and
-  procedures do not.
+  tech-prose argumentation rules (`references/tech-prose.md`); reference
+  tables and procedures do not.
 - README openers: what this is + who it serves within the first screen,
   judged in ~30 seconds by a stranger.
 
 ### Business document (議事録, 調査レポート, 社内ガイド, メモ・企画書, スライド構成)
 
-- Owned end-to-end by the `japanese-business-docs` norms layer: follow
+- Owned end-to-end by the business-docs layer
+  (`japanese-writing/references/business/`): follow
   its Workflow (reader/purpose → one-sentence main message →
   conclusion-bearing heading skeleton → density contrast → evidence),
   draft under its 12-article constitution, and load the matching
-  doctype file from its `references/doctypes/`.
+  doctype file from its `doctypes/`.
 - Minutes from a transcript are a restructuring job, not a polishing
   job: decisions / action items (owner + due date) / carried-over
   topics get pulled out of the discussion flow per the minutes doctype.
-- Flat is correct — never load `japanese-prose-rhythm`; scannability
+- Flat is correct — never load the rhythm layer; scannability
   beats narrative pull in every business doctype.
-- At review time run the `japanese-inspection` lint with
+- At review time run the inspection lint (`japanese-writing/scripts/lint.py`) with
   `--genre business` (kernel review gate, `references/review.md`).
 
 ## Length
@@ -65,7 +68,7 @@ as an assumption in the final-message footer.
 
 ## Non-Japanese deliverables
 
-Skip the notation layer; keep the `japanese-tech-prose` argumentation
+Skip the notation layer; keep the tech-prose argumentation
 discipline (one topic per paragraph, no unsupported assertions, no hollow
 phrases) as the structural guide.
 
