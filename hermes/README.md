@@ -12,7 +12,6 @@ into place.
 | `~/.hermes/config.yaml` | `hermes/config.yaml` |
 | `~/.hermes/SOUL.md`     | `hermes/SOUL.md`    |
 | `~/.hermes/mcp.json`    | `hermes/mcp.json`   |
-| `~/.hermes/cron`        | `hermes/cron/`      |
 | `~/.hermes/skills`      | `hermes/skills/`    |
 | `~/.hermes/plugins`     | `hermes/plugins/`   |
 
@@ -37,13 +36,19 @@ out of the repo: seeding is disabled — `hermes skills opt-out --remove` writes
 (`.curator_state`, `.hub/`, `.usage.json`, `.archive/`, …) lands in
 `hermes/skills/` but is git-ignored.
 
-### Cron — job definitions tracked, runtime churn ignored
+### Cron — machine-local, outside the repo
 
-`~/.hermes/cron` is symlinked to `hermes/cron/`. Hermes stores every job in a
-single `cron/jobs.json` (definition **and** run-state in one file), which is
-tracked — churn is occasional unless a gateway runs cron continuously. The
-per-run logs (`cron/output/`) and scheduler lock (`cron/.tick.lock`) are
-git-ignored.
+`~/.hermes/cron` (and each profile's) is a real directory this repo neither
+links nor tracks. Hermes creates it and owns every file in it: `jobs.json`,
+`output/`, `executions.db`, `.tick.lock`, `.jobs.lock`, `ticker_*`,
+`catch_up_occurrences`, `suggestions.json`. Because definition and run-state
+share one file, tracking `jobs.json` meant either constant churn or a
+`skip-worktree` flag that hid new jobs and broke branch switches — so the whole
+directory stays out.
+
+Nothing recreates a lost `jobs.json`; Hermes reads a missing one as zero jobs
+without warning. The private `local-*` schedules are re-creatable from the
+`hermes cron create` commands in `hermes-private-skills/scripts/install.sh`.
 
 ### Plugins — provider chains & tool overrides
 
@@ -102,8 +107,6 @@ the relevant `config.yaml`.
   through `skills.external_dirs` as `${HERMES_PRIVATE_SKILLS}/skills`.
   `skills/learned/` is the untracked adaptive library; bundled skills are read
   from the clone via `external_dirs`.
-- `cron/jobs.json` — scheduled job definitions (run-state churns in the same
-  file; `cron/output/` and `cron/.tick.lock` are git-ignored).
 
 ## Profiles
 
