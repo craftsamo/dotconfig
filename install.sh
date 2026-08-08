@@ -135,6 +135,42 @@ link_skills_into() {
   done
 }
 
+# Hermes owns its cron directory outright: it mkdir -p's the path and writes
+# jobs.json, output/, executions.db, the tick/jobs locks, ticker_* and
+# catch_up_occurrences into it. Linking it from the repo bought nothing and
+# dragged all of that churn into version control, so the dir is machine-local.
+# Older checkouts linked it — migrate those in place, moving the live state
+# (jobs.json above all: Hermes treats a missing one as ZERO jobs, silently)
+# out of the repo before the link is dropped.
+unlink_cron_dir() {
+  local dest="$1" target
+  [ -L "$dest" ] || return 0
+  target="$(readlink "$dest")"
+  case "$target" in
+    "$DOTFILES"/hermes/*) ;;
+    *) return 0 ;;  # not ours — leave alone
+  esac
+  local entries=()
+  if [ -d "$target" ]; then
+    # Includes dotfiles (.tick.lock, .jobs.lock); .gitkeep is repo scaffolding
+    # that disappears with the directory, so it is skipped rather than moved.
+    local e
+    while IFS= read -r -d '' e; do
+      [ "$(basename "$e")" = ".gitkeep" ] || entries+=("$e")
+    done < <(find "$target" -mindepth 1 -maxdepth 1 -print0)
+  fi
+  mkdir -p "$dest.new" || { echo "ERROR: cannot stage $dest.new"; status=1; return; }
+  if [ ${#entries[@]} -gt 0 ] && ! mv "${entries[@]}" "$dest.new"/; then
+    echo "ERROR: failed to move cron state out of $target — left untouched"
+    rmdir "$dest.new" 2>/dev/null
+    status=1
+    return
+  fi
+  rm "$dest"
+  mv "$dest.new" "$dest"
+  echo "  migrated: $dest is now a real directory (cron state left the repo)"
+}
+
 link() {
   local target="$1" dest="$2"
   if [ ! -e "$target" ]; then
@@ -233,7 +269,7 @@ link "$DOTFILES/hermes/config.yaml" "$HOME/.hermes/config.yaml"
 [ -f "$DOTFILES/hermes/SOUL.example.md" ] && [ ! -f "$DOTFILES/hermes/SOUL.md" ] && { cp "$DOTFILES/hermes/SOUL.example.md" "$DOTFILES/hermes/SOUL.md"; echo "  seeded hermes/SOUL.md from template (personalize locally; untracked)"; }
 link "$DOTFILES/hermes/SOUL.md"     "$HOME/.hermes/SOUL.md"
 link "$DOTFILES/hermes/mcp.json"    "$HOME/.hermes/mcp.json"
-link "$DOTFILES/hermes/cron"        "$HOME/.hermes/cron"
+unlink_cron_dir "$HOME/.hermes/cron"
 link "$DOTFILES/hermes/skills"      "$HOME/.hermes/skills"
 # User plugins (e.g. image-gen fallback chains). One shared repo dir, linked
 # into the default home here and into every profile home in the loop below
@@ -254,7 +290,7 @@ for p in "$DOTFILES"/hermes/profiles/*/; do
   [ -f "$p/SOUL.example.md" ] && [ ! -f "$p/SOUL.md" ] && { cp "$p/SOUL.example.md" "$p/SOUL.md"; echo "  seeded $n/SOUL.md from template (personalize locally; untracked)"; }
   [ -f "$p/SOUL.md" ]            && link "$p/SOUL.md"            "$HOME/.hermes/profiles/$n/SOUL.md"
   [ -f "$p/mcp.json" ]          && link "$p/mcp.json"          "$HOME/.hermes/profiles/$n/mcp.json"
-  [ -d "$p/cron" ]              && link "$p/cron"              "$HOME/.hermes/profiles/$n/cron"
+  unlink_cron_dir "$HOME/.hermes/profiles/$n/cron"
   [ -d "$p/scripts" ]          && link "$p/scripts"          "$HOME/.hermes/profiles/$n/scripts"
   [ -d "$p/skills" ]            && link "$p/skills"            "$HOME/.hermes/profiles/$n/skills"
   [ -f "$p/.no-bundled-skills" ] && link "$p/.no-bundled-skills" "$HOME/.hermes/profiles/$n/.no-bundled-skills"

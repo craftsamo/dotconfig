@@ -89,14 +89,6 @@ hermes/**/.hub/
 hermes/**/index-cache/
 hermes/**/.restore-backups/
 
-# Hermes cron: job definitions (cron/jobs.json) ARE tracked; runtime churn is not
-hermes/**/cron/output/
-hermes/**/cron/.tick.lock
-hermes/**/cron/*.lock
-hermes/**/cron/ticker_heartbeat
-hermes/**/cron/ticker_last_success
-hermes/**/cron/executions.db*
-
 # Hermes plugins: source IS tracked; Python bytecode (written into the symlinked
 # plugins dir when Hermes loads a plugin) is not
 hermes/**/__pycache__/

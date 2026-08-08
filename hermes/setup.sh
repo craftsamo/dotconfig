@@ -11,7 +11,7 @@
 #   3. uv sync the $EXTRAS optional-dependencies + $EXTRA_PIP (hash-verified)
 #   4. Symlink ~/.local/bin/hermes -> venv/bin/hermes
 #
-# The config/SOUL/mcp/cron symlinks into ~/.hermes/ are created separately by
+# The config/SOUL/mcp symlinks into ~/.hermes/ are created separately by
 # ../install.sh. Secrets come from the macOS Keychain via bin/hermes
 # (secret-shim); this script never creates ~/.hermes/.env.
 #
@@ -97,5 +97,5 @@ echo "[hermes] linked ~/.local/bin/hermes -> $SRC/venv/bin/hermes"
 
 echo "[hermes] done."
 echo "[hermes] verify:  hermes --version"
-echo "[hermes] symlinks: ../install.sh    (creates ~/.hermes/{config.yaml,SOUL.md,mcp.json,cron})"
+echo "[hermes] symlinks: ../install.sh    (creates ~/.hermes/{config.yaml,SOUL.md,mcp.json})"
 echo "[hermes] keys:     secret set OPENROUTER_API_KEY    (injected from the Keychain, no .env)"
