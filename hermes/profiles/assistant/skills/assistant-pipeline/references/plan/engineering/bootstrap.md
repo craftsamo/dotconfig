@@ -62,6 +62,7 @@ fit call below stays yours.
 | Decision | How it is grounded |
 | --- | --- |
 | Group | `pj show --id <Group>`; missing → created during execution. |
+| Primary organization | Optional existing `kind=org` registry record; list with `pj organizations`. Never infer it from the GitHub owner or filesystem path. |
 | Repo name + owner | Owner comes from the runtime account context (`gh auth status`, existing ghq owners) — ask when more than one fits; the owner decides the ghq path. |
 | Visibility | `--private` default; `--public` only on the user's say-so. |
 | Starter or scratch | The discovery + fit sections above. |

@@ -63,8 +63,10 @@ push to the existing `origin` — repo creation is never the
 engineer's):
 
 1. **Group missing** → the private `scaffold` skill's
-   `ws-new.sh group projects <Group>` (dirs + group `AGENTS.md` +
-   registry row).
+   `ws-new.sh group projects <Group> [--organization <Org>]` (dirs +
+   group `AGENTS.md` + registry row). Pass the organization only when the
+   approved plan names an existing `kind=org` registry record; never infer
+   it from the GitHub owner.
 2. **Create on GitHub first**, per the sanctioned History posture:
    - Template starter (squashed start) →
      `gh repo create <owner>/<repo> --private --template <starter>`.
