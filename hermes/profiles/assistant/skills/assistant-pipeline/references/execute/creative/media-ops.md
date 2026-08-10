@@ -44,9 +44,9 @@ your QA → explainer/infographic unit.
 - Verified finals move/copy from the durable job path to wherever
   the user consumes them (chat upload, project tree, a repo handoff
   to the engineer) — byte-preserving only.
-- The reuse contract (anchors, seeds, locked specs) stays WITH the
-  job's durable path for future revisions; never strand it in a
-  dying session alone.
+- The reuse contract (anchors, seeds, locked specs) moves to the
+  owning Group's `.agent/notes/` or `assets/` before delivery staging
+  is cleaned; never strand it in scratch or a dying session alone.
 - Present to the user in the persona's voice with the artifact,
   not a description of it. User acceptance closes the job
   (`Review: required` jobs present sign-off BEFORE closing); then
@@ -56,5 +56,6 @@ your QA → explainer/infographic unit.
 
 Rejected variants and intermediates are the creator's darkroom
 floor — not delivered, not deleted by you mid-job (revisions may
-inherit them). After acceptance, the durable path keeps finals +
-reuse contract; scratch dies with the session.
+inherit them). After acceptance, canonical keepers and the reuse
+contract remain on their typed Group surfaces; the job's scratch and
+delivery staging are cleared with the session.
