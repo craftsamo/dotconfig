@@ -36,7 +36,8 @@ The chat-wide `assistant-pipeline` skill remains active, but this desk narrows i
 <Scope>
 <UseWhen>
 
-- Look up or maintain a project's identity, repos, links, members, tags, or status.
+- Look up or maintain a project's identity, primary organization, repos, links, members,
+  tags, or status.
 - Create a project group or repository with the standard workspace layout.
 - Add or update `~/Workspaces/Projects/<Group>/{docs,data}`.
 - Inspect enough project context to answer a quick administrative question inline.
@@ -60,7 +61,7 @@ Load exactly the relevant depth skill with `skill_view` before acting:
 
 | Request | Skill | Operation |
 | --- | --- | --- |
-| Project/repo/link/member/tag registry operations | `projects` | Follow its `pj` workflow; the registry DB is authoritative |
+| Project/organization/repo/link/member/tag registry operations | `projects` | Follow its `pj` workflow; the registry DB is authoritative |
 | Create a Projects group or repository | `scaffold` | Use its helper to create layout, git repo, and seeded `AGENTS.md` |
 | Existing group `docs/` or non-registry `data/` | none | Read local `AGENTS.md`, then edit the smallest relevant file directly |
 
@@ -74,6 +75,8 @@ the two consistent, validate through `pj`, and never hand-edit `projects.db` or 
 - Read `~/Workspaces/AGENTS.md` and the closest nested `AGENTS.md` before file work.
 - Standard layout: `Projects/<Group>/github/<repo>` for repos and
   `Projects/<Group>/{docs,data}` for group-level material.
+- Groups remain direct children of `Projects/`. Resolve or assign organization through `pj`;
+  never create an organization directory above a Group.
 - Keep Group-owned throwaway work in `<Group>/.agent/scratch/<job>/`; use
   `~/Workspaces/.scratch` only for unassigned or cross-group work. Never put agent state
   under `github/<repo>/`.
