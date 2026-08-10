@@ -1,7 +1,9 @@
 # Projects — git-managed code (grouped) + a central registry
 
-Each subdirectory is a **group** (org / client / category) == a project id (the dir name,
-e.g. `ExampleProject`), which is the cross-system join key. A group holds:
+Each direct subdirectory is a flat canonical **group** == a project id (the dir name,
+e.g. `ExampleProject`), which is the cross-system join key. A group may itself be an
+organization, or reference one primary organization in the registry; organization is not
+a filesystem parent. A group holds:
 - `github/<repo>/` — the repos, flat under `github/` (the group is the owner; usually a
   symlink to a `~/ghq` clone). Each repo owns a committed, **tool-agnostic** `AGENTS.md`
   (architecture, build/test/run, conventions) — shared context for every agents.md-aware tool
@@ -16,17 +18,20 @@ e.g. `ExampleProject`), which is the cross-system join key. A group holds:
   staging, and `notes/<topic>/` is durable supporting evidence. Keep this at the Group
   root, never under `github/<repo>/`.
 
-Structured facts about groups — **identity (slug/aliases/dir_path), repos, official links,
-team memberships, and flexible tags** — live in the **central registry**, not in loose files:
-- `.registry/projects.db` — **SQLite (schema v1), the source of truth**, operated only via the
+Structured facts about groups — **identity (slug/aliases/dir_path), primary organization,
+repos, official links, team memberships, and flexible tags** — live in the **central
+registry**, not in loose files:
+- `.registry/projects.db` — **SQLite (schema v2), the source of truth**, operated only via the
   `projects` skill's `pj` CLI. `.registry/export/` is a regenerable JSON/CSV mirror; `.registry/
   backups/` holds DB snapshots + `legacy_archive/` (the pre-rebuild `teams/members/*.json` + docs).
 - There is **no `teams/` directory** anymore — memberships are `pj member-set` / `pj members`.
 
 ## Engine
-- All registry operations go through the `projects` skill: `pj show|list|members|repos|links`,
+- All registry operations go through the `projects` skill:
+  `pj show|list|organizations|members|repos|links`,
   `upsert-project`/`set-status`/`rename-project`/`merge-project`, facets (`alias-*`/`link-*`/
-  `tag-*`), `repo-set`/`link-repo`, `member-set` (+ `mtag-*`), ops `validate`/`export`/`backup`.
+  `tag-*`/`organization-*`), `repo-set`/`link-repo`, `member-set` (+ `mtag-*`), ops
+  `validate`/`export`/`backup`.
   Don't hand-edit `projects.db` or the mirror. Full model: the `projects` skill's `data-model.md`.
 
 ## Cross-skill linkage (read each other's CLI, never the other's DB/files — see the shared cross-skill contract)
@@ -45,5 +50,9 @@ team memberships, and flexible tags** — live in the **central registry**, not 
   `.agent/deliverables/<job>/` for Assistant QA. After user acceptance, move canonical
   keepers to `docs/`, `data/`, `assets/`, or the relevant repo, then clear the job's
   scratch and delivery staging.
-- Add a group/repo with the `workspace-scaffold` skill: `ws-new.sh group projects <Group>`
-  (registers it in the registry) then `ws-new.sh repo <Group> <repo>`.
+- Keep Groups flat. Assign an existing `kind=org` record with
+  `pj organization-set --id <Group> --organization <Org>`; use
+  `pj list --organization <Org>` to resolve the grouping.
+- Add a group/repo with the `workspace-scaffold` skill:
+  `ws-new.sh group projects <Group> [--organization <Org>]` (registers it in the registry)
+  then `ws-new.sh repo <Group> <repo>`.

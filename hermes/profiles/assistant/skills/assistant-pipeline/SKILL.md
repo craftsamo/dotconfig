@@ -123,7 +123,9 @@ Decide silently; surface only if ambiguous enough to merit a `clarify`.
 Identify the workspace concretely:
 
 - **Projects**: identify the `<Group>` and the `github/<repo>` if code
-  work is implied. Confirm via the registry: `pj show <Group>`. Code lives
+  work is implied. Confirm via the registry: `pj show --id <Group>`; resolve
+  organization with its `organization_id` or `pj list --organization <Org>`,
+  never from directory nesting. Code lives
   at `~/Workspaces/Projects/<Group>/github/<repo>`; project prose/data at
   `~/Workspaces/Projects/<Group>/{docs,data}`; non-canonical agent state at
   `~/Workspaces/Projects/<Group>/.agent/{scratch,deliverables,notes}`.
