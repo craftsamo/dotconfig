@@ -221,9 +221,6 @@ writes on the current machine, then commit it.
 - `../install.sh` — create the `~/.hermes/` symlinks (run after adding files).
 - `hermes update` — git pull + re-sync (use this to update, not setup.sh).
 - `hermes doctor` — validate providers / model tiers.
-- `launchd/aivis-launchctl.sh {install,status,uninstall}` — headless AivisSpeech
-  Engine LaunchAgent (execs a `hermes-aivis-engine` hardlink shim; backs the
-  `aivis` TTS provider on `127.0.0.1:10101`). Re-run `install` after AivisSpeech updates.
 - `launchd/qwen3-tts-launchctl.sh {install,register,unregister,voices,status,uninstall}`
   — multi-voice Qwen3-TTS LaunchAgent (`qwen3-tts` on `127.0.0.1:10102`). It
   shares one pinned Base model across registered character voices and uses an
