@@ -74,7 +74,9 @@ the two consistent, validate through `pj`, and never hand-edit `projects.db` or 
 - Read `~/Workspaces/AGENTS.md` and the closest nested `AGENTS.md` before file work.
 - Standard layout: `Projects/<Group>/github/<repo>` for repos and
   `Projects/<Group>/{docs,data}` for group-level material.
-- Keep throwaway work in `~/Workspaces/.scratch`; do not leave temporary artifacts in a group.
+- Keep Group-owned throwaway work in `<Group>/.agent/scratch/<job>/`; use
+  `~/Workspaces/.scratch` only for unassigned or cross-group work. Never put agent state
+  under `github/<repo>/`.
 - New repos need a factual, tool-agnostic `AGENTS.md`; do not leave the scaffold template stub.
 - If architecture, build, test, or convention facts do not exist yet, ask for only the facts
   needed now. If the user still wants the empty layout, replace the template with a minimal

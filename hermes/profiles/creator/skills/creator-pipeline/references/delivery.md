@@ -8,11 +8,12 @@ packages its evidence; it never substitutes for it.
 ## ArtifactDiscipline
 
 - **Every final artifact lands at a durable path** — the destination the
-  brief names (default `~/Workspaces/.deliverables/<job>/`). A file that
-  exists only in a tool cache, tmp dir, or scratch workspace is a file
-  lost. In a resident session, name every path in the reply. In kanban mode,
-  `kanban_attach` every final, copy it to the durable destination, and name it
-  in the completion summary.
+  brief names (default the owning Group's `.agent/deliverables/<job>/`;
+  root `.deliverables/<job>/` only when no single Group owns the work). A
+  file that exists only in a tool cache, tmp dir, or scratch workspace is
+  a file lost. In a resident session, name every path in the reply. In
+  kanban mode, `kanban_attach` every final, copy it to the durable
+  destination, and name it in the completion summary.
 - Deliver the set, not the darkroom floor: intermediates, rejected
   variants, and raw source frames stay out unless the brief asked for
   them.
@@ -85,6 +86,10 @@ reconciled tally.
   pays for the omission in regenerated spend and style drift.
 - Treating `changes` feedback as a fresh brief — it is revise feedback
   against THIS delivery, scoped by the remaining Budget.
+- Deleting current-job state at producer-verification promotion — remove
+  only reproducible caches; keep variants and useful intermediates until
+  user acceptance and preserve important anchors outside scratch. The
+  orchestrating Assistant owns accepted-job cleanup.
 
 ## Verification
 

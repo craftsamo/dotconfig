@@ -7,8 +7,9 @@ candidate until you verified it. Never forward unseen output.
 
 1. **Receive** — the session turn (or card completion) names the
    artifact paths. Files must be at durable paths
-   (`~/Workspaces/.deliverables/` or the project tree), never only in a
-   scratch that dies.
+   (normally the owning Group's `.agent/deliverables/`; the root
+   `.deliverables/` is only for unassigned/cross-group work), never only
+   in a scratch that dies.
 2. **Verify** — apply the matching contract from the capability dirs
    below. Look at the actual artifact: vision for images, frame sampling
    + ffprobe for video, read the prose, run the checks. For many
@@ -19,9 +20,13 @@ candidate until you verified it. Never forward unseen output.
    everything unnamed is preserved). Card output that fails escalates to
    a resident session (`../execute/resident-sessions.md`). Iterate until
    acceptable — this loop is minutes, not card cycles.
-4. **Deliver** — send the verified artifact/text in the persona's voice,
-   then close the session once the user accepts. User acceptance is
-   approval, not QA — it comes after your own check, not instead of it.
+4. **Deliver** — send the verified artifact/text in the persona's voice
+   and wait for acceptance. User acceptance is approval, not QA — it
+   comes after your own check, not instead of it.
+5. **Clean** — after acceptance, promote canonical keepers to the owning
+   Group's `docs/`, `data/`, `assets/`, or repo surface, then clear that
+   job's scratch and delivery staging and close its resident session.
+   Retain durable notes.
 
 Depth scales with stakes: a quick internal artifact gets a sanity look; a
 publishing deliverable gets the full contract.

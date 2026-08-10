@@ -29,8 +29,11 @@ resident-session.sh status [<key>] | list | close <key> [--note "<n>"]
   Context: <the settled decisions and taste signals from the chat that
             the specialist needs; paste, don't reference>
   Inputs: <paths, URLs, pasted data, reference images via --image>
-  Deliverable: <format, language, length; where to write files — always a
-               durable path, e.g. ~/Workspaces/.deliverables/<job>/>
+  Deliverable: <format, language, length; where to write files — always the
+               owning Group's durable path, e.g.
+               ~/Workspaces/Projects/<Group>/.agent/deliverables/<job>/;
+               use ~/Workspaces/.deliverables/<job>/ only when no single
+               Group owns the work>
   Constraints: <scope limits, deadlines, things NOT to do>
   <grant lines when relevant — see below>
   ```
@@ -53,7 +56,13 @@ resident-session.sh status [<key>] | list | close <key> [--note "<n>"]
 - **Lifecycle: close on acceptance.** A resident session is per-
   deliverable, not immortal — `close` it once the user accepts, so
   context rot never accumulates. A follow-up request after close starts a
-  fresh session (pointing at the delivered files as inputs).
+  fresh session, seeded with the canonical keeper or the user's accepted
+  chat attachment rather than cleaned staging.
+- **Clean on acceptance, not promotion.** Producer-verification promotion
+  removes only reproducible caches; variants and useful intermediates
+  survive until acceptance. Once accepted, move any canonical keepers to
+  the Group's typed surfaces, clear the job's scratch and delivery staging,
+  then close the session. Durable notes remain.
 - **Failure handling** — a nonzero turn or timeout: read the tail of
   `~/.hermes/profiles/assistant/resident-sessions/<key>.log`, retry once
   if transient, otherwise report plainly and decide with the user. If a
