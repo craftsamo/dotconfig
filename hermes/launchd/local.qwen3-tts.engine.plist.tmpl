@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!-- qwen3-tts-launchctl.sh renders __HOME__ before loading this template. -->
+  <key>Label</key>
+  <string>local.qwen3-tts.engine</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>__PYTHON__</string>
+    <string>__SERVER__</string>
+    <string>serve</string>
+    <string>--host</string>
+    <string>127.0.0.1</string>
+    <string>--port</string>
+    <string>10102</string>
+    <string>--voice-catalog</string>
+    <string>__VOICE_CATALOG__</string>
+    <string>--release-id</string>
+    <string>__RELEASE_ID__</string>
+    <string>--device</string>
+    <string>mps</string>
+    <string>--dtype</string>
+    <string>bfloat16</string>
+  </array>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>HF_HOME</key>
+    <string>__HOME__/.config/hermes/local/qwen3-tts/cache</string>
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    <key>PYTORCH_ENABLE_MPS_FALLBACK</key>
+    <string>1</string>
+    <key>TOKENIZERS_PARALLELISM</key>
+    <string>false</string>
+  </dict>
+
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>ThrottleInterval</key>
+  <integer>15</integer>
+  <key>ProcessType</key>
+  <string>Interactive</string>
+
+  <key>StandardOutPath</key>
+  <string>__HOME__/Library/Logs/qwen3-tts-engine.log</string>
+  <key>StandardErrorPath</key>
+  <string>__HOME__/Library/Logs/qwen3-tts-engine.log</string>
+</dict>
+</plist>
