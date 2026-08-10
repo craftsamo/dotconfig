@@ -31,6 +31,17 @@
     // borrow target; deleted 2026-08-08. `opencode auth login` lists one option
     // per Keychain item, so a third option reappearing means a stray was minted
     // again — check `security dump-keychain | grep "Claude Code-credentials"`.
+    // LOCALLY PATCHED (2026-08-11): 2.1.6's direct OAuth refresh POSTs to
+    // claude.ai/v1/oauth/token with no User-Agent, which Anthropic 429s
+    // (rate_limit_error, no Retry-After) persistently — 157/157 refresh
+    // attempts failed in claude-auth-*.log, forcing manual `claude-sub /login`
+    // every ~8h token lifetime (upstream issue #270). Patched cached dist
+    // (~/.cache/opencode/packages/opencode-claude-auth@2.1.6/.../dist/credentials.js):
+    // OAUTH_TOKEN_URL → https://platform.claude.com/v1/oauth/token (current
+    // Claude Code endpoint; claude.ai is stale) + User-Agent
+    // "claude-cli/2.1.220 (external, cli)". Re-apply after any version bump,
+    // and keep the UA version roughly in sync with `claude --version`.
+    // Verify: refresh_success in claude-auth-*.log at the next refresh window.
     "opencode-claude-auth@2.1.6",
     // quota: pinned — its cached dist/lib/anthropic.js is locally PATCHED to read
     // the sub-account Keychain entry above (upstream hardcodes the default entry
