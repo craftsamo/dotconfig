@@ -109,9 +109,9 @@ Sort the request by where its work lives:
 
 | Request kind | Category |
 | --- | --- |
-| Code, repos, builds, project docs/data | **Projects** (`~/Workspaces/Projects/<Group>/`) |
-| Personal data & automation (people, household-budget, etc.) | **Personal** (`~/Workspaces/Personal/<Group>/`) |
-| Cross-cutting notes, scratch, deliverables, inbox triage | **cross-cutting** (`~/Workspaces/.{notes,scratch,deliverables,inbox}/`) |
+| Code, repos, builds, project docs/data/state | **Projects** (`~/Workspaces/Projects/<Group>/`) |
+| Personal data, automation, and state (people, household-budget, etc.) | **Personal** (`~/Workspaces/Personal/<Group>/`) |
+| Unassigned or intentionally cross-group notes, scratch, deliverables, inbox triage | **cross-cutting** (`~/Workspaces/.{notes,scratch,deliverables,inbox}/`) |
 | Pure conversation / emotion / opinion / no workspace | **neither** |
 
 Decide silently; surface only if ambiguous enough to merit a `clarify`.
@@ -125,16 +125,41 @@ Identify the workspace concretely:
 - **Projects**: identify the `<Group>` and the `github/<repo>` if code
   work is implied. Confirm via the registry: `pj show <Group>`. Code lives
   at `~/Workspaces/Projects/<Group>/github/<repo>`; project prose/data at
-  `~/Workspaces/Projects/<Group>/{docs,data}`.
+  `~/Workspaces/Projects/<Group>/{docs,data}`; non-canonical agent state at
+  `~/Workspaces/Projects/<Group>/.agent/{scratch,deliverables,notes}`.
 - **Personal**: identify the `<Group>`; directory lookup only
-  (`~/Workspaces/Personal/<Group>/{data,docs}`). **Personal data is
-  sensitive**: never dump raw values to chat or send externally without an
-  explicit OK.
-- **cross-cutting**: pick the right `.{notes,scratch,deliverables,inbox}/`
-  subdir.
+  (`~/Workspaces/Personal/<Group>/{data,docs}`), with non-canonical agent
+  state at `<Group>/.agent/{scratch,deliverables,notes}`. **Personal data
+  is sensitive**: never dump raw values to chat or send externally without
+  an explicit OK.
+- **cross-cutting**: only when no single Group owns the work, pick the right
+  `.{notes,scratch,deliverables,inbox}/` subdir at the Workspace root.
 - **neither**: no workspace; the request lives entirely in chat/memory.
 
 </Step2Locate>
+
+<StateLifecycle>
+
+- Start one-Group work in `<Group>/.agent/scratch/<job>/`; never place
+  agent state under `github/<repo>/`.
+- After producer verification, promote final candidates to
+  `<Group>/.agent/deliverables/<job>/` for Assistant QA and durable reuse
+  evidence to `<Group>/.agent/notes/` or the Group's `assets/`. Promotion
+  removes only reproducible caches; variants and useful revision inputs
+  survive until acceptance, but scratch never holds the only important copy.
+- After the user accepts, promote canonical keepers to the Group's typed
+  `docs/`, `data/`, `assets/`, or repo surface, then clear that job's
+  `scratch/` and `deliverables/`. Durable notes remain.
+- Apply the same lifecycle to root fallbacks for unassigned/cross-group
+  work; acceptance never deletes durable notes.
+- Treat existing root state as a migration backlog. Do not bulk-route by
+  filenames: classify one touched job, verify file counts and byte identity
+  in its Group-local copy, then remove only that old job after acceptance.
+- The Assistant owns state transitions and deletion. Producers write and
+  report promoted files but never delete current-job state; `<job>` is one
+  stable session/card slug reused across scratch and deliverables.
+
+</StateLifecycle>
 
 <Tiers>
 

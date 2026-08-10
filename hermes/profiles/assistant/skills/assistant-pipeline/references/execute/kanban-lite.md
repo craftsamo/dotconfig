@@ -47,9 +47,13 @@ body:
   Goal: <what outcome, for whom — one short paragraph>
   Inputs: <links, paths, pasted data — every required_inputs item,
           settled; paste what matters>
-  Deliverable: <format/language/length; artifact files at a durable path —
-               scratch dies on completion, so require kanban_attach AND/OR
-               an explicit ~/Workspaces/... destination>
+  Deliverable: <format/language/length; the card workspace dies on
+               completion, so require final files at an explicit owning-Group
+               ~/Workspaces/{Projects,Personal}/<Group>/.agent/deliverables/<job>/
+               destination, revision-worthy intermediates under the same
+               Group's .agent/scratch/<job>/, and reuse evidence under
+               .agent/notes/ or assets/; also kanban_attach finals; use root
+               state only when no single Group owns the work>
   Constraints: <scope limits, deadlines, things NOT to do>
   <Budget: / Authority: / Publish: line when the profile uses one — same
    semantics as resident sessions; tightest default when unsanctioned>
@@ -108,6 +112,12 @@ is no kanban tool for archiving), then continue the work on the right
 tier: usually a resident session seeded with whatever the card produced,
 or a re-plan with the user when the premise broke. Tell the user in one
 plain line what happened and what you did.
+
+Card completion is producer verification, not user acceptance. Before a
+worker completes, every final, revision-worthy intermediate, and reuse
+contract item must leave the disposable card workspace for the owning
+Group paths named in the card. The Assistant alone clears those job paths
+after QA, delivery, and user acceptance.
 
 ## Pitfalls
 
