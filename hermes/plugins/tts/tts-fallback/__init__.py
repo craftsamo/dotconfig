@@ -1,15 +1,15 @@
 """TTS fallback-chain provider.
 
 Tries a chain of text-to-speech backends in order and returns the first that
-produces audio — so a single backend outage (e.g. the AivisSpeech engine being
-down) still yields speech. Select with ``tts.provider: tts-fallback``.
+produces audio — so a single backend outage (e.g. the local qwen3-tts server
+being down) still yields speech. Select with ``tts.provider: tts-fallback``.
 
 Order comes from ``tts.fallback.chain`` in config (so the user's primary/order is
 respected); when unset it defaults to:
 
-    aivis -> edge
+    qwen3-tts -> edge
 
-Each tier is either a registered TTS *plugin* (e.g. ``aivis``) resolved from the
+Each tier is either a registered TTS *plugin* (e.g. ``qwen3-tts``) resolved from the
 registry, or a *built-in* provider (``edge`` / ``openai`` / ``gemini`` / ``xai`` /
 ``elevenlabs`` / ``mistral`` / ``minimax`` / ``neutts`` / ``kittentts`` /
 ``piper``) invoked through the native ``_generate_*`` functions in
@@ -37,7 +37,7 @@ logger = logging.getLogger(__name__)
 
 # Default chain when ``tts.fallback.chain`` is unset. The configured value
 # (respecting the user's order / primary) always wins — this is the safety net.
-_DEFAULT_CHAIN: List[str] = ["aivis", "edge"]
+_DEFAULT_CHAIN: List[str] = ["qwen3-tts", "edge"]
 
 
 def _tt():
@@ -133,7 +133,7 @@ class FallbackTTSProvider(TTSProvider):
 
     @property
     def voice_compatible(self) -> bool:
-        # The winning tier may be WAV (aivis) or MP3 (edge); the gateway runs
+        # The winning tier may be WAV (qwen3-tts) or MP3 (edge); the gateway runs
         # ffmpeg -> Opus for voice delivery either way.
         return True
 
@@ -167,7 +167,7 @@ class FallbackTTSProvider(TTSProvider):
                 cfg = {}
             _run_builtin(tt, tier, text, output_path, cfg)
             return
-        # Plugin tier (e.g. aivis): resolve from the TTS registry.
+        # Plugin tier (e.g. qwen3-tts): resolve from the TTS registry.
         from agent import tts_registry
 
         provider = tts_registry.get_provider(tier)
