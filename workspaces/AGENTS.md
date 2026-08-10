@@ -4,16 +4,16 @@ The assistant's home (`terminal.cwd`). Humans reach you here via chat; you organ
 work, delegate to workers, and return results.
 
 ## Map
-- `Projects/<Group>/` — git-managed code, grouped by org / client / category. Each
-  group holds:
+- `Projects/<Group>/` — flat canonical groups for project code and material. An
+  organization is a registry reference, never a parent directory. Each group holds:
   - `github/<repo>/` — repos (flat under the group; each has its own committed AGENTS.md).
   - `docs/` — out-of-codebase docs, specs, notes.   `data/` — datasets.   `assets/` —
     local media (logos, screenshots, generated material) that must NOT be committed
     into the repos; optional, on demand.
   - `.agent/{scratch,deliverables,notes}/` — group-local agent work, created on demand;
     never place it under `github/<repo>/`.
-  - Group identity, repos, links, **team memberships**, tags → central `Projects/.registry/`
-    (the `projects` skill / `pj`), not per-group files.
+  - Group identity, primary organization, repos, links, **team memberships**, tags →
+    central `Projects/.registry/` (the `projects` skill / `pj`), not per-group files.
 - `Personal/<Group>/` — personal data & automation (**no git**). Typed subdirs,
   entity-namespaced (same slug across trees, e.g. `data/<slug>/`):
   - `data/` — structured records. **Sensitive.** Not a catch-all.   `docs/` — notes/docs.
@@ -47,6 +47,9 @@ work, delegate to workers, and return results.
   there. Never bulk-move it by filename alone: classify one touched job at a time,
   verify file counts and byte identity in the Group-local copy, then remove only that
   old job after acceptance.
+- Keep canonical Groups flat. Use `pj organization-set` and
+  `pj list --organization` to organize them; never infer organization from a path or
+  create `Projects/<Organization>/<Group>/`.
 - New group/repo → use the `workspace-scaffold` skill.
 
 ## Rules
