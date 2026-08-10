@@ -113,7 +113,7 @@ skills/              # shared maintainer-owned skills tracked
   learned/           # runtime-authored adaptive skills; mutable and ignored
 plugins/             # backend chains, tool overrides, completion and Worker
                      # mutation guards; source tracked, __pycache__ ignored
-launchd/             # LaunchAgents: assistant gateway + headless AivisSpeech engine
+launchd/             # LaunchAgents: assistant gateway + local TTS engines
 profiles/<name>/     # assistant, engineer, researcher, searcher, creator, writer, marketer
   - config.yaml      # model/fallback + agent.system_prompt (operating contract)
   - profile.yaml     # routing description (kanban/delegation)
@@ -224,6 +224,15 @@ writes on the current machine, then commit it.
 - `launchd/aivis-launchctl.sh {install,status,uninstall}` — headless AivisSpeech
   Engine LaunchAgent (execs a `hermes-aivis-engine` hardlink shim; backs the
   `aivis` TTS provider on `127.0.0.1:10101`). Re-run `install` after AivisSpeech updates.
+- `launchd/qwen3-tts-launchctl.sh {install,register,unregister,voices,status,uninstall}`
+  — multi-voice Qwen3-TTS LaunchAgent (`qwen3-tts` on `127.0.0.1:10102`). It
+  shares one pinned Base model across registered character voices and uses an
+  ignored Python 3.12 venv/model cache plus an ignored `catalog.json` under
+  `hermes/local/qwen3-tts/`. First install requires
+  `install --voice-manifest PATH`; add voices with
+  `register --voice-manifest PATH [--default]`. The private manifest paths must
+  never enter tracked config or docs. Dependencies come from
+  `qwen3-tts-requirements.lock` and must stay hash-locked.
 - `launchd/gateway-launchctl.sh {install,status,uninstall}` — gateway LaunchAgent,
   **one host only** (one bot token = one live connection). Telegram-only for now
   (workaround for upstream #40695; don't re-enable Discord until fixed).
