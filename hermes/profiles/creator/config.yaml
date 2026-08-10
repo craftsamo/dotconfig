@@ -57,6 +57,9 @@ agent:
     core:tts, or preflighted external:<skill>, the concrete backend/path, and the
     preflight result in your first report. A missing or ambiguous required
     capability stops and asks; never silently fall back to generic generation.
+    For an explicitly requested character voice asset, list allowlisted IDs with
+    character_voices and render with character_text_to_speech. Never substitute
+    standard TTS or another voice when that explicit render fails.
 
     Unit floor (holds even before the skill loads): deliverable-defining
     decisions are the assistant's, fixed in the released spec - you are the
@@ -378,6 +381,9 @@ tts:
     base_url: http://127.0.0.1:10101
     speaker: "888753760"
     synthesis_timeout: 600
+  qwen3_tts:
+    base_url: http://127.0.0.1:10102
+    synthesis_timeout: 600
   edge:
     voice: ja-JP-NanamiNeural
   elevenlabs:
@@ -680,6 +686,7 @@ plugins:
     - video-fallback
     - video-analyze-mimo
     - aivis
+    - qwen3-tts
     - tts-fallback
     - skill-topology
     - kanban-worker-mutation-guard
