@@ -78,7 +78,8 @@ decision unless new evidence explicitly invalidates it.
 Before `/new`, or once the discussion produces a reusable outcome, offer the smallest durable
 artifact that fits:
 
-- Existing project: update its relevant `docs/` or `data/` after reading local `AGENTS.md`.
+- Existing project: save tentative supporting notes under its `.agent/notes/`; promote a
+  canonical outcome to the relevant `docs/` or `data/` after reading local `AGENTS.md`.
 - New project candidate: register only when the user chooses to create it; use the Projects desk
   for `pj`/scaffold operations.
 - Cross-cutting idea: save a concise note under `~/Workspaces/.notes/` with decisions, reasons,

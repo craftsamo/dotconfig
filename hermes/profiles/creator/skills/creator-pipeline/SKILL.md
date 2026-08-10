@@ -59,8 +59,10 @@ assistant (not the end user):
   spending on the ambiguous part. The next message answers them.
 - Every reply that ends a work chunk names the produced files (absolute
   durable paths) and the running spend tally. Deliver to the durable path
-  the brief names (default `~/Workspaces/.deliverables/<job>/`) — never
-  only to a tool cache or tmp dir.
+  the brief names. If omitted, default to the owning Group's
+  `.agent/deliverables/<job>/`; use `~/Workspaces/.deliverables/<job>/`
+  only when no single Group owns the work. Never deliver only to a tool
+  cache or tmp dir.
 - Where a reference playbook says "block round-trip", "`Q<n>:` comment",
   or "checkpoint-then-block", read: ask in your reply and wait for the
   next message. Where it says "attach", read: write to the durable path
