@@ -74,10 +74,14 @@ the relevant `config.yaml`.
 - **tts/aivis** (`kind: backend`): AivisSpeech text-to-speech — a
   VOICEVOX-compatible local engine on `127.0.0.1:10101`. The primary TTS tier
   (see [AivisSpeech TTS](#aivisspeech-tts--headless-engine)).
+- **tts/qwen3-tts** (`kind: backend`): registered-voice Qwen3-TTS client for the
+  loopback server on `127.0.0.1:10102`. It is the Assistant's default TTS tier
+  and exposes explicit character-voice tools only in Creator
+  (see [Qwen3-TTS voice catalog](#qwen3-tts-voice-catalog)).
 - **tts/tts-fallback** (`kind: backend`): TTS fallback chain. Tries
-  `tts.fallback.chain` in order (default `aivis → edge`) and returns the first
-  tier that produces audio, so a down AivisSpeech engine still speaks (Edge TTS,
-  `tts.edge.voice: ja-JP-NanamiNeural`). Active via `tts.provider: tts-fallback`.
+  `tts.fallback.chain` in order and returns the first tier that produces audio.
+  The default/Creator chain is `aivis → edge`; Assistant uses `qwen3-tts → edge`.
+  Active via `tts.provider: tts-fallback`.
 - **transcription/stt-fallback** (`kind: backend`): STT fallback chain. Tries
   `stt.fallback.chain` in order (default `groq → xai → openai → elevenlabs →
   local`) and returns the first successful transcript. Active via
@@ -272,14 +276,82 @@ Other optional keys (`-p hermes` unless shared): `FAL_KEY` (image + video
 generation fallback), `ELEVENLABS_API_KEY` (premium TTS), `XAI_API_KEY`
 (x_search / video_gen),
 `BROWSERBASE_API_KEY` (cloud browser), `TELEGRAM_BOT_TOKEN` /
-`DISCORD_BOT_TOKEN` (gateway). Voice (for `default` / `assistant`) runs through
-fallback chains: **TTS** = `tts-fallback` (`aivis → edge`), **STT** =
-`stt-fallback` (`groq → xai → openai → elevenlabs → local`). See the AivisSpeech
-TTS and Speech-to-text sections below.
+`DISCORD_BOT_TOKEN` (gateway). Voice runs through fallback chains: Assistant TTS
+is `tts-fallback` (`qwen3-tts → edge`), default/Creator TTS is `tts-fallback`
+(`aivis → edge`), and STT is `stt-fallback` (`groq → xai → openai → elevenlabs
+→ local`). See the local TTS and Speech-to-text sections below.
+
+## Qwen3-TTS voice catalog
+
+The Assistant profile uses `tts-fallback` with `qwen3-tts → edge`. The
+`tts/qwen3-tts` plugin sends JSON speech requests to a loopback-only server on
+`127.0.0.1:10102`; the plugin applies `tts.speed` and output encoding with
+`ffmpeg`, then the gateway handles its normal Opus delivery.
+
+The server keeps one catalog-selected Base model resident on Apple MPS with BF16
+and shares it across all registered voices. Voice-clone prompts are built lazily
+and retained in a bounded LRU cache. FP16 is intentionally not used: the Base ICL
+path can overflow in its code predictor on MPS. Every registered manifest must
+pin the same model and exact Hugging Face commit; the server loads that local
+snapshot so processor/tokenizer lookups cannot drift to `main`.
+
+Voice-specific settings live in private character manifests, not in this public
+repo. A manifest location is supplied only during machine-local registration:
+
+```text
+/absolute/path/to/voice.json
+```
+
+Each manifest contains the voice id, language, model revision, generation seed,
+and paths to the approved synthetic reference audio/transcript. It also pins both
+reference SHA-256 digests and the PCM WAV metadata. Reference paths are relative
+to the manifest, so the character tree can move as one unit. Runtime synthesis
+uses the approved de-identified output rather than the original source recording.
+
+The first install registers the default voice. Additional characters can be
+registered by manifest without adding ports, providers, or LaunchAgents:
+
+```sh
+hermes/launchd/qwen3-tts-launchctl.sh install \
+  --voice-manifest /absolute/path/to/voice.json
+hermes/launchd/qwen3-tts-launchctl.sh register \
+  --voice-manifest /absolute/path/to/another-voice.json
+hermes/launchd/qwen3-tts-launchctl.sh register \
+  --voice-manifest /absolute/path/to/another-voice.json --default
+hermes/launchd/qwen3-tts-launchctl.sh unregister --voice another-voice
+hermes/launchd/qwen3-tts-launchctl.sh voices
+hermes/launchd/qwen3-tts-launchctl.sh install  # reuses the local catalog
+hermes/launchd/qwen3-tts-launchctl.sh status
+hermes/launchd/qwen3-tts-launchctl.sh uninstall
+```
+
+`install` creates an isolated Python 3.12.11 venv under the ignored
+`hermes/local/qwen3-tts/`, stores absolute private manifest locations only in the
+ignored `catalog.json`, synchronizes the hash-locked
+`qwen3-tts-requirements.lock`, validates every manifest, renders the LaunchAgent,
+and atomically activates the catalog. A failed registration, service load, or
+identity-bound health check restores the previous catalog and service. The
+tracked plist contains only the stable ignored catalog path. An existing
+single-voice `voice.json` registration is migrated automatically on the first
+catalog install. Model weights are cached below the same ignored directory. A
+first start can take several minutes; later starts reuse the cache. Logs land in
+`~/Library/Logs/qwen3-tts-engine.log`. `uninstall` removes the LaunchAgent but
+retains the catalog, venv, and model cache.
+
+`qwen3-tts-requirements.in` records the top-level package, while
+`qwen3-tts-tested-constraints.txt` captures the verified environment used to
+regenerate the hashed lock. Review dependency changes before recompiling it.
+
+Normal Assistant speech omits a voice ID and uses the catalog default. When the
+server is unavailable or still loading, `tts-fallback` advances to Edge TTS
+(`ja-JP-NanamiNeural`). Creator additionally receives `character_voices` and
+`character_text_to_speech`; the latter requires an allowlisted voice ID and
+returns an error rather than silently rendering a character asset with another
+voice. Restart the relevant Hermes process after changing its live config.
 
 ## AivisSpeech TTS — headless engine
 
-TTS for `default` / `assistant` runs through the
+TTS for `default` / `creator` runs through the
 [`tts/tts-fallback`](#plugins--provider-chains--tool-overrides) chain
 (`tts.provider: tts-fallback`): it tries `tts.fallback.chain` in order (default
 `aivis → edge`) and returns the first tier that produces audio. The **primary
