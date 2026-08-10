@@ -427,10 +427,6 @@ tts:
   qwen3_tts:
     base_url: http://127.0.0.1:10102
     synthesis_timeout: 600
-  aivis:
-    base_url: http://127.0.0.1:10101
-    speaker: "888753760"
-    synthesis_timeout: 600
   edge:
     voice: ja-JP-NanamiNeural
   elevenlabs:
@@ -825,7 +821,6 @@ video_analyze:
   model: xiaomi/mimo-v2.5
 plugins:
   enabled:
-  - aivis
   - qwen3-tts
   - stt-fallback
   - tts-fallback

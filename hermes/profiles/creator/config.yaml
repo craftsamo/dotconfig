@@ -375,12 +375,8 @@ tts:
   provider: tts-fallback
   fallback:
     chain:
-      - aivis
+      - qwen3-tts
       - edge
-  aivis:
-    base_url: http://127.0.0.1:10101
-    speaker: "888753760"
-    synthesis_timeout: 600
   qwen3_tts:
     base_url: http://127.0.0.1:10102
     synthesis_timeout: 600
@@ -685,7 +681,6 @@ plugins:
     - image-fallback
     - video-fallback
     - video-analyze-mimo
-    - aivis
     - qwen3-tts
     - tts-fallback
     - skill-topology

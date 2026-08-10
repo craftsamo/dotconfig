@@ -2,10 +2,11 @@ name: tts-fallback
 version: 0.1.0
 description: >-
   Text-to-speech fallback chain: tries each backend in order (default
-  aivis -> edge) and returns the first that produces audio, so a backend outage
-  (e.g. the AivisSpeech engine being down) still yields speech. Select with
-  tts.provider: tts-fallback. Order is config-driven via tts.fallback.chain.
-  Built-in tiers read their own config, so set a Japanese tts.edge.voice (e.g.
-  ja-JP-NanamiNeural) for a sensible edge fallback. Composes built-in providers
-  (tools.tts_tool) and registered TTS plugins (e.g. aivis).
+  qwen3-tts -> edge) and returns the first that produces audio, so a backend
+  outage (e.g. the local qwen3-tts server being down) still yields speech.
+  Select with tts.provider: tts-fallback. Order is config-driven via
+  tts.fallback.chain. Built-in tiers read their own config, so set a Japanese
+  tts.edge.voice (e.g. ja-JP-NanamiNeural) for a sensible edge fallback.
+  Composes built-in providers (tools.tts_tool) and registered TTS plugins
+  (e.g. qwen3-tts).
 kind: backend
