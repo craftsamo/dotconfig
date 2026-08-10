@@ -11,6 +11,10 @@ e.g. `ExampleProject`), which is the cross-system join key. A group holds:
 - `assets/` — local media for the group (logos, screenshots, generated marketing
   material). Lives here precisely so it is **never committed into the repos** —
   public repos must not carry personal/local assets. Optional; on demand.
+- `.agent/` — local agent state, optional and created on demand:
+  `scratch/<job>/` is disposable work, `deliverables/<job>/` is verified chat-delivery
+  staging, and `notes/<topic>/` is durable supporting evidence. Keep this at the Group
+  root, never under `github/<repo>/`.
 
 Structured facts about groups — **identity (slug/aliases/dir_path), repos, official links,
 team memberships, and flexible tags** — live in the **central registry**, not in loose files:
@@ -34,6 +38,12 @@ team memberships, and flexible tags** — live in the **central registry**, not 
 ## How to work
 - Coordinate: create a kanban task referencing `Projects/<Group>/github/<repo>`; coder
   worktrees from it. Don't do large refactors inline in chat.
-- Don't commit/push without the human's go-ahead. Throwaway work goes in `../.scratch/`.
+- Don't commit/push without the human's go-ahead. Group-owned throwaway work goes in
+  `<Group>/.agent/scratch/<job>/`; `../.scratch/` is only for unassigned or cross-group
+  work.
+- After producer verification, promote final artifacts to
+  `.agent/deliverables/<job>/` for Assistant QA. After user acceptance, move canonical
+  keepers to `docs/`, `data/`, `assets/`, or the relevant repo, then clear the job's
+  scratch and delivery staging.
 - Add a group/repo with the `workspace-scaffold` skill: `ws-new.sh group projects <Group>`
   (registers it in the registry) then `ws-new.sh repo <Group> <repo>`.
