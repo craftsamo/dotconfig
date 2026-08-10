@@ -12,13 +12,20 @@ has entities, namespace every tree by the same slug (e.g. `data/<slug>/`, `docs/
 - `archive/` — quarantine for unadopted or agent-generated (rogue) outputs. Nothing in
   it is canon; adopting content back requires explicit human agreement per item.
   Deletion is the human's call. Optional; on demand.
+- `.agent/` — sensitive local agent state, optional and created on demand:
+  `scratch/<job>/` is disposable work, `deliverables/<job>/` is verified chat-delivery
+  staging, and `notes/<topic>/` is durable supporting evidence.
 
 ## Data-handling rules (strict)
 - Treat contents as sensitive: summarize; never paste raw values, balances, account
   numbers, holdings, or personal identifiers into chat or logs.
 - No external sends, uploads, or third-party API calls with this data without an
   explicit, specific OK from the human.
-- Read + compute locally; write outputs to `../.deliverables/` and return a summary.
+- Read + compute locally; write outputs to the owning
+  `<Group>/.agent/deliverables/<job>/` and return a summary. Use `../.deliverables/`
+  only when no single Personal Group owns the output.
+- After user acceptance, promote canonical keepers to the Group's typed directories,
+  then clear the job's `.agent/scratch/` and `.agent/deliverables/` directories.
 - Don't `git init` here — Personal is intentionally untracked, local-only.
 
 Add a group with `workspace-scaffold`: `ws-new.sh group personal <Group>`.

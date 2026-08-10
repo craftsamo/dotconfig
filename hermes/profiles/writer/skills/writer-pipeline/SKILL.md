@@ -43,9 +43,11 @@ counterpart is the orchestrating assistant (not the end reader):
   give options and your recommendation, and pause the affected part until
   answered.
 - Every deliverable is a complete file at the durable path the brief names
-  (default `~/Workspaces/.deliverables/<job>/deliverable.md`); the reply
-  names the path and summarizes structure and choices — never paste the
-  whole draft as the reply.
+  (default the owning Group's
+  `.agent/deliverables/<job>/deliverable.md`; use
+  `~/Workspaces/.deliverables/<job>/deliverable.md` only when no single
+  Group owns the work); the reply names the path and summarizes structure
+  and choices — never paste the whole draft as the reply.
 - Where a reference says "block round-trip" or "`Q<n>:` comment", read:
   ask in your reply and wait. Where it says "attach", read: write the file
   to the durable path and name it.
