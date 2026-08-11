@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import importlib.util
+import io
 import json
 import os
 import plistlib
@@ -46,6 +47,8 @@ def write_voice_manifest(
     *,
     model_name: str = "test-model-Base",
     model_revision: str = "a" * 40,
+    lexicon: dict[str, str] | None = None,
+    lexicon_sha256: str | None = None,
 ) -> Path:
     manifest_dir = root / "data" / voice_id
     voice_dir = root / "assets" / voice_id / "voice"
@@ -59,35 +62,42 @@ def write_voice_manifest(
         wav.setframerate(24000)
         wav.writeframes(b"\x00\x00" * 240)
     transcript.write_text("おかえりなさい。", encoding="utf-8")
-    manifest_path = manifest_dir / "voice.json"
-    manifest_path.write_text(
-        json.dumps(
-            {
-                "schema_version": 1,
-                "id": voice_id,
-                "display_name": voice_id.title(),
-                "language": {"name": "Japanese", "locale": "ja"},
-                "model": {"name": model_name, "revision": model_revision},
-                "reference": {
-                    "audio": {
-                        "path": f"../../assets/{voice_id}/voice/reference.wav",
-                        "sha256": sha256(audio),
-                        "format": "wav",
-                        "sample_rate": 24000,
-                        "channels": 1,
-                        "sample_width_bits": 16,
-                        "frames": 240,
-                    },
-                    "text": {
-                        "path": f"../../assets/{voice_id}/voice/reference.txt",
-                        "sha256": sha256(transcript),
-                    },
-                },
-                "generation": {"seed": 17},
+    payload = {
+        "schema_version": 1,
+        "id": voice_id,
+        "display_name": voice_id.title(),
+        "language": {"name": "Japanese", "locale": "ja"},
+        "model": {"name": model_name, "revision": model_revision},
+        "reference": {
+            "audio": {
+                "path": f"../../assets/{voice_id}/voice/reference.wav",
+                "sha256": sha256(audio),
+                "format": "wav",
+                "sample_rate": 24000,
+                "channels": 1,
+                "sample_width_bits": 16,
+                "frames": 240,
+            },
+            "text": {
+                "path": f"../../assets/{voice_id}/voice/reference.txt",
+                "sha256": sha256(transcript),
+            },
+        },
+        "generation": {"seed": 17},
+    }
+    if lexicon is not None:
+        lexicon_path = voice_dir / "lexicon.json"
+        lexicon_path.write_text(
+            json.dumps(lexicon, ensure_ascii=False), encoding="utf-8"
+        )
+        payload["pronunciation"] = {
+            "lexicon": {
+                "path": f"../../assets/{voice_id}/voice/lexicon.json",
+                "sha256": lexicon_sha256 or sha256(lexicon_path),
             }
-        ),
-        encoding="utf-8",
-    )
+        }
+    manifest_path = manifest_dir / "voice.json"
+    manifest_path.write_text(json.dumps(payload), encoding="utf-8")
     return manifest_path
 
 
@@ -165,6 +175,75 @@ class BlockingSynthesizer(FakeSynthesizer):
         return super().synthesize(text, language)
 
 
+class TextPreprocessTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.module = load_module("qwen3_tts_preprocess_test", SERVER_PATH)
+
+    def test_normalize_text_collapses_whitespace(self) -> None:
+        self.assertEqual(
+            self.module.normalize_text("  こんにちは。\n\nお元気？　そう。 "),
+            "こんにちは。 お元気？ そう。",
+        )
+
+    def test_apply_lexicon_prefers_longest_surface(self) -> None:
+        lexicon = {"高": "こう", "高性能": "こうせいのう"}
+
+        self.assertEqual(
+            self.module.apply_lexicon("高性能と高。", lexicon),
+            "こうせいのうとこう。",
+        )
+
+    def test_short_text_stays_a_single_chunk(self) -> None:
+        text = "本日は晴天です。気温は二十度まで上がります。"
+
+        self.assertEqual(
+            self.module.split_text_into_chunks(text), [text]
+        )
+
+    def test_chunks_split_on_sentence_boundaries(self) -> None:
+        text = "一文目です。二文目はもう少し長いですね！三文目はどうでしょうか？"
+
+        chunks = self.module.split_text_into_chunks(text, max_chars=16)
+
+        self.assertEqual(
+            chunks,
+            ["一文目です。", "二文目はもう少し長いですね！", "三文目はどうでしょうか？"],
+        )
+
+    def test_terminator_keeps_closing_quote(self) -> None:
+        text = "「もう帰るの？」と聞いた。彼は頷いた。"
+
+        chunks = self.module.split_text_into_chunks(text, max_chars=12)
+
+        self.assertEqual(chunks, ["「もう帰るの？」", "と聞いた。彼は頷いた。"])
+
+    def test_overlong_sentence_splits_on_clause_boundaries(self) -> None:
+        text = "資料は明日の会議までに、章ごとに分けて、提出してください"
+
+        chunks = self.module.split_text_into_chunks(text, max_chars=20)
+
+        self.assertEqual(
+            chunks,
+            ["資料は明日の会議までに、章ごとに分けて、", "提出してください"],
+        )
+
+    def test_unbreakable_run_is_hard_sliced(self) -> None:
+        text = "あ" * 25
+
+        chunks = self.module.split_text_into_chunks(text, max_chars=10)
+
+        self.assertEqual(chunks, ["あ" * 10, "あ" * 10, "あ" * 5])
+
+    def test_parse_lexicon_rejects_non_string_values(self) -> None:
+        with self.assertRaisesRegex(ValueError, "non-empty strings"):
+            self.module.parse_lexicon({"語": 1})
+        with self.assertRaisesRegex(ValueError, "non-empty strings"):
+            self.module.parse_lexicon({"": "よみ"})
+        with self.assertRaisesRegex(ValueError, "JSON object"):
+            self.module.parse_lexicon(["語"])
+
+
 class ManifestTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
@@ -191,6 +270,50 @@ class ManifestTest(unittest.TestCase):
             manifest_path.write_text('{"schema_version": 2}', encoding="utf-8")
 
             with self.assertRaisesRegex(ValueError, "schema_version"):
+                self.module.load_voice_manifest(manifest_path)
+
+    def test_manifest_loads_optional_lexicon(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest_path = write_voice_manifest(root, lexicon={"重複": "ちょうふく"})
+
+            manifest = self.module.load_voice_manifest(manifest_path)
+
+            expected = root / "assets" / "alpha" / "voice" / "lexicon.json"
+            self.assertEqual(manifest.lexicon_file, expected.resolve())
+            self.assertEqual(manifest.lexicon_sha256, sha256(expected))
+
+    def test_manifest_without_lexicon_has_none(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            manifest_path = write_voice_manifest(Path(directory))
+
+            manifest = self.module.load_voice_manifest(manifest_path)
+
+            self.assertIsNone(manifest.lexicon_file)
+            self.assertIsNone(manifest.lexicon_sha256)
+
+    def test_manifest_rejects_lexicon_digest_mismatch(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            manifest_path = write_voice_manifest(
+                Path(directory),
+                lexicon={"重複": "ちょうふく"},
+                lexicon_sha256="0" * 64,
+            )
+
+            with self.assertRaisesRegex(ValueError, "lexicon digest mismatch"):
+                self.module.load_voice_manifest(manifest_path)
+
+    def test_manifest_rejects_invalid_lexicon_content(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest_path = write_voice_manifest(root, lexicon={"重複": "ちょうふく"})
+            lexicon_path = root / "assets" / "alpha" / "voice" / "lexicon.json"
+            lexicon_path.write_text('{"語": 1}', encoding="utf-8")
+            payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+            payload["pronunciation"]["lexicon"]["sha256"] = sha256(lexicon_path)
+            manifest_path.write_text(json.dumps(payload), encoding="utf-8")
+
+            with self.assertRaisesRegex(ValueError, "non-empty strings"):
                 self.module.load_voice_manifest(manifest_path)
 
     def test_manifest_rejects_modified_reference(self) -> None:
@@ -376,6 +499,98 @@ class SynthesizerTest(unittest.TestCase):
                 synthesizer._voice_prompt("lethe")
 
             fake_model.create_voice_clone_prompt.assert_not_called()
+
+    def test_preprocess_applies_lexicon_and_chunking(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest_path = write_voice_manifest(
+                root / "alpha", "alpha", lexicon={"重複": "ちょうふく"}
+            )
+            catalog = self.module.load_voice_catalog(
+                write_voice_catalog(root / "catalog.json", [manifest_path])
+            )
+            synthesizer, _, _ = self.build_synthesizer(catalog)
+
+            chunks = synthesizer.preprocess(
+                "重複を\n確認します。以上です。", "alpha"
+            )
+
+            self.assertEqual(chunks, ["ちょうふくを 確認します。以上です。"])
+
+    def test_preprocess_rejects_lexicon_mutated_after_validation(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest_path = write_voice_manifest(
+                root / "alpha", "alpha", lexicon={"重複": "ちょうふく"}
+            )
+            catalog = self.module.load_voice_catalog(
+                write_voice_catalog(root / "catalog.json", [manifest_path])
+            )
+            synthesizer, _, _ = self.build_synthesizer(catalog)
+            catalog.voices["alpha"].lexicon_file.write_text(
+                '{"重複": "改変"}', encoding="utf-8"
+            )
+
+            with self.assertRaisesRegex(ValueError, "lexicon digest mismatch"):
+                synthesizer.preprocess("重複を確認します。", "alpha")
+
+    def test_generate_segments_resets_seed_per_chunk(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest_path = write_voice_manifest(root / "alpha", "alpha")
+            catalog = self.module.load_voice_catalog(
+                write_voice_catalog(root / "catalog.json", [manifest_path])
+            )
+            synthesizer, _, fake_model = self.build_synthesizer(catalog)
+            fake_model.generate_voice_clone.return_value = ([[0.0] * 4], 24000)
+
+            segments, sample_rate = synthesizer._generate_segments(
+                ["一文目。", "二文目。"], "alpha"
+            )
+
+            self.assertEqual(sample_rate, 24000)
+            self.assertEqual(len(segments), 2)
+            self.assertEqual(fake_model.generate_voice_clone.call_count, 2)
+            self.assertEqual(
+                [
+                    call.kwargs["text"]
+                    for call in fake_model.generate_voice_clone.call_args_list
+                ],
+                ["一文目。", "二文目。"],
+            )
+            self.assertEqual(synthesizer._torch.manual_seed.call_count, 2)
+            synthesizer._torch.manual_seed.assert_called_with(17)
+
+    def test_synthesize_joins_chunks_with_silence_gap(self) -> None:
+        try:
+            import numpy as np
+            import soundfile  # noqa: F401
+        except ImportError:
+            self.skipTest("numpy/soundfile unavailable")
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest_path = write_voice_manifest(root / "alpha", "alpha")
+            catalog = self.module.load_voice_catalog(
+                write_voice_catalog(root / "catalog.json", [manifest_path])
+            )
+            synthesizer, _, fake_model = self.build_synthesizer(catalog)
+            fake_model.generate_voice_clone.return_value = (
+                [np.full(2400, 0.5, dtype=np.float32)],
+                24000,
+            )
+            long_text = "。".join(["長めの一文がここに入ります" * 3] * 8) + "。"
+
+            audio = synthesizer.synthesize(long_text, "alpha")
+
+            self.assertGreater(fake_model.generate_voice_clone.call_count, 1)
+            chunk_count = fake_model.generate_voice_clone.call_count
+            gap_frames = int(24000 * self.module._CHUNK_GAP_SECONDS)
+            with wave.open(io.BytesIO(audio), "rb") as result:
+                self.assertEqual(result.getframerate(), 24000)
+                self.assertEqual(
+                    result.getnframes(),
+                    2400 * chunk_count + gap_frames * (chunk_count - 1),
+                )
 
     def test_evicted_prompt_reuses_approved_reference_snapshot(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

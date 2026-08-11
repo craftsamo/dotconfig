@@ -28,6 +28,78 @@ _SHA256_PATTERN = re.compile(r"[0-9a-f]{64}")
 _REVISION_PATTERN = re.compile(r"[0-9a-f]{40}")
 _VOICE_ID_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}")
 
+_CHUNK_MAX_CHARS = 200
+_CHUNK_GAP_SECONDS = 0.15
+_SENTENCE_PATTERN = re.compile(r"[^。！？!?]+(?:[。！？!?]+[」』）】]*)?")
+_CLAUSE_PATTERN = re.compile(r"[^、]+(?:、)?")
+
+
+def normalize_text(text: str) -> str:
+    """Collapse whitespace runs (incl. newlines) into single spaces."""
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def apply_lexicon(text: str, lexicon: dict[str, str]) -> str:
+    """Replace surface forms with pronunciation readings, longest match first."""
+    for surface in sorted(lexicon, key=len, reverse=True):
+        text = text.replace(surface, lexicon[surface])
+    return text
+
+
+def _split_long_sentence(sentence: str, max_chars: int) -> list[str]:
+    pieces: list[str] = []
+    for clause in _CLAUSE_PATTERN.findall(sentence):
+        while len(clause) > max_chars:
+            pieces.append(clause[:max_chars])
+            clause = clause[max_chars:]
+        if clause:
+            pieces.append(clause)
+    return pieces or [sentence]
+
+
+def split_text_into_chunks(text: str, max_chars: int = _CHUNK_MAX_CHARS) -> list[str]:
+    """Split text into sentence-aligned chunks no longer than max_chars.
+
+    Sentences are kept whole (with their terminators) and packed greedily;
+    an overlong sentence falls back to clause boundaries, then hard slices.
+    """
+    if max_chars < 1:
+        raise ValueError("max_chars must be positive")
+    chunks: list[str] = []
+    current = ""
+    for sentence in _SENTENCE_PATTERN.findall(text):
+        pieces = (
+            [sentence]
+            if len(sentence) <= max_chars
+            else _split_long_sentence(sentence, max_chars)
+        )
+        for piece in pieces:
+            if not current:
+                current = piece
+            elif len(current) + len(piece) <= max_chars:
+                current += piece
+            else:
+                chunks.append(current)
+                current = piece
+    if current:
+        chunks.append(current)
+    return [chunk for chunk in (c.strip() for c in chunks) if chunk] or [text]
+
+
+def parse_lexicon(payload: Any) -> dict[str, str]:
+    if not isinstance(payload, dict):
+        raise ValueError("pronunciation lexicon must be a JSON object")
+    lexicon: dict[str, str] = {}
+    for surface, reading in payload.items():
+        if not isinstance(surface, str) or not surface:
+            raise ValueError("pronunciation lexicon keys must be non-empty strings")
+        if not isinstance(reading, str) or not reading.strip():
+            raise ValueError(
+                "pronunciation lexicon values must be non-empty strings"
+            )
+        lexicon[surface] = reading
+    return lexicon
+
 
 @dataclass(frozen=True)
 class VoiceManifest:
@@ -43,6 +115,8 @@ class VoiceManifest:
     reference_text_file: Path
     reference_text_sha256: str
     seed: int
+    lexicon_file: Path | None = None
+    lexicon_sha256: str | None = None
 
 
 @dataclass(frozen=True)
@@ -152,6 +226,43 @@ def load_voice_manifest(path: Path) -> VoiceManifest:
     if isinstance(seed, bool) or not isinstance(seed, int):
         raise ValueError("voice manifest generation.seed must be an integer")
 
+    lexicon_file: Path | None = None
+    lexicon_sha256: str | None = None
+    pronunciation = payload.get("pronunciation")
+    if pronunciation is not None:
+        if not isinstance(pronunciation, dict):
+            raise ValueError("voice manifest pronunciation must be an object")
+        lexicon_entry = pronunciation.get("lexicon")
+        if lexicon_entry is not None:
+            lexicon_value = require_string(
+                lexicon_entry, "path", "pronunciation.lexicon"
+            )
+            lexicon_candidate = Path(lexicon_value).expanduser()
+            if not lexicon_candidate.is_absolute():
+                lexicon_candidate = manifest_path.parent / lexicon_candidate
+            lexicon_file = lexicon_candidate.resolve()
+            if not lexicon_file.is_file():
+                raise ValueError(f"pronunciation lexicon not found: {lexicon_file}")
+            expected_lexicon = require_string(
+                lexicon_entry, "sha256", "pronunciation.lexicon"
+            ).lower()
+            if not _SHA256_PATTERN.fullmatch(expected_lexicon):
+                raise ValueError(
+                    "voice manifest pronunciation.lexicon.sha256 is invalid"
+                )
+            lexicon_bytes = lexicon_file.read_bytes()
+            if hashlib.sha256(lexicon_bytes).hexdigest() != expected_lexicon:
+                raise ValueError(
+                    f"pronunciation lexicon digest mismatch: {lexicon_file}"
+                )
+            lexicon_sha256 = expected_lexicon
+            try:
+                parse_lexicon(json.loads(lexicon_bytes.decode("utf-8")))
+            except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+                raise ValueError(
+                    "pronunciation lexicon must be UTF-8 JSON"
+                ) from exc
+
     return VoiceManifest(
         manifest_sha256=hashlib.sha256(manifest_bytes).hexdigest(),
         voice_id=voice_id,
@@ -165,6 +276,8 @@ def load_voice_manifest(path: Path) -> VoiceManifest:
         reference_text_file=reference_text_file,
         reference_text_sha256=reference_text_sha256,
         seed=seed,
+        lexicon_file=lexicon_file,
+        lexicon_sha256=lexicon_sha256,
     )
 
 
@@ -326,6 +439,7 @@ class QwenSynthesizer:
         self._prompt_cache_size = prompt_cache_size
         self._voice_prompts: OrderedDict[str, Any] = OrderedDict()
         self._reference_snapshots: dict[str, tuple[Path, str]] = {}
+        self._lexicons: dict[str, dict[str, str]] = {}
         self._reference_snapshot_dir = tempfile.TemporaryDirectory(
             prefix="qwen3_tts_refs_"
         )
@@ -413,19 +527,75 @@ class QwenSynthesizer:
         self._reference_snapshots[voice_id] = snapshot
         return snapshot
 
+    def _lexicon(self, voice_id: str) -> dict[str, str]:
+        if voice_id in self._lexicons:
+            return self._lexicons[voice_id]
+        manifest = self.voices[voice_id]
+        if manifest.lexicon_file is None:
+            lexicon: dict[str, str] = {}
+        else:
+            try:
+                lexicon_bytes = manifest.lexicon_file.read_bytes()
+            except OSError as exc:
+                raise ValueError("registered voice lexicon cannot be read") from exc
+            if hashlib.sha256(lexicon_bytes).hexdigest() != manifest.lexicon_sha256:
+                raise ValueError("registered voice lexicon digest mismatch")
+            try:
+                lexicon = parse_lexicon(json.loads(lexicon_bytes.decode("utf-8")))
+            except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+                raise ValueError(
+                    "registered voice lexicon must be UTF-8 JSON"
+                ) from exc
+        self._lexicons[voice_id] = lexicon
+        return lexicon
+
+    def preprocess(self, text: str, voice_id: str) -> list[str]:
+        """Normalize, apply the voice lexicon, and chunk into sentences."""
+        processed = apply_lexicon(normalize_text(text), self._lexicon(voice_id))
+        return split_text_into_chunks(processed)
+
+    def _generate_segments(
+        self, chunks: list[str], voice_id: str
+    ) -> tuple[list[Any], int]:
+        manifest = self.voices[voice_id]
+        prompt = self._voice_prompt(voice_id)
+        segments: list[Any] = []
+        sample_rate = 0
+        for chunk in chunks:
+            self._torch.manual_seed(manifest.seed)
+            wavs, sample_rate = self._model.generate_voice_clone(
+                text=chunk,
+                language=manifest.language,
+                voice_clone_prompt=prompt,
+            )
+            segments.append(wavs[0])
+        return segments, sample_rate
+
     def synthesize(self, text: str, voice_id: str) -> bytes:
+        import numpy as np
         import soundfile as sf
 
-        manifest = self.voices[voice_id]
-        self._torch.manual_seed(manifest.seed)
-        wavs, sample_rate = self._model.generate_voice_clone(
-            text=text,
-            language=manifest.language,
-            voice_clone_prompt=self._voice_prompt(voice_id),
-        )
+        chunks = self.preprocess(text, voice_id)
+        if len(chunks) > 1:
+            logger.info("synthesizing %d chunks for %s", len(chunks), voice_id)
+        segments, sample_rate = self._generate_segments(chunks, voice_id)
+
+        arrays = [np.asarray(segment) for segment in segments]
+        if len(arrays) == 1:
+            audio = arrays[0]
+        else:
+            gap = np.zeros(
+                int(sample_rate * _CHUNK_GAP_SECONDS), dtype=arrays[0].dtype
+            )
+            joined: list[Any] = []
+            for index, array in enumerate(arrays):
+                if index:
+                    joined.append(gap)
+                joined.append(array)
+            audio = np.concatenate(joined)
 
         output = io.BytesIO()
-        sf.write(output, wavs[0], sample_rate, format="WAV", subtype="PCM_16")
+        sf.write(output, audio, sample_rate, format="WAV", subtype="PCM_16")
         return output.getvalue()
 
     def close(self) -> None:
