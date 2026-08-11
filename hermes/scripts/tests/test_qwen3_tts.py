@@ -256,6 +256,14 @@ class ReadingCheckTest(unittest.TestCase):
             "しめきりですだよー",
         )
 
+    def test_apply_lexicon_mirrors_server_substitution(self) -> None:
+        lexicon = {"今週中": "こんしゅうじゅう", "中": "ちゅう"}
+
+        self.assertEqual(
+            self.module.apply_lexicon("今週中は家の中にいます", lexicon),
+            "こんしゅうじゅうは家のちゅうにいます",
+        )
+
     def test_split_sentences_handles_terminators_and_newlines(self) -> None:
         self.assertEqual(
             self.module.split_sentences("一文目です。二文目！\n三文目"),
