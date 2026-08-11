@@ -237,6 +237,44 @@ class TextPreprocessTest(unittest.TestCase):
 
         self.assertEqual(chunks, ["あ" * 10, "あ" * 10, "あ" * 5])
 
+    def test_expand_numbers_fixes_time_readings(self) -> None:
+        expand = self.module.expand_japanese_numbers
+        self.assertEqual(expand("9時"), "くじ")
+        self.assertEqual(expand("18時"), "じゅうはちじ")
+        self.assertEqual(expand("4時と7時"), "よじとしちじ")
+        self.assertEqual(expand("3時30分"), "さんじさんじゅっぷん")
+        self.assertEqual(expand("12時45分30秒"), "じゅうにじよんじゅうごふんさんじゅうびょう")
+
+    def test_expand_numbers_handles_counters_with_fusion(self) -> None:
+        expand = self.module.expand_japanese_numbers
+        self.assertEqual(expand("15分で始める"), "じゅうごふんで始める")
+        self.assertEqual(expand("1本と8本"), "いっぽんとはっぽん")
+        self.assertEqual(expand("3件と300円"), "さんけんとさんびゃくえん")
+        self.assertEqual(expand("4人で1個ずつ"), "よにんでいっこずつ")
+
+    def test_expand_numbers_handles_dates_money_percent(self) -> None:
+        expand = self.module.expand_japanese_numbers
+        self.assertEqual(
+            expand("2026年8月11日"),
+            "にせんにじゅうろくねんはちがつじゅういちにち",
+        )
+        self.assertEqual(
+            expand("税込み1,890円"), "税込みせんはっぴゃくきゅうじゅうえん"
+        )
+        self.assertEqual(expand("75%です"), "ななじゅうごパーセントです")
+        self.assertEqual(expand("あと5日"), "あといつか")
+
+    def test_expand_numbers_handles_decimals_and_bare_numbers(self) -> None:
+        expand = self.module.expand_japanese_numbers
+        self.assertEqual(expand("7.5割"), "ななてんごわり")
+        self.assertEqual(expand("答えは42"), "答えはよんじゅうに")
+        self.assertEqual(expand("１５分"), "じゅうごふん")
+
+    def test_expand_numbers_leaves_ascii_contexts_alone(self) -> None:
+        expand = self.module.expand_japanese_numbers
+        self.assertEqual(expand("v2.0 と PR#123"), "v2.0 と PR#123")
+        self.assertEqual(expand("RFC1234 参照"), "RFC1234 参照")
+
     def test_parse_lexicon_rejects_non_string_values(self) -> None:
         with self.assertRaisesRegex(ValueError, "non-empty strings"):
             self.module.parse_lexicon({"語": 1})
@@ -650,6 +688,19 @@ class SynthesizerTest(unittest.TestCase):
             )
 
             self.assertEqual(chunks, ["ちょうふくを 確認します。以上です。"])
+
+    def test_preprocess_expands_numbers_for_japanese_voice(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest_path = write_voice_manifest(root / "lethe", "lethe")
+            catalog = self.module.load_voice_catalog(
+                write_voice_catalog(root / "catalog.json", [manifest_path])
+            )
+            synthesizer, _, _ = self.build_synthesizer(catalog)
+
+            chunks = synthesizer.preprocess("会議は9時と18時よ。", "lethe")
+
+            self.assertEqual(chunks, ["会議はくじとじゅうはちじよ。"])
 
     def test_preprocess_rejects_lexicon_mutated_after_validation(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
