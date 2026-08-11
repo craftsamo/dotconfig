@@ -371,6 +371,7 @@ tts:
 stt:
   enabled: true
   provider: stt-fallback
+  language: ja
   fallback:
     chain:
       - groq
