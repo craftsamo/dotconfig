@@ -338,6 +338,16 @@ hermes/launchd/qwen3-tts-launchctl.sh uninstall
 When authoring a new manifest, validate it standalone before registering:
 `python3 hermes/scripts/qwen3_tts_server.py check-manifest /path/to/voice.json`.
 
+To find misreadings before they surface in conversation, run the round-trip
+checker against the live server: `hermes/scripts/qwen3_tts_reading_check.py
+--text "…"` (or `--file corpus.txt`). It synthesizes each sentence,
+transcribes it with faster-whisper, compares expected and heard readings in
+kana, and prints paste-ready lexicon candidates. Findings are candidates, not
+verdicts — ASR can mask real errors or mishear correct ones, so confirm by
+ear (`--keep-audio DIR` keeps the wavs) before adding an entry to the voice's
+pronunciation lexicon and re-running `install`. The script resolves its own
+dependencies through `uv run`; the server venv stays untouched.
+
 `install` creates an isolated Python 3.12.11 venv under the ignored
 `hermes/local/qwen3-tts/`, stores absolute private manifest locations only in the
 ignored `catalog.json`, synchronizes the hash-locked
