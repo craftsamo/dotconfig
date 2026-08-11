@@ -62,6 +62,13 @@ def normalize_kana(text: str) -> str:
     return "".join(_KANA_PATTERN.findall(text.translate(_KATA_TO_HIRA)))
 
 
+def apply_lexicon(text: str, lexicon: dict[str, str]) -> str:
+    """Mirror the server's substitution: longest surface form first."""
+    for surface in sorted(lexicon, key=len, reverse=True):
+        text = text.replace(surface, lexicon[surface])
+    return text
+
+
 def find_suspects(
     tokens: list[tuple[str, str]], heard_kana: str
 ) -> tuple[list[Suspect], float]:
@@ -139,6 +146,12 @@ def build_parser() -> argparse.ArgumentParser:
     source.add_argument("--text", help="text to check")
     source.add_argument("--file", type=Path, help="UTF-8 text file to check")
     parser.add_argument("--voice", help="registered voice id (default voice if omitted)")
+    parser.add_argument(
+        "--lexicon",
+        type=Path,
+        help="voice lexicon JSON; applied to the expected side so registered "
+        "substitutions stop reporting as mismatches",
+    )
     parser.add_argument("--server", default="http://127.0.0.1:10102")
     parser.add_argument("--asr-model", default="medium", help="faster-whisper model")
     parser.add_argument("--json", action="store_true", help="machine-readable output")
@@ -155,6 +168,9 @@ def main() -> int:
     if not sentences:
         print("no sentences found", file=sys.stderr)
         return 2
+    lexicon: dict[str, str] = {}
+    if args.lexicon:
+        lexicon = json.loads(args.lexicon.read_text(encoding="utf-8"))
 
     import pykakasi
     from faster_whisper import WhisperModel
@@ -179,7 +195,10 @@ def main() -> int:
             )
             heard_text = "".join(segment.text for segment in segments)
 
-        tokens = [(item["orig"], item["hira"]) for item in kks.convert(sentence)]
+        expected_source = apply_lexicon(sentence, lexicon)
+        tokens = [
+            (item["orig"], item["hira"]) for item in kks.convert(expected_source)
+        ]
         heard_kana = normalize_kana(
             "".join(item["hira"] for item in kks.convert(heard_text))
         )
