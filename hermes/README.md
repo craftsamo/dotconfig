@@ -301,10 +301,22 @@ repo. A manifest location is supplied only during machine-local registration:
 ```
 
 Each manifest contains the voice id, language, model revision, generation seed,
-and paths to the approved synthetic reference audio/transcript. It also pins both
+and paths to the approved reference audio/transcript. It also pins both
 reference SHA-256 digests and the PCM WAV metadata. Reference paths are relative
-to the manifest, so the character tree can move as one unit. Runtime synthesis
-uses the approved de-identified output rather than the original source recording.
+to the manifest, so the character tree can move as one unit. The reference
+transcript and audio drive in-context cloning, which carries the reference's
+prosody into synthesis — an expressive, natural reference is the primary lever
+for output intonation.
+
+A manifest may add an optional `pronunciation.lexicon` entry (`path` +
+`sha256`) pointing to a JSON object of surface-form → reading substitutions.
+The server applies the lexicon (longest surface first) after whitespace
+normalization and before synthesis; use it to pin down words the model
+misreads, not to rewrite whole sentences into kana. Long inputs are split into
+sentence-aligned chunks (~200 chars, clause fallback), each chunk is generated
+with the manifest seed re-applied, and the chunks are joined with a 150 ms
+gap — this stabilizes intonation and avoids the known Japanese end-of-text
+truncation.
 
 The first install registers the default voice. Additional characters can be
 registered by manifest without adding ports, providers, or LaunchAgents:
