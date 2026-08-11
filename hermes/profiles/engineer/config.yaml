@@ -378,6 +378,7 @@ tts:
 stt:
   enabled: true
   provider: local
+  language: ja
   local:
     model: base
     language: ""
