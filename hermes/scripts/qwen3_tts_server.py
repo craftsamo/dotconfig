@@ -86,6 +86,49 @@ def split_text_into_chunks(text: str, max_chars: int = _CHUNK_MAX_CHARS) -> list
     return [chunk for chunk in (c.strip() for c in chunks) if chunk] or [text]
 
 
+# generation.<key> -> (accepts_float, minimum_exclusive, maximum_inclusive)
+_SAMPLING_FIELDS: dict[str, tuple[bool, float, float]] = {
+    "temperature": (True, 0.0, 2.0),
+    "subtalker_temperature": (True, 0.0, 2.0),
+    "top_p": (True, 0.0, 1.0),
+    "top_k": (False, 0.0, 1024.0),
+    "repetition_penalty": (True, 0.0, 10.0),
+}
+
+
+def parse_sampling(generation: Any) -> tuple[tuple[str, float | int], ...]:
+    """Validate optional sampling overrides in the manifest generation block.
+
+    Returns kwargs (sorted by key) forwarded to generate_voice_clone().
+    Unknown keys are rejected so typos cannot silently fall back to model
+    defaults.
+    """
+    if not isinstance(generation, dict):
+        return ()
+    unknown = sorted(set(generation) - set(_SAMPLING_FIELDS) - {"seed"})
+    if unknown:
+        raise ValueError(
+            "voice manifest generation has unknown keys: " + ", ".join(unknown)
+        )
+    sampling: list[tuple[str, float | int]] = []
+    for key in sorted(_SAMPLING_FIELDS):
+        if key not in generation:
+            continue
+        accepts_float, minimum, maximum = _SAMPLING_FIELDS[key]
+        value = generation[key]
+        allowed_types = (int, float) if accepts_float else (int,)
+        if isinstance(value, bool) or not isinstance(value, allowed_types):
+            kind = "a number" if accepts_float else "an integer"
+            raise ValueError(f"voice manifest generation.{key} must be {kind}")
+        number = float(value)
+        if not (minimum < number <= maximum):
+            raise ValueError(
+                f"voice manifest generation.{key} must be in ({minimum}, {maximum}]"
+            )
+        sampling.append((key, value if accepts_float else int(value)))
+    return tuple(sampling)
+
+
 def parse_lexicon(payload: Any) -> dict[str, str]:
     if not isinstance(payload, dict):
         raise ValueError("pronunciation lexicon must be a JSON object")
@@ -115,6 +158,7 @@ class VoiceManifest:
     reference_text_file: Path
     reference_text_sha256: str
     seed: int
+    sampling: tuple[tuple[str, float | int], ...] = ()
     lexicon_file: Path | None = None
     lexicon_sha256: str | None = None
 
@@ -225,6 +269,7 @@ def load_voice_manifest(path: Path) -> VoiceManifest:
     seed = generation.get("seed") if isinstance(generation, dict) else None
     if isinstance(seed, bool) or not isinstance(seed, int):
         raise ValueError("voice manifest generation.seed must be an integer")
+    sampling = parse_sampling(generation)
 
     lexicon_file: Path | None = None
     lexicon_sha256: str | None = None
@@ -276,6 +321,7 @@ def load_voice_manifest(path: Path) -> VoiceManifest:
         reference_text_file=reference_text_file,
         reference_text_sha256=reference_text_sha256,
         seed=seed,
+        sampling=sampling,
         lexicon_file=lexicon_file,
         lexicon_sha256=lexicon_sha256,
     )
@@ -561,12 +607,14 @@ class QwenSynthesizer:
         prompt = self._voice_prompt(voice_id)
         segments: list[Any] = []
         sample_rate = 0
+        sampling = dict(manifest.sampling)
         for chunk in chunks:
             self._torch.manual_seed(manifest.seed)
             wavs, sample_rate = self._model.generate_voice_clone(
                 text=chunk,
                 language=manifest.language,
                 voice_clone_prompt=prompt,
+                **sampling,
             )
             segments.append(wavs[0])
         return segments, sample_rate

@@ -50,6 +50,7 @@ def write_voice_manifest(
     model_revision: str = "a" * 40,
     lexicon: dict[str, str] | None = None,
     lexicon_sha256: str | None = None,
+    generation: dict[str, object] | None = None,
 ) -> Path:
     manifest_dir = root / "data" / voice_id
     voice_dir = root / "assets" / voice_id / "voice"
@@ -84,7 +85,7 @@ def write_voice_manifest(
                 "sha256": sha256(transcript),
             },
         },
-        "generation": {"seed": 17},
+        "generation": generation if generation is not None else {"seed": 17},
     }
     if lexicon is not None:
         lexicon_path = voice_dir / "lexicon.json"
@@ -384,6 +385,71 @@ class ManifestTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "non-empty strings"):
                 self.module.load_voice_manifest(manifest_path)
 
+    def test_manifest_without_sampling_defaults_to_empty(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            manifest_path = write_voice_manifest(Path(directory))
+
+            manifest = self.module.load_voice_manifest(manifest_path)
+
+            self.assertEqual(manifest.sampling, ())
+
+    def test_manifest_parses_sampling_overrides(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            manifest_path = write_voice_manifest(
+                Path(directory),
+                generation={
+                    "seed": 17,
+                    "temperature": 0.75,
+                    "subtalker_temperature": 0.75,
+                    "top_k": 50,
+                },
+            )
+
+            manifest = self.module.load_voice_manifest(manifest_path)
+
+            self.assertEqual(
+                manifest.sampling,
+                (
+                    ("subtalker_temperature", 0.75),
+                    ("temperature", 0.75),
+                    ("top_k", 50),
+                ),
+            )
+
+    def test_manifest_rejects_out_of_range_temperature(self) -> None:
+        for bad in (0, 0.0, 2.5, -1):
+            with tempfile.TemporaryDirectory() as directory:
+                manifest_path = write_voice_manifest(
+                    Path(directory), generation={"seed": 17, "temperature": bad}
+                )
+                with self.assertRaisesRegex(ValueError, "generation.temperature"):
+                    self.module.load_voice_manifest(manifest_path)
+
+    def test_manifest_rejects_non_numeric_sampling_value(self) -> None:
+        for bad in (True, "0.75", None):
+            with tempfile.TemporaryDirectory() as directory:
+                manifest_path = write_voice_manifest(
+                    Path(directory), generation={"seed": 17, "temperature": bad}
+                )
+                with self.assertRaisesRegex(ValueError, "generation.temperature"):
+                    self.module.load_voice_manifest(manifest_path)
+
+    def test_manifest_rejects_non_integer_top_k(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            manifest_path = write_voice_manifest(
+                Path(directory), generation={"seed": 17, "top_k": 0.5}
+            )
+            with self.assertRaisesRegex(ValueError, "generation.top_k"):
+                self.module.load_voice_manifest(manifest_path)
+
+    def test_manifest_rejects_unknown_generation_key(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            manifest_path = write_voice_manifest(
+                Path(directory), generation={"seed": 17, "temprature": 0.75}
+            )
+            with self.assertRaisesRegex(ValueError, "unknown keys: temprature"):
+                self.module.load_voice_manifest(manifest_path)
+
     def test_manifest_rejects_modified_reference(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -628,6 +694,46 @@ class SynthesizerTest(unittest.TestCase):
             )
             self.assertEqual(synthesizer._torch.manual_seed.call_count, 2)
             synthesizer._torch.manual_seed.assert_called_with(17)
+
+    def test_generate_segments_forwards_sampling_overrides(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest_path = write_voice_manifest(
+                root / "lethe",
+                "lethe",
+                generation={
+                    "seed": 17,
+                    "temperature": 0.75,
+                    "subtalker_temperature": 0.75,
+                },
+            )
+            catalog = self.module.load_voice_catalog(
+                write_voice_catalog(root / "catalog.json", [manifest_path])
+            )
+            synthesizer, _, fake_model = self.build_synthesizer(catalog)
+            fake_model.generate_voice_clone.return_value = ([[0.0] * 4], 24000)
+
+            synthesizer._generate_segments(["一文目。"], "lethe")
+
+            kwargs = fake_model.generate_voice_clone.call_args.kwargs
+            self.assertEqual(kwargs["temperature"], 0.75)
+            self.assertEqual(kwargs["subtalker_temperature"], 0.75)
+
+    def test_generate_segments_without_overrides_uses_model_defaults(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest_path = write_voice_manifest(root / "lethe", "lethe")
+            catalog = self.module.load_voice_catalog(
+                write_voice_catalog(root / "catalog.json", [manifest_path])
+            )
+            synthesizer, _, fake_model = self.build_synthesizer(catalog)
+            fake_model.generate_voice_clone.return_value = ([[0.0] * 4], 24000)
+
+            synthesizer._generate_segments(["一文目。"], "lethe")
+
+            kwargs = fake_model.generate_voice_clone.call_args.kwargs
+            self.assertNotIn("temperature", kwargs)
+            self.assertNotIn("subtalker_temperature", kwargs)
 
     def test_synthesize_joins_chunks_with_silence_gap(self) -> None:
         try:
