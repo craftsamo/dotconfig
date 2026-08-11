@@ -46,6 +46,191 @@ def apply_lexicon(text: str, lexicon: dict[str, str]) -> str:
     return text
 
 
+# --- Japanese number expansion -------------------------------------------
+# Arabic numerals are BPE noise to the TTS model: readings such as 9時
+# (くじ) or 18時 (じゅうはちじ) come out wrong or with runaway pitch.
+# Expanding digits (plus dates, times, and common counters) into kana
+# makes the reading deterministic. Applied only to Japanese voices.
+
+_DIGIT_KANA = {
+    0: "ゼロ", 1: "いち", 2: "に", 3: "さん", 4: "よん",
+    5: "ご", 6: "ろく", 7: "なな", 8: "はち", 9: "きゅう",
+}
+
+
+def _kana_group(value: int) -> str:
+    """Kana for 1..9999 with euphonic changes (さんびゃく, はっせん...)."""
+    parts: list[str] = []
+    thousands, rest = divmod(value, 1000)
+    hundreds, rest = divmod(rest, 100)
+    tens, ones = divmod(rest, 10)
+    if thousands:
+        parts.append(
+            {1: "せん", 3: "さんぜん", 8: "はっせん"}.get(
+                thousands, _DIGIT_KANA[thousands] + "せん"
+            )
+        )
+    if hundreds:
+        parts.append(
+            {1: "ひゃく", 3: "さんびゃく", 6: "ろっぴゃく", 8: "はっぴゃく"}.get(
+                hundreds, _DIGIT_KANA[hundreds] + "ひゃく"
+            )
+        )
+    if tens:
+        parts.append("じゅう" if tens == 1 else _DIGIT_KANA[tens] + "じゅう")
+    if ones:
+        parts.append(_DIGIT_KANA[ones])
+    return "".join(parts)
+
+
+def number_to_kana(value: int) -> str:
+    if value == 0:
+        return "ゼロ"
+    parts: list[str] = []
+    oku, rest = divmod(value, 10**8)
+    man, small = divmod(rest, 10**4)
+    if oku:
+        parts.append(("いち" if oku == 1 else _kana_group(oku)) + "おく")
+    if man:
+        parts.append(("いち" if man == 1 else _kana_group(man)) + "まん")
+    if small:
+        parts.append(_kana_group(small))
+    return "".join(parts)
+
+
+# counter -> (default reading, {final-component overrides})
+# Override keys 1..9 fuse with the final digit; key 10 replaces a trailing
+# じゅう (20, 30, ... follow the same fused form).
+_COUNTER_READINGS: dict[str, tuple[str, dict[int, str]]] = {
+    "分": ("ふん", {1: "いっぷん", 3: "さんぷん", 4: "よんぷん", 6: "ろっぷん",
+                    8: "はっぷん", 10: "じゅっぷん"}),
+    "秒": ("びょう", {}),
+    "時": ("じ", {4: "よじ", 7: "しちじ", 9: "くじ"}),
+    "時間": ("じかん", {4: "よじかん", 9: "くじかん"}),
+    "円": ("えん", {4: "よえん"}),
+    "年": ("ねん", {4: "よねん"}),
+    "月": ("がつ", {4: "しがつ", 7: "しちがつ", 9: "くがつ"}),
+    "人": ("にん", {4: "よにん"}),
+    "件": ("けん", {1: "いっけん", 6: "ろっけん", 8: "はっけん", 10: "じゅっけん"}),
+    "個": ("こ", {1: "いっこ", 6: "ろっこ", 8: "はっこ", 10: "じゅっこ"}),
+    "本": ("ほん", {1: "いっぽん", 3: "さんぼん", 6: "ろっぽん", 8: "はっぽん",
+                    10: "じゅっぽん"}),
+    "回": ("かい", {1: "いっかい", 6: "ろっかい", 8: "はっかい", 10: "じゅっかい"}),
+    "歳": ("さい", {1: "いっさい", 8: "はっさい", 10: "じゅっさい"}),
+    "枚": ("まい", {}),
+    "台": ("だい", {}),
+    "度": ("ど", {}),
+    "割": ("わり", {}),
+    "週間": ("しゅうかん", {1: "いっしゅうかん", 8: "はっしゅうかん",
+                          10: "じゅっしゅうかん"}),
+    "日間": ("にちかん", {1: "いちにちかん"}),
+    "パーセント": ("パーセント", {}),
+}
+
+_DAY_KANA = {
+    1: "ついたち", 2: "ふつか", 3: "みっか", 4: "よっか", 5: "いつか",
+    6: "むいか", 7: "なのか", 8: "ようか", 9: "ここのか", 10: "とおか",
+    14: "じゅうよっか", 20: "はつか", 24: "にじゅうよっか",
+}
+
+_PEOPLE_KANA = {1: "ひとり", 2: "ふたり"}
+
+
+def _counted_kana(value: int, counter: str) -> str:
+    """Kana reading for <number><counter> with euphonic fusion."""
+    if counter == "日":
+        if value in _DAY_KANA:
+            return _DAY_KANA[value]
+        base, overrides = "にち", {1: "いちにち"}
+    elif counter == "人" and value in _PEOPLE_KANA:
+        return _PEOPLE_KANA[value]
+    elif counter == "歳" and value == 20:
+        return "はたち"
+    elif counter in _COUNTER_READINGS:
+        base, overrides = _COUNTER_READINGS[counter]
+    else:
+        return number_to_kana(value) + counter
+
+    kana = number_to_kana(value)
+    if value % 10 == 0 and value % 100 != 0 and 10 in overrides:
+        return kana[: -len("じゅう")] + overrides[10]
+    last = value % 10
+    if last in overrides:
+        digit_kana = _DIGIT_KANA[last]
+        return kana[: -len(digit_kana)] + overrides[last]
+    return kana + base
+
+
+def _counted_kana_text(number: str, counter: str) -> str:
+    """Kana reading for a possibly-decimal <number><counter>."""
+    if "." in number:
+        integer, fraction = number.split(".", 1)
+        if counter in _COUNTER_READINGS:
+            base = _COUNTER_READINGS[counter][0]
+        else:
+            base = {"日": "にち"}.get(counter, counter)
+        return (
+            number_to_kana(int(integer))
+            + "てん"
+            + "".join(_DIGIT_KANA[int(digit)] for digit in fraction)
+            + base
+        )
+    return _counted_kana(int(number), counter)
+
+
+_FULLWIDTH_DIGITS = str.maketrans("０１２３４５６７８９．", "0123456789.")
+_COMMA_NUMBER = re.compile(r"(?<=\d),(?=\d{3}(?!\d))")
+_PERCENT = re.compile(r"(?<=\d)[%％]")
+_DATE = re.compile(r"(\d{1,4})年(\d{1,2})月(\d{1,2})日")
+_TIME = re.compile(r"(\d{1,2})時(?:(\d{1,2})分)?(?:(\d{1,2})秒)?")
+_COUNTER_ALT = (
+    "|".join(
+        sorted(
+            (key for key in _COUNTER_READINGS if key != "パーセント"),
+            key=len,
+            reverse=True,
+        )
+    )
+    + "|日|パーセント"
+)
+_COUNTED = re.compile(rf"(\d+(?:\.\d+)?)({_COUNTER_ALT})")
+_DECIMAL = re.compile(r"(?<![A-Za-z0-9._#-])(\d+)\.(\d+)(?![A-Za-z0-9._%％-])")
+_BARE_NUMBER = re.compile(r"(?<![A-Za-z0-9._#-])(\d{1,6})(?![A-Za-z0-9._%％-])")
+
+
+def expand_japanese_numbers(text: str) -> str:
+    """Expand Arabic numerals into deterministic kana readings.
+
+    Handles dates, times, counters with euphonic fusion, decimals,
+    percent signs, and bare integers. Digits embedded in ASCII contexts
+    (v2.0, PR#123) are left untouched.
+    """
+    text = text.translate(_FULLWIDTH_DIGITS)
+    text = _COMMA_NUMBER.sub("", text)
+    text = _PERCENT.sub("パーセント", text)
+    text = _DATE.sub(
+        lambda m: _counted_kana(int(m.group(1)), "年")
+        + _counted_kana(int(m.group(2)), "月")
+        + _counted_kana(int(m.group(3)), "日"),
+        text,
+    )
+    text = _TIME.sub(
+        lambda m: _counted_kana(int(m.group(1)), "時")
+        + (_counted_kana(int(m.group(2)), "分") if m.group(2) else "")
+        + (_counted_kana(int(m.group(3)), "秒") if m.group(3) else ""),
+        text,
+    )
+    text = _COUNTED.sub(lambda m: _counted_kana_text(m.group(1), m.group(2)), text)
+    text = _DECIMAL.sub(
+        lambda m: number_to_kana(int(m.group(1)))
+        + "てん"
+        + "".join(_DIGIT_KANA[int(digit)] for digit in m.group(2)),
+        text,
+    )
+    text = _BARE_NUMBER.sub(lambda m: number_to_kana(int(m.group(1))), text)
+    return text
+
+
 def _split_long_sentence(sentence: str, max_chars: int) -> list[str]:
     pieces: list[str] = []
     for clause in _CLAUSE_PATTERN.findall(sentence):
@@ -598,6 +783,8 @@ class QwenSynthesizer:
     def preprocess(self, text: str, voice_id: str) -> list[str]:
         """Normalize, apply the voice lexicon, and chunk into sentences."""
         processed = apply_lexicon(normalize_text(text), self._lexicon(voice_id))
+        if self.voices[voice_id].language.casefold() == "japanese":
+            processed = expand_japanese_numbers(processed)
         return split_text_into_chunks(processed)
 
     def _generate_segments(
