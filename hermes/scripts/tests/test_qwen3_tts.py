@@ -22,6 +22,7 @@ from unittest import mock
 
 HERMES_DIR = Path(__file__).resolve().parents[2]
 SERVER_PATH = HERMES_DIR / "scripts" / "qwen3_tts_server.py"
+READING_CHECK_PATH = HERMES_DIR / "scripts" / "qwen3_tts_reading_check.py"
 PLUGIN_PATH = HERMES_DIR / "plugins" / "tts" / "qwen3-tts" / "__init__.py"
 LAUNCHCTL_PATH = HERMES_DIR / "launchd" / "qwen3-tts-launchctl.sh"
 PLIST_PATH = HERMES_DIR / "launchd" / "local.qwen3-tts.engine.plist.tmpl"
@@ -242,6 +243,65 @@ class TextPreprocessTest(unittest.TestCase):
             self.module.parse_lexicon({"": "よみ"})
         with self.assertRaisesRegex(ValueError, "JSON object"):
             self.module.parse_lexicon(["語"])
+
+
+class ReadingCheckTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.module = load_module("qwen3_tts_reading_check_test", READING_CHECK_PATH)
+
+    def test_normalize_kana_folds_katakana_and_drops_noise(self) -> None:
+        self.assertEqual(
+            self.module.normalize_kana("シメキリ、です。12時ダヨー"),
+            "しめきりですだよー",
+        )
+
+    def test_split_sentences_handles_terminators_and_newlines(self) -> None:
+        self.assertEqual(
+            self.module.split_sentences("一文目です。二文目！\n三文目"),
+            ["一文目です。", "二文目！", "三文目"],
+        )
+
+    def test_matching_reading_yields_no_suspects(self) -> None:
+        tokens = [("締切", "しめきり"), ("です", "です")]
+
+        suspects, ratio = self.module.find_suspects(tokens, "しめきりです")
+
+        self.assertEqual(suspects, [])
+        self.assertEqual(ratio, 1.0)
+
+    def test_replaced_reading_is_reported_with_source_surface(self) -> None:
+        tokens = [("締切", "しめきり"), ("は", "は"), ("金曜日", "きんようび")]
+
+        suspects, ratio = self.module.find_suspects(tokens, "しめきつはきんようび")
+
+        self.assertEqual(len(suspects), 1)
+        self.assertEqual(suspects[0].surface, "締切")
+        self.assertEqual(suspects[0].expected, "しめきり")
+        self.assertEqual(suspects[0].heard, "しめきつ")
+        self.assertLess(ratio, 1.0)
+
+    def test_dropped_reading_is_reported_as_empty_heard_span(self) -> None:
+        tokens = [("重複", "ちょうふく"), ("を", "を"), ("確認", "かくにん")]
+
+        suspects, _ = self.module.find_suspects(tokens, "をかくにん")
+
+        self.assertEqual(len(suspects), 1)
+        self.assertEqual(suspects[0].surface, "重複")
+        self.assertEqual(suspects[0].expected, "ちょうふく")
+
+    def test_duplicate_findings_are_deduplicated(self) -> None:
+        tokens = [
+            ("締切", "しめきり"),
+            ("と", "と"),
+            ("締切", "しめきり"),
+        ]
+
+        suspects, _ = self.module.find_suspects(tokens, "しめきつとしめきつ")
+
+        self.assertEqual(
+            [(s.surface, s.heard) for s in suspects], [("締切", "しめきつ")]
+        )
 
 
 class ManifestTest(unittest.TestCase):
