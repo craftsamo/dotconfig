@@ -279,7 +279,7 @@ class ManifestTest(unittest.TestCase):
 
             manifest = self.module.load_voice_manifest(manifest_path)
 
-            expected = root / "assets" / "alpha" / "voice" / "lexicon.json"
+            expected = root / "assets" / "lethe" / "voice" / "lexicon.json"
             self.assertEqual(manifest.lexicon_file, expected.resolve())
             self.assertEqual(manifest.lexicon_sha256, sha256(expected))
 
@@ -307,7 +307,7 @@ class ManifestTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             manifest_path = write_voice_manifest(root, lexicon={"重複": "ちょうふく"})
-            lexicon_path = root / "assets" / "alpha" / "voice" / "lexicon.json"
+            lexicon_path = root / "assets" / "lethe" / "voice" / "lexicon.json"
             lexicon_path.write_text('{"語": 1}', encoding="utf-8")
             payload = json.loads(manifest_path.read_text(encoding="utf-8"))
             payload["pronunciation"]["lexicon"]["sha256"] = sha256(lexicon_path)
@@ -504,7 +504,7 @@ class SynthesizerTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             manifest_path = write_voice_manifest(
-                root / "alpha", "alpha", lexicon={"重複": "ちょうふく"}
+                root / "lethe", "lethe", lexicon={"重複": "ちょうふく"}
             )
             catalog = self.module.load_voice_catalog(
                 write_voice_catalog(root / "catalog.json", [manifest_path])
@@ -512,7 +512,7 @@ class SynthesizerTest(unittest.TestCase):
             synthesizer, _, _ = self.build_synthesizer(catalog)
 
             chunks = synthesizer.preprocess(
-                "重複を\n確認します。以上です。", "alpha"
+                "重複を\n確認します。以上です。", "lethe"
             )
 
             self.assertEqual(chunks, ["ちょうふくを 確認します。以上です。"])
@@ -521,23 +521,23 @@ class SynthesizerTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             manifest_path = write_voice_manifest(
-                root / "alpha", "alpha", lexicon={"重複": "ちょうふく"}
+                root / "lethe", "lethe", lexicon={"重複": "ちょうふく"}
             )
             catalog = self.module.load_voice_catalog(
                 write_voice_catalog(root / "catalog.json", [manifest_path])
             )
             synthesizer, _, _ = self.build_synthesizer(catalog)
-            catalog.voices["alpha"].lexicon_file.write_text(
+            catalog.voices["lethe"].lexicon_file.write_text(
                 '{"重複": "改変"}', encoding="utf-8"
             )
 
             with self.assertRaisesRegex(ValueError, "lexicon digest mismatch"):
-                synthesizer.preprocess("重複を確認します。", "alpha")
+                synthesizer.preprocess("重複を確認します。", "lethe")
 
     def test_generate_segments_resets_seed_per_chunk(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            manifest_path = write_voice_manifest(root / "alpha", "alpha")
+            manifest_path = write_voice_manifest(root / "lethe", "lethe")
             catalog = self.module.load_voice_catalog(
                 write_voice_catalog(root / "catalog.json", [manifest_path])
             )
@@ -545,7 +545,7 @@ class SynthesizerTest(unittest.TestCase):
             fake_model.generate_voice_clone.return_value = ([[0.0] * 4], 24000)
 
             segments, sample_rate = synthesizer._generate_segments(
-                ["一文目。", "二文目。"], "alpha"
+                ["一文目。", "二文目。"], "lethe"
             )
 
             self.assertEqual(sample_rate, 24000)
@@ -569,7 +569,7 @@ class SynthesizerTest(unittest.TestCase):
             self.skipTest("numpy/soundfile unavailable")
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            manifest_path = write_voice_manifest(root / "alpha", "alpha")
+            manifest_path = write_voice_manifest(root / "lethe", "lethe")
             catalog = self.module.load_voice_catalog(
                 write_voice_catalog(root / "catalog.json", [manifest_path])
             )
@@ -580,7 +580,7 @@ class SynthesizerTest(unittest.TestCase):
             )
             long_text = "。".join(["長めの一文がここに入ります" * 3] * 8) + "。"
 
-            audio = synthesizer.synthesize(long_text, "alpha")
+            audio = synthesizer.synthesize(long_text, "lethe")
 
             self.assertGreater(fake_model.generate_voice_clone.call_count, 1)
             chunk_count = fake_model.generate_voice_clone.call_count
