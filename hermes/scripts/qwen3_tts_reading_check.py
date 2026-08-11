@@ -69,6 +69,23 @@ def apply_lexicon(text: str, lexicon: dict[str, str]) -> str:
     return text
 
 
+def load_number_expander():
+    """Borrow expand_japanese_numbers from the server module next door.
+
+    The server applies it after the lexicon for Japanese voices; the
+    expected side must mirror that or every numeric sentence reports a
+    false mismatch.
+    """
+    import importlib.util
+
+    path = Path(__file__).resolve().parent / "qwen3_tts_server.py"
+    spec = importlib.util.spec_from_file_location("qwen3_tts_server_for_check", path)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module.expand_japanese_numbers
+
+
 def find_suspects(
     tokens: list[tuple[str, str]], heard_kana: str
 ) -> tuple[list[Suspect], float]:
@@ -177,6 +194,7 @@ def main() -> int:
 
     kks = pykakasi.kakasi()
     asr = WhisperModel(args.asr_model, device="cpu", compute_type="int8")
+    expand_numbers = load_number_expander()
     if args.keep_audio:
         args.keep_audio.mkdir(parents=True, exist_ok=True)
 
@@ -195,12 +213,14 @@ def main() -> int:
             )
             heard_text = "".join(segment.text for segment in segments)
 
-        expected_source = apply_lexicon(sentence, lexicon)
+        expected_source = expand_numbers(apply_lexicon(sentence, lexicon))
         tokens = [
             (item["orig"], item["hira"]) for item in kks.convert(expected_source)
         ]
         heard_kana = normalize_kana(
-            "".join(item["hira"] for item in kks.convert(heard_text))
+            "".join(
+                item["hira"] for item in kks.convert(expand_numbers(heard_text))
+            )
         )
         suspects, ratio = find_suspects(tokens, heard_kana)
         report.append(
