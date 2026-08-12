@@ -1,17 +1,14 @@
 #!/usr/bin/env bash
-# Thin launcher for the projects registry CLI, which lives outside this
-# repository. Point PJ_BIN at it directly, or set HERMES_PRIVATE_SKILLS to the
-# checkout holding the workspaces skill cluster (see zsh/local.zsh, untracked).
+# Thin launcher for the projects registry CLI, which lives in the private
+# overlay repo reached through the fixed path ~/.config/private (see
+# README.md "Private overlay"). Point PJ_BIN at it to override.
 set -euo pipefail
 
-pj_bin="${PJ_BIN:-}"
-if [[ -z $pj_bin && -n ${HERMES_PRIVATE_SKILLS:-} ]]; then
-  pj_bin="$HERMES_PRIVATE_SKILLS/skills/workspaces/projects/registry/scripts/pj"
-fi
+pj_bin="${PJ_BIN:-$HOME/.config/private/hermes/skills/workspaces/projects/registry/scripts/pj}"
 
-if [[ -z $pj_bin || ! -f $pj_bin ]]; then
-  echo "pj: cannot locate the projects registry CLI." >&2
-  echo "pj: set PJ_BIN, or HERMES_PRIVATE_SKILLS to the checkout that holds it." >&2
+if [[ ! -f $pj_bin ]]; then
+  echo "pj: cannot locate the projects registry CLI at $pj_bin" >&2
+  echo "pj: install the private-dotconfig overlay, or set PJ_BIN." >&2
   exit 127
 fi
 

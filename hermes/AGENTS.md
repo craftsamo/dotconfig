@@ -25,7 +25,8 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
   dirty-but-invisible file. A missing `jobs.json` is read as **zero jobs, silently**
   (`cron/jobs.py:1013-1018`) — back it up before touching that directory. Schedules
   for the private `local-*` jobs are recorded as runnable `hermes cron create`
-  commands in `hermes-private-skills/scripts/install.sh`.
+  commands in the private overlay's README (`~/.config/private`,
+  the `private-dotconfig` repo).
 - **`platform_toolsets.<platform>` is the effective tool allowlist.** Keep it granular;
   `hermes-cli` / `hermes-telegram` expand to a broad surface and strip default-off
   tools such as `video` / `video_gen`. Mirror the role in top-level `toolsets`, but
@@ -107,8 +108,8 @@ skills/              # shared maintainer-owned skills tracked
                      #   assistant-pipeline reference tree and records CLI deltas
                      # (the ~/Workspaces data-skill cluster — people/pp, household-budget/hb,
                      #   projects/pj, business-prospects/bp, message-reply, scaffold + _cross.py —
-                     #   moved to a private checkout, read via skills.external_dirs
-                     #   as ${HERMES_PRIVATE_SKILLS}/skills; this repo is public)
+                     #   moved to the private overlay, read via skills.external_dirs
+                     #   as ~/.config/private/hermes/skills; this repo is public)
                      # (creative/ moved to profiles/creator/skills — creator owns media)
   learned/           # runtime-authored adaptive skills; mutable and ignored
 plugins/             # backend chains, tool overrides, completion and Worker
