@@ -147,6 +147,8 @@ profiles/<name>/     # assistant, engineer, researcher, searcher, creator, write
                      #   surface skills — desks/ holds
                      #   topic-bound personal-desk / project-desk / brainstorm
                      #   (Inline-only; specialist work spins into a new topic);
+                     #   both assistant dirs are private-overlay symlinks
+                     #   (content tracked by private-dotconfig, not here);
                      #   every profile's learned/ holds mutable runtime-authored
                      #   skills and is never a dispatch or Git ownership surface)
                      # (no cron/ here either; scheduled jobs live machine-local)
@@ -202,10 +204,13 @@ Ignored (see `../.gitignore`): `auth.json`, `.env`, `memories/`, `sessions/`,
 nothing it writes ever reaches the repo. Never commit secrets, state, or
 host-rendered plists.
 
-**Skill ownership follows the directory type.** Shared `default-pipeline/`, the
-assistant's `assistant-pipeline/`, every worker's `<profile>-pipeline/` and
-`technic/`, and the assistant's `desks/` are maintainer-owned and tracked
-normally. Runtime creates
+**Skill ownership follows the directory type.** Shared `default-pipeline/` and
+every worker's `<profile>-pipeline/` and `technic/` are maintainer-owned and
+tracked normally. The assistant's `assistant-pipeline/` and `desks/` are also
+maintainer-owned but live in the private overlay — symlinks into
+`~/.config/private`, tracked by the private-dotconfig repo (they encode the
+personal Telegram operation; this repo is public). Edit them through the same
+paths; commit in the overlay repo. Runtime creates
 are forced into `learned/` by the `skill-topology` plugin; `learned/`, external
 skills and Hermes bookkeeping stay ignored. Do not use `skip-worktree` for
 managed skills: their changes must remain visible in `git status`. Promotion

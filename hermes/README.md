@@ -19,7 +19,9 @@ into place.
 
 `~/.hermes/skills` is symlinked to the repo. The maintainer-owned shared
 `default-pipeline/` CLI adapter is version-controlled; the assistant's
-`assistant-pipeline` lives under its profile and owns the shared reference tree.
+`assistant-pipeline` lives under its profile and owns the shared reference
+tree — its content sits in the private overlay, reached through a symlink at
+`profiles/assistant/skills/assistant-pipeline` (as do the `desks/`).
 The ~/Workspaces data-skill
 cluster lives in the private overlay (this repo is public) and is read through
 `skills.external_dirs` as `~/.config/private/hermes/skills`. Runtime-authored
@@ -148,8 +150,9 @@ State (`memories/`, `sessions/`, `state.db*`, …) stays in
 Each worker profile tracks exactly one `<profile>-pipeline/` and a `technic/`
 directory. Pipelines implement the shared `admit → route → act_or_plan → verify
 → handoff → terminal` lifecycle; Workers never register Kanban cards. The
-assistant tracks `desks/` and `technic/` alongside its `assistant-pipeline`,
-while `default-pipeline` adapts that tree for the CLI. Every profile may grow an
+assistant keeps `technic/` here, while its `desks/` and `assistant-pipeline/`
+are private-overlay symlinks (personal Telegram operation; content tracked by
+the private-dotconfig repo); `default-pipeline` adapts that tree for the CLI. Every profile may grow an
 untracked `learned/` library. To promote a learned skill, review it, move the
 complete package into `technic/`, set `metadata.hermes.category: technic`, add
 it to the pipeline's capability registry when applicable, pin an agent-created

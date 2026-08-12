@@ -428,7 +428,10 @@ def validate_allowed_skill_roots(
     errors: list[str],
 ) -> None:
     for entry in skills.iterdir():
-        if entry.is_symlink():
+        # Private-overlay dirs (desks, assistant-pipeline) are sanctioned
+        # symlinks into ~/.config/private; anything else stays forbidden
+        # (relative links into mutable stores have broken silently before).
+        if entry.is_symlink() and not is_overlay_link(entry):
             errors.append(f"local skill root must not contain symlinks: {entry}")
 
     for path in sorted(skills.rglob("SKILL.md")):
@@ -439,11 +442,31 @@ def validate_allowed_skill_roots(
             errors.append(f"unexpected skill root: {path}")
 
 
+PRIVATE_OVERLAY = Path.home() / ".config" / "private"
+
+
+def is_overlay_link(path: Path) -> bool:
+    """True for a managed dir provided by the private overlay (a symlink into
+    ~/.config/private). Such paths are gitignored here on purpose — their
+    content is tracked by the private-dotconfig repo instead."""
+    if not path.is_symlink():
+        return False
+    try:
+        target = path.resolve(strict=True)
+    except OSError:
+        return False
+    return target.is_relative_to(PRIVATE_OVERLAY.resolve())
+
+
 def validate_git_boundary(
     managed: list[Path], learned: Path, errors: list[str]
 ) -> None:
     for path in managed:
-        if path.exists() and is_ignored(path):
+        if path.is_symlink() and not is_overlay_link(path):
+            errors.append(
+                f"managed skill path is a symlink outside the private overlay: {path}"
+            )
+        elif path.exists() and not path.is_symlink() and is_ignored(path):
             errors.append(f"managed skill path is gitignored: {path}")
     if not is_ignored(learned / ".gitignore-probe"):
         errors.append(f"learned skill path must be gitignored: {learned}")

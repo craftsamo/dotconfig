@@ -71,12 +71,15 @@ hermes/skills/*
 !hermes/skills/default-pipeline/
 hermes/skills/learned/
 
-# Workers track one *-pipeline/ plus technic/ leaves. Assistant additionally
-# tracks desks/. The skill-topology plugin routes runtime creates to learned/.
+# Workers track one *-pipeline/ plus technic/ leaves. The skill-topology
+# plugin routes runtime creates to learned/. The assistant's desks/ and
+# assistant-pipeline/ live in the private overlay as SYMLINKS at these paths;
+# the *-pipeline/ re-include below has a trailing slash, so it matches only
+# real directories and never resurrects an overlay symlink — both stay
+# ignored via the wildcard above them.
 hermes/profiles/*/skills/*
 !hermes/profiles/*/skills/*-pipeline/
 !hermes/profiles/*/skills/technic/
-!hermes/profiles/assistant/skills/desks/
 hermes/profiles/*/skills/learned/
 
 # Cron entry scripts for work that lives outside this repo. Hermes' scheduler
