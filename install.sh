@@ -313,4 +313,14 @@ echo "[zsh]"
 link "$DOTFILES/zsh/env.zsh"    "$HOME/.zshenv"
 link "$DOTFILES/zsh/config.zsh" "$HOME/.zshrc"
 
+# Private overlay (craftsamo/private-dotconfig), reached only through the
+# gitignored fixed path ./private — a symlink its own install.sh maintains.
+# It overlays private real files (hermes/SOUL.md, per-profile SOUL.md /
+# config.yaml) into this tree and regenerates the hermes cron wrappers.
+# Absent on clones without access; skipping is the supported path.
+if [ -x "$DOTFILES/private/install.sh" ]; then
+  echo "[private]"
+  "$DOTFILES/private/install.sh" || status=1
+fi
+
 exit $status
