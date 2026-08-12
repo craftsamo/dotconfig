@@ -21,8 +21,8 @@ into place.
 `default-pipeline/` CLI adapter is version-controlled; the assistant's
 `assistant-pipeline` lives under its profile and owns the shared reference tree.
 The ~/Workspaces data-skill
-cluster lives in a private checkout (this repo is public) and is read through
-`skills.external_dirs` as `${HERMES_PRIVATE_SKILLS}/skills`. Runtime-authored
+cluster lives in the private overlay (this repo is public) and is read through
+`skills.external_dirs` as `~/.config/private/hermes/skills`. Runtime-authored
 skills are mutable state under `learned/` and are git-ignored. The
 `skill-topology` plugin rewrites every normal `skill_manage(action=create)`
 call — including background review, curator and `/learn` — to
@@ -48,7 +48,8 @@ directory stays out.
 
 Nothing recreates a lost `jobs.json`; Hermes reads a missing one as zero jobs
 without warning. The private `local-*` schedules are re-creatable from the
-`hermes cron create` commands in `hermes-private-skills/scripts/install.sh`.
+`hermes cron create` commands in the private overlay's README
+(`~/.config/private`, the `private-dotconfig` repo).
 
 ### Plugins — provider chains & tool overrides
 
@@ -105,8 +106,8 @@ the relevant `config.yaml`.
   `execute/**` (each unit names its `assignee` worker); topology, routing,
   schema, required QA contracts, and the worker-kernel unit-gate parity are
   enforced by `scripts/validate-profile-skills.py`.
-  The ~/Workspaces data-skill cluster lives in a private checkout, read
-  through `skills.external_dirs` as `${HERMES_PRIVATE_SKILLS}/skills`.
+  The ~/Workspaces data-skill cluster lives in the private overlay, read
+  through `skills.external_dirs` as `~/.config/private/hermes/skills`.
   `skills/learned/` is the untracked adaptive library; bundled skills are read
   from the clone via `external_dirs`.
 
