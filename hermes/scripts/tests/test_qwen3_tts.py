@@ -855,7 +855,9 @@ class LaunchctlScriptTest(unittest.TestCase):
             directory.mkdir(parents=True)
         shutil.copy2(SERVER_PATH, scripts / SERVER_PATH.name)
         shutil.copy2(PLIST_PATH, launchd / PLIST_PATH.name)
-        (hermes / "qwen3-tts-requirements.lock").write_text(
+        deps = hermes / "qwen3-tts"
+        deps.mkdir(parents=True)
+        (deps / "requirements.lock").write_text(
             "qwen-tts==0.1.1 --hash=sha256:" + "0" * 64 + "\n",
             encoding="utf-8",
         )
