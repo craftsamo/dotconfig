@@ -107,9 +107,9 @@ skills/              # shared maintainer-owned skills tracked
   default-pipeline/  # thin CLI adapter for default; points at the assistant's
                      #   assistant-pipeline reference tree and records CLI deltas
                      # (the ~/Workspaces data-skill cluster — people/pp, household-budget/hb,
-                     #   projects/pj, business-prospects/bp, message-reply, scaffold + _cross.py —
-                     #   moved to the private overlay, read via skills.external_dirs
-                     #   as ~/.config/private/hermes/skills; this repo is public)
+                     #   reports/rp, projects/pj, business-prospects/bp, message-reply,
+                     #   scaffold + _cross.py — moved to the private overlay, read via
+                     #   skills.external_dirs as ~/.config/private/hermes/skills; this repo is public)
                      # (creative/ moved to profiles/creator/skills — creator owns media)
   learned/           # runtime-authored adaptive skills; mutable and ignored
 plugins/             # backend chains, tool overrides, completion and Worker
