@@ -235,7 +235,7 @@ writes on the current machine, then commit it.
   `install --voice-manifest PATH`; add voices with
   `register --voice-manifest PATH [--default]`. The private manifest paths must
   never enter tracked config or docs. Dependencies come from
-  `qwen3-tts-requirements.lock` and must stay hash-locked.
+  `qwen3-tts/requirements.lock` and must stay hash-locked.
 - `launchd/gateway-launchctl.sh {install,status,uninstall}` — gateway LaunchAgent,
   **one host only** (one bot token = one live connection). Telegram-only for now
   (workaround for upstream #40695; don't re-enable Discord until fixed).
