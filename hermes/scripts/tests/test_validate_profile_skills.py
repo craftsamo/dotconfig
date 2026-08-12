@@ -17,10 +17,12 @@ SPEC.loader.exec_module(VALIDATOR)
 class AssistantPipelineTreeTest(unittest.TestCase):
     def test_repository_tree_is_valid(self) -> None:
         errors: list[str] = []
-        refs, units = VALIDATOR.validate_assistant_pipeline(errors)
+        refs, catalog = VALIDATOR.validate_assistant_pipeline(errors)
         self.assertEqual([], errors)
         self.assertGreater(refs, 0)
-        self.assertGreater(units, 0)
+        self.assertGreater(len(catalog), 0)
+        for name, assignee in catalog.items():
+            self.assertIn(assignee, VALIDATOR.WORKER_PROFILES, name)
 
 
 class SandboxTreeTest(unittest.TestCase):
@@ -110,6 +112,7 @@ class SandboxTreeTest(unittest.TestCase):
             "---\n"
             "card_units:\n"
             "  - name: anchored-image-batch\n"
+            "    assignee: creator\n"
             "    required_inputs: [approved-style-anchor]\n"
             "    unit_cap: \"one batch\"\n"
             "    runtime_cap: 1800\n"
@@ -117,8 +120,26 @@ class SandboxTreeTest(unittest.TestCase):
         )
         self.assertEqual([], self.validate())
         errors: list[str] = []
-        _, units = VALIDATOR.validate_assistant_pipeline(errors)
-        self.assertEqual(1, units)
+        _, catalog = VALIDATOR.validate_assistant_pipeline(errors)
+        self.assertEqual({"anchored-image-batch": "creator"}, catalog)
+
+    def test_rejects_card_unit_with_unknown_assignee(self) -> None:
+        self.build_minimal_tree()
+        self.write(
+            "references/execute/creative/index.md",
+            "---\n"
+            "card_units:\n"
+            "  - name: anchored-image-batch\n"
+            "    assignee: assistant\n"
+            "    required_inputs: [approved-style-anchor]\n"
+            "    unit_cap: \"one batch\"\n"
+            "    runtime_cap: 1800\n"
+            "---\n# creative\n",
+        )
+        errors = self.validate()
+        self.assertTrue(
+            any("assignee must be a worker profile" in e for e in errors), errors
+        )
 
     def test_rejects_card_unit_without_runtime_cap(self) -> None:
         self.build_minimal_tree()
@@ -174,6 +195,50 @@ class SandboxTreeTest(unittest.TestCase):
         self.assertTrue(
             any("quality-assurance/writing/prose.md" in e for e in errors), errors
         )
+
+
+class GitBoundaryOverlayTest(unittest.TestCase):
+    """Managed dirs provided by the private overlay are sanctioned symlinks."""
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        root = Path(self._tmp.name)
+        self.overlay = root / "private"
+        (self.overlay / "skills" / "desks").mkdir(parents=True)
+        (root / "elsewhere" / "desks").mkdir(parents=True)
+        self.overlay_link = root / "overlay-link"
+        self.overlay_link.symlink_to(self.overlay / "skills" / "desks")
+        self.foreign_link = root / "foreign-link"
+        self.foreign_link.symlink_to(root / "elsewhere" / "desks")
+        self._original = VALIDATOR.PRIVATE_OVERLAY
+        VALIDATOR.PRIVATE_OVERLAY = self.overlay
+        # A real, gitignored path inside the repo keeps the learned probe green.
+        self.learned = (
+            VALIDATOR.HERMES_ROOT / "profiles" / "assistant" / "skills" / "learned"
+        )
+
+    def tearDown(self) -> None:
+        VALIDATOR.PRIVATE_OVERLAY = self._original
+        self._tmp.cleanup()
+
+    def test_accepts_symlink_into_private_overlay(self) -> None:
+        errors: list[str] = []
+        VALIDATOR.validate_git_boundary([self.overlay_link], self.learned, errors)
+        self.assertEqual([], errors)
+
+    def test_rejects_symlink_outside_private_overlay(self) -> None:
+        errors: list[str] = []
+        VALIDATOR.validate_git_boundary([self.foreign_link], self.learned, errors)
+        self.assertTrue(
+            any("symlink outside the private overlay" in e for e in errors), errors
+        )
+
+    def test_rejects_dangling_overlay_symlink(self) -> None:
+        dangling = Path(self._tmp.name) / "dangling-link"
+        dangling.symlink_to(self.overlay / "skills" / "missing")
+        errors: list[str] = []
+        VALIDATOR.validate_git_boundary([dangling], self.learned, errors)
+        self.assertTrue(errors, "dangling overlay symlink must be reported")
 
 
 class EndToEndTest(unittest.TestCase):
