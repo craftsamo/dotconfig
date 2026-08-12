@@ -14,9 +14,9 @@ and `fzf`, no daemons. Loaded automatically by [`config.zsh`](../config.zsh).
 
 `fzf` (browser), `jq` (registry JSON), `ghq` (clone listing) and `pj` (the
 projects registry CLI). [`bin/pj`](../../bin/pj) is a launcher: the registry
-skill itself lives in a private checkout, so it resolves the implementation
-through `PJ_BIN` or `${HERMES_PRIVATE_SKILLS}` and fails with a clear message
-when neither is set.
+skill itself lives in the private overlay (`~/.config/private`), so it
+resolves the implementation there (`PJ_BIN` overrides) and fails with a clear
+message when the overlay is not installed.
 
 ## Quick start
 
