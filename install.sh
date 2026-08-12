@@ -298,16 +298,8 @@ for p in "$DOTFILES"/hermes/profiles/*/; do
   [ -d "$DOTFILES/hermes/plugins" ] && link "$DOTFILES/hermes/plugins" "$HOME/.hermes/profiles/$n/plugins"
 done
 
-echo "[workspaces]"
-# Assistant's terminal.cwd. Symlink the tracked area/ops AGENTS.md (link() creates the
-# parent dirs); groups + repos under Projects/ and Personal/ are local, scaffolded on demand.
-link "$DOTFILES/workspaces/AGENTS.md"               "$HOME/Workspaces/AGENTS.md"
-link "$DOTFILES/workspaces/Projects/AGENTS.md"      "$HOME/Workspaces/Projects/AGENTS.md"
-link "$DOTFILES/workspaces/Personal/AGENTS.md"      "$HOME/Workspaces/Personal/AGENTS.md"
-link "$DOTFILES/workspaces/.scratch/AGENTS.md"      "$HOME/Workspaces/.scratch/AGENTS.md"
-link "$DOTFILES/workspaces/.deliverables/AGENTS.md" "$HOME/Workspaces/.deliverables/AGENTS.md"
-link "$DOTFILES/workspaces/.notes/AGENTS.md"        "$HOME/Workspaces/.notes/AGENTS.md"
-link "$DOTFILES/workspaces/.inbox/AGENTS.md"        "$HOME/Workspaces/.inbox/AGENTS.md"
+# (no [workspaces] section: the ~/Workspaces AGENTS.md doctrine is personal
+# and lives in the private overlay, whose install.sh links it into place.)
 
 echo "[zsh]"
 link "$DOTFILES/zsh/env.zsh"    "$HOME/.zshenv"
