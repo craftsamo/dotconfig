@@ -312,9 +312,10 @@ Three per-profile layers, kept separate:
 - **skills/** — detailed, on-demand playbooks:
   Every local library uses the same ownership types. A worker has one tracked
   `<profile>-pipeline/` plus tracked, directly selectable `technic/` leaves.
-  The assistant owns tracked `assistant-pipeline/` and its mode-first reference
+  The assistant owns `assistant-pipeline/` and its mode-first reference
   tree; default owns the shared tracked `default-pipeline/` adapter. Assistant-only
-  Telegram surfaces live in tracked `desks/`.
+  Telegram surfaces live in `desks/`. Both assistant dirs are private-overlay
+  symlinks — maintainer-owned, but tracked by the private-dotconfig repo.
   Runtime-authored skills from background review, curator, `/learn`, or normal
   `skill_manage(create)` calls go to the untracked `learned/` category through
   the `skill-topology` plugin. Moving a complete package from `learned/` to
