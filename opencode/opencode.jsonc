@@ -50,7 +50,9 @@
   ],
   "instructions": [
     "instructions/*.txt",
-    "instructions/*.md"
+    "instructions/*.md",
+    // Private-overlay instructions (silently empty on machines without ~/.config/private).
+    "../private/opencode/instructions/*.md"
   ],
   // Title generation etc. → light OpenAI Pro model without priority-tier cost.
   "small_model": "openai/gpt-5.4-mini",
