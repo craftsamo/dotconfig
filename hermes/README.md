@@ -355,7 +355,7 @@ dependencies through `uv run`; the server venv stays untouched.
 `install` creates an isolated Python 3.12.11 venv under the ignored
 `hermes/local/qwen3-tts/`, stores absolute private manifest locations only in the
 ignored `catalog.json`, synchronizes the hash-locked
-`qwen3-tts-requirements.lock`, validates every manifest, renders the LaunchAgent,
+`qwen3-tts/requirements.lock`, validates every manifest, renders the LaunchAgent,
 and atomically activates the catalog. A failed registration, service load, or
 identity-bound health check restores the previous catalog and service. The
 tracked plist contains only the stable ignored catalog path. An existing
@@ -365,8 +365,8 @@ first start can take several minutes; later starts reuse the cache. Logs land in
 `~/Library/Logs/qwen3-tts-engine.log`. `uninstall` removes the LaunchAgent but
 retains the catalog, venv, and model cache.
 
-`qwen3-tts-requirements.in` records the top-level package, while
-`qwen3-tts-tested-constraints.txt` captures the verified environment used to
+`qwen3-tts/requirements.in` records the top-level package, while
+`qwen3-tts/tested-constraints.txt` captures the verified environment used to
 regenerate the hashed lock. Review dependency changes before recompiling it.
 
 Normal speech omits a voice ID and uses the catalog default. When the
