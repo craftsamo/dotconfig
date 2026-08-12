@@ -8,6 +8,12 @@ stripe/
 yarn/
 **/*.env
 
+# Private overlay: a symlink to the craftsamo/private-dotconfig checkout, whose
+# tree mirrors this repo's top level (hermes/, opencode/, zsh/, ...). Public
+# files reach it only through this fixed path — never through an env var or a
+# ghq path. No trailing slash: the entry is a symlink, not a directory.
+/private
+
 # fish is unused here; the Grok Build installer/updater drops completions into it
 fish/
 
@@ -45,20 +51,22 @@ hermes/**/plans/
 hermes/**/*_cache/
 hermes/**/local/
 
-# Hermes personas: the real SOUL.md is private/local per machine; the tracked
-# SOUL.example.md is the bootstrap template (install.sh seeds SOUL.md from it
-# when missing, then symlinks it). Personalize SOUL.md locally; it never ships.
+# Hermes personas: the real SOUL.md lives in the private overlay and is
+# symlinked here by private/install.sh; the tracked SOUL.example.md is the
+# bootstrap fallback (install.sh seeds SOUL.md from it only when the overlay
+# is absent). Either way the path never ships.
 hermes/SOUL.md
 hermes/**/SOUL.md
 
 # Assistant config holds a private Telegram chat ID (platforms.*.dm_topics);
-# keep it local. The tracked config.example.yaml is the bootstrap template.
+# the real file lives in the private overlay and is symlinked here. The
+# tracked config.example.yaml is the bootstrap fallback.
 hermes/profiles/assistant/config.yaml
 
 # Hermes skills: maintainer-owned topology is tracked; adaptive libraries are not.
 # At the shared root, default-pipeline/ is the only managed surface — the
-# ~/Workspaces data-skill cluster is kept in a separate private checkout and
-# reached through skills.external_dirs.
+# ~/Workspaces data-skill cluster lives in the private overlay
+# (~/.config/private/hermes/skills) and is reached through skills.external_dirs.
 hermes/skills/*
 !hermes/skills/default-pipeline/
 hermes/skills/learned/
@@ -73,7 +81,7 @@ hermes/profiles/*/skills/learned/
 
 # Cron entry scripts for work that lives outside this repo. Hermes' scheduler
 # only runs a script resolving inside <HERMES_HOME>/scripts, so such a job needs
-# a real wrapper here; the owning repo generates it and it stays machine-local.
+# a real wrapper here; private/install.sh generates it and it stays machine-local.
 hermes/profiles/*/scripts/local-*.sh
 
 # Hermes skills bookkeeping: bundled skills (read via skills.external_dirs
@@ -100,6 +108,6 @@ hermes/**/*.pyc
 hermes/plugins/hermes-achievements/
 
 # Machine-local shell environment. config.zsh already sources every
-# ~/.config/zsh/*.zsh; this one is generated (it points at checkouts that live
-# outside this repo, e.g. HERMES_PRIVATE_SKILLS) and must stay untracked.
+# ~/.config/zsh/*.zsh; this one is for per-machine settings that belong in no
+# repo (private-but-durable shell config goes to private/zsh/ instead).
 zsh/local.zsh

@@ -88,6 +88,28 @@ Installed outside the [Brewfile](./Brewfile):
   `root`, like a Claude.app installed for all users), run
   `brew install --cask --adopt <name>` once in an interactive terminal so
   sudo can prompt for a password.
+- At the end it runs `./private/install.sh` when present — see below.
+
+## Private overlay
+
+This repo is public. Its private counterpart is `craftsamo/private-dotconfig`,
+whose tree mirrors this repo's top level (`hermes/`, `opencode/`, `zsh/`, ...)
+and is reached ONLY through the gitignored fixed path **`~/.config/private`**
+(a symlink to the checkout). Nothing here names a private path and no
+environment variable is involved; a clone without access simply has no
+`private` entry and everything else works.
+
+What lives there: private Hermes skills (read in place via
+`skills.external_dirs` as `~/.config/private/hermes/skills`), the real
+persona/config files this repo only ships `*.example.*` templates for
+(overlaid into this tree as symlinks by the overlay's `install.sh`), private
+opencode skills, and private shell config (`private/zsh/*.zsh`, sourced by
+`config.zsh` when present).
+
+```sh
+ghq get git@github.com:craftsamo/private-dotconfig.git
+~/ghq/github.com/craftsamo/private-dotconfig/install.sh   # wires ~/.config/private
+```
 
 ## Homebrew
 
