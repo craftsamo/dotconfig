@@ -32,7 +32,8 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
   tools such as `video` / `video_gen`. Mirror the role in top-level `toolsets`, but
   remember that top-level `kanban` is also the front-door runtime gate. Dispatcher
   workers receive `kanban` automatically; their dormant Telegram / Discord lists stay
-  empty, and `no_mcp` prevents accidental inheritance of future global MCP servers.
+  empty. Use `no_mcp` when a platform needs none; otherwise list each allowed MCP
+  server explicitly so future servers are not inherited accidentally.
 - **`SOUL.md` = persona only** (voice/posture), per-profile (`HERMES_HOME`). No
   project rules/paths/commands there. Headings aren't parsed (verbatim inject).
 - **Keep `default` neutral** — every `--clone` inherits its `config.yaml`.

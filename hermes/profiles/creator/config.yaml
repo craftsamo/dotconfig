@@ -23,6 +23,7 @@ toolsets:
   - skills
   - memory
   - delegation
+  - unreal-engine
 max_concurrent_sessions: null
 agent:
   system_prompt: |
@@ -461,6 +462,10 @@ delegation:
 prefill_messages_file: ""
 goals:
   max_turns: 20
+mcp_servers:
+  unreal-engine:
+    url: http://127.0.0.1:8000/mcp
+    enabled: true
 skills:
   external_dirs:
     - ~/ghq/github.com/NousResearch/hermes-agent/skills/autonomous-ai-agents
@@ -474,12 +479,12 @@ skills:
     - ~/ghq/github.com/NousResearch/hermes-agent/optional-skills/creative/concept-diagrams
     - ~/ghq/github.com/NousResearch/hermes-agent/optional-skills/creative/heartmula
     - ~/ghq/github.com/NousResearch/hermes-agent/optional-skills/creative/creative-ideation
+    - ~/ghq/github.com/NousResearch/hermes-agent/optional-skills/creative/unreal-mcp
     - ~/.agents/skills
   disabled:
     - kanban-video-orchestrator
     - blender-mcp
     - touchdesigner-mcp
-    - unreal-mcp
     - pixel-art
   template_vars: true
   inline_shell: false
@@ -667,7 +672,7 @@ platform_toolsets:
     - skills
     - memory
     - delegation
-    - no_mcp
+    - unreal-engine
   telegram: []
   discord: []
 image_gen:

@@ -75,21 +75,22 @@ itself call `delegate_task` during its run.
 | Profile | Role | Front door | `terminal.cwd` | Toolsets | Gateway | Tracked |
 | --- | --- | --- | --- | --- | --- | --- |
 | **default** | CLI front door — assistant's CLI counterpart (neutral persona) | CLI | `.` (launch dir) | `web,browser,terminal,file,code_execution,vision,x_search,skills,todo,memory,clarify,delegation,cronjob,kanban` | — | yes |
-| **assistant** | messaging front door + dispatcher host | Telegram | `~/Workspaces` | `web,browser,terminal,file,vision,x_search,skills,todo,memory,clarify,delegation,cronjob,computer_use,kanban` | **yes** | yes (token per-machine) |
+| **assistant** | messaging front door + dispatcher host | Telegram | `~/Workspaces` | `web,browser,terminal,file,vision,x_search,skills,todo,memory,clarify,delegation,cronjob,computer_use,kanban` + `unreal-engine` MCP | **yes** | yes (token per-machine) |
 | **engineer** | supervises OpenCode: assess (read-only) / implement (from the assistant's plan session or an Issue; delegated worktree bootstrap in a repo the assistant created), under an Authority grant; planning documents, repo creation, and GitHub bookkeeping stay with the assistant | — (specialist) | `.` (launch / task ws) | `terminal,file,web,skills,todo,memory,delegation` | — | yes |
 | **researcher** | verified conclusions from released units: evidence-pack / tradeoff-matrix / fact-check / guidance; heavy breadth is requested from the orchestrator as a search unit | — (specialist) | `.` (launch / task ws) | `file,web,vision,video,skills,memory,delegation` | — | yes |
 | **searcher** | retrieval from released units: lookup / sweep / hunt (multi-hop via `goal_mode` on cards) | — (specialist) | `.` (launch / task ws) | `web,x_search,skills,memory` | — | yes |
-| **creator** | all media production and assembly — image, video, GIF, audio, song, voice, part assembly — consuming released units (decided specs) under a Budget grant, with advisory and anchor-unit rounds | — (specialist) | `.` (launch / task ws) | `terminal,file,vision,image_gen,video_gen,video,tts,skills,memory,delegation` + gen plugins | — | yes |
+| **creator** | all media production and assembly — image, video, GIF, audio, song, voice, part assembly — consuming released units (decided specs) under a Budget grant, with advisory and anchor-unit rounds | — (specialist) | `.` (launch / task ws) | `terminal,file,vision,image_gen,video_gen,video,tts,skills,memory,delegation` + gen plugins + `unreal-engine` MCP | — | yes |
 | **writer** | reader-facing prose and producer-facing scripts from released units (outline / piece / whole job); draft-only, never publishes | — (specialist) | `.` (launch / task ws) | `file,web,skills,memory,delegation` | — | yes |
 | **marketer** | platform copy from released message units, four-stage pre-ship inspection, grounding judgment, and publishing only within a Publish grant | — (specialist) | `.` (launch / task ws) | `terminal,file,web,browser,x_search,vision,skills,memory,delegation` | — | yes |
 
 The table lists each role's native capability allowlist. `platform_toolsets` is
 the runtime authority; top-level `toolsets` mirrors it and retains `kanban` on
 the two front doors for the runtime gate. Dispatcher-spawned workers receive
-task-scoped Kanban lifecycle tools automatically. `no_mcp` is present in every
-active platform allowlist but omitted from the table because it is a denial
-sentinel, not a capability. Worker Telegram / Discord lists, default's messaging
-lists, and assistant's disabled Discord list are empty by design.
+task-scoped Kanban lifecycle tools automatically. Platforms without MCP access
+carry the `no_mcp` denial sentinel; assistant CLI/Telegram and creator CLI instead
+name only `unreal-engine`, which prevents inheritance of future MCP servers.
+Worker Telegram / Discord lists, default's messaging lists, and assistant's
+disabled Discord list are empty by design.
 
 Role split: **the assistant** plans with the user, supervises specialists,
 performs the quality gate itself (the QA contracts under
@@ -395,9 +396,10 @@ Three per-profile layers, kept separate:
     HeartMuLa, and creative ideation) so the official optional `hyperframes`
     cannot collide with the CLI-owned entry skill (the official optional
     `tldraw-offline` stays unwired for the same reason — the `~/.agents/skills`
-    store already owns that name). MCP-backed entries in that cluster
-    (`blender-mcp`, `touchdesigner-mcp`, `unreal-mcp`) are listed in
-    `skills.disabled`: the profile runs `no_mcp`, so they can never execute.
+    store already owns that name). `unreal-mcp` is wired individually for the
+    assistant and creator and backed by their explicit `unreal-engine` MCP
+    allowlist. The other MCP-backed entries in that cluster (`blender-mcp`,
+    `touchdesigner-mcp`) remain in `skills.disabled` and cannot execute.
     The ambiguous external `pixel-art` name is disabled too; the canonical
     Pixel leaves may use its scripts as opt-in implementation backends but are
     the only stable dispatch identities
