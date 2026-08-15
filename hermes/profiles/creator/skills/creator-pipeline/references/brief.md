@@ -20,6 +20,11 @@ decides an open field (kernel <UnitDiscipline>).
   and prohibited motifs.
 - **Technique** - canonical creator technic when known. It is a routing request,
   not permission to skip capability validation.
+- **Backend** - the approved implementation when the selected technic offers
+  more than one: for generated images/videos, `core:image_generate` /
+  `core:video_generate` or `external:comfyui`. The backend is part of the
+  released decision, not a Creator preference. Core provider-chain fallback
+  stays inside the core backend; ComfyUI never falls through to cloud.
 - **Inputs** - attached source assets, QA-passed part paths, and
   previous-card/anchor pointers.
 - **Invariants** - what a revision or animation must preserve unchanged.
@@ -47,11 +52,12 @@ a spec gap for the single batched `Q<n>:` round; never a local default.
 
 - **Image**: rendered ratios + crop behavior (`cover`/`contain`/fixed);
   format; alpha/background rule; size cap; brand/style inputs; exact text
-  separated from generated artwork.
+  separated from generated artwork; selected Backend when the canonical technic
+  offers more than one implementation.
 - **Video**: duration; aspect/resolution; container/codec; size cap;
   autoplay/mute/loop/playsinline/poster contract; source stills or
   reference frames; one motion statement; audio requirement + backend
-  capability constraint.
+  capability constraint; selected Backend for generated footage.
 - **Interactive/browser**: target browsers/devices; viewport + pixel
   density; responsive behavior; interaction methods + accessibility
   fallback; reproducibility seed/parameters; performance floor;

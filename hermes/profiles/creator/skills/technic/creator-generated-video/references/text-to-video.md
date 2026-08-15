@@ -3,9 +3,10 @@
 For concept/atmosphere clips with **no source still**. Hardest mode to keep
 on-brand — if a brand still exists, prefer `image-to-video.md`.
 
-Call: `video_generate(prompt=…, aspect_ratio=…, duration=…, resolution=…)`
-(omit `image_url`). The active backend picks the model family; **don't hardcode
-`model=`** (`backends.md`).
+Core call: `video_generate(prompt=…, aspect_ratio=…, duration=…,
+resolution=…)` (omit `image_url`). With `external:comfyui`, inject the prompt
+into the preflighted local API workflow instead. The configured core chain picks
+its model family; **don't hardcode `model=`** there (`backends.md`).
 
 </Goal>
 
@@ -48,7 +49,7 @@ Example:
 <KeepOutOfPrompt>
 
 - **On-screen text / logos / UI** — they warp and flicker. Overlay in post or via
-  the `hyperframes` skill.
+  `creator-html-motion`.
 - **Real faces / hands doing fine motion** — high artifact risk; prefer locked
   framing and short shots, or switch to image-to-video from a clean still.
 - **Multiple simultaneous camera + subject moves** — pick one.

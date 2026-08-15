@@ -1,8 +1,8 @@
 <Goal>
 
-Fixed dimensions for common platforms. Generate at the nearest `image_generate`
-ratio (`landscape`/`portrait`/`square`), then crop/resize to the **exact** size
-with `scripts/img-postprocess.sh`. For cards with a title, see `text-cards.md`.
+Fixed dimensions for common platforms. Generate at the approved backend's
+nearest ratio, then crop/resize to the **exact** size with
+`scripts/img-postprocess.sh`. For cards with a title, see `text-cards.md`.
 
 </Goal>
 
