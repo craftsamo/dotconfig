@@ -56,8 +56,13 @@ The report — final session reply, or `kanban_complete` summary —
 is **evidence-backed**: every claim points at a file, a measurement, or a
 reconciled tally.
 
-- **Per asset**: type, dimensions/duration, format, the chain/provider
-  that produced it, and the absolute durable path.
+- **Per asset**: type, dimensions/duration, format, approved Backend, concrete
+  tool or local workflow that produced it, and the absolute durable path. For
+  core generation, name the configured chain and the provider only when the tool
+  reports it. For ComfyUI, name the workflow, checkpoint/model, seed, and
+  measured runtime; preserve the approved loopback host, workflow SHA-256,
+  effective-graph SHA-256 + allowed injection diff, runner JSON, and same-host
+  raw history evidence for its `prompt_id`.
 - **Reuse values worth keeping**: prompts, seeds, palette names, voice
   params that would let this work be extended.
 - **Verification evidence is itemized** — which V-checks ran

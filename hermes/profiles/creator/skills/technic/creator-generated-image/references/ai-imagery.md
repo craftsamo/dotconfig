@@ -1,6 +1,7 @@
 <Goal>
 
-For illustrative, brand-styled, **text-free** imagery via `image_generate`.
+For illustrative, brand-styled, **text-free** imagery through the Backend
+approved for `creator-generated-image`.
 
 </Goal>
 
@@ -54,11 +55,15 @@ Swap only the `Subject:` line for the rest of the set.
 
 <Procedure>
 
-1. Map the master ratio to `image_generate`: 16:9 → `landscape`, 9:16 →
-   `portrait`, 1:1 → `square`.
+1. Map the master ratio to the selected backend. For `core:image_generate`,
+   16:9 → `landscape`, 9:16 → `portrait`, 1:1 → `square`. For
+   `external:comfyui`, set the approved workflow's latent width/height to the
+   closest master ratio.
 2. Write the full final prompt to `prompts/NN-<slug>.md` (reproducibility).
-3. `image_generate(prompt=..., aspect_ratio=...)`. The result `image` is a URL or
-   a local path.
+3. Execute only the approved Backend: `image_generate(prompt=...,
+   aspect_ratio=...)` for core, or the preflighted local API workflow through
+   the external ComfyUI runner. Core returns a URL/local path; ComfyUI writes a
+   local output. Both consume one generation attempt.
 4. Normalize + export: `scripts/img-postprocess.sh <image> <out> --format ... --max-bytes ...`.
 5. Review at **thumbnail size** and on the real background. Tune with the dials,
    regenerate. For a set, lock course/page 1, then do the rest in the same style.
@@ -79,9 +84,10 @@ Swap only the `Subject:` line for the rest of the set.
 
 <BackendNote>
 
-The active backend is user-configured (here: `img-codex-xai-fal`, gpt-image-2
-first) and **not** agent-selectable. Don't name models in the prompt. Backend
-fallback is automatic; improve the prompt or reference inputs when adherence
-drifts.
+For `core:image_generate`, the active provider chain is user-configured and not
+agent-selectable; do not name models in the prompt, and leave fallback to that
+chain. For `external:comfyui`, use only the approved local workflow and its
+recorded checkpoint/model. A failure stays on that backend and returns to the
+pipeline; never cross between them during execution.
 
 </BackendNote>

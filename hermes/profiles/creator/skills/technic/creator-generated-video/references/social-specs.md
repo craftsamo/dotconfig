@@ -34,9 +34,9 @@ generate beats and stitch.
   center-crop from 16:9.
 - **Frame rate**: generated clips are typically ~24–30fps; don't upsample fps in
   post (it won't add real motion) — just match the container's expected fps.
-- **Captions/lower-thirds**: overlay in post or via the `hyperframes` skill, not
+- **Captions/lower-thirds**: overlay in post or via `creator-html-motion`, not
   inside the generated frame.
-- **Audio**: only some FAL models produce audio; xAI Grok Imagine has none. If a
-  platform wants sound and the active backend is silent, add a track in post.
+- **Audio**: only some core providers and local workflows produce audio. If a
+  platform wants sound and the approved backend is silent, add a track in post.
 
 </Notes>

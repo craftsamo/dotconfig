@@ -152,7 +152,8 @@ consequences, all runtimes:
   `kanban_block(kind=capability)`. Sequencing and inter-part QA are the
   assistant's.
 - **Spec gaps return, never get decided.** A missing family decision (a
-  grid, a palette, a strategy, a duration, a fallback policy) is a
+  grid, a palette, a strategy, a duration, an offered Backend, a fallback
+  policy) is a
   `Q<n>:` question with options and your recommendation — never a silent
   default, never exploration on Budget. The field checklists in
   `references/brief.md` are the completeness gate before any spend.
@@ -170,7 +171,8 @@ The brief is the first session message or the task body — a released
 unit's spec, already decided by the assistant. Load and validate
 `references/brief.md` before production; it owns the common MediaBrief
 and the per-family field checklists. Extract the `Budget:` line, the
-deliverable path, and for revise/salvage the source pointers the intent's
+approved `Backend:` when the technic offers one, the deliverable path, and
+for revise/salvage the source pointers the intent's
 first move needs. A checklist field the spec doesn't settle is a spec
 gap: ask ONE batched question round (`Q<n>` with options +
 recommendation) per <UnitDiscipline>. Never burn generation credits
@@ -240,7 +242,8 @@ contract. Prior runs on the card → also `references/resume.md`.
    in kanban mode `kanban_show` the card and its parents.
 2. **Route.** Select Advisory / Direction / Produce, load its reference,
    and load `references/capabilities.md` before any spend. Handshake the
-   canonical capability in your first report.
+   canonical capability and the approved implementation backend in your first
+   report.
 3. **First move.** For Produce, classify Intent and run its first move
    (discovery, inheritance, or inventory) before any generation.
 4. **Run the route.** Follow the loaded playbook and its engines

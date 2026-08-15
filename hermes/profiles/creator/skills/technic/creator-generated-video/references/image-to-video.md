@@ -9,7 +9,10 @@ frame). This is the motion analogue of the image skill's "derive-from-logo".
 
 <ImageToVideo>
 
-Call: `video_generate(prompt=…, image_url=…, aspect_ratio=…, duration=…)`.
+Core call: `video_generate(prompt=…, image_url=…, aspect_ratio=…,
+duration=…)`. With `external:comfyui`, upload/reference the source image through
+the preflighted local API workflow instead. The motion and framing guidance
+below applies to both backends.
 
 - `image_url` accepts an **http(s) URL, a `data:image/…` URI, or a local file
   path**. Generate/clean the still first (for example with the separately
@@ -23,7 +26,7 @@ Call: `video_generate(prompt=…, image_url=…, aspect_ratio=…, duration=…)
 - Keep motion **subtle** for product/brand stills — small camera moves and
   ambient motion read as "premium"; large motion warps the product.
 
-**Backend routing (automatic):**
+**Core provider routing (automatic):**
 
 - **xAI Grok Imagine**: image-to-video routes to `grok-imagine-video-1.5-preview`
   (latest); up to **7 `reference_image_urls`**; no audio.
@@ -31,18 +34,18 @@ Call: `video_generate(prompt=…, image_url=…, aspect_ratio=…, duration=…)
   3.1, Seedance 2.0, Kling v3, LTX 2.3); some support **audio** and
   **negative_prompt**. See `backends.md`.
 
-The `vid-xai-fal` chain tries Grok first, then FAL — so an image-to-video call
-animates via Grok 1.5 and falls back to a FAL model on error/limit.
+The configured core chain owns this provider fallback. It does not cross to or
+from `external:comfyui`.
 
 </ImageToVideo>
 
 <ReferenceGuided>
 
-To keep a character/product **consistent across multiple generations**, pass
-`reference_image_urls=[url1, url2, …]` (xAI Grok Imagine, up to 7). Use when you
-need several clips that share one identity (a mascot, a product from angles).
-FAL backends don't take reference images (`max_reference_images: 0`) — for those,
-reuse the same `image_url` first frame and a fixed `seed`.
+To keep a character/product **consistent across multiple generations**, core
+may pass `reference_image_urls=[url1, url2, …]` when its active provider supports
+them. A ComfyUI workflow may instead use its approved local reference/control
+nodes. In either case, use the exact Backend and reference mechanism fixed in
+the brief; never switch methods after seeing a result.
 
 </ReferenceGuided>
 

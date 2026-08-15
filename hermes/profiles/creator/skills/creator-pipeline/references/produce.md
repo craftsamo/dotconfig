@@ -21,6 +21,12 @@ owns craft and medium-specific production details; this pipeline continues to
 own Budget,
 questions, review, verification floor, and delivery.
 
+When that leaf offers multiple backends, validate the MediaBrief's `Backend:`
+against the capability table before preflight. The backend may change the tool,
+runtime, and spend shape, but never the canonical leaf. A failed external
+backend returns a capability/spec finding; it does not authorize a switch to
+core generation.
+
 A dispatch may preload a canonical technic, but preload is not proof that it
 resolved. Perform the capability handshake from that reference before spend.
 The body remains authoritative enough to recover from a skipped optional pin;
