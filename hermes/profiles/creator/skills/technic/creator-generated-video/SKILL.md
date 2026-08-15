@@ -18,7 +18,8 @@ metadata:
 
 Produce a generated clip that fits its destination and source identity. This is
 a leaf technic: text-to-video, image-to-video, and reference-guided are modes of
-the same metered generation tool and share one verification floor.
+the same generated-video capability and share one verification floor. The
+approved Backend is either `core:video_generate` or `external:comfyui`.
 
 </Goal>
 
@@ -40,7 +41,7 @@ the same metered generation tool and share one verification floor.
   `creator-media-assembly`).
 - Video *understanding* (that's `video_analyze`).
 - HTML/canvas-composited motion graphics, title cards, captions, or shader
-  transitions (that's the bundled `hyperframes` skill).
+  transitions (`creator-html-motion`).
 - A full multi-agent production pipeline (bundled `kanban-video-orchestrator`).
 
 </DoNotUseWhen>
@@ -60,6 +61,10 @@ validate both before any spend:
    keeps brand identity far better than text-to-video)? Reference frames?
    Palette, subject, and the **motion language** (locked vs moving camera, how
    much subject motion, pacing). See `references/image-to-video.md`.
+3. **Backend** — the MediaBrief must name `core:video_generate` or
+   `external:comfyui`; it is not selected from runtime convenience. Core keeps
+   its configured in-chain fallback. ComfyUI stays local and stops on a failed
+   preflight or render.
 
 If either set is absent or contradicted by discovery, that is a spec gap: use the
 pipeline's single batched `Q<n>:` block protocol rather than guessing or calling
@@ -74,21 +79,31 @@ pipeline's single batched `Q<n>:` block protocol rather than guessing or calling
    social reel, in-app demo), how long, and what exact size?"
 2. **Discover preconditions** (`references/discovery.md`): codebase grep / stated
    specs → destination constraints + brand/source assets.
-3. **Pick the strategy**:
+3. **Preflight the approved Backend** (`references/backends.md`). For ComfyUI,
+   load `skill_view(name="comfyui")` and verify the local accelerator, server,
+   API-format workflow, models, nodes, output node, and runtime estimate before
+   model load. Pin the loopback host and workflow SHA-256; audit every
+   `class_type` against that same host's `/object_info`. Partner/API nodes are a
+   cloud backend and do not satisfy `external:comfyui`.
+4. **Pick the strategy**:
 
    | Strategy | When | How |
    |---|---|---|
-   | **image-to-video** | a brand still / first frame exists; brand consistency matters | `video_generate(prompt=…, image_url=…)` → `references/image-to-video.md` |
-   | **text-to-video** | no source; concept/atmosphere clip | `video_generate(prompt=…)` → `references/text-to-video.md` |
-   | **reference-guided** | identity must persist across shots (xAI: up to 7 refs) | `reference_image_urls=[…]` → `references/image-to-video.md` |
+   | **image-to-video** | a brand still / first frame exists; brand consistency matters | selected backend + source image → `references/image-to-video.md` |
+   | **text-to-video** | no source; concept/atmosphere clip | selected backend + prompt → `references/text-to-video.md` |
+   | **reference-guided** | identity must persist across shots | backend-supported references/workflow → `references/image-to-video.md` |
 
-4. **Validate tradeoffs** against the released spec (cost × duration × count;
+5. **Validate tradeoffs** against the released spec (cost × duration × count;
    audio yes/no; text-in-video = no) — a tradeoff the spec left open goes back as
    a spec gap. See below.
-5. **Produce → review → tune → iterate** (dials below). Write the final prompt +
-   params to `prompts/NN-<slug>.md` first so it is reproducible and cheap to
-   re-run on another backend.
-6. **Post-process** to the exact target (`scripts/video-postprocess.sh`): trim,
+6. **Produce → review → tune → iterate** on only the approved Backend. Write the
+   final prompt + params to `prompts/NN-<slug>.md` first. For ComfyUI also record
+   the workflow, model files, seed, sampler, steps, and runtime ceiling. Every
+   submitted workflow counts as a render even when it has zero marginal API
+   cost. Preserve the runner JSON and same-host raw history entry for the
+   returned `prompt_id`; without them the submitted graph and runtime are not
+   verified.
+7. **Post-process** to the exact target (`scripts/video-postprocess.sh`): trim,
    correct aspect/resolution, transcode, mute/strip audio, cap size. For loops
    use `scripts/make-loop.sh`; for a `<video poster>` use
    `scripts/poster-frame.sh`; for a **GIF** use `scripts/to-gif.sh` (also does a
@@ -109,7 +124,8 @@ missed before spending:
   pick a quiet backend/model and strip audio in post. For social, native audio
   (Veo 3.1 / Seedance / Kling / LTX) may be wanted.
 - **Text in the video?** Almost always **no** — generated on-screen text warps
-  and flickers. Overlay titles/captions in post or via the `hyperframes` skill.
+  and flickers. Overlay titles/captions in post or via
+  `creator-html-motion`.
 - **People / faces** — motion artifacts on faces/hands are common; prefer
   image-to-video from a fixed still, shorter shots, and locked framing.
 - **Output format** — for the web prefer mp4/webm (autoplay-muted-loop); use
@@ -118,31 +134,32 @@ missed before spending:
 
 </Tradeoffs>
 
-<ToolEssentials>
+<BackendEssentials>
 
-- **One tool, two modalities**: pass `image_url` to **animate a still**
-  (image-to-video); omit it for **text-to-video**. The active backend
-  auto-routes to the right endpoint.
-- **Backend is not agent-selectable**: it uses the user's configured chain
-  (here: `video_gen.provider: vid-xai-fal` — **Grok Imagine → FAL.ai** with
-  failover; `vid-fal-xai` is the reverse). **Do not hardcode `model=`** — a name
-  valid for one backend is invalid for the other and breaks failover. To change
-  the model family, switch `video_gen.provider` or pin a backend (see
-  `references/backends.md`).
+- **Core has two modalities**: pass `image_url` to `video_generate` to animate a
+  still; omit it for text-to-video. The configured core chain auto-routes and
+  owns its internal fallback. **Do not hardcode `model=`** because a model name
+  valid for one chain member can break another.
+- **ComfyUI is workflow-routed**: use the external skill's local runner with the
+  exact preflighted API workflow. Inputs, model names, dimensions, frame count,
+  and sampler settings live in that workflow/args, not in `video_generate`.
+  Hosted Partner nodes are not this backend.
 - **Capabilities differ by backend** — aspect ratios, resolutions, max duration,
-  audio, and reference-image support are **not** uniform. The tool description is
-  rebuilt at session start to reflect the *active* backend; still check
-  `references/backends.md` before promising a 4K/audio/portrait clip.
-- **Params you control per call**: `prompt`, `image_url`, `aspect_ratio`,
-  `duration` (seconds), `resolution`, `negative_prompt` (FAL only), `audio`
-  (FAL only), `reference_image_urls` (xAI), `seed` (reproducibility).
-- **Return value**: a result whose `video` is **either a URL or a local absolute
-  path**. **Hosted URLs expire (hours/days) — save locally immediately** via
-  `scripts/video-postprocess.sh` (it accepts a URL or a path).
+  audio, and reference-image support are **not** uniform. For core, the tool
+  description reflects its active provider; for ComfyUI, the preflighted graph
+  is authoritative. Check `references/backends.md` before promising a
+  4K/audio/portrait clip.
+- **Core params**: `prompt`, `image_url`, `aspect_ratio`, `duration`,
+  `resolution`, `negative_prompt` (FAL only), `audio` (FAL only),
+  `reference_image_urls` (xAI), and `seed`. ComfyUI parameters belong to its
+  recorded workflow/args.
+- **Return value**: core returns a URL or local absolute path; ComfyUI writes a
+  local output. Hosted core URLs expire, so save them locally immediately via
+  `scripts/video-postprocess.sh`.
 - **Reproducibility**: save each final prompt + params to `prompts/NN-<slug>.md`
-  before calling, so you can regenerate or switch backends later.
+  before calling. A later backend change is a new planned decision, not a retry.
 
-</ToolEssentials>
+</BackendEssentials>
 
 <TuningDials>
 
@@ -168,7 +185,8 @@ missed before spending:
 - **Aspect/resolution mismatch** — generate at the nearest supported ratio
   (`references/backends.md`), then crop/pad to the exact target in post.
 - **Audio assumptions** — xAI Grok Imagine has **no audio**; only some FAL models
-  do. Don't promise sound without checking the active backend.
+  and ComfyUI workflows do. Don't promise sound without checking the approved
+  backend's actual capability.
 - **Seamless loops** aren't free — generated clips rarely loop cleanly; build the
   loop with `scripts/make-loop.sh` (crossfade or palindrome).
 
@@ -181,7 +199,7 @@ missed before spending:
 - `references/text-to-video.md` — prompt motion from scratch (camera, subject, pacing, seed).
 - `references/image-to-video.md` — animate a still / reference-guided for brand consistency.
 - `references/social-specs.md` — platform duration/aspect/codec tables (Reels/TikTok/Shorts/X/YT/LinkedIn).
-- `references/backends.md` — the `vid-xai-fal` / `vid-fal-xai` chain + per-backend capability matrix.
+- `references/backends.md` — core provider-chain capabilities + local ComfyUI preflight boundary.
 - `references/loops-and-posters.md` — seamless loops, poster frames, autoplay-muted-loop HTML.
 - `references/gifs.md` — GIF vs mp4/webm, the two image→GIF routes, size discipline.
 - `scripts/video-postprocess.sh` — localize → trim → scale/crop → transcode → mute → size-cap.

@@ -18,6 +18,22 @@ delivered file satisfies it, and how do you know? A requirement you cannot
 point at is not done. Count check in the same pass: exactly the brief's
 quantity, nothing missing, nothing extra billed.
 
+For a canonical technic that offers multiple implementations, Backend is also
+an acceptance requirement. Compare the MediaBrief, capability handshake, and
+actual execution: core provider fallback stays within the approved core
+backend; `external:comfyui` used the preflighted local workflow and did not call
+a Partner API node or cross to core generation. A visually acceptable artifact
+from the wrong Backend fails V1.
+
+For ComfyUI, compare the approved loopback host and workflow SHA-256 with the
+runner result and same-host raw `/history/<prompt_id>` entry. The submitted graph
+must contain only audited local node classes and reproduce the reported
+model/seed parameters. Compare its separately recorded effective-graph hash and
+semantic structure with the source: node IDs/classes/wiring stay fixed, while
+only recorded parameter injections may differ. Missing raw history, an
+unexplained structural change, a non-loopback host, or a hosted Partner/custom
+node means the Backend claim is unverified and V1 fails.
+
 ## V2 — SpecCheck (mechanical conformance)
 
 Measure, never eyeball, the numbers. From the workspace, with wrapper
@@ -74,6 +90,10 @@ count), corrective passes used, against the effective Budget (body +
 match what actually ran — a mismatch means either an unrecorded spend or an
 unearned cap left unreported. Overrun discovered here is a report line,
 never silently absorbed.
+
+Count each submitted ComfyUI workflow as a generation/render attempt and report
+its measured runtime against the local runtime grant. Zero marginal API cost is
+not unlimited compute, and switching Backend is never a budget workaround.
 
 ## V6 — DeliveryCheck (nothing stranded)
 

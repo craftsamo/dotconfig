@@ -1,8 +1,8 @@
 <Goal>
 
 GIF is a **delivery format**, produced in post from a clip (or a still). The
-`video_generate` backends never output GIF directly — generate a clip, then
-convert with `scripts/to-gif.sh`.
+generated-video capability delivers a clip; convert it with
+`scripts/to-gif.sh` rather than changing Backend for the container.
 
 </Goal>
 
@@ -40,7 +40,7 @@ to-gif.sh "$VIDEO_URL" demo.gif --width 600 --fps 15 --max-bytes 2M
 Two routes:
 
 - **(A) AI motion** — animate a brand still, then convert:
-  `video_generate(image_url=still)` → clip → `to-gif.sh clip out.gif`.
+  approved generated-video Backend + still → clip → `to-gif.sh clip out.gif`.
   Real, content-aware motion. Costs a generation. See `image-to-video.md`.
 - **(B) No-AI Ken Burns** — synthesize a slow zoom/pan on the still, no model call:
   `to-gif.sh logo.png out.gif --ken-burns --kb-seconds 4 --width 480`.

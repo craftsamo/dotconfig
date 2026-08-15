@@ -34,8 +34,8 @@ belongs to `creator-text-card`; deterministic icons belong to
 
 <Print>
 
-- Work at **300 DPI**: pixels = inches × 300 (e.g. 4×6 in → 1200×1800 px). Note
-  `image_generate` resolution is limited — generate the largest available, then
+- Work at **300 DPI**: pixels = inches × 300 (e.g. 4×6 in → 1200×1800 px).
+  Generate at the approved backend's largest practical source size, then
   upscale/sharpen in `img-postprocess.sh` only as needed; avoid tiny sources for
   large prints.
 - Use **CMYK-safe** colors when the printer requires it (convert at export;

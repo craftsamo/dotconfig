@@ -1,9 +1,12 @@
 <Goal>
 
-`video_generate` dispatches to whatever `video_gen.provider` names. On this
-machine that's a **fallback chain** (plugin: `video-fallback`), so a call tries
-one backend and falls through to the next on unavailability / error / rate-limit
-/ missing tier.
+This reference covers the two approved implementation backends behind
+`creator-generated-video`. The MediaBrief fixes one before production.
+
+For `core:video_generate`, the tool dispatches to whatever
+`video_gen.provider` names. On this machine that is a **fallback chain**
+(plugin: `video-fallback`), so a call tries one provider and falls through to the
+next on unavailability / error / rate-limit / missing tier.
 
 | `video_gen.provider` | Order | Use |
 |---|---|---|
@@ -16,6 +19,49 @@ invalid for the other and breaks failover. To force a specific model family, set
 the backend directly (not the chain) and configure its model via `hermes tools`.
 
 </Goal>
+
+<ComfyUILocal>
+
+`external:comfyui` is a separate local workflow runtime, not a member of the
+core fallback chain. Load the official `comfyui` skill and preflight, without
+submitting a prompt:
+
+- `comfy` resolves the intended workspace, and the approved host is an exact
+  loopback URL (`127.0.0.1` / `localhost`), never Comfy Cloud or a proxy;
+- hash the selected API-format workflow and keep that path + SHA-256 in the
+  capability handshake;
+- `health_check.py` is reachability/dependency evidence, not proof of the whole
+  preflight: inspect `server.stats.devices` for the expected accelerator (never
+  CPU), require `node_check_skipped: false`, empty missing lists, and empty
+  `folder_errors`;
+- run `extract_schema.py` and inspect the workflow's models and output/container
+  nodes explicitly;
+- query the same host's `/object_info` and audit every workflow `class_type`.
+  Reject `api_node: true`, Partner/API categories, and custom nodes whose package
+  or source is not installed in the resolved local workspace. For every
+  non-core custom node, require a trusted-package allowlist entry or inspect its
+  source for outbound HTTP clients, cloud SDKs, API-key reads, subprocesses, and
+  hidden hosted-generation calls;
+- every model file and custom node exists, and newly installed nodes have been
+  loaded by a server restart;
+- the estimated render time fits the MediaBrief's local runtime grant;
+- output nodes write a supported video container to a durable/localizable path;
+- the graph contains no ComfyUI Partner API node. Such a node is hosted
+  generation with a separate wallet, not the approved local backend.
+
+Any failed check blocks this backend. Do not call `video_generate`, switch to a
+Partner node, download a new model, or cross to cloud without a new released
+decision from the Assistant.
+
+Only the selected run proves executability. Preserve `run_workflow.py`'s JSON,
+then use its `prompt_id` with the external skill's `fetch_logs.py --raw --host
+<same-loopback-host>`. The raw history entry is the evidence for the effective
+submitted graph, model/seed parameters, status, and execution timing. Hash the
+effective graph separately and compare node IDs/classes/wiring with the
+pre-run source; recorded parameter injections may differ. If history was not
+captured, report those claims as unknown and do not pass V1.
+
+</ComfyUILocal>
 
 <CapabilityMatrix>
 

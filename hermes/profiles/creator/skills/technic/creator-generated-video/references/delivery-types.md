@@ -22,13 +22,14 @@ destination (`discovery.md`). Confirm exact specs per platform in
 
 <StrategyMeanings>
 
-- **text-to-video** — `video_generate(prompt=…)`. Best for atmosphere/concept
-  clips with no source. Hardest to keep on-brand. See `text-to-video.md`.
-- **image-to-video** — `video_generate(prompt=…, image_url=…)`. Animate an
-  existing brand still/first frame. **Best brand consistency** — prefer this
-  whenever a still exists. See `image-to-video.md`.
-- **reference-guided** — `reference_image_urls=[…]` (xAI Grok Imagine, up to 7)
-  to persist a subject/identity across generations. See `image-to-video.md`.
+- **text-to-video** — prompt-only generation through the approved Backend. Best
+  for atmosphere/concept clips with no source; hardest to keep on-brand. See
+  `text-to-video.md`.
+- **image-to-video** — animate an existing brand still/first frame through the
+  approved Backend. **Best brand consistency**; prefer this whenever a still
+  exists. See `image-to-video.md`.
+- **reference-guided** — use only the approved Backend's supported reference
+  inputs or local workflow nodes to persist identity. See `image-to-video.md`.
 
 </StrategyMeanings>
 

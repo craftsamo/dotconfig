@@ -8,7 +8,7 @@ only when they share tools, spend class, and verification.
 
 | Deliverable / production method | Canonical technic | Notes |
 | --- | --- | --- |
-| generated cover, hero, illustration, thumbnail, text-free social/document art | `creator-generated-image` | metered `image_generate`; exact text stays out |
+| generated cover, hero, illustration, thumbnail, text-free social/document art | `creator-generated-image` | metered `core:image_generate` or preflighted `external:comfyui`; exact text stays out |
 | consistent illustration set placed against an article | `creator-article-illustration` | metered `image_generate`; article analysis + placement map + shared style block |
 | information-led visual summary with a layout x style grammar | `creator-infographic` | metered `image_generate`; dense exact labels route to deterministic SVG |
 | precise architecture, scientific, educational, or general concept diagram | `creator-svg-diagram` | deterministic self-contained HTML + inline SVG; rendered preview required |
@@ -21,7 +21,7 @@ only when they share tools, spend class, and verification.
 | instrumental music, ambience, or sound effects generated with AudioCraft | `creator-audio-generation` | metered local MusicGen/AudioGen compute; model weights and reference rights require preflight |
 | full vocal song generated from approved lyrics and musical tags | `creator-song-generation` | metered HeartMuLa compute; high-cost work uses the plan/anchor gate |
 | existing reaction or communication GIF sourced from Tenor | `creator-gif-sourcing` | retrieval with provenance and rights caveat; never asset generation |
-| text-to-video, image-to-video, or reference-guided generated clip | `creator-generated-video` | metered `video_generate`; GIF/loop/poster may be delivery post-steps |
+| text-to-video, image-to-video, or reference-guided generated clip | `creator-generated-video` | metered `core:video_generate` or preflighted `external:comfyui`; GIF/loop/poster may be delivery post-steps |
 | deterministic motion graphics, product/site tours, overlays, or captioned video authored in HTML/CSS/JS | `creator-html-motion` | HyperFrames source project + MP4/WebM; supporting generation is separately budgeted |
 | generative art, interactive canvas/WebGL experience, custom data visual, or p5.js export | `creator-p5js-experience` | seeded browser-native source; PNG/GIF/MP4/SVG are optional exports |
 | video-to-ASCII, audio-reactive, generative, hybrid, lyric, or TTS-backed ASCII motion | `creator-ascii-video` | deterministic Python/ffmpeg render; supporting generation/TTS is separately budgeted |
@@ -67,6 +67,12 @@ support as implementation engines. Other niche assets may use an
    `creator-html-motion`; p5.js canvas/WebGL work is
    `creator-p5js-experience`; mathematical teaching animation is
    `creator-manim-explainer`.
+8. ComfyUI is an implementation backend, never a canonical capability. An image
+   generated through it remains `creator-generated-image`; a clip remains
+   `creator-generated-video`. Use only the Backend approved in the MediaBrief.
+   `core:image_generate` / `core:video_generate` may use their configured
+   in-chain fallback. `external:comfyui` stops on failed preflight or execution
+   and returns the finding; it never crosses to a core/cloud backend silently.
 
 ## Capability handshake
 
@@ -83,7 +89,29 @@ a required backend, load the canonical name explicitly. If that still fails,
 block before spend. A core/external route must pass its own tool/prerequisite
 preflight. Never fall back silently to generic image/video generation.
 
+For `external:comfyui`, the existing handshake fields carry the local-boundary
+evidence; do not invent a second schema. `backend:` names the exact external
+runner, loopback host, workflow path, and workflow SHA-256. `preflight:` records
+the non-CPU device, dependency result, and a same-host `/object_info` audit of
+every workflow `class_type`. Reject any `api_node: true`, Partner/API category,
+cloud host, Partner key, skipped node check, missing dependency, or model-folder
+query error. `health_check.py` is only reachability/dependency evidence: also run
+`extract_schema.py` and inspect model loaders plus output/container nodes before
+submission. Every non-core custom node requires either an explicit trusted
+package allowlist entry or source review for outbound HTTP clients, cloud SDKs,
+API-key reads, subprocesses, and hidden hosted-generation calls; local
+installation alone is not locality evidence.
+
+Hash the source workflow immediately before execution. After execution,
+preserve the runner result and same-host raw history entry, then separately hash
+the effective submitted graph from history. Compare node IDs, classes, and
+wiring semantically; only the recorded prompt/seed/input/parameter injections
+may differ. Record both hashes and the allowed injection diff rather than
+expecting the parameterized graph to equal the source-file hash.
+
 External opt-in skills are implementation/catalog inputs, not stable dispatch
 identities unless this file explicitly names them. In particular, never pin or
 `skill_view` the ambiguous bare `pixel-art`; the canonical pixel technics own
-its optional scripts.
+its optional scripts. Likewise, report ComfyUI as the backend of
+`creator-generated-image` or `creator-generated-video`, never as
+`capability: external:comfyui`.
