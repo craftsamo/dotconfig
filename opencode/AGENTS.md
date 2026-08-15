@@ -96,6 +96,15 @@ in the primary session); triage stays in the primary per the skill's rubric.
 
 </UxPersonaTestingSkill>
 
+<SkillAuthoringSkill>
+
+When the user explicitly asks to create or update an Agent Skill, skill
+directory, or `SKILL.md`, load and follow the `skill-authoring` skill. Do not
+load it merely because a workflow appears repetitive, and do not use it for
+general prompt, agent, command, plugin, or documentation authoring.
+
+</SkillAuthoringSkill>
+
 <JapaneseWritingSkills>
 
 ALL Japanese deliverable text — writing, revising, inspecting, or scoring —
