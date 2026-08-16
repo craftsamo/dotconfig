@@ -13,7 +13,7 @@ its own `config.yaml` / `SOUL.md` / `skills/` / `cron/` / state, and a
 ## Topology
 
 ```
-   human (terminal)            human (Telegram)
+   human (terminal)        human (Telegram / Discord)
           │                              │
         default ──┐                  assistant ──┐   (runs the gateway + kanban dispatcher)
         (CLI)     │                (~/Workspaces)│
@@ -75,7 +75,7 @@ itself call `delegate_task` during its run.
 | Profile | Role | Front door | `terminal.cwd` | Toolsets | Gateway | Tracked |
 | --- | --- | --- | --- | --- | --- | --- |
 | **default** | CLI front door — assistant's CLI counterpart (neutral persona) | CLI | `.` (launch dir) | `web,browser,terminal,file,code_execution,vision,x_search,skills,todo,memory,clarify,delegation,cronjob,kanban` | — | yes |
-| **assistant** | messaging front door + dispatcher host | Telegram | `~/Workspaces` | `web,browser,terminal,file,vision,x_search,skills,todo,memory,clarify,delegation,cronjob,computer_use,kanban` + `unreal-engine` MCP | **yes** | yes (token per-machine) |
+| **assistant** | messaging front door + dispatcher host | Telegram + Discord | `~/Workspaces` | `web,browser,terminal,file,vision,x_search,skills,todo,memory,clarify,delegation,cronjob,computer_use,kanban` + `unreal-engine` MCP | **yes** | yes (token per-machine) |
 | **engineer** | supervises OpenCode: assess (read-only) / implement (from the assistant's plan session or an Issue; delegated worktree bootstrap in a repo the assistant created), under an Authority grant; planning documents, repo creation, and GitHub bookkeeping stay with the assistant | — (specialist) | `.` (launch / task ws) | `terminal,file,web,skills,todo,memory,delegation` | — | yes |
 | **researcher** | verified conclusions from released units: evidence-pack / tradeoff-matrix / fact-check / guidance; heavy breadth is requested from the orchestrator as a search unit | — (specialist) | `.` (launch / task ws) | `file,web,vision,video,skills,memory,delegation` | — | yes |
 | **searcher** | retrieval from released units: lookup / sweep / hunt (multi-hop via `goal_mode` on cards) | — (specialist) | `.` (launch / task ws) | `web,x_search,skills,memory` | — | yes |
@@ -87,10 +87,10 @@ The table lists each role's native capability allowlist. `platform_toolsets` is
 the runtime authority; top-level `toolsets` mirrors it and retains `kanban` on
 the two front doors for the runtime gate. Dispatcher-spawned workers receive
 task-scoped Kanban lifecycle tools automatically. Platforms without MCP access
-carry the `no_mcp` denial sentinel; assistant CLI/Telegram and creator CLI instead
-name only `unreal-engine`, which prevents inheritance of future MCP servers.
-Worker Telegram / Discord lists, default's messaging lists, and assistant's
-disabled Discord list are empty by design.
+carry the `no_mcp` denial sentinel; assistant CLI/Telegram/Discord and creator
+CLI instead name only `unreal-engine`, which prevents inheritance of future MCP
+servers. Worker Telegram / Discord lists and default's messaging lists are empty
+by design.
 
 Role split: **the assistant** plans with the user, supervises specialists,
 performs the quality gate itself (the QA contracts under
@@ -437,12 +437,17 @@ Three per-profile layers, kept separate:
   `media/gif-search` for marketer (`TENOR_API_KEY`), and the `mlops/`
   library (HF-account-centric).
 
-Routing (assistant): `assistant-pipeline` owns it. The skill is
-**auto-loaded into every new Telegram DM session** via the chat-wide
-`telegram.channel_skill_bindings` entry (root DM plus fixed and user-created
-topics; gateway injects the skill body into the session's first turn;
-`compression.protect_first_n` keeps it alive; existing sessions pick it up
-after `/new` or an idle reset). Every request flows Classify → Locate → Mode
+Routing (assistant): `assistant-pipeline` owns it. Telegram auto-loads the skill
+through its chat-wide `channel_skill_bindings` entry (root DM plus fixed and
+user-created topics). Discord binds the allowlisted guild channel explicitly;
+auto-created threads inherit that parent binding and channel prompt. Discord DM
+bindings require the literal DM channel ID and cannot use a user-ID wildcard: the
+first authorized DM is bootstrap-only, then its channel ID is added to both
+`channel_skill_bindings` and `channel_prompts`, the gateway is restarted, and
+`/new` starts the first working session. The gateway injects the skill body into
+the session's first turn; `compression.protect_first_n` keeps it alive; existing
+sessions pick it up after `/new` or an idle reset. Every working request flows
+Classify → Locate → Mode
 (Chat / Plan / Execute / Quality Assurance) → Deliver. Questions are risk/ambiguity driven:
 a settled request does not pay an interview tax. Tier selection is by context
 dependence, not size: `inline` for conversation/quick local work, a
@@ -742,8 +747,9 @@ via a **LaunchAgent**. Three tracked, machine-agnostic files in `hermes/launchd/
 - **`hermes-gateway-assistant`** — the launcher. Sets `PATH`, `cd`s to
   `~/Workspaces`, logs to `~/.hermes/logs/gateway-assistant.log`, `eval`s the
   `global` + `hermes` Keychain layers (`TELEGRAM_BOT_TOKEN` /
-  `OPENROUTER_API_KEY` / `GITHUB_TOKEN` / …) like the shim does, then execs the
-  real `hermes -p assistant gateway run`. Every path is `$HOME`-relative — no
+  `DISCORD_BOT_TOKEN` / `OPENROUTER_API_KEY` / `GITHUB_TOKEN` / …) like the shim
+  does, then execs the real `hermes -p assistant gateway run`. Every path is
+  `$HOME`-relative — no
   hardcoded home, no `.env`. (`secret env` has **no `-- <cmd>` form**, hence the
   `eval`.)
 - **`local.hermes.gateway.assistant.plist.tmpl`** — LaunchAgent template with a
@@ -753,12 +759,20 @@ via a **LaunchAgent**. Three tracked, machine-agnostic files in `hermes/launchd/
 - **`gateway-launchctl.sh`** — renders the template (`__HOME__` → `$HOME`) into
   `~/Library/LaunchAgents/` (host-local, never committed) and loads it.
 
-**Telegram-only — workaround for upstream #40695.** With Discord connected the
-gateway's `_handoff_watcher` blocks the event loop on a `list_pending_handoffs`
-SQLite query and hangs (discord heartbeat stalls, dispatcher stops). The launcher
-`unset`s `DISCORD_*` so only Telegram runs — verified stable, with the embedded
-dispatcher auto-claiming tasks across ticks. Re-enable Discord (drop the `unset`
-line) once the bug is fixed.
+**Telegram + Discord.** Upstream #40695 previously let `_handoff_watcher` block
+the asyncio loop on synchronous SQLite access, stalling Discord heartbeats and
+the dispatcher. The installed fork now wraps gateway DB calls in
+`AsyncSessionDB` / `asyncio.to_thread` and carries dedicated regression tests, so
+the launcher exposes both platform credentials. Keep the Discord toolset
+granular and equal to Telegram; never replace either list with a broad bundled
+toolset.
+
+Discord is limited to the private config's user and channel allowlists. A channel
+mention creates a thread; the parent channel's `assistant-pipeline` binding and
+prompt carry into that thread. Live voice uses `/voice join` and the existing
+STT/TTS fallback chains. It leaves after five idle minutes by default, and a
+gateway restart requires a manual rejoin. Cron/system Inbox delivery stays on
+Telegram to avoid duplicate proactive notifications.
 
 Activate on the **gateway host only** (one bot token = one live connection — stop
 any gateway elsewhere first):
@@ -788,8 +802,9 @@ Routing quality depends on `profile.yaml` descriptions — create workers with
 ## Status (as-built)
 
 Built and verified through v4 (2026-07 → 2026-08-03): the six specialists,
-the assistant gateway (keychain-pure LaunchAgent, Telegram-only per #40695,
-`dispatch_interval_seconds: 15`), model chains (doctor + live probes), and
+the assistant gateway (keychain-pure LaunchAgent; Telegram + Discord after
+upstream issue #40695's async-DB fix; `dispatch_interval_seconds: 15`), model
+chains (doctor + live probes), and
 the v4 contract's Phase 7 verification (89 tests, live canaries, subscribed
 QA). Active model slugs confirmed 2026-07: `anthropic` / `claude-opus-5`,
 `xai-oauth` / `grok-4.3` (searcher T1), `openai-codex` / `gpt-5.6-sol`
