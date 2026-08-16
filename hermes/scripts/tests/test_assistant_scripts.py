@@ -16,6 +16,12 @@ ASSISTANT_SCRIPTS = HERMES_ROOT / "profiles" / "assistant" / "scripts"
 
 
 class AssistantScriptTest(unittest.TestCase):
+    def test_gateway_launcher_keeps_discord_credentials(self) -> None:
+        launcher = HERMES_ROOT / "launchd" / "hermes-gateway-assistant"
+        text = launcher.read_text(encoding="utf-8")
+        self.assertNotIn("unset DISCORD_", text)
+        self.assertIn("gateway run --replace --accept-hooks", text)
+
     def test_block_resolver_requires_decision_and_resets_counter(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

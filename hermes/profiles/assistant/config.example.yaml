@@ -43,35 +43,16 @@ agent:
     paraphrase a command. Keep plain prose for short conversational replies
     (greeting / ack / clarifying / progress) — don't over-structure trivial answers.
 
-    ### Telegram delivery
+    ### Messaging delivery
 
     These rules apply to interactive Assistant replies. `no_agent` Cron jobs bypass
     the agent and deliver script stdout verbatim; their formatter, content, and Inbox
     routing belong to the script and runtime, not this prompt.
 
-    Telegram keeps ordinary prose on its legacy Markdown path and sends eligible
-    tables, task lists, details, and block math through native rich messages. Prefer
-    structured Markdown over plain prose whenever content naturally has sections,
-    steps, comparisons, status, tabular data, or optional detail; keep only short
-    conversational replies plain. Keep syntax simple so legacy fallback stays readable.
-    Keep a reply to roughly one phone screen, lead with the answer, and offer detail
-    on request.
-
-    Use these Telegram-friendly constructs proactively whenever the content has
-    matching structure; never add them as decoration:
-    - Headings and bullet / numbered lists — for sections, steps, comparisons,
-      and status.
-    - Regular quote (`>`) — for short quoted context, not for hiding
-      supplementary detail.
-    - Pipe tables (Japanese included) — for genuinely tabular data; keep them
-      compact so the rare fallback (bold + bullets) stays readable.
-    - Task lists (`- [ ]` / `- [x]`) — native checkboxes; right for plan
-      progress and multi-task status.
-    - `<details><summary>` — collapsible sections for bulky optional content.
-      Separate the summary, each body paragraph, and the closing tag with blank
-      lines so the gateway preserves the structure; never place math inside one.
-    - `~~strike~~` / `||spoiler||` — light persona accents; never hide
-      substantive facts in a spoiler.
+    Each messaging platform's channel prompt owns render-specific formatting.
+    Use simple headings, lists, quotes, and fenced code by default; use richer
+    constructs only when the active channel prompt opts in. Keep a reply to roughly
+    one phone screen, lead with the answer, and offer detail on request.
 
     ### Sources
 
@@ -88,8 +69,11 @@ agent:
 
     The `assistant-pipeline` skill owns the whole flow — modes Chat / Plan /
     Execute / Quality Assurance over tiers inline / resident / kanban —
-    auto-loaded in Telegram
-    DM sessions; load it (skill_view) before non-trivial work anywhere else.
+    auto-loaded in configured messaging channels; load it (skill_view) before
+    non-trivial work anywhere else.
+    An unbound Discord DM is bootstrap-only: keep it in Chat mode until its
+    channel ID has a binding and prompt, the gateway has restarted, and the user
+    starts a fresh session with `/new`.
     Baseline until it loads: conversation and quick lookups stay inline; start
     nothing heavy. Heavy work (creation, writing, deep research, code) runs by
     default in a resident specialist session via
@@ -142,7 +126,7 @@ agent:
     ### Kanban worker mode
 
     When spawned as a kanban worker (HERMES_KANBAN_TASK is set) you are NOT in a
-    chat: no user, no Telegram audience. Follow the task body and the injected
+    chat: no user, no messaging audience. Follow the task body and the injected
     kanban guidance only — kanban_show the task and its parent cards, do the work
     the body asks for, and end every run with kanban_complete or kanban_block.
     The answer-shape, memory, and work-routing sections above do not apply. Never
@@ -560,17 +544,39 @@ slack:
 discord:
   require_mention: true
   free_response_channels: ''
-  allowed_channels: ''
+  allowed_channels:
+  - 'YOUR_DISCORD_CHANNEL_ID'
   auto_thread: true
   thread_require_mention: false
   history_backfill: true
   history_backfill_limit: 50
   reactions: true
-  channel_prompts: {}
+  channel_skill_bindings:
+  - id: 'YOUR_DISCORD_CHANNEL_ID'
+    skills:
+    - assistant-pipeline
+  # A bot cannot know its DM channel ID before the first DM creates it. Copy the
+  # channel ID after that bootstrap message, replace this value, restart, then /new.
+  - id: 'YOUR_DISCORD_DM_CHANNEL_ID'
+    skills:
+    - assistant-pipeline
+  channel_prompts:
+    'YOUR_DISCORD_CHANNEL_ID': |
+      Discord-specific overrides:
+      - Prefer short headings, bullets, quotes, and fenced code.
+      - Avoid pipe tables and HTML details; Discord does not render them reliably.
+      - Attach long documents instead of splitting them across many chat messages.
+    'YOUR_DISCORD_DM_CHANNEL_ID': |
+      Discord-specific overrides:
+      - Prefer short headings, bullets, quotes, and fenced code.
+      - Avoid pipe tables and HTML details; Discord does not render them reliably.
+      - Attach long documents instead of splitting them across many chat messages.
   dm_role_auth_guild: ''
   server_actions: ''
   allow_any_attachment: false
   max_attachment_bytes: 33554432
+  voice_channel_inactivity_timeout_seconds: 300
+  voice_playback_timeout_seconds: 120
   voice_fx:
     enabled: false
     ambient_enabled: true
@@ -811,7 +817,22 @@ platform_toolsets:
   - computer_use
   - kanban
   - no_mcp
-  discord: []
+  discord:
+  - web
+  - browser
+  - terminal
+  - file
+  - vision
+  - x_search
+  - skills
+  - todo
+  - memory
+  - clarify
+  - delegation
+  - cronjob
+  - computer_use
+  - kanban
+  - no_mcp
 image_gen:
   provider: img-xai-codex-fal
 video_gen:

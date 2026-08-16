@@ -151,7 +151,7 @@ Each worker profile tracks exactly one `<profile>-pipeline/` and a `technic/`
 directory. Pipelines implement the shared `admit → route → act_or_plan → verify
 → handoff → terminal` lifecycle; Workers never register Kanban cards. The
 assistant keeps `technic/` here, while its `desks/` and `assistant-pipeline/`
-are private-overlay symlinks (personal Telegram operation; content tracked by
+are private-overlay symlinks (personal messaging operation; content tracked by
 the private-dotconfig repo); `default-pipeline` adapts that tree for the CLI. Every profile may grow an
 untracked `learned/` library. To promote a learned skill, review it, move the
 complete package into `technic/`, set `metadata.hermes.category: technic`, add

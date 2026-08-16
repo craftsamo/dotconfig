@@ -210,7 +210,7 @@ every worker's `<profile>-pipeline/` and `technic/` are maintainer-owned and
 tracked normally. The assistant's `assistant-pipeline/` and `desks/` are also
 maintainer-owned but live in the private overlay — symlinks into
 `~/.config/private`, tracked by the private-dotconfig repo (they encode the
-personal Telegram operation; this repo is public). Edit them through the same
+personal messaging operation; this repo is public). Edit them through the same
 paths; commit in the overlay repo. Runtime creates
 are forced into `learned/` by the `skill-topology` plugin; `learned/`, external
 skills and Hermes bookkeeping stay ignored. Do not use `skip-worktree` for
@@ -238,8 +238,9 @@ writes on the current machine, then commit it.
   never enter tracked config or docs. Dependencies come from
   `qwen3-tts/requirements.lock` and must stay hash-locked.
 - `launchd/gateway-launchctl.sh {install,status,uninstall}` — gateway LaunchAgent,
-  **one host only** (one bot token = one live connection). Telegram-only for now
-  (workaround for upstream #40695; don't re-enable Discord until fixed).
+  **one host only** (one bot token = one live connection). The same Assistant
+  process hosts Telegram + Discord and the embedded dispatcher. Discord requires
+  the `AsyncSessionDB` regression guards for resolved upstream #40695.
   `install` re-renders + reloads = **restart** (new process re-reads `config.yaml`);
   to apply config you can also send **`/restart`** in chat (drain → `KeepAlive`
   respawns one). **Stop = `uninstall`** (plist `KeepAlive:true`; a plain `kill` just

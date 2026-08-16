@@ -241,6 +241,167 @@ class GitBoundaryOverlayTest(unittest.TestCase):
         self.assertTrue(errors, "dangling overlay symlink must be reported")
 
 
+class AssistantMessagingConfigTest(unittest.TestCase):
+    def write_config(self, text: str) -> Path:
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        path = Path(directory.name) / "config.yaml"
+        path.write_text(text, encoding="utf-8")
+        return path
+
+    def test_accepts_matching_discord_front_door(self) -> None:
+        config = self.write_config(
+            "platform_toolsets:\n"
+            "  telegram: [web, terminal, no_mcp]\n"
+            "  discord: [web, terminal, no_mcp]\n"
+            "discord:\n"
+            "  require_mention: true\n"
+            "  allowed_channels: ['123']\n"
+            "  auto_thread: true\n"
+            "  channel_skill_bindings:\n"
+            "    - id: '123'\n"
+            "      skills: [assistant-pipeline]\n"
+            "    - id: 'dm-1'\n"
+            "      skills: [assistant-pipeline]\n"
+            "  channel_prompts:\n"
+            "    '123': Discord formatting\n"
+            "    'dm-1': Discord DM formatting\n"
+            "telegram:\n"
+            "  channel_skill_bindings:\n"
+            "    - id: 'tg-1'\n"
+            "      skills: [assistant-pipeline]\n"
+            "  channel_prompts:\n"
+            "    'tg-1': Telegram formatting\n"
+            "platforms:\n"
+            "  telegram:\n"
+            "    extra:\n"
+            "      dm_topics:\n"
+            "        - chat_id: 'tg-1'\n"
+        )
+        errors: list[str] = []
+        VALIDATOR.validate_assistant_messaging_config(config, errors)
+        self.assertEqual([], errors)
+
+    def test_rejects_discord_permission_drift(self) -> None:
+        config = self.write_config(
+            "platform_toolsets:\n"
+            "  telegram: [web, terminal]\n"
+            "  discord: [web]\n"
+            "discord:\n"
+            "  require_mention: true\n"
+            "  allowed_channels: ['123']\n"
+            "  auto_thread: true\n"
+            "  channel_skill_bindings:\n"
+            "    - id: '123'\n"
+            "      skill: assistant-pipeline\n"
+            "  channel_prompts:\n"
+            "    '123': Discord formatting\n"
+        )
+        errors: list[str] = []
+        VALIDATOR.validate_assistant_messaging_config(config, errors)
+        self.assertTrue(any("must match Telegram" in error for error in errors))
+
+    def test_rejects_missing_discord_pipeline_binding(self) -> None:
+        config = self.write_config(
+            "platform_toolsets:\n"
+            "  telegram: [web]\n"
+            "  discord: [web]\n"
+            "discord:\n"
+            "  require_mention: true\n"
+            "  allowed_channels: ['123']\n"
+            "  auto_thread: true\n"
+        )
+        errors: list[str] = []
+        VALIDATOR.validate_assistant_messaging_config(config, errors)
+        self.assertTrue(any("bind assistant-pipeline" in error for error in errors))
+
+    def test_rejects_unbound_allowlisted_discord_channel(self) -> None:
+        config = self.write_config(
+            "platform_toolsets:\n"
+            "  telegram: [web]\n"
+            "  discord: [web]\n"
+            "discord:\n"
+            "  require_mention: true\n"
+            "  allowed_channels: ['123', '456']\n"
+            "  auto_thread: true\n"
+            "  channel_skill_bindings:\n"
+            "    - id: '123'\n"
+            "      skill: assistant-pipeline\n"
+            "  channel_prompts:\n"
+            "    '123': Discord formatting\n"
+        )
+        errors: list[str] = []
+        VALIDATOR.validate_assistant_messaging_config(config, errors)
+        self.assertTrue(any("channel 456 must bind" in error for error in errors))
+        self.assertTrue(any("channel 456 must have" in error for error in errors))
+
+    def test_rejects_blank_discord_channel_prompt(self) -> None:
+        config = self.write_config(
+            "platform_toolsets:\n"
+            "  telegram: [web]\n"
+            "  discord: [web]\n"
+            "discord:\n"
+            "  require_mention: true\n"
+            "  allowed_channels: ['123']\n"
+            "  auto_thread: true\n"
+            "  channel_skill_bindings:\n"
+            "    - id: '123'\n"
+            "      skill: assistant-pipeline\n"
+            "  channel_prompts:\n"
+            "    '123': '   '\n"
+        )
+        errors: list[str] = []
+        VALIDATOR.validate_assistant_messaging_config(config, errors)
+        self.assertTrue(any("channel 123 must have" in error for error in errors))
+
+    def test_rejects_missing_discord_dm_binding(self) -> None:
+        config = self.write_config(
+            "platform_toolsets:\n"
+            "  telegram: [web]\n"
+            "  discord: [web]\n"
+            "discord:\n"
+            "  require_mention: true\n"
+            "  allowed_channels: ['123']\n"
+            "  auto_thread: true\n"
+            "  channel_skill_bindings:\n"
+            "    - id: '123'\n"
+            "      skill: assistant-pipeline\n"
+            "  channel_prompts:\n"
+            "    '123': Discord formatting\n"
+        )
+        errors: list[str] = []
+        VALIDATOR.validate_assistant_messaging_config(config, errors)
+        self.assertTrue(any("bind at least one DM" in error for error in errors))
+
+    def test_rejects_missing_telegram_front_door(self) -> None:
+        config = self.write_config(
+            "platform_toolsets:\n"
+            "  telegram: [web]\n"
+            "  discord: [web]\n"
+            "discord:\n"
+            "  require_mention: true\n"
+            "  allowed_channels: ['123']\n"
+            "  auto_thread: true\n"
+            "  channel_skill_bindings:\n"
+            "    - id: '123'\n"
+            "      skill: assistant-pipeline\n"
+            "    - id: 'dm-1'\n"
+            "      skill: assistant-pipeline\n"
+            "  channel_prompts:\n"
+            "    '123': Discord formatting\n"
+            "    'dm-1': Discord DM formatting\n"
+            "platforms:\n"
+            "  telegram:\n"
+            "    extra:\n"
+            "      dm_topics:\n"
+            "        - chat_id: 'tg-1'\n"
+        )
+        errors: list[str] = []
+        VALIDATOR.validate_assistant_messaging_config(config, errors)
+        self.assertTrue(any("Telegram chat tg-1 must bind" in error for error in errors))
+        self.assertTrue(any("Telegram chat tg-1 must have" in error for error in errors))
+
+
 class EndToEndTest(unittest.TestCase):
     def test_all_profiles_pass(self) -> None:
         result = subprocess.run(

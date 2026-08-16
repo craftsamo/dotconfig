@@ -1,4 +1,4 @@
-description: 'Messaging front door (Telegram; Discord pending #40695) and
+description: 'Messaging front door (Telegram + Discord) and
   Workflow v5 orchestrator: modes Chat / Plan / Execute / QA over inline,
   resident-session, and lean-kanban tiers. Supervises resident specialist
   sessions conversationally, owns the quality gate and GitHub bookkeeping,
