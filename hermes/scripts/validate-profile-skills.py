@@ -500,6 +500,146 @@ def validate_plugin_enabled(profile: str, config: Path, errors: list[str]) -> No
         )
 
 
+def validate_assistant_messaging_config(
+    config: Path, errors: list[str]
+) -> None:
+    """Pin the Assistant's Telegram/Discord front-door parity and routing."""
+    if not config.is_file():
+        errors.append(f"profile config not found: {config}")
+        return
+
+    data = load_yaml(config)
+    platform_toolsets = data.get("platform_toolsets", {})
+    if not isinstance(platform_toolsets, dict):
+        errors.append(f"platform_toolsets must be a mapping: {config}")
+        return
+
+    telegram_tools = platform_toolsets.get("telegram")
+    discord_tools = platform_toolsets.get("discord")
+    if not isinstance(discord_tools, list) or not discord_tools:
+        errors.append(f"Assistant Discord toolset must be non-empty: {config}")
+    elif discord_tools != telegram_tools:
+        errors.append(
+            f"Assistant Discord toolset must match Telegram exactly: {config}"
+        )
+
+    discord = data.get("discord", {})
+    if not isinstance(discord, dict):
+        errors.append(f"discord config must be a mapping: {config}")
+        return
+    allowed_raw = discord.get("allowed_channels")
+    if isinstance(allowed_raw, str):
+        allowed_channels = {
+            channel.strip() for channel in allowed_raw.split(",") if channel.strip()
+        }
+    elif isinstance(allowed_raw, list):
+        allowed_channels = {str(channel) for channel in allowed_raw if str(channel)}
+    else:
+        allowed_channels = set()
+    if not allowed_channels:
+        errors.append(f"Assistant Discord channels must be allowlisted: {config}")
+    if discord.get("require_mention") is not True:
+        errors.append(f"Assistant Discord must require channel mentions: {config}")
+    if discord.get("auto_thread") is not True:
+        errors.append(f"Assistant Discord auto-threading must stay enabled: {config}")
+
+    bindings = discord.get("channel_skill_bindings", [])
+    pipeline_channels: set[str] = set()
+    if isinstance(bindings, list):
+        for binding in bindings:
+            if not isinstance(binding, dict):
+                continue
+            skills = binding.get("skills")
+            if binding.get("skill") == "assistant-pipeline" or (
+                isinstance(skills, list) and "assistant-pipeline" in skills
+            ):
+                pipeline_channels.add(str(binding.get("id")))
+    for channel in sorted(allowed_channels - pipeline_channels):
+        errors.append(
+            f"Assistant Discord channel {channel} must bind assistant-pipeline: {config}"
+        )
+
+    prompts = discord.get("channel_prompts", {})
+    prompt_channels: set[str] = set()
+    if isinstance(prompts, dict):
+        prompt_channels = {
+            str(channel)
+            for channel, prompt in prompts.items()
+            if isinstance(prompt, str) and prompt.strip()
+        }
+    for channel in sorted(allowed_channels - prompt_channels):
+        errors.append(
+            f"Assistant Discord channel {channel} must have a channel prompt: {config}"
+        )
+    discord_dm_channels = pipeline_channels - allowed_channels
+    if not discord_dm_channels:
+        errors.append(f"Assistant Discord must bind at least one DM channel: {config}")
+    for channel in sorted(pipeline_channels - prompt_channels):
+        errors.append(
+            f"Assistant Discord binding {channel} must have a channel prompt: {config}"
+        )
+
+    telegram = data.get("telegram", {})
+    telegram_bindings = (
+        telegram.get("channel_skill_bindings", [])
+        if isinstance(telegram, dict)
+        else []
+    )
+    telegram_pipeline_chats: set[str] = set()
+    if isinstance(telegram_bindings, list):
+        for binding in telegram_bindings:
+            if not isinstance(binding, dict):
+                continue
+            skills = binding.get("skills")
+            if binding.get("skill") == "assistant-pipeline" or (
+                isinstance(skills, list) and "assistant-pipeline" in skills
+            ):
+                telegram_pipeline_chats.add(str(binding.get("id")))
+
+    telegram_prompts = (
+        telegram.get("channel_prompts", {}) if isinstance(telegram, dict) else {}
+    )
+    telegram_prompt_chats: set[str] = set()
+    if isinstance(telegram_prompts, dict):
+        telegram_prompt_chats = {
+            str(chat)
+            for chat, prompt in telegram_prompts.items()
+            if isinstance(prompt, str) and prompt.strip()
+        }
+
+    platforms = data.get("platforms", {})
+    telegram_platform = (
+        platforms.get("telegram", {}) if isinstance(platforms, dict) else {}
+    )
+    telegram_extra = (
+        telegram_platform.get("extra", {})
+        if isinstance(telegram_platform, dict)
+        else {}
+    )
+    dm_topics = (
+        telegram_extra.get("dm_topics", [])
+        if isinstance(telegram_extra, dict)
+        else []
+    )
+    telegram_root_chats: set[str] = set()
+    if isinstance(dm_topics, list):
+        telegram_root_chats = {
+            str(chat.get("chat_id"))
+            for chat in dm_topics
+            if isinstance(chat, dict) and chat.get("chat_id") is not None
+        }
+    if not telegram_root_chats:
+        errors.append(f"Assistant Telegram root chat must be configured: {config}")
+    for chat in sorted(telegram_root_chats - telegram_pipeline_chats):
+        errors.append(
+            f"Assistant Telegram chat {chat} must bind assistant-pipeline: {config}"
+        )
+    for chat in sorted(telegram_root_chats - telegram_prompt_chats):
+        errors.append(
+            f"Assistant Telegram chat {chat} must have a channel prompt: {config}"
+        )
+
+
 def validate_worker_card_gate(
     profile: str, catalog: dict[str, str], errors: list[str]
 ) -> None:
@@ -886,7 +1026,10 @@ def validate_assistant(
     )
     if config.is_file():
         validate_plugin_enabled("assistant", config, errors)
-    validate_plugin_enabled("assistant", profile_root / "config.example.yaml", errors)
+        validate_assistant_messaging_config(config, errors)
+    example_config = profile_root / "config.example.yaml"
+    validate_plugin_enabled("assistant", example_config, errors)
+    validate_assistant_messaging_config(example_config, errors)
     return (
         refs,
         catalog,
