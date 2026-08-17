@@ -114,3 +114,7 @@ hermes/plugins/hermes-achievements/
 # ~/.config/zsh/*.zsh; this one is for per-machine settings that belong in no
 # repo (private-but-durable shell config goes to private/zsh/ instead).
 zsh/local.zsh
+
+# browser_harness runtime state (pid files, daemon logs, screenshots, version
+# cache) written by browser-use when Hermes drives the automation browser
+browser-harness/
