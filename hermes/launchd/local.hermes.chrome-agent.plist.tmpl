@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!--
+    TEMPLATE — not loaded directly. `chrome-agent-launchctl.sh install` substitutes
+    __HOME__ with $HOME and writes the real plist to ~/Library/LaunchAgents/
+    (launchd does not expand ~ / env vars, so the path must be absolute; keeping
+    only the template in git avoids committing a machine-specific home path).
+
+    ProgramArguments is the launcher script itself (not `/bin/sh …`) so the
+    process reads as "hermes-chrome-agent". Port, profile dir and the browser
+    binary lookup live in that script.
+  -->
+  <key>Label</key>
+  <string>local.hermes.chrome-agent</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>__HOME__/.config/hermes/launchd/hermes-chrome-agent</string>
+  </array>
+
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>ThrottleInterval</key>
+  <integer>15</integer>
+  <key>ProcessType</key>
+  <string>Background</string>
+</dict>
+</plist>

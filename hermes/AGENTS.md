@@ -86,6 +86,31 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
   symlinks, so a new CLI turn picks them up); rotating an API KEY additionally
   needs a gateway restart, because resident sessions inherit the environment
   injected at gateway launch.
+- **The browser tool drives a REAL browser, not a bundled one.** With `browser.backend`
+  unset and `uvx` present, `is_browser_use_cli_mode()` replaces the built-in
+  `browser_navigate` surface with `browser_exec` → `uvx browser-use` →
+  `browser_harness`, which attaches over CDP to an installed browser. So the
+  `browser:` block in `config.yaml` (`engine`, `camofox`, …) and any
+  `AGENT_BROWSER_*` env var describe the DORMANT built-in path and change nothing;
+  only `BU_CDP_URL` / `BU_CDP_WS` / `BH_*` reach the live one. Left to discover on
+  its own, the harness picks whichever browser's `Local State` has
+  `devtools.remote_debugging.user-enabled` (Chrome first in its fixed profile list)
+  and then needs a manual **"Allow remote debugging?" click per connection** —
+  auto-approval exists but is hardcoded to Google Chrome (`macos.py` matches
+  `process "Google Chrome"` and the Chrome support root), so Brave can never be
+  auto-approved. We therefore pin it to a dedicated headless instance on an isolated
+  profile via the Keychain `hermes` entry `BU_CDP_URL=http://127.0.0.1:9333`
+  (`launchd/chrome-agent-launchctl.sh`); an explicit port on a non-default
+  user-data-dir is what suppresses the popup. **The resident instance must come from
+  a DIFFERENT app bundle than the everyday browser**: macOS treats one bundle as one
+  running app, so a resident Brave made Dock/Spotlight launches merely activate it and
+  the daily profile could no longer be opened (2026-08-17). The launcher therefore
+  prefers agent-browser's "Chrome for Testing" bundle (resolved dynamically — the
+  directory is version-pinned) and falls back to `/Applications/Google Chrome.app`,
+  which reintroduces that clash only if Chrome is also used interactively.
+  Consequences: the everyday browser is never touched, there is **no fallback** if the
+  agent is down (30s timeout, then failure), and the port/profile in the launcher must
+  stay in sync with the Keychain value.
 - **Worker terminal approvals cannot prompt — a flagged command just fails.** The
   dispatcher runs workers with `stdin=DEVNULL` but still sets
   `HERMES_INTERACTIVE=1`, so `approvals.mode: manual` reaches EOF, denies, and the
@@ -135,7 +160,8 @@ skills/              # shared maintainer-owned skills tracked
   learned/           # runtime-authored adaptive skills; mutable and ignored
 plugins/             # backend chains, tool overrides, completion and Worker
                      # mutation guards; source tracked, __pycache__ ignored
-launchd/             # LaunchAgents: assistant gateway + local TTS engines
+launchd/             # LaunchAgents: assistant gateway, local TTS engines,
+                     #   dedicated automation browser (browser tool target)
 profiles/<name>/     # assistant, engineer, researcher, searcher, creator, writer, marketer
   - config.yaml      # model/fallback + agent.system_prompt (operating contract)
   - profile.yaml     # routing description (kanban/delegation)
@@ -267,6 +293,11 @@ writes on the current machine, then commit it.
   respawns). **Never** run `hermes gateway run`/`restart` in a terminal while it's
   loaded — the 2nd poller causes Telegram `getUpdates` 409 conflicts
   (verify a single instance: `pgrep -fl 'gateway run'` ⇒ exactly 1).
+- `launchd/chrome-agent-launchctl.sh {install,uninstall,status,check,login}` — the
+  headless automation browser the browser tool drives (see the browser-stack rule
+  above). `check` probes the CDP endpoint; `login` reopens the same profile
+  headful so you can sign in, then restores the headless agent. **Stop =
+  `uninstall`** (plist `KeepAlive:true`).
 
 ## Commits
 
