@@ -66,6 +66,26 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
   survive Hermes' config rewrites (`_deep_merge` keeps user keys). Voice routes the
   same way: `tts/tts-fallback` + `transcription/stt-fallback` chains, picked via
   `tts.provider` / `stt.provider` + `*.fallback.chain` (custom keys preserved).
+- **Web search backends are pinned per profile — there is NO runtime failover.**
+  An empty `web.search_backend` / `web.extract_backend` means auto-detect, which
+  takes the first backend whose KEY EXISTS (`tavily → exa → parallel → firecrawl
+  → searxng → brave-free → ddgs`, `tools/web_tools.py:223-270`): availability is
+  key presence, never quota, and a runtime HTTP error is returned to the model
+  as-is — it never falls through to the next backend. Left empty, every profile
+  piles onto Tavily and dies together the moment its monthly credits run out.
+  So each profile owns a provider: assistant `exa`, researcher `firecrawl`,
+  searcher `parallel`, engineer / creator / writer / marketer `tavily`;
+  `default` stays neutral (auto ⇒ tavily). Exhaustion is per-provider and each
+  one self-heals: Tavily `432` (1,000 cr/month, resets the 1st), Exa `402`
+  ($10/month Free Tier grant), Firecrawl 4xx (1,000 cr/month, renews ~the 17th;
+  balance: `GET https://api.firecrawl.dev/v2/team/credit-usage`). `401` is a
+  dead/rotated key, not exhaustion. Parallel's quota model is UNVERIFIED (no
+  balance endpoint) — if searcher starts failing while the key is otherwise
+  valid, swap searcher and researcher (`parallel` ⇄ `firecrawl`) and note it
+  here. Switching = edit the two keys in this repo (the `~/.hermes` configs are
+  symlinks, so a new CLI turn picks them up); rotating an API KEY additionally
+  needs a gateway restart, because resident sessions inherit the environment
+  injected at gateway launch.
 - **Worker terminal approvals cannot prompt — a flagged command just fails.** The
   dispatcher runs workers with `stdin=DEVNULL` but still sets
   `HERMES_INTERACTIVE=1`, so `approvals.mode: manual` reaches EOF, denies, and the
