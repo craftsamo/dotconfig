@@ -105,8 +105,8 @@ terminal:
   persistent_shell: true
 web:
   backend: ""
-  search_backend: ""
-  extract_backend: ""
+  search_backend: parallel
+  extract_backend: parallel
 browser:
   inactivity_timeout: 120
   command_timeout: 30
