@@ -53,6 +53,9 @@ EXPECTED_CAPABILITIES = {
 }
 # Capability subdirectories are allowed in these modes; chat stays flat.
 CAPABILITY_MODES = {"plan", "execute", "quality-assurance"}
+# The one sanctioned (mode, capability, subdir) below a capability dir:
+# the genre-preset shelf (Format × Theme catalog for creative planning).
+PRESET_SHELF = ("plan", "creative", "formats")
 # Files that must exist directly inside a mode dir (beyond index.md).
 REQUIRED_MODE_FILES = {
     "chat": {"workspace-ops.md", "cron.md", "lookups.md"},
@@ -315,6 +318,29 @@ def validate_assistant_pipeline(
                 if leaf.name.startswith("."):
                     continue
                 if leaf.is_dir():
+                    # The genre-preset shelf is the one sanctioned subdir:
+                    # plan/creative/formats/ holds Format × Theme presets
+                    # extracted from accepted productions (references only —
+                    # never technics, never family leaves). Flat, .md only,
+                    # routed by its own index.md.
+                    if (mode, entry.name, leaf.name) == PRESET_SHELF:
+                        validate_index_routes(leaf, errors)
+                        for preset in sorted(leaf.iterdir()):
+                            if preset.name.startswith("."):
+                                continue
+                            if preset.is_dir():
+                                errors.append(
+                                    f"no nesting below the preset shelf: "
+                                    f"{rel_pipeline(preset)}"
+                                )
+                            elif preset.suffix != ".md":
+                                errors.append(
+                                    f"non-markdown reference: "
+                                    f"{rel_pipeline(preset)}"
+                                )
+                            else:
+                                files += 1
+                        continue
                     errors.append(
                         f"no nesting below capability dirs: {rel_pipeline(leaf)}"
                     )
