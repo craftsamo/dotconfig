@@ -160,6 +160,49 @@ def validate_index_routes(directory: Path, errors: list[str]) -> None:
             )
 
 
+def validate_preset_shelf(shelf: Path, errors: list[str]) -> int:
+    """The genre-preset shelf is the one reference dir allowed to nest,
+    and only one level deep: it holds flat .md presets plus preset
+    GROUPS — a genre dir whose 型 are one file each, or the theme dir.
+    A group carries its own index.md (so a 型 is routed from its genre,
+    not from the shelf root) and must be named as `<group>/` in the
+    shelf index, because the shelf index's own route check only sees
+    sibling .md files and would otherwise let a group drift unlisted."""
+    validate_index_routes(shelf, errors)
+    shelf_index = shelf / "index.md"
+    shelf_text = (
+        shelf_index.read_text(encoding="utf-8") if shelf_index.is_file() else ""
+    )
+    files = 0
+    for entry in sorted(shelf.iterdir()):
+        if entry.name.startswith("."):
+            continue
+        if entry.is_file():
+            if entry.suffix != ".md":
+                errors.append(f"non-markdown reference: {rel_pipeline(entry)}")
+            else:
+                files += 1
+            continue
+        if f"{entry.name}/" not in shelf_text:
+            errors.append(
+                f"preset shelf index does not route the group "
+                f"{entry.name}/: {rel_pipeline(shelf)}"
+            )
+        validate_index_routes(entry, errors)
+        for preset in sorted(entry.iterdir()):
+            if preset.name.startswith("."):
+                continue
+            if preset.is_dir():
+                errors.append(
+                    f"no nesting below a preset group: {rel_pipeline(preset)}"
+                )
+            elif preset.suffix != ".md":
+                errors.append(f"non-markdown reference: {rel_pipeline(preset)}")
+            else:
+                files += 1
+    return files
+
+
 def validate_card_units(
     path: Path,
     seen: dict[str, Path],
@@ -321,25 +364,10 @@ def validate_assistant_pipeline(
                     # The genre-preset shelf is the one sanctioned subdir:
                     # plan/creative/formats/ holds Format × Theme presets
                     # extracted from accepted productions (references only —
-                    # never technics, never family leaves). Flat, .md only,
-                    # routed by its own index.md.
+                    # never technics, never family leaves). It is also the
+                    # one dir allowed to nest, one level, into preset groups.
                     if (mode, entry.name, leaf.name) == PRESET_SHELF:
-                        validate_index_routes(leaf, errors)
-                        for preset in sorted(leaf.iterdir()):
-                            if preset.name.startswith("."):
-                                continue
-                            if preset.is_dir():
-                                errors.append(
-                                    f"no nesting below the preset shelf: "
-                                    f"{rel_pipeline(preset)}"
-                                )
-                            elif preset.suffix != ".md":
-                                errors.append(
-                                    f"non-markdown reference: "
-                                    f"{rel_pipeline(preset)}"
-                                )
-                            else:
-                                files += 1
+                        files += validate_preset_shelf(leaf, errors)
                         continue
                     errors.append(
                         f"no nesting below capability dirs: {rel_pipeline(leaf)}"
