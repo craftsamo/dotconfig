@@ -141,6 +141,15 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
   broke silently. A fresh machine needs `hyperframes skills update` before creator
   can load them. Note that a bare `hyperframes skills` **installs** rather than
   reports — verify with `hermes -p creator skills list` instead.
+  An installer run reseeds those links and every one lands DEAD (26 of them on
+  2026-08-19): `~/.hermes/profiles/creator/skills` is itself a symlink into this
+  repo, so a target of `../../../../.claude/skills/…` — correct counted from
+  `~/.hermes/…` — resolves one level short from the real path and hits
+  `~/.config/.claude/`. The tell is `validate-profile-skills.py` failing with
+  `local skill root must not contain symlinks` while `skills list` still shows
+  every skill, because `external_dirs` was serving them the whole time. DELETE
+  the links (gitignored by `hermes/profiles/*/skills/*`, so nothing leaves the
+  repo); never repoint them.
 
 ## Layout
 
