@@ -66,6 +66,23 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
   survive Hermes' config rewrites (`_deep_merge` keeps user keys). Voice routes the
   same way: `tts/tts-fallback` + `transcription/stt-fallback` chains, picked via
   `tts.provider` / `stt.provider` + `*.fallback.chain` (custom keys preserved).
+- **TTS routes by LANGUAGE through the fallback chain, not a router.**
+  `irodori-tts` is Japanese-only — measured against `qwen3-tts` on English-only
+  text it scores 27% word error rate to Qwen's 8%, mangling `finished` into
+  "finito" — so it *declines* English-dominant input (< 20% kana/kanji) by
+  raising, and the ordinary chain advances to `qwen3-tts`. That is why the chain
+  order is `irodori-tts → qwen3-tts → edge`: no routing layer exists, and none
+  should be added. The hand-off is per utterance ON PURPOSE — the same reference
+  voice renders 309 cents apart on the two engines (against 20-40 cents of
+  seed-to-seed variation), so splicing them mid-sentence is audible.
+  **Voice data never enters this repo.** Reference audio lives in the private
+  character tree and is copied into the gitignored `local/<engine>/` by the
+  launchers; the Irodori pronunciation lexicon is a private-overlay symlink
+  (`private/hermes/local/irodori-tts/lexicon.json`). Do not add a `voice:` key
+  under `tts.*` and do not name a lexicon path in `config.yaml` — both are
+  tracked. `irodori-tts` repairs its own output (leading dead air, trailing
+  hallucinated fragments, and the in-pause codec rustle) using only numpy and
+  the stdlib, because the Hermes venv has no soundfile or scipy.
 - **Web search backends are pinned per profile — there is NO runtime failover.**
   An empty `web.search_backend` / `web.extract_backend` means auto-detect, which
   takes the first backend whose KEY EXISTS (`tavily → exa → parallel → firecrawl
