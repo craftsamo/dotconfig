@@ -75,6 +75,18 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
   should be added. The hand-off is per utterance ON PURPOSE — the same reference
   voice renders 309 cents apart on the two engines (against 20-40 cents of
   seed-to-seed variation), so splicing them mid-sentence is audible.
+  **A named character asset is the opposite contract and must not touch the
+  chain.** Creator's `character_voices` / `character_text_to_speech` live in
+  the `character-voice` plugin — engine-agnostic, so they belong to neither
+  engine plugin — and resolve a provider out of the TTS registry directly.
+  Voice ids are qualified `<engine>:<voice>` **because the engine is half of
+  the identity** (see the 309 cents above): a bare id would name a request,
+  not a sound. A refusal there is an error that writes no file, never a
+  hand-off, so do not "helpfully" retry it on the other engine, and do not let
+  the tool read `tts.fallback.chain` — that would smuggle the language routing
+  into an explicit contract. Handlers take the model's JSON as ONE positional
+  dict (`handler(args, **kwargs)`); declaring schema fields as parameters
+  registers a tool that fails on every call.
   **Voice data never enters this repo.** Reference audio lives in the private
   character tree and is copied into the gitignored `local/<engine>/` by the
   launchers; the Irodori pronunciation lexicon is a private-overlay symlink
