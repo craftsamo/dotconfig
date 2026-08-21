@@ -378,6 +378,7 @@ tts:
   provider: tts-fallback
   fallback:
     chain:
+      - irodori-tts
       - qwen3-tts
       - edge
   irodori_tts:
