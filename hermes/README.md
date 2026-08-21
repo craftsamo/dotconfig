@@ -74,13 +74,21 @@ the relevant `config.yaml`.
   bypassing `auxiliary.vision`. This lets `auxiliary.vision` stay `auto` so images
   route natively to the active main model while video always lands on a
   video-capable backend.
+- **tts/irodori-tts** (`kind: backend`): Irodori-TTS client for the loopback
+  server on `127.0.0.1:10103`. Japanese only — it refuses English-dominant text
+  so the chain advances — and it rewrites Latin proper nouns from a private
+  lexicon and repairs its own output before delivery
+  (see [Local TTS engines](#local-tts-engines)).
 - **tts/qwen3-tts** (`kind: backend`): registered-voice Qwen3-TTS client for the
-  loopback server on `127.0.0.1:10102`. The primary TTS tier for every profile;
-  it also exposes explicit character-voice tools only in Creator
-  (see [Qwen3-TTS voice catalog](#qwen3-tts-voice-catalog)).
+  loopback server on `127.0.0.1:10102`. The multilingual tier, and the one that
+  takes whatever Irodori declines (see [Local TTS engines](#local-tts-engines)).
+- **tts/character-voice** (`kind: standalone`): the two Creator-only character
+  voice tools. It owns no backend: it resolves an engine out of the TTS registry
+  and calls it directly, so a named character asset never routes
+  (see [Character voices](#character-voices)).
 - **tts/tts-fallback** (`kind: backend`): TTS fallback chain. Tries
-  `tts.fallback.chain` in order (default `qwen3-tts → edge`) and returns the
-  first tier that produces audio, so a down qwen3-tts server still speaks
+  `tts.fallback.chain` in order (`irodori-tts → qwen3-tts → edge`) and returns
+  the first tier that produces audio, so a down local server still speaks
   (Edge TTS, `tts.edge.voice: ja-JP-NanamiNeural`). Active via
   `tts.provider: tts-fallback`.
 - **transcription/stt-fallback** (`kind: backend`): STT fallback chain. Tries
@@ -279,16 +287,45 @@ generation fallback), `ELEVENLABS_API_KEY` (premium TTS), `XAI_API_KEY`
 (x_search / video_gen),
 `BROWSERBASE_API_KEY` (cloud browser), `TELEGRAM_BOT_TOKEN` /
 `DISCORD_BOT_TOKEN` (gateway). Voice runs through fallback chains: TTS is
-`tts-fallback` (`qwen3-tts → edge`) and STT is `stt-fallback` (`groq → xai →
-openai → elevenlabs → local`). See the local TTS and Speech-to-text sections
-below.
+`tts-fallback` (`irodori-tts → qwen3-tts → edge`) and STT is `stt-fallback`
+(`groq → xai → openai → elevenlabs → local`). See the local TTS and
+Speech-to-text sections below.
 
-## Qwen3-TTS voice catalog
+## Local TTS engines
 
-Every profile uses `tts-fallback` with `qwen3-tts → edge`. The
-`tts/qwen3-tts` plugin sends JSON speech requests to a loopback-only server on
-`127.0.0.1:10102`; the plugin applies `tts.speed` and output encoding with
-`ffmpeg`, then the gateway handles its normal Opus delivery.
+Two loopback-only engines run as LaunchAgents and take no API key:
+`irodori-tts` on `127.0.0.1:10103` and `qwen3-tts` on `127.0.0.1:10102`. The
+chain is `irodori-tts → qwen3-tts → edge`, and there is no router in front of
+it — Irodori is Japanese-only and *declines* text under 20% kana/kanji by
+raising, which is what promotes an English-dominant line to Qwen3. Measured on
+English-only text, Irodori scores 27% word error rate against Qwen3's 8%.
+
+The hand-off is per utterance on purpose. The same reference voice renders 309
+cents apart on the two engines, against 20-40 cents of seed-to-seed variation,
+so splicing them inside one sentence is audible. For anything longer than a
+chat reply, pin the engine instead (see [Character voices](#character-voices)).
+
+Irodori runs fp32 on MPS — bf16 is CUDA/XPU-only upstream — from a git checkout
+pinned in `irodori-tts/pinned.conf`. It rewrites Latin proper nouns to katakana
+through a private pronunciation lexicon, then repairs its own WAV before
+delivery: the in-pause codec rustle is gated, leading dead air and trailing
+hallucinated fragments are trimmed, the onset click is faded and the level is
+normalised. That repair uses numpy and the stdlib only, because the Hermes venv
+carries no soundfile or scipy.
+
+Normal speech omits a voice ID and uses each engine's default. When a server is
+unavailable or still loading, `tts-fallback` advances to the next tier and
+finally to Edge TTS (`ja-JP-NanamiNeural`); the call only errors if every tier
+fails. Auto-speech (`voice.auto_tts: true`, set for `default` + `assistant`) is
+voice-in → voice-out in the gateway and TTS-on-by-default inside CLI voice
+mode — it never auto-speaks plain text turns. After changing a live config,
+restart the relevant Hermes process (e.g. the gateway) to apply it.
+
+### Qwen3-TTS voice catalog
+
+The `tts/qwen3-tts` plugin sends JSON speech requests to its loopback server;
+the plugin applies `tts.speed` and output encoding with `ffmpeg`, then the
+gateway handles its normal Opus delivery.
 
 The server keeps one catalog-selected Base model resident on Apple MPS with BF16
 and shares it across all registered voices. Voice-clone prompts are built lazily
@@ -369,16 +406,53 @@ retains the catalog, venv, and model cache.
 `qwen3-tts/tested-constraints.txt` captures the verified environment used to
 regenerate the hashed lock. Review dependency changes before recompiling it.
 
-Normal speech omits a voice ID and uses the catalog default. When the
-server is unavailable or still loading, `tts-fallback` advances to Edge TTS
-(`ja-JP-NanamiNeural`); the call only errors if every tier fails. Creator
-additionally receives `character_voices` and `character_text_to_speech`; the
-latter requires an allowlisted voice ID and returns an error rather than
-silently rendering a character asset with another voice. Auto-speech
-(`voice.auto_tts: true`, set for `default` + `assistant`) is voice-in →
-voice-out in the gateway and TTS-on-by-default inside CLI voice mode — it
-never auto-speaks plain text turns. After changing a live config, restart the
-relevant Hermes process (e.g. the gateway) to apply it.
+### Irodori voice registration
+
+Irodori takes a reference WAV rather than a manifest, and its catalog is a
+directory the server reads at startup — so `register` restarts the agent for
+you. Reference audio and the pronunciation lexicon are private data: both are
+copied into the ignored runtime directory, and neither source path may reach
+tracked config.
+
+```sh
+hermes/launchd/irodori-tts-launchctl.sh install \
+  --voice /absolute/path/to/reference.wav --id <voice-id>
+hermes/launchd/irodori-tts-launchctl.sh register \
+  --voice /absolute/path/to/another.wav --id <voice-id> --default
+hermes/launchd/irodori-tts-launchctl.sh register-lexicon \
+  --file /absolute/path/to/lexicon.json
+hermes/launchd/irodori-tts-launchctl.sh voices
+hermes/launchd/irodori-tts-launchctl.sh status
+hermes/launchd/irodori-tts-launchctl.sh uninstall   # stop (plist KeepAlive)
+hermes/launchd/irodori-tts-launchctl.sh purge       # + delete the runtime dir
+```
+
+`register-lexicon` validates the JSON before installing it, and refuses to
+write through a symlink — that is how the private overlay owns the file. The
+plugin caches the lexicon per process, so a live gateway needs a restart.
+
+## Character voices
+
+Creator — and only Creator — gets `character_voices` and
+`character_text_to_speech` from the `tts/character-voice` plugin. They exist to
+render a *named* asset, which is the opposite contract from ordinary speech:
+the caller pins the sound, so nothing routes, nothing substitutes, and a
+refusal writes no file.
+
+`character_voices` lists every voice registered on a live engine, each as a
+qualified `<engine>:<voice-id>`. Reference-free entries an engine may advertise
+are filtered out — their timbre changes per run, so they are not characters.
+Pass one id verbatim to `character_text_to_speech`.
+
+A bare voice id is rejected. The engine is half of what identifies a sound: the
+same reference renders 309 cents apart on the two engines, so `<voice-id>`
+alone under-specifies the request. That also makes the qualified id the right
+value for a `tts-voice` card's voice preset, since it survives as a durable,
+unambiguous name for the sound that was approved.
+
+Failures stay failures. A voice that is not registered on the named engine, a
+stopped engine, and Irodori refusing English-dominant text all come back as
+errors naming the engine — never as a quiet render by the other one.
 
 ## Speech-to-text — fallback chain
 
