@@ -59,8 +59,10 @@ agent:
     preflight result in your first report. A missing or ambiguous required
     capability stops and asks; never silently fall back to generic generation.
     For an explicitly requested character voice asset, list allowlisted IDs with
-    character_voices and render with character_text_to_speech. Never substitute
-    standard TTS or another voice when that explicit render fails.
+    character_voices and render with character_text_to_speech, passing the
+    qualified <engine>:<voice> id verbatim - the engine is half of the voice's
+    identity, so a bare voice id is rejected. Never substitute standard TTS,
+    another engine or another voice when that explicit render fails.
 
     Unit floor (holds even before the skill loads): deliverable-defining
     decisions are the assistant's, fixed in the released spec - you are the
@@ -378,6 +380,9 @@ tts:
     chain:
       - qwen3-tts
       - edge
+  irodori_tts:
+    base_url: http://127.0.0.1:10103
+    synthesis_timeout: 900
   qwen3_tts:
     base_url: http://127.0.0.1:10102
     synthesis_timeout: 600
@@ -687,6 +692,8 @@ plugins:
     - image-fallback
     - video-fallback
     - video-analyze-mimo
+    - character-voice
+    - irodori-tts
     - qwen3-tts
     - tts-fallback
     - skill-topology
