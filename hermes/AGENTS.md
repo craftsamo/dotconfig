@@ -292,6 +292,16 @@ writes on the current machine, then commit it.
   `register --voice-manifest PATH [--default]`. The private manifest paths must
   never enter tracked config or docs. Dependencies come from
   `qwen3-tts/requirements.lock` and must stay hash-locked.
+- `launchd/irodori-tts-launchctl.sh {install,register,register-lexicon,voices,status,uninstall,purge}`
+  — Irodori-TTS LaunchAgent (`irodori-tts` on `127.0.0.1:10103`), coexisting with
+  qwen3-tts on `:10102`. Pins live in `irodori-tts/pinned.conf` — named `.conf`
+  because `**/*.env` is ignored and the pins must be tracked. It installs a git
+  checkout of the upstream server plus a uv venv under the ignored
+  `local/irodori-tts/`; `--python` is mandatory there, since uv otherwise picks
+  3.12 and the pinned `sentencepiece` has no wheel for it. `register --voice PATH
+  --id NAME` and `register-lexicon --file PATH` copy private data in, so those
+  paths must never reach tracked config. `register-lexicon` refuses to write
+  through a symlink, which is what the private overlay installs.
 - `launchd/gateway-launchctl.sh {install,status,uninstall}` — gateway LaunchAgent,
   **one host only** (one bot token = one live connection). The same Assistant
   process hosts Telegram + Discord and the embedded dispatcher. Discord requires
