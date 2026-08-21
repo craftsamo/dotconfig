@@ -313,6 +313,10 @@ hallucinated fragments are trimmed, the onset click is faded and the level is
 normalised. That repair uses numpy and the stdlib only, because the Hermes venv
 carries no soundfile or scipy.
 
+Irodori also performs emoji as non-verbal vocalisations and accepts a free-text
+delivery caption, but only the explicit character-voice contract reaches those —
+see [Performance direction](#performance-direction).
+
 Normal speech omits a voice ID and uses each engine's default. When a server is
 unavailable or still loading, `tts-fallback` advances to the next tier and
 finally to Edge TTS (`ja-JP-NanamiNeural`); the call only errors if every tier
@@ -453,6 +457,43 @@ unambiguous name for the sound that was approved.
 Failures stay failures. A voice that is not registered on the named engine, a
 stopped engine, and Irodori refusing English-dominant text all come back as
 errors naming the engine — never as a quiet render by the other one.
+
+### Performance direction
+
+Each engine reports the style controls it honours, and the tool refuses one the
+named engine does not list rather than dropping it quietly — a silently ignored
+direction returns a file that is not the take that was asked for. Irodori lists
+all three; Qwen3 lists none.
+
+**Emoji become performance, not words.** On an engine listing `emoji`, an emoji
+in the script is acted out where it stands — 🤭 a stifled laugh, 😭 sobbing, 🎵
+humming, 😠 a sulk — and is never read aloud. The script is still cleaned the
+usual way (markdown, units, newlines); the clusters are parked through that pass
+and restored, so nothing else changes. Everywhere else emoji are stripped as
+before. Spend them sparingly: one 🤭 measured **+1.68 s** of added audio on a
+5.24 s line.
+
+**`style` directs the whole take.** A free-text direction in the language of the
+script (`落ち着いた低い声で、ゆっくりと話す`) shapes pace and manner while the
+reference keeps the voice's identity. Measured, the wording is obeyed — *ゆっくり*
+ran +0.56 s and *早口で* −0.32 s on the same sentence.
+
+**`seed` means the caller can pin one, not that the engine is otherwise
+random.** Irodori draws a fresh seed per request when left alone — three unpinned
+renders of one line came back as three different takes — so the tool always pins
+one, generating it when the caller does not, and returns it with the result.
+Re-rendering that script with that seed rebuilds the same audio, post-processing
+included. Qwen3 exposes no seed because its server already fixes one per voice:
+an identical request reproduces on its own (three renders, one hash), and there
+is nothing for the caller to vary or record. What a seed buys is rebuilding *that
+take* from the same request — making a **different** line match an approved one
+is continuity work it does not buy. Compare decoded samples, not file hashes: the
+WAV comes back byte-identical, but the delivered Ogg carries a randomly generated
+bitstream serial, so two identical takes differ in ~80 container bytes.
+
+Ordinary chat speech is untouched by all of this: `tts.fallback.chain` passes no
+style arguments, so it sends the request it always did — which on Irodori means
+an unpinned, freshly rolled take per call, exactly as before.
 
 ## Speech-to-text — fallback chain
 

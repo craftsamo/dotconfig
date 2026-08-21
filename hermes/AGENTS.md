@@ -81,12 +81,30 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
   engine plugin — and resolve a provider out of the TTS registry directly.
   Voice ids are qualified `<engine>:<voice>` **because the engine is half of
   the identity** (see the 309 cents above): a bare id would name a request,
-  not a sound. A refusal there is an error that writes no file, never a
+  not a sound.   A refusal there is an error that writes no file, never a
   hand-off, so do not "helpfully" retry it on the other engine, and do not let
   the tool read `tts.fallback.chain` — that would smuggle the language routing
   into an explicit contract. Handlers take the model's JSON as ONE positional
   dict (`handler(args, **kwargs)`); declaring schema fields as parameters
   registers a tool that fails on every call.
+  **Style control belongs to that explicit contract only.** Irodori performs an
+  emoji as a non-verbal vocalisation instead of reading it, takes a free-text
+  `caption` for delivery, and honours a `seed`; measured here, one `U+1F92D`
+  adds 1.68 s to a 5.24 s line while the transcript keeps the same words, and a
+  pinned seed reproduces the take through post-processing (the predicted
+  duration is otherwise seed-invariant, so that duration jump is the proof it is
+  added vocalisation and not a re-roll). Verify a reproduced take on decoded
+  SAMPLES: the WAV is byte-identical but the delivered Ogg gets a random
+  bitstream serial from ffmpeg, so ~80 container bytes differ every time. `character-voice` reads
+  `provider.style_features` and REFUSES a control the named engine does not
+  advertise — it must never learn an engine name for this, and must never drop
+  one silently, which would return a file that is not the take that was asked
+  for. The chain passes no style arguments and must not start: emoji reaching
+  `qwen3-tts` or `edge` get read aloud as "smiling face", which is exactly why
+  Hermes' shared cleaner (`tools/tts_text_normalize.py`) strips them for
+  everyone. Do not weaken that cleaner — the character path parks the clusters
+  behind ASCII placeholders across it and restores them, so the script still
+  gets markdown, unit and newline handling.
   **Voice data never enters this repo.** Reference audio lives in the private
   character tree and is copied into the gitignored `local/<engine>/` by the
   launchers; the Irodori pronunciation lexicon is a private-overlay symlink
@@ -309,6 +327,14 @@ writes on the current machine, then commit it.
 - `./scripts/validate-profile-skills.py --all` — validate managed/learned skill
   topology, metadata, routing registries and Git ownership; add `--strict-git`
   in a staged/clean tree to fail on managed files that are still untracked.
+- Tests: `PYTHONPATH=$(ghq root)/github.com/NousResearch/hermes-agent \
+  $(ghq root)/github.com/NousResearch/hermes-agent/venv/bin/python -m pytest \
+  plugins/ scripts/tests/ -q --import-mode=importlib`. The Hermes venv is
+  required (plugins import `agent.*` / `tools.*`), and `--import-mode=importlib`
+  is NOT optional: every plugin keeps its suite at `tests/test_plugin.py`, those
+  basenames collide under the default import mode, and `__init__.py` cannot fix
+  it because the plugin directories are hyphenated and so are not importable
+  package names.
 - `../install.sh` — create the `~/.hermes/` symlinks (run after adding files).
 - `hermes update` — git pull + re-sync (use this to update, not setup.sh).
 - `hermes doctor` — validate providers / model tiers.
