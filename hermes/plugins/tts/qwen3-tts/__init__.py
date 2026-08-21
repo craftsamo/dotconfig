@@ -1,4 +1,4 @@
-"""Hermes provider and Creator tools for local registered Qwen3-TTS voices."""
+"""Hermes TTS provider for local registered Qwen3-TTS voices."""
 
 from __future__ import annotations
 
@@ -11,8 +11,6 @@ import subprocess
 import tempfile
 import urllib.error
 import urllib.request
-from datetime import datetime
-from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from agent.tts_provider import TTSProvider
@@ -214,146 +212,5 @@ class Qwen3TTSProvider(TTSProvider):
         return self._write_audio(audio, output_path, speed, format)
 
 
-CHARACTER_VOICES_SCHEMA = {
-    "name": "character_voices",
-    "description": (
-        "List the locally registered character voice IDs available to Creator. "
-        "Use an ID from this list with character_text_to_speech."
-    ),
-    "parameters": {"type": "object", "properties": {}},
-}
-
-CHARACTER_TTS_SCHEMA = {
-    "name": "character_text_to_speech",
-    "description": (
-        "Render a character voice asset with an explicitly registered local voice ID. "
-        "Use only for user-requested creative or scripted character audio. This tool "
-        "does not silently fall back to a different voice."
-    ),
-    "parameters": {
-        "type": "object",
-        "properties": {
-            "text": {
-                "type": "string",
-                "description": "Text to render with the selected character voice.",
-            },
-            "voice": {
-                "type": "string",
-                "description": "Registered voice ID returned by character_voices.",
-            },
-            "output_path": {
-                "type": "string",
-                "description": (
-                    "Optional output path. Defaults to a timestamped Ogg/Opus file "
-                    "under ~/voice-memos/."
-                ),
-            },
-            "speed": {
-                "type": "number",
-                "description": "Playback speed from 0.25 to 4.0. Defaults to 1.0.",
-            },
-        },
-        "required": ["text", "voice"],
-    },
-}
-
-
-def _character_voices(args: Optional[Dict[str, Any]] = None, **_kwargs: Any) -> str:
-    voices = Qwen3TTSProvider().list_voices()
-    return json.dumps(
-        {"success": True, "voices": voices}, ensure_ascii=False
-    )
-
-
-def _character_text_to_speech(
-    args: Optional[Dict[str, Any]] = None,
-    **_kwargs: Any,
-) -> str:
-    # The registry dispatches every tool as ``handler(args, **kwargs)`` with the
-    # model's JSON object as ONE positional dict (tools/registry.py). Declaring
-    # the schema fields as parameters bound the whole dict to the first one and
-    # raised TypeError before the body ran, so both tools always returned a
-    # dispatch error -- the structured results below were unreachable.
-    args = args or {}
-    text = args.get("text")
-    voice = args.get("voice")
-    output_path = args.get("output_path")
-    speed = args.get("speed")
-    try:
-        if not isinstance(text, str) or not text.strip():
-            raise ValueError("text is required")
-        if not isinstance(voice, str) or not voice.strip():
-            raise ValueError("voice is required")
-        try:
-            from tools.tts_text_normalize import prepare_spoken_text
-
-            normalized_text = prepare_spoken_text(text, max_chars=None)
-        except Exception:
-            normalized_text = text.strip()
-        if not normalized_text:
-            raise ValueError("text is empty after TTS cleanup")
-
-        if output_path:
-            from tools.path_security import has_traversal_component
-
-            if has_traversal_component(output_path):
-                raise ValueError("output_path must not contain '..' components")
-            file_path = Path(output_path).expanduser()
-            from agent.file_safety import is_write_denied
-
-            if is_write_denied(str(file_path)):
-                raise ValueError("output_path targets a protected path")
-            if not file_path.suffix:
-                file_path = file_path.with_suffix(".ogg")
-        else:
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-            file_path = Path.home() / "voice-memos" / f"character_{timestamp}.ogg"
-        file_path.parent.mkdir(parents=True, exist_ok=True)
-
-        result = Qwen3TTSProvider().synthesize(
-            normalized_text,
-            str(file_path),
-            voice=voice.strip(),
-            speed=speed,
-            format=file_path.suffix.lstrip(".") or "ogg",
-        )
-        voice_compatible = result.lower().endswith((".ogg", ".oga", ".opus"))
-        media_tag = f"MEDIA:{result}"
-        if voice_compatible:
-            media_tag = f"[[audio_as_voice]]\n{media_tag}"
-        return json.dumps(
-            {
-                "success": True,
-                "file_path": result,
-                "media_tag": media_tag,
-                "provider": "qwen3-tts",
-                "voice": voice.strip(),
-                "voice_compatible": voice_compatible,
-            },
-            ensure_ascii=False,
-        )
-    except Exception as exc:  # noqa: BLE001 - tool errors are structured results
-        logger.error("character_text_to_speech failed: %s", exc, exc_info=True)
-        return json.dumps(
-            {"success": False, "error": str(exc), "voice": voice},
-            ensure_ascii=False,
-        )
-
-
 def register(ctx) -> None:
     ctx.register_tts_provider(Qwen3TTSProvider())
-    if ctx.profile_name == "creator":
-        ctx.register_tool(
-            name="character_voices",
-            toolset="tts",
-            schema=CHARACTER_VOICES_SCHEMA,
-            handler=_character_voices,
-            description=CHARACTER_VOICES_SCHEMA["description"],
-        )
-        ctx.register_tool(
-            name="character_text_to_speech",
-            toolset="tts",
-            schema=CHARACTER_TTS_SCHEMA,
-            handler=_character_text_to_speech,
-            description=CHARACTER_TTS_SCHEMA["description"],
-        )
