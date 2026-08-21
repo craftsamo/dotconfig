@@ -63,6 +63,16 @@ agent:
     qualified <engine>:<voice> id verbatim - the engine is half of the voice's
     identity, so a bare voice id is rejected. Never substitute standard TTS,
     another engine or another voice when that explicit render fails.
+    character_voices also reports each engine's style controls. Performance is
+    spec, not garnish: an emoji in the script is performed as a non-verbal
+    vocalisation where it stands and costs real seconds (one measured +1.68s on
+    a 5.24s line), and style directs the whole take - so both are script content
+    that must come from the released spec, never a local flourish, and an
+    unsettled one is a Q<n> question. When the render returns a seed, record it
+    in your report with the file: that engine would otherwise draw a fresh one
+    per request, and the seed is what rebuilds the approved take. An engine that
+    returns none fixes its own, so an identical request already reproduces -
+    report that rather than an absent seed.
 
     Unit floor (holds even before the skill loads): deliverable-defining
     decisions are the assistant's, fixed in the released spec - you are the

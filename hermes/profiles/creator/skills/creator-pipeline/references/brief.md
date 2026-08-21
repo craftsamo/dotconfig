@@ -70,10 +70,14 @@ a spec gap for the single batched `Q<n>:` round; never a local default.
   sources + their rights; output format, sample rate, channels, loudness;
   looping/fades; render cap + runtime ceiling + CPU-fallback and
   model-download authorization.
-- **Voice**: exact script; language + pronunciations; voice identity +
-  pacing; output format, sample rate, channels, loudness; duration
-  target; file count (each file is one Budget asset); standalone vs
-  composite-part role.
+- **Voice**: exact render script (approved words with any approved
+  non-verbal beats already in place); language + pronunciations; voice
+  identity + pacing; delivery direction where the engine takes one;
+  the seed to rebuild an earlier take, only on an engine that accepts
+  a caller seed — one that fixes its own reproduces an identical
+  request without it; output format, sample rate, channels, loudness;
+  duration target; file count (each file is one Budget asset);
+  standalone vs composite-part role.
 - **Pixel**: native grid + integer-scale destination; fixed palette or
   cap + transparency; still vs animation, effective fps, loop; protected
   cells/regions; master vs compatibility outputs; supplied source =
