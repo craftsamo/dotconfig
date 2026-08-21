@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!-- irodori-tts-launchctl.sh renders the __PLACEHOLDERS__ before loading. -->
+  <key>Label</key>
+  <string>local.irodori-tts.engine</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>__PYTHON__</string>
+    <string>-m</string>
+    <string>irodori_openai_tts</string>
+    <string>--host</string>
+    <string>127.0.0.1</string>
+    <string>--port</string>
+    <string>__PORT__</string>
+  </array>
+
+  <!-- The server reads its settings from .env in the working directory. -->
+  <key>WorkingDirectory</key>
+  <string>__SERVER_DIR__</string>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>HF_HOME</key>
+    <string>__RUNTIME_DIR__/cache</string>
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    <key>PYTORCH_ENABLE_MPS_FALLBACK</key>
+    <string>1</string>
+    <key>TOKENIZERS_PARALLELISM</key>
+    <string>false</string>
+  </dict>
+
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>ThrottleInterval</key>
+  <integer>15</integer>
+  <key>ProcessType</key>
+  <string>Interactive</string>
+
+  <key>StandardOutPath</key>
+  <string>__HOME__/Library/Logs/irodori-tts-engine.log</string>
+  <key>StandardErrorPath</key>
+  <string>__HOME__/Library/Logs/irodori-tts-engine.log</string>
+</dict>
+</plist>
