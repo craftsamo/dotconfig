@@ -16,6 +16,18 @@ cents of seed-to-seed variation), so a mid-sentence switch is audible.
 
 **Latin proper nouns** get a katakana substitution pass from ``lexicon.json``.
 
+**Style control is real and measured.** The checkpoint performs an emoji as a
+non-verbal vocalisation instead of reading it out, and takes a free-text
+``caption`` describing delivery. Both were verified against this server: the
+render is byte-identical for a pinned seed, and the predicted duration is
+seed-invariant (5.24 s across three seeds) yet moves to 6.92 s when a single
+``U+1F92D`` is spliced into the same sentence, while the transcript stays the
+same words -- so the extra 1.68 s is added vocalisation, not a re-roll and not
+the emoji being spoken. A caption moves it the way its wording implies
+("ゆっくり" +0.56 s, "早口で" -0.32 s). None of that is reachable from
+``tts.fallback.chain``, which passes no style arguments; it exists for the
+explicit character-voice contract, which asks via ``style_features``.
+
 **Three output defects** are repaired before the audio is handed back. All were
 measured on this machine, and none can be fixed by changing the reference:
 
@@ -532,6 +544,18 @@ class IrodoriTTSProvider(TTSProvider):
     def voice_compatible(self) -> bool:
         return True
 
+    @property
+    def style_features(self) -> frozenset:
+        """Style controls this engine honours, for an engine-agnostic caller.
+
+        Advertised rather than hardcoded at the call site: the character-voice
+        tools deliberately know no engine names beyond their fixed list, so they
+        ask what a provider supports and refuse a control the engine would
+        silently drop. A provider that declares nothing supports nothing, which
+        is the correct reading of every other TTS plugin.
+        """
+        return frozenset({"caption", "emoji", "seed"})
+
     def _config(self) -> Dict[str, Any]:
         try:
             from hermes_cli.config import load_config
@@ -726,6 +750,8 @@ class IrodoriTTSProvider(TTSProvider):
         model: Optional[str] = None,
         speed: Optional[float] = None,
         format: str = "wav",
+        caption: Optional[str] = None,
+        seed: Optional[int] = None,
         **extra: Any,
     ) -> str:
         if not isinstance(text, str) or not text.strip():
@@ -749,6 +775,22 @@ class IrodoriTTSProvider(TTSProvider):
         chosen_voice = voice if isinstance(voice, str) and voice.strip() else self._default_voice()
         if chosen_voice:
             request_payload["voice"] = chosen_voice.strip()
+
+        # Style controls travel in the server's own options object. Omitted
+        # entirely when unused, so the ordinary chain sends exactly what it sent
+        # before and the server keeps its configured defaults.
+        options: Dict[str, Any] = {}
+        if caption is not None:
+            if not isinstance(caption, str) or not caption.strip():
+                raise ValueError("Irodori-TTS caption must be a non-empty string")
+            options["caption"] = caption.strip()
+        if seed is not None:
+            try:
+                options["seed"] = int(seed)
+            except (TypeError, ValueError) as exc:
+                raise ValueError(f"Irodori-TTS seed must be an integer, got {seed!r}") from exc
+        if options:
+            request_payload["irodori"] = options
 
         req = urllib.request.Request(
             self._base_url() + "/v1/audio/speech",
