@@ -1,0 +1,13 @@
+name: irodori-tts
+version: 0.1.0
+description: >-
+  Irodori-TTS provider for the loopback server on 127.0.0.1:10103 (no API key).
+  Japanese only: English-dominant text is declined so the tts-fallback chain
+  advances to the next tier, which keeps one voice per utterance instead of
+  splicing engines mid-sentence. Latin proper nouns are rewritten to katakana
+  from lexicon.json, and the returned WAV is repaired before delivery -- the
+  in-pause codec rustle is gated, leading dead air and trailing hallucinated
+  fragments are trimmed, the onset click is faded out and the level is
+  normalised. Select with tts.provider: irodori-tts, or place irodori-tts ahead
+  of qwen3-tts in tts.fallback.chain.
+kind: backend
