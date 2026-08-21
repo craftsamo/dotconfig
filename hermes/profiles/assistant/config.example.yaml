@@ -406,8 +406,12 @@ tts:
   provider: tts-fallback
   fallback:
     chain:
+    - irodori-tts
     - qwen3-tts
     - edge
+  irodori_tts:
+    base_url: http://127.0.0.1:10103
+    synthesis_timeout: 900
   qwen3_tts:
     base_url: http://127.0.0.1:10102
     synthesis_timeout: 600
@@ -842,6 +846,7 @@ video_analyze:
   model: xiaomi/mimo-v2.5
 plugins:
   enabled:
+  - irodori-tts
   - qwen3-tts
   - stt-fallback
   - tts-fallback
