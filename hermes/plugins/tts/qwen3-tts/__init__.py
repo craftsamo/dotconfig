@@ -258,7 +258,7 @@ CHARACTER_TTS_SCHEMA = {
 }
 
 
-def _character_voices() -> str:
+def _character_voices(args: Optional[Dict[str, Any]] = None, **_kwargs: Any) -> str:
     voices = Qwen3TTSProvider().list_voices()
     return json.dumps(
         {"success": True, "voices": voices}, ensure_ascii=False
@@ -266,11 +266,19 @@ def _character_voices() -> str:
 
 
 def _character_text_to_speech(
-    text: str,
-    voice: str,
-    output_path: Optional[str] = None,
-    speed: Optional[float] = None,
+    args: Optional[Dict[str, Any]] = None,
+    **_kwargs: Any,
 ) -> str:
+    # The registry dispatches every tool as ``handler(args, **kwargs)`` with the
+    # model's JSON object as ONE positional dict (tools/registry.py). Declaring
+    # the schema fields as parameters bound the whole dict to the first one and
+    # raised TypeError before the body ran, so both tools always returned a
+    # dispatch error -- the structured results below were unreachable.
+    args = args or {}
+    text = args.get("text")
+    voice = args.get("voice")
+    output_path = args.get("output_path")
+    speed = args.get("speed")
     try:
         if not isinstance(text, str) or not text.strip():
             raise ValueError("text is required")
