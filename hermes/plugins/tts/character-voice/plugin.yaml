@@ -1,0 +1,12 @@
+name: character-voice
+version: 0.1.0
+description: >-
+  Creator-only character voice tools shared by the local TTS engines.
+  character_voices lists every registered voice as a qualified <engine>:<voice>
+  id; character_text_to_speech renders one through that engine directly,
+  bypassing tts.fallback.chain, so an explicitly requested character asset can
+  never come back in another engine or another voice. The engine belongs to the
+  id because the same reference voice is audibly apart on each engine, which
+  makes a bare voice id an under-specified request. Owns no backend: enable it
+  next to the engine plugins it fronts (irodori-tts, qwen3-tts).
+kind: standalone

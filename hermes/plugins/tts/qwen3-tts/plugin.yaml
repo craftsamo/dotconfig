@@ -1,8 +1,7 @@
 name: qwen3-tts
-version: 0.2.0
+version: 0.3.0
 description: >-
   Qwen3-TTS registered-voice provider. Sends speech requests to the loopback
   qwen3-tts server on 127.0.0.1:10102 and writes or transcodes its WAV output.
   Select with tts.provider: qwen3-tts or place qwen3-tts in tts.fallback.chain.
-  The Creator profile also receives explicit character voice tools.
 kind: backend
