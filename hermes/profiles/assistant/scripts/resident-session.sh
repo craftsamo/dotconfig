@@ -32,12 +32,15 @@
 #
 # Registry: ~/.hermes/profiles/assistant/resident-sessions/<key>.json
 # (runtime state, never tracked in git). Turn log: <key>.log.
+#
+# Tunables (env): TURN_TIMEOUT, POLL_INTERVAL, RESIDENT_SESSION_DIR, HERMES.
 
 set -u
 
-HERMES="$(command -v hermes || echo "$HOME/.local/bin/hermes")"
+HERMES="${HERMES:-$(command -v hermes || echo "$HOME/.local/bin/hermes")}"
 REG_DIR="${RESIDENT_SESSION_DIR:-$HOME/.hermes/profiles/assistant/resident-sessions}"
 TURN_TIMEOUT="${TURN_TIMEOUT:-5400}"
+POLL_INTERVAL="${POLL_INTERVAL:-5}"
 
 # The assistant may run inside a worker/gateway process; the child CLI
 # must resolve its own profile HOME, and must never think it is a
@@ -68,8 +71,9 @@ if os.path.exists(path):
         data = {}
 for kv in sys.argv[2:]:
     k, _, v = kv.partition("=")
-    if k == "turns+":
-        data["turns"] = int(data.get("turns") or 0) + int(v or 1)
+    if k.endswith("+"):
+        base = k[:-1]
+        data[base] = int(data.get(base) or 0) + int(v or 1)
     else:
         data[k] = v
 fd, tmp = tempfile.mkstemp(dir=os.path.dirname(path) or ".")
@@ -81,6 +85,14 @@ EOF
 }
 
 now_iso() { date '+%Y-%m-%dT%H:%M:%S'; }
+
+# The CLI prints `session_id: <id>` on stderr; take the last occurrence so a
+# resumed turn reports the id it actually ran under. Empty when the turn died
+# before the CLI got that far.
+extract_sid() { # extract_sid <stderr-file>
+  [ -f "$1" ] || return 0
+  sed -n 's/^.*session_id: *\([A-Za-z0-9_-]*\).*$/\1/p' "$1" | tail -1
+}
 
 check_key() {
   case "$1" in
@@ -143,13 +155,13 @@ run_turn() {
       json_update "$reg" "status=timeout" "last_turn_at=$(now_iso)"
       die "turn timed out after ${TURN_TIMEOUT}s (key $rt_key)"
     fi
-    sleep 5
-    waited=$((waited + 5))
+    sleep "$POLL_INTERVAL"
+    waited=$((waited + POLL_INTERVAL))
   done
   wait "$pid"
   rc=$?
 
-  sid="$(sed -n 's/^.*session_id: *\([A-Za-z0-9_-]*\).*$/\1/p' "$err" | tail -1)"
+  sid="$(extract_sid "$err")"
   {
     printf -- '--- reply (rc=%s, session=%s) ---\n' "$rc" "${sid:-unknown}"
     cat "$out"
