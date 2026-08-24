@@ -11,7 +11,7 @@
 #   resident-session.sh send  <key> (-q "<msg>" | -f <file> | stdin) \
 #       [--image <path>]
 #   resident-session.sh status [<key>]
-#   resident-session.sh list
+#   resident-session.sh list  [--open | --all]
 #   resident-session.sh close <key> [--note "<note>"]
 #
 # Contract (see assistant-pipeline references/execute/resident-sessions.md):
@@ -223,19 +223,42 @@ case "$cmd" in
     fi
     ;;
   list)
-    found=0
-    for f in "$REG_DIR"/*.json; do
-      [ -f "$f" ] || continue
-      found=1
-      python3 - "$f" <<'EOF'
-import json, sys
-d = json.load(open(sys.argv[1]))
-print("{:<28} {:<10} {:<8} turns={:<3} last={} topic={}".format(
-    d.get("key",""), d.get("profile",""), d.get("status",""),
-    d.get("turns",0), d.get("last_turn_at","-"), d.get("topic","") or "-"))
-EOF
+    # One python3 process for the whole registry: the per-file loop cost 23s
+    # at 101 keys. Closed keys are hidden by default so the live ones are
+    # readable; newest turn first.
+    LIST_ALL=0
+    while [ $# -gt 0 ]; do
+      case "$1" in
+        --all) LIST_ALL=1;;
+        --open) LIST_ALL=0;;
+        *) die "unknown argument: $1";;
+      esac
+      shift
     done
-    [ "$found" -eq 1 ] || echo "no resident sessions"
+    python3 - "$REG_DIR" "$LIST_ALL" <<'EOF'
+import glob, json, os, sys
+reg_dir, show_all = sys.argv[1], sys.argv[2] == "1"
+rows, hidden = [], 0
+for path in sorted(glob.glob(os.path.join(reg_dir, "*.json"))):
+    try:
+        d = json.load(open(path))
+    except Exception:
+        continue
+    if not show_all and d.get("status") == "closed":
+        hidden += 1
+        continue
+    rows.append(d)
+rows.sort(key=lambda d: str(d.get("last_turn_at") or d.get("created_at") or ""),
+          reverse=True)
+for d in rows:
+    print("{:<28} {:<10} {:<8} turns={:<3} last={} topic={}".format(
+        d.get("key", ""), d.get("profile", ""), d.get("status", ""),
+        d.get("turns", 0), d.get("last_turn_at", "-"), d.get("topic", "") or "-"))
+if not rows:
+    print("no resident sessions" if show_all else "no open resident sessions")
+if hidden:
+    print("({} closed hidden; --all to show)".format(hidden))
+EOF
     ;;
   close)
     key="${1:-}"; shift || :
