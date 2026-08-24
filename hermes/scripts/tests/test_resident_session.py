@@ -30,6 +30,13 @@ print("REPLY-OK")
 print("session_id: %s" % sid, file=sys.stderr)
 """
 
+# Dies before the CLI ever reports a session id.
+FAKE_FAIL = """#!/usr/bin/env python3
+import sys
+print("boom: provider unavailable", file=sys.stderr)
+sys.exit(3)
+"""
+
 # Replies, but slowly enough that a second invocation overlaps it.
 FAKE_SLOW = """#!/usr/bin/env python3
 import sys, time
@@ -58,6 +65,7 @@ class ResidentSessionTest(unittest.TestCase):
     def environment(self, hermes: str = "ok", **env: str) -> dict:
         binary = {
             "ok": lambda: self.fake("hermes-ok", FAKE_OK),
+            "fail": lambda: self.fake("hermes-fail", FAKE_FAIL),
             "slow": lambda: self.fake("hermes-slow", FAKE_SLOW),
         }[hermes]()
         return {
@@ -107,6 +115,53 @@ class ResidentSessionTest(unittest.TestCase):
         result = self.run_script("start", "k", "--profile", "writer", "-f", str(brief))
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertIn("goal: ship it", self.log("k"))
+
+    # --- never-established keys ----------------------------------------
+
+    def test_send_on_never_established_key_points_at_start(self) -> None:
+        self.run_script("start", "dead", "--profile", "engineer",
+                        "-q", "brief", hermes="fail")
+        self.assertEqual("", self.registry("dead")["session_id"])
+
+        result = self.run_script("send", "dead", "-q", "anything")
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("never established a session", result.stderr)
+        self.assertIn("start", result.stderr)
+
+    def test_never_established_key_can_be_restarted(self) -> None:
+        self.run_script("start", "dead", "--profile", "engineer",
+                        "-q", "brief", hermes="fail")
+        created_at = self.registry("dead")["created_at"]
+
+        result = self.run_script("start", "dead", "--profile", "engineer",
+                                 "-q", "brief retry")
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertIn("restarting", result.stderr)
+
+        entry = self.registry("dead")
+        self.assertEqual("20260824_000000_aaaaaa", entry["session_id"])
+        self.assertEqual("idle", entry["status"])
+        self.assertEqual(1, entry["restarts"])
+        self.assertEqual(created_at, entry["created_at"],
+                         "a restart continues the same key, so created_at stands")
+
+    def test_live_key_refuses_start(self) -> None:
+        self.run_script("start", "k", "--profile", "creator", "-q", "brief")
+        result = self.run_script("start", "k", "--profile", "creator", "-q", "again")
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("is live", result.stderr)
+        self.assertEqual(1, self.registry("k")["turns"], "the live turn count survives")
+
+    def test_closed_key_starts_a_fresh_session(self) -> None:
+        self.run_script("start", "k", "--profile", "creator", "-q", "brief")
+        self.run_script("close", "k", "--note", "accepted")
+
+        result = self.run_script("start", "k", "--profile", "creator", "-q", "new work")
+        self.assertEqual(0, result.returncode, result.stderr)
+        entry = self.registry("k")
+        self.assertEqual("idle", entry["status"])
+        self.assertEqual("", entry["closed_at"], "a reopened key is not still closed")
+        self.assertEqual("", entry["close_note"])
 
     # --- locking --------------------------------------------------------
 
@@ -167,6 +222,22 @@ class ResidentSessionTest(unittest.TestCase):
         winner = [out for code, out, _ in results if code == 0][0]
         self.assertIn("REPLY-OK", winner)
         self.assertFalse(lock.exists(), "the winner releases the lock it took")
+
+    def test_restart_is_refused_while_a_turn_is_in_flight(self) -> None:
+        (self.reg / "k.json").write_text(json.dumps({
+            "key": "k", "profile": "creator", "topic": "", "session_id": "",
+            "status": "starting", "created_at": "2026-08-24T15:00:00", "turns": "0",
+        }), encoding="utf-8")
+        lock = self.reg / "k.lock"
+        lock.mkdir()
+        (lock / "pid").write_text(f"{os.getpid()}\n", encoding="utf-8")
+
+        result = self.run_script("start", "k", "--profile", "creator", "-q", "brief")
+        self.assertEqual(75, result.returncode)
+        entry = self.registry("k")
+        self.assertEqual("starting", entry["status"],
+                         "a refused restart must not overwrite the running turn's entry")
+        self.assertEqual("0", entry["turns"])
 
     # --- list -----------------------------------------------------------
 
