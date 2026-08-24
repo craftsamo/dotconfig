@@ -13,6 +13,7 @@
 #   resident-session.sh status [<key>]
 #   resident-session.sh list  [--open | --all]
 #   resident-session.sh close <key> [--note "<note>"]
+#   resident-session.sh prune [--older-than <days>] [--yes]
 #
 # Contract (see assistant-pipeline references/execute/resident-sessions.md):
 #   - One key = one live specialist session, scoped to a chat topic and
@@ -35,7 +36,9 @@
 #     into the turn log before the lock (and with it out/err) is dropped.
 #   - `close` marks the registry entry closed after delivery is
 #     accepted. Resident sessions are per-deliverable, not immortal:
-#     close on acceptance so context rot never accumulates.
+#     close on acceptance so context rot never accumulates. `prune`
+#     archives long-closed entries into <reg>/archive/ (logs gzipped);
+#     it lists and does nothing until given --yes.
 #
 # Exit codes: 75 a turn is in flight · 124 turn timed out · otherwise the
 # CLI's own status (1 for usage errors).
@@ -142,6 +145,7 @@ lock_is_stale() { # lock_is_stale <lockdir>
   kill -0 "$ls_pid" 2>/dev/null && return 1
   return 0
 }
+
 read_prompt() { # -q "..." | -f file | stdin  → PROMPT
   PROMPT=""
   IMAGE=""
@@ -261,7 +265,7 @@ run_turn() {
   cat "$out"
 }
 
-cmd="${1:-}"; [ -n "$cmd" ] && shift || die "usage: resident-session.sh start|send|status|list|close ..."
+cmd="${1:-}"; [ -n "$cmd" ] && shift || die "usage: resident-session.sh start|send|status|list|close|prune ..."
 mkdir -p "$REG_DIR"
 
 case "$cmd" in
@@ -381,6 +385,83 @@ EOF
     done
     json_update "$reg" "status=closed" "closed_at=$(now_iso)" "close_note=$NOTE"
     echo "closed $key"
+    ;;
+  prune)
+    # Closed entries accumulate forever (5.2MB / 101 keys before this
+    # existed). Archive rather than delete: the turn logs are the only
+    # record of what a specialist was told and what it answered.
+    PRUNE_DAYS=30 PRUNE_APPLY=0
+    while [ $# -gt 0 ]; do
+      case "$1" in
+        --older-than) shift; PRUNE_DAYS="${1:-}";;
+        --yes) PRUNE_APPLY=1;;
+        *) die "unknown argument: $1";;
+      esac
+      shift
+    done
+    case "$PRUNE_DAYS" in
+      (*[!0-9]*|'') die "--older-than takes a number of days";;
+    esac
+    python3 - "$REG_DIR" "$PRUNE_DAYS" "$PRUNE_APPLY" <<'EOF'
+import datetime, glob, gzip, json, os, shutil, sys
+
+reg_dir, days, apply_it = sys.argv[1], int(sys.argv[2]), sys.argv[3] == "1"
+cutoff = datetime.datetime.now() - datetime.timedelta(days=days)
+archive = os.path.join(reg_dir, "archive")
+picked = []
+
+for path in sorted(glob.glob(os.path.join(reg_dir, "*.json"))):
+    try:
+        d = json.load(open(path))
+    except Exception:
+        continue
+    if d.get("status") != "closed":
+        continue
+    stamp = d.get("closed_at") or d.get("last_turn_at") or d.get("created_at")
+    try:
+        when = datetime.datetime.strptime(stamp or "", "%Y-%m-%dT%H:%M:%S")
+    except ValueError:
+        continue  # undatable — never archive on a guess
+    if when >= cutoff:
+        continue
+    picked.append((d.get("key") or os.path.basename(path)[:-5], path, stamp))
+
+if not picked:
+    print("nothing to prune (closed and older than {} days)".format(days))
+    raise SystemExit(0)
+
+for key, _, stamp in picked:
+    print("{:<28} closed={}".format(key, stamp))
+
+if not apply_it:
+    print("\n{} closed session(s) older than {} days; "
+          "re-run with --yes to archive into {}".format(len(picked), days, archive))
+    raise SystemExit(0)
+
+def free_base(key, stamp):
+    """A key may be closed, pruned, then legitimately reused and closed
+    again. Stamp each archived generation so the second prune cannot
+    overwrite the first one's registry entry and log."""
+    tag = (stamp or "undated").replace("-", "").replace(":", "")
+    base, n = "{}__{}".format(key, tag), 2
+    while (os.path.exists(os.path.join(archive, base + ".json"))
+           or os.path.exists(os.path.join(archive, base + ".log.gz"))):
+        base = "{}__{}-{}".format(key, tag, n)
+        n += 1
+    return base
+
+os.makedirs(archive, exist_ok=True)
+for key, path, stamp in picked:
+    base = free_base(key, stamp)
+    shutil.move(path, os.path.join(archive, base + ".json"))
+    log = os.path.join(reg_dir, key + ".log")
+    if os.path.exists(log):
+        with open(log, "rb") as src:
+            with gzip.open(os.path.join(archive, base + ".log.gz"), "wb") as dst:
+                shutil.copyfileobj(src, dst)
+        os.remove(log)
+print("\narchived {} session(s) into {}".format(len(picked), archive))
+EOF
     ;;
   *)
     die "unknown command: $cmd"
