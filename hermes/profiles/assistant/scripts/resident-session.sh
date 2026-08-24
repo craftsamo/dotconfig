@@ -25,6 +25,10 @@
 #   - The specialist's reply is this script's stdout. The session id is
 #     re-captured from stderr on every turn and written back to the
 #     registry, so compaction-induced id rotation never strands a key.
+#   - A key whose first turn died before the CLI reported a session id
+#     never established a conversation: re-run `start` with the brief to
+#     restart it in place (the attempt is counted in `restarts`). Only a
+#     key that HAS a session id is protected from `start`.
 #   - Long turns are expected: ALWAYS invoke via terminal
 #     background=true + notify_on_complete. TURN_TIMEOUT (default 5400s)
 #     hard-kills a runaway turn.
@@ -249,11 +253,38 @@ case "$cmd" in
     read_prompt "$@"
     [ -n "$PROFILE" ] || die "start requires --profile <name>"
     reg="$REG_DIR/$key.json"
-    if [ -f "$reg" ] && [ "$(json_get "$reg" status)" != "closed" ]; then
-      die "key $key already exists (status: $(json_get "$reg" status)); use send, or close it first"
+    RESTART=0
+    if [ -f "$reg" ]; then
+      existing_st="$(json_get "$reg" status)"
+      existing_sid="$(json_get "$reg" session_id)"
+      if [ -n "$existing_sid" ]; then
+        # A real conversation exists behind this key; starting over would
+        # orphan it.
+        [ "$existing_st" = "closed" ] || die \
+          "key $key is live (status: $existing_st, session $existing_sid, turns $(json_get "$reg" turns)); use send, or close it first"
+      elif [ "$existing_st" != "closed" ]; then
+        # The first turn died before the CLI reported a session id. Such a key
+        # used to be stranded for good — `send` refuses it for having no id and
+        # `start` refused it for already existing. Restart it in place, unless
+        # a turn really is still running.
+        if [ -d "$REG_DIR/$key.lock" ] && ! lock_is_stale "$REG_DIR/$key.lock"; then
+          printf 'resident-session: key %s has a turn in flight (lock: %s); not restarting\n' \
+            "$key" "$REG_DIR/$key.lock" >&2
+          exit 75
+        fi
+        RESTART=1
+      fi
     fi
-    json_update "$reg" "key=$key" "profile=$PROFILE" "topic=$TOPIC" \
-      "session_id=" "status=starting" "created_at=$(now_iso)" "turns=0"
+    if [ "$RESTART" -eq 1 ]; then
+      json_update "$reg" "key=$key" "profile=$PROFILE" "topic=$TOPIC" \
+        "session_id=" "status=starting" "turns=0" "restarts+=1"
+      printf 'resident-session: restarting %s — previous attempt never established a session (restart #%s)\n' \
+        "$key" "$(json_get "$reg" restarts)" >&2
+    else
+      json_update "$reg" "key=$key" "profile=$PROFILE" "topic=$TOPIC" \
+        "session_id=" "status=starting" "created_at=$(now_iso)" "turns=0" \
+        "closed_at=" "close_note="
+    fi
     run_turn "$key" "$PROFILE" ""
     ;;
   send)
@@ -264,7 +295,7 @@ case "$cmd" in
     st="$(json_get "$reg" status)"
     [ "$st" = "closed" ] && die "key $key is closed"
     sid="$(json_get "$reg" session_id)"
-    [ -n "$sid" ] || die "key $key has no session id recorded (start failed?)"
+    [ -n "$sid" ] || die "key $key never established a session (status: $st); re-run 'start' with the brief to restart it"
     read_prompt "$@"
     run_turn "$key" "$(json_get "$reg" profile)" "$sid"
     ;;
