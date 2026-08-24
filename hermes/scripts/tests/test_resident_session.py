@@ -37,6 +37,15 @@ print("boom: provider unavailable", file=sys.stderr)
 sys.exit(3)
 """
 
+# Announces its session id, emits partial output, then hangs until killed.
+FAKE_HANG = """#!/usr/bin/env python3
+import sys, time
+print("partial output line", flush=True)
+print("session_id: 20260824_111111_hanged", file=sys.stderr, flush=True)
+print("still thinking", file=sys.stderr, flush=True)
+time.sleep(300)
+"""
+
 # Replies, but slowly enough that a second invocation overlaps it.
 FAKE_SLOW = """#!/usr/bin/env python3
 import sys, time
@@ -66,6 +75,7 @@ class ResidentSessionTest(unittest.TestCase):
         binary = {
             "ok": lambda: self.fake("hermes-ok", FAKE_OK),
             "fail": lambda: self.fake("hermes-fail", FAKE_FAIL),
+            "hang": lambda: self.fake("hermes-hang", FAKE_HANG),
             "slow": lambda: self.fake("hermes-slow", FAKE_SLOW),
         }[hermes]()
         return {
@@ -238,6 +248,31 @@ class ResidentSessionTest(unittest.TestCase):
         self.assertEqual("starting", entry["status"],
                          "a refused restart must not overwrite the running turn's entry")
         self.assertEqual("0", entry["turns"])
+
+    # --- timeout --------------------------------------------------------
+
+    def test_timeout_preserves_diagnostics_and_exits_124(self) -> None:
+        result = self.run_script("start", "slow", "--profile", "creator",
+                                 "-q", "brief", hermes="hang", TURN_TIMEOUT="1")
+        self.assertEqual(124, result.returncode)
+        self.assertIn("timed out", result.stderr)
+
+        entry = self.registry("slow")
+        self.assertEqual("timeout", entry["status"])
+        self.assertEqual("20260824_111111_hanged", entry["session_id"],
+                         "an id announced before the kill is worth keeping")
+
+        log = self.log("slow")
+        self.assertIn("TIMEOUT after 1s", log)
+        self.assertIn("partial output line", log)
+        self.assertIn("still thinking", log)
+
+    def test_a_timed_out_start_can_be_resumed_when_it_announced_an_id(self) -> None:
+        self.run_script("start", "slow", "--profile", "creator",
+                        "-q", "brief", hermes="hang", TURN_TIMEOUT="1")
+        result = self.run_script("send", "slow", "-q", "still there?")
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual("20260824_111111_hanged", self.registry("slow")["session_id"])
 
     # --- list -----------------------------------------------------------
 
