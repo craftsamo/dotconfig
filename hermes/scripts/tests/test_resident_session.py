@@ -30,6 +30,14 @@ print("REPLY-OK")
 print("session_id: %s" % sid, file=sys.stderr)
 """
 
+# Replies, but slowly enough that a second invocation overlaps it.
+FAKE_SLOW = """#!/usr/bin/env python3
+import sys, time
+time.sleep(3)
+print("REPLY-OK")
+print("session_id: 20260824_000000_aaaaaa", file=sys.stderr)
+"""
+
 
 class ResidentSessionTest(unittest.TestCase):
     def setUp(self) -> None:
@@ -50,6 +58,7 @@ class ResidentSessionTest(unittest.TestCase):
     def environment(self, hermes: str = "ok", **env: str) -> dict:
         binary = {
             "ok": lambda: self.fake("hermes-ok", FAKE_OK),
+            "slow": lambda: self.fake("hermes-slow", FAKE_SLOW),
         }[hermes]()
         return {
             **os.environ,
@@ -98,6 +107,68 @@ class ResidentSessionTest(unittest.TestCase):
         result = self.run_script("start", "k", "--profile", "writer", "-f", str(brief))
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertIn("goal: ship it", self.log("k"))
+
+    # --- locking --------------------------------------------------------
+
+    def test_busy_lock_exits_75(self) -> None:
+        self.run_script("start", "k", "--profile", "creator", "-q", "brief")
+        lock = self.reg / "k.lock"
+        lock.mkdir()
+        (lock / "pid").write_text(f"{os.getpid()}\n", encoding="utf-8")
+
+        result = self.run_script("send", "k", "-q", "x")
+        self.assertEqual(75, result.returncode)
+        self.assertIn("in flight", result.stderr)
+
+    def test_stale_lock_from_a_dead_holder_is_reclaimed(self) -> None:
+        self.run_script("start", "k", "--profile", "creator", "-q", "brief")
+        lock = self.reg / "k.lock"
+        lock.mkdir()
+        (lock / "pid").write_text("999999\n", encoding="utf-8")
+        os.utime(lock, (0, 0))  # far older than LOCK_STALE_AFTER
+
+        result = self.run_script("send", "k", "-q", "x")
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertIn("reclaiming stale lock", result.stderr)
+        self.assertFalse(lock.exists(), "the reclaimed lock is released again")
+
+    def test_lock_older_than_the_turn_timeout_is_reclaimed_despite_a_live_pid(self) -> None:
+        # Guards pid reuse: no legitimate holder outlives TURN_TIMEOUT, since
+        # it hard-kills itself and drops the lock in its trap.
+        self.run_script("start", "k", "--profile", "creator", "-q", "brief")
+        lock = self.reg / "k.lock"
+        lock.mkdir()
+        (lock / "pid").write_text(f"{os.getpid()}\n", encoding="utf-8")
+        os.utime(lock, (0, 0))
+
+        result = self.run_script("send", "k", "-q", "x", TURN_TIMEOUT="1")
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertIn("reclaiming stale lock", result.stderr)
+
+    def test_two_reclaimers_racing_one_stale_lock_produce_a_single_holder(self) -> None:
+        # The reclaim path is rm-then-mkdir shaped, so a concurrent pair must
+        # not both conclude they own the key.
+        self.run_script("start", "k", "--profile", "creator", "-q", "brief")
+        lock = self.reg / "k.lock"
+        lock.mkdir()
+        (lock / "pid").write_text("999999\n", encoding="utf-8")
+        os.utime(lock, (0, 0))
+
+        env = self.environment("slow")
+        racers = [
+            subprocess.Popen([str(SCRIPT), "send", "k", "-q", "x"], env=env,
+                             stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            for _ in range(2)
+        ]
+        results = [(p.wait(timeout=60), *p.communicate()) for p in racers]
+        codes = sorted(code for code, _, _ in results)
+        self.assertEqual([0, 75], codes,
+                         "exactly one reclaimer may run the turn; the other waits")
+        winner = [out for code, out, _ in results if code == 0][0]
+        self.assertIn("REPLY-OK", winner)
+        self.assertFalse(lock.exists(), "the winner releases the lock it took")
+
+    # --- list -----------------------------------------------------------
 
     def test_list_hides_closed_by_default_and_sorts_newest_first(self) -> None:
         for key in ("old", "new", "gone"):
