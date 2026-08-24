@@ -10,6 +10,7 @@ fallback_providers:
     api_mode: chat_completions
 credential_pool_strategies: {}
 toolsets:
+  - file
   - web
   - x_search
   - skills
@@ -598,6 +599,7 @@ paste_collapse_char_threshold: 2000
 _config_version: 29
 platform_toolsets:
   cli:
+    - file
     - web
     - x_search
     - skills
