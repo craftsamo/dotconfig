@@ -1,11 +1,15 @@
 """Behaviour tests for profiles/assistant/scripts/resident-session.sh.
 
-The wrapper is exercised end to end against a fake `hermes` CLI.
+The wrapper is exercised end to end against a fake `hermes` CLI, so the tests
+cover the parts that actually stranded live sessions: dead keys that no
+command could revive, locks left behind by a killed holder, timeouts that
+recorded nothing, and a `list` that walked the registry one process per key.
 """
 
 from __future__ import annotations
 
 import glob
+import gzip
 import json
 import os
 import subprocess
@@ -311,6 +315,69 @@ class ResidentSessionTest(unittest.TestCase):
         self.assertEqual(1, sum(line.count("python3 ") for line in code))
         self.assertNotIn("for f in", list_block)
 
+    # --- prune ----------------------------------------------------------
+
+    def test_prune_needs_yes_and_then_archives_closed_sessions(self) -> None:
+        self.run_script("start", "k", "--profile", "creator", "-q", "brief")
+        self.run_script("close", "k", "--note", "accepted")
+        entry = self.registry("k")
+        entry["closed_at"] = "2026-01-01T00:00:00"
+        (self.reg / "k.json").write_text(json.dumps(entry), encoding="utf-8")
+
+        dry = self.run_script("prune")
+        self.assertEqual(0, dry.returncode, dry.stderr)
+        self.assertIn("re-run with --yes", dry.stdout)
+        self.assertTrue((self.reg / "k.json").exists(), "a dry run changes nothing")
+
+        applied = self.run_script("prune", "--yes")
+        self.assertEqual(0, applied.returncode, applied.stderr)
+        self.assertFalse((self.reg / "k.json").exists())
+        self.assertFalse((self.reg / "k.log").exists())
+        archived = glob.glob(str(self.reg / "archive" / "k__*.json"))
+        self.assertEqual(1, len(archived))
+        with gzip.open(glob.glob(str(self.reg / "archive" / "k__*.log.gz"))[0], "rt") as handle:
+            self.assertIn("brief", handle.read())
+
+    def test_pruning_a_reused_key_twice_keeps_both_generations(self) -> None:
+        # `start` allows reusing a closed key, so the same name can reach the
+        # archive more than once. Neither generation may overwrite the other.
+        for round_no, (closed_at, brief) in enumerate((
+            ("2026-01-01T00:00:00", "first brief"),
+            ("2026-02-01T00:00:00", "second brief"),
+        )):
+            self.run_script("start", "k", "--profile", "creator", "-q", brief)
+            self.run_script("close", "k")
+            entry = self.registry("k")
+            entry["closed_at"] = closed_at
+            (self.reg / "k.json").write_text(json.dumps(entry), encoding="utf-8")
+            result = self.run_script("prune", "--yes")
+            self.assertIn("archived 1 session", result.stdout, f"round {round_no}")
+
+        logs = sorted(glob.glob(str(self.reg / "archive" / "k__*.log.gz")))
+        self.assertEqual(2, len(logs), "both archived generations survive")
+        briefs = []
+        for path in logs:
+            with gzip.open(path, "rt") as handle:
+                briefs.append(handle.read())
+        self.assertTrue(any("first brief" in text for text in briefs))
+        self.assertTrue(any("second brief" in text for text in briefs))
+
+    def test_prune_spares_open_sessions_and_recent_closures(self) -> None:
+        self.run_script("start", "live", "--profile", "creator", "-q", "brief")
+        self.run_script("start", "fresh", "--profile", "creator", "-q", "brief")
+        self.run_script("close", "fresh")
+
+        result = self.run_script("prune", "--yes")
+        self.assertIn("nothing to prune", result.stdout)
+        self.assertEqual(2, len(glob.glob(str(self.reg / "*.json"))))
+
+    def test_prune_rejects_a_non_numeric_window(self) -> None:
+        result = self.run_script("prune", "--older-than", "soon")
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("number of days", result.stderr)
+
+    # --- argument handling ----------------------------------------------
+
     def test_invalid_key_is_rejected(self) -> None:
         result = self.run_script("start", "bad key", "--profile", "creator", "-q", "x")
         self.assertNotEqual(0, result.returncode)
@@ -320,7 +387,6 @@ class ResidentSessionTest(unittest.TestCase):
         result = self.run_script("resume", "k")
         self.assertNotEqual(0, result.returncode)
         self.assertIn("unknown command", result.stderr)
-
 
 
 if __name__ == "__main__":
