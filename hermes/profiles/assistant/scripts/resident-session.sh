@@ -31,16 +31,20 @@
 #     key that HAS a session id is protected from `start`.
 #   - Long turns are expected: ALWAYS invoke via terminal
 #     background=true + notify_on_complete. TURN_TIMEOUT (default 5400s)
-#     hard-kills a runaway turn.
+#     hard-kills a runaway turn and exits 124, copying the partial output
+#     into the turn log before the lock (and with it out/err) is dropped.
 #   - `close` marks the registry entry closed after delivery is
 #     accepted. Resident sessions are per-deliverable, not immortal:
 #     close on acceptance so context rot never accumulates.
 #
+# Exit codes: 75 a turn is in flight · 124 turn timed out · otherwise the
+# CLI's own status (1 for usage errors).
+#
 # Registry: ~/.hermes/profiles/assistant/resident-sessions/<key>.json
 # (runtime state, never tracked in git). Turn log: <key>.log.
 #
-# Tunables (env): TURN_TIMEOUT, POLL_INTERVAL, LOCK_STALE_AFTER,
-# RESIDENT_SESSION_DIR, HERMES.
+# Tunables (env): TURN_TIMEOUT, POLL_INTERVAL, KILL_GRACE,
+# LOCK_STALE_AFTER, RESIDENT_SESSION_DIR, HERMES.
 
 set -u
 
@@ -49,6 +53,7 @@ REG_DIR="${RESIDENT_SESSION_DIR:-$HOME/.hermes/profiles/assistant/resident-sessi
 TURN_TIMEOUT="${TURN_TIMEOUT:-5400}"
 POLL_INTERVAL="${POLL_INTERVAL:-5}"
 LOCK_STALE_AFTER="${LOCK_STALE_AFTER:-60}"
+KILL_GRACE="${KILL_GRACE:-10}"
 
 # The assistant may run inside a worker/gateway process; the child CLI
 # must resolve its own profile HOME, and must never think it is a
@@ -209,11 +214,25 @@ run_turn() {
   waited=0
   while kill -0 "$pid" 2>/dev/null; do
     if [ "$waited" -ge "$TURN_TIMEOUT" ]; then
-      kill -TERM "$pid" 2>/dev/null; sleep 10
+      kill -TERM "$pid" 2>/dev/null; sleep "$KILL_GRACE"
       kill -KILL "$pid" 2>/dev/null
-      printf 'TIMEOUT after %ss\n' "$TURN_TIMEOUT" >>"$log"
-      json_update "$reg" "status=timeout" "last_turn_at=$(now_iso)"
-      die "turn timed out after ${TURN_TIMEOUT}s (key $rt_key)"
+      # out/err are inside the lock and die with it, so everything the killed
+      # turn produced has to be copied into the log right here — a bare
+      # TIMEOUT line is all the four observed timeouts ever left behind.
+      sid="$(extract_sid "$err")"
+      {
+        printf 'TIMEOUT after %ss (session=%s)\n' \
+          "$TURN_TIMEOUT" "${sid:-${rt_resume:-unknown}}"
+        printf -- '--- partial stdout tail ---\n'
+        tail -20 "$out" 2>/dev/null
+        printf -- '--- stderr tail ---\n'
+        tail -20 "$err" 2>/dev/null
+      } >>"$log"
+      json_update "$reg" "status=timeout" "last_turn_at=$(now_iso)" \
+        "session_id=${sid:-$rt_resume}"
+      printf 'resident-session: turn timed out after %ss (key %s); see %s\n' \
+        "$TURN_TIMEOUT" "$rt_key" "$log" >&2
+      exit 124
     fi
     sleep "$POLL_INTERVAL"
     waited=$((waited + POLL_INTERVAL))
