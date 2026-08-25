@@ -207,7 +207,11 @@ the real rendering. The loop:
 
 Session hygiene: when a `ui-review` subagent may run concurrently, keep the
 primary's browser isolated with `--session main` (the subagent uses its own
-session).
+session). When the UI task is finished, close what you opened —
+`agent-browser close` (or `agent-browser --session <name> close` for named
+sessions). Sessions have no idle timeout: an unclosed session leaves a
+headless Chrome (~1.4 GB RSS) resident until someone kills it, and they
+accumulate across opencode sessions.
 
 </RenderingLoop>
 
