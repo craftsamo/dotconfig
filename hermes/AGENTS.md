@@ -157,7 +157,11 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
   which reintroduces that clash only if Chrome is also used interactively.
   Consequences: the everyday browser is never touched, there is **no fallback** if the
   agent is down (30s timeout, then failure), and the port/profile in the launcher must
-  stay in sync with the Keychain value.
+  stay in sync with the Keychain value. If the resident instance ever bloats,
+  suspect leaked tabs from an external CDP script that trusted port 9333 (27 tabs /
+  6 GB RSS on 2026-08-25): `curl 127.0.0.1:9333/json/list` to inspect, then
+  `chrome-agent-launchctl.sh uninstall && … install` to reset. The worker-facing
+  "never hardcode 9333" rule lives in `~/Workspaces/AGENTS.md` (private overlay).
 - **Worker terminal approvals cannot prompt — a flagged command just fails.** The
   dispatcher runs workers with `stdin=DEVNULL` but still sets
   `HERMES_INTERACTIVE=1`, so `approvals.mode: manual` reaches EOF, denies, and the
