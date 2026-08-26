@@ -53,9 +53,14 @@ EXPECTED_CAPABILITIES = {
 }
 # Capability subdirectories are allowed in these modes; chat stays flat.
 CAPABILITY_MODES = {"plan", "execute", "quality-assurance"}
-# The one sanctioned (mode, capability, subdir) below a capability dir:
-# the genre-preset shelf (Format × Theme catalog for creative planning).
-PRESET_SHELF = ("plan", "creative", "formats")
+# The sanctioned (mode, capability, subdir) shelves below a capability
+# dir: the expression palette (flat verified-device catalog) and the
+# house-format shelf (opt-in pinned 様式; nests one level into format
+# dirs).
+CREATIVE_SHELVES = {
+    ("plan", "creative", "expressions"),
+    ("plan", "creative", "house-formats"),
+}
 # Files that must exist directly inside a mode dir (beyond index.md).
 REQUIRED_MODE_FILES = {
     "chat": {"workspace-ops.md", "cron.md", "lookups.md"},
@@ -160,14 +165,15 @@ def validate_index_routes(directory: Path, errors: list[str]) -> None:
             )
 
 
-def validate_preset_shelf(shelf: Path, errors: list[str]) -> int:
-    """The genre-preset shelf is the one reference dir allowed to nest,
-    and only one level deep: it holds flat .md presets plus preset
-    GROUPS — a genre dir whose 型 are one file each, or the theme dir.
-    A group carries its own index.md (so a 型 is routed from its genre,
-    not from the shelf root) and must be named as `<group>/` in the
-    shelf index, because the shelf index's own route check only sees
-    sibling .md files and would otherwise let a group drift unlisted."""
+def validate_creative_shelf(shelf: Path, errors: list[str]) -> int:
+    """A creative shelf is a reference dir allowed to nest, and only one
+    level deep: it holds flat .md entries plus GROUPS — a house-format
+    dir whose 型 are one file each (the expression shelf stays flat in
+    practice, but the same contract covers it). A group carries its own
+    index.md (so a 型 is routed from its format, not from the shelf
+    root) and must be named as `<group>/` in the shelf index, because
+    the shelf index's own route check only sees sibling .md files and
+    would otherwise let a group drift unlisted."""
     validate_index_routes(shelf, errors)
     shelf_index = shelf / "index.md"
     shelf_text = (
@@ -185,19 +191,19 @@ def validate_preset_shelf(shelf: Path, errors: list[str]) -> int:
             continue
         if f"{entry.name}/" not in shelf_text:
             errors.append(
-                f"preset shelf index does not route the group "
+                f"shelf index does not route the group "
                 f"{entry.name}/: {rel_pipeline(shelf)}"
             )
         validate_index_routes(entry, errors)
-        for preset in sorted(entry.iterdir()):
-            if preset.name.startswith("."):
+        for leaf in sorted(entry.iterdir()):
+            if leaf.name.startswith("."):
                 continue
-            if preset.is_dir():
+            if leaf.is_dir():
                 errors.append(
-                    f"no nesting below a preset group: {rel_pipeline(preset)}"
+                    f"no nesting below a shelf group: {rel_pipeline(leaf)}"
                 )
-            elif preset.suffix != ".md":
-                errors.append(f"non-markdown reference: {rel_pipeline(preset)}")
+            elif leaf.suffix != ".md":
+                errors.append(f"non-markdown reference: {rel_pipeline(leaf)}")
             else:
                 files += 1
     return files
@@ -361,13 +367,15 @@ def validate_assistant_pipeline(
                 if leaf.name.startswith("."):
                     continue
                 if leaf.is_dir():
-                    # The genre-preset shelf is the one sanctioned subdir:
-                    # plan/creative/formats/ holds Format × Theme presets
-                    # extracted from accepted productions (references only —
-                    # never technics, never family leaves). It is also the
-                    # one dir allowed to nest, one level, into preset groups.
-                    if (mode, entry.name, leaf.name) == PRESET_SHELF:
-                        files += validate_preset_shelf(leaf, errors)
+                    # The creative shelves are the sanctioned subdirs:
+                    # plan/creative/expressions/ (the verified device
+                    # palette) and plan/creative/house-formats/ (opt-in
+                    # pinned 様式), both extracted from accepted
+                    # productions (references only — never technics,
+                    # never family leaves). house-formats/ may nest, one
+                    # level, into format dirs.
+                    if (mode, entry.name, leaf.name) in CREATIVE_SHELVES:
+                        files += validate_creative_shelf(leaf, errors)
                         continue
                     errors.append(
                         f"no nesting below capability dirs: {rel_pipeline(leaf)}"
@@ -822,7 +830,16 @@ CREATIVE_PLAN_DIR = ASSISTANT_PIPELINE / "references" / "plan" / "creative"
 CREATIVE_QA_DIR = (
     ASSISTANT_PIPELINE / "references" / "quality-assurance" / "creative"
 )
-CREATIVE_NON_FAMILY_LEAVES = {"index.md", "composite-media.md", "asset-set.md"}
+CREATIVE_NON_FAMILY_LEAVES = {
+    "index.md",
+    "composite-media.md",
+    "asset-set.md",
+    # Design-support leaves: the research-first path and the binding
+    # engine facts — cross-family by nature, never creator dispatch
+    # surfaces.
+    "reference-research.md",
+    "production-facts.md",
+}
 CREATIVE_EXTRA_FAMILIES = {"voice.md": "core:tts"}
 
 
