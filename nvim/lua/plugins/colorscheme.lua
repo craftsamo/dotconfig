@@ -4,10 +4,18 @@ return {
 		lazy = true,
 		priority = 1000,
 		opts = function()
-			local util = require("solarized-osaka.util")
 			-- Blend an accent color into the background (for dark UI shades)
 			local function dim(color, amount)
-				return util.darken(color, amount, "#0D1116")
+				local background = "#0D1116"
+				local function channel(hex, index)
+					return tonumber(hex:sub(index, index + 1), 16)
+				end
+				local function blend(index)
+					local value = amount * channel(color, index) + (1 - amount) * channel(background, index)
+					return math.floor(math.min(math.max(0, value), 255) + 0.5)
+				end
+
+				return string.format("#%02x%02x%02x", blend(2), blend(4), blend(6))
 			end
 			return {
 				transparent = true,
