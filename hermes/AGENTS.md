@@ -13,6 +13,17 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
   move-then-`install.sh` steps in `README.md`.
 - **No secrets, no `.env`.** Keys live in the macOS Keychain, injected by the
   `bin/hermes` shim. See the `keychain-secrets` skill / `opencode/instructions/secrets.md`.
+- **The upstream source tree has a macOS case collision — one file must stay
+  `skip-worktree`.** `contributors/emails/agent@Agents-Mac-mini.local` and
+  `contributors/emails/agent@agents-Mac-mini.local` differ only in case, so on
+  case-insensitive APFS they are ONE file on disk; whichever git writes last
+  wins and the other is reported modified forever. That permanently dirty file
+  makes every `git rebase` / `git merge` refuse to start with `cannot rebase:
+  You have unstaged changes`, and `git checkout --` just flips which twin is
+  dirty. The lowercase variant carries `git update-index --skip-worktree` in the
+  hermes-agent checkout (2026-09-01). Do not clear that bit, and re-apply it
+  after a fresh clone — this is an UPSTREAM bug, not local drift, so expect it
+  to survive until upstream renames one of the two.
 - **`config.yaml` is rewritten by Hermes on load.** Expect re-serialization churn;
   match Hermes' output format (block style, key order), keep diffs minimal — don't
   hand-reformat or alphabetize.
@@ -210,6 +221,18 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
   this repo (that's what the `.no-bundled-skills` opt-out protects against).
   The setup-gated candidate backlog lives in `PROFILES.md`
   ("Upstream wiring pattern").
+  **v0.21.0 seeds PAST that opt-out.** Every gateway launch writes
+  `autonomous-ai-agents/DESCRIPTION.md` into the RUNNING profile's skill root
+  (assistant) even though `.no-bundled-skills` is present and linked, and an
+  upgrade that CHANGES a bundled skill copies the whole skill in too:
+  `hermes-agent/` landed there on 2026-09-01, byte-identical to upstream with
+  mtimes preserved. A lone `DESCRIPTION.md` is harmless — gitignored, no
+  `SKILL.md`, so the validator stays green and deleting it only invites it back
+  next launch. A seeded SKILL.md is not: it fails
+  `validate-profile-skills.py` with `unexpected skill root`. So after every
+  `hermes update`, run the validator and delete any category directory under
+  `profiles/*/skills/` that is not `<profile>-pipeline`, `technic` or
+  `learned`; the skills stay readable in place via `skills.external_dirs`.
 - **HyperFrames skills live outside the repo, on purpose.** `creator` reaches the
   `hyperframes*` / `media-use` playbooks through `skills.external_dirs`
   (`~/.agents/skills`) — a harness-neutral store owned by `hyperframes skills
@@ -227,7 +250,14 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
   `local skill root must not contain symlinks` while `skills list` still shows
   every skill, because `external_dirs` was serving them the whole time. DELETE
   the links (gitignored by `hermes/profiles/*/skills/*`, so nothing leaves the
-  repo); never repoint them.
+  repo); never repoint them. **The SHARED root `hermes/skills/` gets seeded the
+  same way** — 26 dead `../../.claude/skills/…` links there on 2026-08-29, found
+  by the same validator failure and removed on 2026-09-01. That root is
+  gitignored too (`.gitignore: hermes/skills/*`), and only `default-pipeline/`
+  and `learned/` belong in it; anything else appearing there is installer
+  residue. Check BOTH roots when the validator reports symlinks — the two
+  intentional ones are the assistant's private-overlay `assistant-pipeline` and
+  `desks`, which resolve and must stay.
 
 ## Layout
 
