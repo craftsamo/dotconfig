@@ -117,8 +117,10 @@ terminal:
   persistent_shell: true
 web:
   backend: ""
-  search_backend: tavily
-  extract_backend: tavily
+  search_backend: exa
+  extract_backend: exa
+  provider_tier:
+    exa: free
 browser:
   inactivity_timeout: 120
   command_timeout: 30

@@ -113,23 +113,50 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
   tracked. `irodori-tts` repairs its own output (leading dead air, trailing
   hallucinated fragments, and the in-pause codec rustle) using only numpy and
   the stdlib, because the Hermes venv has no soundfile or scipy.
-- **Web search backends are pinned per profile — there is NO runtime failover.**
-  An empty `web.search_backend` / `web.extract_backend` means auto-detect, which
-  takes the first backend whose KEY EXISTS (`tavily → exa → parallel → firecrawl
-  → searxng → brave-free → ddgs`, `tools/web_tools.py:223-270`): availability is
-  key presence, never quota, and a runtime HTTP error is returned to the model
-  as-is — it never falls through to the next backend. Left empty, every profile
-  piles onto Tavily and dies together the moment its monthly credits run out.
-  So each profile owns a provider: assistant `exa`, researcher `firecrawl`,
-  searcher `parallel`, engineer / creator / writer / marketer `tavily`;
-  `default` stays neutral (auto ⇒ tavily). Exhaustion is per-provider and each
-  one self-heals: Tavily `432` (1,000 cr/month, resets the 1st), Exa `402`
-  ($10/month Free Tier grant), Firecrawl 4xx (1,000 cr/month, renews ~the 17th;
-  balance: `GET https://api.firecrawl.dev/v2/team/credit-usage`). `401` is a
+- **Web search: PAID backends are pinned per profile; everyone else rides the
+  keyless ring.** Upstream DELETED the Tavily backend in v0.21.0 (`d6773cf26`,
+  2026-08-31): `plugins/web/tavily/` is gone, `keenable` replaced it, and a
+  leftover `TAVILY_API_KEY` in the Keychain is now dead weight. Auto-detect
+  (empty `web.search_backend` / `web.extract_backend`) takes the first backend
+  whose KEY EXISTS (`exa → parallel → keenable → firecrawl → searxng →
+  brave-free → ddgs`, `tools/web_tools.py:215-308`) and then walks the keyless
+  tier; availability is key presence, never quota. A NAME THAT NO LONGER EXISTS
+  does not error — it silently resolves to `firecrawl`, which is exactly how
+  four profiles would have piled onto researcher's credits after this upgrade.
+  Since v0.20.5 there IS runtime failover, but only inside the FREE ring
+  (`exa → parallel → firecrawl → keenable`, `plugins/web/keyless_mcp.py`): a
+  rate-limited keyless request advances to the next vendor, and a failed KEYED
+  call gets ONE stateless keyless rescue (`web.keyless_rescue`, default on;
+  rescued results are never cached, so the next call retries your own backend).
+  A keyed backend still never falls through to another KEYED backend, so the
+  per-profile pinning below is what stops one provider's exhaustion from taking
+  the fleet down.
+  **`web.provider_tier.<vendor>` picks the lane per profile** — `free` forces the
+  keyless endpoint EVEN WHEN the key is present and pins that vendor as the ring
+  entry point; `paid` forces the keyed path and drops that vendor from the
+  profile's ring; unset = auto (key present ⇒ keyed). Editing `search_backend`
+  alone is NOT enough: with a key in the environment, auto silently bills the
+  paid path.
+  Current split — the three paid keys stay with the high-volume profiles, and
+  everyone else sits on the free ring with DISTRIBUTED entry points so they do
+  not all start at the same vendor: assistant `exa` (paid), searcher `parallel`
+  (paid), researcher `firecrawl` (paid); engineer `exa`, creator `parallel`,
+  writer `firecrawl`, marketer `keenable`, each with `provider_tier: <vendor>:
+  free`. `default` keeps both backends EMPTY (neutral, so every `--clone`
+  inherits nothing opinionated) but pins `provider_tier.exa: free`, because
+  otherwise auto-detect resolves to the KEYED Exa path and eats the assistant's
+  grant. `KEENABLE_API_KEY` is not set and is not needed — a `free` pin resolves
+  without one. Verify a change by resolving the backend per profile
+  (`HERMES_HOME=~/.hermes/profiles/<p>` + `tools.web_tools._get_search_backend()`)
+  and by running `web_search_tool`; `data.served_by` appears only when the ring
+  failed over, so its ABSENCE means your pinned vendor answered.
+  Exhaustion is per-provider and each one self-heals: Exa `402` ($10/month Free
+  Tier grant), Firecrawl 4xx (1,000 cr/month, renews ~the 17th; balance:
+  `GET https://api.firecrawl.dev/v2/team/credit-usage`). `401` is a
   dead/rotated key, not exhaustion. Parallel's quota model is UNVERIFIED (no
   balance endpoint) — if searcher starts failing while the key is otherwise
   valid, swap searcher and researcher (`parallel` ⇄ `firecrawl`) and note it
-  here. Switching = edit the two keys in this repo (the `~/.hermes` configs are
+  here. Switching = edit the keys in this repo (the `~/.hermes` configs are
   symlinks, so a new CLI turn picks them up); rotating an API KEY additionally
   needs a gateway restart, because resident sessions inherit the environment
   injected at gateway launch.
