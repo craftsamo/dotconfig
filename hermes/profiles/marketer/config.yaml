@@ -116,8 +116,10 @@ terminal:
   persistent_shell: true
 web:
   backend: ""
-  search_backend: tavily
-  extract_backend: tavily
+  search_backend: keenable
+  extract_backend: keenable
+  provider_tier:
+    keenable: free
 browser:
   inactivity_timeout: 120
   command_timeout: 30
