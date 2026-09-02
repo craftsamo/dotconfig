@@ -654,6 +654,10 @@ secrets:
     override_existing: true
     auto_install: true
     server_url: ''
+  command:
+    enabled: true
+    command: '"$HOME/.config/hermes/scripts/profile-secrets.sh" default'
+    helper_timeout_seconds: 15
 paste_collapse_threshold: 5
 paste_collapse_threshold_fallback: 5
 paste_collapse_char_threshold: 2000
