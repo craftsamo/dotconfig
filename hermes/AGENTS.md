@@ -42,9 +42,41 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
   `hermes-cli` / `hermes-telegram` expand to a broad surface and strip default-off
   tools such as `video` / `video_gen`. Mirror the role in top-level `toolsets`, but
   remember that top-level `kanban` is also the front-door runtime gate. Dispatcher
-  workers receive `kanban` automatically; their dormant Telegram / Discord lists stay
-  empty. Use `no_mcp` when a platform needs none; otherwise list each allowed MCP
+  workers receive `kanban` automatically; writer / researcher / default keep their
+  Telegram / Discord lists empty (engineer / creator / marketer now carry real
+  `telegram` lists — they are bots), and every A2A-serving profile has an `a2a`
+  list for its inbound peer sessions. `a2a` is also the OUTBOUND toolset name
+  (the five `a2a_*` tools, default-off): grant it only to the four primaries.
+  Use `no_mcp` when a platform needs none; otherwise list each allowed MCP
   server explicitly so future servers are not inherited accidentally.
+- **Multiplex gateway + A2A peer graph (2026-09 rebuild).** ONE default-hosted
+  gateway process (`gateway.multiplex_profiles: true` + allowlist in the root
+  `config.yaml`) runs all four Telegram bots (assistant / engineer / creator /
+  marketer) and the A2A peer endpoints (writer / researcher receive-only;
+  ports 9902-9906 in each profile's `platforms.a2a.extra.port` — NEVER via an
+  `A2A_PORT` env var, which is read raw from the process env and would
+  collide across profiles). Peer lists live per profile in `a2a_agents`
+  (assistant→engineer/creator/marketer/writer; engineer→marketer/researcher/
+  writer; creator and marketer→engineer/each-other/researcher/writer) with
+  `timeout: 310` (the 120s caller default undercuts the 300s server reply
+  window); enforcement is config + operating contract, and contracts forbid
+  `a2a_call` against a direct URL. Under multiplex, scope-aware secret reads
+  NEVER fall back to the process env: every profile's keys come from
+  `secrets.command` → `scripts/profile-secrets.sh <profile>` (Keychain layers
+  `global` + `hermes` minus messaging keys + `hermes-<profile>`); only raw-env
+  readers (`BU_CDP_URL`, dashboard auth) still see the launcher-injected env.
+  A new bot = a new `hermes-<name>` Keychain layer + `platforms` /
+  `a2a_agents` / toolset entries + the multiplex allowlist, never a second
+  gateway process. **Upstream (≤ 21b2095d) drops background-process /
+  async-delegation completion notifications for every secondary profile
+  silently** — `_inject_watch_notification` resolved adapters from
+  `self.adapters` (default only). The hermes-agent checkout carries
+  `fix/watch-notification-multiplex-route` (merged into `local`, with a
+  regression test) that routes through the profile-aware
+  `_adapter_for_source`; re-check after `hermes update` that the merge
+  survived (`git log --grep multiplex-route`), or resident sessions stop
+  waking the assistant again. Sibling paths still unpatched upstream:
+  shutdown / `/restart` notifications for secondary profiles.
 - **`SOUL.md` = persona only** (voice/posture), per-profile (`HERMES_HOME`). No
   project rules/paths/commands there. Headings aren't parsed (verbatim inject).
 - **Keep `default` neutral** — every `--clone` inherits its `config.yaml`.
@@ -314,8 +346,10 @@ skills/              # shared maintainer-owned skills tracked
   learned/           # runtime-authored adaptive skills; mutable and ignored
 plugins/             # backend chains, tool overrides, completion and Worker
                      # mutation guards; source tracked, __pycache__ ignored
-launchd/             # LaunchAgents: assistant gateway, local TTS engines
-scripts/             # brave-agent-sync.sh (real-profile browser clone),
+launchd/              # LaunchAgents: multiplex gateway (all bots, one process),
+                     #   local TTS engines
+scripts/             # profile-secrets.sh (secrets.command helper),
+                     #   brave-agent-sync.sh (real-profile browser clone),
                      #   validate-profile-skills.py
 local/               # gitignored machine-local installs: TTS engines, the
                      #   brave-agent clone bundle
@@ -365,18 +399,23 @@ setup.sh README.md PROFILES.md
 
 ## Profiles
 
-default (CLI front door — assistant's CLI counterpart, neutral persona) +
-assistant (messaging front door, hosts the gateway/dispatcher) + engineer /
-researcher / searcher / creator / writer / marketer (Workflow v5
-specialists). Heavy work runs by default in resident chat sessions the
+default (CLI front door, neutral persona; hosts the multiplex gateway) +
+four PRIMARIES with their own Telegram bots — assistant (messaging front
+door + dispatcher home board), engineer, creator, marketer — + researcher /
+searcher / writer (Workflow v5
+specialists; writer and researcher also serve inbound A2A peer requests,
+searcher has no A2A endpoint). The A2A peer graph and the multiplex rules
+live in the critical rule above and PROFILES.md. Heavy work runs by default in resident chat sessions the
 assistant starts through `assistant/scripts/resident-session.sh` and
 supervises conversationally; the kanban board is only for fire-and-forget,
 cron-originated, mass-parallel, and `scheduled` work with a lean card
 contract (no manifests/digests/probes — the v4 machinery is retired, see the
 2026-08-06 rebuild). The card catalog is CLOSED and per-assignee: creator
 (`anchored-image-batch`, `tts-voice`, `deterministic-render`), searcher
-(`survey-enumeration`, `exhaustive-hunt`), researcher (`claim-verification`);
-writer, engineer and marketer are resident-only and refuse every card.
+(`survey-enumeration`, `exhaustive-hunt`);
+writer, engineer, marketer and researcher are card-free and refuse every card
+(researcher's `claim-verification` unit was retired in the 2026-09 peer
+rebuild — fact-checks travel through researcher's A2A peers).
 The validator cross-checks worker kernels against the catalog's
 `assignee` front matter. The assistant itself is the quality gate (contracts under
 `profiles/assistant/skills/assistant-pipeline/references/quality-assurance/`)
@@ -458,9 +497,13 @@ writes on the current machine, then commit it.
   --id NAME` and `register-lexicon --file PATH` copy private data in, so those
   paths must never reach tracked config. `register-lexicon` refuses to write
   through a symlink, which is what the private overlay installs.
-- `launchd/gateway-launchctl.sh {install,status,uninstall}` — gateway LaunchAgent,
-  **one host only** (one bot token = one live connection). The same Assistant
-  process hosts Telegram + Discord and the embedded dispatcher. Discord requires
+- `launchd/gateway-launchctl.sh {install,status,uninstall}` — the MULTIPLEX
+  gateway LaunchAgent (`local.hermes.gateway.multiplex`), **one host only**
+  (one bot token = one live connection, four bots in this one process). The
+  default-hosted process serves assistant Telegram + Discord, the
+  engineer / creator / marketer bots, the A2A endpoints (127.0.0.1:9902-9906),
+  and the embedded dispatcher; `install` also unloads the legacy
+  `local.hermes.gateway.assistant` agent. Discord requires
   the `AsyncSessionDB` regression guards for resolved upstream #40695.
   `install` re-renders + reloads = **restart** (new process re-reads `config.yaml`);
   to apply config you can also send **`/restart`** in chat (drain → `KeepAlive`
