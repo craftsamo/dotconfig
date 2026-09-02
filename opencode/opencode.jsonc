@@ -42,6 +42,17 @@
     // "claude-cli/2.1.220 (external, cli)". Re-apply after any version bump,
     // and keep the UA version roughly in sync with `claude --version`.
     // Verify: refresh_success in claude-auth-*.log at the next refresh window.
+    // NOTE (2026-09-02): upstream 2.2.0 STILL points OAUTH_TOKEN_URL at the stale
+    // claude.ai host with no User-Agent, so bumping does not retire this patch.
+    // CLIENT VERSION (2026-09-02): the plugin also spoofs the Claude Code client
+    // version on normal API calls (user-agent + cc_version in the billing system
+    // header), hardcoded as config.ccVersion in dist/model-config.js — 2.1.6 says
+    // 2.1.217. Anthropic gates newer models on a minimum client version, so that
+    // stale value hard-fails them ("Claude Code 2.1.217 does not support this
+    // model; version 2.1.251 or newer is required"). NOT patched here: env.zsh
+    // exports ANTHROPIC_CLI_VERSION, the plugin's own override, derived from the
+    // real `claude` install so it tracks updates and survives cache re-resolves.
+    // (2.2.0 would raise ccVersion to 2.1.257, but the override makes that moot.)
     "opencode-claude-auth@2.1.6",
     // quota: pinned — its cached dist/lib/anthropic.js is locally PATCHED to read
     // the sub-account Keychain entry above (upstream hardcodes the default entry

@@ -35,3 +35,23 @@ export PATH
 # ad-hoc `opencode` runs on this default path cannot clobber. Audit with:
 #   grep refresh_fallback_account ~/.local/share/opencode/claude-auth-*.log
 export CLAUDE_AUTH_DEBUG=1
+
+# opencode-claude-auth spoofs the Claude Code client identity on every Anthropic
+# request (user-agent "claude-cli/<v> (external, sdk-cli)" plus the cc_version in
+# the billing system header). The version is HARDCODED as config.ccVersion in the
+# plugin's dist/model-config.js — 2.1.6 pins 2.1.217 — and Anthropic gates newer
+# models on a minimum client version, so a stale value fails the request outright:
+#   "Claude Code 2.1.217 does not support this model; version 2.1.251 or newer is
+#    required" — while `claude --version` here is already well past that floor.
+# ANTHROPIC_CLI_VERSION is the plugin's own override and wins over ccVersion in
+# BOTH places, so the two stay consistent. Derived from the real Claude Code
+# install (~/.local/bin/claude symlinks to versions/<v>, so :A:t IS the version)
+# to track updates automatically — pure parameter expansion, no subprocess.
+# Upstream 2.2.0 ships ccVersion 2.1.257, but bumping the pinned plugin still
+# needs the OAuth-refresh patch re-applied (see opencode.jsonc), so override here.
+_cc_bin=$HOME/.local/bin/claude
+if [[ -e $_cc_bin ]]; then
+  _cc_ver=${_cc_bin:A:t}
+  [[ $_cc_ver == <->.<->.<-> ]] && export ANTHROPIC_CLI_VERSION=$_cc_ver
+fi
+unset _cc_bin _cc_ver
