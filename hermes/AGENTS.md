@@ -69,14 +69,34 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
   `a2a_agents` / toolset entries + the multiplex allowlist, never a second
   gateway process. **Upstream (≤ 21b2095d) drops background-process /
   async-delegation completion notifications for every secondary profile
-  silently** — `_inject_watch_notification` resolved adapters from
-  `self.adapters` (default only). The hermes-agent checkout carries
-  `fix/watch-notification-multiplex-route` (merged into `local`, with a
-  regression test) that routes through the profile-aware
-  `_adapter_for_source`; re-check after `hermes update` that the merge
-  survived (`git log --grep multiplex-route`), or resident sessions stop
-  waking the assistant again. Sibling paths still unpatched upstream:
-  shutdown / `/restart` notifications for secondary profiles.
+  silently** — two defects, both carried as fix branches merged into
+  `local` in the hermes-agent checkout, each with a regression test:
+  (1) `fix/watch-notification-multiplex-route` — `_inject_watch_notification`
+  resolved adapters from `self.adapters` (default only); it now routes
+  through the profile-aware `_adapter_for_source`. (2)
+  `fix/authz-adapter-process-profile` — `_authorization_adapter` compared
+  the stamped profile with `_active_profile_name()`, which follows the
+  task-scoped `HERMES_HOME` override; watcher tasks spawned at the end of
+  an assistant turn inherit that scope, so a completion for a RESTORED
+  session (pre-restart topic, no transport ref) was taken for the host's
+  and dropped as "no live adapter". It now compares with
+  `_process_profile_name()` under multiplex. Re-check after `hermes update`
+  that both merges survived (`git log --grep 'multiplex-route\|process
+  profile'`), or resident sessions stop waking the assistant again — and
+  the second one is invisible in a fresh topic: reproduce in a topic that
+  existed before the last gateway restart. Sibling paths still unpatched
+  upstream: shutdown / `/restart` notifications for secondary profiles.
+- **The secret helper has one shot per profile per process.** Hermes runs
+  `secrets.command` once per `HERMES_HOME` (no re-pull), kills it at
+  `helper_timeout_seconds`, and a Telegram adapter that then finds no token
+  fails NON-retryably — that bot is dead until the next gateway restart
+  (`✗ telegram failed to connect (profile: …)` right after `[secrets:command]
+  helper timed out`). `profile-secrets.sh` therefore fetches each Keychain
+  layer exactly once (~2s idle for three layers; a duplicated `hermes` fetch
+  for the bot profiles pushed them past 15s under boot load on 2026-09-02),
+  and every config sets the timeout to 60. Never add a `secret env` call
+  per key, and after touching the helper time it with
+  `time sh scripts/profile-secrets.sh creator >/dev/null`.
 - **`SOUL.md` = persona only** (voice/posture), per-profile (`HERMES_HOME`). No
   project rules/paths/commands there. Headings aren't parsed (verbatim inject).
 - **Keep `default` neutral** — every `--clone` inherits its `config.yaml`.
