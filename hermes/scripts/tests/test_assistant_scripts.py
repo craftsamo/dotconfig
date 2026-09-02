@@ -16,11 +16,17 @@ ASSISTANT_SCRIPTS = HERMES_ROOT / "profiles" / "assistant" / "scripts"
 
 
 class AssistantScriptTest(unittest.TestCase):
-    def test_gateway_launcher_keeps_discord_credentials(self) -> None:
-        launcher = HERMES_ROOT / "launchd" / "hermes-gateway-assistant"
+    def test_gateway_launcher_strips_messaging_keys_from_process_env(self) -> None:
+        """The multiplex launcher hosts every bot in one process: the
+        messaging tokens must NOT reach the process env (each profile's
+        secret scope fetches its own bot token via secrets.command), or the
+        default profile would poll the assistant's bot and collide with it."""
+        launcher = HERMES_ROOT / "launchd" / "hermes-gateway-multiplex"
         text = launcher.read_text(encoding="utf-8")
-        self.assertNotIn("unset DISCORD_", text)
+        self.assertIn("grep -v -E '^export (TELEGRAM_|DISCORD_)'", text)
         self.assertIn("gateway run --replace --accept-hooks", text)
+        self.assertNotIn(" -p assistant", text)
+        self.assertFalse((HERMES_ROOT / "launchd" / "hermes-gateway-assistant").exists())
 
     def test_block_resolver_requires_decision_and_resets_counter(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
