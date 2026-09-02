@@ -13,24 +13,31 @@ its own `config.yaml` / `SOUL.md` / `skills/` / `cron/` / state, and a
 ## Topology
 
 ```
-   human (terminal)        human (Telegram / Discord)
-          │                              │
-        default ──┐                  assistant ──┐   (runs the gateway + kanban dispatcher)
-        (CLI)     │                (~/Workspaces)│
-                  │                              │
-                  └──────────┬───────────────────┘
-                             │
-        ┌────────────────────┼──────────────────────┐
-        │ resident sessions  │ lean kanban cards    │ delegate_task
-        │ (default for       │ (fire-and-forget,    │ (in-turn parallel
-        │  heavy work)       │  cron, mass-parallel,│  lookups)
-        ▼                    ▼  scheduled)          ▼
-  hermes -p <specialist>   ~/.hermes/kanban.db    anonymous subagents
-  chat --resume <id>         │ dispatcher spawns
-        │              ┌─────┴────┬─────────┬────────┬────────┬────────┐
-        ▼              ▼          ▼         ▼        ▼        ▼        ▼
-   searcher/researcher/engineer/creator/writer/marketer  (same six profiles)
+   human (terminal)     human (Telegram × 4 bots + Discord)
+          │                │        │        │        │
+        default        assistant engineer creator marketer   ← four PRIMARY bots
+        (CLI)              │      (all adapters live in ONE multiplex gateway
+          │                │       process, hosted by default; + dispatcher)
+          └──────┬─────────┘
+                 │                        A2A peer graph (localhost HTTP):
+        ┌────────┼──────────────────┐       assistant → engineer creator marketer writer
+        │ resident sessions         │       engineer  → marketer researcher writer
+        │ lean kanban cards         │       creator   → engineer marketer researcher writer
+        │ delegate_task             │       marketer  → engineer creator researcher writer
+        ▼                           ▼       (writer / researcher: receive-only endpoints;
+  hermes -p <specialist>   anonymous subagents      searcher: no peer — classic
+  chat --resume <id> / ~/.hermes/kanban.db          delegation paths only)
 ```
+
+Four profiles are **primaries**: assistant (the original front door),
+engineer, creator, and marketer each run their own Telegram bot, all
+hosted by ONE `gateway.multiplex_profiles` process (see "Gateway as a
+persistent service"). Bots exchange work over the **A2A platform**
+(localhost JSON-RPC, `a2a_call` against the per-profile `a2a_agents`
+peer list — configured peers only, never a direct URL; Telegram itself
+cannot carry bot-to-bot traffic). writer and researcher serve inbound
+A2A requests but initiate nothing; searcher keeps the classic
+resident/kanban/delegate paths and no A2A endpoint.
 
 Heavy interactive work runs in **resident sessions**: the assistant starts a
 persistent `hermes -p <specialist> chat` conversation through
@@ -51,16 +58,24 @@ Verified against the source clone
 - **One shared board.** The kanban DB is anchored at the base
   `~/.hermes/kanban.db` via `get_default_hermes_root()` — *not* profile-scoped
   (`kanban_db.py:264-284,429-431`). Every profile reads/writes the same board.
-- **One gateway powers everything.** The dispatcher runs inside the gateway and
-  sweeps **all** boards each tick, regardless of which profile the gateway runs
-  as (`gateway/kanban_watchers.py:861-867`). So `assistant`'s gateway dispatches
-  tasks created by `default`'s CLI. `default` needs no gateway of its own.
+- **One gateway powers everything.** Since the 2026-09 multiplex rebuild the
+  gateway runs as **default** with `gateway.multiplex_profiles: true`: the one
+  process hosts every served profile's adapters (assistant Telegram + Discord,
+  the engineer / creator / marketer bots, the A2A endpoints) plus the embedded
+  dispatcher, which sweeps **all** boards each tick
+  (`gateway/kanban_watchers.py`). Secondary profiles never start their own
+  gateway, and per-profile cron stores are ticked individually by the same
+  process.
 - **Workers are spawned through the PATH `hermes`.** The dispatcher launches
   `hermes -p <worker> … chat -q "work kanban task <id>"` as a subprocess,
   resolving `hermes` via `shutil.which` (so our `bin/hermes` shim is used) and
   inheriting a copy of the gateway's env with `HERMES_HOME` overridden
   (`kanban_db.py:6705-6837,6607`). Workers therefore get the `global` + `hermes`
   Keychain layers injected automatically — **no per-worker secret is needed.**
+  In-gateway turns are different: under multiplex, scope-aware reads (bot
+  tokens, provider and web-search keys) resolve ONLY from each profile's
+  secret scope, filled from the Keychain by `secrets.command` →
+  `scripts/profile-secrets.sh` (see "Secrets layering").
 
 ## Three delegation layers
 
@@ -82,13 +97,13 @@ itself call `delegate_task` during its run.
 | Profile | Role | Front door | `terminal.cwd` | Toolsets | Gateway | Tracked |
 | --- | --- | --- | --- | --- | --- | --- |
 | **default** | CLI front door — assistant's CLI counterpart (neutral persona) | CLI | `.` (launch dir) | `web,browser,terminal,file,code_execution,vision,x_search,skills,todo,memory,clarify,delegation,cronjob,kanban` | — | yes |
-| **assistant** | messaging front door + dispatcher host | Telegram + Discord | `~/Workspaces` | `web,browser,terminal,file,vision,x_search,skills,todo,memory,clarify,delegation,cronjob,computer_use,kanban` + `unreal-engine` MCP | **yes** | yes (token per-machine) |
-| **engineer** | supervises OpenCode: assess (read-only) / implement (from the assistant's plan session or an Issue; delegated worktree bootstrap in a repo the assistant created), under an Authority grant; planning documents, repo creation, and GitHub bookkeeping stay with the assistant | — (specialist) | `.` (launch / task ws) | `terminal,file,web,skills,todo,memory,delegation` | — | yes |
-| **researcher** | verified conclusions from released units: evidence-pack / tradeoff-matrix / fact-check / guidance; heavy breadth is requested from the orchestrator as a search unit | — (specialist) | `.` (launch / task ws) | `file,web,vision,video,skills,memory,delegation` | — | yes |
+| **assistant** | primary: messaging front door; A2A peers engineer/creator/marketer/writer | Telegram + Discord | `~/Workspaces` | `web,browser,terminal,file,vision,x_search,skills,todo,memory,clarify,delegation,cronjob,computer_use,kanban,a2a` + `unreal-engine` MCP | served | yes (token per-machine) |
+| **engineer** | primary: supervises OpenCode: assess (read-only) / implement (from the assistant's plan session or an Issue; delegated worktree bootstrap in a repo the assistant created), under an Authority grant; planning documents, repo creation, and GitHub bookkeeping stay with the assistant; A2A peers marketer/researcher/writer | Telegram (own bot) | `.` (launch / task ws) | `terminal,file,web,skills,todo,memory,delegation,a2a` | served (bot + a2a :9902) | yes |
+| **researcher** | verified conclusions from released units: evidence-pack / tradeoff-matrix / fact-check / guidance; heavy breadth is requested from the orchestrator as a search unit; serves engineer/creator/marketer only (not the assistant), cards refused | — (A2A receive-only) | `.` (launch / task ws) | `file,web,vision,video,skills,memory,delegation` | served (a2a :9906) | yes |
 | **searcher** | retrieval from released units: lookup / sweep / hunt (multi-hop via `goal_mode` on cards) | — (specialist) | `.` (launch / task ws) | `web,x_search,skills,memory` | — | yes |
-| **creator** | all media production and assembly — image, video, GIF, audio, song, voice, part assembly — consuming released units (decided specs) under a Budget grant, with advisory and anchor-unit rounds | — (specialist) | `.` (launch / task ws) | `terminal,file,vision,image_gen,video_gen,video,tts,skills,memory,delegation` + gen plugins + `unreal-engine` MCP | — | yes |
-| **writer** | reader-facing prose and producer-facing scripts from released units (outline / piece / whole job); draft-only, never publishes | — (specialist) | `.` (launch / task ws) | `file,web,skills,memory,delegation` | — | yes |
-| **marketer** | platform copy from released message units, four-stage pre-ship inspection, grounding judgment, and publishing only within a Publish grant | — (specialist) | `.` (launch / task ws) | `terminal,file,web,browser,x_search,vision,skills,memory,delegation` | — | yes |
+| **creator** | primary: all media production and assembly — image, video, GIF, audio, song, voice, part assembly — consuming released units (decided specs) under a Budget grant, with advisory and anchor-unit rounds; A2A peers engineer/marketer/researcher/writer | Telegram (own bot) | `.` (launch / task ws) | `terminal,file,vision,image_gen,video_gen,video,tts,skills,memory,delegation,a2a` + gen plugins + `unreal-engine` MCP | served (bot + a2a :9903) | yes |
+| **writer** | reader-facing prose and producer-facing scripts from released units (outline / piece / whole job); draft-only, never publishes; serves all four primaries | — (A2A receive-only) | `.` (launch / task ws) | `file,web,skills,memory,delegation` | served (a2a :9905) | yes |
+| **marketer** | primary: platform copy from released message units, four-stage pre-ship inspection, grounding judgment, and publishing only within a Publish grant; A2A peers engineer/creator/researcher/writer | Telegram (own bot) | `.` (launch / task ws) | `terminal,file,web,browser,x_search,vision,skills,memory,delegation,a2a` | served (bot + a2a :9904) | yes |
 
 The table lists each role's native capability allowlist. `platform_toolsets` is
 the runtime authority; top-level `toolsets` mirrors it and retains `kanban` on
@@ -223,11 +238,15 @@ Details: searcher's `searcher-pipeline` skill.
 **researcher** consumes released depth units the same way — an
 evidence-pack unit (settled question + done criteria), a
 tradeoff-matrix unit (closed option set + criteria), a fact-check unit
-(fixed claims list + source requirements; card-eligible as
-`claim-verification`), or a guidance unit (consumer + decision
+(fixed claims list + source requirements), or a guidance unit
+(consumer + decision
 points + evidence base) — under the evidence-integrity floor and the
 Admiralty/SIFT method, returning undecided briefs as spec-gap or
-granularity findings. The assistant's research plan leaves
+granularity findings. Research units reach it only from engineer,
+creator, or marketer (its A2A peers / session owners) — never from the
+assistant directly, and never as cards (the `claim-verification`
+catalog unit was retired in the 2026-09 peer rebuild). The assistant's
+research plan leaves
 (`plan/research/`) fix the decisions, and research QA gates each unit
 against evidence-pack/tradeoff-matrix/fact-check/guidance contracts
 (validator-enforced mapping). Details: researcher's
@@ -352,11 +371,12 @@ Three per-profile layers, kept separate:
     `subagent-driven-development`, `docker-management`, `pinggy-tunnel`,
     `fastmcp`, `mcporter`, and `cloudflare-temporary-deploy` (all key-free,
     script/CLI-based via uv / npx / docker)
-  - researcher → `researcher-pipeline` (dual runtime — cards only for the
-    `claim-verification` catalog unit; consumes released units with unit
+  - researcher → `researcher-pipeline` (resident sessions + inbound A2A
+    peer requests from engineer/creator/marketer; every card refused —
+    the `claim-verification` unit is retired; consumes released units with unit
     discipline — evidence-pack / tradeoff-matrix / fact-check /
     guidance — returning spec-gap and granularity findings, plus
-    Admiralty/SIFT source evaluation, citation rules, Review gate, and resume
+    Admiralty/SIFT source evaluation, citation rules, and the Review gate
     in the kernel; researcher supplies evidence and does not own
     artifact-vs-brief QA; retrieval strategy in references/gather.md) +
     optional research skills via `skills.external_dirs`: `domain-intel` and
@@ -469,10 +489,11 @@ The kanban catalog is closed: its machine-readable surface is the union of
 A card must match one unit and carry every required input; otherwise the work
 stays resident or is decomposed during planning. Composites are never one card
 (never send 0→10 as one card). Seeded units are creative:
-`anchored-image-batch`, `tts-voice`, `deterministic-render`; search:
-`survey-enumeration`, `exhaustive-hunt`; and research: `claim-verification`
-(the card-eligible form of a fact-check unit). Engineering, writing,
-and marketing remain resident-only. All six worker pipelines fail fast at the
+`anchored-image-batch`, `tts-voice`, `deterministic-render`; and search:
+`survey-enumeration`, `exhaustive-hunt`. Engineering, writing, marketing,
+and research are card-free (the research `claim-verification` unit was
+retired in the 2026-09 peer rebuild; fact-checks now travel through the
+researcher's A2A peers). All six worker pipelines fail fast at the
 Unit gate with `kanban_block(kind=capability)` for composite or malformed cards.
 
 The pinned Telegram topics are Assistant-owned **desks**, not worker threads:
@@ -785,42 +806,64 @@ routes through the same `bin/hermes` shim — **every profile gets `global` +
 - **`hermes`** — shared model/fallback keys every profile and every
   dispatcher-spawned worker needs: `OPENROUTER_API_KEY` (the OpenRouter
   fallback tails) and `GITHUB_TOKEN` (Skills Hub; no longer a model
-  provider since the 2026-07 copilot retirement).
+  provider since the 2026-07 copilot retirement). The legacy messaging keys
+  (`TELEGRAM_*` / `DISCORD_*`) still parked here are IGNORED by the profile
+  scopes (filtered by `profile-secrets.sh`) — the per-bot copies below are
+  authoritative.
 - **`global`** — keys shared with *other* tools (editor, MCP servers, other
   CLIs). Nothing Hermes-specific needs to live here.
-- **gateway secrets** (`DISCORD_BOT_TOKEN`, `TELEGRAM_BOT_TOKEN`, +
-  `*_ALLOWED_USERS` / `*_HOME_CHANNEL`) currently sit in the **`hermes`** layer,
-  so the shim injects them whenever the gateway runs. Move them to a dedicated
-  `assistant` layer if you want them off non-gateway profiles.
+- **`hermes-<profile>`** (assistant / engineer / creator / marketer) — that
+  bot's own `TELEGRAM_BOT_TOKEN` + `TELEGRAM_ALLOWED_USERS` (assistant also
+  `TELEGRAM_HOME_CHANNEL` / `TELEGRAM_DM_CHAT_ID` / `DISCORD_*`). One bot,
+  one layer; never share a token between layers.
 - **OAuth**: Codex / Copilot / xAI-OAuth in default's `auth.json` (read-only
   fallback to every profile); **Anthropic** resolves separately via the Claude
   Code credential / token (machine-global, every profile).
 
+**Multiplex changes where these layers land.** Scope-aware reads inside the
+gateway (bot tokens, `OPENROUTER_API_KEY`, `EXA/PARALLEL/FIRECRAWL/XAI` keys,
+`GITHUB_TOKEN`, TTS keys, …) resolve ONLY from each profile's secret scope and
+never fall back to the process env. Every profile therefore carries
+`secrets.command` → `scripts/profile-secrets.sh <profile>`, which emits
+`global` + `hermes` (minus messaging keys) + `hermes-<profile>` as dotenv
+lines at startup (and derives `TELEGRAM_CRON_THREAD_ID` from the persisted
+Inbox topic for assistant). Raw-env readers (`BU_CDP_URL`, dashboard auth)
+still read the process env the launcher injects.
+
 Workers need no unique secret: the dispatcher execs `hermes -p <worker>`, which
 hits the `bin/hermes` shim (`global` + `hermes`), and they also inherit the
 gateway's env. A background **LaunchAgent** can start with a stripped `PATH`, so
-the assistant launcher sets its own `PATH` and `eval`s the Keychain layers
+the gateway launcher sets its own `PATH` and `eval`s the Keychain layers
 directly (below).
 
 ## Gateway as a persistent service
 
-Assistant hosts the gateway (and the embedded kanban dispatcher) keychain-pure
-via a **LaunchAgent**. Three tracked, machine-agnostic files in `hermes/launchd/`:
+The **default** profile hosts ONE multiplex gateway (and the embedded kanban
+dispatcher) keychain-pure via a **LaunchAgent**: `gateway.multiplex_profiles:
+true` + the allowlist (assistant, engineer, creator, marketer, writer,
+researcher) in the root `config.yaml` make that single process connect every
+served profile's enabled platforms — assistant Telegram (+ topics) and
+Discord, the engineer / creator / marketer Telegram bots, and the A2A
+endpoints on 127.0.0.1:9902-9906. Secondary profiles never run their own
+gateway. Three tracked, machine-agnostic files in `hermes/launchd/`:
 
-- **`hermes-gateway-assistant`** — the launcher. Sets `PATH`, `cd`s to
-  `~/Workspaces`, logs to `~/.hermes/logs/gateway-assistant.log`, `eval`s the
-  `global` + `hermes` Keychain layers (`TELEGRAM_BOT_TOKEN` /
-  `DISCORD_BOT_TOKEN` / `OPENROUTER_API_KEY` / `GITHUB_TOKEN` / …) like the shim
-  does, then execs the real `hermes -p assistant gateway run`. Every path is
+- **`hermes-gateway-multiplex`** — the launcher. Sets `PATH`, `cd`s to
+  `~/Workspaces`, logs to `~/.hermes/logs/gateway-multiplex.log`, `eval`s the
+  `global` + `hermes` Keychain layers into the process env (raw-env readers +
+  subprocess inheritance; the scope-aware keys come per profile from
+  `secrets.command`), then execs the real `hermes gateway run` (no `-p` —
+  default is the multiplex host). Every path is
   `$HOME`-relative — no
   hardcoded home, no `.env`. (`secret env` has **no `-- <cmd>` form**, hence the
-  `eval`.)
-- **`local.hermes.gateway.assistant.plist.tmpl`** — LaunchAgent template with a
+  `eval`.) It exports no `HERMES_PROFILE`: one process serves many profiles.
+- **`local.hermes.gateway.multiplex.plist.tmpl`** — LaunchAgent template with a
   `__HOME__` placeholder (launchd can't expand `~`). Runs the launcher as
-  `ProgramArguments[0]`, so the login item reads `hermes-gateway-assistant`, not
+  `ProgramArguments[0]`, so the login item reads `hermes-gateway-multiplex`, not
   `sh`.
 - **`gateway-launchctl.sh`** — renders the template (`__HOME__` → `$HOME`) into
-  `~/Library/LaunchAgents/` (host-local, never committed) and loads it.
+  `~/Library/LaunchAgents/` (host-local, never committed) and loads it; on
+  install it also unloads the legacy `local.hermes.gateway.assistant` agent so
+  two pollers never race one bot token.
 
 **Telegram + Discord.** Upstream #40695 previously let `_handoff_watcher` block
 the asyncio loop on synchronous SQLite access, stalling Discord heartbeats and
@@ -837,7 +880,8 @@ STT/TTS fallback chains. It leaves after five idle minutes by default, and a
 gateway restart requires a manual rejoin. Cron/system Inbox delivery stays on
 Telegram to avoid duplicate proactive notifications.
 
-Activate on the **gateway host only** (one bot token = one live connection — stop
+Activate on the **gateway host only** (one bot token = one live connection —
+four bots means four tokens, all owned by this one process; stop
 any gateway elsewhere first):
 
 ```
@@ -891,3 +935,26 @@ guarded block resolver remain); the validator now enforces the
 assistant-pipeline topology, routing completeness, `card_units` schema and
 required QA contracts. Remaining live verification: a real short-video production run
 through the new flow.
+
+**Multi-primary peer rebuild (2026-09-01)** — assistant, engineer, creator,
+and marketer were promoted to primaries: each runs its own Telegram bot out
+of ONE default-hosted multiplex gateway (`gateway.multiplex_profiles`), and
+the peer graph rides the A2A platform (per-profile `a2a_agents`, localhost
+ports 9902-9906, `timeout: 310` because the caller default of 120s undercuts
+the server's 300s reply window). writer / researcher became receive-only A2A
+endpoints; researcher's `claim-verification` card was retired (research is
+card-free; the assistant reaches research only through engineer / creator /
+marketer). Secrets moved to per-profile scopes via `secrets.command` →
+`scripts/profile-secrets.sh` (multiplex scope-aware reads never fall back to
+the process env). Peer-list enforcement is config + operating contract
+(`a2a_agents` names the callable peers; contracts forbid direct URLs), not a
+plugin hook. The old v5 supervision shape (assistant as front door / quality
+gate / dispatcher host, heavy work in resident sessions) is retained for
+now, with a stated intent to move stepwise toward a flatter, equal-primary
+operation. Verified live 2026-09-01/02: 4 bots + Discord connected, A2A
+round-trips (assistant→writer, engineer→researcher), dispatcher singleton,
+cron ticking all 7 profiles. First regression found and fixed 2026-09-02:
+upstream's completion-notification injector only knew `self.adapters`, so a
+resident-session turn finishing in the assistant's (now secondary) chat
+never woke it — carried fix `fix/watch-notification-multiplex-route` in the
+hermes-agent checkout (see AGENTS.md).

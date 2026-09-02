@@ -227,10 +227,13 @@ source with `hermes -p <profile> curator pin <name>`, then commit it normally.
   either way; only the symlink tracking is affected.
 - **Per-profile secrets aren't isolated by the shim.** The wrapper always calls
   `hermes`, so every profile gets the same `global` + `hermes` Keychain layers.
-  If a profile needs isolation, add a dedicated Keychain injection path rather
-  than introducing `.env` files.
+  Profile isolation happens in the multiplex gateway's per-profile secret
+  scopes instead: each profile's `secrets.command` runs
+  `scripts/profile-secrets.sh <profile>`, which layers `global` + `hermes`
+  (minus messaging keys) + the profile's own `hermes-<profile>` Keychain layer
+  (bot tokens). Never introduce `.env` files.
 - **Background / launchd profiles** may start with a restricted `PATH`. The
-  tracked Assistant gateway launcher sets `PATH` explicitly and injects the
+  tracked multiplex gateway launcher sets `PATH` explicitly and injects the
   approved Keychain layers before `exec`; other services must follow the same
   pattern.
 
@@ -242,7 +245,12 @@ then `secret env -p hermes`). The `hermes` layer holds keys only Hermes uses
 (e.g. `OPENROUTER_API_KEY`, `GITHUB_TOKEN`) — it's injected for every `hermes`
 invocation, including every profile alias (`~/.local/bin/<name>` runs bare
 `hermes -p <name>`). The `global` layer is for keys shared with other shimmed
-tools. See [`secret`](../zsh/functions/secret.md).
+tools. Per-bot layers `hermes-assistant` / `hermes-engineer` /
+`hermes-creator` / `hermes-marketer` hold each bot's `TELEGRAM_BOT_TOKEN`
+(+ allowlists; assistant also carries the Discord keys) and reach the
+multiplex gateway through each profile's `secrets.command` helper
+(`scripts/profile-secrets.sh`), because multiplex secret scopes never read
+the process env. See [`secret`](../zsh/functions/secret.md).
 
 ## Web dashboard (tailnet)
 
