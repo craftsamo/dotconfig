@@ -565,7 +565,6 @@ mcp_servers:
     enabled: true
 skills:
   external_dirs:
-    - ~/ghq/github.com/NousResearch/hermes-agent/skills/autonomous-ai-agents
     - ~/ghq/github.com/NousResearch/hermes-agent/skills/creative
     - ~/ghq/github.com/NousResearch/hermes-agent/skills/media
     - ~/ghq/github.com/NousResearch/hermes-agent/optional-skills/creative/baoyu-article-illustrator
@@ -583,6 +582,14 @@ skills:
     - blender-mcp
     - touchdesigner-mcp
     - pixel-art
+    # ~/.agents/skills is the harness-neutral store shared with OpenCode /
+    # Claude Code; creator needs its hyperframes* / media-use / caption
+    # playbooks, not the engineering and authoring skills parked beside them.
+    - japanese-writing
+    - keychain-secrets
+    - resolve-dependabot-alerts
+    - skill-authoring
+    - tldraw-offline
   template_vars: true
   inline_shell: false
   inline_shell_timeout: 10
