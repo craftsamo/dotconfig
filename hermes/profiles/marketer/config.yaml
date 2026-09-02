@@ -698,7 +698,7 @@ secrets:
   command:
     enabled: true
     command: '"$HOME/.config/hermes/scripts/profile-secrets.sh" marketer'
-    helper_timeout_seconds: 15
+    helper_timeout_seconds: 60
 paste_collapse_threshold: 5
 paste_collapse_threshold_fallback: 5
 paste_collapse_char_threshold: 2000

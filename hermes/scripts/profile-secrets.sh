@@ -31,7 +31,8 @@
 #     don't store such values for Hermes keys.
 #   - Must be fast and non-interactive (Hermes kills the helper after
 #     `secrets.command.helper_timeout_seconds`); three `secret env` calls
-#     measure ~2.5s, so configs set the timeout to 15.
+#     measure ~2s idle and several times that under boot load, so configs set
+#     the timeout to 60.
 #   - stderr is discarded by Hermes on purpose; keep diagnostics off stdout.
 set -u
 
@@ -45,17 +46,25 @@ emit_layer() { # $1 = project layer; missing layer is not an error
   "$SECRET" env -p "$1" 2>/dev/null | sed -n 's/^export //p' || true
 }
 
+# Exactly ONE `secret env` per layer. Each call unlocks and dumps a
+# keychain (~1.5-2s idle, noticeably more while the gateway boots), and
+# Hermes kills the helper at `helper_timeout_seconds` with NO retry: a
+# profile whose helper times out at startup has no bot token for the
+# whole process lifetime ("No bot token configured" is non-retryable).
+# Fetching the shared layer twice for the bot profiles is what pushed
+# creator/engineer/marketer past the budget on 2026-09-02.
 emit_layer global
+HERMES_LAYER="$(emit_layer hermes)"
 case "$PROFILE" in
   assistant)
-    emit_layer hermes
+    printf '%s\n' "$HERMES_LAYER"
     ;;
   engineer|creator|marketer)
-    emit_layer hermes | grep -v -E '^(TELEGRAM_|DISCORD_)' || true
-    emit_layer hermes | grep -E '^TELEGRAM_ALLOWED_USERS=' || true
+    printf '%s\n' "$HERMES_LAYER" | grep -v -E '^(TELEGRAM_|DISCORD_)' || true
+    printf '%s\n' "$HERMES_LAYER" | grep -E '^TELEGRAM_ALLOWED_USERS=' || true
     ;;
   *)
-    emit_layer hermes | grep -v -E '^(TELEGRAM_|DISCORD_)' || true
+    printf '%s\n' "$HERMES_LAYER" | grep -v -E '^(TELEGRAM_|DISCORD_)' || true
     ;;
 esac
 emit_layer "hermes-$PROFILE"
