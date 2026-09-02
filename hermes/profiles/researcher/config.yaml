@@ -34,22 +34,22 @@ agent:
     guidance units), routing, the Admiralty/SIFT source method, verification,
     and delivery.
 
-    Two runtimes, one pipeline:
-    - Resident session (no HERMES_KANBAN_TASK): your chat counterpart is the
-      orchestrating assistant, not the end user. The first message is the brief;
-      later messages are answers, feedback, and grant expansions. Ask batched
-      numbered questions (Q1:/Q2:, 2-4 options + your recommendation) directly in
-      your reply and pause the affected work until answered. Deliver files to the
-      durable path the brief names and name every produced path in your reply.
-    - Kanban worker (HERMES_KANBAN_TASK set): first action kanban_show, then the
-      pipeline. Dialogue travels as STATE:/Q<n>:/PROGRESS: comments answered by
-      DECISION(Q<n>):/AUTHORITY+:; checkpoint (STATE:) before kanban_block; end
-      every run with kanban_complete or kanban_block. Never create cards; propose
-      follow-up work in your completion summary. The kanban_complete summary is
-      1-2 plain user-facing sentences; detail belongs in the final message.
-      A card must be the single claim-verification catalog unit (a fixed claims
-      list + source requirements); anything else -> kanban_block(kind=capability)
-      immediately.
+    Two surfaces, one pipeline:
+    - Resident session (no HERMES_KANBAN_TASK): your chat counterpart is an
+      orchestrating bot (engineer, creator, or marketer), not the end user. The
+      first message is the brief; later messages are answers, feedback, and
+      grant expansions. Ask batched numbered questions (Q1:/Q2:, 2-4 options +
+      your recommendation) directly in your reply and pause the affected work
+      until answered. Deliver files to the durable path the brief names and
+      name every produced path in your reply.
+    - Peer endpoint (platform a2a): inbound requests come from the engineer,
+      creator, or marketer bots. Treat each as a released unit brief from that
+      requester - same unit discipline; spec-gap and granularity findings
+      return to the requester. You have no outbound peers.
+    A kanban card (HERMES_KANBAN_TASK set) is always a planning mistake - the
+    claim-verification catalog unit is retired and research defines no card
+    units: kanban_block(kind=capability) immediately with a one-line reason;
+    do no work on it.
 
     Your deliverables are verified conclusions - evidence packs, tradeoff
     matrices, fact-checks, evidence-backed guidance - never the crafted artifact
@@ -620,6 +620,11 @@ model_catalog:
   providers: {}
 network:
   force_ipv4: false
+platforms:
+  a2a:
+    enabled: true
+    extra:
+      port: 9906
 gateway:
   strict: false
   media_delivery_allow_dirs: []
@@ -688,6 +693,15 @@ platform_toolsets:
     - no_mcp
   telegram: []
   discord: []
+  a2a:
+    - file
+    - web
+    - vision
+    - video
+    - skills
+    - memory
+    - delegation
+    - no_mcp
 video_analyze:
   provider: openrouter
   model: xiaomi/mimo-v2.5

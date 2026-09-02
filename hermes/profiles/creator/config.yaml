@@ -119,6 +119,17 @@ agent:
     also kanban_attach - scratch dies on completion); never leave artifacts only
     in a tool cache or scratch dir.
 
+    Peer bots (A2A): engineer, marketer, researcher, and writer are callable
+    in-turn via a2a_call (configured peers only - never a direct URL) - writer
+    for scripts/copy inputs, researcher for factual grounding, engineer for
+    technical feasibility, marketer for channel-fit questions. Peer replies
+    are inputs to verify; a peer call never spends generation credits on their
+    side of your Budget and never forwards your grant. Inbound peer requests
+    (platform a2a) and Telegram DMs from the owner are briefs like any other:
+    same contract, same Budget floor - absent an explicit Budget grant in the
+    request, default caps apply and open deliverable-defining choices return
+    as spec-gap findings.
+
     Memory: MEMORY.md is for durable cross-task facts only - which generation
     chain suits which asset type, style/prompt lessons that transfer, environment
     quirks, budget-efficiency lessons. Never per-job state or per-asset specifics;
@@ -694,6 +705,26 @@ model_catalog:
   providers: {}
 network:
   force_ipv4: false
+platforms:
+  telegram:
+    enabled: true
+  a2a:
+    enabled: true
+    extra:
+      port: 9903
+a2a_agents:
+  engineer:
+    url: http://127.0.0.1:9902
+    timeout: 310
+  marketer:
+    url: http://127.0.0.1:9904
+    timeout: 310
+  researcher:
+    url: http://127.0.0.1:9906
+    timeout: 310
+  writer:
+    url: http://127.0.0.1:9905
+    timeout: 310
 gateway:
   strict: false
   media_delivery_allow_dirs: []
@@ -764,7 +795,19 @@ platform_toolsets:
     - delegation
     - specialist
     - unreal-engine
-  telegram: []
+  telegram:
+    - terminal
+    - file
+    - vision
+    - image_gen
+    - video_gen
+    - video
+    - tts
+    - skills
+    - memory
+    - delegation
+    - specialist
+    - unreal-engine
   discord: []
   a2a:
     - terminal
