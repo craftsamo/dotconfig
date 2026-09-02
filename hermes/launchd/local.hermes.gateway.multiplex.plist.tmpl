@@ -9,15 +9,15 @@
     only the template in git avoids committing a machine-specific home path).
 
     ProgramArguments is the launcher script itself (not `/bin/sh …`) so the
-    login item shows "hermes-gateway-assistant". All runtime setup (PATH, cwd,
+    login item shows "hermes-gateway-multiplex". All runtime setup (PATH, cwd,
     logging, Keychain injection) lives in that script.
   -->
   <key>Label</key>
-  <string>local.hermes.gateway.assistant</string>
+  <string>local.hermes.gateway.multiplex</string>
 
   <key>ProgramArguments</key>
   <array>
-    <string>__HOME__/.config/hermes/launchd/hermes-gateway-assistant</string>
+    <string>__HOME__/.config/hermes/launchd/hermes-gateway-multiplex</string>
   </array>
 
   <key>RunAtLoad</key>
