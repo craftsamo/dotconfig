@@ -55,9 +55,11 @@ metadata:
    measured size, plus the mark's extent inside the maskable 512 (must be
    ≤ 410 px, the 80 % safe zone). Never call `image_generate` here — a set
    must be pixel-identical across sizes, and a model cannot do that.
-3. Make one contact sheet for vision (`magick montage` of icon-16 scaled ×4,
-   icon-32 ×2, icon-48, icon-180, icon-512 on a mid-grey background) and
-   look at it once; then look at `icon-16.png` alone at native size.
+3. Make one contact sheet for vision — icon-16 scaled ×4, icon-32 ×2,
+   icon-48, icon-180 and icon-512 resized to 128, each `-background '#888888'
+   -gravity center -extent 144x144`, joined with `+append` (not `montage`:
+   ImageMagick 7 here has no default font and aborts) — and look at it once;
+   then look at `icon-16.png` alone at native size.
 4. `intent: revise` — rerun with the changed option; the same SVG + options
    reproduce the same bytes.
 
