@@ -19,7 +19,7 @@ metadata:
     category: hands
     hands: image-creator
     cost: metered
-    output: "round A: concept/concept_v<N>.png (full body, 1024 square, transparent) + sheet.png + silhouette.png; round B: pack/<slug>_<item>.png per item + sheet.png + manifest.json"
+    output: "round A: concept/concept_v<N>.png (full body, 1024 square, transparent) + sheet.png + silhouette.png + qa.md; round B: pack/<slug>_<item>.png per item + sheet.png + manifest.json + qa.md"
     form:
       concept:
         required: true
@@ -92,10 +92,13 @@ three images and stops.
    "copy"), the palette in order of area (from `palette`, else propose
    one from the reference or the concept and SAY so in the report), and
    what NOT to draw (incidental background, text, a second character).
-   Choose `<bg>`, the flat colour the model draws on: pure white, unless
-   the palette contains white or a pale colour, then `#00ff00`, unless
-   the palette contains green, then `#0000ff`. The model cannot draw
-   transparency; the finish cuts the subject out.
+   Choose `<bg>`, the flat colour the model draws on: pure `#00ff00`
+   green, unless the palette contains green, then `#ff00ff` magenta.
+   Never white: a mascot has eye whites and specular highlights, and on
+   a white `<bg>` the finish's `key_px` counts them (thousands on a
+   clean cut-out, earned on the first live run) so the leak check is
+   blind. The model cannot draw transparency; the finish cuts the
+   subject out.
 
 **Round A — the concept (no `anchor` in the form).**
 
@@ -131,19 +134,28 @@ three images and stops.
    background colour on the edge with `--fuzz 16%`, then `30%`. All of
    that is free and comes before any corrective generation. `pixel`:
    add `--pad 0.1` and confirm the grid survived the resize.
-4. Look, in this order, writing the finding down after each look:
+4. Look — exactly three looks, and after each one append its finding
+   to `<deliver>/concept/qa.md` with the file tool BEFORE the next
+   `vision_analyze` (an image is gone from your context three looks
+   later; a run that looked without writing cycled 152 times through
+   three candidates and never reported):
    (a) one contact sheet of the candidates —
    `magick <v1> <v2> <v3> -resize 320x320 -background '#888888' -gravity
    center -extent 336x336 +append <deliver>/concept/sheet.png` (not
-   `montage`: ImageMagick 7 here has no default font) — one line per
-   candidate against `character.md`: features present, palette kept,
-   style cues met; (b) the silhouette sheet —
+   `montage`: ImageMagick 7 here has no default font) — write one line
+   per candidate against `character.md`: features present (name them),
+   palette kept, each style QA cue with a verdict, cut-out clean, no
+   text / second character / ground shadow; this is where the
+   candidates are COMPARED — there is no per-candidate native look;
+   (b) the silhouette sheet —
    `magick <v1> <v2> <v3> -alpha extract -negate -resize 160x160
    -background white -gravity center -extent 176x176 +append
    <deliver>/concept/silhouette.png` — a mascot must be recognisable as a
-   black shape: name the candidate whose silhouette reads best and any
-   whose silhouette is a blob; (c) the best candidate alone at native
-   size.
+   black shape: write which candidate's silhouette reads best and any
+   whose silhouette is a blob; (c) the candidate you will recommend,
+   alone at native size — write what the sheet could not show (outline
+   continuity, shading tones, the emblem's detail). Then `qa.md` is the
+   evidence and the report is written from it.
 5. Stop. Report the candidates, the silhouette verdicts and your
    recommendation. Do NOT draw a pack — the client approves a concept,
    and the next request comes back as `intent: revise <this dir>` with
@@ -179,15 +191,16 @@ three images and stops.
    item). Write the calls into `<deliver>/pack/finish.sh` and run it with
    `bash`: an inline `for` loop over a script variable trips the terminal
    guard, a script file does not.
-9. Look, in this order: (a) a contact sheet of the pack at 256 px on a
+9. Look, in this order, appending each finding to `<deliver>/pack/qa.md`
+   before the next look: (a) a contact sheet of the pack at 256 px on a
    grey ground (`-resize 256x256 -background '#888888' -gravity center
    -extent 272x272`, `+append` rows of 4, `-append` the rows; a pack over
    eight is read in halves — a run holds about eight looks) — identity:
    every item is the anchor's character (same features, same palette,
    same proportions); (b) the same sheet at 25 % (`-resize 25%`) — every
    pose still reads at thumbnail size; (c) single items only where (a)
-   or (b) raised a doubt, one at a time, writing the finding down before
-   the next look.
+   or (b) raised a doubt, one at a time, at most one look per doubted
+   item.
 10. Correctives: an item that fails identity or pose gets ONE
     regeneration with the prompt adjusted by what failed (append the
     change to `prompt.txt`), within the corrective budget; then stop.
@@ -236,8 +249,8 @@ and named in the report — never a silent delivery.
 
 `generate-mascot` + round (A or B) + style + background; which backend
 received the reference (the client's image left the machine for it);
-round A: the candidates with their `RESULT:` numbers, vision and
-silhouette lines, the proposed palette if the form had none, the
+round A: the candidates with their `RESULT:` numbers, the three looks'
+findings from `qa.md`, the proposed palette if the form had none, the
 recommended concept, and the exact `revise` line the client sends back;
 round B: the sheet path, the manifest path, each QA check with evidence,
 items marked failed and why; `spend: img <calls>/<budget>` (correctives

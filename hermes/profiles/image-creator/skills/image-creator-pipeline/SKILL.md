@@ -30,12 +30,22 @@ metadata:
    them (`${HERMES_SKILL_DIR}/scripts/…`; shared ones live in this root's
    `scripts/`). Text with Japanese punctuation goes through a file, never
    an argv string. Anything that may exceed the terminal timeout runs
-   `background: true` and is polled.
+   `background: true` and is polled. A skill script runs in a command of
+   its own: the write guard reads the WHOLE command, so `cp … && <skills
+   path>/x.sh …` is refused as a write into the skill tree even though
+   the script is only being run — copy first, run second, or put the
+   calls into a script file under `deliver:` and `bash` it.
 4. **Run `<QA>`**, every check with its evidence. Vision holds about three
    images: look at a contact sheet first, then single files one at a time,
-   and write each finding down before the next look. A failed check is one
-   free re-run when the leaf allows it, else a corrective within budget,
-   else a reported gap — never a silent delivery.
+   and after EVERY look append the finding as text to `<deliver>/qa.md`
+   (the file tool) before the next `vision_analyze`. A look whose finding
+   is not on disk did not happen — an image you looked at is gone from
+   your context three looks later, and a run that looks without writing
+   walks in a circle until the budget is spent (152 looks at three
+   candidates on 2026-09-05). The leaf's `<Procedure>` lists the looks;
+   that list is the budget, never "one more to be sure". A failed check
+   is one free re-run when the leaf allows it, else a corrective within
+   budget, else a reported gap — never a silent delivery.
 5. **Reply with `<Report>`** — the paths, each check with evidence, the
    spend tally, and any one-line note about a procedure that no longer
    matches the runtime (reported, never patched: the tree is the

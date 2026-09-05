@@ -55,14 +55,19 @@ metadata:
    `coverage`, `key_px`, `bbox`, `fill`. `PALETTE:` per file gives the
    top 8 opaque colours with their share and, with `--palette`, the
    nearest asked colour and its RGB distance (`d0` exact, under `d40`
-   the same colour by eye, over `d100` a different colour). `SUMMARY:`
+   the same colour by eye, over `d100` a different colour); a colour
+   far from every asked one that is near-black is tagged `~ink` and
+   near-white `~highlight` — outline ink and speculars are the style's,
+   never palette drift (a 3-colour palette scored FAIL on five files
+   for its own line art on the first live pack). `SUMMARY:`
    counts. Sheets: `pack.png` (256 on grey), `pack64.png` (the 64 px
    read, point-magnified 4×), `silhouette.png` (alpha as black on
    white), `light.png` / `dark.png` (128 on a light and a dark page),
    `anchor.png` (anchor beside item 1). Words in `palette` (`electric
    blue`) are resolved to a hex by you before the call and named in the
    report as your reading.
-2. Look, in this order, writing the finding per sheet before the next
+2. Look, in this order, appending the finding per sheet to
+   `/tmp/analyze-mascot/<stem>/qa.md` with the file tool before the next
    look — vision holds about three images and a run holds about eight
    looks, so a set of more than six files is read in halves: crop
    `pack.png`, `pack64.png` and `silhouette.png` into two (`magick
@@ -86,11 +91,15 @@ metadata:
    GAP, never as PASS.
 3. Judge: `square=no` is a FAIL (every mascot delivery is square);
    `background=transparent` with `key_px > 50` is a FAIL (the key
-   leaked — or a pocket the corner flood missed); `corner_alpha ≠ 0` on
+   leaked — or a pocket the corner flood missed; the detector is tight,
+   8 % around pure green / magenta, so a saturated artwork blue does not
+   trip it); `corner_alpha ≠ 0` on
    a file that was asked transparent is a FAIL; `fill` under 0.15 (a
    sliver on an empty canvas) or over 0.95 (touching the edges) is a
    WARN; a palette colour over `d100` from every asked colour and above
-   5 % share is a WARN (drift), over 20 % share a FAIL; a silhouette
+   5 % share is a WARN (drift), over 20 % share a FAIL — `~ink` and
+   `~highlight` rows are exempt and a 5-9 % pale blend along the
+   subject's edge is anti-aliasing, a WARN at most; a silhouette
    that does not read is a FAIL for the recommended concept and a WARN
    for a pack item; 64 px legibility is a WARN (mascots are shown
    large) unless `note` says the file is an avatar, then a FAIL; light /

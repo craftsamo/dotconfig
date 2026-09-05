@@ -22,11 +22,14 @@
 #   MEASURE:  per file — file, width, height, square, format, bytes, alpha,
 #             corner_alpha, background (transparent | chromakey | flat, from
 #             the corner), coverage, key_px (opaque pixels pure chroma green
-#             or blue — on a transparent file a key that leaked; on a
+#             or magenta — on a transparent file a key that leaked; on a
 #             chromakey file the background itself), bbox (the subject's
 #             bounding box as WxH+X+Y), fill (bbox area / canvas area)
 #   PALETTE:  per file — the top 8 opaque colours with their share, and
-#             with --palette the nearest asked colour + distance for each
+#             with --palette the nearest asked colour + distance for each;
+#             a colour no asked colour is near (d > 40) that is near-black
+#             is tagged ~ink and near-white ~highlight instead — outline
+#             ink and speculars are style, not palette drift
 #   SUMMARY:  files, square (count), alpha (count), leaked (transparent files
 #             with key_px > 50)
 #   SHEET:    one line per sheet written
@@ -76,7 +79,10 @@ for i, (n, hx) in enumerate(rows[:8], 1):
         r, g, b = rgb(hx)
         best = min(asked, key=lambda c: sum((x-y)**2 for x, y in zip(rgb(c.strip()), (r, g, b))))
         d = int(sum((x-y)**2 for x, y in zip(rgb(best.strip()), (r, g, b))) ** 0.5)
-        out.append(f"c{i}={hx}:{share}~{best.strip().lower()}:d{d}")
+        lum = (0.2126*r + 0.7152*g + 0.0722*b) / 255
+        if d > 40 and lum < 0.12: out.append(f"c{i}={hx}:{share}~ink")
+        elif d > 40 and lum > 0.93: out.append(f"c{i}={hx}:{share}~highlight")
+        else: out.append(f"c{i}={hx}:{share}~{best.strip().lower()}:d{d}")
     else:
         out.append(f"c{i}={hx}:{share}")
 print(" ".join(out))
@@ -92,9 +98,11 @@ measure_one() { # $1 = file
   [ "$W" = "$H" ] && { SQ=yes; SQUARE=$((SQUARE+1)); } || SQ=no
   CORNER="$(magick "${F}[0]" -alpha set -alpha extract -format '%[fx:p{0,0}]' info:)"
   COVERAGE="$(magick "${F}[0]" -alpha set -alpha extract -format '%[fx:mean]' info:)"
-  # Opaque pixels within 20% of pure chroma green or blue: a leaked key.
-  KEY="$(magick "${F}[0]" -alpha set \( +clone -alpha off -fuzz 20% -fill black +opaque '#00ff00' -fill white -opaque '#00ff00' \) \
-    \( -clone 0 -alpha off -fuzz 20% -fill black +opaque '#0000ff' -fill white -opaque '#0000ff' \) \
+  # Opaque pixels within 8% of pure chroma green or magenta (the two keys
+  # mascot-fit.sh draws on): a leaked key. Tight on purpose — at 20% a
+  # saturated artwork blue read as a key on the first live pack.
+  KEY="$(magick "${F}[0]" -alpha set \( +clone -alpha off -fuzz 8% -fill black +opaque '#00ff00' -fill white -opaque '#00ff00' \) \
+    \( -clone 0 -alpha off -fuzz 8% -fill black +opaque '#ff00ff' -fill white -opaque '#ff00ff' \) \
     \( -clone 1 -clone 2 -compose Lighten -composite \) -delete 1,2 \
     \( -clone 0 -alpha extract -threshold 50% \) -delete 0 -compose Multiply -composite -format '%[fx:round(mean*w*h)]' info:)"
   # A flat delivery whose corner is pure green / blue is a chroma-key file
@@ -102,7 +110,7 @@ measure_one() { # $1 = file
   local BGKIND=transparent CORNER_HEX
   if [ "$ALPHA" = no ] || [ "$CORNER" != 0 ]; then
     CORNER_HEX="$(magick "${F}[0]" -alpha off -depth 8 -format '%[hex:p{0,0}]' info: | tr '[:upper:]' '[:lower:]')"
-    case "$CORNER_HEX" in 00ff00|0000ff) BGKIND=chromakey ;; *) BGKIND=flat ;; esac
+    case "$CORNER_HEX" in 00ff00|ff00ff|0000ff) BGKIND=chromakey ;; *) BGKIND=flat ;; esac
   fi
   [ "$BGKIND" = transparent ] && [ "$KEY" -gt 50 ] && LEAKED=$((LEAKED+1))
   BBOX="$(magick "${F}[0]" -alpha set -trim -format '%wx%h%X%Y' info: 2>/dev/null || echo "0x0+0+0")"
