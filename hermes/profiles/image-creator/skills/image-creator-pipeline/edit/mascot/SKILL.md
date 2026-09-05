@@ -35,10 +35,10 @@ metadata:
       crop:
         required: false
         options: [full, bust, head]
-        label: "keep the whole character (default), or the top part for an avatar — bust ≈ top 55 %, head ≈ top 40 % of the subject's height"
+        label: "keep the whole character (default), or the top part for an avatar — bust ≈ top 70 % (head and chest), head ≈ top 50 % of the subject's height"
       crop_frac:
         required: false
-        label: "override the crop fraction, 0-1 from the top (a chibi head is taller: 0.5)"
+        label: "override the crop fraction, 0-1 from the top (0.45 for a tighter head, 0.55 when the chin is cut)"
       size:
         required: false
         type: int
@@ -92,8 +92,9 @@ metadata:
    background trapped in a pocket → re-run with `--cutout key --fuzz
    30%`. A cut-out that ate part of the character (coverage dropped) →
    `--fuzz 5%`; a fringe → `16%`, then `30%`. All free. A `head` crop
-   whose subject is a chibi or a big-headed style comes out with the
-   chin cut → `--crop-frac 0.5`.
+   that cuts the chin (look at it) → `--crop-frac 0.55`; one that shows
+   too much chest → `0.45`. Name the fraction you settled on in the
+   report as a decision.
 4. Look at one sheet with vision — `magick <outputs…> -resize 256x256
    -background '#888888' -gravity center -extent 272x272 +append
    <deliver>/sheet.png` (rows of 4 with `-append` for more; not

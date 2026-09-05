@@ -28,9 +28,10 @@
 #                 the body, under a tail)
 #   --fuzz        flood-fill / key tolerance (default 10%)
 #   --crop        full (default): the whole subject; bust: the top part of
-#                 the subject's height (--crop-frac, default 0.55); head:
-#                 the top part (--crop-frac, default 0.40). Fractions are of
-#                 the trimmed subject, measured from the top.
+#                 the subject's height (--crop-frac, default 0.70 — head and
+#                 chest); head: the top part (--crop-frac, default 0.50 — a
+#                 mascot's head is big; 0.40 cut the chin on the first live
+#                 run). Fractions are of the trimmed subject, from the top.
 #   --pad         fraction of the edge kept clear around the subject
 #                 (default 0.06)
 #   --stroke      outline width in px around the cut-out subject (default 0)
@@ -73,7 +74,7 @@ case "$CUTOUT" in auto|yes|no|key) ;; *) die "--cutout must be auto | yes | no |
 case "$CROP" in full|bust|head) ;; *) die "--crop must be full | bust | head" ;; esac
 case "$STROKE_COLOR" in $HEX) ;; *) die "--stroke-color must be #rrggbb" ;; esac
 if [ -z "$CROP_FRAC" ]; then
-  case "$CROP" in bust) CROP_FRAC="0.55" ;; head) CROP_FRAC="0.40" ;; *) CROP_FRAC="1" ;; esac
+  case "$CROP" in bust) CROP_FRAC="0.70" ;; head) CROP_FRAC="0.50" ;; *) CROP_FRAC="1" ;; esac
 fi
 command -v magick >/dev/null 2>&1 || die "magick (ImageMagick) not found — report as a gap"
 
