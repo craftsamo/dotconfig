@@ -116,6 +116,38 @@ class ChainProvider(ImageGenProvider):
             "env_vars": [],
         }
 
+    @staticmethod
+    def _capabilities_safe(provider: ImageGenProvider) -> Dict[str, Any]:
+        try:
+            return dict(provider.capabilities() or {})
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("image-fallback: %s.capabilities() raised %s", provider, exc)
+            return {}
+
+    def capabilities(self) -> Dict[str, Any]:
+        """Advertise the first AVAILABLE member's capabilities.
+
+        The tool layer builds ``image_generate``'s schema from the configured
+        provider's ``capabilities()`` and the ABC default is text-only, so a
+        chain that stays silent hides ``image_url`` /
+        ``reference_image_urls`` from the model even though every member
+        supports them. The member that will actually serve the next call is
+        the first one with credentials, so that is whose surface we report;
+        ``generate()`` keeps the promise by skipping members that cannot
+        honour an image-carrying call.
+        """
+        for _, provider in self._members():
+            if self._is_available_safe(provider):
+                caps = self._capabilities_safe(provider)
+                if caps:
+                    return caps
+                break
+        return super().capabilities()
+
+    @staticmethod
+    def _accepts_images(caps: Dict[str, Any]) -> bool:
+        return "image" in (caps.get("modalities") or [])
+
     def generate(
         self,
         prompt: str,
@@ -124,13 +156,30 @@ class ChainProvider(ImageGenProvider):
     ) -> Dict[str, Any]:
         aspect = resolve_aspect_ratio(aspect_ratio)
         errors: List[str] = []
+        wants_images = bool(kwargs.get("image_url")) or bool(kwargs.get("reference_image_urls"))
 
         for member_name, provider in self._members():
             if not self._is_available_safe(provider):
                 errors.append(f"{member_name}: unavailable (no credentials)")
                 continue
+            call_kwargs = kwargs
+            if wants_images:
+                caps = self._capabilities_safe(provider)
+                if not self._accepts_images(caps):
+                    # Falling through to a text-only member would silently
+                    # drop the reference — a redraw that is not what was asked.
+                    errors.append(f"{member_name}: skipped (text-only, request carries images)")
+                    continue
+                refs = kwargs.get("reference_image_urls") or []
+                cap = int(caps.get("max_reference_images") or 0)
+                if refs and cap and len(refs) > cap:
+                    logger.warning(
+                        "image-fallback: %s accepts %d reference images, %d given; keeping the first %d",
+                        member_name, cap, len(refs), cap,
+                    )
+                    call_kwargs = dict(kwargs, reference_image_urls=list(refs)[:cap])
             try:
-                result = provider.generate(prompt, aspect_ratio=aspect, **kwargs)
+                result = provider.generate(prompt, aspect_ratio=aspect, **call_kwargs)
             except Exception as exc:  # noqa: BLE001 — never raise out of generate
                 logger.warning("image-fallback: %s raised %s", member_name, exc, exc_info=True)
                 errors.append(f"{member_name}: {exc}")
