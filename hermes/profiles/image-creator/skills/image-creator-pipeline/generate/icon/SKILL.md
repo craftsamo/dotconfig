@@ -84,8 +84,10 @@ metadata:
    It flood-fills the flat background from the corners, trims, fits and
    prints one `RESULT:` line (measured size, bytes, coverage, corner_alpha).
    A cut-out that ate part of the subject or left a fringe is re-run with
-   `--fuzz 5%` / `--fuzz 16%` first — that is free — before any corrective
-   generation. For `pixel`, add `--pad 0.1` and never let the finish resize
+   another `--fuzz` first — that is free — before any corrective
+   generation: `5%` when it ate the subject; `16%`, then up to `30%`, for a
+   fringe (soft-shaded styles — `clay`, `glass` — needed 30 % on a live run
+   without losing the subject; confirm with vision that it did not). For `pixel`, add `--pad 0.1` and never let the finish resize
    by a non-integer factor if the grid is visible (resize to a multiple).
 5. Look: one contact sheet of all variants — `magick <v1> <v2> … -resize
    256x256 -background '#888888' -gravity center -extent 272x272 +append
