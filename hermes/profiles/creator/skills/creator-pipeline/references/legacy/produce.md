@@ -7,10 +7,10 @@ Intent shapes the entry (kernel <IntentTriage>):
 
 - `new` — this file, top to bottom. A consistent batch or a high-cost
   asset without a pinned reference belongs to the execute Direction route first
-  (`references/plan.md`) — check before spending.
-- `revise` — load `references/iterate.md` FIRST; it owns inheritance and
+  (`references/legacy/direction.md`) — check before spending.
+- `revise` — load `references/legacy/iterate.md` FIRST; it owns inheritance and
   feedback triage, then re-enters this loop for the actual re-rendering.
-- `salvage` — load `references/resume.md` <Salvage> FIRST; it owns the
+- `salvage` — load `references/legacy/resume.md` <Salvage> FIRST; it owns the
   inventory; this loop then covers only what genuinely must be produced.
 
 ## CapabilityRouting
@@ -42,16 +42,16 @@ skills do not become stable dispatch names automatically, and their inline
 Per asset (or batch chunk):
 
 1. **Spec first.** The released spec carries the decisions; validate it
-   against `references/brief.md`'s family checklist and discover only
+   against `references/legacy/brief.md`'s family checklist and discover only
    mechanical destination facts before the first generation. A missing
    decision is a spec gap (kernel <UnitDiscipline>) — never improvised.
    An anchored batch reuses the locked anchor verbatim
-   (`references/plan.md` <AnchorByType>).
+   (`references/legacy/direction.md` <AnchorByType>).
 2. **Generate deliberately** within the Budget caps: variants are for
    real alternatives, not retries of an unread failure. Post-process with
    terminal tools (ffmpeg, the bundled scripts) in the task workspace;
    keep intermediates out of the delivery.
-3. **Verify before moving on** — `references/verify.md`, the intent's
+3. **Verify before moving on** — `references/legacy/verify.md`, the intent's
    profile. A clear miss gets the corrective pass (default: one per
    asset); if it still misses, deliver the best attempt and state the gap
    plainly — exceeding the Budget instead is a `Q<n>` block, never a
@@ -64,7 +64,7 @@ questions, checkpoint, block once.
 
 ## Handoff
 
-All assets verified → `references/delivery.md`: attachment discipline
+All assets verified → `references/legacy/delivery.md`: attachment discipline
 (including the anchor/reuse contract), the Review gate when the body
 carries `Review:`, and the evidence-backed report + metadata.
 
@@ -87,9 +87,9 @@ carries `Review:`, and the evidence-backed report + metadata.
 
 ## Verification
 
-- Every produced asset went through its `references/verify.md` intent
+- Every produced asset went through its `references/legacy/verify.md` intent
   profile before delivery; corrective passes stayed within caps.
 - Chain/depth-skill choice matched the asset type (or the catalog scan is
   documented); prerequisites were checked before use.
-- Handoff ran through `references/delivery.md` — nothing stranded, report
+- Handoff ran through `references/legacy/delivery.md` — nothing stranded, report
   evidence itemized.

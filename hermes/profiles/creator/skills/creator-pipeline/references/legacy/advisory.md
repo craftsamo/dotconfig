@@ -10,7 +10,7 @@ asset itself.
 - **Generate nothing.** No credits spent, no variants "to illustrate".
   The deliverable is an assessment.
 - **Answer from the catalog, not by trying.** Chain fit comes from
-  `references/produce.md` <AssetRouting> plus the profile's
+  `references/legacy/produce.md` <AssetRouting> plus the profile's
   available-skills catalog (in-tree + `skills.external_dirs` library);
   prerequisites (running desktop app / MCP) are checked cheaply (`nc -z`,
   process check), never by launching a production run.
@@ -55,4 +55,4 @@ asset itself.
 
 - Deliverable follows the format: verdict + chain + Budget estimate +
   risks; assumptions labeled; zero generation spend
-  (`references/verify.md`, advisory profile).
+  (`references/legacy/verify.md`, advisory profile).

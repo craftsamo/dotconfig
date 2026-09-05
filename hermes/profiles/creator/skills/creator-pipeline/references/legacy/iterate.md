@@ -31,7 +31,7 @@ then classify EACH item — the class decides the cheapest correct move:
 | --- | --- | --- |
 | **tweak** | a parameter-level change (crop, duration, text fix, color nudge, one word of narration) | re-process or re-render the affected asset with the ONE knob changed; anchor untouched |
 | **partial regen** | one asset / segment / scene is wrong, the rest approved | regenerate only that piece, reusing the locked anchor (same prompt skeleton / palette / seed / voice) |
-| **direction change** | the look/concept itself is rejected (new style, different concept) | STOP - the anchor is invalid. This is execute Direction work: lock a NEW cheap anchor and get sign-off (`references/plan.md`) BEFORE any full re-render. Say so in a comment; if the card's Budget cannot carry an anchor round, block. |
+| **direction change** | the look/concept itself is rejected (new style, different concept) | STOP - the anchor is invalid. This is execute Direction work: lock a NEW cheap anchor and get sign-off (`references/legacy/direction.md`) BEFORE any full re-render. Say so in a comment; if the card's Budget cannot carry an anchor round, block. |
 
 Mixed feedback is normal: run tweaks and partial regens under the inherited
 anchor; a single direction-change item freezes full-batch spend until the
@@ -49,7 +49,7 @@ identically:
   paraphrase — paraphrase is regeneration in disguise).
 - Verify the preservation, not just the fix: side-by-side (previous vs
   new) per revised asset — the named items changed, the unnamed aspects
-  didn't (`references/verify.md`, revise profile).
+  didn't (`references/legacy/verify.md`, revise profile).
 
 ## Budget
 
@@ -67,7 +67,7 @@ to catch in V5.
 - `PROGRESS:` per revised asset: which feedback items it closes, tally.
 - The final report maps feedback item → change made (or → declined, with
   the reason) and re-states the (possibly re-locked) anchor values for the
-  NEXT revise card (`references/delivery.md`).
+  NEXT revise card (`references/legacy/delivery.md`).
 
 ## Pitfalls
 
@@ -90,5 +90,5 @@ to catch in V5.
   noted in a comment.
 - Every feedback item classified and mapped to a move; direction changes
   went through an anchor round, never straight to full re-render.
-- `references/verify.md` revise profile passed (side-by-side both ways);
+- `references/legacy/verify.md` revise profile passed (side-by-side both ways);
   spend stayed within the revise card's own Budget.

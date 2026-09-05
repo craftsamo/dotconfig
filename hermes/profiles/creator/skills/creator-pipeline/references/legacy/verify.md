@@ -8,7 +8,7 @@ that the asset is right.**
 
 Six checks, V1-V6. Run the ones the intent profile (below) marks required;
 record what you checked and the outcomes as you go — they become the
-report's verification evidence (see `references/delivery.md`).
+report's verification evidence (see `references/legacy/delivery.md`).
 
 ## V1 — AcceptanceCheck (asset vs the brief)
 
