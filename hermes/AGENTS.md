@@ -379,9 +379,12 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
   the validator enforces the shape (`validate_hands`), and a subject must be
   unique across every hands because Creator reads all of them through one
   `skills.external_dirs` list. `image-creator` (A2A `:9907`, receive-only)
-  serves the icon family; Creator fills the leaf's form with its client
-  (interview a human, parse the assistant's brief) and hands off
-  (`creator-pipeline/references/hands.md`). Two earlier shapes failed —
+  serves the icon family; Creator (pipeline v7: Plan → Build → Quality
+  assurance, `creator-pipeline/references/{plan,build,quality-assurance}.md`)
+  tells its client apart by the message's SHAPE — brief lines = the
+  assistant → text `Q<n>:`; conversational = a human → the `clarify` tool
+  (native buttons on Telegram) — fills the leaf's form and hands off; the
+  technic-era routes for unmoved families sit in `references/legacy/`. Two earlier shapes failed —
   the generic technics decided nothing, `refactor/creator-profile` governed
   everything — so: no menu.yaml, no generated MENU.md, no preset layer, no
   cross-media Styles; an execution-environment trap goes into the leaf's
