@@ -372,6 +372,23 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
   `hermes update`, run the validator and delete any category directory under
   `profiles/*/skills/` that is not `<profile>-pipeline`, `technic` or
   `learned`; the skills stay readable in place via `skills.external_dirs`.
+- **Creator's hands (v3) are `<hands>-pipeline/<verb>/<subject>/SKILL.md`
+  leaves, one form each — never a technic, never a generated index.** The
+  contract (client model, five verbs, front-matter `form`, handoff text,
+  family-by-family migration) lives in `PROFILES.md` "Creator hands (v3)";
+  the validator enforces the shape (`validate_hands`), and a subject must be
+  unique across every hands because Creator reads all of them through one
+  `skills.external_dirs` list. `image-creator` (A2A `:9907`, receive-only)
+  serves the icon family; Creator fills the leaf's form with its client
+  (interview a human, parse the assistant's brief) and hands off
+  (`creator-pipeline/references/hands.md`). Two earlier shapes failed —
+  the generic technics decided nothing, `refactor/creator-profile` governed
+  everything — so: no menu.yaml, no generated MENU.md, no preset layer, no
+  cross-media Styles; an execution-environment trap goes into the leaf's
+  Procedure that hits it (Japanese `。` in argv trips the guard → text via
+  file; > 420 s → `background: true`; vision holds ~3 images → contact sheet
+  then one at a time; `magick montage` aborts without a default font →
+  `+append`; a multi-file `rm` trips the guard → leave `/tmp` alone).
 - **HyperFrames skills live outside the repo, on purpose.** `creator` reaches the
   `hyperframes*` / `media-use` playbooks through `skills.external_dirs`
   (`~/.agents/skills`) — a harness-neutral store owned by `hyperframes skills
@@ -423,7 +440,9 @@ scripts/             # profile-secrets.sh (secrets.command helper),
                      #   validate-profile-skills.py
 local/               # gitignored machine-local installs: TTS engines, the
                      #   brave-agent clone bundle
-profiles/<name>/     # assistant, engineer, researcher, searcher, creator, writer, marketer
+profiles/<name>/     # assistant, engineer, researcher, searcher, creator, writer, marketer,
+                     #   image-creator (Creator's hands; leaves under
+                     #   image-creator-pipeline/<verb>/<subject>/)
   - config.yaml      # model/fallback + agent.system_prompt (operating contract)
   - profile.yaml     # routing description (kanban/delegation)
   - SOUL.md          # per-profile persona (BASE + role posture)
@@ -539,8 +558,9 @@ writes on the current machine, then commit it.
 
 - `./setup.sh` — install/refresh the hermes binary (uv venv); idempotent.
 - `./scripts/validate-profile-skills.py --all` — validate managed/learned skill
-  topology, metadata, routing registries and Git ownership; add `--strict-git`
-  in a staged/clean tree to fail on managed files that are still untracked.
+  topology, metadata, routing registries, hands leaves and Git ownership; add
+  `--strict-git` in a staged/clean tree to fail on managed files that are
+  still untracked.
 - Tests: `PYTHONPATH=$(ghq root)/github.com/NousResearch/hermes-agent \
   $(ghq root)/github.com/NousResearch/hermes-agent/venv/bin/python -m pytest \
   plugins/ scripts/tests/ -q --import-mode=importlib`. The Hermes venv is

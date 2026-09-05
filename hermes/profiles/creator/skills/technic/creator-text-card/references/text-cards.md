@@ -48,8 +48,8 @@ generated image (AI text is unreliable); render it with a real font via
 
 - One short title + optional subtitle/logo. Avoid paragraphs.
 - High contrast: light text on the brand fill, or a dark scrim over busy art.
-- Place an approved SVG logo in a corner via compositing, not via AI. Use
-  `creator-logo-icons` when an icon-set deliverable is also requested.
+- Place an approved SVG logo in a corner via compositing, not via AI. An icon-set
+  deliverable beside the card is the hands' `create-icon` (references/hands.md).
 - Keep a consistent template across pages for a cohesive set.
 
 </LayoutTips>
