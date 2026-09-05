@@ -211,82 +211,137 @@ auxiliary:
     timeout: 360
     extra_body: {}
   compression:
-    provider: auto
-    model: ""
-    base_url: ""
+    provider: openai-codex
+    model: gpt-5.6-luna
+    base_url: https://chatgpt.com/backend-api/codex
     api_key: ""
     timeout: 120
     extra_body: {}
+    fallback_chain:
+      - provider: openrouter
+        model: deepseek/deepseek-v4-flash
+        base_url: https://openrouter.ai/api/v1
+        api_mode: chat_completions
   skills_hub:
-    provider: auto
-    model: ""
-    base_url: ""
+    provider: openai-codex
+    model: gpt-5.6-luna
+    base_url: https://chatgpt.com/backend-api/codex
     api_key: ""
     timeout: 30
     extra_body: {}
+    fallback_chain:
+      - provider: openrouter
+        model: deepseek/deepseek-v4-flash
+        base_url: https://openrouter.ai/api/v1
+        api_mode: chat_completions
   approval:
-    provider: auto
-    model: ""
-    base_url: ""
+    provider: openai-codex
+    model: gpt-5.6-luna
+    base_url: https://chatgpt.com/backend-api/codex
     api_key: ""
     timeout: 30
     extra_body: {}
+    fallback_chain:
+      - provider: openrouter
+        model: deepseek/deepseek-v4-flash
+        base_url: https://openrouter.ai/api/v1
+        api_mode: chat_completions
   mcp:
-    provider: auto
-    model: ""
-    base_url: ""
+    provider: openai-codex
+    model: gpt-5.6-luna
+    base_url: https://chatgpt.com/backend-api/codex
     api_key: ""
     timeout: 30
     extra_body: {}
+    fallback_chain:
+      - provider: openrouter
+        model: deepseek/deepseek-v4-flash
+        base_url: https://openrouter.ai/api/v1
+        api_mode: chat_completions
   title_generation:
-    provider: auto
-    model: ""
-    base_url: ""
+    provider: openai-codex
+    model: gpt-5.6-luna
+    base_url: https://chatgpt.com/backend-api/codex
     api_key: ""
     timeout: 30
     extra_body: {}
+    fallback_chain:
+      - provider: openrouter
+        model: deepseek/deepseek-v4-flash
+        base_url: https://openrouter.ai/api/v1
+        api_mode: chat_completions
   tts_audio_tags:
-    provider: auto
-    model: ""
-    base_url: ""
+    provider: openai-codex
+    model: gpt-5.6-luna
+    base_url: https://chatgpt.com/backend-api/codex
     api_key: ""
     timeout: 30
     extra_body: {}
+    fallback_chain:
+      - provider: openrouter
+        model: deepseek/deepseek-v4-flash
+        base_url: https://openrouter.ai/api/v1
+        api_mode: chat_completions
   triage_specifier:
-    provider: auto
-    model: ""
-    base_url: ""
+    provider: openai-codex
+    model: gpt-5.6-luna
+    base_url: https://chatgpt.com/backend-api/codex
     api_key: ""
     timeout: 120
     extra_body: {}
+    fallback_chain:
+      - provider: openrouter
+        model: deepseek/deepseek-v4-flash
+        base_url: https://openrouter.ai/api/v1
+        api_mode: chat_completions
   kanban_decomposer:
-    provider: auto
-    model: ""
-    base_url: ""
+    provider: openai-codex
+    model: gpt-5.6-luna
+    base_url: https://chatgpt.com/backend-api/codex
     api_key: ""
     timeout: 180
     extra_body: {}
+    fallback_chain:
+      - provider: openrouter
+        model: deepseek/deepseek-v4-flash
+        base_url: https://openrouter.ai/api/v1
+        api_mode: chat_completions
   profile_describer:
-    provider: auto
-    model: ""
-    base_url: ""
+    provider: openai-codex
+    model: gpt-5.6-luna
+    base_url: https://chatgpt.com/backend-api/codex
     api_key: ""
     timeout: 60
     extra_body: {}
+    fallback_chain:
+      - provider: openrouter
+        model: deepseek/deepseek-v4-flash
+        base_url: https://openrouter.ai/api/v1
+        api_mode: chat_completions
   curator:
-    provider: auto
-    model: ""
-    base_url: ""
+    provider: openai-codex
+    model: gpt-5.6-luna
+    base_url: https://chatgpt.com/backend-api/codex
     api_key: ""
     timeout: 600
     extra_body: {}
+    fallback_chain:
+      - provider: openrouter
+        model: deepseek/deepseek-v4-flash
+        base_url: https://openrouter.ai/api/v1
+        api_mode: chat_completions
   monitor:
-    provider: auto
-    model: ""
-    base_url: ""
+    provider: openai-codex
+    model: gpt-5.6-luna
+    base_url: https://chatgpt.com/backend-api/codex
     api_key: ""
     timeout: 60
     extra_body: {}
+    fallback_chain:
+      - provider: openrouter
+        model: deepseek/deepseek-v4-flash
+        base_url: https://openrouter.ai/api/v1
+        api_mode: chat_completions
 display:
   compact: false
   personality: ""
