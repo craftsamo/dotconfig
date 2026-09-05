@@ -108,26 +108,39 @@ never the model.
 
 ### ProviderLadder
 
-| # | `--model` | Descend when |
-| --- | --- | --- |
-| 1 | `anthropic/claude-opus-5` | quota / rate / auth error, or Claude unavailable |
-| 2 | `openai/gpt-5.6-sol` + `--variant high` | OpenAI pool spent (QuotaCheck) or erroring |
-| 3 | `xai/grok-4.5` | xAI OAuth missing/lapsed |
-| 4 | OpenRouter, cheap coding-capable only | — last metered resort |
-| 5 | direct `claude-code` / `codex` | only on explicit request, or OpenCode unsuitable |
+Rung 1 depends on what the run is FOR — reading and judging code, or writing
+it. That split is the only per-task choice in this section; from rung 2 down
+the order is fixed and identical.
 
-- **Variants.** Anthropic already defaults to `high`, so rung 1 needs no
-  `--variant` (`max` exists for a deliberately larger thinking budget).
-  OpenAI defaults to the model's built-in effort, so rung 2 states
-  `--variant high` explicitly. An unrecognized variant name is **silently
-  ignored** (verified — no error), so a typo degrades the run invisibly.
-- **Rung 4 excludes `anthropic` / `claude` / `openai` / `gpt` slugs** — paying
-  per token for a model you already hold a subscription to is the mistake this
-  rule exists to prevent. Prefer `deepseek/deepseek-v4-flash`, then
-  `deepseek/deepseek-v4-pro`.
+| # | reading runs (`plan` / `review` / `debug` / `explain`) | writing runs (`build`) | Descend when |
+| --- | --- | --- | --- |
+| 1 | `anthropic/claude-fable-5-1` | `openai/gpt-6-astra` | quota / rate / auth error on that pool |
+| 2 | `anthropic/claude-opus-5` | `anthropic/claude-opus-5` | same, on the Claude pool |
+| 3 | `openai/gpt-6-astra` | `openai/gpt-5.6-sol` + `--variant high` | OpenAI pool spent (QuotaCheck) or erroring |
+| 4 | `openai/gpt-5.6-sol` + `--variant high` | `xai/grok-4.5` | — |
+| 5 | `xai/grok-4.5` | OpenRouter, cheap coding-capable only | xAI OAuth missing/lapsed |
+| 6 | OpenRouter, cheap coding-capable only | direct `claude-code` / `codex` | — last metered resort |
+| 7 | direct `claude-code` / `codex` | — | only on explicit request, or OpenCode unsuitable |
+
+- **Why the split.** Fable 5.1 reads and plans best; Astra writes code best.
+  Both then fall to Opus 5, which is the one model always reachable on the
+  Claude pool even when Fable's sub-cap is spent (see PROFILES.md "Fable and
+  the Max weekly pool").
+- **Variants.** Anthropic already defaults to `high`, so the Claude rungs need
+  no `--variant` (`max` exists for a deliberately larger thinking budget).
+  OpenAI defaults to the model's built-in effort, so the `gpt-5.6-sol` rung
+  states `--variant high` explicitly; Astra's own default effort is left
+  alone. An unrecognized variant name is **silently ignored** (verified — no
+  error), so a typo degrades the run invisibly.
+- **The OpenRouter rung excludes `anthropic` / `claude` / `openai` / `gpt`
+  slugs** — paying per token for a model you already hold a subscription to is
+  the mistake this rule exists to prevent. Prefer
+  `deepseek/deepseek-v4-flash`, then `deepseek/deepseek-v4-pro`.
 - Resolve exact `provider/model` slugs at runtime (`opencode models`) — the
-  catalog moves; don't hard-code stale ones. On a mid-task error drop **one**
-  rung and retry; the final report names the provider/model actually used.
+  catalog moves; don't hard-code stale ones. `gpt-6-astra` needs opencode
+  >= 1.18.29; on an older build it is absent from the catalog and the rung is
+  simply unavailable. On a mid-task error drop **one** rung and retry; the
+  final report names the provider/model actually used.
 
 ### QuotaCheck
 
@@ -143,8 +156,14 @@ terminal(command="npx -y @slkiser/opencode-quota show", workdir="<wd>", timeout=
   It is not a quota signal (the locally patched copy behaves the same). Rung 1
   is therefore driven by errors, not by the meter: anthropic models present in
   `opencode models` → use it; a quota / rate error mid-run → descend.
-- OpenAI reports a real remaining %. Under ~15% treat rung 2 as gone and skip
-  to rung 3 instead of fighting the human for the last slice.
+- OpenAI reports a real remaining %. Under ~15% treat the OpenAI rungs as gone
+  and skip past them instead of fighting the human for the last slice.
+- **Astra is the expensive tenant of the OpenAI pool.** ChatGPT Pro 5x meters
+  it at roughly 25-225 messages per 5h window, and that window is shared with
+  OpenCode's `build` primary, its `debugger` subagent, and Hermes' own
+  researcher and creator profiles (both Astra-first). Treat an Astra rung as
+  contended by default: when QuotaCheck is already low, prefer descending over
+  retrying it.
 - **Every run draws on BOTH subscription pools regardless of `--model`** —
   OpenCode's own subagents are pinned to their own models in frontmatter
   (2026-09-05 split: explore-medium/high/max, worker, reviewer and
