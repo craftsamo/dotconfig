@@ -22,16 +22,24 @@ leaves land.
 
 You have clients, not entry points. The same procedure serves both:
 
-- **Human** (your Telegram bot, or a DM): fill the form by interview. Ask
-  only for `required: true` fields you cannot infer, and for one optional
-  field at most when it changes the deliverable (style for `generate-icon`,
-  `what_for` for `analyze-icon`). Offer the field's `options` as the
-  choices and say `other` is allowed; take a free value as written.
+- **Human** (your Telegram bot, a DM, or the CLI): fill the form with the
+  **`clarify` tool** — the platform renders it natively (Telegram: one
+  inline button per choice; CLI: a picker). Never type a `Q<n>:` list at a
+  human. ONE call carrying one entry per open field: `required: true`
+  fields you cannot infer, plus at most one optional field when it changes
+  the deliverable (`style` for `generate-icon`, `what_for` for
+  `analyze-icon`). A field with `options` becomes a single-select whose
+  choices are those options, your recommendation FIRST (the UI marks it);
+  the UI appends "Other" by itself, which is the form's `other: true`. A
+  field without options is open-ended (omit `choices`). Put the field's
+  `label` / `example` in the question text, never the options. A free-text
+  answer is used as written.
 - **Assistant** (a resident session it started, or an A2A peer call):
   parse its brief (Goal / Context / Inputs / Deliverable / Constraints /
   Budget) into the form. Anything required that the brief does not settle
-  is ONE `Q<n>:` block back to the assistant (2-4 options + your
-  recommendation) — it answers from its own context or asks the user.
+  is ONE `Q<n>:` **text** block back to the assistant (2-4 options + your
+  recommendation) — a peer reads text, not buttons; it answers from its
+  own context or asks the user with its own clarify.
 
 Pick the leaf by verb: an existing file to change → `edit`; a look no
 library has → `generate`; a symbol a library has → `source`; a set from an
@@ -78,6 +86,9 @@ client's intent. Look at the delivered files with vision — the recommended
 variant at native size, and at the size the client will use — before you
 answer the client. A file that fails your eye goes back as
 `intent: revise` with the form field that changes, never as a local fix.
+A `Q<n>:` block from the hands is relayed the same way the form was
+filled: `clarify` to a human, text to the assistant — never answered
+from your own taste.
 Report to the client: the paths, one sentence of what it is, the spend
 line from the hands' report, and the hands' own open questions if any.
 A `no skill fits` reply is relayed as such and noted for the maintainer;

@@ -27,6 +27,7 @@ toolsets:
   - memory
   - delegation
   - specialist
+  - clarify
   - unreal-engine
 max_concurrent_sessions: null
 agent:
@@ -70,9 +71,11 @@ agent:
     Hands (v3, family by family): a request whose family a hands profile
     serves - today icon, on image-creator - is not produced by you. Pick the
     leaf (source-icon / create-icon / generate-icon / edit-icon /
-    analyze-icon), fill its form with the client (interview a human on your
-    bot; parse the assistant's brief, and return one Q<n> block for what it
-    leaves unsettled), hand the filled form over (a2a_call image-creator for
+    analyze-icon), fill its form with the client - a human on your bot or
+    CLI is asked with the clarify tool (one call, one entry per open
+    field, the field's options as choices, recommended first; never a
+    typed-out Q<n> list); the assistant's brief is parsed, and what it
+    leaves unsettled returns as one Q<n>: text block - hand the filled form over (a2a_call image-creator for
     free one-reply leaves; a resident session you start for metered or long
     ones), look at what comes back with your own eyes, deliver. You can read
     those leaves through your skill list; you never run their procedures,
@@ -820,6 +823,7 @@ platform_toolsets:
     - memory
     - delegation
     - specialist
+    - clarify
     - unreal-engine
   telegram:
     - terminal
@@ -833,6 +837,7 @@ platform_toolsets:
     - memory
     - delegation
     - specialist
+    - clarify
     - unreal-engine
   discord: []
   a2a:
