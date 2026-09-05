@@ -101,7 +101,8 @@ itself call `delegate_task` during its run.
 | **engineer** | primary: supervises OpenCode: assess (read-only) / implement (from the assistant's plan session or an Issue; delegated worktree bootstrap in a repo the assistant created), under an Authority grant; planning documents, repo creation, and GitHub bookkeeping stay with the assistant; A2A peers marketer/researcher/writer | Telegram (own bot) | `.` (launch / task ws) | `terminal,file,web,skills,todo,memory,delegation,a2a` | served (bot + a2a :9902) | yes |
 | **researcher** | verified conclusions from released units: evidence-pack / tradeoff-matrix / fact-check / guidance; heavy breadth is requested from the orchestrator as a search unit; serves engineer/creator/marketer only (not the assistant), cards refused | — (A2A receive-only) | `.` (launch / task ws) | `file,web,vision,video,skills,memory,delegation` | served (a2a :9906) | yes |
 | **searcher** | retrieval from released units: lookup / sweep / hunt (multi-hop via `goal_mode` on cards) | — (specialist) | `.` (launch / task ws) | `web,x_search,skills,memory` | — | yes |
-| **creator** | primary: all media production and assembly — image, video, GIF, audio, song, voice, part assembly — consuming released units (decided specs) under a Budget grant, with advisory and anchor-unit rounds; A2A peers engineer/marketer/researcher/writer | Telegram (own bot) | `.` (launch / task ws) | `terminal,file,vision,image_gen,video_gen,video,tts,skills,memory,delegation,a2a` + gen plugins + `unreal-engine` MCP | served (bot + a2a :9903) | yes |
+| **creator** | primary: media production and assembly — image, video, GIF, audio, song, voice, part assembly — consuming released units (decided specs) under a Budget grant, with advisory and anchor-unit rounds; for a family its hands serve (icon) it fills the leaf's form with the client and hands off instead; A2A peers engineer/marketer/researcher/writer/image-creator | Telegram (own bot) | `.` (launch / task ws) | `terminal,file,vision,image_gen,video_gen,video,tts,skills,memory,delegation,a2a` + gen plugins + `unreal-engine` MCP | served (bot + a2a :9903) | yes |
+| **image-creator** | Creator's hands for still images: runs one `<verb>/<subject>` leaf from a filled form (icon family: source / create / generate / edit / analyze), QA with evidence, report; answers only Creator | — (A2A receive-only) | `.` (launch / task ws) | `terminal,file,vision,image_gen,skills,memory` | served (a2a :9907) | yes |
 | **writer** | reader-facing prose and producer-facing scripts from released units (outline / piece / whole job); draft-only, never publishes; serves all four primaries | — (A2A receive-only) | `.` (launch / task ws) | `file,web,skills,memory,delegation` | served (a2a :9905) | yes |
 | **marketer** | primary: platform copy from released message units, four-stage pre-ship inspection, grounding judgment, and publishing only within a Publish grant; A2A peers engineer/creator/researcher/writer | Telegram (own bot) | `.` (launch / task ws) | `terminal,file,web,browser,x_search,vision,skills,memory,delegation,a2a` | served (bot + a2a :9904) | yes |
 
@@ -393,7 +394,13 @@ Three per-profile layers, kept separate:
     `deep-retrieval` stub was removed in the search rebuild) + keyless
     optional retrieval skills via `skills.external_dirs`:
     `duckduckgo-search` and `domain-intel`
-  - creator → `creator-pipeline` (dual runtime — cards only for the
+  - image-creator → `image-creator-pipeline` (the hands root: validate
+    the filled form → load the leaf → run → QA → report; shared
+    `img-postprocess.sh` / `icon-finish.sh`) + leaves `source/icon`,
+    `create/icon`, `generate/icon` (styles flat-minimal / glass / pixel /
+    line / clay), `edit/icon`, `analyze/icon` — see "Creator hands (v3)"
+  - creator → `creator-pipeline` (hands first: `references/hands.md` for
+    the icon family; then the dual runtime — cards only for the
     `anchored-image-batch` / `tts-voice` / `deterministic-render` catalog
     units; Advisory / Direction /
     Produce routing with intent triage + the unit discipline (released-spec
@@ -403,7 +410,7 @@ Three per-profile layers, kept separate:
     verification, and durable-path delivery) + directly selectable in-tree leaves under `skills/technic/`:
     `creator-generated-image`, `creator-article-illustration`,
     `creator-infographic`, `creator-svg-diagram`,
-    `creator-excalidraw-diagram`, `creator-logo-icons`, `creator-text-card`,
+    `creator-excalidraw-diagram`, `creator-text-card`,
     `creator-meme`, `creator-ascii-art`, `creator-audio-visualization`,
     `creator-audio-generation`, `creator-song-generation`,
     `creator-gif-sourcing`, `creator-generated-video`, `creator-html-motion`,
@@ -658,6 +665,17 @@ soak from both clients and record what the form got wrong. The first family
 is `icon` (`source` / `create` / `generate` / `edit` / `analyze`). Nothing is
 retired in bulk; `refactor/creator-profile` is read only for scripts worth
 porting (`icon-fetch.sh`, `tour.py`, `explainer.py`, `item-loop.py`).
+
+Done 2026-09-05 (icon): steps 0-4 — validator rules, `image-creator`
+(:9907, in the multiplex allowlist), the five leaves each proven from the
+hands' CLI, Creator routing icon to the hands (`references/hands.md`,
+`a2a_agents.image-creator`), `creator-logo-icons` retired together with
+the assistant's `plan/creative/logo-icons.md` and the `icon-set.md` QA
+contract. Both client paths verified from the CLI: a human sentence →
+`a2a_call` with the filled `source-icon` form (56 s end to end); an
+assistant SessionBrief without a style → `generate-icon` form filled and
+ONE `Q1:` on `style` with three options, no spend. Step 5 (soak from the
+Telegram bot and from assistant sessions) is open.
 
 ## Models and fallback chains
 

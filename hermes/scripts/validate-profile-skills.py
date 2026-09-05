@@ -86,7 +86,6 @@ REQUIRED_QA_CONTRACTS = {
         "comic.md",
         "data-visualization.md",
         "excalidraw-diagram.md",
-        "icon-set.md",
         "infographic.md",
         "pixel-art.md",
         "pixel-video.md",

@@ -15,7 +15,7 @@ metadata:
   hermes:
     tags: [media, image, video, gif, tts, production, session, kanban, delivery, verification, triage, intent]
     category: creative
-    related_skills: [creator-generated-image, creator-article-illustration, creator-infographic, creator-svg-diagram, creator-excalidraw-diagram, creator-logo-icons, creator-text-card, creator-meme, creator-ascii-art, creator-audio-visualization, creator-audio-generation, creator-song-generation, creator-gif-sourcing, creator-generated-video, creator-html-motion, creator-p5js-experience, creator-ascii-video, creator-manim-explainer, creator-pixel-art, creator-pixel-video, creator-knowledge-comic, creator-brand-asset-sourcing, creator-media-assembly]
+    related_skills: [creator-generated-image, creator-article-illustration, creator-infographic, creator-svg-diagram, creator-excalidraw-diagram, creator-text-card, creator-meme, creator-ascii-art, creator-audio-visualization, creator-audio-generation, creator-song-generation, creator-gif-sourcing, creator-generated-video, creator-html-motion, creator-p5js-experience, creator-ascii-video, creator-manim-explainer, creator-pixel-art, creator-pixel-video, creator-knowledge-comic, creator-brand-asset-sourcing, creator-media-assembly]
 ---
 
 <Goal>
