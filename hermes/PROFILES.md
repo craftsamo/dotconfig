@@ -829,8 +829,10 @@ turn. The default profile already proves the YAML shape.
 The fleet is split across the two subscription pools by role (2026-09-05).
 Most profiles lead with **Claude Fable 5.1** for judgment, long-context work
 and prose, and fall to **Claude Opus 5** before ever touching the OpenAI pool.
-**Researcher** and **creator** lead the other way, on **GPT-6 Astra**. Every
-chain then keeps a role-appropriate OpenRouter tail. **Searcher** is unchanged
+**Researcher**, **creator** and creator's hands lead the other way, on **GPT-6
+Astra**. Every chain then keeps a role-appropriate OpenRouter tail, and a hand
+inherits its parent's tail so it can still eyeball what it produced.
+**Searcher** is unchanged
 on `xai-oauth` / grok-4.3: xAI capacity is reserved for Searcher, X search and
 Imagine video. The coding model inside OpenCode is a separate layer entirely —
 engineer-pipeline drives a **fixed ladder** whose top rung splits by run type
@@ -846,6 +848,7 @@ weight.
 | **researcher** | `openai-codex` / **gpt-6-astra** | `openai-codex` / gpt-5.6-sol | `anthropic` / claude-opus-5 | `openrouter` / `xiaomi/mimo-v2.5` | `medium` |
 | **searcher** | `xai-oauth` / grok-4.3 | `openrouter` / `xiaomi/mimo-v2.5` | — | — | `low` |
 | **creator** | `openai-codex` / **gpt-6-astra** | `anthropic` / claude-fable-5-1 | `anthropic` / claude-opus-5 | `openrouter` / `minimax/minimax-m3` | `medium` |
+| **image-creator** | `openai-codex` / **gpt-6-astra** | `anthropic` / claude-fable-5-1 | `anthropic` / claude-opus-5 | `openrouter` / `minimax/minimax-m3` | `medium` |
 | **writer** | `anthropic` / **claude-fable-5-1** | `anthropic` / claude-opus-5 | `openai-codex` / gpt-6-astra | `openrouter` / `deepseek/deepseek-v4-flash` | `medium` |
 | **marketer** | `anthropic` / **claude-fable-5-1** | `anthropic` / claude-opus-5 | `openai-codex` / gpt-6-astra | `openrouter` / `xiaomi/mimo-v2.5` | `medium` |
 
@@ -933,19 +936,19 @@ calls):
   `auth.json` and shadow the inherited credential.
 - **Codex** — every profile except searcher carries an `openai-codex` tier
   (`base_url: https://chatgpt.com/backend-api/codex`): Astra as T1 on
-  researcher and creator, Astra as T3 on the Fable profiles, and Sol as
-  researcher's T2. Creator's Codex-first image chain uses the same pool, as do
-  OpenCode's `build` primary and `debugger` subagent — so this one ChatGPT Pro
-  subscription now carries both harnesses. The former `gpt-5.6-terra` profile
+  researcher, creator and image-creator, Astra as T3 on the Fable profiles,
+  and Sol as researcher's T2. Creator's Codex-first image chain uses the same
+  pool, as do OpenCode's `build` primary and `debugger` subagent — so this one
+  ChatGPT Pro subscription now carries both harnesses. The former `gpt-5.6-terra` profile
   routes were promoted to Sol; the engineer-pipeline's OpenCode ProviderLadder
   remains a separate model-routing layer.
 
   **Sizing the shared pool.** On Pro 5x, Astra meters at roughly 25-225
   messages per 5h window for the whole account. Move to Pro 20x when either
   signal repeats: the OpenAI meter (`npx -y @slkiser/opencode-quota show`)
-  drops under ~15% partway through a window on ordinary days, or researcher /
-  creator / OpenCode Build visibly fall through to their T2 more often than
-  they run on Astra. **The upgrade needs no config change** — the same chains
+  drops under ~15% partway through a window on ordinary days, or the
+  Astra-first profiles and OpenCode Build visibly fall through to their T2
+  more often than they run on Astra. **The upgrade needs no config change** — the same chains
   simply stop descending.
 - **Auxiliary models are pinned, not `auto`** (2026-09-05). `auto` resolves to
   the profile's own main provider *and main model*
