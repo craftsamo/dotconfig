@@ -502,27 +502,32 @@ list (tiers 2+). `fallback_providers` is **per-turn**: it triggers on errors
 (429 / 5xx / 401 / 404 / malformed) and the primary is restored on the next
 turn. The default profile already proves the YAML shape.
 
-Most profiles lead with **Claude Opus 5** for judgment and long-context work,
-fall back first to **GPT-5.6 Sol**, then keep a role-appropriate OpenRouter
-tail. The deliberate exceptions are **researcher**, which leads with GPT-5.6
-Sol, and **searcher**, which leads on `xai-oauth` / grok-4.3. xAI capacity is reserved for
-Searcher, X search, and Imagine video; Codex is shared because it also serves
-Researcher and Creator's images, alongside profile fallbacks. The coding model
-inside OpenCode is a separate layer entirely: engineer-pipeline drives a **fixed ladder**
-(`claude-opus-5` → `gpt-5.6-sol` at `--variant high` → `grok-4.5` → OpenRouter),
-descending only on an error or a spent pool — never by pre-judging the task's
+The fleet is split across the two subscription pools by role (2026-09-05).
+Most profiles lead with **Claude Fable 5.1** for judgment, long-context work
+and prose, and fall to **Claude Opus 5** before ever touching the OpenAI pool.
+**Researcher** and **creator** lead the other way, on **GPT-6 Astra**. Every
+chain then keeps a role-appropriate OpenRouter tail. **Searcher** is unchanged
+on `xai-oauth` / grok-4.3: xAI capacity is reserved for Searcher, X search and
+Imagine video. The coding model inside OpenCode is a separate layer entirely —
+engineer-pipeline drives a **fixed ladder** whose top rung splits by run type
+(reading runs lead with `claude-fable-5-1`, writing runs with `gpt-6-astra`),
+descending only on an error or a spent pool, never by pre-judging the task's
 weight.
 
 | Profile | T1 (primary) | T2 | T3 | T4 | `reasoning_effort` |
 | --- | --- | --- | --- | --- | --- |
 | **default** | `anthropic` / claude-opus-5 | `openai-codex` / gpt-5.6-sol | `openrouter` / `xiaomi/mimo-v2.5` | — | `medium` |
-| **assistant** | `anthropic` / claude-opus-5 | `openai-codex` / gpt-5.6-sol | `openrouter` / `xiaomi/mimo-v2.5` | — | `medium` |
-| **engineer** | `anthropic` / claude-opus-5 | `openai-codex` / gpt-5.6-sol | `openrouter` / `deepseek/deepseek-v4-flash` | — | `high` |
-| **researcher** | `openai-codex` / **gpt-5.6-sol** | `anthropic` / claude-opus-5 | `openrouter` / `xiaomi/mimo-v2.5` | — | `medium` |
+| **assistant** | `anthropic` / **claude-fable-5-1** | `anthropic` / claude-opus-5 | `openai-codex` / gpt-6-astra | `openrouter` / `xiaomi/mimo-v2.5` | `medium` |
+| **engineer** | `anthropic` / **claude-fable-5-1** | `anthropic` / claude-opus-5 | `openai-codex` / gpt-6-astra | `openrouter` / `deepseek/deepseek-v4-flash` | `high` |
+| **researcher** | `openai-codex` / **gpt-6-astra** | `openai-codex` / gpt-5.6-sol | `anthropic` / claude-opus-5 | `openrouter` / `xiaomi/mimo-v2.5` | `medium` |
 | **searcher** | `xai-oauth` / grok-4.3 | `openrouter` / `xiaomi/mimo-v2.5` | — | — | `low` |
-| **creator** | `anthropic` / claude-opus-5 | `openai-codex` / gpt-5.6-sol | `openrouter` / `minimax/minimax-m3` | — | `medium` |
-| **writer** | `anthropic` / claude-opus-5 | `openai-codex` / gpt-5.6-sol | `openrouter` / `deepseek/deepseek-v4-flash` | — | `medium` |
-| **marketer** | `anthropic` / claude-opus-5 | `openai-codex` / gpt-5.6-sol | `openrouter` / `xiaomi/mimo-v2.5` | — | `medium` |
+| **creator** | `openai-codex` / **gpt-6-astra** | `anthropic` / claude-fable-5-1 | `anthropic` / claude-opus-5 | `openrouter` / `minimax/minimax-m3` | `medium` |
+| **writer** | `anthropic` / **claude-fable-5-1** | `anthropic` / claude-opus-5 | `openai-codex` / gpt-6-astra | `openrouter` / `deepseek/deepseek-v4-flash` | `medium` |
+| **marketer** | `anthropic` / **claude-fable-5-1** | `anthropic` / claude-opus-5 | `openai-codex` / gpt-6-astra | `openrouter` / `xiaomi/mimo-v2.5` | `medium` |
+
+**`default` stays on Opus 5 deliberately** — every `--clone` inherits its
+chain, and a neutral starting point should not lead with the model that has a
+sub-cap.
 
 ```yaml
 # example — a 4-tier chain (the shape any profile may use)
@@ -548,16 +553,34 @@ agent:
 A `fallback_providers` entry carries no per-entry `reasoning_effort` or
 `api_mode` for the main agent: on each fallback activation Hermes re-reads the
 profile config and re-resolves both from provider / base URL / model
-(`chat_completion_helpers.py:1668,1846`). Use `agent.reasoning_overrides`
-(model → effort) if one tier needs a different depth from the rest.
+(`chat_completion_helpers.py:1668,1846`). **There is no per-tier effort knob
+in 0.21.0** — `agent.reasoning_overrides` is a *session* concept
+(`gateway/session_state.py:226`, driven by `/model`), not a config key, so a
+profile's single `agent.reasoning_effort` applies to every tier in its chain.
 
 Model facts confirmed during the build (live `provider_models_cache.json` + test
 calls):
 
-- **Anthropic native (T1)** — every profile except `researcher` / `searcher`
-  leads with `anthropic` (`base_url: https://api.anthropic.com`) on
-  `claude-opus-5`. OAuth resolves from the global Claude Code
-  credential/token rather than per-profile `auth.json`.
+- **Anthropic native** — every profile except `researcher` / `creator` /
+  `searcher` leads with `anthropic`
+  (`base_url: https://api.anthropic.com`), on `claude-fable-5-1` for the
+  five judgment/prose profiles and `claude-opus-5` on `default`. OAuth
+  resolves from the global Claude Code credential/token rather than
+  per-profile `auth.json`. **Fable 5.1 is not in the `hermes model` picker** —
+  `/v1/models` lags the alias, so the curated list stops at `claude-fable-5`.
+  It is written straight into `config.yaml` instead; live one-shot calls
+  confirm the slug resolves and answers (2026-09-05), and
+  `get_model_context_length` already reports 1M for it via the `claude-fable`
+  prefix entry.
+- **GPT-6 Astra (T1 on researcher / creator)** — reached over the same
+  `openai-codex` OAuth path as Sol. Hermes identifies itself honestly
+  (`originator: hermes-agent`, `User-Agent: HermesAgent/<ver>`,
+  `agent/codex_headers.py:49-59`) and the Codex backend serves Astra to that
+  identity; verified with a live one-shot call (2026-09-05). Like Fable it is
+  **absent from the picker** (`DEFAULT_CODEX_MODELS` in
+  `hermes_cli/codex_models.py` stops at the 5.x series and live discovery did
+  not return it), so it is config-only; `get_model_context_length` resolves
+  1,050,000 locally, so no `hermes update` is required for it.
 - **xAI (T1, searcher only)** — searcher runs `xai-oauth`
   (`base_url: https://api.x.ai/v1`), which is a flat-rate **SuperGrok /
   Premium+ subscription**, not the metered `XAI_API_KEY` API. The published
@@ -584,13 +607,22 @@ calls):
   (`tools/xai_http.py:243-310`). Re-authenticate with `hermes model` from the
   **default** profile — never with `-p`, which would write the worker's own
   `auth.json` and shadow the inherited credential.
-- **Codex** — every profile except searcher carries `openai-codex` /
-  `gpt-5.6-sol` (`base_url: https://chatgpt.com/backend-api/codex`), as T1 on
-  researcher and T2 on the Anthropic profiles. Researcher's primary chain and
-  Creator's Codex-first image chain make this a shared pool, not a
-  researcher-only tier. The former `gpt-5.6-terra` profile routes were
-  promoted to Sol; the engineer-pipeline's OpenCode ProviderLadder remains a
-  separate model-routing layer.
+- **Codex** — every profile except searcher carries an `openai-codex` tier
+  (`base_url: https://chatgpt.com/backend-api/codex`): Astra as T1 on
+  researcher and creator, Astra as T3 on the Fable profiles, and Sol as
+  researcher's T2. Creator's Codex-first image chain uses the same pool, as do
+  OpenCode's `build` primary and `debugger` subagent — so this one ChatGPT Pro
+  subscription now carries both harnesses. The former `gpt-5.6-terra` profile
+  routes were promoted to Sol; the engineer-pipeline's OpenCode ProviderLadder
+  remains a separate model-routing layer.
+
+  **Sizing the shared pool.** On Pro 5x, Astra meters at roughly 25-225
+  messages per 5h window for the whole account. Move to Pro 20x when either
+  signal repeats: the OpenAI meter (`npx -y @slkiser/opencode-quota show`)
+  drops under ~15% partway through a window on ordinary days, or researcher /
+  creator / OpenCode Build visibly fall through to their T2 more often than
+  they run on Astra. **The upgrade needs no config change** — the same chains
+  simply stop descending.
 - **Copilot retired from every chain** (2026-07): the subscription became
   unusable, and its catalog drift had already 404'd tiers silently once.
   Profile fallbacks now use Codex first and OpenRouter as the final tail.
@@ -615,9 +647,9 @@ assistant to route `delegate_task` subagents to a cheap model.
 
 ### Fable and the Max weekly pool
 
-No profile currently leads with Fable 5 (the planner profile that did was
-retired in the v5 rebuild), but the facts below still govern any future
-Fable tier:
+Five profiles now lead with **Fable 5.1** (assistant, engineer, writer,
+marketer; creator carries it at T2). These facts govern that tier — they were
+measured on Fable 5 and the 5.1 alias behaves the same way:
 
 1. **Fable is not a separate quota tank.** On Max it is included but capped at
    **≤50% of the plan's weekly pool**, drawn from the *same* pool as Opus, and
@@ -625,6 +657,14 @@ Fable tier:
    Fable sub-cap is exhausted while the overall weekly still has room. If the
    shared weekly or the 5-hour session limit is what tripped, Opus is dead too
    and the chain correctly continues to Codex.
+
+   **This is why Opus sits at T2, ahead of Astra**, on every Fable profile.
+   The sub-cap case is the *long* failure — it persists until the week rolls
+   over — and in exactly that case Opus is still alive. Putting Astra there
+   instead would hand days of ordinary traffic to the ChatGPT Pro pool that
+   OpenCode Build and the two Astra-first profiles depend on. Creator inverts
+   the pair for the same reason read from the other side: it leads on Astra,
+   so its Claude tiers are the rescue.
 2. **The T2 step depends on the token being resolvable outside the credential
    pool.** A `usage_limit_reached` 429 marks the *credential* exhausted, and
    that mark has **no model dimension** (`credential_pool.py:662`) — the pool
@@ -640,8 +680,11 @@ Fable tier:
    fallback cooldown is only **60 seconds** (`chat_completion_helpers.py:1549`).
    At t+61s the primary is restored and Fable is retried. Once the weekly cap
    is hit this costs **one wasted request per turn until the week rolls
-   over** — acceptable only on a low-turn-count profile, never on the
-   latency-sensitive assistant.
+   over**. Engineer, writer and marketer absorb that cheaply — they are
+   low-turn profiles. The **assistant** is the exception: it is the
+   latency-sensitive front door, so when the cap is reached, switch its live
+   sessions off Fable with **`/model`** rather than waiting out the week. That
+   manual escape is what makes a Fable T1 acceptable there at all.
 4. **Adaptive thinking, not manual budgets.** Modern Claude — Fable 5 included —
    gets `thinking: {type: adaptive}` + `output_config: {effort: …}`, so the
    effort level passes straight through (`minimal→low`, `ultra→max`); the
