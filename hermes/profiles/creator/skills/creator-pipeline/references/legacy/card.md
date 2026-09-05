@@ -4,7 +4,7 @@ Load this FIRST on any kanban card run (`HERMES_KANBAN_TASK` set), after
 the kernel's unit gate has admitted the card as one legal catalog unit.
 The unit gate itself lives in the kernel (<KanbanMode>); this file owns
 the comment grammar, block mechanics, and completion contract. Prior
-runs on the card → also load `references/resume.md`.
+runs on the card → also load `references/legacy/resume.md`.
 
 ## Comment grammar
 

@@ -46,14 +46,14 @@ export, work stranded by a crash or an archived chain).
    verify gate.
 3. **Classify each item**: reusable as-is → post-process/export only
    (ffmpeg, scripts — costs nothing); incomplete → finish from the locked
-   anchor; genuinely missing → produce fresh (`references/produce.md`),
+   anchor; genuinely missing → produce fresh (`references/legacy/produce.md`),
    counted against THIS card's Budget.
 4. **Canonicalize** — exact target specs (dimensions, format, naming) per
    the brief; the point of salvage is usually turning surviving assets into the
    one true set.
-5. Verify per `references/verify.md` (salvage profile: the gate is the
+5. Verify per `references/legacy/verify.md` (salvage profile: the gate is the
    inventory trail — nothing regenerated that existed), deliver per
-   `references/delivery.md`.
+   `references/legacy/delivery.md`.
 
 ## Pitfalls
 

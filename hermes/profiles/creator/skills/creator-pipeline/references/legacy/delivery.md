@@ -2,7 +2,7 @@
 
 Load this when produced work leaves the workspace: landing artifacts at
 durable paths, running the Review gate, and assembling the final report.
-Verification (`references/verify.md`) must already have run — delivery
+Verification (`references/legacy/verify.md`) must already have run — delivery
 packages its evidence; it never substitutes for it.
 
 ## ArtifactDiscipline
@@ -25,7 +25,7 @@ packages its evidence; it never substitutes for it.
   voice params, plan/shot list. In a resident session your own context
   holds it; still write the anchor values into the report so a later
   session can inherit from the files alone
-  (`references/iterate.md` consumes exactly this).
+  (`references/legacy/iterate.md` consumes exactly this).
 
 ## ReviewGate
 
@@ -42,7 +42,7 @@ run. After verification passes:
    runtime has no Review block or sign-off round; its card contract is
    `kanban_attach`, durable copy, and completion summary only.
 4. `approved` → finish per <ReportAssembly>; `changes — <list>` → treat as
-   revise feedback (`references/iterate.md` <FeedbackTriage>) within the
+   revise feedback (`references/legacy/iterate.md` <FeedbackTriage>) within the
    remaining Budget — a change needing more spend is a question round,
    never a silent overrun — then open a fresh review round.
 
@@ -66,7 +66,7 @@ reconciled tally.
 - **Reuse values worth keeping**: prompts, seeds, palette names, voice
   params that would let this work be extended.
 - **Verification evidence is itemized** — which V-checks ran
-  (`references/verify.md`), what was measured/inspected and the outcomes,
+  (`references/legacy/verify.md`), what was measured/inspected and the outcomes,
   the intent gate's result (anchor reuse, feedback side-by-side, inventory
   trail). A skipped REQ check is named with its reason, never silent.
 - **Spend reconciliation** — final tally vs the effective Budget,
