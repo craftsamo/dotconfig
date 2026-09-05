@@ -40,6 +40,22 @@ set -euo pipefail
 die() { echo "emoji-fit: $*" >&2; exit 1; }
 HEX='\#[0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F]'
 
+# `emoji-fit.sh --spec PLATFORM` prints the platform's row (SPEC: platform=
+# size= format= cap=) and exits — how analyze-emoji reads the table
+# without copying it.
+if [ "${1:-}" = "--spec" ]; then
+  case "${2:-}" in
+    slack)          echo "SPEC: platform=slack size=128 format=png cap=131072" ;;
+    discord)        echo "SPEC: platform=discord size=128 format=png cap=262144" ;;
+    telegram)       echo "SPEC: platform=telegram size=512 format=webp cap=524288" ;;
+    telegram-emoji) echo "SPEC: platform=telegram-emoji size=100 format=webp cap=262144" ;;
+    line)           echo "SPEC: platform=line size=180 format=png cap=1048576" ;;
+    generic)        echo "SPEC: platform=generic size=512 format=png cap=0" ;;
+    *) die "unknown platform: ${2:-}" ;;
+  esac
+  exit 0
+fi
+
 [ $# -lt 3 ] && { grep '^#' "$0" | sed 's/^# \{0,1\}//'; exit 1; }
 INPUT="$1"; STEM="$2"; shift 2
 PLATFORM=""; CUTOUT="auto"; FUZZ="10%"; PAD="0.04"; STROKE=0; STROKE_COLOR="#ffffff"
@@ -57,16 +73,11 @@ while [ $# -gt 0 ]; do
 done
 
 # The platform table.
-case "$PLATFORM" in
-  slack)          SIZE=128; FMT=png;  CAP=131072 ;;
-  discord)        SIZE=128; FMT=png;  CAP=262144 ;;
-  telegram)       SIZE=512; FMT=webp; CAP=524288 ;;
-  telegram-emoji) SIZE=100; FMT=webp; CAP=262144 ;;
-  line)           SIZE=180; FMT=png;  CAP=1048576 ;;
-  generic)        SIZE=512; FMT=png;  CAP=0 ;;
-  "") die "--platform is required (slack | discord | telegram | telegram-emoji | line | generic)" ;;
-  *) die "unknown platform: $PLATFORM" ;;
-esac
+[ -n "$PLATFORM" ] || die "--platform is required (slack | discord | telegram | telegram-emoji | line | generic)"
+SPEC="$("$0" --spec "$PLATFORM")"
+SIZE="$(printf '%s' "$SPEC" | sed 's/.* size=\([0-9]*\).*/\1/')"
+FMT="$(printf '%s' "$SPEC" | sed 's/.* format=\([a-z]*\).*/\1/')"
+CAP="$(printf '%s' "$SPEC" | sed 's/.* cap=\([0-9]*\).*/\1/')"
 case "$CUTOUT" in auto|yes|no|key) ;; *) die "--cutout must be auto | yes | no | key" ;; esac
 case "$STROKE_COLOR" in $HEX) ;; *) die "--stroke-color must be #rrggbb" ;; esac
 command -v magick >/dev/null 2>&1 || die "magick (ImageMagick) not found — report as a gap"
