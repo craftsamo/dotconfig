@@ -1,10 +1,9 @@
 ---
 description: "Standard read-only codebase exploration: multi-file traces and how-does-X-work questions."
 mode: subagent
-model: openai/gpt-5.6-terra-fast
+model: anthropic/claude-sonnet-5
+variant: medium
 hidden: true
-options:
-  reasoningEffort: medium
 permission:
   "*": deny
   glob: allow
