@@ -67,12 +67,28 @@
   ],
   // Title generation etc. → light OpenAI Pro model without priority-tier cost.
   "small_model": "openai/gpt-5.4-mini",
+  // Model split (2026-09-05). Two subscription pools, one per primary family:
+  //   Claude Max x20 (sub account) — plan / review / debug / explain / deepsearch
+  //     primaries (Fable 5.1; fall back to Opus 5 by hand), plus the
+  //     Build-hot subagents (explore-medium/high/max, worker, reviewer,
+  //     reviewer-deep on Sonnet 5 / Opus 5) so Build's own pool is not the only
+  //     one its delegates draw on — and so Astra's code is reviewed cross-family.
+  //   ChatGPT Pro x5 — build primary (GPT-6 Astra; fall back to Opus 5 by hand),
+  //     debugger (Astra), and the cheap/bulky subagents (explore-spark/small,
+  //     verifier, searcher/searcher-deep, ui-review, ux-persona, compaction).
+  // GPT-6 Astra needs opencode >= 1.18.29: the ChatGPT-OAuth catalog filter
+  // rejected integer major versions (`gpt-6`) before that. OpenCode never
+  // falls back across models by itself — switch in the TUI when a pool is
+  // exhausted. Pinned models here are defaults only: an explicit `--model`
+  // (Hermes' engineer-pipeline always passes one) or a TUI pick overrides them.
   "agent": {
     "plan": {
       "color": "#f5f5f5",
+      "model": "anthropic/claude-fable-5-1",
     },
     "build": {
       "color": "#ff6f00",
+      "model": "openai/gpt-6-astra",
     },
     "review": {
       "color": "#A855F7",
