@@ -10,6 +10,12 @@ the face. On a pet, an object or a place: the same scene as a faded
 Kodachrome print, period cars, signage and street furniture where the
 scene allows. It is still a photograph, never an illustration.
 
+**Medium.**
+> Re-photograph this exact scene as a 1970s 35 mm colour-film print.
+> It stays a photograph, but the modern digital look must go: replace
+> the clean digital tones with faded film colour, lifted blacks, real
+> film grain and a vintage lens; period-dress what is in frame.
+
 **Prompt block.**
 > 1970s street photograph of <subject>, shot on 35 mm colour film, warm
 > aged Kodachrome tones with lifted blacks and a faint yellow cast,
