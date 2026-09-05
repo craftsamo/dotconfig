@@ -77,7 +77,7 @@ metadata:
 4. Finish every variant:
 
    ```
-   ${HERMES_SKILL_DIR}/scripts/icon-finish.sh <raw> <deliver>/icon_<slug>_v<N>_<size>.png \
+   ${HERMES_SKILL_DIR}/../../scripts/icon-finish.sh <raw> <deliver>/icon_<slug>_v<N>_<size>.png \
      --size <size> --background transparent|tile|"#rrggbb" [--tile "#rrggbb"] [--pad F]
    ```
 
