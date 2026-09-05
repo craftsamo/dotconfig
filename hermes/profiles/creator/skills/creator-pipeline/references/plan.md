@@ -74,10 +74,25 @@ to the client, noted for the maintainer.
 A metered leaf takes a `budget:` line; absent, the leaf's default (icon:
 4 variants + 1 corrective; emoji: 3 anchor candidates, then 1 per item +
 ceil(items/4) correctives for the pack; mascot: 3 concepts, then 1 per
-item + ceil(items/4) correctives). The assistant's `Budget:` line
+item + ceil(items/4) correctives; reimagine: 2 per style + 1 corrective
+for the run). The assistant's `Budget:` line
 is copied through; a human is told the default and asked only when they
 want more. Never hand a metered form off without knowing who pays for a
 corrective.
+
+## A photo that leaves the machine
+
+`generate-reimagine` (and any leaf given a `reference:` / `photo:` of a
+real person) sends that file to the image backend. A human client is
+told so in the SAME clarify round as the style — one entry, "the photo
+is uploaded to the image model (codex, else xAI); go ahead?" with yes
+first — never after the fact; the assistant's brief is taken as
+consent already given by the user it relays. Several styles on one
+photo are ONE form (`style: comic-book, 80s-anime`), not one per style:
+the hands write the identity lock once and every style is judged
+against the same note. `keep` stays at its default unless the client
+asked for a new scene ("put me in a 70s New York street" → `keep:
+identity`; "make this photo a comic" → the default).
 
 ## Two-round leaves
 
