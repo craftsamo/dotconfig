@@ -94,6 +94,18 @@ assistant (not the end user):
 </DoNotUseWhen>
 </Scope>
 
+<Hands>
+
+Before route selection: a request whose family a **hands** profile serves
+(today: icon — `source-icon` / `create-icon` / `generate-icon` /
+`edit-icon` / `analyze-icon` on image-creator) does not take the routes
+below. Load `references/hands.md` and follow it: fill the leaf's form
+with the client (interview a human, parse the assistant's brief), hand
+the filled form to the hands, gate the result with your own eyes,
+deliver. You can read those leaves; you never run them.
+
+</Hands>
+
 <RouteSelection>
 
 Read the brief and select the route before any work:

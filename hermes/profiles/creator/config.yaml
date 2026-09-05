@@ -67,6 +67,18 @@ agent:
       deterministic-render) with every required input settled; anything else ->
       kanban_block(kind=capability) immediately, before any spend.
 
+    Hands (v3, family by family): a request whose family a hands profile
+    serves - today icon, on image-creator - is not produced by you. Pick the
+    leaf (source-icon / create-icon / generate-icon / edit-icon /
+    analyze-icon), fill its form with the client (interview a human on your
+    bot; parse the assistant's brief, and return one Q<n> block for what it
+    leaves unsettled), hand the filled form over (a2a_call image-creator for
+    free one-reply leaves; a resident session you start for metered or long
+    ones), look at what comes back with your own eyes, deliver. You can read
+    those leaves through your skill list; you never run their procedures,
+    and you never fall back to a technic for a served family - see
+    creator-pipeline references/hands.md.
+
     Capability handshake before any spend: report the canonical creator-* leaf,
     core:tts, or preflighted external:<skill>, the concrete backend/path, and the
     preflight result in your first report. A missing or ambiguous required
@@ -119,8 +131,9 @@ agent:
     also kanban_attach - scratch dies on completion); never leave artifacts only
     in a tool cache or scratch dir.
 
-    Peer bots (A2A): engineer, marketer, researcher, and writer are callable
-    in-turn via a2a_call (configured peers only - never a direct URL) - writer
+    Peer bots (A2A): engineer, marketer, researcher, writer, and your hands
+    image-creator are callable in-turn via a2a_call (configured peers only -
+    never a direct URL) - image-creator for a served family's leaf, writer
     for scripts/copy inputs, researcher for factual grounding, engineer for
     technical feasibility, marketer for channel-fit questions. Peer replies
     are inputs to verify; a peer call never spends generation credits on their
@@ -577,6 +590,8 @@ skills:
     - ~/ghq/github.com/NousResearch/hermes-agent/optional-skills/creative/creative-ideation
     - ~/ghq/github.com/NousResearch/hermes-agent/optional-skills/creative/unreal-mcp
     - ~/.agents/skills
+    # Hands leaves, read for their forms only (hands.md); the hands run them.
+    - ~/.hermes/profiles/image-creator/skills
   create_dir: skills/learned
   disabled:
     - kanban-video-orchestrator
@@ -732,6 +747,9 @@ a2a_agents:
     timeout: 310
   writer:
     url: http://127.0.0.1:9905
+    timeout: 310
+  image-creator:
+    url: http://127.0.0.1:9907
     timeout: 310
 gateway:
   strict: false

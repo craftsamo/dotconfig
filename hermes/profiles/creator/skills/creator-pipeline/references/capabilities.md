@@ -4,6 +4,16 @@ This is the only in-profile router from a MediaBrief to production technics.
 `technic/` contains directly selectable leaves; a leaf may have internal modes
 only when they share tools, spend class, and verification.
 
+## Families served by hands (checked FIRST — see `hands.md`)
+
+| Deliverable | Hands leaf | Notes |
+| --- | --- | --- |
+| a published library icon (Iconify) as SVG + PNG | image-creator: source-icon | free; a word instead of an id comes back as candidates |
+| favicon / Apple / PWA / maskable set from a first-party SVG | image-creator: create-icon | free; supersedes `creator-logo-icons` for icon sets |
+| an icon drawn in a named style (flat-minimal, glass, pixel, line, clay, …) | image-creator: generate-icon | metered; supersedes `creator-generated-image` for icons |
+| recolour / background / cut-out / resize of an existing icon | image-creator: edit-icon | free |
+| findings on an icon or icon set, no file | image-creator: analyze-icon | free |
+
 ## Canonical technics
 
 | Deliverable / production method | Canonical technic | Notes |
@@ -13,7 +23,7 @@ only when they share tools, spend class, and verification.
 | information-led visual summary with a layout x style grammar | `creator-infographic` | metered `image_generate`; dense exact labels route to deterministic SVG |
 | precise architecture, scientific, educational, or general concept diagram | `creator-svg-diagram` | deterministic self-contained HTML + inline SVG; rendered preview required |
 | editable hand-drawn architecture, flow, sequence, or concept diagram | `creator-excalidraw-diagram` | deterministic `.excalidraw` JSON; compatible rendered preview required |
-| favicon, Apple, PWA, maskable, or app-icon set from an approved first-party SVG | `creator-logo-icons` | deterministic; zero generation spend |
+| favicon, Apple, PWA, maskable, or app-icon set from an approved first-party SVG | `creator-logo-icons` | superseded by hands `create-icon`; kept until the technic retires |
 | OG/social/title card with exact copy and typography | `creator-text-card` | deterministic composition; generated background is an explicit supporting technic |
 | classic-template or custom-scene meme with deterministic captions | `creator-meme` | sourced template or separately budgeted generated background; provenance required |
 | static banner, framed/message art, image conversion, or sourced ASCII art | `creator-ascii-art` | deterministic UTF-8 text master; ANSI only when requested |
