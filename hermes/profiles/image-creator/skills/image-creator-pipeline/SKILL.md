@@ -56,6 +56,13 @@ metadata:
   (size, format, byte cap): cut-out unless the corners are already
   transparent, optional outline, fit, encode under the cap; prints a
   `RESULT:` line with `within_cap`.
+- `scripts/mascot-fit.sh INPUT OUTPUT [--size PX] [--background transparent|chromakey|#rrggbb] [--key #rrggbb] [--cutout auto|yes|no|key] [--fuzz PCT] [--crop full|bust|head] [--crop-frac F] [--pad F] [--stroke PX] [--stroke-color #rrggbb]`
+  — the mascot family's finish: cut a character out (corner flood or
+  global key), optionally crop to the bust / head, fit on a square
+  canvas on alpha, on a flat chroma key (re-composited, never the
+  model's own green) or a flat fill; prints a `RESULT:` line with
+  `key_px` (opaque pixels still near the removed background — a pocket
+  the corner flood missed).
   Leaves reach root scripts as `${HERMES_SKILL_DIR}/../../scripts/<name>`.
 
 </Shared scripts>
