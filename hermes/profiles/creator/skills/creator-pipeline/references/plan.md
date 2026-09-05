@@ -73,25 +73,39 @@ to the client, noted for the maintainer.
 
 A metered leaf takes a `budget:` line; absent, the leaf's default (icon:
 4 variants + 1 corrective; emoji: 3 anchor candidates, then 1 per item +
-ceil(items/4) correctives for the pack). The assistant's `Budget:` line
+ceil(items/4) correctives for the pack; mascot: 3 concepts, then 1 per
+item + ceil(items/4) correctives). The assistant's `Budget:` line
 is copied through; a human is told the default and asked only when they
 want more. Never hand a metered form off without knowing who pays for a
 corrective.
 
 ## Two-round leaves
 
-`generate-emoji` refuses to draw a pack on an unapproved likeness: the
-first handoff carries no `anchor` and comes back with three character
-sheets and a recommendation. Show them to the client (a human: the three
-files + one `clarify` with the candidates as choices; the assistant: the
-paths and your pick), then send `intent: revise <that dir>` with
-`anchor: <the approved file>` — the hands print that exact line in their
-report. A pack that comes back with items marked `passed: false` is not
-a failure: the hands ran out of correctives; you decide whether to send
-a `budget: N correctives — <items> only` revise or ship with the marks.
-Correctives on a pale-haired or pale-skinned character almost always
-mean a prop (tears, sweat, "?") that must be large, saturated and off
-the hair — say so in the `note:`.
+`generate-emoji` and `generate-mascot` refuse to draw a pack on an
+unapproved likeness: the first handoff carries no `anchor` and comes
+back with three candidates (emoji: character sheets; mascot: full-body
+concepts plus a silhouette sheet and the hands' recommendation). Show
+them to the client (a human: the three files + one `clarify` with the
+candidates as choices; the assistant: the paths and your pick), then
+send `intent: revise <that dir>` with `anchor: <the approved file>` —
+the hands print that exact line in their report. For a mascot the
+second round also needs `pack:` (`turnaround` for a model sheet,
+`poses` for the everyday eight, `custom` + `items`); a client who only
+wanted the character stops after round A — the concept IS the
+deliverable. A pack that comes back with items marked `passed: false`
+is not a failure: the hands ran out of correctives; you decide whether
+to send a `budget: N correctives — <items> only` revise or ship with the
+marks. Correctives on a pale-haired or pale-skinned character almost
+always mean a prop (tears, sweat, "?") that must be large, saturated
+and off the hair — say so in the `note:`.
+
+A character lives once: an approved mascot anchor is the `reference:`
+for its emoji pack (`generate-emoji`), and a mascot the client wants
+for video goes through `edit-mascot` with `background: chromakey`
+rather than a second generation. When a client asks for "an emoji of
+our mascot" and no mascot exists yet, that is two forms in order —
+`generate-mascot` first, `generate-emoji` on its anchor second — and
+you say so.
 
 ## Advisory — a conversation that may not end in a form
 

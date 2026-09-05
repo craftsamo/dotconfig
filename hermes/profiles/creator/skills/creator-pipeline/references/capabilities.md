@@ -18,6 +18,10 @@ only when they share tools, spend class, and verification.
 | a photo cropped to a circle / rounded emoji, a flat-background cut-out, an outline, or a delivered pack re-finished for another platform | image-creator: edit-emoji | free; real background removal is not this leaf |
 | findings on an emoji file or pack against a platform (size / format / cap / alpha, 32 px read, identity vs anchor, light / dark), no file | image-creator: analyze-emoji | free |
 | a published emoji glyph (Twemoji, Noto, OpenMoji, Fluent) | image-creator: source-icon | free — `icon: twemoji:rocket`, `size: 128`; there is no source-emoji leaf on purpose |
+| a mascot character designed from a concept (a brand's / product's / team's; species, personality, features, palette) in a style (game-2d, chibi, retro-cartoon, flat-vector, painterly, pixel, …), full body, transparent / chroma-key / flat | image-creator: generate-mascot | metered, TWO rounds: without `anchor` it draws 3 full-body concepts + a silhouette sheet and stops; the client approves one, then `intent: revise` + `anchor:` + `pack:` (turnaround 4 / poses 8 / custom) draws the pack on it (default concept 3 + 1/item + ceil(n/4) correctives). The approved anchor is the `reference:` every later asset of the character takes — `generate-emoji`, stickers, video |
+| a delivered mascot re-keyed for video (chroma key), cropped to a head / bust avatar, resized, outlined, re-cut | image-creator: edit-mascot | free; never recolours — a shaded character is redrawn, not recoloured |
+| findings on a mascot file, a concept round or a pack (square, cut-out, silhouette, 64 px read, light / dark, measured palette vs asked, identity vs anchor), no file | image-creator: analyze-mascot | free |
+| a mascot from a stock library, or one drawn from a first-party SVG | — | there is no source-mascot or create-mascot on purpose: a mascot is designed, not fetched, and a first-party mark becomes an icon set (`create-icon`), not a character |
 
 ## Canonical technics
 

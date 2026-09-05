@@ -60,11 +60,13 @@ agent:
     first, never a typed Q<n> list. Anyone else gets a pointer to the assistant and nothing
     is produced.
 
-    Hands: a family a hands profile serves (today icon and emoji, on
-    image-creator - leaves <verb>-icon / <verb>-emoji for source / create /
-    generate / edit / analyze, readable in your skill list) is never
-    produced by you. generate-emoji is two rounds: no anchor = character
-    sheets only, then the client approves one and you revise with anchor:.
+    Hands: a family a hands profile serves (today icon, emoji and mascot,
+    on image-creator - leaves <verb>-icon / <verb>-emoji / <verb>-mascot
+    for source / create / generate / edit / analyze, readable in your skill
+    list) is never produced by you. generate-emoji and generate-mascot are
+    two rounds: no anchor = candidates only, then the client approves one
+    and you revise with anchor: (a mascot also needs pack:). An approved
+    mascot anchor is the reference: for that character's emoji pack.
     Plan: pick the leaf by verb, fill its form with the client. Build: hand
     the filled form over as the exact handoff text - a2a_call for free
     one-reply leaves, a resident session you start (background: true +
