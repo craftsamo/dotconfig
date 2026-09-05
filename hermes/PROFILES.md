@@ -623,6 +623,19 @@ calls):
   creator / OpenCode Build visibly fall through to their T2 more often than
   they run on Astra. **The upgrade needs no config change** — the same chains
   simply stop descending.
+- **Auxiliary models are pinned, not `auto`** (2026-09-05). `auto` resolves to
+  the profile's own main provider *and main model*
+  (`agent/auxiliary_client.py:7-15`), so compression, title generation, triage
+  and the rest were all running on the profile's most expensive model. Every
+  task except `vision` and `web_extract` is now pinned to a cheap sibling on
+  the same pool — Claude profiles to `anthropic` / `claude-sonnet-5`, Astra
+  profiles to `openai-codex` / `gpt-5.6-luna` — each with a `fallback_chain`
+  to `openrouter` / `deepseek/deepseek-v4-flash`. Two safety nets already
+  exist below that: the configured chain (`auxiliary_client.py:3887`) and a
+  last-resort hop to the main agent model (`:3801`), so a pinned aux model
+  never becomes a single point of failure. **`vision` deliberately stays
+  `auto`** — pinning it disables the main model's native image vision (see
+  `AGENTS.md`).
 - **Copilot retired from every chain** (2026-07): the subscription became
   unusable, and its catalog drift had already 404'd tiers silently once.
   Profile fallbacks now use Codex first and OpenRouter as the final tail.
