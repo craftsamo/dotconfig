@@ -1,10 +1,9 @@
 ---
 description: "Read-only codebase exploration for hard or ambiguous questions where explore-medium falls short."
 mode: subagent
-model: openai/gpt-5.6-terra-fast
+model: anthropic/claude-sonnet-5
+variant: high
 hidden: true
-options:
-  reasoningEffort: high
 permission:
   "*": deny
   glob: allow
