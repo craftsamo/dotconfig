@@ -18,7 +18,10 @@
 #               line           180x180 PNG,  < 1 MB     (LINE emoji)
 #               generic        512x512 PNG,  no cap
 #   --cutout    auto (default): flood-fill the flat background away unless the
-#               input already has transparent corners; yes: always; no: never
+#               input already has transparent corners; yes: always; no: never;
+#               key: remove the corner colour EVERYWHERE (global chroma key +
+#               1 px alpha erode) — for subjects with enclosed pockets the
+#               corner flood cannot reach (long hair against the shoulders)
 #   --fuzz      flood-fill tolerance (default 10%)
 #   --pad       fraction of the edge kept clear (default 0.04; emoji fill
 #               the canvas — they are shown tiny)
@@ -64,7 +67,7 @@ case "$PLATFORM" in
   "") die "--platform is required (slack | discord | telegram | telegram-emoji | line | generic)" ;;
   *) die "unknown platform: $PLATFORM" ;;
 esac
-case "$CUTOUT" in auto|yes|no) ;; *) die "--cutout must be auto | yes | no" ;; esac
+case "$CUTOUT" in auto|yes|no|key) ;; *) die "--cutout must be auto | yes | no | key" ;; esac
 case "$STROKE_COLOR" in $HEX) ;; *) die "--stroke-color must be #rrggbb" ;; esac
 command -v magick >/dev/null 2>&1 || die "magick (ImageMagick) not found — report as a gap"
 OUTPUT="${STEM}.${FMT}"
@@ -101,6 +104,11 @@ if [ "$CUTOUT" = yes ]; then
     -draw "color 0,0 floodfill" -draw "color $((W+1)),0 floodfill" \
     -draw "color 0,$((H+1)) floodfill" -draw "color $((W+1)),$((H+1)) floodfill" \
     -shave 1x1 -trim +repage "$CUT" || die "cut-out failed"
+elif [ "$CUTOUT" = key ]; then
+  CORNER_COLOR="$(magick "$SRC" -format '%[pixel:p{0,0}]' info:)"
+  magick "$SRC" -alpha set -fuzz "$FUZZ" -transparent "$CORNER_COLOR" \
+    \( +clone -alpha extract -morphology Erode Diamond:1 \) \
+    -alpha off -compose CopyOpacity -composite -trim +repage "$CUT" || die "key failed"
 else
   magick "$SRC" -alpha set -trim +repage "$CUT"
 fi
