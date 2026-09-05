@@ -98,15 +98,26 @@ that note.
    lock; (b)-(d) become "free". A `background:` sentence replaces (d).
 2. Compose ONE prompt per style and write them all to
    `<deliver>/prompt.txt` BEFORE the first spend, each under a
-   `## <style>` heading: "<style prompt block> — re-render THIS photo:
-   the same <subject.md (a)>, the same pose <(b)>, the same framing
-   <(c)>, the background <(d)> drawn in the same style; keep the
-   subject's identity and expression exactly; no text, no watermark, no
-   added people or objects". With `keep: identity` replace the pose /
+   `## <style>` heading, in THIS order: the style file's **Medium**
+   line first (it says what the picture IS and that the photograph's
+   own texture must go — an edit model left to itself returns the
+   photo with a filter: three of the first four candidates on the
+   roses run did, and the corrective that opened with the medium line
+   passed), then the Prompt block with `<subject>` filled from (a),
+   then "keep the composition of the photo exactly: the same pose
+   <(b)>, the same framing <(c)>, the background <(d)> in the same
+   medium; keep the subject's identity and expression exactly; no
+   text, no watermark, no added people or objects". Write (b)-(d) as
+   one sentence each — the lock is a checklist for YOUR looks, the
+   prompt carries its gist. With `keep: identity` replace the pose /
    framing / background clauses with "a new scene in the style's own
    world: <the style's Look>", keeping the identity clause. A
-   `background:` sentence goes in place of (d) verbatim. Where the
-   style file's Prompt block writes `<subject>`, fill (a) in.
+   `background:` sentence goes in place of (d) verbatim. End every
+   prompt with the canvas spelled out — "a WIDE HORIZONTAL landscape
+   image, wider than tall, do not rotate" (or tall / square): the
+   `aspect_ratio` argument alone is not honoured reliably — gpt-image-2
+   transposed a landscape call twice in a row on the roses run, and
+   only that clause fixed it.
 3. Generate, per style, 2 candidates (a `budget:` line `N per style`
    overrides): `image_generate(prompt=<that style's prompt>,
    image_url=<photo>, aspect_ratio=<canvas>)`, one call at a time in
@@ -119,7 +130,13 @@ that note.
    return a redraw of a different subject. A call that fails is retried
    once, then counted; a member that refuses the photo (a safety
    refusal on a face) is reported as such with the member's name — the
-   chain moves on to the next member on its own. After every 4 calls
+   chain moves on to the next member on its own. Measure every raw as
+   it lands (`magick identify -format '%w %h'`): a raw whose
+   orientation is transposed against the canvas is NOT a candidate —
+   it is never finished with `cover` (that would crop half the photo's
+   composition away); mark it `passed: false, note: transposed` in
+   the manifest, keep the raw, and the next call for that style
+   restates the orientation clause in capitals. After every 4 calls
    write `<deliver>/progress.md` (styles done, candidates on disk) so a
    timeout loses nothing.
 4. Finish every candidate to the delivery size:
@@ -136,9 +153,12 @@ that note.
    (the model returned a different ratio) is a finding, not a silent
    trim — finish it with `--fit contain` instead and say so.
 5. Look, and after EVERY look append the finding to `<deliver>/qa.md`
-   with the file tool before the next `vision_analyze` (an image is gone
-   from the context three looks later; a run that looks without writing
-   walks in a circle). Per style, in this order:
+   before the next `vision_analyze` — APPEND (the patch tool, or a
+   read-then-write that keeps the earlier text): a whole-file write
+   replaced look 1 with look 2 on the roses run and it had to be
+   restored from memory (an image is gone from the context three looks
+   later; a run that looks without writing walks in a circle). Per
+   style, in this order:
    (a) the comparison sheet — the photo first, then the candidates:
    `magick <photo> <v1> <v2> -resize 480x480 -background '#888888'
    -gravity center -extent 496x496 +append <deliver>/sheet_<style>.png`
@@ -157,9 +177,15 @@ that note.
 6. Correctives: a style whose BOTH candidates fail identity or the
    style cues gets ONE regeneration with the prompt adjusted by what
    failed (an identity drift → the drifted feature written explicitly
-   and "do not change" in front of it; a style miss → the cue named
-   from the Avoid list), appended to `prompt.txt`; the run has 1
-   corrective in total (a `budget:` line overrides); then stop.
+   and "do not change" in front of it; a style miss → the Medium line
+   restated in capitals and the cue named from the Avoid list),
+   appended to `prompt.txt`; each style has 1 corrective (a `budget:`
+   line overrides) — styles fail independently, and the one shared
+   corrective of the first run left the second style with a named
+   defect and nothing to spend; then stop. A corrective is finished
+   like the others and the sheet is REBUILT with every candidate
+   (`photo | v1 | v2 | v3`), one more look (a) on it, appended — the
+   earlier sheet look stays in `qa.md` as history.
 7. Package `<deliver>/manifest.json` — `[{"style": "comic-book", "file":
    "<slug>_comic-book_v1.png", "bytes": N, "passed": true|false,
    "recommended": true|false}]`, one recommended per style that has a

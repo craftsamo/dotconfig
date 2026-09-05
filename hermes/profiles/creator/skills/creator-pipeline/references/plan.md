@@ -75,7 +75,7 @@ A metered leaf takes a `budget:` line; absent, the leaf's default (icon:
 4 variants + 1 corrective; emoji: 3 anchor candidates, then 1 per item +
 ceil(items/4) correctives for the pack; mascot: 3 concepts, then 1 per
 item + ceil(items/4) correctives; reimagine: 2 per style + 1 corrective
-for the run). The assistant's `Budget:` line
+per style). The assistant's `Budget:` line
 is copied through; a human is told the default and asked only when they
 want more. Never hand a metered form off without knowing who pays for a
 corrective.

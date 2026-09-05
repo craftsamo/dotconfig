@@ -8,6 +8,12 @@ an object or a place becomes a cute simplified toy-like version with
 rounded corners and pastel tones. Cheerful, gentle, uncluttered — the
 photo's arrangement kept, its proportions cutened.
 
+**Medium.**
+> Redraw this photograph completely as a flat kawaii chibi
+> illustration. It must NOT look like a photograph with a filter: no
+> photographic texture or gradients survive; thin clean outlines, flat
+> pastel fills, the figure's head one third of its body height.
+
 **Prompt block.**
 > adorable kawaii chibi illustration of <subject>, oversized head and
 > big sparkling eyes, compact simplified body with small hands and feet,

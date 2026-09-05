@@ -8,6 +8,13 @@ high-detail shading with no photographic grain. A place or an object
 becomes a lovingly built miniature set; a person or a pet becomes the
 animated-film version of themselves — recognisable at a glance.
 
+**Medium.**
+> Rebuild this photograph completely as a stylized 3D animated-film
+> render. It must NOT look like a photograph with a filter: no
+> photographic texture, grain or lens blur survives; every surface is a
+> smooth CG material under studio film lighting, every form remodelled
+> with rounded animated proportions.
+
 **Prompt block.**
 > polished stylized 3D animated render of <subject>, feature-animation
 > look, rounded appealing forms, smooth CG shading with soft subsurface

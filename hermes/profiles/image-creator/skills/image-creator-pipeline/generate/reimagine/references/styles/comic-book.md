@@ -7,6 +7,12 @@ cast shadows in solid black, high-contrast pop-art lighting, a faint
 paper tone. Dynamic but faithful — the drawing of the photo, not a new
 scene. No speech balloons, no caption boxes, no sound-effect lettering.
 
+**Medium.**
+> Redraw this photograph completely by hand as a printed American
+> comic-book panel. It must NOT look like a photograph with a filter:
+> erase all photographic texture, noise and soft gradients; every shape
+> is enclosed by a black ink contour and coloured with flat ink fills.
+
 **Prompt block.**
 > bold American comic-book illustration of <subject>, thick black ink
 > outlines with varied line weight, flat vivid colour fills, Ben-Day

@@ -38,7 +38,9 @@ metadata:
 4. **Run `<QA>`**, every check with its evidence. Vision holds about three
    images: look at a contact sheet first, then single files one at a time,
    and after EVERY look append the finding as text to `<deliver>/qa.md`
-   (the file tool) before the next `vision_analyze`. A look whose finding
+   before the next `vision_analyze` — APPEND: the patch tool, or a
+   read-then-write that keeps the earlier text; a whole-file write
+   replaced look 1 with look 2 on the roses run. A look whose finding
    is not on disk did not happen — an image you looked at is gone from
    your context three looks later, and a run that looks without writing
    walks in a circle until the budget is spent (152 looks at three
