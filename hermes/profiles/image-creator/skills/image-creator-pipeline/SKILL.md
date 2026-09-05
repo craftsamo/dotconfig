@@ -51,6 +51,11 @@ metadata:
 - `scripts/icon-finish.sh INPUT OUTPUT [--size PX] [--background transparent|tile|#rrggbb] [--tile #rrggbb] [--pad F] [--fuzz PCT] [--keep-bg]`
   — cut a subject out of a flat background (corner flood fill), fit it on
   a square canvas with the asked background; prints a `RESULT:` line.
+- `scripts/emoji-fit.sh INPUT OUTPUT_STEM --platform slack|discord|telegram|telegram-emoji|line|generic [--cutout auto|yes|no] [--fuzz PCT] [--pad F] [--stroke PX] [--stroke-color #rrggbb]`
+  — the emoji family's finish and the ONLY place the platform table lives
+  (size, format, byte cap): cut-out unless the corners are already
+  transparent, optional outline, fit, encode under the cap; prints a
+  `RESULT:` line with `within_cap`.
   Leaves reach root scripts as `${HERMES_SKILL_DIR}/../../scripts/<name>`.
 
 </Shared scripts>
