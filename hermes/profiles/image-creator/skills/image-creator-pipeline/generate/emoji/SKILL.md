@@ -110,7 +110,15 @@ expensive mistake this leaf can make. Round A is cheap and stops.
    (512 PNG, transparent). A cut-out that ate part of the character or
    left a fringe is re-run with another `--fuzz` first (`5%` ate it;
    `16%` then `30%` for a fringe on soft styles) — free — before any
-   corrective generation.
+   corrective generation. Background colour TRAPPED in an enclosed
+   pocket (between long side locks and the shoulders, under an arm) is
+   not a fuzz problem — the corner flood cannot reach it at any value;
+   re-run with `--cutout key --fuzz 30%`, which keys the colour
+   everywhere and erodes 1 px (earned on a long-haired character: 68
+   stray pixels became 2). Measure what is left rather than trusting the
+   eye: `magick <png> -alpha off -fuzz 25% -fill white +opaque '#00ff00'
+   -fill black -opaque '#00ff00' -negate -format '%[fx:mean*w*h]' info:`
+   counts the key-coloured pixels.
 4. Look: one contact sheet of the candidates (`magick <v1> <v2> <v3>
    -resize 256x256 -background '#888888' -gravity center -extent 272x272
    +append <deliver>/anchor/sheet.png` — not `montage`, ImageMagick 7
@@ -131,6 +139,12 @@ expensive mistake this leaf can make. Round A is cheap and stops.
    image — <character.md features> — <ITEM>, head-and-shoulders (or the
    pose the item names), <bg> background, single character, centred, no
    text, no watermark". Text belongs to `create-emoji`, never in pixels.
+   A PROP that carries the expression (tears, a sweat drop, the "z", a
+   hand at the chin) must be written as LARGE, saturated and clear of
+   the hair and collar — earned on a live pack: pale tears and a small
+   sweat drop vanished at 32 px and cost three correctives; "thick
+   saturated blue tears past the chin" read at once. A hand placed on a
+   white collar disappears; place it beside the cheek.
 7. Generate one image per item, in the pack's order:
    `image_generate(<base prompt with ITEM filled>, aspect_ratio="square",
    reference_image_urls=[<anchor>])`. Keep raws as
@@ -140,15 +154,26 @@ expensive mistake this leaf can make. Round A is cheap and stops.
    progress into `<deliver>/pack/progress.md` so a timeout loses nothing.
 8. Finish every item:
    `${HERMES_SKILL_DIR}/../../scripts/emoji-fit.sh <raw> <deliver>/<platform>/<slug>_<item> --platform <platform> [--stroke <stroke>]`
-   — same fuzz rules as step 3; the `RESULT:` line carries `within_cap`.
-   `pixel`: add `--pad 0.02` and confirm the grid survived the resize.
+   — same fuzz and `--cutout key` rules as step 3 (a character that
+   needed `key` in round A needs it for every item); the `RESULT:` line
+   carries `within_cap`. `pixel`: add `--pad 0.02` and confirm the grid
+   survived the resize. Write the twelve calls into
+   `<deliver>/pack/finish.sh` and run it with `bash`: an inline `for`
+   loop over a script variable trips the terminal guard, a script file
+   does not.
 9. Look, in this order: (a) a contact sheet of the whole pack at 128 px
-   (`+append` rows of 6, `-append` the rows) — identity across the set:
+   on a grey ground (`-resize 128x128 -background '#888888' -gravity
+   center -extent 136x136`, `+append` rows of 6, `-append` the rows — a
+   transparent sheet renders on a checkerboard and hides the edges) —
+   identity across the set:
    every item is the same character as `anchor`; (b) the same sheet
-   shrunk to 32 px per item (`-resize 25%`) — every expression still
-   reads at the size it will be shown; (c) single items only where (a)
-   or (b) raised a doubt, one at a time, writing the finding down before
-   the next look. Vision holds about three images.
+   shrunk to 32 px per item (`-resize 25%`) and then point-magnified
+   back (`-filter point -resize 400%` → `sheet32_zoom.png`) — vision
+   cannot judge a 32 px tile, but the magnified one keeps exactly the
+   32 px information; every expression still reads at the size it will
+   be shown; (c) single items only where (a) or (b) raised a doubt, one
+   at a time, writing the finding down before the next look. Vision
+   holds about three images.
 10. Correctives: an item that fails identity or expression gets ONE
     regeneration with the prompt adjusted by what failed (append the
     change to `prompt.txt`), within the corrective budget; then stop.
