@@ -524,6 +524,141 @@ fallback. `delegate_task` covers medium parallel lookups the user is actively
 waiting on, and absorbs per-artifact QA checks on large sets. Keep routing in
 sync with each `profile.yaml` description.
 
+## Creator hands (v3, 2026-09)
+
+Creator's production is moving, one asset family at a time, out of the 23
+generic `creator-*` technics and into **hands** profiles — `image-creator`
+(A2A `:9907`), later `video-creator` (`:9908`) and `audio-creator`
+(`:9909`) — each a receive-only A2A endpoint with the tools of its medium
+and nothing else. Two earlier shapes failed in opposite directions and this
+section exists so the third does not repeat either: the technics
+**decided nothing** (a "generated image" leaf that accepts any size, look
+and tool still needs the whole spec written from scratch, so 23 assistant
+plan leaves + a QA index had to be sewn to them 1:1), and the
+`refactor/creator-profile` branch **governed everything** (director + three
+hands + menu.yaml + generated MENU.md + presets + cross-media Styles +
+palette roles + grammars: thirteen interpretive layers between a request
+and a tool call, the same choice encoded in five places, and the docs drifted
+before the branch was done). The v3 rule is: **one skill = one concrete
+deliverable = one form**, nothing above the skill but a reader.
+
+### Client model
+
+Creator has **clients**, not entry points. A client is either the human
+(Creator's own Telegram bot) or the assistant (resident session / A2A,
+carrying a SessionBrief). Creator's job is the same for both: pick the
+skill, **fill its form** — by interview when the client is human, by parsing
+the brief when the client is the assistant — return `Q<n>:` for whatever
+required field it cannot fill, hand the filled form to the hands, gate the
+result with its own eyes, deliver. The hands never see the client and never
+interpret: they receive a filled form or return `Q<n>:`. The assistant keeps
+delivery to the user, the durable path, Budget lines and GitHub bookkeeping;
+it no longer makes creative decisions on Creator's behalf, so the
+`plan/creative/<family>.md` leaves and the QA `Covers` mapping retire family
+by family as hands skills land (Phase 4 of the migration).
+
+### Skill tree
+
+```
+profiles/<hands>/skills/
+  <hands>-pipeline/
+    SKILL.md                 # <=40 lines: validate form -> load leaf -> run -> QA -> report
+    scripts/                 # helpers shared by several leaves (e.g. img-postprocess.sh)
+    <verb>/<subject>/
+      SKILL.md               # name: <verb>-<subject>  (one deliverable, one form)
+      references/styles/*.md # this leaf's style notes only — never cross-media
+      assets/reference-*.*   # optional: a sample the leaf has actually produced
+      scripts/
+```
+
+- **Verbs** (closed set): `create` — drawn deterministically from inputs
+  (script / SVG / grid; free); `generate` — a model draws the pixels or the
+  waveform (metered); `edit` — transform an existing asset (free unless the
+  edit itself generates); `source` — fetch a published asset and record its
+  license (free); `analyze` — inspect an existing asset and return findings,
+  never a file (free). The `create`/`generate` boundary is whether a
+  generation model is asked to draw.
+- **Subjects** are concrete nouns (`icon`, `hero`, `clip`, `voice-line`),
+  **unique across all hands** because Creator reads every hands' tree through
+  `skills.external_dirs`; the validator rejects a subject that appears under
+  two hands. `name` equals `<verb>-<subject>` and equals the path.
+- The pipeline root holds no router and no lifecycle beyond the five steps
+  above; discovery is Creator reading the leaves' front matter directly. No
+  generated index, no `menu.yaml`, no preset layer, no shared Style system,
+  no palette vocabulary above the leaf. A leaf's execution-environment traps
+  (Japanese `。` in an argv string trips the terminal guard → text travels as
+  a file; foreground terminal calls die at 420 s → long renders run
+  `background: true` and are polled; vision holds ~3 images → contact sheet
+  first, then one frame at a time with the finding written down) are written
+  into that leaf's Procedure, not into a shared note.
+
+### The form (front matter is the only representation)
+
+```yaml
+---
+name: generate-icon
+description: >-
+  <one sentence: what this leaf delivers, from which inputs — the only line
+  Creator needs to choose it>
+version: 1.0.0
+metadata:
+  hermes:
+    category: hands
+    hands: image-creator
+    cost: metered                      # free | metered
+    output: "icon_<slug>_<size>.png (transparent, square) + .svg when vector"
+    form:
+      what_for:   {required: true,  label: "何のアイコンか", example: "Slack 通知 bot"}
+      style:      {required: true,  options: [flat-minimal, glass, pixel, line, clay], other: true}
+      background: {required: false, options: [transparent, brand-fill, tile], other: true}
+      reference:  {required: false, type: image, label: "参照画像のパス"}
+      note:       {required: false, type: text}
+---
+```
+
+Field keys: `required` (bool), `label` / `example` (interview prompts),
+`options` + `other: true` (a controlled vocabulary that still accepts a
+free value — the leaf's `references/styles/<option>.md` backs each listed
+option), `type` (`text` default, `image`, `file`, `path`, `int`). `note` is
+the escape hatch every leaf carries. The SKILL.md body has exactly three
+sections — `<Procedure>`, `<QA>`, `<Report>` — no Goal / Inputs / Presets
+sections, because `description` and `form` already say that.
+
+### Handoff message (Creator → hands, A2A or resident session alike)
+
+```
+skill: generate-icon
+intent: new | revise <path of the previous delivery>
+deliver: ~/Workspaces/Projects/<Group>/.agent/deliverables/<job>/
+budget: 4 variants + 1 corrective          # metered leaves only
+form:
+  what_for: Slack 通知 bot のアプリアイコン
+  style: glass
+  background: transparent
+  reference: /path/to/ref.png
+  note: 青系、角丸は控えめ
+```
+
+The hands reply with the leaf's `<Report>` (paths, every QA check with its
+evidence, spend) or with one batched `Q<n>:` block naming the missing
+required fields — never with a substitute. A request no leaf fits is a
+finding back to Creator (`no skill fits: …`), which Creator relays to the
+client and records for the maintainer; neither side improvises a leaf.
+Short free leaves go over `a2a_call`; anything metered or longer than one
+reply window runs in a resident session started from Creator.
+
+### Migration
+
+Family by family, each step verified before the next: (0) contract +
+validator, (1) `image-creator` skeleton, (2) the family's leaves proven from
+the hands' own CLI with a pasted filled form, (3) Creator routes that family
+to the hands while every other family stays on its technic, (4) the
+assistant's plan leaf and the creator technic for that family retire, (5)
+soak from both clients and record what the form got wrong. The first family
+is `icon` (`source` / `create` / `generate` / `edit` / `analyze`). Nothing is
+retired in bulk; `refactor/creator-profile` is read only for scripts worth
+porting (`icon-fetch.sh`, `tour.py`, `explainer.py`, `item-loop.py`).
+
 ## Models and fallback chains
 
 Each profile carries its own `model:` (tier 1) plus a `fallback_providers:`
@@ -962,3 +1097,9 @@ upstream's completion-notification injector only knew `self.adapters`, so a
 resident-session turn finishing in the assistant's (now secondary) chat
 never woke it — carried fix `fix/watch-notification-multiplex-route` in the
 hermes-agent checkout (see AGENTS.md).
+
+**Creator hands v3 (2026-09-05, in progress)** — see "Creator hands (v3)".
+Started after the `refactor/creator-profile` branch (director + three hands +
+menu / preset / Style governance) was abandoned as over-abstracted. Progress
+is tracked per family in that section's "Migration" list; the first family
+is `icon` on `image-creator`.
