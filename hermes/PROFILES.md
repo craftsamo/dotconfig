@@ -738,6 +738,46 @@ the hands patching `text-emoji.sh` in place — the contract said report,
 not patch — so `skill-topology` now blocks writes into tracked skill
 roots at the tool layer.
 
+Done 2026-09-05 (mascot): the third family, same steps, three leaves —
+`generate-mascot` (two rounds: three full-body concepts + a silhouette
+sheet, then `anchor:` + `pack:` turnaround / poses / custom),
+`edit-mascot` (background swap incl. a chroma key that re-composites the
+cut-out on flat `#00ff00`, head / bust crop, resize, outline — never a
+recolour) and `analyze-mascot` (square / cut-out / silhouette / 64 px /
+light-dark / measured palette vs asked / identity vs anchor). No
+`source-` or `create-mascot` on purpose: a mascot is designed, not
+fetched, and a first-party mark becomes an icon set. The finish is
+`mascot-fit.sh` (corner flood or global key, `key_px` in its RESULT).
+Earned on Forge (a work-robot, game-2d, electric blue + storm grey):
+the FIRST run never reported — it looked 152 times at three candidates,
+because each image leaves the context three looks later and the model
+had written nothing down between looks; the pipeline root now requires
+every finding appended to `qa.md` before the next vision call, and round
+A is exactly three looks (sheet, silhouette, the recommended one at
+native size — no per-candidate look). Same run: on a white `<bg>` the
+finish's `key_px` counted eye whites and speculars (thousands on a
+clean cut-out), so a mascot is drawn on chroma green (magenta when the
+palette has green), never white — and on green the count caught real
+background trapped between arms and body and inside the claws, cleared
+by `--cutout key` with no coverage loss. The second run: round A in
+4 min, round B held identity across eight poses on one corrective (an
+`oops` sweat drop too pale and on the head — the emoji prop rule
+again). The free leaves on the same delivery: `edit-mascot` re-keyed the
+pack for video and cut a head avatar (the 0.40 head default cut the
+chin on a big-headed build → 0.50), and `analyze-mascot` found the one
+pose whose rig drifted from the anchor (black mitts, long boots) that
+round B's own sheet look had passed, plus two instrument lessons — a
+20 % key detector read a saturated artwork blue as a leak (now 8 %
+around green / magenta only) and a three-colour palette scored FAIL on
+its own line-art ink (ink and highlights are tagged, not scored). The
+write guard also refused `cp … && <skill script>` as a write into the
+skill tree: a skill script runs in a command of its own. Both client
+paths verified from the CLI: an assistant brief without a style →
+`generate-mascot` form filled and ONE `Q1:` on `style` (three options
+with a recommendation), zero spend, 45 s; a human sentence (this
+concept, chroma key for video) → `edit-mascot` form → `a2a_call` → the
+file delivered with Creator's own measurement of the key, 2 min.
+
 ## Models and fallback chains
 
 Each profile carries its own `model:` (tier 1) plus a `fallback_providers:`

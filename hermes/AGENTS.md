@@ -379,9 +379,12 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
   the validator enforces the shape (`validate_hands`), and a subject must be
   unique across every hands because Creator reads all of them through one
   `skills.external_dirs` list. `image-creator` (A2A `:9907`, receive-only)
-  serves the icon and emoji families (`emoji-fit.sh` is the ONE home of
-  the platform table; `generate-emoji` is two rounds — anchor, then
-  pack); Creator (pipeline v7: Plan → Build → Quality
+  serves the icon, emoji and mascot families (`emoji-fit.sh` is the ONE
+  home of the platform table; `generate-emoji` and `generate-mascot` are
+  two rounds — anchor, then pack — and a mascot's approved anchor is the
+  `reference:` of its emoji pack; `mascot-fit.sh` draws on chroma green,
+  never white, because `key_px` on white counts eye whites); Creator
+  (pipeline v7: Plan → Build → Quality
   assurance, `creator-pipeline/references/{plan,build,quality-assurance}.md`)
   tells its client apart by the message's SHAPE — brief lines = the
   assistant → text `Q<n>:`; conversational = a human → the `clarify` tool
@@ -395,7 +398,12 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
   then one at a time; `magick montage` aborts without a default font →
   `+append`; a multi-file `rm` trips the guard → leave `/tmp` alone; an
   inline `for` loop over a script variable trips it too → batches go
-  through a script file; a 32 px tile is judged point-magnified 4x).
+  through a script file; a 32 px tile is judged point-magnified 4x; a
+  look whose finding is not appended to `qa.md` before the next
+  `vision_analyze` did not happen — an image leaves the context three
+  looks later and an unwritten run cycled 152 looks over three files;
+  the write guard reads the WHOLE terminal command, so `cp … && <skill
+  script>` is refused → a skill script runs in a command of its own).
 - **`image_generate` only advertises what the configured provider's
   `capabilities()` declares, fail-closed to text-only.** The
   `image-fallback` chain provider did not declare one until 2026-09-05,
