@@ -1,6 +1,7 @@
 ---
 description: "Primary web research mode. Decomposes a research question, fans out broad sweeps to searcher and single-topic deep dives to searcher-deep (both on the OpenAI subscription tier), and reports a consolidated, source-backed answer."
 mode: primary
+model: anthropic/claude-fable-5-1
 permission:
   "*": ask
   glob: allow

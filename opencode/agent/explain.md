@@ -1,6 +1,7 @@
 ---
 description: "Primary Explain mode. Teaches how a specific implementation, subsystem, command, workflow, or file works with evidence, diagrams, and a suggested reading order; never edits files."
 mode: primary
+model: anthropic/claude-fable-5-1
 permission:
   "*": ask
   glob: allow
