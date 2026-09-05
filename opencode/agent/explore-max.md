@@ -1,10 +1,9 @@
 ---
 description: "Max-depth read-only codebase exploration for difficult, ambiguous, or high-stakes questions."
 mode: subagent
-model: openai/gpt-5.6-sol
+model: anthropic/claude-opus-5
+variant: max
 hidden: true
-options:
-  reasoningEffort: max
 permission:
   "*": deny
   glob: allow

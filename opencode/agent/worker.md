@@ -1,9 +1,8 @@
 ---
 description: "Implements well-specified, mechanical code changes: bulk edits, boilerplate, rote refactors, applying an already-decided design. Give it exact specs; it makes no design decisions. Prefer invoking through the built-in task tool."
 mode: subagent
-model: openai/gpt-5.6-luna-fast
-options:
-  reasoningEffort: high
+model: anthropic/claude-sonnet-5
+variant: medium
 hidden: true
 permission:
   "*": deny

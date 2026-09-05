@@ -1,7 +1,7 @@
 ---
 description: "Hidden read-only debugging subagent for root-cause diagnosis: reproduction, isolation, evidence, fix direction, and verification recommendations. Prefer invoking through the built-in task tool."
 mode: subagent
-model: openai/gpt-5.6-sol
+model: openai/gpt-6-astra
 hidden: true
 options:
   reasoningEffort: high

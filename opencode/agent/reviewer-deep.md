@@ -1,10 +1,9 @@
 ---
-description: "Deep Codex-style read-only review subagent for high-risk hunks: system assumptions, responsibility ownership, runtime regressions, and subtle edge cases. Prefer invoking through the built-in task tool."
+description: "Deep read-only review subagent for high-risk hunks: system assumptions, responsibility ownership, runtime regressions, and subtle edge cases. Prefer invoking through the built-in task tool."
 mode: subagent
-model: openai/gpt-5.6-sol
+model: anthropic/claude-opus-5
+variant: xhigh
 hidden: true
-options:
-  reasoningEffort: xhigh
 permission:
   "*": deny
   glob: allow
