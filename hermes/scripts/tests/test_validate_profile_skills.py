@@ -459,6 +459,142 @@ class LearnedPlacementTest(unittest.TestCase):
         self.assertEqual([], errors)
 
 
+class HandsLeafTest(unittest.TestCase):
+    """Creator hands v3: `<verb>/<subject>/SKILL.md` leaves with a form."""
+
+    LEAF = (
+        "---\n"
+        "name: {name}\n"
+        "description: One icon drawn by a model.\n"
+        "metadata:\n"
+        "  hermes:\n"
+        "    category: hands\n"
+        "    hands: {hands}\n"
+        "    cost: {cost}\n"
+        "    output: icon.png\n"
+        "    form:\n"
+        "{form}"
+        "---\n<Procedure>\n</Procedure>\n"
+    )
+    FORM = (
+        "      what_for: {{required: true}}\n"
+        "      style: {{required: true, options: [pixel], other: true}}\n"
+        "      note: {{required: false}}\n"
+    )
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self._tmp.name) / "image-creator-pipeline"
+        self.root.mkdir()
+        (self.root / "SKILL.md").write_text(
+            "---\nname: image-creator-pipeline\nmetadata:\n  hermes:\n"
+            "    category: hands\n---\n",
+            encoding="utf-8",
+        )
+
+    def tearDown(self) -> None:
+        self._tmp.cleanup()
+
+    def leaf(
+        self,
+        rel: str,
+        name: str,
+        *,
+        hands: str = "image-creator",
+        cost: str = "metered",
+        form: str = FORM,
+        styles: tuple[str, ...] = ("pixel",),
+    ) -> Path:
+        leaf_dir = self.root / rel
+        leaf_dir.mkdir(parents=True, exist_ok=True)
+        for style in styles:
+            style_path = leaf_dir / "references" / "styles" / f"{style}.md"
+            style_path.parent.mkdir(parents=True, exist_ok=True)
+            style_path.write_text("# style\n", encoding="utf-8")
+        path = leaf_dir / "SKILL.md"
+        path.write_text(
+            self.LEAF.format(name=name, hands=hands, cost=cost, form=form.format()),
+            encoding="utf-8",
+        )
+        return path
+
+    def validate(self) -> tuple[dict[str, Path], list[str]]:
+        errors: list[str] = []
+        leaves = VALIDATOR.validate_hands_leaves(self.root, "image-creator", errors)
+        return leaves, errors
+
+    def test_valid_leaf_passes(self) -> None:
+        self.leaf("generate/icon", "generate-icon")
+        leaves, errors = self.validate()
+        self.assertEqual([], errors)
+        self.assertEqual(["generate-icon"], sorted(leaves))
+
+    def test_root_support_dirs_are_not_leaves(self) -> None:
+        self.leaf("generate/icon", "generate-icon")
+        (self.root / "scripts").mkdir()
+        (self.root / "scripts" / "helper.sh").write_text("#!/bin/sh\n")
+        _, errors = self.validate()
+        self.assertEqual([], errors)
+
+    def test_rejects_unknown_verb(self) -> None:
+        self.leaf("render/icon", "render-icon")
+        _, errors = self.validate()
+        self.assertTrue(any("hands verb must be one of" in e for e in errors), errors)
+
+    def test_rejects_leaf_at_wrong_depth(self) -> None:
+        self.leaf("generate/icon/app", "generate-icon-app")
+        _, errors = self.validate()
+        self.assertTrue(any("<verb>/<subject>/SKILL.md" in e for e in errors), errors)
+
+    def test_rejects_name_path_mismatch(self) -> None:
+        self.leaf("generate/icon", "generate-logo")
+        _, errors = self.validate()
+        self.assertTrue(
+            any("frontmatter name must be generate-icon" in e for e in errors), errors
+        )
+
+    def test_rejects_wrong_hands_and_cost(self) -> None:
+        self.leaf("generate/icon", "generate-icon", hands="video-creator", cost="cheap")
+        _, errors = self.validate()
+        self.assertTrue(any("hands must be image-creator" in e for e in errors), errors)
+        self.assertTrue(any("cost must be one of" in e for e in errors), errors)
+
+    def test_rejects_form_without_note_or_required_flag(self) -> None:
+        form = "      what_for: {{label: x}}\n"
+        self.leaf("generate/icon", "generate-icon", form=form, styles=())
+        _, errors = self.validate()
+        self.assertTrue(any("carry a `note` field" in e for e in errors), errors)
+        self.assertTrue(any("must set required" in e for e in errors), errors)
+
+    def test_rejects_unbacked_style_option(self) -> None:
+        self.leaf("generate/icon", "generate-icon", styles=())
+        _, errors = self.validate()
+        self.assertTrue(
+            any("no references/styles/pixel.md" in e for e in errors), errors
+        )
+
+    def test_rejects_unknown_field_type(self) -> None:
+        form = (
+            "      what_for: {{required: true, type: blob}}\n"
+            "      note: {{required: false}}\n"
+        )
+        self.leaf("generate/icon", "generate-icon", form=form, styles=())
+        _, errors = self.validate()
+        self.assertTrue(any("unknown type 'blob'" in e for e in errors), errors)
+
+    def test_subjects_unique_across_hands(self) -> None:
+        errors: list[str] = []
+        VALIDATOR.validate_hands_subjects(
+            {
+                "image-creator": {"edit-fit": Path("a")},
+                "video-creator": {"edit-fit": Path("b"), "generate-clip": Path("c")},
+            },
+            errors,
+        )
+        self.assertEqual(1, len(errors), errors)
+        self.assertIn("subject fit is owned by both image-creator and video-creator", errors[0])
+
+
 class EndToEndTest(unittest.TestCase):
     def test_all_profiles_pass(self) -> None:
         result = subprocess.run(
