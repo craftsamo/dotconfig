@@ -101,8 +101,8 @@ itself call `delegate_task` during its run.
 | **engineer** | primary: supervises OpenCode: assess (read-only) / implement (from the assistant's plan session or an Issue; delegated worktree bootstrap in a repo the assistant created), under an Authority grant; planning documents, repo creation, and GitHub bookkeeping stay with the assistant; A2A peers marketer/researcher/writer | Telegram (own bot) | `.` (launch / task ws) | `terminal,file,web,skills,todo,memory,delegation,a2a` | served (bot + a2a :9902) | yes |
 | **researcher** | verified conclusions from released units: evidence-pack / tradeoff-matrix / fact-check / guidance; heavy breadth is requested from the orchestrator as a search unit; serves engineer/creator/marketer only (not the assistant), cards refused | — (A2A receive-only) | `.` (launch / task ws) | `file,web,vision,video,skills,memory,delegation` | served (a2a :9906) | yes |
 | **searcher** | retrieval from released units: lookup / sweep / hunt (multi-hop via `goal_mode` on cards) | — (specialist) | `.` (launch / task ws) | `web,x_search,skills,memory` | — | yes |
-| **creator** | primary: media production and assembly — image, video, GIF, audio, song, voice, part assembly — consuming released units (decided specs) under a Budget grant, with advisory and anchor-unit rounds; for a family its hands serve (icon) it fills the leaf's form with the client and hands off instead; A2A peers engineer/marketer/researcher/writer/image-creator | Telegram (own bot) | `.` (launch / task ws) | `terminal,file,vision,image_gen,video_gen,video,tts,skills,memory,delegation,a2a` + gen plugins + `unreal-engine` MCP | served (bot + a2a :9903) | yes |
-| **image-creator** | Creator's hands for still images: runs one `<verb>/<subject>` leaf from a filled form (icon family: source / create / generate / edit / analyze), QA with evidence, report; answers only Creator | — (A2A receive-only) | `.` (launch / task ws) | `terminal,file,vision,image_gen,skills,memory` | served (a2a :9907) | yes |
+| **creator** | primary: media production and assembly — image, video, GIF, audio, song, voice, part assembly — consuming released units (decided specs) under a Budget grant, with advisory and anchor-unit rounds; for a family its hands serve (icon, emoji) it fills the leaf's form with the client and hands off instead; A2A peers engineer/marketer/researcher/writer/image-creator | Telegram (own bot) | `.` (launch / task ws) | `terminal,file,vision,image_gen,video_gen,video,tts,skills,memory,delegation,a2a` + gen plugins + `unreal-engine` MCP | served (bot + a2a :9903) | yes |
+| **image-creator** | Creator's hands for still images: runs one `<verb>/<subject>` leaf from a filled form (icon family: source / create / generate / edit / analyze; emoji family: create / generate / edit / analyze), QA with evidence, report; answers only Creator | — (A2A receive-only) | `.` (launch / task ws) | `terminal,file,vision,image_gen,skills,memory` | served (a2a :9907) | yes |
 | **writer** | reader-facing prose and producer-facing scripts from released units (outline / piece / whole job); draft-only, never publishes; serves all four primaries | — (A2A receive-only) | `.` (launch / task ws) | `file,web,skills,memory,delegation` | served (a2a :9905) | yes |
 | **marketer** | primary: platform copy from released message units, four-stage pre-ship inspection, grounding judgment, and publishing only within a Publish grant; A2A peers engineer/creator/researcher/writer | Telegram (own bot) | `.` (launch / task ws) | `terminal,file,web,browser,x_search,vision,skills,memory,delegation,a2a` | served (bot + a2a :9904) | yes |
 
@@ -396,9 +396,13 @@ Three per-profile layers, kept separate:
     `duckduckgo-search` and `domain-intel`
   - image-creator → `image-creator-pipeline` (the hands root: validate
     the filled form → load the leaf → run → QA → report; shared
-    `img-postprocess.sh` / `icon-finish.sh`) + leaves `source/icon`,
-    `create/icon`, `generate/icon` (styles flat-minimal / glass / pixel /
-    line / clay), `edit/icon`, `analyze/icon` — see "Creator hands (v3)"
+    `img-postprocess.sh` / `icon-finish.sh` / `emoji-fit.sh`) + leaves
+    `source/icon`, `create/icon`, `generate/icon` (styles flat-minimal /
+    glass / pixel / line / clay), `edit/icon`, `analyze/icon`;
+    `create/emoji` (text emoji), `generate/emoji` (two rounds — anchor
+    then pack; packs expressions / gaming / love-hype / meme-classics /
+    custom; styles chibi-cartoon / kawaii-pastel / pixel / flat-sticker /
+    clay), `edit/emoji`, `analyze/emoji` — see "Creator hands (v3)"
   - creator → `creator-pipeline` v7 — clients and hands: Plan
     (`references/plan.md`: tell the client apart by the message's shape —
     brief lines = the assistant, conversational = a human; fill the leaf's
@@ -699,6 +703,32 @@ ONE `Q1:` on `style` with three options, no spend. Pipeline v7 verified
 the same way plus a legacy family (an OG text card → `creator-text-card`,
 zero spend, 57 s). Step 5 (soak from the Telegram bot and from assistant
 sessions) is open.
+
+Done 2026-09-05 (emoji): the second family, same steps. Prerequisite
+found on the way: the `image-fallback` chain never declared
+`capabilities()`, so `image_generate` hid `image_url` /
+`reference_image_urls` from every profile — fixed in the plugin (the
+chain reports the first available member's surface and skips text-only
+members for image-carrying calls). One shared script, `emoji-fit.sh`,
+is the only home of the platform table (slack / discord 128 PNG,
+telegram 512 WebP + stroke, telegram-emoji 100 WebP, line 180 PNG;
+`--spec` prints a row for `analyze-emoji`). `generate-emoji` is the
+first TWO-ROUND leaf: without `anchor` it draws three character sheets
+and stops; `intent: revise` + `anchor:` draws the pack on that one
+reference. Earned on Lethe (12 expressions, telegram): identity held
+across all twelve; the pack needed `--cutout key` (background trapped
+between long side locks and the shoulders — unreachable by the corner
+flood at any fuzz) and four correctives, every one of them a prop that
+had vanished at 32 px — so the expressions pack now writes every prop
+large, saturated and off the hair, and `thinking` carries a blue "?"
+instead of a skin-on-skin hand. `create-emoji` (文字絵文字, Hiragino
+Sans W8, text via an items FILE) and the two free leaves earned on the
+same pack: `edit-emoji` re-cut it for Slack, `analyze-emoji` found white
+steam invisible on white hair and that a 12-tile strip exhausts a run's
+vision looks (packs over six are read in halves; an unreached check is a
+GAP). No technic retires with this family — emoji never had one —
+and there is no `source-emoji` on purpose: `source-icon` with
+`icon: twemoji:<name>` covers published glyphs.
 
 ## Models and fallback chains
 
@@ -1143,4 +1173,4 @@ hermes-agent checkout (see AGENTS.md).
 Started after the `refactor/creator-profile` branch (director + three hands +
 menu / preset / Style governance) was abandoned as over-abstracted. Progress
 is tracked per family in that section's "Migration" list; the first family
-is `icon` on `image-creator`.
+is `icon` on `image-creator`, the second `emoji`.

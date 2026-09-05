@@ -68,7 +68,8 @@ router (served families first, then the legacy technic table) and is
 read in Plan before any leaf is chosen. Hands today: `image-creator`
 (A2A peer) — its leaves are readable in your skill list
 (`source-icon`, `create-icon`, `generate-icon`, `edit-icon`,
-`analyze-icon`); read them for their `form`, never run their
+`analyze-icon`; `create-emoji`, `generate-emoji`, `edit-emoji`,
+`analyze-emoji`); read them for their `form`, never run their
 `<Procedure>`.
 
 </Modes>
