@@ -40,7 +40,16 @@ WORKER_PROFILES = (
     "writer",
     "marketer",
 )
-ALL_PROFILES = ("assistant", *WORKER_PROFILES)
+# Creator's hands (PROFILES.md "Creator hands (v3)"): receive-only A2A
+# producers whose skills are `<hands>-pipeline/<verb>/<subject>/SKILL.md`
+# leaves, one deliverable and one form each. Add a profile here when its
+# skeleton lands; subjects must stay unique across every listed hands.
+HANDS_PROFILES = ("image-creator",)
+HANDS_VERBS = ("create", "generate", "edit", "source", "analyze")
+HANDS_COSTS = ("free", "metered")
+HANDS_FIELD_TYPES = ("text", "image", "file", "path", "int")
+HANDS_NAME = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
+ALL_PROFILES = ("assistant", *WORKER_PROFILES, *HANDS_PROFILES)
 WORKER_MUTATION_GUARD_PLUGIN = "kanban-worker-mutation-guard"
 EXPECTED_MODES = ("chat", "plan", "execute", "quality-assurance")
 EXPECTED_CAPABILITIES = {
@@ -853,6 +862,150 @@ def validate_worker(
     return len(leaves), len(learned)
 
 
+# ── Creator hands (v3) ──────────────────────────────────────────────────
+#
+# One leaf = one deliverable = one form. The front matter is the ONLY
+# representation of the leaf's contract (no generated index, no preset
+# layer), so it is what gets validated: the path names the leaf
+# (`<verb>/<subject>` ⇒ `name: <verb>-<subject>`), the verb is one of the
+# closed set, the cost class is declared, and the form is a dict of fields
+# each carrying `required`. A `style` field's options must be backed by
+# `references/styles/<option>.md`; every leaf carries a `note` escape
+# hatch. Subjects are unique across all hands because Creator reads every
+# hands' tree through one `skills.external_dirs` list.
+
+
+def hermes_meta(data: dict[str, Any]) -> dict[str, Any]:
+    metadata = data.get("metadata")
+    if not isinstance(metadata, dict):
+        return {}
+    hermes = metadata.get("hermes")
+    return hermes if isinstance(hermes, dict) else {}
+
+
+def validate_hands_form(
+    form: Any, leaf_dir: Path, path: Path, errors: list[str]
+) -> None:
+    if not isinstance(form, dict) or not form:
+        errors.append(f"hands leaf must declare a non-empty metadata.hermes.form: {path}")
+        return
+    if "note" not in form:
+        errors.append(f"hands form must carry a `note` field: {path}")
+    for key, field in form.items():
+        if not HANDS_NAME.match(str(key).replace("_", "-")):
+            errors.append(f"hands form field name must be a slug: {key}: {path}")
+        if not isinstance(field, dict):
+            errors.append(f"hands form field {key} must be a mapping: {path}")
+            continue
+        if not isinstance(field.get("required"), bool):
+            errors.append(f"hands form field {key} must set required: true|false: {path}")
+        field_type = field.get("type", "text")
+        if field_type not in HANDS_FIELD_TYPES:
+            errors.append(
+                f"hands form field {key} has unknown type {field_type!r}: {path}"
+            )
+        options = field.get("options")
+        if options is not None:
+            if not isinstance(options, list) or not options:
+                errors.append(f"hands form field {key} options must be a non-empty list: {path}")
+            elif key == "style":
+                for option in options:
+                    backing = leaf_dir / "references" / "styles" / f"{option}.md"
+                    if not backing.is_file():
+                        errors.append(
+                            f"style option {option} has no references/styles/{option}.md: {path}"
+                        )
+
+
+def validate_hands_leaves(
+    pipeline_dir: Path, profile: str, errors: list[str]
+) -> dict[str, Path]:
+    """Validate every `<verb>/<subject>/SKILL.md` under a hands pipeline root
+    and return name -> path. Support dirs (references/assets/scripts) of
+    the root itself are not leaf roots."""
+    leaves: dict[str, Path] = {}
+    for path in sorted(pipeline_dir.rglob("SKILL.md")):
+        rel = path.relative_to(pipeline_dir)
+        if rel.parts == ("SKILL.md",):
+            continue
+        if len(rel.parts) != 3:
+            errors.append(
+                f"hands leaf must sit at <verb>/<subject>/SKILL.md: {path}"
+            )
+            continue
+        verb, subject, _ = rel.parts
+        if verb not in HANDS_VERBS:
+            errors.append(f"hands verb must be one of {'|'.join(HANDS_VERBS)}: {path}")
+            continue
+        if not HANDS_NAME.match(subject):
+            errors.append(f"hands subject must be a slug: {path}")
+            continue
+        name = f"{verb}-{subject}"
+        validate_skill(path, name, errors, expected_category="hands")
+        data = frontmatter(path)
+        meta = hermes_meta(data)
+        if not str(data.get("description", "")).strip():
+            errors.append(f"hands leaf must carry a description: {path}")
+        if meta.get("hands") != profile:
+            errors.append(f"metadata.hermes.hands must be {profile}: {path}")
+        if meta.get("cost") not in HANDS_COSTS:
+            errors.append(f"metadata.hermes.cost must be one of {'|'.join(HANDS_COSTS)}: {path}")
+        if not str(meta.get("output", "")).strip():
+            errors.append(f"metadata.hermes.output must describe the deliverable: {path}")
+        validate_hands_form(meta.get("form"), path.parent, path, errors)
+        leaves[name] = path
+    return leaves
+
+
+def validate_hands_subjects(
+    leaves_by_profile: dict[str, dict[str, Path]], errors: list[str]
+) -> None:
+    owners: dict[str, str] = {}
+    for profile, leaves in leaves_by_profile.items():
+        for name in leaves:
+            subject = name.split("-", 1)[1]
+            owner = owners.setdefault(subject, profile)
+            if owner != profile:
+                errors.append(
+                    f"hands subject {subject} is owned by both {owner} and {profile}"
+                )
+
+
+def validate_hands(profile: str, errors: list[str]) -> tuple[dict[str, Path], int]:
+    profile_root = HERMES_ROOT / "profiles" / profile
+    skills = profile_root / "skills"
+    pipeline_name = f"{profile}-pipeline"
+    pipeline_dir = skills / pipeline_name
+    pipeline = pipeline_dir / "SKILL.md"
+    learned_dir = skills / "learned"
+
+    if not pipeline.is_file():
+        errors.append(f"missing root pipeline: {pipeline}")
+        return {}, 0
+    validate_skill(pipeline, pipeline_name, errors, expected_category="hands")
+    if (skills / "technic").exists():
+        errors.append(f"hands profile must not carry a technic directory: {skills / 'technic'}")
+
+    leaves = validate_hands_leaves(pipeline_dir, profile, errors)
+
+    learned: dict[str, Path] = {}
+    if learned_dir.is_dir():
+        for path in sorted(learned_dir.glob("*/SKILL.md")):
+            name = path.parent.name
+            validate_skill(path, name, errors)
+            learned[name] = path
+
+    allowed = {(pipeline_name, "SKILL.md")}
+    allowed.update(
+        (pipeline_name, *path.relative_to(pipeline_dir).parts) for path in leaves.values()
+    )
+    allowed.update(("learned", name, "SKILL.md") for name in learned)
+    validate_allowed_skill_roots(skills, allowed, errors)
+    validate_git_boundary([pipeline_dir], learned_dir, errors)
+    validate_plugin_enabled(profile, profile_root / "config.yaml", errors)
+    return leaves, len(learned)
+
+
 # ── Creative three-layer alignment ──────────────────────────────────────
 #
 # Plan decides, creator produces, QA verifies — all keyed by the creator's
@@ -1212,6 +1365,12 @@ def main() -> int:
         for profile in WORKER_PROFILES:
             technics, learned = validate_worker(profile, errors, catalog=catalog)
             summaries.append(f"{profile}={technics} technics/{learned} learned")
+        hands_leaves: dict[str, dict[str, Path]] = {}
+        for profile in HANDS_PROFILES:
+            leaves, learned = validate_hands(profile, errors)
+            hands_leaves[profile] = leaves
+            summaries.append(f"{profile}={len(leaves)} leaves/{learned} learned")
+        validate_hands_subjects(hands_leaves, errors)
         validate_creative_alignment(errors)
         validate_engineering_alignment(errors)
         validate_writing_alignment(errors)
@@ -1228,6 +1387,11 @@ def main() -> int:
             f"assistant-pipeline={refs} refs/{len(catalog)} card-units; "
             f"assistant={desks} desks/{technics} technics/{learned} learned"
         )
+    elif args.profile in HANDS_PROFILES:
+        if args.dispatch:
+            parser.error("--dispatch is only valid for worker profiles")
+        leaves, learned = validate_hands(args.profile, errors)
+        summaries.append(f"{args.profile}={len(leaves)} leaves/{learned} learned")
     else:
         technics, learned = validate_worker(
             args.profile, errors, args.dispatch, catalog=collect_card_catalog()

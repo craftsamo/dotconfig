@@ -74,7 +74,7 @@ emit_layer "hermes-$PROFILE"
 # authenticates as the identity `ip:127.0.0.1`. Without this line every
 # inbound peer call is dropped as "Unauthorized user: ip:127.0.0.1 on a2a".
 case "$PROFILE" in
-  engineer|creator|marketer|writer|researcher)
+  engineer|creator|marketer|writer|researcher|image-creator|video-creator|audio-creator)
     echo "A2A_ALLOWED_USERS=ip:127.0.0.1"
     ;;
 esac
