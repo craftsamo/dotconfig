@@ -778,6 +778,47 @@ with a recommendation), zero spend, 45 s; a human sentence (this
 concept, chroma key for video) → `edit-mascot` form → `a2a_call` → the
 file delivered with Creator's own measurement of the key, 2 min.
 
+Done 2026-09-05 (reimagine): the fourth family is ONE metered leaf,
+`generate-reimagine` — a client's photo re-rendered in a style
+(3d-character, comic-book, chibi, 70s-street, 80s-anime, or described)
+with the same subject, pose and composition. The photo is the EDIT
+INPUT (`image_url`), never a `reference_image_urls` entry; the hands
+look at it once and write `subject.md`, the identity lock every look
+is judged against (`keep: identity` relaxes it to the subject alone);
+one or several styles per form, two candidates each, finished to the
+photo's own size next to a photo-plus-candidates sheet per style. No
+edit- or analyze-reimagine on purpose: size and format are the leaf's
+own fields and identity against the photo is its own QA. Earned on a
+rose hedge (comic-book + 80s-anime, then 3d-character as a revise on
+the same lock, then chibi from the human path): three of the first
+four candidates came back as the photo with a saturation filter — an
+edit model keeps the photograph's texture unless told what the picture
+IS — so every style reference now opens with a **Medium** line
+(redraw / repaint / rebuild / re-photograph; the photo's own texture
+must go) and the prompt leads with it; the corrective that did so
+passed and every later first pass passed on style. The one shared
+corrective left the second style with a named defect and nothing to
+spend, so the budget is 2 + 1 corrective PER STYLE. gpt-image-2
+transposed a landscape call twice in a row: prompts end with the
+canvas spelled out ("a WIDE HORIZONTAL landscape image, do not
+rotate"), every raw is measured as it lands, and a transposed raw is
+marked failed rather than cover-cropped in half. A corrective rebuilds
+the sheet with every candidate; `qa.md` is appended, never rewritten
+(one look was lost to a whole-file write). The 80s-anime cues now tell
+a figure (cel line) from a place (background art) and forbid opening a
+sky the photo does not have; chibi has a reading for a photo with no
+figure in it (the touch, not an added character). Both client paths
+verified from the CLI: an assistant brief without a style →
+`generate-reimagine` chosen, the surviving run on the same photo found
+and inspected, ONE `Q1:` on style with the three existing candidates
+as options and a `Q2:` on size, zero spend, 100 s; a human sentence
+(chibi, one candidate, consent to upload given in the sentence) →
+form → hands → delivered in Japanese with Creator's own look and the
+hands' maintainer note relayed verbatim, 1 call, 5.5 min. Creator's
+plan.md carries the consent rule: a human client hears that the photo
+leaves the machine in the SAME clarify round as the style, never
+after.
+
 ## Models and fallback chains
 
 Each profile carries its own `model:` (tier 1) plus a `fallback_providers:`
