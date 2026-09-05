@@ -379,7 +379,9 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
   the validator enforces the shape (`validate_hands`), and a subject must be
   unique across every hands because Creator reads all of them through one
   `skills.external_dirs` list. `image-creator` (A2A `:9907`, receive-only)
-  serves the icon family; Creator (pipeline v7: Plan → Build → Quality
+  serves the icon and emoji families (`emoji-fit.sh` is the ONE home of
+  the platform table; `generate-emoji` is two rounds — anchor, then
+  pack); Creator (pipeline v7: Plan → Build → Quality
   assurance, `creator-pipeline/references/{plan,build,quality-assurance}.md`)
   tells its client apart by the message's SHAPE — brief lines = the
   assistant → text `Q<n>:`; conversational = a human → the `clarify` tool
@@ -391,7 +393,19 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
   Procedure that hits it (Japanese `。` in argv trips the guard → text via
   file; > 420 s → `background: true`; vision holds ~3 images → contact sheet
   then one at a time; `magick montage` aborts without a default font →
-  `+append`; a multi-file `rm` trips the guard → leave `/tmp` alone).
+  `+append`; a multi-file `rm` trips the guard → leave `/tmp` alone; an
+  inline `for` loop over a script variable trips it too → batches go
+  through a script file; a 32 px tile is judged point-magnified 4x).
+- **`image_generate` only advertises what the configured provider's
+  `capabilities()` declares, fail-closed to text-only.** The
+  `image-fallback` chain provider did not declare one until 2026-09-05,
+  so every profile on `img-codex-xai-fal` had NO `image_url` /
+  `reference_image_urls` in the tool schema while codex and xai both
+  supported them. The chain now reports the first available member's
+  surface and, for a call that carries images, skips text-only members
+  instead of falling through to a redraw. Verify after an upstream
+  change with `_build_dynamic_image_schema()` under the profile's
+  `HERMES_HOME` (`plugins/image_gen/image-fallback/tests`).
 - **HyperFrames skills live outside the repo, on purpose.** `creator` reaches the
   `hyperframes*` / `media-use` playbooks through `skills.external_dirs`
   (`~/.agents/skills`) — a harness-neutral store owned by `hyperframes skills

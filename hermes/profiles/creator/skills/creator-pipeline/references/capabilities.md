@@ -13,6 +13,11 @@ only when they share tools, spend class, and verification.
 | an icon drawn in a named style (flat-minimal, glass, pixel, line, clay, …) | image-creator: generate-icon | metered; icons never go through `creator-generated-image` |
 | recolour / background / cut-out / resize of an existing icon | image-creator: edit-icon | free |
 | findings on an icon or icon set, no file | image-creator: analyze-icon | free |
+| a custom-emoji pack of ONE character (a face / pet / mascot photo, or described) in a style, across a pack of expressions, for Slack / Discord / Telegram / LINE | image-creator: generate-emoji | metered, TWO rounds: without `anchor` it draws 3 character sheets and stops; the client approves one, then `intent: revise` + `anchor:` draws the pack (default anchor 3 + 1/item + ceil(n/4) correctives) |
+| text emoji (承認 / LGTM / 助かる) as a set | image-creator: create-emoji | free; text travels in the `items` field, never as generated pixels |
+| a photo cropped to a circle / rounded emoji, a flat-background cut-out, an outline, or a delivered pack re-finished for another platform | image-creator: edit-emoji | free; real background removal is not this leaf |
+| findings on an emoji file or pack against a platform (size / format / cap / alpha, 32 px read, identity vs anchor, light / dark), no file | image-creator: analyze-emoji | free |
+| a published emoji glyph (Twemoji, Noto, OpenMoji, Fluent) | image-creator: source-icon | free — `icon: twemoji:rocket`, `size: 128`; there is no source-emoji leaf on purpose |
 
 ## Canonical technics
 

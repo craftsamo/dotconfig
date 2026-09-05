@@ -72,9 +72,26 @@ to the client, noted for the maintainer.
 ## Budget lines
 
 A metered leaf takes a `budget:` line; absent, the leaf's default (icon:
-4 variants + 1 corrective). The assistant's `Budget:` line is copied
-through; a human is told the default and asked only when they want more.
-Never hand a metered form off without knowing who pays for a corrective.
+4 variants + 1 corrective; emoji: 3 anchor candidates, then 1 per item +
+ceil(items/4) correctives for the pack). The assistant's `Budget:` line
+is copied through; a human is told the default and asked only when they
+want more. Never hand a metered form off without knowing who pays for a
+corrective.
+
+## Two-round leaves
+
+`generate-emoji` refuses to draw a pack on an unapproved likeness: the
+first handoff carries no `anchor` and comes back with three character
+sheets and a recommendation. Show them to the client (a human: the three
+files + one `clarify` with the candidates as choices; the assistant: the
+paths and your pick), then send `intent: revise <that dir>` with
+`anchor: <the approved file>` — the hands print that exact line in their
+report. A pack that comes back with items marked `passed: false` is not
+a failure: the hands ran out of correctives; you decide whether to send
+a `budget: N correctives — <items> only` revise or ship with the marks.
+Correctives on a pale-haired or pale-skinned character almost always
+mean a prop (tears, sweat, "?") that must be large, saturated and off
+the hair — say so in the `note:`.
 
 ## Advisory — a conversation that may not end in a form
 
