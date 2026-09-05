@@ -554,9 +554,11 @@ deliverable = one form**, nothing above the skill but a reader.
 Creator has **clients**, not entry points. A client is either the human
 (Creator's own Telegram bot) or the assistant (resident session / A2A,
 carrying a SessionBrief). Creator's job is the same for both: pick the
-skill, **fill its form** — by interview when the client is human, by parsing
-the brief when the client is the assistant — return `Q<n>:` for whatever
-required field it cannot fill, hand the filled form to the hands, gate the
+skill, **fill its form** — with the `clarify` tool when the client is
+human (Telegram renders one inline button per option; the form's
+`options` become the choices, `other: true` is the UI's own "Other" row),
+by parsing the brief when the client is the assistant, returning a text
+`Q<n>:` block for whatever required field it cannot fill, hand the filled form to the hands, gate the
 result with its own eyes, deliver. The hands never see the client and never
 interpret: they receive a filled form or return `Q<n>:`. The assistant keeps
 delivery to the user, the durable path, Budget lines and GitHub bookkeeping;
