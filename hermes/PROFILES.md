@@ -728,7 +728,15 @@ steam invisible on white hair and that a 12-tile strip exhausts a run's
 vision looks (packs over six are read in halves; an unreached check is a
 GAP). No technic retires with this family — emoji never had one —
 and there is no `source-emoji` on purpose: `source-icon` with
-`icon: twemoji:<name>` covers published glyphs.
+`icon: twemoji:<name>` covers published glyphs. Both client paths
+verified from the CLI: a human sentence (three text emoji for Slack) →
+`create-emoji` form → `a2a_call` → three files delivered with the hands'
+QA relayed; an assistant brief without a style → `generate-emoji` form
+filled and ONE `Q1:` on `style` (plus a `Q2:` offering the prior
+approved anchor to skip round A), zero spend. The human run also caught
+the hands patching `text-emoji.sh` in place — the contract said report,
+not patch — so `skill-topology` now blocks writes into tracked skill
+roots at the tool layer.
 
 ## Models and fallback chains
 
