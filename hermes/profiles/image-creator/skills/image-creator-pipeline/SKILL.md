@@ -48,5 +48,9 @@ metadata:
 - `scripts/img-postprocess.sh INPUT OUTPUT [--size WxH] [--fit cover|contain] [--format webp|png|jpg] [--max-bytes N]`
   — normalize any generated image (URL or path) to an exact size, format
   and byte cap; prints `ok: <path> (<format>, <WxH>, <bytes> bytes)`.
+- `scripts/icon-finish.sh INPUT OUTPUT [--size PX] [--background transparent|tile|#rrggbb] [--tile #rrggbb] [--pad F] [--fuzz PCT] [--keep-bg]`
+  — cut a subject out of a flat background (corner flood fill), fit it on
+  a square canvas with the asked background; prints a `RESULT:` line.
+  Leaves reach root scripts as `${HERMES_SKILL_DIR}/../../scripts/<name>`.
 
 </Shared scripts>
