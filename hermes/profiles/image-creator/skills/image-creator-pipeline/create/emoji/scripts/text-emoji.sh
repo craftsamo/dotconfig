@@ -94,7 +94,10 @@ while IFS= read -r line || [ -n "$line" ]; do
     LENS+=("$LEN"); [ "$LEN" -gt "$MAXLEN" ] && MAXLEN="$LEN"
   done
 
-  # Render each line on its own, then stack.
+  # Render each line on its own, then stack. `label:` (never `caption:`):
+  # inside a square box caption: wraps a 3-character line into two rows
+  # (助かる → 助か / る, found on the first live run); label: auto-fits
+  # the point size to the box and never wraps — line breaks are the `|`.
   PARTS=()
   for i in "${!LINES[@]}"; do
     P="$WORK/${NAME}_$i.png"
@@ -103,12 +106,12 @@ while IFS= read -r line || [ -n "$line" ]; do
       # not stretched to the full edge), so the block stays a text block.
       LINE_W=$(( AREA * LENS[$i] / MAXLEN ))
       magick -background none -fill "$COLOR" "${STROKE_ARGS[@]}" -font "$FONT" \
-        -size "${AREA}x${LINE_H}" -gravity center "caption:${LINES[$i]}" \
+        -size "${AREA}x${LINE_H}" -gravity center "label:${LINES[$i]}" \
         -trim +repage -resize "${LINE_W}x${LINE_H}!" \
         -background none -gravity center -extent "${AREA}x${LINE_H}" "$P"
     else
       magick -background none -fill "$COLOR" "${STROKE_ARGS[@]}" -font "$FONT" \
-        -size "${AREA}x${LINE_H}" -gravity center "caption:${LINES[$i]}" "$P"
+        -size "${AREA}x${LINE_H}" -gravity center "label:${LINES[$i]}" "$P"
     fi
     PARTS+=("$P")
   done
