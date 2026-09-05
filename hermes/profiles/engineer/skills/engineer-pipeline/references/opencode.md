@@ -145,11 +145,18 @@ terminal(command="npx -y @slkiser/opencode-quota show", workdir="<wd>", timeout=
   `opencode models` → use it; a quota / rate error mid-run → descend.
 - OpenAI reports a real remaining %. Under ~15% treat rung 2 as gone and skip
   to rung 3 instead of fighting the human for the last slice.
-- **Every run draws on the OpenAI (and xAI) pools regardless of `--model`** —
+- **Every run draws on BOTH subscription pools regardless of `--model`** —
   OpenCode's own subagents are pinned to their own models in frontmatter
-  (explore / worker / reviewer / verifier / debugger on OpenAI, the search
-  tiers on xAI). A Claude run is never purely Claude, so OpenAI headroom
-  matters even on rung 1.
+  (2026-09-05 split: explore-medium/high/max, worker, reviewer and
+  reviewer-deep on Claude Sonnet 5 / Opus 5; explore-spark/small, verifier,
+  the search tiers, ui-review, ux-persona and compaction on the OpenAI pool;
+  debugger on GPT-6 Astra — the same weighted rate as a Build run). A Claude
+  run is never purely Claude and an OpenAI run is never purely OpenAI, so
+  headroom on both pools matters on every rung.
+- **Primaries carry pinned defaults** (`plan`/`review`/`debug`/`explain` =
+  `anthropic/claude-fable-5-1`, `build` = `openai/gpt-6-astra`), which is why
+  the ladder passes `--model` explicitly: the CLI flag beats the agent's
+  default, and an omitted flag silently runs whatever is pinned.
 - `claude auth status` is never the gate.
 
 ## UnitCycle
