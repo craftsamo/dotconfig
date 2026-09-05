@@ -69,7 +69,8 @@ read in Plan before any leaf is chosen. Hands today: `image-creator`
 (A2A peer) — its leaves are readable in your skill list
 (`source-icon`, `create-icon`, `generate-icon`, `edit-icon`,
 `analyze-icon`; `create-emoji`, `generate-emoji`, `edit-emoji`,
-`analyze-emoji`; `generate-mascot`, `edit-mascot`, `analyze-mascot`);
+`analyze-emoji`; `generate-mascot`, `edit-mascot`, `analyze-mascot`;
+`generate-reimagine`);
 read them for their `form`, never run their `<Procedure>`.
 
 </Modes>
