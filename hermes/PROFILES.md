@@ -399,8 +399,19 @@ Three per-profile layers, kept separate:
     `img-postprocess.sh` / `icon-finish.sh`) + leaves `source/icon`,
     `create/icon`, `generate/icon` (styles flat-minimal / glass / pixel /
     line / clay), `edit/icon`, `analyze/icon` — see "Creator hands (v3)"
-  - creator → `creator-pipeline` (hands first: `references/hands.md` for
-    the icon family; then the dual runtime — cards only for the
+  - creator → `creator-pipeline` v7 — clients and hands: Plan
+    (`references/plan.md`: tell the client apart by the message's shape —
+    brief lines = the assistant, conversational = a human; fill the leaf's
+    form with `clarify` or by parsing the brief; composites = a sequence of
+    forms), Build (`build.md`: the handoff text, a2a_call / resident
+    session, supervision, relaying `Q<n>`), Quality assurance
+    (`quality-assurance.md`: vision at native size and at the size of use,
+    revise as a handoff, delivery). `capabilities.md` is the only router
+    (served families first, then the technic table). Families with no
+    hands yet keep the technic-era contract under `references/legacy/`
+    (produce / direction / advisory + iterate / verify / delivery / resume,
+    the MediaBrief `brief.md`, and `card.md` — cards are legacy-only until
+    they move to the hands with their family). Legacy runtime: cards only for the
     `anchored-image-batch` / `tts-voice` / `deterministic-render` catalog
     units; Advisory / Direction /
     Produce routing with intent triage + the unit discipline (released-spec
@@ -668,6 +679,14 @@ is `icon` (`source` / `create` / `generate` / `edit` / `analyze`). Nothing is
 retired in bulk; `refactor/creator-profile` is read only for scripts worth
 porting (`icon-fetch.sh`, `tour.py`, `explainer.py`, `item-loop.py`).
 
+**Creator's own pipeline is shaped for this** (v7, 2026-09-05): Plan →
+Build → Quality assurance, with the technic-era routes parked under
+`references/legacy/` for the families still to move. Each family that
+lands on a hands deletes its technic, its assistant plan leaf and QA
+contract, and — once every family it covered has moved — its card. When
+the last family moves, `legacy/` goes, and so do `image_gen` /
+`video_gen` / `tts` / `unreal-engine` from Creator's toolsets.
+
 Done 2026-09-05 (icon): steps 0-4 — validator rules, `image-creator`
 (:9907, in the multiplex allowlist), the five leaves each proven from the
 hands' CLI, Creator routing icon to the hands (`references/hands.md`,
@@ -676,8 +695,10 @@ the assistant's `plan/creative/logo-icons.md` and the `icon-set.md` QA
 contract. Both client paths verified from the CLI: a human sentence →
 `a2a_call` with the filled `source-icon` form (56 s end to end); an
 assistant SessionBrief without a style → `generate-icon` form filled and
-ONE `Q1:` on `style` with three options, no spend. Step 5 (soak from the
-Telegram bot and from assistant sessions) is open.
+ONE `Q1:` on `style` with three options, no spend. Pipeline v7 verified
+the same way plus a legacy family (an OG text card → `creator-text-card`,
+zero spend, 57 s). Step 5 (soak from the Telegram bot and from assistant
+sessions) is open.
 
 ## Models and fallback chains
 
