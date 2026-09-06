@@ -625,6 +625,27 @@ class HandsLeafTest(unittest.TestCase):
         self.assertEqual(1, len(errors), errors)
         self.assertIn("subject fit is owned by both image-creator and video-creator", errors[0])
 
+    def test_audio_creator_generate_speech_leaf_passes(self) -> None:
+        """audio-creator's generate-speech: a required script file, an
+        optional voice, cost free, note optional."""
+        form = (
+            "      script: {{required: true, type: file}}\n"
+            "      voice: {{required: false}}\n"
+            "      note: {{required: false}}\n"
+        )
+        self.leaf(
+            "generate/speech",
+            "generate-speech",
+            hands="audio-creator",
+            cost="free",
+            form=form,
+            styles=(),
+        )
+        errors: list[str] = []
+        leaves = VALIDATOR.validate_hands_leaves(self.root, "audio-creator", errors)
+        self.assertEqual([], errors)
+        self.assertEqual(["generate-speech"], sorted(leaves))
+
 
 class EndToEndTest(unittest.TestCase):
     def test_all_profiles_pass(self) -> None:

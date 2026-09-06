@@ -550,7 +550,7 @@ sync with each `profile.yaml` description.
 
 Creator's production is moving, one asset family at a time, out of the 23
 generic `creator-*` technics and into **hands** profiles — `image-creator`
-(A2A `:9907`), `video-creator` (`:9908`), and later `audio-creator`
+(A2A `:9907`), `video-creator` (`:9908`), and `audio-creator`
 (`:9909`) — each a receive-only A2A endpoint with the tools of its medium
 and nothing else. Two earlier shapes failed in opposite directions and this
 section exists so the third does not repeat either: the technics
@@ -597,11 +597,15 @@ profiles/<hands>/skills/
 
 - **Verbs** (closed set): `create` — drawn deterministically from inputs
   (script / SVG / grid; free); `generate` — a model draws the pixels or the
-  waveform (metered); `edit` — transform an existing asset (free unless the
+  waveform (free local synthesis or metered provider); `edit` — transform an existing asset (free unless the
   edit itself generates); `source` — fetch a published asset and record its
   license (free); `analyze` — inspect an existing asset and return findings,
   never a file (free). The `create`/`generate` boundary is whether a
   generation model is asked to draw.
+- **Cost is independent of verb.** `free` means no metered media-provider fee,
+  not zero reasoning cost or unlimited compute. Local speech synthesis still
+  has a take allowance: one take plus one corrective per script by default.
+  Failed synthesis invocations count. Long free work still uses resident sessions.
 - **Subjects** are concrete nouns (`icon`, `hero`, `clip`, `voice-line`),
   **unique across all hands** because Creator reads every hands' tree through
   `skills.external_dirs`; the validator rejects a subject that appears under
@@ -1017,6 +1021,7 @@ weight.
 | **searcher** | `xai-oauth` / grok-4.3 | `openrouter` / `xiaomi/mimo-v2.5` | — | — | `low` |
 | **creator** | `openai-codex` / **gpt-6-astra** | `anthropic` / claude-fable-5-1 | `anthropic` / claude-opus-5 | `openrouter` / `minimax/minimax-m3` | `medium` |
 | **image-creator** | `openai-codex` / **gpt-6-astra** | `anthropic` / claude-fable-5-1 | `anthropic` / claude-opus-5 | `openrouter` / `minimax/minimax-m3` | `medium` |
+| **audio-creator** | `openai-codex` / **gpt-6-astra** | `anthropic` / claude-fable-5-1 | `anthropic` / claude-opus-5 | `openrouter` / `minimax/minimax-m3` | `medium` |
 | **writer** | `anthropic` / **claude-fable-5-1** | `anthropic` / claude-opus-5 | `openai-codex` / gpt-6-astra | `openrouter` / `deepseek/deepseek-v4-flash` | `medium` |
 | **marketer** | `anthropic` / **claude-fable-5-1** | `anthropic` / claude-opus-5 | `openai-codex` / gpt-6-astra | `openrouter` / `xiaomi/mimo-v2.5` | `medium` |
 
