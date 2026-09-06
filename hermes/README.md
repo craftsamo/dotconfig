@@ -5,6 +5,58 @@ Self-improving AI agent CLI by Nous Research. Hermes keeps everything under
 [`install.sh`](../install.sh) symlinks the version-controlled, non-secret files
 into place.
 
+## Specialist Calls
+
+The shared `plugins/specialist-call` plugin exposes the `specialist` toolset
+only to assistant and creator. Enable `specialist-call` in `plugins.enabled`
+and `specialist` in the relevant `platform_toolsets` lists. Configure the
+explicit `specialist_call.resident_targets` allowlist; short inquiries use an
+allowed target's existing `a2a_agents` RPC endpoint when present. No endpoint
+is discovered from model text or a supplied URL. Work always uses the existing
+resident script. Creator currently has no configured A2A peers, so its
+researcher calls use resident sessions; its dormant messaging lists stay empty.
+
+Use `specialist_call(target, message, kind="inquiry"|"work")`, then continue
+with the returned `conversation_id`. `specialist_session` supports `status`,
+`list`, and `close` in the same originating session and profile. The registry
+and restrictive request files live under that caller's real Hermes home in
+`specialist-sessions/`; resident JSON and logs retain the existing format in
+`resident-sessions/`. Old resident keys remain runnable through the original
+script. Automatic adoption is intentionally unsupported because old entries
+do not establish an originating-session owner.
+
+Verified live Telegram/Discord contexts use the official terminal background
+completion notification. The current single-profile gateway verifies its
+process home against the plugin's registered profile; multiplex gateways must
+provide an explicit task-scoped home. Unbound routing or ambiguous multiplex
+flags fail closed. CLI, including creator nested under assistant's resident
+child, waits for a short-lived runner with a maximum 5400-second deadline.
+Nested calls inherit the outer wall-clock deadline rather than resetting it.
+If the caller dies, the runner terminates its resident process group, preserves
+an `unknown` result, and exits. This covers caller death, not simultaneous
+termination of the runner itself or descendants that deliberately leave the group.
+A2A inbound permits only synchronous A2A inquiries and rejects work before
+launch. `close` is bookkeeping, not cancellation. An uncertain transport result
+or an interrupted runner is never retried, reclaimed, or moved to another
+backend automatically: inspect retained status/logs and reconcile manually.
+Proven pre-dispatch failures (including terminal rejection, invalid request
+configuration, DNS/refused connections, and spawn failures) are `failed` and
+closable even when no resident session exists. Ambiguous launches retain their
+request file and become `unknown`; they cannot be closed or retried. Listing
+conversations skips revoked targets without hiding other permitted rows.
+This is not a durable queue; notification delivery does not survive every
+gateway restart. Resident polling defaults to one second; the upstream
+completion watcher still polls every five seconds.
+
+Gateway ownership uses the framework-dispatched agent session ID and the
+gateway turn's session ID, not a model argument or process environment fallback.
+The dispatched ID is bound task-locally for the official notification stamp too;
+cached turns work even when gateway setup leaves the ID ContextVar empty, and
+resetting a chat does not grant access to its previous specialist conversations.
+The resident script exits `143` on INT/TERM with `status: interrupted` and
+retained partial logs/session identity. Exit `124` denotes deadline expiry;
+neither interruption is proof of successful completion.
+
 ## Default profile symlinks
 
 | Symlink                 | Target              |

@@ -34,8 +34,15 @@ its own `config.yaml` / `SOUL.md` / `skills/` / `cron/` / state, and a
 
 Heavy interactive work runs in **resident sessions**: the assistant starts a
 persistent `hermes -p <specialist> chat` conversation through
-`assistant/scripts/resident-session.sh` (background + completion notify,
-per-key serialization, close-on-acceptance) and supervises it turn by turn.
+`specialist_call(kind="work")`, backed by `assistant/scripts/resident-session.sh`,
+and supervises it turn by turn. Short `kind="inquiry"` requests use configured
+A2A peers; the route and target remain pinned for the conversation. The plugin
+is restricted to assistant (engineer, creator, marketer, writer, plus resident
+searcher) and creator (researcher). This entry point does not grant assistant
+direct researcher access or expose delegation tools to the hands profiles.
+Live messaging receives a background completion; nested resident/CLI calls
+wait synchronously. See [Specialist Calls](README.md#specialist-calls) for
+ownership, uncertainty, and A2A inbound lifetime limits.
 The board remains for work where conversation adds nothing.
 
 Verified against the source clone

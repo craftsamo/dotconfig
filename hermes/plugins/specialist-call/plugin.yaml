@@ -1,0 +1,4 @@
+name: specialist-call
+version: 0.1.0
+description: Owner-scoped specialist conversations for assistant and creator.
+kind: standalone
