@@ -219,14 +219,17 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
   lives until the gateway process exits (only the atexit hook reaps it; the
   inactivity janitor closes agent-browser sessions, not this process), so one
   headless Brave (~230 MB) is resident whenever a consenting profile has
-  browsed. The `browser_harness` daemons (`~/.config/browser-harness/runtime/
-  bu-<session>.sock`, global, NOT per profile or per gateway life) bind their
-  CDP target at daemon start and ignore the `BU_CDP_URL` Hermes passes on
-  later calls; they re-spawn on the next call once their browser is DEAD, but
-  as long as the old browser is alive they stay on it — which is exactly how
-  the first Telegram test after the switch still landed on `:9333`. So a
-  browser that must go away has to be killed, not just replaced; `uvx
-  browser-use --reload` forces a daemon restart. Process caveat:
+  browsed. **Owned CDP routing (2026-09-07 local upstream fix:
+  `fix/browser-harness-target-scope`):** resolved CDP calls now use a private
+  daemon runtime and stable name scoped by profile + logical session/task,
+  rather than the global sticky `browser_harness` daemon. The binding and
+  browser UUID are verified before executing code; endpoint changes are
+  serialized. Do not use the old generic `bu-default` kill workaround.
+  Owned-daemon idle cleanup (600 s) is opportunistic on calls and exit, not
+  a background timer; it does not refresh a live browser's cookie snapshot.
+  Stale cookies still require a fresh browser launch. The read-only isolated
+  Instagram baseline succeeded; the user agent was not implicated.
+  Process caveat (NOT solved by daemon scoping):
   `_real_profile_cdp_cache` / `_REAL_PROFILE_SESSION` are process-global, so
   every consenting profile served by ONE gateway process shares one clone
   instance — fine while all of them pin the same Brave profile (they do);
