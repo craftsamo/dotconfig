@@ -827,8 +827,11 @@ never fall back to the process env. Every profile therefore carries
 `secrets.command` → `scripts/profile-secrets.sh <profile>`, which emits
 `global` + `hermes` (minus messaging keys) + `hermes-<profile>` as dotenv
 lines at startup (and derives `TELEGRAM_CRON_THREAD_ID` from the persisted
-Inbox topic for assistant). Raw-env readers (`BU_CDP_URL`, dashboard auth)
-still read the process env the launcher injects.
+Inbox topic for assistant). Raw-env readers (dashboard auth) still read the
+process env the launcher injects — which is also why `BU_CDP_URL` must never
+be in those layers: `browser_exec` copies it raw from the process env and it
+would pre-empt real-profile browsing for every profile at once (see the
+browser-stack rule in `AGENTS.md`).
 
 Workers need no unique secret: the dispatcher execs `hermes -p <worker>`, which
 hits the `bin/hermes` shim (`global` + `hermes`), and they also inherit the
