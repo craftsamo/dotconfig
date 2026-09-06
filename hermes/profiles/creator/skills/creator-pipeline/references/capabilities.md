@@ -32,6 +32,7 @@ only when they share tools, spend class, and verification.
 | one short silent generated shot, from text or a starting still, in a named/described style | video-creator: generate-clip | metered, 1-15 seconds, 720p request, default 2 variants + 1 corrective; input-upload and remote-analysis consent are distinct |
 | trim/fit/mute/re-encode one existing segment as MP4/WebM/GIF | video-creator: edit-clip | free of generation, at most 60 seconds; contain by default; GIF repeat is playback metadata, not seamless motion |
 | technical and visual findings on one short clip, no new video | video-creator: analyze-clip | at most 60 seconds; local samples or one consented remote full-clip analysis; timestamps and explicit unverified checks |
+| a task walkthrough from ordered local screenshots, click/type targets and a done screen | video-creator: create-tour | free, <=60 seconds; script-authored source/preview/MP4, always kind="work"; no URL capture or browser automation; optional finished audio-creator WAV/words.json |
 | a house-voice or registered-character spoken line from an approved script (up to 600 characters), as narration or a voice message | audio-creator: generate-speech | free of provider cost, NOT free of an attempt allowance: 1 take + 1 corrective per script by default, counting every synthesis call including failures; house uses the language fallback chain, a qualified `<engine>:<voice>` id never falls back |
 | concatenation, boundary trim, speed, loudness normalization or format conversion of existing speech | audio-creator: edit-speech | free of generation; no resynthesis, no word changes, no voice conversion |
 | findings on an existing speech file against a destination format, with optional script readback | audio-creator: analyze-speech | free; measured and readback evidence only, never a listening verdict; deliver may be omitted |
@@ -106,7 +107,9 @@ use an `external:<skill>` identity only after an availability preflight.
    implementation engine. Report the canonical leaf as `capability` and the
    official skill plus concrete tool/path as `backend`; never expose the
    engine's bare name as the stable dispatch identity.
-7. Route by authorship method as well as container. A model-generated MP4 is
+7. Screenshot task walkthroughs select create-tour before the legacy table;
+   this new subject does not retire creator-html-motion or its 1:1 mapping.
+   Route by authorship method as well as container. A model-generated MP4 is
     `generate-clip` within its short-shot contract; a requested legacy
     backend stays `creator-generated-video`. Seekable HTML timeline motion is
    `creator-html-motion`; p5.js canvas/WebGL work is

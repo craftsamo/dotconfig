@@ -62,6 +62,17 @@ through `capabilities.md`'s technic table — see `build.md` "Legacy".
 
 ## Composite requests — a sequence of forms
 
+Screenshot-based task walkthroughs use `create-tour`: fill task/app in the
+form, not the steps JSON. Require ordered local screenshots, explicit pixel
+targets or unique text anchors, and a final done screen. Choose the required
+tour-local flat/glass/outline style. Frame defaults to auto; preview defaults
+to yes. The whole tour, including goal and narration padding, is <=60 seconds.
+A URL request needs screenshots from a separately authorized capture job;
+this leaf does not capture URLs or automate browsers. Narration is a prior
+audio-creator delivery, not TTS in video-creator. Send tour work via
+`specialist_call(kind="work")` even though free. Broader authored motion
+remains creator-html-motion; this new subject retires no legacy 1:1 mapping.
+
 "An icon set for the new bot" is two forms: `generate-icon` (the mark),
 then `create-icon` from an SVG — which `generate-icon` does not produce,
 so say so and offer `edit-icon` sizes instead. Decompose into leaves,
@@ -102,7 +113,8 @@ to the configured analysis provider; no leaves temporal/audio QA
 unverified. Ask in the same clarify round, not after production. An
 assistant brief must carry that consent or explicitly request remote
 analysis; never infer consent from a bare local file path. No TTS happens
-inside VideoCreator; narration/assembly remain separate legacy jobs.
+inside VideoCreator; tour narration uses completed audio-creator inputs,
+and other narration/assembly remain separate legacy jobs.
 
 For edits, destination (landscape/portrait/square/exact size) and fit
 (contain/cover) are separate. Default contain avoids losing edges. GIF

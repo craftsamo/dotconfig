@@ -37,6 +37,7 @@ Do not relocate a valid Group-local request to the global deliverables area.
 | free, bounded one reply (`source`, `create`, `edit`, `analyze`) | `specialist_call(target="<hands>", message=<the text>, kind="inquiry")`; the reply is the leaf's `<Report>` or a `Q<n>:` block |
 | metered, multi-turn, or anything whose estimate exceeds ~4 minutes (`generate`) | `specialist_call(target="<hands>", message=<the text>, kind="work")`; the tool starts the resident session you supervise |
 | audio-creator's synthesis/ASR-heavy leaves (`generate-speech`; an `edit-speech`/`analyze-speech` that needs fresh ASR rather than reused sidecars) | `kind="work"` as in the metered row, even though the leaf is `cost: free` — synthesis and ASR routinely outlive the reply window. Use `kind="inquiry"` only when bounded and known to finish in one reply (reused, already-validated sidecars; no fresh ASR) |
+| video-creator's `create-tour` | `specialist_call(target="video-creator", message=<the text>, kind="work")` even though free; local snapshots/rendering and preview approval are not one-reply work |
 
 Pass the exact handoff text as `message`, with the released inputs, permissions
 and budget unchanged. Transport is not a release or an additional grant.
@@ -60,7 +61,7 @@ later wakeup promise. A2A inbound cannot launch work: ask the caller to reissue
 the released unit to Creator with `specialist_call(kind="work")`.
 
 Hands and their peers: `image-creator` (still images), `video-creator`
-(short clips; no TTS), `audio-creator` (spoken speech only — no music,
+(short clips and script-authored screenshot tours; no TTS), `audio-creator` (spoken speech only — no music,
 singing or sound effects). One session per job per hands; never carry
 unrelated jobs in one.
 
@@ -74,6 +75,13 @@ findings only, no new audio file, and expect no files back beyond the
 reply text itself.
 
 ## Supervising
+
+For create-tour, pass finished audio-creator WAV/words.json inputs only.
+Preview returns a frozen source project and snapshots, not a finished MP4.
+After client approval, continue that work conversation with `intent: revise`
+and `preview: no`; the hands render the unchanged approved project into a
+fresh final directory. Changed fields require a new source project/preview.
+Never invoke raw A2A or resident scripts, nor edit the generated HTML yourself.
 
 - The reply names the leaf, the paths, every QA check with its evidence,
   the spend line, and anything for you to decide. A reply missing paths
