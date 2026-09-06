@@ -46,11 +46,18 @@ sys.exit(3)
 """
 
 # Announces its session id, emits partial output, then hangs until killed.
+# If FAKE_READY_PATH is set, it drops a marker there once its announcement is
+# flushed, so a coordinating fake `date` can hold the clock until the
+# announcement is guaranteed to have landed before advancing past deadline.
 FAKE_HANG = """#!/usr/bin/env python3
-import sys, time
+import os, sys, time
 print("partial output line", flush=True)
 print("session_id: 20260824_111111_hanged", file=sys.stderr, flush=True)
 print("still thinking", file=sys.stderr, flush=True)
+ready = os.environ.get("FAKE_READY_PATH")
+if ready:
+    with open(ready, "w") as f:
+        f.write("ready\\n")
 time.sleep(300)
 """
 
@@ -97,6 +104,25 @@ class ResidentSessionTest(unittest.TestCase):
             "LOCK_STALE_AFTER": "2",
             **env,
         }
+
+    def timeout_after_announcement_environment(self, key: str) -> dict:
+        # A TURN_TIMEOUT=1 race against real wall-clock lets the deadline
+        # check fire before FAKE_HANG's announcement is even flushed. Pin the
+        # clock instead: `date +%s` reports a fixed start until FAKE_HANG's
+        # readiness marker exists (i.e. the announcement is guaranteed
+        # flushed), then jumps past the deadline.
+        ready = self.root / f"{key}.ready"
+        self.fake("date", f'''#!/usr/bin/env python3
+import pathlib, subprocess, sys
+ready = pathlib.Path({str(ready)!r})
+if sys.argv[1:] == ["+%s"]:
+    print(1010 if ready.exists() else 1000)
+else:
+    sys.exit(subprocess.call(["/bin/date", *sys.argv[1:]]))
+''')
+        env = self.environment("hang", TURN_TIMEOUT="1", FAKE_READY_PATH=str(ready))
+        env["PATH"] = f"{self.bin}:" + env["PATH"]
+        return env
 
     def run_script(self, *args: str, hermes: str = "ok", **env: str):
         return subprocess.run(
@@ -349,8 +375,11 @@ with Path({str(sleeps)!r}).open("a") as stream:
         self.assertIn('POLL_INTERVAL="${POLL_INTERVAL:-1}"', SCRIPT.read_text())
 
     def test_timeout_preserves_diagnostics_and_exits_124(self) -> None:
-        result = self.run_script("start", "slow", "--profile", "creator",
-                                 "-q", "brief", hermes="hang", TURN_TIMEOUT="1")
+        env = self.timeout_after_announcement_environment("slow")
+        result = subprocess.run(
+            [str(SCRIPT), "start", "slow", "--profile", "creator", "-q", "brief"],
+            env=env, capture_output=True, text=True,
+        )
         self.assertEqual(124, result.returncode)
         self.assertIn("timed out", result.stderr)
 
@@ -365,8 +394,15 @@ with Path({str(sleeps)!r}).open("a") as stream:
         self.assertIn("still thinking", log)
 
     def test_a_timed_out_start_can_be_resumed_when_it_announced_an_id(self) -> None:
-        self.run_script("start", "slow", "--profile", "creator",
-                        "-q", "brief", hermes="hang", TURN_TIMEOUT="1")
+        env = self.timeout_after_announcement_environment("slow")
+        started = subprocess.run(
+            [str(SCRIPT), "start", "slow", "--profile", "creator", "-q", "brief"],
+            env=env, capture_output=True, text=True,
+        )
+        self.assertEqual(124, started.returncode, started.stderr)
+        self.assertEqual("20260824_111111_hanged", self.registry("slow")["session_id"],
+                         "an id announced before the kill must survive so resume can use it")
+
         result = self.run_script("send", "slow", "-q", "still there?")
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertEqual("20260824_111111_hanged", self.registry("slow")["session_id"])
