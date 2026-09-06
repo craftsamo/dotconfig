@@ -25,9 +25,30 @@ message (or a file), never as an argv string.
 
 | Leaf | Transport |
 | --- | --- |
-| free, one reply (`source`, `create`, `edit`, `analyze`) | `a2a_call(agent="<hands>", message=<the text>)`; the reply is the leaf's `<Report>` or a `Q<n>:` block; answer a `Q<n>:` with a second `a2a_call` carrying the same form completed, same `context` |
-| metered, or anything whose estimate exceeds ~4 minutes (`generate`) | a resident session you supervise: write the text to a file, then `~/.hermes/profiles/assistant/scripts/resident-session.sh start <job>-<medium> --profile <hands> -f <file>` with `background: true` + `notify_on_complete`; later turns with `send <key> -f <file>`; `close <key>` on acceptance |
-| audio-creator's synthesis/ASR-heavy leaves (`generate-speech`; an `edit-speech`/`analyze-speech` that needs fresh ASR rather than reused sidecars) | the same resident session as the metered row, even though the leaf is `cost: free` — synthesis and ASR routinely outlive the reply window. Use the free one-reply transport only when the job is bounded and known to finish in one reply (reused, already-validated sidecars; no fresh ASR) |
+| free, bounded one reply (`source`, `create`, `edit`, `analyze`) | `specialist_call(target="<hands>", message=<the text>, kind="inquiry")`; the reply is the leaf's `<Report>` or a `Q<n>:` block |
+| metered, multi-turn, or anything whose estimate exceeds ~4 minutes (`generate`) | `specialist_call(target="<hands>", message=<the text>, kind="work")`; the tool starts the resident session you supervise |
+| audio-creator's synthesis/ASR-heavy leaves (`generate-speech`; an `edit-speech`/`analyze-speech` that needs fresh ASR rather than reused sidecars) | `kind="work"` as in the metered row, even though the leaf is `cost: free` — synthesis and ASR routinely outlive the reply window. Use `kind="inquiry"` only when bounded and known to finish in one reply (reused, already-validated sidecars; no fresh ASR) |
+
+Pass the exact handoff text as `message`, with the released inputs, permissions
+and budget unchanged. Transport is not a release or an additional grant.
+Use only configured, policy-allowed target names, never an arbitrary profile,
+URL, raw `a2a_call`, or direct resident script for new work.
+
+Continue with `specialist_call(target="<hands>", conversation_id=<returned id>,
+message=<the completed form>)`: both target and conversation_id are required;
+the backend stays pinned. A short answer to an inquiry's `Q<n>:` can use that
+conversation, but if it reveals metered or multi-turn work, obtain its release
+and open a new `kind="work"` conversation; never upgrade the inquiry in place.
+Inspect with `specialist_session(action="status", conversation_id=<id>)` and
+close accepted work with `specialist_session(action="close", conversation_id=<id>)`.
+Close is bookkeeping, not cancellation; never retry an unknown result or
+silently switch backends.
+
+Verified live messaging receives background completion from the tool. CLI,
+including Creator nested in a resident session, waits synchronously for a
+finite turn (at most 5400 seconds, shortened by the outer deadline); it has no
+later wakeup promise. A2A inbound cannot launch work: ask the caller to reissue
+the released unit to Creator with `specialist_call(kind="work")`.
 
 Hands and their peers: `image-creator` (still images), `video-creator`
 (short clips; no TTS), `audio-creator` (spoken speech only — no music,
@@ -36,7 +57,7 @@ unrelated jobs in one.
 
 For analyze-clip, `deliver` may be omitted: its report and scratch evidence
 are the result, not a new movie. A free video analysis may approach the
-reply window; use a resident session when the estimate exceeds it rather
+reply window; use `kind="work"` when the estimate exceeds it rather
 than repeating an A2A request that may still be running.
 
 For analyze-speech, `deliver` may likewise be omitted: its report is
@@ -56,8 +77,8 @@ reply text itself.
   not fall back to a technic for a served family.
 - A one-line "procedure note" from the hands (the leaf and the runtime
   disagreed) goes to the maintainer verbatim; the delivery still counts.
-- Two independent forms may run in parallel — a second `a2a_call`, or a
-  second session key `<job>-<medium>-<part>`. A dependent form waits for
+- Two independent forms may use separate `specialist_call` conversations
+  (parallel when live messaging supports it). A dependent form waits for
   the report it consumes; copy the consumed path into the next form.
 
 ## Legacy — families with no hands yet

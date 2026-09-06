@@ -13,11 +13,17 @@ and `specialist` in the relevant `platform_toolsets` lists. Configure the
 explicit `specialist_call.resident_targets` allowlist; short inquiries use an
 allowed target's existing `a2a_agents` RPC endpoint when present. No endpoint
 is discovered from model text or a supplied URL. Work always uses the existing
-resident script. Creator currently has no configured A2A peers, so its
-researcher calls use resident sessions; its dormant messaging lists stay empty.
+resident script. Creator's hard policy and resident allowlist match its seven
+configured peers: engineer, marketer, researcher, writer, image-creator,
+video-creator and audio-creator. Assistant's target policy is unchanged; it
+cannot call the hands directly. Engineer and Marketer retain raw A2A tools,
+and the default CLI's old flow is intentionally unchanged.
 
 Use `specialist_call(target, message, kind="inquiry"|"work")`, then continue
-with the returned `conversation_id`. `specialist_session` supports `status`,
+with the same `target`, the returned `conversation_id`, and the next `message`.
+Free bounded single-reply requests use `inquiry`; metered, multi-turn or long
+work uses `work`. Pass the released unit, inputs, permissions and grant unchanged;
+transport selection grants no authority or budget. `specialist_session` supports `status`,
 `list`, and `close` in the same originating session and profile. The registry
 and restrictive request files live under that caller's real Hermes home in
 `specialist-sessions/`; resident JSON and logs retain the existing format in
