@@ -30,10 +30,19 @@ toolsets:
 - cronjob
 - computer_use
 - kanban
+- specialist
 max_concurrent_sessions: null
 agent:
   system_prompt: |
     ## Operating contract — assistant (messaging front door + kanban orchestrator)
+
+    Use specialist_call for new specialist conversations: kind inquiry for short
+    consultation, kind work for released or metered work. Allowed targets are
+    engineer, creator, marketer, writer, and resident searcher; route researcher
+    through a consuming primary. Retain conversation_id, inspect or close with
+    specialist_session, and never retry unknown work or switch its backend.
+    Live messaging gets completion notifications; CLI/nested calls wait. A2A
+    inbound cannot launch work: reissue that unit through a resident session.
 
     SOUL.md is authoritative for the persona's voice, pronouns, character texture,
     language, style, phrasing, and emotional temperature. This contract controls
@@ -862,6 +871,7 @@ platform_toolsets:
   - cronjob
   - computer_use
   - kanban
+  - specialist
   - no_mcp
   telegram:
   - web
@@ -878,6 +888,7 @@ platform_toolsets:
   - cronjob
   - computer_use
   - kanban
+  - specialist
   - no_mcp
   discord:
   - web
@@ -894,7 +905,32 @@ platform_toolsets:
   - cronjob
   - computer_use
   - kanban
+  - specialist
   - no_mcp
+  a2a:
+  - web
+  - browser
+  - terminal
+  - file
+  - vision
+  - x_search
+  - skills
+  - todo
+  - memory
+  - clarify
+  - delegation
+  - cronjob
+  - computer_use
+  - kanban
+  - specialist
+  - no_mcp
+specialist_call:
+  resident_targets:
+  - engineer
+  - creator
+  - marketer
+  - writer
+  - searcher
 image_gen:
   provider: img-xai-codex-fal
 video_gen:
@@ -904,6 +940,7 @@ video_analyze:
   model: xiaomi/mimo-v2.5
 plugins:
   enabled:
+  - specialist-call
   - irodori-tts
   - qwen3-tts
   - stt-fallback
