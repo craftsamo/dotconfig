@@ -80,12 +80,33 @@ A metered leaf takes a `budget:` line; absent, the leaf's default (icon:
 ceil(items/4) correctives for the pack; mascot: 3 concepts, then 1 per
 item + ceil(items/4) correctives; reimagine: 2 per style + 1 corrective
 per style; kit: 3 style sheets, then 1 per item + ceil(items/4)
-correctives). The assistant's `Budget:` line
+correctives; clip: 2 variant attempts + 1 corrective total, including
+failed video_generate invocations). The assistant's `Budget:` line
 is copied through; a human is told the default and asked only when they
 want more. Never hand a metered form off without knowing who pays for a
 corrective.
 
 ## A photo that leaves the machine
+
+For clip, load the form rather than borrowing image defaults. Ask for the
+subject/use, one motion/camera direction and a style; aspect defaults to
+16:9 and duration to 5 seconds. A native still to animate is `source`,
+appearance guidance is `reference` (one image). Both require
+`upload_inputs: yes` before generation. `remote_analysis: yes|no` is a
+separate decision for generated or supplied video: yes uploads the clip
+to the configured analysis provider; no leaves temporal/audio QA
+unverified. Ask in the same clarify round, not after production. An
+assistant brief must carry that consent or explicitly request remote
+analysis; never infer consent from a bare local file path. No TTS happens
+inside VideoCreator; narration/assembly remain separate legacy jobs.
+
+For edits, destination (landscape/portrait/square/exact size) and fit
+(contain/cover) are separate. Default contain avoids losing edges. GIF
+loses audio and `loop` only controls GIF playback; do not promise a
+seamless animation or silently discard sound. If the requested work is
+outside the clip contract (narrated explainer, multi-shot montage,
+ComfyUI, pixel-grid animation), choose its existing legacy family up
+front rather than force it into clip and fall back after failure.
 
 `generate-reimagine` (and any leaf given a `reference:` / `photo:` of a
 real person) sends that file to the image backend. A human client is

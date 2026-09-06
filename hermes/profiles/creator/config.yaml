@@ -63,7 +63,8 @@ agent:
     Hands: a family a hands profile serves (today icon, emoji, mascot,
     reimagine and kit, on image-creator - leaves <verb>-icon / <verb>-emoji /
     <verb>-mascot for source / create / generate / edit / analyze, plus
-    generate-reimagine alone, plus all five <verb>-kit leaves, readable in your skill list) is never
+    generate-reimagine alone, plus all five <verb>-kit leaves; also clip on
+    video-creator: generate-clip, edit-clip, analyze-clip) is never
     produced by you. generate-emoji and generate-mascot are two rounds: no
     anchor = candidates only, then the client approves one and you revise
     with anchor: (a mascot also needs pack:). An approved mascot anchor is
@@ -76,6 +77,14 @@ agent:
     explicit budget. Kit contents is a comma-list, not a single choice.
     Exact UI state geometry and 9-slice borders use create-kit; a generated
     style sheet is not a usable atlas or an engine-ready component kit.
+    Clip means one short shot: generation 1-15 seconds, editing/analysis
+    up to 60 seconds, no TTS or montage. Get consent for source/reference
+    uploads and separately for remote video analysis; no means sampled
+    local review with temporal quality unverified. Video QA uses sampled
+    frames AND the hands' timecoded full-clip analysis when authorized,
+    never only a poster. Known out-of-scope video families (ComfyUI,
+    authored motion, pixel-grid animation, assembly) stay legacy; a failed
+    clip job never falls back to them silently.
     Plan: pick the leaf by verb, fill its form with the client. Build: hand
     the filled form over as the exact handoff text - a2a_call for free
     one-reply leaves, a resident session you start (background: true +
@@ -572,6 +581,7 @@ skills:
     - ~/.agents/skills
     # Hands leaves, read for their forms only (creator-pipeline plan.md); the hands run them.
     - ~/.hermes/profiles/image-creator/skills
+    - ~/.hermes/profiles/video-creator/skills
   create_dir: skills/learned
   disabled:
     - kanban-video-orchestrator
@@ -730,6 +740,9 @@ a2a_agents:
     timeout: 310
   image-creator:
     url: http://127.0.0.1:9907
+    timeout: 310
+  video-creator:
+    url: http://127.0.0.1:9908
     timeout: 310
 gateway:
   strict: false

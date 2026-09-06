@@ -29,6 +29,15 @@ only when they share tools, spend class, and verification.
 | an existing kit cut out, fitted, palette-mapped or packed into a texture atlas | image-creator: edit-kit | free; atlas preserves original pixels; fitting may invalidate pivots and slicing metadata |
 | findings on kit consistency, canvases, alpha, state alignment or frame/fill registration | image-creator: analyze-kit | free; no redraw; missing expectations are GAP, not invented PASS |
 | existing CC0 game asset packs or a selected subset from Kenney | image-creator: source-kit | free; unknown pack returns search candidates; verified page license + archive provenance, not generated art |
+| one short silent generated shot, from text or a starting still, in a named/described style | video-creator: generate-clip | metered, 1-15 seconds, 720p request, default 2 variants + 1 corrective; input-upload and remote-analysis consent are distinct |
+| trim/fit/mute/re-encode one existing segment as MP4/WebM/GIF | video-creator: edit-clip | free of generation, at most 60 seconds; contain by default; GIF repeat is playback metadata, not seamless motion |
+| technical and visual findings on one short clip, no new video | video-creator: analyze-clip | at most 60 seconds; local samples or one consented remote full-clip analysis; timestamps and explicit unverified checks |
+
+The clip scope above is served, not the whole former generated-video
+technic. Named legacy methods below (ComfyUI, authored HTML motion,
+grid-exact pixels, montage/audio assembly) remain available for requests
+that explicitly need them. Unsupported fields or a failed clip production
+are findings back to the client, never a silent switch to legacy.
 
 ## Canonical technics
 
@@ -46,7 +55,7 @@ only when they share tools, spend class, and verification.
 | instrumental music, ambience, or sound effects generated with AudioCraft | `creator-audio-generation` | metered local MusicGen/AudioGen compute; model weights and reference rights require preflight |
 | full vocal song generated from approved lyrics and musical tags | `creator-song-generation` | metered HeartMuLa compute; high-cost work uses the plan/anchor gate |
 | existing reaction or communication GIF sourced from Tenor | `creator-gif-sourcing` | retrieval with provenance and rights caveat; never asset generation |
-| text-to-video, image-to-video, or reference-guided generated clip | `creator-generated-video` | metered `core:video_generate` or preflighted `external:comfyui`; GIF/loop/poster may be delivery post-steps |
+| generated video outside the served short-shot contract, notably an explicitly requested local ComfyUI workflow | `creator-generated-video` | retained until coverage is migrated; core short shots use generate-clip, not this technic; no silent backend substitution |
 | deterministic motion graphics, product/site tours, overlays, or captioned video authored in HTML/CSS/JS | `creator-html-motion` | HyperFrames source project + MP4/WebM; supporting generation is separately budgeted |
 | generative art, interactive canvas/WebGL experience, custom data visual, or p5.js export | `creator-p5js-experience` | seeded browser-native source; PNG/GIF/MP4/SVG are optional exports |
 | video-to-ASCII, audio-reactive, generative, hybrid, lyric, or TTS-backed ASCII motion | `creator-ascii-video` | deterministic Python/ffmpeg render; supporting generation/TTS is separately budgeted |
@@ -68,10 +77,12 @@ support as implementation engines. Other niche assets may use an
 1. Route by the requested final deliverable and production method, not file
    extension alone. A sourced Tenor GIF is `creator-gif-sourcing`; a GIF made
    from pixel frames is `creator-pixel-video`; a GIF converted from a generated
-   clip remains `creator-generated-video`.
+    short served clip uses `generate-clip` then `edit-clip`; explicitly
+    legacy production keeps its canonical technic.
 2. Styles and presets are not technics. NES/Game Boy/PICO-8 stay inside
    `creator-pixel-art`; text/image/reference modes stay inside
-   `creator-generated-video`.
+    `generate-clip` for the served short-shot contract, otherwise the named
+    legacy `creator-generated-video` method.
 3. Static terminal-safe ASCII output is `creator-ascii-art`; any timed or
    audio-reactive ASCII render is `creator-ascii-video`. Audio visualization
    reads an existing source; speech synthesis is `core:tts`, instrumental/SFX
@@ -88,7 +99,8 @@ support as implementation engines. Other niche assets may use an
    official skill plus concrete tool/path as `backend`; never expose the
    engine's bare name as the stable dispatch identity.
 7. Route by authorship method as well as container. A model-generated MP4 is
-   `creator-generated-video`; seekable HTML timeline motion is
+    `generate-clip` within its short-shot contract; a requested legacy
+    backend stays `creator-generated-video`. Seekable HTML timeline motion is
    `creator-html-motion`; p5.js canvas/WebGL work is
    `creator-p5js-experience`; mathematical teaching animation is
    `creator-manim-explainer`.
