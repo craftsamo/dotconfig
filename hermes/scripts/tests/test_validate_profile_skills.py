@@ -582,6 +582,37 @@ class HandsLeafTest(unittest.TestCase):
         _, errors = self.validate()
         self.assertTrue(any("unknown type 'blob'" in e for e in errors), errors)
 
+    def test_reference_backed_options_require_files(self) -> None:
+        form = (
+            "      contents: {{required: true, options: [buttons, panels]}}\n"
+            "      note: {{required: false}}\n"
+        )
+        path = self.leaf("generate/kit", "generate-kit", form=form, styles=())
+        refs = path.parent / "references" / "contents"
+        refs.mkdir(parents=True)
+        (refs / "buttons.md").write_text("# buttons\n")
+        _, errors = self.validate()
+        self.assertEqual(1, len(errors), errors)
+        self.assertIn("no references/contents/panels.md", errors[0])
+        (refs / "panels.md").write_text("# panels\n")
+        self.assertEqual([], self.validate()[1])
+
+    def test_options_without_reference_directory_remain_valid(self) -> None:
+        form = (
+            "      pack: {{required: true, options: [custom]}}\n"
+            "      note: {{required: false}}\n"
+        )
+        self.leaf("generate/kit", "generate-kit", form=form, styles=())
+        self.assertEqual([], self.validate()[1])
+
+    def test_reference_options_cannot_escape_directory(self) -> None:
+        form = (
+            "      style: {{required: true, options: ['../outside']}}\n"
+            "      note: {{required: false}}\n"
+        )
+        self.leaf("generate/kit", "generate-kit", form=form, styles=())
+        self.assertTrue(any("reference option must be a slug" in e for e in self.validate()[1]))
+
     def test_subjects_unique_across_hands(self) -> None:
         errors: list[str] = []
         VALIDATOR.validate_hands_subjects(
