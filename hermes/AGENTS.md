@@ -414,6 +414,24 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
   looks later and an unwritten run cycled 152 looks over three files;
   the write guard reads the WHOLE terminal command, so `cp … && <skill
   script>` is refused → a skill script runs in a command of its own).
+- **Video hands start with `clip`, not the whole legacy video surface.**
+  `video-creator` receives forms on loopback A2A `:9908`; its three leaves
+  are `generate-clip` (1-15 s, silent single shot), `edit-clip` (a <=60 s
+  segment), and `analyze-clip` (findings). It has no TTS or external skill
+  directories. `clip-media.py` owns local probe/frames/edit with exclusive
+  output publication, measured byte caps and full decode; never treat
+  GIF repeat metadata as a seamless-motion guarantee. Frame times are
+  seek positions, not exact PTS. Remote video analysis is a separate
+  upload-consent field; without it temporal QA remains unverified.
+  xAI persistent public storage is disabled in this profile. Old learned
+  `video-render-environment` remains on disk but is disabled (it names
+  retired menu leaves). A2A identifies loopback callers by IP, NOT a
+  cryptographically verified profile; verbal origin confirmation adds no
+  security. Keep localhost restrictions, do not widen the transport.
+  The MiMo override now calls upstream `_download_media` with explicit
+  video options: `_download_video` was removed in `c4a9f2bf49`. Its tests
+  invoke the handler with real imports so registration-only tests cannot
+  hide another deferred ImportError.
 - **`image_generate` only advertises what the configured provider's
   `capabilities()` declares, fail-closed to text-only.** The
   `image-fallback` chain provider did not declare one until 2026-09-05,
