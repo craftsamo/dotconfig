@@ -28,7 +28,7 @@ import yaml
 # Role policy is deliberately NOT inferred from the A2A endpoint inventory.
 TARGETS = {
     "assistant": {"engineer", "creator", "marketer", "writer", "searcher"},
-    "creator": {"researcher"},
+    "creator": {"engineer", "marketer", "researcher", "writer", "image-creator", "video-creator", "audio-creator"},
 }
 RESIDENT = Path(__file__).resolve().parents[2] / "profiles/assistant/scripts/resident-session.sh"
 TURN_TIMEOUT = 5400

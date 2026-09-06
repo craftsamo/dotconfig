@@ -26,6 +26,7 @@ spec.loader.exec_module(p)
 A2A = p._a2a
 EXECUTE_SYNC = p._execute_sync
 RESIDENT_IMPL = p._resident
+CREATOR_TARGETS = ("engineer", "marketer", "researcher", "writer", "image-creator", "video-creator", "audio-creator")
 
 
 @pytest.fixture
@@ -75,10 +76,79 @@ def test_routes_pins_and_never_upgrades_inquiry(caller):
     assert len(calls) == before
 
 
-@pytest.mark.parametrize("target", ["researcher", "assistant", "../creator", "http://localhost", "creator/../../writer"])
+@pytest.mark.parametrize("target", ["researcher", "assistant", "image-creator", "../creator", "http://localhost", "creator/../../writer"])
 def test_target_policy(caller, target):
     assert "error" in call(target)
     assert not caller[1]
+
+
+@pytest.fixture
+def creator_caller(caller, monkeypatch):
+    home = caller[0].parent / "creator"
+    home.mkdir()
+    config = yaml.safe_load((PLUGIN.parents[2] / "profiles/creator/config.yaml").read_text())
+    assert set(config["a2a_agents"]) == set(CREATOR_TARGETS) == p.TARGETS["creator"]
+    assert set(config["specialist_call"]["resident_targets"]) == set(CREATOR_TARGETS)
+    (home / "config.yaml").write_text(yaml.safe_dump(config))
+    monkeypatch.setattr(p, "_scope", lambda: (home, "creator-owner", False, False))
+    return home, caller[1]
+
+
+@pytest.mark.parametrize("target", CREATOR_TARGETS)
+@pytest.mark.parametrize("kind,backend", [("inquiry", "a2a"), ("work", "resident")])
+def test_creator_configured_targets(creator_caller, target, kind, backend):
+    result = call(target, kind=kind)
+    assert result["status"] == "completed" and result["backend"] == backend
+    continued = call(target, conversation_id=result["conversation_id"])
+    assert continued["backend"] == backend
+    assert creator_caller[1] == [(backend, target, "hello")] * 2
+    assert session("close", result["conversation_id"])["status"] == "closed"
+
+
+@pytest.mark.parametrize("target", ["assistant", "creator", "searcher", "arbitrary", "../writer", "http://127.0.0.1:9907"])
+def test_creator_arbitrary_targets_cannot_be_enabled(creator_caller, target):
+    home, calls = creator_caller
+    config = yaml.safe_load((home / "config.yaml").read_text())
+    config["specialist_call"]["resident_targets"].append(target)
+    config["a2a_agents"][target] = {"url": "http://127.0.0.1:9999"}
+    (home / "config.yaml").write_text(yaml.safe_dump(config))
+    assert "error" in call(target)
+    assert "error" in call(target, kind="work")
+    assert not calls
+
+
+@pytest.mark.parametrize("target", CREATOR_TARGETS)
+@pytest.mark.parametrize("kind", ["inquiry", "work"])
+def test_creator_revoked_targets_cannot_dispatch(creator_caller, target, kind):
+    home, calls = creator_caller
+    result = call(target, kind=kind)
+    config = yaml.safe_load((home / "config.yaml").read_text())
+    config["specialist_call"]["resident_targets"].remove(target)
+    (home / "config.yaml").write_text(yaml.safe_dump(config))
+    assert "error" in call(target, kind=kind)
+    assert "error" in call(target, conversation_id=result["conversation_id"])
+    for action in ["status", "close"]:
+        assert "error" in session(action, result["conversation_id"])
+    assert session("list") == []
+    assert len(calls) == 1
+
+
+@pytest.mark.parametrize("target", CREATOR_TARGETS)
+def test_creator_unconfigured_targets_cannot_dispatch(creator_caller, target):
+    home, calls = creator_caller
+    (home / "config.yaml").write_text("{}")
+    assert "error" in call(target)
+    assert "error" in call(target, kind="work")
+    assert not calls
+
+
+@pytest.mark.parametrize("target", CREATOR_TARGETS)
+def test_creator_inbound_cannot_launch_work(creator_caller, monkeypatch, target):
+    home, calls = creator_caller
+    monkeypatch.setattr(p, "_scope", lambda: (home, "creator-owner", False, True))
+    assert "reissue" in call(target, kind="work")["error"]
+    assert not calls
+    assert call(target)["backend"] == "a2a"
 
 
 def test_owner_and_profile_isolation(caller, monkeypatch):
@@ -363,7 +433,8 @@ def test_runner_real_subprocess_scrubs_injected_scope(caller, monkeypatch, tmp_p
 
 
 def test_registration_is_role_gated():
-    for profile in ["assistant", "creator", "writer", "engineer", "researcher", "searcher", "default"]:
+    for profile in ["assistant", "creator", "writer", "engineer", "marketer", "researcher", "searcher", "default",
+                    "image-creator", "video-creator", "audio-creator"]:
         tools = []
         p.register(SimpleNamespace(profile_name=profile, register_tool=lambda **kw: tools.append(kw)))
         assert len(tools) == (2 if profile in p.TARGETS else 0)
@@ -511,7 +582,17 @@ def test_profile_configuration_and_plugin_api():
         assert "specialist-call" in config["plugins"]["enabled"]
         assert "specialist" in config["toolsets"]
         assert set(config["specialist_call"]["resident_targets"]) == p.TARGETS[path.parent.name]
-        assert config["platform_toolsets"]["a2a"] == config["platform_toolsets"]["cli"]
+        platforms = config["platform_toolsets"]
+        if path.parent.name == "creator":
+            assert platforms["telegram"] == platforms["cli"]
+            assert platforms["discord"] == []
+            assert platforms["a2a"] == [tool for tool in platforms["cli"] if tool != "clarify"]
+        else:
+            assert platforms["a2a"] == platforms["cli"]
+        for tools in [config["toolsets"], *platforms.values()]:
+            assert "a2a" not in tools
+            if tools:
+                assert "specialist" in tools
         registered = []
         p.register(SimpleNamespace(profile_name=path.parent.name, register_tool=lambda **kw: registered.append(kw)))
         for tool in registered:
@@ -719,7 +800,8 @@ def test_sync_exit_reconciliation_reads_under_lock(caller, monkeypatch):
     assert p._read(record)["status"] == "completed"
 
 
-def test_real_framework_dispatch_fresh_cached_and_reset_gateway(tmp_path, monkeypatch):
+@pytest.mark.parametrize("profile,target", [("assistant", "creator"), *[("creator", t) for t in CREATOR_TARGETS]])
+def test_real_framework_dispatch_fresh_cached_and_reset_gateway(tmp_path, monkeypatch, profile, target):
     from gateway import session_context as sc
     from agent.agent_init import _publish_session_id
     from tools.registry import ToolRegistry
@@ -727,9 +809,9 @@ def test_real_framework_dispatch_fresh_cached_and_reset_gateway(tmp_path, monkey
     import model_tools
     import tools.terminal_tool
 
-    home = tmp_path / "profiles" / "assistant"
+    home = tmp_path / "profiles" / profile
     home.mkdir(parents=True)
-    (home / "config.yaml").write_text("specialist_call: {resident_targets: [creator]}\n")
+    (home / "config.yaml").write_text(yaml.safe_dump({"specialist_call": {"resident_targets": [target]}}))
     monkeypatch.setenv("HERMES_HOME", str(home))
     monkeypatch.setenv("HERMES_SESSION_ID", "wrong-process-session")
     monkeypatch.delenv("GATEWAY_MULTIPLEX_PROFILES", raising=False)
@@ -763,15 +845,15 @@ def test_real_framework_dispatch_fresh_cached_and_reset_gateway(tmp_path, monkey
     def check():
         token = set_hermes_home_override(None)
         try:
-            p.register(SimpleNamespace(profile_name="assistant", register_tool=registry.register))
+            p.register(SimpleNamespace(profile_name=profile, register_tool=registry.register))
             bind()
             _publish_session_id("agent-session")  # fresh AIAgent constructor path
-            first = dispatch("specialist_call", {"target": "creator", "message": "work", "kind": "work"})
+            first = dispatch("specialist_call", {"target": target, "message": "work", "kind": "work"})
             assert first["status"] == "accepted"
             cid = first["conversation_id"]
             bind()  # cached reuse: constructor/publication does not run again
             monkeypatch.setenv("HERMES_SESSION_ID", "wrong-process-session")
-            second = dispatch("specialist_call", {"target": "creator", "message": "continue", "conversation_id": cid})
+            second = dispatch("specialist_call", {"target": target, "message": "continue", "conversation_id": cid})
             assert second["status"] == "accepted"
             assert sc.get_session_env("HERMES_SESSION_ID") == ""  # scoped binding restored
             assert stamps == ["agent-session", "agent-session"]
@@ -781,7 +863,7 @@ def test_real_framework_dispatch_fresh_cached_and_reset_gateway(tmp_path, monkey
             assert "error" in dispatch("specialist_session", status_args, turn="reset-session")
             assert "error" in dispatch("specialist_session", status_args, sid="reset-agent")
             assert "error" in dispatch("specialist_session", status_args, sid=None)
-            assert "error" in dispatch("specialist_call", {"target": "creator", "message": "spoof", "kind": "work",
+            assert "error" in dispatch("specialist_call", {"target": target, "message": "spoof", "kind": "work",
                                                            "session_id": "agent-session"})
             assert len(stamps) == 2
         finally:

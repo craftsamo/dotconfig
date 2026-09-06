@@ -46,7 +46,8 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
   Telegram / Discord lists empty (engineer / creator / marketer now carry real
   `telegram` lists — they are bots), and every A2A-serving profile has an `a2a`
   list for its inbound peer sessions. `a2a` is also the OUTBOUND toolset name
-  (the five `a2a_*` tools, default-off): grant it only to the four primaries.
+  (the five `a2a_*` tools, default-off): Engineer/Marketer retain raw A2A;
+  Assistant/Creator expose only `specialist` for outbound requests.
   Use `no_mcp` when a platform needs none; otherwise list each allowed MCP
   server explicitly so future servers are not inherited accidentally.
 - **Multiplex gateway + A2A peer graph (2026-09 rebuild).** ONE default-hosted
@@ -57,7 +58,8 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
   `A2A_PORT` env var, which is read raw from the process env and would
   collide across profiles). Peer lists live per profile in `a2a_agents`
   (assistant→engineer/creator/marketer/writer; engineer→marketer/researcher/
-  writer; creator and marketer→engineer/each-other/researcher/writer) with
+  writer; creator and marketer→engineer/each-other/researcher/writer;
+  creator additionally→image-creator/video-creator/audio-creator) with
   `timeout: 310` (the 120s caller default undercuts the 300s server reply
   window); enforcement is config + operating contract, and contracts forbid
   `a2a_call` against a direct URL. Under multiplex, scope-aware secret reads
@@ -573,7 +575,8 @@ searcher / writer (Workflow v5
 specialists; writer and researcher also serve inbound A2A peer requests,
 searcher has no A2A endpoint). The A2A peer graph and the multiplex rules
 live in the critical rule above and PROFILES.md. Heavy work runs by default in resident chat sessions the
-assistant starts through `assistant/scripts/resident-session.sh` and
+assistant starts through `specialist_call(kind="work")` (backed by
+`assistant/scripts/resident-session.sh`) and
 supervises conversationally; the kanban board is only for fire-and-forget,
 cron-originated, mass-parallel, and `scheduled` work with a lean card
 contract (no manifests/digests/probes — the v4 machinery is retired, see the

@@ -88,5 +88,5 @@ On a human's bot the file itself is sent when the platform can carry it
   size of use, and the verdict is written (a speech delivery's evidence
   was read per "Speech deliveries" above, not looked at or listened to);
 - the reply carries paths, spend, and relayed questions;
-- sessions for the job are closed (`resident-session.sh close`) unless a
+- sessions for the job are closed (`specialist_session(action="close", conversation_id=<id>)`) unless a
   revise round is pending.

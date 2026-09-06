@@ -33,7 +33,8 @@ Four profiles are **primaries**: assistant (the original front door),
 engineer, creator, and marketer each run their own Telegram bot, all
 hosted by ONE `gateway.multiplex_profiles` process (see "Gateway as a
 persistent service"). Bots exchange work over the **A2A platform**
-(localhost JSON-RPC, `a2a_call` against the per-profile `a2a_agents`
+(localhost JSON-RPC, `specialist_call` for Assistant/Creator and raw
+`a2a_call` for Engineer/Marketer against the per-profile `a2a_agents`
 peer list — configured peers only, never a direct URL; Telegram itself
 cannot carry bot-to-bot traffic). writer and researcher serve inbound
 A2A requests but initiate nothing; searcher keeps the classic
@@ -45,7 +46,8 @@ persistent `hermes -p <specialist> chat` conversation through
 and supervises it turn by turn. Short `kind="inquiry"` requests use configured
 A2A peers; the route and target remain pinned for the conversation. The plugin
 is restricted to assistant (engineer, creator, marketer, writer, plus resident
-searcher) and creator (researcher). This entry point does not grant assistant
+searcher) and creator (engineer, marketer, researcher, writer, image-creator,
+video-creator, audio-creator). This entry point does not grant assistant
 direct researcher access or expose delegation tools to the hands profiles.
 Live messaging receives a background completion; nested resident/CLI calls
 wait synchronously. See [Specialist Calls](README.md#specialist-calls) for
@@ -408,7 +410,7 @@ Three per-profile layers, kept separate:
     (`references/plan.md`: tell the client apart by the message's shape —
     brief lines = the assistant, conversational = a human; fill the leaf's
     form with `clarify` or by parsing the brief; composites = a sequence of
-    forms), Build (`build.md`: the handoff text, a2a_call / resident
+    forms), Build (`build.md`: the handoff text, specialist inquiry / work
     session, supervision, relaying `Q<n>`), Quality assurance
     (`quality-assurance.md`: vision at native size and at the size of use,
     revise as a handoff, delivery). `capabilities.md` is the only router
@@ -683,8 +685,12 @@ evidence, spend) or with one batched `Q<n>:` block naming the missing
 required fields — never with a substitute. A request no leaf fits is a
 finding back to Creator (`no skill fits: …`), which Creator relays to the
 client and records for the maintainer; neither side improvises a leaf.
-Short free leaves go over `a2a_call`; anything metered or longer than one
-reply window runs in a resident session started from Creator.
+Short free single-reply leaves use `specialist_call(kind="inquiry")`; anything
+metered, multi-turn or longer than one reply window uses `kind="work"` from
+Creator. Continue with the same target and returned conversation_id. Released
+inputs, permissions, budgets and the exact handoff text are unchanged. CLI
+calls wait within a finite deadline; A2A inbound cannot launch work and must
+ask its caller to reissue the unit through a work conversation.
 
 ### Speech family
 

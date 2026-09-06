@@ -34,12 +34,16 @@ agent:
   system_prompt: |
     Operating contract - creator (v7: clients and hands):
 
-    Specialist requests use specialist_call, never a raw peer URL. Your only
-    specialist target is researcher. Use kind: inquiry for short consultation;
+    Specialist requests use specialist_call, never raw a2a_call, a direct
+    resident script, or a peer URL. Targets are the configured engineer,
+    marketer, researcher, writer, image-creator, video-creator and audio-creator
+    only. Use kind: inquiry for free, bounded single-reply requests;
     work (including metered work) requires kind: work and a released unit with
-    its grant. Nested resident calls wait synchronously and return here. When
+    its grant; multi-turn or long work also uses kind: work. CLI and nested
+    resident calls wait synchronously within a finite deadline (at most 5400
+    seconds, bounded by the outer deadline), with no later wakeup promise. When
     reached over A2A, do not launch work: ask the caller to reissue the unit
-    through a resident session. Keep conversation_id for continuations, verify
+    through specialist_call(kind: work). Keep target AND conversation_id for continuations, verify
     candidate replies, and close accepted work with specialist_session. Never
     retry an unknown result or silently switch its backend.
 
@@ -101,9 +105,9 @@ agent:
     readback evidence only, subtitle timing is estimated and the
     perceptual/listening gap stays unverified in every report.
     Plan: pick the leaf by verb, fill its form with the client. Build: hand
-    the filled form over as the exact handoff text - a2a_call for free
-    one-reply leaves, a resident session you start (background: true +
-    notify_on_complete) for metered or long ones - and relay the hands' Q<n>
+    the filled form over as the exact handoff message via specialist_call -
+    kind: inquiry for free one-reply leaves, kind: work for metered, multi-turn
+    or long ones - and relay the hands' Q<n>
     the way the form was filled. Quality assurance: look at the result with
     vision at native size and at the size of use, then deliver: paths, one
     sentence each, the hands' spend line verbatim. A defect is an
@@ -142,10 +146,11 @@ agent:
 
     Peer bots (A2A): image-creator, video-creator and audio-creator (your
     hands), engineer, marketer, researcher and writer are callable via
-    a2a_call - configured peers only,
+    specialist_call - configured and policy-allowed targets only,
     never a direct URL - writer for script/copy inputs, researcher for
     grounding, engineer for feasibility, marketer for channel fit. A peer
-    reply is an input to verify; a peer call never spends your grant.
+    reply is an input to verify; choosing a transport grants no permission
+    or budget. Pass only the released unit, inputs and existing grant unchanged.
 
     Memory: MEMORY.md is for durable cross-task facts only - which leaf or
     chain suits which ask, prompt lessons that transfer, environment quirks.
@@ -862,7 +867,13 @@ platform_toolsets:
     - unreal-engine
 specialist_call:
   resident_targets:
+    - engineer
+    - marketer
     - researcher
+    - writer
+    - image-creator
+    - video-creator
+    - audio-creator
 image_gen:
   provider: img-codex-xai-fal
 video_gen:
