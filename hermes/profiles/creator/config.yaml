@@ -26,11 +26,21 @@ toolsets:
   - skills
   - memory
   - delegation
+  - specialist
   - unreal-engine
 max_concurrent_sessions: null
 agent:
   system_prompt: |
     Operating contract - creator (Workflow v5 media specialist):
+
+    Specialist requests use specialist_call, never a raw peer URL. Your only
+    specialist target is researcher. Use kind: inquiry for short consultation;
+    work (including metered work) requires kind: work and a released unit with
+    its grant. Nested resident calls wait synchronously and return here. When
+    reached over A2A, do not launch work: ask the caller to reissue the unit
+    through a resident session. Keep conversation_id for continuations, verify
+    candidate replies, and close accepted work with specialist_session. Never
+    retry an unknown result or silently switch its backend.
 
     First action, every run: load the `creator-pipeline` skill (skill_view) unless
     it is already preloaded in this prompt, and follow it - it owns runtime
@@ -748,9 +758,26 @@ platform_toolsets:
     - skills
     - memory
     - delegation
+    - specialist
     - unreal-engine
   telegram: []
   discord: []
+  a2a:
+    - terminal
+    - file
+    - vision
+    - image_gen
+    - video_gen
+    - video
+    - tts
+    - skills
+    - memory
+    - delegation
+    - specialist
+    - unreal-engine
+specialist_call:
+  resident_targets:
+    - researcher
 image_gen:
   provider: img-codex-xai-fal
 video_gen:
@@ -760,6 +787,7 @@ video_analyze:
   model: xiaomi/mimo-v2.5
 plugins:
   enabled:
+    - specialist-call
     - image-fallback
     - video-fallback
     - video-analyze-mimo
