@@ -1,8 +1,8 @@
 ---
 name: video-creator-pipeline
 description: >-
-  Root of video-creator's clip leaves. Load first for a filled form naming
-  generate-clip, edit-clip or analyze-clip, then load only that leaf.
+  Root of video-creator's clip and screenshot-tour leaves. Load first for a filled form naming
+  generate-clip, edit-clip, analyze-clip or create-tour, then load only that leaf.
   Not an interview, a video menu, or a generic movie-making workflow.
 version: 1.0.0
 author: CraftSamo
@@ -26,7 +26,9 @@ metadata:
 2. Load only the leaf's selected references and previous delivery for
    `intent: revise`. Reuse surviving intermediates before any new spend.
 3. Follow `<Procedure>`; no TTS, image generation, outside skills or
-   self-authored movie frameworks. Shared helper:
+    improvised movie frameworks. create-tour uses its leaf-owned deterministic
+    script to author a bounded screenshot walkthrough, not arbitrary HTML.
+    Shared clip helper:
    `python3 ${HERMES_SKILL_DIR}/scripts/clip-media.py --help` (from leaves,
    `python3 ${HERMES_SKILL_DIR}/../../scripts/clip-media.py --help`).
 4. Run `<QA>`. Append each finding to the job's `qa.md` before the next
