@@ -432,6 +432,31 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
   video options: `_download_video` was removed in `c4a9f2bf49`. Its tests
   invoke the handler with real imports so registration-only tests cannot
   hide another deferred ImportError.
+- **Audio hands own `speech` only.** `audio-creator` receives forms on A2A
+  `:9909`: generate/edit/analyze-speech. The character-voice plugin registers
+  only there; Creator retains ordinary conversational TTS, never a speech
+  asset bypass. House uses the language chain (including online Edge); a
+  qualified local voice never falls back and rejects unsupported style/seed.
+  `free` is a media-fee class, not unlimited takes: one plus one corrective
+  by default, failures counted. `speech-media.py` owns track/edit/analyze,
+  cached local ASR, exclusive bundles and measured normalization. Existing
+  WAV timing sidecars are checked before reuse; lossy sibling derivatives
+  get fresh ASR. Subtitle timing is estimated, pronunciation/performance
+  unverified. Never invent a listening verdict or re-roll for an ASR spelling
+  variant. Speech can feed a legacy film as a completed input; music/song/SFX
+  generation and standalone audio visualization are withdrawn, not migrated.
+  The old voice card is retired; no hands kanban contract is added.
+- **Multiplex TTS needs the scoped toolset-cache fix in the local Hermes
+  checkout.** At upstream `4f0309e9cf`, `toolsets.resolve_toolset` memoized
+  by toolset/registry generation but NOT profile scope. After Creator lost
+  character-voice, warming its `tts` entry hid the two tools from AudioCreator
+  despite correct scoped registration. `toolsets.py` now also keys on
+  `registry.current_scope_key()` (static-only resolution uses an empty scope).
+  It is carried as `fix/toolset-profile-scope-memo` merged into `local` in the
+  hermes-agent checkout, with a regression test; re-check after `hermes update`
+  that the merge survived. `test_audio_creator_routing.py` also exercises the
+  real resolver across scopes at unchanged generation. Registration-only
+  tests and direct CLI synthesis cannot detect this gateway-specific failure.
 - **`image_generate` only advertises what the configured provider's
   `capabilities()` declares, fail-closed to text-only.** The
   `image-fallback` chain provider did not declare one until 2026-09-05,
