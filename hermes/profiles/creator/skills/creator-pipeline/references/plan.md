@@ -26,7 +26,11 @@ at once — a brief-shaped message never gets one.)
   single-select whose choices are those options, your recommendation
   FIRST (the UI marks it); the UI appends "Other" itself, which is the
   form's `other: true`. A field without options is open-ended (omit
-  `choices`). Put the field's `label` / `example` in the question text,
+   `choices`). A field explicitly accepting multiple values, such as kit
+   `contents`, is open-ended even when it lists suggested options: omit
+   `choices`, show the suggestions and ask for a comma-list. Do not turn
+   a request for props AND panels into a single-category choice.
+   Put the field's `label` / `example` in the question text,
   never the options. A free-text answer is used as written.
 - **Assistant** (a resident session it started, or an A2A peer call).
   Parse its brief — `Goal:` / `Context:` / `Inputs:` / `Deliverable:` /
@@ -75,7 +79,8 @@ A metered leaf takes a `budget:` line; absent, the leaf's default (icon:
 4 variants + 1 corrective; emoji: 3 anchor candidates, then 1 per item +
 ceil(items/4) correctives for the pack; mascot: 3 concepts, then 1 per
 item + ceil(items/4) correctives; reimagine: 2 per style + 1 corrective
-per style). The assistant's `Budget:` line
+per style; kit: 3 style sheets, then 1 per item + ceil(items/4)
+correctives). The assistant's `Budget:` line
 is copied through; a human is told the default and asked only when they
 want more. Never hand a metered form off without knowing who pays for a
 corrective.
@@ -121,6 +126,33 @@ rather than a second generation. When a client asks for "an emoji of
 our mascot" and no mascot exists yet, that is two forms in order —
 `generate-mascot` first, `generate-emoji` on its anchor second — and
 you say so.
+
+## A kit is a list, not one image
+
+`generate-kit` follows the two-round gate too. First fill `what_for`,
+`style`, `contents` and any explicit `items`, and send a no-anchor form.
+The hands propose one style sheet containing representative props/UI
+per candidate and an expanded item list. Show the sheet AND list before
+requesting approval. Round B takes the approved anchor, list, design lock
+and explicit image-call allowance; more than 24 items always requires
+an explicit budget line. Normal/pressed/hover/disabled each count as an
+item, not a free variant hidden in the count. Do not conflate call counts
+with a verified currency quote.
+
+The listed categories are suggestions, not a closed world or a five-item
+cap. Explicit `items` REPLACE defaults. A described category needs agreed
+items and canvases before the batch. World props use the chosen camera;
+UI faces the screen. `size` in kit forms is an integer scale, not a single
+square imposed on every category. Reference images may be uploaded;
+confirm authority to send them, do not treat a local path alone as consent.
+
+An AI-generated state pair can differ in silhouette even on the same
+anchor. If the client needs exact interchangeable controls, offer
+`create-kit` for supported flat-vector/pixel UI; explain its generic
+geometry instead of promising a hand-painted reproduction. PNGs that
+fail the state check stay flagged, never become a production-ready kit
+by removing their failed status. `source-kit` is stock retrieval, with
+the pack's own look and license, not a route to redesign it.
 
 ## Advisory — a conversation that may not end in a form
 

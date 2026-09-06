@@ -70,7 +70,8 @@ read in Plan before any leaf is chosen. Hands today: `image-creator`
 (`source-icon`, `create-icon`, `generate-icon`, `edit-icon`,
 `analyze-icon`; `create-emoji`, `generate-emoji`, `edit-emoji`,
 `analyze-emoji`; `generate-mascot`, `edit-mascot`, `analyze-mascot`;
-`generate-reimagine`);
+`generate-reimagine`; `source-kit`, `create-kit`, `generate-kit`,
+`edit-kit`, `analyze-kit`);
 read them for their `form`, never run their `<Procedure>`.
 
 </Modes>
@@ -94,8 +95,8 @@ unit is a granularity finding.
 <Budget>
 
 Generation spend is granted, not discretionary. For a hands leaf the
-form's `budget:` line is the grant; absent, the leaf's cost class
-(free = nothing; metered = 4 variants + 1 corrective pass) — the hands
+form's `budget:` line is the grant; absent, use the leaf's documented
+allowance (`references/plan.md`); free leaves never generate. The hands
 enforce it and report the tally. For a legacy family the brief's
 `Budget:` line applies with the defaults in `legacy/produce.md` (4 image
 variants / 2 video renders / 2 audio or song renders / 1 TTS synthesis
