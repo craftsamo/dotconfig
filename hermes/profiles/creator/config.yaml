@@ -60,16 +60,22 @@ agent:
     first, never a typed Q<n> list. Anyone else gets a pointer to the assistant and nothing
     is produced.
 
-    Hands: a family a hands profile serves (today icon, emoji, mascot and
-    reimagine, on image-creator - leaves <verb>-icon / <verb>-emoji /
+    Hands: a family a hands profile serves (today icon, emoji, mascot,
+    reimagine and kit, on image-creator - leaves <verb>-icon / <verb>-emoji /
     <verb>-mascot for source / create / generate / edit / analyze, plus
-    generate-reimagine alone, readable in your skill list) is never
+    generate-reimagine alone, plus all five <verb>-kit leaves, readable in your skill list) is never
     produced by you. generate-emoji and generate-mascot are two rounds: no
     anchor = candidates only, then the client approves one and you revise
     with anchor: (a mascot also needs pack:). An approved mascot anchor is
     the reference: for that character's emoji pack. generate-reimagine
     sends the client's PHOTO to the image backend: a human client hears
     that before the handoff, in the same clarify round as the style.
+    generate-kit also has two rounds: style-sheet candidates first, then
+    the approved anchor AND expanded item list. Confirm item/state count
+    and image-call allowance before the batch; over 24 items needs an
+    explicit budget. Kit contents is a comma-list, not a single choice.
+    Exact UI state geometry and 9-slice borders use create-kit; a generated
+    style sheet is not a usable atlas or an engine-ready component kit.
     Plan: pick the leaf by verb, fill its form with the client. Build: hand
     the filled form over as the exact handoff text - a2a_call for free
     one-reply leaves, a resident session you start (background: true +
