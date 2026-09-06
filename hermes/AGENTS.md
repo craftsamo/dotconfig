@@ -417,7 +417,7 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
   the write guard reads the WHOLE terminal command, so `cp … && <skill
   script>` is refused → a skill script runs in a command of its own).
 - **Video hands start with `clip`, not the whole legacy video surface.**
-  `video-creator` receives forms on loopback A2A `:9908`; its three leaves
+  `video-creator` receives forms on loopback A2A `:9908`; its three clip leaves
   are `generate-clip` (1-15 s, silent single shot), `edit-clip` (a <=60 s
   segment), and `analyze-clip` (findings). It has no TTS or external skill
   directories. `clip-media.py` owns local probe/frames/edit with exclusive
@@ -434,6 +434,13 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
   video options: `_download_video` was removed in `c4a9f2bf49`. Its tests
   invoke the handler with real imports so registration-only tests cannot
   hide another deferred ImportError.
+- **Tour is a new video subject, not a global legacy retirement.**
+  `create/tour` owns bounded (<=60 s) script-authored screenshot walkthroughs,
+  with frozen source projects, exclusive preview/final directories and a safe
+  approval resume. No URL capture, runtime HTML edits, external skills or TTS;
+  use finished audio-creator WAV/words.json. Creator always uses specialist
+  `kind="work"` for tours. Keep creator-html-motion and its 1:1 mappings intact.
+  GSAP is minimally vendored with its own license and hash provenance.
 - **Audio hands own `speech` only.** `audio-creator` receives forms on A2A
   `:9909`: generate/edit/analyze-speech. The character-voice plugin registers
   only there; Creator retains ordinary conversational TTS, never a speech

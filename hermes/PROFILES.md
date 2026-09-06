@@ -790,6 +790,54 @@ left intact; upstream seeded SKILL.md was retained as `SKILL.upstream.md`.
 The existing broken private persona link was repaired by supplying its
 missing private target; no personalized file was overwritten.
 
+### Tour family
+
+`video-creator-pipeline/create/tour/` serves `create-tour`, a new subject:
+ordered local screenshots to a <=60-second task walkthrough, ending with
+the supplied done screen. Task/app live in the form, not the steps JSON.
+Frames: auto/browser/macos/ios/android/none; mobile shows a tap ring rather
+than an arrow. Styles are local flat/glass/outline references, with a static
+cover-fit backdrop and style-specific scrim/blur. No URL capture or browser
+automation is implemented. URL requests require screenshots from a separately
+authorized capture job. Narration consumes finished audio-creator WAV plus
+current words.json; video-creator has no TTS or external runtime skills.
+
+Creator routes this free leaf with `specialist_call(kind="work")`, never raw
+A2A or a direct resident script. `tour.py` owns validation, OCR TSV matching,
+bounded geometry/clock, deterministic HTML, snapshots and final rendering.
+GSAP core is vendored from npm 3.14.2 with hash/integrity provenance and its
+own Standard No Charge license, not the skill's MIT license. No arbitrary
+runtime marker edits or improvised movie framework is permitted.
+The portable skill-authoring validator's directory-name warning is intentional:
+Hermes names nested leaves `<verb>-<subject>` (`create-tour` in `create/tour`),
+with structured Hermes metadata and the established author/version fields.
+
+Projects freeze source copies and hashes. Preview=yes scaffolds/checks/
+snapshots only; client approval resumes that unchanged project into a fresh
+final directory. Changed fields need a new project/preview. Existing runtime
+data, input files, deliveries and failed evidence are never deleted or
+overwritten. Real render/decode and sampled contrast/layout evidence are
+distinct from human task correctness, temporal quality and listening.
+
+Verification belongs to `scripts/tests/test_tour.py`. Synthetic render tests
+are not earned product-live evidence; human-conversational and Assistant-
+brief-shaped two-client handoffs remain pending until explicitly exercised.
+Maintainer verification (2026-09-06, after independent review): 108 targeted tests plus 14 subtests
+passed, including actual desktop/mobile MP4s, all decorative frame variants,
+preview approval/tampering, text overflow and a timed synthetic WAV render.
+HyperFrames 0.8.30 and ffmpeg 8.1.2 were exercised; sampled authored-text
+contrast passed (desktop 12/12, mobile 11/11). English OCR ran locally;
+Japanese language data was absent and its actionable failure was tested.
+Timeline construction/registration is synchronous; only font-dependent
+layout guards wait for fonts. Goal/first-step RGB hashes differ in both
+previews and decoded MP4 frames, without requiring every step to differ.
+OCR TSV preserves literal quotes and skips rows missing text. Tests default
+to the system temp directory (TOUR_TEST_ROOT overrides it), clean ordinary
+fixtures and intentionally retain only render-test evidence.
+No gateway restart is needed for the on-disk implementation; loaded sessions
+may retain their earlier contract. This subject does not retire or alter
+creator-html-motion, legacy routes, clip/speech helpers or global 1:1 mappings.
+
 ### Clip family
 
 `video-creator-pipeline/<verb>/clip/` is the first video hands family:
