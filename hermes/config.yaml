@@ -622,6 +622,7 @@ gateway:
     - writer
     - researcher
     - image-creator
+    - video-creator
 streaming:
   enabled: false
   transport: auto

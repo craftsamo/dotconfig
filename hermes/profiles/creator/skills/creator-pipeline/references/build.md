@@ -28,8 +28,14 @@ message (or a file), never as an argv string.
 | free, one reply (`source`, `create`, `edit`, `analyze`) | `a2a_call(agent="<hands>", message=<the text>)`; the reply is the leaf's `<Report>` or a `Q<n>:` block; answer a `Q<n>:` with a second `a2a_call` carrying the same form completed, same `context` |
 | metered, or anything whose estimate exceeds ~4 minutes (`generate`) | a resident session you supervise: write the text to a file, then `~/.hermes/profiles/assistant/scripts/resident-session.sh start <job>-<medium> --profile <hands> -f <file>` with `background: true` + `notify_on_complete`; later turns with `send <key> -f <file>`; `close <key>` on acceptance |
 
-Hands and their peers: `image-creator` (still images). One session per
+Hands and their peers: `image-creator` (still images), `video-creator`
+(short clips; no TTS). One session per
 job per hands; never carry unrelated jobs in one.
+
+For analyze-clip, `deliver` may be omitted: its report and scratch evidence
+are the result, not a new movie. A free video analysis may approach the
+reply window; use a resident session when the estimate exceeds it rather
+than repeating an A2A request that may still be running.
 
 ## Supervising
 

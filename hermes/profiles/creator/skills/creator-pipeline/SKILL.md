@@ -71,7 +71,9 @@ read in Plan before any leaf is chosen. Hands today: `image-creator`
 `analyze-icon`; `create-emoji`, `generate-emoji`, `edit-emoji`,
 `analyze-emoji`; `generate-mascot`, `edit-mascot`, `analyze-mascot`;
 `generate-reimagine`; `source-kit`, `create-kit`, `generate-kit`,
-`edit-kit`, `analyze-kit`);
+`edit-kit`, `analyze-kit`); and `video-creator` (`generate-clip`,
+`edit-clip`, `analyze-clip`, A2A peer for free short work, resident for
+generation or long work). Clip is one short shot, not every video family;
 read them for their `form`, never run their `<Procedure>`.
 
 </Modes>

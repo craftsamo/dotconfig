@@ -7,6 +7,20 @@ nothing is re-done here.
 
 ## Look before you answer
 
+For clips, use the hands' sampled sheet and a native frame instead of
+passing an MP4 to image vision. Read its timecoded video-analysis findings
+against the requested motion and client intent. A poster cannot establish
+motion, continuity, audio or loop quality. If remote analysis was declined
+or failed, carry the temporal QA gap through; acceptance as an unverified
+candidate is the client's decision, not an implicit pass. Do not upload
+again just to repeat the hands' check. An analyze-clip report is findings,
+not a new deliverable: review the evidence and return it without requiring
+an output video or opening a new generation job.
+For a deterministic clip edit, helper dimensions/duration/decode results
+and the bounded framing looks are the checks. Do not expand sampled QA
+into pixel-exact source alignment/padding calculations or ask the hands
+to run extra approval-gated scripts. Carry unverified checks explicitly.
+
 1. Open the recommended file (or every delivered file when there is no
    recommendation) with vision at native size.
 2. Open it again at the size the client will use — a Slack sidebar icon
