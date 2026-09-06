@@ -81,10 +81,14 @@ ceil(items/4) correctives for the pack; mascot: 3 concepts, then 1 per
 item + ceil(items/4) correctives; reimagine: 2 per style + 1 corrective
 per style; kit: 3 style sheets, then 1 per item + ceil(items/4)
 correctives; clip: 2 variant attempts + 1 corrective total, including
-failed video_generate invocations). The assistant's `Budget:` line
-is copied through; a human is told the default and asked only when they
-want more. Never hand a metered form off without knowing who pays for a
-corrective.
+failed video_generate invocations; speech: 1 take + 1 corrective per
+script, counting every synthesis call including failures). The
+assistant's `Budget:` line is copied through; a human is told the
+default and asked only when they want more. Never hand a metered form
+off without knowing who pays for a corrective. A leaf's `cost: free`
+metadata means no provider fee, not an unlimited attempt allowance —
+speech's take grant is enforced exactly the way a metered leaf's variant
+grant is.
 
 ## A photo that leaves the machine
 
@@ -119,6 +123,38 @@ the hands write the identity lock once and every style is judged
 against the same note. `keep` stays at its default unless the client
 asked for a new scene ("put me in a 70s New York street" → `keep:
 identity`; "make this photo a comic" → the default).
+
+## An approved script, not a draft
+
+`generate-speech` takes an approved script file, not text to compose:
+never rewrite, translate or extend what the client wrote, and keep each
+section to 600 characters or less — a longer script is a Plan finding
+(split it into sections), never one paid-by-time take stretched to fit.
+`voice:` is filled from a name the client actually gave (`house`, or the
+exact `<engine>:<voice>` id); do not guess an id from a description. A
+qualified voice's optional `style` or `seed` may only be offered from
+what that engine's catalogue advertises — look it up first with a
+no-synthesis `character_voices` A2A query to audio-creator, never invent
+a control the client did not ask about.
+
+`house` may reach the online Edge engine as its fallback for an
+unsupported or English-dominant script; for a private or explicitly
+local-only brief, ask in the SAME clarify round whether the client wants
+a qualified local voice instead of the house default, rather than
+defaulting to a fallback that leaves the machine. House and a qualified
+voice never cross-fall-back into each other. The grant is 1 take + 1
+corrective per script even though the leaf costs no provider fee — free
+is not unlimited, and every synthesis call counts, successful or failed.
+The hands' readback is ASR text-match evidence, not a listening
+certification: never tell the client the line was heard, and never ask
+for another take merely because the transcript came back with an
+alternate spelling or homophone of a correctly spoken word.
+
+Instrumental music, ambience/SFX, vocal-song generation, and audio
+visualization are withdrawn without a hands replacement — a request for
+one of them is `no skill fits` to the client, noted for the maintainer;
+never picked up through a technic, core route, or external skill as a
+stand-in.
 
 ## Two-round leaves
 

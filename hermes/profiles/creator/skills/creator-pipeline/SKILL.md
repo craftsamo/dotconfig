@@ -71,10 +71,14 @@ read in Plan before any leaf is chosen. Hands today: `image-creator`
 `analyze-icon`; `create-emoji`, `generate-emoji`, `edit-emoji`,
 `analyze-emoji`; `generate-mascot`, `edit-mascot`, `analyze-mascot`;
 `generate-reimagine`; `source-kit`, `create-kit`, `generate-kit`,
-`edit-kit`, `analyze-kit`); and `video-creator` (`generate-clip`,
+`edit-kit`, `analyze-kit`); `video-creator` (`generate-clip`,
 `edit-clip`, `analyze-clip`, A2A peer for free short work, resident for
-generation or long work). Clip is one short shot, not every video family;
-read them for their `form`, never run their `<Procedure>`.
+generation or long work); and `audio-creator` (`generate-speech`,
+`edit-speech`, `analyze-speech`, A2A peer for a bounded one-reply job,
+resident whenever synthesis or fresh ASR is involved — even though the
+leaf costs no provider fee). Clip is one short shot, not every video
+family; speech is one approved script, not the whole spoken-audio
+family; read them for their `form`, never run their `<Procedure>`.
 
 </Modes>
 
@@ -98,20 +102,28 @@ unit is a granularity finding.
 
 Generation spend is granted, not discretionary. For a hands leaf the
 form's `budget:` line is the grant; absent, use the leaf's documented
-allowance (`references/plan.md`); free leaves never generate. The hands
-enforce it and report the tally. For a legacy family the brief's
+allowance (`references/plan.md`). The hands enforce it and report the
+tally; `cost: free` (no provider fee) is not the same gate as an
+attempt allowance — audio-creator's speech leaves are free of provider
+cost and still spend a take grant (1 take + 1 corrective per script,
+every synthesis call counted, successful or failed), so a free leaf
+never becomes room to inflate one job into extra unaccounted attempts.
+For a legacy family the brief's
 `Budget:` line applies with the defaults in `legacy/produce.md` (4 image
-variants / 2 video renders / 2 audio or song renders / 1 TTS synthesis
-per asset + 1 corrective; local neural runtime ≤ 15 min per render, CPU
-fallback forbidden). Grants only expand; exceeding a cap is asked for
-with a cost estimate, never taken. Every report carries the spend line.
+variants / 2 video renders per asset + 1 corrective; local neural runtime
+≤ 15 min per render, CPU fallback forbidden). Instrumental/SFX music,
+vocal-song generation, and audio visualization are withdrawn without a
+hands replacement — a brief asking for one returns `no skill fits`, never
+a technic, core route, or external skill picked up as a stand-in. Grants
+only expand; exceeding a cap is asked for with a cost estimate, never
+taken. Every report carries the spend line.
 
 </Budget>
 
 <Cards>
 
 Kanban is legacy-only. A card must be exactly ONE catalog unit —
-`anchored-image-batch`, `tts-voice`, `deterministic-render` — with every
+`anchored-image-batch`, `deterministic-render` — with every
 required input settled; a served family, a composite, an unsettled
 input, or `Review: required` → `kanban_block(kind=capability)`
 immediately, before any spend, with a one-line reason. An admitted card
@@ -132,8 +144,10 @@ Cards move to the hands family by family as their leaves land.
 - Answering the hands' `Q<n>:` yourself instead of relaying it.
 - "Fixing" a delivered file locally instead of an `edit-*` or `revise`
   handoff.
-- Reporting to the client without having looked at the file at the size
-  it will be used.
+- Reporting to the client without having looked at a visual file at the
+  size it will be used, or claiming to have heard a speech delivery
+  instead of relaying the hands' measured/readback evidence and
+  unverified-listening note.
 - Falling back to a technic for a served family, or into the hands for
   a legacy one.
 - Leaving a resident session open after acceptance.
@@ -145,8 +159,10 @@ Cards move to the hands family by family as their leaves land.
 - The client kind was recognised and asked its own way (clarify / text).
 - Every handoff was the exact form text; every report had paths and a
   spend line; every `Q<n>:` was relayed, not answered locally.
-- Every delivered file was looked at at native size and at the size of
-  use, and the verdict written before the reply.
+- Every delivered visual file was looked at at native size and at the
+  size of use, and the verdict written before the reply; a speech
+  delivery carries the hands' measured/readback evidence and its
+  unverified-listening note forward, never a claim of having heard it.
 - Served families went to the hands; legacy families took the legacy
   route; nothing was produced locally for a served family.
 - The spend line in the client's reply is the hands' (or the legacy

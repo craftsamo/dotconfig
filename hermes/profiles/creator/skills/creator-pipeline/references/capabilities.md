@@ -32,6 +32,9 @@ only when they share tools, spend class, and verification.
 | one short silent generated shot, from text or a starting still, in a named/described style | video-creator: generate-clip | metered, 1-15 seconds, 720p request, default 2 variants + 1 corrective; input-upload and remote-analysis consent are distinct |
 | trim/fit/mute/re-encode one existing segment as MP4/WebM/GIF | video-creator: edit-clip | free of generation, at most 60 seconds; contain by default; GIF repeat is playback metadata, not seamless motion |
 | technical and visual findings on one short clip, no new video | video-creator: analyze-clip | at most 60 seconds; local samples or one consented remote full-clip analysis; timestamps and explicit unverified checks |
+| a house-voice or registered-character spoken line from an approved script (up to 600 characters), as narration or a voice message | audio-creator: generate-speech | free of provider cost, NOT free of an attempt allowance: 1 take + 1 corrective per script by default, counting every synthesis call including failures; house uses the language fallback chain, a qualified `<engine>:<voice>` id never falls back |
+| concatenation, boundary trim, speed, loudness normalization or format conversion of existing speech | audio-creator: edit-speech | free of generation; no resynthesis, no word changes, no voice conversion |
+| findings on an existing speech file against a destination format, with optional script readback | audio-creator: analyze-speech | free; measured and readback evidence only, never a listening verdict; deliver may be omitted |
 
 The clip scope above is served, not the whole former generated-video
 technic. Named legacy methods below (ComfyUI, authored HTML motion,
@@ -66,11 +69,17 @@ are findings back to the client, never a silent switch to legacy.
 | official third-party logo/mark acquisition and provenance | `creator-brand-asset-sourcing` | source, do not redraw |
 | assembly of QA-passed parts — mux, concat, mix, overlay, trim, re-container per a fixed edit spec | `creator-media-assembly` | deterministic ffmpeg; parts consumed verbatim; zero generation spend |
 
-Voice lines currently use the `tts` toolset under the pipeline contract and
-identify as `core:tts`, without a dedicated technic. `creator-html-motion`
-loads the external HyperFrames router and its `media-use` asset/TTS/caption
-support as implementation engines. Other niche assets may use an
-`external:<skill>` identity only after an availability preflight.
+Spoken lines with a durable deliverable route to the hands above
+(audio-creator: generate-speech / edit-speech / analyze-speech); only an
+ordinary conversational spoken reply that is not a delivered asset still
+identifies as `core:tts`. `creator-html-motion` consumes a finished
+narration file from audio-creator as an input rather than synthesizing
+speech itself; its `media-use` support remains an implementation engine
+for its own non-speech asset/caption handling. Instrumental/SFX music,
+vocal-song generation, and audio visualization are withdrawn without a
+hands replacement — a request for one of them is `no skill fits`, never
+routed to a core/external route as a stand-in. Other niche assets may
+use an `external:<skill>` identity only after an availability preflight.
 
 ## Selection rules
 
@@ -84,10 +93,12 @@ support as implementation engines. Other niche assets may use an
     `generate-clip` for the served short-shot contract, otherwise the named
     legacy `creator-generated-video` method.
 3. Static terminal-safe ASCII output is `creator-ascii-art`; any timed or
-   audio-reactive ASCII render is `creator-ascii-video`. Audio visualization
-   reads an existing source; speech synthesis is `core:tts`, instrumental/SFX
-   generation is `creator-audio-generation`, and lyrics-to-song generation is
-   `creator-song-generation`.
+   audio-reactive ASCII render is `creator-ascii-video`. A delivered speech
+   asset routes to audio-creator's generate-speech (`core:tts` only for an
+   undelivered conversational reply). Instrumental/SFX generation,
+   lyrics-to-song generation, and audio visualization are withdrawn without
+   a hands replacement — `no skill fits`, never a fallback to a technic,
+   core route, or external skill.
 4. Stack a supporting technic only when the brief truly spans methods. Example:
    a generated background plus exact title card loads
    `creator-generated-image` and `creator-text-card`, with separate spend lines.
@@ -116,7 +127,7 @@ support as implementation engines. Other niche assets may use an
 Before production, `STATE:` or the first `PROGRESS:` must include:
 
 ```text
-capability: <creator-leaf>@<version> | core:tts | external:<skill>
+capability: <creator-leaf>@<version> | external:<skill>
 backend: <tool/provider or exact external script path>
 preflight: pass | blocked - <reason>
 ```

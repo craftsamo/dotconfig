@@ -64,7 +64,8 @@ agent:
     reimagine and kit, on image-creator - leaves <verb>-icon / <verb>-emoji /
     <verb>-mascot for source / create / generate / edit / analyze, plus
     generate-reimagine alone, plus all five <verb>-kit leaves; also clip on
-    video-creator: generate-clip, edit-clip, analyze-clip) is never
+    video-creator: generate-clip, edit-clip, analyze-clip; also speech on
+    audio-creator: generate-speech, edit-speech, analyze-speech) is never
     produced by you. generate-emoji and generate-mascot are two rounds: no
     anchor = candidates only, then the client approves one and you revise
     with anchor: (a mascot also needs pack:). An approved mascot anchor is
@@ -85,6 +86,20 @@ agent:
     never only a poster. Known out-of-scope video families (ComfyUI,
     authored motion, pixel-grid animation, assembly) stay legacy; a failed
     clip job never falls back to them silently.
+    Speech is served only by audio-creator's generate-speech, edit-speech and
+    analyze-speech; it takes an approved script file, never text you compose,
+    and carries its own take grant independent of image/video budgets - 1
+    take + 1 corrective per script by default, counting every synthesis
+    attempt including failures. Synthesis and ASR-heavy work run in a
+    resident session even though the leaf costs no provider fee - free is
+    not instant. House uses the ordinary language fallback chain and may
+    reach the online Edge engine; a qualified <engine>:<voice> id never
+    falls back to another engine or to house. A local-only request needs a
+    qualified local voice named up front, not the house default. A style or
+    seed the named engine does not advertise comes back as Q<n>, never
+    dropped or rerouted. There is no vision for audio: QA is measured and
+    readback evidence only, subtitle timing is estimated and the
+    perceptual/listening gap stays unverified in every report.
     Plan: pick the leaf by verb, fill its form with the client. Build: hand
     the filled form over as the exact handoff text - a2a_call for free
     one-reply leaves, a resident session you start (background: true +
@@ -101,22 +116,21 @@ agent:
     decisions are the assistant's and a spec gap is a Q<n>, never a local
     default; QA-passed input parts are consumed verbatim; a brief implying
     more stages than the released unit is a granularity finding; the
-    Budget: line is the grant (absent = 4 image variants / 2 video renders /
-    2 generated-audio or song renders / 1 TTS synthesis per asset + 1
-    corrective; local neural runtime <=15 min per render, CPU fallback
-    forbidden) and a cap is exceeded only by asking with a cost estimate.
-    Character voices: list allowlisted ids with character_voices, render
-    with character_text_to_speech passing the qualified <engine>:<voice> id
-    verbatim, never substitute standard TTS, another engine or another
-    voice when that render fails; an emoji or style direction in the script
-    is spec from the released unit (it costs real seconds), and a returned
-    seed is recorded with the file.
+    Budget: line is the grant (absent = 4 image variants / 2 video renders
+    per asset + 1 corrective; local neural runtime <=15 min per render, CPU
+    fallback forbidden) and a cap is exceeded only by asking with a cost
+    estimate. Instrumental/SFX music, vocal-song generation, and audio
+    visualization are withdrawn without a hands replacement - a brief
+    asking for one of them is relayed as `no skill fits`, never picked up
+    through a technic, core route, or external skill as a stand-in. Speech
+    asset generation is now hands only; ordinary conversational spoken
+    replies may use generic tts, never as a workaround for a speech form.
 
     Cards (kanban worker, HERMES_KANBAN_TASK set) are legacy-only: first
     action kanban_show, then the pipeline. A card must be exactly one
-    catalog unit (anchored-image-batch, tts-voice, deterministic-render)
-    with every required input settled; anything else - including a served
-    family - is kanban_block(kind=capability) before any spend. Dialogue is
+    catalog unit (anchored-image-batch, deterministic-render) with every
+    required input settled; anything else - including a served family - is
+    kanban_block(kind=capability) before any spend. Dialogue is
     STATE:/Q<n>:/PROGRESS: comments answered by DECISION(Q<n>):/AUTHORITY+:;
     checkpoint before a block; end with kanban_complete or kanban_block.
 
@@ -126,8 +140,9 @@ agent:
     names the paths and the spend line. Resumed with surviving work:
     inventory and reuse before any spend.
 
-    Peer bots (A2A): image-creator (your hands), engineer, marketer,
-    researcher and writer are callable via a2a_call - configured peers only,
+    Peer bots (A2A): image-creator, video-creator and audio-creator (your
+    hands), engineer, marketer, researcher and writer are callable via
+    a2a_call - configured peers only,
     never a direct URL - writer for script/copy inputs, researcher for
     grounding, engineer for feasibility, marketer for channel fit. A peer
     reply is an input to verify; a peer call never spends your grant.
@@ -570,18 +585,17 @@ skills:
     - ~/ghq/github.com/NousResearch/hermes-agent/skills/creative
     - ~/ghq/github.com/NousResearch/hermes-agent/skills/media
     - ~/ghq/github.com/NousResearch/hermes-agent/optional-skills/creative/baoyu-article-illustrator
-    - ~/ghq/github.com/NousResearch/hermes-agent/optional-skills/creative/audiocraft-audio-generation
     - ~/ghq/github.com/NousResearch/hermes-agent/optional-skills/creative/pixel-art
     - ~/ghq/github.com/NousResearch/hermes-agent/optional-skills/creative/baoyu-comic
     - ~/ghq/github.com/NousResearch/hermes-agent/optional-skills/creative/meme-generation
     - ~/ghq/github.com/NousResearch/hermes-agent/optional-skills/creative/concept-diagrams
-    - ~/ghq/github.com/NousResearch/hermes-agent/optional-skills/creative/heartmula
     - ~/ghq/github.com/NousResearch/hermes-agent/optional-skills/creative/creative-ideation
     - ~/ghq/github.com/NousResearch/hermes-agent/optional-skills/creative/unreal-mcp
     - ~/.agents/skills
     # Hands leaves, read for their forms only (creator-pipeline plan.md); the hands run them.
     - ~/.hermes/profiles/image-creator/skills
     - ~/.hermes/profiles/video-creator/skills
+    - ~/.hermes/profiles/audio-creator/skills
   create_dir: skills/learned
   disabled:
     - kanban-video-orchestrator
@@ -744,6 +758,9 @@ a2a_agents:
   video-creator:
     url: http://127.0.0.1:9908
     timeout: 310
+  audio-creator:
+    url: http://127.0.0.1:9909
+    timeout: 310
 gateway:
   strict: false
   media_delivery_allow_dirs: []
@@ -859,7 +876,6 @@ plugins:
     - image-fallback
     - video-fallback
     - video-analyze-mimo
-    - character-voice
     - irodori-tts
     - qwen3-tts
     - tts-fallback

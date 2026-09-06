@@ -502,7 +502,7 @@ plugin caches the lexicon per process, so a live gateway needs a restart.
 
 ## Character voices
 
-Creator — and only Creator — gets `character_voices` and
+AudioCreator — and only AudioCreator — gets `character_voices` and
 `character_text_to_speech` from the `tts/character-voice` plugin. They exist to
 render a *named* asset, which is the opposite contract from ordinary speech:
 the caller pins the sound, so nothing routes, nothing substitutes, and a
@@ -516,7 +516,7 @@ Pass one id verbatim to `character_text_to_speech`.
 A bare voice id is rejected. The engine is half of what identifies a sound: the
 same reference renders 309 cents apart on the two engines, so `<voice-id>`
 alone under-specifies the request. That also makes the qualified id the right
-value for a `tts-voice` card's voice preset, since it survives as a durable,
+value for `generate-speech`'s `voice` field, since it survives as a durable,
 unambiguous name for the sound that was approved.
 
 Failures stay failures. A voice that is not registered on the named engine, a
