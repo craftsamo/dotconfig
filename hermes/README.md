@@ -560,6 +560,17 @@ Ordinary chat speech is untouched by all of this: `tts.fallback.chain` passes no
 style arguments, so it sends the request it always did — which on Irodori means
 an unpinned, freshly rolled take per call, exactly as before.
 
+AudioCreator is a receive-only hands profile on A2A `:9909`. Creator fills
+its `generate-speech`, `edit-speech` or `analyze-speech` form for either a
+human client or an Assistant brief. Speech assets use these leaves; the
+old voice card is retired. Generation defaults to one take plus one
+corrective, including failed calls, despite zero media-provider fees.
+The helper uses cached local faster-whisper `base`, ffmpeg and ffprobe;
+it never installs an engine or downloads weights from inside a job.
+WAV + `.words.json` + SRT + take evidence are delivered together, with
+subtitle timing explicitly estimated. Readback and loudness measurements
+are not a listening/performance verdict. See `PROFILES.md` "Speech family".
+
 ## Speech-to-text — fallback chain
 
 STT for `default` / `assistant` runs through the

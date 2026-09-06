@@ -686,6 +686,95 @@ client and records for the maintainer; neither side improvises a leaf.
 Short free leaves go over `a2a_call`; anything metered or longer than one
 reply window runs in a resident session started from Creator.
 
+### Speech family
+
+`audio-creator-pipeline/<verb>/speech/` contains three leaves, not a second
+menu system. Its model/fallback/auxiliary pins mirror ImageCreator's; tools
+are terminal/file/tts/skills/memory, with no vision, generation-image/video,
+outbound A2A or external skill library. The existing profile secret helper
+already accepts this profile; a dedicated empty Keychain layer is not required.
+
+- `generate-speech`: one approved UTF-8 script, up to 600 characters. `voice`
+  is `house` or a qualified registered ID. House may use online Edge fallback;
+  local-only requests choose a qualified local voice. Style/seed require the
+  selected engine's advertised capabilities and are never silently dropped.
+  Default one take plus one corrective, including failures; packaging retries
+  reuse raw audio and do not spend a new take.
+- `edit-speech`: approved-order concatenation, boundary-only silence trim,
+  pitch-preserving speed, measured two-pass normalization, format conversion.
+  No new synthesis. New bundle only, preserving originals; at most 64 inputs
+  and 600 seconds. Valid unchanged sidecars reuse exact decoded-duration
+  offsets; timing changes require fresh ASR. A stale matching sidecar fails.
+- `analyze-speech`: input format, decode, loudness/peak/silence and optional
+  script readback, returned as findings without a deliverable file.
+
+The shared `speech-media.py` keeps WAV + `.words.json` + SRT + `.take.json`
+together (48 kHz mono PCM master; optional Opus or MP3 derivative). It uses
+the already-cached faster-whisper `base`, never a download or installation.
+Caption times are estimated from ASR, not forced alignment. Exact normalized
+text matches are PASS, near matches WARN, missing/mismatched speech FAIL;
+coverage cannot excuse missing foreign words. None verifies pronunciation,
+emotion or voice likeness. Returned tool identity/seed and decoded PCM hashes
+are evidence, never a fabricated listening claim. ASR confidence is retained.
+
+Live verification (2026-09-06): English house narration produced a 5.520 s
+WAV/Opus pair with zero clipping and -15.52 LUFS. Japanese qualified-voice
+renders with identical script/style/seed produced identical decoded PCM in
+two distinct takes (6.680 s, -18.99 LUFS, zero clipping). Japanese house
+also rendered successfully but retained an unresolved low-confidence ASR
+substitution. The word/number spelling differences remained WARN, without
+automatic corrective synthesis. The joined Japanese pair measured 13.560 s,
+with the second timeline offset by 6.880 s, and normalized to -16.08 LUFS
+(WAV) / -16.07 LUFS (Opus), -1 dBTP and zero clipping. Analysis returned
+findings without an audio output.
+
+Natural-language and Assistant-shaped Creator CLI requests each called the
+configured audio-creator A2A peer exactly once. Receiver sessions executed
+the edit, not Creator; both delivered unchanged-duration 6.680 s masters at
+-16.18 LUFS and -1 dBTP, carrying readback warnings. An incomplete Assistant
+brief returned a text Q1 with zero takes. These are CLI/two-client-shape
+checks, not a native Telegram interaction test or a prolonged soak.
+The caller-owned resident-session wrapper also ran analyze-speech against
+the English Opus file, returned findings with zero takes, and was closed.
+The gateway owns :9909 in the same process as the other peers; startup took
+about 95 s to audio readiness and 133 s overall. Agent-card HTTP 200 and
+listener ownership, not launchctl's return, prove readiness. A premature CLI
+`Unknown toolsets: a2a` warning occurred while plugin discovery was pending;
+actual A2A calls succeeded. Do not add a second gateway to work around it.
+
+Final ownership cutover exposed a different upstream defect: after Creator
+lost character-voice, its warm `tts` toolset memo hid AudioCreator's correctly
+registered character tools. The local Hermes checkout at `4f0309e9cf` now
+adds profile scope to `resolve_toolset`'s cache key; the real-registry
+regression failed before the fix and passed afterwards in both warming
+orders. Upstream's canonical toolsets test file passes (26 tests); dotconfig
+also carries a real-resolver guard to catch loss of the fix during updates.
+The fix lives in the hermes-agent checkout as `fix/toolset-profile-scope-memo`
+merged into `local` — a runtime dependency of this migration, not a file here.
+After restarting with that fix, a fresh Creator A2A catalog request exposed
+character_voices on AudioCreator and returned both local engines and their
+supported controls, with zero synthesis takes. Creator's character tools
+remain disabled; no permission widening was needed.
+
+Migration: speech's old voice card, assistant plan/QA contract and canonical
+TTS special case are retired. Character-voice tools register only for
+audio-creator; Creator retains generic TTS for conversational replies only.
+The former AudioCraft/HeartMuLa/songsee technics and assistant plan/QA routes
+are deliberately withdrawn without replacements, per the agreed scope.
+Music/SFX/song generation and standalone audio visualization are future
+families, not external-skill fallbacks. Existing audio may still be supplied
+to a legacy assembly.
+
+Recovery points: public tracked baseline `8b392d9` and private-overlay
+baseline `2d12e8d`. Restore only task-owned configuration/routes from those
+revisions if withdrawing this change; do not reset other work. Remove the
+audio-creator peer/external-root/allowlist entry together and restart the
+single gateway after restoring the old routing/plugin ownership. Keep all
+audio, sessions, models and voice data. Existing ignored menu/hub state was
+left intact; upstream seeded SKILL.md was retained as `SKILL.upstream.md`.
+The existing broken private persona link was repaired by supplying its
+missing private target; no personalized file was overwritten.
+
 ### Clip family
 
 `video-creator-pipeline/<verb>/clip/` is the first video hands family:
