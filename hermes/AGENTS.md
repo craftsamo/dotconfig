@@ -171,35 +171,69 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
   symlinks, so a new CLI turn picks them up); rotating an API KEY additionally
   needs a gateway restart, because resident sessions inherit the environment
   injected at gateway launch.
-- **The browser tool drives a REAL browser, not a bundled one.** With `browser.backend`
-  unset and `uvx` present, `is_browser_use_cli_mode()` replaces the built-in
-  `browser_navigate` surface with `browser_exec` → `uvx browser-use` →
-  `browser_harness`, which attaches over CDP to an installed browser. So the
-  `browser:` block in `config.yaml` (`engine`, `camofox`, …) and any
-  `AGENT_BROWSER_*` env var describe the DORMANT built-in path and change nothing;
-  only `BU_CDP_URL` / `BU_CDP_WS` / `BH_*` reach the live one. Left to discover on
-  its own, the harness picks whichever browser's `Local State` has
-  `devtools.remote_debugging.user-enabled` (Chrome first in its fixed profile list)
-  and then needs a manual **"Allow remote debugging?" click per connection** —
-  auto-approval exists but is hardcoded to Google Chrome (`macos.py` matches
-  `process "Google Chrome"` and the Chrome support root), so Brave can never be
-  auto-approved. We therefore pin it to a dedicated headless instance on an isolated
-  profile via the Keychain `hermes` entry `BU_CDP_URL=http://127.0.0.1:9333`
-  (`launchd/chrome-agent-launchctl.sh`); an explicit port on a non-default
-  user-data-dir is what suppresses the popup. **The resident instance must come from
-  a DIFFERENT app bundle than the everyday browser**: macOS treats one bundle as one
-  running app, so a resident Brave made Dock/Spotlight launches merely activate it and
-  the daily profile could no longer be opened (2026-08-17). The launcher therefore
-  prefers agent-browser's "Chrome for Testing" bundle (resolved dynamically — the
-  directory is version-pinned) and falls back to `/Applications/Google Chrome.app`,
-  which reintroduces that clash only if Chrome is also used interactively.
-  Consequences: the everyday browser is never touched, there is **no fallback** if the
-  agent is down (30s timeout, then failure), and the port/profile in the launcher must
-  stay in sync with the Keychain value. If the resident instance ever bloats,
-  suspect leaked tabs from an external CDP script that trusted port 9333 (27 tabs /
-  6 GB RSS on 2026-08-25): `curl 127.0.0.1:9333/json/list` to inspect, then
-  `chrome-agent-launchctl.sh uninstall && … install` to reset. The worker-facing
-  "never hardcode 9333" rule lives in `~/Workspaces/AGENTS.md` (private overlay).
+- **Browser stack (2026-09-06 rebuild): real-profile browsing on a CLONED
+  Brave bundle; no resident CDP instance, no `BU_CDP_URL`.** With
+  `browser.backend` unset and `uvx` present, `browser_exec` → `uvx browser-use`
+  → `browser_harness` attaches over CDP to whatever Hermes resolves
+  (`tools/browser_use_cli.py:_route_backend`); the built-in `browser_navigate`
+  surface and the `browser.engine` / `camofox` keys describe the DORMANT path.
+  Precedence there is fixed: a `BU_CDP_URL` / `BU_CDP_WS` in the PROCESS env
+  wins over everything, silently — it is copied raw from `os.environ`, so one
+  value in the layers the gateway launcher evals pre-empts real-profile
+  browsing for every profile that process serves, with no warning. That is why
+  the old Keychain `hermes` entries `BU_CDP_URL` /
+  `BH_CHROME_PATH` were deleted with the resident `:9333` Chrome for Testing
+  (`chrome-agent-launchctl.sh`, removed from `launchd/`; rollback =
+  `git show 93bb5bb:hermes/launchd/...` + `secret set BU_CDP_URL`). Never add
+  such a key back to a layer the gateway launcher evals.
+  Profiles that need the owner's logins — assistant and marketer only — set
+  `browser.use_real_profile: true` + `real_profile_pin: "Profile 12"` (the
+  dedicated **Hermes Agent** Brave profile: log in to services THERE, in the
+  everyday Brave; cookies / logins are re-synced into
+  `~/.hermes/profiles/<p>/browser-profile/brave/` on every fresh session,
+  gitignored) + `real_profile_binary:` pointing at the clone. Everyone else
+  gets upstream's on-demand packaged Chromium in a throwaway profile.
+  Preconditions that fail closed: the macOS DEFAULT browser must be Brave
+  (detection is the LaunchServices `https` handler only —
+  `hermes_cli/browser_connect.py:_detect_default_darwin`; with Safari it
+  returns `None`), the pinned profile directory must exist (`Local State →
+  profile.info_cache`), and the clone binary must be executable.
+  **Why a clone:** macOS treats one app bundle as ONE running app, so while a
+  headless Brave launched from `/Applications/Brave Browser.app` is alive a
+  Dock / Spotlight / `open` launch only activates it and the everyday Brave
+  cannot be opened — the 2026-08-17 defect, reproduced on upstream's real-
+  profile path 2026-09-06. An APFS clone (`cp -Rc`) at another path has no
+  shared identity, and its untouched signature still satisfies the Keychain
+  `Brave Safe Storage` ACL (bundle id + team, not path), so cookies decrypt
+  with no prompt — verified from the CLI and from the launchd gateway. The
+  clone lives in the gitignored `local/brave-agent/Brave Agent.app`;
+  `scripts/brave-agent-sync.sh` re-clones on version drift and the gateway
+  launcher runs it before every start (Brave auto-updates; a stale clone keeps
+  working until then). NEVER edit the clone — any change breaks the signature
+  and with it cookie decryption. The `browser.real_profile_binary` key is a
+  LOCAL patch (`fix/real-profile-binary-override` merged into `local`, with
+  `tests/tools/test_browser_real_profile_binary.py`); re-check after `hermes
+  update` like the other fix branches — without it the config key is ignored
+  and the real bundle launches, bringing the Dock clash back.
+  Runtime facts: the clone is launched with `--remote-debugging-port=0` and
+  lives until the gateway process exits (only the atexit hook reaps it; the
+  inactivity janitor closes agent-browser sessions, not this process), so one
+  headless Brave (~230 MB) is resident whenever a consenting profile has
+  browsed. The `browser_harness` daemons (`~/.config/browser-harness/runtime/
+  bu-<session>.sock`, global, NOT per profile or per gateway life) bind their
+  CDP target at daemon start and ignore the `BU_CDP_URL` Hermes passes on
+  later calls; they re-spawn on the next call once their browser is DEAD, but
+  as long as the old browser is alive they stay on it — which is exactly how
+  the first Telegram test after the switch still landed on `:9333`. So a
+  browser that must go away has to be killed, not just replaced; `uvx
+  browser-use --reload` forces a daemon restart. Process caveat:
+  `_real_profile_cdp_cache` / `_REAL_PROFILE_SESSION` are process-global, so
+  every consenting profile served by ONE gateway process shares one clone
+  instance — fine while all of them pin the same Brave profile (they do);
+  give a profile a different pin only after scoping that cache by
+  `HERMES_HOME`. The worker-
+  facing rule (spawn your own browser with port 0, never attach to Hermes'
+  instance) lives in `~/Workspaces/AGENTS.md` (private overlay).
 - **Worker terminal approvals cannot prompt — a flagged command just fails.** The
   dispatcher runs workers with `stdin=DEVNULL` but still sets
   `HERMES_INTERACTIVE=1`, so `approvals.mode: manual` reaches EOF, denies, and the
@@ -277,8 +311,11 @@ skills/              # shared maintainer-owned skills tracked
   learned/           # runtime-authored adaptive skills; mutable and ignored
 plugins/             # backend chains, tool overrides, completion and Worker
                      # mutation guards; source tracked, __pycache__ ignored
-launchd/             # LaunchAgents: assistant gateway, local TTS engines,
-                     #   dedicated automation browser (browser tool target)
+launchd/             # LaunchAgents: assistant gateway, local TTS engines
+scripts/             # brave-agent-sync.sh (real-profile browser clone),
+                     #   validate-profile-skills.py
+local/               # gitignored machine-local installs: TTS engines, the
+                     #   brave-agent clone bundle
 profiles/<name>/     # assistant, engineer, researcher, searcher, creator, writer, marketer
   - config.yaml      # model/fallback + agent.system_prompt (operating contract)
   - profile.yaml     # routing description (kanban/delegation)
@@ -428,11 +465,14 @@ writes on the current machine, then commit it.
   respawns). **Never** run `hermes gateway run`/`restart` in a terminal while it's
   loaded — the 2nd poller causes Telegram `getUpdates` 409 conflicts
   (verify a single instance: `pgrep -fl 'gateway run'` ⇒ exactly 1).
-- `launchd/chrome-agent-launchctl.sh {install,uninstall,status,check,login}` — the
-  headless automation browser the browser tool drives (see the browser-stack rule
-  above). `check` probes the CDP endpoint; `login` reopens the same profile
-  headful so you can sign in, then restores the headless agent. **Stop =
-  `uninstall`** (plist `KeepAlive:true`).
+- `scripts/brave-agent-sync.sh {sync,check,path,remove}` — the cloned Brave
+  bundle real-profile browsing launches (see the browser-stack rule above).
+  `sync` re-clones when `/Applications/Brave Browser.app` changed version
+  (the gateway launcher runs it before every start; run it by hand after a
+  Brave update if you do not want to wait for a restart), `check` reports
+  drift, `path` prints the `real_profile_binary` value. Signing in for the
+  agent = log in to the **Hermes Agent** profile in the everyday Brave; there
+  is no separate headful login step any more.
 
 ## Commits
 
