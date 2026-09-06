@@ -81,7 +81,6 @@ REQUIRED_QA_CONTRACTS = {
     "creative": {
         "ascii-art.md",
         "ascii-video.md",
-        "audio.md",
         "browser-media.md",
         "comic.md",
         "data-visualization.md",
@@ -90,12 +89,10 @@ REQUIRED_QA_CONTRACTS = {
         "pixel-art.md",
         "pixel-video.md",
         "raster-image.md",
-        "song.md",
         "sourced-asset.md",
         "svg-diagram.md",
         "text-visual.md",
         "video.md",
-        "voice.md",
     },
     "research": {
         "evidence-pack.md",
@@ -1016,9 +1013,10 @@ def validate_hands(profile: str, errors: list[str]) -> tuple[dict[str, Path], in
 #
 # Plan decides, creator produces, QA verifies — all keyed by the creator's
 # canonical families. The assistant's plan/creative family leaves must pair
-# 1:1 with creator technics (plus core:tts as voice.md), and the creative
-# QA index's Covers column must map every canonical family to exactly one
-# contract.
+# 1:1 with creator technics, and the creative QA index's Covers column must
+# map every canonical family to exactly one contract. Families served by
+# Creator's hands (speech, icon, ...) are not technics and carry no leaf or
+# QA-index row here — see `execute/creative/index.md` "Hands-served families".
 
 CREATIVE_PLAN_DIR = ASSISTANT_PIPELINE / "references" / "plan" / "creative"
 CREATIVE_QA_DIR = (
@@ -1034,7 +1032,6 @@ CREATIVE_NON_FAMILY_LEAVES = {
     "reference-research.md",
     "production-facts.md",
 }
-CREATIVE_EXTRA_FAMILIES = {"voice.md": "core:tts"}
 
 
 def validate_creative_alignment(errors: list[str]) -> None:
@@ -1043,14 +1040,12 @@ def validate_creative_alignment(errors: list[str]) -> None:
         return  # missing roots are reported by the profile validators
 
     technics = {path.parent.name for path in technic_dir.glob("*/SKILL.md")}
-    canonical = technics | set(CREATIVE_EXTRA_FAMILIES.values())
+    canonical = technics
 
     leaves = {
         path.name for path in CREATIVE_PLAN_DIR.glob("*.md")
     } - CREATIVE_NON_FAMILY_LEAVES
-    expected = {
-        f"{name.removeprefix('creator-')}.md" for name in technics
-    } | set(CREATIVE_EXTRA_FAMILIES)
+    expected = {f"{name.removeprefix('creator-')}.md" for name in technics}
     for name in sorted(expected - leaves):
         errors.append(f"creative plan leaf missing for canonical family: {name}")
     for name in sorted(leaves - expected):

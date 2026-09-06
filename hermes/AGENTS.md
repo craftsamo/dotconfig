@@ -139,7 +139,7 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
   voice renders 309 cents apart on the two engines (against 20-40 cents of
   seed-to-seed variation), so splicing them mid-sentence is audible.
   **A named character asset is the opposite contract and must not touch the
-  chain.** Creator's `character_voices` / `character_text_to_speech` live in
+  chain.** AudioCreator's `character_voices` / `character_text_to_speech` live in
   the `character-voice` plugin — engine-agnostic, so they belong to neither
   engine plugin — and resolve a provider out of the TTS registry directly.
   Voice ids are qualified `<engine>:<voice>` **because the engine is half of
@@ -553,7 +553,7 @@ supervises conversationally; the kanban board is only for fire-and-forget,
 cron-originated, mass-parallel, and `scheduled` work with a lean card
 contract (no manifests/digests/probes — the v4 machinery is retired, see the
 2026-08-06 rebuild). The card catalog is CLOSED and per-assignee: creator
-(`anchored-image-batch`, `tts-voice`, `deterministic-render`), searcher
+(`anchored-image-batch`, `deterministic-render`), searcher
 (`survey-enumeration`, `exhaustive-hunt`);
 writer, engineer, marketer and researcher are card-free and refuse every card
 (researcher's `claim-verification` unit was retired in the 2026-09 peer

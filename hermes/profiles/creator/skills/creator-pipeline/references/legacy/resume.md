@@ -1,7 +1,7 @@
 # Resume — continuity across respawns and salvage cards (entry reference)
 
 This reference is card-only and applies to the catalog units
-`anchored-image-batch`, `tts-voice`, and `deterministic-render`. Two continuity
+`anchored-image-batch` and `deterministic-render`. Two continuity
 cases, same discipline: **work that already cost credits is
 raw material, never waste**. Resume covers re-entering the SAME card after
 a block/crash/timeout; <Salvage> covers a FRESH card asked to recover

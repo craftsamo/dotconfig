@@ -5,7 +5,26 @@ style cues) and said so with evidence. You verify the one thing they
 cannot: **is this what the client meant.** Nothing is re-measured here;
 nothing is re-done here.
 
-## Look before you answer
+## Speech deliveries — read the evidence, do not relisten
+
+A speech delivery is never opened with vision; there is no frame to look
+at. Read the hands' report against the approved script and the client's
+goal: does the readback text match the script, does the take count and
+any WARN line still fit what was asked. Never re-run ASR yourself just
+to re-score something the hands already measured — that is spending a
+fresh take against their tally, not a review. A reproduced seed is
+decoded-PCM-hash evidence, not container-byte equality; take the hands'
+comparison as given rather than redoing it. Retain every WARN in your
+reply exactly as the hands reported it — a WARN is not a defect to
+silently drop. The gap between "measured and read back" and "heard"
+stays explicit in the verdict: whether that perceptual gap is acceptable
+is the client's decision, not yours to resolve by claiming to have
+listened.
+
+## Look before you answer (visual deliveries)
+
+The numbered steps below are for a **visual** file; a speech delivery is
+reviewed under "Speech deliveries" above.
 
 For clips, use the hands' sampled sheet and a native frame instead of
 passing an MP4 to image vision. Read its timecoded video-analysis findings
@@ -65,8 +84,9 @@ On a human's bot the file itself is sent when the platform can carry it
 
 ## QA is done when
 
-- every delivered file was looked at, at native size and at the size of
-  use, and the verdict is written;
+- every delivered visual file was looked at, at native size and at the
+  size of use, and the verdict is written (a speech delivery's evidence
+  was read per "Speech deliveries" above, not looked at or listened to);
 - the reply carries paths, spend, and relayed questions;
 - sessions for the job are closed (`resident-session.sh close`) unless a
   revise round is pending.

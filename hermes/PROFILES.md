@@ -416,7 +416,7 @@ Three per-profile layers, kept separate:
     (produce / direction / advisory + iterate / verify / delivery / resume,
     the MediaBrief `brief.md`, and `card.md` — cards are legacy-only until
     they move to the hands with their family). Legacy runtime: cards only for the
-    `anchored-image-batch` / `tts-voice` / `deterministic-render` catalog
+    `anchored-image-batch` / `deterministic-render` catalog
     units; Advisory / Direction /
     Produce routing with intent triage + the unit discipline (released-spec
     consumption, spec-gap findings, verbatim part inputs); the MediaBrief
@@ -439,11 +439,12 @@ Three per-profile layers, kept separate:
     identities. `creator-html-motion` uses the HyperFrames stack via
     `skills.external_dirs` (`~/.agents/skills` - `hyperframes` is the entry
     point that routes the domain/workflow skills, plus `media-use` for asset
-    resolution / TTS / captions; CLI-owned store, see AGENTS.md). The upstream
+    resolution / captions; new narration is a separate audio-creator input,
+    never an external TTS bypass; CLI-owned store, see AGENTS.md). The upstream
     bundled `creative/` + `media/` libraries remain available, while optional
     skills are exposed as a curated set of individual directories (article
-    illustration, AudioCraft, pixel art, comics, memes, concept diagrams,
-    HeartMuLa, and creative ideation) so the official optional `hyperframes`
+    illustration, pixel art, comics, memes, concept diagrams,
+    and creative ideation) so the official optional `hyperframes`
     cannot collide with the CLI-owned entry skill (the official optional
     `tldraw-offline` stays unwired for the same reason — the `~/.agents/skills`
     store already owns that name). `unreal-mcp` is wired individually for the
@@ -512,7 +513,7 @@ The kanban catalog is closed: its machine-readable surface is the union of
 A card must match one unit and carry every required input; otherwise the work
 stays resident or is decomposed during planning. Composites are never one card
 (never send 0→10 as one card). Seeded units are creative:
-`anchored-image-batch`, `tts-voice`, `deterministic-render`; and search:
+`anchored-image-batch`, `deterministic-render`; and search:
 `survey-enumeration`, `exhaustive-hunt`. Engineering, writing, marketing,
 and research are card-free (the research `claim-verification` unit was
 retired in the 2026-09 peer rebuild; fact-checks now travel through the
@@ -574,7 +575,8 @@ human (Telegram renders one inline button per option; the form's
 `options` become the choices, `other: true` is the UI's own "Other" row),
 by parsing the brief when the client is the assistant, returning a text
 `Q<n>:` block for whatever required field it cannot fill, hand the filled form to the hands, gate the
-result with its own eyes, deliver. The hands never see the client and never
+result against the intent (visual inspection or audio evidence), deliver.
+The hands never see the client and never
 interpret: they receive a filled form or return `Q<n>:`. The assistant keeps
 delivery to the user, the durable path, Budget lines and GitHub bookkeeping;
 it no longer makes creative decisions on Creator's behalf, so the
@@ -667,7 +669,7 @@ Creator confirms the expanded item list and spend before batch production.
 skill: generate-icon
 intent: new | revise <path of the previous delivery>
 deliver: ~/Workspaces/Projects/<Group>/.agent/deliverables/<job>/
-budget: 4 variants + 1 corrective          # metered leaves only
+budget: 4 variants + 1 corrective          # media calls or local speech takes
 form:
   what_for: Slack 通知 bot のアプリアイコン
   style: glass
