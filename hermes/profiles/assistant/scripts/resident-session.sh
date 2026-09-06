@@ -40,7 +40,8 @@
 #     archives long-closed entries into <reg>/archive/ (logs gzipped);
 #     it lists and does nothing until given --yes.
 #
-# Exit codes: 75 a turn is in flight · 124 turn timed out · otherwise the
+# Exit codes: 75 a turn is in flight · 124 turn timed out · 143 interrupted
+# by INT/TERM (partial logs retained; not confirmed completion) · otherwise the
 # CLI's own status (1 for usage errors).
 #
 # Registry: ~/.hermes/profiles/assistant/resident-sessions/<key>.json
@@ -54,7 +55,7 @@ set -u
 HERMES="${HERMES:-$(command -v hermes || echo "$HOME/.local/bin/hermes")}"
 REG_DIR="${RESIDENT_SESSION_DIR:-$HOME/.hermes/profiles/assistant/resident-sessions}"
 TURN_TIMEOUT="${TURN_TIMEOUT:-5400}"
-POLL_INTERVAL="${POLL_INTERVAL:-5}"
+POLL_INTERVAL="${POLL_INTERVAL:-1}"
 LOCK_STALE_AFTER="${LOCK_STALE_AFTER:-60}"
 KILL_GRACE="${KILL_GRACE:-10}"
 
@@ -200,10 +201,33 @@ run_turn() {
       exit 75
     fi
   fi
-  trap 'rm -rf "$lock" 2>/dev/null' EXIT INT TERM
+  trap 'rm -rf "$lock" 2>/dev/null' EXIT
+  pid=""
+  interrupt_turn() {
+    trap '' INT TERM
+    [ -n "${pid:-}" ] && kill -TERM "$pid" 2>/dev/null
+    {
+      printf 'INTERRUPTED before confirmed completion\n'
+      tail -20 "$lock/out" 2>/dev/null
+      tail -20 "$lock/err" 2>/dev/null
+    } >>"$log"
+    interrupt_sid="$(extract_sid "$lock/err")"
+    json_update "$reg" "status=interrupted" "last_turn_at=$(now_iso)" \
+      "session_id=${interrupt_sid:-$rt_resume}"
+    exit 143
+  }
+  trap interrupt_turn INT TERM
   printf '%s\n' "$$" >"$lock/pid"
 
   out="$lock/out" err="$lock/err"
+  # Nested specialist calls share the outer wall-clock budget, never a fresh 90m.
+  deadline=$(( $(date +%s) + TURN_TIMEOUT ))
+  if [ -n "${RESIDENT_DEADLINE:-}" ]; then
+    inherited="${RESIDENT_DEADLINE%%.*}"
+    case "$inherited" in (*[!0-9]*|'') die "invalid RESIDENT_DEADLINE";; esac
+    [ "$inherited" -lt "$deadline" ] && deadline="$inherited"
+  fi
+  export RESIDENT_DEADLINE="$deadline"
   set -- -p "$rt_profile" --cli chat -Q -q "$PROMPT"
   [ -n "$rt_resume" ] && set -- "$@" --resume "$rt_resume"
   [ -n "${IMAGE:-}" ] && set -- "$@" --image "$IMAGE"
@@ -215,9 +239,8 @@ run_turn() {
 
   "$HERMES" "$@" >"$out" 2>"$err" &
   pid=$!
-  waited=0
   while kill -0 "$pid" 2>/dev/null; do
-    if [ "$waited" -ge "$TURN_TIMEOUT" ]; then
+    if [ "$(date +%s)" -ge "$deadline" ]; then
       kill -TERM "$pid" 2>/dev/null; sleep "$KILL_GRACE"
       kill -KILL "$pid" 2>/dev/null
       # out/err are inside the lock and die with it, so everything the killed
@@ -239,7 +262,6 @@ run_turn() {
       exit 124
     fi
     sleep "$POLL_INTERVAL"
-    waited=$((waited + POLL_INTERVAL))
   done
   wait "$pid"
   rc=$?
