@@ -550,7 +550,7 @@ sync with each `profile.yaml` description.
 
 Creator's production is moving, one asset family at a time, out of the 23
 generic `creator-*` technics and into **hands** profiles — `image-creator`
-(A2A `:9907`), later `video-creator` (`:9908`) and `audio-creator`
+(A2A `:9907`), `video-creator` (`:9908`), and later `audio-creator`
 (`:9909`) — each a receive-only A2A endpoint with the tools of its medium
 and nothing else. Two earlier shapes failed in opposite directions and this
 section exists so the third does not repeat either: the technics
@@ -679,6 +679,86 @@ finding back to Creator (`no skill fits: …`), which Creator relays to the
 client and records for the maintainer; neither side improvises a leaf.
 Short free leaves go over `a2a_call`; anything metered or longer than one
 reply window runs in a resident session started from Creator.
+
+### Clip family
+
+`video-creator-pipeline/<verb>/clip/` is the first video hands family:
+one short shot, not a generic film-production workflow. The profile uses
+the same main/auxiliary model settings as image-creator, keeps native image
+vision, and has video generation/analysis but no TTS, image generation,
+outbound A2A or external skill directories. Later deterministic families
+may call HyperFrames through their own scripts; no external menu/router
+is pulled into this one.
+
+- `generate-clip`: 1-15 seconds, silent MP4, requested 720p, text or one
+  starting image and one appearance reference. Styles are cinematic,
+  flat-animation, clay, pixel or described. Default: 2 variant attempts +
+  1 corrective total; failures count. Pixel is an aesthetic, not a proven
+  sprite grid. Exact model capabilities are checked before spending.
+- `edit-clip`: trim/contain-or-cover/mute/encode one <=60-second segment.
+  MP4/WebM use optional two-pass byte targeting and an actual cap check;
+  GIF checks its cap without silently changing size/fps. GIF repeat is
+  playback metadata, never proof of a seamless loop. Outputs are exclusive
+  and fully decoded before publication. Odd exact dimensions are refused;
+  an original odd-sized clip is padded up, not cropped down.
+- `analyze-clip`: findings on one <=60-second clip, no new video; `deliver`
+  may be omitted. Original-file metrics, bounded sample frames and optional
+  one-call whole-clip analysis are separate evidence sources. Frame times
+  in `frames.json` are seek positions, not exact decoded PTS.
+
+`clip-media.py` is the shared stdlib/ffmpeg helper (`probe`, `frames`,
+`edit`); tests cover real MP4/WebM/GIF, trim, audio, SAR/rotation, byte caps,
+odd dimensions and preservation of existing paths. GIF trimming happens
+before palette generation and palette buffering is bounded. `free` means
+zero media-generation calls, not zero reasoning/analysis cost. Uploading
+an input image (`upload_inputs`) and remote video analysis
+(`remote_analysis`) need separate consent. No means local sampled review
+with temporal/audio quality unverified. Large authorized movies get a
+proxy BEFORE the single analysis call; the ~50 MB limit is on base64.
+The profile disables xAI persistent public storage; localize temporary
+URLs immediately. No create-clip/source-clip leaf is invented: authored
+motion and licensed stock sourcing are separate future families.
+
+Live checks (2026-09-06): hands CLI edited a synthetic test pattern to
+160x90, one second, silent H.264; local-only analysis respected no-upload
+and reported temporal checks unverified; missing generation inputs stopped
+with Q1/Q2 and zero generation. One generated clay-ball shot returned
+1280x720, 24 fps, 3.041667 s. QA caught opening-frame clipping instead of
+accepting it. The first analysis exposed an upstream-deleted
+`_download_video` import; the MiMo plugin now calls `_download_media` and
+has real-import handler tests. Analysis of the SAME shot then succeeded
+and corroborated the framing defect, with no new generation. The initial
+shot used the upstream persistent-storage default before it was disabled;
+that pre-existing hosted artifact is not deleted by this config change.
+
+Creator natural-language and Assistant-shaped CLI briefs both reached
+video-creator through A2A with matching source/destination/fit/trim/mute/
+format/slug fields (job directory and note differed), and produced matching
+160x90/1 s/9378-byte outputs. Initial runs exposed two workflow limits:
+loopback A2A carries an IP, not a verified profile name (a verbal origin
+confirmation proves nothing); supplemental inline pixel scripts can hit
+approval timeouts. The contract now states the transport limitation and
+keeps edit QA to the existing helper plus bounded vision checks. Native
+Telegram interaction and prolonged soak remain separate verification.
+After that correction, fresh natural-language and Assistant-shaped runs
+each completed with ONE A2A handoff (97 s and 92 s respectively), no
+origin-confirmation round or supplemental approval block. Both outputs
+are byte-identical to the direct hands CLI edit (SHA-256 verified).
+The caller-owned resident wrapper was also exercised with missing
+generation fields and a zero-call budget: it returned Q1/Q2, recorded the
+video-creator session in Creator's registry, and was closed after the test.
+
+Migration/rollback: keep `creator-generated-video` and its assistant
+plan/QA mapping for explicitly requested legacy coverage, notably local
+ComfyUI. Short core-generated shots use hands, but no other video/audio
+technic or card retires yet. A failed served clip is a finding, never a
+silent fallback. To withdraw the new route, remove the video-creator peer,
+external skill root and served-clip routing plus the multiplex allowlist
+entry, then restart the single gateway; leave artifacts and session state
+intact. The pre-change tracked state is commit `47f9374`; do not reset a
+working tree over other changes. Prior ignored learned content is retained
+(the menu-era video-render-environment skill is disabled), and bundled
+hermes-agent residue is retained as `SKILL.upstream.md`, not an active leaf.
 
 ### Kit family
 
