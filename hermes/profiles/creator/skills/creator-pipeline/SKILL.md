@@ -72,8 +72,9 @@ read in Plan before any leaf is chosen. Hands today: `image-creator`
 `analyze-emoji`; `generate-mascot`, `edit-mascot`, `analyze-mascot`;
 `generate-reimagine`; `source-kit`, `create-kit`, `generate-kit`,
 `edit-kit`, `analyze-kit`); `video-creator` (`generate-clip`,
-`edit-clip`, `analyze-clip`, A2A peer for free short work, resident for
-generation or long work); and `audio-creator` (`generate-speech`,
+`edit-clip`, `analyze-clip`, `create-tour`, A2A peer for free short work, resident for
+generation or long work; create-tour always uses kind="work" despite being free);
+and `audio-creator` (`generate-speech`,
 `edit-speech`, `analyze-speech`, A2A peer for a bounded one-reply job,
 resident whenever synthesis or fresh ASR is involved — even though the
 leaf costs no provider fee). Clip is one short shot, not every video

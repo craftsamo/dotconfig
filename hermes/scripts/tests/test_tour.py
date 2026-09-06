@@ -171,6 +171,17 @@ class TourTest(unittest.TestCase):
         self.assertNotEqual(run("snapshot", "--project", self.root / "project", "--out", self.root / "screen.png").returncode, 0)
         self.assertEqual(original, (self.root / "screen.png").read_bytes())
 
+    def test_routing_contract(self):
+        import yaml
+        video = yaml.safe_load((ROOT / "profiles/video-creator/config.yaml").read_text())
+        self.assertEqual([], video["skills"]["external_dirs"])
+        self.assertNotIn("tts", video["toolsets"])
+        for path in ("references/build.md", "references/plan.md", "references/capabilities.md"):
+            contents = (ROOT / "profiles/creator/skills/creator-pipeline" / path).read_text()
+            self.assertIn("create-tour", contents)
+            self.assertIn('kind="work"', contents)
+        self.assertTrue((ROOT / "profiles/creator/skills/technic/creator-html-motion/SKILL.md").is_file())
+
     def test_form_and_manifest_boundaries(self):
         for field, value in (("style", "bad"), ("accent", "red;"), ("frame", "card"),
                              ("slug", "../escape"), ("slug", "X"), ("task", ""),
