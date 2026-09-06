@@ -907,12 +907,19 @@ def validate_hands_form(
         if options is not None:
             if not isinstance(options, list) or not options:
                 errors.append(f"hands form field {key} options must be a non-empty list: {path}")
-            elif key == "style":
+            else:
+                reference_dir = "styles" if key == "style" else str(key)
+                reference_root = leaf_dir / "references" / reference_dir
+                if key != "style" and not reference_root.is_dir():
+                    continue
                 for option in options:
-                    backing = leaf_dir / "references" / "styles" / f"{option}.md"
+                    if not isinstance(option, str) or not HANDS_NAME.fullmatch(option):
+                        errors.append(f"{key} reference option must be a slug: {option}: {path}")
+                        continue
+                    backing = reference_root / f"{option}.md"
                     if not backing.is_file():
                         errors.append(
-                            f"style option {option} has no references/styles/{option}.md: {path}"
+                            f"{key} option {option} has no references/{reference_dir}/{option}.md: {path}"
                         )
 
 

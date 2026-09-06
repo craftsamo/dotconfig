@@ -648,6 +648,15 @@ the escape hatch every leaf carries. The SKILL.md body has exactly three
 sections — `<Procedure>`, `<QA>`, `<Report>` — no Goal / Inputs / Presets
 sections, because `description` and `form` already say that.
 
+If a field has options and its leaf has `references/<field>/`, every
+listed option must have a matching Markdown file. `style` keeps its
+existing mandatory `references/styles/` mapping. This lets kit content
+tables live under `references/contents/` without a generated registry.
+Multi-value text fields describe their comma-list syntax in the label;
+`other: true` permits that string at intake, and the leaf validates each
+member. An option is not a requirement to generate every default item:
+Creator confirms the expanded item list and spend before batch production.
+
 ### Handoff message (Creator → hands, A2A or resident session alike)
 
 ```
