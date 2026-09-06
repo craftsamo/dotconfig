@@ -9,11 +9,15 @@ recorded nothing, and a `list` that walked the registry one process per key.
 from __future__ import annotations
 
 import glob
+import contextlib
 import gzip
 import json
 import os
 import subprocess
+import signal
+import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
@@ -71,6 +75,8 @@ class ResidentSessionTest(unittest.TestCase):
 
     def fake(self, name: str, body: str) -> Path:
         path = self.bin / name
+        # Avoid machine PATH shims delaying the fake CLI past its one-second timeout.
+        body = body.replace("#!/usr/bin/env python3", f"#!{sys.executable}")
         path.write_text(body, encoding="utf-8")
         path.chmod(0o755)
         return path
@@ -254,6 +260,93 @@ class ResidentSessionTest(unittest.TestCase):
         self.assertEqual("0", entry["turns"])
 
     # --- timeout --------------------------------------------------------
+
+    def test_inherited_deadline_clamps_both_directions(self) -> None:
+        for timeout, inherited in [(30, 2), (1, 30)]:
+            with self.subTest(timeout=timeout, inherited=inherited):
+                key = f"deadline-{timeout}"
+                env = self.environment("hang", TURN_TIMEOUT=str(timeout),
+                                       RESIDENT_DEADLINE=str(time.time() + inherited))
+                env["PATH"] = f"{Path(sys.executable).parent}:" + env["PATH"]
+                proc = subprocess.Popen([str(SCRIPT), "start", key, "--profile", "creator", "-q", "brief"],
+                                        env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                                        start_new_session=True)
+                try:
+                    _, err = proc.communicate(timeout=8)
+                    self.assertEqual(124, proc.returncode, err)
+                    self.assertEqual("timeout", self.registry(key)["status"])
+                    self.assertIn("TIMEOUT", self.log(key))
+                finally:
+                    with contextlib.suppress(ProcessLookupError):
+                        os.killpg(proc.pid, signal.SIGKILL)
+                    proc.communicate()
+
+    def test_int_and_term_preserve_interruption_status_and_logs(self) -> None:
+        for sig in [signal.SIGINT, signal.SIGTERM]:
+            with self.subTest(signal=sig):
+                key = f"interrupt-{sig}"
+                env = self.environment("hang", TURN_TIMEOUT="60")
+                env["PATH"] = f"{Path(sys.executable).parent}:" + env["PATH"]
+                proc = subprocess.Popen([str(SCRIPT), "start", key, "--profile", "creator", "-q", "brief"],
+                                        env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                                        start_new_session=True)
+                try:
+                    ready = self.reg / (key + ".lock") / "err"
+                    until = time.monotonic() + 5
+                    while time.monotonic() < until:
+                        if ready.exists() and "still thinking" in ready.read_text():
+                            break
+                        time.sleep(0.02)
+                    self.assertTrue(ready.exists() and "still thinking" in ready.read_text())
+                    proc.send_signal(sig)
+                    _, err = proc.communicate(timeout=5)
+                    self.assertEqual(143, proc.returncode, err)
+                    self.assertEqual("interrupted", self.registry(key)["status"])
+                    self.assertEqual("20260824_111111_hanged", self.registry(key)["session_id"])
+                    self.assertIn("INTERRUPTED", self.log(key))
+                    self.assertIn("partial output line", self.log(key))
+                    self.assertIn("still thinking", self.log(key))
+                    self.assertFalse((self.reg / (key + ".lock")).exists())
+                finally:
+                    with contextlib.suppress(ProcessLookupError):
+                        os.killpg(proc.pid, signal.SIGKILL)
+                    proc.communicate()
+
+    def test_timeout_uses_wallclock_not_accumulated_poll_intervals(self) -> None:
+        clock = self.root / "clock"
+        sleeps = self.root / "sleeps"
+        self.fake("date", f'''#!/usr/bin/env python3
+import pathlib, subprocess, sys
+clock = pathlib.Path({str(clock)!r})
+if sys.argv[1:] == ["+%s"]:
+    print(1010 if clock.exists() else 1000)
+    clock.touch()
+else:
+    sys.exit(subprocess.call(["/bin/date", *sys.argv[1:]]))
+''')
+        self.fake("sleep", f'''#!/usr/bin/env python3
+from pathlib import Path
+with Path({str(sleeps)!r}).open("a") as stream:
+    stream.write("sleep\\n")
+''')
+        env = self.environment("hang", TURN_TIMEOUT="5", POLL_INTERVAL="1")
+        env["PATH"] = f"{self.bin}:{Path(sys.executable).parent}:" + env["PATH"]
+        proc = subprocess.Popen([str(SCRIPT), "start", "wallclock", "--profile", "creator", "-q", "brief"],
+                                env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                                start_new_session=True)
+        try:
+            proc.communicate(timeout=8)
+            self.assertEqual(124, proc.returncode)
+            # Clock advanced past the deadline immediately: only KILL_GRACE slept.
+            self.assertEqual(["sleep"], sleeps.read_text().splitlines())
+            self.assertEqual("timeout", self.registry("wallclock")["status"])
+        finally:
+            with contextlib.suppress(ProcessLookupError):
+                os.killpg(proc.pid, signal.SIGKILL)
+            proc.communicate()
+
+    def test_default_poll_interval_is_one_second(self) -> None:
+        self.assertIn('POLL_INTERVAL="${POLL_INTERVAL:-1}"', SCRIPT.read_text())
 
     def test_timeout_preserves_diagnostics_and_exits_124(self) -> None:
         result = self.run_script("start", "slow", "--profile", "creator",
