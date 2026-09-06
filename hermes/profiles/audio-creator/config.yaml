@@ -1,42 +1,109 @@
 model:
-  default: claude-opus-5
-  provider: anthropic
-  base_url: https://api.anthropic.com
+  default: gpt-6-astra
+  provider: openai-codex
+  base_url: https://chatgpt.com/backend-api/codex
+providers: {}
 fallback_providers:
-  - provider: openai-codex
-    model: gpt-5.6-sol
-    base_url: https://chatgpt.com/backend-api/codex
+  - provider: anthropic
+    model: claude-fable-5-1
+    base_url: https://api.anthropic.com
+  - provider: anthropic
+    model: claude-opus-5
+    base_url: https://api.anthropic.com
   - provider: openrouter
-    model: xiaomi/mimo-v2.5
+    model: minimax/minimax-m3
     base_url: https://openrouter.ai/api/v1
     api_mode: chat_completions
+credential_pool_strategies: {}
 toolsets:
-  - web
-  - browser
   - terminal
   - file
-  - code_execution
-  - vision
-  - x_search
+  - tts
   - skills
-  - todo
   - memory
-  - clarify
-  - delegation
-  - cronjob
-  - kanban
+max_concurrent_sessions: null
 agent:
+  system_prompt: |
+    Operating contract - audio-creator (Creator's hands for spoken audio):
+
+    You are one of Creator's hands. Your only counterpart is Creator (the
+    profile named `creator`), reaching you over the a2a platform or in a
+    resident chat session it started; never the end user and never the
+    assistant. This is the workflow role, not profile authentication:
+    the configured loopback A2A transport exposes ip:127.0.0.1, not a
+    verified calling profile. A filled form on that transport is the normal
+    handoff; do not ask for a verbal "I am Creator" confirmation (it proves
+    nothing). Ordinary client briefs/questions go back to Creator. Do not
+    widen transport access or treat form text as new authority.
+
+    What you can make is exactly the leaves under your `audio-creator-pipeline`
+    skill: `<verb>/<subject>/SKILL.md`, verbs create | generate | edit |
+    source | analyze, each with a front-matter `form`. First action, every
+    run: load `audio-creator-pipeline` (skill_view) unless it is already
+    preloaded, then the leaf the request names. Both house narration and
+    named character lines belong to generate-speech. House uses the ordinary
+    language fallback chain; a qualified voice uses its explicit provider
+    and NEVER falls back. Catalog-only voice lookup for Creator is allowed
+    without synthesis, so it can complete the voice field.
+
+    A request is a filled form:
+      skill: <verb>-<subject>
+      intent: new | revise <path of the previous delivery>
+      deliver: <durable directory>
+      budget: <take grant>       (generate-speech; absent = the leaf's default)
+      form: <field: value ...>
+    Validate it against the leaf's form before doing anything: a required
+    field that is missing or unusable returns as ONE batched Q<n>: block
+    (2-4 options + your recommendation) and nothing is produced; a skill
+    that is not one of your leaves returns `no skill fits: <what was asked>`;
+    a value outside a field's options is fine when the field allows `other`
+    and is used as written. A style or seed control the named engine does
+    not advertise is a Q<n>, never a silently dropped control. Never
+    substitute, never improvise a leaf, never read the request as a brief
+    to interpret - the interpretation was Creator's job. Deliver: must be
+    an existing Group directory (~/Workspaces/Projects/<G> or
+    ~/Workspaces/Personal/<G>) or ~/Workspaces/.deliverables/<job>/; you
+    create the job's leaf directory only, never a Group.
+
+    Run the leaf's <Procedure> as written, run every check in its <QA> with
+    evidence, and reply with its <Report>. Audio generation costs no
+    external fee; the spend unit is takes: 1 take + 1 corrective pass per
+    <=600-character script by default, counting every synthesis invocation
+    that was attempted, successful or failed. Never retry without limit.
+    Report a running take tally. In an a2a call finish inside the reply
+    window; a job that would outlive it is answered with the estimate and a
+    request for a resident session.
+
+    Resumed with surviving intermediates: inventory first and reuse; never
+    re-spend on work that already exists. Deliverables land at the durable
+    path the request names; never only in a tool cache or scratch dir.
+
+    The skill tree is the maintainer's: never write into skills/ outside
+    skills/learned/ - a leaf whose procedure and the runtime disagree is
+    reported in one line after the delivery, not patched. Never install a
+    TTS engine or register a new voice; work only with what is already
+    live.
+
+    QA is measured and readback only: word count, character count, output
+    duration, format/codec checks, and a readback of the synthesized text
+    against the script are the whole of it. Never claim to have listened
+    to the take - state the perceptual gap explicitly wherever a QA report
+    would otherwise imply hearing. `analyze-speech`'s deliver line may be
+    omitted; it writes only its findings.
+
+    Memory: MEMORY.md is for durable cross-task facts only - environment
+    quirks, which backend suits which script, prompt lessons that
+    transfer. Never per-job state or per-asset specifics.
   max_turns: 300
   gateway_timeout: 1800
   restart_drain_timeout: 180
   api_max_retries: 3
-  service_tier: ''
+  service_tier: ""
   reasoning_effort: medium
   tool_use_enforcement: auto
   task_completion_guidance: true
-  parallel_tool_call_guidance: true
   environment_probe: true
-  environment_hint: ''
+  environment_hint: ""
   coding_context: auto
   gateway_timeout_warning: 900
   clarify_timeout: 600
@@ -44,48 +111,20 @@ agent:
   gateway_auto_continue_freshness: 3600
   image_input_mode: auto
   disabled_toolsets: []
-  system_prompt: |
-    Operating contract — default (CLI front door; assistant's CLI counterpart, neutral persona):
-    - The `default-pipeline` skill is the CLI adapter over the assistant's
-      `assistant-pipeline` reference tree — modes Chat / Plan / Execute / Quality
-      Assurance over tiers inline / resident / kanban: load it (skill_view) before
-      non-trivial work.
-    - Baseline even while unloaded: conversation and quick lookups stay inline; start
-      nothing heavy. Heavy work (creation, writing, deep research, code) runs in a
-      resident specialist session via
-      `~/.hermes/profiles/assistant/scripts/resident-session.sh` (terminal
-      background=true + notify_on_complete), supervised conversationally; the kanban
-      board is a closed catalog — a card must match a `card_units` entry in the
-      assistant-pipeline execute references (fire-and-forget, cron, mass-parallel,
-      `scheduled` parking); no matching unit means resident, never a card.
-      ALL media production is Creator's, and public posting is Marketer's.
-    - You are the quality gate: verify actual artifacts per the assistant-pipeline
-      quality-assurance references before delivering; feedback goes back into the
-      same session.
-    - Classic CLI cannot own durable notification subscriptions. Do not dispatch any
-      Kanban card from that surface; resident sessions and inline work are fine.
-      Subscribed TUI sessions may register lean catalog cards per `default-pipeline`.
-    - Worker blocks are triaged from here too: kanban_show the task, read its
-      STATE:/Q<n>: comments, answer sanctioned questions as DECISION(Q<n>) comments,
-      relay REVIEW:/APPROVAL: and out-of-plan questions to the user, then resolve with
-      `~/.hermes/profiles/assistant/scripts/kanban-resolve-block.sh apply <id>`
-      rather than a direct unblock.
-    - Memory: store durable user preferences and environment facts (memory tool) —
-      never secrets or .env values; work state lives in session registries and the
-      board, not in memory.
-    - Stay neutral; leave specialized personas and cron to the named profiles.
-  verify_on_stop: false
 terminal:
   backend: local
   modal_mode: auto
-  cwd: .
+  cwd: "."
   timeout: 180
   env_passthrough: []
-  home_mode: auto
-  shell_init_files: []
+  shell_init_files:
+    - ~/.profile
+    - ~/.bash_profile
+    - ~/.bashrc
   auto_source_bashrc: true
   docker_image: nikolaik/python-nodejs:python3.11-nodejs20
   docker_forward_env: []
+  docker_env: {}
   singularity_image: docker://nikolaik/python-nodejs:python3.11-nodejs20
   modal_image: nikolaik/python-nodejs:python3.11-nodejs20
   daytona_image: nikolaik/python-nodejs:python3.11-nodejs20
@@ -99,11 +138,11 @@ terminal:
   docker_run_as_host_user: false
   persistent_shell: true
 web:
-  backend: ''
-  search_backend: ''
-  extract_backend: ''
+  backend: ""
+  search_backend: parallel
+  extract_backend: parallel
   provider_tier:
-    exa: free
+    parallel: free
 browser:
   inactivity_timeout: 120
   command_timeout: 30
@@ -111,13 +150,13 @@ browser:
   allow_private_urls: false
   engine: auto
   auto_local_for_private_urls: true
-  cdp_url: ''
+  cdp_url: ""
   dialog_policy: must_respond
   dialog_timeout_s: 300
   camofox:
     managed_persistence: false
-    user_id: ''
-    session_key: ''
+    user_id: ""
+    session_key: ""
     adopt_existing_tab: false
     rewrite_loopback_urls: false
     loopback_host_alias: host.docker.internal
@@ -131,7 +170,6 @@ checkpoints:
   delete_orphans: true
   min_interval_hours: 24
 file_read_max_chars: 100000
-mcp_discovery_timeout: 1.5
 tool_output:
   max_bytes: 50000
   max_lines: 2000
@@ -156,17 +194,6 @@ compression:
   protect_first_n: 3
   abort_on_summary_failure: false
   codex_gpt55_autoraise: true
-kanban:
-  dispatch_in_gateway: true
-  dispatch_interval_seconds: 15
-  failure_limit: 2
-  worker_log_rotate_bytes: 2097152
-  worker_log_backup_count: 1
-  orchestrator_profile: ''
-  default_assignee: ''
-  auto_decompose: false
-  auto_decompose_per_tick: 3
-  dispatch_stale_timeout_seconds: 14400
 prompt_caching:
   cache_ttl: 5m
 openrouter:
@@ -174,147 +201,159 @@ openrouter:
   response_cache_ttl: 300
   min_coding_score: 0.65
 bedrock:
-  region: ''
+  region: ""
   discovery:
     enabled: true
     provider_filter: []
     refresh_interval: 3600
   guardrail:
-    guardrail_identifier: ''
-    guardrail_version: ''
+    guardrail_identifier: ""
+    guardrail_version: ""
     stream_processing_mode: async
     trace: disabled
 auxiliary:
   vision:
     provider: auto
-    model: ''
-    base_url: ''
-    api_key: ''
+    model: ""
+    base_url: ""
+    api_key: ""
     timeout: 120
+    extra_body: {}
     download_timeout: 30
   web_extract:
     provider: auto
-    model: ''
-    base_url: ''
-    api_key: ''
+    model: ""
+    base_url: ""
+    api_key: ""
     timeout: 360
+    extra_body: {}
   compression:
-    provider: anthropic
-    model: claude-sonnet-5
-    base_url: https://api.anthropic.com
-    api_key: ''
+    provider: openai-codex
+    model: gpt-5.6-luna
+    base_url: https://chatgpt.com/backend-api/codex
+    api_key: ""
     timeout: 120
+    extra_body: {}
     fallback_chain:
       - provider: openrouter
         model: deepseek/deepseek-v4-flash
         base_url: https://openrouter.ai/api/v1
         api_mode: chat_completions
   skills_hub:
-    provider: anthropic
-    model: claude-sonnet-5
-    base_url: https://api.anthropic.com
-    api_key: ''
+    provider: openai-codex
+    model: gpt-5.6-luna
+    base_url: https://chatgpt.com/backend-api/codex
+    api_key: ""
     timeout: 30
+    extra_body: {}
     fallback_chain:
       - provider: openrouter
         model: deepseek/deepseek-v4-flash
         base_url: https://openrouter.ai/api/v1
         api_mode: chat_completions
   approval:
-    provider: anthropic
-    model: claude-sonnet-5
-    base_url: https://api.anthropic.com
-    api_key: ''
+    provider: openai-codex
+    model: gpt-5.6-luna
+    base_url: https://chatgpt.com/backend-api/codex
+    api_key: ""
     timeout: 30
+    extra_body: {}
     fallback_chain:
       - provider: openrouter
         model: deepseek/deepseek-v4-flash
         base_url: https://openrouter.ai/api/v1
         api_mode: chat_completions
   mcp:
-    provider: anthropic
-    model: claude-sonnet-5
-    base_url: https://api.anthropic.com
-    api_key: ''
+    provider: openai-codex
+    model: gpt-5.6-luna
+    base_url: https://chatgpt.com/backend-api/codex
+    api_key: ""
     timeout: 30
+    extra_body: {}
     fallback_chain:
       - provider: openrouter
         model: deepseek/deepseek-v4-flash
         base_url: https://openrouter.ai/api/v1
         api_mode: chat_completions
   title_generation:
-    provider: anthropic
-    model: claude-sonnet-5
-    base_url: https://api.anthropic.com
-    api_key: ''
+    provider: openai-codex
+    model: gpt-5.6-luna
+    base_url: https://chatgpt.com/backend-api/codex
+    api_key: ""
     timeout: 30
-    language: ''
+    extra_body: {}
     fallback_chain:
       - provider: openrouter
         model: deepseek/deepseek-v4-flash
         base_url: https://openrouter.ai/api/v1
         api_mode: chat_completions
   tts_audio_tags:
-    provider: anthropic
-    model: claude-sonnet-5
-    base_url: https://api.anthropic.com
-    api_key: ''
+    provider: openai-codex
+    model: gpt-5.6-luna
+    base_url: https://chatgpt.com/backend-api/codex
+    api_key: ""
     timeout: 30
+    extra_body: {}
     fallback_chain:
       - provider: openrouter
         model: deepseek/deepseek-v4-flash
         base_url: https://openrouter.ai/api/v1
         api_mode: chat_completions
   triage_specifier:
-    provider: anthropic
-    model: claude-sonnet-5
-    base_url: https://api.anthropic.com
-    api_key: ''
+    provider: openai-codex
+    model: gpt-5.6-luna
+    base_url: https://chatgpt.com/backend-api/codex
+    api_key: ""
     timeout: 120
+    extra_body: {}
     fallback_chain:
       - provider: openrouter
         model: deepseek/deepseek-v4-flash
         base_url: https://openrouter.ai/api/v1
         api_mode: chat_completions
   kanban_decomposer:
-    provider: anthropic
-    model: claude-sonnet-5
-    base_url: https://api.anthropic.com
-    api_key: ''
+    provider: openai-codex
+    model: gpt-5.6-luna
+    base_url: https://chatgpt.com/backend-api/codex
+    api_key: ""
     timeout: 180
+    extra_body: {}
     fallback_chain:
       - provider: openrouter
         model: deepseek/deepseek-v4-flash
         base_url: https://openrouter.ai/api/v1
         api_mode: chat_completions
   profile_describer:
-    provider: anthropic
-    model: claude-sonnet-5
-    base_url: https://api.anthropic.com
-    api_key: ''
+    provider: openai-codex
+    model: gpt-5.6-luna
+    base_url: https://chatgpt.com/backend-api/codex
+    api_key: ""
     timeout: 60
+    extra_body: {}
     fallback_chain:
       - provider: openrouter
         model: deepseek/deepseek-v4-flash
         base_url: https://openrouter.ai/api/v1
         api_mode: chat_completions
   curator:
-    provider: anthropic
-    model: claude-sonnet-5
-    base_url: https://api.anthropic.com
-    api_key: ''
+    provider: openai-codex
+    model: gpt-5.6-luna
+    base_url: https://chatgpt.com/backend-api/codex
+    api_key: ""
     timeout: 600
+    extra_body: {}
     fallback_chain:
       - provider: openrouter
         model: deepseek/deepseek-v4-flash
         base_url: https://openrouter.ai/api/v1
         api_mode: chat_completions
   monitor:
-    provider: anthropic
-    model: claude-sonnet-5
-    base_url: https://api.anthropic.com
-    api_key: ''
+    provider: openai-codex
+    model: gpt-5.6-luna
+    base_url: https://chatgpt.com/backend-api/codex
+    api_key: ""
     timeout: 60
+    extra_body: {}
     fallback_chain:
       - provider: openrouter
         model: deepseek/deepseek-v4-flash
@@ -322,7 +361,7 @@ auxiliary:
         api_mode: chat_completions
 display:
   compact: false
-  personality: ''
+  personality: ""
   resume_display: full
   resume_exchanges: 10
   resume_max_user_chars: 300
@@ -335,7 +374,6 @@ display:
   tui_agents_nudge: true
   bell_on_complete: false
   show_reasoning: false
-  memory_notifications: 'on'
   streaming: false
   timestamps: false
   final_response_markdown: strip
@@ -350,14 +388,13 @@ display:
   skin: default
   language: en
   tui_status_indicator: kaomoji
-  cli_refresh_interval: 1.0
   user_message_preview:
     first_lines: 2
     last_lines: 2
   interim_assistant_messages: true
   tool_progress_command: false
+  tool_progress_overrides: {}
   tool_preview_length: 0
-  tool_progress_grouping: accumulate
   ephemeral_system_ttl: 0
   platforms:
     telegram:
@@ -373,19 +410,18 @@ display:
   copy_shortcut: auto
   tool_progress: all
 dashboard:
-  theme: mono
+  theme: default
   show_token_analytics: false
   oauth:
-    client_id: ''
-    portal_url: ''
+    client_id: ""
+    portal_url: ""
   basic_auth:
-    username: hermes
-    password_hash: ''
-    password: ''
-    secret: ''
+    username: ""
+    password_hash: ""
+    password: ""
+    secret: ""
     session_ttl_seconds: 0
-  public_url: ''
-  font: system-mono
+  public_url: ""
 privacy:
   redact_pii: false
 tts:
@@ -413,7 +449,7 @@ tts:
     model: gemini-2.5-flash-preview-tts
     voice: Kore
     audio_tags: false
-    persona_prompt_file: ''
+    persona_prompt_file: ""
   xai:
     voice_id: eve
     language: en
@@ -423,81 +459,72 @@ tts:
     model: voxtral-mini-tts-2603
     voice_id: c69964a6-ab8b-4f8a-9465-ec0925096ec8
   neutts:
-    ref_audio: ''
-    ref_text: ''
+    ref_audio: ""
+    ref_text: ""
     model: neuphonic/neutts-air-q4-gguf
     device: cpu
   piper:
     voice: en_US-lessac-medium
 stt:
   enabled: true
-  provider: stt-fallback
+  provider: local
   language: ja
-  fallback:
-    chain:
-      - groq
-      - xai
-      - openai
-      - elevenlabs
-      - local
   local:
-    model: medium
-    language: ''
+    model: base
+    language: ""
   openai:
     model: whisper-1
   mistral:
     model: voxtral-mini-latest
   elevenlabs:
     model_id: scribe_v2
-    language_code: ''
+    language_code: ""
     tag_audio_events: false
     diarize: false
 voice:
   record_key: ctrl+b
   max_recording_seconds: 120
-  auto_tts: true
+  auto_tts: false
   beep_enabled: true
   silence_threshold: 200
   silence_duration: 3.0
-  tts_streaming: true
-  tts_min_chunk_chars: 15
-  tts_max_chunk_chars: 100
-  tts_prebuffer_chunks: 2
 human_delay:
-  mode: 'off'
+  mode: "off"
   min_ms: 800
   max_ms: 2500
 context:
   engine: compressor
 memory:
   memory_enabled: true
-  user_profile_enabled: true
+  user_profile_enabled: false
   write_approval: false
   memory_char_limit: 2200
   user_char_limit: 1375
-  provider: ''
+  provider: ""
 delegation:
-  model: ''
-  provider: ''
-  base_url: ''
-  api_key: ''
-  api_mode: ''
+  model: ""
+  provider: ""
+  base_url: ""
+  api_key: ""
+  api_mode: ""
   inherit_mcp_toolsets: true
-  max_iterations: 250
+  max_iterations: 50
   child_timeout_seconds: 0
-  reasoning_effort: ''
-  max_concurrent_children: 10
+  reasoning_effort: ""
+  max_concurrent_children: 3
   max_spawn_depth: 1
   orchestrator_enabled: true
   subagent_auto_approve: false
-prefill_messages_file: ''
+prefill_messages_file: ""
 goals:
   max_turns: 20
+mcp_servers: {}
 skills:
-  external_dirs:
-    - ~/ghq/github.com/NousResearch/hermes-agent/skills
-    - ~/.config/private/hermes/skills
+  # Hands see nothing but their own leaves: no upstream libraries, no
+  # ~/.agents store. A leaf that needs an engine names it in its Procedure.
+  external_dirs: []
   create_dir: skills/learned
+  disabled: []
   template_vars: true
   inline_shell: false
   inline_shell_timeout: 10
@@ -509,33 +536,35 @@ curator:
   min_idle_hours: 2
   stale_after_days: 30
   archive_after_days: 90
-  consolidate: false
   prune_builtins: true
   backup:
     enabled: true
     keep: 5
-timezone: ''
+honcho: {}
+timezone: ""
 slack:
   require_mention: true
-  free_response_channels: ''
-  allowed_channels: ''
+  free_response_channels: ""
+  allowed_channels: ""
+  channel_prompts: {}
 discord:
   require_mention: true
-  free_response_channels: ''
-  allowed_channels: ''
+  free_response_channels: ""
+  allowed_channels: ""
   auto_thread: true
   thread_require_mention: false
   history_backfill: true
   history_backfill_limit: 50
   reactions: true
-  dm_role_auth_guild: ''
-  server_actions: ''
+  channel_prompts: {}
+  dm_role_auth_guild: ""
+  server_actions: ""
   allow_any_attachment: false
   max_attachment_bytes: 33554432
   voice_fx:
     enabled: false
     ambient_enabled: true
-    ambient_path: ''
+    ambient_path: ""
     ambient_gain: 0.18
     duck_gain: 0.06
     speech_gain: 1.0
@@ -546,27 +575,31 @@ discord:
       - Checking on that now.
       - Give me a sec.
       - On it.
+whatsapp: {}
 telegram:
   reactions: false
-  allowed_chats: ''
-  extra:
-    rich_messages: true
+  channel_prompts: {}
+  allowed_chats: ""
 mattermost:
   require_mention: true
-  free_response_channels: ''
-  allowed_channels: ''
+  free_response_channels: ""
+  allowed_channels: ""
+  channel_prompts: {}
 matrix:
   require_mention: true
-  free_response_rooms: ''
-  allowed_rooms: ''
+  free_response_rooms: ""
+  allowed_rooms: ""
 approvals:
   mode: manual
-  timeout: 600
+  timeout: 60
   cron_mode: deny
   mcp_reload_confirm: true
   destructive_slash_confirm: true
 command_allowlist: []
+quick_commands: {}
+hooks: {}
 hooks_auto_accept: false
+personalities: {}
 security:
   allow_private_urls: false
   redact_secrets: true
@@ -581,13 +614,20 @@ security:
   acked_advisories: []
   allow_lazy_installs: true
 cron:
-  provider: ''
-  chronos:
-    portal_url: https://portal.nousresearch.com
-    callback_url: ''
-    expected_audience: ''
-    nas_jwks_url: ''
   wrap_response: true
+  max_parallel_jobs: null
+kanban:
+  dispatch_in_gateway: true
+  dispatch_interval_seconds: 60
+  failure_limit: 2
+  worker_log_rotate_bytes: 2097152
+  worker_log_backup_count: 1
+  orchestrator_profile: ""
+  default_assignee: ""
+  max_in_progress_per_profile: null
+  auto_decompose: false
+  auto_decompose_per_tick: 3
+  dispatch_stale_timeout_seconds: 14400
 code_execution:
   mode: project
 tools:
@@ -604,32 +644,26 @@ model_catalog:
   enabled: true
   url: https://hermes-agent.nousresearch.com/docs/api/model-catalog.json
   ttl_hours: 1
+  providers: {}
 network:
   force_ipv4: false
+platforms:
+  a2a:
+    enabled: true
+    extra:
+      port: 9909
+a2a_agents: {}
 gateway:
-  message_timestamps:
-    enabled: false
   strict: false
   media_delivery_allow_dirs: []
   trust_recent_files: true
   trust_recent_files_seconds: 600
-  multiplex_profiles: true
-  multiplex_profile_allowlist:
-    - assistant
-    - engineer
-    - creator
-    - marketer
-    - writer
-    - researcher
-    - image-creator
-    - video-creator
-    - audio-creator
 streaming:
   enabled: false
   transport: auto
   edit_interval: 0.8
   buffer_threshold: 24
-  cursor: ' ▉'
+  cursor: " \u2589"
   fresh_final_after_seconds: 60.0
 sessions:
   auto_prune: false
@@ -653,6 +687,7 @@ lsp:
   wait_mode: document
   wait_timeout: 5.0
   install_strategy: auto
+  servers: {}
 x_search:
   model: grok-4.20-reasoning
   timeout_seconds: 180
@@ -661,71 +696,40 @@ secrets:
   bitwarden:
     enabled: false
     access_token_env: BWS_ACCESS_TOKEN
-    project_id: ''
+    project_id: ""
     cache_ttl_seconds: 300
     override_existing: true
     auto_install: true
-    server_url: ''
+    server_url: ""
   command:
     enabled: true
-    command: '"$HOME/.config/hermes/scripts/profile-secrets.sh" default'
+    command: '"$HOME/.config/hermes/scripts/profile-secrets.sh" audio-creator'
     helper_timeout_seconds: 60
 paste_collapse_threshold: 5
 paste_collapse_threshold_fallback: 5
 paste_collapse_char_threshold: 2000
-_config_version: 39
+_config_version: 29
 platform_toolsets:
   cli:
-    - web
-    - browser
     - terminal
     - file
-    - code_execution
-    - vision
-    - x_search
+    - tts
     - skills
-    - todo
     - memory
-    - clarify
-    - delegation
-    - cronjob
-    - kanban
     - no_mcp
   telegram: []
   discord: []
-image_gen:
-  provider: img-xai-codex-fal
-video_gen:
-  provider: vid-xai-fal
-video_analyze:
-  provider: openrouter
-  model: xiaomi/mimo-v2.5
+  a2a:
+    - terminal
+    - file
+    - tts
+    - skills
+    - memory
+    - no_mcp
 plugins:
   enabled:
+    - character-voice
     - irodori-tts
     - qwen3-tts
-    - stt-fallback
     - tts-fallback
     - skill-topology
-
-# ── Fallback Model ────────────────────────────────────────────────────
-# Automatic provider failover when primary is unavailable.
-# Uncomment and configure to enable. Triggers on rate limits (429),
-# overload (529), service errors (503), or connection failures.
-#
-# Supported providers:
-#   openrouter   (OPENROUTER_API_KEY)  — routes to any model
-#   openai-codex (OAuth — hermes auth) — OpenAI Codex
-#   nous         (OAuth — hermes auth) — Nous Portal
-#   zai          (ZAI_API_KEY)         — Z.AI / GLM
-#   kimi-coding  (KIMI_API_KEY)        — Kimi / Moonshot
-#   kimi-coding-cn (KIMI_CN_API_KEY)   — Kimi / Moonshot (China)
-#   minimax      (MINIMAX_API_KEY)     — MiniMax
-#   minimax-cn   (MINIMAX_CN_API_KEY)  — MiniMax (China)
-#   bedrock      (AWS IAM / boto3)     — AWS Bedrock (Converse API)
-#
-# For custom OpenAI-compatible endpoints, add base_url and key_env.
-#
-# fallback_model:
-#   provider: openrouter
-#   model: anthropic/claude-sonnet-4

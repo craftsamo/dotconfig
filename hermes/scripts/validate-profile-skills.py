@@ -44,7 +44,7 @@ WORKER_PROFILES = (
 # producers whose skills are `<hands>-pipeline/<verb>/<subject>/SKILL.md`
 # leaves, one deliverable and one form each. Add a profile here when its
 # skeleton lands; subjects must stay unique across every listed hands.
-HANDS_PROFILES = ("image-creator", "video-creator")
+HANDS_PROFILES = ("image-creator", "video-creator", "audio-creator")
 HANDS_VERBS = ("create", "generate", "edit", "source", "analyze")
 HANDS_COSTS = ("free", "metered")
 HANDS_FIELD_TYPES = ("text", "image", "file", "path", "int")
