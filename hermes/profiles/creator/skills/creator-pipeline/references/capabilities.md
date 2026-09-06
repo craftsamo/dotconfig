@@ -54,9 +54,6 @@ are findings back to the client, never a silent switch to legacy.
 | OG/social/title card with exact copy and typography | `creator-text-card` | deterministic composition; generated background is an explicit supporting technic |
 | classic-template or custom-scene meme with deterministic captions | `creator-meme` | sourced template or separately budgeted generated background; provenance required |
 | static banner, framed/message art, image conversion, or sourced ASCII art | `creator-ascii-art` | deterministic UTF-8 text master; ANSI only when requested |
-| spectrogram, mel/chroma, loudness, MFCC, or other view of existing audio | `creator-audio-visualization` | deterministic `songsee` render; never audio generation |
-| instrumental music, ambience, or sound effects generated with AudioCraft | `creator-audio-generation` | metered local MusicGen/AudioGen compute; model weights and reference rights require preflight |
-| full vocal song generated from approved lyrics and musical tags | `creator-song-generation` | metered HeartMuLa compute; high-cost work uses the plan/anchor gate |
 | existing reaction or communication GIF sourced from Tenor | `creator-gif-sourcing` | retrieval with provenance and rights caveat; never asset generation |
 | generated video outside the served short-shot contract, notably an explicitly requested local ComfyUI workflow | `creator-generated-video` | retained until coverage is migrated; core short shots use generate-clip, not this technic; no silent backend substitution |
 | deterministic motion graphics, product/site tours, overlays, or captioned video authored in HTML/CSS/JS | `creator-html-motion` | HyperFrames source project + MP4/WebM; supporting generation is separately budgeted |

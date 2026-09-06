@@ -101,8 +101,9 @@ itself call `delegate_task` during its run.
 | **engineer** | primary: supervises OpenCode: assess (read-only) / implement (from the assistant's plan session or an Issue; delegated worktree bootstrap in a repo the assistant created), under an Authority grant; planning documents, repo creation, and GitHub bookkeeping stay with the assistant; A2A peers marketer/researcher/writer | Telegram (own bot) | `.` (launch / task ws) | `terminal,file,web,skills,todo,memory,delegation,a2a` | served (bot + a2a :9902) | yes |
 | **researcher** | verified conclusions from released units: evidence-pack / tradeoff-matrix / fact-check / guidance; heavy breadth is requested from the orchestrator as a search unit; serves engineer/creator/marketer only (not the assistant), cards refused | — (A2A receive-only) | `.` (launch / task ws) | `file,web,vision,video,skills,memory,delegation` | served (a2a :9906) | yes |
 | **searcher** | retrieval from released units: lookup / sweep / hunt (multi-hop via `goal_mode` on cards) | — (specialist) | `.` (launch / task ws) | `web,x_search,skills,memory` | — | yes |
-| **creator** | primary: media production and assembly — image, video, GIF, audio, song, voice, part assembly — consuming released units (decided specs) under a Budget grant, with advisory and anchor-unit rounds; for a family its hands serve (icon, emoji) it fills the leaf's form with the client and hands off instead; A2A peers engineer/marketer/researcher/writer/image-creator | Telegram (own bot) | `.` (launch / task ws) | `terminal,file,vision,image_gen,video_gen,video,tts,skills,memory,delegation,a2a` + gen plugins + `unreal-engine` MCP | served (bot + a2a :9903) | yes |
+| **creator** | primary: plans with human/assistant clients, delegates served image/clip/speech forms, gates evidence and delivers; remaining technics cover images, authored video and assembly of supplied parts; music/song generation is withdrawn | Telegram (own bot) | `.` (launch / task ws) | `terminal,file,vision,image_gen,video_gen,video,tts,skills,memory,delegation,a2a` + gen plugins + `unreal-engine` MCP | served (bot + a2a :9903) | yes |
 | **image-creator** | Creator's hands for still images: runs one `<verb>/<subject>` leaf from a filled form (icon family: source / create / generate / edit / analyze; emoji family: create / generate / edit / analyze), QA with evidence, report; answers only Creator | — (A2A receive-only) | `.` (launch / task ws) | `terminal,file,vision,image_gen,skills,memory` | served (a2a :9907) | yes |
+| **audio-creator** | Creator's spoken-audio hands: generate/edit/analyze-speech from approved forms; measured/readback QA, no claims of listening; no music or voice registration | — (A2A receive-only) | `.` (launch / task ws) | `terminal,file,tts,skills,memory` | served (a2a :9909) | yes |
 | **writer** | reader-facing prose and producer-facing scripts from released units (outline / piece / whole job); draft-only, never publishes; serves all four primaries | — (A2A receive-only) | `.` (launch / task ws) | `file,web,skills,memory,delegation` | served (a2a :9905) | yes |
 | **marketer** | primary: platform copy from released message units, four-stage pre-ship inspection, grounding judgment, and publishing only within a Publish grant; A2A peers engineer/creator/researcher/writer | Telegram (own bot) | `.` (launch / task ws) | `terminal,file,web,browser,x_search,vision,skills,memory,delegation,a2a` | served (bot + a2a :9904) | yes |
 
@@ -426,8 +427,7 @@ Three per-profile layers, kept separate:
     `creator-generated-image`, `creator-article-illustration`,
     `creator-infographic`, `creator-svg-diagram`,
     `creator-excalidraw-diagram`, `creator-text-card`,
-    `creator-meme`, `creator-ascii-art`, `creator-audio-visualization`,
-    `creator-audio-generation`, `creator-song-generation`,
+    `creator-meme`, `creator-ascii-art`,
     `creator-gif-sourcing`, `creator-generated-video`, `creator-html-motion`,
     `creator-p5js-experience`, `creator-ascii-video`,
     `creator-manim-explainer`, `creator-pixel-art`, `creator-pixel-video`,
@@ -756,8 +756,8 @@ video-creator session in Creator's registry, and was closed after the test.
 
 Migration/rollback: keep `creator-generated-video` and its assistant
 plan/QA mapping for explicitly requested legacy coverage, notably local
-ComfyUI. Short core-generated shots use hands, but no other video/audio
-technic or card retires yet. A failed served clip is a finding, never a
+ComfyUI. That clip migration retired no other video/audio technic or card;
+the subsequent speech retirement is described above. A failed served clip is a finding, never a
 silent fallback. To withdraw the new route, remove the video-creator peer,
 external skill root and served-clip routing plus the multiplex allowlist
 entry, then restart the single gateway; leave artifacts and session state
