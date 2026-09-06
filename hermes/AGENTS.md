@@ -230,10 +230,9 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
   (`tools/browser_use_cli.py:_route_backend`); the built-in `browser_navigate`
   surface and the `browser.engine` / `camofox` keys describe the DORMANT path.
   Precedence there is fixed: a `BU_CDP_URL` / `BU_CDP_WS` in the PROCESS env
-  wins over everything, silently — it is copied raw from `os.environ`, so one
-  value in the layers the gateway launcher evals pre-empts real-profile
-  browsing for every profile that process serves, with no warning. That is why
-  the old Keychain `hermes` entries `BU_CDP_URL` /
+  wins over everything, silently — it is copied raw from `os.environ`, so under
+  multiplex one value pre-empts real-profile browsing for EVERY profile with no
+  warning. That is why the old Keychain `hermes` entries `BU_CDP_URL` /
   `BH_CHROME_PATH` were deleted with the resident `:9333` Chrome for Testing
   (`chrome-agent-launchctl.sh`, removed from `launchd/`; rollback =
   `git show 93bb5bb:hermes/launchd/...` + `secret set BU_CDP_URL`). Never add
@@ -281,12 +280,11 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
   a background timer; it does not refresh a live browser's cookie snapshot.
   Stale cookies still require a fresh browser launch. The read-only isolated
   Instagram baseline succeeded; the user agent was not implicated.
-  Process caveat (NOT solved by daemon scoping):
+  Multiplex caveat (NOT solved by daemon scoping):
   `_real_profile_cdp_cache` / `_REAL_PROFILE_SESSION` are process-global, so
-  every consenting profile served by ONE gateway process shares one clone
-  instance — fine while all of them pin the same Brave profile (they do);
-  give a profile a different pin only after scoping that cache by
-  `HERMES_HOME`. The worker-
+  every consenting profile in the gateway shares ONE clone instance — fine
+  while all of them pin the same Brave profile (they do); give a profile a
+  different pin only after scoping that cache by `HERMES_HOME`. The worker-
   facing rule (spawn your own browser with port 0, never attach to Hermes'
   instance) lives in `~/Workspaces/AGENTS.md` (private overlay).
 - **Worker terminal approvals cannot prompt — a flagged command just fails.** The
