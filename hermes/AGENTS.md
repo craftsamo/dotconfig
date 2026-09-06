@@ -379,7 +379,7 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
   the validator enforces the shape (`validate_hands`), and a subject must be
   unique across every hands because Creator reads all of them through one
   `skills.external_dirs` list. `image-creator` (A2A `:9907`, receive-only)
-  serves the icon, emoji, mascot and reimagine families (`emoji-fit.sh`
+  serves the icon, emoji, mascot, reimagine and kit families (`emoji-fit.sh`
   is the ONE home of the platform table; `generate-emoji` and
   `generate-mascot` are two rounds — anchor, then pack — and a mascot's
   approved anchor is the `reference:` of its emoji pack; `mascot-fit.sh`
@@ -388,7 +388,12 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
   edit input — and every style reference opens with a Medium line,
   because an edit model returns the photo with a filter unless told
   what the picture IS; a human client consents to the upload in the
-  same clarify round as the style); Creator
+  same clarify round as the style; kit has all five verbs, with a
+  style-sheet/list approval gate for generation and deterministic
+  `create-kit` for exact UI states/9-slice geometry; `kit-images.py`
+  owns finish/palette/atlas/measure, uses alpha bounds rather than colour
+  trim for hollow UI frames, and rejects stale nonempty QA/atlas dirs);
+  Creator
   (pipeline v7: Plan → Build → Quality
   assurance, `creator-pipeline/references/{plan,build,quality-assurance}.md`)
   tells its client apart by the message's SHAPE — brief lines = the
