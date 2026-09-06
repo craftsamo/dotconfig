@@ -75,6 +75,20 @@ metadata:
   model's own green) or a flat fill; prints a `RESULT:` line with
   `key_px` (opaque pixels still near the removed background — a pocket
   the corner flood missed).
-  Leaves reach root scripts as `${HERMES_SKILL_DIR}/../../scripts/<name>`.
+- `python3 scripts/kit-images.py fit INPUT OUTPUT --canvas WxH [--cutout auto|yes|no|key] [--fuzz N] [--pad F] [--pixel] [--palette PATH]`
+  - rectangular contain-fit and cutout; pixel means native-grid nearest
+  resampling, not proof of pixel authorship. Fit trims, so it is not a
+  pivot-preserving transform of existing UI states.
+- `python3 scripts/kit-images.py palette INPUT OUTPUT [--colors 16]`
+  - shared foreground swatch strip, no transparent-background colours.
+- `python3 scripts/kit-images.py atlas SOURCE OUTPUT_DIR [--columns 4] [--gap 2]`
+  - full-frame grid atlas plus pixel coordinates, no trimming or extrusion.
+- `python3 scripts/kit-images.py measure SOURCE --out OUTPUT_DIR [--against ANCHOR] [--palette PALETTE]`
+  - measurements and bounded review sheets, no automatic visual verdict.
+  Atlas/measure accept at most 64 PNGs per call; output directories must
+  be empty and outside SOURCE. Split larger kits by category. These
+  helpers are local-only; localize generated URLs before invoking them.
+
+Leaves reach root scripts as `${HERMES_SKILL_DIR}/../../scripts/<name>`.
 
 </Shared scripts>
