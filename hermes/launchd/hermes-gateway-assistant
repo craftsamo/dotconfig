@@ -49,4 +49,11 @@ export TELEGRAM_CRON_THREAD_ID
 # kanban_comment derives the Assistant's trusted author identity from this value.
 export HERMES_PROFILE=assistant
 
+# Real-profile browsing (assistant / marketer) launches a CLONE of the Brave
+# bundle, never /Applications/Brave Browser.app itself (LaunchServices would
+# treat the headless instance as the everyday browser). Brave auto-updates,
+# so refresh the clone before every start; a failure here must not take the
+# gateway down — the browser tool fails closed on its own with a clear message.
+"$HOME/.config/hermes/scripts/brave-agent-sync.sh" sync || echo "WARN: brave-agent clone sync failed"
+
 exec "$HOME/.local/bin/hermes" -p assistant gateway run --replace --accept-hooks

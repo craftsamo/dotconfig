@@ -50,6 +50,8 @@ hermes/**/workspace/
 hermes/**/plans/
 hermes/**/*_cache/
 hermes/**/local/
+# real-profile browsing snapshots (copied cookies / logins) — must never ship
+hermes/**/browser-profile/
 
 # Hermes personas: the real SOUL.md lives in the private overlay and is
 # symlinked here by private/install.sh; the tracked SOUL.example.md is the
