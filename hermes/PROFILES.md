@@ -578,8 +578,10 @@ human (Telegram renders one inline button per option; the form's
 by parsing the brief when the client is the assistant, returning a text
 `Q<n>:` block for whatever required field it cannot fill, hand the filled form to the hands, gate the
 result against the intent (visual inspection or audio evidence), deliver.
-The hands never see the client and never
-interpret: they receive a filled form or return `Q<n>:`. The assistant keeps
+The hands never see the client or invent its requirements: they receive a
+filled form or return `Q<n>:`. A leaf may own creative execution within that
+form (MV direction, for example), with its explicit proposal approval gate.
+The assistant keeps
 delivery to the user, the durable path, Budget lines and GitHub bookkeeping;
 it no longer makes creative decisions on Creator's behalf, so the
 `plan/creative/<family>.md` leaves and the QA `Covers` mapping retire family
@@ -660,6 +662,9 @@ If a field has options and its leaf has `references/<field>/`, every
 listed option must have a matching Markdown file. `style` keeps its
 existing mandatory `references/styles/` mapping. This lets kit content
 tables live under `references/contents/` without a generated registry.
+Theme uses `references/themes/`; an explicit `references` declaration makes
+option backing mandatory even when the directory is missing. MV keeps style
+(rendering), theme (world vocabulary) and direction (staging) within one leaf.
 Multi-value text fields describe their comma-list syntax in the label;
 `other: true` permits that string at intake, and the leaf validates each
 member. An option is not a requirement to generate every default item:
@@ -700,6 +705,143 @@ Creator. Continue with the same target and returned conversation_id. Released
 inputs, permissions, budgets and the exact handoff text are unchanged. CLI
 calls wait within a finite deadline; A2A inbound cannot launch work and must
 ask its caller to reissue the unit through a work conversation.
+
+### MV family
+
+`video-creator-pipeline/generate/mv/` adds `generate-mv`, not a collection of
+character-mv/product-mv/character-loop combinations. Subject is a form input;
+the distinct deliverable is a short MV-style progression with performance,
+coherent world and highlights rather than clip's silent single shot. Existing
+`video_generate` and `clip-media.py` remain the generation/finish path. No new
+provider, API wrapper, gateway endpoint, TTS or external skill is introduced.
+
+- Style choices: anime-3d, anime-2d, live-action, mixed-media. Theme choices:
+  theater, night-city, dream-garden, graphic-space. Direction choices:
+  performance, typographic, montage. All accept free text. These are authored
+  reference recipes, not live-render-certified presets. Only chosen references
+  load; no menu/index generator or cross-media vocabulary service exists.
+- A theme specifies space, materials, light, default colors and opportunities
+  for staging. theme_detail/must_keep override those defaults. Theater includes
+  both playing-card red/black/white and ice-blue/silver examples: a meaningful
+  starting point, not an immutable look or fixed timeline. Style owns rendering;
+  direction and tempo choices guide the approved proposal's staging and timing.
+- Optional pace (relaxed/steady/snappy/intense) and transition
+  (continuous/cut/match-cut/whip/dissolve) are local reference-backed fields,
+  both open to free text. New proposals default steady + cut, where cut applies
+  only at proposed shot changes, not a mandatory cut count. Snappy means crisp
+  action/camera accents and short holds, including the ending; continuous can
+  still be snappy without edits. Separate actor/camera/edit speeds may be
+  described. Conflicting continuous/cut-montage instructions need resolution
+  before approval. Prompt and QA carry these choices, not just the form.
+  Tempo changes require renewed approval and never reset spent allowance.
+  Existing approved plans without these fields keep their frozen timing/prompt.
+  Exact cut timing/BPM is not guaranteed, and a global post-render speedup is
+  not a substitute for the requested direction.
+- Round A writes a new proposal-v<N>.md with the expanded world, identity lock, short
+  beat progression, effective form/input hashes, actual prompt/backend limits,
+  sound/finishing choices, consents and call allowance. It makes no media
+  generation or remote-analysis calls. Creator shows the proposal to its human
+  client through clarify or its assistant client through text. A budget alone
+  never authorizes generation.
+- Round B continues the same specialist_call work conversation with the exact
+  approved_plan path and approval_sha256, unchanged form and inputs. A mismatch
+  or changed creative choice needs renewed approval. The digest binds content,
+  not identity; this is an agent operating contract, not a tool-level payment
+  authorization mechanism. Default 2 variants + 1 corrective counts every tool
+  invocation including failures. Unknown results must be reconciled, never
+  blindly retried, and the allowance does not reset on resume.
+- Audio modes are generated (only when the actual backend advertises native
+  audio; NOT advertised by the current xAI-first chain), supplied (silent visual master for separate approved assembly), or
+  explicitly silent. A supplied track is not an audio reference sent to the
+  model. Reference video stays local or becomes a client's written description;
+  the current tool cannot consume reference video/audio. Character-image upload
+  consent and generated-video remote-analysis consent remain separate.
+- xAI silently caps reference-image requests to 10s even though its general
+  capabilities say 15s. Default 10s with character_reference, otherwise 15s;
+  reject an explicitly longer reference-mode request before spend. Never change
+  the input's role to starting frame or drop it merely to bypass this limit.
+- Exact text needs a text-free base and separately agreed finishing; exact
+  lyric/beat/lip sync is not promised. No required finish with an unknown route
+  may be hidden until after spend. A visual master is needs finishing, not a
+  complete musical MV. A MiniMax mention does not reconfigure the xAI-first
+  chain or justify pretending an actual output used that model.
+- QA covers identity, world, performance/progression, text/audio policy,
+  technical decode and budget evidence. Sampled frames do not establish full
+  motion or sound quality. Declined/failed remote analysis stays UNVERIFIED;
+  model audio findings are not a claim of human listening.
+
+Implementation status: skill/routing and reference recipes added. An actual
+assistant-shaped Creator CLI -> specialist_call(kind="work") -> VideoCreator
+proposal round passed on 2026-09-07: versioned proposal and matching SHA-256,
+expanded red/black/white theater with defaults overridden, four-beat direction,
+no approval fields, and zero video_generate/video_analyze calls confirmed in
+the session records. The work conversation remains idle awaiting a client
+decision. Reference media was only probed/sampled locally, not visually
+interpreted or uploaded; direction used the supplied textual description.
+The subsequent user-approved silent trial made one video_generate call and no
+retry/corrective/remote-analysis calls: xAI/grok-imagine-video returned a
+15.041667s 1280x720/24fps result; raw audio was preserved in raw and removed
+from the delivered H.264/yuv420p MP4. Full decode passed. Sampled primary-session
+review found the requested theater/colors/cards and readable words, but a more
+2D-anime appearance, less spatial camera staging and overlapping FLIP/BREAK
+than the reference intended. This is one live trial, not recipe-wide quality
+certification; temporal continuity remains unverified. Human-client live
+handoff remains untested; the actual run used an assistant-shaped Creator CLI.
+User feedback accepted the general direction but found action/cuts sluggish.
+Version 1.1 adds the tempo controls above; snappy + cut is the proposed next
+comparison, not an already-generated improvement. The previous 1-call grant
+is exhausted; no additional generation is implied by updating the skill.
+The user-authorized snappy/cut comparison then failed on input length: a
+5158-byte local prompt (5157 after stripping) hit xAI's reported 4096 limit
+and the reached FAL backend's 2048 UTF-8 byte limit. No video was returned;
+the failed tool call consumed the second grant, with no resubmission and no
+usage/cost returned. Version 1.1.1 separates the detailed direction proposal
+from an exact prompt-only file, measured at 1..1800 UTF-8 bytes and hashed
+before approval, then rechecked before submission. This is a conservative
+limit for the observed chain, not a universal provider guarantee. New text
+must be reapproved; failed attempts are never silently refunded or retried.
+A subsequent proposal-only run through the same Creator/hands conversation
+produced a compact 1683-byte prompt (including newline), independently measured
+and hashed. Subject/world/style, snappy hard cuts, sequential lettering and
+short ending were retained. No new generation or analysis call was made;
+cumulative attempts remain 2/2 and the compact proposal awaits approval and
+a new explicit grant. The user then approved that compact prompt and one
+additional call: trial 3 succeeded via xAI/grok-imagine-video at 1280x720,
+24fps, 15.041667s; silent finishing and full decode passed. Cumulative usage
+is 3/3 including the failed length attempt, with no manual retries or remote
+video analysis. Sampled comparison shows better sequential word separation,
+but blended transition frames and a long-looking raised-card ending remain
+despite snappy/cut instructions. This does not certify hard cuts, exact hold
+duration or improved playback rhythm; no extra generation/edit was performed.
+A user-requested original-recreation experiment then used one more call on
+the same xAI text-to-video route, with a primary-authored 1778-byte prompt
+grounded in 4fps reference samples rather than the stock theater outline.
+Female character details, iris FALL, corridor, door/keyhole and ivory/gold
+palette appeared, exposing omissions/conflicts in our earlier prompts. The
+sampled result still showed blended transitions and depicted a keyhole without
+the specified passage/vortex; object vocabulary did not guarantee camera/object
+relationships. Cumulative calls are 4/4; no further retry ran. This is a single
+stochastic compliance test, not a MiniMax-vs-Grok benchmark or proof of model
+incapacity. Preserve source-specific spatial transitions before adding more
+generic pace/style choices; the original's model/inputs/editing remain unknown.
+Two further bounded tests used the same text-only Grok route: a 5s isolated
+aperture passage (one call, generate-clip) and a 15s integrated MV (one call,
+generate-mv). In sampled evidence the isolated camera crosses a growing rim
+and continues inside the card/cloth tunnel, but the opening is a round peephole
+above a small keyhole, not the intended contiguous keyhole. The integrated
+version restores keyhole shape but substitutes blended scenic views for the
+crossing/interior continuation; pupil entry is blended too. Cumulative calls
+are 6/6, no retries. Unequal duration, narrative load and stochastic samples
+prevent a causal model-capacity claim; isolated success is not an integration pass.
+Version 1.2 makes source-specific START/CROSS/AFTER relations explicit in the
+proposal and compact prompt through local references/spatial-direction.md,
+with shape and passage graded separately. Two bounded local review windows
+(<=2s,12fps each) may supplement global samples where consent allows; decode
+does not prove continuity. Failed critical motion remains a quality gap even
+when objects/styles match. Shot isolation or multi-shot production needs its
+own release/allowance, never hidden expansion of one MV generation call.
+This is additive: clip/tour and the broader legacy video families stay intact;
+no legacy technic or assistant QA mapping retires on partial MV coverage.
 
 ### Speech family
 

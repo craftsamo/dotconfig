@@ -491,6 +491,25 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
   instead of falling through to a redraw. Verify after an upstream
   change with `_build_dynamic_image_schema()` under the profile's
   `HERMES_HOME` (`plugins/image_gen/image-fallback/tests`).
+- **MV is a deliverable, not a character/format skill product.** VideoCreator's
+  `generate-mv` uses existing `video_generate`, with local style/theme/direction
+  references. Theme defaults are concrete world vocabulary overridden by
+  `theme_detail`; never introduce a menu generator or cross-media presets.
+  First round returns only a new `proposal-v<N>.md` and its SHA-256, with zero media calls.
+  Creator relays client approval; only a matching `approved_plan` and
+  `approval_sha256` in the same work conversation releases generation. This is
+  an operating contract, not cryptographic caller authorization. Changed inputs
+  or creative choices require a new proposal; attempts never reset on resume.
+  Native audio must be supported by the actual backend; reference videos and
+  supplied music are never uploaded by this leaf. Exact words/supplied music
+  may require separately approved finishing, and a silent visual master is
+  not a completed musical MV. Keep unverified temporal/audio QA explicit.
+  Recipes are authored, not yet paid-render validated; broader legacy video
+  remains available, and clip/tour are unchanged.
+  xAI's reference-image path silently clamps to 10s despite advertising 15s;
+  use a conditional 10s default and block explicit longer requests before spend.
+  The current xAI-first chain does not advertise native audio: generated sound
+  is blocked until a capable route is explicitly configured, never guessed.
 - **HyperFrames skills live outside the repo, on purpose.** `creator` reaches the
   `hyperframes*` / `media-use` playbooks through `skills.external_dirs`
   (`~/.agents/skills`) — a harness-neutral store owned by `hyperframes skills
