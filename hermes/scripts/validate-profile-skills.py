@@ -907,7 +907,7 @@ def validate_hands_form(
             else:
                 reference_dir = "styles" if key == "style" else str(key)
                 reference_root = leaf_dir / "references" / reference_dir
-                if key != "style" and not reference_root.is_dir():
+                if key != "style" and "references" not in field and not reference_root.is_dir():
                     continue
                 for option in options:
                     if not isinstance(option, str) or not HANDS_NAME.fullmatch(option):

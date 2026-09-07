@@ -1,12 +1,12 @@
 ---
 name: create-tour
 description: >-
-  Create a task walkthrough from ordered local screenshots and explicit
-  click/type targets, ending on a done screen. Produces a deterministic
-  source project, preview frames and an optional MP4 of at most 60 seconds, with
-  browser, macOS or mobile framing. Not URL capture, browser automation,
-  a marketing film, arbitrary HTML motion, or speech synthesis.
-version: 1.0.0
+  Author a bounded UI task walkthrough from reference screenshots, designs or
+  text: recompose video-ready UI, animate actual visible states and follow the
+  action with pointer/camera. Local HyperFrames source, proof frames and approved
+  MP4, at most 60 seconds. Not URL capture, OS/browser automation, a general
+  marketing film, image generation or speech synthesis.
+version: 2.0.0
 author: CraftSamo
 license: MIT
 metadata:
@@ -14,55 +14,72 @@ metadata:
     category: hands
     hands: video-creator
     cost: free
-    output: "source project + preview frames; approved final MP4/SRT/poster/review/qa.md"
+    output: "authored source project + preview frames; approved MP4/poster/review/qa.md"
     form:
-      task:
+      what_for:
         required: true
         type: text
-        label: "one task the viewer will accomplish; at most 60 characters"
-      app:
+        label: "what the viewer should learn or accomplish"
+      audience:
+        required: true
+        type: text
+        label: "who watches and what they already know"
+      reference:
         required: false
         type: text
-        label: "application name; at most 40 characters"
-      steps:
-        required: true
-        type: file
-        label: "absolute local JSON manifest; screenshots, targets and final done screen"
+        label: "local files/directory or a textual UI description; URLs are context, not capture permission"
+      flow:
+        required: false
+        type: text
+        label: "approved semantic sequence and result, not precompiled steps.json"
+      fidelity:
+        required: false
+        options: [faithful, simplified]
+        label: "faithful (default) preserves product UI; simplified permits agreed explanatory recomposition, never invented product functions"
       frame:
         required: false
-        options: [auto, browser, macos, ios, android, none]
-        label: "auto: browser for wide screenshots, ios for tall; decorative chrome, not OS detection"
+        other: true
+        options: [macos, browser, ios, android, none]
+        label: "decorative outer chrome, macos by default; never inferred OS behavior"
       style:
-        required: true
+        required: false
         options: [flat, glass, outline]
+        other: true
         references: references/styles/*.md
-        label: "tour-local framing style"
+        label: "flat by default; presentation style or custom description, not permission to restyle faithful UI"
       background:
         required: false
-        options: [light, dark]
         other: true
-        label: "light (default), dark, or six-digit #hex"
+        options: [light, dark]
+        label: "light by default; color or free-text decorative backdrop direction"
       backdrop:
         required: false
         type: image
-        label: "optional local static image; cover-fit, cropping edges"
-      accent:
+        label: "optional existing local static image, preserve original and approve cropping"
+      intro:
         required: false
-        label: "six-digit #hex; default #265ee8"
+        options: [title-reveal, ui-overview, result-first]
+        other: true
+        references: references/intro/*.md
+        label: "ON by default (title-reveal); these are examples, free text is first-class; explicit none omits"
+      outro:
+        required: false
+        options: [result-hold, overview-close, next-action]
+        other: true
+        references: references/outro/*.md
+        label: "ON by default (result-hold); these are examples, free text is first-class; explicit none omits"
+      duration:
+        required: false
+        type: int
+        label: "total seconds including intro/outro, 1..60; default 20"
       destination:
         required: false
         options: [landscape, portrait]
         label: "1280x720 (default) or 720x1280; 30 fps"
-      max_zoom:
-        required: false
-        label: "camera scale cap 1..2 (default 2); 1 keeps the full screenshot, without changing click targets"
       preview:
         required: false
         options: ["yes", "no"]
-        label: "yes (default) stops after snapshots for approval; no authorizes final render"
-      slug:
-        required: false
-        label: "lowercase ASCII letter then letters/digits/hyphens, 1-48; default tour"
+        label: "yes (default) stops at proof frames for approval; no authorizes local final render after checks"
       note:
         required: false
         type: text
@@ -70,88 +87,96 @@ metadata:
 
 <Procedure>
 
-1. Use a `specialist_call(kind="work")` session even though media cost is
-   free. No URL fetching, capture, automation, generation, uploads or TTS.
-   URL-only input returns a request for screenshots from a separately
-   authorized capture job; never claim capture is implemented here.
-2. Read the selected style: [flat](references/styles/flat.md),
-   [glass](references/styles/glass.md), or [outline](references/styles/outline.md).
-   Read [steps](references/steps.md) for manifest/clock/OCR limits. Confirm
-   that the supplied screens actually show the task ending successfully.
-   Repeated clicks on the same screenshot can be legitimate; judge intent,
-   not filename uniqueness. Narration is a finished audio-creator WAV plus
-   its current `.words.json`, never a text request to synthesize here.
-3. Write the filled form as UTF-8 JSON in a job scratch file. `task` and
-   `app` live there only, not in the steps manifest. Text travels via file,
-   not Japanese argv. Use absolute physical paths (no symlinks, URLs or
-   shell interpolation). Dependencies: Python with Pillow, ffmpeg/ffprobe,
-   installed HyperFrames CLI; Tesseract only for text anchors. The bundled
-   GSAP core retains its own license/provenance; no external runtime skills.
-   Missing dependencies return a gap; do not install packages automatically.
-4. Run the leaf-owned deterministic helper, in its own terminal command:
+1. Work only in `specialist_call(kind="work")`. Creator owns the goal, audience,
+   semantic flow, fidelity and choice approvals; you own task-local UI layout and
+   motion implementation. Missing reference images are NOT a blocker when text
+   specifies the UI. Never demand one screenshot per action or client-written
+   steps JSON. A bare URL is context only: ask for the missing UI facts, not
+   permission inferred from that URL. No capture, OS interaction, uploads,
+   TTS, image generation, external skills or automatic dependency installation.
+2. Read [authoring](references/authoring.md) before writing source. Read selected
+   style examples: [flat](references/styles/flat.md),
+   [glass](references/styles/glass.md), [outline](references/styles/outline.md).
+   For known choices read the matching example:
+   [title-reveal](references/intro/title-reveal.md),
+   [ui-overview](references/intro/ui-overview.md),
+   [result-first](references/intro/result-first.md),
+   [result-hold](references/outro/result-hold.md),
+   [overview-close](references/outro/overview-close.md),
+   [next-action](references/outro/next-action.md).
+   These are NOT exhaustive presets. Keep free text verbatim, implement its
+   concrete beat locally, and record the interpretation alongside it. Never
+   map it to the nearest known option. If unresolved, return ONE clarification
+   or a concrete beat proposal to Creator before authoring. Only explicit
+   `none` omits a boundary; blank/null is invalid, absence defaults ON.
+3. Inventory surviving artifacts. For a persisted v1 project only, use the
+   unchanged `scripts/tour.py snapshot|render` entry and
+   [legacy steps](references/steps.md); its saved manifest/HTML stay untouched.
+   A new v2 job does not reinterpret old forms or migrate old outputs.
+4. Write UTF-8 `form.json` and your `contract.json` in job scratch; text goes
+   through files, not Japanese argv. Author `index.html`, local assets and
+   QA motion assertions in a fresh task-local source directory. Copy references
+   needed to justify fidelity into that source bundle; preserve originals.
+   Do not edit managed scripts to add a layout, UI action or custom intro/outro.
+   Run local `hyperframes lint <source>` while authoring; then freeze:
 
    ```sh
-   python3 ${HERMES_SKILL_DIR}/scripts/tour.py scaffold --form <form.json> --project <deliver>/tour-project
-   python3 ${HERMES_SKILL_DIR}/scripts/tour.py snapshot --project <deliver>/tour-project --out <deliver>/tour-preview
+   python3 ${HERMES_SKILL_DIR}/scripts/authored.py freeze --form <form.json> --contract <contract.json> --source <source> --project <deliver>/tour-project
+   python3 ${HERMES_SKILL_DIR}/scripts/authored.py snapshot --project <deliver>/tour-project --out <deliver>/tour-preview
    ```
 
-   The parent delivery directory must already exist. All project, preview
-   and final child directories must be new. Preserve failed outputs and
-   evidence; retry into a new child, never clear a directory. The helper
-   copies original inputs, normalizes static images and freezes hashes.
-   Never edit generated HTML, timing or vendor code at runtime.
-5. With `preview: yes`, stop after snapshots and QA. Return the preview
-   path and the next handoff: `intent: revise <preview directory>`, same
-   form with `preview: no`, approving this exact project. For an unchanged
-   approved preview, reuse its project without scaffolding or modifying
-   its saved form (the saved form still says yes):
+   Parent directories must already exist. Source/project/preview/final are
+   separate directories; every output is a new child. Never clear a failed
+   output. Freeze copies source and hashes, it does not choose or author UI.
+5. Inspect proof frames against each expectation and record findings in
+   `qa.md` before the next visual call. With `preview: yes`, return snapshots
+   and wait for actual client approval of that exact project. Resume using:
 
    ```sh
-   python3 ${HERMES_SKILL_DIR}/scripts/tour.py render --project <deliver>/tour-project --approved-preview <deliver>/tour-preview --out <deliver>/tour-final
+   python3 ${HERMES_SKILL_DIR}/scripts/authored.py render --project <deliver>/tour-project --approved-preview <deliver>/tour-preview --out <deliver>/tour-final
    ```
 
-   `--approved-preview` is used only after actual client approval, not
-   self-approval. Changed fields require a new project and preview; keep
-   the old version. With initial `preview: no`, still snapshot/check first,
-   then render without `--approved-preview`. The helper verifies frozen
-   project hashes on every operation and fully decodes the MP4.
-6. Long commands use `background: true` and polling under the actual tool
-   timeout. Inspect per-step snapshots and final decoded review frames;
-   append findings to `qa.md` before the next look. Never call remote video
-   analysis under this form. Do not claim that local samples verify all
-   temporal behavior or that WAV hash matching means speech was heard.
+   Creator's unchanged `intent: revise <preview>` + `preview: no` grants the
+   resume; do not alter the saved form (it still says yes). Changed direction,
+   content or source requires a fresh version and approval. An initial
+   `preview: no` authorizes rendering without `--approved-preview`, but not
+   skipping snapshot/visual QA. No self-approval. Long commands use
+   `background: true` and polling within the tool's actual timeout.
+6. Inspect decoded final frames, including boundary transitions, pointer
+   contact, intermediate and final UI states. Append evidence and gaps to
+   `qa.md`; one complete review pass plus one corrective pass, then report
+   remaining defects. Do not loop, discard failed evidence or upload video.
 
 </Procedure>
 
 <QA>
 
-- Bounds: 1-15 steps plus done; total including goal/narration <=60 s;
-  1280x720 or 720x1280 at 30 fps. Screens share pixel dimensions, are static
-  PNG/JPEG/WebP, <=16M pixels and <=8192 per side. Targets stay within them.
-- Run evidence includes real rendered frames, not HTML inspection alone.
-  Check every target, cursor tip or mobile tap ring, typed value, final
-  done state and frame edges. `auto` does not infer the actual OS.
-- Read runtime/layout/contrast findings from `check.json`. Its contrast
-  samples measure authored text, not the screenshot's raster UI text.
-  A skipped audit or zero text checks is unverified, never a pass. Check
-  screenshot UI readability visually at native size and disclose blur or
-  insufficient screenshot resolution. Glass blur applies only to backdrop.
-- Final QA: measured codec/dimensions/duration/audio presence/bytes and full
-  decode from `qa.json`; compare preview to final review frames. SRT timing
-  from speech is estimated. Pacing, audio quality and sync remain unverified
-  unless actually inspected; never use white pixels as proof of a cursor.
-- Bound the visual review to one per-step pass plus one corrective pass.
-  Report failures rather than iterating indefinitely or relaxing bounds.
+- Check source intent against form: faithful UI is not blindly reskinned by
+  chrome/background style. Simplification and illustrative functions are
+  labeled and approved; no invented claims about a real product.
+- Check every boundary, action and result with actual local frames. A modal
+  appears, selection updates, typed text accumulates; moving a screenshot
+  alone does not demonstrate authored UI capability. Pointer tips contact
+  targets in the camera's coordinate space. Keep titles and result readable.
+- `check.json` must contain runtime/layout/contrast results with nonzero text
+  checks. A skipped audit is unverified. Inspect Japanese glyphs and wrapping
+  at native size. Transition samples supplement held states, not replace them.
+- Verify frozen hashes before/after commands, approved preview identity and
+  fresh output paths. Full MP4 decode, codec, dimensions, fps and duration are
+  mandatory. Review samples are not complete temporal or listening evidence.
+- Runtime executes locally authored trusted code, not arbitrary downloaded
+  HTML. Static helper checks are guardrails, NOT a JavaScript security sandbox.
+  Review source for networking, external references, navigation and clocks
+  before executing it. No external skill library is needed by these hands.
 
 </QA>
 
 <Report>
 
-`create-tour`; project/preview/final paths as applicable; RESULT JSON;
-frame/style/background/backdrop; QA evidence and verdict per check;
-unverified temporal/audio/UI-text checks; `spend: media generation 0`;
-questions or exact approval/revision handoff for Creator. A preview is not
-an MP4 delivery. Synthetic fixtures are test evidence, never product-live
-or two-client handoff evidence.
+`create-tour`; source/project/preview/final paths; exact intro/outro directions
+and concrete beats, including custom or explicit none; fidelity/simplifications;
+RESULT JSON; QA evidence and unresolved checks; `spend: media generation 0`;
+approval/revision handoff. Label direct local fixture renders as such, never
+product-live or Creator-to-hands evidence. A preview is not an MP4 delivery.
 
 </Report>
