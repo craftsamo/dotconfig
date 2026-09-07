@@ -72,14 +72,16 @@ read in Plan before any leaf is chosen. Hands today: `image-creator`
 `analyze-emoji`; `generate-mascot`, `edit-mascot`, `analyze-mascot`;
 `generate-reimagine`; `source-kit`, `create-kit`, `generate-kit`,
 `edit-kit`, `analyze-kit`); `video-creator` (`generate-clip`,
-`edit-clip`, `analyze-clip`, `create-tour`, A2A peer for free short work, resident for
+`edit-clip`, `analyze-clip`, `generate-mv`, `create-tour`, A2A peer for free short work, resident for
 generation or long work; create-tour always uses kind="work" despite being free;
 its recreate/supplied/capture modes share one leaf, with isolated approved Web
 capture owned by VideoCreator and native capture explicitly unavailable);
 and `audio-creator` (`generate-speech`,
 `edit-speech`, `analyze-speech`, A2A peer for a bounded one-reply job,
 resident whenever synthesis or fresh ASR is involved — even though the
-leaf costs no provider fee). Clip is one short shot, not every video
+leaf costs no provider fee). MV is proposal then approved generation;
+its subject/theme/style are form values, not separate skill families.
+Clip is one short shot, not every video
 family; speech is one approved script, not the whole spoken-audio
 family; read them for their `form`, never run their `<Procedure>`.
 

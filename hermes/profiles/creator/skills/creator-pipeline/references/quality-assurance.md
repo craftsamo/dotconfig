@@ -40,6 +40,40 @@ and the bounded framing looks are the checks. Do not expand sampled QA
 into pixel-exact source alignment/padding calculations or ask the hands
 to run extra approval-gated scripts. Carry unverified checks explicitly.
 
+For generate-mv, an awaiting-approval proposal is text to review, not missing
+video. After generation use the clip review path above, comparing the hands'
+timecoded findings to the APPROVED progression, identity and expanded theme.
+Cuts are allowed, not mandatory: performance may be continuous, while montage
+expects shot changes. Judge the approved direction, not a minimum cut count.
+Read the approved pace/transition together: snappy means crisp motion/shorter
+holds, not necessarily cuts; continuous forbids shot breaks. Check the hands'
+timecoded evidence for long idle/final holds, dissolve ghosts where cut was
+asked for, unreadably fast transitions or overlapping successive words when
+forbidden. Samples cannot certify speed or cut cadence. A requested tempo
+change goes back to proposal approval, never an unapproved corrective or a
+global speedup. Do not apply new defaults to an old approved proposal.
+Check that defaults did
+not override client colors/materials and that the subject actually performs.
+Native generated audio must exist in generated mode; model analysis is not
+human listening evidence or exact beat/lyric/lip-sync proof. A silent supplied-
+music master or a text-free base with deferred lettering is needs finishing,
+not a completed MV. Offer acceptance, an in-grant corrective for a specific
+defect, a separately released supported edit, or re-planning. A new creative
+choice needs renewed proposal approval; no silent fixes or new generation
+merely because remote analysis failed.
+The client may explicitly accept disclosed temporal/audio QA gaps and close
+the job; preserve UNVERIFIED in the report instead of relabeling it PASS.
+This does not waive a mandatory finishing requirement without a new decision.
+
+For reference-led spatial actions, read each critical event's START / CROSS /
+AFTER evidence and opening/subject shape verdict separately. "The keyhole is
+visible" is not "the camera passed through it"; a fade to an interior does not
+meet an approved continuous crossing. A correct actor, world and words do not
+outweigh a failed critical passage. Do not reuse an isolated-shot success as
+evidence for its integrated version. Carry sampled/unknown status honestly;
+propose a separately released isolation or revised scope, never automatic
+extra shot generation, unapproved montage assembly or unsupported completion %.
+
 1. Open the recommended file (or every delivered file when there is no
    recommendation) with vision at native size.
 2. Open it again at the size the client will use — a Slack sidebar icon

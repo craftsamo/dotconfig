@@ -61,7 +61,7 @@ later wakeup promise. A2A inbound cannot launch work: ask the caller to reissue
 the released unit to Creator with `specialist_call(kind="work")`.
 
 Hands and their peers: `image-creator` (still images), `video-creator`
-(short clips and task-local authored UI tours; no TTS), `audio-creator` (spoken speech only — no music,
+(short clips, generated MVs and task-local authored UI tours; no TTS), `audio-creator` (spoken speech only — no music,
 singing or sound effects). One session per job per hands; never carry
 unrelated jobs in one.
 
@@ -75,6 +75,31 @@ findings only, no new audio file, and expect no files back beyond the
 reply text itself.
 
 ## Supervising
+
+For generate-mv, use kind="work" for BOTH rounds in one conversation. First
+release proposal-only work without approval fields, preserving the client's
+form and budget ceiling. A proposal report's zero spend is expected. Do not
+ask it to produce video merely because the budget was supplied. After the
+client approves the proposal, continue with the same target/conversation_id,
+intent: revise, full unchanged form, approved_plan and approval_sha256 copied
+from that exact report. The hash binds the approved content, not the caller's
+identity. Do not compute a fresh digest to approve a silently changed file.
+Changed fields/inputs or a new creative revision return to proposal approval;
+remaining call allowance never resets. Changing pace/transition is a creative revision, not
+an automatic corrective or an authorized global playback-speed change. Old
+approved proposals lacking those fields retain their recorded prompt; do not
+inject defaults into the approval-bound form. A rejected proposal is sent with
+approval fields omitted, not sent for generation with a corrective budget.
+Check the proposed exact prompt-only file is 1..1800 UTF-8 bytes and bound to
+the approved proposal by its hash. Never send the full proposal or append
+reference text to that prompt. An oversized approved prompt must be shortened
+in a new proposal and approved before a newly granted attempt, not retried
+automatically after a provider rejects it.
+Native-audio availability is checked before spend, not guessed from a prompt.
+If the report says needs finishing, release only the agreed existing edit or
+legacy assembly with its own inputs/grant. Exact text and supplied music are
+not magically handled by edit-clip; never invent an editing capability. Do not
+close a visual-master job as a complete musical MV while its finish is pending.
 
 For create-tour, pass approved semantics and literal custom intro/outro/style
 directions, not a screenshot-per-step manifest. VideoCreator authors the UI,
