@@ -1,0 +1,55 @@
+#!/bin/sh
+# Hermes multiplex gateway launcher — keychain-pure, one process, many bots.
+#
+# Runs `hermes gateway run` as the DEFAULT profile with
+# `gateway.multiplex_profiles: true` (root config.yaml): the single process
+# hosts every served profile's adapters — assistant (Telegram + Discord),
+# engineer / creator / marketer (their own Telegram bots), and the A2A
+# peer endpoints (engineer/creator/marketer/writer/researcher) — plus the
+# embedded kanban dispatcher and each served profile's cron ticker.
+#
+# Self-contained and machine-agnostic: every path is derived from $HOME, so the
+# tracked file has no hardcoded user/home. The LaunchAgent runs THIS script as
+# ProgramArguments[0] (not `/bin/sh <script>`), so the login item / process
+# reads as "hermes-gateway-multiplex" instead of a bare "sh".
+#
+# Secrets: under multiplex, scope-aware reads (bot tokens, provider keys, web
+# search keys, …) resolve ONLY from each profile's secret scope — which
+# `secrets.command` fills from the Keychain via scripts/profile-secrets.sh.
+# The eval below still injects the `global` + `hermes` layers into the process
+# env for the raw-env readers (dashboard auth) and for the subprocesses that
+# inherit the gateway env (kanban workers, A2A forwards). No .env anywhere.
+# BU_CDP_URL must NOT be in that layer: the browser-use driver copies it raw
+# from os.environ and it silently pre-empts real-profile browsing for every
+# multiplexed profile (tools/browser_use_cli.py: _has_cdp_env wins first).
+#
+# NOTE: no HERMES_PROFILE export here — the old assistant-only launcher pinned
+# it for the kanban comment identity, but under multiplex one process serves
+# many profiles and a global pin would stamp every session with the wrong
+# author.
+set -e
+
+export PATH="$HOME/.config/bin:$HOME/.local/bin:$HOME/.homebrew/bin:$HOME/.homebrew/sbin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+
+mkdir -p "$HOME/.hermes/logs"
+exec >>"$HOME/.hermes/logs/gateway-multiplex.log" 2>&1
+
+cd "$HOME/Workspaces" 2>/dev/null || cd "$HOME"
+
+eval "$(secret env -p global)"
+# The hermes layer minus the messaging keys: with a TELEGRAM_/DISCORD_ token in
+# the PROCESS env, the DEFAULT profile itself would enable those adapters and
+# collide with the assistant's (one credential cannot be consumed twice — the
+# secondary is refused). Bot tokens reach each profile through its
+# secrets.command scope instead; the env keeps only the raw-env readers'
+# keys (dashboard auth, provider keys for inheriting subprocesses).
+eval "$(secret env -p hermes | grep -v -E '^export (TELEGRAM_|DISCORD_)')"
+
+# Real-profile browsing (assistant / marketer) launches a CLONE of the Brave
+# bundle, never /Applications/Brave Browser.app itself (LaunchServices would
+# treat the headless instance as the everyday browser). Brave auto-updates,
+# so refresh the clone before every start; a failure here must not take the
+# gateway down — the browser tool fails closed on its own with a clear message.
+"$HOME/.config/hermes/scripts/brave-agent-sync.sh" sync || echo "WARN: brave-agent clone sync failed"
+
+exec "$HOME/.local/bin/hermes" gateway run --replace --accept-hooks

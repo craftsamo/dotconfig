@@ -1,10 +1,14 @@
 #!/bin/sh
 # resident-session — conversational specialist sessions (Workflow v5).
 #
-# The assistant's primitive for the "resident session" execution tier:
-# heavy interactive work (creation, writing, research, engineering) runs
-# in a persistent `hermes -p <profile> chat` session that the assistant
-# supervises conversationally, instead of a kanban card round-trip.
+# The primitive for the "resident session" execution tier: heavy
+# interactive work (creation, writing, research, engineering) runs in a
+# persistent `hermes -p <profile> chat` session that the CALLER supervises
+# conversationally, instead of a kanban card round-trip. The caller is the
+# assistant by default; since the 2026-09 director rebuild a primary such
+# as the creator supervises sessions of its own (its hands), so the
+# registry lives under the calling profile's home (derived from the
+# HERMES_HOME the caller's turn runs with; override: RESIDENT_SESSION_DIR).
 #
 #   resident-session.sh start <key> --profile <name> [--topic "<t>"] \
 #       (-q "<brief>" | -f <file> | stdin)
@@ -53,7 +57,17 @@
 set -u
 
 HERMES="${HERMES:-$(command -v hermes || echo "$HOME/.local/bin/hermes")}"
-REG_DIR="${RESIDENT_SESSION_DIR:-$HOME/.hermes/profiles/assistant/resident-sessions}"
+# Registry = the calling profile's home. Must be read BEFORE HERMES_HOME is
+# unset below; a caller outside ~/.hermes/profiles/<name> (default profile,
+# bare shell) keeps the historical assistant registry.
+_caller_profile() {
+  case "${HERMES_HOME:-}" in
+    "$HOME"/.hermes/profiles/*)
+      printf '%s\n' "${HERMES_HOME#"$HOME"/.hermes/profiles/}" | cut -d/ -f1 ;;
+    *) printf 'assistant\n' ;;
+  esac
+}
+REG_DIR="${RESIDENT_SESSION_DIR:-$HOME/.hermes/profiles/$(_caller_profile)/resident-sessions}"
 TURN_TIMEOUT="${TURN_TIMEOUT:-5400}"
 POLL_INTERVAL="${POLL_INTERVAL:-1}"
 LOCK_STALE_AFTER="${LOCK_STALE_AFTER:-60}"

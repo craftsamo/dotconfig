@@ -158,7 +158,7 @@ compression:
   codex_gpt55_autoraise: true
 kanban:
   dispatch_in_gateway: true
-  dispatch_interval_seconds: 60
+  dispatch_interval_seconds: 15
   failure_limit: 2
   worker_log_rotate_bytes: 2097152
   worker_log_backup_count: 1
@@ -612,6 +612,14 @@ gateway:
   media_delivery_allow_dirs: []
   trust_recent_files: true
   trust_recent_files_seconds: 600
+  multiplex_profiles: true
+  multiplex_profile_allowlist:
+    - assistant
+    - engineer
+    - creator
+    - marketer
+    - writer
+    - researcher
 streaming:
   enabled: false
   transport: auto
@@ -654,6 +662,10 @@ secrets:
     override_existing: true
     auto_install: true
     server_url: ''
+  command:
+    enabled: true
+    command: '"$HOME/.config/hermes/scripts/profile-secrets.sh" default'
+    helper_timeout_seconds: 60
 paste_collapse_threshold: 5
 paste_collapse_threshold_fallback: 5
 paste_collapse_char_threshold: 2000
