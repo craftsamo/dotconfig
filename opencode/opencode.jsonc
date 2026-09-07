@@ -66,7 +66,9 @@
     "../private/opencode/instructions/*.md"
   ],
   // Title generation etc. → light OpenAI Pro model without priority-tier cost.
-  "small_model": "openai/gpt-5.4-mini",
+  // Luna is the light tier of the 5.6 generation (the same tier gpt-5.4-mini
+  // held for 5.4), so this tracks the current generation at comparable cost.
+  "small_model": "openai/gpt-5.6-luna",
   // Model split (2026-09-05). Two subscription pools, one per primary family:
   //   Claude Max x20 (sub account) — plan / review / debug / explain / deepsearch
   //     primaries (Fable 5.1; fall back to Opus 5 by hand), plus the
