@@ -862,7 +862,20 @@ class LaunchctlScriptTest(unittest.TestCase):
             encoding="utf-8",
         )
 
-        (fake_bin / "python3").symlink_to(sys.executable)
+        # A shim, not a symlink: uv now materialises the venv interpreter as a
+        # real copy of its managed CPython rather than a link to it, and such a
+        # binary locates its stdlib through the pyvenv.cfg sitting NEXT TO it.
+        # Symlinked into this fake bin/ it finds none, so the child dies with
+        # "ModuleNotFoundError: No module named 'encodings'" before running a
+        # line. Exec'ing the absolute interpreter keeps the venv intact — the
+        # uv stub below already does exactly this.
+        python3 = fake_bin / "python3"
+        python3.write_text(
+            "#!/bin/sh\n"
+            f"exec \"{sys.executable}\" \"$@\"\n",
+            encoding="utf-8",
+        )
+        python3.chmod(0o755)
         uv = fake_bin / "uv"
         uv.write_text(
             "#!/bin/sh\n"
