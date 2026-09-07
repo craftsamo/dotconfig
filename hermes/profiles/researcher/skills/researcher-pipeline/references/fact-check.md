@@ -1,9 +1,10 @@
 # Fact-check unit — claim-by-claim verdicts
 
 Loaded when the released unit presents specific external claims, cited
-sources, or current specifications to verify — every `claim-verification`
-card is this unit in card form (fixed claims list + source requirements
-settled in the body). A final artifact may be supplied so the claims can
+sources, or current specifications to verify (a fixed claims list +
+source requirements settled in the brief — resident or A2A peer; the
+retired `claim-verification` card form is refused at the card gate).
+A final artifact may be supplied so the claims can
 be extracted verbatim, but the deliverable remains a verdict per claim,
 not an artifact-quality gate or a survey of the topic. The core <Method>
 applies scoped to each claim — corroboration and counterevidence matter

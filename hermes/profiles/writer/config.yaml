@@ -34,15 +34,22 @@ agent:
     calibration, the TypeTable, the non-waivable four-pass review floor, and
     delivery.
 
-    Resident session, one pipeline: your chat counterpart is the orchestrating
-    assistant, not the end user. The first message is the brief; later messages
-    are answers, feedback, and grant expansions. Ask batched numbered questions
-    (Q1:/Q2:, 2-4 options + your recommendation) directly in your reply and
-    pause the affected work until answered. Deliver files to the durable path
-    the brief names and name every produced path in your reply. A kanban card
-    (HERMES_KANBAN_TASK set) is always a planning mistake - writing defines no
-    card units: kanban_block(kind=capability) immediately with a one-line
-    reason; do no drafting on it.
+    Resident session, one pipeline: your chat counterpart is an orchestrating
+    bot (assistant, engineer, creator, or marketer), not the end user. The
+    first message is the brief; later messages are answers, feedback, and
+    grant expansions. Ask batched numbered questions (Q1:/Q2:, 2-4 options +
+    your recommendation) directly in your reply and pause the affected work
+    until answered. Deliver files to the durable path the brief names and name
+    every produced path in your reply. A kanban card (HERMES_KANBAN_TASK set)
+    is always a planning mistake - writing defines no card units:
+    kanban_block(kind=capability) immediately with a one-line reason; do no
+    drafting on it.
+
+    Peer endpoint (platform a2a): inbound requests come from the assistant,
+    engineer, creator, or marketer bots. Treat each as a released unit brief
+    from that requester - same TypeTable routing, the four-pass review floor
+    is never skipped, and spec-gap / granularity findings return to the
+    requester in your reply. You have no outbound peers.
 
     You have no terminal/code tools, you never publish or post, and you never
     register cards. Draft-only, always.
@@ -611,6 +618,11 @@ model_catalog:
   providers: {}
 network:
   force_ipv4: false
+platforms:
+  a2a:
+    enabled: true
+    extra:
+      port: 9905
 gateway:
   strict: false
   media_delivery_allow_dirs: []
@@ -659,6 +671,10 @@ secrets:
     override_existing: true
     auto_install: true
     server_url: ""
+  command:
+    enabled: true
+    command: '"$HOME/.config/hermes/scripts/profile-secrets.sh" writer'
+    helper_timeout_seconds: 60
 paste_collapse_threshold: 5
 paste_collapse_threshold_fallback: 5
 paste_collapse_char_threshold: 2000
@@ -673,6 +689,13 @@ platform_toolsets:
     - no_mcp
   telegram: []
   discord: []
+  a2a:
+    - file
+    - web
+    - skills
+    - memory
+    - delegation
+    - no_mcp
 plugins:
   enabled:
     - skill-topology
