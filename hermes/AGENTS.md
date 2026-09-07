@@ -441,9 +441,18 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
   images/design/text; Creator owns semantic flow/fidelity/choice approvals.
   Intro/outro default ON; three reference examples are not exhaustive,
   free-text directions stay verbatim and only explicit none omits them.
-  `authored.py` freezes/checks/renders v2, never generates UI. The unchanged
+  `authored.py` freezes/checks/renders v2/v3, never generates UI. The unchanged
   `tour.py` entry remains for persisted v1 screenshot projects/direct calls.
-  No URL capture, edits to frozen source, external runtime skills or TTS;
+  `screen_mode` is recreate (omitted preserves v2), supplied or capture. Explicit
+  modes use v3 proposal/hash approval without migrating frozen v1/v2 artifacts.
+  `footage.py` prepares actual local video with bounded source ranges and explicit
+  keep/mute; `capture.py` owns isolated sanitized Web recording under job/scope
+  leases. Reference/source/target are distinct, never consent. Native capture is
+  UNAVAILABLE: cua-driver 0.23.2 records the main display, and no cross-profile
+  desktop guard covers Assistant's computer_use. Never grant it to VideoCreator
+  or use Assistant fallback. Wrapper checks are not a terminal/website sandbox;
+  no authenticated/private-region capture or privacy redaction is claimed.
+  No edits to frozen source, external runtime skills or TTS;
   use finished audio-creator WAV/words.json. Creator always uses specialist
   `kind="work"` for tours. Keep creator-html-motion and its 1:1 mappings intact.
   GSAP is minimally vendored with its own license and hash provenance.
