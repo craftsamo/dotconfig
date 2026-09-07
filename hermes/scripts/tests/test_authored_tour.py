@@ -235,6 +235,16 @@ def test_reference_fields_are_open_ended():
     assert config["skills"]["external_dirs"] == []
 
 
+def test_creator_routes_authored_tours():
+    config = yaml.safe_load((ROOT / "profiles/creator/config.yaml").read_text())
+    assert "task-local" in config["agent"]["system_prompt"]
+    assert "explicit none" in config["agent"]["system_prompt"]
+    for path in ("references/build.md", "references/plan.md", "references/capabilities.md"):
+        contents = (ROOT / "profiles/creator/skills/creator-pipeline" / path).read_text()
+        assert "create-tour" in contents
+        assert 'kind="work"' in contents
+
+
 def test_reference_validator_catches_deleted_whole_reference_directory(tmp_path):
     spec = importlib.util.spec_from_file_location("profile_validator", ROOT / "scripts/validate-profile-skills.py")
     validator = importlib.util.module_from_spec(spec)
