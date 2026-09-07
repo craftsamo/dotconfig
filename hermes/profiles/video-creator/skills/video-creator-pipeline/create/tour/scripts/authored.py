@@ -24,7 +24,8 @@ def form_model(raw):
     require(isinstance(raw, dict), "form must be an object")
     allowed = {"what_for", "audience", "reference", "flow", "fidelity", "frame",
                "style", "background", "backdrop", "intro", "outro", "duration",
-               "destination", "preview", "note"}
+               "destination", "preview", "note", "screen_mode", "source", "target",
+               "start_state", "approved_plan", "approval_sha256", "source_sha256"}
     require(set(raw) <= allowed, "unknown form field (v1 forms use tour.py)")
     form = {"fidelity": "faithful", "frame": "macos", "style": "flat",
             "background": "light", "intro": "title-reveal", "outro": "result-hold",
@@ -40,6 +41,17 @@ def form_model(raw):
     number(form["duration"], 1, 60, "duration")
     if "backdrop" in form:
         text(form["backdrop"], "backdrop path", 4000)
+    mode = form.get("screen_mode", "recreate")
+    require(mode in ("recreate", "supplied", "capture"), "screen_mode must be recreate, supplied or capture")
+    for key in ("source", "target", "start_state", "approved_plan", "approval_sha256", "source_sha256"):
+        if key in form:
+            text(form[key], key, 4000)
+    if mode == "supplied":
+        require("source" in form and "source_sha256" in form and "target" not in form, "supplied needs source and source_sha256, not an operation target")
+    if mode == "capture":
+        require(all(k in form for k in ("target", "start_state", "source")), "capture needs target, start_state and planned source manifest path")
+    if mode == "recreate":
+        require("source" not in form and "target" not in form, "recreate uses reference, not source/target")
     # A custom direction is deliberately neither normalized nor classified.
     return form
 
@@ -90,9 +102,15 @@ class Markup(HTMLParser):
         self.assets = []
         self.code = []
         self.code_tag = None
+        self.media = []
+        self.ids = []
 
     def handle_starttag(self, tag, attrs):
         attrs = dict(attrs)
+        if "id" in attrs:
+            self.ids.append(attrs["id"])
+        if tag in ("video", "audio", "img"):
+            self.media.append((tag, attrs))
         if tag in ("script", "style"):
             self.code_tag = tag
         require(tag not in ("iframe", "object", "embed", "base", "form"), "active embeds/navigation forbidden")
@@ -113,7 +131,7 @@ class Markup(HTMLParser):
             self.code.append(data)
 
 
-def source_files(root):
+def source_files(root, version=2):
     require(root.is_absolute() and root.is_dir(), "source/project directory must exist and be absolute")
     require(".." not in root.parts, "parent traversal forbidden")
     require(not any(p.is_symlink() for p in (root, *root.parents)), "symlink directory forbidden")
@@ -126,7 +144,8 @@ def source_files(root):
             continue
         if p.is_dir():
             continue
-        local(str(p), {".html", ".css", ".js", ".json", ".md", ".txt", ".png", ".jpg", ".jpeg", ".webp", ".woff2", ".wav"})
+        suffixes = {".html", ".css", ".js", ".json", ".md", ".txt", ".png", ".jpg", ".jpeg", ".webp", ".woff2", ".wav"}
+        local(str(p), suffixes | ({".mp4"} if version == 3 else set()))
         files[name] = digest(p)
     payload = [n for n in files if n not in ("form.json", "contract.json", "integrity.json")]
     require(len(payload) <= 200 and sum((root / n).stat().st_size for n in payload) <= 128_000_000,
@@ -157,6 +176,9 @@ def markup_check(root, form):
                 content = "\n".join(parsed.code)
             match = re.search(r"\b(fetch|XMLHttpRequest|WebSocket|EventSource|setTimeout|setInterval|requestAnimationFrame|Date)\s*\(|Math\.random|Date\.now|performance\.now|@import", content)
             require(not match, f"{name}: network/clocks/unseekable animation forbidden: {match.group() if match else ''}")
+            if form.get("screen_mode") in ("supplied", "capture"):
+                require(not re.search(r"\.(play|pause|load)\s*\(|\.currentTime\s*=|\.playbackRate\s*=", content), "HyperFrames owns media playback/seeking")
+                require(not re.search(r"\bvolume\s*:|\.(volume|muted)\s*=", content), "footage audio automation requires a separately approved finishing path")
             for url in re.findall(r"url\(\s*['\"]?([^)'\"]+)", content):
                 markup.assets.append(url)
     for name in markup.assets:
@@ -164,13 +186,86 @@ def markup_check(root, form):
                 and ".." not in Path(name).parts, "assets must be local under assets/; no URL capture")
         local(str(root / name), {Path(name).suffix})
     require(digest(root / "assets/gsap.min.js") == load(VENDOR / "gsap-provenance.json")["sha256"], "GSAP vendor hash mismatch")
+    if form.get("screen_mode") in ("supplied", "capture"):
+        footage_check(root, form, markup)
+    elif form.get("screen_mode") == "recreate":
+        require(not any(t == "video" for t, _ in markup.media), "recreate cannot silently use supplied/captured footage")
+
+
+def footage_check(root, form, markup):
+    from footage import probe, sha256
+    require(len(markup.ids) == len(set(markup.ids)), "duplicate element id")
+    data = load(local(str(root / "assets/footage/media.json"), {".json"}))
+    require(data.get("version") == 1 and isinstance(data.get("clips"), list) and data["clips"], "prepared footage manifest required")
+    expected_media = set()
+    expected_audio = set()
+    for clip in data["clips"]:
+        name = clip["path"]
+        require(Path(name).name == name, "invalid prepared asset path")
+        path = local(str(root / "assets/footage" / name), {".mp4", ".png", ".jpg", ".jpeg", ".webp"})
+        require(sha256(path) == clip["sha256"], "prepared source hash mismatch")
+        info = probe(path)
+        require(info["kind"] == clip["kind"], "source kind mismatch")
+        start = number(clip["timeline_start"], 0, form["duration"], "timeline start")
+        duration = number(clip["duration"], .1, form["duration"] - start, "footage duration")
+        require(clip["media_start"] == 0 and clip["audio"] in ("keep", "mute"), "invalid prepared media/audio policy")
+        require(duration <= info.get("duration", duration) + .05, "prepared source range exceeds duration")
+        src = "assets/footage/" + name
+        tag = "video" if info["kind"] == "video" else "img"
+        expected_media.add((tag, clip["id"]))
+        matches = [a for t, a in markup.media if t == tag and a.get("id") == clip["id"]]
+        require(len(matches) == 1, "footage must remain actual media, never screenshot substitution")
+        def timing(attrs):
+            require(set(attrs) <= {"id", "class", "src", "muted", "playsinline", "data-start", "data-duration",
+                                  "data-media-start", "data-track-index", "style", "preload", "data-volume"},
+                    "unsupported footage attributes (no autoplay, loop or retiming)")
+            require(attrs.get("src") == src and float(attrs.get("data-start", "nan")) == start
+                    and float(attrs.get("data-duration", "nan")) == duration, "source-to-timeline mapping mismatch")
+            if tag == "video":
+                require(float(attrs.get("data-media-start", "nan")) == 0, "prepared media start must be zero")
+        timing(matches[0])
+        if tag == "video":
+            require("muted" in matches[0] and "playsinline" in matches[0], "video must be muted and inline")
+            audio = [a for t, a in markup.media if t == "audio" and a.get("src") == src]
+            require(len(audio) == (1 if clip["audio"] == "keep" else 0), "audio policy silently changed")
+            if audio:
+                expected_audio.add((audio[0].get("id"), src))
+                require(info["audio"] and audio[0].get("id"), "kept audio needs stream and unique id")
+                require("muted" not in audio[0] and float(audio[0].get("data-volume", "1")) == 1,
+                        "keep must retain source audio at unity gain")
+                timing(audio[0])
+    require({(t, a.get("id")) for t, a in markup.media if t == "video"} ==
+            {entry for entry in expected_media if entry[0] == "video"}, "unmapped video")
+    require({(a.get("id"), a.get("src")) for t, a in markup.media if t == "audio" and a.get("src", "").endswith(".mp4")} == expected_audio,
+            "unmapped footage audio")
 
 
 def freeze(args):
     form = form_model(load(local(args.form, {".json"})))
     contract = contract_model(load(local(args.contract, {".json"})), form)
     source = Path(args.source)
-    files = source_files(source)
+    version = 3 if "screen_mode" in form else 2
+    if version == 3:
+        from approval import form_approval
+        approval = form_approval(form)
+        if form["screen_mode"] in ("supplied", "capture"):
+            from footage import media_path, sha256
+            source_manifest = local(form["source"], {".json"})
+            manifest = load(source_manifest)
+            if form["screen_mode"] == "supplied":
+                require(digest(source_manifest) == form["source_sha256"], "supplied manifest changed since approval")
+            else:
+                receipt = load(local(manifest.get("capture_receipt"), {".json"}))
+                require(receipt.get("status") == "complete" and receipt.get("approval_sha256") == approval.get("acquisition_sha256", form["approval_sha256"]), "completed approved capture receipt required")
+                closed = load(local(str(Path(manifest["capture_receipt"]).parent / "closed.json"), {".json"}))
+                require(closed.get("status") == "complete", "capture session cleanup not complete")
+                require(all(c["path"] == receipt["raw"] and c["sha256"] == receipt["sha256"] for c in manifest["clips"]), "capture source differs from receipt")
+            cooked = load(local(str(source / "assets/footage/media.json"), {".json"}))["clips"]
+            require(len(cooked) == len(manifest["clips"]), "prepared clip count differs from source")
+            for original, prepared in zip(manifest["clips"], cooked):
+                require(sha256(media_path(original["path"])) == original["sha256"] == prepared["raw_sha256"], "raw source integrity mismatch")
+                require(all(original[k] == prepared[k] for k in ("id", "source_start", "duration", "timeline_start", "audio")), "prepared source mapping differs from approved manifest")
+    files = source_files(source, version)
     require(not {"integrity.json", "form.json", "contract.json"} & files.keys(), "reserved source filenames")
     markup_check(source, form)
     if "backdrop" in form:
@@ -187,18 +282,19 @@ def freeze(args):
         shutil.copyfile(source / name, dest)
     write(project / "form.json", form)
     write(project / "contract.json", contract)
-    write(project / "integrity.json", {"version": 2, "files": source_files(project)})
+    write(project / "integrity.json", {"version": version, "files": source_files(project, version)})
     return {"project": str(project), "duration": form["duration"], "next": "snapshot"}
 
 
 def project_model(value):
     project = Path(value)
     saved = load(local(str(project / "integrity.json"), {".json"}))
-    require(isinstance(saved, dict) and saved.get("version") == 2, "authored v2 project required; v1 uses tour.py")
-    actual = source_files(project)
+    require(isinstance(saved, dict) and saved.get("version") in (2, 3), "authored v2/v3 project required; v1 uses tour.py")
+    actual = source_files(project, saved["version"])
     actual.pop("integrity.json")
     require(actual == saved.get("files"), "project changed since freeze; revise in fresh source/project")
     form = form_model(load(project / "form.json"))
+    require(saved["version"] == 3 or "screen_mode" not in form, "v2 cannot reinterpret a screen mode")
     contract = contract_model(load(project / "contract.json"), form)
     markup_check(project, form)
     return project, form, contract
@@ -263,6 +359,10 @@ def render(args):
     hf(project, ["render", "--output", str(movie), "--fps", "30", "--workers", "1", "--strict", "--no-best-effort", "--quiet"], out / "render.log")
     info = json.loads(command(["ffprobe", "-v", "error", "-show_streams", "-show_format", "-of", "json", str(movie)]))
     video = next(s for s in info["streams"] if s["codec_type"] == "video")
+    if form.get("screen_mode") in ("supplied", "capture"):
+        clips = load(project / "assets/footage/media.json")["clips"]
+        if any(c["audio"] == "keep" for c in clips):
+            require(any(s["codec_type"] == "audio" for s in info["streams"]), "kept source audio missing in final render")
     require((video["width"], video["height"]) == CANVAS[form["destination"]], "render dimensions mismatch")
     require(video["codec_name"] == "h264" and video["pix_fmt"] == "yuv420p" and Fraction(video["avg_frame_rate"]) == 30, "render format mismatch")
     require(abs(float(info["format"]["duration"]) - form["duration"]) <= .1, "render duration mismatch")

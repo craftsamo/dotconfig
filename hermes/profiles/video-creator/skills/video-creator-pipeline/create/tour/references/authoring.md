@@ -24,7 +24,7 @@ generous spacing. Custom style is authored locally, not registered globally.
 - Copy `assets/gsap.min.js`, `assets/GSAP-LICENSE.txt` and
   `assets/gsap-provenance.json` from this leaf's assets into source assets.
   Keep the license with the runtime. Other assets stay local under `assets/`;
-  no remote imports, dependencies, event handlers or capture. Local fonts or
+  no remote imports, dependencies, event handlers or render-time capture. Local fonts or
   supplied WOFF2 are allowed. Do not fetch fonts. Keep all IDs unique.
 - Build synchronously: `const tl = gsap.timeline({paused:true});`, author
   explicit time-positioned tweens, then
@@ -113,3 +113,9 @@ v1 scaffold/snapshot/render calls. Its screenshot manifests, defaults, HTML
 and approval records are not migrated. New authoring uses `scripts/authored.py`
 and v2 integrity records. This seam preserves shipped artifacts without making
 the old layout engine understand arbitrary UI or forcing old forms onto v2.
+
+Explicit screen_mode uses v3 proposal approval; omitted mode still writes v2.
+Supplied/captured footage uses the same authoring/freeze/preview/render seam,
+with actual timed media and the source manifest described in its mode reference.
+Raw captures and approval/source evidence are private; only prepared presentation
+assets enter the frozen project, which is itself a private source deliverable.

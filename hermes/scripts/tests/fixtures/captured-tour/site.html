@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><title>Local Tour Fixture</title>
+<style>
+body{margin:0;font:24px Arial;background:#edf3f8;color:#142e43}header{background:#142e43;color:white;padding:28px 70px}
+main{margin:40px 70px}button,input{font:inherit;padding:14px 24px;border:2px solid #245d8b;border-radius:8px}
+button{background:#245d8b;color:white;cursor:pointer}section{height:800px;background:white;padding:35px;border-radius:16px}
+dialog{border:3px solid #245d8b;border-radius:18px;padding:35px}dialog::backdrop{background:#142e4377}
+#result{padding:35px;background:#c9f3e2}#dummy{position:fixed;right:10px;bottom:10px;background:#142e43;color:white;padding:10px;font-size:16px}
+</style>
+<header>DEMO ONLY / Local Settings</header><main><h1>Name Your Workspace</h1>
+<section><p>This isolated fixture has no accounts or network services.</p><button id="open">Customize</button>
+<p id="saved">No name selected</p><p>Scroll down to see the result panel.</p></section>
+<div id="result">Result: <strong id="result-name">Not selected</strong></div></main>
+<dialog id="modal"><h2>Workspace Name</h2><label for="name">Demo name</label><input id="name" type="text">
+<p id="typing">Waiting for input</p><button id="save">Apply Demo Name</button></dialog>
+<div id="dummy">SANITIZED FIXTURE</div>
+<script>
+const modal=document.getElementById('modal');
+document.getElementById('open').onclick=()=>modal.showModal();
+document.getElementById('name').oninput=e=>document.getElementById('typing').textContent='Typing: '+e.target.value;
+document.getElementById('save').onclick=()=>{const name=document.getElementById('name').value;
+document.getElementById('saved').textContent='Selected: '+name;document.getElementById('result-name').textContent=name;modal.close();};
+</script></html>

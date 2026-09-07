@@ -1,12 +1,12 @@
 ---
 name: create-tour
 description: >-
-  Author a bounded UI task walkthrough from reference screenshots, designs or
-  text: recompose video-ready UI, animate actual visible states and follow the
-  action with pointer/camera. Local HyperFrames source, proof frames and approved
-  MP4, at most 60 seconds. Not URL capture, OS/browser automation, a general
-  marketing film, image generation or speech synthesis.
-version: 2.0.0
+  Create a bounded UI task walkthrough: recreate UI from reference/design/text,
+  edit supplied local footage, or capture an explicitly approved sanitized Web
+  demo in an isolated session. Local HyperFrames project, proof frames and MP4,
+  at most 60 seconds. Native macOS capture is unavailable. Not general browser
+  automation, a marketing film, image generation or speech synthesis.
+version: 3.0.0
 author: CraftSamo
 license: MIT
 metadata:
@@ -28,6 +28,34 @@ metadata:
         required: false
         type: text
         label: "local files/directory or a textual UI description; URLs are context, not capture permission"
+      screen_mode:
+        required: false
+        options: [recreate, supplied, capture]
+        label: "recreate by default; explicit mode never changes silently"
+      source:
+        required: false
+        type: text
+        label: "supplied: local source manifest; capture: planned job/source.json; actual footage, never reference authorization"
+      source_sha256:
+        required: false
+        type: text
+        label: "supplied source manifest SHA-256, required before proposal approval"
+      target:
+        required: false
+        type: text
+        label: "capture only: URL/app to operate; URL alone grants no consent; native capture currently unavailable"
+      start_state:
+        required: false
+        type: text
+        label: "capture starting state, account/demo context; no client pixels or keystroke script required"
+      approved_plan:
+        required: false
+        type: text
+        label: "approved proposal-vN.md in the same work conversation; absent means proposal only for explicit screen_mode"
+      approval_sha256:
+        required: false
+        type: text
+        label: "SHA-256 of the exact client-approved proposal; integrity, not caller authentication"
       flow:
         required: false
         type: text
@@ -91,9 +119,24 @@ metadata:
    semantic flow, fidelity and choice approvals; you own task-local UI layout and
    motion implementation. Missing reference images are NOT a blocker when text
    specifies the UI. Never demand one screenshot per action or client-written
-   steps JSON. A bare URL is context only: ask for the missing UI facts, not
-   permission inferred from that URL. No capture, OS interaction, uploads,
-   TTS, image generation, external skills or automatic dependency installation.
+   steps JSON. A bare URL is context only, never permission to browse or record.
+   Separate reference (inspiration), source (actual local footage) and target
+   (operation destination). No uploads, TTS, image generation, external runtime
+   skills or automatic dependency installation. Native capture is unavailable.
+   Select one mode, never silently substitute another:
+   [recreate](references/screen-mode/recreate.md),
+   [supplied](references/screen-mode/supplied.md), or
+   [capture](references/screen-mode/capture.md). For capture also read
+   [Web](references/capture/web.md) or [macOS](references/capture/macos.md).
+   Propose semantic steps from the goal/audience/start state; the client approves
+   outcomes and scope, not a coordinate/keystroke script. For explicit screen_mode,
+   first return only proposal-vN.md + SHA-256. Use a single fenced `tour` JSON
+   block containing `form` (fully defaulted form, excluding approved_plan and
+   approval_sha256) and, for capture, `scope` as defined in the Web reference.
+   No target access before scope consent; no stateful actions before action
+   consent. After reconnaissance, revise the proposal if targets/actions changed.
+   Creator relays actual client approval in the same work conversation. Hashes
+   bind bytes, not identity. Final preview approval is a separate gate.
 2. Read [authoring](references/authoring.md) before writing source. Read selected
    style examples: [flat](references/styles/flat.md),
    [glass](references/styles/glass.md), [outline](references/styles/outline.md).
@@ -112,11 +155,16 @@ metadata:
 3. Inventory surviving artifacts. For a persisted v1 project only, use the
    unchanged `scripts/tour.py snapshot|render` entry and
    [legacy steps](references/steps.md); its saved manifest/HTML stay untouched.
-   A new v2 job does not reinterpret old forms or migrate old outputs.
+   Persisted v2 projects use authored.py without reinterpreting their form or
+   approval. Mode omitted retains the shipped recreate/v2 path; explicit mode
+   uses v3 and proposal approval. Never upgrade or overwrite frozen projects.
 4. Write UTF-8 `form.json` and your `contract.json` in job scratch; text goes
    through files, not Japanese argv. Author `index.html`, local assets and
-   QA motion assertions in a fresh task-local source directory. Copy references
-   needed to justify fidelity into that source bundle; preserve originals.
+    QA motion assertions in a fresh task-local source directory. Prepare supplied
+    or captured media using its mode reference; do not replace video with stills.
+    Keep raw recordings, proposal, hashes and acquisition logs in private job
+    evidence, outside final. Frozen projects are private source deliverables,
+    not public uploads. Copy only presentation assets into the source bundle.
    Do not edit managed scripts to add a layout, UI action or custom intro/outro.
    Run local `hyperframes lint <source>` while authoring; then freeze:
 
@@ -158,6 +206,15 @@ metadata:
   appears, selection updates, typed text accumulates; moving a screenshot
   alone does not demonstrate authored UI capability. Pointer tips contact
   targets in the camera's coordinate space. Keep titles and result readable.
+- For footage, verify `source_start + (timeline time - timeline_start)` at 1x
+  against actual source frames, forward AND reverse seeking. Prepared trims
+  start at media time 0. Do not fabricate exact click/typing times from video
+  without event evidence; mark added highlights editorial. Never double-overlay
+  an existing recorded cursor. Keep/mute is explicit, and keep requires a
+  separately timed audio element. Compare final audio as well as visuals.
+- Privacy masking/redaction is not implemented. Refuse scopes with private
+  regions or credentials; request sanitized sources/demo targets instead of
+  promising an overlay will hide them. Decorative cropping is not redaction.
 - `check.json` must contain runtime/layout/contrast results with nonzero text
   checks. A skipped audit is unverified. Inspect Japanese glyphs and wrapping
   at native size. Transition samples supplement held states, not replace them.
@@ -178,5 +235,7 @@ and concrete beats, including custom or explicit none; fidelity/simplifications;
 RESULT JSON; QA evidence and unresolved checks; `spend: media generation 0`;
 approval/revision handoff. Label direct local fixture renders as such, never
 product-live or Creator-to-hands evidence. A preview is not an MP4 delivery.
+Include screen_mode, raw duration versus final duration, capture scope/attempt
+tally, audio policy, source mapping, cleanup state and remaining platform gates.
 
 </Report>
