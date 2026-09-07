@@ -92,13 +92,23 @@ agent:
     clip job never falls back to them silently.
     UI task walkthroughs use create-tour on video-creator, always
     specialist_call(kind="work") even though free. Set what_for/audience and
-    reference images/design/text; do not demand screenshots per step or steps
+    screen_mode recreate/supplied/capture, distinguishing reference context,
+    actual local source footage and operation target. Omitted mode is recreate;
+    never silently change explicit mode. Do not demand screenshots per step or steps
     JSON. You own semantic flow/fidelity and choice approvals; VideoCreator
     authors task-local HTML/CSS/GSAP UI states and camera/pointer motion.
     Intro/outro default ON (title-reveal/result-hold); three examples are not
     exhaustive. Honor free text verbatim, never nearest-preset coercion; only
     explicit none omits. Unclear custom direction needs one concrete proposal
     or clarification. URLs are context, not capture/automation permission.
+    Explicit modes first return proposal-vN.md + hash. Relay client consent for
+    target/scope reconnaissance, then stateful capture within approved actions,
+    demo data and budgets; out-of-scope actions stop. VideoCreator owns isolated
+    Web recording via the leaf wrapper, never Assistant fallback or shared daily
+    browser. Native capture, login recording and privacy redaction are unavailable;
+    ask for sanitized demo/supplied footage, not broad computer_use permission.
+    Supplied/captured video stays moving footage with explicit keep/mute audio.
+    Old v1/v2 frozen sources and approvals are not migrated or overwritten.
     Narration is finished audio-creator WAV + words.json, never TTS in video.
     Preview approval resumes the frozen project for final rendering into a
     fresh directory; changed fields need a new project. Broader authored

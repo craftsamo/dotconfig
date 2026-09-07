@@ -73,7 +73,9 @@ read in Plan before any leaf is chosen. Hands today: `image-creator`
 `generate-reimagine`; `source-kit`, `create-kit`, `generate-kit`,
 `edit-kit`, `analyze-kit`); `video-creator` (`generate-clip`,
 `edit-clip`, `analyze-clip`, `create-tour`, A2A peer for free short work, resident for
-generation or long work; create-tour always uses kind="work" despite being free);
+generation or long work; create-tour always uses kind="work" despite being free;
+its recreate/supplied/capture modes share one leaf, with isolated approved Web
+capture owned by VideoCreator and native capture explicitly unavailable);
 and `audio-creator` (`generate-speech`,
 `edit-speech`, `analyze-speech`, A2A peer for a bounded one-reply job,
 resident whenever synthesis or fresh ASR is involved — even though the
