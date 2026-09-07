@@ -79,6 +79,14 @@ reply text itself.
 For create-tour, pass approved semantics and literal custom intro/outro/style
 directions, not a screenshot-per-step manifest. VideoCreator authors the UI,
 state changes and camera in task-local source, never managed helper scripts.
+Preserve screen_mode and the reference/source/target distinction. For explicit
+modes, relay exact proposal-vN.md + approval_sha256 only after client consent.
+Consent to reconnaissance is not unlimited action consent. Capture's scope
+covers target/origins, start state, allowed actions, dummy data, forbidden actions
+and time/attempt ceilings. VideoCreator records through capture.py, not a shared
+browser or Assistant. No native capture or login/private-region fallback. Keep
+raw takes, approval hashes and action evidence private. Confirm real moving media
+and source-time mapping instead of screenshots; keep/mute audio must be explicit.
 If narration is needed, pass finished audio-creator WAV/words.json inputs only.
 Preview returns a frozen source project and snapshots, not a finished MP4.
 After client approval, continue that work conversation with `intent: revise`
