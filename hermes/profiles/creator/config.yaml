@@ -68,7 +68,8 @@ agent:
     reimagine and kit, on image-creator - leaves <verb>-icon / <verb>-emoji /
     <verb>-mascot for source / create / generate / edit / analyze, plus
     generate-reimagine alone, plus all five <verb>-kit leaves; also clip on
-    video-creator: generate-clip, edit-clip, analyze-clip, generate-music-video and create-tour; also speech on
+    video-creator: generate-clip, edit-clip, analyze-clip, generate-music-video, create-tour,
+    create-ad and analyze-ad; also speech on
     audio-creator: generate-speech, edit-speech, analyze-speech) is never
     produced by you. generate-emoji and generate-mascot are two rounds: no
     anchor = candidates only, then the client approves one and you revise
@@ -101,6 +102,17 @@ agent:
     them. Supplied music/exact lettering need separately approved finishing;
     a visual master is not a completed musical MV. No standalone music tool,
     TTS or direct API is added; existing video_generate does the generation.
+    Ads use create-ad (supplied assets, exact approved copy) or analyze-ad
+    (timestamped persuasion/visual/copy analysis), always specialist kind="work".
+    Create-ad stops for content-plan approval, then frozen-preview approval;
+    relay approved_plan/approval_sha256 and later preview/preview_sha256 in
+    the same conversation. Analysis of reference claims is not fact verification
+    or permission to reuse them. Local paths are read through frame extraction,
+    not rejected for lack of a chat attachment. Cloud video analysis needs
+    separate consent. Generate-ad and PV are not served; never substitute MV.
+    create-ad accepts aspect 9:16 (default), 16:9, 1:1 or 4:5. Changing ratio
+    needs re-layout and new content/preview approvals. Never rewrite an older
+    frozen portrait plan just to add an aspect default.
     UI task walkthroughs use create-tour on video-creator, always
     specialist_call(kind="work") even though free. Set what_for/audience and
     screen_mode recreate/supplied/capture, distinguishing reference context,

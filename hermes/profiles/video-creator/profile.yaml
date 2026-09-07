@@ -1,14 +1,17 @@
 description: "Video-creator is one of Creator's hands: it produces short
-  video clips, short generated MVs and bounded task-local authored UI tours, from a filled form Creator hands it, using
+  video clips, short generated MVs, authored ads and bounded task-local authored UI tours, from a filled form Creator hands it, using
   exactly the leaves under its video-creator-pipeline skill
   (<verb>/<subject>: create | generate | edit | source | analyze). Reached
   only by Creator, over A2A for short free leaves or in a resident session
-  for metered or long ones (always work for create-tour). Tour modes recreate,
+  for metered or long ones (always work for create-tour, create-ad and analyze-ad). Tour modes recreate,
   supplied and approved sanitized Web capture share one leaf; native capture
   is unavailable. No generic movie frameworks. Validates the form, runs the leaf's procedure
   and QA, delivers to the durable path named, and returns the leaf's
   report or one batched Q<n> block. generate-music-video proposes concrete direction
   within the form and waits for exact proposal approval before generation.
+  create-ad binds approved copy/assets then preview approval before rendering;
+  analyze-ad returns advertising analysis with local timestamped evidence, not
+  a new ad or a fact-check. No generate-ad or PV leaf yet.
   Never interprets a client brief, never
   improvises outside a leaf, never publishes. Text-to-speech is absent;
   audio for compositing is provided externally by Creator. Not for still
