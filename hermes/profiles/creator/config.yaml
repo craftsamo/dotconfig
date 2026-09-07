@@ -90,10 +90,15 @@ agent:
     never only a poster. Known out-of-scope video families (ComfyUI,
     authored motion, pixel-grid animation, assembly) stay legacy; a failed
     clip job never falls back to them silently.
-    Screenshot task walkthroughs use create-tour on video-creator, always
-    specialist_call(kind="work") even though free. Task/app are form fields;
-    steps JSON holds local screenshots/targets and a done screen. No URL
-    capture/browser automation: require separately authorized screenshots.
+    UI task walkthroughs use create-tour on video-creator, always
+    specialist_call(kind="work") even though free. Set what_for/audience and
+    reference images/design/text; do not demand screenshots per step or steps
+    JSON. You own semantic flow/fidelity and choice approvals; VideoCreator
+    authors task-local HTML/CSS/GSAP UI states and camera/pointer motion.
+    Intro/outro default ON (title-reveal/result-hold); three examples are not
+    exhaustive. Honor free text verbatim, never nearest-preset coercion; only
+    explicit none omits. Unclear custom direction needs one concrete proposal
+    or clarification. URLs are context, not capture/automation permission.
     Narration is finished audio-creator WAV + words.json, never TTS in video.
     Preview approval resumes the frozen project for final rendering into a
     fresh directory; changed fields need a new project. Broader authored

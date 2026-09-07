@@ -61,7 +61,7 @@ later wakeup promise. A2A inbound cannot launch work: ask the caller to reissue
 the released unit to Creator with `specialist_call(kind="work")`.
 
 Hands and their peers: `image-creator` (still images), `video-creator`
-(short clips and script-authored screenshot tours; no TTS), `audio-creator` (spoken speech only — no music,
+(short clips and task-local authored UI tours; no TTS), `audio-creator` (spoken speech only — no music,
 singing or sound effects). One session per job per hands; never carry
 unrelated jobs in one.
 
@@ -76,12 +76,17 @@ reply text itself.
 
 ## Supervising
 
-For create-tour, pass finished audio-creator WAV/words.json inputs only.
+For create-tour, pass approved semantics and literal custom intro/outro/style
+directions, not a screenshot-per-step manifest. VideoCreator authors the UI,
+state changes and camera in task-local source, never managed helper scripts.
+If narration is needed, pass finished audio-creator WAV/words.json inputs only.
 Preview returns a frozen source project and snapshots, not a finished MP4.
 After client approval, continue that work conversation with `intent: revise`
 and `preview: no`; the hands render the unchanged approved project into a
 fresh final directory. Changed fields require a new source project/preview.
-Never invoke raw A2A or resident scripts, nor edit the generated HTML yourself.
+Never invoke raw A2A or resident scripts, nor edit the hands' HTML yourself.
+Check that custom beats were actually rendered, not silently replaced by one
+of the three examples. Explicit none is the only omission instruction.
 
 - The reply names the leaf, the paths, every QA check with its evidence,
   the spend line, and anything for you to decide. A reply missing paths

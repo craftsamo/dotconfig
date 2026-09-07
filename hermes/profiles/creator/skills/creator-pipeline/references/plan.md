@@ -62,13 +62,17 @@ through `capabilities.md`'s technic table — see `build.md` "Legacy".
 
 ## Composite requests — a sequence of forms
 
-Screenshot-based task walkthroughs use `create-tour`: fill task/app in the
-form, not the steps JSON. Require ordered local screenshots, explicit pixel
-targets or unique text anchors, and a final done screen. Choose the required
-tour-local flat/glass/outline style. Frame defaults to auto; preview defaults
-to yes. The whole tour, including goal and narration padding, is <=60 seconds.
-A URL request needs screenshots from a separately authorized capture job;
-this leaf does not capture URLs or automate browsers. Narration is a prior
+UI task walkthroughs use `create-tour`: fill what_for/audience and reference
+images, designs or text. Never demand per-step screenshots or steps JSON.
+You own semantic flow and fidelity approval (faithful or explanatory simplified,
+never invented real-product functions); VideoCreator owns task-local UI/motion
+authoring. Frame/background style belongs to presentation, not blind UI reskinning.
+Intro/outro default ON (title-reveal/result-hold). Offer the three reference
+examples with `other: true`, not an exhaustive menu. Preserve custom directions
+verbatim; unresolved ones need ONE clarification or concrete proposed beat.
+Only explicit none omits, never absence/blank. The whole tour is <=60 seconds.
+URLs are context, not capture permission; sufficient text needs no image.
+This leaf does not capture URLs or automate browsers. Narration is a prior
 audio-creator delivery, not TTS in video-creator. Send tour work via
 `specialist_call(kind="work")` even though free. Broader authored motion
 remains creator-html-motion; this new subject retires no legacy 1:1 mapping.
