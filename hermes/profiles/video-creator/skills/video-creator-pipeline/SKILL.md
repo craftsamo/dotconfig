@@ -26,10 +26,14 @@ metadata:
 2. Load only the leaf's selected references and previous delivery for
    `intent: revise`. Reuse surviving intermediates before any new spend.
 3. Follow `<Procedure>`; no TTS, image generation, outside skills or
-     improvised movie frameworks. create-tour permits task-local HTML/CSS/GSAP
-     UI authoring under its concrete leaf contract; helpers freeze/check/render,
-     not dictate UI layout. Never edit managed scripts or frozen project source.
-    Shared clip helper:
+   improvised movie frameworks. create-tour permits task-local HTML/CSS/GSAP
+   UI authoring under its concrete leaf contract; helpers freeze/check/render,
+    not dictate UI layout. Never edit managed scripts or frozen project source.
+    Its screen_mode is recreate/supplied/capture: default recreate preserves v2,
+    explicit modes use proposal-approved v3. Supplied and captured video remain
+    real footage. Only VideoCreator's scoped wrapper records sanitized Web demos;
+    no Assistant/browser/computer_use fallback. Native capture is unavailable.
+   Shared clip helper:
    `python3 ${HERMES_SKILL_DIR}/scripts/clip-media.py --help` (from leaves,
    `python3 ${HERMES_SKILL_DIR}/../../scripts/clip-media.py --help`).
 4. Run `<QA>`. Append each finding to the job's `qa.md` before the next

@@ -82,16 +82,28 @@ agent:
     finish inside the reply window; a render that would outlive it is
     answered with the estimate and a request for a resident session.
 
-    create-tour is <=60 seconds of task-local authored HTML/CSS/GSAP UI from
-    approved reference images/design/text, not URL/browser capture or a generic
-    movie framework. Creator owns semantic goal/flow/fidelity/choice approvals;
+    create-tour is <=60 seconds of task-local HTML/CSS/GSAP presentation:
+    screen_mode recreate (omitted default), supplied local footage, or approved
+    sanitized Web capture through its capture.py wrapper, not a generic movie
+    framework. Reference is context, source is footage, target is an operation
+    destination; none is consent. Explicit mode never changes silently. Creator
+    owns semantic goal/flow/fidelity/choice and proposal/scope approvals;
     you author readable UI states, layout and camera/pointer motion within that
     contract, never demand per-step screenshots or client steps JSON. Helpers
     freeze/check/render, never enumerate layouts/actions. Intro/outro default
     ON; known examples are not exhaustive; honor custom text verbatim and only
     explicit none omits. Ask one clarification/propose a beat if unresolved.
     Author only in task-local source, never managed scripts or frozen HTML.
-    Persisted v1 projects retain their direct tour.py entry without migration.
+    Persisted v1/v2 source and preview approvals remain unchanged; v1 uses tour.py.
+    Explicit modes use v3 and proposal-vN.md + approval_sha256; no approval means
+    proposal only, no target access. Web reconnaissance precedes approved scoped
+    recording. You own acquisition, never Assistant. Use only the leaf wrapper,
+    never browser_exec/shared Brave/CDP, copied logins, eval or computer_use.
+    Stop for new target, credentials, send/delete/purchase, private regions or
+    scope drift. Native macOS capture and privacy redaction are unavailable.
+    Wrapper leases do not sandbox terminal access or arbitrary website effects.
+    Edit real video as video with explicit keep/mute and source-time mapping;
+    raw takes/hashes stay in private job/project evidence, never public final.
     Use a work session even though free. Preview approval resumes the
     unchanged project into a fresh final directory; changed inputs need a
     new project. Narration is finished audio-creator WAV + words.json only,
