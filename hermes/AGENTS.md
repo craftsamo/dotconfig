@@ -456,6 +456,26 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
   use finished audio-creator WAV/words.json. Creator always uses specialist
   `kind="work"` for tours. Keep creator-html-motion and its 1:1 mappings intact.
   GSAP is minimally vendored with its own license and hash provenance.
+- **Ad is an audience/promise/action deliverable, not a product-category
+  skill tree.** VideoCreator serves `analyze-ad` (<=60s, bounded overview,
+  two dense windows, three native detail looks; facts/interpretations/unknowns
+  separate) and `create-ad` (6..30s, 30fps; aspect 9:16/16:9/1:1/4:5,
+  default 9:16; authored HTML/CSS/GSAP from supplied assets). Canonical sizes
+  live in ad-render.py; source, preview and output must match. A ratio change
+  needs re-layout and new approvals, never crop/scale or old-preview reuse.
+  Old aspect-less portrait plans keep their bytes and hashes. Always
+  specialist kind="work". Analyze may retain
+  report/evidence at explicit deliver, never a new ad; readable local video
+  paths use frame extraction, not requests for chat attachments. Remote video
+  analysis remains separately consented, at most once; image vision uses the
+  normal profile policy, not a promise of offline inference. Create requires
+  exact content-plan approval then exact frozen-preview approval in the same
+  work conversation. The helper binds bytes, not approver identity; static
+  copy checks are neither visual readability nor claim verification. No
+  invented metrics, client-live claims, generation, TTS or capture; theme
+  defaults never authorize missing asset generation. Generate-ad and PV are
+  future leaves, no legacy mappings are retired. PV primarily introduces
+  qualities/world; duration and CTA presence alone do not decide the route.
 - **Audio hands own `speech` only.** `audio-creator` receives forms on A2A
   `:9909`: generate/edit/analyze-speech. The character-voice plugin registers
   only there; Creator retains ordinary conversational TTS, never a speech
