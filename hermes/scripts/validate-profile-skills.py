@@ -905,7 +905,7 @@ def validate_hands_form(
             if not isinstance(options, list) or not options:
                 errors.append(f"hands form field {key} options must be a non-empty list: {path}")
             else:
-                reference_dir = "styles" if key == "style" else str(key)
+                reference_dir = {"style": "styles", "theme": "themes"}.get(key, str(key))
                 reference_root = leaf_dir / "references" / reference_dir
                 if key != "style" and "references" not in field and not reference_root.is_dir():
                     continue
