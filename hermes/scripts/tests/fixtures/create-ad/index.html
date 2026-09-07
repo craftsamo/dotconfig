@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<script src="assets/gsap.min.js"></script>
+<style>
+*{box-sizing:border-box}html,body{margin:0;width:@@WIDTH@@px;height:@@HEIGHT@@px}
+#root{position:relative;width:@@WIDTH@@px;height:@@HEIGHT@@px;overflow:hidden;background:#0f2033;color:#fff;font-family:Arial,sans-serif}
+#message{position:absolute;left:@@MARGIN@@px;top:@@MESSAGE_TOP@@px;width:@@CONTENT_WIDTH@@px;font-size:@@MESSAGE_SIZE@@px;opacity:0}
+#claim{position:absolute;left:@@MARGIN@@px;top:@@CLAIM_TOP@@px;width:@@CONTENT_WIDTH@@px;font-size:@@CLAIM_SIZE@@px;line-height:1.35;opacity:0}
+#cta{position:absolute;left:@@MARGIN@@px;top:@@CTA_TOP@@px;width:@@CONTENT_WIDTH@@px;font-size:@@CTA_SIZE@@px;opacity:0}
+</style>
+</head>
+<body>
+<!-- Fictional demo fixture: solely automated test evidence, never a real or client-approved ad. -->
+<div id="root" data-composition-id="ad" data-start="0" data-width="@@WIDTH@@" data-height="@@HEIGHT@@" data-duration="@@DURATION@@" data-fps="30">
+<div id="message">A quiet cue to help you pause and refocus</div>
+<div id="claim">Assumed demo function: a soft screen dim after 25 minutes of focus (TEST FIXTURE, fictional, not a verified or client ad)<span>*</span></div>
+<div id="cta">See the illustrative demo</div>
+</div>
+<script>
+window.__timelines ||= {};
+const tl = gsap.timeline({paused:true});
+tl.set('#message',{y:40},0);
+tl.to('#message',{opacity:1,y:0,duration:.6,ease:'power2.out'},1);
+tl.to('#message',{opacity:0,duration:.4},5.6);
+tl.set('#claim',{y:40},0);
+tl.to('#claim',{opacity:1,y:0,duration:.6,ease:'power2.out'},6);
+tl.to('#claim',{opacity:0,duration:.4},9.6);
+tl.set('#cta',{y:40},0);
+tl.to('#cta',{opacity:1,y:0,duration:.6,ease:'power2.out'},10);
+tl.to({},{duration:@@DURATION@@},0);
+window.__timelines.ad=tl;
+</script>
+</body>
+</html>
