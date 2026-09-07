@@ -33,10 +33,18 @@ only when they share tools, spend class, and verification.
 | a short generated MV with subject performance, a coherent world and evolving shots/highlights | video-creator: generate-music-video | metered, 5-15 seconds; unspent proposal then exact-plan approval; theme/style/direction are form values, default 2 variants + 1 corrective; native generated audio needs backend support, supplied music/exact lettering need separate finishing |
 | trim/fit/mute/re-encode one existing segment as MP4/WebM/GIF | video-creator: edit-clip | free of generation, at most 60 seconds; contain by default; GIF repeat is playback metadata, not seamless motion |
 | technical and visual findings on one short clip, no new video | video-creator: analyze-clip | at most 60 seconds; local samples or one consented remote full-clip analysis; timestamps and explicit unverified checks |
+| timestamped advertising reference breakdown or ad review: copy, persuasion, visual construction and CTA | video-creator: analyze-ad | <=60 seconds, kind="work"; overview, bounded dense windows and native copy evidence; optional retained report; not factual/provenance/performance verification |
+| exact-copy advertisement from approved product/logo/media assets | video-creator: create-ad | 6..30 seconds, 30fps; aspect 9:16 (default), 16:9, 1:1 or 4:5; native canvas per plan, no automatic crop/scale; kind="work", content-plan then preview approval; no generation/TTS/capture |
 | a UI task walkthrough: recreate from reference/design/text, edit supplied local footage, or record an approved sanitized Web demo | video-creator: create-tour | free, <=60 seconds; task-local source/preview/MP4, always kind="work"; free-text intro/outro default ON; explicit mode/proposal/scope gates, isolated Web wrapper only; native capture/login/privacy redaction unavailable; optional finished audio-creator WAV/words.json |
 | a house-voice or registered-character spoken line from an approved script (up to 600 characters), as narration or a voice message | audio-creator: generate-speech | free of provider cost, NOT free of an attempt allowance: 1 take + 1 corrective per script by default, counting every synthesis call including failures; house uses the language fallback chain, a qualified `<engine>:<voice>` id never falls back |
 | concatenation, boundary trim, speed, loudness normalization or format conversion of existing speech | audio-creator: edit-speech | free of generation; no resynthesis, no word changes, no voice conversion |
 | findings on an existing speech file against a destination format, with optional script readback | audio-creator: analyze-speech | free; measured and readback evidence only, never a listening verdict; deliver may be omitted |
+
+Ad means a specific audience, promise and intended action. PV primarily
+introduces qualities/experience/world: neither duration nor a CTA alone decides.
+Only create-ad and analyze-ad are served; generate-ad and a PV leaf are not yet
+implemented. Never silently route a requested generated ad to MV or create-ad.
+Technical-only checks stay analyze-clip even for its what_for: ad option.
 
 The clip and MV scopes above are served, not the whole former generated-video
 technic. Named legacy methods below (ComfyUI, authored HTML motion,

@@ -1,8 +1,8 @@
 ---
 name: video-creator-pipeline
 description: >-
-  Root of video-creator's clip, MV and authored-UI-tour leaves. Load first for a filled form naming
-  generate-clip, edit-clip, analyze-clip, generate-music-video or create-tour, then load only that leaf.
+  Root of video-creator's clip, MV, authored-UI-tour and ad leaves. Load first for a filled form naming
+  generate-clip, edit-clip, analyze-clip, generate-music-video, create-tour, create-ad or analyze-ad, then load only that leaf.
   Not an interview, a video menu, or a generic movie-making workflow.
 version: 1.0.0
 author: CraftSamo
@@ -20,6 +20,8 @@ metadata:
    options (`other: true` accepts a described value). Return one batched
    `Q<n>:` for missing/unusable fields; unknown leaf: `no skill fits`.
    Analyze may omit `deliver`; its evidence stays in a fresh scratch dir.
+   analyze-ad may retain its report/evidence at an explicit deliver path;
+   it never produces a new ad. Use kind="work" for its bounded multi-pass review.
    A2A's loopback IP is normal transport metadata, not a missing form field;
    the transport does not authenticate a profile name. Never ask the caller
    to prove its role by saying "I am Creator".
@@ -28,6 +30,9 @@ metadata:
 3. Follow `<Procedure>`; no TTS, image generation, outside skills or
    improvised pipelines. generate-music-video authors a proposal within its form;
    no approved proposal/digest means no generation, even with a budget.
+   create-ad permits task-local HTML/CSS/GSAP advertising from supplied assets:
+   content-plan approval, frozen-source preview, then exact-preview approval
+   before final rendering. No approval fields means proposal only, not render.
    create-tour permits task-local HTML/CSS/GSAP
    UI authoring under its concrete leaf contract; helpers freeze/check/render,
     not dictate UI layout. Never edit managed scripts or frozen project source.

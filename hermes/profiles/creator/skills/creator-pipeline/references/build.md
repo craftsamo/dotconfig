@@ -38,6 +38,7 @@ Do not relocate a valid Group-local request to the global deliverables area.
 | metered, multi-turn, or anything whose estimate exceeds ~4 minutes (`generate`) | `specialist_call(target="<hands>", message=<the text>, kind="work")`; the tool starts the resident session you supervise |
 | audio-creator's synthesis/ASR-heavy leaves (`generate-speech`; an `edit-speech`/`analyze-speech` that needs fresh ASR rather than reused sidecars) | `kind="work"` as in the metered row, even though the leaf is `cost: free` — synthesis and ASR routinely outlive the reply window. Use `kind="inquiry"` only when bounded and known to finish in one reply (reused, already-validated sidecars; no fresh ASR) |
 | video-creator's `create-tour` | `specialist_call(target="video-creator", message=<the text>, kind="work")` even though free; local snapshots/rendering and preview approval are not one-reply work |
+| video-creator's `create-ad` / `analyze-ad` | `specialist_call(target="video-creator", message=<the text>, kind="work")`; approval turns or bounded multi-pass evidence extraction, not an inquiry |
 
 Pass the exact handoff text as `message`, with the released inputs, permissions
 and budget unchanged. Transport is not a release or an additional grant.
@@ -75,6 +76,27 @@ findings only, no new audio file, and expect no files back beyond the
 reply text itself.
 
 ## Supervising
+
+For analyze-ad relay the evidence-backed report, not a request for an output
+movie. Optional deliver retains report/evidence for the next work unit. Do not
+promote source-ad claims into approved client claims or re-upload/re-analyze
+the same file yourself. Missing listening/continuous-motion evidence stays
+unverified. A reference analysis is not authorization to produce a new ad.
+
+For create-ad, keep all three turns in one specialist work conversation:
+proposal-only (no approval fields), approved_plan + approval_sha256 for source
+authoring/preview, then preview + preview_sha256 for final render. Preserve
+the full form and target/conversation_id. Relay the exact hashes only AFTER
+client approval; never recompute a hash to approve changed bytes. Review exact
+copy, claim qualifications, asset usage and action before content approval;
+review the frozen preview before rendering. A hash is integrity, not caller
+authentication. Changed copy/assets/direction require a new plan and preview.
+Changing aspect also requires re-layout, a new plan/source/preview and both
+approvals; never apply an old portrait preview to a landscape/square output.
+Do not inject aspect into an existing approval-bound portrait plan that lacks it.
+No media generation, TTS, capture or arbitrary API call is hidden in create-ad.
+Do not require a separate analyze-ad call for its self-QA; use it when the
+client asks for deeper advertising review or a reference breakdown.
 
 For generate-music-video, a `pending-inputs` proposal is valid preliminary
 work with zero media calls, not a refusal to produce a plan. Keep its path/hash

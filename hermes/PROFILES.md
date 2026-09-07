@@ -606,7 +606,9 @@ profiles/<hands>/skills/
   waveform (free local synthesis or metered provider); `edit` — transform an existing asset (free unless the
   edit itself generates); `source` — fetch a published asset and record its
   license (free); `analyze` — inspect an existing asset and return findings,
-  never a file (free). The `create`/`generate` boundary is whether a
+  not new/repaired media (free). Most analyze leaves return reply findings;
+  analyze-ad may retain its report and evidence at an explicit deliver path
+  for a later creative brief, never a new ad. The `create`/`generate` boundary is whether a
   generation model is asked to draw.
 - **Cost is independent of verb.** `free` means no metered media-provider fee,
   not zero reasoning cost or unlimited compute. Local speech synthesis still
@@ -705,6 +707,67 @@ Creator. Continue with the same target and returned conversation_id. Released
 inputs, permissions, budgets and the exact handoff text are unchanged. CLI
 calls wait within a finite deadline; A2A inbound cannot launch work and must
 ask its caller to reissue the unit through a work conversation.
+
+### Ad family
+
+`ad` belongs to video-creator. The first release is `analyze-ad` and
+`create-ad`; `generate-ad` and PV are planned, not advertised capabilities.
+No legacy technic or mapping is retired. Both leaves use specialist
+kind="work" even though media-generation cost is free.
+
+An Ad addresses a specific audience with a promise and intended action. A
+PV primarily introduces a subject's qualities, experience or world. Both
+may contain a CTA, so neither CTA presence nor duration alone routes them.
+Product categories stay form values, not separate ad skill families.
+
+- `analyze-ad` reads one local <=60-second video for reference or review:
+  measured metadata, timestamp-labeled overview, at most two dense windows
+  and three native detail looks, then a timeline, visual construction,
+  persuasion, issues and production handoff. Source claims are quoted as
+  claims, not inherited client facts. Report observations, interpretations
+  and unknowns separately; no provenance/model/conversion guessing. The
+  helper uses clip-media's probe and only writes exclusive local evidence
+  directories. Remote video analysis needs explicit yes and at most one call;
+  image vision keeps the normal profile policy. No audio-stream-to-listening
+  inference. Technical-only questions stay analyze-clip, even what_for: ad.
+- `create-ad` authors a 6..30-second, 30fps HTML/CSS/GSAP ad from
+  approved copy and local assets. Aspect selects 9:16 (1080x1920, default),
+  16:9 (1920x1080), 1:1 (1080x1080), or 4:5 (1080x1350). Changing ratio
+  means re-layout and a separately approved plan/source/preview, never a
+  scaled or cropped old composition. Existing version-1 plans without
+  aspect remain portrait; validation does not insert the new field or alter
+  their hashes. Default office/bold-graphic/claim-led each
+  has a concrete leaf-local reference; custom values override defaults.
+  It does not generate media, synthesize speech, capture, or load external
+  runtime skills. Client-finished PCM WAV and muted supplied MP4 are inputs.
+  Raster product/logo files are validated; no SVG input in this first release.
+- Content approval binds plan.json (exact copy/holds, supplied claims,
+  complete asset hashes, proof samples). Preview approval binds the frozen
+  source/checks/frames before final render. Creator relays both in the same
+  work conversation; file hashes are integrity checks, not authentication.
+  Local helper primitives come from tour; its existing contracts are not
+  changed and no ad layout generator or generic render framework is added.
+  Static copy checks do not prove visible text/reading time/claim truth.
+  Final decode and visual evidence must retain temporal/listening gaps.
+
+Verification is staged: helper/unit and real local render checks are distinct
+from fresh specialist/client-path tests. Do not call direct fixture renders
+client-live evidence. Reference video, output frames and jobs stay local and
+untracked; never commit a downloaded reference ad or its commercial claims.
+The initial local check used 30 overview frames, an 8-frame focused window
+and one native detail of a supplied portrait ad, with no remote video call.
+A clearly fictional text-only fixture passed real HyperFrames check/snapshot/
+render and final full decode at 1080x1920, 30fps, 15 seconds; its three copy
+holds were inspected. This proves the local path, not production art quality,
+Japanese typography, listening or the two live client entry paths. Those
+remain live acceptance work, not claims made by the helper tests. Runtime
+identity is bound to preview approval; a changed CLI needs a new preview.
+Aspect selection was checked with real local 15-second fixture renders at
+all four native sizes, 30fps/H.264/yuv420p, full decode and sampled copy/CTA
+inspection. The aspect-less plan/preview byte-preservation test passes. An
+older scratch project's independent rescan was blocked by a Finder-created
+.DS_Store under its frozen root, not by ratio validation; it was not deleted
+or ignored to make the check pass. This does not relax frozen-source rules.
 
 ### Music-video family
 
