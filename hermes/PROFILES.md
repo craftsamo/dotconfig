@@ -793,7 +793,8 @@ missing private target; no personalized file was overwritten.
 ### Tour family
 
 `video-creator-pipeline/create/tour/` serves `create-tour`, a new subject:
-reference screenshots/design/text to a <=60-second authored UI walkthrough.
+recreate from reference/design/text, edit supplied local footage, or capture an
+explicitly approved sanitized Web demo for a <=60-second UI walkthrough.
 Creator owns what_for/audience, semantic flow, fidelity and choice approvals;
 VideoCreator authors task-local HTML/CSS/GSAP, state changes and camera/pointer.
 No per-step screenshots or client-written steps JSON are required. Frame and
@@ -804,12 +805,16 @@ are examples with other:true, not exhaustive presets. Custom directions remain
 verbatim with concrete authored beats; only explicit none omits. Ambiguity goes
 back as one clarification or proposed beat, never nearest-preset fallback.
 Styles can also be authored locally beyond flat/glass/outline, without a registry.
-No URL capture or browser automation is implemented; URLs are context only.
+Reference is inspiration/context, source is actual local footage, target is an
+operation destination. None is capture consent. Omitted screen_mode preserves
+recreate/v2 behavior; explicit recreate/supplied/capture uses v3 proposal approval.
+Only VideoCreator's narrow capture.py wrapper operates sanitized Web demos under
+approved scope. Native capture, login recording and privacy redaction are unavailable.
 Narration consumes finished audio-creator WAV plus
 current words.json; video-creator has no TTS or external runtime skills.
 
 Creator routes this free leaf with `specialist_call(kind="work")`, never raw
-A2A or a direct resident script. `authored.py` freezes v2 source/contract/form,
+A2A or a direct resident script. `authored.py` freezes v2/v3 source/contract/form,
 checks real renders and publishes fresh preview/final evidence with full decode.
 It does not generate layout or enumerate UI actions. The unchanged `tour.py`
 direct entry remains usable for actual persisted v1 screenshot projects and
@@ -872,6 +877,122 @@ python scripts/tests/fixtures/authored-tour/example.py --root <fresh-absolute-ch
 python scripts/tests/fixtures/authored-tour/audit.py <rendered-fixture-root>
 node scripts/tests/fixtures/authored-tour/seek.mjs <installed-hyperframes-package.json> <headless-browser-binary> <rendered-fixture-root>
 ```
+
+#### Footage And Capture v3
+
+The same leaf preserves frame/style/background/backdrop/free-text intro/outro.
+Creator proposes semantic steps from goal/audience/start_state and optional flow;
+clients need not write action scripts. An explicit mode first returns only
+proposal-vN.md and SHA-256. The proposal's `tour` block binds the normalized form
+and capture scope. Creator relays client approval in the same work conversation;
+hashes bind bytes, not caller identity. Approved reconnaissance precedes approved
+stateful recording. Changed scope needs a new proposal, not per-click approval
+inside the existing scope. Exact preview approval remains a separate final gate.
+
+`footage.py` fully decodes and trims local raw video at 1x, validates source
+ranges, and records explicit keep/mute audio and source-to-timeline mapping.
+Raw limits (300 s / 512 MB each, 1 GB selected inputs) are independent of final
+<=60 s and prepared <=64 MB / bundle <=128 MB. `<video>` remains moving footage,
+with unique id, muted/playsinline and framework-owned timing. Keep uses a separate
+timed audio element. No screenshot replacement, fabricated event timings or
+double cursor. Raw/source hashes, proposal and logs stay private, outside final.
+
+`capture.py` runs installed agent-browser via the existing terminal surface.
+It binds a private namespace/config/session to the job/proposal, holds an
+exclusive flock, independently caps reconnaissance at four sessions and recording
+at two takes per job (failures counted across proposal versions), checks origin/tab
+state before/after actions, rejects arbitrary eval/navigation/login/upload and
+unapproved selectors/data, and fsyncs pending action evidence before dispatch.
+Recording replaces the context and leaves the old tab: only that verified owned
+tab is closed, then page state and fresh snapshot are checked. Interruptions
+retain raw/unknown actions; recovery closes only the owned session and cannot
+replay an interrupted approval. SIGKILL cleanup relies on a private idle timeout
+and explicit lease recovery, not a finally-block promise.
+Unknown-selector discovery can use v1 recon, v2 recon plus an interrupted first
+take, then v3 recon plus the reapproved second take. Recon under the exact current
+proposal is still mandatory; no consent or evidence is relabeled/reused, and new
+proposals cannot reset either budget or permit a third take.
+
+Launch capture/recon/recovery using terminal background:true and notify:true from
+the outset; save its terminal session_id and poll/wait only that process. A 180 s
+scope can exceed the profile's 180 s foreground timeout after cleanup/validation,
+so never retry a terminated foreground recording as a workaround. The browser
+closes before probing/decoding; ordinary browser subprocesses are capped at 20 s
+and the remaining <=180 s lease, stop/close at 20 s each, ffprobe at 180 s and
+decode at 360 s. Validation subprocess work is <=540 s, the normal capture path
+<=760 s plus bounded-size IO/scheduling. Background terminal timeout is not a
+lifetime cap: supervise with bounded process waits and a 900 s operating cutoff,
+then terminate only the owned terminal process and reconcile/recover its lease.
+Do not replay interrupted approvals or launch a duplicate after a wait timeout.
+
+This is a wrapper boundary, NOT a terminal/website sandbox. Existing terminal
+access can bypass it; operating contracts forbid bypass. Agent-browser domain
+filtering and post-action origin/tab checks do not guarantee arbitrary websites
+are safe: GET/page scripts can mutate state, and popup/redirect loading can occur
+before detection. Only approved controlled sanitized demos qualify. Source crops
+are decorative, not verified privacy redaction. No new plugin/toolset or broad
+browser/computer_use grant was added; cli/a2a retain terminal and existing scoped
+registry rules. No global permission, dependency or gateway change is required
+for the local wrapper.
+
+Native proof gate: cua-driver 0.23.2 start_recording has only output_dir and
+record_video; video captures the main display, not a scoped window. Existing
+driver TCC grants were observed read-only, not changed or tested by capture.
+Native remains blocked until continuous window-scoped capture AND a shared
+desktop-action guard covering Assistant's existing computer_use are proven.
+Never route around this through Assistant or full-desktop capture/cropping.
+
+Local verification uses `scripts/tests/test_tour_footage.py` and
+`scripts/tests/fixtures/captured-tour/`. The opt-in proof serves a dummy modal,
+typing and scrolling UI only on loopback, records continuous WebM in an isolated
+browser, trims it, and renders with HyperFrames 0.8.30. It is not a product-live
+or two-client Hermes handoff. No durable client destination or model session is
+selected automatically. Run with an existing physical scratch parent:
+
+```sh
+python scripts/tests/fixtures/captured-tour/proof.py --root <fresh-absolute-child> --render
+node scripts/tests/fixtures/captured-tour/seek.mjs <installed-hyperframes-package.json> <headless-browser-binary> <project> <fresh-seek-output>
+python scripts/tests/fixtures/captured-tour/audit.py --project <project> --final <final> --out <fresh-audit-output> --supplied-audio <fresh-audio-fixture>
+```
+
+Measured local v3 proof (2026-09-07): 10.2 s continuous WebM of a real loopback
+dummy page, trimmed to 10.1 s and rendered into a 20 s 1280x720/30 fps H.264 MP4
+with intro/outro. Full decode passed. Five source-time samples match forward and
+reverse HyperFrames runtime seeks with identical screenshot hashes; decoded
+source/final alignment is checked separately with explicit lossy pixel tolerances.
+A separate supplied fixture adds a synthetic 440 Hz tone: keep produced nonzero
+audio only in the footage window, with silent intro/outro. This is not a browser
+audio-recording or subjective listening claim. Live local boundary tests exercised
+password rejection, popup detection, redirect/GET side effects and SIGTERM with
+retained raw evidence and blocked replay. Unit tests cover leases, recovery,
+budgets, mode/approval integrity, media ranges and the unchanged legacy paths.
+Primary-session safety review was followed by independent review, which found
+two issues: the combined recon/take ceiling prevented the
+documented second-take recovery flow, and capture lacked explicit background
+execution/polling guidance. Both were addressed with separate budgets, a retry
+provenance regression, background/recovery instructions and browser closure before
+bounded media validation. Independent re-review confirmed both fixes and approved
+the revised code within the documented limits. The follow-up targeted run
+passed 137 tests plus 18 subtests (3 skipped); the full plugins/scripts run with
+live local capture enabled passed 748 tests plus 64 subtests (4 skipped). Both
+skill validators passed with only the existing untracked/Hermes-portability
+warnings. A fresh real loopback acquisition, decode, preparation and freeze also
+passed after the browser-close ordering change; that follow-up did not rerender
+the already-proven MP4. Native capture remains
+pending/blocked; review did not establish window-scoped recording or shared
+desktop exclusion. Existing real probes demonstrated config/namespace/session
+isolation arguments, record-start tab IDs and fresh-context behavior; they do not
+prove isolation from every future agent-browser configuration surface.
+
+Activation: the profile skill roots are already linked by install.sh, so new
+children are visible through those directory links; verify links read-only.
+Do not run the project-wide installer just to refresh this leaf. Loaded resident
+sessions can retain old instructions; use a fresh approved work session for the
+new contract. Gateway restart, native activation and real two-client handoff are
+separate gates and were not performed. Rollback without rewriting data: route
+new work to recreate, stop only owned capture sessions, preserve private evidence,
+and resume old v1/v2 projects with their existing entry points. Do not delete or
+downgrade existing v3 projects; render them with the version that created them.
 
 Fixture variants are test cases only: `main`, `overview`, `result`, `custom`,
 `none`. They are not production presets. The production helper has no such
