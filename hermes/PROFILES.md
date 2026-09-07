@@ -793,36 +793,49 @@ missing private target; no personalized file was overwritten.
 ### Tour family
 
 `video-creator-pipeline/create/tour/` serves `create-tour`, a new subject:
-ordered local screenshots to a <=60-second task walkthrough, ending with
-the supplied done screen. Task/app live in the form, not the steps JSON.
-Frames: auto/browser/macos/ios/android/none; mobile shows a tap ring rather
-than an arrow. Styles are local flat/glass/outline references, with a static
-cover-fit backdrop and style-specific scrim/blur. No URL capture or browser
-automation is implemented. URL requests require screenshots from a separately
-authorized capture job. Narration consumes finished audio-creator WAV plus
+reference screenshots/design/text to a <=60-second authored UI walkthrough.
+Creator owns what_for/audience, semantic flow, fidelity and choice approvals;
+VideoCreator authors task-local HTML/CSS/GSAP, state changes and camera/pointer.
+No per-step screenshots or client-written steps JSON are required. Frame and
+decorative background are separate from faithful product internals; simplified
+UI is explicitly approved/labeled, never invented real-product functionality.
+Intro/outro default ON (title-reveal/result-hold). The three references for each
+are examples with other:true, not exhaustive presets. Custom directions remain
+verbatim with concrete authored beats; only explicit none omits. Ambiguity goes
+back as one clarification or proposed beat, never nearest-preset fallback.
+Styles can also be authored locally beyond flat/glass/outline, without a registry.
+No URL capture or browser automation is implemented; URLs are context only.
+Narration consumes finished audio-creator WAV plus
 current words.json; video-creator has no TTS or external runtime skills.
 
 Creator routes this free leaf with `specialist_call(kind="work")`, never raw
-A2A or a direct resident script. `tour.py` owns validation, OCR TSV matching,
-bounded geometry/clock, deterministic HTML, snapshots and final rendering.
+A2A or a direct resident script. `authored.py` freezes v2 source/contract/form,
+checks real renders and publishes fresh preview/final evidence with full decode.
+It does not generate layout or enumerate UI actions. The unchanged `tour.py`
+direct entry remains usable for actual persisted v1 screenshot projects and
+v1 scaffold calls; no migration or v2 interpretation of old forms is promised.
+Only small IO/media primitives are shared, not the old composition engine.
 GSAP core is vendored from npm 3.14.2 with hash/integrity provenance and its
-own Standard No Charge license, not the skill's MIT license. No arbitrary
-runtime marker edits or improvised movie framework is permitted.
+own Standard No Charge license, not the skill's MIT license. Authoring is allowed
+in task-local source, never managed scripts or frozen projects. Helpers are not
+a sandbox for untrusted downloaded HTML; source must be reviewed before execution.
 The portable skill-authoring validator's directory-name warning is intentional:
 Hermes names nested leaves `<verb>-<subject>` (`create-tour` in `create/tour`),
 with structured Hermes metadata and the established author/version fields.
 
-Projects freeze source copies and hashes. Preview=yes scaffolds/checks/
+Projects freeze source copies and hashes. Preview=yes authors/freezes/checks/
 snapshots only; client approval resumes that unchanged project into a fresh
 final directory. Changed fields need a new project/preview. Existing runtime
 data, input files, deliveries and failed evidence are never deleted or
 overwritten. Real render/decode and sampled contrast/layout evidence are
 distinct from human task correctness, temporal quality and listening.
 
-Verification belongs to `scripts/tests/test_tour.py`. Synthetic render tests
+Verification belongs to `scripts/tests/test_tour.py` (v1) and
+`scripts/tests/test_authored_tour.py` (v2); authored visual fixtures live under
+`scripts/tests/fixtures/authored-tour/`. Synthetic render tests
 are not earned product-live evidence; human-conversational and Assistant-
 brief-shaped two-client handoffs remain pending until explicitly exercised.
-Maintainer verification (2026-09-06, after independent review): 108 targeted tests plus 14 subtests
+Legacy v1 verification (2026-09-06, after independent review): 108 targeted tests plus 14 subtests
 passed, including actual desktop/mobile MP4s, all decorative frame variants,
 preview approval/tampering, text overflow and a timed synthetic WAV render.
 HyperFrames 0.8.30 and ffmpeg 8.1.2 were exercised; sampled authored-text
@@ -837,6 +850,35 @@ fixtures and intentionally retain only render-test evidence.
 No gateway restart is needed for the on-disk implementation; loaded sessions
 may retain their earlier contract. This subject does not retire or alter
 creator-html-motion, legacy routes, clip/speech helpers or global 1:1 mappings.
+
+Authored v2 verification (2026-09-07): the selected tour/clip/video-routing and
+profile-validator suites passed 155 tests plus 18 subtests (3 opt-in legacy
+render tests skipped). HyperFrames 0.8.30 rendered a 20-second illustrative
+Light/Dark UI and 8-second overview, result-first, free-text and explicit-none
+alternatives. All five have 13 distinct decoded sample hashes, full decode and
+nonzero contrast audits. One contrast warning per video samples the hint hidden
+behind the intentionally opaque modal; it is not a claim of zero findings.
+Headless fixture checks cover selection, modal, partial/full typing, save,
+four pointer contacts and reverse seeking. Browser pixel comparison records
+hashes and permits only <=48 RGB channel differences of <=1/255 (observed
+four one-unit pixels), never content or geometry drift. Main/alternate renders
+are direct local evidence, not live Creator/hands sessions or real macOS actions.
+
+Reproduce only with explicit local fixture-render approval and a new physical
+scratch child (Pillow Python, installed HyperFrames/ffmpeg; no installs):
+
+```sh
+python scripts/tests/fixtures/authored-tour/example.py --root <fresh-absolute-child> --variant main --render
+python scripts/tests/fixtures/authored-tour/audit.py <rendered-fixture-root>
+node scripts/tests/fixtures/authored-tour/seek.mjs <installed-hyperframes-package.json> <headless-browser-binary> <rendered-fixture-root>
+```
+
+Fixture variants are test cases only: `main`, `overview`, `result`, `custom`,
+`none`. They are not production presets. The production helper has no such
+dispatch. `reviewer-deep` reviewed the helper and its follow-up fixes; verifier
+ran the scoped tests and both validators. Profile warnings are newly untracked
+managed files until committed; portable skill warnings are the documented Hermes
+metadata/nested-name exceptions. No gateway restart or live handoff was performed.
 
 ### Clip family
 

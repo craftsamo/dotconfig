@@ -435,9 +435,15 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
   invoke the handler with real imports so registration-only tests cannot
   hide another deferred ImportError.
 - **Tour is a new video subject, not a global legacy retirement.**
-  `create/tour` owns bounded (<=60 s) script-authored screenshot walkthroughs,
+  `create/tour` owns bounded (<=60 s) task-local authored UI walkthroughs,
   with frozen source projects, exclusive preview/final directories and a safe
-  approval resume. No URL capture, runtime HTML edits, external skills or TTS;
+  approval resume. VideoCreator authors HTML/CSS/GSAP from approved reference
+  images/design/text; Creator owns semantic flow/fidelity/choice approvals.
+  Intro/outro default ON; three reference examples are not exhaustive,
+  free-text directions stay verbatim and only explicit none omits them.
+  `authored.py` freezes/checks/renders v2, never generates UI. The unchanged
+  `tour.py` entry remains for persisted v1 screenshot projects/direct calls.
+  No URL capture, edits to frozen source, external runtime skills or TTS;
   use finished audio-creator WAV/words.json. Creator always uses specialist
   `kind="work"` for tours. Keep creator-html-motion and its 1:1 mappings intact.
   GSAP is minimally vendored with its own license and hash provenance.
