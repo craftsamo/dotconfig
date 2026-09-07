@@ -191,7 +191,9 @@ metadata:
    skipping snapshot/visual QA. No self-approval. Long commands use
    `background: true` and polling within the tool's actual timeout.
 6. Inspect decoded final frames, including boundary transitions, pointer
-   contact, intermediate and final UI states. Append evidence and gaps to
+   contact, intermediate and final UI states. Apply the authoring reference's
+   [spec-to-render review](references/authoring.md#spec-to-render-review), not
+   just held-state checks. Append evidence and gaps to
    `qa.md`; one complete review pass plus one corrective pass, then report
    remaining defects. Do not loop, discard failed evidence or upload video.
 

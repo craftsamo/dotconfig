@@ -24,13 +24,18 @@ generous spacing. Custom style is authored locally, not registered globally.
 - Copy `assets/gsap.min.js`, `assets/GSAP-LICENSE.txt` and
   `assets/gsap-provenance.json` from this leaf's assets into source assets.
   Keep the license with the runtime. Other assets stay local under `assets/`;
-  no remote imports, dependencies, event handlers or render-time capture. Local fonts or
-  supplied WOFF2 are allowed. Do not fetch fonts. Keep all IDs unique.
+   no remote imports, dependencies, event handlers or render-time capture. Local fonts or
+  supplied WOFF2 are allowed. Do not fetch fonts. Declare named installed OS
+  fonts with `@font-face` and `src: local(...)`; a font-family name alone does
+  not satisfy the renderer. Verify the local face and Japanese glyphs. Keep
+  all IDs unique.
 - Build synchronously: `const tl = gsap.timeline({paused:true});`, author
   explicit time-positioned tweens, then
   `window.__timelines ||= {}; window.__timelines["tour"] = tl;`.
   No autoplay, clocks, timers, randomness, external requests, hover/scroll
   triggers or runtime DOM creation. Prebuild every state; seek it via timeline.
+  Put frame-zero hidden states in CSS or immediate GSAP initialization, not
+  only a paused `tl.set(..., 0)`; inspect frame zero and reverse seeking.
   A font-ready callback may check text bounds but must not build the timeline.
 - Use `x/y/scale/rotation` for spatial motion, not width/top/left tweens.
   Set initial transforms on the timeline, not competing CSS transforms.
@@ -105,6 +110,31 @@ that prose is faithfully choreographed: compare each actual frame to `expect`
 and the approved reference. Check reverse seeking as well as forward playback
 when developing complex state changes. Inspect final decoded MP4 samples and
 record native-size text, glyph, contact, camera and state verdicts in `qa.md`.
+
+## Spec-to-Render Review
+
+Before freeze, map the approved frame, style, background, flow and literal
+intro/outro directions to observable proof in the contract samples. After render,
+record each verdict in `qa.md` with a decoded frame/time and any unmet requirement.
+A matching form string, successful checker or OCR result is not a visual verdict.
+Keep custom directions verbatim; judge their intended result, not preset membership.
+
+Review the short sequence at normal speed when available, then inspect dense
+native-frame samples around approach, arrival, contact, response and each boundary.
+Choose sampling density for the motion (roughly 0.05-0.1 s for a quick UI event),
+record actual frame indices, and never fabricate subframes. If normal-speed viewing
+is unavailable, say so; automated 1x playback and still inspection are separate evidence.
+
+Measure the target's size/position before and after camera travel: does the move
+actually direct attention to the approved action, or only enlarge the whole screen?
+Check pointer entry/exit continuity, approach duration and deceleration, transformed
+tip contact, hover/press/release and contact-to-response timing. Check modal foreground
+versus backdrop choreography, incremental text/caret alignment, saved state, result
+hold and integrated opening/closing. Pair source geometry with decoded pixels; neither
+alone proves the other. Do not impose a universal zoom count, centering rule, shadow
+recipe or timing threshold. Report missing/uninspected reference evidence separately
+from a failure to honor an explicit input. Return unresolved defects within the pass
+budget; never silently alter must-keep choices to make checks pass.
 
 ## Compatibility
 
