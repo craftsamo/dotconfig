@@ -665,7 +665,32 @@ the exact-candidate Publish approval. A direct Writer peer response is not
 independently accepted merely because it includes self-review. Text defects go
 back to Writer, not through local shortening or a humanizer rewrite. This layer
 adds no page rendering, email delivery, channel integration, tool or profile.
-Production scripts retain their legacy path until their own migration.
+Production scripts use the separate Script family described below.
+
+## Writer script family
+
+Script leaves live at `writer-pipeline/<write|edit|analyze>/script/`. Each has
+its own form, local format references, Procedure, QA and Report. Formats are
+narration, comic, storyboard, screenplay and slide-script, with custom contracts
+accepted as supplied. An outline remains an outline; plain narration has no
+forced scene table. Written slide structure alone remains a Document job.
+
+Separate exact spoken/displayed text from instructions. A whole-file speech
+consumer receives a words-only input, not the structural master or accompanying
+`.production.md`. If raw unit exports are required, map them to units/speakers
+and check their agreement with the master. Edits preserve existing IDs and
+untouched fields, record retired units without speaking their markers, and
+require explicit requester/consumer agreement for re-identification.
+
+Counts cite an actual method; intended timing does not prove playback, acting,
+pronunciation, synchronization or rendered lettering. Existing media/timing
+evidence may be invalid after text changes. The requester checks actual script
+evidence and renewed approval before releasing production; consumers do not
+rewrite approved words. Analysis is judged as a report, not required to provide
+new dialogue, unit fields or raw speech files. Humanizer is explicit-only and
+no legacy inspection is added. This layer does not add tools, produce media,
+promise that an arbitrary video backend accepts a storyboard, or retire the
+remaining legacy reference files before their separate cleanup.
 
 ## Creator hands (v3, 2026-09)
 

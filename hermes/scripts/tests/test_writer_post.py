@@ -36,7 +36,7 @@ def test_post_family_is_routed_without_retiring_other_families():
     for verb in ("write", "edit", "analyze"):
         assert f"]({verb}/post/SKILL.md)" in kernel
     assert (PIPELINE / "references/legacy.md").is_file()
-    assert "unmigrated" in kernel.lower()
+    assert "compatibility material for explicit legacy callers" in kernel
 
 
 def test_post_policy_does_not_expand_tools_or_publish():

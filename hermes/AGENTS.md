@@ -756,6 +756,17 @@ Marketer consumes accepted text unchanged, returns edits to Writer and keeps its
 own inspection/Publish gate. Analysis is not new copy or a performance/legal
 verdict. Script and unmigrated platform-post workflows remain separate.
 
+Script leaves are `<write|edit|analyze>/script/`, with local narration/comic/
+storyboard/screenplay/slide-script references. The actual producer contract
+decides units, fields and limits; never impose genre-wide counts or timing.
+Plain spoken files contain only intended words, not labels, fences or notes.
+Keep `.production.md` and required raw exports consistent with the master.
+Existing unit IDs remain stable; retired IDs are not recycled and any remapping
+needs requester/consumer agreement. Changed words invalidate dependent evidence
+until rechecked. Script analysis is a report, not a new production input. Each
+leaf owns QA; legacy resources stay only for explicit legacy callers/consultation
+until a separate cleanup, never as additional served-script inspection.
+
 ## Layout
 
 ```

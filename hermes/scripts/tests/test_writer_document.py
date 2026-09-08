@@ -57,7 +57,7 @@ def test_document_kernel_routes_existing_brief_names():
         assert f"]({verb}/document/SKILL.md)" in kernel
     assert "documentation or business-document" in kernel
     assert "Factual release notes belong here" in kernel
-    assert "Production scripts retain their legacy route" in kernel
+    assert "](write/script/SKILL.md)" in kernel
     assert "](write/copy/SKILL.md)" in kernel
 
 

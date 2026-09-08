@@ -61,7 +61,10 @@ Writer defines no card units. A kanban card is refused with
 
 The remaining legacy references are [prose.md](references/prose.md),
 [script.md](references/script.md) and [review.md](references/review.md).
-These are retained for unmigrated families, not common steps for new leaves.
+These are retained compatibility material for explicit legacy callers, not
+common steps for served leaves. Consultation uses the selected leaf's actual
+requirements and supplied producer evidence; receiving a draft returns to
+operation selection, never automatically to legacy critique.
 Within that legacy workflow, references to "the kernel", its TypeTable,
 Procedure or UnitDiscipline mean `references/legacy.md`. Its own assess,
 prose, script and review paths resolve from this pipeline root. Paths
@@ -107,7 +110,7 @@ guidance. Do not add the legacy business/inspection workflow to these leaves.
 Preserve source status: missing from a record does not mean explicitly undecided.
 An analysis is a report, not a new document that must satisfy the target's
 template. Runtime checks and repository integration stay with their owners.
-Production scripts retain their legacy route until migrated.
+Production scripts use the separate Script family below, not document templates.
 
 </DocumentFamily>
 
@@ -145,6 +148,22 @@ conversion/legal certification. Consumers use accepted copy unchanged and
 return corrections to Writer; text acceptance is not publication approval.
 
 </CopyFamily>
+
+<ScriptFamily>
+
+Production text uses [write-script](write/script/SKILL.md),
+[edit-script](edit/script/SKILL.md) or [analyze-script](analyze/script/SKILL.md).
+Narration, comic, storyboard, screenplay and slide-script are local format
+options; actual producer requirements take precedence over defaults. A plain
+speech input contains only intended words, with instructions in separate
+production notes. Structured scripts preserve unit IDs, speakers and exact
+spoken/displayed fields. Do not run the legacy script/inspection workflow on
+these leaves. Text counts and timing targets do not establish audio duration,
+rendered fit or synchronization. An analysis is a report, not a new script or
+speech input. Changed scripts require renewed acceptance and may invalidate
+downstream media/timing evidence; production remains with its authorized owner.
+
+</ScriptFamily>
 
 <Units>
 
