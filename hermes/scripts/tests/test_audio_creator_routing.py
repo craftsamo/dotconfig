@@ -171,7 +171,7 @@ class AudioCreatorRoutingTest(unittest.TestCase):
 
     def test_find_all_skills_discovers_music_leaves_once_each(self) -> None:
         """tools.skills_tool._find_all_skills, scoped to only this profile's skill root, must
-        discover the pipeline root plus all 11 leaves (3 speech + 4 sfx + 4 music) with their
+        discover the pipeline root plus all 14 leaves (3 speech + 4 sfx + 4 music + 3 mix) with their
         real distinct names — no generic 'music' fallback, no first-wins duplicate dropped."""
         import tools.skills_tool as skills_tool
 
@@ -182,14 +182,15 @@ class AudioCreatorRoutingTest(unittest.TestCase):
             skills = skills_tool._find_all_skills()
 
         names = [s["name"] for s in skills]
-        self.assertEqual(12, len(names))
-        self.assertEqual(12, len(set(names)))
+        self.assertEqual(15, len(names))
+        self.assertEqual(15, len(set(names)))
         self.assertNotIn("music", names)
         for expected_name in (
             "audio-creator-pipeline",
             "generate-speech", "edit-speech", "analyze-speech",
             "create-sfx", "generate-sfx", "edit-sfx", "analyze-sfx",
             "create-music", "generate-music", "edit-music", "analyze-music",
+            "create-mix", "edit-mix", "analyze-mix",
         ):
             self.assertEqual(1, names.count(expected_name))
 

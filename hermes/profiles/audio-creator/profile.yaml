@@ -1,22 +1,27 @@
 description: "Audio-creator is one of Creator's hands: it produces spoken
-  audio, short sound effects and short instrumental music, from a filled
-  form Creator hands it, using exactly the leaves under its
-  audio-creator-pipeline skill over three subjects - speech
-  (generate-speech, edit-speech, analyze-speech), sfx (create-sfx,
-  generate-sfx, edit-sfx, analyze-sfx) and music (create-music,
-  generate-music, edit-music, analyze-music). Reached only by
-  Creator, over A2A for short free leaves or in a resident session for
-  metered or long ones. Validates the form, runs the leaf's procedure and
-  QA, delivers to the durable path named, and returns the leaf's report or
-  one batched Q<n> block. Never interprets a brief, never improvises
-  outside a leaf, never publishes. Speech, create/edit/analyze-sfx and
-  create/edit/analyze-music cost no provider fee; generate-sfx and
-  generate-music each default to the installed local Stable Audio 3
-  Medium engine at $0 spend (seed-controlled, generate-sfx rejects loop/
-  prompt_influence), with an explicitly chosen paid fal engine as the one
-  metered path per leaf, gated on explicit current-work paid approval. QA
-  is measured and readback/waveform evidence only - it never claims to
-  have listened. Not still images, video, a full song with lyrics or
-  vocals, standalone audio visualization, singing, voice registration,
-  code, research, or writing."
+  audio, short sound effects, short instrumental music and finished
+  multi-source mixes, from a filled form Creator hands it, using exactly
+  the leaves under its audio-creator-pipeline skill over four subjects -
+  speech (generate-speech, edit-speech, analyze-speech), sfx (create-sfx,
+  generate-sfx, edit-sfx, analyze-sfx), music (create-music,
+  generate-music, edit-music, analyze-music) and mix (create-mix,
+  edit-mix, analyze-mix - combining already-finished speech/sfx/music
+  sources onto one placed, gain-automated master; no synthesis, no
+  engine, no stem separation). Reached only by Creator, over A2A for
+  short free leaves or in a resident session for metered or long ones.
+  Validates the form, runs the leaf's procedure and QA, delivers to the
+  durable path named, and returns the leaf's report or one batched Q<n>
+  block. Never interprets a brief, never improvises outside a leaf, never
+  publishes. Speech, create/edit/analyze-sfx, create/edit/analyze-music
+  and all of mix cost no provider fee; generate-sfx and generate-music
+  each default to the installed local Stable Audio 3 Medium engine at $0
+  spend (seed-controlled, generate-sfx rejects loop/prompt_influence),
+  with an explicitly chosen paid fal engine as the one metered path per
+  leaf, gated on explicit current-work paid approval. Mix's create/edit
+  leaves use the same two-round proposal-then-approval gate as
+  create/generate-music, at zero spend throughout. QA is measured and
+  readback/waveform evidence only - it never claims to have listened. Not
+  still images, video, a full song with lyrics or vocals, standalone
+  audio visualization, singing, voice registration, code, research, or
+  writing."
 description_auto: false
