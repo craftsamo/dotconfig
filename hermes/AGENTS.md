@@ -747,6 +747,15 @@ safe repetition. Field labels/review notes are not recipient-facing text.
 Use supplied context without new personal-record lookups. Source assertions,
 actual runtime state and rendered UI fit are separate evidence questions.
 
+Copy leaves are `<write|edit|analyze>/copy/` for landing pages, promotional mail
+and announcements, including legacy marketing-copy briefs. Destination options
+have operation-specific local references. Keep approved claims, offer terms and
+disclosures; evidence conflicts are not solved by inventing proof or silently
+weakening a protected promise. CTA requirements depend on the released purpose.
+Marketer consumes accepted text unchanged, returns edits to Writer and keeps its
+own inspection/Publish gate. Analysis is not new copy or a performance/legal
+verdict. Script and unmigrated platform-post workflows remain separate.
+
 ## Layout
 
 ```

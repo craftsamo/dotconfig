@@ -107,7 +107,7 @@ guidance. Do not add the legacy business/inspection workflow to these leaves.
 Preserve source status: missing from a record does not mean explicitly undecided.
 An analysis is a report, not a new document that must satisfy the target's
 template. Runtime checks and repository integration stay with their owners.
-Copy and production scripts retain their legacy routes until migrated.
+Production scripts retain their legacy route until migrated.
 
 </DocumentFamily>
 
@@ -126,6 +126,25 @@ Each leaf owns its QA; never also run the legacy inspection or automatic
 humanizer. The recipient-facing body must remain separable from review notes.
 
 </MessageFamily>
+
+<CopyFamily>
+
+Promotional text uses [write-copy](write/copy/SKILL.md),
+[edit-copy](edit/copy/SKILL.md) or [analyze-copy](analyze/copy/SKILL.md).
+Existing marketing-copy briefs select this family. Landing page, email and
+announcement are local destination options; a custom destination uses its
+supplied constraints. Ordinary correspondence, social posts and factual
+release notes retain their separate families. Other social-platform posts
+retain Marketer's existing drafting contract. Purpose, not length, decides.
+The requester owns the message and commercial conditions. Preserve evidence
+qualifications, prices, eligibility and disclosures; no style change grants
+a new claim or offer. A CTA is conditional on the purpose, not mandatory for
+every announcement. Each leaf owns its QA without legacy inspection or
+automatic humanizer. Analysis returns observations, not replacement copy or
+conversion/legal certification. Consumers use accepted copy unchanged and
+return corrections to Writer; text acceptance is not publication approval.
+
+</CopyFamily>
 
 <Units>
 

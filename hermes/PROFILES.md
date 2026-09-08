@@ -642,6 +642,31 @@ and integration require their own authorized owner. Humanizer is explicit-only,
 and no legacy inspection runs on served message work. Other families remain
 unchanged until their own layers land.
 
+## Writer copy family
+
+Copy lives under `writer-pipeline/<write|edit|analyze>/copy/`, with a complete
+form, local destination references, Procedure, QA and Report in each leaf.
+Landing page, email and announcement are open destination choices; existing
+marketing-copy briefs select these leaves. Ordinary correspondence, X/Instagram
+posts and factual release notes retain their own families.
+
+The requester fixes the message, audience, offer and evidence. Writer expresses
+them without new positioning, scarcity, testimonials or unqualified guarantees.
+Price, eligibility, dates and disclosures stay associated with the claims they
+limit. A CTA is required only when the released purpose calls for action.
+Edits compare the full revision with protected and untouched fields; analysis
+quotes observations without producing replacement copy or claiming conversion
+performance/legal clearance. Humanizer is explicit-only; legacy inspection is
+not added to served copy work.
+
+The requester independently accepts the actual draft/report. Marketer consumes
+accepted copy fields unchanged, performs its existing inspection and requires
+the exact-candidate Publish approval. A direct Writer peer response is not
+independently accepted merely because it includes self-review. Text defects go
+back to Writer, not through local shortening or a humanizer rewrite. This layer
+adds no page rendering, email delivery, channel integration, tool or profile.
+Production scripts retain their legacy path until their own migration.
+
 ## Creator hands (v3, 2026-09)
 
 Creator's production is moving, one asset family at a time, out of the 23
