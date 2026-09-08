@@ -62,8 +62,9 @@ Resolve the message format in this priority order. Detect, do not assume.
 - Message language follows the dominant language of recent subjects — infer
   it, never assume English.
 - If the resolved language is Japanese, also load and apply the
-  `japanese-writing` skill (register, notation, compound nouns in subjects);
-  the repo's own commit convention still outranks it on any conflict.
+  `japanese-writing` skill for language and notation. Resolve subject/body
+  register from the repository's commit convention, not a universal Japanese
+  rule; the repo's own convention still outranks the skill on any conflict.
 
 </ConventionResolution>
 
