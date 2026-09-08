@@ -713,6 +713,17 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
   unreadable entry there is a documented local-authoring fallback per that
   leaf's contract, not a runtime failure.
 
+## Writer leaf migration
+
+Writer v7 accepts `<write|edit|analyze>/<subject>/SKILL.md` below
+`writer-pipeline`, with category `writing`, a named output and a form.
+Each leaf owns Procedure, QA and Report; selected reference options need
+local backing files and direct body links. `validate_writer_leaves` checks
+this without changing Creator hands' verbs or media cost contract.
+Keep unserved families on `references/legacy.md` until their own layer
+lands. Do not bundle all families, retire shared Japanese references early,
+or run both leaf QA and legacy review for a served operation.
+
 ## Layout
 
 ```

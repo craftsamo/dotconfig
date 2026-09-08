@@ -214,9 +214,9 @@ content-altering transform on the creator side (the assistant handles
 bytes, never re-encodes). Details: creator's `creator-pipeline` skill.
 **writer** consumes released units the same way — an outline unit
 (structure + tone samples, gated before drafting), piece units against
-the approved outline, or a whole small job — under a non-waivable
-four-pass review floor, returning undecided deliverable-defining
-choices as spec-gap or granularity findings. Details: writer's
+the approved outline, or a whole small job — under the selected leaf's
+QA contract (the legacy four-pass floor for unmigrated families), returning
+undecided deliverable-defining choices as spec-gap or granularity findings. Details: writer's
 `writer-pipeline` skill. **marketer** speaks it with a
 **Publish** grant (publishing is public and irreversible: absent grant =
 draft-only + an `APPROVAL:`-headlined block — `kind=needs_input`, always
@@ -458,12 +458,13 @@ Three per-profile layers, kept separate:
     the only stable dispatch identities
   - writer → `writer-pipeline` (resident-only, cards refused; consumes
     released units — outline / piece / whole job — with spec-gap and
-    granularity findings, routes assess/write by deliverable, and performs
-    one-round tone calibration; TypeTable routes copy/article/docs →
-    references/prose.md and 台本/絵コンテ/screenplay →
-    references/script.md, with the non-waivable four-pass quality engine
-    references/review.md shared by self-review and critique, and
-    consultations/critiques in references/assess.md) + external skills via
+    granularity findings). Its v7 kernel selects installed
+    `<write|edit|analyze>/<subject>/SKILL.md` leaves in category `writing`.
+    Each leaf owns its form, Procedure, QA and Report; it never also runs
+    legacy review. Unmigrated families and pre-draft consultation use
+    `references/legacy.md` and the existing assess/prose/script/review
+    references. Families migrate in separate layers; this foundation adds
+    no leaf or social-copy ownership change. External skills remain via
     `skills.external_dirs`: the Japanese stack via the curated
     `profiles/writer/external-skills/` symlink dir (the single
     `japanese-writing` skill bundling the notation / tech-prose /
