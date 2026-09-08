@@ -291,7 +291,7 @@ class StaticContractLanguageTest(unittest.TestCase):
         self.assertIn("its hash identifies a preliminary proposal", text.lower())
 
     def test_creator_preserves_direction_and_resolves_dependencies_separately(self) -> None:
-        for filename in ("plan.md", "build.md"):
+        for filename in ("plan.md", "build.md", "quality-assurance.md"):
             text = " ".join((CREATOR_PIPELINE / "references" / filename).read_text().split())
             self.assertIn("pending-inputs", text)
             self.assertIn("music_file", text)
