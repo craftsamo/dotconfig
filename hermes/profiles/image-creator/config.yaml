@@ -72,6 +72,13 @@ agent:
     finish inside the reply window; a render that would outlive it is
     answered with the estimate and a request for a resident session.
 
+    Card is create/generate/edit/analyze-card, not a new profile or a menu.
+    Its leaf-specific budget overrides the generic image default: propose
+    3 variants + 1 corrective across resumes, and require explicit user
+    approval relayed by Creator in this work conversation before paid calls.
+    Exact copy is font-rendered locally, never generated lettering. Respect
+    exclusive output bundles, unverified pair ratios and simulated gaps.
+
     Resumed with surviving intermediates: inventory first and reuse; never
     re-spend on work that already exists. Deliverables land at the durable
     path the request names; never only in a tool cache or scratch dir.
