@@ -362,6 +362,72 @@ class ManagedSkillWriteGuardTest(unittest.TestCase):
             with self.subTest(command=command):
                 self.assertIsNone(self.guard("terminal", command=command))
 
+    def test_documented_runtime_command_paths_are_allowed(self) -> None:
+        commands = (
+            '${HERMES_SKILL_DIR}/scripts/text-emoji.sh /abs/input /abs/out',
+            '"${HERMES_SKILL_DIR}/scripts/text-emoji.sh" /abs/input /abs/out',
+            '$HERMES_SKILL_DIR/scripts/text-emoji.sh /abs/input /abs/out',
+            '"$HERMES_SKILL_DIR/scripts/text-emoji.sh" /abs/input /abs/out',
+            '"$(ghq root)/github.com/NousResearch/hermes-agent/venv/bin/python" '
+            '"${HERMES_SKILL_DIR}/../../scripts/speech-media.py" analyze /tmp/a.wav',
+            '$(ghq root)/github.com/NousResearch/hermes-agent/venv/bin/python '
+            '"${HERMES_SKILL_DIR}/../../scripts/speech-media.py" analyze /tmp/a.wav',
+            '"${HOME}/bin/python" "${HERMES_SKILL_DIR}/scripts/thing.py" --out /tmp/lethe-mv-no-voice',
+            '$HOME/bin/python "${HERMES_SKILL_DIR}/scripts/thing.py" --out /tmp/lethe-mv-no-voice',
+        )
+        for command in commands:
+            with self.subTest(command=command):
+                self.assertIsNone(self.guard("terminal", command=command))
+                self.assertEqual(self.guard("terminal", command=f"{command} > {self.managed}")["action"], "block")
+
+    def test_runtime_command_fragments_remain_unexpanded_and_dynamic(self) -> None:
+        with patch("subprocess.Popen", side_effect=AssertionError("guard must not execute commands")), \
+                patch.object(self.plugin.os, "system", side_effect=AssertionError("guard must not execute commands")):
+            for prefix in ("${HERMES_SKILL_DIR}", "$HERMES_SKILL_DIR", "${HOME}", "$HOME", "$(ghq root)"):
+                path = prefix + "/bin/python"
+                with self.subTest(path=path):
+                    tokens = self.plugin._shell_tokens(f'"{path}" "${{HERMES_SKILL_DIR}}/scripts/thing.py"')
+                    self.assertEqual(tokens[0].text, path)
+                    self.assertTrue(tokens[0].dynamic)
+                    self.assertIs(self.plugin._unwrap_command(tokens)[0], tokens[0])
+                    self.assertIsNone(self.guard("terminal", command=f'"{path}" "${{HERMES_SKILL_DIR}}/scripts/thing.py"'))
+
+    def test_runtime_placeholder_write_targets_still_fail_closed(self) -> None:
+        with patch.object(Path, "resolve", side_effect=AssertionError("dynamic targets must not be resolved")):
+            for target in ('"$(ghq root)/github.com/example/project/target"',
+                           '"${HOME}/target"', '"${HERMES_SKILL_DIR}/target"'):
+                for command in (f"cp /tmp/x {target}", f"echo x > {target}"):
+                    with self.subTest(command=command):
+                        result = self.guard("terminal", command=command)
+                        self.assertEqual(result["action"], "block")
+                        self.assertIn("unresolved", result["message"])
+
+    def test_runtime_command_prefix_does_not_exempt_mutators_or_inline_evaluation(self) -> None:
+        for prefix in ("${HOME}", "$HOME", "${HERMES_SKILL_DIR}", "$(ghq root)"):
+            for invocation in (f"rm {self.managed}", f"cp /tmp/x {self.managed}",
+                               f"python -c 'open(\"{self.managed}\", \"w\")'",
+                               f"bash -c 'rm {self.managed}'"):
+                command = f"{prefix}/bin/{invocation}"
+                with self.subTest(command=command):
+                    self.assertEqual(self.guard("terminal", command=command)["action"], "block")
+
+    def test_other_dynamic_command_forms_and_substitutions_remain_opaque(self) -> None:
+        commands = (
+            f"$CMD {self.managed}",
+            f"${{HOME}}/bin/$CMD {self.managed}",
+            f"${{HERMES_SKILL_DIR}}/scripts/*.sh {self.managed}",
+            f'"$(ghq root; cp /tmp/x {self.managed})/bin/python" script.py',
+            f'"$(ghq root > {self.managed})/bin/python" script.py',
+            f'"$(ghq root)$(cp /tmp/x {self.managed})/bin/python" script.py',
+            f'"$(ghq root $(cp /tmp/x {self.managed}))/bin/python" script.py',
+            '"$(ghq root )/bin/python" "${HERMES_SKILL_DIR}/scripts/thing.py"',
+        )
+        for command in commands:
+            with self.subTest(command=command):
+                result = self.guard("terminal", command=command)
+                self.assertEqual(result["action"], "block")
+                self.assertIn("Conservatively blocked", result["message"])
+
     def test_cwd_changes_only_affect_mutations(self) -> None:
         for directory in ("/tmp", str(self.skills), '"${HERMES_SKILL_DIR}"'):
             for suffix in ("pwd", "ls", f"python {self.script}",
