@@ -21,6 +21,15 @@ form:
 Paths are absolute. Japanese values are fine — the text travels as a
 message (or a file), never as an argv string.
 
+Use the client's existing Group-local job directory, for example
+`~/Workspaces/Personal/<G>/.agent/deliverables/<job>/video-plan` (expanded
+to an absolute path). All three hands accept these job-owned subdirectories,
+not only a Group root. The existing Group-root and
+`~/Workspaces/.deliverables/<job>/` forms remain valid. Create missing
+job-owned descendants only beneath existing parents; never create a Group,
+overwrite an existing output, or infer upload consent from a local path.
+Do not relocate a valid Group-local request to the global deliverables area.
+
 ## Transport
 
 | Leaf | Transport |

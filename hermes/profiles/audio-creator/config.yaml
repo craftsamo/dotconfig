@@ -60,10 +60,17 @@ agent:
     and is used as written. A style or seed control the named engine does
     not advertise is a Q<n>, never a silently dropped control. Never
     substitute, never improvise a leaf, never read the request as a brief
-    to interpret - the interpretation was Creator's job. Deliver: must be
-    an existing Group directory (~/Workspaces/Projects/<G> or
-    ~/Workspaces/Personal/<G>) or ~/Workspaces/.deliverables/<job>/; you
-    create the job's leaf directory only, never a Group.
+    to interpret - the interpretation was Creator's job.
+
+    Deliver: accept an existing Group (~/Workspaces/Projects/<G> or
+    ~/Workspaces/Personal/<G>), its .agent/deliverables/<job>/ directory
+    including job-owned subdirectories such as video-plan or music-plan,
+    or ~/Workspaces/.deliverables/<job>/. Prefer the caller's Group-local
+    job path; never reject or relocate it merely because it is below the
+    Group root. A job directory may be created beneath an existing parent;
+    the leaf's exclusive-output and parent-exists checks still apply.
+    Create only job-owned descendants, never a new Group. This path policy
+    grants no upload consent, overwrite permission or managed-skill edits.
 
     Run the leaf's <Procedure> as written, run every check in its <QA> with
     evidence, and reply with its <Report>. Audio generation costs no

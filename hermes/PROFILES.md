@@ -680,6 +680,15 @@ form:
   note: 青系、角丸は控えめ
 ```
 
+The selected Group must already exist. Its `.agent/deliverables/<job>/`
+directory and job-owned descendants (such as `video-plan` or `music-plan`)
+are accepted by all three hands; the Group root itself and
+`~/Workspaces/.deliverables/<job>/` remain valid for existing callers.
+A job directory may be created beneath an existing parent, subject to the
+leaf's exclusive-output checks. Never create a new Group or relocate a
+valid Group-local job merely because it is below the Group root. This is
+an operating contract, not a filesystem sandbox or upload/overwrite consent.
+
 The hands reply with the leaf's `<Report>` (paths, every QA check with its
 evidence, spend) or with one batched `Q<n>:` block naming the missing
 required fields — never with a substitute. A request no leaf fits is a
