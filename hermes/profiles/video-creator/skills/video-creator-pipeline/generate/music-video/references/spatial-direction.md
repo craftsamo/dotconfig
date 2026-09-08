@@ -96,6 +96,6 @@ separately budgeted isolated-shot attempt or an explicitly approved
 different model/input route; do not silently chain additional
 generations, assemble clips, or rescale a prior output to paper over it.
 The existing generate-clip leaf is the appropriate tool for a
-separately-granted single-shot isolation test; generate-mv itself stays
+separately-granted single-shot isolation test; generate-music-video itself stays
 one tool call producing one whole candidate. No pipeline fork and no
 per-character variant skills.

@@ -492,7 +492,7 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
   change with `_build_dynamic_image_schema()` under the profile's
   `HERMES_HOME` (`plugins/image_gen/image-fallback/tests`).
 - **MV is a deliverable, not a character/format skill product.** VideoCreator's
-  `generate-mv` uses existing `video_generate`, with local style/theme/direction
+  `generate-music-video` uses existing `video_generate`, with local style/theme/direction
   references. Theme defaults are concrete world vocabulary overridden by
   `theme_detail`; never introduce a menu generator or cross-media presets.
   First round returns only a new `proposal-v<N>.md` and its SHA-256, with zero media calls.
@@ -510,6 +510,10 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
   use a conditional 10s default and block explicit longer requests before spend.
   The current xAI-first chain does not advertise native audio: generated sound
   is blocked until a capable route is explicitly configured, never guessed.
+  Only the skill name/path is renamed; `mv_<slug>` output filenames and runtime
+  job paths stay unchanged. No old-name alias: reissue active legacy jobs with
+  a new proposal and client approval; never edit frozen old jobs. Keep the
+  closing frontmatter within 3800 characters for upstream's 4000-character scan.
 - **HyperFrames skills live outside the repo, on purpose.** `creator` reaches the
   `hyperframes*` / `media-use` playbooks through `skills.external_dirs`
   (`~/.agents/skills`) — a harness-neutral store owned by `hyperframes skills

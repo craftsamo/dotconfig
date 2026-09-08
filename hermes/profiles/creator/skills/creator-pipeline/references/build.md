@@ -76,7 +76,7 @@ reply text itself.
 
 ## Supervising
 
-For generate-mv, use kind="work" for BOTH rounds in one conversation. First
+For generate-music-video, use kind="work" for BOTH rounds in one conversation. First
 release proposal-only work without approval fields, preserving the client's
 form and budget ceiling. A proposal report's zero spend is expected. Do not
 ask it to produce video merely because the budget was supplied. After the

@@ -30,7 +30,7 @@ only when they share tools, spend class, and verification.
 | findings on kit consistency, canvases, alpha, state alignment or frame/fill registration | image-creator: analyze-kit | free; no redraw; missing expectations are GAP, not invented PASS |
 | existing CC0 game asset packs or a selected subset from Kenney | image-creator: source-kit | free; unknown pack returns search candidates; verified page license + archive provenance, not generated art |
 | one short silent generated shot, from text or a starting still, in a named/described style | video-creator: generate-clip | metered, 1-15 seconds, 720p request, default 2 variants + 1 corrective; input-upload and remote-analysis consent are distinct |
-| a short generated MV with subject performance, a coherent world and evolving shots/highlights | video-creator: generate-mv | metered, 5-15 seconds; unspent proposal then exact-plan approval; theme/style/direction are form values, default 2 variants + 1 corrective; native generated audio needs backend support, supplied music/exact lettering need separate finishing |
+| a short generated MV with subject performance, a coherent world and evolving shots/highlights | video-creator: generate-music-video | metered, 5-15 seconds; unspent proposal then exact-plan approval; theme/style/direction are form values, default 2 variants + 1 corrective; native generated audio needs backend support, supplied music/exact lettering need separate finishing |
 | trim/fit/mute/re-encode one existing segment as MP4/WebM/GIF | video-creator: edit-clip | free of generation, at most 60 seconds; contain by default; GIF repeat is playback metadata, not seamless motion |
 | technical and visual findings on one short clip, no new video | video-creator: analyze-clip | at most 60 seconds; local samples or one consented remote full-clip analysis; timestamps and explicit unverified checks |
 | a UI task walkthrough: recreate from reference/design/text, edit supplied local footage, or record an approved sanitized Web demo | video-creator: create-tour | free, <=60 seconds; task-local source/preview/MP4, always kind="work"; free-text intro/outro default ON; explicit mode/proposal/scope gates, isolated Web wrapper only; native capture/login/privacy redaction unavailable; optional finished audio-creator WAV/words.json |
@@ -57,7 +57,7 @@ are findings back to the client, never a silent switch to legacy.
 | classic-template or custom-scene meme with deterministic captions | `creator-meme` | sourced template or separately budgeted generated background; provenance required |
 | static banner, framed/message art, image conversion, or sourced ASCII art | `creator-ascii-art` | deterministic UTF-8 text master; ANSI only when requested |
 | existing reaction or communication GIF sourced from Tenor | `creator-gif-sourcing` | retrieval with provenance and rights caveat; never asset generation |
-| generated video outside the served clip/MV contracts, notably an explicitly requested local ComfyUI workflow | `creator-generated-video` | retained until coverage is migrated; core short shots use generate-clip and bounded MVs use generate-mv; no silent backend substitution |
+| generated video outside the served clip/MV contracts, notably an explicitly requested local ComfyUI workflow | `creator-generated-video` | retained until coverage is migrated; core short shots use generate-clip and bounded MVs use generate-music-video; no silent backend substitution |
 | deterministic motion graphics, product/site tours, overlays, or captioned video authored in HTML/CSS/JS | `creator-html-motion` | HyperFrames source project + MP4/WebM; supporting generation is separately budgeted |
 | generative art, interactive canvas/WebGL experience, custom data visual, or p5.js export | `creator-p5js-experience` | seeded browser-native source; PNG/GIF/MP4/SVG are optional exports |
 | video-to-ASCII, audio-reactive, generative, hybrid, lyric, or TTS-backed ASCII motion | `creator-ascii-video` | deterministic Python/ffmpeg render; supporting generation/TTS is separately budgeted |
@@ -113,7 +113,7 @@ use an `external:<skill>` identity only after an availability preflight.
    Route by authorship method as well as container. A model-generated MP4 is
     `generate-clip` within its short-shot contract; a requested legacy
       backend stays `creator-generated-video`. Short model-generated MV progression
-    uses `generate-mv`, even with several generated cuts; it does not route
+    uses `generate-music-video`, even with several generated cuts; it does not route
     through generate-clip or guarantee exact music/lettering. Broader seekable HTML motion is
    `creator-html-motion`; p5.js canvas/WebGL work is
    `creator-p5js-experience`; mathematical teaching animation is

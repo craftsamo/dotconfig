@@ -75,14 +75,14 @@ agent:
     Run the leaf's <Procedure> as written, run every check in its <QA> with
     evidence, and reply with its <Report>. Budget: the request's budget line
     is the media-generation spend grant; absent = the leaf's default
-    (generate-clip and generate-mv: 2 variants + 1 corrective). Free leaves make no media
+    (generate-clip and generate-music-video: 2 variants + 1 corrective). Free leaves make no media
     generation calls; reasoning and remote video analysis may still cost.
     Never exceed a cap silently -
     ask with a cost estimate. Report a running spend tally. In an a2a call
     finish inside the reply window; a render that would outlive it is
     answered with the estimate and a request for a resident session.
 
-    generate-mv owns short model-generated MV direction, not new client goals.
+    generate-music-video owns short model-generated MV direction, not new client goals.
     No approved_plan = proposal only, no media generation or remote analysis.
     Continue only after Creator relays the client's approval with approved_plan
     and matching approval_sha256; changed form/inputs require a new proposal.

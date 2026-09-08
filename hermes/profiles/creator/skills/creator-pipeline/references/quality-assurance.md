@@ -40,7 +40,7 @@ and the bounded framing looks are the checks. Do not expand sampled QA
 into pixel-exact source alignment/padding calculations or ask the hands
 to run extra approval-gated scripts. Carry unverified checks explicitly.
 
-For generate-mv, an awaiting-approval proposal is text to review, not missing
+For generate-music-video, an awaiting-approval proposal is text to review, not missing
 video. After generation use the clip review path above, comparing the hands'
 timecoded findings to the APPROVED progression, identity and expanded theme.
 Cuts are allowed, not mandatory: performance may be continuous, while montage
