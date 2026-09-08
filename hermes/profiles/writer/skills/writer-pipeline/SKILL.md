@@ -92,9 +92,24 @@ The selected leaf owns destination syntax, approach and QA. Rich-text editor
 operations and missing media stay outside the publishable body as explicit
 production notes; a text draft is not an assembled or published article.
 Do not add the legacy prose/rhythm/inspection workflow to an article leaf.
-Documentation, copy and production scripts remain distinct, unmigrated families.
+Documents, copy and production scripts remain distinct subjects.
 
 </ArticleFamily>
+
+<DocumentFamily>
+
+Technical and business documents use [write-document](write/document/SKILL.md),
+[edit-document](edit/document/SKILL.md) or [analyze-document](analyze/document/SKILL.md).
+Existing briefs saying documentation or business-document select this family.
+Factual release notes belong here, not promotional copy; a slide outline is
+document text, not a rendered deck. The format selects only the leaf's local
+guidance. Do not add the legacy business/inspection workflow to these leaves.
+Preserve source status: missing from a record does not mean explicitly undecided.
+An analysis is a report, not a new document that must satisfy the target's
+template. Runtime checks and repository integration stay with their owners.
+Copy, messages and production scripts retain their legacy routes until migrated.
+
+</DocumentFamily>
 
 <Units>
 
