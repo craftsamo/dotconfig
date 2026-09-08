@@ -71,6 +71,19 @@ Writer-local references.
 
 </Selection>
 
+<PostFamily>
+
+The first migrated family is social post text: X single/long posts and
+threads, and Instagram feed/reel captions. Use [write-post](write/post/SKILL.md),
+[edit-post](edit/post/SKILL.md) or [analyze-post](analyze/post/SKILL.md).
+X Articles, private messages and in-image text are different subjects.
+Post work uses the selected leaf's QA and never the legacy four-pass floor.
+Marketer consumes the resulting text unchanged and owns platform inspection
+and publication approval, not a second writing pass. An analysis is a report,
+not a new post; it needs neither attachments nor Publish approval to exist.
+
+</PostFamily>
+
 <Units>
 
 - **Outline:** deliver the requested structure and tone samples, not the
@@ -81,8 +94,9 @@ Writer-local references.
 - **Whole small job:** deliver the complete requested text without forcing
   an outline ceremony. A broader series or doc-set is a granularity finding.
 
-Return a spec-gap when purpose, claim, audience or a necessary source is
-missing. Missing data is not evidence that the client decided it is unknown.
+Return a spec-gap when missing purpose, claim, audience or source prevents
+the selected operation. Do not demand irrelevant writing fields for a
+bounded analysis. Missing data is not evidence that the client decided it is unknown.
 Existing facts, quotations, uncertainty and protected text survive edits.
 Reference prose supplies style only to the extent requested; it is not a
 source of the client's experiences, results or testimonials.
