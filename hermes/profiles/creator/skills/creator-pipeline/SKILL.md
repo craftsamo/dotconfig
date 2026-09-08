@@ -71,7 +71,8 @@ read in Plan before any leaf is chosen. Hands today: `image-creator`
 `analyze-icon`; `create-emoji`, `generate-emoji`, `edit-emoji`,
 `analyze-emoji`; `generate-mascot`, `edit-mascot`, `analyze-mascot`;
 `generate-reimagine`; `source-kit`, `create-kit`, `generate-kit`,
-`edit-kit`, `analyze-kit`); `video-creator` (`generate-clip`,
+`edit-kit`, `analyze-kit`; `create-card`, `generate-card`, `edit-card`,
+`analyze-card`); `video-creator` (`generate-clip`,
 `edit-clip`, `analyze-clip`, `generate-music-video`, `create-tour`, `create-ad`, `analyze-ad`, A2A peer for free short work, resident for
 generation or long work; create-tour always uses kind="work" despite being free;
 its recreate/supplied/capture modes share one leaf, with isolated approved Web
@@ -109,7 +110,9 @@ unit is a granularity finding.
 
 Generation spend is granted, not discretionary. For a hands leaf the
 form's `budget:` line is the grant; absent, use the leaf's documented
-allowance (`references/plan.md`). The hands enforce it and report the
+allowance (`references/plan.md`). Card exception: generate-card's 3+1 is a
+proposed ceiling, not spend approval; paid generation requires explicit user
+approval in the current work conversation. The hands enforce it and report the
 tally; `cost: free` (no provider fee) is not the same gate as an
 attempt allowance — audio-creator's speech leaves are free of provider
 cost and still spend a take grant (1 take + 1 corrective per script,
