@@ -1090,7 +1090,7 @@ dependency manifest; the fast check trusts stat fingerprints, which is a
 version-pin guarantee, not a tamper-proof sandbox against a deliberately
 forged venv). Code (commit `779434a908193105335fd8d833418603625b2859`) and
 three weight files (HF revision `da6edc54ddba10bfd79a077102ded687f80e882b`,
-5,179,055,990 bytes total) are pinned in `stable-audio-3/pins.json`;
+5,179,055,990 bytes total) are pinned in `engines/stable-audio-3/pins.json`;
 dependencies are hash-locked in `requirements.lock`. Each render is a
 brand-new subprocess — no LaunchAgent, no resident port, no GPU-resident
 process — that inherits the shared runtime lock (one install-or-render at

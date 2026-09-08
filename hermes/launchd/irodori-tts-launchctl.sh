@@ -35,7 +35,7 @@ DEST="$HOME/Library/LaunchAgents/$LABEL.plist"
 RUNTIME_DIR="$CONFIG_DIR/local/irodori-tts"
 SERVER_DIR="$RUNTIME_DIR/server"
 VOICES_DIR="$RUNTIME_DIR/voices"
-PINNED="$CONFIG_DIR/irodori-tts/pinned.conf"
+PINNED="$CONFIG_DIR/engines/irodori-tts/pinned.conf"
 LOG="$HOME/Library/Logs/irodori-tts-engine.log"
 
 STARTUP_ATTEMPTS="${IRODORI_TTS_STARTUP_ATTEMPTS:-90}"

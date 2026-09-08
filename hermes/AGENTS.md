@@ -655,6 +655,10 @@ plugins/             # backend chains, tool overrides, completion and Worker
                      # mutation guards; source tracked, __pycache__ ignored
 launchd/              # LaunchAgents: multiplex gateway (all bots, one process),
                      #   local TTS engines
+engines/             # tracked pin/lock definitions for local engines
+                     #   (irodori-tts, qwen3-tts, stable-audio-3) — grouped
+                     #   here; local/ still owns their untracked
+                     #   weights/venvs and plugins/ still owns adapters
 scripts/             # profile-secrets.sh (secrets.command helper),
                      #   brave-agent-sync.sh (real-profile browser clone),
                      #   validate-profile-skills.py
@@ -801,10 +805,10 @@ writes on the current machine, then commit it.
   `install --voice-manifest PATH`; add voices with
   `register --voice-manifest PATH [--default]`. The private manifest paths must
   never enter tracked config or docs. Dependencies come from
-  `qwen3-tts/requirements.lock` and must stay hash-locked.
+  `engines/qwen3-tts/requirements.lock` and must stay hash-locked.
 - `launchd/irodori-tts-launchctl.sh {install,register,register-lexicon,voices,status,uninstall,purge}`
   — Irodori-TTS LaunchAgent (`irodori-tts` on `127.0.0.1:10103`), coexisting with
-  qwen3-tts on `:10102`. Pins live in `irodori-tts/pinned.conf` — named `.conf`
+  qwen3-tts on `:10102`. Pins live in `engines/irodori-tts/pinned.conf` — named `.conf`
   because `**/*.env` is ignored and the pins must be tracked. It installs a git
   checkout of the upstream server plus a uv venv under the ignored
   `local/irodori-tts/`; `--python` is mandatory there, since uv otherwise picks

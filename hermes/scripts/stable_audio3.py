@@ -4,7 +4,7 @@
 Stdlib-only and importable without MLX in the parent process - MLX only ever
 runs inside the pinned checkout's .venv as a fresh subprocess. Weights,
 checkout code and locked Python dependencies are pinned in
-hermes/stable-audio-3/pins.json and requirements.lock; this module never
+hermes/engines/stable-audio-3/pins.json and requirements.lock; this module never
 resolves versions itself and never falls back to a different revision.
 
 Fixed generation recipe only: DiT "medium", decoder "same-l", 8 pingpong
@@ -56,8 +56,8 @@ from pathlib import Path
 PINS_SCHEMA_VERSION = 1
 MARKER_SCHEMA_VERSION = 2  # bumped: marker no longer trusts checkout state, adds dependency records
 SELF_PATH = Path(__file__).resolve()
-PINS_PATH = SELF_PATH.parents[1] / "stable-audio-3" / "pins.json"
-LOCK_PATH = SELF_PATH.parents[1] / "stable-audio-3" / "requirements.lock"
+PINS_PATH = SELF_PATH.parents[1] / "engines" / "stable-audio-3" / "pins.json"
+LOCK_PATH = SELF_PATH.parents[1] / "engines" / "stable-audio-3" / "requirements.lock"
 DEFAULT_ROOT = SELF_PATH.parents[1] / "local" / "stable-audio-3"
 MARKER_NAME = "installed.json"
 LOCK_FILE_NAME = ".runtime.lock"
