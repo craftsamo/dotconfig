@@ -577,6 +577,49 @@ WAV + `.words.json` + SRT + take evidence are delivered together, with
 subtitle timing explicitly estimated. Readback and loudness measurements
 are not a listening/performance verdict. See `PROFILES.md` "Speech family".
 
+## Sound effects
+
+AudioCreator also owns `create-sfx`, `generate-sfx`, `edit-sfx` and
+`analyze-sfx`. These are short effects, not music or mixed soundtracks.
+`create-sfx` needs no model or API: eight local kernels produce a 48 kHz
+PCM WAV and measured take evidence. Editing/analysis is local too. For
+example, from this directory with an existing output parent:
+
+```sh
+"$(ghq root)/github.com/NousResearch/hermes-agent/venv/bin/python" profiles/audio-creator/skills/audio-creator-pipeline/scripts/sfx-media.py synth --kind whoosh --seconds 0.5 --pitch 880 --seed 0 --out /tmp/sfx-example --slug whoosh
+```
+
+The directory must be new. `track`, `edit` and `analyze` subcommands document
+their flags via `--help`; no command installs an engine or overwrites media.
+SFX measurements preserve stereo, and short sounds may legitimately have
+unmeasurable LUFS. A waveform or a matching seed is not a listening verdict.
+
+`generate-sfx` uses the audio-creator-only `sfx-gen` plugin. Local
+`local:stable-audio-3-medium` is installed and is the default engine when
+`engine` is omitted: it takes a `seed` (default 0; attempt N uses
+`(base + N - 1) mod 2^32`, returned with the result), rejects `loop=true`
+and any `prompt_influence`, and needs no `paid_approved`/`max_usd` — actual
+spend reports as `$0`. Each render runs a fresh, non-resident subprocess
+under `hermes/scripts/stable_audio3.py`; see `PROFILES.md` "SFX family" for
+the install/runtime/licensing detail and the M4 Max benchmark. Explicitly
+selecting `fal:elevenlabs-sfx-v2` instead requires explicit current-work
+paid approval; the default 3+1 call proposal is not permission to spend on
+either engine. Its request/state files support recovery without generating
+again. `FAL_KEY` uses the existing scoped Keychain helper; no new key,
+`.env`, provider-key terminal passthrough or ElevenLabs subscription setup
+is required. fal's SFX v2 does **not** support a seed. The API caps
+duration at 22s; our request ceiling is 21.5s to leave room for MP3
+padding before the helper's 22s limit. Neither engine ever falls back to
+the other, automatically or silently.
+
+After plugin enablement changes the existing multiplex gateway needs one
+normal drained restart; never launch a second gateway. The existing linked
+`plugins/` and profile `skills/` directories already expose these new files.
+
+VideoCreator consumes finished effects through `create-ad` as distinct,
+explicitly timed WAV cues (up to 16, no volume automation); `tour`, music,
+mixing and supplied-MV finishing are unchanged.
+
 ## Speech-to-text — fallback chain
 
 STT for `default` / `assistant` runs through the
