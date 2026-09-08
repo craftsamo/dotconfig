@@ -495,7 +495,7 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
   defaults never authorize missing asset generation. Generate-ad and PV are
   future leaves, no legacy mappings are retired. PV primarily introduces
   qualities/world; duration and CTA presence alone do not decide the route.
-- **Audio hands own `speech`, `sfx` and `music`.** `audio-creator` receives forms on A2A
+- **Audio hands own `speech`, `sfx`, `music` and `mix`.** `audio-creator` receives forms on A2A
   `:9909`: generate/edit/analyze-speech. The character-voice plugin registers
   only there; Creator retains ordinary conversational TTS, never a speech
   asset bypass. House uses the language chain (including online Edge); a
@@ -588,6 +588,49 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
   its complete form also fits the discovery prefix. Runtime write protection
   checks literal operations/targets, not `mv` inside a job path; the music
   proposal CLI has a real guard-plus-proposal regression for that case.
+- **Mix places already-finished sources on a shared timeline, not a new
+  synthesis or a music/SFX family.** Three leaves live at
+  `audio-creator-pipeline/<verb>/mix/`: `create-mix` takes 1-16 standalone
+  local speech/sfx/music files (WAV/FLAC/Ogg/MP3/AIFF, each <=128 MiB,
+  <=512 MiB combined, <=600s decoded) and AudioCreator authors cue
+  placement (<=32 cues) from `direction`/`must_keep` when no exact
+  `arrangement` is supplied, with gain/fade/piecewise-dB-envelope
+  automation; `edit-mix` revises one existing bundle from a
+  plain-language change request against its frozen previous spec/
+  sources; `analyze-mix` returns format/loudness/clipping/true-peak
+  findings, plus recorded cue/source placement when a bundle is
+  supplied — findings only, no delivery file. `mix-media.py` owns
+  propose/render/analyze/verify; `create-mix`/`edit-mix` are TWO rounds
+  like music — round A is always a zero-render `proposal-v<N>/
+  proposal.md` + SHA-256, and only a matching Creator-relayed
+  `approved_plan`+`approval_sha256` releases the render. No loops,
+  speed/pitch changes, EQ, reverb, or source separation; every source
+  stays the original standalone file, frozen and hash-verified before
+  use — this leaf assembles, it never generates. `target_lufs`/
+  `true_peak_dbtp` are explicit authored choices with no hidden default
+  (`null` is a valid `target_lufs`); a source's own existing defect
+  (e.g. prior clipping) is retained and reported, never silently
+  corrected, and a mix that retains it still FAILs. Captions, when
+  produced, come only from an existing `.words.json` sidecar on a
+  speech source, timing-adjusted to that cue's placement — never a
+  fresh ASR pass on the mixed master. This is `cost: free` (no
+  provider fee) throughout; the leaf is deterministic placement/gain/
+  fade/sum on already-decoded PCM, not a model call. No new engine,
+  plugin, toolset, secret, peer or daemon is added; Mix shares no
+  runtime with SFX/Music's Stable Audio install. Old `no skill fits`
+  language for "audio mixing" in Creator's docs is replaced by a
+  pointer to these three leaves; the fact that a music/SFX leaf is not
+  itself a mixer is unchanged.
+  Normalization is measured constant gain only, never loudnorm's implicit
+  dynamic-limiter fallback. Infeasible loudness/peak targets FAIL; stereo-to-
+  mono cancellation is warned and recorded. Ad/Tour opt in with
+  `audio_workflow: mix`: preliminary timing first, Creator-brokered Mix next,
+  then ordinary video approval using real master/receipt hashes. No dummy
+  audio or placeholders in an approved plan. `mix_audio.py` validates the
+  staged subset; Tour binds `mix-caption-N` text/timing to the distinct
+  captions.json (never relax speech's words.json hash check). Only the master
+  plays; kept footage audio conflicts. Final decoded audio duration and peak
+  are measured again. Omitted Mix fields preserve frozen v1/v2/v3 behavior.
 - **Multiplex TTS needs the scoped toolset-cache fix in the local Hermes
   checkout.** At upstream `4f0309e9cf`, `toolsets.resolve_toolset` memoized
   by toolset/registry generation but NOT profile scope. After Creator lost

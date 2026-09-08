@@ -625,8 +625,10 @@ mixing and supplied-MV finishing are unchanged.
 AudioCreator also owns `create-music`, `generate-music`, `edit-music` and
 `analyze-music`, scoped to instrumental BGM or a short melodic opener/
 closer (create/generate up to 60 seconds; edit/analyze up to 600 seconds
-and 128 MiB) — a full song with lyrics/singing, standalone
-sound design, or audio mixing is `no skill fits`. `create-music` composes
+and 128 MiB) — a full song with lyrics/singing or standalone
+sound design is `no skill fits`. Combining already-finished sources onto
+one timeline is the separate Mix family below ("Mix"), never a music
+leaf approximating a mixer. `create-music` composes
 an exact deterministic score from five closed electronic waveforms
 (sine/triangle/pulse/fm-bell/noise) and renders it locally at zero spend,
 zero network calls; `generate-music` sends a compact text prompt to the
@@ -661,6 +663,73 @@ before refreshing its marker. It never downloads models, reinstalls packages,
 accepts new terms, or rewrites old job receipts. The 5s/30s/60s local music
 paths and a real create-ad WAV handoff were exercised on this machine;
 fal live generation and gateway/A2A soak remain unverified.
+
+## Mix
+
+AudioCreator also owns `create-mix`, `edit-mix` and `analyze-mix`,
+scoped to placing 1-16 already-finished, standalone local speech/sfx/
+music sources (WAV/FLAC/Ogg/MP3/AIFF, each ≤128 MiB, ≤512 MiB combined,
+≤600 s decoded) on one shared timeline (≤32 cues, ≤600 s total) with
+gain/fade/piecewise-dB-envelope automation, rendered to one 48 kHz PCM
+master — never a new component sound, a looped source, EQ, reverb,
+source separation or video assembly; a request needing those routes to
+the fitting leaf (generate-speech/create-sfx/generate-sfx/create-music/
+generate-music) first. AudioCreator authors relative cue placement from
+`direction`/`must_keep` when no exact `arrangement` is supplied; a
+supplied `arrangement` is preserved verbatim, never reinterpreted.
+
+Like `create-music`/`generate-music`, `create-mix` and `edit-mix` are
+two-round leaves: the first round always returns an unspent
+`proposal-v<N>/proposal.md` and its SHA-256, with zero renders; only a
+second round with Creator-relayed `approved_plan`+`approval_sha256`
+releases the render. A changed source, cue placement, gain/fade/
+envelope, duration or loudness target needs a new proposal, never a
+render against stale approval text. `edit-mix` revises one existing
+bundle from a plain-language `changes` request against its frozen
+`mix.json`/`sources/`, the same two-round shape; `analyze-mix` returns
+format/loudness/clipping/true-peak findings on any finished mix file,
+plus recorded cue/source placement when a previous bundle directory is
+supplied — findings only, no delivery file.
+
+`mix-media.py` (`audio-creator-pipeline/scripts/`) owns `propose`,
+`render`, `analyze` and `verify`; it calls no model and no network —
+this entire family is `cost: free` with no attempt ledger, since it is
+deterministic placement/gain/fade/sum on already-decoded PCM, not
+generation. Every input source is hash-verified against its frozen
+`sources/` copy before render, and an existing source's own defect
+(e.g. prior clipping) is retained and reported, never silently
+corrected. Captions (`captions.json` + `mix_<slug>.srt`), when
+produced, come only from an existing `.words.json` sidecar on a speech
+source, timing-adjusted to that cue's placement — never a fresh ASR
+pass on the mixed master. See `PROFILES.md` "Mix family" for the
+proposal-approval contract and bundle layout in full.
+
+A finished sfx/speech/music WAV from its own leaf may feed `create-mix`
+as one of its `sources`, the same way a finished sfx WAV may feed
+`create-ad` as a distinct placed cue — the two are separate forms,
+never folded into one handoff. No new profile, peer, plugin, toolset
+or service registration is needed for this family. Existing resident
+conversations may retain older instructions; fresh sessions are the
+validation target, not an assumption that an old conversation hot-reloaded.
+
+For create-ad/create-tour, `audio_workflow: mix` first returns a timing
+proposal through Creator, then consumes the finished Mix bundle before
+ordinary video plan/preview approval. Only the master plays; Tour's Mix
+captions retain their clean-speech origin separately from the master hash.
+MV/clip finishing is unchanged. Local scalar-gain normalization never
+silently invokes a limiter, and every output retains measured peak/LUFS.
+
+Automated integration fixture (synthetic tones, not real speech or client
+approval), from this directory with a fresh absolute output path:
+
+```sh
+~/ghq/github.com/NousResearch/hermes-agent/venv/bin/python scripts/tests/fixtures/mix-video/example.py --root <new-absolute-test-directory> --freeze
+```
+
+The fixture freezes real Mix/Ad/Tour bundles; each video leaf's normal
+snapshot/render helper then verifies its exact test preview hashes. Actual
+15s Ad and 8s Tour smoke renders passed, including timed Tour captions.
+Live Creator dialogue/approval soak and human listening remain unverified.
 
 ## Speech-to-text — fallback chain
 

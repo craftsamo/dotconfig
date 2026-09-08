@@ -103,9 +103,9 @@ itself call `delegate_task` during its run.
 | **engineer** | primary: supervises OpenCode: assess (read-only) / implement (from the assistant's plan session or an Issue; delegated worktree bootstrap in a repo the assistant created), under an Authority grant; planning documents, repo creation, and GitHub bookkeeping stay with the assistant; A2A peers marketer/researcher/writer | Telegram (own bot) | `.` (launch / task ws) | `terminal,file,web,skills,todo,memory,delegation,a2a` | served (bot + a2a :9902) | yes |
 | **researcher** | verified conclusions from released units: evidence-pack / tradeoff-matrix / fact-check / guidance; heavy breadth is requested from the orchestrator as a search unit; serves engineer/creator/marketer only (not the assistant), cards refused | — (A2A receive-only) | `.` (launch / task ws) | `file,web,vision,video,skills,memory,delegation` | served (a2a :9906) | yes |
 | **searcher** | retrieval from released units: lookup / sweep / hunt (multi-hop via `goal_mode` on cards) | — (specialist) | `.` (launch / task ws) | `web,x_search,skills,memory` | — | yes |
-| **creator** | primary: plans with human/assistant clients, delegates served image/clip/speech/sfx/music forms, gates evidence and delivers; remaining technics cover images, authored video and assembly of supplied parts; vocal-song generation and standalone audio visualization remain withdrawn | Telegram (own bot) | `.` (launch / task ws) | `terminal,file,vision,image_gen,video_gen,video,tts,skills,memory,delegation,a2a` + gen plugins + `unreal-engine` MCP | served (bot + a2a :9903) | yes |
+| **creator** | primary: plans with human/assistant clients, delegates served image/clip/speech/sfx/music/mix forms, gates evidence and delivers; remaining technics cover images, authored video and assembly of supplied parts; vocal-song generation and standalone audio visualization remain withdrawn | Telegram (own bot) | `.` (launch / task ws) | `terminal,file,vision,image_gen,video_gen,video,tts,skills,memory,delegation,a2a` + gen plugins + `unreal-engine` MCP | served (bot + a2a :9903) | yes |
 | **image-creator** | Creator's hands for still images: runs one `<verb>/<subject>` leaf from a filled form (icon family: source / create / generate / edit / analyze; emoji family: create / generate / edit / analyze), QA with evidence, report; answers only Creator | — (A2A receive-only) | `.` (launch / task ws) | `terminal,file,vision,image_gen,skills,memory` | served (a2a :9907) | yes |
-| **audio-creator** | Creator's spoken-audio hands: generate/edit/analyze-speech, create/generate/edit/analyze-sfx and create/generate/edit/analyze-music (instrumental BGM/melodic pieces only) from approved forms; measured/readback QA, no claims of listening; no full songs or voice registration | — (A2A receive-only) | `.` (launch / task ws) | `terminal,file,tts,sfx_gen,music_gen,skills,memory` | served (a2a :9909) | yes |
+| **audio-creator** | Creator's spoken-audio hands: generate/edit/analyze-speech, create/generate/edit/analyze-sfx, create/generate/edit/analyze-music (instrumental BGM/melodic pieces only) and create/edit/analyze-mix (placing already-finished sources on a timeline, never synthesis) from approved forms; measured/readback QA, no claims of listening; no full songs or voice registration | — (A2A receive-only) | `.` (launch / task ws) | `terminal,file,tts,sfx_gen,music_gen,skills,memory` | served (a2a :9909) | yes |
 | **writer** | reader-facing prose and producer-facing scripts from released units (outline / piece / whole job); draft-only, never publishes; serves all four primaries | — (A2A receive-only) | `.` (launch / task ws) | `file,web,skills,memory,delegation` | served (a2a :9905) | yes |
 | **marketer** | primary: platform copy from released message units, four-stage pre-ship inspection, grounding judgment, and publishing only within a Publish grant; A2A peers engineer/creator/researcher/writer | Telegram (own bot) | `.` (launch / task ws) | `terminal,file,web,browser,x_search,vision,skills,memory,delegation,a2a` | served (bot + a2a :9904) | yes |
 
@@ -1186,10 +1186,12 @@ replacement, music or mixing capability is implied by this receiving path.
 Music is a separate subject under `audio-creator-pipeline/<verb>/music/`,
 scoped to instrumental BGM or a short melodic opener/closer (create/generate
 at most 60s; edit/analyze accept up to 600s/128 MiB)
-— a full song with lyrics/singing, standalone sound design, or audio
-mixing is `no skill fits`, never approximated by either music leaf.
-Creator reads its forms through the existing hands root; there is no new
-profile, peer, external skill library or kanban contract.
+— a full song with lyrics/singing or standalone sound design is
+`no skill fits`, never approximated by either music leaf. Combining
+already-finished sources onto one timeline is the separate Mix family
+below ("Mix family"), never a music leaf. Creator reads its forms
+through the existing hands root; there is no new profile, peer, external
+skill library or kanban contract.
 
 - `create-music`: an exact deterministic score of five closed electronic
   waveforms (sine/triangle/pulse/fm-bell/noise), authored by AudioCreator
@@ -1268,6 +1270,96 @@ LUFS / -17.00 dBTP, waveform correlation >0.9998 on each channel. A prior
 test preview correctly refused a runtime version change instead of bypassing
 approval. These are local helper/plugin and rendering tests, not gateway/A2A
 soak or perceptual listening. Fal live generation remains unverified.
+
+### Mix family
+
+Mix is a separate subject under `audio-creator-pipeline/<verb>/mix/`,
+scoped to placing already-finished speech/sfx/music sources on one
+shared timeline — never synthesis, generation, looping, EQ, reverb,
+source separation or video assembly, all of which are `no skill fits`
+for this leaf and route to the fitting leaf first. Creator reads its
+forms through the existing hands root; there is no new profile, peer,
+external skill library, plugin, toolset or kanban contract, and Mix
+shares no runtime with SFX/Music's Stable Audio install (it calls no
+model at all).
+
+- `create-mix`: 1-16 standalone local sources (WAV/FLAC/Ogg/MP3/AIFF,
+  each ≤128 MiB, ≤512 MiB combined, ≤600s decoded), placed as ≤32 cues
+  on a timeline of 1-600s with gain/fade/piecewise-dB-envelope
+  automation, rendered to one 48 kHz PCM master. AudioCreator authors
+  relative cue placement from `direction`/`must_keep`/`note` when no
+  exact `arrangement` is supplied — no user-written spec required; a
+  supplied `arrangement` is preserved verbatim, never reinterpreted, and
+  an out-of-range/nonexistent-source control is a `Q<n>:`, never
+  silently clamped. An optional `timing` file constrains named cues'
+  exact `start`/`source_start`/`duration`, never adjusted behind
+  approval.
+- `edit-mix`: revises one existing mix bundle from a plain-language
+  `changes` request against its frozen `mix.json` and `sources/` — never
+  re-uploaded/re-synthesized audio, never stem separation from the
+  master. An audio-inert `changes` request (e.g. renaming only) is
+  refused by the helper as a no-op revision.
+- `analyze-mix`: format/duration/channels/peak/true-peak/clipping/
+  integrated-LUFS measurements on any finished mix file, plus (when a
+  previous bundle directory is supplied) the actual recorded cue/source
+  placement from its `mix.json`; that source must hash-match the supplied
+  bundle's master. Findings only, no delivery file or fresh ASR pass.
+
+Both `create-mix` and `edit-mix` are TWO rounds, unconditionally, the
+same shape as `create-music`/`generate-music`: round A (no
+`approved_plan`/`approval_sha256`) writes `spec.json` + `description.md`
+and runs `mix-media.py propose` (`--previous <bundle>` for `edit-mix`),
+returning only a `proposal-v<N>/proposal.md` + its SHA-256, with zero
+renders. Only a second handoff with that EXACT
+`approved_plan`+`approval_sha256`, relayed by Creator in the same work
+conversation, releases a `mix-media.py render` call. A changed creative
+field (any source, cue placement, gain/fade/envelope, duration,
+`target_lufs`, `true_peak_dbtp`) needs a new proposal, never a render
+against stale approval text. `target_lufs` has no hidden default —
+AudioCreator states it as an explicit authored choice (`null` is a
+valid choice); `true_peak_dbtp` defaults to -1 unless direction calls
+for otherwise. Every input file is hash-verified against its frozen
+`sources/` copy before use, and an existing input defect (e.g. a
+source's own clipping) is retained and reported, never silently
+corrected — a mix that retains it still FAILs, as does whole-silence
+delivery. Captions (`captions.json` + `mix_<slug>.srt`), when produced,
+come only from an existing `.words.json` sidecar on a speech source,
+timing-adjusted to that cue's placement — never a fresh ASR pass on the
+mixed master; overlapping spoken cue intervals or a trim crossing a
+word/caption boundary is refused, not silently trimmed. `mix-media.py`
+also owns `analyze` and `verify` (re-validates a bundle for reuse
+without rerendering). Determinism claims are scoped to the same spec +
+frozen sources + helper version + environment producing byte-identical
+PCM. This entire family is `cost: free` (no provider fee): it is
+deterministic placement/gain/fade/sum on already-decoded PCM, not a
+model call, so there is no attempt ledger or paid-approval gate to
+enforce beyond the approval-hash check itself.
+
+A finished sfx/speech/music WAV from its own leaf may feed `create-mix`
+as one of its `sources`, the same way a finished sfx WAV may feed
+`create-ad` as a distinct placed cue — the two are separate forms,
+never folded into one handoff. Creator brokers a preliminary timing
+proposal from create-ad/create-tour, the Mix proposal/approval/render,
+then the video's formal approval using the real master/receipt hashes.
+No placeholders in an approved plan and no direct hands-to-hands call.
+With `audio_workflow: mix`, both video leaves place only the finished
+master. Tour consumes separately verified Mix captions, never a speech
+sidecar with its hash rewritten. Old no-Mix paths remain unchanged.
+
+Normalization uses a measured scalar gain, not loudnorm's implicit dynamic
+limiter fallback. Infeasible target/peak pairs fail; float-bus overrange
+before an approved scalar reduction is warned, not confused with already
+clipped source PCM. Stereo-to-mono arithmetic-mean cancellation is recorded
+and warned. See the leaf's `references/arrangement.md` for the exact schema.
+
+Verification: the reproducible automated fixture at
+`scripts/tests/fixtures/mix-video/example.py` produces synthetic bed/SFX
+and a speech-role test tone with explicitly synthetic caption evidence.
+Both actual local HyperFrames renders passed: 15s portrait ad and 8s
+landscape tour, full decode, matching audio duration and peak checks.
+Tour proof frames show the caption inside its 2..3s interval and absent
+before/after. This verifies wiring, not real speech/ASR quality or a live
+Creator conversation. No paid generation or gateway restart was performed.
 
 ### Video authoring references
 
