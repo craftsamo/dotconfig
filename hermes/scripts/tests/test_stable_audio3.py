@@ -740,7 +740,7 @@ def test_source_is_ascii_only():
 
 
 def test_lock_header_has_no_machine_specific_path():
-    lock_path = MODULE_PATH.parents[1] / "stable-audio-3" / "requirements.lock"
+    lock_path = MODULE_PATH.parents[1] / "engines" / "stable-audio-3" / "requirements.lock"
     header = lock_path.read_text().splitlines()[1]
     assert "/Users/" not in header
     assert "--python" not in header

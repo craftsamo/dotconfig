@@ -843,6 +843,17 @@ class LaunchctlScriptTest(unittest.TestCase):
         self.assertIn('PYTHON_VERSION="3.12.11"', script)
         self.assertIn('"$RELEASE_SCHEMA" "$PYTHON_VERSION"', script)
 
+    def test_lock_path_points_at_engines_definition_dir(self) -> None:
+        script = LAUNCHCTL_PATH.read_text(encoding="utf-8")
+
+        self.assertIn(
+            'LOCK="$HOME/.config/hermes/engines/qwen3-tts/requirements.lock"',
+            script,
+        )
+        self.assertTrue(
+            (HERMES_DIR / "engines" / "qwen3-tts" / "requirements.lock").is_file()
+        )
+
     def make_home(self, root: Path) -> tuple[Path, dict[str, str]]:
         home = root / "home"
         hermes = home / ".config" / "hermes"
@@ -855,7 +866,7 @@ class LaunchctlScriptTest(unittest.TestCase):
             directory.mkdir(parents=True)
         shutil.copy2(SERVER_PATH, scripts / SERVER_PATH.name)
         shutil.copy2(PLIST_PATH, launchd / PLIST_PATH.name)
-        deps = hermes / "qwen3-tts"
+        deps = hermes / "engines" / "qwen3-tts"
         deps.mkdir(parents=True)
         (deps / "requirements.lock").write_text(
             "qwen-tts==0.1.1 --hash=sha256:" + "0" * 64 + "\n",
