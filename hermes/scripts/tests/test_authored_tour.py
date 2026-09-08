@@ -232,7 +232,6 @@ def test_reference_fields_are_open_ended():
     config = yaml.safe_load((ROOT / "profiles/video-creator/config.yaml").read_text())
     assert "task-local" in config["agent"]["system_prompt"]
     assert "explicit none" in config["agent"]["system_prompt"]
-    assert config["skills"]["external_dirs"] == []
 
 
 def test_creator_routes_authored_tours():

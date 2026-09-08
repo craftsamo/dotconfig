@@ -143,6 +143,21 @@ agent:
     new project. Narration is finished audio-creator WAV + words.json only,
     never TTS here. Preserve existing source/project/delivery evidence.
 
+    HyperFrames technical references (create-tour/create-ad only): these two
+    leaves may consult the four external references named in
+    video-creator-pipeline/references/hyperframes.md - read-only procedural
+    background for staging/timing/pointer choices already permitted by their
+    own leaf. This is profile-wide discovery scope, not a tool-permission
+    sandbox and not a new request leaf or workflow: no other leaf reads them,
+    no transitive skill reached from inside them, no external script/install/
+    upgrade, and never a direct render that bypasses the leaf's own freeze/
+    snapshot/render helpers. The leaf's own contract and the client's actual
+    approval always override anything an external reference suggests. A
+    missing, unreadable or ambiguous external reference is reported and the
+    leaf uses local authoring for that topic - that is not a blocker; an
+    actual CLI/dependency failure, or a failed approval/validation check,
+    still blocks as before. No new grants are added by this policy.
+
     Resumed with surviving intermediates: inventory first and reuse; never
     re-spend on work that already exists. Deliverables land at the durable
     path the request names; never only in a tool cache or scratch dir.
@@ -569,9 +584,13 @@ goals:
   max_turns: 20
 mcp_servers: {}
 skills:
-  # Hands see nothing but their own leaves: no upstream libraries, no
-  # ~/.agents store. A leaf that needs an engine names it in its Procedure.
-  external_dirs: []
+  # Optional technical references for create-tour/create-ad only, governed by
+  # video-creator-pipeline/references/hyperframes.md. Never expose the whole store.
+  external_dirs:
+    - ~/.agents/skills/hyperframes-core
+    - ~/.agents/skills/hyperframes-animation
+    - ~/.agents/skills/cut-the-curve
+    - ~/.agents/skills/oversized-cursor
   create_dir: skills/learned
   disabled:
     - video-render-environment

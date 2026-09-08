@@ -121,8 +121,10 @@ metadata:
    specifies the UI. Never demand one screenshot per action or client-written
    steps JSON. A bare URL is context only, never permission to browse or record.
    Separate reference (inspiration), source (actual local footage) and target
-   (operation destination). No uploads, TTS, image generation, external runtime
-   skills or automatic dependency installation. Native capture is unavailable.
+   (operation destination). No uploads, TTS, image generation, external
+   runtime workflows/executables, or automatic dependency installation.
+   Optional technical reading follows step 2; it grants none of these actions.
+   Native capture is unavailable.
    Select one mode, never silently substitute another:
    [recreate](references/screen-mode/recreate.md),
    [supplied](references/screen-mode/supplied.md), or
@@ -137,7 +139,16 @@ metadata:
    consent. After reconnaissance, revise the proposal if targets/actions changed.
    Creator relays actual client approval in the same work conversation. Hashes
    bind bytes, not identity. Final preview approval is a separate gate.
-2. Read [authoring](references/authoring.md) before writing source. Read selected
+2. Read [authoring](references/authoring.md) before writing source. Before
+   fresh authoring, read the shared HyperFrames reference policy through the
+   parent skill (not this leaf):
+
+   ```text
+   skill_view(name="video-creator-pipeline", file_path="references/hyperframes.md")
+   ```
+
+   Attempt the applicable technical lookups, report unavailable references
+   and continue with local authoring. Read selected
    style examples: [flat](references/styles/flat.md),
    [glass](references/styles/glass.md), [outline](references/styles/outline.md).
    For known choices read the matching example:
@@ -226,7 +237,9 @@ metadata:
 - Runtime executes locally authored trusted code, not arbitrary downloaded
   HTML. Static helper checks are guardrails, NOT a JavaScript security sandbox.
   Review source for networking, external references, navigation and clocks
-  before executing it. No external skill library is needed by these hands.
+  before executing it. The optional HyperFrames references are advisory
+  background only, never a substitute for this leaf's own freeze/check/
+  render helpers or approvals.
 
 </QA>
 
@@ -238,6 +251,8 @@ RESULT JSON; QA evidence and unresolved checks; `spend: media generation 0`;
 approval/revision handoff. Label direct local fixture renders as such, never
 product-live or Creator-to-hands evidence. A preview is not an MP4 delivery.
 Include screen_mode, raw duration versus final duration, capture scope/attempt
-tally, audio policy, source mapping, cleanup state and remaining platform gates.
+tally, audio policy, source mapping, cleanup state and remaining platform
+gates. Include any HyperFrames references consulted or found unavailable,
+with the local-authoring fallback used, per the shared reference policy.
 
 </Report>

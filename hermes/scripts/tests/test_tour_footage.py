@@ -460,7 +460,6 @@ def test_effective_toolsets_not_widened():
     for platform in ("cli", "a2a"):
         tools = config["platform_toolsets"][platform]
         assert "terminal" in tools and not {"browser", "computer_use", "hermes-cli"} & set(tools)
-    assert config["skills"]["external_dirs"] == []
 
 
 @pytest.mark.skipif(os.environ.get("TOUR_LIVE_CAPTURE") != "1", reason="opt-in isolated local browser proof")
