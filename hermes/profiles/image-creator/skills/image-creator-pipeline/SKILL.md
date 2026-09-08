@@ -57,6 +57,15 @@ metadata:
 
 <Shared scripts>
 
+- `python3 scripts/card.py create|edit <absolute-spec.json> --out <new-absolute-bundle>`
+  - deterministic card HTML/CSS/font rendering or explicit raster fit. Consumes
+    create/card destination front matter and canonical style CSS blocks; isolated
+    offline agent-browser, ImageMagick PNG crops, stable snapshots and exclusive
+    output. Generate-card shares the composer, never duplicates its CSS.
+- `python3 scripts/card.py analyze <absolute-spec.json>`
+  - measured findings on declared single/ordered tiles/panorama inputs, no
+    corrected media. See create/card/references/spec.md for file-based schemas.
+
 - `scripts/img-postprocess.sh INPUT OUTPUT [--size WxH] [--fit cover|contain] [--format webp|png|jpg] [--max-bytes N]`
   — normalize any generated image (URL or path) to an exact size, format
   and byte cap; prints `ok: <path> (<format>, <WxH>, <bytes> bytes)`.
