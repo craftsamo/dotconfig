@@ -46,6 +46,11 @@ _FILE_WRITE_TOOLS = {"write_file", "patch"}
 _MUTATORS = {"cp", "mv", "rm", "chmod", "truncate", "tee", "sed"}
 _SHELL_OPERATOR = re.compile(r"(?:\d*(?:<<<|<<-|<<|>>|>\||>&|<&|<>|>|<)|&>>|&>|&&|\|\||\|&|;;|;&|[;|&\n()])")
 _ASSIGNMENT = re.compile(r"[A-Za-z_][A-Za-z_0-9]*=")
+_GHQ_ROOT = "$(ghq root)"
+_RUNTIME_COMMAND_PATH = re.compile(
+    r"(?:\$(?:HERMES_SKILL_DIR|HOME)|\$\{(?:HERMES_SKILL_DIR|HOME)\}|"
+    + re.escape(_GHQ_ROOT) + r")(?:/[A-Za-z0-9_.+-]+)+"
+)
 
 
 class _ShellToken(NamedTuple):
@@ -61,8 +66,9 @@ class _UnresolvedWrite(ValueError):
 def _shell_tokens(command: str) -> list[_ShellToken]:
     """Lex literal shell words, retaining operator identity across quoting.
 
-    This is not a shell evaluator. Expansions stay unresolved; substitutions,
-    grouping and here-documents are outside this guard's supported syntax.
+    This is not a shell evaluator. Expansions stay unresolved; only the exact
+    ghq-root placeholder is recognized. Other substitutions, grouping and
+    here-documents are outside this guard's supported syntax.
     """
     tokens: list[_ShellToken] = []
     i = 0
@@ -108,6 +114,12 @@ def _shell_tokens(command: str) -> list[_ShellToken]:
                 quote = char
             else:
                 if quote != "'":
+                    if command.startswith(_GHQ_ROOT, i):
+                        # Preserve the fragment, never execute it or invent a path.
+                        word.append(_GHQ_ROOT)
+                        dynamic = True
+                        i += len(_GHQ_ROOT)
+                        continue
                     if char == "`" or command.startswith("$(", i):
                         raise ValueError("opaque shell substitution")
                     dynamic |= char == "$" or (not quote and char in "*?[]{}")
@@ -136,7 +148,7 @@ def _unwrap_command(words: list[_ShellToken]) -> list[_ShellToken]:
         if _ASSIGNMENT.match(words[0].text):
             words = words[1:]
             continue
-        if words[0].dynamic:
+        if words[0].dynamic and not _RUNTIME_COMMAND_PATH.fullmatch(words[0].text):
             raise ValueError("unresolved command name")
         name = os.path.basename(words[0].text)
         if name not in {"env", "command", "builtin", "sudo"}:
