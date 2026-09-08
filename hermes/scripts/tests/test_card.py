@@ -236,6 +236,7 @@ class CardTests(unittest.TestCase):
 
     def test_card_routing_and_generation_contracts(self):
         # Static contracts, NOT a live LLM handoff or provider-call test.
+        routing = (ROOT / "profiles/creator/skills/creator-pipeline/references/capabilities.md").read_text()
         for verb in ("create", "generate", "edit", "analyze"):
             name = verb + "-card"
             leaf = card.ROOT / verb / "card/SKILL.md"
@@ -243,6 +244,7 @@ class CardTests(unittest.TestCase):
             self.assertIn("name: " + name, body)
             for tag in ("<Procedure>", "<QA>", "<Report>"):
                 self.assertIn(tag, body)
+            self.assertLess(routing.index("image-creator: " + name), routing.index("`creator-text-card`"))
         generated = (card.ROOT / "generate/card/SKILL.md").read_text()
         for phrase in ("explicit budget approval", "current work conversation", "BEFORE calling",
                        "never reset spent calls", "3 variant", "1 corrective", "No hardcoded 21:9"):

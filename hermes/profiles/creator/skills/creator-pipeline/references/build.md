@@ -39,6 +39,7 @@ Do not relocate a valid Group-local request to the global deliverables area.
 | audio-creator's synthesis/ASR-heavy leaves (`generate-speech`; an `edit-speech`/`analyze-speech` that needs fresh ASR rather than reused sidecars) | `kind="work"` as in the metered row, even though the leaf is `cost: free` — synthesis and ASR routinely outlive the reply window. Use `kind="inquiry"` only when bounded and known to finish in one reply (reused, already-validated sidecars; no fresh ASR) |
 | video-creator's `create-tour` | `specialist_call(target="video-creator", message=<the text>, kind="work")` even though free; local snapshots/rendering and preview approval are not one-reply work |
 | video-creator's `create-ad` / `analyze-ad` | `specialist_call(target="video-creator", message=<the text>, kind="work")`; approval turns or bounded multi-pass evidence extraction, not an inquiry |
+| image-creator's generate-card, custom-style Card or multi-tile Card | `kind="work"`; explicit budget/creative questions or multiple local renders/looks need the same persistent conversation |
 
 Pass the exact handoff text as `message`, with the released inputs, permissions
 and budget unchanged. Transport is not a release or an additional grant.
@@ -76,6 +77,17 @@ findings only, no new audio file, and expect no files back beyond the
 reply text itself.
 
 ## Supervising
+
+Card uses create/generate/edit/analyze-card before the retained legacy mapping.
+Pass the literal form, ordered tile_titles/files and all destination caveats.
+Generate-card cannot spend from a generic default: relay explicit current-work
+user approval and preserve its attempts.json tally across resumes, including
+failures. Inspect backend aspect/ref-input preflight before release. Local
+typesetting of existing art is free; do not buy new art for a text-wrap defect.
+The task directory may exist, but each render bundle below it must be new;
+do not pre-create its exclusive output path. Analyze needs only retained
+measurement/report text when requested, never a corrected card. No new
+profile/toolset or authenticated browser is needed to render a card.
 
 For analyze-ad relay the evidence-backed report, not a request for an output
 movie. Optional deliver retains report/evidence for the next work unit. Do not

@@ -8,6 +8,10 @@ only when they share tools, spend class, and verification.
 
 | Deliverable | Hands leaf | Notes |
 | --- | --- | --- |
+| exact-copy OG/social/header/thumbnail/hero/title card from supplied text/assets | image-creator: create-card | free; six looks or bounded task-local CSS; destination-specific layout, ordered panorama tiles |
+| the same card with a generated text-free background | image-creator: generate-card | proposed 3 variants + 1 corrective across resumes; explicit current-conversation user budget approval before paid calls; backend aspect preflight |
+| an existing finished card fitted with cover/contain/pad/focus, optional text band | image-creator: edit-card | free; reject destructive protected-content crops; own editable source rerenders create-card |
+| measured and visual findings on a single card, ordered tiles or a panorama | image-creator: analyze-card | free; files array + input_kind, no corrected media; platform crops remain unverified |
 | a published library icon (Iconify) as SVG + PNG | image-creator: source-icon | free; a word instead of an id comes back as candidates |
 | favicon / Apple / PWA / maskable set from a first-party SVG | image-creator: create-icon | free (the former `creator-logo-icons`) |
 | an icon drawn in a named style (flat-minimal, glass, pixel, line, clay, …) | image-creator: generate-icon | metered; icons never go through `creator-generated-image` |
@@ -61,7 +65,7 @@ are findings back to the client, never a silent switch to legacy.
 | information-led visual summary with a layout x style grammar | `creator-infographic` | metered `image_generate`; dense exact labels route to deterministic SVG |
 | precise architecture, scientific, educational, or general concept diagram | `creator-svg-diagram` | deterministic self-contained HTML + inline SVG; rendered preview required |
 | editable hand-drawn architecture, flow, sequence, or concept diagram | `creator-excalidraw-diagram` | deterministic `.excalidraw` JSON; compatible rendered preview required |
-| OG/social/title card with exact copy and typography | `creator-text-card` | deterministic composition; generated background is an explicit supporting technic |
+| historical OG/social/title-card dispatch identity | `creator-text-card` | retained mapping only; new Card work uses hands FIRST; no fallback after a Card failure |
 | classic-template or custom-scene meme with deterministic captions | `creator-meme` | sourced template or separately budgeted generated background; provenance required |
 | static banner, framed/message art, image conversion, or sourced ASCII art | `creator-ascii-art` | deterministic UTF-8 text master; ANSI only when requested |
 | existing reaction or communication GIF sourced from Tenor | `creator-gif-sourcing` | retrieval with provenance and rights caveat; never asset generation |
@@ -106,9 +110,10 @@ use an `external:<skill>` identity only after an availability preflight.
    lyrics-to-song generation, and audio visualization are withdrawn without
    a hands replacement — `no skill fits`, never a fallback to a technic,
    core route, or external skill.
-4. Stack a supporting technic only when the brief truly spans methods. Example:
-   a generated background plus exact title card loads
-   `creator-generated-image` and `creator-text-card`, with separate spend lines.
+4. Stack a supporting technic only when the brief truly spans methods.
+   Generated backdrop plus exact card copy is ONE generate-card form, not
+   creator-generated-image + creator-text-card. Text-free illustrations alone
+   remain legacy generated-image. A static card is not an infographic or deck.
 5. The task body's `Technique:` is a request. Validate it against this table;
    correct an objective mismatch in `STATE:`, and block only when the choice
    changes user intent or spend.
@@ -134,6 +139,16 @@ use an `external:<skill>` identity only after an availability preflight.
    and returns the finding; it never crosses to a core/cloud backend silently.
 
 ## Capability handshake
+
+Card destinations share one subject, not separate leaves. X article's 5:2
+recommendation is USER VERIFIED; its 1500x600 pixels are chosen defaults.
+X pair's 7:8 tiles remain UNVERIFIED CANDIDATES. Carousel portrait/square and
+3/4 counts are authoring options; only 3-image scrolling is user-observed.
+Gap previews simulate a configurable gap, never claim a measured X gap.
+Retirement gate: retain creator-text-card files and private-overlay 1:1 mappings
+until discovery/handoff coverage, generated-backdrop paid validation and legacy
+call-site migration have been proven. Do not break the generic validator or
+delete mappings merely because the new served route exists.
 
 Before production, `STATE:` or the first `PROGRESS:` must include:
 

@@ -65,9 +65,10 @@ agent:
     is produced.
 
     Hands: a family a hands profile serves (today icon, emoji, mascot,
-    reimagine and kit, on image-creator - leaves <verb>-icon / <verb>-emoji /
+    reimagine, kit and card, on image-creator - leaves <verb>-icon / <verb>-emoji /
     <verb>-mascot for source / create / generate / edit / analyze, plus
-    generate-reimagine alone, plus all five <verb>-kit leaves; also clip on
+    generate-reimagine alone, all five <verb>-kit leaves, plus create-card,
+    generate-card, edit-card and analyze-card; also clip on
     video-creator: generate-clip, edit-clip, analyze-clip, generate-music-video, create-tour,
     create-ad and analyze-ad; also speech on
     audio-creator: generate-speech, edit-speech, analyze-speech) is never
@@ -83,6 +84,15 @@ agent:
     explicit budget. Kit contents is a comma-list, not a single choice.
     Exact UI state geometry and 9-slice borders use create-kit; a generated
     style sheet is not a usable atlas or an engine-ready component kit.
+    Exact-copy OG/social/header/thumbnail/title cards use Card before the
+    retained creator-text-card legacy mapping. create-card typesets supplied
+    inputs; generate-card generates text-free art then typesets locally.
+    Its proposed allowance is 3 variants + 1 corrective across resumes, but
+    paid calls require explicit user budget approval in the current work
+    conversation. Destination pixels are authoring defaults, not verified
+    platform limits. X article 5:2 is user-verified ratio only; X pair 7:8
+    remains an unverified candidate, and gap previews are local simulations.
+    No test posts or authenticated platform checks without authorization.
     Clip means one short shot: generation 1-15 seconds, editing/analysis
     up to 60 seconds, no TTS or montage. Get consent for source/reference
     uploads and separately for remote video analysis; no means sampled
