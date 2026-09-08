@@ -495,7 +495,7 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
   defaults never authorize missing asset generation. Generate-ad and PV are
   future leaves, no legacy mappings are retired. PV primarily introduces
   qualities/world; duration and CTA presence alone do not decide the route.
-- **Audio hands own `speech` only.** `audio-creator` receives forms on A2A
+- **Audio hands own `speech` and `sfx`.** `audio-creator` receives forms on A2A
   `:9909`: generate/edit/analyze-speech. The character-voice plugin registers
   only there; Creator retains ordinary conversational TTS, never a speech
   asset bypass. House uses the language chain (including online Edge); a
@@ -506,9 +506,53 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
   WAV timing sidecars are checked before reuse; lossy sibling derivatives
   get fresh ASR. Subtitle timing is estimated, pronunciation/performance
   unverified. Never invent a listening verdict or re-roll for an ASR spelling
-  variant. Speech can feed a legacy film as a completed input; music/song/SFX
+  variant. Speech can feed a legacy film as a completed input; music/song
   generation and standalone audio visualization are withdrawn, not migrated.
   The old voice card is retired; no hands kanban contract is added.
+- **SFX is a separate four-leaf family, not music or mixing.** `create-sfx`
+  uses eight deterministic local kernels; `edit-sfx` and `analyze-sfx` never
+  generate. `sfx-media.py` preserves mono/stereo, freezes local inputs, bounds
+  decode to 22s/16 MiB and publishes new 48 kHz PCM WAV bundles. Short SFX may
+  have no integrated LUFS; that is WARN, not a reason to re-roll. Peak/clipping
+  and boundary samples are measurements, never hearing or seamless-loop proof.
+  `generate-sfx` uses the standalone `sfx-gen` plugin and `sfx_gen` toolset,
+  enabled only on audio-creator. **Local `local:stable-audio-3-medium` is
+  installed and is the default engine when `engine` is omitted** (installed
+  via `stable_audio3.py install --accept-terms`, a maintainer-only, one-time
+  step — jobs never install or download anything). It takes a `seed`
+  (default 0, 0..2^32-1, returned with the result); attempt N uses
+  `(base seed + N - 1) mod 2^32`. It rejects `loop=true` and any
+  `prompt_influence`/`paid_approved`/`max_usd` outright rather than dropping
+  them silently. Each render is a fresh subprocess under the shared runtime
+  lock (inherited by the child, 180s timeout) — no LaunchAgent, no port, no
+  GPU-resident process. `resume` never regenerates: it only re-validates the
+  saved `take-NN/raw.wav` + `take.json` + `inference.log` against the job's
+  frozen receipt; an interrupted attempt with no result and no running
+  process is marked failed (still counted), and `next` may use the
+  remaining grant. Explicit `fal:elevenlabs-sfx-v2` remains available as an
+  alternative: it must be named explicitly, needs explicit current-work
+  paid approval (prompt/seconds/loop/cap/`max_usd`), supports `loop` and
+  `prompt_influence`, and has NO seed (verified OpenAPI); requests cap at
+  21.5s to leave 0.5s padding/drift headroom. Neither engine ever falls
+  back to the other, automatically or silently. `max_calls` defaults to 4
+  (3 variants + 1 corrective) on local; fal requires an explicitly approved
+  cap. Both have hard cap 8, every attempt
+  including failures counted. Metadata cost stays `metered` (the leaf can
+  still spend on fal), but actual local spend is reported as `$0`. Frozen
+  job state counts before a paid submission and retains request IDs; paid
+  POSTs never use the SDK's automatic submit retries. Ambiguous fal
+  submissions stop. Secrets resolve from profile scope, never process-env
+  fallbacks. Old `local:stable-audio` (Stable Audio Open, 401-gated) is
+  retired history, not the current Medium engine's status — never describe
+  Medium as gated or blocked. `create-ad` accepts up to 16 distinct
+  finished WAV cues, one placement per source and distinct positive audio
+  track indices when multiple; final multi-audio true peak is checked. No
+  gain automation, TTS, music/mix family, tour changes or new peer is added.
+  SFX leaf commands use a literal Python path (or unquoted `~/ghq/...`),
+  never `$(ghq root)` in the executable: a real generate-sfx packaging run
+  was refused as "Nested executable body could not be resolved". Resolve
+  a different ghq root separately, then execute the absolute path. Reuse the
+  surviving raw WAV/receipt; this packaging repair consumes no generation.
 - **Multiplex TTS needs the scoped toolset-cache fix in the local Hermes
   checkout.** At upstream `4f0309e9cf`, `toolsets.resolve_toolset` memoized
   by toolset/registry generation but NOT profile scope. After Creator lost
