@@ -7,6 +7,11 @@ Drafts and internal documents are the only exception. Changed copy —
 even one word after approval — re-enters inspection; **numeric
 claims always take the double check** (factual AND legal).
 
+For Writer-authored X/Instagram parts, every text change required by any
+stage returns to Writer. The instructions below to fix or remove content
+mean quote-anchored feedback for that part, not a local rewrite. Re-inspect
+the revised candidate and obtain approval of its exact text before posting.
+
 ## Stage 1 — mechanical
 
 Machine-checkable form, on the RENDERED output, not the source:

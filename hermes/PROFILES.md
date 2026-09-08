@@ -463,8 +463,9 @@ Three per-profile layers, kept separate:
     Each leaf owns its form, Procedure, QA and Report; it never also runs
     legacy review. Unmigrated families and pre-draft consultation use
     `references/legacy.md` and the existing assess/prose/script/review
-    references. Families migrate in separate layers; this foundation adds
-    no leaf or social-copy ownership change. External skills remain via
+    references. The post family now serves `write-post`, `edit-post` and
+    `analyze-post` for X/Instagram, with per-leaf forms, platform references
+    and QA. Other families remain legacy. External skills remain via
     `skills.external_dirs`: the Japanese stack via the curated
     `profiles/writer/external-skills/` symlink dir (the single
     `japanese-writing` skill bundling the notation / tech-prose /
@@ -473,7 +474,8 @@ Three per-profile layers, kept separate:
   - marketer → `marketer-pipeline` (resident-only, cards refused; consumes
     released message units under the Publish grant + red floor; engines
     ground / produce / parts / verify / publish — grounding judgment and
-    red-team dissent, platform copy craft, QA-passed part consumption, the
+    red-team dissent, Writer-authored X/Instagram post consumption (no local
+    text rewrites), legacy copy craft for other channels, the
     four-stage pre-ship inspection with Japanese ad-law triage, and the
     approval-gated xurl publish bridge with per-post URL verification;
     channel extension points for future Discord/IG/TikTok accounts;
@@ -549,6 +551,24 @@ cards close via `hermes kanban archive <id>`. Only terminal events
 fallback. `delegate_task` covers medium parallel lookups the user is actively
 waiting on, and absorbs per-artifact QA checks on large sets. Keep routing in
 sync with each `profile.yaml` description.
+
+## Writer post family
+
+Post text is a Writer artifact, not a Marketer-side paraphrase of a brief.
+Writer's three post leaves live under `writer-pipeline/<verb>/post/` with
+category `writing`. Each has its own form, platform references, Procedure,
+QA and Report. Source text and style examples are distinct from claim
+evidence. X Articles are not posts; Instagram captions are not image text.
+Metadata and unresolved insertion markers never enter published bodies.
+
+The requester accepts the actual draft; Marketer then checks platform fit,
+claims and legal conditions and applies its unchanged Publish gate. Text
+defects go back to Writer. A changed draft needs new approval. Unsupported
+publishing integrations stay draft-only. Analyze returns a report and never
+publishes or silently rewrites its target. Humanizer is explicit-only for
+these leaves; the legacy Japanese inspection path is not run in addition.
+The shared Japanese stack and all other writing families are retained until
+their separate migration layers; this is not a global legacy retirement.
 
 ## Creator hands (v3, 2026-09)
 

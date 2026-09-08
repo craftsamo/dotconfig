@@ -7,7 +7,26 @@ platform. Copy may state only what the ledger references support —
 the factual inspection will remove anything else, so write from the
 ledger, not toward it.
 
-## Copy craft
+## X and Instagram text parts
+
+Writer's `write-post`, `edit-post` and `analyze-post` leaves own post text
+and thread structure for these platforms. Read the actual supplied draft
+and its post-ID/media mapping under `parts.md`; run the existing pre-ship
+inspection on the exact candidate. Extract only the labelled plain-text
+bodies unchanged: IDs, fences, production notes and unresolved insertion
+markers are not publishable text. Missing media or unresolved hard limits
+block publication, not an invitation to invent an attachment or test post.
+
+If a draft is absent or needs wording changes, return the requirement to
+the requester for Writer. Any candidate obtained through an existing Writer
+peer call is not writing-QA-gated: return its path to the requester for
+independent writing QA before it can enter a message unit or approval relay.
+It is never permission to publish. No local shortening, new
+hashtag, claim removal or humanizer rewrite of a supplied part. A revised
+version must pass inspection and the existing exact-text Publish approval.
+Instagram remains draft-only without an available approved integration.
+
+## Legacy copy craft (other unmigrated channels only)
 
 - **Structure**: name the audience's specific frustration → the
   cost of inaction (only where it fits the brand; omit when it
