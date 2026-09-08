@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path
 import shutil
+import shlex
 import socket
 import subprocess
 import sys
@@ -91,7 +92,32 @@ def cli(script, *args):
 
 def create_args(result, out):
     return ["create", "--approved-plan", result["approved_plan"],
-            "--approval-sha256", result["approval_sha256"], "--out", str(out)]
+             "--approval-sha256", result["approval_sha256"], "--out", str(out)]
+
+
+@pytest.mark.parametrize("kind", ["create", "generate"])
+def test_guard_allows_real_proposal_under_mv_named_job(inputs, tmp_path, kind):
+    """The real terminal guard precedes the real zero-media proposal command."""
+    guard = load(HERMES / "plugins/skill-topology/__init__.py", "music_plan_guard")
+    request = inputs(kind)
+    parent = tmp_path / "character-mv-no-voice" / "music-plan"
+    parent.mkdir(parents=True)
+    args = ["propose", "--kind", kind, "--form-file", request["form_file"],
+            "--arrangement-file", request["arrangement_file"], "--out", parent / "proposal-v1"]
+    artifact = "score_file" if kind == "create" else "prompt_file"
+    args.extend(["--" + artifact.replace("_", "-"), request[artifact]])
+    command = shlex.join([sys.executable, str(PLAN), *map(str, args)])
+    assert guard._guard_managed_skill_writes(
+        tool_name="terminal", args={"command": command, "workdir": str(tmp_path)}) is None
+    result = cli(PLAN, *args)
+    assert result["status"] == "proposal-only"
+    assert result["spend"] == 0 and result["audio_created"] is False
+    assert Path(result["approved_plan"]).parent == parent / "proposal-v1"
+    assert not list(parent.rglob("*.wav"))
+    blocked = guard._guard_managed_skill_writes(
+        tool_name="terminal", args={"command": command + " > " + shlex.quote(str(PLAN)),
+                                    "workdir": str(tmp_path)})
+    assert blocked["action"] == "block"
 
 
 @pytest.fixture

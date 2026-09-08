@@ -584,7 +584,10 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
   back to the parent name, collapsing create/music and generate/music into
   one `music` skill despite the topology validator passing. Compact labels,
   keep full procedures in the body, and test actual `_find_all_skills` names.
-  The existing MV leaf also exceeds this upstream limit; its repair is separate.
+  MusicVideo is now `generate-music-video` at `generate/music-video/` and
+  its complete form also fits the discovery prefix. Runtime write protection
+  checks literal operations/targets, not `mv` inside a job path; the music
+  proposal CLI has a real guard-plus-proposal regression for that case.
 - **Multiplex TTS needs the scoped toolset-cache fix in the local Hermes
   checkout.** At upstream `4f0309e9cf`, `toolsets.resolve_toolset` memoized
   by toolset/registry generation but NOT profile scope. After Creator lost
