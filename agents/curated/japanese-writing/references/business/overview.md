@@ -35,9 +35,11 @@
 
 解説記事、チュートリアル、技術書の章は対象外です（論証層 `references/tech-prose.md` が受け持ちます）。
 読み物として読ませる記事やエッセイも対象外です（`references/tech-prose.md` に `references/prose-rhythm.md` を重ねます）。
-API リファレンスやコミットメッセージなどの短い定型文は、SKILL.md の表記層だけで足ります。
+API リファレンスやコミットメッセージでは、それぞれの作成手順を使います。
+日本語の表現は SKILL.md を参照します。
 
-表記、用語、和欧混植、一文一行の規則は、SKILL.md の表記層が持ちます。
+言語表現と表記の既定値は SKILL.md に従います。
+用語の選択、文体、ソースの改行位置は、依頼と文書の規約に合わせます。
 ビジネス文書に緩急層（`references/prose-rhythm.md`）を重ねてはなりません。
 走査して読まれる文書では、平坦であることが正しいからです。
 
@@ -88,6 +90,6 @@ API リファレンスやコミットメッセージなどの短い定型文は�
   `scripts/outline.py` で骨組みを機械抽出できる。
 - 検査層のかけ方は `references/inspection/workflow.md` の Workflow に従う。
   ビジネス文書なら lint に `--genre business` を指定する。
-- 表記の点検は SKILL.md の Verification に従う。
+- 表記は文書の規約を優先し、未指定の点を SKILL.md の「表記の既定値」と照合する。
 
 </Verification>
