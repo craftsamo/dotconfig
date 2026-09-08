@@ -36,6 +36,12 @@ metadata:
    create-ad permits task-local HTML/CSS/GSAP advertising from supplied assets:
    content-plan approval, frozen-source preview, then exact-preview approval
    before final rendering. No approval fields means proposal only, not render.
+   For create-ad/create-tour, `audio_workflow: mix` with no `mix_bundle`
+   first returns a preliminary timing proposal through Creator, not a formal
+   video approval. AudioCreator owns Mix design/rendering. With the finished
+   bundle, stage its verified master/receipt/captions/timing before normal
+   video approval. No placeholders, source-stem double playback, direct hands
+   calls or new MV/clip finishing. Simple supplied audio stays unchanged.
    create-tour permits task-local HTML/CSS/GSAP
    UI authoring under its concrete leaf contract; helpers freeze/check/render,
     not dictate UI layout. Never edit managed scripts or frozen project source.
