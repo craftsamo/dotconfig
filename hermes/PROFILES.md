@@ -1029,6 +1029,45 @@ left intact; upstream seeded SKILL.md was retained as `SKILL.upstream.md`.
 The existing broken private persona link was repaired by supplying its
 missing private target; no personalized file was overwritten.
 
+### Video authoring references
+
+`video-creator`'s `skills.external_dirs` pins four individual curated
+directories — `hyperframes-core`, `hyperframes-animation`, `cut-the-curve`,
+`oversized-cursor` — from the same harness-neutral `~/.agents/skills` store
+described under "HyperFrames skills live outside the repo" in `AGENTS.md`.
+Only `create-tour` and `create-ad` may consult them, per the shared rule in
+`video-creator-pipeline/references/hyperframes.md`; every other leaf in this
+profile (clip, MV, analyze-ad) does not use them. The four references are
+optional, read-only, procedural background — staging/timing/determinism,
+GSAP animation rules, specific in-scene staging techniques, and approved
+pointer-led scenes — never a new approval gate, workflow or leaf, and never
+a substitute for the leaf's own form fields, freeze/snapshot/render helpers
+or Creator-relayed approvals, which stay exactly as documented under Tour
+and Ad family below. `external_dirs` makes the four directories visible to
+the whole profile at the config level; the procedural restriction to
+create-tour/create-ad is enforced by each leaf's own Procedure, not by a
+tool-permission sandbox. A missing, unreadable or ambiguous reference is
+reported (one attempted lookup per needed resource) and the leaf uses local
+authoring for that topic; that is not a blocker, and it is distinct from an
+actual CLI/dependency failure or a failed approval/validation check, which
+still blocks. A profile config change like this does
+not restart a loaded resident session automatically — a fresh session picks
+up the new `external_dirs` entries, an already-open one may not.
+
+Verification (2026-09-08): `test_video_creator.py` exercises real Hermes
+discovery/file serving in isolated stores, including missing skills/files
+and ambiguous names. The scoped suite passed 283 tests and 18 subtests
+(7 opt-in tests skipped); the all-profile assertion separately fails on
+the unrelated assistant `storefront-reel-production` skill root. The
+video-creator profile validator and both portable leaf validators pass
+(Hermes metadata/name warnings remain). All four installed external skills
+and selected reference files also loaded through isolated Hermes imports.
+HyperFrames 0.8.30 rendered the existing 8-second overview-tour and 15-second
+fictional-ad fixtures; full decode and representative frame review passed.
+A fresh-context prose simulation covered six fallback/scope scenarios.
+These are loader, contract and renderer checks, not live Creator-to-hands
+consultation evidence. No gateway restart or live handoff was performed.
+
 ### Tour family
 
 `video-creator-pipeline/create/tour/` serves `create-tour`, a new subject:
@@ -1245,8 +1284,10 @@ metadata/nested-name exceptions. No gateway restart or live handoff was performe
 `video-creator-pipeline/<verb>/clip/` is the first video hands family:
 one short shot, not a generic film-production workflow. The profile uses
 the same main/auxiliary model settings as image-creator, keeps native image
-vision, and has video generation/analysis but no TTS, image generation,
-outbound A2A or external skill directories. Later deterministic families
+vision, and has video generation/analysis but no TTS, image generation, or
+outbound A2A. The profile's `skills.external_dirs` pins four curated
+HyperFrames technical references reserved for `create-tour`/`create-ad`
+(see "Video authoring references" above); clip does not consult them. Deterministic families
 may call HyperFrames through their own scripts; no external menu/router
 is pulled into this one.
 
