@@ -467,7 +467,10 @@ Three per-profile layers, kept separate:
     `analyze-post` for X/Instagram, with per-leaf forms, platform references
     and QA. The article family now serves `write-article`, `edit-article`
     and `analyze-article`, with destination-format references and separate
-    asset/editor notes. Other families remain legacy. External skills remain via
+    asset/editor notes. The document family serves `write-document`,
+    `edit-document` and `analyze-document`, with local format references and
+    separate source/runtime boundaries. Copy, messages and production scripts
+    remain legacy. External skills remain via
     `skills.external_dirs`: the Japanese stack via the curated
     `profiles/writer/external-skills/` symlink dir (the single
     `japanese-writing` language core with five notation defaults; old
@@ -590,6 +593,29 @@ protected claims and marker bindings; analysis evaluates a report without
 rewriting the article. The requester's independent QA uses the served leaf
 contract, not legacy lint or the four-pass receipt. Humanizer is explicit-only.
 Other writing families and their legacy dependencies are not retired here.
+
+## Writer document family
+
+Document leaves live under `writer-pipeline/<write|edit|analyze>/document/`.
+Their format options are readme, guide, reference, report, minutes, proposal,
+slides, release-notes and issue, with custom formats accepted as described
+constraints. Each operation has its own form, local format guidance, Procedure,
+QA and Report. Existing documentation/business-document briefs route here.
+Factual release notes are documents; promotional announcements remain copy.
+
+The leaves preserve facts, recorded decisions, identifiers, conditions and
+uncertainty. A missing owner or deadline is not a new decision. Editing checks
+the original and named scope; analysis checks its report against the target
+rather than requiring a new document's template. No source-only result claims
+executed commands, reproduced research, rendered slides or repository changes.
+The requester accepts actual evidence under the document gate; the engineer
+still owns repository integration. Humanizer is explicit-only and the legacy
+four-pass/lint route is not added. Unmigrated families remain unchanged.
+
+The business-format guidance re-expresses relevant ideas from the existing
+coji/natural-japanese v1.3.0 (`b54954f`, MIT) adaptations documented in
+`agents/README.md`. It does not copy the old constitution or its fixed-count
+rules; old resources and script attribution remain intact for legacy callers.
 
 ## Creator hands (v3, 2026-09)
 

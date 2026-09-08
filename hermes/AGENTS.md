@@ -732,6 +732,14 @@ asset or editor step is not removed to manufacture a publication-ready result.
 The shared Japanese core no longer orchestrates inspection; retained resources
 serve only explicit legacy callers until their separate cleanup layer.
 
+Document leaves are `<write|edit|analyze>/document/`, including legacy briefs
+named documentation/business-document. Formats are local form options, not
+new profiles: README, guide, reference, report, minutes, proposal, slides,
+release notes and issue. Keep absent records distinct from explicit decisions;
+never infer owners, deadlines, release status or runtime success. Analysis
+returns a report, not a replacement document. No legacy inspection is added
+to served document work; other families retain their existing routes.
+
 ## Layout
 
 ```
