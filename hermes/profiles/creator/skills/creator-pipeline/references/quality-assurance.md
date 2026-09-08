@@ -40,7 +40,13 @@ and the bounded framing looks are the checks. Do not expand sampled QA
 into pixel-exact source alignment/padding calculations or ask the hands
 to run extra approval-gated scripts. Carry unverified checks explicitly.
 
-For generate-music-video, an awaiting-approval proposal is text to review, not missing
+For generate-music-video, a `pending-inputs` proposal with `can_generate: false`
+is valid preliminary work to review, not missing video or a tool failure.
+Check its music_plan and explicit missing music_file/consent against the
+accepted direction. Its hash is not generation approval. Resolve dependencies
+through separately approved work and obtain a new numbered proposal/hash;
+never ask the client to reselect the concept or promote the preliminary hash.
+An awaiting-approval proposal is likewise text to review, not missing
 video. After generation use the clip review path above, comparing the hands'
 timecoded findings to the APPROVED progression, identity and expanded theme.
 Cuts are allowed, not mandatory: performance may be continuous, while montage
