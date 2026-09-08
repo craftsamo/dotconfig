@@ -465,12 +465,15 @@ Three per-profile layers, kept separate:
     `references/legacy.md` and the existing assess/prose/script/review
     references. The post family now serves `write-post`, `edit-post` and
     `analyze-post` for X/Instagram, with per-leaf forms, platform references
-    and QA. Other families remain legacy. External skills remain via
+    and QA. The article family now serves `write-article`, `edit-article`
+    and `analyze-article`, with destination-format references and separate
+    asset/editor notes. Other families remain legacy. External skills remain via
     `skills.external_dirs`: the Japanese stack via the curated
     `profiles/writer/external-skills/` symlink dir (the single
-    `japanese-writing` skill bundling the notation / tech-prose /
-    prose-rhythm / business-docs / inspection layers, single-sourced with
-    the shared `agents/curated/` store) and upstream `creative/humanizer`
+    `japanese-writing` language core with five notation defaults; old
+    references/scripts remain only for explicit legacy consumers,
+    single-sourced with the shared `agents/curated/` store) and upstream
+    `creative/humanizer` (explicit-only for served leaves)
   - marketer → `marketer-pipeline` (resident-only, cards refused; consumes
     released message units under the Publish grant + red floor; engines
     ground / produce / parts / verify / publish — grounding judgment and
@@ -569,6 +572,24 @@ publishes or silently rewrites its target. Humanizer is explicit-only for
 these leaves; the legacy Japanese inspection path is not run in addition.
 The shared Japanese stack and all other writing families are retained until
 their separate migration layers; this is not a global legacy retirement.
+
+## Writer article family
+
+Article leaves live under `writer-pipeline/<write|edit|analyze>/article/`.
+Each owns its form, selected destination references, Procedure, QA and Report.
+Zenn's Markdown source is distinguished from note/X Article rich-text editor
+features and unspecified blog engines. Documented support is not a live
+preview test; no universal platform cap or HTML-comment hiding is assumed.
+
+`[[image:id]]`, `[[embed:id]]` and `[[table:id]]` are internal insertion
+requirements, with stable IDs and same-stem `.production.md` notes. They are
+not publishable markup, media-generation authority or evidence that assets
+exist. Missing sources and editor operations remain needs-assets/needs-editor;
+text acceptance does not certify assembly or publication. Editing preserves
+protected claims and marker bindings; analysis evaluates a report without
+rewriting the article. The requester's independent QA uses the served leaf
+contract, not legacy lint or the four-pass receipt. Humanizer is explicit-only.
+Other writing families and their legacy dependencies are not retired here.
 
 ## Creator hands (v3, 2026-09)
 

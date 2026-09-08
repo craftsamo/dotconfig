@@ -724,6 +724,14 @@ Keep unserved families on `references/legacy.md` until their own layer
 lands. Do not bundle all families, retire shared Japanese references early,
 or run both leaf QA and legacy review for a served operation.
 
+Article leaves distinguish source drafts from destination rendering. Keep
+platform capability notes local to each leaf; do not promise note/X Article
+Markdown import, unknown HTML support or untested embeds. Insertion markers
+bind to stable production-note IDs and never imply generated assets. A missing
+asset or editor step is not removed to manufacture a publication-ready result.
+The shared Japanese core no longer orchestrates inspection; retained resources
+serve only explicit legacy callers until their separate cleanup layer.
+
 ## Layout
 
 ```

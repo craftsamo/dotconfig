@@ -84,6 +84,18 @@ not a new post; it needs neither attachments nor Publish approval to exist.
 
 </PostFamily>
 
+<ArticleFamily>
+
+Articles use [write-article](write/article/SKILL.md),
+[edit-article](edit/article/SKILL.md) or [analyze-article](analyze/article/SKILL.md).
+The selected leaf owns destination syntax, approach and QA. Rich-text editor
+operations and missing media stay outside the publishable body as explicit
+production notes; a text draft is not an assembled or published article.
+Do not add the legacy prose/rhythm/inspection workflow to an article leaf.
+Documentation, copy and production scripts remain distinct, unmigrated families.
+
+</ArticleFamily>
+
 <Units>
 
 - **Outline:** deliver the requested structure and tone samples, not the
