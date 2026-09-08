@@ -752,6 +752,14 @@ discovery scan retains every form field, with room for future metadata.
   generation or remote-analysis calls. Creator shows the proposal to its human
   client through clarify or its assistant client through text. A budget alone
   never authorizes generation.
+- Supplied music need not exist for Round A: a textual `music_plan` records
+  the producer, specification, duration and music/finishing order. The proposal
+  is `pending-inputs` with `can_generate: false`, not a generation release.
+  Pending character-image upload consent likewise permits only local planning.
+  Creator obtains the separate music production release, then supplies the
+  real music_file and resolved consents for a NEW numbered proposal/hash and
+  approval. Never mutate or execute the preliminary proposal, invent a WAV/hash,
+  reset attempts or ask the client to reselect the already accepted direction.
 - Round B continues the same specialist_call work conversation with the exact
   approved_plan path and approval_sha256, unchanged form and inputs. A mismatch
   or changed creative choice needs renewed approval. The digest binds content,

@@ -500,6 +500,12 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
   `approval_sha256` in the same work conversation releases generation. This is
   an operating contract, not cryptographic caller authorization. Changed inputs
   or creative choices require a new proposal; attempts never reset on resume.
+  Supplied music may be pending in a zero-spend proposal via textual
+  `music_plan`: mark pending-inputs/can_generate:false, never invent a file
+  or hash. Pending image-upload consent does not block local-only planning.
+  Before generation, require real music_file/consent and a NEW numbered
+  proposal/hash approval; a preliminary approval is not executable. Music
+  production is separately released through Creator, never done in this leaf.
   Native audio must be supported by the actual backend; reference videos and
   supplied music are never uploaded by this leaf. Exact words/supplied music
   may require separately approved finishing, and a silent visual master is

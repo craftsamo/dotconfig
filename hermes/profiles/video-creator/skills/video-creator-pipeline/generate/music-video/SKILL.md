@@ -1,10 +1,10 @@
 ---
 name: generate-music-video
 description: >-
-  Generate a short music video (MV): performance/world/shots. Propose, then await
-  exact-plan approval. Not generate-clip's single shot, create-tour's UI tour,
-  edit-clip's footage edit, exact lyric/beat/lip sync, seamless loop or full song.
-version: 1.2.0
+  Generate a short music video (MV). Propose before approval and spend;
+  pending music may be planned, not executed. Not single-shot clips, UI tours,
+  footage edits, exact lyric/beat/lip sync, seamless loops or full songs.
+version: 1.3.0
 author: CraftSamo
 license: MIT
 metadata:
@@ -17,7 +17,6 @@ metadata:
       subject:
         required: true
         label: "lead subject; preserve identity"
-        example: "Silver-haired lead; keep face/costume"
       character_reference:
         required: false
         type: image
@@ -31,7 +30,6 @@ metadata:
       theme_detail:
         required: false
         label: "motif/palette/material/light overrides"
-        example: "Red/black/white cards; checkerboard"
       style:
         required: true
         options: [anime-3d, anime-2d, live-action, mixed-media]
@@ -41,7 +39,6 @@ metadata:
       performance:
         required: false
         label: "action; absent: propose, not idle"
-        example: "Dance; full body/expression"
       direction:
         required: false
         options: [performance, typographic, montage]
@@ -77,7 +74,11 @@ metadata:
       music_file:
         required: false
         type: file
-        label: "supplied requires file; local only"
+        label: "finished local audio; required before generation"
+      music_plan:
+        required: false
+        type: text
+        label: "pending supplied music: owner/spec/order; proposal only"
       words:
         required: false
         label: "words; exact text deferred"
@@ -133,6 +134,10 @@ text, deferred to separately approved finishing. must_keep includes identity,
 wording, timing and other non-negotiable requirements; unsupported requirements
 need an explicit finishing plan or a stop. Silent mode is intentionally silent;
 supplied mode preserves music_file locally for separate approved assembly.
+When music_file does not exist yet, music_plan describes the intended music,
+its producing role, expected duration and the production/finishing order. It
+is text, not a file path, audio, an upload grant or a generation approval.
+Do not fabricate a WAV, future file hash or audio measurement to fill it.
 upload_inputs authorizes the character reference leaving the machine for video
 generation; a local path is not consent. remote_analysis is separate consent to
 upload GENERATED video, including its audio, to the analysis provider; no means
@@ -156,8 +161,10 @@ discovery window; these details and the steps below remain part of the contract.
    an impossible request and burn variants on its shortened result. Do not turn a
    reference into image_url: that changes appearance guidance into a starting
    frame. Never drop it or reduce the request to fit an unsupported backend.
-   A character_reference without upload_inputs: yes returns Q<n> before any
-   upload or generation; missing consent is not permission to omit the image.
+    Round A may retain a local character_reference before upload consent: mark
+    that consent pending and make no remote call. Before Round B, a
+    character_reference without upload_inputs: yes returns Q<n> before any
+    upload or generation; missing consent is not permission to omit the image.
    A named MiniMax request is not fulfilled merely by the xAI-first chain:
    unless the actual configured route can honor that model, return Q<n>.
    No provider/config changes, direct API scripts, or new external skills.
@@ -213,8 +220,8 @@ discovery window; these details and the steps below remain part of the contract.
    A path alone authorizes neither remote inspection nor generation uploads.
 4. Write a new `<deliver>/proposal-v<N>.md`, choosing the next unused N even
    after a rejected proposal; never overwrite any previous proposal.
-   Include the complete effective form with defaults, supplied input paths and
-   SHA-256 hashes, the expanded theme (not just its name), subject/identity lock,
+    Include the complete effective form with defaults, existing supplied input
+    paths and SHA-256 hashes, the expanded theme (not just its name), subject/identity lock,
     rendering medium, intended performance, and a short progression from opening
     through development/highlight to ending. Include an explicit tempo section:
     subject-action accents, camera cadence, holds (including ending hold), shot
@@ -249,15 +256,37 @@ discovery window; these details and the steps below remain part of the contract.
    consent decisions, planned variant/corrective allowance, and QA criteria.
    Separate generator freedom, must_keep, and deferred finishing explicitly.
    Exact lettering means a text-free generated base; exact beats/lip sync are
-   unsupported, not promised by adding timestamps to the prompt. Supplied music
-   requires music_file and yields a silent VISUAL MASTER, not a finished MV;
+    unsupported, not promised by adding timestamps to the prompt. In Round A,
+    supplied mode accepts either a real music_file or a nonblank music_plan.
+    If neither is present, return Q<n> for the missing dependency description,
+    not permission to generate music. An explicitly supplied but unreadable music_file is an
+    input error, never silently replaced by music_plan. If only music_plan is
+    present, write the complete direction proposal and compact prompt anyway,
+    marked `status: pending-inputs` and `can_generate: false`. Record the
+    missing music_file, its intended producer/spec/duration, the separate
+    music approval/production step and the required finishing step. Its hash
+    identifies a preliminary proposal, not an executable generation release.
+    Pending character upload consent is also recorded as a missing permission;
+    it does not prevent this zero-upload proposal. Do not ask the client to
+    choose the creative concept again merely to resolve these dependencies.
+    Supplied mode still yields a silent VISUAL MASTER, not a finished MV;
    include the separately released assembly dependency. If a required finish
    has no agreed available route, return blocked with that gap before spend.
    The client must approve any visual-master-only delivery explicitly.
    Compute `shasum -a 256 <proposal-vN.md>`, report its digest, and STOP. The budget
-   is a ceiling, not approval. No approval fields means this stop on every run.
+    is a ceiling, not approval. No approval fields means this stop on every run.
+    A pending-inputs proposal is returned for dependency planning, not offered
+    as a single approval that would start all production. Creator first obtains
+    the separate music production release; this leaf never synthesizes it.
 5. Round B requires BOTH approved_plan and approval_sha256 from Creator and
-   `intent: revise <previous delivery>`. Read the approved proposal, compare its
+    `intent: revise <previous delivery>`. A pending-inputs proposal cannot enter
+    Round B even when its hash matches. Supplied mode now requires the real,
+    readable music_file and its hash; a music_plan alone never releases
+    video_generate. When music or permissions arrive, return a NEW numbered
+    proposal with those resolved inputs/consents and a new SHA-256 for client
+    approval; never splice them into the old approved proposal or reuse its
+    approval. Preserve the same work conversation and consumed-attempt ledger.
+    Read the executable approved proposal, compare its
    digest, effective form, input hashes and grant with this request; only the
    approval fields and output bookkeeping may differ. Missing/mismatched
     approval, changed theme/pace/transition/words/inputs/consent or a materially different backend
@@ -357,6 +386,10 @@ discovery window; these details and the steps below remain part of the contract.
 
 <QA>
 
+- Proposal dependencies: a supplied music_plan without music_file produces
+  `pending-inputs`, never an executable approval. No invented file/hash, no
+  audio generation and no upload in round A. A later real music_file or changed
+  consent needs a new numbered proposal/hash; the old one remains untouched.
 - Proposal: theme expanded into space/materials/light/staging, overrides kept,
   purposeful performance and readable progression, no hidden exact-text or
   beat-sync promise. Approval matches plan and inputs before any generation.
@@ -399,7 +432,13 @@ discovery window; these details and the steps below remain part of the contract.
 
 <Report>
 
-Round A: `generate-music-video / awaiting approval` (or blocked); proposal path and
+Round A with missing music/consent: `generate-music-video / pending-inputs`;
+proposal path/hash, `can_generate: false`, missing dependencies and next
+separately approved music/permission steps. This is a completed preliminary
+proposal, not a tool failure or a request to select the same concept again.
+Do not present its hash as sufficient to start generation.
+
+Executable Round A: `generate-music-video / awaiting approval` (or blocked); proposal path and
 SHA-256; short expanded theme, beat proposal and tempo/boundary choices;
 generator freedom/must_keep/
 finishing split; backend limitations; continuation in the same work

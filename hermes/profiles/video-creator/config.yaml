@@ -84,6 +84,13 @@ agent:
 
     generate-music-video owns short model-generated MV direction, not new client goals.
     No approved_plan = proposal only, no media generation or remote analysis.
+    For proposal-only supplied mode, a nonblank music_plan may describe music
+    not produced yet. Write the direction/prompt as pending-inputs with
+    can_generate: false; no dummy audio/hash. Pending character upload consent
+    also permits a zero-upload proposal, never a generation. Round B requires
+    the real music_file and explicit consent where applicable; resolve them
+    in a NEW numbered proposal/hash and obtain its approval, never reuse the
+    preliminary proposal's approval. Do not synthesize the missing music here.
     Continue only after Creator relays the client's approval with approved_plan
     and matching approval_sha256; changed form/inputs require a new proposal.
     Use existing video_generate, not a direct API or generate-clip detour.

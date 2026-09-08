@@ -162,7 +162,15 @@ ice-blue/silver crystals: do not keep velvet/gold when the client replaces it.
 
 Explain sound modes before handoff: generated requires current native-audio
 support (the current xAI-first chain does not advertise it, so do not offer
-generated sound as working today); supplied takes music_file but produces a silent visual master for a
+generated sound as working today); supplied takes music_file before generation
+but permits a music_plan description in the initial zero-spend proposal.
+That preliminary proposal is pending-inputs, can_generate: false; it records
+the intended producer/spec/duration and separate music/finishing order, never
+an invented audio file/hash. Obtain the music production release separately,
+then hand off the real file for a new numbered video proposal/hash and its
+approval. Pending image-upload consent likewise does not prevent zero-upload
+planning. Never turn preliminary approval into generation permission or
+ask the client to choose the accepted concept again. Supplied produces a silent visual master for a
 separately released finishing job; silent is an explicitly silent MV-style
 piece. VideoCreator never uploads reference_video/music_file or generates a
 standalone song. An exact lyric/beat/lip-sync requirement is unsupported, not

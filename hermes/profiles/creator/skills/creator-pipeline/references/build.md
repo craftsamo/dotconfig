@@ -76,6 +76,14 @@ reply text itself.
 
 ## Supervising
 
+For generate-music-video, a `pending-inputs` proposal is valid preliminary
+work with zero media calls, not a refusal to produce a plan. Keep its path/hash
+and the client's selected direction. Release missing music production only
+with separate approval, then return the real music_file and consent decisions
+to VideoCreator for a NEW proposal/hash. A preliminary hash never releases
+video_generate. Preserve spent attempts and the same work conversation; no
+dummy WAV, silent-mode substitution or bypass through another tool.
+
 For generate-music-video, use kind="work" for BOTH rounds in one conversation. First
 release proposal-only work without approval fields, preserving the client's
 form and budget ceiling. A proposal report's zero spend is expected. Do not

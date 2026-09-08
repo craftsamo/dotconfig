@@ -60,7 +60,7 @@ class GenerateMusicVideoLeafTest(unittest.TestCase):
         self.assertEqual({
             "subject", "character_reference", "theme", "theme_detail", "style",
             "performance", "direction", "pace", "transition", "reference_video",
-            "reference_focus", "music_mode", "music", "music_file", "words",
+            "reference_focus", "music_mode", "music", "music_file", "music_plan", "words",
             "must_keep", "aspect", "duration", "upload_inputs", "remote_analysis",
             "approved_plan", "approval_sha256", "slug", "note",
         }, set(form))
@@ -73,7 +73,7 @@ class GenerateMusicVideoLeafTest(unittest.TestCase):
             self.assertEqual(["yes", "no"], form[field]["options"])
         self.assertEqual({
             "character_reference": "image", "reference_video": "file",
-            "music_file": "file", "duration": "int", "approved_plan": "file",
+            "music_file": "file", "music_plan": "text", "duration": "int", "approved_plan": "file",
             "note": "text",
         }, {name: field["type"] for name, field in form.items() if "type" in field})
         families = {
@@ -268,6 +268,34 @@ class StaticContractLanguageTest(unittest.TestCase):
         self.assertIn(
             "Round B requires BOTH approved_plan and approval_sha256", self.text
         )
+
+    def test_pending_music_is_a_proposal_not_a_generation_release(self) -> None:
+        form = VALIDATOR.hermes_meta(VALIDATOR.frontmatter(MUSIC_VIDEO_SKILL))["form"]
+        self.assertIs(False, form["music_plan"]["required"])
+        self.assertEqual("text", form["music_plan"]["type"])
+        text = " ".join(self.text.split())
+        for phrase in (
+            "supplied mode accepts either a real music_file or a nonblank music_plan",
+            "status: pending-inputs", "can_generate: false",
+            "A pending-inputs proposal cannot enter Round B even when its hash matches",
+            "return a NEW numbered proposal", "never splice them into the old approved proposal",
+            "Do not fabricate a WAV, future file hash or audio measurement",
+            "unreadable music_file is an input error, never silently replaced by music_plan",
+        ):
+            self.assertIn(phrase, text)
+
+    def test_pending_image_consent_allows_only_zero_upload_planning(self) -> None:
+        text = " ".join(self.text.split())
+        self.assertIn("Round A may retain a local character_reference before upload consent", text)
+        self.assertIn("Before Round B, a character_reference without upload_inputs: yes returns Q<n>", text)
+        self.assertIn("its hash identifies a preliminary proposal", text.lower())
+
+    def test_creator_preserves_direction_and_resolves_dependencies_separately(self) -> None:
+        for filename in ("plan.md", "build.md"):
+            text = " ".join((CREATOR_PIPELINE / "references" / filename).read_text().split())
+            self.assertIn("pending-inputs", text)
+            self.assertIn("music_file", text)
+        self.assertIn("separate approval", (CREATOR_PIPELINE / "references/build.md").read_text())
 
     def test_upload_consent_named_explicitly(self) -> None:
         self.assertIn(
