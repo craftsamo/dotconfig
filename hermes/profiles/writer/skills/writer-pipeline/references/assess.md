@@ -4,6 +4,12 @@ Loaded when the kernel's ModeRouting picks Assess: the task wants the
 writer's JUDGMENT — how to shape a future text, or what's wrong with an
 existing one — not new deliverable prose.
 
+At the v7 entry point, check the installed leaf before using legacy advice.
+An existing script uses `analyze-script`, not the old script unit contract or
+four-pass review below. The same rule holds for every served family. If a
+consultation later receives an actual draft, reselect the operation at the
+v7 kernel; consultation is not a back door to legacy critique.
+
 Two branches; pick by what the task supplies:
 
 | The task supplies | Branch |
@@ -23,9 +29,12 @@ needs writing judgment: how a deliverable should be structured, which
 tone/medium/type fits, and how much work it is. The judgment is delivered in
 the assistant's reply.
 
-- **Time-boxed.** Answer from the brief + the norms-stack knowledge
-  (which japanese-* layers would apply, per the kernel TypeTable) + a
-  quick look at any supplied reference text.
+- **Time-boxed.** Answer from the brief, the selected leaf's form/requirements
+  and supplied reference text. For scripts, use the actual consumer's fields
+  and bounds. Do not choose a universal panel count, balloon cap, speaking rate
+  or mandatory CTA from `references/script.md` for a served job. A proposed
+  bound is a decision for the requester, not measured producer evidence.
+  Legacy TypeTable/layers apply only to an explicitly legacy, unserved job.
 - **Assume, don't block, by default** — label assumptions; ask in the reply
   and wait only when every plausible reading changes the verdict.
 
@@ -39,7 +48,7 @@ Assessment format:
 ## Structure
 <proposed outline: sections/units and what each carries, 3-6 lines>
 ## Tone & norms
-<tone axes recommendation and which norms layers apply>
+<tone recommendation and the selected leaf's relevant requirements>
 ## Effort
 <rough size: length range, review passes, inputs the writer would need>
 ## Risks
@@ -50,11 +59,13 @@ Assessment format:
 
 ## Critique (evaluate an existing text)
 
-Run the four passes of `references/review.md` in **critique usage**:
+For a served family, use its `analyze-<subject>` leaf and report contract instead.
+Only an explicitly legacy, unserved job runs the four passes of
+`references/review.md` in **critique usage**:
 findings with location / pass / severity / one-line fix, then a single
 verdict line (`ship as-is` / `fix blockers` / `restructure`) plus the
-highest-leverage fix. If the text is a script, apply the
-`references/script.md` unit contract in the structure pass.
+highest-leverage fix. Retained `references/script.md` is compatibility material,
+not a second contract for served script analysis or pre-draft script advice.
 
 - Read the text's own brief/constraints first if supplied; critique
   against ITS goals, not your taste.

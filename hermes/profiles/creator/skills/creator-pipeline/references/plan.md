@@ -300,6 +300,14 @@ identity`; "make this photo a comic" → the default).
 never rewrite, translate or extend what the client wrote, and keep each
 section to 600 characters or less — a longer script is a Plan finding
 (split it into sections), never one paid-by-time take stretched to fit.
+For Writer-produced scripts, the requester first accepts the exact text from
+`write-script` or `edit-script`; an `analyze-script` report is not a speech part.
+Pass the approved raw spoken-text file, not a structured master, speaker labels
+or `.production.md` instructions. Missing raw input or required word/section
+changes return to the requester for Writer, not local rewriting. Changing the
+words requires renewed acceptance/approval; the old take's timing is not proof
+for the revision. A request for sectioning is not an automatic take grant.
+
 `voice:` is filled from a name the client actually gave (`house`, or the
 exact `<engine>:<voice>` id); do not guess an id from a description. A
 qualified voice's optional `style` or `seed` may only be offered from

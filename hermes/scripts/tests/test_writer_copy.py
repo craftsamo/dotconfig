@@ -54,7 +54,7 @@ def test_copy_routing_and_script_boundary():
         assert f"]({verb}/copy/SKILL.md)" in kernel
     assert "Existing marketing-copy briefs select this family" in kernel
     assert "Ordinary correspondence, social posts and factual release notes" in kernel
-    assert "Production scripts retain their legacy route" in kernel
+    assert "](write/script/SKILL.md)" in kernel
     assert (PIPELINE / "references/script.md").is_file()
 
 
