@@ -433,8 +433,11 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
 - **Video hands start with `clip`, not the whole legacy video surface.**
   `video-creator` receives forms on loopback A2A `:9908`; its three clip leaves
   are `generate-clip` (1-15 s, silent single shot), `edit-clip` (a <=60 s
-  segment), and `analyze-clip` (findings). It has no TTS or external skill
-  directories. `clip-media.py` owns local probe/frames/edit with exclusive
+  segment), and `analyze-clip` (findings). It has no TTS; `create-tour`/
+  `create-ad` may optionally consult four curated HyperFrames technical
+  references via `skills.external_dirs` (read-only, procedural background
+  only — see `PROFILES.md` "Video authoring references"), and clip does not
+  use them. `clip-media.py` owns local probe/frames/edit with exclusive
   output publication, measured byte caps and full decode; never treat
   GIF repeat metadata as a seamless-motion guarantee. Frame times are
   seek positions, not exact PTS. Remote video analysis is a separate
@@ -466,8 +469,10 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
   desktop guard covers Assistant's computer_use. Never grant it to VideoCreator
   or use Assistant fallback. Wrapper checks are not a terminal/website sandbox;
   no authenticated/private-region capture or privacy redaction is claimed.
-  No edits to frozen source, external runtime skills or TTS;
-  use finished audio-creator WAV/words.json. Creator always uses specialist
+  No edits to frozen source, external runtime workflows/executables, or TTS
+  (the optional read-only HyperFrames references, `PROFILES.md` "Video
+  authoring references", are advisory background only); use finished
+  audio-creator WAV/words.json. Creator always uses specialist
   `kind="work"` for tours. Keep creator-html-motion and its 1:1 mappings intact.
   GSAP is minimally vendored with its own license and hash provenance.
 - **Ad is an audience/promise/action deliverable, not a product-category
@@ -578,7 +583,13 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
   and `learned/` belong in it; anything else appearing there is installer
   residue. Check BOTH roots when the validator reports symlinks — the two
   intentional ones are the assistant's private-overlay `assistant-pipeline` and
-  `desks`, which resolve and must stay.
+  `desks`, which resolve and must stay. **`video-creator` pins four individual
+  dirs from the same store** (`hyperframes-core`, `hyperframes-animation`,
+  `cut-the-curve`, `oversized-cursor`) for its `create-tour`/`create-ad`
+  leaves only — never the whole store, and the same never-copy/never-symlink
+  rule applies (see `PROFILES.md` "Video authoring references"). A missing or
+  unreadable entry there is a documented local-authoring fallback per that
+  leaf's contract, not a runtime failure.
 
 ## Layout
 
