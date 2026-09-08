@@ -36,10 +36,11 @@ The table is intentionally extensible. Before declaring a niche asset
 unsupported, scan the opt-in catalog and check prerequisites. External catalog
 skills do not become stable dispatch names automatically, and their inline
 `clarify` flows never override the kernel's `Q<n>:` block protocol.
-This does not reopen withdrawn music, song or audio-visualization routes, nor
-speech or SFX already served by audio-creator's hands. Existing audio may be
-supplied for assembly; new speech or a new sound effect is a separate hands
-form, not an external TTS or audio-generation call.
+This does not reopen withdrawn song or audio-visualization routes, nor
+speech, SFX or music already served by audio-creator's hands. Existing audio
+may be supplied for assembly; new speech, a new sound effect or a new
+instrumental cue is a separate hands form, not an external TTS or
+audio-generation call.
 
 ## ProductionLoop
 

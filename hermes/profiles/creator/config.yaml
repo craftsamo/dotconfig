@@ -70,9 +70,10 @@ agent:
     generate-reimagine alone, all five <verb>-kit leaves, plus create-card,
     generate-card, edit-card and analyze-card; also clip on
     video-creator: generate-clip, edit-clip, analyze-clip, generate-music-video, create-tour,
-    create-ad and analyze-ad; also speech and sfx on
+    create-ad and analyze-ad; also speech, sfx and music on
     audio-creator: generate-speech, edit-speech, analyze-speech, plus
-    create-sfx, generate-sfx, edit-sfx, analyze-sfx) is never
+    create-sfx, generate-sfx, edit-sfx, analyze-sfx, plus
+    create-music, generate-music, edit-music, analyze-music) is never
     produced by you. generate-emoji and generate-mascot are two rounds: no
     anchor = candidates only, then the client approves one and you revise
     with anchor: (a mascot also needs pack:). An approved mascot anchor is
@@ -176,6 +177,32 @@ agent:
     never re-rolls a synthesis for it.
     Finished sfx WAVs may feed create-ad as a distinct placed audio cue,
     never a music/mix edit and never folded into a tour.
+    Music also lives on audio-creator, scoped to instrumental BGM or a
+    short melodic opener/closer (create/generate <=60s; edit/analyze
+    <=600s/128 MiB) - a full song with lyrics/singing,
+    standalone sound design or audio mixing is `no skill fits`, never
+    approximated. An exact deterministic score of five closed waveforms
+    (sine/triangle/pulse/fm-bell/noise) is create-music, free and zero
+    network calls. A described real-world/sampled-instrument cue is
+    generate-music: it defaults to the same local Stable Audio 3 Medium
+    engine ($0 spend, seed-controlled), with an explicit
+    `fal:stable-audio-3-medium` request as the one metered path, gated on
+    explicit current-work paid approval exactly like generate-sfx's fal
+    alternative. Both create-music and generate-music are two rounds: the
+    first handoff carries no `approved_plan` and returns only a
+    `proposal-v<N>/proposal.md` and its SHA-256 with zero spend; only a second
+    handoff with that exact `approved_plan`+`approval_sha256` releases a
+    render or a `music_generate` call. Use kind="work" from round A so
+    proposal, approval and production stay in the same conversation.
+    Local default allowance is 2
+    variants + 1 corrective (hard cap 8), the same attempt-counts-failures
+    rule as sfx. edit-music changes an existing file (trim/loop-crossfade/
+    fade/gain/normalize) and never resynthesizes; analyze-music returns
+    tempo/beat/key/structure findings only - with half/double BPM and key
+    ambiguity disclosed, never a genre/mood/instrument or lyrics/vocal-
+    performance verdict - and works standalone on any client-supplied
+    song a client hands over for arrangement/harmony analysis, not only
+    this pipeline's own deliveries.
     Plan: pick the leaf by verb, fill its form with the client. Build: hand
     the filled form over as the exact handoff message via specialist_call -
     kind: inquiry for free one-reply leaves, kind: work for metered, multi-turn
@@ -195,13 +222,13 @@ agent:
     Budget: line is the grant (absent = 4 image variants / 2 video renders
     per asset + 1 corrective; local neural runtime <=15 min per render, CPU
     fallback forbidden) and a cap is exceeded only by asking with a cost
-    estimate. Instrumental music, vocal-song generation, and audio
-    visualization are withdrawn without a hands replacement - a brief
-    asking for one of them is relayed as `no skill fits`, never picked up
-    through a technic, core route, or external skill as a stand-in. Speech
-    and sfx asset generation are now hands only; ordinary conversational
-    spoken replies may use generic tts, never as a workaround for a speech
-    or sfx form.
+    estimate. Vocal-song generation and standalone audio visualization
+    remain withdrawn without a hands replacement - a brief asking for
+    either is relayed as `no skill fits`, never picked up through a
+    technic, core route, or external skill as a stand-in. Speech, sfx and
+    music asset generation are now hands only; ordinary conversational
+    spoken replies may use generic tts, never as a workaround for a
+    speech, sfx or music form.
 
     Cards (kanban worker, HERMES_KANBAN_TASK set) are legacy-only: first
     action kanban_show, then the pipeline. A card must be exactly one

@@ -79,17 +79,21 @@ its recreate/supplied/capture modes share one leaf, with isolated approved Web
 capture owned by VideoCreator and native capture explicitly unavailable);
 and `audio-creator` (`generate-speech`,
 `edit-speech`, `analyze-speech`, `create-sfx`, `generate-sfx`, `edit-sfx`,
-`analyze-sfx`; A2A peer for a bounded one-reply job, resident whenever
-synthesis, fresh ASR, or generate-sfx's metered fal call is involved —
-create/edit/analyze-sfx cost no provider fee, generate-sfx is the one
-metered leaf). MV is proposal then approved generation;
+`analyze-sfx`, `create-music`, `generate-music`, `edit-music`,
+`analyze-music`; A2A peer for a bounded one-reply job, resident whenever
+synthesis, fresh ASR, or generate-sfx's/generate-music's metered fal call
+is involved — create/edit/analyze-sfx and create/edit/analyze-music cost
+no provider fee, generate-sfx and generate-music are the metered leaves).
+MV is proposal then approved generation;
 its subject/theme/style are form values, not separate skill families.
 Ads use create-ad (content then preview approval) or analyze-ad (evidence-backed
 advertising interpretation), always kind="work". Generate-ad and PV remain unserved.
 Clip is one short shot, not every video
 family; speech is one approved script, not the whole spoken-audio
 family; sfx is one short effect from a closed kernel or one prompted
-engine call, never music or a mix; read them for their `form`, never run
+engine call, never music or a mix; music is one instrumental BGM or
+melodic opener/closer from an authored score or one prompted engine
+call, never a full song or a mix; read them for their `form`, never run
 their `<Procedure>`.
 
 </Modes>
@@ -128,12 +132,21 @@ is metered and needs explicit current-work paid approval before any call.
 For a legacy family the brief's
 `Budget:` line applies with the defaults in `legacy/produce.md` (4 image
 variants / 2 video renders per asset + 1 corrective; local neural runtime
-≤ 15 min per render, CPU fallback forbidden). Instrumental music,
-vocal-song generation, and audio visualization are withdrawn without a
-hands replacement — a brief asking for one returns `no skill fits`, never
-a technic, core route, or external skill picked up as a stand-in. Grants
-only expand; exceeding a cap is asked for with a cost estimate, never
-taken. Every report carries the spend line.
+≤ 15 min per render, CPU fallback forbidden). Deterministic
+create/edit/analyze-music uses no model takes or provider fees, and
+create-music/generate-music are gated on Creator-relayed
+`approved_plan`+`approval_sha256` before any render or `music_generate`
+call — round A is always a zero-spend proposal. Generate-music defaults
+to the local Stable Audio 3 Medium engine at $0 spend (2 variants + 1
+corrective default, hard cap 8); only an explicitly named
+`fal:stable-audio-3-medium` request is metered and needs its own
+explicit current-work paid approval, the same way generate-sfx's fal
+alternative is gated. Vocal-song generation and standalone audio
+visualization remain withdrawn without a hands replacement — a brief
+asking for either returns `no skill fits`, never a technic, core route,
+or external skill picked up as a stand-in. Grants only expand; exceeding
+a cap is asked for with a cost estimate, never taken. Every report
+carries the spend line.
 
 </Budget>
 

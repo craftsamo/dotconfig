@@ -68,9 +68,12 @@ Inspect every deliverable with your own input tools:
 - **Music/songs**: inspect waveform/spectrogram plus measured audio stats for
   truncation, clipping, silence, and structural gaps. These do not prove timbre,
   mix, lyric fidelity, or emotional fit; record a qualified listen-through or
-  state that perceptual limitation explicitly. (Short sound effects are no
-  longer produced here — they route to audio-creator's create-sfx/generate-sfx/
-  edit-sfx/analyze-sfx hands, with their own measured-not-heard QA.)
+  state that perceptual limitation explicitly. (Short sound effects and
+  instrumental music are no longer produced here — they route to
+  audio-creator's create-sfx/generate-sfx/edit-sfx/analyze-sfx and
+  create-music/generate-music/edit-music/analyze-music hands, with their
+  own measured-not-heard QA. Vocal-song generation and standalone audio
+  visualization remain withdrawn without any route, here or on the hands.)
 - **Interactive HTML**: run the real page, exercise required inputs and resize,
   inspect representative states, and compare repeat runs for seeded output.
 - Text IN media is guilty until read: read every rendered word back.

@@ -48,6 +48,11 @@ only when they share tools, spend class, and verification.
 | the same, via the explicitly chosen paid engine (loop or prompt-adherence control needed) | audio-creator: generate-sfx (`engine: fal:elevenlabs-sfx-v2`) | metered; explicit current-work paid approval of engine/prompt/seconds/loop/attempt cap (default 3 variants + 1 corrective) and a USD estimate before any spend; no seed, no local fallback |
 | trim / pitch shift / reverse / pad / fade / true-peak normalize / format-convert of an existing SFX file | audio-creator: edit-sfx | free; preserves the original, never re-synthesizes |
 | findings on an existing SFX file's format, loudness, clipping and silence | audio-creator: analyze-sfx | free; measured findings only, never a listening verdict; deliver may be omitted |
+| a deterministic instrumental cue composed of five closed electronic waveforms (sine/triangle/pulse/fm-bell/noise), from an authored score | audio-creator: create-music | free, zero network calls; instrumental BGM/melodic opener-closer only, at most 60s; two-round proposal-then-approval gate |
+| a described instrumental cue/BGM in real-world/sampled instrumentation, default engine | audio-creator: generate-music (local Stable Audio 3 Medium, engine omitted) | free ($0), no paid approval needed; takes a seed (default 0); two-round proposal-then-approval gate; default attempt cap 2 variants + 1 corrective, hard cap 8 |
+| the same, via the explicitly chosen paid engine | audio-creator: generate-music (`engine: fal:stable-audio-3-medium`) | metered; explicit current-work paid approval of engine/prompt/duration/seed/attempt cap/USD estimate before any spend; no local fallback |
+| trim / loop-crossfade / fade / gain / two-pass LUFS normalization of an existing music file | audio-creator: edit-music | free; preserves the original, never resynthesizes |
+| tempo/beat/key/structural-boundary findings on an existing music file, standalone or from this pipeline | audio-creator: analyze-music | free; measured/estimated findings only with half/double BPM and key ambiguity disclosed, never a listening, genre, mood, instrument, lyrics or vocal-performance verdict; deliver may be omitted |
 
 Ad means a specific audience, promise and intended action. PV primarily
 introduces qualities/experience/world: neither duration nor a CTA alone decides.
@@ -92,12 +97,14 @@ identifies as `core:tts`. `creator-html-motion` consumes a finished
 narration file from audio-creator as an input rather than synthesizing
 speech itself; its `media-use` support remains an implementation engine
 for its own non-speech asset/caption handling. Short sound effects route
-to audio-creator's create-sfx / generate-sfx / edit-sfx / analyze-sfx
-above; the technic table below carries no SFX-production entry. Instrumental
-music, vocal-song generation, and audio visualization are withdrawn without a
-hands replacement — a request for one of them is `no skill fits`, never
-routed to a core/external route as a stand-in. Other niche assets may
-use an `external:<skill>` identity only after an availability preflight.
+to audio-creator's create-sfx / generate-sfx / edit-sfx / analyze-sfx,
+and instrumental music routes to its create-music / generate-music /
+edit-music / analyze-music, both above; the technic table below carries
+no SFX- or music-production entry. Vocal-song generation and standalone
+audio visualization remain withdrawn without a hands replacement — a
+request for either is `no skill fits`, never routed to a core/external
+route as a stand-in. Other niche assets may use an `external:<skill>`
+identity only after an availability preflight.
 
 ## Selection rules
 
@@ -116,10 +123,13 @@ use an `external:<skill>` identity only after an availability preflight.
    undelivered conversational reply); a short sound effect routes to
    audio-creator's create-sfx (closed local kernel) or generate-sfx
    (described sound, local Medium default at $0, or explicit paid fal on
-   request). Instrumental
-   generation, lyrics-to-song generation, and audio visualization are
-   withdrawn without a hands replacement — `no skill fits`, never a
-   fallback to a technic, core route, or external skill.
+   request); a short instrumental cue routes to audio-creator's
+   create-music (closed five-waveform score) or generate-music (described
+   real-world/sampled instrumentation, local Medium default at $0, or
+   explicit paid fal on request). Lyrics-to-song generation and standalone
+   audio visualization remain withdrawn without a hands replacement —
+   `no skill fits`, never a fallback to a technic, core route, or external
+   skill.
 4. Stack a supporting technic only when the brief truly spans methods.
    Generated backdrop plus exact card copy is ONE generate-card form, not
    creator-generated-image + creator-text-card. Text-free illustrations alone
