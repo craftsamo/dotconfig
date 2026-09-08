@@ -3,7 +3,9 @@ snapshot/render (no headless-browser HyperFrames render needed), but the
 surrounding ffprobe/ffmpeg decode/validation logic runs for real."""
 import importlib.util
 import json
+import math
 import re
+import struct
 import subprocess
 import sys
 import wave
@@ -515,15 +517,76 @@ def test_freeze_rejects_duplicate_media_id(job):
         freeze(job)
 
 
-def test_freeze_rejects_second_audio_track(job):
+def test_freeze_accepts_multiple_audio_with_distinct_start_and_track(job):
+    """Two cues at different starts, each with its own distinct
+    data-track-index, on the real fixture."""
     wav1, wav2 = job / "source/assets/a1.wav", job / "source/assets/a2.wav"
     make_wav(wav1, seconds=3)
     make_wav(wav2, seconds=3)
     add_media(job, "audio", "a1.wav", wav1.read_bytes(),
-              {"id": "a1", "data-start": "1", "data-duration": "1"})
+              {"id": "a1", "data-start": "1", "data-duration": "1", "data-track-index": "1"})
+    add_media(job, "audio", "a2.wav", wav2.read_bytes(),
+              {"id": "a2", "data-start": "5", "data-duration": "1", "data-track-index": "2"})
+    freeze(job)
+
+
+def test_freeze_rejects_more_than_sixteen_audio_tracks(job):
+    for i in range(17):
+        path = job / f"source/assets/a{i}.wav"
+        make_wav(path, seconds=0.5)
+        add_media(job, "audio", f"a{i}.wav", path.read_bytes(),
+                  {"id": f"a{i}", "data-start": "0", "data-duration": "0.5", "data-track-index": str(i + 1)})
+    with pytest.raises(ValueError, match="at most 16 audio tracks"):
+        freeze(job)
+
+
+def test_freeze_rejects_duplicate_audio_src_placement(job):
+    """A repeated sound at another time must use its own separately approved
+    asset copy, never the same src placed twice."""
+    path = job / "source/assets/audio.wav"
+    make_wav(path, seconds=5)
+    add_media(job, "audio", "audio.wav", path.read_bytes(),
+              {"id": "a1", "data-start": "1", "data-duration": "2", "data-track-index": "1"})
+    splice_into_root(
+        job, '<audio id="a2" data-start="8" data-duration="2" '
+             'data-track-index="2" src="assets/audio.wav"></audio>')
+    with pytest.raises(ValueError, match="never the same src placed twice"):
+        freeze(job)
+
+
+def test_freeze_rejects_multiple_audio_missing_track_index(job):
+    wav1, wav2 = job / "source/assets/a1.wav", job / "source/assets/a2.wav"
+    make_wav(wav1, seconds=3)
+    make_wav(wav2, seconds=3)
+    add_media(job, "audio", "a1.wav", wav1.read_bytes(),
+              {"id": "a1", "data-start": "1", "data-duration": "1", "data-track-index": "1"})
     add_media(job, "audio", "a2.wav", wav2.read_bytes(),
               {"id": "a2", "data-start": "5", "data-duration": "1"})
-    with pytest.raises(ValueError, match="at most one audio track"):
+    with pytest.raises(ValueError, match="data-track-index is required"):
+        freeze(job)
+
+
+def test_freeze_rejects_non_positive_track_index(job):
+    wav1, wav2 = job / "source/assets/a1.wav", job / "source/assets/a2.wav"
+    make_wav(wav1, seconds=3)
+    make_wav(wav2, seconds=3)
+    add_media(job, "audio", "a1.wav", wav1.read_bytes(),
+              {"id": "a1", "data-start": "1", "data-duration": "1", "data-track-index": "0"})
+    add_media(job, "audio", "a2.wav", wav2.read_bytes(),
+              {"id": "a2", "data-start": "5", "data-duration": "1", "data-track-index": "2"})
+    with pytest.raises(ValueError, match="positive integer"):
+        freeze(job)
+
+
+def test_freeze_rejects_duplicate_track_index(job):
+    wav1, wav2 = job / "source/assets/a1.wav", job / "source/assets/a2.wav"
+    make_wav(wav1, seconds=3)
+    make_wav(wav2, seconds=3)
+    add_media(job, "audio", "a1.wav", wav1.read_bytes(),
+              {"id": "a1", "data-start": "1", "data-duration": "1", "data-track-index": "1"})
+    add_media(job, "audio", "a2.wav", wav2.read_bytes(),
+              {"id": "a2", "data-start": "5", "data-duration": "1", "data-track-index": "1"})
+    with pytest.raises(ValueError, match="distinct across placed audio tracks"):
         freeze(job)
 
 
@@ -768,6 +831,230 @@ def test_render_accepts_unchanged_runtime_since_preview(job, monkeypatch):
                                        approval_sha256=result["preview_sha256"], out=str(job / "final")))
     assert (job / "final/ad.mp4").is_file()
     assert report["project"] == str(job / "project")
+    assert "audio_measurement" not in report  # absent, not present-as-None, for a no-WAV ad
+
+
+# ── multi-track final audio QA: measure_audio() exercised directly with ────
+# ── real ffmpeg-decodable evidence; render() wiring exercised via a mock ────
+
+def make_tone_wav(path, seconds=2, rate=44100, freq=440, amplitude=0.3):
+    """A real, well-under-full-scale sine tone: safe, decodable evidence."""
+    n = int(rate * seconds)
+    with wave.open(str(path), "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(rate)
+        frames = bytearray()
+        for i in range(n):
+            v = int(amplitude * 32767 * math.sin(2 * math.pi * freq * i / rate))
+            frames += struct.pack("<h", v)
+        w.writeframes(bytes(frames))
+
+
+def make_hard_clipped_wav(path, seconds=2, rate=44100, period=40):
+    """A full-scale flat-top square wave: real ffmpeg-decodable evidence that
+    reliably measures >=0dBTP after encoding (unlike a full-scale sine, whose
+    smooth zero crossings do not trigger the same inter-sample overshoot)."""
+    n = int(rate * seconds)
+    with wave.open(str(path), "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(rate)
+        frames = bytearray()
+        for i in range(n):
+            v = 32767 if (i // period) % 2 == 0 else -32768
+            frames += struct.pack("<h", v)
+        w.writeframes(bytes(frames))
+
+
+def make_silent_audio_mp4(path, seconds=2):
+    """A video with a real but entirely silent (all-zero) audio track —
+    malformed/blank evidence, not a decode failure."""
+    subprocess.run([
+        "ffmpeg", "-y",
+        "-f", "lavfi", "-i", "anullsrc=r=8000:cl=mono",
+        "-f", "lavfi", "-i", f"color=c=black:s=320x240:d={seconds}:r=30",
+        "-map", "1:v", "-map", "0:a", "-t", str(seconds),
+        "-c:v", "libx264", "-pix_fmt", "yuv420p", "-r", "30", "-c:a", "aac", str(path),
+    ], check=True, capture_output=True)
+
+
+def test_measure_audio_rejects_clipping_evidence(tmp_path):
+    """Two simultaneous full-scale sources at unity volume can sum to this
+    same flat-top overshoot once HyperFrames mixes them; measure_audio()
+    must reject the decoded result, not merely trust the per-source checks."""
+    wav = tmp_path / "clip.wav"
+    make_hard_clipped_wav(wav)
+    with pytest.raises(ValueError, match="true peak"):
+        ad.measure_audio(wav)
+
+
+def test_measure_audio_accepts_safely_attenuated_audio(tmp_path):
+    wav = tmp_path / "safe.wav"
+    make_tone_wav(wav)
+    result = ad.measure_audio(wav)
+    assert math.isfinite(result["input_tp"]) and result["input_tp"] < 0
+    assert math.isfinite(result["input_i"])
+    assert result["warnings"] == []
+
+
+def test_measure_audio_accepts_unmeasurable_integrated_with_safe_true_peak(monkeypatch):
+    """A short/sparse SFX-style ad can legitimately measure -inf integrated
+    loudness (EBU R128 gating over a mostly-silent span) even though its
+    true peak is perfectly safe. That must not fail the render — `input_i`
+    is reported as `None` with a warning instead."""
+    fake_stderr = ('[Parsed_loudnorm_0]\n{\n\t"input_i" : "-inf",\n\t"input_tp" : "-6.00",\n'
+                   '\t"input_lra" : "0.00",\n\t"input_thresh" : "-70.00"\n}\n')
+    monkeypatch.setattr(ad.subprocess, "run",
+                         lambda *a, **k: SimpleNamespace(returncode=0, stdout="", stderr=fake_stderr))
+    result = ad.measure_audio(Path("/unused"))
+    assert result["input_i"] is None
+    assert result["input_tp"] == -6.0
+    assert result["warnings"] and "unmeasurable" in result["warnings"][0]
+
+
+def test_measure_audio_rejects_blank_silent_audio(tmp_path):
+    """Pure digital silence measures as -inf for BOTH integrated loudness and
+    true peak; unlike an unmeasurable-but-safe integrated loudness, a
+    nonfinite true peak means there is no usable audio at all, and that is
+    what gets rejected."""
+    movie = tmp_path / "clip.mp4"
+    make_silent_audio_mp4(movie)
+    with pytest.raises(ValueError, match="nonfinite true peak"):
+        ad.measure_audio(movie)
+
+
+def test_measure_audio_rejects_no_audio_stream(tmp_path):
+    movie = tmp_path / "video-only.mp4"
+    subprocess.run(["ffmpeg", "-y", "-f", "lavfi", "-i", "color=c=black:s=320x240:d=1:r=30",
+                    "-c:v", "libx264", "-pix_fmt", "yuv420p", "-r", "30", str(movie)],
+                   check=True, capture_output=True)
+    with pytest.raises(ValueError, match="no audio stream or decode error"):
+        ad.measure_audio(movie)
+
+
+def fake_hf_with_audio(project, args, evidence, audio_wav=None):
+    """Same as fake_hf but renders a real audio track (from `audio_wav`, a
+    safe sine tone by default) into the final mp4, so render()'s
+    audio-presence and audio_measurement wiring can be exercised end to end
+    for a multi-WAV plan."""
+    plan = json.loads((project / "approved-plan.json").read_text(encoding="utf-8"))
+    if args[0] in ("check", "snapshot"):
+        fake_hf(project, args, evidence)
+        return
+    if args[0] == "render":
+        movie = Path(args[args.index("--output") + 1])
+        if audio_wav is None:
+            audio_wav = movie.parent / "_measurement_source.wav"
+            make_tone_wav(audio_wav, seconds=plan["duration"])
+        subprocess.run([
+            "ffmpeg", "-y",
+            "-f", "lavfi", "-i", f"color=c=black:s={plan['width']}x{plan['height']}:d={plan['duration']}:r=30",
+            "-i", str(audio_wav),
+            "-map", "0:v", "-map", "1:a",
+            "-c:v", "libx264", "-pix_fmt", "yuv420p", "-r", "30",
+            "-c:a", "aac", "-shortest", str(movie),
+        ], check=True, capture_output=True)
+        evidence.write_text("render ok", encoding="utf-8")
+        return
+    raise AssertionError(f"unexpected hf command: {args[0]}")
+
+
+def _add_two_wav_placements(job):
+    wav1, wav2 = job / "source/assets/a1.wav", job / "source/assets/a2.wav"
+    make_wav(wav1, seconds=2)
+    make_wav(wav2, seconds=2)
+    add_media(job, "audio", "a1.wav", wav1.read_bytes(),
+              {"id": "a1", "data-start": "1", "data-duration": "1", "data-track-index": "1"})
+    add_media(job, "audio", "a2.wav", wav2.read_bytes(),
+              {"id": "a2", "data-start": "5", "data-duration": "1", "data-track-index": "2"})
+
+
+def test_render_invokes_audio_measurement_for_multiple_wav_assets(job, monkeypatch):
+    _add_two_wav_placements(job)
+    freeze(job)
+    monkeypatch.setattr(ad, "hf", fake_hf_with_audio)
+    preview = ad.snapshot(SimpleNamespace(project=str(job / "project"), out=str(job / "preview")))
+    called = {}
+
+    def fake_measure(path):
+        called["path"] = Path(path)
+        return {"input_i": -20.0, "input_tp": -3.0, "warnings": []}
+
+    monkeypatch.setattr(ad, "measure_audio", fake_measure)
+    report = ad.render(SimpleNamespace(project=str(job / "project"), approved_preview=str(job / "preview"),
+                                       approval_sha256=preview["preview_sha256"], out=str(job / "final")))
+    assert called["path"] == job / "final/ad.mp4"
+    assert report["audio_measurement"] == {"input_i": -20.0, "input_tp": -3.0, "warnings": []}
+
+
+def make_two_pulse_wav(path, duration=15, rate=44100):
+    """Two short (0.2s) sine pulses placed sparsely within a much longer
+    span — realistic short-SFX-style timing for a 6..30s ad, used to build
+    the actual final `ad.mp4` audio for the parent-renderer test below."""
+    n = int(rate * duration)
+    frames = bytearray(n * 2)
+
+    def pulse(start_s, dur_s=0.2, freq=1000, amplitude=0.4):
+        s0 = int(start_s * rate)
+        for i in range(int(dur_s * rate)):
+            idx = s0 + i
+            if idx < n:
+                v = int(amplitude * 32767 * math.sin(2 * math.pi * freq * i / rate))
+                struct.pack_into("<h", frames, idx * 2, v)
+
+    pulse(1.0)
+    pulse(duration - 2.0)
+    with wave.open(str(path), "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(rate)
+        w.writeframes(bytes(frames))
+
+
+def test_render_accepts_short_pulse_multi_track_audio_end_to_end(job, monkeypatch):
+    """Two short SFX-style pulses, sparse relative to the ad's duration, must
+    not be rejected by the final audio measurement. Exercised through the
+    real ffmpeg pipeline and the actual `ad.render()` helper (no
+    measure_audio mock) — an unmeasurable (None) integrated loudness alone
+    is not a defect, only a genuinely unsafe true peak is."""
+    _add_two_wav_placements(job)
+    freeze(job)
+    pulses_wav = job / "_pulses.wav"
+    make_two_pulse_wav(pulses_wav, duration=15)
+
+    def hf_with_pulses(project, args, evidence):
+        fake_hf_with_audio(project, args, evidence, audio_wav=pulses_wav)
+
+    monkeypatch.setattr(ad, "hf", hf_with_pulses)
+    preview = ad.snapshot(SimpleNamespace(project=str(job / "project"), out=str(job / "preview")))
+    report = ad.render(SimpleNamespace(project=str(job / "project"), approved_preview=str(job / "preview"),
+                                       approval_sha256=preview["preview_sha256"], out=str(job / "final")))
+    measurement = report["audio_measurement"]
+    assert measurement["input_i"] is None or math.isfinite(measurement["input_i"])
+    assert math.isfinite(measurement["input_tp"]) and measurement["input_tp"] < 0
+
+
+def test_render_rejects_clipping_multi_track_mix_for_real(job, monkeypatch):
+    """End-to-end (no measure_audio mock): a real clipping final mix — as if
+    two individually-safe unity-volume WAVs summed into an overshoot — must
+    fail render, not merely measure_audio() in isolation."""
+    _add_two_wav_placements(job)
+    freeze(job)
+
+    def fake_hf_clipping(project, args, evidence):
+        audio_wav = None
+        if args[0] == "render":
+            audio_wav = job / "_clip_source.wav"
+            make_hard_clipped_wav(audio_wav, seconds=15)
+        fake_hf_with_audio(project, args, evidence, audio_wav=audio_wav)
+
+    monkeypatch.setattr(ad, "hf", fake_hf_clipping)
+    preview = ad.snapshot(SimpleNamespace(project=str(job / "project"), out=str(job / "preview")))
+    with pytest.raises(ValueError, match="true peak"):
+        ad.render(SimpleNamespace(project=str(job / "project"), approved_preview=str(job / "preview"),
+                                  approval_sha256=preview["preview_sha256"], out=str(job / "final")))
+    assert not (job / "final/qa.json").exists()  # rejected before delivery evidence is written
 
 
 # ── runtime_identity(): the real function, command/shutil mocked ────────────

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import re
 import shutil
 import subprocess
@@ -280,7 +281,7 @@ def _probe_video(path):
 
 
 def _media_check(root, plan, markup):
-    media_ids, audio_placements = set(), []
+    media_ids, audio_placements, audio_track_attrs = set(), [], []
     for tag, media_attrs in markup.media:
         if tag not in ("video", "audio"):
             continue
@@ -314,10 +315,25 @@ def _media_check(root, plan, markup):
                 wav_length = w.getnframes() / w.getframerate()
             require(wav_length + 1e-3 >= length, "audio file duration does not cover its placement")
             audio_placements.append(src)
-    require(len(audio_placements) <= 1, "at most one audio track is supported in this version")
+            audio_track_attrs.append(media_attrs.get("data-track-index"))
+    require(len(audio_placements) <= 16, "at most 16 audio tracks are supported in this version")
+    require(len(set(audio_placements)) == len(audio_placements),
+            "each WAV asset must be placed by exactly one <audio> element; a sound repeated at another "
+            "time needs its own separately approved local asset copy, never the same src placed twice")
     wav_assets = {name for name in plan["assets"] if name.lower().endswith(".wav")}
     require(set(audio_placements) == wav_assets,
             "every declared WAV asset must be placed by exactly one <audio> element")
+    if len(audio_placements) > 1:
+        indices = []
+        for raw in audio_track_attrs:
+            require(raw is not None,
+                    "data-track-index is required on every <audio> element when more than one audio "
+                    "track is placed")
+            require(isinstance(raw, str) and re.fullmatch(r"[1-9][0-9]*", raw.strip()),
+                    "data-track-index must be a positive integer")
+            indices.append(int(raw))
+        require(len(set(indices)) == len(indices),
+                "data-track-index values must be distinct across placed audio tracks")
 
 
 def freeze(args):
@@ -438,6 +454,49 @@ def approved_preview(value, project, plan, approval_sha256):
             "approved check changed")
 
 
+def measure_audio(path):
+    """Direct ffmpeg `loudnorm` measurement pass over the final decoded mix.
+    Only used when more than one declared WAV asset is placed: individually
+    safe unity-volume sources can still clip once HyperFrames sums them.
+    Measures only, never applies gain. A short/sparse SFX-style ad
+    legitimately measures an unmeasurable (nonfinite) integrated loudness —
+    that alone is not a defect, so `input_i` is reported as `None` with a
+    warning rather than failing; only an undecodable, entirely blank/silent
+    (nonfinite true peak) or clipping (true peak >=0 dBTP) result is
+    rejected. A clipping rejection is evidence to reduce gain (e.g. a fresh
+    edit-sfx pass) or revise the placement timing — never something this
+    leaf corrects silently, and never a "ducking"/"mixing" capability this
+    leaf does not have."""
+    proc = subprocess.run(
+        ["ffmpeg", "-nostdin", "-v", "info", "-xerror", "-i", str(path),
+         "-map", "0:a:0", "-af", "loudnorm=print_format=json", "-f", "null", "-"],
+        capture_output=True, text=True, timeout=300)
+    require(proc.returncode == 0, "final audio decode/measurement failed (no audio stream or decode error)")
+    match = re.search(r"\{[^{}]*\}", proc.stdout + proc.stderr)
+    require(match, "audio measurement produced no JSON summary")
+    data = json.loads(match.group(0))
+
+    def num(key):
+        try:
+            value = float(data[key])
+        except (KeyError, ValueError, TypeError):
+            return None
+        return value
+
+    integrated, true_peak = num("input_i"), num("input_tp")
+    require(true_peak is not None and math.isfinite(true_peak),
+            "audio measurement missing/nonfinite true peak (no audio, decode failure, or entirely "
+            "blank/silent)")
+    warnings = []
+    if integrated is None or not math.isfinite(integrated):
+        integrated = None
+        warnings.append("integrated loudness unmeasurable (short/sparse audio); true peak was still checked")
+    require(true_peak < 0,
+            "final mixed audio true peak >=0 dBTP (multiple unity-volume sources may clip when summed); "
+            "reduce gain (e.g. a fresh edit-sfx pass) or revise placement timing, never fixed here")
+    return {"input_i": integrated, "input_tp": true_peak, "warnings": warnings}
+
+
 def render(args):
     project, plan = project_model(args.project)
     require(args.approved_preview and args.approval_sha256,
@@ -461,6 +520,15 @@ def render(args):
     expects_audio = any(name.startswith("assets/") and name.endswith(".wav") for name in plan["assets"])
     has_audio = any(s["codec_type"] == "audio" for s in info["streams"])
     require(has_audio == expects_audio, "render audio presence mismatch against approved plan")
+    wav_assets = {name for name in plan["assets"] if name.lower().endswith(".wav")}
+    audio_measurement = None
+    if len(wav_assets) > 1:
+        # Sources that were each individually safe at unity volume can still
+        # clip once HyperFrames sums them; measure the actual decoded mix,
+        # never trust the per-source checks alone. Absent for <=1 declared
+        # WAV — never a present-but-None key on the legacy single-audio/
+        # no-audio report shape.
+        audio_measurement = measure_audio(movie)
     command(["ffmpeg", "-nostdin", "-v", "error", "-xerror", "-i", str(movie), "-f", "null", "-"], timeout=300)
     (out / "review").mkdir()
     for i, at in enumerate(times):
@@ -473,6 +541,8 @@ def render(args):
               "fps": FPS, "samples": plan["samples"],
               "semantic_review": "pending visual comparison to the approved plan and sample expectations",
               "temporal_review": "sampled only", "audio_listening": "unverified", "media_generation": 0}
+    if audio_measurement is not None:
+        report["audio_measurement"] = audio_measurement
     write(out / "qa.json", report)
     (out / "qa.md").write_text(
         "# Ad QA\n\nLocal full decode passed. See check.json and qa.json.\n"

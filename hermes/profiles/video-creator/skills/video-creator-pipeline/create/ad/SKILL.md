@@ -70,7 +70,7 @@ metadata:
       audio:
         required: false
         type: file
-        label: "already-finished standalone WAV only; no TTS/synthesis here"
+        label: "a single already-finished standalone WAV, or a UTF-8 JSON list of up to 16 {source: absolute path to a finished WAV, start: seconds} cues; each entire supplied WAV plays from its start, already pre-edited before reaching VideoCreator; no TTS/synthesis/generation here"
       reference:
         required: false
         type: file
@@ -157,7 +157,12 @@ metadata:
    Every other visible text outside `<script>/<style>/<title>` must also
    belong to a declared copy id — no silent additions. Supplied `assets`
    become local files under `assets/`; any WAV plays at unity volume, unmuted,
-   with explicit `data-start`/`data-duration`; any MP4 is muted with the same
+   with explicit `data-start`/`data-duration` — up to 16 WAVs total, each
+   placed by exactly one `<audio>` element (a repeated sound at another time
+   needs its own separately approved local asset copy, never the same `src`
+   placed twice); more than one placed WAV requires an explicit, distinct
+   positive `data-track-index` per file (one legacy placement may omit it);
+   any MP4 is muted with the same
    explicit timing. No autoplay, clocks, randomness, remote requests, active
    embeds/event handlers or JS media playback/seek control — HyperFrames owns
    the timeline. Only PNG/JPG/WebP logos/images are accepted this version; ask
@@ -223,9 +228,19 @@ metadata:
   the approved theme/style/direction. Faithful product/logo representation;
   simplified/illustrative elements are labeled and approved, never presented
   as real product functionality.
-- Audio/video policy: audio-creator or client-finished WAV only, at unity
+- Audio/video policy: audio-creator or client-finished WAV only (up to 16
+  tracks, one distinct `data-track-index` per WAV when more than one is
+  placed, never the same asset reused for a repeated sound), at unity
   volume, never synthesized here; muted video-in-video only; timing windows
-  match declared placements against actual decoded media, forward and reverse.
+  match declared placements against actual decoded media, forward and
+  reverse. A multi-track final mix is additionally decoded and measured
+  (`loudnorm`) — measurement only, never silent gain correction. A short/
+  sparse SFX-style ad legitimately measures an unmeasurable integrated
+  loudness alone (reported with a warning, not a failure); only an
+  undecodable, entirely blank/silent, or clipping (true peak >=0 dBTP)
+  result is a defect, fixed by reducing gain (e.g. a fresh edit-sfx pass) or
+  revising the placement timing — never a "ducking"/automatic mixing
+  capability this leaf does not have.
 - Verify frozen hashes before/after commands, the approved plan/preview
   identity, and that outputs are fresh directories outside source/project/
   preview. Full MP4 decode, codec, dimensions, fps, duration and audio
