@@ -1,11 +1,12 @@
 ---
 name: create-tour
 description: >-
-  Create a bounded UI task walkthrough: recreate UI from reference/design/text,
-  edit supplied local footage, or capture an explicitly approved sanitized Web
-  demo in an isolated session. Local HyperFrames project, proof frames and MP4,
-  at most 60 seconds. Native macOS capture is unavailable. Not general browser
-  automation, a marketing film, image generation or speech synthesis.
+  Create a bounded (<=60s) UI task walkthrough: recreate UI from reference/
+  design/text, edit supplied footage, or capture an approved sanitized Web
+  demo in isolation, with an optional approved Audio Mix master. Local
+  HyperFrames project, proof frames and MP4. Native macOS capture
+  unavailable. Not browser automation, a marketing film, image generation
+  or speech synthesis.
 version: 3.0.0
 author: CraftSamo
 license: MIT
@@ -19,87 +20,95 @@ metadata:
       what_for:
         required: true
         type: text
-        label: "what the viewer should learn or accomplish"
+        label: "what the viewer should learn/accomplish"
       audience:
         required: true
         type: text
-        label: "who watches and what they already know"
+        label: "who watches, what they already know"
       reference:
         required: false
         type: text
-        label: "local files/directory or a textual UI description; URLs are context, not capture permission"
+        label: "local files/dir or a UI description; a URL is context, not consent"
       screen_mode:
         required: false
         options: [recreate, supplied, capture]
-        label: "recreate by default; explicit mode never changes silently"
+        label: "recreate by default; see references/screen-mode/*.md"
       source:
         required: false
         type: text
-        label: "supplied: local source manifest; capture: planned job/source.json; actual footage, never reference authorization"
+        label: "supplied/capture manifest path; step 1"
       source_sha256:
         required: false
         type: text
-        label: "supplied source manifest SHA-256, required before proposal approval"
+        label: "manifest SHA-256, pre-approval"
       target:
         required: false
         type: text
-        label: "capture only: URL/app to operate; URL alone grants no consent; native capture currently unavailable"
+        label: "capture only: URL/app; no consent implied"
       start_state:
         required: false
         type: text
-        label: "capture starting state, account/demo context; no client pixels or keystroke script required"
+        label: "capture starting state/context; no pixels/keystrokes"
       approved_plan:
         required: false
         type: text
-        label: "approved proposal-vN.md in the same work conversation; absent means proposal only for explicit screen_mode"
+        label: "approved proposal-vN.md; absent = proposal only"
       approval_sha256:
         required: false
         type: text
-        label: "SHA-256 of the exact client-approved proposal; integrity, not caller authentication"
+        label: "SHA-256 of the approved proposal"
       flow:
         required: false
         type: text
-        label: "approved semantic sequence and result, not precompiled steps.json"
+        label: "approved semantic sequence/result, not steps.json"
       fidelity:
         required: false
         options: [faithful, simplified]
-        label: "faithful (default) preserves product UI; simplified permits agreed explanatory recomposition, never invented product functions"
+        label: "faithful (default) preserves product UI"
       frame:
         required: false
         other: true
         options: [macos, browser, ios, android, none]
-        label: "decorative outer chrome, macos by default; never inferred OS behavior"
+        label: "decorative outer chrome, macos by default"
       style:
         required: false
         options: [flat, glass, outline]
         other: true
         references: references/styles/*.md
-        label: "flat by default; presentation style or custom description, not permission to restyle faithful UI"
+        label: "flat by default; presentation only"
       background:
         required: false
         other: true
         options: [light, dark]
-        label: "light by default; color or free-text decorative backdrop direction"
+        label: "light by default; decorative backdrop"
       backdrop:
         required: false
         type: image
-        label: "optional existing local static image, preserve original and approve cropping"
+        label: "optional local static image; approve cropping"
       intro:
         required: false
         options: [title-reveal, ui-overview, result-first]
         other: true
         references: references/intro/*.md
-        label: "ON by default (title-reveal); these are examples, free text is first-class; explicit none omits"
+        label: "ON by default; examples only, free text OK, none omits"
       outro:
         required: false
         options: [result-hold, overview-close, next-action]
         other: true
         references: references/outro/*.md
-        label: "ON by default (result-hold); these are examples, free text is first-class; explicit none omits"
+        label: "ON by default; examples only, free text OK, none omits"
       duration:
         required: false
         type: int
-        label: "total seconds including intro/outro, 1..60; default 20"
+        label: "seconds incl. intro/outro, 1..60; default 20"
+      audio_workflow:
+        required: false
+        options: [supplied, mix]
+        label: "supplied = existing narration path; mix = Mix master"
+      mix_bundle:
+        required: false
+        type: path
+        label: "mix only: bundle dir; binds staged master/receipt by hash"
       destination:
         required: false
         options: [landscape, portrait]
@@ -107,7 +116,7 @@ metadata:
       preview:
         required: false
         options: ["yes", "no"]
-        label: "yes (default) stops at proof frames for approval; no authorizes local final render after checks"
+        label: "yes (default) stops for approval; no renders"
       note:
         required: false
         type: text
@@ -125,6 +134,13 @@ metadata:
    runtime workflows/executables, or automatic dependency installation.
    Optional technical reading follows step 2; it grants none of these actions.
    Native capture is unavailable.
+   Before screen-mode proposal/authoring, if `audio_workflow: mix` and no
+   `mix_bundle` exists, read [Mix receiving](../../references/mix.md).
+   Freeze a preliminary timing proposal from Creator's sources/direction
+   and STOP with its path/hash. No target access, capture, placeholder WAV
+   or formal video approval. Creator relays it to AudioCreator. Resume only
+   with a finished Mix bundle, staged before the ordinary proposal so that
+   form/asset hashes name the actual audio.
    Select one mode, never silently substitute another:
    [recreate](references/screen-mode/recreate.md),
    [supplied](references/screen-mode/supplied.md), or
@@ -176,6 +192,15 @@ metadata:
     Keep raw recordings, proposal, hashes and acquisition logs in private job
     evidence, outside final. Frozen projects are private source deliverables,
     not public uploads. Copy only presentation assets into the source bundle.
+   With `audio_workflow: mix`, first run `mix-media.py verify --bundle
+   <mix_bundle>` (Hermes venv) to confirm the supplied bundle, then copy ONLY
+   its master WAV + `mix.take.json` receipt (and, if present,
+   `captions.json`/`timing.json`) into `assets/`, record their asset paths in
+   the form's `mix` object (never the original `mix_bundle` path), and place
+   the master with exactly one `<audio>` element spanning the tour's full
+   duration at `data-start="0"` with an explicit positive
+   `data-track-index` — no other audio (including kept footage audio; mute
+   it upstream instead) is placed in this mode.
    Do not edit managed scripts to add a layout, UI action or custom intro/outro.
    Run local `hyperframes lint <source>` while authoring; then freeze:
 
@@ -234,6 +259,15 @@ metadata:
 - Verify frozen hashes before/after commands, approved preview identity and
   fresh output paths. Full MP4 decode, codec, dimensions, fps and duration are
   mandatory. Review samples are not complete temporal or listening evidence.
+- Mix mode (`audio_workflow: mix`): the master is the ONLY audio placed (no
+  kept footage audio alongside it); `mix_audio.py`'s `validate_staged_delivery`
+  delegates the master/receipt/caption hash and format checks to Audio Mix's
+  own `validate_delivery`, re-run at freeze and on every re-verify — never
+  reimplemented here. A staged `timing.json` must hash-match the receipt and
+  its duration must equal the tour's; a FAIL receipt is refused. The final
+  render is decoded and measured, with its true peak compared against the
+  approved ceiling (0.2 dB encoding tolerance, always below 0 dBTP) — a measured fact,
+  never a claim that anyone listened or that playback synced.
 - Runtime executes locally authored trusted code, not arbitrary downloaded
   HTML. Static helper checks are guardrails, NOT a JavaScript security sandbox.
   Review source for networking, external references, navigation and clocks

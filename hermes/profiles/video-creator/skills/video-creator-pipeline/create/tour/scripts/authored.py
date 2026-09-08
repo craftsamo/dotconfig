@@ -19,13 +19,18 @@ from pathlib import Path
 from tour import (CANVAS, VENDOR, command, digest, fresh, hf, image, load,
                   local, number, require, text, write)
 
+PIPELINE_SCRIPTS = (Path(__file__).resolve().parents[3] / "scripts").resolve()
+sys.path.insert(0, str(PIPELINE_SCRIPTS))
+import mix_audio  # noqa: E402
+
 
 def form_model(raw):
     require(isinstance(raw, dict), "form must be an object")
     allowed = {"what_for", "audience", "reference", "flow", "fidelity", "frame",
                "style", "background", "backdrop", "intro", "outro", "duration",
                "destination", "preview", "note", "screen_mode", "source", "target",
-               "start_state", "approved_plan", "approval_sha256", "source_sha256"}
+               "start_state", "approved_plan", "approval_sha256", "source_sha256",
+               "audio_workflow", "mix"}
     require(set(raw) <= allowed, "unknown form field (v1 forms use tour.py)")
     form = {"fidelity": "faithful", "frame": "macos", "style": "flat",
             "background": "light", "intro": "title-reveal", "outro": "result-hold",
@@ -52,6 +57,27 @@ def form_model(raw):
         require(all(k in form for k in ("target", "start_state", "source")), "capture needs target, start_state and planned source manifest path")
     if mode == "recreate":
         require("source" not in form and "target" not in form, "recreate uses reference, not source/target")
+    require(form.get("audio_workflow", "supplied") in ("supplied", "mix"), "audio_workflow must be supplied or mix")
+    if form.get("audio_workflow") == "mix":
+        # An opt-in, already-approved Audio Mix master (see hermes/AGENTS.md
+        # "audio_workflow"): the exact staged asset paths named here are
+        # bound by hash through the ordinary source-file map, never by the
+        # mutable original mix_bundle path.
+        mix = form.get("mix")
+        require(isinstance(mix, dict) and {"master", "receipt"} <= set(mix) <= {"master", "receipt",
+                "captions", "timing"}, "mix requires at least master and receipt asset paths")
+        for key in ("master", "receipt", "captions", "timing"):
+            if key in mix:
+                text(mix[key], "mix " + key, 4000)
+                require(re.fullmatch(r"assets/[a-zA-Z0-9_./-]+", mix[key]) and ".." not in Path(mix[key]).parts,
+                        "Mix inputs must be staged assets, not external paths")
+        require(mix["master"].lower().endswith(".wav"), "mix.master must be a .wav asset")
+        require(mix["receipt"].lower().endswith(".json"), "mix.receipt must be a .json asset")
+        for key in ("captions", "timing"):
+            if key in mix:
+                require(mix[key].lower().endswith(".json"), f"mix.{key} must be a .json asset")
+    elif "mix" in form:
+        require(False, "mix field only applies when audio_workflow is mix")
     # A custom direction is deliberately neither normalized nor classified.
     return form
 
@@ -176,9 +202,13 @@ def markup_check(root, form):
                 content = "\n".join(parsed.code)
             match = re.search(r"\b(fetch|XMLHttpRequest|WebSocket|EventSource|setTimeout|setInterval|requestAnimationFrame|Date)\s*\(|Math\.random|Date\.now|performance\.now|@import", content)
             require(not match, f"{name}: network/clocks/unseekable animation forbidden: {match.group() if match else ''}")
-            if form.get("screen_mode") in ("supplied", "capture"):
+            if form.get("screen_mode") in ("supplied", "capture") or form.get("audio_workflow") == "mix":
+                # "JS playback/volume modifications prohibited for all mix
+                # modes" (hermes/AGENTS.md "audio_workflow") extends this
+                # footage-only guard to every project that opts into mix,
+                # regardless of screen_mode.
                 require(not re.search(r"\.(play|pause|load)\s*\(|\.currentTime\s*=|\.playbackRate\s*=", content), "HyperFrames owns media playback/seeking")
-                require(not re.search(r"\bvolume\s*:|\.(volume|muted)\s*=", content), "footage audio automation requires a separately approved finishing path")
+                require(not re.search(r"\bvolume\s*:|\.(volume|muted)\s*=", content), "audio automation requires a separately approved finishing path")
             for url in re.findall(r"url\(\s*['\"]?([^)'\"]+)", content):
                 markup.assets.append(url)
     for name in markup.assets:
@@ -190,6 +220,51 @@ def markup_check(root, form):
         footage_check(root, form, markup)
     elif form.get("screen_mode") == "recreate":
         require(not any(t == "video" for t, _ in markup.media), "recreate cannot silently use supplied/captured footage")
+    if form.get("audio_workflow") == "mix":
+        mix_check(root, form, markup)
+
+
+MIX_AUDIO_ATTRS = {"id", "class", "src", "data-start", "data-duration", "data-track-index",
+                    "style", "preload", "data-volume", "data-media-start"}
+
+
+def mix_check(root, form, markup):
+    """Validate the opt-in Mix master placement and the staged delivery it
+    names (hermes/AGENTS.md "audio_workflow"). Exactly one <audio> element
+    is ever permitted once opted in - the approved master - never a stem
+    alongside it, and never kept footage audio (mute it upstream instead;
+    this never silently mutes it here)."""
+    mix = form["mix"]
+    audio_elements = [attrs for tag, attrs in markup.media if tag == "audio"]
+    require(len(audio_elements) == 1,
+            "audio_workflow: mix requires exactly one <audio> element (the Mix master); "
+            "no other audio is placed")
+    attrs = audio_elements[0]
+    extra = set(attrs) - MIX_AUDIO_ATTRS
+    require(not extra, f"unsupported mix <audio> attributes (no loop, autoplay, muted or retiming): {sorted(extra)}")
+    require(attrs.get("src") == mix["master"], "the mix <audio> src must be the staged Mix master asset")
+    require(float(attrs.get("data-start", "nan")) == 0, "the Mix master must start at 0")
+    require(abs(float(attrs.get("data-duration", "nan")) - form["duration"]) < 1e-6,
+            "the Mix master must span the tour's full duration")
+    media_start = attrs.get("data-media-start")
+    require(media_start is None or float(media_start) == 0, "the Mix master must not be offset/retimed")
+    raw_index = attrs.get("data-track-index")
+    require(isinstance(raw_index, str) and re.fullmatch(r"[1-9][0-9]*", raw_index.strip()),
+            "the mix <audio> requires an explicit positive data-track-index")
+    require(attrs.get("data-volume", "1") == "1", "the Mix master must play at unity volume")
+    if form.get("screen_mode") in ("supplied", "capture"):
+        clips = load(local(str(root / "assets/footage/media.json"), {".json"})).get("clips", [])
+        require(all(clip.get("audio") != "keep" for clip in clips),
+                "audio_workflow: mix forbids kept footage audio; mute footage upstream instead, "
+                "never silently here")
+    master = local(str(root / mix["master"]), {".wav"})
+    receipt = local(str(root / mix["receipt"]), {".json"})
+    captions = local(str(root / mix["captions"]), {".json"}) if "captions" in mix else None
+    timing = local(str(root / mix["timing"]), {".json"}) if "timing" in mix else None
+    take = mix_audio.validate_staged_delivery(master, receipt, captions, timing,
+                                               duration_seconds=form["duration"])
+    require(take["status"] in ("PASS", "WARN"), "staged Mix receipt is not deliverable (status FAIL)")
+    mix_audio.check_caption_markup(root / "index.html", captions)
 
 
 def footage_check(root, form, markup):
@@ -366,6 +441,14 @@ def render(args):
     require((video["width"], video["height"]) == CANVAS[form["destination"]], "render dimensions mismatch")
     require(video["codec_name"] == "h264" and video["pix_fmt"] == "yuv420p" and Fraction(video["avg_frame_rate"]) == 30, "render format mismatch")
     require(abs(float(info["format"]["duration"]) - form["duration"]) <= .1, "render duration mismatch")
+    mix_audio_measurement = None
+    if form.get("audio_workflow") == "mix":
+        require(any(s["codec_type"] == "audio" for s in info["streams"]),
+                "Mix master audio must survive the final render")
+        # Measure the encoded result, including its own audio duration.
+        mix_audio_measurement = mix_audio.measure_audio(movie)
+        receipt = mix_audio.load_json(local(str(project / form["mix"]["receipt"]), {".json"}))
+        mix_audio.check_final_audio(mix_audio_measurement, receipt, info["streams"], form["duration"])
     command(["ffmpeg", "-nostdin", "-v", "error", "-xerror", "-i", str(movie), "-f", "null", "-"], timeout=300)
     (out / "review").mkdir()
     for i, at in enumerate(times):
@@ -377,6 +460,8 @@ def render(args):
               "fps": 30, "samples": contract["samples"], "intro": contract["intro"], "outro": contract["outro"],
               "semantic_review": "pending visual comparison to approved form and sample expectations",
               "temporal_review": "sampled only", "media_generation": 0}
+    if mix_audio_measurement is not None:
+        report["mix_audio_measurement"] = mix_audio_measurement
     write(out / "qa.json", report)
     (out / "qa.md").write_text("# Authored Tour QA\n\nLocal full decode passed. See check.json and qa.json.\nSemantic fidelity, pointer contact, Japanese text fit and transitions require visual review.\nSamples are not a complete temporal or listening verdict.\n", encoding="utf-8")
     return report

@@ -1,12 +1,12 @@
 ---
 name: create-ad
 description: >-
-  Create a short authored ad (default portrait 9:16 1080x1920, or 16:9/1:1/4:5,
-  30fps) from client-approved product, audience, message, CTA and optional
-  supplied assets/audio. First return an unspent content plan for approval;
-  author and freeze source only after Creator relays approval of that exact
-  plan. Local HyperFrames project, proof frames and MP4. Not video/image
-  generation, TTS, capture, or a claims fact-checker.
+  Create a short authored ad (default portrait 9:16, or 16:9/1:1/4:5, 30fps)
+  from client-approved product, audience, message, CTA and optional supplied
+  assets/audio, or an approved Audio Mix master. Returns an unspent content
+  plan for approval first; authors/freezes source only after Creator relays
+  approval of that exact plan. Local HyperFrames project, proof frames and
+  MP4. Not video/image generation, TTS, capture, or a claims fact-checker.
 version: 1.0.0
 author: CraftSamo
 license: MIT
@@ -15,26 +15,28 @@ metadata:
     category: hands
     hands: video-creator
     cost: free
-    output: "authored MP4 at the approved ratio (9:16/16:9/1:1/4:5, 30fps) + frozen source + proof frames/QA"
+    output: "authored MP4 at approved ratio + frozen source + proof frames/QA"
     form:
       product: {required: true, type: text, label: "what is being advertised"}
-      audience: {required: true, type: text, label: "who watches and what they already know or need"}
-      message: {required: true, type: text, label: "the single approved headline claim/benefit; must appear verbatim in the plan's copy"}
-      cta: {required: true, type: text, label: "the single approved call to action; must appear verbatim in the plan's copy, held >=2s"}
-      aspect: {required: false, options: ["9:16", "16:9", "1:1", "4:5"], label: "output canvas ratio; default 9:16. Fixed dims per ratio (9:16=1080x1920, 16:9=1920x1080, 1:1=1080x1080, 4:5=1080x1350), no arbitrary size, no crop/scale of another ratio's layout"}
-      assets: {required: true, type: path, label: "local directory of approved product/logo/audio/video assets; always ends up holding at least the vendored GSAP runtime files, even for a text-only ad"}
-      claims: {required: false, type: text, label: "authoritative supporting evidence and restrictions for any claim-role copy; not fact-checked here, only required nonempty when used"}
-      theme: {required: false, options: [office], other: true, references: references/themes/*.md, label: "world/setting vocabulary; the listed default is a starting point, never a fixed preset"}
-      theme_detail: {required: false, type: text, label: "override motifs, palette, materials or light; client choices replace conflicting theme defaults"}
+      audience: {required: true, type: text, label: "who watches, what they already know/need"}
+      message: {required: true, type: text, label: "single approved headline claim/benefit; must appear verbatim in plan copy"}
+      cta: {required: true, type: text, label: "single approved call to action; must appear verbatim in plan copy, held >=2s"}
+      aspect: {required: false, options: ["9:16", "16:9", "1:1", "4:5"], label: "output canvas ratio, default 9:16 (fixed dims per ratio, see ad-render.py); no arbitrary size or cross-ratio crop/scale"}
+      assets: {required: true, type: path, label: "local dir of approved product/logo/audio/video assets; always includes vendored GSAP files, even text-only"}
+      claims: {required: false, type: text, label: "evidence/restrictions for claim-role copy; not fact-checked, required only if used"}
+      theme: {required: false, options: [office], other: true, references: references/themes/*.md, label: "world/setting vocabulary; listed default is a starting point, not a fixed preset"}
+      theme_detail: {required: false, type: text, label: "override motifs/palette/materials/light; replaces conflicting theme defaults"}
       style: {required: false, options: [bold-graphic], other: true, references: references/styles/*.md, label: "presentation treatment; a described look is equally valid"}
-      direction: {required: false, options: [claim-led], other: true, references: references/direction/*.md, label: "how message/claim/cta are staged and paced; free text is first-class"}
-      audio: {required: false, type: file, label: "a single already-finished standalone WAV, or a UTF-8 JSON list of up to 16 {source: absolute path to a finished WAV, start: seconds} cues; each entire supplied WAV plays from its start, already pre-edited before reaching VideoCreator; no TTS/synthesis/generation here"}
-      reference: {required: false, type: file, label: "local reference/report for inspiration or the claim's evidence; never uploaded"}
-      duration: {required: false, type: int, label: "total seconds, 6..30; default 15"}
-      approved_plan: {required: false, type: file, label: "Creator-relayed approval: the exact approved plan.json; absent means proposal only, no source authoring"}
-      approval_sha256: {required: false, type: text, label: "SHA-256 of the exact plan.json the client approved; required with approved_plan"}
+      direction: {required: false, options: [claim-led], other: true, references: references/direction/*.md, label: "how message/claim/cta stage and pace; free text is first-class"}
+      audio: {required: false, type: file, label: "supplied only: finished WAV, or JSON list of <=16 {source, start} cues; plays from its start, pre-edited; no TTS here"}
+      audio_workflow: {required: false, options: [supplied, mix], label: "supplied (default) = audio field; mix = approved Mix master via mix_bundle"}
+      mix_bundle: {required: false, type: path, label: "mix only: bundle dir to verify+stage; plan binds staged master/receipt by hash"}
+      reference: {required: false, type: file, label: "local reference/report for inspiration/claim evidence; never uploaded"}
+      duration: {required: false, type: int, label: "6..30 seconds total; default 15"}
+      approved_plan: {required: false, type: file, label: "Creator-relayed approval: exact approved plan.json; absent = proposal only"}
+      approval_sha256: {required: false, type: text, label: "SHA-256 of the approved plan.json; required with approved_plan"}
       preview: {required: false, type: path, label: "client-approved preview folder from snapshot; required before render"}
-      preview_sha256: {required: false, type: text, label: "SHA-256 of that approved preview.json; required with preview"}
+      preview_sha256: {required: false, type: text, label: "SHA-256 of the approved preview.json; required with preview"}
       note: {required: false, type: text}
 ---
 
@@ -52,6 +54,12 @@ metadata:
    9:16 (1080x1920, default), 16:9 (1920x1080), 1:1 (1080x1080), 4:5
    (1080x1350) — always 30fps; do not invent other dimensions, and never
    crop or scale a layout authored for one ratio into another.
+   Before Round A, if `audio_workflow: mix` and `mix_bundle` is absent,
+   read [Mix receiving](../../references/mix.md). Author/freeze a timing
+   proposal from Creator's source inventory and video direction; return
+   its path/hash and STOP. No HTML, dummy audio, formal plan approval or
+   rendering. Resume Round A only after Creator supplies the finished Mix;
+   stage its real bytes BEFORE computing the plan's asset hashes.
 2. Read [authoring](references/authoring.md) for the exact `plan.json` schema
    and CLI walkthrough before writing anything. For known choices read the
    matching short reference: [office](references/themes/office.md),
@@ -94,18 +102,26 @@ metadata:
    copy text (nested spans may only be whitespace-normalized, never reworded).
    Every other visible text outside `<script>/<style>/<title>` must also
    belong to a declared copy id — no silent additions. Supplied `assets`
-   become local files under `assets/`; any WAV plays at unity volume, unmuted,
-   with explicit `data-start`/`data-duration` — up to 16 WAVs total, each
-   placed by exactly one `<audio>` element (a repeated sound at another time
-   needs its own separately approved local asset copy, never the same `src`
-   placed twice); more than one placed WAV requires an explicit, distinct
-   positive `data-track-index` per file (one legacy placement may omit it);
-   any MP4 is muted with the same
-   explicit timing. No autoplay, clocks, randomness, remote requests, active
-   embeds/event handlers or JS media playback/seek control — HyperFrames owns
-   the timeline. Only PNG/JPG/WebP logos/images are accepted this version; ask
-   the client to supply a raster export for an SVG logo. Run local
-   `hyperframes lint <source>` while authoring, then freeze:
+   become local files under `assets/`; with `audio_workflow: supplied`
+   (default), any WAV plays at unity volume, unmuted, with explicit
+   `data-start`/`data-duration` — up to 16 WAVs total, each placed by exactly
+   one `<audio>` element (a repeated sound at another time needs its own
+   separately approved local asset copy, never the same `src` placed twice);
+   more than one placed WAV requires an explicit, distinct positive
+   `data-track-index` per file (one legacy placement may omit it). With
+   `audio_workflow: mix`, first run `mix-media.py verify --bundle
+   <mix_bundle>` (via the Hermes venv) to confirm the supplied bundle, then
+   copy ONLY its master WAV + `mix.take.json` receipt (and, if present,
+   `captions.json`/`timing.json`) into `assets/`, record their asset paths in
+   the plan's `mix` object (never the original `mix_bundle` path), and place
+   the master with exactly one `<audio>` element spanning the full ad
+   duration at `data-start="0"` — no other WAV asset or placement is allowed
+   in this mode. Any MP4 is muted with the same explicit timing. No autoplay,
+   clocks, randomness, remote requests, active embeds/event handlers or JS
+   media playback/seek control — HyperFrames owns the timeline. Only
+   PNG/JPG/WebP logos/images are accepted this version; ask the client to
+   supply a raster export for an SVG logo. Run local `hyperframes lint
+   <source>` while authoring, then freeze:
 
    ```sh
    uv run --no-project --with Pillow python ${HERMES_SKILL_DIR}/scripts/ad-render.py freeze \
@@ -179,6 +195,15 @@ metadata:
   result is a defect, fixed by reducing gain (e.g. a fresh edit-sfx pass) or
   revising the placement timing — never a "ducking"/automatic mixing
   capability this leaf does not have.
+- Mix mode (`audio_workflow: mix`): the master is the ad's ONLY audio (no
+  stems alongside it); `mix_audio.py`'s `validate_staged_delivery` delegates
+  the master/receipt/caption hash and format checks to Audio Mix's own
+  `validate_delivery`, re-run at freeze and again on every re-verify — never
+  reimplemented here. A staged `timing.json` must hash-match the receipt's
+  own record and its duration must equal the ad's; a FAIL receipt is refused.
+  The single-WAV final render is also decoded and measured, and its true
+  peak is compared against the approved ceiling (0.2 dB encoding tolerance,
+  always below 0 dBTP) — a measured fact, never a claim that anyone listened.
 - Verify frozen hashes before/after commands, the approved plan/preview
   identity, and that outputs are fresh directories outside source/project/
   preview. Full MP4 decode, codec, dimensions, fps, duration and audio

@@ -116,6 +116,17 @@ agent:
     provenance. Technical-only clip questions still use analyze-clip. Neither
     generated ads nor PVs are silently substituted by these leaves.
 
+    For create-ad/create-tour only, audio_workflow: mix first returns a
+    preliminary timing.json when no mix_bundle exists. Creator brokers that
+    timing to AudioCreator, which owns Mix design, approval and rendering.
+    Never make dummy WAVs or approve nonexistent audio assets. Once Creator
+    supplies a verified complete Mix bundle, stage the master/receipt and
+    optional captions/timing, then begin the ordinary video approval flow
+    against their real hashes. Play only the master, never its source stems.
+    Tour accepts distinct mix-captions evidence, not a relabeled speech
+    words.json. Changed timing or audio requires new Mix/video approvals.
+    Simple supplied audio needs no Mix; MV/clip behavior is unchanged.
+
     create-tour is <=60 seconds of task-local HTML/CSS/GSAP presentation:
     screen_mode recreate (omitted default), supplied local footage, or approved
     sanitized Web capture through its capture.py wrapper, not a generic movie
@@ -140,8 +151,9 @@ agent:
     raw takes/hashes stay in private job/project evidence, never public final.
     Use a work session even though free. Preview approval resumes the
     unchanged project into a fresh final directory; changed inputs need a
-    new project. Narration is finished audio-creator WAV + words.json only,
-    never TTS here. Preserve existing source/project/delivery evidence.
+    new project. Ordinary narration is finished audio-creator WAV + words.json;
+    the opt-in Mix path uses its own master/receipt/captions contract, never
+    TTS here. Preserve existing source/project/delivery evidence.
 
     HyperFrames technical references (create-tour/create-ad only): these two
     leaves may consult the four external references named in

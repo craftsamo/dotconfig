@@ -24,11 +24,14 @@ from PIL import Image as PILImage
 
 HERE = Path(__file__).resolve().parent
 TOUR_SCRIPTS = (HERE.parents[1] / "tour" / "scripts").resolve()
+PIPELINE_SCRIPTS = (HERE.parents[2] / "scripts").resolve()
 sys.path.insert(0, str(TOUR_SCRIPTS))
+sys.path.insert(0, str(PIPELINE_SCRIPTS))
 
 from tour import (VENDOR, command, digest, fresh, hf, image, load, local,  # noqa: E402
                    number, require, text, write)
 from authored import Markup, source_files  # noqa: E402
+import mix_audio  # noqa: E402
 
 ASPECT_SIZES = {"9:16": (1080, 1920), "16:9": (1920, 1080), "1:1": (1080, 1080), "4:5": (1080, 1350)}
 DEFAULT_ASPECT = "9:16"
@@ -44,9 +47,9 @@ def plan_model(raw):
     require(isinstance(raw, dict), "plan must be an object")
     allowed = {"version", "product", "audience", "message", "cta", "theme", "style",
                "direction", "theme_detail", "claims", "note", "duration", "width",
-               "height", "fps", "assets", "copy", "samples", "aspect"}
+               "height", "fps", "assets", "copy", "samples", "aspect", "mix"}
     require(set(raw) <= allowed, "unknown plan field")
-    required = allowed - {"theme_detail", "claims", "note", "aspect"}
+    required = allowed - {"theme_detail", "claims", "note", "aspect", "mix"}
     require(required <= set(raw), "plan missing a required field")
     require(type(raw["version"]) is int and raw["version"] == 1, "plan version must be 1")
     for key in ("product", "audience", "theme", "style", "direction"):
@@ -72,6 +75,25 @@ def plan_model(raw):
         require(isinstance(name, str) and re.fullmatch(r"assets/[a-zA-Z0-9_./-]+", name)
                 and ".." not in Path(name).parts, "asset path must be local under assets/")
         require(isinstance(sha, str) and re.fullmatch(r"[0-9a-f]{64}", sha), "asset sha256 required")
+
+    if "mix" in raw:
+        # An opt-in, already-approved Audio Mix master replaces every other
+        # WAV placement (see hermes/AGENTS.md "audio_workflow"): the exact
+        # staged asset paths named here are the ONLY audio this ad may ever
+        # place, bound by hash through the ordinary asset map above - never
+        # by the mutable original mix_bundle path.
+        mix = raw["mix"]
+        require(isinstance(mix, dict) and {"master", "receipt"} <= set(mix) <= {"master", "receipt",
+                "captions", "timing"}, "mix requires at least master and receipt asset paths")
+        for key in ("master", "receipt", "captions", "timing"):
+            if key in mix:
+                require(isinstance(mix[key], str) and mix[key] in assets,
+                        f"mix.{key} must name a hashed entry in assets")
+        require(mix["master"].lower().endswith(".wav"), "mix.master must be a .wav asset")
+        require(mix["receipt"].lower().endswith(".json"), "mix.receipt must be a .json asset")
+        for key in ("captions", "timing"):
+            if key in mix:
+                require(mix[key].lower().endswith(".json"), f"mix.{key} must be a .json asset")
 
     copy = raw["copy"]
     require(isinstance(copy, list) and copy, "at least one copy row required")
@@ -263,6 +285,24 @@ def markup_check(root, plan):
     require(digest(root / "assets/gsap.min.js") == load(VENDOR / "gsap-provenance.json")["sha256"],
             "GSAP vendor hash mismatch")
     _media_check(root, plan, markup)
+    _mix_check(root, plan)
+
+
+def _mix_check(root, plan):
+    """When opted in, validate the STAGED Mix delivery (master/receipt and
+    optional captions/timing) named by `plan["mix"]`, by delegating to Audio
+    Mix's own `validate_delivery` through `mix_audio`. Never re-verifies the
+    original full bundle here - that already happened at staging time."""
+    mix = plan.get("mix")
+    if mix is None:
+        return
+    master = local(str(root / mix["master"]), {".wav"})
+    receipt = local(str(root / mix["receipt"]), {".json"})
+    captions = local(str(root / mix["captions"]), {".json"}) if "captions" in mix else None
+    timing = local(str(root / mix["timing"]), {".json"}) if "timing" in mix else None
+    take = mix_audio.validate_staged_delivery(master, receipt, captions, timing,
+                                               duration_seconds=plan["duration"])
+    require(take["status"] in ("PASS", "WARN"), "staged Mix receipt is not deliverable (status FAIL)")
 
 
 def _probe_video(path):
@@ -314,6 +354,11 @@ def _media_check(root, plan, markup):
                         "audio must be mono/stereo PCM WAV")
                 wav_length = w.getnframes() / w.getframerate()
             require(wav_length + 1e-3 >= length, "audio file duration does not cover its placement")
+            mix = plan.get("mix")
+            if mix is not None and src == mix["master"]:
+                require(start == 0, "the Mix master must start at 0")
+                require(abs(length - plan["duration"]) < 1e-6,
+                        "the Mix master must span the ad's full duration")
             audio_placements.append(src)
             audio_track_attrs.append(media_attrs.get("data-track-index"))
     require(len(audio_placements) <= 16, "at most 16 audio tracks are supported in this version")
@@ -323,7 +368,16 @@ def _media_check(root, plan, markup):
     wav_assets = {name for name in plan["assets"] if name.lower().endswith(".wav")}
     require(set(audio_placements) == wav_assets,
             "every declared WAV asset must be placed by exactly one <audio> element")
-    if len(audio_placements) > 1:
+    mix = plan.get("mix")
+    if mix is not None:
+        # Mix mode plays only the approved master - never a stem alongside
+        # it (see hermes/AGENTS.md "audio_workflow"). Video-in-video stays
+        # muted regardless (checked above), so no other audio can hide there.
+        require(wav_assets == {mix["master"]},
+                "when mix is used, the Mix master is the only declared WAV asset")
+        require(audio_placements == [mix["master"]],
+                "when mix is used, the Mix master must be placed exactly once")
+    if len(audio_placements) > 1 or mix is not None:
         indices = []
         for raw in audio_track_attrs:
             require(raw is not None,
@@ -521,14 +575,23 @@ def render(args):
     has_audio = any(s["codec_type"] == "audio" for s in info["streams"])
     require(has_audio == expects_audio, "render audio presence mismatch against approved plan")
     wav_assets = {name for name in plan["assets"] if name.lower().endswith(".wav")}
+    mix = plan.get("mix")
     audio_measurement = None
-    if len(wav_assets) > 1:
+    if len(wav_assets) > 1 or mix is not None:
         # Sources that were each individually safe at unity volume can still
         # clip once HyperFrames sums them; measure the actual decoded mix,
         # never trust the per-source checks alone. Absent for <=1 declared
-        # WAV — never a present-but-None key on the legacy single-audio/
-        # no-audio report shape.
+        # WAV with no mix — never a present-but-None key on the legacy
+        # single-audio/no-audio report shape. A single opt-in Mix WAV is
+        # ALSO measured (not just multi-source ads): the master is the ad's
+        # sole audio and its own re-encode into the final MP4 is worth a
+        # fresh check, not an assumption from the Mix receipt alone.
         audio_measurement = measure_audio(movie)
+        if mix is not None:
+            # Check the approved ceiling, not the requested or input peak
+            # presented as a measurement of the encoded result.
+            receipt = mix_audio.load_json(local(str(project / mix["receipt"]), {".json"}))
+            mix_audio.check_final_audio(audio_measurement, receipt, info["streams"], plan["duration"])
     command(["ffmpeg", "-nostdin", "-v", "error", "-xerror", "-i", str(movie), "-f", "null", "-"], timeout=300)
     (out / "review").mkdir()
     for i, at in enumerate(times):
