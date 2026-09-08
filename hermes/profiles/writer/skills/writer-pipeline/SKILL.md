@@ -107,9 +107,25 @@ guidance. Do not add the legacy business/inspection workflow to these leaves.
 Preserve source status: missing from a record does not mean explicitly undecided.
 An analysis is a report, not a new document that must satisfy the target's
 template. Runtime checks and repository integration stay with their owners.
-Copy, messages and production scripts retain their legacy routes until migrated.
+Copy and production scripts retain their legacy routes until migrated.
 
 </DocumentFamily>
+
+<MessageFamily>
+
+Email, chat, notification, UI and error wording use
+[write-message](write/message/SKILL.md), [edit-message](edit/message/SKILL.md)
+or [analyze-message](analyze/message/SKILL.md). These are text jobs, not contact
+resolution, system diagnosis, interface implementation or sending. Use the
+supplied recipient/context; personal-context workflows remain with the requester.
+Social posts and promotional mail are separate subjects, not short-message
+variants. Tone does not authorize a new stance, apology or commitment.
+Preserve unknown delivery/state and placeholders; a retry control is not proof
+of safety. Message analysis returns observations, not an unsolicited reply.
+Each leaf owns its QA; never also run the legacy inspection or automatic
+humanizer. The recipient-facing body must remain separable from review notes.
+
+</MessageFamily>
 
 <Units>
 

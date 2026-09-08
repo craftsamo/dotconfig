@@ -469,8 +469,10 @@ Three per-profile layers, kept separate:
     and `analyze-article`, with destination-format references and separate
     asset/editor notes. The document family serves `write-document`,
     `edit-document` and `analyze-document`, with local format references and
-    separate source/runtime boundaries. Copy, messages and production scripts
-    remain legacy. External skills remain via
+    separate source/runtime boundaries. The message family serves
+    `write-message`, `edit-message` and `analyze-message` for email, chat,
+    notification, UI and error wording, never delivery or system diagnosis.
+    Copy and production scripts remain legacy. External skills remain via
     `skills.external_dirs`: the Japanese stack via the curated
     `profiles/writer/external-skills/` symlink dir (the single
     `japanese-writing` language core with five notation defaults; old
@@ -616,6 +618,29 @@ The business-format guidance re-expresses relevant ideas from the existing
 coji/natural-japanese v1.3.0 (`b54954f`, MIT) adaptations documented in
 `agents/README.md`. It does not copy the old constitution or its fixed-count
 rules; old resources and script attribution remain intact for legacy callers.
+
+## Writer message family
+
+Message leaves live under `writer-pipeline/<write|edit|analyze>/message/`.
+Each owns a form, local channel references, Procedure, QA and Report. Email,
+chat, notification, UI and error are channel options; a custom channel follows
+its supplied constraints rather than being coerced into a listed format.
+Social posts and promotional mail retain their separate subjects.
+
+The requester supplies relevant recipient/context and the intended stance.
+Writer does not resolve contacts, decide relationships or look up private
+records. Warming a message cannot create an apology, agreement or commitment;
+editing preserves protected fields and placeholders. Unknown send/transaction
+results remain unknown, and a retry button is not evidence of safe repetition.
+Analysis reports quote only necessary text and distinguish possible readings
+from actual recipient reactions. They do not draft an unsolicited reply.
+
+The requester independently checks the draft/report under the message gate.
+User-facing fields are separate from role labels and review notes. Text QA
+does not prove actual delivery, interface fit or implemented behavior; sending
+and integration require their own authorized owner. Humanizer is explicit-only,
+and no legacy inspection runs on served message work. Other families remain
+unchanged until their own layers land.
 
 ## Creator hands (v3, 2026-09)
 

@@ -740,6 +740,13 @@ never infer owners, deadlines, release status or runtime success. Analysis
 returns a report, not a replacement document. No legacy inspection is added
 to served document work; other families retain their existing routes.
 
+Message leaves are `<write|edit|analyze>/message/` for email, chat, notification,
+UI and error wording, not sending or system diagnosis. Preserve the sender's
+intent and unknown outcome states; an existing retry control does not establish
+safe repetition. Field labels/review notes are not recipient-facing text.
+Use supplied context without new personal-record lookups. Source assertions,
+actual runtime state and rendered UI fit are separate evidence questions.
+
 ## Layout
 
 ```
