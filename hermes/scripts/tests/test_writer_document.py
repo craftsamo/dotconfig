@@ -57,7 +57,7 @@ def test_document_kernel_routes_existing_brief_names():
         assert f"]({verb}/document/SKILL.md)" in kernel
     assert "documentation or business-document" in kernel
     assert "Factual release notes belong here" in kernel
-    assert "Copy, messages and production scripts retain their legacy routes" in kernel
+    assert "Copy and production scripts retain their legacy routes" in kernel
 
 
 @pytest.mark.parametrize("verb", ["write", "edit", "analyze"])
