@@ -78,15 +78,19 @@ generation or long work; create-tour always uses kind="work" despite being free;
 its recreate/supplied/capture modes share one leaf, with isolated approved Web
 capture owned by VideoCreator and native capture explicitly unavailable);
 and `audio-creator` (`generate-speech`,
-`edit-speech`, `analyze-speech`, A2A peer for a bounded one-reply job,
-resident whenever synthesis or fresh ASR is involved — even though the
-leaf costs no provider fee). MV is proposal then approved generation;
+`edit-speech`, `analyze-speech`, `create-sfx`, `generate-sfx`, `edit-sfx`,
+`analyze-sfx`; A2A peer for a bounded one-reply job, resident whenever
+synthesis, fresh ASR, or generate-sfx's metered fal call is involved —
+create/edit/analyze-sfx cost no provider fee, generate-sfx is the one
+metered leaf). MV is proposal then approved generation;
 its subject/theme/style are form values, not separate skill families.
 Ads use create-ad (content then preview approval) or analyze-ad (evidence-backed
 advertising interpretation), always kind="work". Generate-ad and PV remain unserved.
 Clip is one short shot, not every video
 family; speech is one approved script, not the whole spoken-audio
-family; read them for their `form`, never run their `<Procedure>`.
+family; sfx is one short effect from a closed kernel or one prompted
+engine call, never music or a mix; read them for their `form`, never run
+their `<Procedure>`.
 
 </Modes>
 
@@ -114,14 +118,17 @@ allowance (`references/plan.md`). Card exception: generate-card's 3+1 is a
 proposed ceiling, not spend approval; paid generation requires explicit user
 approval in the current work conversation. The hands enforce it and report the
 tally; `cost: free` (no provider fee) is not the same gate as an
-attempt allowance — audio-creator's speech leaves are free of provider
-cost and still spend a take grant (1 take + 1 corrective per script,
-every synthesis call counted, successful or failed), so a free leaf
-never becomes room to inflate one job into extra unaccounted attempts.
+attempt allowance — audio-creator's speech still spends a take grant
+(1 take + 1 corrective per script, including failed synthesis calls).
+Deterministic create/edit/analyze-sfx uses no model takes or provider fees.
+Generate-sfx defaults to the local Stable Audio 3 Medium engine (no
+`engine` named) at $0 spend, no paid approval needed, still bounded by its
+`max_calls` cap; only an explicitly named `fal:elevenlabs-sfx-v2` request
+is metered and needs explicit current-work paid approval before any call.
 For a legacy family the brief's
 `Budget:` line applies with the defaults in `legacy/produce.md` (4 image
 variants / 2 video renders per asset + 1 corrective; local neural runtime
-≤ 15 min per render, CPU fallback forbidden). Instrumental/SFX music,
+≤ 15 min per render, CPU fallback forbidden). Instrumental music,
 vocal-song generation, and audio visualization are withdrawn without a
 hands replacement — a brief asking for one returns `no skill fits`, never
 a technic, core route, or external skill picked up as a stand-in. Grants

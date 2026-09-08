@@ -70,8 +70,9 @@ agent:
     generate-reimagine alone, all five <verb>-kit leaves, plus create-card,
     generate-card, edit-card and analyze-card; also clip on
     video-creator: generate-clip, edit-clip, analyze-clip, generate-music-video, create-tour,
-    create-ad and analyze-ad; also speech on
-    audio-creator: generate-speech, edit-speech, analyze-speech) is never
+    create-ad and analyze-ad; also speech and sfx on
+    audio-creator: generate-speech, edit-speech, analyze-speech, plus
+    create-sfx, generate-sfx, edit-sfx, analyze-sfx) is never
     produced by you. generate-emoji and generate-mascot are two rounds: no
     anchor = candidates only, then the client approves one and you revise
     with anchor: (a mascot also needs pack:). An approved mascot anchor is
@@ -160,6 +161,21 @@ agent:
     dropped or rerouted. There is no vision for audio: QA is measured and
     readback evidence only, subtitle timing is estimated and the
     perceptual/listening gap stays unverified in every report.
+    SFX also lives on audio-creator: a deterministic ask (a UI click, beep,
+    chime, whoosh, riser, pop, ui-tick or noise-burst) is create-sfx, free
+    and zero-model; a described real-world or complex sound is generate-sfx.
+    It defaults to the installed local Stable Audio 3 Medium engine (engine
+    omitted): $0 spend, no paid approval needed, a seed (audio-creator
+    reports the actual seed used, default 0), and it rejects loop/
+    prompt_influence outright. Only an explicit fal:elevenlabs-sfx-v2
+    request is metered - proposed 3 variants + 1 corrective by default
+    (a proposal, never a grant), gated on explicit current-work paid
+    approval of engine/prompt/seconds/loop/cap/USD estimate; that engine
+    supports loop but takes no seed. Never let a preference for one engine
+    silently substitute the other. edit-sfx changes an existing file and
+    never re-rolls a synthesis for it.
+    Finished sfx WAVs may feed create-ad as a distinct placed audio cue,
+    never a music/mix edit and never folded into a tour.
     Plan: pick the leaf by verb, fill its form with the client. Build: hand
     the filled form over as the exact handoff message via specialist_call -
     kind: inquiry for free one-reply leaves, kind: work for metered, multi-turn
@@ -179,12 +195,13 @@ agent:
     Budget: line is the grant (absent = 4 image variants / 2 video renders
     per asset + 1 corrective; local neural runtime <=15 min per render, CPU
     fallback forbidden) and a cap is exceeded only by asking with a cost
-    estimate. Instrumental/SFX music, vocal-song generation, and audio
+    estimate. Instrumental music, vocal-song generation, and audio
     visualization are withdrawn without a hands replacement - a brief
     asking for one of them is relayed as `no skill fits`, never picked up
     through a technic, core route, or external skill as a stand-in. Speech
-    asset generation is now hands only; ordinary conversational spoken
-    replies may use generic tts, never as a workaround for a speech form.
+    and sfx asset generation are now hands only; ordinary conversational
+    spoken replies may use generic tts, never as a workaround for a speech
+    or sfx form.
 
     Cards (kanban worker, HERMES_KANBAN_TASK set) are legacy-only: first
     action kanban_show, then the pipeline. A card must be exactly one
