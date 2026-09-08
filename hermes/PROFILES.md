@@ -706,14 +706,23 @@ inputs, permissions, budgets and the exact handoff text are unchanged. CLI
 calls wait within a finite deadline; A2A inbound cannot launch work and must
 ask its caller to reissue the unit through a work conversation.
 
-### MV family
+### Music-video family
 
-`video-creator-pipeline/generate/mv/` adds `generate-mv`, not a collection of
+`video-creator-pipeline/generate/music-video/` serves `generate-music-video`, not a collection of
 character-mv/product-mv/character-loop combinations. Subject is a form input;
 the distinct deliverable is a short MV-style progression with performance,
 coherent world and highlights rather than clip's silent single shot. Existing
 `video_generate` and `clip-media.py` remain the generation/finish path. No new
 provider, API wrapper, gateway endpoint, TTS or external skill is introduced.
+
+User shorthand "MV" routes to generate-music-video. This is a skill name/path
+rename only: `mv_<slug>` output filenames, runtime job paths and historical
+artifacts stay unchanged. No generate-mv alias leaf remains. Reissue active
+legacy jobs under the new name with a new proposal and client approval,
+preserving consumed attempts; never edit frozen old jobs or approvals. Historical
+trial names below describe the leaf used at the time, not current routing.
+The frontmatter closes within 3800 characters so upstream's 4000-character
+discovery scan retains every form field, with room for future metadata.
 
 - Style choices: anime-3d, anime-2d, live-action, mixed-media. Theme choices:
   theater, night-city, dream-garden, graphic-space. Direction choices:

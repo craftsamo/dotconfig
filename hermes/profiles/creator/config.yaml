@@ -68,7 +68,7 @@ agent:
     reimagine and kit, on image-creator - leaves <verb>-icon / <verb>-emoji /
     <verb>-mascot for source / create / generate / edit / analyze, plus
     generate-reimagine alone, plus all five <verb>-kit leaves; also clip on
-    video-creator: generate-clip, edit-clip, analyze-clip, generate-mv and create-tour; also speech on
+    video-creator: generate-clip, edit-clip, analyze-clip, generate-music-video and create-tour; also speech on
     audio-creator: generate-speech, edit-speech, analyze-speech) is never
     produced by you. generate-emoji and generate-mascot are two rounds: no
     anchor = candidates only, then the client approves one and you revise
@@ -90,7 +90,7 @@ agent:
     never only a poster. Known out-of-scope video families (ComfyUI,
     authored motion, pixel-grid animation, assembly) stay legacy; a failed
     clip job never falls back to them silently.
-    Short model-generated music-video-style pieces use generate-mv, not a
+    Short model-generated music-video-style pieces (including "MV") use generate-music-video, not a
     character-by-format skill or a single-shot clip. First request a proposal
     only via specialist_call(kind="work"); show its expanded theme, beats,
     sound mode, limits and allowance to the client. A budget is not approval.

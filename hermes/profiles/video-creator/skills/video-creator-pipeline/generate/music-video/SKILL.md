@@ -1,13 +1,9 @@
 ---
-name: generate-mv
+name: generate-music-video
 description: >-
-  Generate a short MV/music-video-style piece with a performing subject, one
-  world and a deliberate progression of shots, camera and visual highlights.
-  First return an unspent direction proposal; generate only after Creator
-  relays approval of that exact proposal. Uses video_generate, not a new API.
-  Characters are inputs, not separate MV skills. Not a single-shot hero
-  (generate-clip), UI walkthrough (create-tour), exact lyric/beat/lip sync,
-  seamless loop, full song, or an edit of supplied footage (edit-clip).
+  Generate a short music video (MV): performance/world/shots. Propose, then await
+  exact-plan approval. Not generate-clip's single shot, create-tour's UI tour,
+  edit-clip's footage edit, exact lyric/beat/lip sync, seamless loop or full song.
 version: 1.2.0
 author: CraftSamo
 license: MIT
@@ -16,101 +12,101 @@ metadata:
     category: hands
     hands: video-creator
     cost: metered
-    output: "proposal-v<N>.md + SHA-256 first; after approval, mv_<slug>_v<N>.mp4 + poster/review + raw/prompt.txt/qa.md; supplied music or exact text may require separately approved finishing"
+    output: "proposal-v<N>.md + SHA-256; approved: mv_<slug>_v<N>.mp4 + poster/review/raw/prompt.txt/qa.md"
     form:
       subject:
         required: true
-        label: "who or what leads the piece; identity and features to preserve"
-        example: "A silver-haired performer; preserve the face and black-and-white costume in the character reference"
+        label: "lead subject; preserve identity"
+        example: "Silver-haired lead; keep face/costume"
       character_reference:
         required: false
         type: image
-        label: "one local appearance reference, not a starting frame; requires upload_inputs: yes for generation"
+        label: "appearance image; upload consent"
       theme:
         required: true
         options: [theater, night-city, dream-garden, graphic-space]
         other: true
         references: references/themes/*.md
-        label: "world/setting vocabulary; listed defaults are starting points, never fixed presets"
+        label: "world; overridable defaults"
       theme_detail:
         required: false
-        label: "override motifs, palette, materials or light; client choices replace conflicting theme defaults"
-        example: "Playing cards, red/black/white, checkerboard floor and oversized cards"
+        label: "motif/palette/material/light overrides"
+        example: "Red/black/white cards; checkerboard"
       style:
         required: true
         options: [anime-3d, anime-2d, live-action, mixed-media]
         other: true
         references: references/styles/*.md
-        label: "rendering medium, not world or choreography; a described look is equally valid"
+        label: "rendering medium; custom OK"
       performance:
         required: false
-        label: "visible subject action; absent means propose one for approval, not idle wobble"
-        example: "Dance while throwing cards; show both full-body motion and expression"
+        label: "action; absent: propose, not idle"
+        example: "Dance; full body/expression"
       direction:
         required: false
         options: [performance, typographic, montage]
         other: true
         references: references/direction/*.md
-        label: "performance by default; staging emphasis, not a fixed timeline; mixtures can be described"
+        label: "staging; default performance; mixes OK"
       pace:
         required: false
         options: [relaxed, steady, snappy, intense]
         other: true
         references: references/pace/*.md
-        label: "steady by default for new proposals; action/camera accents, holds and shot rhythm, not BPM or playback speed; mixed speeds may be described"
+        label: "rhythm; new default steady; mixes OK"
       transition:
         required: false
         options: [continuous, cut, match-cut, whip, dissolve]
         other: true
         references: references/transition/*.md
-        label: "cut by default for new proposals when shots change, never a required cut count; continuous forbids shot breaks"
+        label: "shot boundary; new default cut"
       reference_video:
         required: false
         type: file
-        label: "local example inspected through sampled frames; never uploaded to video_generate or automatically to analysis"
+        label: "local sampled example; never uploaded"
       reference_focus:
         required: false
-        label: "what to borrow from the example: camera, pacing, world, typography; never assume copying its subject"
+        label: "borrow camera/pace/world/type"
       music_mode:
         required: true
         options: [generated, supplied, silent]
-        label: "generated requires advertised native audio; supplied yields a silent visual master for separate finishing; silent is an intentionally silent MV-style piece"
+        label: "native audio / master to finish / silent"
       music:
         required: false
-        label: "sound/mood description, not an uploaded audio reference or a promise to reproduce a named song"
+        label: "sound/mood, not song copying"
       music_file:
         required: false
         type: file
-        label: "required for supplied mode; preserve for separate approved assembly, never send to the generation or analysis provider"
+        label: "supplied requires file; local only"
       words:
         required: false
-        label: "desired on-screen words; generation is approximate unless must_keep requires exact lettering, which is deferred"
+        label: "words; exact text deferred"
       must_keep:
         required: false
-        label: "non-negotiable identity, wording, timing or other requirements; unsupported requirements need an explicit finishing plan or a stop"
+        label: "mandatory; finish or stop"
       aspect:
         required: false
         options: ["16:9", "9:16", "1:1", "4:3", "3:4", "3:2", "2:3"]
-        label: "default 16:9; verify the current backend surface before approval and spend"
+        label: "default 16:9; check backend"
       duration:
         required: false
         type: int
-        label: "5-15 seconds; default 10 with a character reference, otherwise 15; xAI reference mode caps at 10, never silently shorten an explicit request"
+        label: "5-15s; default reference 10, else 15"
       upload_inputs:
         required: false
         options: ["yes", "no"]
-        label: "authorizes the character reference leaving the machine for video generation; a local path is not consent"
+        label: "character-image upload consent"
       remote_analysis:
         required: true
         options: ["yes", "no"]
-        label: "separate consent to upload GENERATED video, including its audio, to the analysis provider; no means temporal/audio QA remains unverified"
+        label: "separate output video/audio upload consent"
       approved_plan:
         required: false
         type: file
-        label: "Creator-relayed approval: exact proposal-v<N>.md from round A; absent means proposal only, no generation"
+        label: "Creator-approved proposal; absent: stop"
       approval_sha256:
         required: false
-        label: "SHA-256 of the exact proposal approved by the client; required with approved_plan"
+        label: "proposal hash; required with plan"
       slug:
         required: false
         label: "safe ASCII output stem, default mv"
@@ -120,6 +116,28 @@ metadata:
 ---
 
 <Procedure>
+
+Uses video_generate, not a new API. Characters are inputs, not separate skills.
+The skill name/path is now generate-music-video / generate/music-video, not an
+output-filename or runtime-job-path rename: keep mv_<slug> stems and existing
+artifact paths. There is no generate-mv alias leaf. Reissue active legacy jobs
+under generate-music-video with a new proposal and new client approval; never
+edit frozen old jobs, prompts or approvals, and preserve consumed attempts.
+
+Form details: character_reference is one local appearance image, not a starting
+frame. reference_focus selects camera, pacing, world or typography to borrow,
+never an assumption that the example's subject should be copied. music describes
+sound/mood, not an uploaded audio reference or a promise to reproduce a named
+song. words are approximate generated lettering unless must_keep requires exact
+text, deferred to separately approved finishing. must_keep includes identity,
+wording, timing and other non-negotiable requirements; unsupported requirements
+need an explicit finishing plan or a stop. Silent mode is intentionally silent;
+supplied mode preserves music_file locally for separate approved assembly.
+upload_inputs authorizes the character reference leaving the machine for video
+generation; a local path is not consent. remote_analysis is separate consent to
+upload GENERATED video, including its audio, to the analysis provider; no means
+temporal/audio QA remains unverified. Labels are compact for Hermes' 4000-character
+discovery window; these details and the steps below remain part of the contract.
 
 1. Use a work session even for the proposal. You own concrete MV direction
    within the filled form, not new client requirements. Inspect the existing
@@ -381,7 +399,7 @@ metadata:
 
 <Report>
 
-Round A: `generate-mv / awaiting approval` (or blocked); proposal path and
+Round A: `generate-music-video / awaiting approval` (or blocked); proposal path and
 SHA-256; short expanded theme, beat proposal and tempo/boundary choices;
 generator freedom/must_keep/
 finishing split; backend limitations; continuation in the same work

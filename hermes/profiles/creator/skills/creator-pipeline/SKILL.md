@@ -72,7 +72,7 @@ read in Plan before any leaf is chosen. Hands today: `image-creator`
 `analyze-emoji`; `generate-mascot`, `edit-mascot`, `analyze-mascot`;
 `generate-reimagine`; `source-kit`, `create-kit`, `generate-kit`,
 `edit-kit`, `analyze-kit`); `video-creator` (`generate-clip`,
-`edit-clip`, `analyze-clip`, `generate-mv`, `create-tour`, A2A peer for free short work, resident for
+`edit-clip`, `analyze-clip`, `generate-music-video`, `create-tour`, A2A peer for free short work, resident for
 generation or long work; create-tour always uses kind="work" despite being free;
 its recreate/supplied/capture modes share one leaf, with isolated approved Web
 capture owned by VideoCreator and native capture explicitly unavailable);

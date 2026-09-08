@@ -118,7 +118,7 @@ grant is.
 
 ## MV: a concrete world and performance, then approval
 
-Use generate-mv for a short model-generated music-video-style piece, not a
+Use generate-music-video for a short model-generated music-video-style piece ("MV"), not a
 single-shot hero, UI tour, full song or an edit of existing footage. Subject
 (character or otherwise) is a form value, never a new character-mv leaf.
 Fill subject/theme/style, direction (performance by default), music_mode and

@@ -2,7 +2,7 @@
 name: video-creator-pipeline
 description: >-
   Root of video-creator's clip, MV and authored-UI-tour leaves. Load first for a filled form naming
-  generate-clip, edit-clip, analyze-clip, generate-mv or create-tour, then load only that leaf.
+  generate-clip, edit-clip, analyze-clip, generate-music-video or create-tour, then load only that leaf.
   Not an interview, a video menu, or a generic movie-making workflow.
 version: 1.0.0
 author: CraftSamo
@@ -26,7 +26,7 @@ metadata:
 2. Load only the leaf's selected references and previous delivery for
    `intent: revise`. Reuse surviving intermediates before any new spend.
 3. Follow `<Procedure>`; no TTS, image generation, outside skills or
-   improvised pipelines. generate-mv authors a proposal within its form;
+   improvised pipelines. generate-music-video authors a proposal within its form;
    no approved proposal/digest means no generation, even with a budget.
    create-tour permits task-local HTML/CSS/GSAP
    UI authoring under its concrete leaf contract; helpers freeze/check/render,
