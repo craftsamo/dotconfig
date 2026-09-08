@@ -358,9 +358,12 @@ not a re-roll disguised as an edit.
 
 Music is scoped to instrumental BGM or a short melodic opener/closer,
 create/generate at most 60 seconds (edit/analyze accept up to 600 seconds
-and 128 MiB); a full song with lyrics/singing, standalone sound
-design/SFX, or audio mixing is `no skill fits` — never approximated by
-either music leaf. Fill `what_for`/theme/style/duration and any optional
+and 128 MiB); a full song with lyrics/singing or standalone sound
+design/SFX is `no skill fits` — never approximated by either music leaf.
+Combining already-finished speech/sfx/music sources onto one timeline is
+`create-mix`/`edit-mix` below ("Placing finished sources, not composing
+a new one"), never a music leaf approximating a mixer. Fill
+`what_for`/theme/style/duration and any optional
 `direction`/`tempo`/`ending`/`must_keep`/`reference_audio` with the
 client the same way as any other leaf: `theme_detail`/`must_keep`
 override conflicting theme defaults, and `reference_audio` is never
@@ -400,10 +403,56 @@ two-pass LUFS normalize) and never resynthesizes — a defect in the actual
 composed music routes back to a `create-music`/`generate-music`
 proposal, not a hand-patched edit. `analyze-music` returns tempo/beat/
 key/structural-boundary findings only, with half/double BPM and key
-ambiguity explicitly disclosed, never a genre/mood/instrument or
+ambiguity disclosed, never a genre/mood/instrument or
 lyrics/vocal-performance verdict, and works standalone on any
 client-supplied song handed over for arrangement/harmony-style
 analysis — not only this pipeline's own deliveries.
+
+## Placing finished sources, not composing a new one
+
+`create-mix` places 1-16 already-finished, standalone local speech/sfx/
+music files (WAV/FLAC/Ogg/MP3/AIFF, each ≤128 MiB, ≤512 MiB combined,
+≤600 s decoded) onto one shared timeline (≤32 cues, ≤600 s total) with
+gain/fade/piecewise-dB-envelope automation and renders one 48 kHz PCM
+master. It never synthesizes or generates a component sound (that stays
+with generate-speech/create-sfx/generate-sfx/create-music/generate-music
+first), never loops a source to length, and never applies EQ, reverb,
+source separation, or assembles video — a request needing any of those
+is `no skill fits` for this leaf, routed to the fitting leaf first, never
+approximated here. Fill `what_for`/`sources`/`direction`/`duration` with
+the client; `arrangement` (exact per-cue start/gain/fades/envelope) is
+optional and, when supplied, preserved verbatim — never reinterpreted,
+and an out-of-range or nonexistent-source control is a `Q<n>:`, not a
+silent clamp. AudioCreator authors relative cue placement from
+`direction`/`must_keep` when no `arrangement` is given; no user-written
+spec is required. An optional `timing` file constrains named cues'
+exact `start`/`source_start`/`duration` and is never adjusted behind
+approval.
+
+Like `create-music`/`generate-music`, this is TWO rounds, always: the
+first handoff carries no `approved_plan`/`approval_sha256` and returns
+only a `proposal-v<N>/proposal.md` and its SHA-256 with zero renders —
+show it to the client the same way as a music proposal. Only a second
+handoff with that exact `approved_plan`+`approval_sha256`, in the same
+conversation, releases the render. A changed creative field (any source,
+cue placement, gain/fade/envelope, duration, `target_lufs`,
+`true_peak_dbtp`) needs a new proposal, never a render against stale
+approval text. `target_lufs` has no hidden default — AudioCreator states
+it as an explicit authored choice (`null` is valid) rather than leaving
+it implicit.
+
+`edit-mix` revises one existing mix bundle (added/removed/moved cues,
+re-gained/re-faded automation, a changed duration or loudness target)
+from a plain-language `changes` request against the previous bundle's
+frozen sources and spec — it never re-uploads or re-synthesizes a
+source, and never separates stems out of the previous master. It is the
+same two-round shape as `create-mix`. `analyze-mix` returns
+format/loudness/clipping/true-peak findings on any finished mix file,
+and, when a previous bundle directory is supplied, the actual recorded
+cue/source placement from its `mix.json` — findings only, no delivery
+file. A finished sfx/speech/music WAV may feed `create-mix` as one of
+its `sources`, the same way it may feed `create-ad` as a distinct
+placed cue; the two are separate forms, never folded into one handoff.
 
 ## Two-round leaves
 

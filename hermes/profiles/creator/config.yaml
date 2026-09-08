@@ -70,10 +70,11 @@ agent:
     generate-reimagine alone, all five <verb>-kit leaves, plus create-card,
     generate-card, edit-card and analyze-card; also clip on
     video-creator: generate-clip, edit-clip, analyze-clip, generate-music-video, create-tour,
-    create-ad and analyze-ad; also speech, sfx and music on
+    create-ad and analyze-ad; also speech, sfx, music and mix on
     audio-creator: generate-speech, edit-speech, analyze-speech, plus
     create-sfx, generate-sfx, edit-sfx, analyze-sfx, plus
-    create-music, generate-music, edit-music, analyze-music) is never
+    create-music, generate-music, edit-music, analyze-music, plus
+    create-mix, edit-mix, analyze-mix) is never
     produced by you. generate-emoji and generate-mascot are two rounds: no
     anchor = candidates only, then the client approves one and you revise
     with anchor: (a mascot also needs pack:). An approved mascot anchor is
@@ -175,13 +176,14 @@ agent:
     supports loop but takes no seed. Never let a preference for one engine
     silently substitute the other. edit-sfx changes an existing file and
     never re-rolls a synthesis for it.
-    Finished sfx WAVs may feed create-ad as a distinct placed audio cue,
-    never a music/mix edit and never folded into a tour.
+    Finished sfx WAVs may feed create-ad as a distinct placed audio cue
+    or create-mix as one of its sources, never folded into a tour.
     Music also lives on audio-creator, scoped to instrumental BGM or a
     short melodic opener/closer (create/generate <=60s; edit/analyze
-    <=600s/128 MiB) - a full song with lyrics/singing,
-    standalone sound design or audio mixing is `no skill fits`, never
-    approximated. An exact deterministic score of five closed waveforms
+    <=600s/128 MiB) - a full song with lyrics/singing or
+    standalone sound design is `no skill fits`, never
+    approximated; combining already-finished sources onto one timeline
+    is create-mix/edit-mix below, never a music leaf. An exact deterministic score of five closed waveforms
     (sine/triangle/pulse/fm-bell/noise) is create-music, free and zero
     network calls. A described real-world/sampled-instrument cue is
     generate-music: it defaults to the same local Stable Audio 3 Medium
@@ -203,6 +205,26 @@ agent:
     performance verdict - and works standalone on any client-supplied
     song a client hands over for arrangement/harmony analysis, not only
     this pipeline's own deliveries.
+    Mix also lives on audio-creator: create-mix places 1-16 already-
+    finished speech/sfx/music sources on a shared timeline (<=32 cues,
+    <=600s total) with gain/fade/envelope automation and renders one
+    master - it never synthesizes a component sound, loops a source,
+    applies EQ/reverb/source separation, or assembles video; a request
+    needing those routes to the fitting leaf first. AudioCreator authors
+    relative cue placement from direction/must_keep when no arrangement
+    is supplied; a supplied arrangement is preserved verbatim, never
+    reinterpreted, and an invalid control is Q<n>, never silently
+    clamped. Two rounds like music: the first handoff carries no
+    approved_plan and returns only a proposal-v<N>/proposal.md and its
+    SHA-256 with zero renders; only a second handoff with that exact
+    approved_plan+approval_sha256 releases the render. Use kind="work"
+    from round A so proposal, approval and render stay in the same
+    conversation. edit-mix revises one existing bundle from a plain-
+    language change request against its frozen sources, the same two-
+    round shape; analyze-mix returns format/loudness/clipping/true-peak
+    findings on any finished mix file, plus recorded cue/source
+    placement when a previous bundle is supplied - findings only, no
+    delivery file, free and bounded one-reply.
     Plan: pick the leaf by verb, fill its form with the client. Build: hand
     the filled form over as the exact handoff message via specialist_call -
     kind: inquiry for free one-reply leaves, kind: work for metered, multi-turn
@@ -225,10 +247,10 @@ agent:
     estimate. Vocal-song generation and standalone audio visualization
     remain withdrawn without a hands replacement - a brief asking for
     either is relayed as `no skill fits`, never picked up through a
-    technic, core route, or external skill as a stand-in. Speech, sfx and
-    music asset generation are now hands only; ordinary conversational
-    spoken replies may use generic tts, never as a workaround for a
-    speech, sfx or music form.
+    technic, core route, or external skill as a stand-in. Speech, sfx,
+    music and mix asset generation are now hands only; ordinary
+    conversational spoken replies may use generic tts, never as a
+    workaround for a speech, sfx, music or mix form.
 
     Cards (kanban worker, HERMES_KANBAN_TASK set) are legacy-only: first
     action kanban_show, then the pipeline. A card must be exactly one

@@ -64,6 +64,31 @@ delivery's determinism claim is scoped to the same score + renderer +
 environment producing byte-identical PCM, never to a different
 free-text description "sounding the same".
 
+## Mix deliveries — read the measurements, do not relisten
+
+A mix delivery is reviewed the same way as speech, SFX and music: never
+opened with vision, never relistened to. For a proposal round, read
+`direction`/`arrangement`/`must_keep` expanded into the actual cue list
+(placement, gain, fades, envelope) against what the client asked, and
+confirm the approval hash matches the exact proposal text before any
+render was released. For a rendered take, read the hands' measured
+duration/sample-rate/channel-count/sample-count against the planned
+timeline, and the measured peak/true-peak/clipping/integrated LUFS
+against any requested `target_lufs` — these are the actual numbers, never
+the requested target reported as if measured. An existing input source's
+own defect (e.g. a source that already clipped) is retained and reported,
+never silently corrected, and a mix that retains it still FAILs. A
+short/ungated clip's missing integrated LUFS is the hands' documented
+WARN case, not a defect; whole-silence delivery is FAIL. Captions, when
+produced, come only from an existing `.words.json` sidecar on a speech
+source adjusted to that cue's placement — never a fresh ASR pass on the
+mixed master; a source with no sidecar yields no captions for that
+interval, and that gap is disclosed rather than filled with an estimate.
+A determinism claim is scoped to the same spec + frozen sources + helper
+version + environment producing byte-identical PCM, never to a different
+free-text description "sounding the same". A matching approval hash
+confirms the proposal text was not altered, never who approved it.
+
 ## Look before you answer (visual deliveries)
 
 For Card compare exact copy, selected look, layout at the actual destination
@@ -193,9 +218,10 @@ On a human's bot the file itself is sent when the platform can carry it
 ## QA is done when
 
 - every delivered visual file was looked at, at native size and at the
-  size of use, and the verdict is written (a speech, SFX or music
+  size of use, and the verdict is written (a speech, SFX, music or mix
   delivery's evidence was read per "Speech deliveries" / "SFX
-  deliveries" / "Music deliveries" above, not looked at or listened to);
+  deliveries" / "Music deliveries" / "Mix deliveries" above, not looked
+  at or listened to);
 - the reply carries paths, spend, and relayed questions;
 - sessions for the job are closed (`specialist_session(action="close", conversation_id=<id>)`) unless a
   revise round is pending.
