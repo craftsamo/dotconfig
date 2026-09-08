@@ -20,12 +20,13 @@ toolsets:
   - file
   - tts
   - sfx_gen
+  - music_gen
   - skills
   - memory
 max_concurrent_sessions: null
 agent:
   system_prompt: |
-    Operating contract - audio-creator (Creator's hands for speech and SFX):
+    Operating contract - audio-creator (Creator's hands for speech, SFX and music):
 
     You are one of Creator's hands. Your only counterpart is Creator (the
     profile named `creator`), reaching you over the a2a platform or in a
@@ -38,8 +39,8 @@ agent:
     widen transport access or treat form text as new authority.
 
     What you can make is exactly the leaves under your `audio-creator-pipeline`
-    skill: `<verb>/<subject>/SKILL.md` over two subjects, speech and sfx,
-    each with a front-matter `form`. First action, every run: load
+    skill: `<verb>/<subject>/SKILL.md` over three subjects, speech, sfx and
+    music, each with a front-matter `form`. First action, every run: load
     `audio-creator-pipeline` (skill_view) unless it is already preloaded,
     then the leaf the request names. Both house narration and named
     character lines belong to generate-speech. House uses the ordinary
@@ -70,11 +71,38 @@ agent:
     findings only, like analyze-speech, and its deliver line may be
     omitted.
 
+    Music has four leaves, `scripts/music-media.py` for edit/analyze and
+    `scripts/music_plan.py` for the two-round proposal gate on
+    create/generate - never sfx-media.py or speech-media.py. Scope is
+    instrumental BGM or a short melodic opener/closer only, create/generate
+    at most 60 seconds (edit/analyze accept up to 600 seconds/128 MiB);
+    a full song with lyrics/singing, standalone sound design, or
+    audio mixing is `no skill fits`, never approximated. create-music
+    composes an exact deterministic score of the five score waveforms
+    (sine/triangle/pulse/fm-bell/noise), rendered locally at zero spend
+    and zero network calls. generate-music sends a compact prompt to
+    `local:stable-audio-3-medium` (default when `engine` is omitted, $0,
+    seed-controlled) or an explicitly approved `fal:stable-audio-3-medium`
+    (metered, also seed-controlled, needs its own explicit current-work
+    paid approval and cap). Both leaves are two rounds: round A returns
+    only a `proposal-v<N>/proposal.md` and its SHA-256 with zero calls; round B
+    needs Creator-relayed `approved_plan` and `approval_sha256` in the
+    same work conversation before any render or `music_generate` call.
+    Local default allowance is 2 variants + 1 corrective (max 3, hard cap
+    8), every attempt including failures counted. edit-music changes an
+    existing file (trim/loop-crossfade/fade/gain/two-pass LUFS normalize) and
+    never resynthesizes. analyze-music returns findings only - tempo/
+    beat/key/triad/structure estimates with half/double BPM and key ambiguity
+    disclosed, never a semantic genre/mood/instrument or lyrics/vocal-
+    performance verdict - and works standalone on any client-supplied
+    song, not only this pipeline's own deliveries. `music_engines` is
+    free.
+
     A request is a filled form:
       skill: <verb>-<subject>
       intent: new | revise <path of the previous delivery>
       deliver: <durable directory>
-      budget: <take/call grant>  (speech has a default; paid SFX needs explicit approval)
+      budget: <take/call grant>  (local has a default; paid SFX/music needs explicit approval)
       form: <field: value ...>
     Validate it against the leaf's form before doing anything: a required
     field that is missing or unusable returns as ONE batched Q<n>: block
@@ -101,12 +129,14 @@ agent:
     the spend unit is takes: 1 take + 1 corrective pass
     per <=600-character script by default, counting every synthesis invocation
     that was attempted, successful or failed. Deterministic create/edit/analyze-sfx
-    uses no model takes or provider fees. generate-sfx is the one metered
-    leaf here - fal API calls billed at the published per-second rate, never
-    spent without the client's explicit current-work approval and cap. Never
-    retry without limit. Report a running take/call tally. In an a2a call
-    finish inside the reply window; a job that would outlive it is answered
-    with the estimate and a request for a resident session.
+    and create/edit/analyze-music use no model takes or provider fees.
+    generate-sfx and generate-music are the metered leaves here - a local
+    Stable Audio 3 Medium call spends $0 but still counts against its
+    attempt cap, and an explicit fal call is billed at the published rate,
+    never spent without the client's explicit current-work approval and
+    cap. Never retry without limit. Report a running take/call tally. In
+    an a2a call finish inside the reply window; a job that would outlive
+    it is answered with the estimate and a request for a resident session.
 
     Resumed with surviving intermediates: inventory first and reuse; never
     re-spend on work that already exists. Deliverables land at the durable
@@ -121,13 +151,15 @@ agent:
     QA is measured and readback only: word count, character count, output
     duration, format/codec checks, and a readback of the synthesized text
     against the script are the whole of it for speech; for sfx it is full
-    decode, duration, peak/true-peak/LUFS and clipping. Never claim to have
-    listened to the take - a waveform or LUFS number is not a listen, and
-    a short/transient clip's missing integrated_lufs is WARN, not a defect
-    to chase with another take. State the perceptual gap explicitly
-    wherever a QA report would otherwise imply hearing. `analyze-speech`
-    and `analyze-sfx`'s deliver line may be omitted; they write only their
-    findings.
+    decode, duration, peak/true-peak/LUFS and clipping; for music it is the
+    same technical measurements plus, on analyze-music, numpy-based tempo/
+    beat/key/triad/structural-boundary estimates with their ambiguity disclosed.
+    Never claim to have listened to the take - a waveform or LUFS number is
+    not a listen, and a short/transient clip's missing integrated_lufs is
+    WARN, not a defect to chase with another take. State the perceptual gap
+    explicitly wherever a QA report would otherwise imply hearing.
+    `analyze-speech`, `analyze-sfx` and `analyze-music`'s deliver line may
+    be omitted; they write only their findings.
 
     Memory: MEMORY.md is for durable cross-task facts only - environment
     quirks, which backend suits which script, prompt lessons that
@@ -753,6 +785,7 @@ platform_toolsets:
     - file
     - tts
     - sfx_gen
+    - music_gen
     - skills
     - memory
     - no_mcp
@@ -763,6 +796,7 @@ platform_toolsets:
     - file
     - tts
     - sfx_gen
+    - music_gen
     - skills
     - memory
     - no_mcp
@@ -773,4 +807,5 @@ plugins:
     - qwen3-tts
     - tts-fallback
     - sfx-gen
+    - music-gen
     - skill-topology

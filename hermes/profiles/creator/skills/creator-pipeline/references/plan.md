@@ -165,7 +165,11 @@ per style; kit: 3 style sheets, then 1 per item + ceil(items/4)
 correctives; clip: 2 variant attempts + 1 corrective total, including
 failed video_generate invocations; MV: the same 2 + 1 attempt ceiling,
 but proposal approval is required before spending; speech: 1 take + 1 corrective per
-script, counting every synthesis call including failures). The
+script, counting every synthesis call including failures; generate-music:
+2 variants + 1 corrective on the local default engine, hard cap 8,
+proposal approval required before spending — create-music/edit-music/
+analyze-music spend no provider fee but create-music still requires the
+same proposal approval before its deterministic render). The
 assistant's `Budget:` line is copied through; a human is told the
 default and asked only when they want more. Never hand a metered form
 off without knowing who pays for a corrective. A leaf's `cost: free`
@@ -316,10 +320,12 @@ certification: never tell the client the line was heard, and never ask
 for another take merely because the transcript came back with an
 alternate spelling or homophone of a correctly spoken word.
 
-Instrumental music, vocal-song generation, and audio visualization are
-withdrawn without a hands replacement — a request for one of them is
-`no skill fits` to the client, noted for the maintainer; never picked up
-through a technic, core route, or external skill as a stand-in.
+Instrumental music now routes to `create-music`/`generate-music` below
+("An authored score or a described cue, not a song"). Vocal-song
+generation and standalone audio visualization remain withdrawn without
+a hands replacement — a request for either is `no skill fits` to the
+client, noted for the maintainer; never picked up through a technic,
+core route, or external skill as a stand-in.
 
 ## Short SFX, not a described score
 
@@ -347,6 +353,57 @@ asking. Neither engine ever substitutes for the other silently.
 normalize/convert) and is never a substitute for a fresh generate-sfx
 take; a defect in an existing SFX is a `revise` on the leaf that made it,
 not a re-roll disguised as an edit.
+
+## An authored score or a described cue, not a song
+
+Music is scoped to instrumental BGM or a short melodic opener/closer,
+create/generate at most 60 seconds (edit/analyze accept up to 600 seconds
+and 128 MiB); a full song with lyrics/singing, standalone sound
+design/SFX, or audio mixing is `no skill fits` — never approximated by
+either music leaf. Fill `what_for`/theme/style/duration and any optional
+`direction`/`tempo`/`ending`/`must_keep`/`reference_audio` with the
+client the same way as any other leaf: `theme_detail`/`must_keep`
+override conflicting theme defaults, and `reference_audio` is never
+uploaded — a client who wants an objective tempo/key/structure
+measurement from a reference file needs a separate `analyze-music` call
+first, its findings fed back into this form.
+
+An exact deterministic composition from the five closed score waveforms
+(sine/triangle/pulse/fm-bell/noise) is `create-music`: free, zero
+network calls. `minimal-electronic`/`chiptune`/`ambient-synth` are starting
+styles; custom directions within the five-waveform palette remain valid.
+A described real-world/sampled-instrument direction outside that palette is `generate-music`
+instead; it defaults to the local Stable Audio 3 Medium engine (`engine`
+omitted, $0 spend, seed-controlled, default `style` options `ambient`/
+`electronic`/`lofi`/`acoustic`/`jazz`/`orchestral`), with an explicitly
+named `fal:stable-audio-3-medium` request as the one metered path,
+gated on explicit current-work paid approval of engine/prompt/duration/
+seed/attempt cap/USD estimate exactly like generate-sfx's fal
+alternative — and it, too, takes no automatic fallback in either
+direction.
+
+Both leaves are TWO rounds, always: the first handoff carries no
+`approved_plan`/`approval_sha256` and returns only a
+`proposal-v<N>/proposal.md` and its SHA-256 with zero spend — show it to the
+client (a human: the file plus your summary and one `clarify`
+question for approval; the assistant: the path, hash, and a text
+approval question). Only a second handoff with that EXACT
+`approved_plan`+`approval_sha256`, in the same conversation, releases a
+render or a `music_generate` call. A changed creative field needs a new
+proposal and a new approval, never a generation against stale approval
+text. Local default allowance is 2 variants + 1 corrective (hard cap 8),
+the same attempt-counts-failures rule as sfx; fal needs its own explicit
+cap and USD estimate, never a default budget.
+
+`edit-music` changes an existing file (trim/loop-crossfade/fade/gain/
+two-pass LUFS normalize) and never resynthesizes — a defect in the actual
+composed music routes back to a `create-music`/`generate-music`
+proposal, not a hand-patched edit. `analyze-music` returns tempo/beat/
+key/structural-boundary findings only, with half/double BPM and key
+ambiguity explicitly disclosed, never a genre/mood/instrument or
+lyrics/vocal-performance verdict, and works standalone on any
+client-supplied song handed over for arrangement/harmony-style
+analysis — not only this pipeline's own deliveries.
 
 ## Two-round leaves
 

@@ -1,12 +1,14 @@
 description: "Creator serves human and assistant clients through Plan, Build
   and Quality assurance. Fills forms for ImageCreator's still-image families,
-  VideoCreator's short clips, generate-music-video and authored UI tours and AudioCreator's speech
-  and sfx (create-sfx, generate-sfx, edit-sfx, analyze-sfx), delegates production,
-  and returns durable artifacts with evidence and explicit QA gaps. Existing
-  legacy technics cover other images, authored motion, diagrams and assembly
-  of supplied parts. Music generation, vocal songs and standalone audio
-  visualization are withdrawn pending concrete new families, not silently
+  VideoCreator's short clips, generate-music-video and authored UI tours and AudioCreator's speech,
+  sfx (create-sfx, generate-sfx, edit-sfx, analyze-sfx) and instrumental music
+  (create-music, generate-music, edit-music, analyze-music), delegates
+  production, and returns durable artifacts with evidence and explicit QA
+  gaps. Existing legacy technics cover other images, authored motion,
+  diagrams and assembly of supplied parts. Vocal songs and standalone audio
+  visualization remain withdrawn pending concrete new families, not silently
   routed through external skills. Kanban is limited to anchored-image-batch
-  and deterministic-render for legacy work; speech and sfx use hands sessions,
-  never a card. Not for code, research, script writing or publishing."
+  and deterministic-render for legacy work; speech, sfx and music use hands
+  sessions, never a card. Not for code, research, script writing or
+  publishing."
 description_auto: false
