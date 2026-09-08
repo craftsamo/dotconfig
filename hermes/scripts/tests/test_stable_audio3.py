@@ -744,3 +744,311 @@ def test_lock_header_has_no_machine_specific_path():
     header = lock_path.read_text().splitlines()[1]
     assert "/Users/" not in header
     assert "--python" not in header
+
+
+@pytest.mark.parametrize("seconds", [1, 30, 60])
+def test_music_render_preserves_recipe_lock_receipt_and_timeout(env, tmp_path, fake_popen, seconds, monkeypatch):
+    sa3.install(root=env["root"], accept_terms=True)
+    marker = (env["root"] / sa3.MARKER_NAME).read_bytes()
+    identity = sa3.status(root=env["root"])["fingerprint"]["runtime_identity"]
+    waits = []
+    original_wait = fake_popen.wait
+
+    def wait(self, timeout=None):
+        waits.append(timeout)
+        assert sa3.is_busy(env["root"])
+        return original_wait(self, timeout)
+
+    monkeypatch.setattr(fake_popen, "wait", wait)
+    payload = {"text": "Instrumental ambient piano", "duration_seconds": seconds, "seed": 42}
+    out = tmp_path / "music"
+    result = sa3.render_music(payload, out, root=env["root"])
+    assert result["status"] == "raw-needs-qa"
+    receipt = result["receipt"]
+    assert receipt == json.loads((out / "take.json").read_text())
+    assert receipt["request"] == payload
+    assert receipt["model"]["runtime_fingerprint"] == identity
+    assert receipt["raw_wav"]["frames"] == seconds * 44100
+    assert receipt["raw_wav"]["sha256_file"] == hashlib.sha256((out / "raw.wav").read_bytes()).hexdigest()
+    assert (out / "inference.log").is_file()
+    assert waits == [180]
+    call = fake_popen.calls[-1]
+    assert len(call["pass_fds"]) == 1
+    for flag, value in (("--dit", "medium"), ("--decoder", "same-l"), ("--steps", "8")):
+        assert call["argv"][call["argv"].index(flag) + 1] == value
+    assert (env["root"] / sa3.MARKER_NAME).read_bytes() == marker
+    assert sa3.MAX_DURATION == 21.5 and sa3.MAX_BYTES == 16 * 1024 * 1024
+
+
+@pytest.mark.parametrize("seconds", [0.5, 60.001, 61, float("nan"), float("inf"), True])
+def test_music_rejects_invalid_duration_before_runtime(tmp_path, seconds):
+    with pytest.raises(ValueError, match="duration_seconds"):
+        sa3.render_music({"text": "piano", "duration_seconds": seconds, "seed": 0}, tmp_path / "out")
+    assert not (tmp_path / "out").exists()
+
+
+@pytest.mark.parametrize("seconds", [21.501, 30, 60])
+def test_sfx_entry_still_rejects_music_lengths(tmp_path, seconds):
+    with pytest.raises(ValueError, match="duration_seconds"):
+        sa3.render({"text": "piano", "duration_seconds": seconds, "seed": 0}, tmp_path / "out")
+
+
+def test_music_and_sfx_share_root_lock(env, tmp_path):
+    with sa3._runtime_lock(env["root"] / sa3.LOCK_FILE_NAME):
+        for entry, seconds in ((sa3.render, 2), (sa3.render_music, 60)):
+            with pytest.raises(sa3.RenderError, match="busy"):
+                entry({"text": "piano", "duration_seconds": seconds, "seed": 0},
+                      tmp_path / "out", root=env["root"])
+
+
+@pytest.mark.parametrize("field,value", [("text", "x" * 451), ("text", " "),
+                                        ("seed", -1), ("seed", 2**32), ("seed", True)])
+def test_music_retains_prompt_and_seed_bounds(tmp_path, field, value):
+    payload = {"text": "piano", "duration_seconds": 30, "seed": 0, field: value}
+    with pytest.raises(ValueError):
+        sa3.render_music(payload, tmp_path / "out")
+
+
+def test_music_has_separate_32_mib_output_bound(env, tmp_path, monkeypatch):
+    sa3.install(root=env["root"], accept_terms=True)
+
+    class OversizedMusic(FakePopen):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            path = Path(self.argv[self.argv.index("--out") + 1])
+            with path.open("ab") as stream:
+                stream.truncate(32 * 1024 * 1024 + 1)
+
+    monkeypatch.setattr(sa3, "_POPEN", OversizedMusic)
+    with pytest.raises(sa3.RenderError, match="33554432 bytes"):
+        sa3.render_music({"text": "piano", "duration_seconds": 60, "seed": 0},
+                         tmp_path / "out", root=env["root"])
+    assert not (tmp_path / "out").exists()
+
+
+def test_music_timeout_remains_180_and_kills_owned_child(env, tmp_path, fake_popen, monkeypatch):
+    sa3.install(root=env["root"], accept_terms=True)
+    fake_popen.behavior = "timeout"
+    kills = []
+    monkeypatch.setattr(sa3.os, "killpg", lambda *args: kills.append(args))
+    with pytest.raises(sa3.RenderError, match="180s timeout"):
+        sa3.render_music({"text": "piano", "duration_seconds": 60, "seed": 0},
+                         tmp_path / "out", root=env["root"])
+    assert kills == [(4242, sa3.signal.SIGKILL)]
+    assert not (tmp_path / "out").exists()
+
+
+@pytest.fixture
+def refresh_env(env, tmp_path, monkeypatch):
+    """Existing fake install with a real wheel RECORD, then adapter-only drift."""
+    import base64
+    venv = env["root"] / "checkout/optimized/mlx/.venv"
+    site = venv / "lib/python3.11/site-packages"
+    dist_info = site / "fake-1.0.dist-info"
+    dist_info.mkdir(parents=True)
+    module = site / "fake.py"
+    module.write_bytes(b"# installed fake package\n")
+    digest = base64.urlsafe_b64encode(hashlib.sha256(module.read_bytes()).digest()).rstrip(b"=").decode()
+    (dist_info / "RECORD").write_text(
+        f"fake.py,sha256={digest},{module.stat().st_size}\nfake-1.0.dist-info/RECORD,,\n")
+    monkeypatch.setattr(sa3, "_collect_dependency_manifest",
+                        lambda python: {"fake": {"version": "1.0", "dist_info": str(dist_info)}})
+    previous = tmp_path / "previous_adapter.py"
+    current = tmp_path / "current_adapter.py"
+    previous.write_bytes(MODULE_PATH.read_bytes())
+    current.write_bytes(previous.read_bytes())
+    monkeypatch.setattr(sa3, "SELF_PATH", current)
+    sa3.install(env["root"], accept_terms=True)
+    identity = sa3.status(env["root"])["fingerprint"]["runtime_identity"]
+    current.write_bytes(current.read_bytes() + b"\n# adapter-only change\n")
+    before = (env["root"] / sa3.MARKER_NAME).read_bytes()
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("refresh must not install, download, or start inference")
+
+    for name in ("install", "_find_uv_executable", "_download_weight", "_ensure_runtime_link", "_POPEN"):
+        monkeypatch.setattr(sa3, name, forbidden)
+    real_run = sa3._run
+    calls = []
+
+    def read_only_run(argv, **kwargs):
+        assert argv[:2] in (["/usr/bin/git", "rev-parse"], ["/usr/bin/git", "status"])
+        calls.append(argv)
+        return real_run(argv, **kwargs)
+
+    monkeypatch.setattr(sa3, "_run", read_only_run)
+    return {**env, "previous": previous, "current": current, "before": before,
+            "identity": identity, "module": module, "dist_info": dist_info, "commands": calls}
+
+
+def test_refresh_adapter_only_offline_atomic_and_keeps_receipts(refresh_env, monkeypatch):
+    e = refresh_env
+    assert not sa3.status(e["root"])["available"]
+    receipt = e["root"] / "old-job-receipt.json"
+    receipt.write_text(json.dumps({"runtime_fingerprint": e["identity"]}))
+    old_receipt = receipt.read_bytes()
+    replace = sa3.os.replace
+    replacements = []
+
+    def capture_replace(source, target):
+        assert sa3.is_busy(e["root"])
+        assert Path(target).read_bytes() == e["before"]
+        assert json.loads(Path(source).read_text())["code_lock_fingerprint"] != json.loads(e["before"])["code_lock_fingerprint"]
+        replacements.append((source, target))
+        replace(source, target)
+
+    monkeypatch.setattr(sa3.os, "replace", capture_replace)
+    result = sa3.refresh(e["root"], previous_adapter=e["previous"])
+    assert result["status"] == "ready" and result["job_receipts_migrated"] is False
+    after = json.loads((e["root"] / sa3.MARKER_NAME).read_text())
+    before = json.loads(e["before"])
+    assert {k: v for k, v in after.items() if k != "code_lock_fingerprint"} == {
+        k: v for k, v in before.items() if k != "code_lock_fingerprint"}
+    assert after["code_lock_fingerprint"] == sa3._code_lock_fingerprint(e["pins_path"].read_bytes())
+    assert sa3.status(e["root"], full=True)["available"]
+    assert sa3.status(e["root"])["fingerprint"]["runtime_identity"] != e["identity"]
+    assert receipt.read_bytes() == old_receipt
+    assert len(replacements) == 1
+    assert e["commands"]  # Only allowlisted read-only Git calls were possible.
+    second_before = (e["root"] / sa3.MARKER_NAME).read_bytes()
+    sa3.refresh(e["root"], previous_adapter=e["previous"])
+    assert (e["root"] / sa3.MARKER_NAME).read_bytes() == second_before
+    assert len(replacements) == 1
+
+
+@pytest.mark.parametrize("damage", [
+    "weight", "weight-same-stat", "missing-weight", "dependency-file", "missing-dependency-file",
+    "dependency-record", "dependency-version", "extra-dependency", "missing-dependency",
+    "dirty-checkout", "missing-script", "missing-python", "wrong-python-path",
+    "lockfile", "pins", "wrong-old-adapter", "marker-schema",
+])
+def test_refresh_refuses_every_non_adapter_drift_without_marker_changes(refresh_env, monkeypatch, damage):
+    import os
+    e = refresh_env
+    weight = e["root"] / "checkout/optimized/mlx/models/mlx/dit_medium_f16.npz"
+    marker_path = e["root"] / sa3.MARKER_NAME
+    if damage in ("weight", "weight-same-stat"):
+        old_stat = weight.stat()
+        weight.write_bytes(bytes((b + 1) % 256 for b in weight.read_bytes()))
+        if damage == "weight-same-stat":
+            os.utime(weight, ns=(old_stat.st_atime_ns, old_stat.st_mtime_ns))
+    elif damage == "missing-weight":
+        weight.unlink()
+    elif damage == "dependency-file":
+        e["module"].write_bytes(b"# corrupted fake package\n")
+    elif damage == "missing-dependency-file":
+        e["module"].unlink()
+    elif damage == "dependency-record":
+        (e["dist_info"] / "RECORD").write_text("corrupted RECORD\n")
+    elif damage in ("dependency-version", "extra-dependency", "missing-dependency"):
+        manifest = {"fake": {"version": "1.0", "dist_info": str(e["dist_info"])}}
+        if damage == "dependency-version":
+            manifest["fake"]["version"] = "2.0"
+        elif damage == "extra-dependency":
+            manifest["injected"] = manifest["fake"]
+        else:
+            manifest = {}
+        monkeypatch.setattr(sa3, "_collect_dependency_manifest", lambda python: manifest)
+    elif damage == "dirty-checkout":
+        (e["root"] / "checkout/optimized/mlx/scripts/sa3_mlx.py").write_text("# changed checkout\n")
+    elif damage == "missing-script":
+        (e["root"] / "checkout/optimized/mlx/scripts/sa3_mlx.py").unlink()
+    elif damage == "missing-python":
+        (e["root"] / "checkout/optimized/mlx/.venv/bin/python").unlink()
+    elif damage in ("wrong-python-path", "marker-schema"):
+        marker = json.loads(marker_path.read_text())
+        if damage == "wrong-python-path":
+            marker["python"]["venv_python"] = "/other/python"
+        else:
+            marker["schema_version"] = 1
+        marker_path.write_text(json.dumps(marker))
+    elif damage == "lockfile":
+        e["lock_path"].write_text("fake==2.0\n")
+    elif damage == "pins":
+        pins = json.loads(e["pins_path"].read_text())
+        pins["generation"]["steps"] = 16
+        e["pins_path"].write_text(json.dumps(pins))
+    elif damage == "wrong-old-adapter":
+        e["previous"].write_text("# not the installed source\n")
+    before = marker_path.read_bytes()
+    with pytest.raises(sa3.RenderError):
+        sa3.refresh(e["root"], previous_adapter=e["previous"])
+    assert marker_path.read_bytes() == before
+    assert not sa3.status(e["root"])["available"]
+    assert not list(e["root"].glob(".refresh-*"))
+
+
+def test_refresh_requires_existing_old_marker_and_never_creates_install(refresh_env):
+    e = refresh_env
+    (e["root"] / sa3.MARKER_NAME).unlink()
+    with pytest.raises(sa3.RenderError, match="existing regular"):
+        sa3.refresh(e["root"], previous_adapter=e["previous"])
+    missing = e["root"] / "missing-root"
+    with pytest.raises(sa3.RenderError, match="existing regular"):
+        sa3.refresh(missing, previous_adapter=e["previous"])
+    assert not missing.exists()
+
+
+def test_refresh_cli_needs_no_terms_or_install(refresh_env, capsys):
+    e = refresh_env
+    assert sa3.main(["refresh", "--root", str(e["root"]), "--previous-adapter", str(e["previous"])]) == 0
+    assert json.loads(capsys.readouterr().out)["status"] == "ready"
+
+
+def test_refresh_busy_refuses_and_preserves_marker(refresh_env):
+    e = refresh_env
+    with sa3._runtime_lock(e["root"] / sa3.LOCK_FILE_NAME):
+        with pytest.raises(sa3.RenderError, match="busy"):
+            sa3.refresh(e["root"], previous_adapter=e["previous"])
+    assert (e["root"] / sa3.MARKER_NAME).read_bytes() == e["before"]
+
+
+def test_sfx_completed_resume_survives_refresh_but_next_rejects_new_identity(refresh_env, fake_popen, monkeypatch):
+    from types import SimpleNamespace
+    e = refresh_env
+    plugin = MODULE_PATH.parents[1] / "plugins/audio_gen/sfx-gen/__init__.py"
+    spec = importlib.util.spec_from_file_location("sfx_refresh_regression", plugin)
+    sfx = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(sfx)
+    monkeypatch.setattr(sfx, "_runtime", lambda: SimpleNamespace(
+        status=lambda: sa3.status(e["root"]), is_busy=lambda: sa3.is_busy(e["root"]),
+        render=lambda payload, out: sa3.render(payload, out, root=e["root"])))
+    monkeypatch.setattr(sa3, "SELF_PATH", e["previous"])
+    job = e["root"].parent.resolve() / "sfx-job"
+    first = json.loads(sfx.generate({"action": "start", "job_dir": str(job), "text": "a bell",
+                                    "duration_seconds": 1, "max_calls": 2}))
+    assert first["success"]
+    receipt = Path(first["take_json"]).read_bytes()
+    monkeypatch.setattr(sa3, "SELF_PATH", e["current"])
+    sa3.refresh(e["root"], previous_adapter=e["previous"])
+    resumed = json.loads(sfx.generate({"action": "resume", "job_dir": str(job)}))
+    assert resumed["success"] and resumed["runtime"] == first["runtime"]
+    assert Path(first["take_json"]).read_bytes() == receipt
+    next_result = json.loads(sfx.generate({"action": "next", "job_dir": str(job)}))
+    assert not next_result["success"] and "runtime changed" in next_result["error"]
+    assert len(fake_popen.calls) == 1
+
+
+def test_refresh_atomic_write_failure_keeps_old_marker(refresh_env, monkeypatch):
+    e = refresh_env
+
+    def fail_replace(source, target):
+        raise OSError("simulated filesystem failure")
+
+    monkeypatch.setattr(sa3.os, "replace", fail_replace)
+    with pytest.raises(OSError, match="simulated"):
+        sa3.refresh(e["root"], previous_adapter=e["previous"])
+    assert (e["root"] / sa3.MARKER_NAME).read_bytes() == e["before"]
+    assert not list(e["root"].glob(".refresh-*"))
+
+
+@pytest.mark.parametrize("name", ["installed.json", ".runtime.lock"])
+def test_refresh_refuses_symlinked_marker_or_lock(refresh_env, name):
+    e = refresh_env
+    path = e["root"] / name
+    saved = path.with_name(name + ".saved")
+    path.rename(saved)
+    path.symlink_to(saved)
+    with pytest.raises(sa3.RenderError):
+        sa3.refresh(e["root"], previous_adapter=e["previous"])
+    assert (e["root"] / sa3.MARKER_NAME).read_bytes() == e["before"]
