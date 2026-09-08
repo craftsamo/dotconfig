@@ -49,6 +49,7 @@ HANDS_VERBS = ("create", "generate", "edit", "source", "analyze")
 HANDS_COSTS = ("free", "metered")
 HANDS_FIELD_TYPES = ("text", "image", "file", "path", "int")
 HANDS_NAME = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
+WRITER_VERBS = ("write", "edit", "analyze")
 ALL_PROFILES = ("assistant", *WORKER_PROFILES, *HANDS_PROFILES)
 WORKER_MUTATION_GUARD_PLUGIN = "kanban-worker-mutation-guard"
 EXPECTED_MODES = ("chat", "plan", "execute", "quality-assurance")
@@ -830,6 +831,12 @@ def validate_worker(
 
     allowed = {(pipeline_name, "SKILL.md")}
     allowed.update(("technic", name, "SKILL.md") for name in leaves)
+    writing: dict[str, Path] = {}
+    if profile == "writer":
+        writing = validate_writer_leaves(pipeline_dir, errors)
+        for name in writing.keys() & (leaves.keys() | learned.keys()):
+            errors.append(f"duplicate writer skill name: {name}")
+        allowed.update(path.relative_to(skills).parts for path in writing.values())
     allowed.update(learned_roots)
     validate_allowed_skill_roots(skills, allowed, errors)
 
@@ -855,7 +862,82 @@ def validate_worker(
         validate_worker_card_gate(profile, catalog, errors)
     validate_git_boundary([pipeline_dir, technic_dir], learned_dir, errors)
     validate_plugin_enabled(profile, profile_root / "config.yaml", errors)
-    return len(leaves), len(learned)
+    return len(leaves) + len(writing), len(learned)
+
+
+def validate_writer_leaves(pipeline_dir: Path, errors: list[str]) -> dict[str, Path]:
+    """Writer adopts form-based leaves without changing Creator's verb set."""
+    leaves: dict[str, Path] = {}
+    for path in sorted(pipeline_dir.rglob("SKILL.md")):
+        rel = path.relative_to(pipeline_dir)
+        if rel.parts == ("SKILL.md",):
+            continue
+        if len(rel.parts) != 3 or rel.parts[0] not in WRITER_VERBS:
+            errors.append(f"writer leaf must sit at write|edit|analyze/<subject>/SKILL.md: {path}")
+            continue
+        verb, subject, _ = rel.parts
+        if not HANDS_NAME.fullmatch(subject):
+            errors.append(f"writer subject must be a slug: {path}")
+            continue
+        name = f"{verb}-{subject}"
+        validate_skill(path, name, errors, expected_category="writing")
+        data = frontmatter(path)
+        meta = hermes_meta(data)
+        if not isinstance(data.get("description"), str) or not data["description"].strip():
+            errors.append(f"writer leaf must carry a description: {path}")
+        if not isinstance(meta.get("output"), str) or not meta["output"].strip():
+            errors.append(f"writer leaf must describe metadata.hermes.output: {path}")
+        text = path.read_text(encoding="utf-8")
+        for section in ("Procedure", "QA", "Report"):
+            if f"<{section}>" not in text or f"</{section}>" not in text:
+                errors.append(f"writer leaf must own <{section}>: {path}")
+        form = meta.get("form")
+        if not isinstance(form, dict) or not form:
+            errors.append(f"writer leaf must declare metadata.hermes.form: {path}")
+            continue
+        if "note" not in form:
+            errors.append(f"writer form must carry a note field: {path}")
+        for key, field in form.items():
+            if not isinstance(key, str) or not HANDS_NAME.fullmatch(key.replace("_", "-")):
+                errors.append(f"writer form field name must be a slug: {key}: {path}")
+            if not isinstance(field, dict):
+                errors.append(f"writer field must be a mapping: {key}: {path}")
+                continue
+            if not isinstance(field.get("required"), bool):
+                errors.append(f"writer field must set required: true|false: {key}: {path}")
+            if field.get("type", "text") not in ("text", "file", "path", "int"):
+                errors.append(f"unknown writer field type: {key}: {path}")
+            if not isinstance(field.get("label"), str) or not field["label"].strip():
+                errors.append(f"writer field must carry a label: {key}: {path}")
+            if "other" in field and not isinstance(field["other"], bool):
+                errors.append(f"writer field other must be a boolean: {key}: {path}")
+            options = field.get("options")
+            if options is not None and (
+                not isinstance(options, list) or not options
+                or any(not isinstance(option, str) or not HANDS_NAME.fullmatch(option) for option in options)
+            ):
+                errors.append(f"writer options must be a non-empty list of string slugs: {key}: {path}")
+                continue
+            if "references" not in field:
+                continue
+            pattern = field["references"]
+            if (
+                not isinstance(pattern, str) or not pattern.startswith("references/")
+                or Path(pattern).name != "*.md" or pattern.count("*") != 1
+                or ".." in Path(pattern).parts or any(char in pattern for char in "?[]")
+                or not options
+            ):
+                errors.append(f"writer references must name a local references/.../*.md option set: {key}: {path}")
+                continue
+            reference_root = path.parent / Path(pattern).parent
+            for option in options:
+                backing = reference_root / f"{option}.md"
+                if not backing.resolve().is_relative_to(path.parent.resolve()) or not backing.is_file():
+                    errors.append(f"writer option {option} has no local reference: {path}")
+                elif f"]({backing.relative_to(path.parent).as_posix()})" not in text:
+                    errors.append(f"writer option {option} needs a direct body link: {path}")
+        leaves[name] = path
+    return leaves
 
 
 # ── Creator hands (v3) ──────────────────────────────────────────────────
