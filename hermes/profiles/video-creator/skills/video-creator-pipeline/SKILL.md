@@ -27,8 +27,11 @@ metadata:
    to prove its role by saying "I am Creator".
 2. Load only the leaf's selected references and previous delivery for
    `intent: revise`. Reuse surviving intermediates before any new spend.
-3. Follow `<Procedure>`; no TTS, image generation, outside skills or
-   improvised pipelines. generate-music-video authors a proposal within its form;
+3. Follow `<Procedure>`; no TTS, image generation, improvised pipelines, or
+   outside skills — except create-tour/create-ad's own optional, read-only
+   [HyperFrames references](references/hyperframes.md), consulted only when
+   that leaf's own contract calls for it, never as a substitute leaf or
+   workflow. generate-music-video authors a proposal within its form;
    no approved proposal/digest means no generation, even with a budget.
    create-ad permits task-local HTML/CSS/GSAP advertising from supplied assets:
    content-plan approval, frozen-source preview, then exact-preview approval

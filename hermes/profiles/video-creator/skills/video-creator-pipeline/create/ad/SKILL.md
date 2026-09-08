@@ -107,8 +107,10 @@ metadata:
    timeline and QA within the approved plan. Missing supplied product/logo/
    audio/video assets are not a blocker for a text-only ad — but `assets/`
    itself is never actually empty: the vendored GSAP runtime files always
-   belong in the plan's asset map. No video/image generation, TTS, capture or
-   external runtime skills. Output canvas is one of four fixed ratios —
+   belong in the plan's asset map. No video/image generation, TTS, capture,
+   or external runtime workflows/executables. Optional technical reading
+   follows Round B; it grants none of these actions. Output canvas is one
+   of four fixed ratios —
    9:16 (1080x1920, default), 16:9 (1920x1080), 1:1 (1080x1080), 4:5
    (1080x1350) — always 30fps; do not invent other dimensions, and never
    crop or scale a layout authored for one ratio into another.
@@ -131,7 +133,16 @@ metadata:
    call the helper's `freeze` yet. STOP for actual client approval in the same
    work conversation; the budget/plan is not itself approval.
 4. Round B requires both `approved_plan` and `approval_sha256` from Creator.
-   Author `index.html` and local assets in a fresh task-local source
+   Before fresh authoring, read the shared HyperFrames reference policy
+   through the parent skill (not this leaf):
+
+   ```text
+   skill_view(name="video-creator-pipeline", file_path="references/hyperframes.md")
+   ```
+
+   Attempt the applicable technical lookups, report unavailable references
+   and continue with local authoring. Author
+   `index.html` and local assets in a fresh task-local source
    directory: one standalone `#root` with
    `data-composition-id="ad" data-start="0" data-width="<plan width>"
    data-height="<plan height>" data-duration="<duration>" data-fps="30"`
@@ -224,7 +235,9 @@ metadata:
 - Runtime executes locally authored trusted code, not arbitrary downloaded
   HTML. Static helper checks are guardrails, NOT a JavaScript security
   sandbox; review source for networking, external references, navigation and
-  clocks before executing it. No external skill library is needed here.
+  clocks before executing it. The optional HyperFrames references are
+  advisory background only, never a substitute for this leaf's own
+  freeze/snapshot/render helpers or approvals.
 
 </QA>
 
@@ -238,5 +251,7 @@ evidence and unresolved checks; `spend: media generation 0`. Label direct
 local fixture renders as such, never client-live or claim-verified evidence.
 A preview is not an MP4 delivery. Include raw duration versus final duration,
 asset inventory, audio policy, cleanup state and remaining platform gates.
+Include any HyperFrames references consulted or found unavailable, with the
+local-authoring fallback used, per the shared reference policy.
 
 </Report>
