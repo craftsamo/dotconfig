@@ -15,6 +15,12 @@ or legal inspection. An analysis report is not a publishable post. An
 unverified length or missing attachment remains an open publishing blocker.
 Return text defects to `edit-post`; never alter a supplied body locally.
 
+For promotional copy, preserve the exact headline/body/action fields and their
+offer conditions and disclosures. Return wording changes to `edit-copy` via
+the requester; do not remove a qualification or substitute a target locally.
+An `analyze-copy` report is not publishable copy. Writer's self-review alone
+is not independent acceptance, legal clearance or a working-destination check.
+
 Before a part enters a draft:
 
 1. **Open it** — the file exists at its durable path, opens/plays,
