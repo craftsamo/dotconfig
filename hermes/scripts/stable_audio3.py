@@ -27,12 +27,15 @@ operator recovery. Resume never launches a replacement generation.
 CLI:
     stable_audio3.py install --accept-terms [--root PATH]
     stable_audio3.py check [--full] [--root PATH]
+    stable_audio3.py refresh --previous-adapter OLD_SOURCE.py [--root PATH]
     stable_audio3.py render --request REQUEST.json --out NEW_DIR [--root PATH]
 """
 
 from __future__ import annotations
 
 import argparse
+import base64
+import csv
 import fcntl
 import hashlib
 import json
@@ -103,12 +106,12 @@ def _load_pins():
     return pins, raw
 
 
-def _code_lock_fingerprint(pins_raw: bytes) -> str:
+def _code_lock_fingerprint(pins_raw: bytes, *, adapter_source: bytes | None = None) -> str:
     """Hashes pins.json + requirements.lock + this adapter's own source, so
     editing any of the three without rerunning install() shows up as drift."""
     try:
         lock_raw = LOCK_PATH.read_bytes()
-        self_raw = SELF_PATH.read_bytes()
+        self_raw = SELF_PATH.read_bytes() if adapter_source is None else adapter_source
     except OSError as exc:
         raise RenderError(f"pinned dependency file unavailable: {exc}") from exc
     digest = hashlib.sha256()
@@ -358,8 +361,14 @@ def status(root: str | Path | None = None, full: bool = False) -> dict:
     except RenderError as exc:
         return _unavailable(str(exc))
     if marker.get("code_lock_fingerprint") != code_lock_fingerprint:
-        return _unavailable("drift: code/lock/adapter fingerprint mismatch (reinstall required)")
+        return _unavailable("drift: code/lock/adapter fingerprint mismatch (adapter-only changes may use refresh)")
 
+    return _check_runtime(layout, pins, marker, full)
+
+
+def _check_runtime(layout, pins, marker, full):
+    """Shared installed-asset checks; status separately enforces adapter identity."""
+    code_lock_fingerprint = marker["code_lock_fingerprint"]
     expected_commit = pins["checkout"]["commit"]
     try:
         head, dirty = _git_check(layout["checkout"], pins["checkout"]["subpath"])
@@ -519,9 +528,104 @@ def install(root: str | Path | None = None, accept_terms: bool = False) -> dict:
     return {"status": "ready", "root": str(root), "marker": str(layout["marker"])}
 
 
+def refresh(root: str | Path | None = None, *, previous_adapter: str | Path) -> dict:
+    """Offline, maintainer-only activation of an adapter-only source change.
+
+    Old source bytes plus CURRENT pins/lock must reproduce the installed
+    fingerprint. This proves the change is adapter-only without trusting a
+    new pin set, resetting stat evidence, or weakening status(). All recorded
+    dependency file hashes are checked, but RECORD is not signed: as with
+    status(), this is drift detection, not a hostile-venv attestation.
+    """
+    if not _is_supported_platform():
+        raise RenderError("platform must be macOS arm64 (darwin/arm64)")
+    root = Path(root).resolve() if root is not None else DEFAULT_ROOT
+    pins, pins_raw = _load_pins()
+    layout = _layout(root, pins)
+    marker_path = layout["marker"]
+    if not marker_path.is_file() or marker_path.is_symlink():
+        raise RenderError("refresh requires an existing regular installed.json marker")
+    if layout["lock_file"].is_symlink():
+        raise RenderError("refresh refuses a symlinked runtime lock")
+    with _runtime_lock(layout["lock_file"]):
+        original = marker_path.read_bytes()
+        marker = json.loads(original)
+        if marker.get("schema_version") != MARKER_SCHEMA_VERSION:
+            raise RenderError("refresh requires the current installation marker schema")
+        fingerprint = _code_lock_fingerprint(pins_raw)
+        old_source = Path(previous_adapter).read_bytes()
+        if (fingerprint != marker.get("code_lock_fingerprint")
+                and _code_lock_fingerprint(pins_raw, adapter_source=old_source) != marker.get("code_lock_fingerprint")):
+            raise RenderError("previous adapter with current pins/lock does not match installed fingerprint")
+        if marker.get("python", {}).get("venv_python") != str(layout["venv_python"]):
+            raise RenderError("drift: installed Python path differs from configured runtime")
+        # Fast checks must also pass: full hashing must not silently bless
+        # altered weight/RECORD stat evidence left by a different install.
+        for full in (False, True):
+            ready = _check_runtime(layout, pins, marker, full)
+            if not ready["available"]:
+                raise RenderError(ready["reason"])
+        locked = {_normalize_name(name): version for name, version in re.findall(
+            r"^([A-Za-z0-9_.\-]+)==([^\s\\]+)", LOCK_PATH.read_text(), re.MULTILINE)}
+        manifest = _collect_dependency_manifest(layout["venv_python"])
+        if not locked or set(manifest) != set(locked) or set(marker.get("dependencies", {})) != set(locked):
+            raise RenderError("drift: installed dependency set differs from requirements.lock")
+        venv = layout["venv_python"].parent.parent.resolve()
+        for name, version in locked.items():
+            info = manifest[name]
+            record = Path(info["dist_info"]) / "RECORD"
+            recorded = marker["dependencies"][name]
+            if (info["version"] != version or recorded["version"] != version
+                    or record != Path(recorded["path"]) or record.is_symlink()
+                    or not record.resolve().is_relative_to(venv)):
+                raise RenderError(f"drift: dependency {name} metadata does not match locked installation")
+            checked = 0
+            with record.open(newline="") as stream:
+                for row in csv.reader(stream):
+                    if len(row) != 3:
+                        raise RenderError(f"drift: dependency {name} has malformed RECORD")
+                    relative, encoded_hash, size = row
+                    target = (record.parent.parent / relative).resolve()
+                    if not target.is_relative_to(venv):
+                        raise RenderError(f"drift: dependency {name} RECORD points outside its venv")
+                    if not encoded_hash:
+                        if target == record.resolve() or target.suffix == ".pyc":
+                            continue  # RECORD itself and generated bytecode have no wheel hash.
+                        raise RenderError(f"drift: dependency {name} has an unhashed installed file")
+                    algorithm, separator, expected = encoded_hash.partition("=")
+                    if not separator or algorithm not in ("sha256", "sha384", "sha512"):
+                        raise RenderError(f"drift: dependency {name} has an unsupported RECORD hash")
+                    if not target.is_file() or target.stat().st_size != int(size):
+                        raise RenderError(f"drift: dependency {name} file missing or size mismatch")
+                    with target.open("rb") as data:
+                        digest = hashlib.file_digest(data, algorithm).digest()
+                    if base64.urlsafe_b64encode(digest).rstrip(b"=").decode() != expected:
+                        raise RenderError(f"drift: dependency {name} installed file hash mismatch")
+                    checked += 1
+            if not checked:
+                raise RenderError(f"drift: dependency {name} RECORD has no hashed files")
+        if marker_path.read_bytes() != original or _code_lock_fingerprint(_load_pins()[1]) != fingerprint:
+            raise RenderError("installation marker or adapter/pins/lock changed during refresh")
+        if fingerprint != marker["code_lock_fingerprint"]:
+            marker["code_lock_fingerprint"] = fingerprint
+            fd, temp = tempfile.mkstemp(prefix=".refresh-", dir=root)
+            try:
+                with os.fdopen(fd, "w") as stream:
+                    json.dump(marker, stream, indent=2, sort_keys=True, allow_nan=False)
+                    stream.write("\n")
+                    stream.flush()
+                    os.fsync(stream.fileno())
+                os.replace(temp, marker_path)
+            finally:
+                Path(temp).unlink(missing_ok=True)
+    return {"status": "ready", "root": str(root), "marker": str(marker_path),
+            "code_lock_fingerprint": fingerprint, "job_receipts_migrated": False}
+
+
 # ---- payload validation --------------------------------------------------------
 
-def _validate_payload(payload: dict) -> tuple[str, float, int]:
+def _validate_payload(payload: dict, *, min_duration=MIN_DURATION,
+                      max_duration=MAX_DURATION) -> tuple[str, float, int]:
     if not isinstance(payload, dict):
         raise ValueError("payload must be a JSON object")
     allowed = {"text", "duration_seconds", "seed"}
@@ -542,8 +646,8 @@ def _validate_payload(payload: dict) -> tuple[str, float, int]:
     if isinstance(duration, bool) or not isinstance(duration, (int, float)):
         raise ValueError("duration_seconds must be a finite number")
     duration = float(duration)
-    if not math.isfinite(duration) or not MIN_DURATION <= duration <= MAX_DURATION:
-        raise ValueError(f"duration_seconds must be finite in [{MIN_DURATION}, {MAX_DURATION}]")
+    if not math.isfinite(duration) or not min_duration <= duration <= max_duration:
+        raise ValueError(f"duration_seconds must be finite in [{min_duration}, {max_duration}]")
 
     seed = payload["seed"]
     if isinstance(seed, bool) or not isinstance(seed, int):
@@ -579,7 +683,23 @@ def render(payload: dict, out: str | Path, root: str | Path | None = None) -> di
     bundle at `out`. Raises RenderError for busy/not-ready/failed/timeout -
     nothing is published in those cases, and no retry is attempted. See the
     module docstring for the lock's scope if this parent process is killed."""
-    text, duration_seconds, seed = _validate_payload(payload)
+    return _render(payload, out, root, min_duration=MIN_DURATION,
+                   max_duration=MAX_DURATION, max_bytes=MAX_BYTES)
+
+
+def render_music(payload: dict, out: str | Path, root: str | Path | None = None) -> dict:
+    """Explicit music entry: 1..60s, 32 MiB, otherwise the same locked recipe.
+
+    The default render/CLI remains SFX-only. No installation, daemon, fallback
+    or timeout increase is implied by this entry point.
+    """
+    return _render(payload, out, root, min_duration=1, max_duration=60,
+                   max_bytes=32 * 1024 * 1024)
+
+
+def _render(payload, out, root, *, min_duration, max_duration, max_bytes):
+    text, duration_seconds, seed = _validate_payload(
+        payload, min_duration=min_duration, max_duration=max_duration)
     out = _validate_out(Path(out))
 
     root = Path(root).resolve() if root is not None else DEFAULT_ROOT
@@ -630,8 +750,8 @@ def render(payload: dict, out: str | Path, root: str | Path | None = None) -> di
 
             if not raw_wav.exists():
                 raise RenderError("generation completed but raw.wav was not written")
-            if raw_wav.stat().st_size > MAX_BYTES:
-                raise RenderError(f"raw.wav exceeds {MAX_BYTES} bytes ({raw_wav.stat().st_size})")
+            if raw_wav.stat().st_size > max_bytes:
+                raise RenderError(f"raw.wav exceeds {max_bytes} bytes ({raw_wav.stat().st_size})")
 
             with wave.open(str(raw_wav), "rb") as wav_f:
                 n_channels, sample_width = wav_f.getnchannels(), wav_f.getsampwidth()
@@ -694,6 +814,10 @@ def main(argv=None):
     p_check.add_argument("--full", action="store_true")
     p_check.add_argument("--root", default=None)
 
+    p_refresh = subs.add_parser("refresh", help="Offline adapter-only marker refresh; never installs")
+    p_refresh.add_argument("--previous-adapter", required=True)
+    p_refresh.add_argument("--root", default=None)
+
     p_render = subs.add_parser("render")
     p_render.add_argument("--request", required=True)
     p_render.add_argument("--out", required=True)
@@ -705,6 +829,8 @@ def main(argv=None):
             result = install(root=args.root, accept_terms=args.accept_terms)
         elif args.command == "check":
             result = status(root=args.root, full=args.full)
+        elif args.command == "refresh":
+            result = refresh(root=args.root, previous_adapter=args.previous_adapter)
         else:
             result = render(json.loads(Path(args.request).read_text()), args.out, root=args.root)
     except (RenderError, ValueError, OSError) as exc:
