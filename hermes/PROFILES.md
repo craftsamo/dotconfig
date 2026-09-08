@@ -103,9 +103,9 @@ itself call `delegate_task` during its run.
 | **engineer** | primary: supervises OpenCode: assess (read-only) / implement (from the assistant's plan session or an Issue; delegated worktree bootstrap in a repo the assistant created), under an Authority grant; planning documents, repo creation, and GitHub bookkeeping stay with the assistant; A2A peers marketer/researcher/writer | Telegram (own bot) | `.` (launch / task ws) | `terminal,file,web,skills,todo,memory,delegation,a2a` | served (bot + a2a :9902) | yes |
 | **researcher** | verified conclusions from released units: evidence-pack / tradeoff-matrix / fact-check / guidance; heavy breadth is requested from the orchestrator as a search unit; serves engineer/creator/marketer only (not the assistant), cards refused | — (A2A receive-only) | `.` (launch / task ws) | `file,web,vision,video,skills,memory,delegation` | served (a2a :9906) | yes |
 | **searcher** | retrieval from released units: lookup / sweep / hunt (multi-hop via `goal_mode` on cards) | — (specialist) | `.` (launch / task ws) | `web,x_search,skills,memory` | — | yes |
-| **creator** | primary: plans with human/assistant clients, delegates served image/clip/speech forms, gates evidence and delivers; remaining technics cover images, authored video and assembly of supplied parts; music/song generation is withdrawn | Telegram (own bot) | `.` (launch / task ws) | `terminal,file,vision,image_gen,video_gen,video,tts,skills,memory,delegation,a2a` + gen plugins + `unreal-engine` MCP | served (bot + a2a :9903) | yes |
+| **creator** | primary: plans with human/assistant clients, delegates served image/clip/speech/sfx/music forms, gates evidence and delivers; remaining technics cover images, authored video and assembly of supplied parts; vocal-song generation and standalone audio visualization remain withdrawn | Telegram (own bot) | `.` (launch / task ws) | `terminal,file,vision,image_gen,video_gen,video,tts,skills,memory,delegation,a2a` + gen plugins + `unreal-engine` MCP | served (bot + a2a :9903) | yes |
 | **image-creator** | Creator's hands for still images: runs one `<verb>/<subject>` leaf from a filled form (icon family: source / create / generate / edit / analyze; emoji family: create / generate / edit / analyze), QA with evidence, report; answers only Creator | — (A2A receive-only) | `.` (launch / task ws) | `terminal,file,vision,image_gen,skills,memory` | served (a2a :9907) | yes |
-| **audio-creator** | Creator's spoken-audio hands: generate/edit/analyze-speech from approved forms; measured/readback QA, no claims of listening; no music or voice registration | — (A2A receive-only) | `.` (launch / task ws) | `terminal,file,tts,skills,memory` | served (a2a :9909) | yes |
+| **audio-creator** | Creator's spoken-audio hands: generate/edit/analyze-speech, create/generate/edit/analyze-sfx and create/generate/edit/analyze-music (instrumental BGM/melodic pieces only) from approved forms; measured/readback QA, no claims of listening; no full songs or voice registration | — (A2A receive-only) | `.` (launch / task ws) | `terminal,file,tts,sfx_gen,music_gen,skills,memory` | served (a2a :9909) | yes |
 | **writer** | reader-facing prose and producer-facing scripts from released units (outline / piece / whole job); draft-only, never publishes; serves all four primaries | — (A2A receive-only) | `.` (launch / task ws) | `file,web,skills,memory,delegation` | served (a2a :9905) | yes |
 | **marketer** | primary: platform copy from released message units, four-stage pre-ship inspection, grounding judgment, and publishing only within a Publish grant; A2A peers engineer/creator/researcher/writer | Telegram (own bot) | `.` (launch / task ws) | `terminal,file,web,browser,x_search,vision,skills,memory,delegation,a2a` | served (bot + a2a :9904) | yes |
 
@@ -1015,9 +1015,11 @@ TTS special case are retired. Character-voice tools register only for
 audio-creator; Creator retains generic TTS for conversational replies only.
 The former AudioCraft/HeartMuLa/songsee technics and assistant plan/QA routes
 are deliberately withdrawn without replacements, per the agreed scope.
-Music/song generation and standalone audio visualization are future
-families, not external-skill fallbacks. Existing audio may still be supplied
-to a legacy assembly.
+Instrumental music generation is now served via audio-creator's
+create-music/generate-music/edit-music/analyze-music (see "Music family"
+below); vocal-song generation and standalone audio visualization remain
+future families, not external-skill fallbacks. Existing audio may still be
+supplied to a legacy assembly.
 
 Recovery points: public tracked baseline `8b392d9` and private-overlay
 baseline `2d12e8d`. Restore only task-owned configuration/routes from those
@@ -1178,6 +1180,94 @@ measure the final decoded true peak, rejecting silent/undecodable/clipping
 output without normalizing it. Missing integrated LUFS is a warning. Existing
 single-audio plans and frozen hashes are not migrated. No tour, MV, clip-audio
 replacement, music or mixing capability is implied by this receiving path.
+
+### Music family
+
+Music is a separate subject under `audio-creator-pipeline/<verb>/music/`,
+scoped to instrumental BGM or a short melodic opener/closer (create/generate
+at most 60s; edit/analyze accept up to 600s/128 MiB)
+— a full song with lyrics/singing, standalone sound design, or audio
+mixing is `no skill fits`, never approximated by either music leaf.
+Creator reads its forms through the existing hands root; there is no new
+profile, peer, external skill library or kanban contract.
+
+- `create-music`: an exact deterministic score of five closed electronic
+  waveforms (sine/triangle/pulse/fm-bell/noise), authored by AudioCreator
+  from the client's direction and rendered locally at zero spend, zero
+  network calls. `minimal-electronic`/`chiptune`/`ambient-synth` are starting
+  styles, not a closed menu; custom direction must fit the five-waveform
+  palette. A described real-world/sampled instrument routes to
+  `generate-music` instead.
+- `generate-music`: a compact text prompt sent to
+  `local:stable-audio-3-medium` by default (`engine` omitted, $0 spend,
+  seed-controlled) or an explicitly chosen `fal:stable-audio-3-medium`
+  (metered, also seed-controlled — unlike SFX's fal endpoint, both music
+  engines take a seed). Neither engine falls back to the other,
+  automatically or silently; `music_engines` is a free capability lookup.
+- `edit-music`: trim, repeat-to-length with a crossfaded loop seam,
+  fade in/out, gain or two-pass LUFS normalization with a -1 dBTP ceiling on an existing music
+  file, always into a new bundle; never resynthesis.
+- `analyze-music`: local numpy-based tempo/beat/key/triad/structural-boundary
+  estimates plus format/loudness/clipping findings, no delivery. Works
+  standalone on any client-supplied song for arrangement/harmony-style
+  analysis, not only this pipeline's own deliveries; never lyrics or
+  vocal-performance analysis.
+
+Both `create-music` and `generate-music` are TWO rounds, unconditionally:
+both use one resident work conversation from proposal through approval.
+round A (no `approved_plan`/`approval_sha256`) writes `form.json` +
+`arrangement.md` + the exact artifact (`score.json` for create,
+`prompt-v<N>.txt` for generate) and returns only a
+`proposal-v<N>/proposal.md` + its
+SHA-256, with zero spend. `scripts/music_plan.py propose` builds that
+proposal from the resolved form/settings and the artifact's own hash;
+its frozen `score.json` or `generation-prompt.txt` is the artifact to use,
+including when packaging an older take after a correction. Only a second
+handoff with that EXACT `approved_plan`+`approval_sha256`,
+relayed by Creator in the same work conversation, releases a
+`music-media.py create` render or a `music_generate` tool call. A
+changed creative field needs a new proposal and a new approval, never a
+generation against stale approval text; attempts never reset on resume
+or a corrective reapproval.
+
+The standalone `plugins/audio_gen/music-gen` plugin registers only for
+audio-creator, using the dedicated `music_gen` CLI/A2A toolset —
+`music_engines` and `music_generate` (`action: start | next | resume`).
+Its approval/state/evidence machinery mirrors `sfx-gen`'s: a hash-bound
+approved manifest, frozen job settings, an attempt ledger that counts
+every call including failures, single non-retrying paid POSTs, and
+`resume` that only re-validates a checkpointed receipt — it never
+regenerates. Local default allowance is **2 variants + 1 corrective,
+max 3, hard cap 8**; fal requires an explicit approved `max_calls` and a
+`max_usd` covering it at the published per-audio estimate, never an
+implicit default budget. Metadata cost stays `metered` (the leaf can
+still spend on fal), but actual local spend is reported as `$0`.
+
+`hermes/scripts/stable_audio3.py` gained a second entry point,
+`render_music(payload, out, root=None)`, alongside the existing
+`render()` used by SFX — same pinned Medium/MLX runtime, same shared
+lock, same 180s subprocess timeout, same install/licensing terms (see
+"Local Stable Audio 3 Medium runtime" above); it is not a second engine
+or a second install. `music-media.py` (audio-creator-pipeline/scripts/)
+owns `create`, `track`, `edit` and `analyze` for music the way
+`sfx-media.py` does for SFX, with its own PCM hash convention and
+freeze/bundle rules documented in that leaf's `SKILL.md`.
+
+Vocal-song generation and standalone audio visualization remain
+withdrawn without a hands replacement; a request for either is
+`no skill fits`, never routed to a core/external route as a stand-in.
+Maintainer integration validation (2026-09-08, M4 Max 48 GB, pinned Medium
+MLX 8-step recipe): 5s / 30s / 60s music took 1.90s / 3.01s / 4.08s through
+the real plugin, with exact 44.1 kHz frame counts. A second 5s run with seed
+42 reproduced the decoded PCM hash. Four local inference attempts total,
+no paid call. A 20s 96 BPM synthetic score also reproduced its PCM hash;
+its 6s edited cue measured -24.00 LUFS, -17.01 dBTP and zero clipped samples.
+Real create-ad freeze/snapshot/render on installed HyperFrames 0.8.31 placed
+that cue at 0..6s in a 15s MP4: full decode passed, output measured -24.00
+LUFS / -17.00 dBTP, waveform correlation >0.9998 on each channel. A prior
+test preview correctly refused a runtime version change instead of bypassing
+approval. These are local helper/plugin and rendering tests, not gateway/A2A
+soak or perceptual listening. Fal live generation remains unverified.
 
 ### Video authoring references
 

@@ -620,6 +620,48 @@ VideoCreator consumes finished effects through `create-ad` as distinct,
 explicitly timed WAV cues (up to 16, no volume automation); `tour`, music,
 mixing and supplied-MV finishing are unchanged.
 
+## Music
+
+AudioCreator also owns `create-music`, `generate-music`, `edit-music` and
+`analyze-music`, scoped to instrumental BGM or a short melodic opener/
+closer (create/generate up to 60 seconds; edit/analyze up to 600 seconds
+and 128 MiB) — a full song with lyrics/singing, standalone
+sound design, or audio mixing is `no skill fits`. `create-music` composes
+an exact deterministic score from five closed electronic waveforms
+(sine/triangle/pulse/fm-bell/noise) and renders it locally at zero spend,
+zero network calls; `generate-music` sends a compact text prompt to the
+same `local:stable-audio-3-medium` default engine as SFX ($0, seed-
+controlled), or an explicitly chosen paid `fal:stable-audio-3-medium`
+(unlike SFX's fal endpoint, both music engines take a seed). Both are
+two-round leaves: the first round always returns an unspent
+`proposal-v<N>/proposal.md` and its SHA-256; only a second round with Creator-
+relayed `approved_plan`+`approval_sha256` releases a render or a
+`music_generate` call. Local default allowance is 2 variants + 1
+corrective (hard cap 8); an explicit fal request needs its own
+current-work paid approval and cap. `edit-music` trims, loop-crossfades,
+fades, applies gain or two-pass LUFS normalization (-1 dBTP ceiling) to an
+existing file, always into a new bundle; `analyze-music` returns local numpy-based tempo/beat/key/triad/
+structural-boundary estimates plus format/loudness/clipping findings,
+with half/double BPM and key ambiguity disclosed — never a genre, mood,
+instrument, lyrics or vocal-performance verdict, and it works standalone
+on any client-supplied song, not only this pipeline's own deliveries.
+
+`generate-music` uses the same audio-creator-only `sfx-gen`-shaped
+`music-gen` plugin (dedicated `music_gen` CLI/A2A toolset), and the same
+runtime's `render_music()` entry point alongside SFX's `render()` — one
+shared pinned Medium/MLX install, lock and 180s subprocess timeout, no
+second engine or install step. See `PROFILES.md` "Music family" for the
+proposal-approval contract, plugin/state details and the shared-runtime
+note.
+
+After a maintainer-only adapter change, `stable_audio3.py refresh
+--previous-adapter /absolute/path/to/previous-stable_audio3.py` verifies
+the old adapter fingerprint and the complete existing installation offline
+before refreshing its marker. It never downloads models, reinstalls packages,
+accepts new terms, or rewrites old job receipts. The 5s/30s/60s local music
+paths and a real create-ad WAV handoff were exercised on this machine;
+fal live generation and gateway/A2A soak remain unverified.
+
 ## Speech-to-text — fallback chain
 
 STT for `default` / `assistant` runs through the

@@ -495,7 +495,7 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
   defaults never authorize missing asset generation. Generate-ad and PV are
   future leaves, no legacy mappings are retired. PV primarily introduces
   qualities/world; duration and CTA presence alone do not decide the route.
-- **Audio hands own `speech` and `sfx`.** `audio-creator` receives forms on A2A
+- **Audio hands own `speech`, `sfx` and `music`.** `audio-creator` receives forms on A2A
   `:9909`: generate/edit/analyze-speech. The character-voice plugin registers
   only there; Creator retains ordinary conversational TTS, never a speech
   asset bypass. House uses the language chain (including online Edge); a
@@ -506,7 +506,7 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
   WAV timing sidecars are checked before reuse; lossy sibling derivatives
   get fresh ASR. Subtitle timing is estimated, pronunciation/performance
   unverified. Never invent a listening verdict or re-roll for an ASR spelling
-  variant. Speech can feed a legacy film as a completed input; music/song
+  variant. Speech can feed a legacy film as a completed input; vocal-song
   generation and standalone audio visualization are withdrawn, not migrated.
   The old voice card is retired; no hands kanban contract is added.
 - **SFX is a separate four-leaf family, not music or mixing.** `create-sfx`
@@ -553,6 +553,38 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
   was refused as "Nested executable body could not be resolved". Resolve
   a different ghq root separately, then execute the absolute path. Reuse the
   surviving raw WAV/receipt; this packaging repair consumes no generation.
+- **Music is instrumental BGM or a short melodic piece, not Song or Mix.**
+  Four leaves live at `audio-creator-pipeline/<verb>/music/`: create renders an
+  AudioCreator-authored, approved score using five synthetic colors; generate
+  uses `music-gen`/`music_gen` only on audio-creator; edit processes one source;
+  analyze is also a standalone musical-analysis request, including existing
+  vocal music without lyric or singing analysis. `music_plan.py` freezes the
+  effective form, exact score/prompt and reference hashes in a proposal. Both
+  creation leaves require Creator-relayed approval of that exact proposal;
+  hash matching is integrity, never approver authentication. No audio/uploads
+  in round A, no automatic reference-audio conditioning. Users need not author
+  a score or prompt. `music-media.py` owns 48 kHz PCM bundles and bounded local
+  tempo/key/activity estimates; instruments, genre and vocal absence stay
+  unverified. Create/generate cap at 60s, edit/analyze at 600s/128 MiB.
+  Local Stable Audio 3 Medium shares SFX's weights and runtime lock, never a
+  new daemon. `render_music` has its own bounds; SFX `render` remains <=21.5s.
+  Explicit `fal:stable-audio-3-medium` supports seed and needs current-work
+  approval and a dollar cap; neither direction falls back. Default local
+  grant is 2+1 attempts (hard cap 8), failures counted, resume never generates.
+  Corrected approved prompts retain the consumed-call ledger and frozen
+  engine/duration/seed/budget. Runtime adapter edits invalidate its install
+  fingerprint: maintainer `stable_audio3.py refresh --previous-adapter PATH`
+  verifies the previous adapter fingerprint and the entire existing install
+  offline before updating its marker. Never bypass drift checks or rewrite
+  existing job receipts; completed SFX resume remains valid, next detects drift.
+  Finished music uses create-ad's existing WAV cues. No new tour/MV finish,
+  song, mix, peer, secret, model download or launch service is implied.
+  **Keep music front matter inside the runtime's first 4,000 characters.**
+  Hermes discovery truncates before parsing YAML; an incomplete fence falls
+  back to the parent name, collapsing create/music and generate/music into
+  one `music` skill despite the topology validator passing. Compact labels,
+  keep full procedures in the body, and test actual `_find_all_skills` names.
+  The existing MV leaf also exceeds this upstream limit; its repair is separate.
 - **Multiplex TTS needs the scoped toolset-cache fix in the local Hermes
   checkout.** At upstream `4f0309e9cf`, `toolsets.resolve_toolset` memoized
   by toolset/registry generation but NOT profile scope. After Creator lost
