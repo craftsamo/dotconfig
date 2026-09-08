@@ -82,10 +82,17 @@ fictional TEST FIXTURE, never a real or client-approved ad.
    It is never `{}`: `gsap.min.js`, `GSAP-LICENSE.txt` and
    `gsap-provenance.json` in the source assets directory are always required (the runtime itself),
   so a text-only ad's map still has exactly those three entries.
-- At most **one** audio track (one `.wav`) is supported in this version.
+- Up to **16** audio tracks (`.wav` files) are supported in this version.
   Every `.wav` this map declares must be placed by exactly one `<audio>`
   element in `index.html` — an asset present in `assets/` but never placed
-  ("surprise audio") is rejected, as is more than one placed track. `.mp4`
+  ("surprise audio") is rejected, as is placing the same asset more than
+  once (a repeated sound at a different time needs its own separately
+  approved local asset copy/hash, never a reused `src`). When more than one
+  audio track is placed, every `<audio>` element must carry an explicit
+  `data-track-index`: a distinct positive integer per WAV, one track per
+  index. A single legacy placement with no `data-track-index` remains
+  accepted, unchanged, for already-frozen v1 plans that predate this field.
+  `.mp4`
   assets are probed with `ffprobe` directly (sides <=4096px, area
   <=9,000,000px, exactly one video stream with a reported codec, source
   duration covering its placement); `.png`/`.jpg`/`.webp` assets are decoded
@@ -98,8 +105,18 @@ fictional TEST FIXTURE, never a real or client-approved ad.
   data-volume` — no `autoplay`/`loop`/other retiming attribute, and
   `data-media-start` must be absent or `0` (HyperFrames owns any actual
   in-source trim). No JS may read/set `.volume`/`.muted` or a `volume:`
-  tween target; audio finishing beyond unity-volume playback is a separately
-  approved step, not something this leaf's JS does silently.
+  tween target; audio finishing beyond unity-volume playback is never
+  something this leaf's JS or helper does silently. When more than one WAV
+  is placed, `render` additionally decodes the final mixed audio with
+  `ffmpeg`'s `loudnorm` measurement filter — measurement only, never gain
+  correction. A short/sparse SFX-style ad legitimately measures an
+  unmeasurable integrated loudness alone (`input_i: null` with a warning,
+  not a failure); only an undecodable, entirely blank/silent, or clipping
+  (true peak >=0 dBTP) result is rejected — unity-volume sources that were
+  each individually safe can still clip once HyperFrames sums them. A
+  rejection means reducing gain (e.g. a fresh edit-sfx pass) or revising the
+  placement timing, never a "ducking"/automatic mixing capability this leaf
+  does not have.
 - `copy` rows: `id` (lowercase slug, unique), `text` (exact plain string,
   1..2000 chars), `role` (`message|claim|cta|support`), `start`/`end`
   (seconds within `0..duration`, `end > start`). At least one `message` row's
@@ -142,10 +159,20 @@ fictional TEST FIXTURE, never a real or client-approved ad.
   `window.__timelines ||= {}; window.__timelines["ad"] = tl;`. No autoplay,
   clocks, timers, randomness, external requests, hover/scroll triggers or
   runtime DOM creation. Prebuild every state; seek it via timeline.
-- Any supplied audio is an already-finished, standalone PCM WAV (never
-  synthesized here): place it with an id-bearing `<audio>` at unity volume
-  (no `muted`, no `data-volume` other than `1`) and explicit
-  `data-start`/`data-duration` that the file's own duration covers. Any
+- The client-supplied `audio` form input is either a single already-finished,
+  standalone PCM WAV, or a UTF-8 JSON list of up to 16 `{"source":
+  "<absolute path to a finished WAV>", "start": <seconds>}` cues — each
+  entire supplied WAV plays from its stated `start`, already pre-edited
+  before it reaches VideoCreator; this leaf never generates, synthesizes or
+  TTS's a WAV, and never invents cue timing beyond what was actually
+  requested. Place each with an id-bearing `<audio>` at unity volume (no
+  `muted`, no `data-volume` other than `1`) and explicit
+  `data-start`/`data-duration` that the file's own duration covers; more
+  than one placed WAV additionally requires an explicit, distinct positive
+  `data-track-index` per file (see above). Placement only — no gain or
+  mixing decision is made here; the final multi-track measurement check
+  (below) only catches an undecodable, blank or clipping result, it does
+  not adjust anything. Any
   supplied video-in-video is muted (`muted` attribute) with the same explicit
   timing; HyperFrames owns playback — never call `.play()`/`.pause()`/set
   `.currentTime`/`.playbackRate` from JS.
@@ -184,7 +211,17 @@ re-runs `hyperframes check`, renders strictly at 30fps with one worker, fully
 decodes the output with `ffmpeg`, and checks codec/pixel-format/dimensions/
 duration/fps/audio-presence-vs-plan with `ffprobe` before writing `qa.json`
 with `semantic_review: pending`, `temporal_review: sampled only`,
-`audio_listening: unverified` and `media_generation: 0`. None of these helper
+`audio_listening: unverified` and `media_generation: 0`. When more than one
+WAV asset is declared, it also decodes the final mix with `ffmpeg`'s
+`loudnorm` measurement filter and rejects an undecodable, entirely blank/
+silent (nonfinite true peak), or clipping (true peak >=0 dBTP) result before
+writing `qa.json` — measurement only, never a silent gain fix. A short/
+sparse SFX-style ad legitimately measures an unmeasurable integrated
+loudness alone; that alone is reported as `audio_measurement.input_i: null`
+plus a warning, not a failure. `audio_measurement` (`input_i`/`input_tp`/
+`warnings`) is present in `qa.json` only when more than one WAV was
+declared — absent, not `null`, for a single-WAV or no-audio ad. None of
+these helper
 checks are a visual or listening pass; only a human review against decoded
 frames earns that. All outputs must be fresh directories, never nested inside
 source/project/preview. Paths are absolute, physical and symlink-free.
