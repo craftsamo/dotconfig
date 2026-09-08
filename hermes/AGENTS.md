@@ -381,7 +381,7 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
   the validator enforces the shape (`validate_hands`), and a subject must be
   unique across every hands because Creator reads all of them through one
   `skills.external_dirs` list. `image-creator` (A2A `:9907`, receive-only)
-  serves the icon, emoji, mascot, reimagine and kit families (`emoji-fit.sh`
+  serves the icon, emoji, mascot, reimagine, kit and card families (`emoji-fit.sh`
   is the ONE home of the platform table; `generate-emoji` and
   `generate-mascot` are two rounds — anchor, then pack — and a mascot's
   approved anchor is the `reference:` of its emoji pack; `mascot-fit.sh`
@@ -416,6 +416,20 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
   looks later and an unwritten run cycled 152 looks over three files;
   the write guard reads the WHOLE terminal command, so `cp … && <skill
   script>` is refused → a skill script runs in a command of its own).
+- **Card is one image subject with create/generate/edit/analyze leaves.**
+  `scripts/card.py` consumes canonical `create/card/references/destination/`
+  scalar front matter and `styles/*.md` CSS blocks. Generate's own style refs
+  are backdrop prompt prose, not duplicated CSS. Local HTML uses isolated
+  offline agent-browser with frozen assets/fonts, no inherited login/CDP, and
+  exclusive output bundles. Full panoramas render before exact PNG crops;
+  text belongs to individual tiles, not global destination crops. X pair 7:8
+  is UNVERIFIED; X article 5:2 is user-verified ratio, not official 1500x600.
+  Gap previews are configurable local simulations, never platform screenshots.
+  Generate proposes 3+1 attempts across resumes but needs explicit current-work
+  user budget approval before paid calls. Card routes before creator-text-card;
+  retain its files/private-overlay mappings until handoff coverage, paid live
+  validation and legacy caller migration prove retirement safe. No new profile,
+  toolsets, secrets, test posts, authenticated access or gateway restart.
 - **Video hands start with `clip`, not the whole legacy video surface.**
   `video-creator` receives forms on loopback A2A `:9908`; its three clip leaves
   are `generate-clip` (1-15 s, silent single shot), `edit-clip` (a <=60 s

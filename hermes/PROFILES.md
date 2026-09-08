@@ -567,6 +567,23 @@ and a tool call, the same choice encoded in five places, and the docs drifted
 before the branch was done). The v3 rule is: **one skill = one concrete
 deliverable = one form**, nothing above the skill but a reader.
 
+### Card family
+
+Card now has four image-creator leaves: create/generate/edit/analyze-card.
+Destinations are values of one subject (OG, social, headers, thumbnails, title
+cards, X pair/carousel and custom WxH), not a menu or a new profile. The shared
+card.py owns file-spec rendering/fit/measurement; create/card destination front
+matter and CSS blocks are canonical. Generate styles own backdrop prompt prose
+only. Exact text is font-rendered after generation; proposed allowance 3+1
+across resumes requires explicit current-work user budget approval before paid
+calls. Renders are local, isolated and exclusive; previews prove only local
+appearance. Pair 7:8 is unverified, carousel scroll with 3 images user-observed,
+X article 5:2 user-verified ratio only; all pixel defaults/gaps are authoring
+choices. Do not post tests or inspect authenticated accounts without consent.
+Retirement gate: keep creator-text-card and private-overlay 1:1 mapping until
+handoff coverage, paid backdrop validation and old caller migration are proven.
+New Card work routes to hands first; no changes to ports/toolsets/secrets.
+
 ### Client model
 
 Creator has **clients**, not entry points. A client is either the human
