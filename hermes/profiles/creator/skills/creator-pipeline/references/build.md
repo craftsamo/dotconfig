@@ -39,6 +39,7 @@ Do not relocate a valid Group-local request to the global deliverables area.
 | audio-creator's synthesis/ASR-heavy leaves (`generate-speech`; an `edit-speech`/`analyze-speech` that needs fresh ASR rather than reused sidecars) | `kind="work"` as in the metered row, even though the leaf is `cost: free` — synthesis and ASR routinely outlive the reply window. Use `kind="inquiry"` only when bounded and known to finish in one reply (reused, already-validated sidecars; no fresh ASR) |
 | audio-creator's `generate-sfx` | `kind="work"`; keep job state, variants and packaging/QA in one resident session even though local Medium spends $0. `create-sfx`/`edit-sfx`/`analyze-sfx` are free, bounded one-reply leaves and use the inquiry row above |
 | audio-creator's `create-music`/`generate-music`, both rounds | `kind="work"` from the proposal onward; keep the proposal, Creator-relayed approval and production in the same resident conversation even though round A makes no audio call and local generation spends $0. `edit-music`/`analyze-music` use inquiry only when known to finish in one reply; otherwise work |
+| audio-creator's `create-mix`/`edit-mix`, both rounds | `kind="work"` from the proposal onward, the same two-round shape as `create-music`/`generate-music`; keep the proposal, Creator-relayed approval and render in the same resident conversation. `analyze-mix` is a free, bounded one-reply leaf and uses the inquiry row above |
 | video-creator's `create-tour` | `specialist_call(target="video-creator", message=<the text>, kind="work")` even though free; local snapshots/rendering and preview approval are not one-reply work |
 | video-creator's `create-ad` / `analyze-ad` | `specialist_call(target="video-creator", message=<the text>, kind="work")`; approval turns or bounded multi-pass evidence extraction, not an inquiry |
 | image-creator's generate-card, custom-style Card or multi-tile Card | `kind="work"`; explicit budget/creative questions or multiple local renders/looks need the same persistent conversation |
@@ -65,8 +66,10 @@ later wakeup promise. A2A inbound cannot launch work: ask the caller to reissue
 the released unit to Creator with `specialist_call(kind="work")`.
 
 Hands and their peers: `image-creator` (still images), `video-creator`
-(short clips, generated MVs and task-local authored UI tours; no TTS), `audio-creator` (spoken speech, short sound effects and short
-instrumental music — no full songs, singing or mixing). One session per
+(short clips, generated MVs and task-local authored UI tours; no TTS), `audio-creator` (spoken speech, short sound effects, short
+instrumental music, and placing already-finished sources on a timeline —
+no full songs or singing, and mix never synthesizes a new component
+sound). One session per
 job per hands; never carry unrelated jobs in one.
 
 For analyze-clip, `deliver` may be omitted: its report and scratch evidence
@@ -88,8 +91,8 @@ estimate exactly as approved — never let audio-creator's own engine-
 availability finding stand in for that approval. Never approve a seed on
 fal or a loop/prompt_influence control on local; the leaf rejects both
 outright. A finished sfx WAV may later feed `create-ad` as one distinct
-placed audio cue — never a music/mix input, and never folded into a
-`create-tour` job.
+placed audio cue or `create-mix` as one of its `sources` — never folded
+into a create-tour generation job; a finished Mix may later feed that tour.
 
 For `create-music`/`generate-music`, relay round A's handoff with no
 `approved_plan`/`approval_sha256` and expect back only a
@@ -106,6 +109,24 @@ exactly as approved, never audio-creator's own `music_engines`
 availability finding standing in for that approval. `edit-music`/
 `analyze-music` are free, bounded one-reply leaves like `edit-sfx`/
 `analyze-sfx`; `analyze-music`'s `deliver` may likewise be omitted.
+
+For `create-mix`/`edit-mix`, relay round A's handoff with no
+`approved_plan`/`approval_sha256` and expect back only a
+`proposal-v<N>/proposal.md` path and its SHA-256, zero renders. Relay
+that exact proposal and hash to the client for approval; only a
+matching second handoff (`intent: revise <previous delivery>`, the same
+`approved_plan`+`approval_sha256`) releases the render. A changed
+source, cue placement, gain/fade/envelope, duration or loudness target
+needs a new proposal, never a render against stale approval text.
+For video work, request `audio_workflow: mix` from create-ad/create-tour
+before its formal plan. Relay the resulting frozen timing path/hash to
+AudioCreator; AudioCreator authors gains/ducking, not the video's required
+cue times. After Mix approval/render, return `mix_bundle` to VideoCreator
+so its normal approvals bind the REAL audio bytes. No placeholders or
+pending assets in an approved video plan; no source-stem double playback.
+`analyze-mix` is a free, bounded one-reply leaf like `analyze-sfx`/
+`analyze-music`; its `deliver` may likewise be omitted, and it works on
+any finished mix file, not only this pipeline's own deliveries.
 
 ## Supervising
 
@@ -185,7 +206,11 @@ and time/attempt ceilings. VideoCreator records through capture.py, not a shared
 browser or Assistant. No native capture or login/private-region fallback. Keep
 raw takes, approval hashes and action evidence private. Confirm real moving media
 and source-time mapping instead of screenshots; keep/mute audio must be explicit.
-If narration is needed, pass finished audio-creator WAV/words.json inputs only.
+Ordinary narration uses finished audio-creator WAV/words.json inputs. For
+`audio_workflow: mix`, first request preliminary timing from VideoCreator,
+relay it to AudioCreator, then return the verified Mix bundle before formal
+video approval. Its distinct captions.json preserves clean-speech evidence;
+never reuse a speech-only words.json against the mixed WAV or play stems twice.
 Preview returns a frozen source project and snapshots, not a finished MP4.
 After client approval, continue that work conversation with `intent: revise`
 and `preview: no`; the hands render the unchanged approved project into a

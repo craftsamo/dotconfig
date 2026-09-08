@@ -80,10 +80,12 @@ capture owned by VideoCreator and native capture explicitly unavailable);
 and `audio-creator` (`generate-speech`,
 `edit-speech`, `analyze-speech`, `create-sfx`, `generate-sfx`, `edit-sfx`,
 `analyze-sfx`, `create-music`, `generate-music`, `edit-music`,
-`analyze-music`; A2A peer for a bounded one-reply job, resident whenever
-synthesis, fresh ASR, or generate-sfx's/generate-music's metered fal call
-is involved — create/edit/analyze-sfx and create/edit/analyze-music cost
-no provider fee, generate-sfx and generate-music are the metered leaves).
+`analyze-music`, `create-mix`, `edit-mix`, `analyze-mix`; A2A peer for a
+bounded one-reply job, resident whenever synthesis, fresh ASR, or
+generate-sfx's/generate-music's metered fal call is involved — create/
+edit/analyze-sfx, create/edit/analyze-music and create/edit/analyze-mix
+cost no provider fee, generate-sfx and generate-music are the metered
+leaves).
 MV is proposal then approved generation;
 its subject/theme/style are form values, not separate skill families.
 Ads use create-ad (content then preview approval) or analyze-ad (evidence-backed
@@ -91,10 +93,12 @@ advertising interpretation), always kind="work". Generate-ad and PV remain unser
 Clip is one short shot, not every video
 family; speech is one approved script, not the whole spoken-audio
 family; sfx is one short effect from a closed kernel or one prompted
-engine call, never music or a mix; music is one instrumental BGM or
+engine call, never music; music is one instrumental BGM or
 melodic opener/closer from an authored score or one prompted engine
-call, never a full song or a mix; read them for their `form`, never run
-their `<Procedure>`.
+call, never a full song; mix places already-finished speech/sfx/music
+sources on a shared timeline with gain/fade/envelope automation, never new
+synthesis, looping, EQ, reverb or source separation; read them for their
+`form`, never run their `<Procedure>`.
 
 </Modes>
 
