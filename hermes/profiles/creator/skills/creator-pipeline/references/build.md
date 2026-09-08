@@ -37,6 +37,7 @@ Do not relocate a valid Group-local request to the global deliverables area.
 | free, bounded one reply (`source`, `create`, `edit`, `analyze`) | `specialist_call(target="<hands>", message=<the text>, kind="inquiry")`; the reply is the leaf's `<Report>` or a `Q<n>:` block |
 | metered, multi-turn, or anything whose estimate exceeds ~4 minutes (`generate`) | `specialist_call(target="<hands>", message=<the text>, kind="work")`; the tool starts the resident session you supervise |
 | audio-creator's synthesis/ASR-heavy leaves (`generate-speech`; an `edit-speech`/`analyze-speech` that needs fresh ASR rather than reused sidecars) | `kind="work"` as in the metered row, even though the leaf is `cost: free` — synthesis and ASR routinely outlive the reply window. Use `kind="inquiry"` only when bounded and known to finish in one reply (reused, already-validated sidecars; no fresh ASR) |
+| audio-creator's `generate-sfx` | `kind="work"`; keep job state, variants and packaging/QA in one resident session even though local Medium spends $0. `create-sfx`/`edit-sfx`/`analyze-sfx` are free, bounded one-reply leaves and use the inquiry row above |
 | video-creator's `create-tour` | `specialist_call(target="video-creator", message=<the text>, kind="work")` even though free; local snapshots/rendering and preview approval are not one-reply work |
 | video-creator's `create-ad` / `analyze-ad` | `specialist_call(target="video-creator", message=<the text>, kind="work")`; approval turns or bounded multi-pass evidence extraction, not an inquiry |
 | image-creator's generate-card, custom-style Card or multi-tile Card | `kind="work"`; explicit budget/creative questions or multiple local renders/looks need the same persistent conversation |
@@ -63,8 +64,8 @@ later wakeup promise. A2A inbound cannot launch work: ask the caller to reissue
 the released unit to Creator with `specialist_call(kind="work")`.
 
 Hands and their peers: `image-creator` (still images), `video-creator`
-(short clips, generated MVs and task-local authored UI tours; no TTS), `audio-creator` (spoken speech only — no music,
-singing or sound effects). One session per job per hands; never carry
+(short clips, generated MVs and task-local authored UI tours; no TTS), `audio-creator` (spoken speech and short sound effects — no music,
+singing or mixing). One session per job per hands; never carry
 unrelated jobs in one.
 
 For analyze-clip, `deliver` may be omitted: its report and scratch evidence
@@ -74,7 +75,20 @@ than repeating an A2A request that may still be running.
 
 For analyze-speech, `deliver` may likewise be omitted: its report is
 findings only, no new audio file, and expect no files back beyond the
-reply text itself.
+reply text itself. `analyze-sfx` is the same: findings only, `deliver`
+optional.
+
+For generate-sfx, relay exactly what was settled: if no engine is named,
+audio-creator uses the local Medium default (no paid approval to relay,
+still worth stating the requested `seconds`/`seed` if the client cares
+about a specific take). If the client explicitly wants
+`fal:elevenlabs-sfx-v2`, relay the approved engine/prompt/seconds/loop/attempt-cap/USD
+estimate exactly as approved — never let audio-creator's own engine-
+availability finding stand in for that approval. Never approve a seed on
+fal or a loop/prompt_influence control on local; the leaf rejects both
+outright. A finished sfx WAV may later feed `create-ad` as one distinct
+placed audio cue — never a music/mix input, and never folded into a
+`create-tour` job.
 
 ## Supervising
 

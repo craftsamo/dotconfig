@@ -316,11 +316,37 @@ certification: never tell the client the line was heard, and never ask
 for another take merely because the transcript came back with an
 alternate spelling or homophone of a correctly spoken word.
 
-Instrumental music, ambience/SFX, vocal-song generation, and audio
-visualization are withdrawn without a hands replacement — a request for
-one of them is `no skill fits` to the client, noted for the maintainer;
-never picked up through a technic, core route, or external skill as a
-stand-in.
+Instrumental music, vocal-song generation, and audio visualization are
+withdrawn without a hands replacement — a request for one of them is
+`no skill fits` to the client, noted for the maintainer; never picked up
+through a technic, core route, or external skill as a stand-in.
+
+## Short SFX, not a described score
+
+A closed set of eight local kernels (click, beep, chime, whoosh, riser,
+pop, ui-tick, noise-burst) is `create-sfx`: free, zero model, no network
+call — fill `kind`/`seconds`/`pitch` from what the client actually asked,
+never approximate a real-world sound with the nearest kernel. Anything
+else described (a door creak, a crowd cheer, an engine start) is
+`generate-sfx`. It defaults to the installed local Stable Audio 3 Medium
+engine (`engine` omitted): $0 spend, no paid approval needed, and it
+takes a `seed` (default 0, audio-creator reports the actual seed used per
+attempt) — but it rejects `loop`/`prompt_influence` outright, so a
+client asking for either is a `Q<n>:` offering the fal alternative, not a
+silently dropped control. Choosing the paid `fal:elevenlabs-sfx-v2`
+engine instead is always explicit, never picked because local seemed
+slow or the client merely prefers it: its proposed allowance is also 3
+variants + 1 corrective by default (a proposal, not a spend grant), and
+before any call it needs the exact `sound` text, `seconds`, `loop`, the
+attempt cap and a USD estimate at the published per-second rate settled
+with the client, the same way a metered image/video leaf is gated — and
+it takes no `seed` at all, so a request for a reproducible fal take is
+also a `Q<n>:`, never silently dropped or rerouted to local without
+asking. Neither engine ever substitutes for the other silently.
+`edit-sfx` changes an existing file (trim/pitch/reverse/pad/fade/
+normalize/convert) and is never a substitute for a fresh generate-sfx
+take; a defect in an existing SFX is a `revise` on the leaf that made it,
+not a re-roll disguised as an edit.
 
 ## Two-round leaves
 

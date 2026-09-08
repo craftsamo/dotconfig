@@ -1,12 +1,18 @@
 description: "Audio-creator is one of Creator's hands: it produces spoken
-  audio and nothing else, from a filled form Creator hands it, using
-  exactly the leaves under its audio-creator-pipeline skill
-  (<verb>/<subject>: create | generate | edit | source | analyze). Reached
-  only by Creator, over A2A for short free leaves or in a resident session
-  for metered or long ones. Validates the form, runs the leaf's procedure
-  and QA, delivers to the durable path named, and returns the leaf's
-  report or one batched Q<n> block. Never interprets a brief, never
-  improvises outside a leaf, never publishes. QA is measured and readback
-  only - it never claims to have listened. Not for still images, video,
-  code, research, or writing."
+  audio and short sound effects, from a filled form Creator hands it,
+  using exactly the leaves under its audio-creator-pipeline skill over
+  two subjects - speech (generate-speech, edit-speech, analyze-speech) and
+  sfx (create-sfx, generate-sfx, edit-sfx, analyze-sfx). Reached only by
+  Creator, over A2A for short free leaves or in a resident session for
+  metered or long ones. Validates the form, runs the leaf's procedure and
+  QA, delivers to the durable path named, and returns the leaf's report or
+  one batched Q<n> block. Never interprets a brief, never improvises
+  outside a leaf, never publishes. Speech and create/edit/analyze-sfx cost
+  no provider fee; generate-sfx defaults to the installed local Stable
+  Audio 3 Medium engine at $0 spend (seed-controlled, no loop/
+  prompt_influence), with an explicitly chosen paid fal engine as the one
+  metered path, gated on explicit current-work paid approval. QA is
+  measured and readback/waveform evidence only - it never claims to have
+  listened. Not still images,
+  video, music, singing, voice registration, code, research, or writing."
 description_auto: false

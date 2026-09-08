@@ -42,7 +42,7 @@ class AudioCreatorRoutingTest(unittest.TestCase):
         )
 
     def test_toolsets_are_exact_allowlist_no_broad_grants(self) -> None:
-        expected = {"terminal", "file", "tts", "skills", "memory"}
+        expected = {"terminal", "file", "tts", "sfx_gen", "skills", "memory"}
         self.assertEqual(expected, set(self.audio["toolsets"]))
         self.assertNotIn("no_mcp", self.audio["toolsets"])
         platform_toolsets = self.audio["platform_toolsets"]
@@ -56,11 +56,14 @@ class AudioCreatorRoutingTest(unittest.TestCase):
 
     def test_plugins_enable_tts_and_character_voice_not_on_creator(self) -> None:
         audio_plugins = set(self.audio["plugins"]["enabled"])
-        for plugin in ("character-voice", "irodori-tts", "qwen3-tts", "tts-fallback", "skill-topology"):
+        for plugin in ("character-voice", "irodori-tts", "qwen3-tts", "tts-fallback", "sfx-gen", "skill-topology"):
             self.assertIn(plugin, audio_plugins)
         creator_plugins = set(self.creator["plugins"]["enabled"])
         self.assertNotIn("character-voice", creator_plugins)
+        self.assertNotIn("sfx-gen", creator_plugins)
         self.assertIn("tts", set(self.creator["toolsets"]))
+        self.assertNotIn("sfx_gen", set(self.creator["toolsets"]))
+        self.assertNotIn("sfx-gen", set(self.image["plugins"]["enabled"]))
 
     def test_model_and_fallback_match_image_creator_no_secrets(self) -> None:
         self.assertEqual(self.image["model"], self.audio["model"])
@@ -69,15 +72,21 @@ class AudioCreatorRoutingTest(unittest.TestCase):
         for provider in self.audio["fallback_providers"]:
             self.assertEqual("", provider.get("api_key", ""))
 
-    def test_pipeline_leaves_are_speech_only_no_source_or_create(self) -> None:
+    def test_pipeline_leaves_are_speech_and_sfx_no_source(self) -> None:
         pipeline = HERMES_ROOT / "profiles" / "audio-creator" / "skills" / "audio-creator-pipeline"
         for verb in ("generate", "edit", "analyze"):
             self.assertTrue((pipeline / verb / "speech" / "SKILL.md").is_file())
-        for forbidden_verb in ("source", "create"):
-            self.assertFalse((pipeline / forbidden_verb).exists())
+        for verb in ("create", "generate", "edit", "analyze"):
+            self.assertTrue((pipeline / verb / "sfx" / "SKILL.md").is_file())
+        self.assertFalse((pipeline / "create" / "speech").exists())
+        self.assertFalse((pipeline / "source").exists())
         prompt = self.audio["agent"]["system_prompt"]
-        self.assertIn("costs no", prompt)
+        # No blanket "audio is free" claim: speech keeps its 1+1 take grant,
+        # generate-sfx is explicitly the metered, paid-approval leaf.
         self.assertIn("600-character script", prompt)
+        self.assertIn("generate-sfx", prompt)
+        self.assertIn("metered", prompt)
+        self.assertIn("paid approval", prompt)
 
     def test_docs_list_all_three_hands_and_no_tts_voice_residue(self) -> None:
         profiles_md = (HERMES_ROOT / "PROFILES.md").read_text()
@@ -109,6 +118,34 @@ class AudioCreatorRoutingTest(unittest.TestCase):
         self.assertIn("audio-creator", contents)
         for retired in ("voice", "audio-generation", "song-generation", "audio-visualization"):
             self.assertFalse((references / "plan" / "creative" / f"{retired}.md").exists())
+
+    def test_runtime_toolset_cache_keeps_sfx_gen_profile_scoped(self) -> None:
+        """sfx_gen must resolve only for audio-creator's scope, same fix as tts."""
+        import toolsets
+        from hermes_constants import set_hermes_home_override, reset_hermes_home_override
+        from tools.registry import ToolRegistry
+
+        reg = ToolRegistry()
+        with tempfile.TemporaryDirectory() as temp, patch("tools.registry.registry", reg), patch.object(toolsets, "_resolve_toolset_memo", {}):
+            audio_home = Path(temp) / "audio"
+            token = set_hermes_home_override(audio_home)
+            try:
+                reg.register(
+                    name="sfx_engines", toolset="sfx_gen",
+                    schema={"name": "sfx_engines", "parameters": {"type": "object", "properties": {}, "additionalProperties": False}},
+                    handler=lambda args, **kwargs: "{}", scope=reg.current_scope_key(),
+                )
+            finally:
+                reset_hermes_home_override(token)
+            for home in (Path(temp) / "creator", audio_home, Path(temp) / "creator", audio_home):
+                token = set_hermes_home_override(home)
+                try:
+                    self.assertEqual(
+                        home == audio_home, "sfx_engines" in toolsets.resolve_toolset("sfx_gen"),
+                        "Hermes resolve_toolset cache must keep sfx_gen scoped to audio-creator",
+                    )
+                finally:
+                    reset_hermes_home_override(token)
 
     def test_runtime_toolset_cache_keeps_profile_overlay(self) -> None:
         """Guard the upstream scope-key fix required by a multiplexed TTS hand."""

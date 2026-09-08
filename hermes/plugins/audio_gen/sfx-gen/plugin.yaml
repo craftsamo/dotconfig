@@ -1,0 +1,6 @@
+name: sfx-gen
+version: 0.1.0
+description: >-
+  AudioCreator-only sound-effect generation with explicit paid approval,
+  bounded attempts and resumable fal requests. No music, speech or mixing.
+kind: standalone

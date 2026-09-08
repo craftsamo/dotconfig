@@ -43,6 +43,11 @@ only when they share tools, spend class, and verification.
 | a house-voice or registered-character spoken line from an approved script (up to 600 characters), as narration or a voice message | audio-creator: generate-speech | free of provider cost, NOT free of an attempt allowance: 1 take + 1 corrective per script by default, counting every synthesis call including failures; house uses the language fallback chain, a qualified `<engine>:<voice>` id never falls back |
 | concatenation, boundary trim, speed, loudness normalization or format conversion of existing speech | audio-creator: edit-speech | free of generation; no resynthesis, no word changes, no voice conversion |
 | findings on an existing speech file against a destination format, with optional script readback | audio-creator: analyze-speech | free; measured and readback evidence only, never a listening verdict; deliver may be omitted |
+| a deterministic short UI/game sound from a closed set of eight local kernels (click, beep, chime, whoosh, riser, pop, ui-tick, noise-burst) | audio-creator: create-sfx | free, zero model, no network call; a described real-world sound routes to generate-sfx instead |
+| a described real-world or complex sound effect, default engine | audio-creator: generate-sfx (local Stable Audio 3 Medium, engine omitted) | free ($0), no paid approval needed; takes a seed (default 0), rejects loop/prompt_influence outright; still bounded by an attempt cap (default 3 variants + 1 corrective, hard cap 8) |
+| the same, via the explicitly chosen paid engine (loop or prompt-adherence control needed) | audio-creator: generate-sfx (`engine: fal:elevenlabs-sfx-v2`) | metered; explicit current-work paid approval of engine/prompt/seconds/loop/attempt cap (default 3 variants + 1 corrective) and a USD estimate before any spend; no seed, no local fallback |
+| trim / pitch shift / reverse / pad / fade / true-peak normalize / format-convert of an existing SFX file | audio-creator: edit-sfx | free; preserves the original, never re-synthesizes |
+| findings on an existing SFX file's format, loudness, clipping and silence | audio-creator: analyze-sfx | free; measured findings only, never a listening verdict; deliver may be omitted |
 
 Ad means a specific audience, promise and intended action. PV primarily
 introduces qualities/experience/world: neither duration nor a CTA alone decides.
@@ -86,8 +91,10 @@ ordinary conversational spoken reply that is not a delivered asset still
 identifies as `core:tts`. `creator-html-motion` consumes a finished
 narration file from audio-creator as an input rather than synthesizing
 speech itself; its `media-use` support remains an implementation engine
-for its own non-speech asset/caption handling. Instrumental/SFX music,
-vocal-song generation, and audio visualization are withdrawn without a
+for its own non-speech asset/caption handling. Short sound effects route
+to audio-creator's create-sfx / generate-sfx / edit-sfx / analyze-sfx
+above; the technic table below carries no SFX-production entry. Instrumental
+music, vocal-song generation, and audio visualization are withdrawn without a
 hands replacement — a request for one of them is `no skill fits`, never
 routed to a core/external route as a stand-in. Other niche assets may
 use an `external:<skill>` identity only after an availability preflight.
@@ -106,10 +113,13 @@ use an `external:<skill>` identity only after an availability preflight.
 3. Static terminal-safe ASCII output is `creator-ascii-art`; any timed or
    audio-reactive ASCII render is `creator-ascii-video`. A delivered speech
    asset routes to audio-creator's generate-speech (`core:tts` only for an
-   undelivered conversational reply). Instrumental/SFX generation,
-   lyrics-to-song generation, and audio visualization are withdrawn without
-   a hands replacement — `no skill fits`, never a fallback to a technic,
-   core route, or external skill.
+   undelivered conversational reply); a short sound effect routes to
+   audio-creator's create-sfx (closed local kernel) or generate-sfx
+   (described sound, local Medium default at $0, or explicit paid fal on
+   request). Instrumental
+   generation, lyrics-to-song generation, and audio visualization are
+   withdrawn without a hands replacement — `no skill fits`, never a
+   fallback to a technic, core route, or external skill.
 4. Stack a supporting technic only when the brief truly spans methods.
    Generated backdrop plus exact card copy is ONE generate-card form, not
    creator-generated-image + creator-text-card. Text-free illustrations alone

@@ -21,6 +21,24 @@ stays explicit in the verdict: whether that perceptual gap is acceptable
 is the client's decision, not yours to resolve by claiming to have
 listened.
 
+## SFX deliveries — read the measurements, do not relisten
+
+An SFX delivery is reviewed the same way as speech: never opened with
+vision, never relistened to. Read the hands' full-decode/peak/true-peak/
+LUFS/clipping measurements against what the client asked for (a
+matching kind for create-sfx, a matching prompt/seconds/engine for
+generate-sfx). A waveform or a LUFS number is evidence, not a listen —
+do not tell the client the sound was heard. A short/transient clip's
+missing `integrated_lufs` is the hands' documented WARN case, not a
+defect: never send it back for a re-roll on that basis alone. Preserve
+every WARN and FAIL exactly as reported, including a lossy derivative's
+independently measured peak and any dependency error distinguished from
+a measured FAIL. On a local Medium delivery, a repeated `seed` matching
+the hands' reported decoded-PCM hash is reproducibility evidence, not a
+listened confirmation. `boundary_sample_deltas` on a fal `loop: yes`
+request is descriptive only, never proof of a seamless loop; carry that
+gap forward rather than resolving it yourself.
+
 ## Look before you answer (visual deliveries)
 
 For Card compare exact copy, selected look, layout at the actual destination
@@ -150,8 +168,9 @@ On a human's bot the file itself is sent when the platform can carry it
 ## QA is done when
 
 - every delivered visual file was looked at, at native size and at the
-  size of use, and the verdict is written (a speech delivery's evidence
-  was read per "Speech deliveries" above, not looked at or listened to);
+  size of use, and the verdict is written (a speech or SFX delivery's
+  evidence was read per "Speech deliveries" / "SFX deliveries" above, not
+  looked at or listened to);
 - the reply carries paths, spend, and relayed questions;
 - sessions for the job are closed (`specialist_session(action="close", conversation_id=<id>)`) unless a
   revise round is pending.
