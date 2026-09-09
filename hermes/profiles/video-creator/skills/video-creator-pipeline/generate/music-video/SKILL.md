@@ -302,7 +302,24 @@ discovery window; these details and the steps below remain part of the contract.
     approved proposal without pace/transition keeps its frozen prompt and timing;
     do not inject new defaults or silently reinterpret it. To adopt tempo controls,
     return a new proposal for approval, preserving the consumed-call ledger.
-6. Before the first call, write `<deliver>/prompt.txt` with approved proposal
+6. Route preflight happens inside this session's tool context only: the
+   video_generate schema/capabilities and the chain's advertised surface are
+   the evidence. Never probe credentials from a terminal child or a venv
+   script: terminal children do not inherit tool credentials, so such a probe
+   reports a missing key for a route that works in the tool (2026-09-09: a
+   job-local script returned a fal ValueError while FAL_KEY sat in the profile
+   scope, and the job stopped at 0 calls). A chain such as vid-xai-fal is
+   available when ANY member is; an unavailable or unverified secondary member
+   is disclosed in the ledger, never a blocker, and never consumes an attempt.
+   Stop before spend only when the member the approved surface needs (xAI for
+   a character reference) is unavailable or the approved surface changed. A
+   preflight finding records its stage and sanitized message, never only an
+   exception type, and its outcome is either proceed within the approved grant
+   or blocked with the named gap; "review required" is not an outcome, and an
+   unverified route is never reported as a cleared budget check. A public
+   per-second price is an assumption recorded in prompt.txt, not a verified
+   bill or a cap: the grant is counted in attempts. Before the first call,
+   write `<deliver>/prompt.txt` with approved proposal
    path/digest, exact prompt, effective parameters, input roles/consent, budget
    and attempt ledger. Japanese text travels via files/tool arguments, not
     shell argv. Read the approved prompt-only file as the prompt argument with

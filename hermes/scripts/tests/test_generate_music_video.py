@@ -351,6 +351,21 @@ class StaticContractLanguageTest(unittest.TestCase):
         )
         self.assertIn("full decode proves file integrity, not an unbroken shot", continuous)
 
+    def test_route_preflight_stays_in_tool_context_and_names_its_gap(self) -> None:
+        text = " ".join(self.text.split())
+        for phrase in (
+            "Route preflight happens inside this session's tool context only",
+            "Never probe credentials from a terminal child or a venv script",
+            "terminal children do not inherit tool credentials",
+            "available when ANY member is",
+            "never a blocker, and never consumes an attempt",
+            "never only an exception type",
+            '"review required" is not an outcome',
+            "an unverified route is never reported as a cleared budget check",
+            "not a verified bill or a cap: the grant is counted in attempts",
+        ):
+            self.assertIn(phrase, text)
+
     def test_rename_keeps_output_paths_and_requires_fresh_legacy_approval(self) -> None:
         text = " ".join(self.text.split())
         self.assertIn("<deliver>/mv_<slug>_v<N>.mp4", text)
@@ -362,6 +377,75 @@ class StaticContractLanguageTest(unittest.TestCase):
         )
         self.assertIn("never edit frozen old jobs, prompts or approvals", text)
         self.assertIn("preserve consumed attempts", text)
+
+
+class ConfiguredChainPreflightTest(unittest.TestCase):
+    """The real vid-xai-fal chain plugin: an unavailable or raising secondary
+    member leaves the chain available, its surface follows the first available
+    member, and one generate call never touches the unavailable member. This is
+    the runtime fact the route-preflight rule relies on; no provider is real."""
+
+    CHAIN = VALIDATOR.HERMES_ROOT / "plugins" / "video_gen" / "video-fallback" / "__init__.py"
+
+    def setUp(self) -> None:
+        spec = importlib.util.spec_from_file_location("video_fallback_preflight", self.CHAIN)
+        assert spec and spec.loader
+        self.module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(self.module)
+        self.assertEqual(["xai", "fal"], self.module._CHAINS["vid-xai-fal"])
+
+    def member(self, name: str, *, available: bool | Exception, calls: list) -> object:
+        module = self.module
+
+        class Member(module.VideoGenProvider):
+            @property
+            def name(self) -> str:
+                return name
+
+            @property
+            def display_name(self) -> str:
+                return name
+
+            def is_available(self) -> bool:
+                if isinstance(available, Exception):
+                    raise available
+                return available
+
+            def capabilities(self) -> dict:
+                return {"member": name, "supports_audio": False}
+
+            def generate(self, prompt: str, **kwargs: object) -> dict:
+                calls.append((name, prompt, kwargs.get("reference_image_urls")))
+                return {"success": True, "provider": name, "prompt": prompt}
+
+        return Member()
+
+    def test_unavailable_or_raising_fal_never_blocks_or_consumes_xai(self) -> None:
+        for fal_state in (False, ValueError("video_gen is configured to use vid-xai-fal but FAL_KEY is not set")):
+            with self.subTest(fal=type(fal_state).__name__):
+                calls: list = []
+                members = {"xai": self.member("xai", available=True, calls=calls),
+                           "fal": self.member("fal", available=fal_state, calls=calls)}
+                chain = self.module.ChainProvider("vid-xai-fal", self.module._CHAINS["vid-xai-fal"])
+                with patch.object(self.module.video_gen_registry, "get_provider", members.get):
+                    self.assertTrue(chain.is_available())
+                    self.assertEqual("xai", chain.capabilities()["member"])
+                    result = chain.generate("approved prompt", duration=10,
+                                            reference_image_urls=["file:///reference.png"])
+                self.assertTrue(result["success"])
+                self.assertEqual([("xai", "approved prompt", ["file:///reference.png"])], calls)
+
+    def test_missing_required_member_is_a_named_gap_not_a_call(self) -> None:
+        calls: list = []
+        members = {"xai": self.member("xai", available=False, calls=calls),
+                   "fal": self.member("fal", available=False, calls=calls)}
+        chain = self.module.ChainProvider("vid-xai-fal", self.module._CHAINS["vid-xai-fal"])
+        with patch.object(self.module.video_gen_registry, "get_provider", members.get):
+            self.assertFalse(chain.is_available())
+            result = chain.generate("approved prompt", duration=10)
+        self.assertFalse(result["success"])
+        self.assertIn("xai: unavailable", result["error"])
+        self.assertEqual([], calls)
 
 
 if __name__ == "__main__":
