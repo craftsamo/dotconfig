@@ -1522,9 +1522,14 @@ Creator conversation. No paid generation or gateway restart was performed.
 directories — `hyperframes-core`, `hyperframes-animation`, `cut-the-curve`,
 `oversized-cursor` — from the same harness-neutral `~/.agents/skills` store
 described under "HyperFrames skills live outside the repo" in `AGENTS.md`.
-Only `create-tour` and `create-ad` may consult them, per the shared rule in
+Only `create-tour`, `create-ad` and `create-explainer-video` may consult
+them, per the shared rule in
 `video-creator-pipeline/references/hyperframes.md`; every other leaf in this
-profile (clip, MV, analyze-ad) does not use them. The four references are
+profile (clip, MV, analyze-ad) does not use them, and Motion Canvas — one of
+`create-explainer-video`'s two implemented renderer choices, selected
+explicitly in its proposal and never a silent switch — is not part of this
+pin: it needs no external HyperFrames skill and instead uses its own local
+reference (`create/explainer-video/references/motion-canvas.md`). The four references are
 optional, read-only, procedural background — staging/timing/determinism,
 GSAP animation rules, specific in-scene staging techniques, and approved
 pointer-led scenes — never a new approval gate, workflow or leaf, and never
@@ -1766,6 +1771,164 @@ ran the scoped tests and both validators. Profile warnings are newly untracked
 managed files until committed; portable skill warnings are the documented Hermes
 metadata/nested-name exceptions. No gateway restart or live handoff was performed.
 
+### Explainer-video family
+
+`video-creator-pipeline/create/explainer-video/` serves `create-explainer-video`:
+a bounded (1..180 second) local-authored explanation of a topic, for an
+audience, toward a `learning_goal` — never a UI task walkthrough
+(`create-tour`), an advertisement (`create-ad`), or a model-generated
+music-video-style piece (`generate-music-video`). Always
+`specialist_call(kind="work")`, even though the leaf is `cost: free`
+(both renderers are local authoring — no provider fee). The renderer is
+an explicit engine choice made in the proposal (plan `version`/`renderer`
+fields) and preserved once made, never silently switched, including never
+on failure: `renderer: hyperframes` (plan `version: 1`) authors HTML/CSS/
+GSAP through the profile's existing local HyperFrames authoring; `renderer:
+motion-canvas` (plan `version: 2`) authors a Motion Canvas `scene.tsx`
+through the pinned local Motion Canvas runtime
+(`engines/motion-canvas/`), maintainer-provisioned and never installed by a
+job — see the leaf's own
+`create/explainer-video/references/motion-canvas.md` for that engine's
+source/plan/runtime contract, which needs no external HyperFrames skill.
+Prefer Motion Canvas for reactive diagrams, algorithms and Canvas-based
+explanation; prefer HyperFrames for HTML/UI or media-oriented
+compositions. An old `version: 1` plan that named `renderer:
+motion-canvas` before this engine existed was discussion-only and stays
+non-executable — rendering with Motion Canvas always needs a fresh
+`version: 2` proposal and a new approval, never reuse of that old hash.
+Both engines support 16:9 (1280x720) or 9:16 (720x1280) at 30fps.
+
+`framing` (none / bust / full) is a field independent of `performance`
+(still / puppet / animated) and `lip_sync` (off / cues / baked). Bust
+only *proposes* lip-sync cues as a default; that proposal is never a
+silent substitute for an explicitly requested `off`. Full supports
+whatever performance choice was actually approved — it is never an
+automatic upgrade past what the client chose. Neither renderer gives this leaf automatic phoneme/viseme
+inference, rig authoring, or native talking-model playback — generation
+of a naturally talking video is explicitly not provided; the leaf never
+claims to have produced one on its own. Two supported ways to still get a
+performance: already-authored cue JSON plus mouth PNGs can drive a
+deterministic mouth track, or a supplied finished muted MP4 that carries
+its own sync evidence can carry a continuous animated performance. A
+missing required performance asset is reported as `pending-inputs`, never
+silently downgraded to a lesser framing/performance/lip_sync combination.
+
+Character/asset resolution is Creator's job, not VideoCreator's: Creator
+resolves the caller-selected workspace/asset root privately — a direct
+path or an identity it already holds first, else a bounded name-only
+lookup inside the caller's own known workspace, with an ambiguous
+candidate returned as a question rather than a guess. No broad
+home-directory scan is performed, and a missing file is never read as
+license to invent a new character. Explicit assets are retained as
+unchanged originals; the resolved asset root and any private asset name
+stay working detail and are never embedded in a public proposal, form,
+or report. An unspecified character in the brief is not "no character" —
+Creator clarifies none vs. an existing character vs. a new one before
+filling the form. An existing character missing a pose this explanation
+needs is a missing-only-pose generation request through the fitting
+image-creator mascot leaf, preserving the character's approved anchor
+identity, never a fresh character concept.
+
+New character images route through image-creator's mascot family (never
+a direct call from VideoCreator); script text routes through Writer's
+current `write-script` family, never the retired writer technic and
+never Creator composing the script itself; grounding facts route through
+researcher as needed; narration/mixed audio routes through audio-creator.
+VideoCreator cannot call any of those hands or peers directly — it
+returns a dependency request to Creator, which releases it as its own
+separately budgeted and approved unit, the same composite-request
+discipline used for any other multi-form job (`build.md`).
+
+The runtime lifecycle mirrors Tour/Ad's proposal-then-approval
+shape: `propose --spec SPEC --out <new proposal-vN dir>` writes
+`plan.json` + `proposal.md` + an assets snapshot and returns
+`pending-inputs` or `awaiting-approval` together with the proposal's
+SHA-256; inputs still missing are described in `spec.pending`, never
+invented as files or hashes. The input script and the exact on-screen
+copy are approved inputs, and each unit explains its before/change/after
+state plus its visual expectations. A formally ready proposal exists only
+once the selected modes' required inputs are in hand and the renderer is
+supported; explicitly silent/no-character modes need no audio/character
+assets. The user approves it through Creator. Only a matching
+`freeze --approved-plan <proposal.md> --approval-sha256 HASH --source
+SOURCE --project NEW` releases the frozen project; `snapshot --project
+PROJECT --out NEW` follows, and only a matching `render --project
+PROJECT --approved-preview PREVIEW --approval-sha256 previewhash --out
+NEW` releases the final video. Nothing here self-approves, and a frozen
+project or delivered output is never rewritten in place. Client
+confirmation stays conversational, exactly like every other hands leaf —
+a hash binds bytes, never approver authority.
+
+For a HyperFrames plan, the existing curated HyperFrames external
+references and their read-only, discussion-scoped policy (see "Video
+authoring references" above) cover this leaf alongside create-tour/
+create-ad; a missing or unreadable reference is reported with a
+documented local-authoring fallback, never a blocker, while an actual
+runtime failure or a failed approval/validation check still blocks
+exactly as it already did for those two leaves. A Motion Canvas plan
+consults none of those four references — its own local
+`references/motion-canvas.md` stands in their place, and a missing/
+unreadable reference there is likewise reported with a local-authoring
+fallback. No fixed private asset path or name is introduced by
+this leaf, and no new registry, environment variable, or discovery
+script backs its character/asset resolution — Creator's existing
+Group-local `deliver:` conventions and the leaf's own local authoring
+apply unchanged. This family is additive: existing generate-music-video,
+create-ad/analyze-ad, create-tour and Mix routes are unchanged, and a
+request for explicit legacy Manim or its mathematical/3D scope retains
+`creator-manim-explainer`. An unsupported requested renderer remains a
+capability finding, not an automatic switch to that legacy technic or
+between HyperFrames and Motion Canvas.
+
+Verification (2026-09-09): 668 video/Mix regression tests and 29 subtests
+passed (7 opt-in tests skipped). All-profile topology/discovery validation
+and the portable explainer validator passed; the latter retains the three
+documented Hermes metadata/nested-name portability warnings. Real HyperFrames
+0.8.31 renders covered no character, bust/puppet/cues, full/still and supplied
+full/animated video, including both aspect ratios. The cue-at-zero variant
+also rendered correctly. The repeatable `fixtures/explainer-video/seek.mjs`
+checks fresh initial paint and forward/reverse boundary/interior mouth states;
+ordinary tests additionally exercise adjacent cues with real vendored GSAP.
+The generated track declares a function called by the scene, because HF
+coalesces inline scripts after external files; each boundary writes each
+mouth once to avoid reverse-seek ordering conflicts. Mix tests cover actual
+master/receipt/caption staging and decoded peak limits. These synthetic tone,
+manual-cue and test-video fixtures are technical evidence only, not real
+speech/character quality or live Creator-to-hands handoff verification.
+No private character inputs, runtime installs or gateway restart were used.
+That verification predates Motion Canvas and covers HyperFrames only; it is
+retained as historical evidence, not proof of the Motion Canvas engine
+below.
+
+Motion Canvas (2026-09-09 addition): a second renderer,
+`engines/motion-canvas/` (bootstrap `browser.ts`, import-confined esbuild+
+Puppeteer `render.mjs`, maintainer-only `setup.mjs`) plus the leaf's own
+`scripts/motion_canvas.py` adapter and `references/motion-canvas.md`, is
+now implemented and documented as a second explicit engine choice
+alongside HyperFrames — see the plan/renderer paragraph above for the
+version-1-vs-2 selection rule and the leaf's own reference for the full
+`scene.tsx`/`scene.meta` source contract, `@explainer/runtime` bindings,
+frame-grid/size bounds, and maintainer provisioning steps. This is trusted
+authored code, not a hostile-JavaScript sandbox. Rendering uses a dedicated
+browser clone and exports canvas PNGs without Vite/editor/HMR; only the
+approved master WAV is muxed by FFmpeg. Reactive visual bindings use the
+view's globalTime signal, not generator-thread-only useTime().
+
+Motion Canvas verification (2026-09-09): the ordinary video/Mix suites passed
+712 tests and 29 subtests (14 native/opt-in cases skipped). With the native
+Motion Canvas gate enabled, all 51 tests passed, including Japanese copy,
+both aspects, no character, bust/cues, full/puppet, supplied animated video,
+frozen-preview PNG equality, import confinement and cancellation cleanup.
+Separate Motion Canvas and HyperFrames fixtures also rendered; the MC
+Japanese fixture reproduced all eight approved raw sample PNG hashes.
+The final QA records each engine's actual contrast status: MC requires visual
+contrast/readability review rather than claiming an automated pass. The
+pinned runtime's npm audit reported zero vulnerabilities after fixing the
+transitive XML parser version. All-profile and portable leaf validation
+passed with the documented metadata warnings. These are synthetic technical
+fixtures, not real speech/character quality or live A2A handoff proof. No
+private character assets or gateway restart were used.
+
 ### Clip family
 
 `video-creator-pipeline/<verb>/clip/` is the first video hands family:
@@ -1773,7 +1936,7 @@ one short shot, not a generic film-production workflow. The profile uses
 the same main/auxiliary model settings as image-creator, keeps native image
 vision, and has video generation/analysis but no TTS, image generation, or
 outbound A2A. The profile's `skills.external_dirs` pins four curated
-HyperFrames technical references reserved for `create-tour`/`create-ad`
+HyperFrames technical references reserved for `create-tour`/`create-ad`/`create-explainer-video`
 (see "Video authoring references" above); clip does not consult them. Deterministic families
 may call HyperFrames through their own scripts; no external menu/router
 is pulled into this one.

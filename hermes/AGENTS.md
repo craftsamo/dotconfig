@@ -434,7 +434,7 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
   `video-creator` receives forms on loopback A2A `:9908`; its three clip leaves
   are `generate-clip` (1-15 s, silent single shot), `edit-clip` (a <=60 s
   segment), and `analyze-clip` (findings). It has no TTS; `create-tour`/
-  `create-ad` may optionally consult four curated HyperFrames technical
+  `create-ad`/`create-explainer-video` may optionally consult four curated HyperFrames technical
   references via `skills.external_dirs` (read-only, procedural background
   only — see `PROFILES.md` "Video authoring references"), and clip does not
   use them. `clip-media.py` owns local probe/frames/edit with exclusive
@@ -495,6 +495,96 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
   defaults never authorize missing asset generation. Generate-ad and PV are
   future leaves, no legacy mappings are retired. PV primarily introduces
   qualities/world; duration and CTA presence alone do not decide the route.
+- **Explainer video is a topic/audience/learning_goal deliverable, authored
+  locally, not a UI tour, an ad, or a talking-model product.**
+  `video-creator` serves `create-explainer-video`: 1..180 seconds, always
+  `specialist kind="work"` even though free, rendering through an
+  explicitly chosen v1 HyperFrames or v2 Motion Canvas engine at 16:9
+  (1280x720) or 9:16 (720x1280), 30fps — the engine is selected in the
+  proposal and preserved, never silently switched, including never on
+  failure. Motion Canvas is implemented (`engines/motion-canvas/`,
+  `create/explainer-video/scripts/motion_canvas.py`) as its own local
+  reference (`create/explainer-video/references/motion-canvas.md`) with no
+  dependency on the external HyperFrames skills; prefer it for reactive
+  diagrams, algorithms and Canvas-based explanation, and prefer HyperFrames
+  for HTML/UI or media-oriented compositions. Old version 1 Motion Canvas
+  discussion proposals stay non-executable and need a fresh version 2
+  proposal and a new approval, never a resume of the old hash.
+  `framing` (none/bust/full) is a field separate from `performance`
+  (still/puppet/animated) and `lip_sync` (off/cues/baked): bust only
+  proposes lip-sync cues by default, never a silent substitute for an
+  explicit `off`, and full supports whatever performance the client
+  actually approved rather than an automatic upgrade toward it. Neither
+  renderer provides automatic phoneme/viseme inference, rig authoring, or
+  native talking-model playback, so a naturally talking video is never
+  something this leaf generates on its own. Already-supplied authored cue
+  JSON plus mouth
+  PNGs can drive a deterministic mouth track; a supplied finished muted
+  MP4 carrying its own sync evidence can carry a continuous animated
+  performance instead. A missing required performance asset is reported
+  as pending-inputs, never a silent downgrade of framing/performance/
+  lip_sync. Creator, never VideoCreator, resolves the caller-selected
+  workspace/asset root: a direct path or an identity it already holds
+  first, else a bounded name-only lookup inside the caller's own known
+  workspace, with an ambiguous match going back as a question rather than
+  a guess — never a broad home-directory scan, and never a new character
+  invented merely because a file is missing. Explicit assets are retained
+  as unchanged originals; the resolved root and any asset's private name
+  stay working detail and never enter a public proposal, form, or report.
+  An unspecified character is not "no character" — Creator clarifies none
+  vs. an existing character vs. a new one, and an existing character
+  missing a needed pose is a missing-only generation request through the
+  fitting image-creator mascot leaf that preserves its approved identity.
+  New character art goes through image-creator's mascot family, script
+  text through Writer's current `write-script` family (never the retired
+  writer technic, and never Creator composing the script itself),
+  grounding facts through researcher as needed, and narration/audio
+  through audio-creator; VideoCreator cannot call those hands/peers
+  directly and instead returns a dependency request to Creator, released
+  as its own separately budgeted/approved unit. The runtime
+  lifecycle mirrors Tour/Ad's proposal-then-approval shape: `propose
+  --spec SPEC --out <new proposal-vN dir>` writes `plan.json` +
+  `proposal.md` + an assets snapshot and returns `pending-inputs` or
+  `awaiting-approval` with the proposal's SHA-256 — missing inputs are
+  described in `spec.pending`, never invented files or hashes; the
+  approved script and exact on-screen copy are settled inputs, and each
+  unit explains its before/change/after and visual expectations. A
+  formally ready proposal exists only once the selected modes' required
+  inputs and a supported renderer are in hand; silent/no-character modes
+  need no audio/character assets. The user approves it via
+  Creator. Only then does `freeze --approved-plan <proposal.md>
+  --approval-sha256 HASH --source SOURCE --project NEW` run, followed by
+  `snapshot --project PROJECT --out NEW`, and only a matching
+  `render --project PROJECT --approved-preview PREVIEW --approval-sha256
+  previewhash --out NEW` releases the final video. Nothing here
+  self-approves; frozen outputs stay unchanged. Client confirmation is
+  conversational like every other hands leaf — hashes bind bytes, not
+  approver authority. For a HyperFrames plan, the existing curated
+  HyperFrames external references and their read-only, discussion-scoped
+  policy (`video-creator-pipeline/references/hyperframes.md`, `PROFILES.md`
+  "Video authoring references") cover this leaf too, alongside
+  create-tour/create-ad; a missing or unreadable reference is reported with
+  a local-authoring fallback, never a blocker, while an actual runtime or
+  approval error still blocks as always. A Motion Canvas plan instead uses
+  only its own local reference and the pinned local runtime that a
+  maintainer explicitly provisions with
+  `node hermes/engines/motion-canvas/setup.mjs --browser <browser>` — jobs
+  never install or upgrade it. Setup APFS-clones a supplied macOS `.app`
+  browser into an ignored `runtime/browser/Renderer.app` (signed contents
+  preserved, avoiding a Dock/LaunchServices clash with the everyday
+  browser) and uses a non-app dedicated Chromium/headless-shell binary
+  directly; neither path copies cookies or a profile, so every render gets
+  a fresh isolated one. Rerunning setup against the same pinned lock skips
+  reinstalling dependencies but never overwrites a different existing
+  clone or a changed lock — that drift needs explicit maintainer
+  replacement/provisioning and a new preview approval. Every preview
+  records the actual runtime/Node/browser identity used; a normal browser
+  version change doesn't by itself require reinstalling, but any changed
+  identity still needs a fresh preview and approval, and final QA always
+  carries the engine's contrast-audit status — Motion Canvas has no
+  automated contrast check and reports it as requiring manual visual
+  review. This is additive: existing music-video, ad, tour and Mix routes
+  are unchanged.
 - **Audio hands own `speech`, `sfx`, `music` and `mix`.** `audio-creator` receives forms on A2A
   `:9909`: generate/edit/analyze-speech. The character-voice plugin registers
   only there; Creator retains ordinary conversational TTS, never a speech
@@ -707,11 +797,11 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
   intentional ones are the assistant's private-overlay `assistant-pipeline` and
   `desks`, which resolve and must stay. **`video-creator` pins four individual
   dirs from the same store** (`hyperframes-core`, `hyperframes-animation`,
-  `cut-the-curve`, `oversized-cursor`) for its `create-tour`/`create-ad`
-  leaves only — never the whole store, and the same never-copy/never-symlink
-  rule applies (see `PROFILES.md` "Video authoring references"). A missing or
-  unreadable entry there is a documented local-authoring fallback per that
-  leaf's contract, not a runtime failure.
+  `cut-the-curve`, `oversized-cursor`) for its `create-tour`/`create-ad`/
+  `create-explainer-video` leaves only — never the whole store, and the same
+  never-copy/never-symlink rule applies (see `PROFILES.md` "Video authoring
+  references"). A missing or unreadable entry there is a documented
+  local-authoring fallback per that leaf's contract, not a runtime failure.
 
 ## Writer leaf migration
 
