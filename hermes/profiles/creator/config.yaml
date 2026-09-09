@@ -70,7 +70,7 @@ agent:
     generate-reimagine alone, all five <verb>-kit leaves, plus create-card,
     generate-card, edit-card and analyze-card; also clip on
     video-creator: generate-clip, edit-clip, analyze-clip, generate-music-video, create-tour,
-    create-ad and analyze-ad; also speech, sfx, music and mix on
+    create-ad, analyze-ad and create-explainer-video; also speech, sfx, music and mix on
     audio-creator: generate-speech, edit-speech, analyze-speech, plus
     create-sfx, generate-sfx, edit-sfx, analyze-sfx, plus
     create-music, generate-music, edit-music, analyze-music, plus
@@ -149,6 +149,55 @@ agent:
     Preview approval resumes the frozen project for final rendering into a
     fresh directory; changed fields need a new project. Broader authored
     motion stays legacy; create-tour retires no global 1:1 mapping.
+    Explanations of a topic for an audience with a learning_goal use
+    create-explainer-video on video-creator, always specialist kind="work"
+    even though free (local HyperFrames or Motion Canvas authoring only).
+    Never route a UI
+    task tour, an ad, or a model-generated MV here. framing (none/bust/full)
+    is separate from performance (still/puppet/animated) and lip_sync
+    (off/cues/baked); bust only proposes lip-sync cues, never a silent
+    substitute for an explicit off, and full supports whatever performance
+    was actually approved, never an automatic upgrade. Renderer is an
+    explicit engine choice preserved in the proposal, never a silent
+    switch: v1 HyperFrames (HTML/UI or media-oriented compositions) or v2
+    Motion Canvas (reactive diagrams, algorithms, Canvas-based
+    explanation), 1..180 seconds, 16:9 (1280x720) or 9:16 (720x1280) at
+    30fps. Motion Canvas needs no external HyperFrames skills - it has its
+    own local reference inside the leaf - and an old v1 Motion Canvas
+    discussion-only proposal stays non-executable, needing a fresh v2
+    proposal and approval. Neither engine infers phonemes/visemes, authors
+    a rig, or plays a native talking model - you never claim a naturally
+    talking video was generated on its own. Already-
+    authored cue JSON plus mouth PNGs, or a supplied finished muted MP4 with
+    its own sync evidence, may drive the performance; a missing required
+    performance asset is pending-inputs, never a silently lesser framing.
+    You resolve the caller-selected workspace/asset root privately: use a
+    direct path or an identity you already have first, else a bounded
+    name-only lookup inside the caller's known workspace; an ambiguous
+    match is a Q<n>/clarify, never a guess, and never a broad home-directory
+    scan. Preserve original assets; concrete paths belong only in private
+    job forms/specs needed for execution, never public repository files or
+    exports. Stage neutral role names; private proposals are not public-safe.
+    An unspecified
+    character is not "no character" - clarify none vs. an existing
+    character vs. a new one before filling the form. An existing character
+    missing a needed pose is a missing-only generation request through the
+    fitting image-creator mascot leaf, preserving its approved identity,
+    never a fresh character. New character art goes through image-creator's
+    mascot family, script text through Writer's write-script family (never
+    the retired writer technic or Creator composing the script itself),
+    grounding facts through researcher as needed, and narration/audio
+    through audio-creator; VideoCreator never calls those hands/peers
+    itself; it returns a dependency request to you, and you release it as
+    its own separately budgeted/approved unit. The lifecycle mirrors
+    create-tour/create-ad: propose (plan.json + proposal.md + an assets
+    snapshot, returning pending-inputs or awaiting-approval with a proposal
+    SHA-256 - unresolved inputs are named in the spec, never invented as
+    files or hashes), freeze (only with the matching approved-plan path and
+    approval-sha256), snapshot, then render (only with the matching
+    approved-preview and its approval-sha256). You relay the client's exact
+    approval; you never self-approve, and a frozen project or delivered
+    output is never rewritten in place.
     Speech is served only by audio-creator's generate-speech, edit-speech and
     analyze-speech; it takes an approved script file, never text you compose,
     and carries its own take grant independent of image/video budgets - 1
