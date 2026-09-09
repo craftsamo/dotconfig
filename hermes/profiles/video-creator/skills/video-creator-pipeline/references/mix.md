@@ -1,7 +1,8 @@
 # Mix Timing And Receiving
 
-Read only for create-ad/create-tour with `audio_workflow: mix`. Simple supplied
-audio needs no Mix. Creator brokers all requests; hands never call each other.
+Read for create-ad/create-tour with `audio_workflow: mix`, or
+create-explainer-video receiving a finished Mix. Simple supplied audio needs
+no Mix. Creator brokers all requests; hands never call each other.
 
 ## Preliminary timing
 
@@ -54,6 +55,13 @@ The master must exactly match the video's full duration. Place it once at
 time 0 with a positive track index, unity volume, no media offset, no loop.
 No other audio, including embedded video sound, may play alongside it.
 
+Explainer stores these paths in its internal `audio` object (`mode: mix`),
+alongside a separately supplied approved `script`; do not inject an ad/tour
+`mix` or `audio_workflow` key. Its leaf's authoring reference owns that schema.
+Dry speech used to validate mouth cues may remain a hashed, unplayed asset;
+it never plays alongside the master. Cue offsets and source hashes must match
+the approved arrangement, not a fresh ASR or volume analysis of mixed audio.
+
 ## Captions And QA
 
 Mix captions carry clean-speech provenance with transformed times; they are
@@ -65,6 +73,9 @@ caption track and inspect its actual visibility at the entry's midpoint.
 No caption entries means no invented caption text. In Ad, captions are
 provenance only unless explicitly approved as normal copy rows; never inject
 unapproved extra ad copy.
+Explainer's supplied Mix captions use the same timed `mix-caption-N` contract
+as Tour and also belong in its approved copy ledger. Omit a captions asset only
+when the Mix receipt permits it; do not silently discard approved subtitles.
 
 Final render must contain the sole Mix track at the expected duration and
 within the approved peak ceiling (0.2 dB encoding tolerance, never >=0 dBTP).

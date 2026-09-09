@@ -1,8 +1,8 @@
 ---
 name: video-creator-pipeline
 description: >-
-  Root of video-creator's clip, MV, authored-UI-tour and ad leaves. Load first for a filled form naming
-  generate-clip, edit-clip, analyze-clip, generate-music-video, create-tour, create-ad or analyze-ad, then load only that leaf.
+  Root of video-creator's clip, MV, authored-UI-tour, ad and authored-explainer-video leaves. Load first for a filled form naming
+  generate-clip, edit-clip, analyze-clip, generate-music-video, create-tour, create-ad, analyze-ad or create-explainer-video, then load only that leaf.
   Not an interview, a video menu, or a generic movie-making workflow.
 version: 1.0.0
 author: CraftSamo
@@ -28,10 +28,24 @@ metadata:
 2. Load only the leaf's selected references and previous delivery for
    `intent: revise`. Reuse surviving intermediates before any new spend.
 3. Follow `<Procedure>`; no TTS, image generation, improvised pipelines, or
-   outside skills — except create-tour/create-ad's own optional, read-only
-   [HyperFrames references](references/hyperframes.md), consulted only when
-   that leaf's own contract calls for it, never as a substitute leaf or
-   workflow. generate-music-video authors a proposal within its form;
+   outside skills — except create-tour/create-ad/create-explainer-video's own
+   optional, read-only [HyperFrames references](references/hyperframes.md),
+   consulted only when that leaf's own contract calls for it, never as a
+   substitute leaf or workflow. create-explainer-video authors a bounded
+   (1..180s) topic/audience/learning_goal explanation only, rendering
+   through either v1 HyperFrames (HTML/UI or media-oriented compositions)
+   or v2 Motion Canvas (reactive diagrams, algorithms, Canvas-based
+   explanation) at 16:9/9:16 30fps — an explicit engine choice made and
+   preserved in the proposal, never a silent switch on failure. Motion
+   Canvas needs no external HyperFrames skills; it uses its own local
+   motion-canvas reference inside that leaf. Old version 1 Motion Canvas
+   discussion proposals stay non-executable and need a new version 2
+   proposal and approval. Neither engine gives automatic phoneme/viseme
+   inference or native talking-model playback. A missing required
+   performance asset (character art, script,
+   narration) is a dependency request back to Creator, reported as
+   pending-inputs — never invented and never a silent downgrade of
+   framing/performance/lip_sync. generate-music-video authors a proposal within its form;
    no approved proposal/digest means no generation, even with a budget.
    create-ad permits task-local HTML/CSS/GSAP advertising from supplied assets:
    content-plan approval, frozen-source preview, then exact-preview approval

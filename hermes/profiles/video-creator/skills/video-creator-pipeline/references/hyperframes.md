@@ -1,4 +1,4 @@
-# HyperFrames technical references (create-tour / create-ad only)
+# HyperFrames technical references (create-tour / create-ad / create-explainer-video only)
 
 Scope is narrow on purpose: read this leaf's own local authoring reference
 FIRST. These four external directories are optional advisory background,
@@ -22,6 +22,14 @@ file via `skill_view(name=..., file_path="...")`; do not list or install.
   look are advisory only and cannot override the approved design; convert
   any sample `left`/`top` motion to `x`/`y`/`scale`/`rotation` per this
   leaf's own animation contract.
+
+Motion Canvas is not one of these four references and this file grants it
+no scope. It is implemented as create-explainer-video's own separate v2
+renderer choice with its own local reference
+(`create/explainer-video/references/motion-canvas.md`), which these four
+HyperFrames references never back — a Motion Canvas job never treats this
+file as a substitute for that local reference, and this policy is never a
+route to a fallback renderer of either kind.
 
 ## Hard boundaries
 
