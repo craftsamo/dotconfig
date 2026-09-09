@@ -484,6 +484,33 @@ def validate_skill(
         )
 
 
+def learned_skill_files(learned_dir: Path) -> list[Path]:
+    """``learned/<name>/SKILL.md`` and ``learned/<category>/<name>/SKILL.md`` —
+    ``skill_manage`` nests an optional ``category`` under ``skills.create_dir``."""
+    if not learned_dir.is_dir():
+        return []
+    return sorted(
+        path for path in learned_dir.glob("*/SKILL.md")
+    ) + sorted(
+        path for path in learned_dir.glob("*/*/SKILL.md")
+    )
+
+
+def validate_learned_skills(
+    learned_dir: Path, errors: list[str]
+) -> tuple[dict[str, Path], set[tuple[str, ...]]]:
+    """Validate every learned skill; return ``{name: path}`` and the allowed
+    root tuples (relative to the skills dir) for :func:`validate_allowed_skill_roots`."""
+    learned: dict[str, Path] = {}
+    allowed: set[tuple[str, ...]] = set()
+    for path in learned_skill_files(learned_dir):
+        name = path.parent.name
+        validate_skill(path, name, errors)
+        learned[name] = path
+        allowed.add(("learned", *path.relative_to(learned_dir).parts))
+    return learned, allowed
+
+
 def validate_allowed_skill_roots(
     skills: Path,
     allowed: set[tuple[str, ...]],
@@ -547,13 +574,26 @@ def validate_plugin_source(errors: list[str]) -> None:
             errors.append(f"{name} implementation not found: {implementation}")
 
 
+LEARNED_CREATE_DIR = "skills/learned"
+
+
 def validate_plugin_enabled(profile: str, config: Path, errors: list[str]) -> None:
     if not config.is_file():
         errors.append(f"profile config not found: {config}")
         return
-    enabled = load_yaml(config).get("plugins", {}).get("enabled", [])
+    data = load_yaml(config)
+    enabled = data.get("plugins", {}).get("enabled", [])
     if not isinstance(enabled, list) or "skill-topology" not in enabled:
         errors.append(f"skill-topology plugin is not enabled: {config}")
+    # Placement of runtime-authored skills is skills.create_dir, not the
+    # plugin: skill_manage consults it on every create shape (flat and
+    # operations[]), where a tool_request rewrite only saw the flat one.
+    skills_cfg = data.get("skills")
+    create_dir = skills_cfg.get("create_dir") if isinstance(skills_cfg, dict) else None
+    if create_dir != LEARNED_CREATE_DIR:
+        errors.append(
+            f"skills.create_dir must be {LEARNED_CREATE_DIR!r}, got {create_dir!r}: {config}"
+        )
     if profile in WORKER_PROFILES and (
         not isinstance(enabled, list) or WORKER_MUTATION_GUARD_PLUGIN not in enabled
     ):
@@ -781,16 +821,11 @@ def validate_worker(
                 )
             leaves[name] = path
 
-    learned: dict[str, Path] = {}
-    if learned_dir.is_dir():
-        for path in sorted(learned_dir.glob("*/SKILL.md")):
-            name = path.parent.name
-            validate_skill(path, name, errors)
-            learned[name] = path
+    learned, learned_roots = validate_learned_skills(learned_dir, errors)
 
     allowed = {(pipeline_name, "SKILL.md")}
     allowed.update(("technic", name, "SKILL.md") for name in leaves)
-    allowed.update(("learned", name, "SKILL.md") for name in learned)
+    allowed.update(learned_roots)
     validate_allowed_skill_roots(skills, allowed, errors)
 
     capabilities = pipeline_dir / "references" / "capabilities.md"
@@ -1058,23 +1093,19 @@ def validate_assistant(
     for category, directory in (
         ("desks", desks_dir),
         ("technic", technic_dir),
-        ("learned", learned_dir),
     ):
         if not directory.is_dir():
             continue
         for path in sorted(directory.glob("*/SKILL.md")):
             name = path.parent.name
-            validate_skill(
-                path,
-                name,
-                errors,
-                expected_category=category if category != "learned" else None,
-            )
+            validate_skill(path, name, errors, expected_category=category)
             groups[category][name] = path
+    groups["learned"], learned_roots = validate_learned_skills(learned_dir, errors)
 
     allowed: set[tuple[str, ...]] = {("assistant-pipeline", "SKILL.md")}
-    for category, skills_by_name in groups.items():
-        allowed.update((category, name, "SKILL.md") for name in skills_by_name)
+    for category in ("desks", "technic"):
+        allowed.update((category, name, "SKILL.md") for name in groups[category])
+    allowed.update(learned_roots)
     validate_allowed_skill_roots(skills, allowed, errors)
 
     config = profile_root / "config.yaml"
@@ -1128,15 +1159,10 @@ def validate_shared(errors: list[str]) -> tuple[int, int]:
     else:
         errors.append(f"missing default pipeline skill: {default_skill}")
 
-    learned: dict[str, Path] = {}
-    if learned_dir.is_dir():
-        for path in sorted(learned_dir.glob("*/SKILL.md")):
-            name = path.parent.name
-            validate_skill(path, name, errors)
-            learned[name] = path
+    learned, learned_roots = validate_learned_skills(learned_dir, errors)
 
     allowed = {("default-pipeline", "SKILL.md")}
-    allowed.update(("learned", name, "SKILL.md") for name in learned)
+    allowed.update(learned_roots)
     validate_allowed_skill_roots(skills, allowed, errors)
     validate_git_boundary([default_pipeline], learned_dir, errors)
     validate_plugin_enabled("default", HERMES_ROOT / "config.yaml", errors)

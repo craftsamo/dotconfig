@@ -512,6 +512,7 @@ skills:
     - ~/ghq/github.com/NousResearch/hermes-agent/optional-skills/mcp/fastmcp
     - ~/ghq/github.com/NousResearch/hermes-agent/optional-skills/mcp/mcporter
     - ~/ghq/github.com/NousResearch/hermes-agent/optional-skills/web-development/cloudflare-temporary-deploy
+  create_dir: skills/learned
   template_vars: true
   inline_shell: false
   inline_shell_timeout: 10

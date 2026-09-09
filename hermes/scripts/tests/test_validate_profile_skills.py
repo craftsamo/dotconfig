@@ -402,6 +402,63 @@ class AssistantMessagingConfigTest(unittest.TestCase):
         self.assertTrue(any("Telegram chat tg-1 must have" in error for error in errors))
 
 
+class LearnedPlacementTest(unittest.TestCase):
+    """skills.create_dir owns where runtime-authored skills land."""
+
+    def write_config(self, text: str) -> Path:
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        path = Path(directory.name) / "config.yaml"
+        path.write_text(text, encoding="utf-8")
+        return path
+
+    def test_accepts_learned_create_dir(self) -> None:
+        config = self.write_config(
+            "skills:\n"
+            "  external_dirs: []\n"
+            "  create_dir: skills/learned\n"
+            "plugins:\n"
+            "  enabled: [skill-topology, kanban-worker-mutation-guard]\n"
+        )
+        errors: list[str] = []
+        VALIDATOR.validate_plugin_enabled("researcher", config, errors)
+        self.assertEqual([], errors)
+
+    def test_rejects_missing_or_foreign_create_dir(self) -> None:
+        for skills_block in ("skills:\n  external_dirs: []\n", "skills:\n  create_dir: skills\n", ""):
+            with self.subTest(skills_block=skills_block):
+                config = self.write_config(
+                    f"{skills_block}plugins:\n  enabled: [skill-topology, kanban-worker-mutation-guard]\n"
+                )
+                errors: list[str] = []
+                VALIDATOR.validate_plugin_enabled("researcher", config, errors)
+                self.assertTrue(
+                    any("skills.create_dir must be 'skills/learned'" in error for error in errors),
+                    errors,
+                )
+
+    def test_learned_skills_may_nest_one_category(self) -> None:
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        learned = Path(directory.name) / "learned"
+        for rel in ("flat", "research/nested"):
+            skill = learned / rel / "SKILL.md"
+            skill.parent.mkdir(parents=True)
+            skill.write_text(
+                f"---\nname: {skill.parent.name}\ndescription: x\n---\n", encoding="utf-8"
+            )
+        errors: list[str] = []
+        found, roots = VALIDATOR.validate_learned_skills(learned, errors)
+        self.assertEqual([], errors)
+        self.assertEqual({"flat", "nested"}, set(found))
+        self.assertEqual(
+            {("learned", "flat", "SKILL.md"), ("learned", "research", "nested", "SKILL.md")},
+            roots,
+        )
+        VALIDATOR.validate_allowed_skill_roots(learned.parent, roots, errors)
+        self.assertEqual([], errors)
+
+
 class EndToEndTest(unittest.TestCase):
     def test_all_profiles_pass(self) -> None:
         result = subprocess.run(
