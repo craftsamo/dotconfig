@@ -396,8 +396,9 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
   owns finish/palette/atlas/measure, uses alpha bounds rather than colour
   trim for hollow UI frames, and rejects stale nonempty QA/atlas dirs);
   Creator
-  (pipeline v7: Plan → Build → Quality
-  assurance, `creator-pipeline/references/{plan,build,quality-assurance}.md`)
+  (pipeline v8: Plan → Build → Quality assurance,
+  `creator-pipeline/references/<phase>/index.md` followed by the selected
+  `<hands>/<subject>.md`; plain references, never additional `SKILL.md`s)
   tells its client apart by the message's SHAPE — brief lines = the
   assistant → text `Q<n>:`; conversational = a human → the `clarify` tool
   (native buttons on Telegram) — fills the leaf's form and hands off; the
@@ -416,6 +417,19 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
   looks later and an unwritten run cycled 152 looks over three files;
   the write guard reads the WHOLE terminal command, so `cp … && <skill
   script>` is refused → a skill script runs in a command of its own).
+- **Creator's v8 broker references mirror subjects, not forms.** Each of
+  Plan / Build / Quality assurance owns a common index plus one flat
+  `<hands>/<subject>.md` for every subject actually served by the three
+  hands; verb differences stay inside that file. `validate_creator_references`
+  derives coverage from the hands leaves and checks both missing and orphan
+  references, real index links and local link targets. A v8 root requires the
+  complete tree and rejects the old phase monoliths; a v7 root with no phase
+  directories remains valid for the earlier Stack layer. New subject references
+  land with their hands family, never as placeholder stubs. Creator reads QA
+  evidence against intent; do not transplant the hands' measurement commands
+  into Creator's QA. Assistant's eventual contraction stays family-by-family
+  after caller coverage and both-client soak, not merely because a leaf exists.
+  Writer's released-unit ownership is unchanged; see PROFILES.md "Broker shape".
 - **Card is one image subject with create/generate/edit/analyze leaves.**
   `scripts/card.py` consumes canonical `create/card/references/destination/`
   scalar front matter and `styles/*.md` CSS blocks. Generate's own style refs
@@ -1006,7 +1020,8 @@ writes on the current machine, then commit it.
 
 - `./setup.sh` — install/refresh the hermes binary (uv venv); idempotent.
 - `./scripts/validate-profile-skills.py --all` — validate managed/learned skill
-  topology, metadata, routing registries, hands leaves and Git ownership; add
+  topology, metadata, routing registries, hands leaves, Creator's phase/subject
+  references and Git ownership; add
   `--strict-git` in a staged/clean tree to fail on managed files that are
   still untracked.
 - Tests: `PYTHONPATH=$(ghq root)/github.com/NousResearch/hermes-agent \
