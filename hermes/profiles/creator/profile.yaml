@@ -1,6 +1,13 @@
 description: "Creator serves human and assistant clients through Plan, Build
   and Quality assurance. Fills forms for ImageCreator's still-image families,
-  VideoCreator's short clips, generate-music-video and authored UI tours and AudioCreator's speech,
+  VideoCreator's short clips, generate-music-video, authored UI tours,
+  authored ads and bounded local-authored explainer videos (create-explainer-video:
+  topic/audience/learning_goal only, explicit v1 HyperFrames or v2 Motion
+  Canvas render (never a silent switch; an old v1 Motion Canvas
+  discussion-only proposal needs a fresh v2 proposal and approval), framing
+  none/bust/full and lip_sync off/cues/baked; character/script/grounding/
+  audio dependencies are relayed to image-creator/writer/researcher/
+  audio-creator, never fetched by VideoCreator itself) and AudioCreator's speech,
   sfx (create-sfx, generate-sfx, edit-sfx, analyze-sfx), instrumental music
   (create-music, generate-music, edit-music, analyze-music) and mix
   (create-mix, edit-mix, analyze-mix — placing already-finished speech/

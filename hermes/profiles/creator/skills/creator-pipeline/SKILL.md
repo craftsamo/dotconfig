@@ -73,11 +73,19 @@ read in Plan before any leaf is chosen. Hands today: `image-creator`
 `generate-reimagine`; `source-kit`, `create-kit`, `generate-kit`,
 `edit-kit`, `analyze-kit`; `create-card`, `generate-card`, `edit-card`,
 `analyze-card`); `video-creator` (`generate-clip`,
-`edit-clip`, `analyze-clip`, `generate-music-video`, `create-tour`, `create-ad`, `analyze-ad`, A2A peer for free short work, resident for
-generation or long work; create-tour always uses kind="work" despite being free;
-its recreate/supplied/capture modes share one leaf, with isolated approved Web
-capture owned by VideoCreator and native capture explicitly unavailable);
-and `audio-creator` (`generate-speech`,
+`edit-clip`, `analyze-clip`, `generate-music-video`, `create-tour`, `create-ad`, `analyze-ad`,
+`create-explainer-video`, A2A peer for free short work, resident for
+generation or long work; create-tour, create-ad and create-explainer-video
+always use kind="work" despite being free; tour's recreate/supplied/capture
+modes share one leaf, with isolated approved Web capture owned by
+VideoCreator and native capture explicitly unavailable; explainer-video is
+topic/audience/learning_goal explanation only, an explicit v1 HyperFrames
+or v2 Motion Canvas render chosen in the proposal (never a silent switch;
+an old v1 Motion Canvas discussion-only proposal needs a fresh v2 proposal
+and approval), and never calls image-creator/writer/researcher/audio-creator
+itself — a
+missing character/script/grounding/audio asset returns to you as a
+dependency request); and `audio-creator` (`generate-speech`,
 `edit-speech`, `analyze-speech`, `create-sfx`, `generate-sfx`, `edit-sfx`,
 `analyze-sfx`, `create-music`, `generate-music`, `edit-music`,
 `analyze-music`, `create-mix`, `edit-mix`, `analyze-mix`; A2A peer for a

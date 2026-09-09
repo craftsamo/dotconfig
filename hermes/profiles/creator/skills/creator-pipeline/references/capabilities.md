@@ -40,6 +40,7 @@ only when they share tools, spend class, and verification.
 | timestamped advertising reference breakdown or ad review: copy, persuasion, visual construction and CTA | video-creator: analyze-ad | <=60 seconds, kind="work"; overview, bounded dense windows and native copy evidence; optional retained report; not factual/provenance/performance verification |
 | exact-copy advertisement from approved product/logo/media assets | video-creator: create-ad | 6..30 seconds, 30fps; aspect 9:16 (default), 16:9, 1:1 or 4:5; native canvas per plan, no automatic crop/scale; kind="work", content-plan then preview approval; no generation/TTS/capture |
 | a UI task walkthrough: recreate from reference/design/text, edit supplied local footage, or record an approved sanitized Web demo | video-creator: create-tour | free, <=60 seconds; task-local source/preview/MP4, always kind="work"; free-text intro/outro default ON; explicit mode/proposal/scope gates, isolated Web wrapper only; native capture/login/privacy redaction unavailable; optional finished audio-creator WAV/words.json |
+| a bounded local-authored explanation of a topic for an audience with a learning_goal | video-creator: create-explainer-video | free, 1..180 seconds, always kind="work"; explicit v1 HyperFrames or v2 Motion Canvas render (never a silent switch; an old v1 Motion Canvas discussion-only proposal needs a fresh v2 proposal and approval), 16:9 (1280x720)/9:16 (720x1280) at 30fps; framing none/bust/full separate from performance still/puppet/animated and lip_sync off/cues/baked; missing character/script/grounding/audio inputs return as dependency requests, never invented; propose/freeze/snapshot/render mirrors Tour/Ad's proposal-then-approval shape |
 | a house-voice or registered-character spoken line from an approved script (up to 600 characters), as narration or a voice message | audio-creator: generate-speech | free of provider cost, NOT free of an attempt allowance: 1 take + 1 corrective per script by default, counting every synthesis call including failures; house uses the language fallback chain, a qualified `<engine>:<voice>` id never falls back |
 | concatenation, boundary trim, speed, loudness normalization or format conversion of existing speech | audio-creator: edit-speech | free of generation; no resynthesis, no word changes, no voice conversion |
 | findings on an existing speech file against a destination format, with optional script readback | audio-creator: analyze-speech | free; measured and readback evidence only, never a listening verdict; deliver may be omitted |
@@ -60,9 +61,14 @@ Only create-ad and analyze-ad are served; generate-ad and a PV leaf are not yet
 implemented. Never silently route a requested generated ad to MV or create-ad.
 Technical-only checks stay analyze-clip even for its what_for: ad option.
 
-The clip and MV scopes above are served, not the whole former generated-video
-technic. Named legacy methods below (ComfyUI, authored HTML motion,
-grid-exact pixels, montage/audio assembly) remain available for requests
+The clip, MV and explainer-video scopes above are served, not the whole
+former generated-video technic. create-explainer-video's HyperFrames- or
+Motion-Canvas-authored scope does not retire `creator-manim-explainer` for
+explicit Manim or its existing mathematical/3D animation scope. An
+unsupported renderer request is a capability finding, not permission to
+substitute Manim, HyperFrames or Motion Canvas for one another.
+Named legacy methods below (ComfyUI, authored HTML motion, grid-exact
+pixels, montage/audio assembly) remain available for requests
 that explicitly need them. Unsupported fields or a failed clip production
 are findings back to the client, never a silent switch to legacy.
 
@@ -150,7 +156,12 @@ identity only after an availability preflight.
     through generate-clip or guarantee exact music/lettering. Broader seekable HTML motion is
    `creator-html-motion`; p5.js canvas/WebGL work is
    `creator-p5js-experience`; mathematical teaching animation is
-   `creator-manim-explainer`.
+   `creator-manim-explainer` unless the request is a bounded
+   topic/audience/learning_goal explanation authored through HyperFrames or
+   Motion Canvas, which is `create-explainer-video` instead. A UI task walkthrough is
+   `create-tour`, not `create-explainer-video`, even when it explains a
+   feature; an explainer is never routed to a generated MV or clip merely
+   because it has motion.
 8. ComfyUI is an implementation backend, never a canonical capability. An image
    generated through it remains `creator-generated-image`; a clip remains
    `creator-generated-video`. Use only the Backend approved in the MediaBrief.

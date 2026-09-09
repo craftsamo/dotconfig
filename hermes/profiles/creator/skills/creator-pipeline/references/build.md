@@ -42,6 +42,7 @@ Do not relocate a valid Group-local request to the global deliverables area.
 | audio-creator's `create-mix`/`edit-mix`, both rounds | `kind="work"` from the proposal onward, the same two-round shape as `create-music`/`generate-music`; keep the proposal, Creator-relayed approval and render in the same resident conversation. `analyze-mix` is a free, bounded one-reply leaf and uses the inquiry row above |
 | video-creator's `create-tour` | `specialist_call(target="video-creator", message=<the text>, kind="work")` even though free; local snapshots/rendering and preview approval are not one-reply work |
 | video-creator's `create-ad` / `analyze-ad` | `specialist_call(target="video-creator", message=<the text>, kind="work")`; approval turns or bounded multi-pass evidence extraction, not an inquiry |
+| video-creator's `create-explainer-video` | `specialist_call(target="video-creator", message=<the text>, kind="work")` even though free; the propose/freeze/snapshot/render rounds and any dependency-request round-trip are not one-reply work |
 | image-creator's generate-card, custom-style Card or multi-tile Card | `kind="work"`; explicit budget/creative questions or multiple local renders/looks need the same persistent conversation |
 
 Pass the exact handoff text as `message`, with the released inputs, permissions
@@ -233,6 +234,27 @@ of the three examples. Explicit none is the only omission instruction.
 - Two independent forms may use separate `specialist_call` conversations
   (parallel when live messaging supports it). A dependent form waits for
   the report it consumes; copy the consumed path into the next form.
+
+For `create-explainer-video`, keep the propose/freeze/snapshot/render turns
+in one specialist work conversation the same way as `create-tour`. Relay
+`propose`'s `pending-inputs`/`awaiting-approval` result and its proposal
+SHA-256 for client approval before anything else; never invent a file or
+hash for an input the spec marked pending. A dependency request the hands
+return (missing character art, script, grounding, or narration) is a
+finding for you to release as its own separately budgeted/approved unit
+through image-creator/writer/researcher/audio-creator — never something
+VideoCreator fetches itself, and never a reason to relax framing/
+performance/lip_sync to something less than what was asked. The proposal
+also fixes an explicit v1 HyperFrames or v2 Motion Canvas renderer; changing
+it needs a new proposal too, never a silent switch, and an old v1 Motion
+Canvas discussion-only proposal cannot be resumed as a render — only a
+fresh v2 proposal and approval can. Only a
+matching `approved_plan`+`approval_sha256` releases `freeze`, and only a
+matching `approved_preview`+`approval_sha256` releases `render`; a changed
+topic/audience/learning_goal or framing/performance/lip_sync choice needs
+a new proposal, never a render against stale approval text. Never resolve
+or relay the caller's private asset root/name in the handoff text beyond
+what the leaf's form actually needs.
 
 ## Legacy — families with no hands yet
 
