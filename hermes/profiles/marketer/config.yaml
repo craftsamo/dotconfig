@@ -143,7 +143,7 @@ browser:
   auto_local_for_private_urls: true
   cdp_url: ""
   use_real_profile: true
-  real_profile_pin: "Profile 12"
+  real_profile_pin: "Profile 13"
   real_profile_binary: "~/.config/hermes/local/brave-agent/Brave Agent.app/Contents/MacOS/Brave Browser"
   dialog_policy: must_respond
   dialog_timeout_s: 300
