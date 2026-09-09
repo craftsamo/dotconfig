@@ -1,0 +1,17 @@
+{
+  "name": "hermes-motion-canvas-runtime",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {"node": ">=22.12.0"},
+  "dependencies": {
+    "@motion-canvas/core": "3.17.2",
+    "@motion-canvas/2d": "3.17.2",
+    "esbuild": "0.28.2",
+    "puppeteer-core": "25.10.0"
+  },
+  "overrides": {
+    "@motion-canvas/core": "3.17.2",
+    "@xmldom/xmldom": "0.9.12"
+  }
+}
