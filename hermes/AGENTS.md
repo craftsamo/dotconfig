@@ -720,25 +720,27 @@ Writer v7 accepts `<write|edit|analyze>/<subject>/SKILL.md` below
 Each leaf owns Procedure, QA and Report; selected reference options need
 local backing files and direct body links. `validate_writer_leaves` checks
 this without changing Creator hands' verbs or media cost contract.
-Keep unserved families on `references/legacy.md` until their own layer
-lands. Do not bundle all families, retire shared Japanese references early,
-or run both leaf QA and legacy review for a served operation.
+All six families now use leaves. Pre-draft advice uses only the root's
+`references/consultation.md`; a request to edit/evaluate a target selects its
+leaf. Unsupported combinations return to the requester, never a generic
+fallback. Keep new families in separate layers rather than bundling them.
 
 Article leaves distinguish source drafts from destination rendering. Keep
 platform capability notes local to each leaf; do not promise note/X Article
 Markdown import, unknown HTML support or untested embeds. Insertion markers
 bind to stable production-note IDs and never imply generated assets. A missing
 asset or editor step is not removed to manufacture a publication-ready result.
-The shared Japanese core no longer orchestrates inspection; retained resources
-serve only explicit legacy callers until their separate cleanup layer.
+The shared Japanese core supplies language knowledge, not inspection. Writer
+does not call its old reference or script paths; retire those resources only
+after checking other callers as well.
 
 Document leaves are `<write|edit|analyze>/document/`, including legacy briefs
 named documentation/business-document. Formats are local form options, not
 new profiles: README, guide, reference, report, minutes, proposal, slides,
 release notes and issue. Keep absent records distinct from explicit decisions;
 never infer owners, deadlines, release status or runtime success. Analysis
-returns a report, not a replacement document. No legacy inspection is added
-to served document work; other families retain their existing routes.
+returns a report, not a replacement document. No additional inspection workflow
+is added to a document leaf's checks.
 
 Message leaves are `<write|edit|analyze>/message/` for email, chat, notification,
 UI and error wording, not sending or system diagnosis. Preserve the sender's
@@ -764,8 +766,8 @@ Keep `.production.md` and required raw exports consistent with the master.
 Existing unit IDs remain stable; retired IDs are not recycled and any remapping
 needs requester/consumer agreement. Changed words invalidate dependent evidence
 until rechecked. Script analysis is a report, not a new production input. Each
-leaf owns QA; legacy resources stay only for explicit legacy callers/consultation
-until a separate cleanup, never as additional served-script inspection.
+leaf owns QA. Consultation may propose bounds but cannot present them as actual
+producer requirements or measured evidence, nor execute a writing workflow.
 
 ## Layout
 
