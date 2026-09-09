@@ -17,87 +17,25 @@ metadata:
     cost: free
     output: "authored MP4 at the approved ratio (9:16/16:9/1:1/4:5, 30fps) + frozen source + proof frames/QA"
     form:
-      product:
-        required: true
-        type: text
-        label: "what is being advertised"
-      audience:
-        required: true
-        type: text
-        label: "who watches and what they already know or need"
-      message:
-        required: true
-        type: text
-        label: "the single approved headline claim/benefit; must appear verbatim in the plan's copy"
-      cta:
-        required: true
-        type: text
-        label: "the single approved call to action; must appear verbatim in the plan's copy, held >=2s"
-      aspect:
-        required: false
-        options: ["9:16", "16:9", "1:1", "4:5"]
-        label: "output canvas ratio; default 9:16. Fixed dims per ratio (9:16=1080x1920, 16:9=1920x1080, 1:1=1080x1080, 4:5=1080x1350), no arbitrary size, no crop/scale of another ratio's layout"
-      assets:
-        required: true
-        type: path
-        label: "local directory of approved product/logo/audio/video assets; always ends up holding at least the vendored GSAP runtime files, even for a text-only ad"
-      claims:
-        required: false
-        type: text
-        label: "authoritative supporting evidence and restrictions for any claim-role copy; not fact-checked here, only required nonempty when used"
-      theme:
-        required: false
-        options: [office]
-        other: true
-        references: references/themes/*.md
-        label: "world/setting vocabulary; the listed default is a starting point, never a fixed preset"
-      theme_detail:
-        required: false
-        type: text
-        label: "override motifs, palette, materials or light; client choices replace conflicting theme defaults"
-      style:
-        required: false
-        options: [bold-graphic]
-        other: true
-        references: references/styles/*.md
-        label: "presentation treatment; a described look is equally valid"
-      direction:
-        required: false
-        options: [claim-led]
-        other: true
-        references: references/direction/*.md
-        label: "how message/claim/cta are staged and paced; free text is first-class"
-      audio:
-        required: false
-        type: file
-        label: "a single already-finished standalone WAV, or a UTF-8 JSON list of up to 16 {source: absolute path to a finished WAV, start: seconds} cues; each entire supplied WAV plays from its start, already pre-edited before reaching VideoCreator; no TTS/synthesis/generation here"
-      reference:
-        required: false
-        type: file
-        label: "local reference/report for inspiration or the claim's evidence; never uploaded"
-      duration:
-        required: false
-        type: int
-        label: "total seconds, 6..30; default 15"
-      approved_plan:
-        required: false
-        type: file
-        label: "Creator-relayed approval: the exact approved plan.json; absent means proposal only, no source authoring"
-      approval_sha256:
-        required: false
-        type: text
-        label: "SHA-256 of the exact plan.json the client approved; required with approved_plan"
-      preview:
-        required: false
-        type: path
-        label: "client-approved preview folder from snapshot; required before render"
-      preview_sha256:
-        required: false
-        type: text
-        label: "SHA-256 of that approved preview.json; required with preview"
-      note:
-        required: false
-        type: text
+      product: {required: true, type: text, label: "what is being advertised"}
+      audience: {required: true, type: text, label: "who watches and what they already know or need"}
+      message: {required: true, type: text, label: "the single approved headline claim/benefit; must appear verbatim in the plan's copy"}
+      cta: {required: true, type: text, label: "the single approved call to action; must appear verbatim in the plan's copy, held >=2s"}
+      aspect: {required: false, options: ["9:16", "16:9", "1:1", "4:5"], label: "output canvas ratio; default 9:16. Fixed dims per ratio (9:16=1080x1920, 16:9=1920x1080, 1:1=1080x1080, 4:5=1080x1350), no arbitrary size, no crop/scale of another ratio's layout"}
+      assets: {required: true, type: path, label: "local directory of approved product/logo/audio/video assets; always ends up holding at least the vendored GSAP runtime files, even for a text-only ad"}
+      claims: {required: false, type: text, label: "authoritative supporting evidence and restrictions for any claim-role copy; not fact-checked here, only required nonempty when used"}
+      theme: {required: false, options: [office], other: true, references: references/themes/*.md, label: "world/setting vocabulary; the listed default is a starting point, never a fixed preset"}
+      theme_detail: {required: false, type: text, label: "override motifs, palette, materials or light; client choices replace conflicting theme defaults"}
+      style: {required: false, options: [bold-graphic], other: true, references: references/styles/*.md, label: "presentation treatment; a described look is equally valid"}
+      direction: {required: false, options: [claim-led], other: true, references: references/direction/*.md, label: "how message/claim/cta are staged and paced; free text is first-class"}
+      audio: {required: false, type: file, label: "a single already-finished standalone WAV, or a UTF-8 JSON list of up to 16 {source: absolute path to a finished WAV, start: seconds} cues; each entire supplied WAV plays from its start, already pre-edited before reaching VideoCreator; no TTS/synthesis/generation here"}
+      reference: {required: false, type: file, label: "local reference/report for inspiration or the claim's evidence; never uploaded"}
+      duration: {required: false, type: int, label: "total seconds, 6..30; default 15"}
+      approved_plan: {required: false, type: file, label: "Creator-relayed approval: the exact approved plan.json; absent means proposal only, no source authoring"}
+      approval_sha256: {required: false, type: text, label: "SHA-256 of the exact plan.json the client approved; required with approved_plan"}
+      preview: {required: false, type: path, label: "client-approved preview folder from snapshot; required before render"}
+      preview_sha256: {required: false, type: text, label: "SHA-256 of that approved preview.json; required with preview"}
+      note: {required: false, type: text}
 ---
 
 <Procedure>
