@@ -575,8 +575,8 @@ defects go back to Writer. A changed draft needs new approval. Unsupported
 publishing integrations stay draft-only. Analyze returns a report and never
 publishes or silently rewrites its target. Humanizer is explicit-only for
 these leaves; the legacy Japanese inspection path is not run in addition.
-The shared Japanese stack and all other writing families are retained until
-their separate migration layers; this is not a global legacy retirement.
+All six writing families now use their own leaves; the shared Japanese skill
+contains language knowledge only.
 
 ## Writer article family
 
@@ -594,7 +594,6 @@ text acceptance does not certify assembly or publication. Editing preserves
 protected claims and marker bindings; analysis evaluates a report without
 rewriting the article. The requester's independent QA uses the served leaf
 contract, not legacy lint or the four-pass receipt. Humanizer is explicit-only.
-Other writing families and their legacy dependencies are not retired here.
 
 ## Writer document family
 
@@ -612,12 +611,12 @@ rather than requiring a new document's template. No source-only result claims
 executed commands, reproduced research, rendered slides or repository changes.
 The requester accepts actual evidence under the document gate; the engineer
 still owns repository integration. Humanizer is explicit-only and the legacy
-four-pass/lint route is not added. Unmigrated families remain unchanged.
+four-pass/lint route is not added.
 
 The business-format guidance re-expresses relevant ideas from the existing
 coji/natural-japanese v1.3.0 (`b54954f`, MIT) adaptations documented in
 `agents/README.md`. It does not copy the old constitution or its fixed-count
-rules; old resources and script attribution remain intact for legacy callers.
+rules; historical resource and script attribution remains in Git history.
 
 ## Writer message family
 
@@ -639,8 +638,7 @@ The requester independently checks the draft/report under the message gate.
 User-facing fields are separate from role labels and review notes. Text QA
 does not prove actual delivery, interface fit or implemented behavior; sending
 and integration require their own authorized owner. Humanizer is explicit-only,
-and no legacy inspection runs on served message work. Other families remain
-unchanged until their own layers land.
+and no additional inspection workflow runs after the message leaf's checks.
 
 ## Writer copy family
 
@@ -689,8 +687,22 @@ evidence and renewed approval before releasing production; consumers do not
 rewrite approved words. Analysis is judged as a report, not required to provide
 new dialogue, unit fields or raw speech files. Humanizer is explicit-only and
 no legacy inspection is added. This layer does not add tools, produce media,
-promise that an arbitrary video backend accepts a storyboard, or retire the
-remaining legacy reference files before their separate cleanup.
+or promise that an arbitrary video backend accepts a storyboard.
+
+## Writer resource cleanup
+
+The old Writer routing/review cluster and shared Japanese catalogs, Python
+inspection tools and detector fixtures are retired. The language package has
+only `SKILL.md`; source attribution is recorded in `agents/README.md` and the
+pre-cleanup Git history. Do not place an archive back under a discovered skill
+root or restore a generic review fallback for an unsupported request.
+
+Pre-draft advice uses `writer-pipeline/references/consultation.md`. It preserves
+structure/tone/sizing advice without producing or approving a draft. An explicit
+outline release still uses a write leaf; evaluating/editing a target selects its
+own operation. Caller QA uses the actual artifact and criterion evidence, not
+the removed inspection commands or pass counts. Restore matched producer/caller
+contracts together if rolling back; no runtime switch is implied by this cleanup.
 
 ## Creator hands (v3, 2026-09)
 

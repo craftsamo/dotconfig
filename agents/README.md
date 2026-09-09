@@ -61,7 +61,7 @@ subagents (`explore-medium`, `reviewer`, ...) or opencode-only tools
 [`opencode/skills/`](../opencode/skills) — sharing it would tell other agents
 to call tools they do not have.
 
-## Provenance of the Japanese writing stack
+## Japanese writing core
 
 The curated `japanese-writing` SKILL.md now contains language knowledge and
 five notation defaults: mixed-script typography, kana spelling, okurigana,
@@ -70,35 +70,31 @@ It does not select document types, orchestrate review, run tools or score
 naturalness. Fixed terminology tables, genre-wide registers and source-line
 wrapping rules are no longer part of the shared core.
 
-The existing references and scripts are temporarily retained at their exact
-paths for Writer's unmigrated families and their caller-side QA. References
-to removed core sections are redirected to the remaining notation defaults
-or the host's conventions; the scripts themselves are unchanged. They are
-not loaded by the new core or the OpenCode Japanese-writing router. Remove
-them only in a later cleanup layer after those explicit dependencies migrate;
-do not mistake this core-only change for full package retirement.
+The package contains only `SKILL.md`. Document construction and checking belong
+to the host workflow; Hermes Writer uses its operation/subject leaves and a
+bounded pre-draft consultation. The old catalogs, inspection loop, naturalness
+scores, Python tools and their detector fixtures have been retired after their
+Writer and caller dependencies were removed. Do not reinstall that workflow by
+copying old resources back into a discovered skill directory.
 
-Several retained layers re-author ideas from external sources. Their prose
-is original to this repo (meaning preserved, wording fully re-expressed),
-so no upstream license text is carried in the files:
+### Historical sources
 
-- `references/business/` and `references/inspection/` — adapted from
+The former stack is recoverable from Git history, including `6d03b52` before
+cleanup. This record preserves the origin of ideas also re-expressed in Writer
+references; it is not an active dependency or a skill-resource index.
+
+- Business-document and inspection material was adapted from
   [coji/natural-japanese](https://github.com/coji/natural-japanese) v1.3.0
-  (`b54954f`, MIT): doctype patterns, the 12-article constitution, the
-  detection scripts and judgment catalogs. The Python scripts under
-  `japanese-writing/scripts/` are carried nearly verbatim and each keeps a
-  one-line SPDX/MIT attribution header (that header must stay). Dropped from
-  upstream: essay/blog authoring scope, style profiles, the no-uv manual
-  checklist, examples.md, `semantic.py`, `calibrate.py`.
-- `references/tech-prose.md` — adapted from k16shikano's japanese-tech-writing
-  gist (Unlicense); the LLM-phrase catalog now lives in
-  `references/inspection/`.
-- `references/prose-rhythm.md` — adapted from k16shikano's
-  cognitive-rhythm-writing gist (Unlicense).
+  (`b54954f`, MIT). The retired Python scripts were carried nearly verbatim
+  with SPDX/MIT attribution headers. Preserve those headers and applicable
+  license notices if restoring or reusing that code from history.
+- Argumentation guidance was adapted from k16shikano's japanese-tech-writing
+  gist (Unlicense), and pacing guidance from the cognitive-rhythm-writing gist
+  (Unlicense). The local prose re-expressed those ideas rather than copying it.
 
-To pull upstream improvements: diff the upstream repo against the recorded
-ref, then re-express the delta in the affected skill (never paste prose
-verbatim) and update the ref here.
+Consider future source improvements only for an identified language or writing
+task. Preserve attribution for reused material; do not restore obsolete
+detectors, templates or review procedures as a bulk upstream update.
 
 ### Maintaining the language core
 

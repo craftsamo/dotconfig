@@ -71,3 +71,4 @@ def test_runtime_writer_files_do_not_reference_retired_paths():
             assert f"references/{name}" not in text, (path, name)
         assert "japanese-writing/scripts/" not in text, path
         assert "references/inspection/" not in text, path
+        assert "retained legacy" not in " ".join(text.split()), path

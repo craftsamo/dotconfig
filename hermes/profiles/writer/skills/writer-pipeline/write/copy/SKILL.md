@@ -62,7 +62,7 @@ metadata:
    or endorsements. Preserve qualifications even when they reduce intensity.
    A required action must have a real destination, not a fabricated URL/control.
 6. Use `japanese-writing` as Japanese expression/notation knowledge only, not
-   retained legacy layers or inspection scripts. `humanizer` is explicit-only
+   retired layers or inspection scripts. `humanizer` is explicit-only
    and cannot change commercial terms, evidence or protected content. Requested
    warmth, brevity or confidence does not authorize a stronger factual claim.
 7. Apply QA and save the complete draft at the requested durable path. Clearly

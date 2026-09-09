@@ -730,9 +730,9 @@ platform capability notes local to each leaf; do not promise note/X Article
 Markdown import, unknown HTML support or untested embeds. Insertion markers
 bind to stable production-note IDs and never imply generated assets. A missing
 asset or editor step is not removed to manufacture a publication-ready result.
-The shared Japanese core supplies language knowledge, not inspection. Writer
-does not call its old reference or script paths; retire those resources only
-after checking other callers as well.
+The shared Japanese core is a single `SKILL.md`, with no inspection resources
+or scripts. Writer's leaves own document construction and checks. Historical
+source attribution remains in `agents/README.md` and Git history.
 
 Document leaves are `<write|edit|analyze>/document/`, including legacy briefs
 named documentation/business-document. Formats are local form options, not
@@ -819,9 +819,8 @@ profiles/<name>/     # assistant, engineer, researcher, searcher, creator, write
                      #   browser-motion/diagram/editorial/icon/card/meme/text-art/
                      #   pixel/sourcing/assembly leaves (1:1 with the assistant's
                      #   plan/creative decision leaves; validator-enforced);
-                     #   writer: the japanese-writing skill (notation +
-                     #   tech-prose / prose-rhythm / business doctypes /
-                     #   inspection lint layers) via the curated
+                     #   writer: the japanese-writing language core (one
+                     #   SKILL.md, five notation defaults) via the curated
                      #   external-skills symlink dir;
                      #   marketer: + upstream social-media/xurl + creative/humanizer;
                      #   managed technics stay exactly one directory below skills/technic/

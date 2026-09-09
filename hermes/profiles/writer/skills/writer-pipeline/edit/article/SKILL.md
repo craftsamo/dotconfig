@@ -50,7 +50,7 @@ metadata:
 3. Edit only what the request authorizes. Keep source-backed claims,
    quotations, uncertainty and the author's actual experience. New claims
    need sources; a style example is not evidence. Use `japanese-writing`
-   for Japanese expression, not its retained legacy workflows or lint.
+   for Japanese expression, not the retired workflows or lint.
    Natural compounds and repeated formats are not errors by themselves.
    `humanizer` is explicit-only and cannot override protected meaning.
 4. If the article has media/editor requirements, read

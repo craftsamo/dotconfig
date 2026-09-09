@@ -54,7 +54,7 @@ metadata:
    retry safety. Do not test an action, inspect a real system or manufacture
    a missing screenshot. An unseen interface limits layout/interaction claims,
    not every textual observation.
-5. Use `japanese-writing` for Japanese wording observations, without retained
+5. Use `japanese-writing` for Japanese wording observations, without retired
    legacy workflows or statistical scoring. `humanizer` is explicit-only and
    gives observations, not a rewritten message. Do not quote private details
    beyond what the analysis actually needs or leak secrets into its report.
