@@ -79,9 +79,12 @@ copying old resources back into a discovered skill directory.
 
 ### Historical sources
 
-The former stack is recoverable from Git history, including `6d03b52` before
-cleanup. This record preserves the origin of ideas also re-expressed in Writer
-references; it is not an active dependency or a skill-resource index.
+The former stack is recoverable from Git history. Locate the deletion of its
+resource paths with `git log --all --diff-filter=D -- agents/curated/japanese-writing/`,
+then inspect the removal commit's parent rather than relying on a hash that
+changes during a rebase. This record preserves the origin of ideas also
+re-expressed in Writer references; it is not an active dependency or a
+skill-resource index.
 
 - Business-document and inspection material was adapted from
   [coji/natural-japanese](https://github.com/coji/natural-japanese) v1.3.0
