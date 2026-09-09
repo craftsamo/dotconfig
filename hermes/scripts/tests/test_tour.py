@@ -175,7 +175,8 @@ class TourTest(unittest.TestCase):
         import yaml
         video = yaml.safe_load((ROOT / "profiles/video-creator/config.yaml").read_text())
         self.assertNotIn("tts", video["toolsets"])
-        for path in ("references/build.md", "references/plan.md", "references/capabilities.md"):
+        for path in ("references/build/video-creator/tour.md", "references/plan/video-creator/tour.md",
+                     "references/capabilities.md"):
             contents = (ROOT / "profiles/creator/skills/creator-pipeline" / path).read_text()
             self.assertIn("create-tour", contents)
             self.assertIn('kind="work"', contents)

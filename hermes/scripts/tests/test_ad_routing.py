@@ -86,18 +86,33 @@ class CreatorAndVideoConfigTest(unittest.TestCase):
         cls.creator_prompt = cls.creator_config["agent"]["system_prompt"]
         cls.video_prompt = cls.video_config["agent"]["system_prompt"]
         cls.pipeline_skill = (HERMES_ROOT / "profiles/creator/skills/creator-pipeline/SKILL.md").read_text()
-        cls.plan_md = (HERMES_ROOT / "profiles/creator/skills/creator-pipeline/references/plan.md").read_text()
-        cls.build_md = (HERMES_ROOT / "profiles/creator/skills/creator-pipeline/references/build.md").read_text()
-        cls.qa_md = (HERMES_ROOT / "profiles/creator/skills/creator-pipeline/references/"
-                     "quality-assurance.md").read_text()
-        cls.capabilities_md = (HERMES_ROOT / "profiles/creator/skills/creator-pipeline/references/"
-                                "capabilities.md").read_text()
+        refs = HERMES_ROOT / "profiles/creator/skills/creator-pipeline/references"
+        cls.plan_index_md = (refs / "plan/index.md").read_text()
+        cls.plan_ad_md = (refs / "plan/video-creator/ad.md").read_text()
+        cls.plan_md = cls.plan_index_md + cls.plan_ad_md
+        cls.build_index_md = (refs / "build/index.md").read_text()
+        cls.build_ad_md = (refs / "build/video-creator/ad.md").read_text()
+        cls.build_md = cls.build_index_md + cls.build_ad_md
+        cls.qa_index_md = (refs / "quality-assurance/index.md").read_text()
+        cls.qa_ad_md = (refs / "quality-assurance/video-creator/ad.md").read_text()
+        cls.qa_md = cls.qa_index_md + cls.qa_ad_md
+        cls.capabilities_md = (refs / "capabilities.md").read_text()
 
     def test_creator_config_and_pipeline_name_both_leaves(self) -> None:
-        for text in (self.creator_prompt, self.pipeline_skill, self.plan_md,
+        for text in (self.creator_prompt, self.plan_md,
                      self.build_md, self.qa_md, self.capabilities_md):
             self.assertIn("create-ad", text)
             self.assertIn("analyze-ad", text)
+
+    def test_root_routes_to_phase_indexes_which_link_the_ad_subject(self) -> None:
+        """Root SKILL.md (v8) no longer enumerates every leaf; it routes to
+        each phase's index, and those indexes link the exact ad.md subject
+        reference exercised by the other assertions in this class."""
+        for path in ("references/plan/index.md", "references/build/index.md",
+                     "references/quality-assurance/index.md"):
+            self.assertIn(path, self.pipeline_skill)
+        for index_text in (self.plan_index_md, self.build_index_md, self.qa_index_md):
+            self.assertIn("(video-creator/ad.md)", index_text)
 
     def test_video_root_and_profile_describe_both_leaves(self) -> None:
         for text in (self.video_prompt, self.video_profile):
@@ -109,7 +124,13 @@ class CreatorAndVideoConfigTest(unittest.TestCase):
         self.assertIn("video-creator's `create-ad` / `analyze-ad`", self.build_md)
         self.assertIn('kind="work")`; approval turns or bounded multi-pass evidence extraction, not an inquiry',
                        self.build_md)
-        self.assertIn('always kind="work"', self.pipeline_skill)
+        # Root (v8) states no per-leaf kind="work" rule itself; it routes to
+        # Build's index, which carries the general specialist_call
+        # kind="work" contract that ad's own transport row (asserted above)
+        # follows.
+        self.assertIn("references/build/index.md", self.pipeline_skill)
+        self.assertIn('kind="work")`; the tool starts the resident session you supervise',
+                       self.build_index_md)
 
     def test_no_raw_a2a_path_for_ad_specialist_calls(self) -> None:
         """create-ad / analyze-ad are only ever reached via specialist_call,
@@ -123,13 +144,16 @@ class CreatorAndVideoConfigTest(unittest.TestCase):
 
     def test_generate_ad_and_pv_are_unimplemented(self) -> None:
         self.assertIn("Generate-ad and PV are not served; never substitute MV.", self.creator_prompt)
-        self.assertIn("Generate-ad and PV remain unserved.", self.pipeline_skill)
         self.assertIn("generate-ad/PV are not served\nyet; do not quietly replace them with MV or clip "
                        "production.", self.plan_md)
         self.assertIn("Only create-ad and analyze-ad are served; generate-ad and a PV leaf are not yet\n"
                        "implemented.", self.capabilities_md)
         profiles_md = (HERMES_ROOT / "PROFILES.md").read_text()
         self.assertIn("`generate-ad` and PV are planned, not advertised capabilities.", profiles_md)
+        # Root (v8) no longer states served/unserved status per family; it
+        # points Plan at capabilities.md, which carries that status (asserted
+        # above).
+        self.assertIn("[capabilities](references/capabilities.md)", self.pipeline_skill)
 
 
 # ── human vs assistant brief: contract text only, not a live-runtime claim ──

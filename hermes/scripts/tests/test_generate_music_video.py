@@ -221,18 +221,35 @@ class MusicVideoRootAndRoutingTest(unittest.TestCase):
         capabilities = (CREATOR_PIPELINE / "references" / "capabilities.md").read_text(
             encoding="utf-8"
         )
-        plan = (CREATOR_PIPELINE / "references" / "plan.md").read_text(encoding="utf-8")
-        build = (CREATOR_PIPELINE / "references" / "build.md").read_text(encoding="utf-8")
-        self.assertIn("generate-music-video", root)
+        plan_index = (CREATOR_PIPELINE / "references" / "plan" / "index.md").read_text(
+            encoding="utf-8"
+        )
+        plan = plan_index + (
+            CREATOR_PIPELINE / "references" / "plan" / "video-creator" / "music-video.md"
+        ).read_text(encoding="utf-8")
+        build_index = (CREATOR_PIPELINE / "references" / "build" / "index.md").read_text(
+            encoding="utf-8"
+        )
+        build = build_index + (
+            CREATOR_PIPELINE / "references" / "build" / "video-creator" / "music-video.md"
+        ).read_text(encoding="utf-8")
         self.assertIn("video-creator: generate-music-video", capabilities)
         self.assertIn('music-video-style piece ("MV")', plan)
         self.assertIn("generate-music-video", plan)
         self.assertIn("generate-music-video", build)
-        for text in (root, capabilities, plan, build):
+        for text in (capabilities, plan, build):
             self.assertNotIn("generate-mv", text)
+        # Root (v8) no longer enumerates leaves; it routes to Plan/Build's
+        # index, and those indexes link the exact music-video.md reference
+        # exercised above.
+        for path in ("references/plan/index.md", "references/build/index.md"):
+            self.assertIn(path, root)
+        self.assertIn("(video-creator/music-video.md)", plan_index)
+        self.assertIn("(video-creator/music-video.md)", build_index)
+        self.assertNotIn("generate-mv", root)
         for relative in (
             "creator/config.yaml", "creator/profile.yaml",
-            "creator/skills/creator-pipeline/references/quality-assurance.md",
+            "creator/skills/creator-pipeline/references/quality-assurance/video-creator/music-video.md",
             "video-creator/config.yaml", "video-creator/profile.yaml",
             "video-creator/skills/video-creator-pipeline/SKILL.md",
         ):
@@ -291,11 +308,18 @@ class StaticContractLanguageTest(unittest.TestCase):
         self.assertIn("its hash identifies a preliminary proposal", text.lower())
 
     def test_creator_preserves_direction_and_resolves_dependencies_separately(self) -> None:
-        for filename in ("plan.md", "build.md", "quality-assurance.md"):
-            text = " ".join((CREATOR_PIPELINE / "references" / filename).read_text().split())
+        for phase in ("plan", "build", "quality-assurance"):
+            text = " ".join(
+                (CREATOR_PIPELINE / "references" / phase / "video-creator" / "music-video.md")
+                .read_text()
+                .split()
+            )
             self.assertIn("pending-inputs", text)
             self.assertIn("music_file", text)
-        self.assertIn("separate approval", (CREATOR_PIPELINE / "references/build.md").read_text())
+        self.assertIn(
+            "separate approval",
+            (CREATOR_PIPELINE / "references/build/video-creator/music-video.md").read_text(),
+        )
 
     def test_upload_consent_named_explicitly(self) -> None:
         self.assertIn(
@@ -315,9 +339,9 @@ class StaticContractLanguageTest(unittest.TestCase):
         self.assertIn("intent: revise <deliver>", self.text)
 
     def test_continuous_performance_is_not_rejected_for_missing_cuts(self) -> None:
-        qa = (CREATOR_PIPELINE / "references" / "quality-assurance.md").read_text(
-            encoding="utf-8"
-        )
+        qa = (
+            CREATOR_PIPELINE / "references" / "quality-assurance" / "video-creator" / "music-video.md"
+        ).read_text(encoding="utf-8")
         self.assertIn("Cuts are allowed, not mandatory", qa)
         self.assertIn("preserve UNVERIFIED", qa)
 
@@ -329,7 +353,7 @@ class StaticContractLanguageTest(unittest.TestCase):
         self.assertIn("do not inject new defaults or silently reinterpret it", self.text)
         self.assertIn("theme, pace, transition, words policy", self.text)
         self.assertIn("not necessarily cuts; continuous forbids shot breaks", (
-            CREATOR_PIPELINE / "references" / "quality-assurance.md"
+            CREATOR_PIPELINE / "references" / "quality-assurance" / "video-creator" / "music-video.md"
         ).read_text(encoding="utf-8"))
 
     def test_prompt_length_is_measured_before_approval_and_submission(self) -> None:
