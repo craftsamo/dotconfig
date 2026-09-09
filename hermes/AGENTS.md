@@ -280,6 +280,26 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
   a background timer; it does not refresh a live browser's cookie snapshot.
   Stale cookies still require a fresh browser launch. The read-only isolated
   Instagram baseline succeeded; the user agent was not implicated.
+  **A fresh launch means the CLONE process, not the gateway.** Cookies are
+  mirrored (`snapshot_real_profile` → `_mirror_profile_auth`) only on the
+  cold path of `_real_profile_cdp`; a gateway restart finds the surviving
+  clone via `DevToolsActivePort` and RE-ATTACHES (`real-profile: re-attached
+  to surviving Chrome`), mirroring nothing — the 2026-09-09 case: the owner
+  logged in to Google in Profile 12 at 13:09, the clone from 10:48 kept
+  serving the account chooser through two gateway restarts. And the clone
+  must go TOGETHER with its agent-browser daemon (`hermes-real-profile`
+  session, pid in `/tmp/agent-browser-hermes-real-profile/`): upstream only
+  closes that session when `get cdp-url` succeeds, so a daemon that outlived
+  a killed clone keeps the dead port, ignores the `--cdp <new port>` of the
+  next launch ("daemon already running"), and every call fails with
+  `All CDP discovery methods failed for 127.0.0.1:<old port>` until the
+  gateway restarts — UNPATCHED upstream, so watch it after `hermes update`.
+  The relaunch procedure the assistant runs itself is the private-overlay
+  skill `hermes-browser-relaunch` (`scripts/relaunch.sh`: SIGTERM clone →
+  stop daemon → clear socket dir; never launches; the next `browser_exec`
+  does). Note also that `_find_agent_browser` resolves the npx cache copy
+  (0.26.0 on 2026-09-09) ahead of the mise shim (0.31.1); not implicated,
+  but the version you see on PATH is not the one the daemon runs.
   Multiplex caveat (NOT solved by daemon scoping):
   `_real_profile_cdp_cache` / `_REAL_PROFILE_SESSION` are process-global, so
   every consenting profile in the gateway shares ONE clone instance — fine
