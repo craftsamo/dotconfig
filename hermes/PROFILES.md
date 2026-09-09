@@ -345,7 +345,8 @@ Three per-profile layers, kept separate:
   symlinks — maintainer-owned, but tracked by the private-dotconfig repo.
   Runtime-authored skills from background review, curator, `/learn`, or normal
   `skill_manage(create)` calls go to the untracked `learned/` category through
-  the `skill-topology` plugin. Moving a complete package from `learned/` to
+  `skills.create_dir: skills/learned` in every `config.yaml` (an optional
+  `category` nests as `learned/<category>/<name>`). Moving a complete package from `learned/` to
   `technic/` is the explicit maintainer-review boundary. External directories
   remain provider-owned and never become local technics implicitly.
   - assistant → `assistant-pipeline` (front-door playbook: modes Chat / Plan /

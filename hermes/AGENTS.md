@@ -472,7 +472,11 @@ maintainer-owned but live in the private overlay — symlinks into
 `~/.config/private`, tracked by the private-dotconfig repo (they encode the
 personal messaging operation; this repo is public). Edit them through the same
 paths; commit in the overlay repo. Runtime creates
-are forced into `learned/` by the `skill-topology` plugin; `learned/`, external
+land in `learned/` because every `config.yaml` sets `skills.create_dir:
+skills/learned` (validator-enforced; a `category` nests as
+`learned/<category>/<name>`) — NOT because of the `skill-topology` plugin, whose
+`category: learned` rewrite only saw the flat `action: create` shape and missed
+every `operations[]` create after upstream `72874b0675`. `learned/`, external
 skills and Hermes bookkeeping stay ignored. Do not use `skip-worktree` for
 managed skills: their changes must remain visible in `git status`. Promotion
 from `learned/` to `technic/` is an explicit review step; move the complete
