@@ -860,6 +860,8 @@ def validate_worker(
 
     if catalog is not None:
         validate_worker_card_gate(profile, catalog, errors)
+    if profile == "creator":
+        validate_creator_references(pipeline_dir, errors)
     validate_git_boundary([pipeline_dir, technic_dir], learned_dir, errors)
     validate_plugin_enabled(profile, profile_root / "config.yaml", errors)
     return len(leaves) + len(writing), len(learned)
@@ -1089,6 +1091,226 @@ def validate_hands(profile: str, errors: list[str]) -> tuple[dict[str, Path], in
     validate_git_boundary([pipeline_dir], learned_dir, errors)
     validate_plugin_enabled(profile, profile_root / "config.yaml", errors)
     return leaves, len(learned)
+
+
+# ── Creator references (v8 broker tree) ─────────────────────────────────
+#
+# Migrating off the v7 monolith reference files onto a plain Markdown
+# broker tree: `references/{plan,build,quality-assurance}/index.md` plus
+# one flat `<hands>/<subject>.md` leaf per hands subject (subjects read
+# dynamically from the hands leaves on disk, never hardcoded).
+
+CREATOR_REFERENCE_PHASES = ("plan", "build", "quality-assurance")
+# Ordinary `[text](dest)`, an optional "title"/'title', or a `<dest>` target.
+LOCAL_LINK = re.compile(
+    r"\]\(\s*(<[^>]*>|[^\s)]+)(?:\s+(?:\"[^\"]*\"|'[^']*'))?\s*\)"
+)
+
+
+def _pipeline_major_version(data: dict[str, Any]) -> int | None:
+    """Strict leading major version (`8`, `8.0.0`, ...); `None` when the
+    `version` field is missing or not a clean numeric-dot string/number
+    (e.g. `v8.0.0`) — never silently treated as pre-v8."""
+    version = data.get("version")
+    if isinstance(version, bool):
+        return None
+    if isinstance(version, int):
+        return version
+    if isinstance(version, float):
+        return int(version)
+    if isinstance(version, str):
+        match = re.fullmatch(r"(\d+)(?:\.\d+)*", version.strip())
+        if match:
+            return int(match.group(1))
+    return None
+
+
+def collect_hands_subjects() -> dict[str, set[str]]:
+    """Subjects (deduped across verbs) served by each hands profile, read
+    from `<hands>-pipeline/<verb>/<subject>/SKILL.md` below HERMES_ROOT."""
+    subjects: dict[str, set[str]] = {}
+    for profile in HANDS_PROFILES:
+        pipeline_dir = (
+            HERMES_ROOT / "profiles" / profile / "skills" / f"{profile}-pipeline"
+        )
+        found: set[str] = set()
+        if pipeline_dir.is_dir():
+            for path in pipeline_dir.rglob("SKILL.md"):
+                rel = path.relative_to(pipeline_dir)
+                if rel.parts == ("SKILL.md",):
+                    continue
+                if len(rel.parts) != 3:
+                    continue
+                verb, subject, _ = rel.parts
+                if verb not in HANDS_VERBS:
+                    continue
+                found.add(subject)
+        subjects[profile] = found
+    return subjects
+
+
+def markdown_links(doc: Path) -> list[tuple[str, Path]]:
+    """Local (non-web, non-anchor-only) Markdown links in doc, as
+    (raw link text, resolved target path)."""
+    text = doc.read_text(encoding="utf-8")
+    links: list[tuple[str, Path]] = []
+    for raw in LOCAL_LINK.findall(text):
+        link = raw.strip()
+        if link.startswith("<") and link.endswith(">"):
+            link = link[1:-1]
+        if not link or link.startswith("#"):
+            continue
+        if re.match(r"^[a-zA-Z][a-zA-Z0-9+.-]*:", link):
+            continue  # scheme (http:, https:, mailto:, ...)
+        target = link.split("#", 1)[0]
+        if not target:
+            continue
+        links.append((link, (doc.parent / target).resolve()))
+    return links
+
+
+def validate_creator_reference_links(
+    doc: Path, pipeline_dir: Path, errors: list[str]
+) -> None:
+    root = pipeline_dir.resolve()
+    rel_doc = doc.relative_to(pipeline_dir)
+    for link, target in markdown_links(doc):
+        try:
+            target.relative_to(root)
+        except ValueError:
+            errors.append(
+                f"creator reference link escapes the pipeline: {link} in {rel_doc}"
+            )
+            continue
+        if not target.is_file():
+            errors.append(f"creator reference link is broken: {link} in {rel_doc}")
+
+
+def validate_creator_references(pipeline_dir: Path, errors: list[str]) -> None:
+    """Validate the v8 broker tree. Build-alongside: while no phase
+    directory exists yet and the root major version is below 8, the v7
+    monolith files stay accepted. Any phase directory, or major >= 8,
+    switches on full-tree validation for all three phases at once.
+    """
+    pipeline = pipeline_dir / "SKILL.md"
+    major = _pipeline_major_version(frontmatter(pipeline) if pipeline.is_file() else {})
+    if major is None:
+        errors.append("invalid creator pipeline version")
+        return
+    references = pipeline_dir / "references"
+    phase_dirs = {phase: references / phase for phase in CREATOR_REFERENCE_PHASES}
+
+    if not any(d.is_dir() for d in phase_dirs.values()) and major < 8:
+        return  # v7 baseline: still on the monolith references/{phase}.md files
+
+    hands_subjects = collect_hands_subjects()
+    phase_subject_paths: dict[str, dict[str, Path]] = {
+        phase: {} for phase in CREATOR_REFERENCE_PHASES
+    }
+
+    for phase, phase_dir in phase_dirs.items():
+        if not phase_dir.is_dir():
+            errors.append(f"missing creator reference phase: {phase}")
+            for hands, subjects in hands_subjects.items():
+                for subject in sorted(subjects):
+                    errors.append(
+                        f"creator reference phase {phase} missing hands subject: "
+                        f"{hands}/{subject}"
+                    )
+            continue
+
+        if not (phase_dir / "index.md").is_file():
+            errors.append(f"missing creator reference phase index.md: {phase}")
+
+        for entry in sorted(phase_dir.iterdir()):
+            if entry.name.startswith(".") or entry.name == "index.md":
+                continue
+            if entry.is_file():
+                errors.append(
+                    f"unexpected file in creator reference phase {phase}: {entry.name}"
+                )
+                continue
+            if entry.name not in HANDS_PROFILES:
+                errors.append(
+                    f"unknown hands directory in creator reference phase "
+                    f"{phase}: {entry.name}"
+                )
+                continue
+            hands = entry.name
+            expected = hands_subjects.get(hands, set())
+            found: set[str] = set()
+            for leaf in sorted(entry.iterdir()):
+                if leaf.name.startswith("."):
+                    continue
+                if leaf.is_dir():
+                    errors.append(
+                        f"no nesting below a creator reference hands dir: "
+                        f"{phase}/{hands}/{leaf.name}"
+                    )
+                    continue
+                if leaf.name == "SKILL.md":
+                    errors.append(
+                        f"creator reference tree must not contain SKILL.md: "
+                        f"{phase}/{hands}/{leaf.name}"
+                    )
+                    continue
+                if leaf.suffix != ".md":
+                    errors.append(
+                        f"non-markdown file in creator reference tree: "
+                        f"{phase}/{hands}/{leaf.name}"
+                    )
+                    continue
+                if not leaf.read_text(encoding="utf-8").strip():
+                    errors.append(
+                        f"empty creator reference file: {phase}/{hands}/{leaf.name}"
+                    )
+                subject = leaf.stem
+                found.add(subject)
+                phase_subject_paths[phase][f"{hands}/{subject}"] = leaf
+
+            for missing in sorted(expected - found):
+                errors.append(
+                    f"creator reference phase {phase} missing hands subject: "
+                    f"{hands}/{missing}"
+                )
+            for orphan in sorted(found - expected):
+                errors.append(
+                    f"creator reference phase {phase} has orphan hands subject: "
+                    f"{hands}/{orphan}"
+                )
+
+        for hands, subjects in hands_subjects.items():
+            if (phase_dir / hands).is_dir() or not subjects:
+                continue
+            for subject in sorted(subjects):
+                errors.append(
+                    f"creator reference phase {phase} missing hands subject: "
+                    f"{hands}/{subject}"
+                )
+
+    for phase, phase_dir in phase_dirs.items():
+        if not phase_dir.is_dir():
+            continue
+        index = phase_dir / "index.md"
+        if index.is_file():
+            linked = {target for _, target in markdown_links(index)}
+            for key, path in phase_subject_paths[phase].items():
+                if path.resolve() not in linked:
+                    errors.append(
+                        f"phase {phase} index.md does not link {key}: "
+                        f"{path.relative_to(pipeline_dir)}"
+                    )
+        for doc in sorted(phase_dir.rglob("*.md")):
+            validate_creator_reference_links(doc, pipeline_dir, errors)
+
+    if major >= 8:
+        for phase in CREATOR_REFERENCE_PHASES:
+            monolith = references / f"{phase}.md"
+            if monolith.is_file():
+                errors.append(
+                    f"stale monolith reference file on v8: "
+                    f"{monolith.relative_to(pipeline_dir)}"
+                )
 
 
 # ── Creative three-layer alignment ──────────────────────────────────────
