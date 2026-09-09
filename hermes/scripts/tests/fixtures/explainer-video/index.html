@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Synthetic cache-flow fixture</title>
+<style>
+* { box-sizing: border-box; }
+html, body { margin: 0; width: @@WIDTH@@px; height: @@HEIGHT@@px; background: #102030; }
+#root { position: relative; overflow: hidden; width: @@WIDTH@@px; height: @@HEIGHT@@px; background: #102030; color: #ffffff; font-family: Arial, sans-serif; }
+#title { position: absolute; left: 48px; top: 48px; margin: 0; font-size: 48px; }
+#notice { position: absolute; left: 48px; bottom: 32px; font-size: 22px; }
+.step { position: absolute; left: 48px; top: 200px; font-size: 32px; }
+#cache { position: absolute; left: 260px; top: 320px; width: 120px; height: 120px; border: 5px solid #58c8c0; border-radius: 14px; }
+#result { position: absolute; left: 64px; top: 360px; width: 40px; height: 40px; background: #ffd166; border-radius: 8px; }
+#presenter, .presenter { position: absolute; right: 32px; bottom: 100px; width: 160px; height: 240px; }
+#presenter img { position: absolute; inset: 0; width: 160px; height: 240px; }
+</style>
+<script src="assets/gsap.min.js"></script>
+@@MOUTH@@
+</head>
+<body>
+<div id="root" data-composition-id="explainer" data-start="0" data-duration="6" data-width="@@WIDTH@@" data-height="@@HEIGHT@@" data-fps="30">
+<h1 id="title">Cache flow</h1>
+<div id="notice">Synthetic timing fixture, not speech proof</div>
+<div id="lookup-copy" class="step clip" data-start="0" data-duration="2" data-track-index="3">1. Check the cache</div>
+<div id="store-copy" class="step clip" data-start="2" data-duration="2" data-track-index="3">2. Store the result</div>
+<div id="reuse-copy" class="step clip" data-start="4" data-duration="2" data-track-index="3">3. Reuse the result</div>
+<div id="cache"></div>
+<div id="result"></div>
+@@MEDIA@@
+</div>
+<script>
+const tl = gsap.timeline({paused: true});
+tl.to("#result", {x: 160, duration: 0.6, ease: "power2.inOut"}, 0.4)
+  .to("#result", {x: 235, duration: 0.6, ease: "power2.inOut"}, 2.4)
+  .to("#result", {x: 0, duration: 0.6, ease: "power2.inOut"}, 4.4);
+@@MOTION@@
+@@MOUTH_CALL@@
+window.__timelines = window.__timelines || {};
+window.__timelines["explainer"] = tl;
+</script>
+</body>
+</html>
