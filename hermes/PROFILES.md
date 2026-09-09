@@ -406,14 +406,16 @@ Three per-profile layers, kept separate:
     then pack; packs expressions / gaming / love-hype / meme-classics /
     custom; styles chibi-cartoon / kawaii-pastel / pixel / flat-sticker /
     clay), `edit/emoji`, `analyze/emoji` — see "Creator hands (v3)"
-  - creator → `creator-pipeline` v7 — clients and hands: Plan
-    (`references/plan.md`: tell the client apart by the message's shape —
+  - creator → `creator-pipeline` v8 — clients and hands: Plan
+    (`references/plan/index.md`: tell the client apart by the message's shape —
     brief lines = the assistant, conversational = a human; fill the leaf's
     form with `clarify` or by parsing the brief; composites = a sequence of
-    forms), Build (`build.md`: the handoff text, specialist inquiry / work
+    forms), Build (`references/build/index.md`: the handoff text, specialist inquiry / work
     session, supervision, relaying `Q<n>`), Quality assurance
-    (`quality-assurance.md`: vision at native size and at the size of use,
-    revise as a handoff, delivery). `capabilities.md` is the only router
+    (`references/quality-assurance/index.md`: vision at native size and at the size of use,
+    revise as a handoff, delivery). Each phase index leads to only the selected
+    `<hands>/<subject>.md`; verbs stay inside that subject reference and the
+    hands leaf remains the only form. `capabilities.md` is the capability router
     (served families first, then the technic table). Families with no
     hands yet keep the technic-era contract under `references/legacy/`
     (produce / direction / advisory + iterate / verify / delivery / resume,
@@ -703,6 +705,76 @@ outline release still uses a write leaf; evaluating/editing a target selects its
 own operation. Caller QA uses the actual artifact and criterion evidence, not
 the removed inspection commands or pass counts. Restore matched producer/caller
 contracts together if rolling back; no runtime switch is implied by this cleanup.
+
+## Broker shape
+
+The migration has two complementary shapes, not one universal skill tree:
+
+- **Producers** (Creator's hands and Writer today) expose one concrete operation
+  and subject per `<verb>/<subject>/SKILL.md`, with the form, Procedure, QA and
+  Report owned there. Other profiles adopt that pattern only as their own
+  operation/output contracts are settled; Creator's verbs and media budgets
+  are not imposed on writing, engineering, research or marketing.
+- **Brokers** keep phase-specific decision, handoff and acceptance guidance in
+  plain references below one root pipeline skill. Creator v8 uses
+  `references/<phase>/<hands>/<subject>.md` with a common `index.md` per phase.
+  Assistant already uses `references/<mode>/<capability>/...`; its domain
+  references express what Assistant owns, not a mirror of every producer form.
+
+Creator's phases are `plan`, `build`, `quality-assurance`. The current fifteen
+subjects occupy 45 references plus three common indexes. The subject is shared
+by its supported verbs; unavailable verb/subject pairs are not new capabilities.
+The root loads a phase index, then the selected subject reference. No new
+`SKILL.md`, generated menu, registry or shared style system is introduced.
+Hands discovery and names stay unchanged; reference files do not add entries
+to Hermes' skills index. `capabilities.md` retains its legacy technic table;
+only its phase links change in this structural migration.
+
+Each subject reference has one job in each phase: Plan interprets the client's
+request into the existing form and settles the applicable grants; Build relays
+that form and approvals in the correct conversation; QA compares the returned
+evidence with the client's intent. QA never reruns the producer's measurements,
+turns a sampled check into continuous-motion proof, or claims to have heard
+audio. Failure and unknown flags survive every handoff. Forms, style resources,
+engine implementation and measurement scripts remain with their producers.
+
+`validate_creator_references` collects subjects from the actual hands leaves,
+deduplicates verbs, and requires exact per-hands coverage in all three phases.
+It rejects missing/orphan references, unsupported nesting, unlinked subjects,
+broken or escaping local links, and the old phase monoliths on v8. Earlier v7
+Stack layers remain valid before any phase directory exists. Once a tree is
+present it must be complete; do not commit a partially populated tree or keep
+the old monoliths as a second active source. Rollback restores the root,
+references and matching caller tests together from the preceding Stack layer;
+it never rewrites job outputs, proposal hashes or approvals.
+
+### Assistant end state and retirement gates
+
+For migrated creative work, the existing Creator-first handoff is the model:
+Assistant owns the user's goal, context, constraints, durable location, grants,
+cross-domain coordination and GitHub bookkeeping. Creator owns media leaf
+selection, form interpretation, creative proposals and production sequencing.
+Assistant's final gate uses the returned artifacts and criterion evidence;
+it does not repeat the specialist's implementation QA or maintain another
+catalog of sizes, providers, forms and approval hashes.
+
+The end state is capability-level brief, supervision and acceptance guidance,
+plus any genuinely Assistant-owned cross-domain decisions. Retire an old
+family decision leaf, technic and QA mapping only after its replacement covers
+the old caller scenarios, its handoffs and approvals have been exercised, and
+both human and Assistant clients have soaked. A shared QA contract stays until
+its last consumer has moved. Having a new leaf on disk alone is insufficient;
+no legacy family or private-overlay mapping retires in this v8 split.
+
+Writer's form-based leaves do not by themselves transfer editorial authority.
+Its current clients still release decided outline/piece/whole-job units, and
+Writer returns unresolved deliverable-defining choices. A future Writer-first
+contraction must first map that ownership and caller coverage explicitly, then
+update the Assistant and Writer contracts together. No Writer-first runtime
+instruction, private-overlay edit, or automatic retirement of Assistant's
+writing leaves is part of this change. Apply the same ownership-first gate to
+later profile migrations; a shared directory shape is not permission to change
+who plans, approves, publishes or verifies a result.
 
 ## Creator hands (v3, 2026-09)
 
@@ -1837,7 +1909,7 @@ researcher as needed; narration/mixed audio routes through audio-creator.
 VideoCreator cannot call any of those hands or peers directly — it
 returns a dependency request to Creator, which releases it as its own
 separately budgeted and approved unit, the same composite-request
-discipline used for any other multi-form job (`build.md`).
+discipline used for any other multi-form job (`references/build/index.md`).
 
 The runtime lifecycle mirrors Tour/Ad's proposal-then-approval
 shape: `propose --spec SPEC --out <new proposal-vN dir>` writes
@@ -2102,9 +2174,11 @@ is `icon` (`source` / `create` / `generate` / `edit` / `analyze`). Nothing is
 retired in bulk; `refactor/creator-profile` is read only for scripts worth
 porting (`icon-fetch.sh`, `tour.py`, `explainer.py`, `item-loop.py`).
 
-**Creator's own pipeline is shaped for this** (v7, 2026-09-05): Plan →
-Build → Quality assurance, with the technic-era routes parked under
-`references/legacy/` for the families still to move. Each family that
+**Creator's own pipeline is shaped for this** (v8, 2026-09-09): Plan →
+Build → Quality assurance, each loading `references/<phase>/index.md`
+and the selected `<hands>/<subject>.md` as described in "Broker shape".
+The technic-era routes remain under `references/legacy/` for the families
+still to move. This reference split retires no production family. Each family that
 lands on a hands deletes its technic, its assistant plan leaf and QA
 contract, and — once every family it covered has moved — its card. When
 the last family moves, `legacy/` goes, and so do `image_gen` /
