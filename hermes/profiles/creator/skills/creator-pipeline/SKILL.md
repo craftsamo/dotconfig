@@ -1,14 +1,14 @@
 ---
 name: creator-pipeline
 description: >-
-  Creator's front door (v7). Creator has clients — a human on its bot or
+  Creator's front door (v8). Creator has clients — a human on its bot or
   the assistant — and hands — media profiles that make one deliverable
   from a filled form. Three modes: Plan (choose the leaf, fill its form
   with the client), Build (hand the form to the hands, supervise), Quality
   assurance (look at the result against the client's intent, deliver).
   Families with no hands yet are produced by Creator itself through the
   legacy technic routes.
-version: 7.0.0
+version: 8.0.0
 author: CraftSamo
 license: MIT
 metadata:
@@ -35,7 +35,7 @@ back in.
 
 <Client>
 
-Two kinds, one procedure (`references/plan.md`), told apart by the
+Two kinds, one procedure ([Plan](references/plan/index.md)), told apart by the
 **shape of the message**: brief lines (`Goal:` … `Budget:`) = the
 assistant, on any surface; conversational = a human, on any surface.
 
@@ -58,55 +58,26 @@ with a pointer to the assistant and nothing is produced.
 
 | Mode | You end with | Load |
 | --- | --- | --- |
-| **Plan** | filled forms (leaf + fields), sequenced, budget lines on metered ones — or `no skill fits` | `references/plan.md` |
-| **Build** | the hands' reports: paths at `deliver:`, QA evidence, spend | `references/build.md` |
-| **Quality assurance** | your verdict against the intent (accept / revise / back to Plan) and the client's delivery | `references/quality-assurance.md` |
+| **Plan** | filled forms (leaf + fields), sequenced, budget lines on metered ones — or `no skill fits` | [Plan](references/plan/index.md) |
+| **Build** | the hands' reports: paths at `deliver:`, QA evidence, spend | [Build](references/build/index.md) |
+| **Quality assurance** | your verdict against the intent (accept / revise / back to Plan) and the client's delivery | [Quality assurance](references/quality-assurance/index.md) |
 
-Modes run in order per job and loop on revise. Load the mode's
-reference when you enter it; `references/capabilities.md` is the only
-router (served families first, then the legacy technic table) and is
-read in Plan before any leaf is chosen. Hands today: `image-creator`
-(A2A peer) — its leaves are readable in your skill list
-(`source-icon`, `create-icon`, `generate-icon`, `edit-icon`,
-`analyze-icon`; `create-emoji`, `generate-emoji`, `edit-emoji`,
-`analyze-emoji`; `generate-mascot`, `edit-mascot`, `analyze-mascot`;
-`generate-reimagine`; `source-kit`, `create-kit`, `generate-kit`,
-`edit-kit`, `analyze-kit`; `create-card`, `generate-card`, `edit-card`,
-`analyze-card`); `video-creator` (`generate-clip`,
-`edit-clip`, `analyze-clip`, `generate-music-video`, `create-tour`, `create-ad`, `analyze-ad`,
-`create-explainer-video`, A2A peer for free short work, resident for
-generation or long work; create-tour, create-ad and create-explainer-video
-always use kind="work" despite being free; tour's recreate/supplied/capture
-modes share one leaf, with isolated approved Web capture owned by
-VideoCreator and native capture explicitly unavailable; explainer-video is
-topic/audience/learning_goal explanation only, an explicit v1 HyperFrames
-or v2 Motion Canvas render chosen in the proposal (never a silent switch;
-an old v1 Motion Canvas discussion-only proposal needs a fresh v2 proposal
-and approval), and never calls image-creator/writer/researcher/audio-creator
-itself — a
-missing character/script/grounding/audio asset returns to you as a
-dependency request); and `audio-creator` (`generate-speech`,
-`edit-speech`, `analyze-speech`, `create-sfx`, `generate-sfx`, `edit-sfx`,
-`analyze-sfx`, `create-music`, `generate-music`, `edit-music`,
-`analyze-music`, `create-mix`, `edit-mix`, `analyze-mix`; A2A peer for a
-bounded one-reply job, resident whenever synthesis, fresh ASR, or
-generate-sfx's/generate-music's metered fal call is involved — create/
-edit/analyze-sfx, create/edit/analyze-music and create/edit/analyze-mix
-cost no provider fee, generate-sfx and generate-music are the metered
-leaves).
-MV is proposal then approved generation;
-its subject/theme/style are form values, not separate skill families.
-Ads use create-ad (content then preview approval) or analyze-ad (evidence-backed
-advertising interpretation), always kind="work". Generate-ad and PV remain unserved.
-Clip is one short shot, not every video
-family; speech is one approved script, not the whole spoken-audio
-family; sfx is one short effect from a closed kernel or one prompted
-engine call, never music; music is one instrumental BGM or
-melodic opener/closer from an authored score or one prompted engine
-call, never a full song; mix places already-finished speech/sfx/music
-sources on a shared timeline with gain/fade/envelope automation, never new
-synthesis, looping, EQ, reverb or source separation; read them for their
-`form`, never run their `<Procedure>`.
+Modes run in order per job and loop on revise. At each mode, load its
+index above, then its `<hands>/<subject>.md` reference for the selected
+hands leaf. The indexes link every subject; read only those needed by
+this job. For example, `create-card` and `analyze-card` both load
+`references/<mode>/image-creator/card.md`, with their different verbs
+handled inside that reference. These are plain references, not additional
+skills or copies of the hands' forms.
+
+Read [capabilities](references/capabilities.md) in Plan before choosing a
+leaf (served families first, then the legacy technic table). Hands leaves
+are readable through `skill_view(name="<verb>-<subject>")`; their
+`description`, `metadata.hermes.hands` and `form` remain authoritative.
+Creator's subject reference owns form-filling decisions, approval relay,
+transport exceptions and intent QA, never media execution. Read the
+hands' `form`, never run their `<Procedure>`. A composite loads the
+reference for each released dependency, not the entire reference tree.
 
 </Modes>
 
@@ -117,8 +88,9 @@ A family with no hands leaf yet is still produced by you, through its
 `references/legacy/`: `produce.md` (Produce), `direction.md` (a cheap
 anchor before a batch), `advisory.md`, with the engines `iterate.md`,
 `verify.md`, `delivery.md`, `resume.md`, and the MediaBrief checklist
-`brief.md` in place of a form. Enter it only from `build.md` "Legacy",
-only for an unserved family, and never mix the two in one handoff.
+`brief.md` in place of a form. Enter it only from
+[Build](references/build/index.md) "Legacy", only for an unserved family,
+and never mix the two in one handoff.
 The legacy Unit floor holds there: deliverable-defining decisions are
 the assistant's, a spec gap is a `Q<n>:`, QA-passed input parts are
 consumed verbatim, and a brief implying more stages than the released
@@ -130,7 +102,7 @@ unit is a granularity finding.
 
 Generation spend is granted, not discretionary. For a hands leaf the
 form's `budget:` line is the grant; absent, use the leaf's documented
-allowance (`references/plan.md`). Card exception: generate-card's 3+1 is a
+allowance (the selected subject under [Plan](references/plan/index.md)). Card exception: generate-card's 3+1 is a
 proposed ceiling, not spend approval; paid generation requires explicit user
 approval in the current work conversation. The hands enforce it and report the
 tally; `cost: free` (no provider fee) is not the same gate as an

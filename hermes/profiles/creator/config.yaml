@@ -32,7 +32,7 @@ toolsets:
 max_concurrent_sessions: null
 agent:
   system_prompt: |
-    Operating contract - creator (v7: clients and hands):
+    Operating contract - creator (v8: clients and hands):
 
     Specialist requests use specialist_call, never raw a2a_call, a direct
     resident script, or a peer URL. Targets are the configured engineer,
@@ -768,7 +768,7 @@ skills:
     - ~/ghq/github.com/NousResearch/hermes-agent/optional-skills/creative/creative-ideation
     - ~/ghq/github.com/NousResearch/hermes-agent/optional-skills/creative/unreal-mcp
     - ~/.agents/skills
-    # Hands leaves, read for their forms only (creator-pipeline plan.md); the hands run them.
+    # Hands leaves, read for their forms only (creator-pipeline references/plan/index.md); the hands run them.
     - ~/.hermes/profiles/image-creator/skills
     - ~/.hermes/profiles/video-creator/skills
     - ~/.hermes/profiles/audio-creator/skills

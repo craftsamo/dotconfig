@@ -4,7 +4,7 @@ This is the only in-profile router from a MediaBrief to production technics.
 `technic/` contains directly selectable leaves; a leaf may have internal modes
 only when they share tools, spend class, and verification.
 
-## Families served by hands (checked FIRST — `plan.md` / `build.md`)
+## Families served by hands (checked FIRST — [Plan](plan/index.md) / [Build](build/index.md))
 
 | Deliverable | Hands leaf | Notes |
 | --- | --- | --- |
