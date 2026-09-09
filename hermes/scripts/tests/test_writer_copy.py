@@ -55,7 +55,7 @@ def test_copy_routing_and_script_boundary():
     assert "Existing marketing-copy briefs select this family" in kernel
     assert "Ordinary correspondence, social posts and factual release notes" in kernel
     assert "](write/script/SKILL.md)" in kernel
-    assert (PIPELINE / "references/script.md").is_file()
+    assert (PIPELINE / "write/script/SKILL.md").is_file()
 
 
 def test_write_does_not_manufacture_proof_or_an_action():

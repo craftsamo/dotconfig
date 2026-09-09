@@ -4,7 +4,7 @@ description: >-
   Writer's front door (v7). Select a writing operation and subject, read the
   installed leaf's form, and execute only the released writing unit.
   Leaves own their procedure, references, QA and report. Pre-draft advice
-  and families not yet migrated retain the legacy writing contract.
+  uses a bounded consultation; unsupported requests return for clarification.
   Drafts only: no publishing, sending, code execution or kanban card units.
 version: 7.0.0
 author: CraftSamo
@@ -54,29 +54,22 @@ Writer defines no card units. A kanban card is refused with
    Fill values already present in the brief rather than asking again.
    Read only the references selected by that leaf. An unreadable advertised
    leaf is a blocker, not permission to use a different workflow.
-4. Only a family with no installed matching leaf uses the
-   [legacy contract](references/legacy.md). The legacy contract also owns
-   pre-draft consultation via [assess.md](references/assess.md).
-   A served leaf never also runs the legacy review or its four-pass floor.
+4. If no installed leaf fits, return the unsupported scope to the requester.
+   Do not substitute a generic writing workflow or invent another skill.
+   Pre-draft advice uses [consultation](references/consultation.md); it does
+   not authorize a manuscript or replace a leaf's QA. If the request changes
+   to editing or evaluating an existing target, reselect the operation.
 
-The remaining legacy references are [prose.md](references/prose.md),
-[script.md](references/script.md) and [review.md](references/review.md).
-These are retained compatibility material for explicit legacy callers, not
-common steps for served leaves. Consultation uses the selected leaf's actual
-requirements and supplied producer evidence; receiving a draft returns to
-operation selection, never automatically to legacy critique.
-Within that legacy workflow, references to "the kernel", its TypeTable,
-Procedure or UnitDiscipline mean `references/legacy.md`. Its own assess,
-prose, script and review paths resolve from this pipeline root. Paths
-explicitly assigned to `japanese-writing` instead resolve from that shared
-skill's root; its argumentation, rhythm, business and inspection files are not
-Writer-local references.
+Each leaf owns its own checks. There is no additional shared review pipeline,
+statistical naturalness score or automatic humanizer pass. `japanese-writing`
+supplies expression/notation knowledge, not a workflow. Paths in a leaf resolve
+from that leaf; the shared language core is read from its own skill root.
 
 </Selection>
 
 <PostFamily>
 
-The first migrated family is social post text: X single/long posts and
+Social post text covers X single/long posts and
 threads, and Instagram feed/reel captions. Use [write-post](write/post/SKILL.md),
 [edit-post](edit/post/SKILL.md) or [analyze-post](analyze/post/SKILL.md).
 X Articles, private messages and in-image text are different subjects.
@@ -91,6 +84,7 @@ not a new post; it needs neither attachments nor Publish approval to exist.
 
 Articles use [write-article](write/article/SKILL.md),
 [edit-article](edit/article/SKILL.md) or [analyze-article](analyze/article/SKILL.md).
+Existing technical-prose briefs select this family.
 The selected leaf owns destination syntax, approach and QA. Rich-text editor
 operations and missing media stay outside the publishable body as explicit
 production notes; a text draft is not an assembled or published article.
@@ -197,7 +191,8 @@ For a leaf, report its name, produced paths, and the applicable criteria as
 checked / unmet / unverified with a quote, compared source or measured value
 and method. Include unresolved dependencies. Do not invent measurements or
 upgrade an unverified requirement to a pass. This is self-review, not the
-requester's independent acceptance. Follow the legacy report for legacy work.
+requester's independent acceptance. Consultation follows its own short advice
+contract and is not a completed draft or an accepted production part.
 
 `Review: required` means present the exact candidate and wait for sign-off.
 Feedback changes only what it names; a changed requirement returns to the

@@ -31,12 +31,12 @@ def test_post_form_survives_discovery_window(verb):
         assert f"<{section}>" in text and f"</{section}>" in text
 
 
-def test_post_family_is_routed_without_retiring_other_families():
+def test_post_family_is_routed_without_generic_fallback():
     kernel = (PIPELINE / "SKILL.md").read_text()
     for verb in ("write", "edit", "analyze"):
         assert f"]({verb}/post/SKILL.md)" in kernel
-    assert (PIPELINE / "references/legacy.md").is_file()
-    assert "compatibility material for explicit legacy callers" in kernel
+    assert (PIPELINE / "references/consultation.md").is_file()
+    assert "If no installed leaf fits, return the unsupported scope" in kernel
 
 
 def test_post_policy_does_not_expand_tools_or_publish():

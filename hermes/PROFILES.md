@@ -215,7 +215,7 @@ bytes, never re-encodes). Details: creator's `creator-pipeline` skill.
 **writer** consumes released units the same way — an outline unit
 (structure + tone samples, gated before drafting), piece units against
 the approved outline, or a whole small job — under the selected leaf's
-QA contract (the legacy four-pass floor for unmigrated families), returning
+QA contract, returning
 undecided deliverable-defining choices as spec-gap or granularity findings. Details: writer's
 `writer-pipeline` skill. **marketer** speaks it with a
 **Publish** grant (publishing is public and irreversible: absent grant =
@@ -326,8 +326,8 @@ Three per-profile layers, kept separate:
   surviving work before regenerating); researcher = evidence integrity (no
   fabricated citations); searcher = link integrity (only URLs actually
   retrieved); writer = deliverable integrity (no fabricated
-  facts/quotes/URLs; assumptions labeled; the four-pass review floor
-  never skipped) + never publishes; marketer = the
+  facts/quotes/URLs; assumptions labeled; the selected leaf's applicable
+  checks with explicit evidence gaps) + never publishes; marketer = the
   Publish + red floor (absent grant ⇒ draft-only; every post needs verbatim
   approval or in-cap consumption of approved inventory; claims resolve to
   the fact ledger; no price/deadline/scarcity changes; the four-stage
@@ -460,10 +460,10 @@ Three per-profile layers, kept separate:
     released units — outline / piece / whole job — with spec-gap and
     granularity findings). Its v7 kernel selects installed
     `<write|edit|analyze>/<subject>/SKILL.md` leaves in category `writing`.
-    Each leaf owns its form, Procedure, QA and Report; it never also runs
-    legacy review. Unmigrated families and pre-draft consultation use
-    `references/legacy.md` and the existing assess/prose/script/review
-    references. The post family now serves `write-post`, `edit-post` and
+    Each leaf owns its form, Procedure, QA and Report. Pre-draft advice uses
+    `references/consultation.md`, not another writing/review pipeline;
+    unsupported requests return for clarification. The post family serves
+    `write-post`, `edit-post` and
     `analyze-post` for X/Instagram, with per-leaf forms, platform references
     and QA. The article family now serves `write-article`, `edit-article`
     and `analyze-article`, with destination-format references and separate
@@ -472,18 +472,18 @@ Three per-profile layers, kept separate:
     separate source/runtime boundaries. The message family serves
     `write-message`, `edit-message` and `analyze-message` for email, chat,
     notification, UI and error wording, never delivery or system diagnosis.
-    Copy and production scripts remain legacy. External skills remain via
+    Copy and production scripts also use their three operation-specific leaves.
+    External skills remain via
     `skills.external_dirs`: the Japanese stack via the curated
     `profiles/writer/external-skills/` symlink dir (the single
-    `japanese-writing` language core with five notation defaults; old
-    references/scripts remain only for explicit legacy consumers,
-    single-sourced with the shared `agents/curated/` store) and upstream
-    `creative/humanizer` (explicit-only for served leaves)
+    `japanese-writing` language core with five notation defaults, single-sourced
+    with the shared `agents/curated/` store) and upstream `creative/humanizer`
+    (explicit-request only)
   - marketer → `marketer-pipeline` (resident-only, cards refused; consumes
     released message units under the Publish grant + red floor; engines
     ground / produce / parts / verify / publish — grounding judgment and
-    red-team dissent, Writer-authored X/Instagram post consumption (no local
-    text rewrites), legacy copy craft for other channels, the
+    red-team dissent, Writer-authored post and promotional copy consumption
+    (no local text rewrites), legacy platform-post craft for other channels, the
     four-stage pre-ship inspection with Japanese ad-law triage, and the
     approval-gated xurl publish bridge with per-post URL verification;
     channel extension points for future Discord/IG/TikTok accounts;
