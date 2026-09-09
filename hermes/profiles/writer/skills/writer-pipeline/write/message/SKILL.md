@@ -66,7 +66,7 @@ metadata:
    quotes, placeholders and conditions exactly when required. Do not insert
    a name, signature or personal experience merely to make the text complete.
 6. For Japanese, use `japanese-writing` as expression/notation knowledge only,
-   not its retained legacy workflows or lint. `humanizer` is explicit-only
+   not the retired workflows or lint. `humanizer` is explicit-only
    and cannot override stance, facts or protected content. Keep sensitive
    details and unnecessary private context out of both the body and report.
 7. Apply QA and save the complete draft at the requested durable path. Separate

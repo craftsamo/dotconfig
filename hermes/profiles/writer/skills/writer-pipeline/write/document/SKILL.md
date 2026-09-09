@@ -61,7 +61,7 @@ metadata:
    distinct. Missing from the record is not the same as explicitly undecided.
    Resolve conflicting sources with the requester rather than choosing the
    more convenient assertion. Do not add empty sections to satisfy a template.
-5. Use `japanese-writing` for Japanese expression and notation, not its retained
+5. Use `japanese-writing` for Japanese expression and notation, not the retired
    legacy layers or inspection scripts. Preserve natural wording and specified
    register. Use `humanizer` only on explicit request; it cannot alter meaning.
 6. Keep code, commands, API names, URLs and quoted material faithful to sources.

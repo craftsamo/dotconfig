@@ -61,7 +61,7 @@ metadata:
    authorized move affects a cross-reference, update the known dependents and
    report the change. Do not imply that unseen inbound links were checked.
    Unknown owners/dates remain unknown, not assigned by the editor.
-5. Use `japanese-writing` for Japanese expression without the retained legacy
+5. Use `japanese-writing` for Japanese expression without the retired
    composition/inspection workflow. Natural compounds and repeated lookup
    formats are not defects. `humanizer` is explicit-request only and cannot
    remove a qualifier, quotation or other protected content.

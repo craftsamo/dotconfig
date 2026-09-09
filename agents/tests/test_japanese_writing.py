@@ -22,13 +22,11 @@ def test_five_selected_defaults_remain():
     assert headings == ["和欧混植", "かな書き", "送り仮名", "ダッシュ", "「〜化」「〜的」"]
 
 
-def test_legacy_consumers_still_have_resources_during_migration():
-    for relative in (
-        "references/tech-prose.md", "references/prose-rhythm.md",
-        "references/business/overview.md", "references/inspection/workflow.md",
-        "scripts/lint.py", "scripts/outline.py", "scripts/terms.py",
-    ):
-        assert (SKILL / relative).is_file(), relative
+def test_core_is_the_only_runtime_resource():
+    assert sorted(path.relative_to(SKILL).as_posix() for path in SKILL.rglob("*.md")) == [
+        "SKILL.md"
+    ]
+    assert not list(SKILL.rglob("*.py"))
 
 
 def test_host_router_only_loads_core():
@@ -39,9 +37,12 @@ def test_host_router_only_loads_core():
     assert "scripts/" not in route
 
 
-def test_legacy_references_do_not_require_removed_core_sections():
-    for relative in ("references/tech-prose.md", "references/business/overview.md"):
-        text = (SKILL / relative).read_text()
-        assert "SKILL.md の Verification" not in text
-        assert "一文一行の規則" not in text
-        assert "表記の既定値" in text
+def test_writer_does_not_call_retired_language_resources():
+    pipeline = ROOT / "hermes/profiles/writer/skills/writer-pipeline"
+    for path in pipeline.rglob("*.md"):
+        text = path.read_text()
+        assert "japanese-writing/scripts/" not in text, path
+        assert "references/inspection/" not in text, path
+        assert "references/tech-prose.md" not in text, path
+        assert "references/prose-rhythm.md" not in text, path
+        assert "references/business/" not in text, path

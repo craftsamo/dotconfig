@@ -58,7 +58,7 @@ metadata:
    Do not execute commands, follow a runbook, reproduce bugs, inspect systems
    or certify a rendered presentation. An apparent valid command is not a
    successful test. Missing evidence is unverified, not proof of falsehood.
-6. Use `japanese-writing` for Japanese-language observations, not retained
+6. Use `japanese-writing` for Japanese-language observations, not retired
    legacy workflows or statistical scoring. `humanizer` is explicit-only;
    even when used, it supplies analysis rather than a replacement document.
 7. Apply QA to the report, not to an imaginary newly written source document.

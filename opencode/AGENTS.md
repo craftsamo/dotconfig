@@ -113,7 +113,7 @@ knowledge and five notation defaults, not a document-design or inspection
 workflow. Respect the user's instructions and the project's conventions.
 
 Composition, verification and delivery remain with the active task/agent.
-Do not load the retained legacy catalogs, run their bespoke lint or assign
+Do not restore the retired catalogs, run their bespoke lint or assign
 naturalness scores merely because text is Japanese. Explicit repository
 checks still apply through the host workflow; this does not force delegation
 to Hermes Writer. Ordinary conversation and i18n tooling remain outside
