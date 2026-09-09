@@ -149,14 +149,34 @@ metadata:
    first and then invoke the literal absolute Python path. Choose the
    next unused `N` even after a rejected proposal; never overwrite a
    previous proposal directory. Include the resolved `engine` (default
-   local) and `seed` (default 0) in `form.json`; the outer approval grant
-   (not a form field) sets `max_calls`/`max_usd` for generation
-   settings - never add a `variants`/`budget` field to this form. Local
-   default allowance is **2 variants + 1 corrective, max 3, hard cap 8**,
-   every attempt including failures counted; fal requires an explicit
-   approved cap and a finite USD estimate before any paid call, and never
-   an implicit default budget. Report the returned proposal path and its
-   SHA-256, and STOP - zero generation, zero spend in round A.
+   local) and `seed` (default 0) in `form.json`. That `form.json` is
+   AudioCreator's **internal** control file for `music_plan.py`, distinct
+   from the public leaf form above. Creator keeps `budget` outside its
+   handoff form; never add `variants`/`budget` fields to either form.
+   AudioCreator serializes the outer approval grant it already received
+   from Creator into this
+   internal `form.json` as `max_calls` (and, for fal, `max_usd`)
+   alongside the resolved creative fields. A smaller explicit cap,
+   including `max_calls: 1`, overrides the local default of 3 and is
+   never enlarged. A local $0
+   grant means no media fee: omit `max_usd` from `form.json` entirely -
+   not even `null` or `0` - since local rejects the key outright and the
+   resulting `settings.max_usd` is `null`. An explicit fal grant is
+   copied into `form.json` exactly as approved, both `max_calls` and
+   `max_usd`, and needs current-work paid approval before any call. Local
+   default allowance when the grant is unstated is **2 variants + 1
+   corrective, max 3, hard cap 8**, every attempt including failures
+   counted - disclose that default before approval; a genuinely ambiguous
+   grant is a finding to clarify, never a guess. Fal never gets an implicit
+   default budget. **Internal local one-attempt controls** (not a complete form):
+
+   ```json
+   {"engine":"local:stable-audio-3-medium","seed":0,"max_calls":1}
+   ```
+
+   Merge these controls with the resolved creative fields in `form.json`.
+   Report the returned proposal path and its SHA-256,
+   and STOP - zero generation, zero spend in round A.
 6. Round B requires both `approved_plan` and `approval_sha256` from
    Creator and `intent: revise <previous delivery>`, in the same work
    conversation as the client's approval. A changed creative field or a
@@ -215,6 +235,10 @@ metadata:
   language, not just the label; the compact prompt is 1-450 characters
   and matches its approved hash exactly. Approval matches the exact
   proposal text/settings before any spend.
+- Grant: the proposal's execution settings match Creator's outer cap,
+  including a one-attempt limit; local has no dollar-cap input. A
+  mismatch is corrected in a new proposal before asking for approval,
+  never accepted as an automatic increase to the default allowance.
 - Structural intent: consult the selected theme/style/direction/ending
   reference's own QA cue and report the requested character explicitly,
   separate from whether the returned take actually delivers it

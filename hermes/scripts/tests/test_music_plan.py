@@ -271,6 +271,45 @@ def test_real_generate_approval_start_resume_and_default_three_call_grant(plan, 
     assert [take["payload"]["seed"] for take in state["attempts"]] == [0, 1, 2]
 
 
+@pytest.mark.parametrize("outcome", ["success", "failure"])
+def test_generate_one_attempt_grant_from_documented_internal_controls(plan, inputs, rig, outcome):
+    """SKILL.md's 'Internal local one-attempt controls' example is a real max_calls: 1 grant."""
+    skill = HERMES / "profiles/audio-creator/skills/audio-creator-pipeline/generate/music/SKILL.md"
+    fenced = skill.read_text().split("Internal local one-attempt controls", 1)[1]
+    controls = json.loads(fenced.split("```json", 1)[1].split("```", 1)[0])
+
+    request = inputs("generate", **controls)
+    argv = ["propose"]
+    for key, value in request.items():
+        argv.extend(["--" + key.replace("_", "-"), str(value)])
+    result = cli(PLAN, *argv)
+    assert result["status"] == "proposal-only"
+    assert result["spend"] == 0 and result["audio_created"] is False
+    document = Path(result["approved_plan"]).read_text()
+    visible = json.loads(document.split("```json\n", 1)[1].split("\n```", 1)[0])
+    assert visible["settings"]["max_calls"] == 1 and visible["settings"]["max_usd"] is None
+    assert "max_usd" not in visible["form"]
+    checked = plan.load_approved(result["approved_plan"], result["approval_sha256"], "generate")
+    assert checked["settings"] == visible["settings"]
+    rig.factory.assert_not_called()
+
+    if outcome == "failure":
+        rig.runtime.render_music.side_effect = RuntimeError("synthetic inference failure")
+    started = generate(rig, **approval(result))
+    state = json.loads((rig.job / "state.json").read_text())
+    assert len(state["attempts"]) == 1 and state["frozen"]["settings"] == result["settings"]
+    if outcome == "failure":
+        assert not started["success"] and state["attempts"][0]["status"] == "failed"
+        assert not generate(rig, "resume")["success"]
+    else:
+        assert started["success"] and started["status"] == "raw-needs-qa"
+        assert started["max_calls"] == 1 and started["calls"] == 1
+        assert generate(rig, "resume")["status"] == "raw-needs-qa"
+    assert not generate(rig, "next")["success"]
+    assert rig.runtime.render_music.call_count == 1
+    assert len(json.loads((rig.job / "state.json").read_text())["attempts"]) == 1
+
+
 def test_real_approval_does_not_make_invalid_runtime_receipt_successful(plan, inputs, rig):
     result = plan.propose(**inputs("generate"))
     render = rig.runtime.render_music.side_effect
