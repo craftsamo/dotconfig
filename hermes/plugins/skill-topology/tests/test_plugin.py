@@ -30,44 +30,17 @@ class SkillTopologyPluginTest(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls.plugin = load_plugin()
 
-    def test_create_defaults_to_learned(self) -> None:
-        result = self.plugin._route_skill_create(
-            tool_name="skill_manage",
-            args={"action": "create", "name": "example"},
-        )
-
-        self.assertEqual(result["args"]["category"], "learned")
-
-    def test_create_overrides_requested_category(self) -> None:
-        result = self.plugin._route_skill_create(
-            tool_name="skill_manage",
-            args={"action": "create", "name": "example", "category": "research"},
-        )
-
-        self.assertEqual(result["args"]["category"], "learned")
-
-    def test_other_skill_actions_are_unchanged(self) -> None:
-        result = self.plugin._route_skill_create(
-            tool_name="skill_manage",
-            args={"action": "patch", "name": "example"},
-        )
-
-        self.assertIsNone(result)
-
-    def test_other_tools_are_unchanged(self) -> None:
-        result = self.plugin._route_skill_create(
-            tool_name="write_file",
-            args={"action": "create", "name": "example"},
-        )
-
-        self.assertIsNone(result)
-
-    def test_registers_tool_request_middleware(self) -> None:
+    def test_no_tool_request_middleware_rewrites_creates(self) -> None:
+        """Placement is skills.create_dir's job; a category rewrite would nest learned/learned/."""
         context = FakeContext()
 
         self.plugin.register(context)
 
-        self.assertIs(context.middleware["tool_request"], self.plugin._route_skill_create)
+        self.assertNotIn("tool_request", context.middleware)
+        self.assertFalse(hasattr(self.plugin, "_route_skill_create"))
+
+    def test_learned_category_name_is_the_create_dir_leaf(self) -> None:
+        self.assertEqual(self.plugin.LEARNED_CATEGORY, "learned")
 
 
 if __name__ == "__main__":
