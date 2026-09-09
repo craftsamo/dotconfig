@@ -585,6 +585,7 @@ skills:
   - ~/ghq/github.com/NousResearch/hermes-agent/optional-skills/communication/one-three-one-rule
   - ~/ghq/github.com/NousResearch/hermes-agent/optional-skills/devops/watchers
   - ~/.hermes/skills
+  create_dir: skills/learned
   disabled:
   - comfyui
   - touchdesigner-mcp

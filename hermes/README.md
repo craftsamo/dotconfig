@@ -77,10 +77,14 @@ tree — its content sits in the private overlay, reached through a symlink at
 The ~/Workspaces data-skill
 cluster lives in the private overlay (this repo is public) and is read through
 `skills.external_dirs` as `~/.config/private/hermes/skills`. Runtime-authored
-skills are mutable state under `learned/` and are git-ignored. The
-`skill-topology` plugin rewrites every normal `skill_manage(action=create)`
-call — including background review, curator and `/learn` — to
-`HERMES_HOME/skills/learned/<name>`. The ~73 **bundled** skills are also kept
+skills are mutable state under `learned/` and are git-ignored. Every
+`config.yaml` sets `skills.create_dir: skills/learned` (HERMES_HOME-relative),
+which `skill_manage` consults on every create — background review, curator,
+`/learn`, the `/skills approve` replay, flat or `operations[]` call shape — so
+new skills land at `HERMES_HOME/skills/learned/[<category>/]<name>`. (Until
+2026-09-09 the `skill-topology` plugin injected `category: learned` instead;
+upstream `72874b0675` made `operations[]` the advertised call shape and the
+rewrite silently missed every batched create.) The ~73 **bundled** skills are also kept
 out of the repo: seeding is disabled — `hermes skills opt-out --remove` writes a
 `.no-bundled-skills` marker, which is tracked here and symlinked into
 `~/.hermes/` by `install.sh` so the opt-out reproduces on a fresh machine — and
@@ -147,10 +151,11 @@ the relevant `config.yaml`.
   `stt.fallback.chain` in order (default `groq → xai → openai → elevenlabs →
   local`) and returns the first successful transcript. Active via
   `stt.provider: stt-fallback` (see [Speech-to-text](#speech-to-text--fallback-chain)).
-- **skill-topology** (`kind: standalone`): request middleware that forces new
-  runtime-authored skills into `learned/`. It does not intercept dashboard
-  direct-create APIs or arbitrary terminal/file writes; the topology validator
-  catches those paths after the fact.
+- **skill-topology** (`kind: standalone`): the topology guard's home. It no
+  longer rewrites skill creation — `skills.create_dir` places new skills under
+  `learned/` — and it does not intercept dashboard direct-create APIs or
+  arbitrary terminal/file writes; the topology validator catches those paths
+  after the fact.
 
 ## User-managed content
 
