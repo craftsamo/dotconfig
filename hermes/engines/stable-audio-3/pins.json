@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "checkout": {
+    "repo": "https://github.com/Stability-AI/stable-audio-3.git",
+    "commit": "779434a908193105335fd8d833418603625b2859",
+    "subpath": "optimized/mlx"
+  },
+  "python": {
+    "version": "3.11"
+  },
+  "weights": {
+    "repo": "stabilityai/stable-audio-3-optimized",
+    "revision": "da6edc54ddba10bfd79a077102ded687f80e882b",
+    "files": [
+      {
+        "repo_path": "MLX/t5gemma_f16.npz",
+        "runtime_rel_path": "models/mlx/t5gemma_f16.npz",
+        "bytes": 567443068,
+        "sha256": "8deb20489f36d9aec539f26c9c67321f99bc5fe300d470435ed6e76be4f16bbd"
+      },
+      {
+        "repo_path": "MLX/dit_medium_f16.npz",
+        "runtime_rel_path": "models/mlx/dit_medium_f16.npz",
+        "bytes": 2907300946,
+        "sha256": "f9e5647ea3225818657d47d47ae4b34afa29c0568206ca89566c1a758944a38e"
+      },
+      {
+        "repo_path": "MLX/same_l_decoder_f32.npz",
+        "runtime_rel_path": "models/mlx/same_l_decoder_f32.npz",
+        "bytes": 1704311976,
+        "sha256": "84924be2122d3a20fce443f40b782d9cd88e8e73707476326003ac47659a2287"
+      }
+    ]
+  },
+  "generation": {
+    "dit": "medium",
+    "decoder": "same-l",
+    "steps": 8,
+    "sample_rate": 44100,
+    "channels": 2,
+    "sample_width_bytes": 2,
+    "generation_timeout_seconds": 180
+  },
+  "dependencies": {
+    "requirements_in": "requirements.in",
+    "lock": "requirements.lock"
+  }
+}

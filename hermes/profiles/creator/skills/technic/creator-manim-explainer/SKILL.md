@@ -37,8 +37,10 @@ authoritative rather than duplicating them here.
 - Save a project-specific `plan.md` and script. Use draft, render, and final
   stages, then hand the outputs and evidence to pipeline V1-V6.
 - Do not use inline interpreter commands: invoke the project script or an
-  official script. Handshake optional voice synthesis as `core:tts` with its
-  concrete backend and count every synthesis against the pipeline's TTS cap.
+  official script. Optional narration is a completed speech delivery from
+  Creator's audio-creator hand (`generate-speech`, approved script required),
+  consumed as an input; this technic never synthesizes it itself and its
+  take grant is accounted for separately.
 
 </PipelineContract>
 

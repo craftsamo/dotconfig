@@ -480,9 +480,11 @@ def _character_text_to_speech(
 
 
 def register(ctx) -> None:
-    # Creator owns character assets; nothing else should be able to spend an
-    # engine on one, so the tools are not registered elsewhere at all.
-    if ctx.profile_name != "creator":
+    # audio-creator owns character assets since the Creator hands (v3)
+    # migration of the audio family completed; nothing else may spend an
+    # engine on one, including Creator itself, which now briefs audio-creator's
+    # generate-speech instead of rendering directly.
+    if ctx.profile_name != "audio-creator":
         return
     ctx.register_tool(
         name="character_voices",

@@ -13,11 +13,17 @@ and `specialist` in the relevant `platform_toolsets` lists. Configure the
 explicit `specialist_call.resident_targets` allowlist; short inquiries use an
 allowed target's existing `a2a_agents` RPC endpoint when present. No endpoint
 is discovered from model text or a supplied URL. Work always uses the existing
-resident script. Creator currently has no configured A2A peers, so its
-researcher calls use resident sessions; its dormant messaging lists stay empty.
+resident script. Creator's hard policy and resident allowlist match its seven
+configured peers: engineer, marketer, researcher, writer, image-creator,
+video-creator and audio-creator. Assistant's target policy is unchanged; it
+cannot call the hands directly. Engineer and Marketer retain raw A2A tools,
+and the default CLI's old flow is intentionally unchanged.
 
 Use `specialist_call(target, message, kind="inquiry"|"work")`, then continue
-with the returned `conversation_id`. `specialist_session` supports `status`,
+with the same `target`, the returned `conversation_id`, and the next `message`.
+Free bounded single-reply requests use `inquiry`; metered, multi-turn or long
+work uses `work`. Pass the released unit, inputs, permissions and grant unchanged;
+transport selection grants no authority or budget. `specialist_session` supports `status`,
 `list`, and `close` in the same originating session and profile. The registry
 and restrictive request files live under that caller's real Hermes home in
 `specialist-sessions/`; resident JSON and logs retain the existing format in
@@ -371,7 +377,7 @@ so splicing them inside one sentence is audible. For anything longer than a
 chat reply, pin the engine instead (see [Character voices](#character-voices)).
 
 Irodori runs fp32 on MPS — bf16 is CUDA/XPU-only upstream — from a git checkout
-pinned in `irodori-tts/pinned.conf`. It rewrites Latin proper nouns to katakana
+pinned in `engines/irodori-tts/pinned.conf`. It rewrites Latin proper nouns to katakana
 through a private pronunciation lexicon, then repairs its own WAV before
 delivery: the in-pause codec rustle is gated, leading dead air and trailing
 hallucinated fragments are trimmed, the onset click is faded and the level is
@@ -461,7 +467,7 @@ dependencies through `uv run`; the server venv stays untouched.
 `install` creates an isolated Python 3.12.11 venv under the ignored
 `hermes/local/qwen3-tts/`, stores absolute private manifest locations only in the
 ignored `catalog.json`, synchronizes the hash-locked
-`qwen3-tts/requirements.lock`, validates every manifest, renders the LaunchAgent,
+`engines/qwen3-tts/requirements.lock`, validates every manifest, renders the LaunchAgent,
 and atomically activates the catalog. A failed registration, service load, or
 identity-bound health check restores the previous catalog and service. The
 tracked plist contains only the stable ignored catalog path. An existing
@@ -471,8 +477,8 @@ first start can take several minutes; later starts reuse the cache. Logs land in
 `~/Library/Logs/qwen3-tts-engine.log`. `uninstall` removes the LaunchAgent but
 retains the catalog, venv, and model cache.
 
-`qwen3-tts/requirements.in` records the top-level package, while
-`qwen3-tts/tested-constraints.txt` captures the verified environment used to
+`engines/qwen3-tts/requirements.in` records the top-level package, while
+`engines/qwen3-tts/tested-constraints.txt` captures the verified environment used to
 regenerate the hashed lock. Review dependency changes before recompiling it.
 
 ### Irodori voice registration
@@ -502,7 +508,7 @@ plugin caches the lexicon per process, so a live gateway needs a restart.
 
 ## Character voices
 
-Creator — and only Creator — gets `character_voices` and
+AudioCreator — and only AudioCreator — gets `character_voices` and
 `character_text_to_speech` from the `tts/character-voice` plugin. They exist to
 render a *named* asset, which is the opposite contract from ordinary speech:
 the caller pins the sound, so nothing routes, nothing substitutes, and a
@@ -516,7 +522,7 @@ Pass one id verbatim to `character_text_to_speech`.
 A bare voice id is rejected. The engine is half of what identifies a sound: the
 same reference renders 309 cents apart on the two engines, so `<voice-id>`
 alone under-specifies the request. That also makes the qualified id the right
-value for a `tts-voice` card's voice preset, since it survives as a durable,
+value for `generate-speech`'s `voice` field, since it survives as a durable,
 unambiguous name for the sound that was approved.
 
 Failures stay failures. A voice that is not registered on the named engine, a
@@ -559,6 +565,171 @@ bitstream serial, so two identical takes differ in ~80 container bytes.
 Ordinary chat speech is untouched by all of this: `tts.fallback.chain` passes no
 style arguments, so it sends the request it always did — which on Irodori means
 an unpinned, freshly rolled take per call, exactly as before.
+
+AudioCreator is a receive-only hands profile on A2A `:9909`. Creator fills
+its `generate-speech`, `edit-speech` or `analyze-speech` form for either a
+human client or an Assistant brief. Speech assets use these leaves; the
+old voice card is retired. Generation defaults to one take plus one
+corrective, including failed calls, despite zero media-provider fees.
+The helper uses cached local faster-whisper `base`, ffmpeg and ffprobe;
+it never installs an engine or downloads weights from inside a job.
+WAV + `.words.json` + SRT + take evidence are delivered together, with
+subtitle timing explicitly estimated. Readback and loudness measurements
+are not a listening/performance verdict. See `PROFILES.md` "Speech family".
+
+## Sound effects
+
+AudioCreator also owns `create-sfx`, `generate-sfx`, `edit-sfx` and
+`analyze-sfx`. These are short effects, not music or mixed soundtracks.
+`create-sfx` needs no model or API: eight local kernels produce a 48 kHz
+PCM WAV and measured take evidence. Editing/analysis is local too. For
+example, from this directory with an existing output parent:
+
+```sh
+"$(ghq root)/github.com/NousResearch/hermes-agent/venv/bin/python" profiles/audio-creator/skills/audio-creator-pipeline/scripts/sfx-media.py synth --kind whoosh --seconds 0.5 --pitch 880 --seed 0 --out /tmp/sfx-example --slug whoosh
+```
+
+The directory must be new. `track`, `edit` and `analyze` subcommands document
+their flags via `--help`; no command installs an engine or overwrites media.
+SFX measurements preserve stereo, and short sounds may legitimately have
+unmeasurable LUFS. A waveform or a matching seed is not a listening verdict.
+
+`generate-sfx` uses the audio-creator-only `sfx-gen` plugin. Local
+`local:stable-audio-3-medium` is installed and is the default engine when
+`engine` is omitted: it takes a `seed` (default 0; attempt N uses
+`(base + N - 1) mod 2^32`, returned with the result), rejects `loop=true`
+and any `prompt_influence`, and needs no `paid_approved`/`max_usd` — actual
+spend reports as `$0`. Each render runs a fresh, non-resident subprocess
+under `hermes/scripts/stable_audio3.py`; see `PROFILES.md` "SFX family" for
+the install/runtime/licensing detail and the M4 Max benchmark. Explicitly
+selecting `fal:elevenlabs-sfx-v2` instead requires explicit current-work
+paid approval; the default 3+1 call proposal is not permission to spend on
+either engine. Its request/state files support recovery without generating
+again. `FAL_KEY` uses the existing scoped Keychain helper; no new key,
+`.env`, provider-key terminal passthrough or ElevenLabs subscription setup
+is required. fal's SFX v2 does **not** support a seed. The API caps
+duration at 22s; our request ceiling is 21.5s to leave room for MP3
+padding before the helper's 22s limit. Neither engine ever falls back to
+the other, automatically or silently.
+
+After plugin enablement changes the existing multiplex gateway needs one
+normal drained restart; never launch a second gateway. The existing linked
+`plugins/` and profile `skills/` directories already expose these new files.
+
+VideoCreator consumes finished effects through `create-ad` as distinct,
+explicitly timed WAV cues (up to 16, no volume automation); `tour`, music,
+mixing and supplied-MV finishing are unchanged.
+
+## Music
+
+AudioCreator also owns `create-music`, `generate-music`, `edit-music` and
+`analyze-music`, scoped to instrumental BGM or a short melodic opener/
+closer (create/generate up to 60 seconds; edit/analyze up to 600 seconds
+and 128 MiB) — a full song with lyrics/singing or standalone
+sound design is `no skill fits`. Combining already-finished sources onto
+one timeline is the separate Mix family below ("Mix"), never a music
+leaf approximating a mixer. `create-music` composes
+an exact deterministic score from five closed electronic waveforms
+(sine/triangle/pulse/fm-bell/noise) and renders it locally at zero spend,
+zero network calls; `generate-music` sends a compact text prompt to the
+same `local:stable-audio-3-medium` default engine as SFX ($0, seed-
+controlled), or an explicitly chosen paid `fal:stable-audio-3-medium`
+(unlike SFX's fal endpoint, both music engines take a seed). Both are
+two-round leaves: the first round always returns an unspent
+`proposal-v<N>/proposal.md` and its SHA-256; only a second round with Creator-
+relayed `approved_plan`+`approval_sha256` releases a render or a
+`music_generate` call. Local default allowance is 2 variants + 1
+corrective (hard cap 8); an explicit fal request needs its own
+current-work paid approval and cap. `edit-music` trims, loop-crossfades,
+fades, applies gain or two-pass LUFS normalization (-1 dBTP ceiling) to an
+existing file, always into a new bundle; `analyze-music` returns local numpy-based tempo/beat/key/triad/
+structural-boundary estimates plus format/loudness/clipping findings,
+with half/double BPM and key ambiguity disclosed — never a genre, mood,
+instrument, lyrics or vocal-performance verdict, and it works standalone
+on any client-supplied song, not only this pipeline's own deliveries.
+
+`generate-music` uses the same audio-creator-only `sfx-gen`-shaped
+`music-gen` plugin (dedicated `music_gen` CLI/A2A toolset), and the same
+runtime's `render_music()` entry point alongside SFX's `render()` — one
+shared pinned Medium/MLX install, lock and 180s subprocess timeout, no
+second engine or install step. See `PROFILES.md` "Music family" for the
+proposal-approval contract, plugin/state details and the shared-runtime
+note.
+
+After a maintainer-only adapter change, `stable_audio3.py refresh
+--previous-adapter /absolute/path/to/previous-stable_audio3.py` verifies
+the old adapter fingerprint and the complete existing installation offline
+before refreshing its marker. It never downloads models, reinstalls packages,
+accepts new terms, or rewrites old job receipts. The 5s/30s/60s local music
+paths and a real create-ad WAV handoff were exercised on this machine;
+fal live generation and gateway/A2A soak remain unverified.
+
+## Mix
+
+AudioCreator also owns `create-mix`, `edit-mix` and `analyze-mix`,
+scoped to placing 1-16 already-finished, standalone local speech/sfx/
+music sources (WAV/FLAC/Ogg/MP3/AIFF, each ≤128 MiB, ≤512 MiB combined,
+≤600 s decoded) on one shared timeline (≤32 cues, ≤600 s total) with
+gain/fade/piecewise-dB-envelope automation, rendered to one 48 kHz PCM
+master — never a new component sound, a looped source, EQ, reverb,
+source separation or video assembly; a request needing those routes to
+the fitting leaf (generate-speech/create-sfx/generate-sfx/create-music/
+generate-music) first. AudioCreator authors relative cue placement from
+`direction`/`must_keep` when no exact `arrangement` is supplied; a
+supplied `arrangement` is preserved verbatim, never reinterpreted.
+
+Like `create-music`/`generate-music`, `create-mix` and `edit-mix` are
+two-round leaves: the first round always returns an unspent
+`proposal-v<N>/proposal.md` and its SHA-256, with zero renders; only a
+second round with Creator-relayed `approved_plan`+`approval_sha256`
+releases the render. A changed source, cue placement, gain/fade/
+envelope, duration or loudness target needs a new proposal, never a
+render against stale approval text. `edit-mix` revises one existing
+bundle from a plain-language `changes` request against its frozen
+`mix.json`/`sources/`, the same two-round shape; `analyze-mix` returns
+format/loudness/clipping/true-peak findings on any finished mix file,
+plus recorded cue/source placement when a previous bundle directory is
+supplied — findings only, no delivery file.
+
+`mix-media.py` (`audio-creator-pipeline/scripts/`) owns `propose`,
+`render`, `analyze` and `verify`; it calls no model and no network —
+this entire family is `cost: free` with no attempt ledger, since it is
+deterministic placement/gain/fade/sum on already-decoded PCM, not
+generation. Every input source is hash-verified against its frozen
+`sources/` copy before render, and an existing source's own defect
+(e.g. prior clipping) is retained and reported, never silently
+corrected. Captions (`captions.json` + `mix_<slug>.srt`), when
+produced, come only from an existing `.words.json` sidecar on a speech
+source, timing-adjusted to that cue's placement — never a fresh ASR
+pass on the mixed master. See `PROFILES.md` "Mix family" for the
+proposal-approval contract and bundle layout in full.
+
+A finished sfx/speech/music WAV from its own leaf may feed `create-mix`
+as one of its `sources`, the same way a finished sfx WAV may feed
+`create-ad` as a distinct placed cue — the two are separate forms,
+never folded into one handoff. No new profile, peer, plugin, toolset
+or service registration is needed for this family. Existing resident
+conversations may retain older instructions; fresh sessions are the
+validation target, not an assumption that an old conversation hot-reloaded.
+
+For create-ad/create-tour, `audio_workflow: mix` first returns a timing
+proposal through Creator, then consumes the finished Mix bundle before
+ordinary video plan/preview approval. Only the master plays; Tour's Mix
+captions retain their clean-speech origin separately from the master hash.
+MV/clip finishing is unchanged. Local scalar-gain normalization never
+silently invokes a limiter, and every output retains measured peak/LUFS.
+
+Automated integration fixture (synthetic tones, not real speech or client
+approval), from this directory with a fresh absolute output path:
+
+```sh
+~/ghq/github.com/NousResearch/hermes-agent/venv/bin/python scripts/tests/fixtures/mix-video/example.py --root <new-absolute-test-directory> --freeze
+```
+
+The fixture freezes real Mix/Ad/Tour bundles; each video leaf's normal
+snapshot/render helper then verifies its exact test preview hashes. Actual
+15s Ad and 8s Tour smoke renders passed, including timed Tour captions.
+Live Creator dialogue/approval soak and human listening remain unverified.
 
 ## Speech-to-text — fallback chain
 

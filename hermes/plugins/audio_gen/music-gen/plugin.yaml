@@ -1,0 +1,6 @@
+name: music-gen
+version: 0.1.0
+description: >-
+  AudioCreator-only approved music generation, with bounded local takes or
+  explicitly approved fal spending. No speech, SFX, mixing or paid fallback.
+kind: standalone

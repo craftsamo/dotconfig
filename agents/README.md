@@ -61,53 +61,52 @@ subagents (`explore-medium`, `reviewer`, ...) or opencode-only tools
 [`opencode/skills/`](../opencode/skills) — sharing it would tell other agents
 to call tools they do not have.
 
-## Provenance of the Japanese writing stack
+## Japanese writing core
 
-The curated `japanese-writing` skill bundles the whole Japanese writing
-stack (notation SKILL.md + tech-prose / prose-rhythm / business / inspection
-layers under references/). Several layers re-author ideas from external
-sources. Their prose is original to this repo (meaning preserved, wording
-fully re-expressed), so no upstream license text is carried in the files:
+The curated `japanese-writing` SKILL.md now contains language knowledge and
+five notation defaults: mixed-script typography, kana spelling, okurigana,
+no Japanese prose dashes, and contextual use of `〜化` / `〜的`.
+It does not select document types, orchestrate review, run tools or score
+naturalness. Fixed terminology tables, genre-wide registers and source-line
+wrapping rules are no longer part of the shared core.
 
-- `references/business/` and `references/inspection/` — adapted from
+The package contains only `SKILL.md`. Document construction and checking belong
+to the host workflow; Hermes Writer uses its operation/subject leaves and a
+bounded pre-draft consultation. The old catalogs, inspection loop, naturalness
+scores, Python tools and their detector fixtures have been retired after their
+Writer and caller dependencies were removed. Do not reinstall that workflow by
+copying old resources back into a discovered skill directory.
+
+### Historical sources
+
+The former stack is recoverable from Git history. Locate the deletion of its
+resource paths with `git log --all --diff-filter=D -- agents/curated/japanese-writing/`,
+then inspect the removal commit's parent rather than relying on a hash that
+changes during a rebase. This record preserves the origin of ideas also
+re-expressed in Writer references; it is not an active dependency or a
+skill-resource index.
+
+- Business-document and inspection material was adapted from
   [coji/natural-japanese](https://github.com/coji/natural-japanese) v1.3.0
-  (`b54954f`, MIT): doctype patterns, the 12-article constitution, the
-  detection scripts and judgment catalogs. The Python scripts under
-  `japanese-writing/scripts/` are carried nearly verbatim and each keeps a
-  one-line SPDX/MIT attribution header (that header must stay). Dropped from
-  upstream: essay/blog authoring scope, style profiles, the no-uv manual
-  checklist, examples.md, `semantic.py`, `calibrate.py`.
-- `references/tech-prose.md` — adapted from k16shikano's japanese-tech-writing
-  gist (Unlicense); the LLM-phrase catalog now lives in
-  `references/inspection/`.
-- `references/prose-rhythm.md` — adapted from k16shikano's
-  cognitive-rhythm-writing gist (Unlicense).
+  (`b54954f`, MIT). The retired Python scripts were carried nearly verbatim
+  with SPDX/MIT attribution headers. Preserve those headers and applicable
+  license notices if restoring or reusing that code from history.
+- Argumentation guidance was adapted from k16shikano's japanese-tech-writing
+  gist (Unlicense), and pacing guidance from the cognitive-rhythm-writing gist
+  (Unlicense). The local prose re-expressed those ideas rather than copying it.
 
-To pull upstream improvements: diff the upstream repo against the recorded
-ref, then re-express the delta in the affected skill (never paste prose
-verbatim) and update the ref here.
+Consider future source improvements only for an identified language or writing
+task. Preserve attribution for reused material; do not restore obsolete
+detectors, templates or review procedures as a bulk upstream update.
 
-### House style of the `japanese-writing` skill body
+### Maintaining the language core
 
-The Japanese bodies (SKILL.md and everything under references/) are
-themselves deliverable Japanese text and must dogfood the skill's own
-notation layer. On top of that:
-
-- Prose (framing/explanation) is 敬体 (です・ます) in full sentences; rule
-  bullets are 常体 dictionary-form directives ending with 。 when they are
-  full sentences. No 「〜すること」 endings.
-- No `対象: <noun phrase>` label-style prose — write it out
-  (「〜が対象です」). Example labels (悪い例：/良い例：) and
-  reference-list labels stay, delimited by full-width 「：」 (never ` — `).
-- Inline enumerations of 3+ items break out into a bulleted list received
-  by 「〜といった」; near-synonym pairings use parentheses (書く（直す）),
-  not 中黒. 中黒 is allowed only in heading/label/table noun runs.
-- Self-reference: 「本スキル」 in SKILL.md, 「この層」 in layer files;
-  never address the agent in second person.
-- Prohibition strength ladder: 「〜しない」 (default rule), 「〜に限る」
-  (conditional), 「〜てはならない」 (absolute gate).
-- Numerals set solid with Japanese (「3個」「12条」); frontmatter
-  `description` stays English and is out of scope.
+Write the Japanese core in readable prose with the selected notation.
+Separate actual ambiguity or meaning loss from an optional change of style.
+Examples must preserve facts, modality and register; natural counterexamples
+are as important as corrections. Do not reintroduce fixed repetition counts,
+genre templates, a mandatory review loop or a reference router.
+Behavioral cases live outside the runtime skill under `agents/tests/`.
 
 ## Third-party skills
 

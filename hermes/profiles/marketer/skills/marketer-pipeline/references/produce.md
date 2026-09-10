@@ -4,18 +4,52 @@ Loaded when a released message unit arrives. The claim, audience,
 destination, fact-ledger references, and part paths are settled
 (kernel <UnitDiscipline>); your craft is HOW it lands on the
 platform. Copy may state only what the ledger references support —
-the factual inspection will remove anything else, so write from the
-ledger, not toward it.
+unsupported claims block the unit and return to the text's owner. Never
+remove a claim from an accepted Writer part locally.
 
-## Copy craft
+## X and Instagram text parts
 
-- **Structure**: name the audience's specific frustration → the
-  cost of inaction (only where it fits the brand; omit when it
-  cheapens) → the desired after-state, concrete and short → the
-  offer/CTA connecting them. For sales-page-shaped copy the
-  standard PASONA sequence applies (problem, agitation, solution,
-  offer, narrowing, action); "narrowing" states honestly who it is
-  for and who should not buy.
+Writer's `write-post`, `edit-post` and `analyze-post` leaves own post text
+and thread structure for these platforms. Read the actual supplied draft
+and its post-ID/media mapping under `parts.md`; run the existing pre-ship
+inspection on the exact candidate. Extract only the labelled plain-text
+bodies unchanged: IDs, fences, production notes and unresolved insertion
+markers are not publishable text. Missing media or unresolved hard limits
+block publication, not an invitation to invent an attachment or test post.
+
+If a draft is absent or needs wording changes, return the requirement to
+the requester for Writer. Any candidate obtained through an existing Writer
+peer call is not writing-QA-gated: return its path to the requester for
+independent writing QA before it can enter a message unit or approval relay.
+It is never permission to publish. No local shortening, new
+hashtag, claim removal or humanizer rewrite of a supplied part. A revised
+version must pass inspection and the existing exact-text Publish approval.
+Instagram remains draft-only without an available approved integration.
+
+## Promotional copy parts
+
+LP copy, promotional mail and announcements use Writer's `write-copy`,
+`edit-copy` or `analyze-copy`, including briefs previously named marketing-copy.
+Consume the independently accepted text under `parts.md`; retain the approved
+claim, offer conditions, qualifications and disclosures. A Writer peer response
+still needs the requester's writing QA before it becomes an accepted part.
+Extract only actual copy fields unchanged, never their labels or review notes.
+
+Missing proof, a conflicting offer or required unfinished assets/links go back
+to the requester. Do not shorten, strengthen, add urgency or run humanizer on
+accepted copy locally. Return text changes to Writer and repeat inspection and
+the exact-candidate Publish gate afterward. An `analyze-copy` report is decision
+input, not replacement copy. Legal inspection and measured campaign outcomes
+remain separate from Writer's text QA. Never infer a new channel integration.
+
+## Legacy platform-post craft (outside X and Instagram)
+
+This section covers only unmigrated platform-post work. It is not a fallback
+for served Copy or Post leaves, including a custom copy destination.
+
+- **Structure**: express the approved message within the actual platform-post
+  format. Keep relevant evidence and conditions; include an action only when
+  the purpose calls for one. Sales-page copy belongs to Writer, not this route.
 - **Alternatives, then selection**: with the full context in hand,
   draft several genuinely different candidates, judge them against
   spec + voice, and put forward the best with the rejects noted —

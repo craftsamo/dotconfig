@@ -107,30 +107,17 @@ general prompt, agent, command, plugin, or documentation authoring.
 
 <JapaneseWritingSkills>
 
-ALL Japanese deliverable text — writing, revising, inspecting, or scoring —
-is governed by the single `japanese-writing` skill. Load it for any Japanese
-deliverable; its SKILL.md is the always-on notation layer plus a router
-(`<Layers>`), and the other layers are read on demand from its references/:
+Load `japanese-writing` for Japanese deliverable wording: writing, editing,
+or examining the language. Its SKILL.md supplies meaning-preserving language
+knowledge and five notation defaults, not a document-design or inspection
+workflow. Respect the user's instructions and the project's conventions.
 
-- SKILL.md (notation layer) — every Japanese deliverable: typography,
-  terminology, notation, per-deliverable style.
-- `references/tech-prose.md` (argumentation layer) — long-form explanatory
-  prose. NOT for reference docs, commit messages, UI copy, or business
-  documents.
-- `references/business/overview.md` (document-design layer) — business/work
-  documents: minutes, reports, guides & manuals, memos / proposals, slide
-  outlines (constitution / design / doctypes live beside it). NOT for
-  explanatory articles.
-- `references/prose-rhythm.md` (pacing layer) — ONLY text read
-  start-to-finish as engaging prose. Never for business documents or
-  anything readers scan.
-- `references/inspection/workflow.md` (inspection layer, cross-cutting) —
-  inspect, de-AI-flavor, score, or converge ANY finished Japanese draft:
-  mechanical uv lint + fix-or-keep ledger loop, readability catalogs, and a
-  no-rewrite score mode.
-
-It does not apply to conversational replies (LanguagePolicy governs those)
-or to i18n/translation-file workflows.
+Composition, verification and delivery remain with the active task/agent.
+Do not restore the retired catalogs, run their bespoke lint or assign
+naturalness scores merely because text is Japanese. Explicit repository
+checks still apply through the host workflow; this does not force delegation
+to Hermes Writer. Ordinary conversation and i18n tooling remain outside
+the skill's scope (LanguagePolicy governs conversation).
 
 </JapaneseWritingSkills>
 </SkillRouting>
