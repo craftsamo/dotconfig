@@ -63,13 +63,14 @@ EXPECTED_CAPABILITIES = {
 }
 # Capability subdirectories are allowed in these modes; chat stays flat.
 CAPABILITY_MODES = {"plan", "execute", "quality-assurance"}
-# The sanctioned (mode, capability, subdir) shelves below a capability
-# dir: the expression palette (flat verified-device catalog) and the
-# house-format shelf (opt-in pinned 様式; nests one level into format
-# dirs).
-CREATIVE_SHELVES = {
-    ("plan", "creative", "expressions"),
-    ("plan", "creative", "house-formats"),
+# The sanctioned (mode, capability, subdir) shelf below a capability dir:
+# creative/legacy/, the flat home of retained production references with
+# fixed house prescriptions removed. Plan, execute and quality-assurance
+# each have one shelf; it never nests and never carries card_units.
+CREATIVE_LEGACY_SHELVES = {
+    ("plan", "creative", "legacy"),
+    ("execute", "creative", "legacy"),
+    ("quality-assurance", "creative", "legacy"),
 }
 # Files that must exist directly inside a mode dir (beyond index.md).
 REQUIRED_MODE_FILES = {
@@ -79,9 +80,13 @@ REQUIRED_MODE_FILES = {
 # Verification contracts that must exist (migration-loss guard); extra
 # leaves may grow beside them as long as the dir index routes them.
 REQUIRED_QA_CONTRACTS = {
+    # creative's floor lives one level down, at quality-assurance/creative/
+    # legacy/ (see QA_CONTRACT_LEGACY_CAPABILITIES below) — the top
+    # quality-assurance/creative/ dir only routes to it.
     "creative": {
         "ascii-art.md",
         "ascii-video.md",
+        "assembly.md",
         "browser-media.md",
         "comic.md",
         "data-visualization.md",
@@ -105,6 +110,9 @@ REQUIRED_QA_CONTRACTS = {
     "writing": {"prose.md", "script.md"},
 }
 CARD_UNIT_NAME = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
+# Capabilities whose required QA contract floor lives under legacy/
+# rather than directly in quality-assurance/<capability>/.
+QA_CONTRACT_LEGACY_CAPABILITIES = {"creative"}
 
 
 def load_yaml(path: Path) -> dict[str, Any]:
@@ -171,47 +179,33 @@ def validate_index_routes(directory: Path, errors: list[str]) -> None:
             )
 
 
-def validate_creative_shelf(shelf: Path, errors: list[str]) -> int:
-    """A creative shelf is a reference dir allowed to nest, and only one
-    level deep: it holds flat .md entries plus GROUPS — a house-format
-    dir whose 型 are one file each (the expression shelf stays flat in
-    practice, but the same contract covers it). A group carries its own
-    index.md (so a 型 is routed from its format, not from the shelf
-    root) and must be named as `<group>/` in the shelf index, because
-    the shelf index's own route check only sees sibling .md files and
-    would otherwise let a group drift unlisted."""
+def validate_creative_legacy_shelf(shelf: Path, mode: str, errors: list[str]) -> int:
+    """Retained legacy references stay flat and cannot register new cards."""
     validate_index_routes(shelf, errors)
-    shelf_index = shelf / "index.md"
-    shelf_text = (
-        shelf_index.read_text(encoding="utf-8") if shelf_index.is_file() else ""
-    )
     files = 0
     for entry in sorted(shelf.iterdir()):
         if entry.name.startswith("."):
             continue
-        if entry.is_file():
-            if entry.suffix != ".md":
-                errors.append(f"non-markdown reference: {rel_pipeline(entry)}")
-            else:
-                files += 1
-            continue
-        if f"{entry.name}/" not in shelf_text:
+        if entry.is_dir():
             errors.append(
-                f"shelf index does not route the group "
-                f"{entry.name}/: {rel_pipeline(shelf)}"
+                f"no nesting below the creative legacy shelf: {rel_pipeline(entry)}"
             )
-        validate_index_routes(entry, errors)
-        for leaf in sorted(entry.iterdir()):
-            if leaf.name.startswith("."):
-                continue
-            if leaf.is_dir():
-                errors.append(
-                    f"no nesting below a shelf group: {rel_pipeline(leaf)}"
-                )
-            elif leaf.suffix != ".md":
-                errors.append(f"non-markdown reference: {rel_pipeline(leaf)}")
-            else:
-                files += 1
+            continue
+        if entry.name == "SKILL.md":
+            errors.append(
+                f"creative legacy shelf must not contain SKILL.md: "
+                f"{rel_pipeline(entry)}"
+            )
+            continue
+        if entry.suffix != ".md":
+            errors.append(f"non-markdown reference: {rel_pipeline(entry)}")
+            continue
+        files += 1
+        if "card_units" in frontmatter(entry):
+            errors.append(
+                f"card_units are not permitted in the creative legacy shelf ({mode}): "
+                f"{rel_pipeline(entry)}"
+            )
     return files
 
 
@@ -373,15 +367,25 @@ def validate_assistant_pipeline(
                 if leaf.name.startswith("."):
                     continue
                 if leaf.is_dir():
-                    # The creative shelves are the sanctioned subdirs:
-                    # plan/creative/expressions/ (the verified device
-                    # palette) and plan/creative/house-formats/ (opt-in
-                    # pinned 様式), both extracted from accepted
-                    # productions (references only — never technics,
-                    # never family leaves). house-formats/ may nest, one
-                    # level, into format dirs.
-                    if (mode, entry.name, leaf.name) in CREATIVE_SHELVES:
-                        files += validate_creative_shelf(leaf, errors)
+                    # creative/legacy/ is the sanctioned subdir: the flat,
+                    # retained home of the original
+                    # creator-technic-aligned leaves. The owning
+                    # capability's own index.md must route it explicitly
+                    # since the plain sibling-route check below only sees
+                    # flat .md files.
+                    if (mode, entry.name, leaf.name) in CREATIVE_LEGACY_SHELVES:
+                        capability_index = entry / "index.md"
+                        capability_text = (
+                            capability_index.read_text(encoding="utf-8")
+                            if capability_index.is_file()
+                            else ""
+                        )
+                        if "legacy/index.md" not in capability_text:
+                            errors.append(
+                                "capability index does not route "
+                                f"legacy/index.md: {rel_pipeline(entry)}"
+                            )
+                        files += validate_creative_legacy_shelf(leaf, mode, errors)
                         continue
                     errors.append(
                         f"no nesting below capability dirs: {rel_pipeline(leaf)}"
@@ -402,12 +406,16 @@ def validate_assistant_pipeline(
     qa_root = references / "quality-assurance"
     for capability, required in REQUIRED_QA_CONTRACTS.items():
         directory = qa_root / capability
+        rel_dir = capability
+        if capability in QA_CONTRACT_LEGACY_CAPABILITIES:
+            directory = directory / "legacy"
+            rel_dir = f"{capability}/legacy"
         present = (
             {p.name for p in directory.glob("*.md")} if directory.is_dir() else set()
         )
         for name in sorted(required - present):
             errors.append(
-                f"QA contract file missing: quality-assurance/{capability}/{name}"
+                f"QA contract file missing: quality-assurance/{rel_dir}/{name}"
             )
 
     return files, catalog
@@ -1313,61 +1321,167 @@ def validate_creator_references(pipeline_dir: Path, errors: list[str]) -> None:
                 )
 
 
-# ── Creative three-layer alignment ──────────────────────────────────────
+# ── Creative three-layer alignment ────────────────────────────────────────────
 #
-# Plan decides, creator produces, QA verifies — all keyed by the creator's
-# canonical families. The assistant's plan/creative family leaves must pair
-# 1:1 with creator technics, and the creative QA index's Covers column must
-# map every canonical family to exactly one contract. Families served by
-# Creator's hands (speech, icon, ...) are not technics and carry no leaf or
-# QA-index row here — see `execute/creative/index.md` "Hands-served families".
+# Plan decides, creator produces, QA verifies. The 1:1 parity contract is
+# scoped to plan/creative/legacy/ and quality-assurance/creative/legacy/,
+# the flat shelves that still carry the original creator-technic-aligned
+# leaves: they must pair 1:1 with creator technics, and the legacy QA
+# index's Covers column must map every canonical family to exactly one
+# contract. The plain-language guides living directly under plan/creative/
+# (this migration's new client-facing surface) carry no such parity —
+# a new guide's name need not equal a creator hand, and an absent guide
+# does not mean the capability is unavailable. Families served by
+# Creator's hands (speech, icon, ...) are not technics and carry no leaf
+# or QA-index row in legacy. Paths below are derived from the current ASSISTANT_PIPELINE
+# / HERMES_ROOT globals at call time (never cached at import time) so
+# tests can patch them without stale module-level Path objects.
 
-CREATIVE_PLAN_DIR = ASSISTANT_PIPELINE / "references" / "plan" / "creative"
-CREATIVE_QA_DIR = (
-    ASSISTANT_PIPELINE / "references" / "quality-assurance" / "creative"
-)
-CREATIVE_NON_FAMILY_LEAVES = {
+CREATIVE_LEGACY_NON_FAMILY_LEAVES = {
     "index.md",
-    "composite-media.md",
     "asset-set.md",
-    # Design-support leaves: the research-first path and the binding
-    # engine facts — cross-family by nature, never creator dispatch
-    # surfaces.
-    "reference-research.md",
-    "production-facts.md",
+    "composite-media.md",
 }
+# Headings every new plain-language creative guide must carry verbatim;
+# index.md and reference-research.md are
+# the common cross-family roots and are not guides themselves.
+CREATIVE_GUIDE_HEADINGS = (
+    "## Use",
+    "## Client decisions",
+    "## References",
+    "## Acceptance",
+)
+CREATIVE_GUIDE_EXCLUDED_ROOTS = {"index.md", "reference-research.md"}
+# Retired creative shelves/leaves: an active reference must never point
+# at them again.
+CREATIVE_RETIRED_REFERENCE_SEGMENTS = (
+    "house-formats",
+    "expressions",
+    "production-facts.md",
+)
+# A backtick-quoted local path reference: requires a directory component
+# (so bare produced-artifact names like `proposal.md` are not treated as
+# references) and an .md/.md-index target; SKILL.md and non-.md paths
+# (scripts, form fields) are excluded explicitly.
+CREATIVE_BACKTICK_REF = re.compile(r"`([^`\s]+)`")
+
+
+def validate_creative_new_guides(plan_dir: Path, errors: list[str]) -> None:
+    """Every plain-language guide directly under plan/creative/ (i.e. not
+    index.md, reference-research.md or anything under legacy/) must carry
+    the four client-facing headings verbatim."""
+    for path in sorted(plan_dir.glob("*.md")):
+        if path.name in CREATIVE_GUIDE_EXCLUDED_ROOTS:
+            continue
+        text = path.read_text(encoding="utf-8")
+        for heading in CREATIVE_GUIDE_HEADINGS:
+            if not re.search(rf"^{re.escape(heading)}\s*$", text, re.MULTILINE):
+                errors.append(
+                    f"creative guide missing heading {heading!r}: "
+                    f"{rel_pipeline(path)}"
+                )
+
+
+def creative_doc_references(doc: Path) -> list[tuple[str, Path]]:
+    """Local Markdown-link and backtick-path references in a creative doc,
+    as (raw link text, resolved target path). Backtick paths need a `/`
+    and an .md (or .../index.md) suffix to count as a reference, so plain
+    prose mentions of produced artifact names, SKILL.md, scripts and form
+    fields are not treated as broken links."""
+    refs = list(markdown_links(doc))
+    text = doc.read_text(encoding="utf-8")
+    for raw in CREATIVE_BACKTICK_REF.findall(text):
+        link = raw.strip().split("#", 1)[0]
+        if any(char in link for char in "<>${}*"):
+            continue  # illustrative template, not a concrete document path
+        if "/" not in link or not link.endswith(".md"):
+            continue
+        if Path(link).name == "SKILL.md":
+            continue
+        if re.match(r"^[a-zA-Z][a-zA-Z0-9+.-]*:", link):
+            continue  # scheme (http:, https:, mailto:, ...)
+        refs.append((link, (doc.parent / link).resolve()))
+    return refs
+
+
+def validate_creative_references(pipeline_dir: Path, errors: list[str]) -> None:
+    """Local document references across the affected creative docs (plan,
+    execute and quality-assurance creative trees, legacy shelves
+    included), confined to the pipeline root and never pointing at a
+    retired shelf."""
+    root = pipeline_dir.resolve()
+    for mode in ("plan", "execute", "quality-assurance"):
+        tree = pipeline_dir / "references" / mode / "creative"
+        if not tree.is_dir():
+            continue
+        for doc in sorted(tree.rglob("*.md")):
+            rel_doc = doc.relative_to(pipeline_dir).as_posix()
+            for link, target in creative_doc_references(doc):
+                if any(seg in Path(link.split("#", 1)[0]).parts
+                       for seg in CREATIVE_RETIRED_REFERENCE_SEGMENTS):
+                    errors.append(
+                        f"creative reference points at a retired shelf "
+                        f"{link!r}: {rel_doc}"
+                    )
+                    continue
+                try:
+                    target.relative_to(root)
+                except ValueError:
+                    errors.append(
+                        f"creative reference escapes the pipeline: "
+                        f"{link} in {rel_doc}"
+                    )
+                    continue
+                if not target.is_file():
+                    errors.append(
+                        f"creative reference is broken: {link} in {rel_doc}"
+                    )
 
 
 def validate_creative_alignment(errors: list[str]) -> None:
+    plan_dir = ASSISTANT_PIPELINE / "references" / "plan" / "creative"
+    qa_dir = ASSISTANT_PIPELINE / "references" / "quality-assurance" / "creative"
     technic_dir = HERMES_ROOT / "profiles" / "creator" / "skills" / "technic"
-    if not (technic_dir.is_dir() and CREATIVE_PLAN_DIR.is_dir()):
+    legacy_dir = plan_dir / "legacy"
+    if plan_dir.is_dir():
+        validate_creative_new_guides(plan_dir, errors)
+    validate_creative_references(ASSISTANT_PIPELINE, errors)
+    if not (technic_dir.is_dir() and plan_dir.is_dir()):
         return  # missing roots are reported by the profile validators
+    if not legacy_dir.is_dir():
+        errors.append(f"missing creative plan legacy shelf: {legacy_dir}")
+        return
 
     technics = {path.parent.name for path in technic_dir.glob("*/SKILL.md")}
     canonical = technics
 
-    leaves = {
-        path.name for path in CREATIVE_PLAN_DIR.glob("*.md")
-    } - CREATIVE_NON_FAMILY_LEAVES
+    legacy_leaves = {
+        path.name for path in legacy_dir.glob("*.md")
+    } - CREATIVE_LEGACY_NON_FAMILY_LEAVES
     expected = {f"{name.removeprefix('creator-')}.md" for name in technics}
-    for name in sorted(expected - leaves):
-        errors.append(f"creative plan leaf missing for canonical family: {name}")
-    for name in sorted(leaves - expected):
-        errors.append(f"creative plan leaf has no canonical family: {name}")
+    for name in sorted(expected - legacy_leaves):
+        errors.append(f"creative legacy leaf missing for canonical family: {name}")
+    for name in sorted(legacy_leaves - expected):
+        errors.append(f"creative legacy leaf has no canonical family: {name}")
 
-    qa_index = CREATIVE_QA_DIR / "index.md"
+    qa_legacy_dir = qa_dir / "legacy"
+    qa_index = qa_dir / "index.md"
     if not qa_index.is_file():
         errors.append(f"missing creative QA index: {qa_index}")
         return
+    qa_legacy_index = qa_legacy_dir / "index.md"
+    if not qa_legacy_index.is_file():
+        errors.append(f"missing creative QA legacy index: {qa_legacy_index}")
+        return
     covered: list[str] = []
-    for line in qa_index.read_text(encoding="utf-8").splitlines():
+    for line in qa_legacy_index.read_text(encoding="utf-8").splitlines():
         if not line.startswith("|") or line.startswith("| ---"):
             continue
         cells = [cell.strip() for cell in line.strip("|").split("|")]
         if len(cells) < 3 or cells[1] == "Contract":
             continue
         contract = cells[1].strip("`")
-        if contract.endswith(".md") and not (CREATIVE_QA_DIR / contract).is_file():
+        if contract.endswith(".md") and not (qa_legacy_dir / contract).is_file():
             errors.append(f"creative QA route names missing contract: {contract}")
         covered.extend(re.findall(r"`([^`]+)`", cells[2]))
     for name in sorted(canonical):
@@ -1380,7 +1494,6 @@ def validate_creative_alignment(errors: list[str]) -> None:
             )
     for name in sorted(set(covered) - canonical):
         errors.append(f"creative QA Covers names unknown family: {name}")
-
 
 # ── Engineering plan-QA alignment ───────────────────────────────────────
 #
