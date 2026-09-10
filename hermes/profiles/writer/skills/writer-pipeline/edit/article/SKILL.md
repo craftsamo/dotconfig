@@ -61,9 +61,11 @@ metadata:
    notation knowledge, not permission to restyle the original. Quotations,
    code, URLs, identifiers, asset markers and any `must_keep` content stay
    unchanged absent explicit, item-specific authorization; a blanket
-   normalization request is not such authorization. An unfamiliar proper noun,
-   a suspicious number or a fact inconsistent with the rest of the source is
-   flagged, not silently corrected by inference.
+   normalization request is not such authorization. Line breaks, blank lines,
+   indentation and a trailing newline are the source's existing form, not
+   errors to tidy. An unfamiliar proper noun, a suspicious number or a fact
+   inconsistent with the rest of the source is flagged, not silently
+   corrected by inference.
 3. Read the matching destination guidance only: [X Article](references/x-article.md),
    [note](references/note.md), [Zenn](references/zenn.md) or [blog](references/blog.md).
    An unknown/custom destination retains the supplied constraints; do not
@@ -94,8 +96,11 @@ metadata:
    Never overwrite the source without authorization or edit a live page.
    Previously approved text needs renewed approval after modification.
    Finding no qualifying errors is a legitimate no-op: when a new output
-   path was requested, deliver the complete unchanged text there, leave the
-   original untouched, and report that no changes were made.
+   path was requested, copy the source to it exactly, including its existing
+   line breaks and trailing newline, leave the original untouched, and report
+   that no changes were made. Compare the delivered file with the source
+   before calling it unchanged; never report an identical copy you did not
+   verify, and a retyped article is not a copy.
 
 </Procedure>
 
@@ -120,8 +125,11 @@ metadata:
   an applied change.
 - A no-op (no qualifying errors found within the authorized scope) is a valid
   outcome, not a failure to report; the delivered text and any new-path
-  output remain identical to the source, and the report names the checked
-  scope and the empty result.
+  output remain byte-identical to the source, layout included, and the report
+  names the checked scope and the empty result.
+- Unrequested layout changes count as edits: reflowed paragraphs, added or
+  removed blank lines and a dropped trailing newline all fail a correction
+  scope even when the wording is untouched.
 - Report applicable criteria as checked / unmet / unverified with evidence.
   This is self-review, not the requester's acceptance or publication approval.
 
