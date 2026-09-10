@@ -907,6 +907,15 @@ The shared Japanese core is a single `SKILL.md`, with no inspection resources
 or scripts. Writer's leaves own document construction and checks. Historical
 source attribution remains in `agents/README.md` and Git history.
 
+Article's `edit` scope includes `proofread` for minimal correction, separate
+from ordinary `wording` polishing (still the default). Findings-only requests
+use `analyze-article`; never add a fourth verb or shared proofreading pipeline.
+No-op output is legitimate; preserve protected text and flag uncertain names
+or numbers instead of guessing. Assistant's article Client guide and article
+acceptance branches preserve editorial ownership while exempting bounded edits
+and analyses from new-writing outline/research requirements. This is an article
+pilot, not a migration of the other five families or retirement of writing QA.
+
 Document leaves are `<write|edit|analyze>/document/`, including legacy briefs
 named documentation/business-document. Formats are local form options, not
 new profiles: README, guide, reference, report, minutes, proposal, slides,
