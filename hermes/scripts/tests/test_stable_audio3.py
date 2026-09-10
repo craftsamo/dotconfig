@@ -392,6 +392,58 @@ def test_status_full_detects_dependency_version_drift(env, monkeypatch):
     assert "dependency fake version" in state["reason"]
 
 
+# ---- 2b. st_dev is not part of the fingerprint ---------------------------------
+# macOS renumbers the APFS Data volume's device id on reboot; a marker that
+# recorded it went "drift" after the first restart with nothing changed on
+# disk (2026-09-10). New markers omit `dev`; old ones must keep working.
+
+def _rewrite_marker_stats(root, mutate):
+    marker_path = root / sa3.MARKER_NAME
+    marker = json.loads(marker_path.read_text())
+    for weight in marker["weights"]:
+        mutate(weight["stat"])
+    for dep in marker["dependencies"].values():
+        mutate(dep["stat"])
+    marker_path.write_text(json.dumps(marker, indent=2, sort_keys=True) + "\n")
+    return marker
+
+
+def test_stat_fingerprint_omits_device_id(env):
+    sa3.install(root=env["root"], accept_terms=True)
+    marker = json.loads((env["root"] / sa3.MARKER_NAME).read_text())
+    for stat in [w["stat"] for w in marker["weights"]] + [d["stat"] for d in marker["dependencies"].values()]:
+        assert set(stat) == {"inode", "mtime_ns", "size"}
+
+
+def test_status_ready_when_old_marker_recorded_a_different_device_id(env):
+    """A schema-2 marker written by the previous adapter carries `dev`; after a
+    reboot that value no longer matches. Both fast and full must stay ready
+    without the marker being rewritten."""
+    sa3.install(root=env["root"], accept_terms=True)
+
+    def add_stale_dev(stat):
+        stat["dev"] = 16777232  # the pre-reboot value on the incident machine
+
+    _rewrite_marker_stats(env["root"], add_stale_dev)
+    before = (env["root"] / sa3.MARKER_NAME).read_bytes()
+    assert sa3.status(root=env["root"], full=False)["available"] is True
+    assert sa3.status(root=env["root"], full=True)["available"] is True
+    assert (env["root"] / sa3.MARKER_NAME).read_bytes() == before
+
+
+@pytest.mark.parametrize("field", ["inode", "mtime_ns", "size"])
+def test_status_still_drifts_on_the_remaining_stat_fields(env, field):
+    sa3.install(root=env["root"], accept_terms=True)
+
+    def bump(stat):
+        stat[field] += 1
+
+    _rewrite_marker_stats(env["root"], bump)
+    state = sa3.status(root=env["root"], full=False)
+    assert state["available"] is False
+    assert "drift" in state["reason"]
+
+
 # ---- 3. blank text -----------------------------------------------------------
 
 def test_render_rejects_blank_text(env, tmp_path):
@@ -914,6 +966,28 @@ def test_refresh_adapter_only_offline_atomic_and_keeps_receipts(refresh_env, mon
     sa3.refresh(e["root"], previous_adapter=e["previous"])
     assert (e["root"] / sa3.MARKER_NAME).read_bytes() == second_before
     assert len(replacements) == 1
+
+
+def test_refresh_accepts_old_marker_with_stale_device_ids(refresh_env):
+    """The 2026-09-10 repair path: the marker was written by an adapter that
+    recorded st_dev, the machine rebooted, the adapter was fixed. refresh must
+    verify the install and update only the code fingerprint - the stale `dev`
+    fields stay as they are, they are simply no longer compared."""
+    e = refresh_env
+
+    def add_stale_dev(stat):
+        stat["dev"] = 16777232
+
+    marker = _rewrite_marker_stats(e["root"], add_stale_dev)
+    assert not sa3.status(e["root"])["available"]  # adapter drift, not stat drift
+    result = sa3.refresh(e["root"], previous_adapter=e["previous"])
+    assert result["status"] == "ready"
+    after = json.loads((e["root"] / sa3.MARKER_NAME).read_text())
+    assert after["weights"] == marker["weights"]
+    assert after["dependencies"] == marker["dependencies"]
+    assert after["code_lock_fingerprint"] != marker["code_lock_fingerprint"]
+    assert sa3.status(e["root"], full=False)["available"] is True
+    assert sa3.status(e["root"], full=True)["available"] is True
 
 
 @pytest.mark.parametrize("damage", [
