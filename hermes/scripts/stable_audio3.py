@@ -167,12 +167,27 @@ def _sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
+_STAT_FINGERPRINT_KEYS = ("inode", "mtime_ns", "size")
+
+
 def _stat_fingerprint(path: Path) -> dict | None:
+    """inode + mtime_ns + size only. st_dev is deliberately excluded: macOS
+    renumbers the APFS Data volume's device id across reboots, so a marker
+    recording it fails every fast check after the first restart even though
+    nothing on disk changed (2026-09-10)."""
     try:
         info = path.stat()  # follows symlinks
     except OSError:
         return None
-    return {"inode": info.st_ino, "dev": info.st_dev, "mtime_ns": info.st_mtime_ns, "size": info.st_size}
+    return {"inode": info.st_ino, "mtime_ns": info.st_mtime_ns, "size": info.st_size}
+
+
+def _stat_matches(current: dict | None, recorded: dict | None) -> bool:
+    """Compares only the fingerprint keys, so a schema-2 marker written by an
+    older adapter (which also recorded `dev`) stays valid without a rewrite."""
+    if current is None or not isinstance(recorded, dict):
+        return False
+    return all(current.get(k) == recorded.get(k) for k in _STAT_FINGERPRINT_KEYS)
 
 
 def _run(argv: list, cwd=None, timeout=60, env=None) -> str:
@@ -334,10 +349,11 @@ def is_busy(root=None):
 
 def status(root: str | Path | None = None, full: bool = False) -> dict:
     """Report readiness. Every call (fast or full) does a live git inspection
-    of the checkout and a stat-fingerprint check of pinned weights/deps -
-    never a blind trust of the marker's recorded claims. full=True additionally
-    re-hashes all weights and re-collects the dependency manifest via a
-    subprocess (no re-download, no reinstall)."""
+    of the checkout and a stat-fingerprint check of pinned dependency
+    dist-infos - never a blind trust of the marker's recorded claims. Fast
+    mode stat-checks the weights; full=True re-hashes them INSTEAD (a content
+    check, so a same-stat tamper is caught) and re-collects the dependency
+    manifest via a subprocess (no re-download, no reinstall)."""
     root = Path(root).resolve() if root is not None else DEFAULT_ROOT
     if not _is_supported_platform():
         return _unavailable("platform must be macOS arm64 (darwin/arm64)")
@@ -391,8 +407,7 @@ def _check_runtime(layout, pins, marker, full):
             if not runtime_path.exists() or _sha256_file(runtime_path) != entry["sha256"]:
                 return _unavailable(f"drift: {entry['repo_path']} content hash mismatch or missing")
         else:
-            current = _stat_fingerprint(runtime_path)
-            if current is None or current != recorded.get("stat"):
+            if not _stat_matches(_stat_fingerprint(runtime_path), recorded.get("stat")):
                 return _unavailable(f"drift: {entry['repo_path']} stat fingerprint mismatch or missing")
 
     marker_deps = marker.get("dependencies", {})
@@ -401,8 +416,7 @@ def _check_runtime(layout, pins, marker, full):
         recorded = marker_deps.get(name)
         if recorded is None:
             return _unavailable(f"drift: pinned dependency {name} missing from marker")
-        current = _stat_fingerprint(Path(recorded["path"]))
-        if current is None or current != recorded.get("stat"):
+        if not _stat_matches(_stat_fingerprint(Path(recorded["path"])), recorded.get("stat")):
             return _unavailable(f"drift: dependency {name} dist-info changed since install")
     if full:
         try:

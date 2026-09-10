@@ -702,6 +702,20 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
   verifies the previous adapter fingerprint and the entire existing install
   offline before updating its marker. Never bypass drift checks or rewrite
   existing job receipts; completed SFX resume remains valid, next detects drift.
+  **The stat fingerprint is inode + mtime_ns + size — never `st_dev`.**
+  macOS renumbers the APFS Data volume's device id across reboots
+  (`16777232 → 16777233` on 2026-09-10, the first restart after the 09-08
+  install), so a marker that recorded it reported `drift: … stat
+  fingerprint mismatch` on every weight and all 22 dependency records with
+  nothing changed on disk; AudioCreator read that as "local model broken"
+  and steered the Acme BGM job toward paid fal. `_stat_matches`
+  compares only the three keys, so a schema-2 marker that still carries
+  `dev` stays valid without a rewrite. If `check` reports stat drift after a
+  reboot again, suspect a new volatile field before suspecting the weights —
+  `check --full` hashing clean while fast fails is the tell. Note also that
+  `status()`'s full mode HASHES the weights instead of stat-checking them
+  (dependency stats are checked in both modes), so a full pass does not prove
+  the fast guard is green.
   Finished music uses create-ad's existing WAV cues. No new tour/MV finish,
   song, mix, peer, secret, model download or launch service is implied.
   **Keep music front matter inside the runtime's first 4,000 characters.**
