@@ -53,8 +53,10 @@ Resolve the title and body format. Detect, do not assume.
 3. Fallback — derive from the branch's commits (`git log <base>..HEAD`): a
    capitalized summary title and a Summary / Changes / Notes body.
 
-- Squash-merge repos: the PR title becomes the squash commit subject on the
-  base branch — make it a good permanent subject.
+- Treat PR titles as durable descriptions, but do not promise they become the
+  landed commit subject. Squash-message defaults depend on repository settings
+  and commit count; a one-commit PR may use its commit subject instead. Read the
+  actual settings when explaining the expected result, never change them here.
 - Title and body language follow the repo's merged-PR habit — infer it, never
   assume English.
 
@@ -92,6 +94,12 @@ cross-repo or private refs may not resolve; solo repos surface few Issues.
 A purpose executes as a chain of PRs (`approach-github-projects`
 `<BranchTopology>`). When the branch belongs to one, `gh stack` owns the base
 and the push; this skill still owns the title, body and links.
+
+- **Layer descriptions.** Derive the title and change summary from the diff
+  against the layer immediately below (the trunk for the bottom layer), not
+  from the whole stack's diff against the trunk. Describe only changes this
+  PR introduces; put the broader purpose and dependencies in body context or
+  links. Never broaden the top PR's title to serve as a whole-stack merge title.
 
 `gh stack` is the `github/gh-stack` extension, declared in `GH_EXTENSIONS` in
 `install.sh`. If the command is missing, install it
@@ -132,29 +140,74 @@ hand-managed base branches.
 
 </StackedPRs>
 
+<MergeMessageHandoff>
+
+PR descriptions and merge messages have different scopes. A native stack has
+no independent title/body that can stand in for its members. Do not assume a
+particular member supplies the default title of a stack merge commit.
+
+At handoff, distinguish the documented native-stack merge methods:
+
+| Method | Result and description scope |
+| --- | --- |
+| Merge commit | One merge commit for the selected group; its title and body should describe all PRs being landed. |
+| Squash | One squash commit per merged PR; each layer's description remains relevant, subject to repository message defaults. |
+| Rebase | Individual commits are replayed; their subjects remain the descriptions, not one aggregate PR title. |
+
+A later, separately authorized merge must re-read the current stack and the
+selected prefix: merging through a middle layer excludes the layers above it.
+Prepare the merge description from that actual range and chosen method, not
+from a stale whole-stack summary or a mechanically copied top-layer title.
+PR creation does not settle the merge scope, method or message in advance.
+
+This is a handoff rule, not merge execution. Do not add merge commands, API
+fallbacks or repository-setting mutations to this workflow. If the installed
+CLI cannot customize a merge message, disclose that limit; do not claim a PR
+rename guarantees the desired merge subject or use an API to bypass a gate.
+
+Sources: [native stack merge methods](https://docs.github.com/en/pull-requests/reference/stacked-pull-requests#merge-methods)
+and [squash-message settings](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/configuring-pull-request-merges/configuring-commit-squashing-for-pull-requests).
+
+</MergeMessageHandoff>
+
 <Steps>
 
-1. Confirm the user asked to open or update a PR. Inspect: the current branch is
-   not the default branch, `git status`, and `git log --oneline <base>..HEAD`
-   has commits. Warn that uncommitted changes will not be in the PR.
-2. Determine the base: the repo default branch
-   (`gh repo view --json defaultBranchRef`), unless the user names one or the
-   branch is a stack layer (then the layer below is the base — see
-   <StackedPRs>).
-3. Push: `git push -u origin HEAD` (gated `ask`), or `gh stack push` for a
-   stack layer; when `origin` is not writable (fork workflow), push to the
-   writable fork remote instead. Never force-push outside the stack mechanism
-   unless explicitly asked.
-4. Run <RelatedScan>: `git_related_scan` returns the existing open PR for this
-   head — update it, do not duplicate — along with the links to include.
-5. Build the title and body per <ConventionResolution>, folding in the links.
+1. Confirm the user asked to open or update a PR. Inspect the current branch
+   and `git status`; do not open a PR from the default branch. Warn that
+   uncommitted changes will not be in the PR.
+2. Run <RelatedScan> before comparing changes, writing descriptions or pushing.
+   Resolve the existing PR and stack membership, then determine the base: the
+   stack's immediate lower layer wins. For a non-stack PR, honor an explicit
+   base request; otherwise preserve the existing PR's base (read it with
+   `gh pr view --json baseRefName`). Use the repository default only for a new
+   PR without a selected base (`gh repo view --json defaultBranchRef`). If
+   adding/rebasing layers changes the topology, rescan and resolve the base
+   again before continuing.
+3. Inspect `git log --oneline <base>..HEAD` and `git diff <base>...HEAD` using
+   that resolved base. Confirm the PR introduces changes and review every
+   included commit, not only the latest. For a stack, separate lower-layer
+   context from the changes this layer actually introduces. For metadata-only
+   updates, inspect the published PR with `gh pr diff` and
+   `gh pr view --json commits` instead of unpublished local HEAD.
+4. Build the title and body per <ConventionResolution> and <StackedPRs>, folding
+   in verified links. Update an existing PR instead of creating a duplicate.
+5. Push only when publishing a new PR or an authorized branch update:
+   `git push -u origin HEAD` (gated `ask`), or `gh stack push` for a stack
+   layer; when `origin` is not writable, use the writable fork remote. Never
+   force-push outside the stack mechanism unless explicitly asked. A request
+   to edit a title/body alone does not authorize publishing local commits.
 6. Create or update: `gh pr create --base <base> --title "..." --body-file -`
    fed by a heredoc (multi-line bodies survive quoting; never literal `\n`);
    ready by default, add `--draft` only if asked. For a stack layer, publish
    with `gh stack submit --open` and then set the title/body via `gh pr edit`.
-   Update with `gh pr edit`. Set reviewers, labels, assignees, or a milestone
-   only if the user asked.
-7. Report the PR URL and its ready/draft state. Do not merge.
+   For metadata-only updates, use `gh pr edit` alone, not a stack submission;
+   preserve unspecified fields and draft state. Set reviewers, labels,
+   assignees, or a milestone only if the user asked.
+7. Re-read the published PR's base, title, body and draft state, and the stack
+   order when applicable. Confirm the description matches the layer diff;
+   do not assume submission or base retargeting preserved that match.
+8. Report the PR URL and its ready/draft state, including the immediate base
+   for a stack. Keep any later merge-message handoff separate. Do not merge.
 
 </Steps>
 
@@ -180,8 +233,9 @@ hand-managed base branches.
   after a `gh stack rebase`.
 - Do not run `gh stack link` without an explicit `--base` — it silently
   retargets existing PRs to the default branch.
-- Do not leave a stack layer as a draft when the repo convention is
-  ready-for-review — `gh stack submit --auto` defaults to draft.
+- Do not create a stack layer as a draft unless requested: `gh stack submit
+  --auto` defaults to draft, so use `--open` for ready publication. Preserve
+  existing draft state during metadata-only updates.
 - Do not open a PR from the default branch, and do not duplicate an existing
   open PR — update it.
 - Do not silently exclude uncommitted work; warn that only pushed commits ship.
@@ -189,5 +243,9 @@ hand-managed base branches.
 - Do not fabricate an Issue or PR link — leave it out or ask when unsure.
 - Do not invent a title or body convention that contradicts the repo's merged
   PRs.
+- Do not describe lower-layer changes as new work in the current PR, or rename
+  a layer to disguise a whole-stack merge-message mismatch.
+- Do not treat a PR title as a guaranteed merge subject or a PR-creation
+  request as authorization to choose or execute a later stack merge.
 
 </AntiPatterns>
