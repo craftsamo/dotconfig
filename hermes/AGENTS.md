@@ -338,9 +338,43 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
   everyday profile's stale one and signed the clone out — verified live:
   after 25 minutes the clone's `__Secure-1PSIDTS` already differed from
   Profile 12's. Deletions do not propagate (a sign-out in the everyday Brave
-  leaves the clone signed in). The worker-facing rule (spawn your own
-  browser with port 0, never attach to Hermes' instance) lives in
-  `~/Workspaces/AGENTS.md` (private overlay).
+   leaves the clone signed in). The worker-facing rule (spawn your own
+   browser with port 0, never attach to Hermes' instance) lives in
+   `~/Workspaces/AGENTS.md` (private overlay).
+   **A third LOCAL patch, from the 2026-09-10 WhatsApp case:
+   `fix/real-profile-headless-user-agent`
+   (`tests/tools/test_browser_real_profile_user_agent.py`); re-check after
+   `hermes update` like the others.** New headless advertises
+   `HeadlessChrome/<v>`, and a site that gates on the UA STRING refuses a
+   browser that is perfectly current: WhatsApp Web answered the Brave clone
+   (Chromium 152) with "WhatsApp works with Google Chrome 100+ / update
+   Chrome". A RELAUNCH CANNOT CLEAR THIS — nothing is stale, only the name
+   is wrong — so an "update your browser / unsupported browser" page is a UA
+   gate, never a relaunch case, and never evidence that the owner's login
+   expired. The headless launch now passes `--user-agent` carrying the same
+   major version the binary reports (`<binary> --version`; an unreadable
+   version adds no flag rather than guessing), headed launches untouched.
+   Measured on a throwaway profile: without it, the gate page; with it, the
+   QR login page. It also empties the UA-CH brand list
+   (`navigator.userAgentData.brands` → `[]`), which is Chromium's own
+   trade-off for the flag. The earlier Instagram note ("the user agent was
+   not implicated") stands for THAT case; it is not a general finding.
+   Note also that `Browser.getVersion` reports `Chrome/…` on Brave, so it
+   never proves you left the clone — check the process, not the product
+   string.
+   **Cookies are not the whole login.** The snapshot deliberately excludes
+   `IndexedDB` (`hermes_cli/browser_connect.py`, `_SNAPSHOT_IGNORES`: it
+   wedges a fresh renderer and costs hundreds of MB), and only the auth DBs
+   are re-synced per launch, so a site that keeps its session THERE rather
+   than in cookies — WhatsApp Web is the case at hand — arrives signed out
+   in the clone even when the everyday Brave is signed in. Such a site gets
+   its own login IN the clone (WhatsApp: pair it as a separate linked
+   device from the QR page); the state then persists in the clone's own
+   IndexedDB across relaunches, but NOT across a snapshot rebuild or
+   `use_real_profile` going off, both of which delete it. Never copy
+   IndexedDB across profiles to shortcut this: for WhatsApp that shares one
+   linked-device identity between two clients, which is the 09-09 Google
+   rotation failure in another costume.
 - **Worker terminal approvals cannot prompt — a flagged command just fails.** The
   dispatcher runs workers with `stdin=DEVNULL` but still sets
   `HERMES_INTERACTIVE=1`, so `approvals.mode: manual` reaches EOF, denies, and the
