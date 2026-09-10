@@ -3,7 +3,7 @@ name: creator-html-motion
 description: >-
   Creator's deterministic leaf technic for HyperFrames HTML/CSS motion,
   captioned video, product tours, overlays, and exact MP4/WebM delivery.
-version: 1.0.0
+version: 1.0.1
 author: CraftSamo
 license: MIT
 platforms: [macos, linux]
@@ -79,6 +79,14 @@ captions, source permissions, and destination size cap before scaffolding.
   diagnostics pass or every justified warning is recorded.
 - Timelines are deterministic and seekable; no infinite repeat, wall-clock,
   async construction, off-frame content, overflow, or transition gap remains.
+- Use the selected runtime's seek-safe capture contract, not an old custom
+  frame-URL or per-frame CDP recipe. Render in a job-isolated context, never
+  the owner's authenticated browser. Seed stochastic effects when the
+  contract requires deterministic output.
+- Check the actual rendered fonts/glyphs, outline legibility, vertical Latin
+  orientation and changing-number layout when used. Choose CSS corrections
+  for observed defects; no universal font alias, stroke treatment or number
+  style is imposed on the design.
 - `ffprobe` confirms duration, fps, dimensions, streams, codec/container, and
   file-size contract. Multiple frames per scene and all boundaries are visually
   inspected; audio and captions are checked against their source/timing.
