@@ -238,12 +238,23 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
   `git show 93bb5bb:hermes/launchd/...` + `secret set BU_CDP_URL`). Never add
   such a key back to a layer the gateway launcher evals.
   Profiles that need the owner's logins — assistant and marketer only — set
-  `browser.use_real_profile: true` + `real_profile_pin: "Profile 12"` (the
-  dedicated **Hermes Agent** Brave profile: log in to services THERE, in the
-  everyday Brave; cookies / logins are re-synced into
-  `~/.hermes/profiles/<p>/browser-profile/brave/` on every fresh session,
-  gitignored) + `real_profile_binary:` pointing at the clone. Everyone else
-  gets upstream's on-demand packaged Chromium in a throwaway profile.
+  `browser.use_real_profile: true` + `real_profile_pin:` naming a dedicated
+  Brave profile DIRECTORY (`Local State → profile.info_cache` key, not the
+  display name): assistant → `"Profile 12"` (**Hermes Agent (Assistant)**),
+  marketer → `"Profile 13"` (**Hermes Agent (Marketer)**, 2026-09-09). Log
+  in to services THERE, in the everyday Brave; cookies / logins are merged
+  into `~/.hermes/profiles/<p>/browser-profile/brave/` on every fresh clone
+  launch (gitignored) + `real_profile_binary:` pointing at the clone.
+  Everyone else gets upstream's on-demand packaged Chromium in a throwaway
+  profile. **One Brave profile per consenting Hermes profile, never shared:**
+  Google rotates its session cookies (`__Secure-*PSIDTS`, a few times an
+  hour) and treats an older value as a stolen session, so every client that
+  shares one Google login signs the others out — the 2026-09-09 case, where
+  the everyday Brave, the assistant's clone and a dozen marketer job clones
+  all rode Profile 12 and the owner was logged out after each relaunch. X
+  and Instagram carry static tokens (`auth_token` / `sessionid`, unchanged
+  over days of clone use) and do not do this; the separate profile still
+  isolates their risk-detection from each other.
   Preconditions that fail closed: the macOS DEFAULT browser must be Brave
   (detection is the LaunchServices `https` handler only —
   `hermes_cli/browser_connect.py:_detect_default_darwin`; with Safari it
@@ -287,26 +298,47 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
   to surviving Chrome`), mirroring nothing — the 2026-09-09 case: the owner
   logged in to Google in Profile 12 at 13:09, the clone from 10:48 kept
   serving the account chooser through two gateway restarts. And the clone
-  must go TOGETHER with its agent-browser daemon (`hermes-real-profile`
-  session, pid in `/tmp/agent-browser-hermes-real-profile/`): upstream only
-  closes that session when `get cdp-url` succeeds, so a daemon that outlived
-  a killed clone keeps the dead port, ignores the `--cdp <new port>` of the
-  next launch ("daemon already running"), and every call fails with
-  `All CDP discovery methods failed for 127.0.0.1:<old port>` until the
-  gateway restarts — UNPATCHED upstream, so watch it after `hermes update`.
-  The relaunch procedure the assistant runs itself is the private-overlay
-  skill `hermes-browser-relaunch` (`scripts/relaunch.sh`: SIGTERM clone →
-  stop daemon → clear socket dir; never launches; the next `browser_exec`
-  does). Note also that `_find_agent_browser` resolves the npx cache copy
-  (0.26.0 on 2026-09-09) ahead of the mise shim (0.31.1); not implicated,
-  but the version you see on PATH is not the one the daemon runs.
-  Multiplex caveat (NOT solved by daemon scoping):
-  `_real_profile_cdp_cache` / `_REAL_PROFILE_SESSION` are process-global, so
-  every consenting profile in the gateway shares ONE clone instance — fine
-  while all of them pin the same Brave profile (they do); give a profile a
-  different pin only after scoping that cache by `HERMES_HOME`. The worker-
-  facing rule (spawn your own browser with port 0, never attach to Hermes'
-  instance) lives in `~/Workspaces/AGENTS.md` (private overlay).
+  must go TOGETHER with its agent-browser daemon (`hermes-real-profile-<p>`
+  session, pid in `/tmp/agent-browser-hermes-real-profile-<p>/`): upstream
+  only closes that session when `get cdp-url` succeeds, so a daemon that
+  outlived a killed clone keeps the dead port, ignores the `--cdp <new
+  port>` of the next launch ("daemon already running"), and every call
+  fails with `All CDP discovery methods failed for 127.0.0.1:<old port>`
+  until the gateway restarts — UNPATCHED upstream, so watch it after
+  `hermes update`. The relaunch procedure the assistant runs itself is the
+  private-overlay skill `hermes-browser-relaunch` (`scripts/relaunch.sh`:
+  SIGTERM clone → stop daemon → clear socket dir; never launches; the next
+  `browser_exec` does). Note also that `_find_agent_browser` resolves the
+  npx cache copy (0.26.0 on 2026-09-09) ahead of the mise shim (0.31.1);
+  not implicated, but the version you see on PATH is not the one the daemon
+  runs.
+  **Two more LOCAL patches carried in `local`, both from the 2026-09-09
+  incident; re-check after `hermes update` like the others.**
+  (1) `fix/real-profile-session-scope`
+  (`tests/tools/test_browser_real_profile_session_scope.py`): upstream names
+  the attach daemon `hermes-real-profile` in EVERY hermes process. Resident
+  specialist sessions are separate processes (`HERMES_HOME=profiles/
+  marketer`), so a marketer job found the assistant's daemon answering for a
+  foreign data dir, closed it, re-snapshotted, launched its own clone — a
+  dozen times an evening — and left a daemon holding a dead port for the
+  assistant's next call to hang on (`took too long to start` after 120 s).
+  The name is now per hermes home (`-<profile>` suffix, following the
+  context-local override under multiplex), the CDP cache is keyed by it, and
+  the reaper exempts every profile's live-owned daemon. The earlier note
+  that "every consenting profile shares ONE clone" was true only inside the
+  gateway process; across processes it was the bug.
+  (2) `fix/real-profile-cookie-merge`
+  (`tests/tools/test_browser_real_profile_cookie_merge.py`): the cookie
+  store is merged row by row on relaunch, newest `last_update_utc` wins on
+  the store's own unique index, source attached read-only; version / column
+  drift or a non-SQLite copy falls back to the old overwrite. Without it a
+  relaunch replaced the clone's freshly rotated Google token with the
+  everyday profile's stale one and signed the clone out — verified live:
+  after 25 minutes the clone's `__Secure-1PSIDTS` already differed from
+  Profile 12's. Deletions do not propagate (a sign-out in the everyday Brave
+  leaves the clone signed in). The worker-facing rule (spawn your own
+  browser with port 0, never attach to Hermes' instance) lives in
+  `~/Workspaces/AGENTS.md` (private overlay).
 - **Worker terminal approvals cannot prompt — a flagged command just fails.** The
   dispatcher runs workers with `stdin=DEVNULL` but still sets
   `HERMES_INTERACTIVE=1`, so `approvals.mode: manual` reaches EOF, denies, and the
