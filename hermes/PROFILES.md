@@ -597,6 +597,25 @@ protected claims and marker bindings; analysis evaluates a report without
 rewriting the article. The requester's independent QA uses the served leaf
 contract, not legacy lint or the four-pass receipt. Humanizer is explicit-only.
 
+Article is the first Writer Client-guide pilot: Assistant's existing
+`plan/writing/article.md` holds outcome questions, optional reference comparison
+and acceptance, not a second form catalog. Editorial decisions remain with the
+requester; Writer still interprets its form and owns craft. The other five
+families retain their current contracts.
+
+`edit-article` distinguishes `proofread` (minimal correction) from `wording`
+(polishing), `structure` and `rewrite`. Proofreading requests select `proofread`;
+the ordinary edit default remains `wording`. Findings-only proofreading uses
+`analyze-article`, never a fourth verb. Preserve protected text and intentional
+variation; uncertain names/numbers are findings, not inferred replacements.
+No qualifying errors is a valid unchanged result. Bounded article correction
+and analysis do not reopen new-writing outline/tone decisions or automatically
+commission external fact-checking. Assistant checks actual scope and preserved
+text, not an extra shared proofreading pipeline; publication and unresolved
+asset/editor work retain their separate gates.
+Structure/rewrite units retain source trace and their applicable full gate;
+explicitly requested factual checks are never waived by proofreading scope.
+
 ## Writer document family
 
 Document leaves live under `writer-pipeline/<write|edit|analyze>/document/`.
