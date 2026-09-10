@@ -1,6 +1,7 @@
 """Script text and analysis never masquerade as performed production evidence."""
 
 from pathlib import Path
+import re
 
 import pytest
 import yaml
@@ -122,3 +123,46 @@ def test_format_references_are_operation_specific(fmt):
         for verb in ("write", "edit", "analyze")
     }
     assert len(texts) == 3
+
+
+@pytest.mark.parametrize("verb", ["write", "edit", "analyze"])
+@pytest.mark.parametrize("fmt,anchors", [
+    ("narration", ("blue return box", "lid", "read-aloud", "spoken", "notes")),
+    ("comic", ("P10", "P20", "Speaker:", "Dialogue:", "key", "balloon fit")),
+    ("storyboard", ("S10", "S20", "transition", "lamp", "descriptive plan")),
+    ("screenplay", ("SC10 - INT. HALL - DAY", "ADA", "BEN", "subtext", "SUPPLIED voice")),
+    ("slide-script", ("SL10", "East branch", "April", "May", "chart", "Duration")),
+])
+def test_script_reference_craft_coverage(verb, fmt, anchors):
+    path = PIPELINE / verb / f"script/references/{fmt}.md"
+    text = path.read_text()
+    flat = " ".join(text.split())
+    assert len(text.splitlines()) <= 90
+    for marker in ("## Craft Decisions", "MATERIAL-COMPLETE", "Rationale:",
+                   "Retain:", "Counterexample:", "QA:", "LOCAL adaptation"):
+        assert marker in text, (path, marker)
+    example = text.split("## Worked Example", 1)[1].split("LOCAL adaptation", 1)[0]
+    assert example.index("Supplied material:") < example.index("Creative-fiction allowance:")
+    assert example.index("Creative-fiction allowance:") < example.index("```text")
+    assert example.count("```text") == 1 and example.count("```") == 2
+    assert "QA:" in example and "unverified" in example
+    assert re.search(r"\bif\b", flat, re.IGNORECASE)
+    for anchor in anchors:
+        assert anchor.lower() in flat.lower(), (path, anchor)
+    base = "https://github.com/coji/natural-japanese/blob/v1.5.0/skills/natural-japanese/references/"
+    for source in ("writing-constitution.md", "genre-notes.md", "revision-guide.md"):
+        assert f"]({base}{source})" in text
+    if fmt in {"narration", "storyboard", "slide-script"}:
+        assert "https://www.w3.org/WAI/media/av/" in text
+    if fmt == "screenplay":
+        assert "https://www.bbc.co.uk/writers/resources/tips-and-advice/writing-radio-drama" in text
+    if verb == "write":
+        assert "Draft" in example
+    elif verb == "edit":
+        assert "Original" in example and "Revised" in example and "no-op" in text
+        assert "protected" in flat.lower() or "untouched" in flat.lower()
+    else:
+        for marker in ("Finding:", "Evidence:", "Consequence:", "unchanged"):
+            assert marker in example, (path, marker)
+        assert "without replacement" in flat
+        assert "Revised" not in example

@@ -49,7 +49,9 @@ Writer defines no card units. A kanban card is refused with
    Check the installed Writer leaves through the skill list. A leaf lives
    at `<operation>/<subject>/SKILL.md` and is named `<operation>-<subject>`.
    Do not infer that every possible combination is installed.
-3. Read the selected leaf with `skill_view`. Its frontmatter form is the
+3. Read the selected leaf with `skill_view`, including for a short or
+   obvious-looking request: its rules are where the narrow cases live.
+   Its frontmatter form is the
    input contract; its Procedure, QA and Report are the execution contract.
    Fill values already present in the brief rather than asking again.
    Read only the references selected by that leaf. An unreadable advertised

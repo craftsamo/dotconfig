@@ -56,3 +56,60 @@ def test_marketer_does_not_bypass_writer_acceptance():
     assert "before it can enter a message unit or approval relay" in produce
     assert "No local shortening" in produce
     assert "Instagram remains draft-only" in produce
+
+
+@pytest.mark.parametrize("verb", ["write", "edit", "analyze"])
+@pytest.mark.parametrize("platform,anchors", [
+    ("x", ("P10", "P20", "West shuttle", "trial", "standalone", "subject", "qualifier")),
+    ("instagram", ("C10", "I10", "Ground floor only", "alt", "fictional inspection record")),
+])
+def test_post_reference_craft_coverage(verb, platform, anchors):
+    path = PIPELINE / verb / f"post/references/{platform}.md"
+    text = path.read_text()
+    flat = " ".join(text.split())
+    assert len(text.splitlines()) <= 90
+    for marker in ("## Craft Decisions", "MATERIAL-COMPLETE", "Rationale:",
+                   "Retain:", "Counterexample:", "QA:", "LOCAL adaptation"):
+        assert marker in text, (path, marker)
+    example = text.split("## Worked Example", 1)[1].split("LOCAL adaptation", 1)[0]
+    assert example.index("Supplied material:") < example.index("Creative-fiction allowance:")
+    assert example.index("Creative-fiction allowance:") < example.index("```text")
+    assert example.count("```text") == 1 and example.count("```") == 2
+    assert "QA:" in example and "unverified" in example
+    assert re.search(r"\bif\b", flat, re.IGNORECASE)
+    for anchor in anchors:
+        assert anchor.lower() in flat.lower(), (path, anchor)
+    base = "https://github.com/coji/natural-japanese/blob/v1.5.0/skills/natural-japanese/references/"
+    for source in ("writing-constitution.md", "genre-notes.md", "revision-guide.md"):
+        assert f"]({base}{source})" in text
+    if platform == "x":
+        assert "https://service-manual.ons.gov.uk/content/content-types/social-media" in text
+    else:
+        assert "https://service-manual.ons.gov.uk/content/content-types/social-media" in text
+        assert "https://www.w3.org/WAI/tutorials/images/informative/" in text
+        assert "communications.gov.uk" not in text
+        assert "growth promise" in flat and "unseen" in flat
+    if verb == "write":
+        assert "Draft" in example
+    elif verb == "edit":
+        assert "Original" in example and "Revised" in example and "no-op" in text
+        assert "protected" in example and "unchanged" in example
+    else:
+        for marker in ("Finding:", "Evidence:", "Consequence:", "unchanged"):
+            assert marker in example, (path, marker)
+        assert "without replacement" in flat
+        assert "Revised" not in example
+
+
+@pytest.mark.parametrize("platform", ["x", "instagram"])
+def test_post_destination_tables_and_documentary_checks_survive(platform):
+    text = (PIPELINE / "write/post/references" / f"{platform}.md").read_text()
+    assert "Documentary check: 2026-09-08. No logged-in composer test was performed." in text
+    assert "| Expression | Draft representation |" in text
+    assert "Markdown" in text
+    if platform == "x":
+        assert "weighted character counting" in text
+        assert "https://help.x.com/en/using-x/articles" in text
+    else:
+        assert "Universal clickability is unverified" in text
+        assert "https://www.facebook.com/help/instagram/442418472487929" in text

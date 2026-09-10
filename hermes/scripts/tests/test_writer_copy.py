@@ -9,6 +9,14 @@ import yaml
 PIPELINE = Path(__file__).resolve().parents[2] / "profiles/writer/skills/writer-pipeline"
 MARKETER = PIPELINE.parents[2] / "marketer/skills/marketer-pipeline"
 DESTINATIONS = ["landing-page", "email", "announcement"]
+CRAFT = {
+    "landing-page": (
+        "audience need", "approved benefit", "substantiation", "adjacent",
+        "purpose-dependent cta",
+    ),
+    "email": ("subject promise", "benefit before", "preview/body", "terms"),
+    "announcement": ("what changed", "who", "when only if supplied", "awareness", "cta"),
+}
 
 
 def content(path):
@@ -114,3 +122,38 @@ def test_references_are_operation_specific(destination):
         for verb in ("write", "edit", "analyze")
     }
     assert len(texts) == 3
+
+
+@pytest.mark.parametrize("verb", ["write", "edit", "analyze"])
+@pytest.mark.parametrize("destination", DESTINATIONS)
+def test_copy_craft_has_grounded_examples_and_operation_boundaries(verb, destination):
+    reference = PIPELINE / verb / f"copy/references/{destination}.md"
+    raw = reference.read_text()
+    text = " ".join(raw.split()).lower()
+    assert 40 <= len(raw.splitlines()) <= 90
+    assert raw.count("\nQA:") == 1
+    for marker in (
+        "## Craft decisions", "## Worked example", "Fictional material:",
+        "Why:", "Retain:", "Counterexample:", "QA evidence:",
+    ):
+        assert marker in raw
+    for concept in CRAFT[destination]:
+        assert concept in text
+    for source in ("writing-constitution", "revision-guide"):
+        assert (
+            "https://github.com/coji/natural-japanese/blob/v1.5.0/"
+            f"skills/natural-japanese/references/{source}.md"
+        ) in text
+    assert "local adaptation" in text and "examples" in text
+    assert "not upstream" in text or "no upstream" in text
+    example = raw.split("## Worked example", 1)[1].split("Retain:", 1)[0]
+    output = {"write": "Draft", "edit": "Revision", "analyze": "Finding:"}[verb]
+    assert example.index("Fictional material:") < example.index(output)
+    if verb == "edit":
+        for protection in ("authorized changes", "protect intent", "no-op"):
+            assert protection in text
+    if verb == "analyze":
+        for protection in ("quote", "evidence", "mismatch", "consequence", "replacement"):
+            assert protection in text
+        assert "Revision:" not in example and "Draft:" not in example
+    assert "eval-rubric.md" not in text and "scripts/lint.py" not in text
