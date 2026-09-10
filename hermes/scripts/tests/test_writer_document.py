@@ -102,3 +102,85 @@ def test_format_guidance_is_operation_specific(name):
         for verb in ("write", "edit", "analyze")
     }
     assert len(texts) == 3
+
+
+@pytest.mark.parametrize("verb", ["write", "edit", "analyze"])
+def test_report_craft_has_grounded_examples_and_scope_limits(verb):
+    reference = content(PIPELINE / verb / "document/references/report.md")
+    assert "## Worked example and counterexample" in reference
+    assert all(value in reference for value in ("30", "50", "respondents"))
+    assert "v1.5.0" in reference
+    assert "QA:" in reference
+    assert "customer" in reference
+
+
+def test_report_operations_do_not_conflate_correction_and_analysis():
+    edit = content(PIPELINE / "edit/document/references/report.md")
+    analysis = content(PIPELINE / "analyze/document/references/report.md")
+    assert "leave it unchanged" in edit
+    assert "outside scope" in edit
+    assert "unavailable source" in analysis
+    assert "do not declare the 60% false" in analysis
+
+
+def test_guide_example_does_not_invent_navigation():
+    guide = content(PIPELINE / "write/document/references/guide.md")
+    assert "The documented action is to select Archive and confirm" in guide
+    assert "open Project settings" not in guide
+
+
+@pytest.mark.parametrize("verb", ["write", "edit", "analyze"])
+@pytest.mark.parametrize("name", [name for name in FORMATS if name != "report"])
+def test_document_craft_has_decisions_examples_and_pinned_attribution(verb, name):
+    text = (PIPELINE / verb / f"document/references/{name}.md").read_text()
+    guidance, heading, example = text.partition(
+        "\n## Worked example and retain condition\n"
+    )
+    assert heading
+    opening, decision_heading, decisions = guidance.partition("\n## ")
+    assert opening.strip() and decision_heading
+    assert "\n\n" in decisions and decisions.split("\n\n", 1)[1].strip()
+    teaching, qa = example.split("\nQA:", 1)
+    assert "Fictional teaching material:" in teaching
+    assert "retain" in teaching.lower()
+    assert qa.split("\nSource:", 1)[0].strip()
+    assert "local applications, not upstream quotations" in text
+    assert (
+        "https://github.com/coji/natural-japanese/blob/v1.5.0/"
+        "skills/natural-japanese/references/"
+    ) in text
+
+
+@pytest.mark.parametrize("name", [name for name in FORMATS if name != "report"])
+def test_document_craft_keeps_edit_and_analysis_boundaries(name):
+    edit = content(PIPELINE / "edit" / f"document/references/{name}.md")
+    assert "untouched sections and protected content unchanged" in edit
+    assert "no-op is legitimate" in edit
+    example = edit.split("## Worked example and retain condition", 1)[1]
+    assert example.index("Before:") < example.index("After:") < example.index("QA:")
+    analysis = content(PIPELINE / "analyze" / f"document/references/{name}.md")
+    assert "replacement draft" in analysis
+    assert all(term in analysis for term in (
+        "actual defect", "missing evidence", "optional preference",
+    ))
+    example = analysis.split("## Worked example and retain condition", 1)[1]
+    positions = [example.index(label) for label in (
+        "Quote:", "Source:", "Mismatch:", "Consequence:", "QA:",
+    )]
+    assert positions == sorted(positions)
+
+
+@pytest.mark.parametrize("verb", ["write", "edit", "analyze"])
+@pytest.mark.parametrize(("name", "concepts"), [
+    ("readme", ("entry", "quick start", "expected", "command")),
+    ("guide", ("prerequisite", "action", "result", "recovery", "warning")),
+    ("reference", ("omitted", "empty", "unknown", "default", "schema", "return")),
+    ("minutes", ("decision", "proposal", "owner", "action", "deadline", "record")),
+    ("proposal", ("decision", "same axes", "provisional", "condition", "cost")),
+    ("slides", ("topic", "message line", "evidence", "speaker notes")),
+    ("release-notes", ("behavior", "planned", "unreleased", "shipped", "action")),
+    ("issue", ("observed", "expected", "environment", "hypothes", "cause")),
+])
+def test_document_craft_retains_format_specific_decisions(verb, name, concepts):
+    text = content(PIPELINE / verb / f"document/references/{name}.md").lower()
+    assert all(concept in text for concept in concepts)

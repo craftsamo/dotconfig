@@ -888,6 +888,17 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
 
 ## Writer leaf migration
 
+Writer's leaf references use `natural-japanese` v1.5.0 as a craft source, not
+an imported inspection workflow. Keep worked examples grounded in their stated
+material, include retain conditions and preserve operation-specific scope.
+Assistant's existing Writing QA owns evidence-anchored ordinal scoring and
+its correction ceiling; Writer still reports checked / unmet / unverified,
+never numeric self-scores or independent acceptance. The QA contract must be
+self-contained for QA-mode loading; Execute relays its revision rules. After
+acceptance, consumer defects reopen acceptance under an explicit corrective
+release, not a silent reset of an unresolved finding. See PROFILES.md "Writer
+craft and independent editorial QA" and `agents/README.md` for provenance.
+
 Writer v7 accepts `<write|edit|analyze>/<subject>/SKILL.md` below
 `writer-pipeline`, with category `writing`, a named output and a form.
 Each leaf owns Procedure, QA and Report; selected reference options need
@@ -906,6 +917,15 @@ asset or editor step is not removed to manufacture a publication-ready result.
 The shared Japanese core is a single `SKILL.md`, with no inspection resources
 or scripts. Writer's leaves own document construction and checks. Historical
 source attribution remains in `agents/README.md` and Git history.
+
+Article's `edit` scope includes `proofread` for minimal correction, separate
+from ordinary `wording` polishing (still the default). Findings-only requests
+use `analyze-article`; never add a fourth verb or shared proofreading pipeline.
+No-op output is legitimate; preserve protected text and flag uncertain names
+or numbers instead of guessing. Assistant's article Client guide and article
+acceptance branches preserve editorial ownership while exempting bounded edits
+and analyses from new-writing outline/research requirements. This is an article
+pilot, not a migration of the other five families or retirement of writing QA.
 
 Document leaves are `<write|edit|analyze>/document/`, including legacy briefs
 named documentation/business-document. Formats are local form options, not

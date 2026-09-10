@@ -72,3 +72,110 @@ def test_platform_input_models_are_not_conflated():
     assert "dedicated rich-text editor" in x
     assert "not a long post or a thread" in x
     assert "do not promise raw Markdown import" in x
+
+
+def test_edit_article_proofread_scope_enum_default_and_routing_contract():
+    path = PIPELINE / "edit/article/SKILL.md"
+    text = path.read_text()
+    data = yaml.safe_load(text.split("---", 2)[1])
+    scope = data["metadata"]["hermes"]["form"]["scope"]
+    assert scope["options"] == ["proofread", "wording", "structure", "rewrite"]
+    assert "Default wording" in scope["label"]
+    assert "proofreading" in data["description"].lower()
+    procedure = " ".join(text.split("<Procedure>", 1)[1].split("</Procedure>", 1)[0].split())
+    assert "proofreading, typo-only" in procedure
+    assert "`Q<n>:` question" in procedure
+    assert "selects `analyze-article`" in procedure
+    assert "needs no new outline, tone or reader research" in procedure
+
+
+def test_edit_article_protection_and_no_op_report_contract():
+    path = PIPELINE / "edit/article/SKILL.md"
+    text = path.read_text()
+    procedure = " ".join(text.split("<Procedure>", 1)[1].split("</Procedure>", 1)[0].split())
+    qa = text.split("<QA>", 1)[1].split("</QA>", 1)[0]
+    report = text.split("<Report>", 1)[1].split("</Report>", 1)[0]
+    for protected in ("Quotations,", "code, URLs, identifiers, asset markers", "`must_keep`"):
+        assert protected in procedure
+    assert "not silently corrected by inference" in procedure
+    assert "legitimate no-op" in procedure
+    assert "no changes were made" in procedure
+    assert "Line breaks, blank lines, indentation and a trailing newline" in procedure
+    assert "never report an identical copy you did not verify" in procedure
+    assert "A no-op" in qa
+    assert "byte-identical to the source, layout included" in qa
+    assert "Unrequested layout changes count as edits" in qa
+    assert "before/after and reason" in report
+
+
+def test_analyze_article_proofreading_focus_keeps_existing_modes_and_source_unchanged():
+    path = PIPELINE / "analyze/article/SKILL.md"
+    text = path.read_text()
+    data = yaml.safe_load(text.split("---", 2)[1])
+    form = data["metadata"]["hermes"]["form"]
+    assert form["mode"]["options"] == ["describe", "review", "compare"]
+    assert form["focus"]["type"] == "text"
+    assert "options" not in form["focus"]
+    assert "proofreading" in data["description"]
+    assert "proofreading" in form["focus"]["label"]
+    procedure = " ".join(text.split("<Procedure>", 1)[1].split("</Procedure>", 1)[0].split())
+    assert "definite error from an uncertain issue" in procedure
+    assert "question or `focus` requests proofreading" in procedure
+    assert "delivers no replacement article" in procedure
+    assert "not as independently verified fact" in procedure
+    assert "Original text and production notes are unchanged" in text
+
+
+ARTICLE_CRAFT_CASES = [
+    ("write", "approach/explanation", ("function before the term", "copy may be out of date")),
+    ("write", "approach/tutorial", ("precondition before the action", "no supplied recovery")),
+    ("write", "approach/experience", ("participant's interpretation", "need not be conclusion-first")),
+    ("write", "approach/comparison", ("same axes for every option", "On the same 100-file workload")),
+    ("write", "blog", ("audience and house notation", "preserve supplied usage")),
+    ("write", "zenn", ("which expression supports which claim", "valid supplied Markdown")),
+    ("write", "note", ("epistemic strength", "source draft", "section pacing")),
+    ("write", "x-article", ("compact standalone context", "promotional hook is not")),
+    ("write", "production/assets", ("supplied file only", "caption", "alt text", "State: needs-assets")),
+    ("edit", "blog", ("house notation", "proofread", "verified no-op", "Protected quotations")),
+    ("edit", "zenn", ("code/claim relationship", "valid supplied Markdown", "no-op")),
+    ("edit", "note", ("epistemic strength", "story pacing", "byte-identical no-op")),
+    ("edit", "x-article", ("standalone section context", "title promise", "no-op")),
+    ("edit", "production/assets", ("State: needs-assets", "caption", "alt text", "no-op")),
+    ("analyze", "blog", ("house notation", "Reader impact", "no replacement article")),
+    ("analyze", "zenn", ("code/claim relationship", "Reader impact", "without editing code")),
+    ("analyze", "note", ("epistemic strength", "section pacing", "no replacement article")),
+    ("analyze", "x-article", ("standalone context", "title promise", "no replacement article")),
+    ("analyze", "production/assets", ("Source: not supplied", "alt text", "no replacement article")),
+]
+
+
+def test_article_craft_cases_cover_every_reference():
+    expected = {
+        PIPELINE / verb / "article/references" / f"{reference}.md"
+        for verb, reference, _ in ARTICLE_CRAFT_CASES
+    }
+    actual = {
+        path
+        for verb in ("write", "edit", "analyze")
+        for path in (PIPELINE / verb / "article/references").rglob("*.md")
+    }
+    assert len(expected) == len(ARTICLE_CRAFT_CASES) == 19
+    assert actual == expected
+
+
+@pytest.mark.parametrize("verb,reference,concepts", ARTICLE_CRAFT_CASES)
+def test_article_reference_has_local_evidence_oriented_craft(verb, reference, concepts):
+    path = PIPELINE / verb / "article/references" / f"{reference}.md"
+    source = path.read_text()
+    text = " ".join(source.split())
+    assert len(source.splitlines()) <= 90
+    for marker in ("Locally authored example", "Retain:", "QA evidence:"):
+        assert marker in text
+    assert "Reason:" in text or "Finding:" in text
+    assert "If " in text
+    assert "Local adaptation of" in text
+    assert "https://github.com/coji/natural-japanese/blob/v1.5.0/skills/natural-japanese/references/" in text
+    for concept in concepts:
+        assert concept in text
+    for upstream_workflow in ("scripts/lint.py", "eval-rubric.md", "90 points", "92 points"):
+        assert upstream_workflow not in text
