@@ -100,8 +100,11 @@ def test_edit_article_protection_and_no_op_report_contract():
     assert "not silently corrected by inference" in procedure
     assert "legitimate no-op" in procedure
     assert "no changes were made" in procedure
-    assert "normalization request is not such authorization" in procedure
+    assert "Line breaks, blank lines, indentation and a trailing newline" in procedure
+    assert "never report an identical copy you did not verify" in procedure
     assert "A no-op" in qa
+    assert "byte-identical to the source, layout included" in qa
+    assert "Unrequested layout changes count as edits" in qa
     assert "before/after and reason" in report
 
 
