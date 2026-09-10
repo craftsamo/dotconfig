@@ -70,7 +70,7 @@ async def _video_analyze_mimo(args: Dict[str, Any], **_kw: Any) -> str:
     from tools.vision_tools import (
         _MAX_VIDEO_BASE64_BYTES,
         _detect_video_mime_type,
-        _download_video,
+        _download_media,
         _validate_image_url_async,
         _video_to_base64_data_url,
     )
@@ -95,7 +95,10 @@ async def _video_analyze_mimo(args: Dict[str, Any], **_kw: Any) -> str:
                 return tool_error(blocked["message"], success=False)
             temp_dir = get_hermes_dir("cache/video", "temp_video_files")
             temp_video_path = temp_dir / f"temp_video_{uuid.uuid4()}.mp4"
-            await _download_video(video_url, temp_video_path)
+            await _download_media(
+                video_url, temp_video_path, 3,
+                media_label="Video", accept="video/*,*/*;q=0.8",
+                max_bytes=_MAX_VIDEO_BASE64_BYTES, timeout=60.0, retry_all=True)
             should_cleanup = True
         else:
             return tool_error(

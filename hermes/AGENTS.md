@@ -46,7 +46,8 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
   Telegram / Discord lists empty (engineer / creator / marketer now carry real
   `telegram` lists — they are bots), and every A2A-serving profile has an `a2a`
   list for its inbound peer sessions. `a2a` is also the OUTBOUND toolset name
-  (the five `a2a_*` tools, default-off): grant it only to the four primaries.
+  (the five `a2a_*` tools, default-off): Engineer/Marketer retain raw A2A;
+  Assistant/Creator expose only `specialist` for outbound requests.
   Use `no_mcp` when a platform needs none; otherwise list each allowed MCP
   server explicitly so future servers are not inherited accidentally.
 - **Multiplex gateway + A2A peer graph (2026-09 rebuild).** ONE default-hosted
@@ -57,7 +58,8 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
   `A2A_PORT` env var, which is read raw from the process env and would
   collide across profiles). Peer lists live per profile in `a2a_agents`
   (assistant→engineer/creator/marketer/writer; engineer→marketer/researcher/
-  writer; creator and marketer→engineer/each-other/researcher/writer) with
+  writer; creator and marketer→engineer/each-other/researcher/writer;
+  creator additionally→image-creator/video-creator/audio-creator) with
   `timeout: 310` (the 120s caller default undercuts the 300s server reply
   window); enforcement is config + operating contract, and contracts forbid
   `a2a_call` against a direct URL. Under multiplex, scope-aware secret reads
@@ -139,7 +141,7 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
   voice renders 309 cents apart on the two engines (against 20-40 cents of
   seed-to-seed variation), so splicing them mid-sentence is audible.
   **A named character asset is the opposite contract and must not touch the
-  chain.** Creator's `character_voices` / `character_text_to_speech` live in
+  chain.** AudioCreator's `character_voices` / `character_text_to_speech` live in
   the `character-voice` plugin — engine-agnostic, so they belong to neither
   engine plugin — and resolve a provider out of the TTS registry directly.
   Voice ids are qualified `<engine>:<voice>` **because the engine is half of
@@ -372,6 +374,417 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
   `hermes update`, run the validator and delete any category directory under
   `profiles/*/skills/` that is not `<profile>-pipeline`, `technic` or
   `learned`; the skills stay readable in place via `skills.external_dirs`.
+- **Creator's hands (v3) are `<hands>-pipeline/<verb>/<subject>/SKILL.md`
+  leaves, one form each — never a technic, never a generated index.** The
+  contract (client model, five verbs, front-matter `form`, handoff text,
+  family-by-family migration) lives in `PROFILES.md` "Creator hands (v3)";
+  the validator enforces the shape (`validate_hands`), and a subject must be
+  unique across every hands because Creator reads all of them through one
+  `skills.external_dirs` list. `image-creator` (A2A `:9907`, receive-only)
+  serves the icon, emoji, mascot, reimagine, kit and card families (`emoji-fit.sh`
+  is the ONE home of the platform table; `generate-emoji` and
+  `generate-mascot` are two rounds — anchor, then pack — and a mascot's
+  approved anchor is the `reference:` of its emoji pack; `mascot-fit.sh`
+  draws on chroma green, never white, because `key_px` on white counts
+  eye whites; `generate-reimagine` sends the photo as `image_url` — the
+  edit input — and every style reference opens with a Medium line,
+  because an edit model returns the photo with a filter unless told
+  what the picture IS; a human client consents to the upload in the
+  same clarify round as the style; kit has all five verbs, with a
+  style-sheet/list approval gate for generation and deterministic
+  `create-kit` for exact UI states/9-slice geometry; `kit-images.py`
+  owns finish/palette/atlas/measure, uses alpha bounds rather than colour
+  trim for hollow UI frames, and rejects stale nonempty QA/atlas dirs);
+  Creator
+  (pipeline v8: Plan → Build → Quality assurance,
+  `creator-pipeline/references/<phase>/index.md` followed by the selected
+  `<hands>/<subject>.md`; plain references, never additional `SKILL.md`s)
+  tells its client apart by the message's SHAPE — brief lines = the
+  assistant → text `Q<n>:`; conversational = a human → the `clarify` tool
+  (native buttons on Telegram) — fills the leaf's form and hands off; the
+  technic-era routes for unmoved families sit in `references/legacy/`. Two earlier shapes failed —
+  the generic technics decided nothing, `refactor/creator-profile` governed
+  everything — so: no menu.yaml, no generated MENU.md, no preset layer, no
+  cross-media Styles; an execution-environment trap goes into the leaf's
+  Procedure that hits it (Japanese `。` in argv trips the guard → text via
+  file; > 420 s → `background: true`; vision holds ~3 images → contact sheet
+  then one at a time; `magick montage` aborts without a default font →
+  `+append`; a multi-file `rm` trips the guard → leave `/tmp` alone; an
+  inline `for` loop over a script variable trips it too → batches go
+  through a script file; a 32 px tile is judged point-magnified 4x; a
+  look whose finding is not appended to `qa.md` before the next
+  `vision_analyze` did not happen — an image leaves the context three
+  looks later and an unwritten run cycled 152 looks over three files;
+  the write guard reads the WHOLE terminal command, so `cp … && <skill
+  script>` is refused → a skill script runs in a command of its own).
+- **Creator's v8 broker references mirror subjects, not forms.** Each of
+  Plan / Build / Quality assurance owns a common index plus one flat
+  `<hands>/<subject>.md` for every subject actually served by the three
+  hands; verb differences stay inside that file. `validate_creator_references`
+  derives coverage from the hands leaves and checks both missing and orphan
+  references, real index links and local link targets. A v8 root requires the
+  complete tree and rejects the old phase monoliths; a v7 root with no phase
+  directories remains valid for the earlier Stack layer. New subject references
+  land with their hands family, never as placeholder stubs. Creator reads QA
+  evidence against intent; do not transplant the hands' measurement commands
+  into Creator's QA. Assistant's eventual contraction stays family-by-family
+  after caller coverage and both-client soak, not merely because a leaf exists.
+  Writer's released-unit ownership is unchanged; see PROFILES.md "Broker shape".
+- **Card is one image subject with create/generate/edit/analyze leaves.**
+  `scripts/card.py` consumes canonical `create/card/references/destination/`
+  scalar front matter and `styles/*.md` CSS blocks. Generate's own style refs
+  are backdrop prompt prose, not duplicated CSS. Local HTML uses isolated
+  offline agent-browser with frozen assets/fonts, no inherited login/CDP, and
+  exclusive output bundles. Full panoramas render before exact PNG crops;
+  text belongs to individual tiles, not global destination crops. X pair 7:8
+  is UNVERIFIED; X article 5:2 is user-verified ratio, not official 1500x600.
+  Gap previews are configurable local simulations, never platform screenshots.
+  Generate proposes 3+1 attempts across resumes but needs explicit current-work
+  user budget approval before paid calls. Card routes before creator-text-card;
+  retain its files/private-overlay mappings until handoff coverage, paid live
+  validation and legacy caller migration prove retirement safe. No new profile,
+  toolsets, secrets, test posts, authenticated access or gateway restart.
+- **Video hands start with `clip`, not the whole legacy video surface.**
+  `video-creator` receives forms on loopback A2A `:9908`; its three clip leaves
+  are `generate-clip` (1-15 s, silent single shot), `edit-clip` (a <=60 s
+  segment), and `analyze-clip` (findings). It has no TTS; `create-tour`/
+  `create-ad`/`create-explainer-video` may optionally consult four curated HyperFrames technical
+  references via `skills.external_dirs` (read-only, procedural background
+  only — see `PROFILES.md` "Video authoring references"), and clip does not
+  use them. `clip-media.py` owns local probe/frames/edit with exclusive
+  output publication, measured byte caps and full decode; never treat
+  GIF repeat metadata as a seamless-motion guarantee. Frame times are
+  seek positions, not exact PTS. Remote video analysis is a separate
+  upload-consent field; without it temporal QA remains unverified.
+  xAI persistent public storage is disabled in this profile. Old learned
+  `video-render-environment` remains on disk but is disabled (it names
+  retired menu leaves). A2A identifies loopback callers by IP, NOT a
+  cryptographically verified profile; verbal origin confirmation adds no
+  security. Keep localhost restrictions, do not widen the transport.
+  The MiMo override now calls upstream `_download_media` with explicit
+  video options: `_download_video` was removed in `c4a9f2bf49`. Its tests
+  invoke the handler with real imports so registration-only tests cannot
+  hide another deferred ImportError.
+- **Tour is a new video subject, not a global legacy retirement.**
+  `create/tour` owns bounded (<=60 s) task-local authored UI walkthroughs,
+  with frozen source projects, exclusive preview/final directories and a safe
+  approval resume. VideoCreator authors HTML/CSS/GSAP from approved reference
+  images/design/text; Creator owns semantic flow/fidelity/choice approvals.
+  Intro/outro default ON; three reference examples are not exhaustive,
+  free-text directions stay verbatim and only explicit none omits them.
+  `authored.py` freezes/checks/renders v2/v3, never generates UI. The unchanged
+  `tour.py` entry remains for persisted v1 screenshot projects/direct calls.
+  `screen_mode` is recreate (omitted preserves v2), supplied or capture. Explicit
+  modes use v3 proposal/hash approval without migrating frozen v1/v2 artifacts.
+  `footage.py` prepares actual local video with bounded source ranges and explicit
+  keep/mute; `capture.py` owns isolated sanitized Web recording under job/scope
+  leases. Reference/source/target are distinct, never consent. Native capture is
+  UNAVAILABLE: cua-driver 0.23.2 records the main display, and no cross-profile
+  desktop guard covers Assistant's computer_use. Never grant it to VideoCreator
+  or use Assistant fallback. Wrapper checks are not a terminal/website sandbox;
+  no authenticated/private-region capture or privacy redaction is claimed.
+  No edits to frozen source, external runtime workflows/executables, or TTS
+  (the optional read-only HyperFrames references, `PROFILES.md` "Video
+  authoring references", are advisory background only); use finished
+  audio-creator WAV/words.json. Creator always uses specialist
+  `kind="work"` for tours. Keep creator-html-motion and its 1:1 mappings intact.
+  GSAP is minimally vendored with its own license and hash provenance.
+- **Ad is an audience/promise/action deliverable, not a product-category
+  skill tree.** VideoCreator serves `analyze-ad` (<=60s, bounded overview,
+  two dense windows, three native detail looks; facts/interpretations/unknowns
+  separate) and `create-ad` (6..30s, 30fps; aspect 9:16/16:9/1:1/4:5,
+  default 9:16; authored HTML/CSS/GSAP from supplied assets). Canonical sizes
+  live in ad-render.py; source, preview and output must match. A ratio change
+  needs re-layout and new approvals, never crop/scale or old-preview reuse.
+  Old aspect-less portrait plans keep their bytes and hashes. Always
+  specialist kind="work". Analyze may retain
+  report/evidence at explicit deliver, never a new ad; readable local video
+  paths use frame extraction, not requests for chat attachments. Remote video
+  analysis remains separately consented, at most once; image vision uses the
+  normal profile policy, not a promise of offline inference. Create requires
+  exact content-plan approval then exact frozen-preview approval in the same
+  work conversation. The helper binds bytes, not approver identity; static
+  copy checks are neither visual readability nor claim verification. No
+  invented metrics, client-live claims, generation, TTS or capture; theme
+  defaults never authorize missing asset generation. Generate-ad and PV are
+  future leaves, no legacy mappings are retired. PV primarily introduces
+  qualities/world; duration and CTA presence alone do not decide the route.
+- **Explainer video is a topic/audience/learning_goal deliverable, authored
+  locally, not a UI tour, an ad, or a talking-model product.**
+  `video-creator` serves `create-explainer-video`: 1..180 seconds, always
+  `specialist kind="work"` even though free, rendering through an
+  explicitly chosen v1 HyperFrames or v2 Motion Canvas engine at 16:9
+  (1280x720) or 9:16 (720x1280), 30fps — the engine is selected in the
+  proposal and preserved, never silently switched, including never on
+  failure. Motion Canvas is implemented (`engines/motion-canvas/`,
+  `create/explainer-video/scripts/motion_canvas.py`) as its own local
+  reference (`create/explainer-video/references/motion-canvas.md`) with no
+  dependency on the external HyperFrames skills; prefer it for reactive
+  diagrams, algorithms and Canvas-based explanation, and prefer HyperFrames
+  for HTML/UI or media-oriented compositions. Old version 1 Motion Canvas
+  discussion proposals stay non-executable and need a fresh version 2
+  proposal and a new approval, never a resume of the old hash.
+  `framing` (none/bust/full) is a field separate from `performance`
+  (still/puppet/animated) and `lip_sync` (off/cues/baked): bust only
+  proposes lip-sync cues by default, never a silent substitute for an
+  explicit `off`, and full supports whatever performance the client
+  actually approved rather than an automatic upgrade toward it. Neither
+  renderer provides automatic phoneme/viseme inference, rig authoring, or
+  native talking-model playback, so a naturally talking video is never
+  something this leaf generates on its own. Already-supplied authored cue
+  JSON plus mouth
+  PNGs can drive a deterministic mouth track; a supplied finished muted
+  MP4 carrying its own sync evidence can carry a continuous animated
+  performance instead. A missing required performance asset is reported
+  as pending-inputs, never a silent downgrade of framing/performance/
+  lip_sync. Creator, never VideoCreator, resolves the caller-selected
+  workspace/asset root: a direct path or an identity it already holds
+  first, else a bounded name-only lookup inside the caller's own known
+  workspace, with an ambiguous match going back as a question rather than
+  a guess — never a broad home-directory scan, and never a new character
+  invented merely because a file is missing. Explicit assets are retained
+  as unchanged originals; the resolved root and any asset's private name
+  stay working detail and never enter a public proposal, form, or report.
+  An unspecified character is not "no character" — Creator clarifies none
+  vs. an existing character vs. a new one, and an existing character
+  missing a needed pose is a missing-only generation request through the
+  fitting image-creator mascot leaf that preserves its approved identity.
+  New character art goes through image-creator's mascot family, script
+  text through Writer's current `write-script` family (never the retired
+  writer technic, and never Creator composing the script itself),
+  grounding facts through researcher as needed, and narration/audio
+  through audio-creator; VideoCreator cannot call those hands/peers
+  directly and instead returns a dependency request to Creator, released
+  as its own separately budgeted/approved unit. The runtime
+  lifecycle mirrors Tour/Ad's proposal-then-approval shape: `propose
+  --spec SPEC --out <new proposal-vN dir>` writes `plan.json` +
+  `proposal.md` + an assets snapshot and returns `pending-inputs` or
+  `awaiting-approval` with the proposal's SHA-256 — missing inputs are
+  described in `spec.pending`, never invented files or hashes; the
+  approved script and exact on-screen copy are settled inputs, and each
+  unit explains its before/change/after and visual expectations. A
+  formally ready proposal exists only once the selected modes' required
+  inputs and a supported renderer are in hand; silent/no-character modes
+  need no audio/character assets. The user approves it via
+  Creator. Only then does `freeze --approved-plan <proposal.md>
+  --approval-sha256 HASH --source SOURCE --project NEW` run, followed by
+  `snapshot --project PROJECT --out NEW`, and only a matching
+  `render --project PROJECT --approved-preview PREVIEW --approval-sha256
+  previewhash --out NEW` releases the final video. Nothing here
+  self-approves; frozen outputs stay unchanged. Client confirmation is
+  conversational like every other hands leaf — hashes bind bytes, not
+  approver authority. For a HyperFrames plan, the existing curated
+  HyperFrames external references and their read-only, discussion-scoped
+  policy (`video-creator-pipeline/references/hyperframes.md`, `PROFILES.md`
+  "Video authoring references") cover this leaf too, alongside
+  create-tour/create-ad; a missing or unreadable reference is reported with
+  a local-authoring fallback, never a blocker, while an actual runtime or
+  approval error still blocks as always. A Motion Canvas plan instead uses
+  only its own local reference and the pinned local runtime that a
+  maintainer explicitly provisions with
+  `node hermes/engines/motion-canvas/setup.mjs --browser <browser>` — jobs
+  never install or upgrade it. Setup APFS-clones a supplied macOS `.app`
+  browser into an ignored `runtime/browser/Renderer.app` (signed contents
+  preserved, avoiding a Dock/LaunchServices clash with the everyday
+  browser) and uses a non-app dedicated Chromium/headless-shell binary
+  directly; neither path copies cookies or a profile, so every render gets
+  a fresh isolated one. Rerunning setup against the same pinned lock skips
+  reinstalling dependencies but never overwrites a different existing
+  clone or a changed lock — that drift needs explicit maintainer
+  replacement/provisioning and a new preview approval. Every preview
+  records the actual runtime/Node/browser identity used; a normal browser
+  version change doesn't by itself require reinstalling, but any changed
+  identity still needs a fresh preview and approval, and final QA always
+  carries the engine's contrast-audit status — Motion Canvas has no
+  automated contrast check and reports it as requiring manual visual
+  review. This is additive: existing music-video, ad, tour and Mix routes
+  are unchanged.
+- **Audio hands own `speech`, `sfx`, `music` and `mix`.** `audio-creator` receives forms on A2A
+  `:9909`: generate/edit/analyze-speech. The character-voice plugin registers
+  only there; Creator retains ordinary conversational TTS, never a speech
+  asset bypass. House uses the language chain (including online Edge); a
+  qualified local voice never falls back and rejects unsupported style/seed.
+  `free` is a media-fee class, not unlimited takes: one plus one corrective
+  by default, failures counted. `speech-media.py` owns track/edit/analyze,
+  cached local ASR, exclusive bundles and measured normalization. Existing
+  WAV timing sidecars are checked before reuse; lossy sibling derivatives
+  get fresh ASR. Subtitle timing is estimated, pronunciation/performance
+  unverified. Never invent a listening verdict or re-roll for an ASR spelling
+  variant. Speech can feed a legacy film as a completed input; vocal-song
+  generation and standalone audio visualization are withdrawn, not migrated.
+  The old voice card is retired; no hands kanban contract is added.
+- **SFX is a separate four-leaf family, not music or mixing.** `create-sfx`
+  uses eight deterministic local kernels; `edit-sfx` and `analyze-sfx` never
+  generate. `sfx-media.py` preserves mono/stereo, freezes local inputs, bounds
+  decode to 22s/16 MiB and publishes new 48 kHz PCM WAV bundles. Short SFX may
+  have no integrated LUFS; that is WARN, not a reason to re-roll. Peak/clipping
+  and boundary samples are measurements, never hearing or seamless-loop proof.
+  `generate-sfx` uses the standalone `sfx-gen` plugin and `sfx_gen` toolset,
+  enabled only on audio-creator. **Local `local:stable-audio-3-medium` is
+  installed and is the default engine when `engine` is omitted** (installed
+  via `stable_audio3.py install --accept-terms`, a maintainer-only, one-time
+  step — jobs never install or download anything). It takes a `seed`
+  (default 0, 0..2^32-1, returned with the result); attempt N uses
+  `(base seed + N - 1) mod 2^32`. It rejects `loop=true` and any
+  `prompt_influence`/`paid_approved`/`max_usd` outright rather than dropping
+  them silently. Each render is a fresh subprocess under the shared runtime
+  lock (inherited by the child, 180s timeout) — no LaunchAgent, no port, no
+  GPU-resident process. `resume` never regenerates: it only re-validates the
+  saved `take-NN/raw.wav` + `take.json` + `inference.log` against the job's
+  frozen receipt; an interrupted attempt with no result and no running
+  process is marked failed (still counted), and `next` may use the
+  remaining grant. Explicit `fal:elevenlabs-sfx-v2` remains available as an
+  alternative: it must be named explicitly, needs explicit current-work
+  paid approval (prompt/seconds/loop/cap/`max_usd`), supports `loop` and
+  `prompt_influence`, and has NO seed (verified OpenAPI); requests cap at
+  21.5s to leave 0.5s padding/drift headroom. Neither engine ever falls
+  back to the other, automatically or silently. `max_calls` defaults to 4
+  (3 variants + 1 corrective) on local; fal requires an explicitly approved
+  cap. Both have hard cap 8, every attempt
+  including failures counted. Metadata cost stays `metered` (the leaf can
+  still spend on fal), but actual local spend is reported as `$0`. Frozen
+  job state counts before a paid submission and retains request IDs; paid
+  POSTs never use the SDK's automatic submit retries. Ambiguous fal
+  submissions stop. Secrets resolve from profile scope, never process-env
+  fallbacks. Old `local:stable-audio` (Stable Audio Open, 401-gated) is
+  retired history, not the current Medium engine's status — never describe
+  Medium as gated or blocked. `create-ad` accepts up to 16 distinct
+  finished WAV cues, one placement per source and distinct positive audio
+  track indices when multiple; final multi-audio true peak is checked. No
+  gain automation, TTS, music/mix family, tour changes or new peer is added.
+  SFX leaf commands use a literal Python path (or unquoted `~/ghq/...`),
+  never `$(ghq root)` in the executable: a real generate-sfx packaging run
+  was refused as "Nested executable body could not be resolved". Resolve
+  a different ghq root separately, then execute the absolute path. Reuse the
+  surviving raw WAV/receipt; this packaging repair consumes no generation.
+- **Music is instrumental BGM or a short melodic piece, not Song or Mix.**
+  Four leaves live at `audio-creator-pipeline/<verb>/music/`: create renders an
+  AudioCreator-authored, approved score using five synthetic colors; generate
+  uses `music-gen`/`music_gen` only on audio-creator; edit processes one source;
+  analyze is also a standalone musical-analysis request, including existing
+  vocal music without lyric or singing analysis. `music_plan.py` freezes the
+  effective form, exact score/prompt and reference hashes in a proposal. Both
+  creation leaves require Creator-relayed approval of that exact proposal;
+  hash matching is integrity, never approver authentication. No audio/uploads
+  in round A, no automatic reference-audio conditioning. Users need not author
+  a score or prompt. `music-media.py` owns 48 kHz PCM bundles and bounded local
+  tempo/key/activity estimates; instruments, genre and vocal absence stay
+  unverified. Create/generate cap at 60s, edit/analyze at 600s/128 MiB.
+  Local Stable Audio 3 Medium shares SFX's weights and runtime lock, never a
+  new daemon. `render_music` has its own bounds; SFX `render` remains <=21.5s.
+  Explicit `fal:stable-audio-3-medium` supports seed and needs current-work
+  approval and a dollar cap; neither direction falls back. Default local
+  grant is 2+1 attempts (hard cap 8), failures counted, resume never generates.
+  Corrected approved prompts retain the consumed-call ledger and frozen
+  engine/duration/seed/budget. Runtime adapter edits invalidate its install
+  fingerprint: maintainer `stable_audio3.py refresh --previous-adapter PATH`
+  verifies the previous adapter fingerprint and the entire existing install
+  offline before updating its marker. Never bypass drift checks or rewrite
+  existing job receipts; completed SFX resume remains valid, next detects drift.
+  Finished music uses create-ad's existing WAV cues. No new tour/MV finish,
+  song, mix, peer, secret, model download or launch service is implied.
+  **Keep music front matter inside the runtime's first 4,000 characters.**
+  Hermes discovery truncates before parsing YAML; an incomplete fence falls
+  back to the parent name, collapsing create/music and generate/music into
+  one `music` skill despite the topology validator passing. Compact labels,
+  keep full procedures in the body, and test actual `_find_all_skills` names.
+  MusicVideo is now `generate-music-video` at `generate/music-video/` and
+  its complete form also fits the discovery prefix. Runtime write protection
+  checks literal operations/targets, not `mv` inside a job path; the music
+  proposal CLI has a real guard-plus-proposal regression for that case.
+- **Mix places already-finished sources on a shared timeline, not a new
+  synthesis or a music/SFX family.** Three leaves live at
+  `audio-creator-pipeline/<verb>/mix/`: `create-mix` takes 1-16 standalone
+  local speech/sfx/music files (WAV/FLAC/Ogg/MP3/AIFF, each <=128 MiB,
+  <=512 MiB combined, <=600s decoded) and AudioCreator authors cue
+  placement (<=32 cues) from `direction`/`must_keep` when no exact
+  `arrangement` is supplied, with gain/fade/piecewise-dB-envelope
+  automation; `edit-mix` revises one existing bundle from a
+  plain-language change request against its frozen previous spec/
+  sources; `analyze-mix` returns format/loudness/clipping/true-peak
+  findings, plus recorded cue/source placement when a bundle is
+  supplied — findings only, no delivery file. `mix-media.py` owns
+  propose/render/analyze/verify; `create-mix`/`edit-mix` are TWO rounds
+  like music — round A is always a zero-render `proposal-v<N>/
+  proposal.md` + SHA-256, and only a matching Creator-relayed
+  `approved_plan`+`approval_sha256` releases the render. No loops,
+  speed/pitch changes, EQ, reverb, or source separation; every source
+  stays the original standalone file, frozen and hash-verified before
+  use — this leaf assembles, it never generates. `target_lufs`/
+  `true_peak_dbtp` are explicit authored choices with no hidden default
+  (`null` is a valid `target_lufs`); a source's own existing defect
+  (e.g. prior clipping) is retained and reported, never silently
+  corrected, and a mix that retains it still FAILs. Captions, when
+  produced, come only from an existing `.words.json` sidecar on a
+  speech source, timing-adjusted to that cue's placement — never a
+  fresh ASR pass on the mixed master. This is `cost: free` (no
+  provider fee) throughout; the leaf is deterministic placement/gain/
+  fade/sum on already-decoded PCM, not a model call. No new engine,
+  plugin, toolset, secret, peer or daemon is added; Mix shares no
+  runtime with SFX/Music's Stable Audio install. Old `no skill fits`
+  language for "audio mixing" in Creator's docs is replaced by a
+  pointer to these three leaves; the fact that a music/SFX leaf is not
+  itself a mixer is unchanged.
+  Normalization is measured constant gain only, never loudnorm's implicit
+  dynamic-limiter fallback. Infeasible loudness/peak targets FAIL; stereo-to-
+  mono cancellation is warned and recorded. Ad/Tour opt in with
+  `audio_workflow: mix`: preliminary timing first, Creator-brokered Mix next,
+  then ordinary video approval using real master/receipt hashes. No dummy
+  audio or placeholders in an approved plan. `mix_audio.py` validates the
+  staged subset; Tour binds `mix-caption-N` text/timing to the distinct
+  captions.json (never relax speech's words.json hash check). Only the master
+  plays; kept footage audio conflicts. Final decoded audio duration and peak
+  are measured again. Omitted Mix fields preserve frozen v1/v2/v3 behavior.
+- **Multiplex TTS needs the scoped toolset-cache fix in the local Hermes
+  checkout.** At upstream `4f0309e9cf`, `toolsets.resolve_toolset` memoized
+  by toolset/registry generation but NOT profile scope. After Creator lost
+  character-voice, warming its `tts` entry hid the two tools from AudioCreator
+  despite correct scoped registration. `toolsets.py` now also keys on
+  `registry.current_scope_key()` (static-only resolution uses an empty scope).
+  It is carried as `fix/toolset-profile-scope-memo` merged into `local` in the
+  hermes-agent checkout, with a regression test; re-check after `hermes update`
+  that the merge survived. `test_audio_creator_routing.py` also exercises the
+  real resolver across scopes at unchanged generation. Registration-only
+  tests and direct CLI synthesis cannot detect this gateway-specific failure.
+- **`image_generate` only advertises what the configured provider's
+  `capabilities()` declares, fail-closed to text-only.** The
+  `image-fallback` chain provider did not declare one until 2026-09-05,
+  so every profile on `img-codex-xai-fal` had NO `image_url` /
+  `reference_image_urls` in the tool schema while codex and xai both
+  supported them. The chain now reports the first available member's
+  surface and, for a call that carries images, skips text-only members
+  instead of falling through to a redraw. Verify after an upstream
+  change with `_build_dynamic_image_schema()` under the profile's
+  `HERMES_HOME` (`plugins/image_gen/image-fallback/tests`).
+- **MV is a deliverable, not a character/format skill product.** VideoCreator's
+  `generate-music-video` uses existing `video_generate`, with local style/theme/direction
+  references. Theme defaults are concrete world vocabulary overridden by
+  `theme_detail`; never introduce a menu generator or cross-media presets.
+  First round returns only a new `proposal-v<N>.md` and its SHA-256, with zero media calls.
+  Creator relays client approval; only a matching `approved_plan` and
+  `approval_sha256` in the same work conversation releases generation. This is
+  an operating contract, not cryptographic caller authorization. Changed inputs
+  or creative choices require a new proposal; attempts never reset on resume.
+  Supplied music may be pending in a zero-spend proposal via textual
+  `music_plan`: mark pending-inputs/can_generate:false, never invent a file
+  or hash. Pending image-upload consent does not block local-only planning.
+  Before generation, require real music_file/consent and a NEW numbered
+  proposal/hash approval; a preliminary approval is not executable. Music
+  production is separately released through Creator, never done in this leaf.
+  Native audio must be supported by the actual backend; reference videos and
+  supplied music are never uploaded by this leaf. Exact words/supplied music
+  may require separately approved finishing, and a silent visual master is
+  not a completed musical MV. Keep unverified temporal/audio QA explicit.
+  Recipes are authored, not yet paid-render validated; broader legacy video
+  remains available, and clip/tour are unchanged.
+  xAI's reference-image path silently clamps to 10s despite advertising 15s;
+  use a conditional 10s default and block explicit longer requests before spend.
+  The current xAI-first chain does not advertise native audio: generated sound
+  is blocked until a capable route is explicitly configured, never guessed.
+  Only the skill name/path is renamed; `mv_<slug>` output filenames and runtime
+  job paths stay unchanged. No old-name alias: reissue active legacy jobs with
+  a new proposal and client approval; never edit frozen old jobs. Keep the
+  closing frontmatter within 3800 characters for upstream's 4000-character scan.
 - **HyperFrames skills live outside the repo, on purpose.** `creator` reaches the
   `hyperframes*` / `media-use` playbooks through `skills.external_dirs`
   (`~/.agents/skills`) — a harness-neutral store owned by `hyperframes skills
@@ -396,7 +809,69 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
   and `learned/` belong in it; anything else appearing there is installer
   residue. Check BOTH roots when the validator reports symlinks — the two
   intentional ones are the assistant's private-overlay `assistant-pipeline` and
-  `desks`, which resolve and must stay.
+  `desks`, which resolve and must stay. **`video-creator` pins four individual
+  dirs from the same store** (`hyperframes-core`, `hyperframes-animation`,
+  `cut-the-curve`, `oversized-cursor`) for its `create-tour`/`create-ad`/
+  `create-explainer-video` leaves only — never the whole store, and the same
+  never-copy/never-symlink rule applies (see `PROFILES.md` "Video authoring
+  references"). A missing or unreadable entry there is a documented
+  local-authoring fallback per that leaf's contract, not a runtime failure.
+
+## Writer leaf migration
+
+Writer v7 accepts `<write|edit|analyze>/<subject>/SKILL.md` below
+`writer-pipeline`, with category `writing`, a named output and a form.
+Each leaf owns Procedure, QA and Report; selected reference options need
+local backing files and direct body links. `validate_writer_leaves` checks
+this without changing Creator hands' verbs or media cost contract.
+All six families now use leaves. Pre-draft advice uses only the root's
+`references/consultation.md`; a request to edit/evaluate a target selects its
+leaf. Unsupported combinations return to the requester, never a generic
+fallback. Keep new families in separate layers rather than bundling them.
+
+Article leaves distinguish source drafts from destination rendering. Keep
+platform capability notes local to each leaf; do not promise note/X Article
+Markdown import, unknown HTML support or untested embeds. Insertion markers
+bind to stable production-note IDs and never imply generated assets. A missing
+asset or editor step is not removed to manufacture a publication-ready result.
+The shared Japanese core is a single `SKILL.md`, with no inspection resources
+or scripts. Writer's leaves own document construction and checks. Historical
+source attribution remains in `agents/README.md` and Git history.
+
+Document leaves are `<write|edit|analyze>/document/`, including legacy briefs
+named documentation/business-document. Formats are local form options, not
+new profiles: README, guide, reference, report, minutes, proposal, slides,
+release notes and issue. Keep absent records distinct from explicit decisions;
+never infer owners, deadlines, release status or runtime success. Analysis
+returns a report, not a replacement document. No additional inspection workflow
+is added to a document leaf's checks.
+
+Message leaves are `<write|edit|analyze>/message/` for email, chat, notification,
+UI and error wording, not sending or system diagnosis. Preserve the sender's
+intent and unknown outcome states; an existing retry control does not establish
+safe repetition. Field labels/review notes are not recipient-facing text.
+Use supplied context without new personal-record lookups. Source assertions,
+actual runtime state and rendered UI fit are separate evidence questions.
+
+Copy leaves are `<write|edit|analyze>/copy/` for landing pages, promotional mail
+and announcements, including legacy marketing-copy briefs. Destination options
+have operation-specific local references. Keep approved claims, offer terms and
+disclosures; evidence conflicts are not solved by inventing proof or silently
+weakening a protected promise. CTA requirements depend on the released purpose.
+Marketer consumes accepted text unchanged, returns edits to Writer and keeps its
+own inspection/Publish gate. Analysis is not new copy or a performance/legal
+verdict. Script and unmigrated platform-post workflows remain separate.
+
+Script leaves are `<write|edit|analyze>/script/`, with local narration/comic/
+storyboard/screenplay/slide-script references. The actual producer contract
+decides units, fields and limits; never impose genre-wide counts or timing.
+Plain spoken files contain only intended words, not labels, fences or notes.
+Keep `.production.md` and required raw exports consistent with the master.
+Existing unit IDs remain stable; retired IDs are not recycled and any remapping
+needs requester/consumer agreement. Changed words invalidate dependent evidence
+until rechecked. Script analysis is a report, not a new production input. Each
+leaf owns QA. Consultation may propose bounds but cannot present them as actual
+producer requirements or measured evidence, nor execute a writing workflow.
 
 ## Layout
 
@@ -418,12 +893,18 @@ plugins/             # backend chains, tool overrides, completion and Worker
                      # mutation guards; source tracked, __pycache__ ignored
 launchd/              # LaunchAgents: multiplex gateway (all bots, one process),
                      #   local TTS engines
+engines/             # tracked pin/lock definitions for local engines
+                     #   (irodori-tts, qwen3-tts, stable-audio-3) — grouped
+                     #   here; local/ still owns their untracked
+                     #   weights/venvs and plugins/ still owns adapters
 scripts/             # profile-secrets.sh (secrets.command helper),
                      #   brave-agent-sync.sh (real-profile browser clone),
                      #   validate-profile-skills.py
 local/               # gitignored machine-local installs: TTS engines, the
                      #   brave-agent clone bundle
-profiles/<name>/     # assistant, engineer, researcher, searcher, creator, writer, marketer
+profiles/<name>/     # assistant, engineer, researcher, searcher, creator, writer, marketer,
+                     #   image-creator (Creator's hands; leaves under
+                     #   image-creator-pipeline/<verb>/<subject>/)
   - config.yaml      # model/fallback + agent.system_prompt (operating contract)
   - profile.yaml     # routing description (kanban/delegation)
   - SOUL.md          # per-profile persona (BASE + role posture)
@@ -442,9 +923,8 @@ profiles/<name>/     # assistant, engineer, researcher, searcher, creator, write
                      #   browser-motion/diagram/editorial/icon/card/meme/text-art/
                      #   pixel/sourcing/assembly leaves (1:1 with the assistant's
                      #   plan/creative decision leaves; validator-enforced);
-                     #   writer: the japanese-writing skill (notation +
-                     #   tech-prose / prose-rhythm / business doctypes /
-                     #   inspection lint layers) via the curated
+                     #   writer: the japanese-writing language core (one
+                     #   SKILL.md, five notation defaults) via the curated
                      #   external-skills symlink dir;
                      #   marketer: + upstream social-media/xurl + creative/humanizer;
                      #   managed technics stay exactly one directory below skills/technic/
@@ -476,12 +956,13 @@ searcher / writer (Workflow v5
 specialists; writer and researcher also serve inbound A2A peer requests,
 searcher has no A2A endpoint). The A2A peer graph and the multiplex rules
 live in the critical rule above and PROFILES.md. Heavy work runs by default in resident chat sessions the
-assistant starts through `assistant/scripts/resident-session.sh` and
+assistant starts through `specialist_call(kind="work")` (backed by
+`assistant/scripts/resident-session.sh`) and
 supervises conversationally; the kanban board is only for fire-and-forget,
 cron-originated, mass-parallel, and `scheduled` work with a lean card
 contract (no manifests/digests/probes — the v4 machinery is retired, see the
 2026-08-06 rebuild). The card catalog is CLOSED and per-assignee: creator
-(`anchored-image-batch`, `tts-voice`, `deterministic-render`), searcher
+(`anchored-image-batch`, `deterministic-render`), searcher
 (`survey-enumeration`, `exhaustive-hunt`);
 writer, engineer, marketer and researcher are card-free and refuse every card
 (researcher's `claim-verification` unit was retired in the 2026-09 peer
@@ -539,8 +1020,10 @@ writes on the current machine, then commit it.
 
 - `./setup.sh` — install/refresh the hermes binary (uv venv); idempotent.
 - `./scripts/validate-profile-skills.py --all` — validate managed/learned skill
-  topology, metadata, routing registries and Git ownership; add `--strict-git`
-  in a staged/clean tree to fail on managed files that are still untracked.
+  topology, metadata, routing registries, hands leaves, Creator's phase/subject
+  references and Git ownership; add
+  `--strict-git` in a staged/clean tree to fail on managed files that are
+  still untracked.
 - Tests: `PYTHONPATH=$(ghq root)/github.com/NousResearch/hermes-agent \
   $(ghq root)/github.com/NousResearch/hermes-agent/venv/bin/python -m pytest \
   plugins/ scripts/tests/ -q --import-mode=importlib`. The Hermes venv is
@@ -560,10 +1043,10 @@ writes on the current machine, then commit it.
   `install --voice-manifest PATH`; add voices with
   `register --voice-manifest PATH [--default]`. The private manifest paths must
   never enter tracked config or docs. Dependencies come from
-  `qwen3-tts/requirements.lock` and must stay hash-locked.
+  `engines/qwen3-tts/requirements.lock` and must stay hash-locked.
 - `launchd/irodori-tts-launchctl.sh {install,register,register-lexicon,voices,status,uninstall,purge}`
   — Irodori-TTS LaunchAgent (`irodori-tts` on `127.0.0.1:10103`), coexisting with
-  qwen3-tts on `:10102`. Pins live in `irodori-tts/pinned.conf` — named `.conf`
+  qwen3-tts on `:10102`. Pins live in `engines/irodori-tts/pinned.conf` — named `.conf`
   because `**/*.env` is ignored and the pins must be tracked. It installs a git
   checkout of the upstream server plus a uv venv under the ignored
   `local/irodori-tts/`; `--python` is mandatory there, since uv otherwise picks

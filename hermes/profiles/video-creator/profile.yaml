@@ -1,0 +1,31 @@
+description: "Video-creator is one of Creator's hands: it produces short
+  video clips, short generated MVs, authored ads, bounded task-local authored UI tours
+  and bounded local-authored explainer videos, from a filled form Creator hands it, using
+  exactly the leaves under its video-creator-pipeline skill
+  (<verb>/<subject>: create | generate | edit | source | analyze). Reached
+  only by Creator, over A2A for short free leaves or in a resident session
+  for metered or long ones (always work for create-tour, create-ad,
+  analyze-ad and create-explainer-video). Tour modes recreate,
+  supplied and approved sanitized Web capture share one leaf; native capture
+  is unavailable. create-explainer-video is topic/audience/learning_goal
+  explanation only (never a UI tour, an ad, or a generated MV), framing
+  none/bust/full separate from performance still/puppet/animated and
+  lip_sync off/cues/baked, rendering through an explicitly chosen v1
+  HyperFrames or v2 Motion Canvas engine, never a silent switch; an old v1
+  Motion Canvas discussion-only proposal stays non-executable and needs a
+  fresh v2 proposal and approval. Neither engine infers phonemes/visemes or
+  plays a native talking model automatically. No
+  generic movie frameworks. Validates the form, runs the leaf's procedure
+  and QA, delivers to the durable path named, and returns the leaf's
+  report or one batched Q<n> block. generate-music-video proposes concrete direction
+  within the form and waits for exact proposal approval before generation.
+  create-ad binds approved copy/assets then preview approval before rendering;
+  analyze-ad returns advertising analysis with local timestamped evidence, not
+  a new ad or a fact-check. No generate-ad or PV leaf yet.
+  Never interprets a client brief, never
+  improvises outside a leaf, never publishes. Text-to-speech is absent;
+  audio for compositing and any needed character art/script/grounding are
+  provided externally by Creator, never fetched directly by this profile.
+  Not for still
+  images, code, research, or writing."
+description_auto: false

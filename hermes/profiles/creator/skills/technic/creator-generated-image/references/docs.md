@@ -1,8 +1,8 @@
 <Goal>
 
 Generated images for slide decks, documents, and print. Exact title-slide text
-belongs to `creator-text-card`; deterministic icons belong to
-`creator-logo-icons`.
+belongs to `creator-text-card`; icons of any kind belong to
+the hands (`creator-pipeline` references/plan/image-creator/icon.md).
 
 </Goal>
 

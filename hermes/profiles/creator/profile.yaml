@@ -1,15 +1,23 @@
-description: "Creator handles media production and assembly as the assistant's
-  hands on the generation tools: images, video, GIFs, posters, interactive
-  browser visuals, HTML motion, music/SFX, vocal songs, voice, and the
-  deterministic assembly of QA-passed parts. Consumes released units whose
-  deliverable-defining decisions the assistant already fixed; spec gaps and
-  implied composites return as findings, never local decisions. Runs as a
-  resident chat session supervised by the assistant (default) or as a lean
-  kanban card for exactly three catalog units (anchored-image-batch,
-  tts-voice, deterministic-render); any other card is refused back to a
-  session. Routes internally to Advisory (judgment, zero spend), Direction
-  (anchor-unit production before batch spend), and Produce with intent triage
-  (new / revise / salvage), canonical technics, and the Budget grant.
-  Delivers verified files at durable paths. Not for code, research, or
-  writing tasks."
+description: "Creator serves human and assistant clients through Plan, Build
+  and Quality assurance. Fills forms for ImageCreator's still-image families,
+  VideoCreator's short clips, generate-music-video, authored UI tours,
+  authored ads and bounded local-authored explainer videos (create-explainer-video:
+  topic/audience/learning_goal only, explicit v1 HyperFrames or v2 Motion
+  Canvas render (never a silent switch; an old v1 Motion Canvas
+  discussion-only proposal needs a fresh v2 proposal and approval), framing
+  none/bust/full and lip_sync off/cues/baked; character/script/grounding/
+  audio dependencies are relayed to image-creator/writer/researcher/
+  audio-creator, never fetched by VideoCreator itself) and AudioCreator's speech,
+  sfx (create-sfx, generate-sfx, edit-sfx, analyze-sfx), instrumental music
+  (create-music, generate-music, edit-music, analyze-music) and mix
+  (create-mix, edit-mix, analyze-mix — placing already-finished speech/
+  sfx/music sources on a shared timeline, never new synthesis), delegates
+  production, and returns durable artifacts with evidence and explicit QA
+  gaps. Existing legacy technics cover other images, authored motion,
+  diagrams and assembly of supplied parts. Vocal songs and standalone audio
+  visualization remain withdrawn pending concrete new families, not silently
+  routed through external skills. Kanban is limited to anchored-image-batch
+  and deterministic-render for legacy work; speech, sfx, music and mix use
+  hands sessions, never a card. Not for code, research, script writing or
+  publishing."
 description_auto: false

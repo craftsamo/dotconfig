@@ -213,25 +213,36 @@ class StyleContractTest(unittest.TestCase):
 
 
 class RegistrationTest(unittest.TestCase):
-    """Creator owns character assets; nothing else may spend an engine on one."""
+    """audio-creator owns character assets since the Creator hands (v3)
+    audio migration completed; every other profile, including creator
+    itself, is denied.
+    """
 
     class FakeContext:
         def __init__(self, profile_name: str) -> None:
             self.profile_name = profile_name
             self.tools: list[str] = []
+            self.toolsets: list[str] = []
 
-        def register_tool(self, *, name: str, **kwargs) -> None:
+        def register_tool(self, *, name: str, toolset: str, **kwargs) -> None:
             self.tools.append(name)
+            self.toolsets.append(toolset)
 
-    def test_registered_only_for_creator(self) -> None:
+    def test_registered_only_for_audio_creator(self) -> None:
+        audio_creator = self.FakeContext("audio-creator")
         creator = self.FakeContext("creator")
-        assistant = self.FakeContext("assistant")
+        MODULE.register(audio_creator)
         MODULE.register(creator)
-        MODULE.register(assistant)
         self.assertEqual(
-            ["character_voices", "character_text_to_speech"], creator.tools
+            ["character_voices", "character_text_to_speech"], audio_creator.tools
         )
-        self.assertEqual([], assistant.tools)
+        self.assertEqual([], creator.tools)
+        self.assertEqual(["tts", "tts"], audio_creator.toolsets)
+
+    def test_unrelated_profile_still_denied(self) -> None:
+        video_creator = self.FakeContext("video-creator")
+        MODULE.register(video_creator)
+        self.assertEqual([], video_creator.tools)
 
 
 if __name__ == "__main__":

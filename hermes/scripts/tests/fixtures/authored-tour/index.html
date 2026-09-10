@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<script src="assets/gsap.min.js"></script>
+<style>
+@font-face{font-family:"Hiragino Sans";src:local("Hiragino Sans")}
+*{box-sizing:border-box}html,body{margin:0;width:1280px;height:720px}
+#root{position:relative;width:1280px;height:720px;overflow:hidden;background:#c8e8f1;color:#152c3e;font-family:Arial,"Hiragino Sans",sans-serif}
+#ground{position:absolute;inset:0;background:linear-gradient(125deg,#b8d9fb,#d1f3df)}
+#heading{position:absolute;left:80px;top:38px;width:1120px;height:68px;margin:0;font-size:44px;line-height:1.4;text-align:center;transform-origin:50% 50%;z-index:5}
+#disclosure{position:absolute;left:80px;bottom:18px;width:1120px;text-align:center;font-size:17px;color:#24475b}
+#window{position:absolute;left:160px;top:154px;width:960px;height:480px;border:1px solid #9db6c4;border-radius:22px;background:#f7fafc;box-shadow:0 24px 65px #31556a40;transform-origin:50% 50%}
+#chrome{height:48px;border-bottom:1px solid #cad5dc;display:flex;align-items:center;padding:0 22px;gap:10px}
+.dot{width:13px;height:13px;border-radius:50%;background:#da7d77}.dot:nth-child(2){background:#d6b55e}.dot:nth-child(3){background:#69b19d}
+#window-title{font-size:19px;margin-left:290px;color:#3b5366}
+#app{position:absolute;left:0;top:48px;width:960px;height:432px;border-radius:0 0 22px 22px;overflow:hidden;background:#f7fafc}
+#sidebar{position:absolute;left:0;top:0;width:230px;height:432px;background:#e8f0f5;padding:32px 20px}
+.nav{height:50px;padding:10px 15px;font-size:21px;color:#284859}.nav.active{background:#2269d1;color:white;border-radius:10px}
+#panel{position:absolute;left:270px;top:22px;width:650px;height:380px}
+#panel-title{font-size:29px;font-weight:600;margin:0 0 6px}.hint{font-size:19px;color:#486477;margin:0}
+.choice{position:absolute;top:90px;width:230px;height:172px;border:3px solid #bccdd8;border-radius:15px;padding:12px;background:#fff;color:#172f42}
+#light-choice{left:12px;border-color:#246cce}#dark-choice{left:280px}
+.mini{height:100px;border-radius:7px;background:#d7e8f3;padding:14px 14px 14px 55px;position:relative}
+.mini:before{content:"";position:absolute;left:0;top:0;bottom:0;width:40px;background:#bdcfdc;border-radius:7px 0 0 7px}
+.mini i{display:block;background:white;height:12px;margin:0 0 10px;border-radius:3px}.mini.dark{background:#2c465d}.mini.dark:before{background:#182d41}.mini.dark i{background:#829eb0}
+.choice-label{font-size:22px;margin-top:10px;text-align:center}
+#selection{position:absolute;left:75px;top:264px;width:100px;font-size:19px;line-height:1;text-align:center;color:#2463bd}
+#setting-name{position:absolute;left:15px;top:290px;font-size:21px}
+#saved-name{position:absolute;left:140px;top:290px;font-size:21px;color:#1b635c;opacity:0}
+#customize{position:absolute;left:420px;top:292px;width:210px;height:54px;background:#246cce;color:white;border-radius:10px;font-size:21px;text-align:center;padding-top:12px}
+#modal{position:absolute;left:255px;top:87px;width:540px;height:330px;padding:30px 34px;background:#fff;border:1px solid #a5bac8;border-radius:20px;box-shadow:0 18px 60px #142f5266;z-index:7;opacity:0;transform-origin:50% 50%}
+#modal-title{font-size:29px;font-weight:600;margin:0 0 22px;color:#163347}
+#field-label{font-size:20px;color:#35566a;margin-bottom:8px}
+#field{width:470px;height:62px;border:3px solid #317de0;border-radius:9px;padding:13px 18px;display:flex;color:#163347;font-size:23px;background:#f8fbff}
+#field span{opacity:0;display:block}
+#save{position:absolute;right:34px;bottom:26px;width:146px;height:52px;border-radius:10px;background:#246cce;color:#fff;font-size:22px;text-align:center;padding-top:10px}
+#cursor{position:absolute;left:0;top:0;width:58px;height:72px;z-index:12;transform-origin:0 0;filter:drop-shadow(0 3px 4px #183c5c66);pointer-events:none}
+#completion{position:absolute;left:180px;top:644px;width:920px;height:45px;text-align:center;font-size:26px;color:#173f48;opacity:0}
+#setup{position:absolute;left:450px;top:112px;width:380px;text-align:center;font-size:22px;color:#24475b;opacity:0}
+#tiles{position:absolute;left:330px;top:220px;width:620px;height:260px;z-index:8;opacity:0}
+.tile{position:absolute;top:0;width:270px;height:240px;border-radius:24px;padding:38px;background:#f5faff;color:#17384b;box-shadow:0 18px 50px #264d692e;font-size:33px;text-align:center}
+#tile-light{left:0}#tile-dark{left:350px;background:#213d54;color:white}
+.tile .mini{height:110px;margin-bottom:16px}
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="tour" data-start="0" data-width="1280" data-height="720" data-duration="@@DURATION@@" data-fps="30">
+<div id="ground"></div>
+<h1 id="heading">見た目を、自分に合わせる。</h1>
+<div id="setup">操作の前に戻ります</div>
+<div id="window">
+  <div id="chrome"><i class="dot"></i><i class="dot"></i><i class="dot"></i><div id="window-title">設定のデモ</div></div>
+  <div id="app">
+    <div id="sidebar"><div class="nav">一般</div><div class="nav active">外観</div><div class="nav">通知</div><div class="nav">サウンド</div></div>
+    <!-- These text blocks are intentionally covered only while the modal is open. -->
+    <div id="panel"><div id="panel-title" data-layout-allow-occlusion="true">外観</div><p class="hint" data-layout-allow-occlusion="true">使いやすい見た目を選びます。</p>
+      <div id="light-choice" class="choice"><div class="mini"><i></i><i></i><i></i></div><div class="choice-label" data-layout-allow-occlusion="true">ライト</div></div>
+      <div id="dark-choice" class="choice"><div class="mini dark"><i></i><i></i><i></i></div><div class="choice-label" data-layout-allow-occlusion="true">ダーク</div></div>
+      <div id="selection" data-layout-allow-occlusion="true">選択中</div><div id="setting-name" data-layout-allow-occlusion="true">名前</div><div id="saved-name">夜の作業</div><div id="customize" data-layout-allow-occlusion="true">名前を付ける</div>
+    </div>
+  </div>
+  <div id="modal" data-layout-allow-occlusion="true"><div id="modal-title" data-layout-allow-overlap="true">この見た目に名前を付ける</div><div id="field-label">名前</div><div id="field"><span>夜</span><span>の</span><span>作</span><span>業</span></div><div id="save" data-layout-allow-occlusion="true">保存</div></div>
+  <svg id="cursor" viewBox="0 0 48 60" data-layout-ignore="true"><path d="M0 0 L0 40 L11 30 L21 51 L31 46 L21 26 L38 26 Z" fill="white" stroke="#152c3e" stroke-width="2.5"/></svg>
+</div>
+<div id="tiles"><div id="tile-light" class="tile"><div class="mini"><i></i><i></i></div>ライト</div><div id="tile-dark" class="tile"><div class="mini dark"><i></i><i></i></div>ダーク</div></div>
+<div id="completion">ダークに変更できました。</div>
+<div id="disclosure">説明用に簡略化した UI です。実際の macOS の操作とは異なります。</div>
+</div>
+<script>
+window.__timelines ||= {};
+const tl=gsap.timeline({paused:true});
+const k=@@DURATION@@/20;
+const move=(target,vars,at)=>tl.to(target,{...vars,duration:(vars.duration??.7)*k},at*k);
+const pose=(target,vars,at)=>tl.set(target,vars,at*k);
+const tap=(at)=>{move('#cursor',{scale:.83,duration:.1,ease:'power2.in'},at);move('#cursor',{scale:1,duration:.2,ease:'power2.out'},at+.1);};
+const dark=(at)=>{
+  move('#app',{backgroundColor:'#203b50',duration:at===0?0:.4},at);
+  move('#sidebar',{backgroundColor:'#182f43',duration:at===0?0:.4},at);
+  move('#panel-title,#setting-name',{color:'#f3f8ff',duration:at===0?0:.4},at);
+  move('.hint,.nav:not(.active)',{color:'#d3e4ef',duration:at===0?0:.4},at);
+  pose('#light-choice',{borderColor:'#bccdd8'},at);
+  pose('#dark-choice',{borderColor:'#5fa7ff'},at);
+  pose('#selection',{color:'#d3e4ef',x:268,y:0},at);
+};
+pose('#cursor',{x:780,y:720},0);
+pose('#selection',{x:0,y:0},0);
+@@INTRO@@
+move('#window',{scale:1.12,x:-42,y:-3,duration:1.2,ease:'power2.inOut'},3.6);
+move('#cursor',{x:660,y:225,duration:.9,ease:'power3.out'},4.4);
+tap(6);dark(6);
+move('#cursor',{x:795,y:365,duration:.8,ease:'power3.inOut'},7.8);
+tap(9);
+move('#window',{scale:1,x:0,y:0,duration:.8,ease:'power2.inOut'},9);
+move('#app',{filter:'blur(5px)',duration:.3},9);
+pose('#modal',{opacity:1,scale:.94,y:12},9);
+move('#modal',{scale:1,y:0,duration:.55,ease:'power3.out'},9);
+move('#cursor',{x:400,y:265,duration:.7,ease:'power3.inOut'},10);
+tap(10.8);
+tl.to('#field span',{opacity:1,duration:.01,stagger:.25*k},10.8*k);
+move('#cursor',{x:880,y:305,duration:.7,ease:'power2.out'},11.5);
+move('#cursor',{x:688,y:365,duration:.7,ease:'power2.inOut'},13.1);
+tap(14);
+move('#save',{scale:.96,duration:.1},14);
+move('#save',{scale:1,duration:.2},14.1);
+pose('#modal',{opacity:0},14.5);
+pose('#saved-name',{opacity:1,color:'#b6eed9'},14.5);
+move('#app',{filter:'blur(0px)',duration:.3},14.5);
+move('#cursor',{x:1050,y:650,duration:.7,ease:'power2.in'},15.3);
+@@OUTRO@@
+tl.to({},{duration:@@DURATION@@},0);
+window.__timelines.tour=tl;
+</script>
+</body>
+</html>

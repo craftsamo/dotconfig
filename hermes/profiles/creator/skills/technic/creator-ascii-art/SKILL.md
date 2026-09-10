@@ -31,9 +31,10 @@ official skill here. Animated output routes to `creator-ascii-video`.
 - The leaf does not create a parallel intake or clarification flow.
 - Canonical dispatch identity remains `creator-*`; external engines are loaded
   through `skill_view`, not treated as alternate dispatch skills.
-- Generated supporting image or video is a separate canonical capability; TTS
-  identifies as `core:tts`. Each uses a separate Budget line. ASCII rendering
-  itself has zero generation cost.
+- Generated supporting image or video is a separate canonical capability;
+  narration is a completed speech delivery from Creator's audio-creator hand
+  (`generate-speech`, approved script required), never synthesized here. Each
+  uses a separate Budget line. ASCII rendering itself has zero generation cost.
 - Never install a dependency automatically. If a required preflight is missing,
   block execution and report the missing capability.
 </Contract>

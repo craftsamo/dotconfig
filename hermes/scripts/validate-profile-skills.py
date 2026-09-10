@@ -40,7 +40,17 @@ WORKER_PROFILES = (
     "writer",
     "marketer",
 )
-ALL_PROFILES = ("assistant", *WORKER_PROFILES)
+# Creator's hands (PROFILES.md "Creator hands (v3)"): receive-only A2A
+# producers whose skills are `<hands>-pipeline/<verb>/<subject>/SKILL.md`
+# leaves, one deliverable and one form each. Add a profile here when its
+# skeleton lands; subjects must stay unique across every listed hands.
+HANDS_PROFILES = ("image-creator", "video-creator", "audio-creator")
+HANDS_VERBS = ("create", "generate", "edit", "source", "analyze")
+HANDS_COSTS = ("free", "metered")
+HANDS_FIELD_TYPES = ("text", "image", "file", "path", "int")
+HANDS_NAME = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
+WRITER_VERBS = ("write", "edit", "analyze")
+ALL_PROFILES = ("assistant", *WORKER_PROFILES, *HANDS_PROFILES)
 WORKER_MUTATION_GUARD_PLUGIN = "kanban-worker-mutation-guard"
 EXPECTED_MODES = ("chat", "plan", "execute", "quality-assurance")
 EXPECTED_CAPABILITIES = {
@@ -72,22 +82,18 @@ REQUIRED_QA_CONTRACTS = {
     "creative": {
         "ascii-art.md",
         "ascii-video.md",
-        "audio.md",
         "browser-media.md",
         "comic.md",
         "data-visualization.md",
         "excalidraw-diagram.md",
-        "icon-set.md",
         "infographic.md",
         "pixel-art.md",
         "pixel-video.md",
         "raster-image.md",
-        "song.md",
         "sourced-asset.md",
         "svg-diagram.md",
         "text-visual.md",
         "video.md",
-        "voice.md",
     },
     "research": {
         "evidence-pack.md",
@@ -825,6 +831,12 @@ def validate_worker(
 
     allowed = {(pipeline_name, "SKILL.md")}
     allowed.update(("technic", name, "SKILL.md") for name in leaves)
+    writing: dict[str, Path] = {}
+    if profile == "writer":
+        writing = validate_writer_leaves(pipeline_dir, errors)
+        for name in writing.keys() & (leaves.keys() | learned.keys()):
+            errors.append(f"duplicate writer skill name: {name}")
+        allowed.update(path.relative_to(skills).parts for path in writing.values())
     allowed.update(learned_roots)
     validate_allowed_skill_roots(skills, allowed, errors)
 
@@ -848,18 +860,467 @@ def validate_worker(
 
     if catalog is not None:
         validate_worker_card_gate(profile, catalog, errors)
+    if profile == "creator":
+        validate_creator_references(pipeline_dir, errors)
     validate_git_boundary([pipeline_dir, technic_dir], learned_dir, errors)
     validate_plugin_enabled(profile, profile_root / "config.yaml", errors)
-    return len(leaves), len(learned)
+    return len(leaves) + len(writing), len(learned)
+
+
+def validate_writer_leaves(pipeline_dir: Path, errors: list[str]) -> dict[str, Path]:
+    """Writer adopts form-based leaves without changing Creator's verb set."""
+    leaves: dict[str, Path] = {}
+    for path in sorted(pipeline_dir.rglob("SKILL.md")):
+        rel = path.relative_to(pipeline_dir)
+        if rel.parts == ("SKILL.md",):
+            continue
+        if len(rel.parts) != 3 or rel.parts[0] not in WRITER_VERBS:
+            errors.append(f"writer leaf must sit at write|edit|analyze/<subject>/SKILL.md: {path}")
+            continue
+        verb, subject, _ = rel.parts
+        if not HANDS_NAME.fullmatch(subject):
+            errors.append(f"writer subject must be a slug: {path}")
+            continue
+        name = f"{verb}-{subject}"
+        validate_skill(path, name, errors, expected_category="writing")
+        data = frontmatter(path)
+        meta = hermes_meta(data)
+        if not isinstance(data.get("description"), str) or not data["description"].strip():
+            errors.append(f"writer leaf must carry a description: {path}")
+        if not isinstance(meta.get("output"), str) or not meta["output"].strip():
+            errors.append(f"writer leaf must describe metadata.hermes.output: {path}")
+        text = path.read_text(encoding="utf-8")
+        for section in ("Procedure", "QA", "Report"):
+            if f"<{section}>" not in text or f"</{section}>" not in text:
+                errors.append(f"writer leaf must own <{section}>: {path}")
+        form = meta.get("form")
+        if not isinstance(form, dict) or not form:
+            errors.append(f"writer leaf must declare metadata.hermes.form: {path}")
+            continue
+        if "note" not in form:
+            errors.append(f"writer form must carry a note field: {path}")
+        for key, field in form.items():
+            if not isinstance(key, str) or not HANDS_NAME.fullmatch(key.replace("_", "-")):
+                errors.append(f"writer form field name must be a slug: {key}: {path}")
+            if not isinstance(field, dict):
+                errors.append(f"writer field must be a mapping: {key}: {path}")
+                continue
+            if not isinstance(field.get("required"), bool):
+                errors.append(f"writer field must set required: true|false: {key}: {path}")
+            if field.get("type", "text") not in ("text", "file", "path", "int"):
+                errors.append(f"unknown writer field type: {key}: {path}")
+            if not isinstance(field.get("label"), str) or not field["label"].strip():
+                errors.append(f"writer field must carry a label: {key}: {path}")
+            if "other" in field and not isinstance(field["other"], bool):
+                errors.append(f"writer field other must be a boolean: {key}: {path}")
+            options = field.get("options")
+            if options is not None and (
+                not isinstance(options, list) or not options
+                or any(not isinstance(option, str) or not HANDS_NAME.fullmatch(option) for option in options)
+            ):
+                errors.append(f"writer options must be a non-empty list of string slugs: {key}: {path}")
+                continue
+            if "references" not in field:
+                continue
+            pattern = field["references"]
+            if (
+                not isinstance(pattern, str) or not pattern.startswith("references/")
+                or Path(pattern).name != "*.md" or pattern.count("*") != 1
+                or ".." in Path(pattern).parts or any(char in pattern for char in "?[]")
+                or not options
+            ):
+                errors.append(f"writer references must name a local references/.../*.md option set: {key}: {path}")
+                continue
+            reference_root = path.parent / Path(pattern).parent
+            for option in options:
+                backing = reference_root / f"{option}.md"
+                if not backing.resolve().is_relative_to(path.parent.resolve()) or not backing.is_file():
+                    errors.append(f"writer option {option} has no local reference: {path}")
+                elif f"]({backing.relative_to(path.parent).as_posix()})" not in text:
+                    errors.append(f"writer option {option} needs a direct body link: {path}")
+        leaves[name] = path
+    return leaves
+
+
+# ── Creator hands (v3) ──────────────────────────────────────────────────
+#
+# One leaf = one deliverable = one form. The front matter is the ONLY
+# representation of the leaf's contract (no generated index, no preset
+# layer), so it is what gets validated: the path names the leaf
+# (`<verb>/<subject>` ⇒ `name: <verb>-<subject>`), the verb is one of the
+# closed set, the cost class is declared, and the form is a dict of fields
+# each carrying `required`. A `style` field's options must be backed by
+# `references/styles/<option>.md`; every leaf carries a `note` escape
+# hatch. Subjects are unique across all hands because Creator reads every
+# hands' tree through one `skills.external_dirs` list.
+
+
+def hermes_meta(data: dict[str, Any]) -> dict[str, Any]:
+    metadata = data.get("metadata")
+    if not isinstance(metadata, dict):
+        return {}
+    hermes = metadata.get("hermes")
+    return hermes if isinstance(hermes, dict) else {}
+
+
+def validate_hands_form(
+    form: Any, leaf_dir: Path, path: Path, errors: list[str]
+) -> None:
+    if not isinstance(form, dict) or not form:
+        errors.append(f"hands leaf must declare a non-empty metadata.hermes.form: {path}")
+        return
+    if "note" not in form:
+        errors.append(f"hands form must carry a `note` field: {path}")
+    for key, field in form.items():
+        if not HANDS_NAME.match(str(key).replace("_", "-")):
+            errors.append(f"hands form field name must be a slug: {key}: {path}")
+        if not isinstance(field, dict):
+            errors.append(f"hands form field {key} must be a mapping: {path}")
+            continue
+        if not isinstance(field.get("required"), bool):
+            errors.append(f"hands form field {key} must set required: true|false: {path}")
+        field_type = field.get("type", "text")
+        if field_type not in HANDS_FIELD_TYPES:
+            errors.append(
+                f"hands form field {key} has unknown type {field_type!r}: {path}"
+            )
+        options = field.get("options")
+        if options is not None:
+            if not isinstance(options, list) or not options:
+                errors.append(f"hands form field {key} options must be a non-empty list: {path}")
+            else:
+                reference_dir = {"style": "styles", "theme": "themes"}.get(key, str(key))
+                reference_root = leaf_dir / "references" / reference_dir
+                if key != "style" and "references" not in field and not reference_root.is_dir():
+                    continue
+                for option in options:
+                    if not isinstance(option, str) or not HANDS_NAME.fullmatch(option):
+                        errors.append(f"{key} reference option must be a slug: {option}: {path}")
+                        continue
+                    backing = reference_root / f"{option}.md"
+                    if not backing.is_file():
+                        errors.append(
+                            f"{key} option {option} has no references/{reference_dir}/{option}.md: {path}"
+                        )
+
+
+def validate_hands_leaves(
+    pipeline_dir: Path, profile: str, errors: list[str]
+) -> dict[str, Path]:
+    """Validate every `<verb>/<subject>/SKILL.md` under a hands pipeline root
+    and return name -> path. Support dirs (references/assets/scripts) of
+    the root itself are not leaf roots."""
+    leaves: dict[str, Path] = {}
+    for path in sorted(pipeline_dir.rglob("SKILL.md")):
+        rel = path.relative_to(pipeline_dir)
+        if rel.parts == ("SKILL.md",):
+            continue
+        if len(rel.parts) != 3:
+            errors.append(
+                f"hands leaf must sit at <verb>/<subject>/SKILL.md: {path}"
+            )
+            continue
+        verb, subject, _ = rel.parts
+        if verb not in HANDS_VERBS:
+            errors.append(f"hands verb must be one of {'|'.join(HANDS_VERBS)}: {path}")
+            continue
+        if not HANDS_NAME.match(subject):
+            errors.append(f"hands subject must be a slug: {path}")
+            continue
+        name = f"{verb}-{subject}"
+        validate_skill(path, name, errors, expected_category="hands")
+        data = frontmatter(path)
+        meta = hermes_meta(data)
+        if not str(data.get("description", "")).strip():
+            errors.append(f"hands leaf must carry a description: {path}")
+        if meta.get("hands") != profile:
+            errors.append(f"metadata.hermes.hands must be {profile}: {path}")
+        if meta.get("cost") not in HANDS_COSTS:
+            errors.append(f"metadata.hermes.cost must be one of {'|'.join(HANDS_COSTS)}: {path}")
+        if not str(meta.get("output", "")).strip():
+            errors.append(f"metadata.hermes.output must describe the deliverable: {path}")
+        validate_hands_form(meta.get("form"), path.parent, path, errors)
+        leaves[name] = path
+    return leaves
+
+
+def validate_hands_subjects(
+    leaves_by_profile: dict[str, dict[str, Path]], errors: list[str]
+) -> None:
+    owners: dict[str, str] = {}
+    for profile, leaves in leaves_by_profile.items():
+        for name in leaves:
+            subject = name.split("-", 1)[1]
+            owner = owners.setdefault(subject, profile)
+            if owner != profile:
+                errors.append(
+                    f"hands subject {subject} is owned by both {owner} and {profile}"
+                )
+
+
+def validate_hands(profile: str, errors: list[str]) -> tuple[dict[str, Path], int]:
+    profile_root = HERMES_ROOT / "profiles" / profile
+    skills = profile_root / "skills"
+    pipeline_name = f"{profile}-pipeline"
+    pipeline_dir = skills / pipeline_name
+    pipeline = pipeline_dir / "SKILL.md"
+    learned_dir = skills / "learned"
+
+    if not pipeline.is_file():
+        errors.append(f"missing root pipeline: {pipeline}")
+        return {}, 0
+    validate_skill(pipeline, pipeline_name, errors, expected_category="hands")
+    if (skills / "technic").exists():
+        errors.append(f"hands profile must not carry a technic directory: {skills / 'technic'}")
+
+    leaves = validate_hands_leaves(pipeline_dir, profile, errors)
+
+    learned: dict[str, Path] = {}
+    if learned_dir.is_dir():
+        for path in sorted(learned_dir.glob("*/SKILL.md")):
+            name = path.parent.name
+            validate_skill(path, name, errors)
+            learned[name] = path
+
+    allowed = {(pipeline_name, "SKILL.md")}
+    allowed.update(
+        (pipeline_name, *path.relative_to(pipeline_dir).parts) for path in leaves.values()
+    )
+    allowed.update(("learned", name, "SKILL.md") for name in learned)
+    validate_allowed_skill_roots(skills, allowed, errors)
+    validate_git_boundary([pipeline_dir], learned_dir, errors)
+    validate_plugin_enabled(profile, profile_root / "config.yaml", errors)
+    return leaves, len(learned)
+
+
+# ── Creator references (v8 broker tree) ─────────────────────────────────
+#
+# Migrating off the v7 monolith reference files onto a plain Markdown
+# broker tree: `references/{plan,build,quality-assurance}/index.md` plus
+# one flat `<hands>/<subject>.md` leaf per hands subject (subjects read
+# dynamically from the hands leaves on disk, never hardcoded).
+
+CREATOR_REFERENCE_PHASES = ("plan", "build", "quality-assurance")
+# Ordinary `[text](dest)`, an optional "title"/'title', or a `<dest>` target.
+LOCAL_LINK = re.compile(
+    r"\]\(\s*(<[^>]*>|[^\s)]+)(?:\s+(?:\"[^\"]*\"|'[^']*'))?\s*\)"
+)
+
+
+def _pipeline_major_version(data: dict[str, Any]) -> int | None:
+    """Strict leading major version (`8`, `8.0.0`, ...); `None` when the
+    `version` field is missing or not a clean numeric-dot string/number
+    (e.g. `v8.0.0`) — never silently treated as pre-v8."""
+    version = data.get("version")
+    if isinstance(version, bool):
+        return None
+    if isinstance(version, int):
+        return version
+    if isinstance(version, float):
+        return int(version)
+    if isinstance(version, str):
+        match = re.fullmatch(r"(\d+)(?:\.\d+)*", version.strip())
+        if match:
+            return int(match.group(1))
+    return None
+
+
+def collect_hands_subjects() -> dict[str, set[str]]:
+    """Subjects (deduped across verbs) served by each hands profile, read
+    from `<hands>-pipeline/<verb>/<subject>/SKILL.md` below HERMES_ROOT."""
+    subjects: dict[str, set[str]] = {}
+    for profile in HANDS_PROFILES:
+        pipeline_dir = (
+            HERMES_ROOT / "profiles" / profile / "skills" / f"{profile}-pipeline"
+        )
+        found: set[str] = set()
+        if pipeline_dir.is_dir():
+            for path in pipeline_dir.rglob("SKILL.md"):
+                rel = path.relative_to(pipeline_dir)
+                if rel.parts == ("SKILL.md",):
+                    continue
+                if len(rel.parts) != 3:
+                    continue
+                verb, subject, _ = rel.parts
+                if verb not in HANDS_VERBS:
+                    continue
+                found.add(subject)
+        subjects[profile] = found
+    return subjects
+
+
+def markdown_links(doc: Path) -> list[tuple[str, Path]]:
+    """Local (non-web, non-anchor-only) Markdown links in doc, as
+    (raw link text, resolved target path)."""
+    text = doc.read_text(encoding="utf-8")
+    links: list[tuple[str, Path]] = []
+    for raw in LOCAL_LINK.findall(text):
+        link = raw.strip()
+        if link.startswith("<") and link.endswith(">"):
+            link = link[1:-1]
+        if not link or link.startswith("#"):
+            continue
+        if re.match(r"^[a-zA-Z][a-zA-Z0-9+.-]*:", link):
+            continue  # scheme (http:, https:, mailto:, ...)
+        target = link.split("#", 1)[0]
+        if not target:
+            continue
+        links.append((link, (doc.parent / target).resolve()))
+    return links
+
+
+def validate_creator_reference_links(
+    doc: Path, pipeline_dir: Path, errors: list[str]
+) -> None:
+    root = pipeline_dir.resolve()
+    rel_doc = doc.relative_to(pipeline_dir)
+    for link, target in markdown_links(doc):
+        try:
+            target.relative_to(root)
+        except ValueError:
+            errors.append(
+                f"creator reference link escapes the pipeline: {link} in {rel_doc}"
+            )
+            continue
+        if not target.is_file():
+            errors.append(f"creator reference link is broken: {link} in {rel_doc}")
+
+
+def validate_creator_references(pipeline_dir: Path, errors: list[str]) -> None:
+    """Validate the v8 broker tree. Build-alongside: while no phase
+    directory exists yet and the root major version is below 8, the v7
+    monolith files stay accepted. Any phase directory, or major >= 8,
+    switches on full-tree validation for all three phases at once.
+    """
+    pipeline = pipeline_dir / "SKILL.md"
+    major = _pipeline_major_version(frontmatter(pipeline) if pipeline.is_file() else {})
+    if major is None:
+        errors.append("invalid creator pipeline version")
+        return
+    references = pipeline_dir / "references"
+    phase_dirs = {phase: references / phase for phase in CREATOR_REFERENCE_PHASES}
+
+    if not any(d.is_dir() for d in phase_dirs.values()) and major < 8:
+        return  # v7 baseline: still on the monolith references/{phase}.md files
+
+    hands_subjects = collect_hands_subjects()
+    phase_subject_paths: dict[str, dict[str, Path]] = {
+        phase: {} for phase in CREATOR_REFERENCE_PHASES
+    }
+
+    for phase, phase_dir in phase_dirs.items():
+        if not phase_dir.is_dir():
+            errors.append(f"missing creator reference phase: {phase}")
+            for hands, subjects in hands_subjects.items():
+                for subject in sorted(subjects):
+                    errors.append(
+                        f"creator reference phase {phase} missing hands subject: "
+                        f"{hands}/{subject}"
+                    )
+            continue
+
+        if not (phase_dir / "index.md").is_file():
+            errors.append(f"missing creator reference phase index.md: {phase}")
+
+        for entry in sorted(phase_dir.iterdir()):
+            if entry.name.startswith(".") or entry.name == "index.md":
+                continue
+            if entry.is_file():
+                errors.append(
+                    f"unexpected file in creator reference phase {phase}: {entry.name}"
+                )
+                continue
+            if entry.name not in HANDS_PROFILES:
+                errors.append(
+                    f"unknown hands directory in creator reference phase "
+                    f"{phase}: {entry.name}"
+                )
+                continue
+            hands = entry.name
+            expected = hands_subjects.get(hands, set())
+            found: set[str] = set()
+            for leaf in sorted(entry.iterdir()):
+                if leaf.name.startswith("."):
+                    continue
+                if leaf.is_dir():
+                    errors.append(
+                        f"no nesting below a creator reference hands dir: "
+                        f"{phase}/{hands}/{leaf.name}"
+                    )
+                    continue
+                if leaf.name == "SKILL.md":
+                    errors.append(
+                        f"creator reference tree must not contain SKILL.md: "
+                        f"{phase}/{hands}/{leaf.name}"
+                    )
+                    continue
+                if leaf.suffix != ".md":
+                    errors.append(
+                        f"non-markdown file in creator reference tree: "
+                        f"{phase}/{hands}/{leaf.name}"
+                    )
+                    continue
+                if not leaf.read_text(encoding="utf-8").strip():
+                    errors.append(
+                        f"empty creator reference file: {phase}/{hands}/{leaf.name}"
+                    )
+                subject = leaf.stem
+                found.add(subject)
+                phase_subject_paths[phase][f"{hands}/{subject}"] = leaf
+
+            for missing in sorted(expected - found):
+                errors.append(
+                    f"creator reference phase {phase} missing hands subject: "
+                    f"{hands}/{missing}"
+                )
+            for orphan in sorted(found - expected):
+                errors.append(
+                    f"creator reference phase {phase} has orphan hands subject: "
+                    f"{hands}/{orphan}"
+                )
+
+        for hands, subjects in hands_subjects.items():
+            if (phase_dir / hands).is_dir() or not subjects:
+                continue
+            for subject in sorted(subjects):
+                errors.append(
+                    f"creator reference phase {phase} missing hands subject: "
+                    f"{hands}/{subject}"
+                )
+
+    for phase, phase_dir in phase_dirs.items():
+        if not phase_dir.is_dir():
+            continue
+        index = phase_dir / "index.md"
+        if index.is_file():
+            linked = {target for _, target in markdown_links(index)}
+            for key, path in phase_subject_paths[phase].items():
+                if path.resolve() not in linked:
+                    errors.append(
+                        f"phase {phase} index.md does not link {key}: "
+                        f"{path.relative_to(pipeline_dir)}"
+                    )
+        for doc in sorted(phase_dir.rglob("*.md")):
+            validate_creator_reference_links(doc, pipeline_dir, errors)
+
+    if major >= 8:
+        for phase in CREATOR_REFERENCE_PHASES:
+            monolith = references / f"{phase}.md"
+            if monolith.is_file():
+                errors.append(
+                    f"stale monolith reference file on v8: "
+                    f"{monolith.relative_to(pipeline_dir)}"
+                )
 
 
 # ── Creative three-layer alignment ──────────────────────────────────────
 #
 # Plan decides, creator produces, QA verifies — all keyed by the creator's
 # canonical families. The assistant's plan/creative family leaves must pair
-# 1:1 with creator technics (plus core:tts as voice.md), and the creative
-# QA index's Covers column must map every canonical family to exactly one
-# contract.
+# 1:1 with creator technics, and the creative QA index's Covers column must
+# map every canonical family to exactly one contract. Families served by
+# Creator's hands (speech, icon, ...) are not technics and carry no leaf or
+# QA-index row here — see `execute/creative/index.md` "Hands-served families".
 
 CREATIVE_PLAN_DIR = ASSISTANT_PIPELINE / "references" / "plan" / "creative"
 CREATIVE_QA_DIR = (
@@ -875,7 +1336,6 @@ CREATIVE_NON_FAMILY_LEAVES = {
     "reference-research.md",
     "production-facts.md",
 }
-CREATIVE_EXTRA_FAMILIES = {"voice.md": "core:tts"}
 
 
 def validate_creative_alignment(errors: list[str]) -> None:
@@ -884,14 +1344,12 @@ def validate_creative_alignment(errors: list[str]) -> None:
         return  # missing roots are reported by the profile validators
 
     technics = {path.parent.name for path in technic_dir.glob("*/SKILL.md")}
-    canonical = technics | set(CREATIVE_EXTRA_FAMILIES.values())
+    canonical = technics
 
     leaves = {
         path.name for path in CREATIVE_PLAN_DIR.glob("*.md")
     } - CREATIVE_NON_FAMILY_LEAVES
-    expected = {
-        f"{name.removeprefix('creator-')}.md" for name in technics
-    } | set(CREATIVE_EXTRA_FAMILIES)
+    expected = {f"{name.removeprefix('creator-')}.md" for name in technics}
     for name in sorted(expected - leaves):
         errors.append(f"creative plan leaf missing for canonical family: {name}")
     for name in sorted(leaves - expected):
@@ -1212,6 +1670,12 @@ def main() -> int:
         for profile in WORKER_PROFILES:
             technics, learned = validate_worker(profile, errors, catalog=catalog)
             summaries.append(f"{profile}={technics} technics/{learned} learned")
+        hands_leaves: dict[str, dict[str, Path]] = {}
+        for profile in HANDS_PROFILES:
+            leaves, learned = validate_hands(profile, errors)
+            hands_leaves[profile] = leaves
+            summaries.append(f"{profile}={len(leaves)} leaves/{learned} learned")
+        validate_hands_subjects(hands_leaves, errors)
         validate_creative_alignment(errors)
         validate_engineering_alignment(errors)
         validate_writing_alignment(errors)
@@ -1228,6 +1692,11 @@ def main() -> int:
             f"assistant-pipeline={refs} refs/{len(catalog)} card-units; "
             f"assistant={desks} desks/{technics} technics/{learned} learned"
         )
+    elif args.profile in HANDS_PROFILES:
+        if args.dispatch:
+            parser.error("--dispatch is only valid for worker profiles")
+        leaves, learned = validate_hands(args.profile, errors)
+        summaries.append(f"{args.profile}={len(leaves)} leaves/{learned} learned")
     else:
         technics, learned = validate_worker(
             args.profile, errors, args.dispatch, catalog=collect_card_catalog()

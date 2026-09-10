@@ -621,6 +621,9 @@ gateway:
     - marketer
     - writer
     - researcher
+    - image-creator
+    - video-creator
+    - audio-creator
 streaming:
   enabled: false
   transport: auto

@@ -38,9 +38,11 @@ ASCII delivery. Load the official `ascii-video` engine from `external_dirs` with
   draft, render, and final stages, then hand artifacts and evidence to pipeline
   V1-V6. Do not run inline interpreter commands; use the project script or an
   official script so the worker guard can inspect the outer command.
-- Meter generation is normally zero-cost. Handshake voice synthesis as
-  `core:tts` with its concrete backend and count every synthesis against the
-  TTS cap. Route image or video support through its canonical technic and
+- Meter generation is normally zero-cost. TTS-backed mode consumes a
+  completed speech delivery from Creator's audio-creator hand
+  (`generate-speech`, approved script required) as an input; this technic
+  never synthesizes speech itself and its take grant is accounted for
+  separately. Route image or video support through its canonical technic and
   account for it separately; do not hide supporting calls inside this technic.
 
 </PipelineContract>

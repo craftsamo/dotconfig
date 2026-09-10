@@ -1,6 +1,6 @@
 # Parts engine — consuming supplied inputs
 
-Message units consume **parts**: long copy from the writer, media
+Message units consume **parts**: long copy and X/Instagram post drafts from the writer, media
 from the creator, evidence from research — produced by their own
 specialists, gated by the assistant's QA, and supplied to you with
 the released unit. You never produce these yourself, and you never
@@ -8,6 +8,18 @@ route around a missing one: a campaign assembled on improvised
 inputs fails inspection by construction.
 
 ## Consuming a part
+
+For post drafts, keep the exact text, stable post IDs/order and media
+assignments. Writer's self-review does not replace platform-limit, factual
+or legal inspection. An analysis report is not a publishable post. An
+unverified length or missing attachment remains an open publishing blocker.
+Return text defects to `edit-post`; never alter a supplied body locally.
+
+For promotional copy, preserve the exact headline/body/action fields and their
+offer conditions and disclosures. Return wording changes to `edit-copy` via
+the requester; do not remove a qualification or substitute a target locally.
+An `analyze-copy` report is not publishable copy. Writer's self-review alone
+is not independent acceptance, legal clearance or a working-destination check.
 
 Before a part enters a draft:
 
