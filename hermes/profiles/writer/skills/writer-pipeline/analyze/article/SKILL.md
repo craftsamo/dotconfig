@@ -1,11 +1,12 @@
 ---
 name: analyze-article
 description: >-
-  Describe, review or compare existing articles, their reasoning, voice and
-  destination representation. Return source-anchored analysis without rewriting
-  or publishing. Not pre-draft consultation, factual research, live analytics
-  or AI-authorship scoring.
-version: 1.0.0
+  Describe, review or compare existing articles, their reasoning, voice,
+  notation and destination representation, including a proofreading-focused
+  review that reports likely errors without correcting them. Return
+  source-anchored analysis without rewriting or publishing. Not pre-draft
+  consultation, factual research, live analytics or AI-authorship scoring.
+version: 1.1.0
 author: CraftSamo
 license: MIT
 metadata:
@@ -16,7 +17,7 @@ metadata:
       source: {required: true, type: text, label: "Existing article text, local path or readable URL"}
       question: {required: true, label: "What the requester wants explained or checked"}
       mode: {required: false, options: [describe,review,compare], label: "Infer from the question; description need not find defects"}
-      focus: {required: false, type: text, label: "One or more aspects: reasoning, evidence, structure, voice, audience fit or markup"}
+      focus: {required: false, type: text, label: "One or more aspects: proofreading, reasoning, evidence, structure, voice, audience fit or markup"}
       platform:
         required: false
         options: [x-article,note,zenn,blog]
@@ -48,16 +49,25 @@ metadata:
    Distinguish the argument's structure, evidence and stated uncertainty.
    Describe voice without inventing author identity, experience or intent.
    If asked only for a description, do not manufacture defects or rankings.
-4. When asset/editor requirements are in scope, read
+4. When the question or `focus` requests proofreading (typos, grammar,
+   punctuation, notation consistency), report each finding with its quote or
+   location, the reason it is flagged and a suggested correction where warranted.
+   Distinguish a definite error from an uncertain issue or an optional style
+   suggestion; do not merge them into one list. This report never edits the source and
+   delivers no replacement article; a match verified only against supplied
+   material is reported as checked against that material, not as
+   independently verified fact, and no finding is fabricated to fill out
+   the requested depth.
+5. When asset/editor requirements are in scope, read
    [production notes](references/production/assets.md). Inspect them only
    to the requested extent. An
    unresolved insertion marker shows planned content, not an image that can
    be analyzed. A source file does not prove successful rendering or working
    embeds. Attribute supplied descriptions and report unavailable evidence.
-5. Use `japanese-writing` for Japanese-language observations without loading
+6. Use `japanese-writing` for Japanese-language observations without loading
    legacy workflows or statistical detectors. `humanizer` is explicit-only
    and supplies observations, never a rewritten article or authorship score.
-6. Apply QA to the analysis report. Return it in the reply if short and
+7. Apply QA to the analysis report. Return it in the reply if short and
    permitted, or at the requested durable path. Do not alter the source,
    publish, access live analytics or execute code from the article.
 

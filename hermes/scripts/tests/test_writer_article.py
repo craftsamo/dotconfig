@@ -72,3 +72,52 @@ def test_platform_input_models_are_not_conflated():
     assert "dedicated rich-text editor" in x
     assert "not a long post or a thread" in x
     assert "do not promise raw Markdown import" in x
+
+
+def test_edit_article_proofread_scope_enum_default_and_routing_contract():
+    path = PIPELINE / "edit/article/SKILL.md"
+    text = path.read_text()
+    data = yaml.safe_load(text.split("---", 2)[1])
+    scope = data["metadata"]["hermes"]["form"]["scope"]
+    assert scope["options"] == ["proofread", "wording", "structure", "rewrite"]
+    assert "Default wording" in scope["label"]
+    assert "proofreading" in data["description"].lower()
+    procedure = " ".join(text.split("<Procedure>", 1)[1].split("</Procedure>", 1)[0].split())
+    assert "proofreading, typo-only" in procedure
+    assert "`Q<n>:` question" in procedure
+    assert "selects `analyze-article`" in procedure
+    assert "needs no new outline, tone or reader research" in procedure
+
+
+def test_edit_article_protection_and_no_op_report_contract():
+    path = PIPELINE / "edit/article/SKILL.md"
+    text = path.read_text()
+    procedure = " ".join(text.split("<Procedure>", 1)[1].split("</Procedure>", 1)[0].split())
+    qa = text.split("<QA>", 1)[1].split("</QA>", 1)[0]
+    report = text.split("<Report>", 1)[1].split("</Report>", 1)[0]
+    for protected in ("Quotations,", "code, URLs, identifiers, asset markers", "`must_keep`"):
+        assert protected in procedure
+    assert "not silently corrected by inference" in procedure
+    assert "legitimate no-op" in procedure
+    assert "no changes were made" in procedure
+    assert "normalization request is not such authorization" in procedure
+    assert "A no-op" in qa
+    assert "before/after and reason" in report
+
+
+def test_analyze_article_proofreading_focus_keeps_existing_modes_and_source_unchanged():
+    path = PIPELINE / "analyze/article/SKILL.md"
+    text = path.read_text()
+    data = yaml.safe_load(text.split("---", 2)[1])
+    form = data["metadata"]["hermes"]["form"]
+    assert form["mode"]["options"] == ["describe", "review", "compare"]
+    assert form["focus"]["type"] == "text"
+    assert "options" not in form["focus"]
+    assert "proofreading" in data["description"]
+    assert "proofreading" in form["focus"]["label"]
+    procedure = " ".join(text.split("<Procedure>", 1)[1].split("</Procedure>", 1)[0].split())
+    assert "definite error from an uncertain issue" in procedure
+    assert "question or `focus` requests proofreading" in procedure
+    assert "delivers no replacement article" in procedure
+    assert "not as independently verified fact" in procedure
+    assert "Original text and production notes are unchanged" in text
