@@ -67,6 +67,21 @@ class SandboxTreeTest(unittest.TestCase):
         self.write("references/quality-assurance/index.md", "# qa\n")
         for capability, names in VALIDATOR.REQUIRED_QA_CONTRACTS.items():
             listing = " ".join(sorted(names))
+            if capability in VALIDATOR.QA_CONTRACT_LEGACY_CAPABILITIES:
+                self.write(
+                    f"references/quality-assurance/{capability}/index.md",
+                    "legacy/index.md",
+                )
+                self.write(
+                    f"references/quality-assurance/{capability}/legacy/index.md",
+                    listing,
+                )
+                for name in names:
+                    self.write(
+                        f"references/quality-assurance/{capability}/legacy/{name}",
+                        "# c\n",
+                    )
+                continue
             self.write(
                 f"references/quality-assurance/{capability}/index.md", listing
             )
