@@ -427,9 +427,30 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
   directories remains valid for the earlier Stack layer. New subject references
   land with their hands family, never as placeholder stubs. Creator reads QA
   evidence against intent; do not transplant the hands' measurement commands
-  into Creator's QA. Assistant's eventual contraction stays family-by-family
+  into Creator's QA. Actual legacy capability retirement stays family-by-family
   after caller coverage and both-client soak, not merely because a leaf exists.
   Writer's released-unit ownership is unchanged; see PROFILES.md "Broker shape".
+- **Assistant is a deliverable-first Client, not a second production broker.**
+  Its plain `plan/creative/<deliverable>.md` guides hold Client questions and
+  acceptance criteria, with conditional reference research and common Execute
+  and QA. No hands-name parity, form/provider/limit catalog or duplicate
+  per-deliverable Execute/QA tree: a missing guide never means unavailable.
+  The retained production decision/inspection files now live in each mode's
+  `creative/legacy/`; only those Plan/QA files retain technic/Covers parity.
+  Each parent index must route `legacy/index.md`; nested card declarations
+  are forbidden, and the two original creative card units stay in the normal
+  Execute index. Relocation is not capability retirement. Assistant's fixed
+  house formats, device catalog and blanket past-film recipes are retired in
+  both paths, not transplanted into Creator. Real technical constraints stay
+  with the current producer; frozen outputs and approvals stay unchanged.
+  Research examples are inspiration only, not authorized production assets.
+  Creator's common Plan accepts observed/suggested/user-decided/open briefing
+  text but requires explicit relayed asset-and-operation upload consent;
+  Assistant origin, a path, a public URL or "use this" alone is insufficient.
+  Rights, upload, remote analysis, exact proposal approval and Publish remain
+  separate. Validate the paired public/private candidate structurally before
+  approved cutover, then check real Git ownership and fresh-session discovery;
+  never weaken the live symlink/Git boundary to make temporary-copy tests pass.
 - **Card is one image subject with create/generate/edit/analyze leaves.**
   `scripts/card.py` consumes canonical `create/card/references/destination/`
   scalar front matter and `styles/*.md` CSS blocks. Generate's own style refs
@@ -922,7 +943,7 @@ profiles/<name>/     # assistant, engineer, researcher, searcher, creator, write
                      #   creator: canonical creator-* image/video/audio/music/
                      #   browser-motion/diagram/editorial/icon/card/meme/text-art/
                      #   pixel/sourcing/assembly leaves (1:1 with the assistant's
-                     #   plan/creative decision leaves; validator-enforced);
+                     #   plan/creative/legacy decision leaves; validator-enforced);
                      #   writer: the japanese-writing language core (one
                      #   SKILL.md, five notation defaults) via the curated
                      #   external-skills symlink dir;
