@@ -888,6 +888,17 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
 
 ## Writer leaf migration
 
+Writer's leaf references use `natural-japanese` v1.5.0 as a craft source, not
+an imported inspection workflow. Keep worked examples grounded in their stated
+material, include retain conditions and preserve operation-specific scope.
+Assistant's existing Writing QA owns evidence-anchored ordinal scoring and
+its correction ceiling; Writer still reports checked / unmet / unverified,
+never numeric self-scores or independent acceptance. The QA contract must be
+self-contained for QA-mode loading; Execute relays its revision rules. After
+acceptance, consumer defects reopen acceptance under an explicit corrective
+release, not a silent reset of an unresolved finding. See PROFILES.md "Writer
+craft and independent editorial QA" and `agents/README.md` for provenance.
+
 Writer v7 accepts `<write|edit|analyze>/<subject>/SKILL.md` below
 `writer-pipeline`, with category `writing`, a named output and a form.
 Each leaf owns Procedure, QA and Report; selected reference options need

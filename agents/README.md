@@ -108,6 +108,30 @@ are as important as corrections. Do not reintroduce fixed repetition counts,
 genre templates, a mandatory review loop or a reference router.
 Behavioral cases live outside the runtime skill under `agents/tests/`.
 
+### Current Hermes Writer adaptation
+
+Hermes Writer's existing operation-specific references now draw on
+[coji/natural-japanese v1.5.0](https://github.com/coji/natural-japanese/tree/v1.5.0)
+(`21e632661a910bf97289c501089ad11eb8b4d85f`, MIT, consulted 2026-09-10).
+This is separate from the retired v1.3.0 material above and does not expand
+the shared Japanese language core. The 91 leaf references contain locally
+authored examples, conditional craft guidance and operation-specific checks;
+their source links identify the particular upstream ideas used. Message,
+copy, script and post guidance also cites relevant primary Microsoft, GOV.UK,
+BBC, W3C and ONS material where upstream has no specialized treatment.
+
+The requester-owned editorial rubric adapts v1.5.0's evaluation questions,
+not its self-scoring workflow: six evidence-anchored 0-4 axes, no averaging
+away failures, and a bounded correction loop. The scale and acceptance floor
+are local policy, not validated statistical measurements. No upstream scripts,
+detectors or substantial verbatim reference text are imported. Retain source
+attribution, and preserve the upstream MIT notice if subsequently copying
+substantial text or code rather than independently expressing its ideas.
+
+Behavioral review cases live in `hermes/scripts/tests/writer-craft-cases.md`,
+outside skill discovery. Structural tests do not prove writing quality or
+live-profile adherence.
+
 ## Third-party skills
 
 Third-party skills are never committed; they are restored from their source.

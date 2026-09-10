@@ -638,6 +638,8 @@ The business-format guidance re-expresses relevant ideas from the existing
 coji/natural-japanese v1.3.0 (`b54954f`, MIT) adaptations documented in
 `agents/README.md`. It does not copy the old constitution or its fixed-count
 rules; historical resource and script attribution remains in Git history.
+The current craft expansion uses v1.5.0; see "Writer craft and independent
+editorial QA" below for the new baseline and role split.
 
 ## Writer message family
 
@@ -709,6 +711,37 @@ rewrite approved words. Analysis is judged as a report, not required to provide
 new dialogue, unit fields or raw speech files. Humanizer is explicit-only and
 no legacy inspection is added. This layer does not add tools, produce media,
 or promise that an arbitrary video backend accepts a storyboard.
+
+## Writer craft and independent editorial QA
+
+All 91 existing leaf references across Article, Document, Message, Copy, Script
+and Post carry conditional craft guidance, locally authored examples and retain
+conditions. The three operations remain distinct: write constructs a usable
+artifact, edit changes only the authorized scope, and analyze supports findings
+without replacing its target. Forms, discovery and the shared `japanese-writing`
+language core are unchanged. `natural-japanese` v1.5.0 (`21e6326`, MIT) is the
+current reference baseline; source links and local adaptations are explicit,
+with provenance in `agents/README.md`. No adopted rule mandates a genre template,
+personal anecdote, fixed sentence count or universal conclusion-first structure.
+
+Assistant's existing Writing QA independently scores the actual released unit
+on purpose, structure/usability, reasoning/evidence, information economy,
+expression fit and fidelity/voice, using observable 0-4 anchors. Each applicable
+axis must reach 3 and mandatory evidence must be checked; no average offsets
+a failure. Unverified evidence has no numeric score, and exclusions need a scope
+reason. No-op edits and accurate findings-only reports can pass. The numbers
+are editorial judgments, not naturalness/authorship measurements; Writer does
+not self-score, and its checked / unmet / unverified report stays unchanged.
+
+The QA contract owns the pre-acceptance ceiling of two corrective returns per
+released unit, with earlier escalation for missing material or changed scope.
+Execute communicates that budget and relays quote-anchored defects. Each round
+reads the latest artifact and affected exports; old scores cannot approve changed
+text. After acceptance, a new consumer defect suspends acceptance and returns
+to the same Writer under an explicit corrective release. User, production and
+Publish approvals remain separate. Review cases outside runtime discovery cover
+these boundaries; neither static tests nor isolated model trials establish
+live-session reliability or statistical score calibration.
 
 ## Writer resource cleanup
 
