@@ -748,7 +748,7 @@ the old monoliths as a second active source. Rollback restores the root,
 references and matching caller tests together from the preceding Stack layer;
 it never rewrites job outputs, proposal hashes or approvals.
 
-### Assistant end state and retirement gates
+### Assistant Client guides and retirement gates
 
 For migrated creative work, the existing Creator-first handoff is the model:
 Assistant owns the user's goal, context, constraints, durable location, grants,
@@ -758,13 +758,66 @@ Assistant's final gate uses the returned artifacts and criterion evidence;
 it does not repeat the specialist's implementation QA or maintain another
 catalog of sizes, providers, forms and approval hashes.
 
-The end state is capability-level brief, supervision and acceptance guidance,
-plus any genuinely Assistant-owned cross-domain decisions. Retire an old
-family decision leaf, technic and QA mapping only after its replacement covers
-the old caller scenarios, its handoffs and approvals have been exercised, and
-both human and Assistant clients have soaked. A shared QA contract stays until
-its last consumer has moved. Having a new leaf on disk alone is insufficient;
-no legacy family or private-overlay mapping retires in this v8 split.
+Assistant now reads deliverable-first Client guides under
+`references/plan/creative/<deliverable>.md`, with optional bounded
+`reference-research.md`, common Execute dialogue and common QA acceptance.
+Each guide owns the outcome's Client questions and acceptance criteria, not
+producer fields, providers, limits or recipes. Current guide names can match
+hands subjects without a parity contract: a new hands subject does not oblige
+a new guide, and an absent guide never establishes an unavailable capability.
+Operations and modifiers do not multiply guide files. No generated catalog,
+new Skill or per-deliverable copies of Execute and QA are added.
+
+References distinguish observed evidence, suggested direction, user decisions
+and open questions. Research material is inspiration only, not automatically
+an authorized production input. Creator's common Plan requires an explicit
+relay of asset-and-operation upload consent; a brief shape or local path no
+longer stands for consent. Budget, exact proposal approval, upload and Publish
+grants remain distinct. Creator coordinates its production dependencies;
+Assistant does not duplicate those Writer or hands requests.
+
+Retained methods are physically isolated under `creative/legacy/` in Plan,
+Execute and QA. Only the legacy Plan leaves and QA Covers mapping retain
+1:1 alignment with Creator's technics; the legacy directories are explicitly
+routed from their owning indexes. The two existing creative card definitions
+stay in `execute/creative/index.md`. The retained methods remain available,
+with fixed house prescriptions removed; this is not a byte-for-byte move
+and does not authorize a fallback from failed or unsupported hands work.
+
+The user-requested retirement of Assistant's fixed house formats, past-work
+device catalog and blanket audiovisual recipes applies to both paths. It is
+not retirement of the underlying legacy production methods. Real technical
+constraints stay with the current producer contract, not a second global
+Assistant rulebook. Existing completed/frozen artifacts and approvals stay
+unchanged; a new look is researched or proposed for the current purpose.
+
+The retirement audit separates those prescriptions from runtime checks:
+generated-video no longer forces brand work to image-to-video, camera OR
+subject motion, muted web audio, no text, or locked faces. Asset-set no
+longer treats hands-served icons/speech as legacy batches. HTML motion and
+composites accept separately approved finished music instead of describing
+music as withdrawn. The retired hand-built `?f=N`/per-frame CDP recipe is
+not the current HyperFrames renderer contract: its external core determinism
+rules and CLI renderer own seek-safe timeline capture. The existing producer
+already checks determinism, render dimensions, timing and actual frames;
+`creator-html-motion` now explicitly includes job isolation and rendered font,
+outline, orientation and numeric-layout checks without hardcoding a font name
+or CSS treatment. Audio mastering follows the current audio producer's
+contract, not the retired global LUFS/drive table. No external skill is edited
+or copied into this repository by this migration.
+
+Retire an actual legacy capability, technic and QA mapping only after its
+replacement covers old caller scenarios, handoffs and approvals have been
+exercised, and both human and Assistant clients have soaked. A shared QA
+contract stays until its last consumer moves. Merely adding a Client guide
+or relocating a reference satisfies none of those retirement gates.
+
+The rebuild is a paired public-validator/private-pipeline change. Candidate
+checks resolve the candidate creative roots at call time and validate
+structure without invoking live Git-boundary checks on a temporary copy.
+Cutover needs approval; check real ownership and a fresh session separately.
+Rollback restores the paired task-owned references and validator, never job
+outputs, proposal hashes, active grants or unrelated changes.
 
 Writer's form-based leaves do not by themselves transfer editorial authority.
 Its current clients still release decided outline/piece/whole-job units, and
@@ -827,9 +880,12 @@ filled form or return `Q<n>:`. A leaf may own creative execution within that
 form (MV direction, for example), with its explicit proposal approval gate.
 The assistant keeps
 delivery to the user, the durable path, Budget lines and GitHub bookkeeping;
-it no longer makes creative decisions on Creator's behalf, so the
-`plan/creative/<family>.md` leaves and the QA `Covers` mapping retire family
-by family as hands skills land (Phase 4 of the migration).
+it does not make production decisions on Creator's behalf. Its outcome guides
+support Client dialogue; the old production decision leaves now live at
+`plan/creative/legacy/<family>.md`, with their QA `Covers` mapping under
+`quality-assurance/creative/legacy/`. Those old mappings retire family by
+family only after replacement coverage and real-use gates (Phase 4 of the
+migration), independently of the Client guides.
 
 ### Skill tree
 

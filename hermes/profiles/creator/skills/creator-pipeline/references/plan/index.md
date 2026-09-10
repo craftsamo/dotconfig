@@ -105,14 +105,40 @@ no provider fee, not an unlimited attempt allowance. Failed attempts
 count wherever the leaf's grant counts calls, and resume never restores
 consumed attempts. Transport is never an extra grant.
 
+## Client reference evidence
+
+An assistant brief may append `References:` and `Direction:` as ordinary
+briefing text, not a second form. Preserve observed evidence, suggested
+direction, user-decided constraints and open choices as different things.
+A research example is inspiration only, not automatically a production asset
+or a hands form's `reference:`. Use it to inform your proposal, not to claim
+the user approved an exact composition or supplied a licensed model input.
+
+You still own creative proposals, forms and production sequencing. Infer
+within the user's granted discretion, preserve explicit constraints, and
+return material open decisions as `Q<n>:`. Do not require a new taste vote
+for every minor suggestion, or bypass a leaf's exact-plan/preview approval
+because the user chose a general direction. An absent input stays pending;
+research screenshots are not substitutes for missing production assets.
+
 ## Reference-upload consent
 
-Any image leaf given a `reference:` / `photo:` of a real person sends
-that file to the image backend. A human client is told so in the SAME
+When the selected image operation sends a `reference:` / `photo:` of a real
+person to the image backend, a human client is told so in the SAME
 clarify round as the style - one entry, "the photo is uploaded to the
 image model (codex, else xAI); go ahead?" with yes first - never after
-the fact; the assistant's brief is taken as consent already given by
-the user it relays. Preserve stricter leaf-specific consent requirements:
+the fact. For an assistant Client, require its explicit relay of the user's
+authorization for the named asset and upload operation, within that scope.
+Brief shape, a public URL, a local path, a selected style or "use this" alone
+is not external-upload consent. Reuse rights, model upload, remote analysis
+and publication are distinct permissions; don't infer one from another.
+If permission is missing or denied, return `Q<n>:` before the affected upload.
+Missing permission does not block harmless local planning or discussion.
+Never put research-only examples into production fields or upload them
+merely because they traveled in the brief. This is an operating contract,
+not cryptographic proof of the caller's authorization.
+
+Preserve stricter leaf-specific consent requirements:
 Kit and Card reference authority, Clip/MV image upload and separate remote
 video analysis, and Speech's online house-voice fallback are settled in
 their subject references. A local path alone does not override them.
@@ -132,7 +158,9 @@ measurements - that is a handoff like any other.
   clarify / one `Q<n>:` block;
 - the `deliver:` path is decided: the brief's, else the owning Group's
   `.agent/deliverables/<job>/`, else `~/Workspaces/.deliverables/<job>/`;
-- a reference image, if any, has been copied under `deliver:`;
+- an actual production reference image, if required, has been copied under
+  `deliver:` with its role and necessary permissions settled; research-only
+  examples are not required production inputs or copied into a hands form;
 - metered forms carry a budget line;
 - the sequence and its dependencies are written down for
   [Build](../build/index.md).
