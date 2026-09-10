@@ -660,7 +660,11 @@ After a maintainer-only adapter change, `stable_audio3.py refresh
 --previous-adapter /absolute/path/to/previous-stable_audio3.py` verifies
 the old adapter fingerprint and the complete existing installation offline
 before refreshing its marker. It never downloads models, reinstalls packages,
-accepts new terms, or rewrites old job receipts. The 5s/30s/60s local music
+accepts new terms, or rewrites old job receipts. The install marker's stat
+fingerprints are inode + mtime_ns + size only — `st_dev` is excluded because
+macOS renumbers the Data volume's device id on reboot, which made the fast
+guard report drift on an intact install (2026-09-10); an older marker that
+still records `dev` remains valid as-is. The 5s/30s/60s local music
 paths and a real create-ad WAV handoff were exercised on this machine;
 fal live generation and gateway/A2A soak remain unverified.
 
