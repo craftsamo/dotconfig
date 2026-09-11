@@ -517,6 +517,14 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
   approved cutover, then check real Git ownership and fresh-session discovery;
   never weaken the live symlink/Git boundary to make temporary-copy tests pass.
 - **Card is one image subject with create/generate/edit/analyze leaves.**
+  `create-card` also accepts task-authored static `layout_html` with exact
+  copy/asset bindings and optional per-tile `copy_blocks`; ImageCreator authors
+  it, not the Client. This is the continuity path for centered covers/custom
+  typography, not an expansion of the template CSS allowlist or silent legacy
+  fallback. Authored work uses resident transport, freezes source with a hash,
+  and measures rendered geometry, supported visibility checks and overlap
+  without auto-shrinking. Masks/occlusion/contrast/readability stay visual QA.
+  Old specs retain their template behavior; do not weaken a design to fit them.
   `scripts/card.py` consumes canonical `create/card/references/destination/`
   scalar front matter and `styles/*.md` CSS blocks. Generate's own style refs
   are backdrop prompt prose, not duplicated CSS. Local HTML uses isolated
