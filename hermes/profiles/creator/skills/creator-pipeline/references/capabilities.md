@@ -8,7 +8,7 @@ only when they share tools, spend class, and verification.
 
 | Deliverable | Hands leaf | Notes |
 | --- | --- | --- |
-| exact-copy OG/social/header/thumbnail/hero/title card from supplied text/assets | image-creator: create-card | free; six looks or bounded task-local CSS; destination-specific layout, ordered panorama tiles |
+| exact-copy OG/social/header/thumbnail/hero/title card from supplied text/assets | image-creator: create-card | free; named templates or task-authored static HTML/CSS, independent typography and exact copy blocks; ordered panorama tiles; authored work uses resident |
 | the same card with a generated text-free background | image-creator: generate-card | proposed 3 variants + 1 corrective across resumes; explicit current-conversation user budget approval before paid calls; backend aspect preflight |
 | an existing finished card fitted with cover/contain/pad/focus, optional text band | image-creator: edit-card | free; reject destructive protected-content crops; own editable source rerenders create-card |
 | measured and visual findings on a single card, ordered tiles or a panorama | image-creator: analyze-card | free; files array + input_kind, no corrected media; platform crops remain unverified |

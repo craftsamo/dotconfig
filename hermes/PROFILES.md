@@ -947,6 +947,17 @@ Retirement gate: keep creator-text-card and private-overlay 1:1 mapping until
 handoff coverage, paid backdrop validation and old caller migration are proven.
 New Card work routes to hands first; no changes to ports/toolsets/secrets.
 
+Create-card's additive authored path accepts task-local static `layout_html`:
+ImageCreator controls composition/typography while exact copy and local assets
+remain bound inputs. Named templates remain available and saved template specs
+are unchanged. Additional per-tile copy or repeated branding uses explicit
+`copy_blocks`, not invented labels or hidden CSS text. Authored work uses a
+resident conversation even for a named look/single tile, freezes its source/hash,
+and checks real geometry, supported visibility and text overlap without shrinking.
+Visual review still owns masks, occlusion, contrast, glyph coverage and use-size
+readability. A template limitation is not permission to relax the Client's
+design, buy new art, fall back silently or relabel an agent choice as human approval.
+
 ### Client model
 
 Creator has **clients**, not entry points. A client is either the human
