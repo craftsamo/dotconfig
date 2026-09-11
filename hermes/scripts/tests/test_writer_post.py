@@ -51,11 +51,12 @@ def test_post_policy_does_not_expand_tools_or_publish():
 
 def test_marketer_does_not_bypass_writer_acceptance():
     root = HERMES / "profiles/marketer/skills/marketer-pipeline"
-    produce = " ".join((root / "references/produce.md").read_text().split())
+    produce = " ".join((root / "references/build/parts.md").read_text().split())
     assert "not writing-QA-gated" in produce
     assert "before it can enter a message unit or approval relay" in produce
     assert "No local shortening" in produce
-    assert "Instagram remains draft-only" in produce
+    assert "Missing shared QA blocks acceptance" in produce
+    assert "supported custom destination is not evidence" in produce
 
 
 @pytest.mark.parametrize("verb", ["write", "edit", "analyze"])

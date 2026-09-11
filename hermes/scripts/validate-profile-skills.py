@@ -870,9 +870,60 @@ def validate_worker(
         validate_worker_card_gate(profile, catalog, errors)
     if profile == "creator":
         validate_creator_references(pipeline_dir, errors)
+    if profile == "marketer":
+        validate_marketer_references(pipeline_dir, errors)
     validate_git_boundary([pipeline_dir, technic_dir], learned_dir, errors)
     validate_plugin_enabled(profile, profile_root / "config.yaml", errors)
     return len(leaves) + len(writing), len(learned)
+
+
+MARKETER_REFERENCE_FILES = {
+    "plan/index.md", "plan/discovery.md", "plan/positioning.md", "plan/offer.md",
+    "plan/channels.md", "plan/campaign.md", "build/index.md", "build/parts.md",
+    "build/draft.md", "build/measurement.md", "quality-assurance/index.md",
+    "quality-assurance/strategy.md", "quality-assurance/content.md",
+    "quality-assurance/saved-draft.md", "analyze/index.md", "platforms/x.md",
+    "platforms/substack.md", "platforms/note.md", "platforms/zenn.md", "state.md",
+}
+
+
+def validate_marketer_references(pipeline_dir: Path, errors: list[str]) -> None:
+    """Marketer's four modes share platform procedures, not Creator hands."""
+    pipeline = pipeline_dir / "SKILL.md"
+    major = _pipeline_major_version(frontmatter(pipeline) if pipeline.is_file() else {})
+    if major is None:
+        errors.append("invalid marketer pipeline version")
+        return
+    references = pipeline_dir / "references"
+    if major < 7 and not any((references / mode).is_dir() for mode in
+                             ("plan", "build", "quality-assurance", "analyze")):
+        return
+    found = {p.relative_to(references).as_posix() for p in references.rglob("*.md")}
+    for name in sorted(MARKETER_REFERENCE_FILES - found):
+        errors.append(f"missing marketer reference: {name}")
+    for name in sorted(found - MARKETER_REFERENCE_FILES):
+        errors.append(f"unexpected marketer reference: {name}")
+    root = pipeline_dir.resolve()
+    linked = set()
+    for doc in [pipeline, *sorted(references.rglob("*.md"))]:
+        if not doc.is_file():
+            continue
+        for link, target in markdown_links(doc):
+            if not target.is_relative_to(root):
+                errors.append(f"marketer reference escapes pipeline: {link}")
+            elif not target.is_file():
+                errors.append(f"broken marketer reference: {link}")
+            if doc == pipeline:
+                linked.add(target)
+    for name in sorted(MARKETER_REFERENCE_FILES):
+        if (references / name).resolve() not in linked:
+            errors.append(f"marketer root does not link reference: {name}")
+    if not (pipeline_dir / "scripts/browser-lease.py").is_file():
+        errors.append("missing marketer browser lease helper")
+    acceptance = HERMES_ROOT / "profiles/writer/skills/writer-pipeline/references/acceptance"
+    for name in ("index.md", "prose.md", "script.md"):
+        if not (acceptance / name).is_file():
+            errors.append(f"missing shared writing acceptance: {name}")
 
 
 def validate_writer_leaves(pipeline_dir: Path, errors: list[str]) -> dict[str, Path]:
