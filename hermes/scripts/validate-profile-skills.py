@@ -1157,6 +1157,57 @@ def validate_hands_subjects(
                 )
 
 
+# Second table cell only: `| Deliverable | <profile>: <name> | Notes |`. An
+# engine-variant suffix after the name (e.g. `generate-sfx (fal:...)`) is
+# discarded by \b; several rows serving the same (profile, name) pair are
+# expected and allowed (engine variants), not a duplicate-route error.
+HANDS_ROUTING_ROW = re.compile(
+    r"^\|[^|\n]+\|\s*(image-creator|video-creator|audio-creator):\s*([a-z]+-[a-z-]+)\b",
+    re.MULTILINE,
+)
+
+
+def validate_hands_routing(
+    hands_leaves: dict[str, dict[str, Path]], errors: list[str]
+) -> None:
+    """Cross-check the creator capabilities.md routing table against the
+    hands leaves actually installed on disk (leaves_by_profile from
+    validate_hands, same shape validate_hands_subjects already takes).
+    Path is derived from the current HERMES_ROOT global at call time (never
+    cached at import time) so tests can patch it."""
+    table = (
+        HERMES_ROOT
+        / "profiles/creator/skills/creator-pipeline/references/capabilities.md"
+    )
+    if not table.is_file():
+        errors.append(f"missing creator capabilities routing table: {table}")
+        return
+    text = table.read_text(encoding="utf-8")
+    installed = {
+        name: profile for profile, leaves in hands_leaves.items() for name in leaves
+    }
+    documented: set[tuple[str, str]] = set()
+    for profile, name in HANDS_ROUTING_ROW.findall(text):
+        owner = installed.get(name)
+        if owner is None:
+            errors.append(
+                f"capabilities.md routes to a hands leaf that is not installed: {profile}: {name}"
+            )
+            continue
+        if owner != profile:
+            errors.append(
+                f"capabilities.md assigns {name} to {profile} but it is installed under {owner}"
+            )
+            continue
+        documented.add((profile, name))
+    for profile, leaves in hands_leaves.items():
+        for name in leaves:
+            if (profile, name) not in documented:
+                errors.append(
+                    f"installed hands leaf has no capabilities.md route: {profile}: {name}"
+                )
+
+
 def validate_hands(profile: str, errors: list[str]) -> tuple[dict[str, Path], int]:
     profile_root = HERMES_ROOT / "profiles" / profile
     skills = profile_root / "skills"
@@ -1879,6 +1930,7 @@ def main() -> int:
             hands_leaves[profile] = leaves
             summaries.append(f"{profile}={len(leaves)} leaves/{learned} learned")
         validate_hands_subjects(hands_leaves, errors)
+        validate_hands_routing(hands_leaves, errors)
         validate_creative_alignment(errors)
         validate_engineering_alignment(errors)
         validate_writing_alignment(errors)
