@@ -46,8 +46,8 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
   Telegram / Discord lists empty (engineer / creator / marketer now carry real
   `telegram` lists — they are bots), and every A2A-serving profile has an `a2a`
   list for its inbound peer sessions. `a2a` is also the OUTBOUND toolset name
-  (the five `a2a_*` tools, default-off): Engineer retains raw A2A;
-  Assistant/Creator/Marketer expose only `specialist` for outbound requests.
+  (the five `a2a_*` tools, default-off): Assistant/Creator/Marketer/Engineer
+  expose only `specialist` for outbound requests.
   Use `no_mcp` when a platform needs none; otherwise list each allowed MCP
   server explicitly so future servers are not inherited accidentally.
 - **Multiplex gateway + A2A peer graph (2026-09 rebuild).** ONE default-hosted
@@ -886,6 +886,37 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
   references"). A missing or unreadable entry there is a documented
   local-authoring fallback per that leaf's contract, not a runtime failure.
 
+## Engineer v8 and UI evaluation
+
+Engineer is a developer using OpenCode; User and Assistant are Clients. The
+Client supplies purpose/constraints, not a pre-built technical decomposition.
+Engineer plans through OpenCode; one explicit implementation approval releases
+the agreed scope through task-branch PR delivery. Issue create/edit/comment is
+explicit-only for this job, never inferred from an Issue URL or task size.
+No automatic Issues/boards, merging, deployment or default-branch push.
+The root pipeline stays thin; each mode index owns its steps and opencode.md
+contains only genuinely common transport/result semantics.
+
+plugins/opencode owns CLI execution and private opencode-sessions records.
+Keep caller/worktree/branch binding, JSON error handling (exit zero is not
+success), finite deadlines and no automatic replay after uncertain effects.
+Approval text is not authentication and command policies are not a sandbox.
+Stop is not rollback. Only the owning live runner signals its child group;
+reconciliation requires inspection, not an invented completion assertion.
+
+ui-review and ux-persona are terminal-free, resident-only evaluator profiles,
+not new bots or A2A endpoints. Their resident launcher uses an owned non-Git cwd
+to avoid importing implementation context through ordinary CLI startup.
+Native browser tools require backend: "off" to
+disable Browser Use replacement; browser_exec runs host Python and upstream
+intentionally hides it without terminal. ui-inspection exposes only viewport
+capture, attaches actual PNGs and returns private evidence paths. Do not add
+terminal merely to restore browser_exec. Use isolated test accounts/state,
+never owner cookies or another profile's CDP. The former global OpenCode UI
+skills/agents move here and are removed there, not aliased. Ordinary OpenCode
+implementation/browser testing remains. Keep public/private rollout paired and
+test fresh candidate sessions before approved live linking/restart.
+
 ## Marketer v7 and shared requester QA
 
 Marketer owns strategy and its existing authenticated browser; do not add a
@@ -1096,10 +1127,9 @@ parking uses `SCHEDULED: until=` comments and the assistant sweeper cron.
 Workers batch questions into one `needs_input` block; a second block,
 `capability` block, or spec gap pulls the card back to a resident session or
 re-plan.
-Grants: engineer Authority A1/A2/A3 + B1/B2 (worktree-side bootstrap
-only — repo creation/registry stays the assistant's; planning documents
-and GitHub bookkeeping are never the engineer's — the assistant plans in
-its own OpenCode session and hands over `Base session:` / `Issue: #n`),
+Grants: Engineer's explicit implementation approval through PR and separate,
+explicit-only current-job Issue management (repo creation/registry, boards,
+merge and deployment remain outside Engineer; no mandatory Base session or Issue),
 creator Budget caps, marketer exact remote-save consent (before autosaving
 input; no publishing/P1 execution) — see PROFILES.md "Engineer dialogue
 loop". Tracked per
