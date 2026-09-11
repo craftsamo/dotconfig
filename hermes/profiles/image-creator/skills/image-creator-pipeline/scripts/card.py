@@ -5,6 +5,7 @@ import argparse
 import base64
 import hashlib
 import html
+from html.parser import HTMLParser
 import json
 import math
 import os
@@ -18,7 +19,7 @@ ROOT = Path(__file__).resolve().parents[1]
 REFERENCES = ROOT / "create/card/references"
 TEXT = {"title", "subtitle", "brand", "label", "meta", "slug", "note"}
 TILING = {"destination", "tiles", "tile", "gap"}
-CREATE = TEXT | TILING | {"style", "style_css", "background", "motif", "palette", "font", "tile_titles"}
+CREATE = TEXT | TILING | {"style", "style_css", "layout_html", "copy_blocks", "background", "motif", "palette", "font", "tile_titles"}
 EDIT = TILING | {"source", "fit", "focus", "protected", "text_band", "title", "font", "slug", "note"}
 ANALYZE = TILING | {"files", "input_kind", "expected_text", "note"}
 
@@ -177,9 +178,15 @@ def validate(spec, mode):
     dims = destination(spec)
     if mode == "create":
         text(spec.get("title"), "title")
-        css_style(spec)
         require(dims["tiles"] > 1 or "tile_titles" not in spec, "tile_titles requires tiled destination")
         titles(spec.get("tile_titles"), dims["tiles"])
+        if "layout_html" in spec:
+            text(spec.get("style"), "style")
+            require(not {"style_css", "palette"} & set(spec), "layout_html owns CSS; style_css/palette conflict")
+            authored_fragment(spec, dims, local(spec["layout_html"]).read_bytes())
+        else:
+            require("copy_blocks" not in spec, "copy_blocks requires layout_html")
+            css_style(spec)
     return dims
 
 
@@ -197,8 +204,9 @@ def raster(path):
     return data, mime
 
 
-def image_info(path):
-    data, _ = raster(path)
+def image_info(path, *, data=None):
+    if data is None:
+        data, _ = raster(path)
     with tempfile.TemporaryDirectory(prefix="card-probe-") as temp:
         safe = Path(temp) / "input"
         safe.write_bytes(data)
@@ -211,19 +219,160 @@ def image_info(path):
 
 
 def data_uri(path):
-    image_info(path)
     data, mime = raster(path)
+    image_info(path, data=data)
     return f"data:{mime};base64," + base64.b64encode(data).decode()
 
 
-def page(spec, dims, band=0):
-    css = css_style(spec)
+def authored_fragment(spec, dims, source):
+    """Bind task-authored static markup to exact copy/assets, not a layout preset."""
+    require(len(source) <= 256_000, "layout_html exceeds 256KB")
+    source = source.decode("utf-8")
+    expected = {key: (1, spec[key]) for key in ("title", "subtitle", "brand", "label", "meta") if spec.get(key)}
+    expected.update({f"tile-title-{n}": (n, value) for n, value in titles(spec.get("tile_titles"), dims["tiles"]).items()})
+    blocks = spec.get("copy_blocks", [])
+    require(isinstance(blocks, list) and len(blocks) <= 128, "copy_blocks: at most 128 {id,tile,text} blocks")
+    for block in blocks:
+        require(isinstance(block, dict) and set(block) == {"id", "tile", "text"}, "copy_blocks needs id, tile and exact text")
+        key = text(block["id"], "copy block id")
+        require(re.fullmatch(r"[a-z][a-z0-9-]{0,63}", key) and key not in expected and key not in TEXT and not key.startswith("tile-title-"), "duplicate or reserved copy block id")
+        expected[key] = (integer(block["tile"], 1, dims["tiles"], "copy block tile"), text(block["text"], "copy block text"))
+    require(sum(len(value) for _, value in expected.values()) <= 64_000, "authored copy exceeds 64000 characters")
+    assets = {}
+
+    def css(value):
+        # Layout properties are free; resources come only from bound local inputs.
+        require(not re.search(r"[<>\\]|/\*|url\s*\(|image-set\s*\(|expression\s*\(|@(?:import|font-face)\b", value, re.I),
+                "authored CSS forbids resources, escapes, comments, imports and markup")
+        return value
+
+    class Fragment(HTMLParser):
+        def __init__(self):
+            super().__init__(convert_charrefs=True)
+            self.stack, self.parts, self.tiles, self.copies, self.assets = [], [], [], {}, set()
+            self.tile, self.copy = None, None
+
+        def handle_starttag(self, tag, attrs):
+            require(tag in {"div", "section", "main", "header", "footer", "article", "aside", "p", "span",
+                            "h1", "h2", "h3", "h4", "h5", "h6", "strong", "em", "b", "i", "small",
+                            "ul", "ol", "li", "figure", "figcaption", "br", "img", "style"}, "unsupported authored HTML tag: " + tag)
+            inline = {"span", "strong", "em", "b", "i", "small", "br", "img"}
+            require(not any(open_tag == "p" for open_tag, _, _ in self.stack) or tag in inline,
+                    "p cannot contain block content; browser would repair the authored tree")
+            if tag == "li":
+                for open_tag, _, _ in reversed(self.stack):
+                    if open_tag in {"ul", "ol"}:
+                        break
+                    require(open_tag != "li", "li must not implicitly close an authored li")
+            require(not (tag in {"h1", "h2", "h3", "h4", "h5", "h6"} and self.stack and self.stack[-1][0] in {"h1", "h2", "h3", "h4", "h5", "h6"}),
+                    "heading must not implicitly close an authored heading")
+            require(len(dict(attrs)) == len(attrs), "duplicate authored HTML attribute")
+            attrs = dict(attrs)
+            require(set(attrs) <= {"class", "id", "style", "lang", "dir", "title", "data-card-tile", "data-card-copy", "data-card-asset"},
+                    "unsupported authored HTML attribute")
+            require(all(value is not None for value in attrs.values()), "authored attributes need values")
+            if "style" in attrs:
+                css(attrs["style"])
+            if tag == "style":
+                require(not self.stack and not attrs, "style must be outside tiles without attributes")
+            elif "data-card-tile" in attrs:
+                require(tag == "section" and not self.stack and attrs["data-card-tile"] in {str(n) for n in range(1, dims["tiles"] + 1)},
+                        "data-card-tile needs one top-level section per destination tile")
+                self.tile = int(attrs["data-card-tile"])
+                require(self.tile not in self.tiles, "duplicate authored tile")
+                self.tiles.append(self.tile)
+            else:
+                require(self.tile is not None, "authored content needs a tile section")
+            if "data-card-copy" in attrs:
+                key = attrs["data-card-copy"]
+                require(tag not in {"style", "img", "br", "section"} and self.copy is None and key in expected and key not in self.copies,
+                        "unknown, duplicate, empty or nested copy binding")
+                require(expected[key][0] == self.tile, "copy binding belongs to a different tile; use explicit copy_blocks for additional per-tile copy")
+                self.copy = key
+                self.copies[key] = ""
+                attrs["data-card-expected"] = expected[key][1]
+            if tag == "br":
+                require(self.copy is not None, "br needs a copy binding")
+                self.copies[self.copy] += "\n"
+            if tag == "img":
+                key = attrs.get("data-card-asset")
+                require(self.copy is None and key in {"background", "motif"} and spec.get(key), "img needs a supplied data-card-asset")
+                if key not in assets:
+                    assets[key] = data_uri(spec[key])
+                attrs["src"] = assets[key]
+                attrs["alt"] = ""
+                self.assets.add(key)
+            else:
+                require("data-card-asset" not in attrs, "data-card-asset needs img")
+            self.parts.append("<" + tag + "".join(f' {k}="{html.escape(v, quote=True)}"' for k, v in attrs.items()) + ">")
+            if tag not in {"br", "img"}:
+                self.stack.append((tag, attrs.get("data-card-copy"), "data-card-tile" in attrs))
+
+        def handle_endtag(self, tag):
+            require(self.stack and self.stack[-1][0] == tag, "unbalanced authored HTML")
+            _, key, tile = self.stack.pop()
+            if key is not None:
+                require(self.copies[key] == expected[key][1], "authored copy differs from spec: " + key)
+                self.copy = None
+            if tile:
+                self.tile = None
+            self.parts.append("</" + tag + ">")
+
+        def handle_startendtag(self, tag, attrs):
+            require(tag in {"br", "img"}, "only void authored tags may self-close")
+            self.handle_starttag(tag, attrs)
+
+        def handle_data(self, value):
+            if self.stack and self.stack[-1][0] == "style":
+                self.parts.append(css(value))
+            else:
+                require(self.copy is not None or not value.strip(), "unbound authored text")
+                if self.copy is not None:
+                    self.copies[self.copy] += value
+                self.parts.append(html.escape(value, quote=False))
+
+        def handle_decl(self, value):
+            raise ValueError("layout_html is a fragment, not a document")
+
+        def unknown_decl(self, value):
+            raise ValueError("unsupported authored declaration")
+
+        def handle_pi(self, value):
+            raise ValueError("unsupported authored processing instruction")
+
+    parser = Fragment()
+    parser.feed(source)
+    parser.close()
+    require(not parser.stack, "unclosed authored HTML")
+    require(parser.tiles == list(range(1, dims["tiles"] + 1)), "authored tiles must match destination order/count")
+    require(set(parser.copies) == set(expected), "missing authored copy bindings")
+    require(parser.assets == {key for key in ("background", "motif") if spec.get(key)}, "unused supplied authored asset")
+    return "".join(parser.parts)
+
+
+def page(spec, dims, band=0, layout_source=None):
+    authored = "layout_html" in spec
+    css = "" if authored else css_style(spec)
     font = local(spec["font"]) if spec.get("font") else Path("/System/Library/Fonts/\u30d2\u30e9\u30ae\u30ce\u89d2\u30b4\u30b7\u30c3\u30af W6.ttc")
     require(font.is_file(), "default Japanese font unavailable; supply an absolute font path")
     font_bytes = font.read_bytes()
     require(font.suffix.lower() in (".ttf", ".otf", ".ttc", ".woff", ".woff2") and len(font_bytes) <= 32_000_000, "unsupported font")
     encoded = base64.b64encode(font_bytes).decode()
     w, h, n = dims["width"], dims["height"], dims["tiles"]
+    if authored:
+        require(not band, "authored layout cannot use raster text_band")
+        fragment = authored_fragment(spec, dims, local(spec["layout_html"]).read_bytes() if layout_source is None else layout_source)
+        return f'''<!doctype html><html lang="ja"><head><meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; font-src data:; style-src 'unsafe-inline'; script-src 'none'; connect-src 'none'; base-uri 'none'; form-action 'none'">
+<title>{html.escape(spec['title'])}</title><style>
+@font-face{{font-family:CardFont;src:url(data:font/ttf;base64,{encoded});font-weight:100 900}}
+*{{box-sizing:border-box}}html,body{{margin:0;width:{w*n}px;height:{h}px;overflow:hidden}}
+body{{font-family:CardFont,sans-serif}}[data-card-stage]{{position:relative;width:{w*n}px;height:{h}px}}
+[data-card-tile]{{position:absolute;top:0;width:{w}px;height:{h}px}}
+{''.join(f'[data-card-tile="{i}"]{{left:{(i-1)*w}px}}' for i in range(1,n+1))}
+[data-card-copy]{{white-space:pre-wrap}}
+li{{list-style:none}}
+</style></head><body><main data-card-stage data-card-authored data-card-preview-width="{168 if dims['destination'] == 'youtube-thumb' else 360}">{fragment}</main></body></html>'''
     inset = max(16, round(min(w, h) * .1))
     size = max(24, round(min(w, h) * .105))
     minor = max(16, round(size * .38))
@@ -295,7 +444,75 @@ LAYOUT = """(async () => {
 })()"""
 
 
-def snapshot(document, out, dims):
+# This path measures authored elements without imposing template geometry or shrinking copy.
+AUTHORED_LAYOUT = r"""(async () => {
+ await document.fonts.ready;
+ await Promise.all(Array.from(document.images, i => i.decode()));
+ await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+ const stage=document.querySelector('[data-card-stage]'), checks=[], findings=[];
+ const stageBox=stage.getBoundingClientRect();
+ const tiles=Array.from(stage.querySelectorAll('[data-card-tile]'));
+ const width=innerWidth/tiles.length, height=innerHeight;
+ const contains=(a,b)=>b.left>=a.left-.5 && b.right<=a.right+.5 && b.top>=a.top-.5 && b.bottom<=a.bottom+.5;
+ const visible=e=>{
+   for(let p=e;p;p=p.parentElement){
+     const s=getComputedStyle(p);
+     if(s.display==='none'||s.visibility!=='visible'||Number(s.opacity)===0||s.contentVisibility==='hidden'||/opacity\(0(?:%|\.0+)?\)/.test(s.filter)) return false;
+   }
+   return true;
+ };
+ if(!document.fonts.check('32px CardFont')) findings.push('font unavailable');
+ if(Math.abs(stageBox.left)>.5||Math.abs(stageBox.top)>.5||Math.abs(stageBox.width-innerWidth)>.5||Math.abs(stageBox.height-height)>.5) findings.push('stage geometry differs from destination');
+ if(document.getAnimations().length) findings.push('animated content is not a static card');
+ for(const e of [document.body,stage,...stage.querySelectorAll('*')]){
+   for(const pseudo of ['::before','::after','::marker']){
+     const content=getComputedStyle(e,pseudo).content;
+     if(!['none','normal','""',"''"].includes(content)) findings.push('unbound generated content');
+   }
+   const s=getComputedStyle(e);
+   if(s.display==='list-item'&&s.listStyleType!=='none') findings.push('unbound list marker');
+ }
+ for(let i=0;i<tiles.length;i++){
+   const tile=tiles[i], t=tile.getBoundingClientRect();
+   if(Math.abs(t.left-i*width)>.5||Math.abs(t.top)>.5||Math.abs(t.width-width)>.5||Math.abs(t.height-height)>.5) findings.push('tile geometry differs from destination');
+   const boxes=[];
+   for(const e of tile.querySelectorAll('[data-card-copy]')){
+     const r=e.getBoundingClientRect(), range=document.createRange();range.selectNodeContents(e);
+     const ink=range.getBoundingClientRect(), s=getComputedStyle(e);
+     const rects=Array.from(range.getClientRects()).filter(b=>b.width>0&&b.height>0);
+     let ok=e.innerText===e.dataset.cardExpected&&visible(e)&&r.width>0&&r.height>0&&ink.width>0&&ink.height>0&&contains(t,r)&&contains(t,ink)
+       &&e.scrollWidth<=e.clientWidth+1&&e.scrollHeight<=e.clientHeight+1;
+     // Inspect text-bearing descendants, not empty decorative nodes. Complex masks
+     // and painted occlusion remain visual QA, not a claim of complete visibility.
+     const walker=document.createTreeWalker(e,NodeFilter.SHOW_TEXT);
+     for(let node=walker.nextNode();node;node=walker.nextNode()){
+       if(!node.textContent.trim()) continue;
+       const span=document.createRange();span.selectNodeContents(node);
+       const glyph=span.getBoundingClientRect();
+       if(!visible(node.parentElement)||glyph.width<=0||glyph.height<=0||!contains(t,glyph)) ok=false;
+       for(let p=node.parentElement;p&&p!==document.body;p=p.parentElement){
+         const ps=getComputedStyle(p), b=p.getBoundingClientRect();
+         if(ps.overflowX!=='visible'&&(glyph.left<b.left-.5||glyph.right>b.right+.5)) ok=false;
+         if(ps.overflowY!=='visible'&&(glyph.top<b.top-.5||glyph.bottom>b.bottom+.5)) ok=false;
+       }
+     }
+     const row={id:e.dataset.cardCopy,text:e.innerText,ok,x:r.x,y:r.y,width:r.width,height:r.height,font:s.fontSize,
+       display_font_px:parseFloat(s.fontSize)*Number(stage.dataset.cardPreviewWidth)/width};
+     checks.push(row);boxes.push({row,rects});
+   }
+   for(let a=0;a<boxes.length;a++) for(let b=a+1;b<boxes.length;b++){
+     if(boxes[a].rects.some(x=>boxes[b].rects.some(y=>Math.min(x.right,y.right)-Math.max(x.left,y.left)>.5&&Math.min(x.bottom,y.bottom)-Math.max(x.top,y.top)>.5))){
+       boxes[a].row.ok=false;boxes[b].row.ok=false;findings.push('copy overlap');
+     }
+   }
+ }
+ return {authored:true,font:document.fonts.check('32px CardFont'),checks,findings,
+   ok:checks.length>0&&checks.every(c=>c.ok)&&findings.length===0,
+   visual_verdict:'unverified: contrast, complex masks, occlusion, glyph coverage and reduced-size readability need visual review'};
+})()"""
+
+
+def snapshot(document, out, dims, layout_script=LAYOUT):
     session = "card-" + uuid.uuid4().hex[:16]
     with tempfile.TemporaryDirectory(prefix="card-browser-") as temp:
         run = Path(temp)
@@ -315,9 +532,12 @@ def snapshot(document, out, dims):
             call("set", "offline", "on")
             call("set", "viewport", str(dims["master_width"]), str(dims["height"]), "1")
             call("open", document.as_uri())
-            layout = call("eval", "--stdin", script=LAYOUT)["result"]
+            layout = call("eval", "--stdin", script=layout_script)["result"]
             write(out / "layout.json", layout)
-            require(layout["ok"], "text overflow or font failure; inspect layout.json, revise copy/layout, never deliver clipped text")
+            failures = list(layout.get("findings", []))
+            failures.extend("copy check failed: " + row.get("id", row.get("text", "unknown")) for row in layout.get("checks", []) if not row.get("ok"))
+            require(layout["ok"], ("authored layout rejected: " + "; ".join(failures) + "; inspect layout.json; do not change protected copy to fit"
+                                  if layout.get("authored") else "text overflow or font failure; inspect layout.json, revise copy/layout, never deliver clipped text"))
             call("screenshot", str(out / "snapshot-a.png"))
             call("eval", "--stdin", script="new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(()=>r(true))))")
             call("screenshot", str(out / "snapshot-b.png"))
@@ -371,12 +591,18 @@ def finish(out, dims):
 
 def create(spec, out):
     dims = validate(spec, "create")
-    document = page(spec, dims)
+    source = local(spec["layout_html"]).read_bytes() if "layout_html" in spec else None
+    document = page(spec, dims, layout_source=source)
     out.mkdir(parents=False, exist_ok=False)
     write(out / "spec.json", spec)
     write(out / "card.html", document)
-    snapshot(out / "card.html", out, dims)
+    if source is not None:
+        with (out / "source-layout.html").open("xb") as stream:
+            stream.write(source)
+    snapshot(out / "card.html", out, dims, layout_script=AUTHORED_LAYOUT if source is not None else LAYOUT)
     report = finish(out, dims)
+    if source is not None:
+        report["layout_source_sha256"] = hashlib.sha256(source).hexdigest()
     write(out / "manifest.json", report)
     return report
 
