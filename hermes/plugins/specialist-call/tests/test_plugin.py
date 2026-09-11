@@ -27,6 +27,7 @@ A2A = p._a2a
 EXECUTE_SYNC = p._execute_sync
 RESIDENT_IMPL = p._resident
 CREATOR_TARGETS = ("engineer", "marketer", "researcher", "writer", "image-creator", "video-creator", "audio-creator")
+MARKETER_TARGETS = ("engineer", "creator", "researcher", "writer")
 
 
 @pytest.fixture
@@ -149,6 +150,88 @@ def test_creator_inbound_cannot_launch_work(creator_caller, monkeypatch, target)
     assert "reissue" in call(target, kind="work")["error"]
     assert not calls
     assert call(target)["backend"] == "a2a"
+
+
+@pytest.fixture
+def marketer_caller(caller, monkeypatch):
+    home = caller[0].parent / "marketer"
+    home.mkdir()
+    (home / "config.yaml").write_text(yaml.safe_dump({
+        "specialist_call": {"resident_targets": sorted(p.TARGETS["marketer"])},
+        "a2a_agents": {t: {"url": "http://127.0.0.1:990{}".format(i)}
+                       for i, t in enumerate(MARKETER_TARGETS, start=3)},
+    }))
+    monkeypatch.setattr(p, "_scope", lambda: (home, "marketer-owner", False, False))
+    return home, caller[1]
+
+
+@pytest.mark.parametrize("target", MARKETER_TARGETS)
+@pytest.mark.parametrize("kind,backend", [("inquiry", "a2a"), ("work", "resident")])
+def test_marketer_configured_targets(marketer_caller, target, kind, backend):
+    result = call(target, kind=kind)
+    assert result["status"] == "completed" and result["backend"] == backend
+    continued = call(target, conversation_id=result["conversation_id"])
+    assert continued["backend"] == backend
+    assert marketer_caller[1] == [(backend, target, "hello")] * 2
+    assert session("close", result["conversation_id"])["status"] == "closed"
+
+
+@pytest.mark.parametrize("target", ["assistant", "searcher", "image-creator", "arbitrary", "../creator", "http://127.0.0.1:9907"])
+def test_marketer_arbitrary_targets_cannot_be_enabled(marketer_caller, target):
+    home, calls = marketer_caller
+    config = yaml.safe_load((home / "config.yaml").read_text())
+    config["specialist_call"]["resident_targets"].append(target)
+    config["a2a_agents"][target] = {"url": "http://127.0.0.1:9999"}
+    (home / "config.yaml").write_text(yaml.safe_dump(config))
+    assert "error" in call(target)
+    assert "error" in call(target, kind="work")
+    assert not calls
+
+
+@pytest.mark.parametrize("target", MARKETER_TARGETS)
+@pytest.mark.parametrize("kind", ["inquiry", "work"])
+def test_marketer_revoked_targets_cannot_dispatch(marketer_caller, target, kind):
+    home, calls = marketer_caller
+    result = call(target, kind=kind)
+    config = yaml.safe_load((home / "config.yaml").read_text())
+    config["specialist_call"]["resident_targets"].remove(target)
+    (home / "config.yaml").write_text(yaml.safe_dump(config))
+    assert "error" in call(target, kind=kind)
+    assert "error" in call(target, conversation_id=result["conversation_id"])
+    for action in ["status", "close"]:
+        assert "error" in session(action, result["conversation_id"])
+    assert session("list") == []
+    assert len(calls) == 1
+
+
+@pytest.mark.parametrize("target", MARKETER_TARGETS)
+def test_marketer_unconfigured_targets_cannot_dispatch(marketer_caller, target):
+    home, calls = marketer_caller
+    (home / "config.yaml").write_text("{}")
+    assert "error" in call(target)
+    assert "error" in call(target, kind="work")
+    assert not calls
+
+
+@pytest.mark.parametrize("target", MARKETER_TARGETS)
+def test_marketer_inbound_cannot_launch_work(marketer_caller, monkeypatch, target):
+    home, calls = marketer_caller
+    monkeypatch.setattr(p, "_scope", lambda: (home, "marketer-owner", False, True))
+    assert "reissue" in call(target, kind="work")["error"]
+    assert not calls
+    assert call(target)["backend"] == "a2a"
+
+
+def test_marketer_cross_profile_ownership_rejected(marketer_caller, monkeypatch):
+    home, calls = marketer_caller
+    data = call("creator")
+    cid = data["conversation_id"]
+    monkeypatch.setattr(p, "_scope", lambda: (home, "marketer-owner-two", False, False))
+    assert session("list") == []
+    for action in ["status", "close"]:
+        assert "error" in session(action, cid)
+    assert "error" in call(conversation_id=cid)
+    assert len(calls) == 1
 
 
 def test_owner_and_profile_isolation(caller, monkeypatch):

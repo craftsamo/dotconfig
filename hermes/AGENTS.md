@@ -46,8 +46,8 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
   Telegram / Discord lists empty (engineer / creator / marketer now carry real
   `telegram` lists — they are bots), and every A2A-serving profile has an `a2a`
   list for its inbound peer sessions. `a2a` is also the OUTBOUND toolset name
-  (the five `a2a_*` tools, default-off): Engineer/Marketer retain raw A2A;
-  Assistant/Creator expose only `specialist` for outbound requests.
+  (the five `a2a_*` tools, default-off): Engineer retains raw A2A;
+  Assistant/Creator/Marketer expose only `specialist` for outbound requests.
   Use `no_mcp` when a platform needs none; otherwise list each allowed MCP
   server explicitly so future servers are not inherited accidentally.
 - **Multiplex gateway + A2A peer graph (2026-09 rebuild).** ONE default-hosted
@@ -886,6 +886,34 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
   references"). A missing or unreadable entry there is a documented
   local-authoring fallback per that leaf's contract, not a runtime failure.
 
+## Marketer v7 and shared requester QA
+
+Marketer owns strategy and its existing authenticated browser; do not add a
+SNS-Marketer profile or share/copy login profiles. Its four modes are Plan,
+Build, Quality assurance and Analyze, with one shared reference per platform
+and private task records outside this repository. `validate_marketer_references`
+checks the complete reference set and links independently of Creator's hands.
+There is no publish path: exact remote-save consent precedes editor entry,
+autosave counts as upload, and completion requires reopening the same unpublished
+service draft. Old Publish/P1 grants are not adopted. The user publishes.
+
+All browser navigation, including measurement reads, holds the Marketer
+profile-wide `browser-lease.py` lease until a verified or reconciled stop.
+No TTL, lease stealing, automatic retry of unknown effects or cookie migration.
+The helper is coordination, not a browser sandbox. Platform procedures require
+approved live validation; static tests do not establish service-side persistence.
+
+Generic requester Writing QA is public in Writer's pipeline at
+`references/acceptance/{index,prose,script}.md`; Assistant's private files are
+thin adapters and Marketer reads the same contract. Caller external skill roots
+must expose Writer's pipeline. Missing acceptance resources block acceptance;
+disable Writer's 18 production leaf names on Assistant/Marketer so this reference
+does not import an authoring menu. Do not copy the rubric or make Writer accept
+its own work. Marketer inbound A2A has no browser, terminal or delegation toolset;
+authenticated work needs a resident session. No private records
+or purchased source text are moved. Pair public/private rollout and rollback;
+never run candidate install scripts against the live configuration for testing.
+
 ## Writer leaf migration
 
 Writer's leaf references use `natural-japanese` v1.5.0 as a craft source, not
@@ -948,7 +976,8 @@ have operation-specific local references. Keep approved claims, offer terms and
 disclosures; evidence conflicts are not solved by inventing proof or silently
 weakening a protected promise. CTA requirements depend on the released purpose.
 Marketer consumes accepted text unchanged, returns edits to Writer and keeps its
-own inspection/Publish gate. Analysis is not new copy or a performance/legal
+own inspection/remote-save gate. It saves drafts only; the user publishes.
+Analysis is not new copy or a performance/legal
 verdict. Script and unmigrated platform-post workflows remain separate.
 
 Script leaves are `<write|edit|analyze>/script/`, with local narration/comic/
@@ -1015,7 +1044,7 @@ profiles/<name>/     # assistant, engineer, researcher, searcher, creator, write
                      #   writer: the japanese-writing language core (one
                      #   SKILL.md, five notation defaults) via the curated
                      #   external-skills symlink dir;
-                     #   marketer: + upstream social-media/xurl + creative/humanizer;
+                     #   marketer: Writer pipeline external reference for shared caller QA;
                      #   managed technics stay exactly one directory below skills/technic/
                      #   because validate-profile-skills.py enforces flat canonical leaves;
                      #   assistant keeps its front-door pipeline in
@@ -1071,8 +1100,8 @@ Grants: engineer Authority A1/A2/A3 + B1/B2 (worktree-side bootstrap
 only — repo creation/registry stays the assistant's; planning documents
 and GitHub bookkeeping are never the engineer's — the assistant plans in
 its own OpenCode session and hands over `Base session:` / `Issue: #n`),
-creator Budget caps, marketer Publish (absent = draft-only; posting needs
-verbatim approval or in-cap P1) — see PROFILES.md "Engineer dialogue
+creator Budget caps, marketer exact remote-save consent (before autosaving
+input; no publishing/P1 execution) — see PROFILES.md "Engineer dialogue
 loop". Tracked per
 profile: `config.yaml`, `profile.yaml`, `SOUL.md`, `skills/`, `.no-bundled-skills`.
 Create with `hermes profile create <name> --description "…"`, then adopt into the
