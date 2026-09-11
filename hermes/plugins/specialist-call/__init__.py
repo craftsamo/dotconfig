@@ -29,6 +29,7 @@ import yaml
 TARGETS = {
     "assistant": {"engineer", "creator", "marketer", "writer", "searcher"},
     "creator": {"engineer", "marketer", "researcher", "writer", "image-creator", "video-creator", "audio-creator"},
+    "marketer": {"engineer", "creator", "researcher", "writer"},
 }
 RESIDENT = Path(__file__).resolve().parents[2] / "profiles/assistant/scripts/resident-session.sh"
 TURN_TIMEOUT = 5400
@@ -65,7 +66,7 @@ def _id(value):
 
 def _profile(home):
     if home.parent.name != "profiles" or home.name not in TARGETS:
-        raise ValueError("specialist tools are restricted to assistant and creator")
+        raise ValueError("specialist tools are restricted to assistant, creator, and marketer")
     return home.name
 
 
