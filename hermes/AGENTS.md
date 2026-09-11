@@ -256,7 +256,15 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
   all rode Profile 12 and the owner was logged out after each relaunch. X
   and Instagram carry static tokens (`auth_token` / `sessionid`, unchanged
   over days of clone use) and do not do this; the separate profile still
-  isolates their risk-detection from each other.
+  isolates their risk-detection from each other. **The owner counts as one
+  of those clients:** a pinned profile is for SIGNING IN, not for the
+  owner's own browsing. On 2026-09-11 the owner worked in Profile 12's
+  Sheets while the assistant's clone held the same Google session, and the
+  two rotations knocked each other out — a forced re-login (reCAPTCHA +
+  passkey) for the owner at 15:08, the account chooser for the clone at
+  17:43. Telling the owner to "log in again" is the wrong move there: a
+  fresh login supersedes the LIVE clone's session and just moves the
+  sign-out to the other side. Log in, close, work elsewhere.
   Preconditions that fail closed: the macOS DEFAULT browser must be Brave
   (detection is the LaunchServices `https` handler only —
   `hermes_cli/browser_connect.py:_detect_default_darwin`; with Safari it
