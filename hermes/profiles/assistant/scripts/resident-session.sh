@@ -5,8 +5,8 @@
 # interactive work (creation, writing, research, engineering) runs in a
 # persistent `hermes -p <profile> chat` session that the CALLER supervises
 # conversationally, instead of a kanban card round-trip. The caller is the
-# assistant by default; since the 2026-09 director rebuild a primary such
-# as the creator supervises sessions of its own (its hands), so the
+# assistant by default; since the 2026-09 director rebuild other primaries such
+# as the creator (its hands) and marketer supervise sessions of their own, so the
 # registry lives under the calling profile's home (derived from the
 # HERMES_HOME the caller's turn runs with; override: RESIDENT_SESSION_DIR).
 #
