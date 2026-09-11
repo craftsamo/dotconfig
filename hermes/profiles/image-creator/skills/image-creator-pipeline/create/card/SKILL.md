@@ -3,10 +3,10 @@ name: create-card
 description: >-
   Exact-copy OG, social, header, thumbnail, hero or title CARD from approved
   text and local assets, deterministically font-rendered with HTML/CSS.
-  Includes X pair candidates and 3/4-tile panoramas. Six named looks or a
-  concretely authored described look. Not generated art, emoji, infographics,
+  Includes X pair candidates and 3/4-tile panoramas. Named templates or
+  task-authored layouts and typography. Not generated art, emoji, infographics,
   slide decks or kanban cards; finished raster adaptation is edit-card.
-version: 1.0.0
+version: 1.1.0
 author: CraftSamo
 license: MIT
 metadata:
@@ -15,68 +15,75 @@ metadata:
     category: hands
     hands: image-creator
     cost: free
-    output: "card.html + spec.json + master.png + ordered tile-NN.png + tile-NN-preview.png + preview.png + manifest.json + layout.json; tiled: simulated-gap.png; carousel: simulated-display.png + simulated-display.json"
+    output: "HTML/spec + PNG master/tiles/previews + manifest/layout/QA; authored: frozen source; tiled: gap/display simulations"
     form:
       title:
         required: true
         type: text
-        label: "exact main copy; first tile only for panoramas"
+        label: "exact main copy on tile 1"
       destination:
         required: true
         options: [og, x-post, x-article, x-header, x-pair, x-carousel, instagram, instagram-square, story, youtube-thumb, hero, slide-title, note]
         other: true
-        label: "one destination, or explicit custom WxH (each axis 64..4096, bounded total canvas)"
+        label: "destination or custom WxH; local bounds in spec"
       style:
         required: true
         options: [glass, flat-minimal, dark-pro, gradient-glow, paper, soft-3d]
         other: true
-        label: "named look or verbatim described style; described requires task-local authored CSS, not a nearest-style fallback"
+        label: "named look or verbatim visual direction; no nearest-style fallback"
+      layout_html:
+        required: false
+        type: file
+        label: "ImageCreator-authored static layout; client need not supply code"
+      copy_blocks:
+        required: false
+        label: "additional exact {id,tile,text} blocks for authored layouts"
       subtitle:
         required: false
         label: "exact supporting text on tile 1"
       brand:
         required: false
-        label: "exact brand text on tile 1 (logo pixels belong in motif)"
+        label: "exact brand text on tile 1"
       label:
         required: false
-        label: "short exact eyebrow on tile 1"
+        label: "exact eyebrow on tile 1"
       meta:
         required: false
-        label: "exact footer details on tile 1"
+        label: "exact metadata on tile 1"
       background:
         required: false
         type: image
-        label: "absolute local text-free PNG/JPEG/WebP; cover-fitted over the full panorama; no implicit fetch"
+        label: "local text-free PNG/JPEG/WebP; no implicit fetch"
       motif:
         required: false
         type: image
-        label: "absolute local PNG/JPEG/WebP, contained below copy on tile 1; rasterize a trusted SVG explicitly first"
+        label: "local PNG/JPEG/WebP; trusted SVG rasterization first"
       palette:
         required: false
-        label: "three comma-separated #rrggbb values: surface,ink,accent; overrides style roles, not every gradient stop"
+        label: "template surface,ink,accent as three #rrggbb values"
       font:
         required: false
         type: file
-        label: "absolute local font; default installed Hiragino W6, error if absent; glyph coverage needs visual QA"
+        label: "local font; default installed Hiragino W6"
       tiles:
         required: false
         type: int
-        label: "x-pair exactly 2; x-carousel 3 (default) or 4; conflicts rejected"
+        label: "x-pair 2; x-carousel 3 (default) or 4"
       tile:
         required: false
-        label: "x-carousel portrait 4:5 (default), square 1:1 or tall 1:2; x-pair candidate only, 7:8 UNVERIFIED"
+        label: "carousel portrait/square/tall; pair candidate 7:8 UNVERIFIED"
       tile_titles:
         required: false
         type: text
-        label: "independent subheadings, one per line 'n: text'; tile 1 is below main title; tiles 2..4 each get their own heading"
+        label: "per-tile heading 'n: text'; tile 1 is a subheading"
         example: "1: Overview\n2: How it works\n3: Next step"
       gap:
         required: false
         type: int
-        label: "legacy simulated-gap.png gap in source-image px, 0..128, default 16; separate carousel display preview uses canonical CSS-px width/gap, not this field"
+        label: "source-pixel simulation gap, 0..128, default 16; not CSS gap"
       slug:
         required: false
-        label: "lowercase words joined by hyphens; bundle identity recorded in spec, filenames stay stable"
+        label: "lowercase hyphenated bundle identity"
       note:
         required: false
         type: text
@@ -98,11 +105,22 @@ metadata:
    [hero](references/destination/hero.md), [slide-title](references/destination/slide-title.md),
    [note](references/destination/note.md). Custom destination is a literal `WxH`.
    These are authoring defaults, not verified upload caps or platform-safe zones.
-3. Read the chosen canonical CSS block:
+3. Choose the implementation by the actual layout requirements, not the style
+   name alone. For a centered cover, custom typography, additional copy regions
+   or source revision that the template cannot express, author `layout_html`
+   using [the authored contract](references/spec.md#authored-layouts).
+   ImageCreator writes the source; do not ask the client to supply HTML/CSS.
+   Do not weaken protected placement or copy to fit a template. Use `kind="work"`
+   for authored work even when the requested look is named and the card is single.
+   A named look still guides authored CSS and visual QA; it does not inject a
+   template into the authored page. Existing editable source informs the revision;
+   preserve the original, never execute an unreviewed source script.
+
+   For template work, read the chosen canonical CSS block:
    [glass](references/styles/glass.md), [flat-minimal](references/styles/flat-minimal.md),
    [dark-pro](references/styles/dark-pro.md), [gradient-glow](references/styles/gradient-glow.md),
    [paper](references/styles/paper.md), [soft-3d](references/styles/soft-3d.md).
-   For a described style read [the bounded spec contract](references/spec.md)
+   For a template's described appearance read [the bounded spec contract](references/spec.md)
    and author concrete CSS in the task directory. Preserve the description in
    `style` and pass absolute `style_css` in the execution JSON. Never modify the
    managed references or pretend a named fallback fulfills the description.
@@ -124,7 +142,9 @@ metadata:
    execution/polling if an environment approaches the terminal time limit.
 5. For pair/carousel the full panorama is rendered FIRST, then exact adjacent
    lossless crops. Main title/brand/meta stay on tile 1; tile_titles belong to
-   their own tile insets. Never globally crop a text-bearing master into a
+   their own tiles. Authored `copy_blocks` supply explicit additional text or
+   repeated branding on other tiles; never invent repetition or new copy.
+   Never globally crop a text-bearing master into a
    different destination: rerender its spec at the new canvas. View the gap
    simulation, not as an X screenshot or crop guarantee. For carousel use
    simulated-display.png with its JSON label: each image 360 CSS px wide,
@@ -142,6 +162,10 @@ metadata:
 - Measurements: manifest canvas matches destination; layout.json has only
   `ok: true` copy rows; two decoded RGBA snapshots agree; tile reassembly equals
   master decoded pixels. These checks prove geometry/stability, not visual quality.
+- Authored layouts additionally retain source-layout.html and its manifest hash.
+  Check binding/visibility/overlap findings. There is no automatic font shrinking;
+  `display_font_px` measures reduced-size text, not a readability PASS. Complex
+  masks, painted occlusion, contrast and glyph coverage still need visual review.
 - One overview look at preview.png (carousel: simulated-display.png with its
   declared CSS-px width/gap; pair: simulated-gap.png) for hierarchy,
   intended style and seam continuity. One native-size look per tile for exact
