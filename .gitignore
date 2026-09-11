@@ -32,6 +32,7 @@ agents/skills/
 opencode/skills/*
 !opencode/skills/approach/
 !opencode/skills/git/
+!opencode/skills/hermes/
 !opencode/skills/manage-github-projects/
 
 # machine-specific state rewritten by the Codex app (absolute home paths)

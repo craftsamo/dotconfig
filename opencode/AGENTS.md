@@ -86,6 +86,17 @@ general prompt, agent, command, plugin, or documentation authoring.
 
 </SkillAuthoringSkill>
 
+<HermesHandsReferencesSkill>
+
+For assessing, adding or improving option-backed references in Hermes
+image-creator, video-creator or audio-creator hands leaves, load
+`hermes-hands-references`. Engineer's mode guides own Client scope and acceptance;
+this Skill owns the maintenance procedure. Exclude producing media, new families,
+option retirement, Writer references, Creator broker references and Assistant
+guides. Assessment alone never authorizes edits.
+
+</HermesHandsReferencesSkill>
+
 <JapaneseWritingSkills>
 
 Load `japanese-writing` for Japanese deliverable wording: writing, editing,
