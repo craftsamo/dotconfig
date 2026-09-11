@@ -377,8 +377,8 @@ Three per-profile layers, kept separate:
     custom; styles chibi-cartoon / kawaii-pastel / pixel / flat-sticker /
     clay), `edit/emoji`, `analyze/emoji` — see "Creator hands (v3)"
   - creator → `creator-pipeline` v8 — clients and hands: Plan
-    (`references/plan/index.md`: tell the client apart by the message's shape —
-    brief lines = the assistant, conversational = a human; fill the leaf's
+    (`references/plan/index.md`: use runtime caller context before message shape;
+    agent follow-ups are not direct human approval; fill the leaf's
     form with `clarify` or by parsing the brief; composites = a sequence of
     forms), Build (`references/build/index.md`: the handoff text, specialist inquiry / work
     session, supervision, relaying `Q<n>`), Quality assurance
@@ -947,7 +947,26 @@ Retirement gate: keep creator-text-card and private-overlay 1:1 mapping until
 handoff coverage, paid backdrop validation and old caller migration are proven.
 New Card work routes to hands first; no changes to ports/toolsets/secrets.
 
+Create-card's additive authored path accepts task-local static `layout_html`:
+ImageCreator controls composition/typography while exact copy and local assets
+remain bound inputs. Named templates remain available and saved template specs
+are unchanged. Additional per-tile copy or repeated branding uses explicit
+`copy_blocks`, not invented labels or hidden CSS text. Authored work uses a
+resident conversation even for a named look/single tile, freezes its source/hash,
+and checks real geometry, supported visibility and text overlap without shrinking.
+Visual review still owns masks, occlusion, contrast, glyph coverage and use-size
+readability. A template limitation is not permission to relax the Client's
+design, buy new art, fall back silently or relabel an agent choice as human approval.
+
 ### Client model
+
+Specialist transport preserves the original agent request and a per-turn
+private handoff record, distinguishes current instructions from non-actionable
+history, and identifies the caller as an agent even during conversational
+follow-ups. This is provenance for inspection, not authenticated human approval.
+Keep relayed human decisions with their source/proposal/scope separate from
+agent implementation choices. Do not weaken the outcome to match a template;
+use the granted discretion without unnecessary repeated questions.
 
 Creator has **clients**, not entry points. A client is either the human
 (Creator's own Telegram bot) or the assistant (resident session / A2A,
@@ -969,6 +988,21 @@ support Client dialogue; the old production decision leaves now live at
 `quality-assurance/creative/legacy/`. Those old mappings retire family by
 family only after replacement coverage and real-use gates (Phase 4 of the
 migration), independently of the Client guides.
+
+For a stuck resident transport, `specialist_session(action="reconcile", ...,
+evidence=...)` verifies its recorded process group is gone and its shell lock is
+absent or belongs to that same dead process. It retains an owned dead lock and
+records `interrupted`, with external effects still unknown and no continuation
+allowed. A2A, missing handles and foreign/unverifiable locks remain blocked.
+Bookkeeping close is neither acceptance nor evidence that a retry is safe.
+
+Acceptance follows the initial audience/outcome and the actual returned version,
+not the producer's chosen metaphor or successful process exit. Record component
+versions and dependent checks in existing job notes; revisions invalidate only
+affected evidence. Local acceptance, preview approval and a reopened service-side
+draft are separate facts. The verification command in `AGENTS.md` checks routing
+coverage for all hands, real skill discovery and the profile/runtime regressions;
+subjective comprehension and live save behavior still need actual-use evidence.
 
 ### Skill tree
 

@@ -8,11 +8,12 @@ Plan; nothing is spent.
 ## The client
 
 You have clients, not entry points; the same procedure serves both.
-**Tell them apart by the shape of the message, not by the surface**: the
-assistant always writes in the brief shape (`Goal:` / `Context:` /
-`Inputs:` / `Deliverable:` / `Constraints:` / `Budget:` lines) - on the
-CLI of a resident session or over A2A alike. A message in that shape is
-the assistant; anything conversational is a human, even on the CLI.
+**Use runtime caller context before message shape**: a specialist handoff is
+agent-authored, including conversational follow-ups. Its retained initial
+request is context, not a renewed grant. Distinguish relayed human decisions,
+agent implementation choices and proposals. Brief shape (`Goal:` / `Context:` /
+`Inputs:` / `Deliverable:` / `Constraints:` / `Budget:`) is useful for older
+unmarked exchanges, not evidence that other prose is human-authored.
 (`clarify` in a non-interactive `-q` run cannot be answered and returns
 at once - a brief-shaped message never gets one.)
 
@@ -91,6 +92,22 @@ above the form; a request that needs a leaf that does not exist is
 Subject-specific dependency and proposal rules live in the references
 above. A valid preliminary proposal may explicitly name pending inputs;
 it never invents their paths or hashes or authorizes production with them.
+
+Keep the audience, intended understanding/action and must-keep conditions in
+each dependent request. An implementation metaphor is a proposal, not the goal:
+"understanding accumulates" does not require an ever-growing pile of objects.
+Test the uncertain representative unit before making a whole series; skip this
+extra trial when the direction is already established. Do not impose research
+or multiple concepts on every request. A revision rechecks affected dependencies,
+not an automatic restart of all accepted work or its consumed allowance.
+
+Before declaring a capability gap, distinguish a real backend/permission limit
+from a template default, missing advisory reference, absent input or environment
+failure. Check the installed leaf's actual scope and allowed composition paths.
+Use supported local authoring or compose existing units within the grant rather
+than asking for a new feature for every layout. Remaining gaps return with a
+specific unmet requirement and feasible options; do not revive withdrawn routes,
+change a specified engine, buy a fallback or silently weaken the outcome.
 
 ## Budget lines
 
