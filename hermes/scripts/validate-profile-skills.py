@@ -875,9 +875,44 @@ def validate_worker(
         validate_creator_references(pipeline_dir, errors)
     if profile == "marketer":
         validate_marketer_references(pipeline_dir, errors)
+    if profile == "engineer":
+        validate_engineer_references(pipeline_dir, errors)
     validate_git_boundary([pipeline_dir, technic_dir], learned_dir, errors)
     validate_plugin_enabled(profile, profile_root / "config.yaml", errors)
     return len(leaves) + len(writing), len(learned)
+
+
+ENGINEER_REFERENCE_FILES = {
+    "opencode.md", "plan/index.md", "plan/web-ui.md", "build/index.md", "build/web-ui.md",
+    "quality-assurance/index.md", "quality-assurance/web-ui.md", "quality-assurance/ux-persona.md",
+    "quality-assurance/personas.md", "assess/index.md", "shared/design-catalog.md",
+}
+
+
+def validate_engineer_references(pipeline_dir: Path, errors: list[str]) -> None:
+    """Engineer modes own their steps; only actual common knowledge is shared."""
+    references = pipeline_dir / "references"
+    found = {path.relative_to(references).as_posix() for path in references.rglob("*.md")}
+    for name in sorted(ENGINEER_REFERENCE_FILES - found):
+        errors.append(f"missing engineer reference: {name}")
+    for name in sorted(found - ENGINEER_REFERENCE_FILES):
+        errors.append(f"unexpected engineer reference: {name}")
+    for path in [pipeline_dir / "SKILL.md", *references.rglob("*.md")]:
+        if not path.is_file():
+            continue
+        for link in re.findall(r"\]\(([^)]+)\)", path.read_text()):
+            if "://" not in link and not link.startswith("#"):
+                target = path.parent / link.split("#", 1)[0]
+                if not target.is_file():
+                    errors.append(f"broken engineer reference link: {path.name}: {link}")
+    for mode in ("plan", "build", "quality-assurance", "assess"):
+        index = references / mode / "index.md"
+        if index.is_file():
+            text = index.read_text()
+            for leaf in index.parent.glob("*.md"):
+                # Persona definitions are reached through their named QA procedure.
+                if leaf.name not in {"index.md", "personas.md"} and leaf.name not in text:
+                    errors.append(f"engineer {mode} index does not route {leaf.name}")
 
 
 MARKETER_REFERENCE_FILES = {
@@ -1551,10 +1586,9 @@ def validate_creative_alignment(errors: list[str]) -> None:
 
 # ── Engineering plan-QA alignment ───────────────────────────────────────
 #
-# Every plan/engineering archetype leaf must have a matching inspection
-# row in the engineering QA inspection leaf (its verification default's
-# receiving side), and vice versa — a new archetype without an inspection
-# row would ship with an ungated verification default.
+# Every engineering Client guide has matching outcome acceptance expectations.
+# Technical decomposition and UI evaluation now belong to Engineer, not this
+# Assistant-side correspondence check.
 
 ENGINEERING_PLAN_DIR = ASSISTANT_PIPELINE / "references" / "plan" / "engineering"
 ENGINEERING_QA_INSPECTION = (

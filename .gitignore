@@ -66,6 +66,7 @@ hermes/**/SOUL.md
 hermes/profiles/assistant/config.yaml
 hermes/profiles/*/specialist-sessions/
 hermes/profiles/*/resident-sessions/
+hermes/profiles/*/opencode-sessions/
 
 # Hermes skills: maintainer-owned topology is tracked; adaptive libraries are not.
 # At the shared root, default-pipeline/ is the only managed surface — the

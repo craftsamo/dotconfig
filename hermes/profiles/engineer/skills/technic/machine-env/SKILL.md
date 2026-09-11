@@ -9,7 +9,7 @@ description: >-
   touches configuration or dotfiles, when a build behaves oddly around
   environment variables or credentials, or when orient must report the
   environment. Carries the self-modification guard: changes to Hermes' own
-  runtime need a block round-trip regardless of Authority. Pointers to the real
+   runtime need explicit scope and a separate live-cutover decision. Pointers to the real
   rules, never copies of them.
 version: 1.0.0
 author: CraftSamo
@@ -67,7 +67,7 @@ warns instead).
 | `~/.config/<subtree>/AGENTS.md` | authoritative rules for that subtree — read before touching it |
 | `~/.config/install.sh` | creates every symlink; run it after adding new files |
 | `~/.config/bin/` | PATH shims that inject secrets into wrapped commands |
-| `~/.config/agents/curated/` | repo-curated shared skills, linked per skill into the harness-neutral `~/.agents/skills` root (a machine-local real dir that installers also write into; `~/.claude/skills` bridges there) |
+| `~/.config/agents/curated/` | repo-curated shared skills, linked per skill into the harness-neutral `~/.agents/skills/` root (a machine-local real dir that installers also write into; `~/.claude/skills/` bridges there) |
 | `~/.hermes/`, `~/.claude/`, other tool homes | **symlinks back into this repo** — edit the repo, never these |
 
 Consequence: editing `~/.hermes/config.yaml` and editing
@@ -94,8 +94,8 @@ Operationally that means:
 - **Never print, log, commit, or pass secret values.** Do not run `env` /
   `printenv` to inspect them.
 - Depth (injection modes, wrapping a new tool, debugging a missing variable)
-  lives in the shared skill — read
-  `~/.config/agents/curated/keychain-secrets/SKILL.md` when you need it.
+  lives in `keychain-secrets/SKILL.md` under the curated shared root in the
+  Layout table. Read that external skill when you need it.
 
 </Secrets>
 
@@ -121,8 +121,9 @@ is not an ordinary edit: the effect appears only after a restart you do not
 control, and a mistake can disable the worker, the dispatcher, or the messaging
 gateway.
 
-**Block for approval before changing any of these, whatever the Authority
-grant says** (`Authority` covers repository work, not the agent platform):
+**Require explicit task scope before changing these.** Ordinary implementation
+approval does not implicitly cover the agent platform; build candidates separately
+and obtain a live-cutover decision before installing or restarting anything:
 
 - `hermes/profiles/engineer/**` — your own profile, pipeline, and skills.
 - the assistant profile, dispatcher, gateway, or cron wiring.
@@ -170,7 +171,7 @@ Single commands, no inline interpreters — safe under the worker approval guard
 - Re-authenticating to fix an OpenCode quota problem, and silently swapping
   Hermes' account instead.
 - Treating a change to your own profile, the dispatcher, or the gateway as
-  ordinary in-scope work covered by the Authority grant.
+  ordinary in-scope work covered by an implementation approval.
 - Reformatting a Hermes-managed `config.yaml`, producing a diff that is all
   churn.
 - Quoting rules from this file instead of reading the subtree's `AGENTS.md` —
@@ -180,8 +181,8 @@ Single commands, no inline interpreters — safe under the worker approval guard
 
 <Verification>
 
-- Configuration edits were made in the repo (not a tool home), and new files
-  were linked with `install.sh`.
+- Configuration edits were made in an isolated repo candidate, not a tool home;
+  installation/linking happened only after approved live cutover.
 - No secret value was printed, logged, written, or committed.
 - Any change touching Hermes' own runtime (your profile, dispatcher, gateway,
   `install.sh`) went through a block round-trip, and the subtree's `AGENTS.md`
