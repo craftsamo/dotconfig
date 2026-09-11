@@ -585,8 +585,27 @@ skills:
   - ~/ghq/github.com/NousResearch/hermes-agent/optional-skills/communication/one-three-one-rule
   - ~/ghq/github.com/NousResearch/hermes-agent/optional-skills/devops/watchers
   - ~/.hermes/skills
+  - ~/.hermes/profiles/writer/skills/writer-pipeline
   create_dir: skills/learned
   disabled:
+  - write-article
+  - edit-article
+  - analyze-article
+  - write-document
+  - edit-document
+  - analyze-document
+  - write-message
+  - edit-message
+  - analyze-message
+  - write-copy
+  - edit-copy
+  - analyze-copy
+  - write-script
+  - edit-script
+  - analyze-script
+  - write-post
+  - edit-post
+  - analyze-post
   - comfyui
   - touchdesigner-mcp
   - manim-video
