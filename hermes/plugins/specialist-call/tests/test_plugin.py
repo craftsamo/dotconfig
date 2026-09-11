@@ -1,6 +1,7 @@
 """No live agents: mocked dispatch plus real runner/resident integration with a fake CLI."""
 
 import contextvars
+import hashlib
 import importlib.util
 import io
 import json
@@ -11,6 +12,7 @@ import subprocess
 import signal
 import socket
 import sys
+import threading
 import time
 import urllib.error
 from types import SimpleNamespace
@@ -61,6 +63,18 @@ def call(target="creator", **args):
 
 def session(action, cid=None):
     return json.loads(p.specialist_session(dict(action=action, **({"conversation_id": cid} if cid else {}))))
+
+
+def reconcile(cid, evidence="Inspected outputs, child jobs and external effects; nothing new observed."):
+    return json.loads(p.specialist_session({"action": "reconcile", "conversation_id": cid, "evidence": evidence}))
+
+
+def _dead_pgid():
+    # A real process group that a confirmed-stopped signal-0 probe can observe as gone.
+    proc = subprocess.Popen(["/bin/sh", "-c", "exit 0"], start_new_session=True,
+                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    proc.wait()
+    return proc.pid
 
 
 def test_routes_pins_and_never_upgrades_inquiry(caller):
@@ -1025,3 +1039,408 @@ else:
         with __import__("contextlib").suppress(ProcessLookupError):
             os.killpg(outer.pid, signal.SIGKILL)
         outer.communicate()
+
+
+# -- _handoff: retained initial intent, attribution, no truncation -----------
+
+def test_handoff_legacy_conversation_without_initial_fields():
+    data = {"requester_profile": "assistant", "conversation_id": "c" * 32, "job_id": "j" * 32}
+    text = p._handoff(data, "a new message")
+    assert "Initial request unavailable for this older conversation" in text
+    assert "do not invent lost constraints" in text
+    assert "Current agent request:\na new message" in text
+    assert "historical context" not in text
+
+
+def test_handoff_labels_initial_job_verbatim():
+    data = {"requester_profile": "assistant", "conversation_id": "c" * 32, "job_id": "j" * 32,
+            "initial_job_id": "j" * 32, "initial_request": "same as current"}
+    text = p._handoff(data, "same as current")
+    assert "This is the initial request, recorded verbatim below." in text
+
+
+def test_handoff_followup_preserves_full_initial_message_without_truncation():
+    # Current request comes FIRST so a truncated (e.g. 400-char) log preview
+    # of the handoff stays informative; the retained historical request is
+    # last and explicitly marked non-actionable.
+    long_initial = "Constraint prefix. " + ("filler " * 600) + "FINAL-CONSTRAINT-TAIL"
+    assert len(long_initial) > 4000
+    data = {"requester_profile": "assistant", "conversation_id": "c" * 32, "job_id": "j" * 32,
+            "initial_job_id": "i" * 32, "initial_request": long_initial}
+    text = p._handoff(data, "current follow-up message")
+    block = "Current agent request:\ncurrent follow-up message\nEnd current agent request."
+    assert block in text
+    assert text.index(block) < 150  # near the very start, right after the caller-profile line
+    assert "Only the current agent request is actionable." in text
+    # Original text is embedded verbatim (JSON-encoded, matching the source), not summarized,
+    # and stays entirely AFTER the current request -- never truncated away either.
+    assert json.dumps(long_initial, ensure_ascii=False) in text
+    assert "FINAL-CONSTRAINT-TAIL" in text
+    assert text.index("Current agent request:") < text.index("FINAL-CONSTRAINT-TAIL")
+    assert text.endswith(json.dumps(long_initial, ensure_ascii=False))
+    # Attribution never claims this is itself a human approval.
+    assert "not itself human approval" in text
+    assert "Sender kind: agent" in text
+
+
+def test_handoff_record_is_agent_request_and_unverified(caller):
+    home, calls = caller
+    result = call(kind="work")
+    handoff = p._read(Path(result["handoff_record"]))
+    assert handoff["decision_source"] == "agent-request"
+    assert handoff["approval_verified"] is False
+    assert handoff["message"] == "hello"
+    assert handoff["conversation_id"] == result["conversation_id"]
+    assert handoff["job_id"] == result["job_id"]
+    assert handoff["initial_job_id"] == result["job_id"]
+    assert handoff["initial_request_sha256"] == hashlib.sha256(b"hello").hexdigest()
+
+
+def test_handoff_record_initial_job_id_persists_across_followups(caller):
+    home, calls = caller
+    first = call(kind="work")
+    second = call("creator", conversation_id=first["conversation_id"], message="second message")
+    first_handoff = p._read(Path(first["handoff_record"]))
+    second_handoff = p._read(Path(second["handoff_record"]))
+    assert first_handoff["initial_job_id"] == first["job_id"]
+    assert second_handoff["initial_job_id"] == first["job_id"]
+    assert second_handoff["job_id"] == second["job_id"] != first["job_id"]
+    assert second_handoff["initial_request_sha256"] == first_handoff["initial_request_sha256"]
+    assert second_handoff["decision_source"] == "agent-request"
+    assert second_handoff["approval_verified"] is False
+
+
+def test_queued_initial_request_tamper_blocks_dispatch(caller, monkeypatch):
+    commands = background(caller, monkeypatch)
+    result = call(kind="work")
+    cid = result["conversation_id"]
+    request = Path(shlex.split(commands[0]["command"])[-1])
+    record = caller[0] / "specialist-sessions" / (cid + ".json")
+    data = p._read(record)
+    data["initial_request"] = "tampered constraint removed"
+    p._write(record, data)
+    with pytest.raises(ValueError, match="Initial request changed"):
+        p._run(request)
+
+
+def test_a2a_outbound_handoff_is_redacted(caller, monkeypatch):
+    from plugins.platforms.a2a import protocol, security
+    monkeypatch.setattr(p, "_a2a", A2A)
+    redacted = []
+
+    def fake_redact(text):
+        redacted.append(text)
+        return "REDACTED:" + text
+
+    monkeypatch.setattr(security, "redact_outbound", fake_redact)
+
+    def open_request(request, timeout):
+        body = json.loads(request.data)
+        text = protocol.extract_text(body["params"]["message"])
+        assert text.startswith("REDACTED:")
+        context_id = body["params"]["message"]["contextId"]
+        payload = protocol.build_task("server-task", context_id, "TASK_STATE_COMPLETED", "reply")
+        return io.BytesIO(json.dumps({"jsonrpc": "2.0", "id": body["id"], "result": {"task": payload}}).encode())
+
+    monkeypatch.setattr(p.urllib.request, "build_opener", lambda *a: SimpleNamespace(open=open_request))
+    result = call()
+    assert result["status"] == "completed"
+    # The whole _handoff() text -- not just the raw message -- went through redaction.
+    assert redacted and redacted[0].startswith("Specialist handoff (runtime record)")
+    assert "Current agent request:\nhello" in redacted[0]
+
+
+def test_resident_prompt_preamble_is_handoff_text(caller, monkeypatch, tmp_path):
+    # resident-session.sh reads -f <file> itself and re-launches hermes with
+    # the content as a single -q "<prompt>" argument; the fake CLI here mimics
+    # that real handoff shape, matching the pattern of the existing fake-CLI
+    # test rather than the plugin's own (already-consumed) -f flag.
+    commands = background(caller, monkeypatch)
+    call(kind="work")
+    bindir = tmp_path / "bin"
+    bindir.mkdir()
+    binary = bindir / "hermes"
+    binary.write_text(f"#!{sys.executable}\n" + "import sys\n"
+                      "prompt = sys.argv[sys.argv.index('-q') + 1]\n"
+                      "sys.stdout.write(prompt)\n"
+                      "print('session_id: child-session', file=sys.stderr)\n")
+    binary.chmod(0o755)
+    env = {**os.environ, "PATH": f"{bindir}:/usr/bin:/bin"}
+    run = subprocess.run(shlex.split(commands[0]["command"]), env=env, capture_output=True, text=True, timeout=15)
+    data = json.loads(run.stdout)
+    logged_prompt = data["result"]
+    assert logged_prompt.startswith("Specialist handoff (runtime record)")
+    assert "Current agent request:\nhello\nEnd current agent request." in logged_prompt
+
+
+def test_resident_log_preview_shows_raw_current_title_within_400_chars(caller, monkeypatch, tmp_path):
+    """resident-session.sh logs `printf 'prompt: %.400s\\n' "$PROMPT"` verbatim
+    (no JSON, no redaction) BEFORE launching the CLI; putting the current
+    request first is what keeps that 400-char preview informative."""
+    commands = background(caller, monkeypatch)
+    monkeypatch.setattr(p, "_resident", RESIDENT_IMPL)
+    title = "DISTINCTIVE-CURRENT-TITLE-VISIBLE-IN-THE-400-CHAR-LOG-PREVIEW"
+    result = call(kind="work", message=title)
+    request = Path(shlex.split(commands[0]["command"])[-1])
+    bindir = tmp_path / "bin"
+    bindir.mkdir()
+    binary = bindir / "hermes"
+    binary.write_text(f"#!{sys.executable}\n" + "import sys\n"
+                      "print('session_id: child-session', file=sys.stderr)\n")
+    binary.chmod(0o755)
+    monkeypatch.setenv("PATH", f"{bindir}:/usr/bin:/bin")
+    outcome = p._run(request)
+    assert outcome["status"] == "completed"
+    log_text = Path(outcome["log"]).read_text()
+    # The printf'd preview is exactly 400 raw characters of $PROMPT (embedded
+    # newlines and all), not a single log "line" -- slice by character, not by line.
+    marker = "prompt: "
+    start = log_text.index(marker) + len(marker)
+    preview = log_text[start:start + 400]
+    assert title in preview
+
+
+def test_resident_persists_pgid_before_wait(caller, monkeypatch, tmp_path):
+    commands = background(caller, monkeypatch)
+    result = call(kind="work")
+    cid = result["conversation_id"]
+    request = Path(shlex.split(commands[0]["command"])[-1])
+    # The caller fixture stubs _resident() itself; restore the real
+    # implementation so a genuine subprocess (and its pgid) is spawned.
+    monkeypatch.setattr(p, "_resident", RESIDENT_IMPL)
+    bindir = tmp_path / "bin"
+    bindir.mkdir()
+    binary = bindir / "hermes"
+    binary.write_text(f"#!{sys.executable}\n" + "import time, sys\n"
+                      "time.sleep(1)\n"
+                      "print('session_id: child-session', file=sys.stderr)\n")
+    binary.chmod(0o755)
+    monkeypatch.setenv("PATH", f"{bindir}:/usr/bin:/bin")
+    record = caller[0] / "specialist-sessions" / (cid + ".json")
+    thread = threading.Thread(target=p._run, args=(request,))
+    thread.start()
+    try:
+        deadline = time.monotonic() + 5
+        seen_pgid = None
+        while time.monotonic() < deadline:
+            try:
+                data = json.loads(record.read_text())
+            except (FileNotFoundError, json.JSONDecodeError):
+                data = {}
+            if data.get("pgid"):
+                seen_pgid = data["pgid"]
+                break
+            time.sleep(0.02)
+        assert seen_pgid, "pgid was not persisted before the subprocess completed"
+    finally:
+        thread.join(timeout=5)
+
+
+# -- specialist_session reconcile ---------------------------------------------
+
+def test_reconcile_schema_rejects_evidence_outside_reconcile_and_bad_evidence(caller):
+    home, calls = caller
+    result = call(kind="work")
+    cid = result["conversation_id"]
+    assert "error" in json.loads(p.specialist_session({"action": "status", "conversation_id": cid, "evidence": "x"}))
+    assert "error" in json.loads(p.specialist_session(
+        {"action": "reconcile", "conversation_id": cid, "extra": "y", "evidence": "x"}))
+    for args in (
+        {"action": "reconcile", "conversation_id": cid},  # missing evidence
+        {"action": "reconcile", "conversation_id": cid, "evidence": ""},
+        {"action": "reconcile", "conversation_id": cid, "evidence": "   "},
+        {"action": "reconcile", "conversation_id": cid, "evidence": 5},
+        {"action": "reconcile", "conversation_id": cid, "evidence": "x" * 8001},
+    ):
+        assert "error" in json.loads(p.specialist_session(args))
+
+
+def test_reconcile_positive_marks_interrupted_and_retains_history(caller, monkeypatch):
+    home, calls = caller
+    result = call(kind="work")
+    cid = result["conversation_id"]
+    root = home / "specialist-sessions"
+    record = root / (cid + ".json")
+    pgid = _dead_pgid()
+    data = p._read(record)
+    data.update(status="running", pgid=pgid, result="prior partial output", error="prior error text")
+    p._write(record, data)
+    request_path = root / (result["job_id"] + ".request")
+    p._write(request_path, {"stub": "retained queued request"})
+    killpg_calls = []
+    real_killpg = os.killpg
+
+    def spy_killpg(pgid_arg, sig):
+        killpg_calls.append(sig)
+        return real_killpg(pgid_arg, sig)
+
+    monkeypatch.setattr(p.os, "killpg", spy_killpg)
+    monkeypatch.setattr(p.subprocess, "Popen",
+                        lambda *a, **kw: (_ for _ in ()).throw(AssertionError("reconcile must not spawn")))
+    monkeypatch.setattr(p.subprocess, "run",
+                        lambda *a, **kw: (_ for _ in ()).throw(AssertionError("reconcile must not run a subprocess")))
+    reconciled = reconcile(cid, "Inspected logs and outputs; no new files; peer process absent.")
+    assert reconciled["status"] == "interrupted"
+    assert reconciled["reconciliation"]["previous_status"] == "running"
+    assert reconciled["reconciliation"]["transport_stopped"] is True
+    assert reconciled["reconciliation"]["effects"] == "unknown"
+    assert reconciled["reconciliation"]["resume_permitted"] is False
+    assert reconciled["reconciliation"]["evidence"].startswith("Inspected logs")
+    assert reconciled["reconciliation"]["evidence_source"] == "caller-report"
+    assert reconciled["reconciliation"]["lock"] == "absent"
+    # Old durable result/error are never cleared or overwritten by reconcile.
+    assert reconciled["result"] == "prior partial output"
+    assert reconciled["error"] == "prior error text"
+    # The queued request record is untouched by reconcile.
+    assert request_path.exists()
+    # Never silently marked completed; a continuation on the same conversation is refused.
+    assert "error" in call(conversation_id=cid)
+    assert killpg_calls and all(sig == 0 for sig in killpg_calls)
+
+
+@pytest.mark.parametrize("pgid", [None, True, False, -1, -100, "missing"])
+def test_reconcile_refuses_when_pgid_not_confirmed_stopped(caller, pgid):
+    home, calls = caller
+    result = call(kind="work")
+    cid = result["conversation_id"]
+    record = home / "specialist-sessions" / (cid + ".json")
+    data = p._read(record)
+    data["status"] = "running"
+    if pgid == "missing":
+        data.pop("pgid", None)
+    else:
+        data["pgid"] = pgid
+    p._write(record, data)
+    assert "error" in reconcile(cid)
+    assert p._read(record)["status"] == "running"
+
+
+def test_reconcile_refuses_when_process_group_is_actually_alive(caller):
+    home, calls = caller
+    result = call(kind="work")
+    cid = result["conversation_id"]
+    record = home / "specialist-sessions" / (cid + ".json")
+    proc = subprocess.Popen(["sleep", "5"], start_new_session=True)
+    try:
+        data = p._read(record)
+        data.update(status="running", pgid=proc.pid)
+        p._write(record, data)
+        assert "error" in reconcile(cid)
+        assert p._read(record)["status"] == "running"
+    finally:
+        proc.kill()
+        proc.wait()
+
+
+def test_reconcile_refuses_on_permission_error_probe(caller, monkeypatch):
+    home, calls = caller
+    result = call(kind="work")
+    cid = result["conversation_id"]
+    record = home / "specialist-sessions" / (cid + ".json")
+    data = p._read(record)
+    data.update(status="running", pgid=4242)
+    p._write(record, data)
+
+    def raise_permission(pgid_arg, sig):
+        raise PermissionError()
+
+    monkeypatch.setattr(p.os, "killpg", raise_permission)
+    assert "error" in reconcile(cid)
+    assert p._read(record)["status"] == "running"
+
+
+def test_reconcile_refuses_a2a_backend_and_leaves_state_unchanged(caller, monkeypatch):
+    home, calls = caller
+
+    def timeout(*a):
+        raise TimeoutError("not proof of remote cancellation")
+
+    monkeypatch.setattr(p, "_a2a", timeout)
+    result = call()  # inquiry -> a2a backend, ends status "unknown"
+    cid = result["conversation_id"]
+    record = home / "specialist-sessions" / (cid + ".json")
+    before = p._read(record)
+    reconciled = reconcile(cid)
+    assert "error" in reconciled
+    assert "owned local liveness" in reconciled["error"]
+    assert p._read(record) == before
+
+
+def _prepare_running_with_dead_lock(caller):
+    home, calls = caller
+    result = call(kind="work")
+    cid = result["conversation_id"]
+    record = home / "specialist-sessions" / (cid + ".json")
+    pgid = _dead_pgid()
+    data = p._read(record)
+    data.update(status="running", pgid=pgid)
+    p._write(record, data)
+    sessions_dir = home / "resident-sessions"
+    sessions_dir.mkdir(exist_ok=True)
+    lock = sessions_dir / (cid + ".lock")
+    return cid, record, lock, pgid
+
+
+def test_reconcile_retains_owned_dead_lock_and_files_unchanged(caller):
+    """The one path reconcile allows a retained lock through: a real
+    (non-symlink) lock directory whose pid file is an exact JSON integer
+    matching the recorded pgid, itself confirmed dead. Reconcile never
+    removes it -- the directory and its pid file survive byte-for-byte."""
+    cid, record, lock, pgid = _prepare_running_with_dead_lock(caller)
+    lock.mkdir()
+    pid_file = lock / "pid"
+    p._write(pid_file, pgid)
+    before = pid_file.read_bytes()
+    reconciled = reconcile(cid, "Inspected outputs; resident lock dir retained from the dead shell.")
+    assert reconciled["status"] == "interrupted"
+    assert reconciled["reconciliation"]["lock"] == "retained_owned_dead"
+    assert lock.is_dir() and not lock.is_symlink()
+    assert pid_file.read_bytes() == before
+
+
+@pytest.mark.parametrize("kind", [
+    "lock_is_symlink", "lock_not_a_dir", "pid_missing", "pid_malformed", "pid_foreign", "pid_is_symlink",
+])
+def test_reconcile_refuses_unverifiable_resident_lock(caller, kind, tmp_path):
+    cid, record, lock, pgid = _prepare_running_with_dead_lock(caller)
+    if kind == "lock_is_symlink":
+        target = tmp_path / "elsewhere.lock"
+        target.mkdir()
+        p._write(target / "pid", pgid)  # even a matching pid file at the target does not help
+        lock.symlink_to(target, target_is_directory=True)
+    elif kind == "lock_not_a_dir":
+        lock.write_text("")
+        old = time.time() - 999999
+        os.utime(lock, (old, old))  # even a very stale mtime never bypasses the check
+    else:
+        lock.mkdir()
+        if kind == "pid_malformed":
+            (lock / "pid").write_text("not-json")
+        elif kind == "pid_foreign":
+            p._write(lock / "pid", pgid + 1)
+        elif kind == "pid_is_symlink":
+            target = tmp_path / "foreign-pid.json"
+            p._write(target, pgid)
+            (lock / "pid").symlink_to(target)
+        # kind == "pid_missing": lock dir created, no pid file at all.
+    assert "error" in reconcile(cid)
+    assert "lock" in reconcile(cid)["error"]
+    assert p._read(record)["status"] == "running"
+
+
+def test_reconcile_blocks_wrong_owner_and_revoked_policy(caller, monkeypatch):
+    home, calls = caller
+    result = call(kind="work")
+    cid = result["conversation_id"]
+    record = home / "specialist-sessions" / (cid + ".json")
+    data = p._read(record)
+    data.update(status="running", pgid=_dead_pgid())
+    p._write(record, data)
+    monkeypatch.setattr(p, "_scope", lambda: (home, "owner-two", False, False))
+    assert "error" in reconcile(cid)
+    monkeypatch.setattr(p, "_scope", lambda: (home, "owner-one", False, False))
+    config = yaml.safe_load((home / "config.yaml").read_text())
+    config["specialist_call"]["resident_targets"] = []
+    (home / "config.yaml").write_text(yaml.safe_dump(config))
+    assert "error" in reconcile(cid)
+    assert p._read(record)["status"] == "running"

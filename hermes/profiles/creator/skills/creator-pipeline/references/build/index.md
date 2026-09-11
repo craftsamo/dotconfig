@@ -18,7 +18,9 @@ addition to this common procedure.
 
 ## The handoff text
 
-Send exactly this, nothing before it, nothing after it:
+Use exactly this shape for the tool's `message`. The transport's runtime
+attribution and retained initial request surround it; they are not form fields
+and never substitute for a human approval:
 
 ```text
 skill: <verb>-<subject>
@@ -67,6 +69,15 @@ close accepted work with `specialist_session(action="close", conversation_id=<id
 Close is bookkeeping, not cancellation; never retry an unknown result or
 silently switch backends.
 
+For an abandoned resident turn, inspect outputs, nested jobs and external effects
+before `specialist_session(action="reconcile", conversation_id=<id>, evidence=...)`.
+The tool only records a confirmed-stopped owned process group with no live,
+foreign or unverifiable shell lock as `interrupted`. A lock naming that same
+dead group is retained as evidence, never stolen or removed. Effects remain unknown; the conversation cannot be
+resumed. Closing it is bookkeeping, never task acceptance or safe-retry evidence.
+Missing handles, remaining locks and A2A uncertainty stay blocked; do not steal
+locks, invent process evidence or repeat the request under a new ID.
+
 Verified live messaging receives background completion from the tool. CLI,
 including Creator nested in a resident session, waits synchronously for a
 finite turn (at most 5400 seconds, shortened by the outer deadline); it has no
@@ -81,9 +92,9 @@ One session per job per hands; never carry unrelated jobs in one.
   the spend line, and anything for you to decide. A reply missing paths
   or a spend line is a defect - ask for it, do not assume. Findings-only
   analyze leaves are the exception to output paths, never to evidence/spend.
-- A `Q<n>:` from the hands is relayed the same way the form was filled:
-  `clarify` to a human, text to the assistant - never answered from your
-  own taste.
+- Answer a hands `Q<n>:` from settled context or granted discretion. Relay an
+  unresolved consequential choice the same way the form was filled: `clarify`
+  to a human, text to an agent Client. Do not invent approval or ask twice.
 - A `no skill fits` is relayed as such and noted for the maintainer; do
   not fall back to a technic for a served family.
 - A one-line "procedure note" from the hands (the leaf and the runtime
@@ -91,6 +102,9 @@ One session per job per hands; never carry unrelated jobs in one.
 - Two independent forms may use separate `specialist_call` conversations
   (parallel when live messaging supports it). A dependent form waits for
   the report it consumes; copy the consumed path into the next form.
+  Record the consumed version/hash in the existing job notes. When that input
+  changes, invalidate only its dependent production/QA evidence. A completed
+  transport is not acceptance of a part, an assembled deliverable or a saved draft.
 
 ## Legacy - families with no hands yet
 
