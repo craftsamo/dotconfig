@@ -883,9 +883,11 @@ def validate_worker(
 
 
 ENGINEER_REFERENCE_FILES = {
-    "opencode.md", "plan/index.md", "plan/web-ui.md", "build/index.md", "build/web-ui.md",
+    "opencode.md", "plan/index.md", "plan/web-ui.md", "plan/hands-references.md",
+    "build/index.md", "build/web-ui.md", "build/hands-references.md",
     "quality-assurance/index.md", "quality-assurance/web-ui.md", "quality-assurance/ux-persona.md",
-    "quality-assurance/personas.md", "assess/index.md", "shared/design-catalog.md",
+    "quality-assurance/personas.md", "quality-assurance/hands-references.md",
+    "assess/index.md", "assess/hands-references.md", "shared/design-catalog.md",
 }
 
 
