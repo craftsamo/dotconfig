@@ -1,6 +1,8 @@
 import importlib.util
+import shutil
 from pathlib import Path
 
+import pytest
 import yaml
 
 
@@ -9,6 +11,8 @@ PIPELINE = HERMES / "profiles/engineer/skills/engineer-pipeline"
 spec = importlib.util.spec_from_file_location("engineer_topology", HERMES / "scripts/validate-profile-skills.py")
 validator = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(validator)
+
+HANDS_REFERENCES_MODES = ("assess", "plan", "build", "quality-assurance")
 
 
 def test_mode_tree_and_links():
@@ -64,3 +68,38 @@ def test_persona_independence_and_triage_owner():
     assert "Never inspect repository files" in persona
     for name in ("Hostile", "Reluctant", "Conscripted", "Earnest novice", "Hurried expert", "Distracted mobile", "Forced novice"):
         assert name in (PIPELINE / "references/quality-assurance/personas.md").read_text()
+
+
+def _copy_pipeline_candidate(tmp_path):
+    candidate = tmp_path / "engineer-pipeline"
+    shutil.copytree(PIPELINE, candidate)
+    return candidate
+
+
+@pytest.mark.parametrize("mode", HANDS_REFERENCES_MODES)
+def test_hands_references_missing_file_is_reported(tmp_path, mode):
+    candidate = _copy_pipeline_candidate(tmp_path)
+    (candidate / "references" / mode / "hands-references.md").unlink()
+    errors = []
+    validator.validate_engineer_references(candidate, errors)
+    assert f"missing engineer reference: {mode}/hands-references.md" in errors
+
+
+@pytest.mark.parametrize("mode", HANDS_REFERENCES_MODES)
+def test_hands_references_missing_route_is_reported(tmp_path, mode):
+    candidate = _copy_pipeline_candidate(tmp_path)
+    index = candidate / "references" / mode / "index.md"
+    index.write_text(index.read_text().replace("hands-references.md", ""))
+    errors = []
+    validator.validate_engineer_references(candidate, errors)
+    assert f"engineer {mode} index does not route hands-references.md" in errors
+
+
+@pytest.mark.parametrize("mode", HANDS_REFERENCES_MODES)
+def test_hands_references_broken_link_is_reported(tmp_path, mode):
+    candidate = _copy_pipeline_candidate(tmp_path)
+    guide = candidate / "references" / mode / "hands-references.md"
+    guide.write_text(guide.read_text() + "\n[broken](does-not-exist.md)\n")
+    errors = []
+    validator.validate_engineer_references(candidate, errors)
+    assert "broken engineer reference link: hands-references.md: does-not-exist.md" in errors
