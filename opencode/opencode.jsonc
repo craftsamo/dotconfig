@@ -77,12 +77,12 @@
   //     one its delegates draw on — and so Astra's code is reviewed cross-family.
   //   ChatGPT Pro x5 — build primary (GPT-6 Astra; fall back to Opus 5 by hand),
   //     debugger (Astra), and the cheap/bulky subagents (explore-spark/small,
-  //     verifier, searcher/searcher-deep, ui-review, ux-persona, compaction).
+  //     verifier, searcher/searcher-deep, compaction).
   // GPT-6 Astra needs opencode >= 1.18.29: the ChatGPT-OAuth catalog filter
   // rejected integer major versions (`gpt-6`) before that. OpenCode never
   // falls back across models by itself — switch in the TUI when a pool is
   // exhausted. Pinned models here are defaults only: an explicit `--model`
-  // (Hermes' engineer-pipeline always passes one) or a TUI pick overrides them.
+  // or a TUI pick overrides them. Hermes normally uses these defaults.
   "agent": {
     "plan": {
       "color": "#f5f5f5",
@@ -424,8 +424,6 @@
       "resolve-dependabot-alerts": "allow",
       "manage-github-projects": "allow",
       "git-*": "allow",
-      "web-ui": "allow",
-      "ux-persona-testing": "allow",
       "japanese-*": "allow",
     },
     // Custom GitHub Project tools (tools/github_project.ts) — board + issue-lifecycle ops, no delete
