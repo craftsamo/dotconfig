@@ -131,6 +131,10 @@ metadata:
    Write one create-card JSON per usable variant: remove art/reference, add the
    local background path, preserve exact title and every other composition
    field. Follow create-card's renderer command into fresh variant directories.
+   When the layout requires more than the template, author its static source
+   through create-card's layout_html path; keep the approved copy/art/placement
+   and use explicit copy_blocks for additional approved text. This is local
+   finishing within the same grant, not another generation or a legacy fallback.
    It font-renders all copy; never ask the model to fix Japanese lettering.
    Rerendering the same existing background/copy is free and spends no new
    generation attempt. A new art revision consumes the remaining grant.
