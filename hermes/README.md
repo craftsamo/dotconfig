@@ -5,10 +5,55 @@ Self-improving AI agent CLI by Nous Research. Hermes keeps everything under
 [`install.sh`](../install.sh) symlinks the version-controlled, non-secret files
 into place.
 
+## Engineer Runtime
+
+Engineer v8 accepts human or Assistant Clients, owns technical planning with
+OpenCode, and proceeds after one explicit implementation approval through
+verification and PR delivery. Issue create/edit/comment is enabled only when
+the Client explicitly requests Issue management for this job. An Issue URL is
+not a write grant. Merge, deploy, repo creation, boards and default-branch push
+remain outside the implementation contract.
+
+`plugins/opencode` exposes `opencode_call` and `opencode_session` only to
+Engineer. Enable its plugin/toolset plus `opencode_cli.enabled`; optional
+`opencode_cli.models` chooses per-agent overrides, otherwise OpenCode's defaults
+apply. The CLI is resolved through PATH, preserving the normal secret shim.
+State, prompts and bounded logs live in `opencode-sessions/`, never Git. Calls
+bind originating session, worktree and branch; no implicit last-session resume.
+`stop` requests termination, never rollback. An `unknown` result blocks replay
+until observed process/Git/remote effects are explicitly reconciled. These
+records and command-deny policies are not authentication or a process sandbox.
+CLI error events can arrive with exit zero, so exit code alone is insufficient.
+
+Engineer uses its own isolated test browser. Independent `ui-review` and
+`ux-persona` profiles are resident-only: no new bot, port or real-account profile.
+They have no terminal/file-edit tools. Set `browser.backend: "off"` there to use
+native browser tools: the Browser Use replacement executes arbitrary host Python
+and is correctly withheld when terminal is unavailable. `plugins/ui-inspection`
+adds only `ui_capture(width,height)` for bounded viewport PNGs with private paths
+and inline images. Browser actions may still change test data; this is not a
+website sandbox. Their model is `gpt-5.6-terra`, not OpenCode's `-fast` alias.
+The resident launcher gives each evaluator an owned non-Git working directory,
+so normal CLI context discovery cannot inherit the implementation repository's
+instructions. Memory and coding-context injection are disabled on those profiles.
+
+The migrated global OpenCode UI skills and agents are removed rather than
+retained as aliases. Engineer's phase references hold their design/QA knowledge;
+OpenCode retains implementation-time rendering and project tests.
+
+Roll out public settings and the private Assistant Client adapters together.
+Validate candidates before installing: the live homes are symlinks, so never
+run candidate install scripts against them for tests. Preserve the previous
+public/private revisions and active-job decisions before an approved cutover.
+Old sessions/grants are reconciled into a new release, not silently adopted.
+OpenCode must restart to discover removed globals; Hermes gateway changes also
+need an approved restart after linking. A rollback restores the paired prior
+configuration, not frozen job state or completed Git/remote effects.
+
 ## Specialist Calls
 
 The shared `plugins/specialist-call` plugin exposes the `specialist` toolset
-to assistant, creator and marketer. Enable `specialist-call` in `plugins.enabled`
+to assistant, creator, marketer and engineer. Enable `specialist-call` in `plugins.enabled`
 and `specialist` in the relevant `platform_toolsets` lists. Configure the
 explicit `specialist_call.resident_targets` allowlist; short inquiries use an
 allowed target's existing `a2a_agents` RPC endpoint when present. No endpoint
@@ -18,7 +63,9 @@ configured peers: engineer, marketer, researcher, writer, image-creator,
 video-creator and audio-creator. Assistant's target policy is unchanged; it
 cannot call the hands directly. Marketer's targets are engineer, creator,
 researcher and writer; it retains inbound A2A but exposes no raw outbound A2A
-tools. Engineer retains raw A2A tools, and the default CLI flow is unchanged.
+tools. Engineer's targets are marketer, researcher, writer, ui-review and
+ux-persona; it also uses specialist tools, not raw outbound A2A. UI evaluators
+are resident-only, without bots or A2A ports. The default CLI flow is unchanged.
 
 Use `specialist_call(target, message, kind="inquiry"|"work")`, then continue
 with the same `target`, the returned `conversation_id`, and the next `message`.

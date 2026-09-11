@@ -21,7 +21,7 @@ its own `config.yaml` / `SOUL.md` / `skills/` / `cron/` / state, and a
           └──────┬─────────┘
                  │                        A2A peer graph (localhost HTTP):
         ┌────────┼──────────────────┐       assistant → engineer creator marketer writer
-        │ resident sessions         │       engineer  → marketer researcher writer
+        │ resident sessions         │       engineer  → marketer researcher writer (+ resident UI evaluators)
         │ lean kanban cards         │       creator   → engineer marketer researcher writer
         │ delegate_task             │       marketer  → engineer creator researcher writer
         ▼                           ▼       (writer / researcher: receive-only endpoints;
@@ -47,7 +47,8 @@ and supervises it turn by turn. Short `kind="inquiry"` requests use configured
 A2A peers; the route and target remain pinned for the conversation. The plugin
 is restricted to assistant (engineer, creator, marketer, writer, plus resident
 searcher) and creator (engineer, marketer, researcher, writer, image-creator,
-video-creator, audio-creator). This entry point does not grant assistant
+video-creator, audio-creator), marketer (engineer, creator, researcher, writer),
+and engineer (marketer, researcher, writer, ui-review, ux-persona). This entry point does not grant assistant
 direct researcher access or expose delegation tools to the hands profiles.
 Live messaging receives a background completion; nested resident/CLI calls
 wait synchronously. See [Specialist Calls](README.md#specialist-calls) for
@@ -100,7 +101,8 @@ itself call `delegate_task` during its run.
 | --- | --- | --- | --- | --- | --- | --- |
 | **default** | CLI front door — assistant's CLI counterpart (neutral persona) | CLI | `.` (launch dir) | `web,browser,terminal,file,code_execution,vision,x_search,skills,todo,memory,clarify,delegation,cronjob,kanban` | — | yes |
 | **assistant** | primary: messaging front door; A2A peers engineer/creator/marketer/writer | Telegram + Discord | `~/Workspaces` | `web,browser,terminal,file,vision,x_search,skills,todo,memory,clarify,delegation,cronjob,computer_use,kanban,a2a` + `unreal-engine` MCP | served | yes (token per-machine) |
-| **engineer** | primary: supervises OpenCode: assess (read-only) / implement (from the assistant's plan session or an Issue; delegated worktree bootstrap in a repo the assistant created), under an Authority grant; planning documents, repo creation, and GitHub bookkeeping stay with the assistant; A2A peers marketer/researcher/writer | Telegram (own bot) | `.` (launch / task ws) | `terminal,file,web,skills,todo,memory,delegation,a2a` | served (bot + a2a :9902) | yes |
+| **engineer** | developer using OpenCode; human/Assistant Clients; technical planning, approved implementation through PR and independent UI/UX QA; Issue writes only on explicit request | Telegram (own bot) | explicit task worktree | `terminal,file,web,browser,vision,skills,todo,memory,clarify,delegation,specialist,opencode` | bot + inquiry-only a2a :9902 | yes |
+| **ui-review / ux-persona** | independent visual review / isolated user simulation for Engineer; no code edits or self-acceptance | resident only | isolated test browser | `browser,vision,skills,ui-inspection` | no bot or A2A endpoint | inherited default OAuth |
 | **researcher** | verified conclusions from released units: evidence-pack / tradeoff-matrix / fact-check / guidance; heavy breadth is requested from the orchestrator as a search unit; serves engineer/creator/marketer only (not the assistant), cards refused | — (A2A receive-only) | `.` (launch / task ws) | `file,web,vision,video,skills,memory,delegation` | served (a2a :9906) | yes |
 | **searcher** | retrieval from released units: lookup / sweep / hunt (multi-hop via `goal_mode` on cards) | — (specialist) | `.` (launch / task ws) | `web,x_search,skills,memory` | — | yes |
 | **creator** | primary: plans with human/assistant clients, delegates served image/clip/speech/sfx/music/mix forms, gates evidence and delivers; remaining technics cover images, authored video and assembly of supplied parts; vocal-song generation and standalone audio visualization remain withdrawn | Telegram (own bot) | `.` (launch / task ws) | `terminal,file,vision,image_gen,video_gen,video,tts,skills,memory,delegation,a2a` + gen plugins + `unreal-engine` MCP | served (bot + a2a :9903) | yes |
@@ -141,62 +143,54 @@ Delivery happens only after verification; the session is closed on
 acceptance. External factual claims still ride researcher evidence supplied
 in the flow.
 
-The org stays **flat by design**: profiles are global, sessions are owned by
-the assistant, and the board is one shared queue. Specialists never register
+The org stays **flat by design**: profiles are global, resident sessions are
+owned by their originating Client, and the board is one shared queue. Specialists never register
 cards; follow-up work they propose returns in their reply or completion
 summary, and the assistant decides. Grants never propagate between
 specialists.
 
-### Engineer dialogue loop (the four layered loops)
+### Engineer dialogue loop
 
-Implementation work runs through four nested loops, each with its own
-channel, its own durable state, and its own decision altitude:
+Engineer is a developer using OpenCode, not a passive relay or a second coder.
+Its Client is either a human directly or Assistant. The Client supplies purpose,
+constraints and decisions; Engineer investigates and proposes the technical plan
+with OpenCode. No Assistant-produced decomposition, Issue or Base session is
+required. Existing plans remain useful context, not an automatic new approval.
 
-| # | Loop | Channel | Durable state | Decides |
-| --- | --- | --- | --- | --- |
-| L1 requirements | user ↔ assistant | chat + risk/ambiguity-driven `clarify` | the approved plan + unit decomposition (one gate): registered purpose Issues or the assistant's OpenCode base plan session | what/why: goal, done criteria, constraints, grant posture |
-| L2 detail | assistant ↔ engineer | resident-session turns — the assistant releases one unit per turn (engineering defines no card units) | session registry + replies | how: unit release/pacing, feasibility, plan revision, in-grant calls |
-| L3 implementation | engineer ↔ OpenCode | `opencode run` (the unit cycle: per-unit plan runs/forks) | Issue/outline text + git history + session reports | how (detail): phase split, tactics, model, verification |
-| L4 in-run | OpenCode ↔ its subagents (reviewer/debugger/…) | OpenCode task tool, per the `opencode/` config | subagent sessions | code-level: review findings, root causes |
+| Relationship | Owner of decisions | Execution |
+| --- | --- | --- |
+| Client with Engineer | Outcome, scope and important tradeoffs agreed conversationally | Human clarify or structured Client Q<n> replies |
+| Engineer with OpenCode | Technical planning, in-scope implementation sequencing, evidence and correction | opencode_call / opencode_session |
+| OpenCode with its own agents | Code-level methods, exploration, testing and review | OpenCode's own tools/skills |
+| Engineer with UI evaluators | Visual/UX evaluation scope and final triage | ui-review / ux-persona resident conversations |
 
-Three principles hold the stack together: **escalation moves one layer at a
-time** (OpenCode never talks to the assistant, the engineer never talks to
-the user — each layer translates what it cannot decide into the next layer
-up's format); **the engineer is the translation layer** (upward a worker
-speaking kanban — `Q<n>`/`DECISION`/Authority; downward an orchestrator
-speaking OpenCode — prompts, forks, permission env); **L4 is hands-off**
-(the engineer judges results by independent verification, never micromanages
-the subagents).
+One explicit implementation approval releases the agreed scope through QA,
+task-branch push and PR delivery. Ordinary internal steps need no per-unit
+re-release. Material changes return to the Client. Plan/Assess can finish with
+an answer and no code. Issue create/edit/comment is explicit-only for this job;
+an Issue URL alone is read-only grounding. No automatic Issues/epics/boards,
+merge, deployment, repo creation or default-branch push.
 
-In a resident session, L2 continuity lives in the session itself; on kanban
-cards the worker process stays disposable and continuity lives in the
-comment thread + git. In L3 the engineer consumes **released units**: a
-purpose Issue grounds a fresh plan run; a Wave forks the assistant's
-approved base plan session (`run -s <base> --fork`). Each unit ends with
-verify → commit → a report carrying the session ids, and the engineer
-stops at the unit boundary until the next release (batch runs only under
-an explicit grant); review/debug primaries run as fresh read-only
-sessions. Two bridges wire L3 to OpenCode's non-interactive
-reality (both verified against source): the **Permission Bridge** — bare
-`run` auto-rejects every `ask`, so the engineer translates the Authority
-grant into an `OPENCODE_PERMISSION` overlay (deep-merged; deny beats
-`--auto`) plus `--auto`; and the **Question Bridge** — `run` denies the
-question tool, so OpenCode escalates only via its final output text, which
-the engineer answers with `run -c` or translates into an L2 block.
+The thin CLI plugin binds each conversation to its originating Hermes session,
+Git worktree and branch. It captures JSON events, reapplies permissions on resume,
+records private evidence and never blindly retries uncertain work. Stop is not
+rollback; reconcile requires observed process/Git/remote effects. Approval text
+is an operating-contract record, not authentication, and command rules are not
+an arbitrary-process sandbox. A CLI stop event is not technical acceptance.
 
-The L2 protocol: the brief carries an **Authority** grant — a preset
-(`A1` commit-only / `A2` +feature-branch push+own PR / `A3` +deps; absent =
-A1) plus scope overrides, expanded only by later explicit grants. Anything
-outside the effective grant is a question: in a resident session, numbered
-questions in the reply, answered in the next turn; on a card,
-checkpoint-then-block (WIP commit → `STATE:` → `Q<n>:` comments →
-`DECISION(Q<n>):` answers → the guarded `kanban-resolve-block.sh apply`).
-`Review: required` presents the deliverable for human sign-off before the
-job closes — always relayed to the user. GitHub bookkeeping stays with the
-assistant, split by the write boundary: merges and board sync are its own
-direct `gh` work, while Issue/epic registration runs through an OpenCode
-session in the repo (codebase-grounded bodies) — all after approvals.
-Details: engineer's `engineer-pipeline` skill and the front-door pipeline.
+Engineer browses isolated development/test targets itself. The two independent
+evaluators have no terminal/file-edit tools, bots, A2A endpoint or personal login
+profile. Resident execution starts in their own non-Git job directory, not the
+implementation cwd; memory/coding context are disabled. They use native browser tools (`browser.backend: "off"` disables the
+Browser Use replacement, not browsing) plus the bounded ui_capture tool for
+viewport PNG evidence. browser_exec runs host Python and upstream therefore
+withholds it from terminal-free profiles. Model is openai-codex/gpt-5.6-terra;
+OpenCode's `-fast` alias is not a valid Hermes Codex model name.
+
+The former global OpenCode web-ui/ux-persona-testing skills and ui-review/
+ux-persona definitions move here; migrated globals are removed, not retained as
+aliases. OpenCode keeps implementation-time rendering and project tests. Details:
+engineer-pipeline's mode references and [Engineer Runtime](README.md#engineer-runtime).
 
 The dialogue discipline is specialist-generic, not engineer-specific:
 **creator** and **writer** also honor the `Review: required` gate; creator
@@ -253,34 +247,14 @@ against evidence-pack/tradeoff-matrix/fact-check/guidance contracts
 (validator-enforced mapping). Details: researcher's
 `researcher-pipeline` skill.
 
-### Planning ladder — who plans at which altitude
+### Planning ownership
 
-Planning happens at five altitudes. Each owner decides its own altitude only
-and hands a typed result to the next owner; one conversational approval
-authorizes execution.
-
-| Altitude | Owner | Deliverable | Durable home |
-| --- | --- | --- | --- |
-| High-level requirement + plan — what outcome, which specialists, what grants | assistant with the user (consulting resident sessions for feasibility/cost) | the approved plan (one `clarify` gate) | chat + the session briefs it produces |
-| Repo grounding — unit decomposition for code work | assistant's OpenCode plan session in the repo | purpose split (epic + Issues sized 1–3 PRs) or Wave outline + base session id | registered Issues (purposes) / the OpenCode session (Waves) |
-| Low-level requirements — feature → purpose Issues sized 1–3 PRs | assistant Plan mode (grounded via engineer assess turns), user-reviewed | registered GitHub Issues (via an assistant OpenCode run in the repo) | GitHub Issues / Projects |
-| Technical milestones — Wave outline for non-Issue work | assistant's OpenCode plan session | Wave list (coarse, one line each) | plan session / worktree outline file |
-| Phase decomposition — inside one released unit | OpenCode plan agent (L3) | phase breakdown | OpenCode sessions + git |
-
-Feasibility questions are consultation turns to the relevant specialist
-session, not a planning rung of their own.
-
-Two rules keep the ladder from collapsing back into confusion:
-
-- **GitHub-flow repos use Issues as the milestone layer.** When the
-  assistant has registered purpose Issues, implement consumes an Issue
-  (its body is the spec; the PR closes it) — do NOT also produce a Wave
-  outline for the same work. The Wave outline is for repos/work outside the
-  GitHub Issue flow (scratch builds, small refactors, non-GitHub targets).
-- **Escalation moves one rung at a time** (same principle as the dialogue
-  loops): OpenCode's open question goes to the engineer; the engineer's
-  material ambiguity goes to the assistant as a `Q<n>` block; only the
-  assistant talks to the user.
+Assistant coordinates cross-specialist outcomes as a Client. Engineer owns
+code-grounded technical proposals and sequencing with OpenCode; Client approval
+chooses scope and important tradeoffs. The technical plan lives in the agreed
+private job record unless the Client explicitly requests Issue registration.
+Do not infer tracking permission from complexity, project type or duration.
+OpenCode session IDs are resume handles, not the only durable copy of decisions.
 
 ### Default is the assistant's CLI counterpart (and stays a clean baseline)
 
@@ -317,9 +291,9 @@ Three per-profile layers, kept separate:
   use it on these profiles.
 
   Every contract also carries an always-on **safety floor** — the rules that must
-  hold even when the profile's skill never loads: engineer = the Authority floor
-  (absent grant ⇒ A1 commit-only; WIP-commit before pausing; no GitHub
-  bookkeeping ever); creator = the Budget/spend floor (default caps, inventory
+  hold even when the profile's skill never loads: engineer = explicit implementation
+  approval through PR, separate explicit-only Issue management, no merge/deploy/
+  default-branch push, preserve changes and uncertain effects; creator = the Budget/spend floor (default caps, inventory
   surviving work before regenerating); researcher = evidence integrity (no
   fabricated citations); searcher = link integrity (only URLs actually
   retrieved); writer = deliverable integrity (no fabricated
@@ -362,11 +336,11 @@ Three per-profile layers, kept separate:
     for cron sweeps) via `skills.external_dirs`; heavy tool-bound creative
     entries (`comfyui`, `touchdesigner-mcp`, `manim-video`, `ascii-video`)
     sit in `skills.disabled` — media production is creator's.
-  - engineer → `engineer-pipeline` (resident-only, cards refused; assess /
-    implement routing with intent triage; Authority parsing + dialogue
-    discipline; the unit cycle over released units with
-    permission/question bridges; quota-gated provider/model routing;
-    verify/report) + upstream libraries via `skills.external_dirs`: official
+  - engineer → `engineer-pipeline` (cards refused; Plan/Build/Quality assurance/
+    Assess modes; technical planning with OpenCode, explicit implementation
+    approval through PR, scoped CLI conversations and independent UI evaluation;
+    Issue management only on explicit request) + upstream libraries via
+    `skills.external_dirs`: official
     `autonomous-ai-agents` / `software-development` / `github` plus optional
     per-skill dirs `code-wiki`, `rest-graphql-debug`,
     `subagent-driven-development`, `docker-management`, `pinggy-tunnel`,
@@ -2493,10 +2467,9 @@ inherits its parent's tail so it can still eyeball what it produced.
 **Searcher** is unchanged
 on `xai-oauth` / grok-4.3: xAI capacity is reserved for Searcher, X search and
 Imagine video. The coding model inside OpenCode is a separate layer entirely —
-engineer-pipeline drives a **fixed ladder** whose top rung splits by run type
-(reading runs lead with `claude-fable-5-1`, writing runs with `gpt-6-astra`),
-descending only on an error or a spent pool, never by pre-judging the task's
-weight.
+Engineer uses OpenCode's configured per-agent defaults, optionally overridden by
+maintainer opencode_cli.models. No second fixed ladder or automatic replay of
+an uncertain run lives in Engineer's Skill.
 
 | Profile | T1 (primary) | T2 | T3 | T4 | `reasoning_effort` |
 | --- | --- | --- | --- | --- | --- |
