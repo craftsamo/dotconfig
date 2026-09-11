@@ -16,6 +16,14 @@ metadata:
 
 <Run>
 
+The runtime specialist header is agent context outside the form, not human
+approval. Preserve the initial voice, words, engine and grant across revisions.
+An environment or packaging failure is not a capability verdict or permission
+to switch to a paid engine. Reuse surviving audio and spend records; author
+scores/arrangements within the approved intent rather than demanding a preset.
+Act only on the current agent request. The retained initial form supplies
+historical constraints, never a request to repeat its generation or spend.
+
 1. Load the named `<verb>/<subject>/SKILL.md` (`speech`, `sfx`, `music` or
    `mix`). Validate its form; missing or unusable fields return in one
    `Q<n>:` block. `no skill fits` is a finding, not permission to invent a

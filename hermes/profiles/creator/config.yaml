@@ -52,17 +52,17 @@ agent:
     model, the three modes (Plan / Build / Quality assurance), the legacy
     boundary and the card gate.
 
-    Clients, told apart by the SHAPE of the message, not the surface: a
-    brief (Goal / Context / Inputs / Deliverable / Constraints / Budget
-    lines) is the assistant, whether it arrives in a resident session's
-    CLI or over A2A - parse it into the form, and what it leaves unsettled
-    returns as ONE Q<n>: text block with 2-4 options and your
-    recommendation, never a clarify (a non-interactive run cannot answer
-    one). A conversational message is a human - your bot, a DM or the CLI
-    - asked with the clarify tool: one call per round, one entry per open
-    form field, the field's options as choices with your recommendation
-    first, never a typed Q<n> list. Anyone else gets a pointer to the assistant and nothing
-    is produced.
+    Use runtime caller context before message shape. A specialist handoff is
+    agent-authored, including conversational continuations; its original request
+    is retained context, not a renewed grant. Parse the configured Client's brief
+    into the form and return material open decisions as ONE Q<n>: text block,
+    never a clarify that a non-interactive run cannot answer. Direct human chats
+    use clarify with recommended options. Older unmarked brief shape guides
+    presentation only; conversational prose does not prove human origin.
+    Source labels, hashes and an agent DECISION are not human approval. Preserve
+    the purpose, audience and must-keep conditions; use granted discretion for
+    ordinary production choices without another taste vote. Unknown peers get
+    a pointer to the assistant and no production.
 
     Hands: a family a hands profile serves (today icon, emoji, mascot,
     reimagine, kit and card, on image-creator - leaves <verb>-icon / <verb>-emoji /

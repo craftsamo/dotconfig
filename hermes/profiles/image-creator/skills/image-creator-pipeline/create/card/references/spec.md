@@ -80,10 +80,89 @@ appearance contract, NOT arbitrary HTML/JS or positioning code. Concrete example
 h1 { font-weight: 800; letter-spacing: -0.025em; }
 ```
 
-If the requested look needs a layout outside this bounded contract, surface
-that limitation to Creator instead of substituting a named style. The CSS
+If the requested look needs a layout outside this template contract, use the
+authored path below instead of substituting a named style. A genuine remaining
+capability gap goes to Creator without weakening the request. The template CSS
 allowlist and offline CSP reduce exposure; they do not certify aesthetic
 fidelity or trusted local font/image decoder safety. Read the actual screenshot.
+
+## Authored layouts
+
+Set `layout_html` to an absolute task-local UTF-8 HTML fragment when the template
+cannot express the required layout. ImageCreator authors this file from the
+approved direction; the client need not provide code. This is the same
+`create-card` operation, not a new leaf, generator or paid route. Use a resident
+work conversation for authored production and revision. The requested `style`
+remains the visual intent, including when named; the fragment's CSS implements
+it, not automatic template CSS. `style_css` and `palette` conflict with this path
+instead of being ignored. Old specs without `layout_html` retain their behavior.
+
+For a spec with title `A clear idea` and subtitle `One next step`:
+
+```html
+<style>
+.copy-area { position:absolute; inset:0; display:flex; flex-direction:column;
+  justify-content:center; align-items:center; text-align:center; }
+h1 { font-size:108px; margin:0; }
+p { font-size:72px; margin:24px 0 0; }
+</style>
+<section data-card-tile="1"><div class="copy-area"><h1 data-card-copy="title">A clear idea</h1><p data-card-copy="subtitle">One next step</p></div></section>
+```
+
+The helper supplies the document, offline CSP, embedded `CardFont`, canvas and
+initial tile geometry. Author the arrangement inside it, not another document.
+Flex/grid, independent typography, positioning, layers and ordinary static CSS
+are available; the old template's selector/property allowlist does not apply.
+This is not a script sandbox: page scripts, remote resources, forms, navigation
+and inherited login/CDP remain unavailable.
+
+- Put one top-level `section data-card-tile="N"` per tile, in destination order.
+  The renderer checks their actual position and dimensions against the canvas.
+  Optional `style` blocks go outside these sections, without attributes.
+- Bind every nonempty `title`, `subtitle`, `brand`, `label` and `meta` exactly
+  once on tile 1 using `data-card-copy`. Bind each `tile_titles` entry as
+  `tile-title-N` on its own tile. `slug` and `note` are not displayed text.
+- For further text regions or explicitly requested repeated branding, add
+  `copy_blocks: [{"id":"brand-2","tile":2,"text":"Example Studio"}]` to the
+  spec, then bind `data-card-copy="brand-2"` on tile 2. IDs are unique lowercase
+  letters/digits/hyphens, start with a letter and have at most 64 characters;
+  standard field names and `tile-title-` are reserved. Up to 128 blocks and
+  64000 combined text characters are local resource bounds, not design recipes.
+  Each block's exact text is an approved input, not permission to write new copy.
+- Bound text must match exactly, with HTML entities decoded. Inline spans and
+  emphasis are allowed; `br` represents a newline. Avoid indentation inside copy
+  bindings because it becomes text. Empty, missing, duplicate, nested and unbound
+  copy is rejected. Browser-repaired invalid nesting is not an authoring method.
+- Local images enter as `img data-card-asset="background"` or `"motif"`, without
+  a `src`. The helper embeds the supplied raster and reuses the same bytes for
+  repeated references. Use every supplied asset; no silent omissions. Placement
+  and fitting belong to authored CSS, unlike the template's fixed positions.
+- Use static containers (`div`, `section`, `main`, `header`, `footer`, `article`,
+  `aside`, `figure`, `figcaption`), paragraphs/headings, spans/emphasis, lists,
+  `br` and bound `img`. Ordinary `class`, `id`, `style`, `lang`, `dir`, `title`
+  attributes and the binding attributes are accepted. No `html`/`body`, scripts,
+  SVG, event handlers, external links, arbitrary resource attributes or duplicate
+  attributes. Rasterize a trusted SVG through the existing local input path.
+- CSS resources, imports, font-face declarations, escapes, comments and markup
+  are rejected. The supplied font is embedded; do not fetch another. Empty
+  pseudo-elements can decorate, but generated text is not bound copy. Lists
+  default to no marker; put requested numbers into exact copy rather than CSS
+  counters. Active animation is incompatible with a static card.
+
+The fragment is at most 256KB. Each NEW bundle retains the exact
+`source-layout.html`, its `layout_source_sha256` in `manifest.json`, and
+`card.html` with embedded font and image bytes. Keep the source/spec together for
+future edits; revise into a new bundle, never overwrite an approved original.
+Existing source is a reference for preserving the design, not authorization to
+execute arbitrary old scripts or to change the agreed content.
+
+Before publishing a successful bundle, the browser checks actual tile geometry,
+copy binding, supported visibility checks, clipping and cross-binding text-box
+overlap. It never shrinks authored text automatically. `layout.json` records
+font sizes and their `display_font_px` at the delivered preview width. This is
+measurement only: complex masks, painted occlusion, contrast, glyph coverage and
+readability still require the leaf's visual QA. Failed checks leave diagnostics,
+not a successful manifest. Fix the reported cause, not the protected requirement.
 
 ## Raster edit
 
