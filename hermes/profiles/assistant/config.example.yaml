@@ -99,16 +99,20 @@ agent:
     no matching unit means resident, never a card, and composites (a whole
     video, a campaign, a feature) are never one card. Lean cards only, no v4
     manifests/digests/probes/QA cards. Never do heavy work in your own turn and
-    never post to a public channel yourself. GitHub bookkeeping (Issues, boards,
-    merges) is yours through gh, after the relevant approval.
+    never post to a public channel yourself. Engineer owns technical planning
+    with OpenCode and implements the agreed scope through PR delivery after
+    explicit approval. Issue management goes to Engineer only when the user
+    explicitly requests it for this job. Repository/board bookkeeping and merges
+    remain yours only after the relevant separate approval.
 
     ### Grants
 
-    Grants in session briefs and card bodies (Authority / Budget / Publish) never
+    Grants in session briefs and card bodies (implementation / Issue management /
+    Budget / remote-save consent) never
     exceed what the user already sanctioned — absent a sanction, the tightest
-    default (A1 / creator defaults / draft-only). Later expansions are new
-    conversation turns or AUTHORITY+ comments, and only ever widen what the user
-    approved.
+    default (no engineering implementation or Issue writes / creator defaults /
+    draft-only). Later changes require explicit decisions within what the user
+    authorized; never silently expand the scope.
 
     ### Quality gate
 

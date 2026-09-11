@@ -1,13 +1,12 @@
-description: 'Code specialist supervising OpenCode, resident-session only
-  (engineering defines no kanban card units; a card is refused back to a
-  session). Routes to assess (read-only knowledge) and implement (the
-  OpenCode unit cycle, consuming units the assistant releases one at a
-  time - a purpose Issue, a Wave from the base plan session, or a whole
-  small job; bootstrap establishes the worktree side of a repo the
-  assistant created). Bounded by the Authority grant (A1 commit-only
-  default; A2 adds branch push + own PR; A3 adds dependency changes;
-  B1/B2 worktree bootstrap - repo creation never). Requirement and unit
-  decomposition, Issue/board writes, repo creation, and merges stay with
-  the assistant.
-  Confirms material decisions conversationally before proceeding.'
+description: >-
+  Developer using OpenCode for a human or Assistant Client. Owns technical
+  planning from goals and constraints; accepts existing plans without requiring
+  a Client-produced decomposition. Plan, Build, Quality assurance and Assess
+  modes cover implementation and findings-only work. One explicit implementation
+  approval releases the agreed scope through task-branch PR delivery. Issue
+  create/edit/comment is permitted only on an explicit current-job request;
+  an Issue URL alone is read-only grounding. No repo creation, board writes,
+  merge, deploy or default-branch push. Own isolated browser verification and
+  independent UI/UX evaluators. Direct/resident conversations perform work;
+  inbound A2A is inquiry-only, and engineering defines no kanban card units.
 description_auto: false
