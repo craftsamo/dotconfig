@@ -8,7 +8,7 @@ into place.
 ## Specialist Calls
 
 The shared `plugins/specialist-call` plugin exposes the `specialist` toolset
-only to assistant and creator. Enable `specialist-call` in `plugins.enabled`
+to assistant, creator and marketer. Enable `specialist-call` in `plugins.enabled`
 and `specialist` in the relevant `platform_toolsets` lists. Configure the
 explicit `specialist_call.resident_targets` allowlist; short inquiries use an
 allowed target's existing `a2a_agents` RPC endpoint when present. No endpoint
@@ -16,8 +16,9 @@ is discovered from model text or a supplied URL. Work always uses the existing
 resident script. Creator's hard policy and resident allowlist match its seven
 configured peers: engineer, marketer, researcher, writer, image-creator,
 video-creator and audio-creator. Assistant's target policy is unchanged; it
-cannot call the hands directly. Engineer and Marketer retain raw A2A tools,
-and the default CLI's old flow is intentionally unchanged.
+cannot call the hands directly. Marketer's targets are engineer, creator,
+researcher and writer; it retains inbound A2A but exposes no raw outbound A2A
+tools. Engineer retains raw A2A tools, and the default CLI flow is unchanged.
 
 Use `specialist_call(target, message, kind="inquiry"|"work")`, then continue
 with the same `target`, the returned `conversation_id`, and the next `message`.
