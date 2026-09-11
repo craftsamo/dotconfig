@@ -31,6 +31,10 @@ without creating a fix or a PR.
    Issue when none was requested, or close a multi-PR Issue prematurely. Required
    unresolved checks prevent unqualified completion. Report pending CI distinctly.
 
+An image-creator/video-creator/audio-creator hands leaf's option-backed
+reference change uses [Hands references](hands-references.md) for its actual
+checks.
+
 Issue updates are writes, not QA observations: route them through Build with the
 explicit issue_approval. Never mutate Git/Issues/boards during read-only inspection.
 No merge, deploy or default-branch push follows acceptance automatically.
