@@ -38,7 +38,7 @@ Non-trivial work runs through this spine; do not jump straight to edits:
 5. Hand off to execution: register the agreed plan as todos shaped
    `Phase{N}.{m} - <task> (executor)` — Phase is the dependency wave, {m} a
    reference id within the phase (no ordering implied), executor one of
-   Build | worker | reviewer | verifier | debugger | ui-review (default
+   Build | worker | reviewer | verifier | debugger (default
    Build; worker only for mechanical work) — then switch to Build and
    execute in phase order. The todos are the session's execution queue;
    the board holds the durable plan.
