@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -664,11 +665,15 @@ class HandsLeafTest(unittest.TestCase):
 
 class EndToEndTest(unittest.TestCase):
     def test_all_profiles_pass(self) -> None:
+        # Invoke via sys.executable, not the script's `uv run --script` shebang:
+        # this pins the actual provisioned interpreter running the test itself,
+        # instead of letting uv/mise resolve one under a possibly-faked HOME.
         result = subprocess.run(
-            [str(SCRIPT), "--all"],
+            [sys.executable, str(SCRIPT), "--all"],
             capture_output=True,
             text=True,
             check=False,
+            timeout=60,
         )
         self.assertEqual(0, result.returncode, result.stdout + result.stderr)
         self.assertIn("PASS:", result.stdout)

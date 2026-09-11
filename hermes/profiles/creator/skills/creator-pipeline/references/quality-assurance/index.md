@@ -37,6 +37,19 @@ proves motion or sound.
 
 ## The verdict
 
+Compare with the retained purpose and audience, not just the producer's chosen
+metaphor. For an explanatory visual, state what a reader can infer from the
+actual image without the author's explanation. Geometry/stability and factual
+accuracy do not prove comprehension or appeal. Keep subjective uncertainty
+explicit; no universal font minimum or extra evaluator for every medium.
+
+For a composite, reconcile the exact accepted versions of its parts with the
+assembled output. Changed words can invalidate narration, captions and diagrams;
+unchanged parts keep their evidence. Record local acceptance, user approval and
+service-side save as separate facts in the existing job notes. A previously
+saved draft does not prove the current version was saved. Unknown or failed
+checks remain visible, even when some parts are ready.
+
 - **Accept** - it is what was asked, at the size it will be used.
 - **Revise** - one `intent: revise <deliver dir>` handoff with the form
   field that changes and nothing else changed ([Build](../build/index.md)).
@@ -76,4 +89,7 @@ On a human's bot the file itself is sent when the platform can carry it
 - the reply carries paths, spend, and relayed questions;
 - sessions for the job are closed
   (`specialist_session(action="close", conversation_id=<id>)`) unless a
-  revise round is pending.
+  revise round is pending. A blocked/unknown session instead leaves a documented
+  unresolved report; do not claim the job passed merely to satisfy closure.
+  Reconciled `interrupted` transport may be closed as bookkeeping while its
+  unknown effects and unaccepted work remain explicitly unresolved.

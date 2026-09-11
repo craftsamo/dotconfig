@@ -39,6 +39,11 @@ Assistant provides purpose, constraints and relayed user decisions; it does not
 have to pre-decide positioning, offers or campaigns. Relay requests and results
 through the same originating conversation.
 
+A runtime specialist handoff remains agent-authored during conversational
+follow-ups. Preserve the original audience and intended response, not merely
+the producer's preferred framing. Agent choices, source labels and hashes are
+not human approval. Technical accuracy and reader appeal need separate evidence.
+
 Ask questions that can be answered without opening code. Offer a recommendation
 without disguising assumptions as decisions. Do not require a fixed interview,
 declaration, KPI, posting frequency or full strategy for a bounded correction.
@@ -96,6 +101,10 @@ Use [state](references/state.md) for durable records, approvals and resumes.
   creator, researcher and writer peers. Bounded inquiries use `kind="inquiry"`;
   production or multi-turn work uses `kind="work"`. Never call raw A2A tools,
   direct URLs or an unconfigured target. Transport success is not acceptance.
+  Reconcile stuck resident peers only after inspecting outputs, child jobs and
+  external effects. specialist_session can record interrupted transport, never
+  completion or permission to replay. A2A uncertainty stays blocked; the
+  authenticated browser lease is not released by reconciling a specialist.
 - Browser operations stay in the existing Marketer profile, serialized through
   [browser-lease.py](scripts/browser-lease.py). No SNS hand, new login profile,
   cookie copying, attachment to another profile or login bypass.
@@ -122,6 +131,11 @@ and the next decision. For a service draft, include its private editor locator
 or other unambiguous service identity, account, reopened-content checks and
 unpublished-state evidence. Never present a shared preview link as a private
 editor locator. A blocked or unverified save is not a delivered service draft.
+
+Bind the accepted text/media versions to the actual saved object in the existing
+task record. Recheck only dependencies affected by a revision; a prior successful
+save is not evidence that the latest version was saved. Do not reopen strategy
+or regenerate accepted assets to repair a placement-only defect.
 
 Fresh-session browser validation is still required per service/content type;
 written procedures and structural tests alone do not establish live support.

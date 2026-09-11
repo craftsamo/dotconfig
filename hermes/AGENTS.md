@@ -464,9 +464,10 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
   (pipeline v8: Plan → Build → Quality assurance,
   `creator-pipeline/references/<phase>/index.md` followed by the selected
   `<hands>/<subject>.md`; plain references, never additional `SKILL.md`s)
-  tells its client apart by the message's SHAPE — brief lines = the
-  assistant → text `Q<n>:`; conversational = a human → the `clarify` tool
-  (native buttons on Telegram) — fills the leaf's form and hands off; the
+   uses runtime caller context before message shape: agent Clients receive text
+   `Q<n>:`, direct humans receive `clarify` (native buttons on Telegram).
+   Conversational follow-ups are not proof of human origin or approval.
+   Creator fills the leaf's form and hands off; the
   technic-era routes for unmoved families sit in `references/legacy/`. Two earlier shapes failed —
   the generic technics decided nothing, `refactor/creator-profile` governed
   everything — so: no menu.yaml, no generated MENU.md, no preset layer, no
@@ -517,6 +518,14 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
   approved cutover, then check real Git ownership and fresh-session discovery;
   never weaken the live symlink/Git boundary to make temporary-copy tests pass.
 - **Card is one image subject with create/generate/edit/analyze leaves.**
+  `create-card` also accepts task-authored static `layout_html` with exact
+  copy/asset bindings and optional per-tile `copy_blocks`; ImageCreator authors
+  it, not the Client. This is the continuity path for centered covers/custom
+  typography, not an expansion of the template CSS allowlist or silent legacy
+  fallback. Authored work uses resident transport, freezes source with a hash,
+  and measures rendered geometry, supported visibility checks and overlap
+  without auto-shrinking. Masks/occlusion/contrast/readability stay visual QA.
+  Old specs retain their template behavior; do not weaken a design to fit them.
   `scripts/card.py` consumes canonical `create/card/references/destination/`
   scalar front matter and `styles/*.md` CSS blocks. Generate's own style refs
   are backdrop prompt prose, not duplicated CSS. Local HTML uses isolated
@@ -916,6 +925,27 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
   never-copy/never-symlink rule applies (see `PROFILES.md` "Video authoring
   references"). A missing or unreadable entry there is a documented
   local-authoring fallback per that leaf's contract, not a runtime failure.
+
+## Shared work continuity
+
+Shared specialist continuity is implemented in `plugins/specialist-call`, not
+an upstream patch. Each new conversation retains its untruncated initial agent
+request; each turn has a private `.handoff` record. The current request is
+actionable; history supplies constraints only, never another production/regrant.
+Runtime attribution and request hashes are not human-approval authentication.
+`specialist_session(reconcile, evidence=...)` records only a confirmed stopped
+resident process group as `interrupted`, never `completed` or resumable. Missing
+handles, live groups and foreign/unverifiable locks stay blocked; an owned dead
+shell lock is retained, not reclaimed. A2A has no local liveness proof. Caller
+observations remain unverified external effects even after bookkeeping close.
+Task artifacts, grants and approvals are never migrated or rewritten on rollout.
+
+Run `scripts/verify-work-continuity.py --runtime <hermes-agent-checkout>
+--private <paired-private-checkout>` with the provisioned Python before cutover
+and after an upstream update. It runs the original strict Git/topology validator,
+paired public/private tests and actual runtime regressions, not commit-name
+checks. Candidate worktrees need their own overlay links and isolated HOME;
+never repoint live links for a test. It does not install, restart or migrate jobs.
 
 ## Engineer v8 and UI evaluation
 

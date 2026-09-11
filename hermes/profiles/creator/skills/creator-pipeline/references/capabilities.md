@@ -8,7 +8,7 @@ only when they share tools, spend class, and verification.
 
 | Deliverable | Hands leaf | Notes |
 | --- | --- | --- |
-| exact-copy OG/social/header/thumbnail/hero/title card from supplied text/assets | image-creator: create-card | free; six looks or bounded task-local CSS; destination-specific layout, ordered panorama tiles |
+| exact-copy OG/social/header/thumbnail/hero/title card from supplied text/assets | image-creator: create-card | free; named templates or task-authored static HTML/CSS, independent typography and exact copy blocks; ordered panorama tiles; authored work uses resident |
 | the same card with a generated text-free background | image-creator: generate-card | proposed 3 variants + 1 corrective across resumes; explicit current-conversation user budget approval before paid calls; backend aspect preflight |
 | an existing finished card fitted with cover/contain/pad/focus, optional text band | image-creator: edit-card | free; reject destructive protected-content crops; own editable source rerenders create-card |
 | measured and visual findings on a single card, ordered tiles or a panorama | image-creator: analyze-card | free; files array + input_kind, no corrected media; platform crops remain unverified |
@@ -54,6 +54,9 @@ only when they share tools, spend class, and verification.
 | the same, via the explicitly chosen paid engine | audio-creator: generate-music (`engine: fal:stable-audio-3-medium`) | metered; explicit current-work paid approval of engine/prompt/duration/seed/attempt cap/USD estimate before any spend; no local fallback |
 | trim / loop-crossfade / fade / gain / two-pass LUFS normalization of an existing music file | audio-creator: edit-music | free; preserves the original, never resynthesizes |
 | tempo/beat/key/structural-boundary findings on an existing music file, standalone or from this pipeline | audio-creator: analyze-music | free; measured/estimated findings only with half/double BPM and key ambiguity disclosed, never a listening, genre, mood, instrument, lyrics or vocal-performance verdict; deliver may be omitted |
+| already-finished speech/sfx/music sources placed on a shared timeline with authored gain/fade/envelope automation, from a one-sentence purpose and plain-language direction | audio-creator: create-mix | free; two-round proposal-then-approval gate, zero-render `proposal-v<N>/proposal.md` first, renders locally only after Creator relays approval; no new synthesis, looping, EQ, reverb or source separation |
+| revision of an existing frozen mix bundle from a plain-language change request | audio-creator: edit-mix | free; loads the frozen sources and previous spec, authors a full revised plan; same two-round proposal-then-approval gate; a FAILed bundle cannot be revised; original sources are preserved, never re-synthesized |
+| measured findings on an existing mix — format/loudness/clipping/true-peak, and with its own bundle the recorded source/cue placement from mix.json | audio-creator: analyze-mix | free; findings only, no deliverable file, deliver may be omitted; not a listening/perceptual verdict, not repair, not a fresh ASR pass over the mixed master |
 
 Ad means a specific audience, promise and intended action. PV primarily
 introduces qualities/experience/world: neither duration nor a CTA alone decides.
