@@ -27,3 +27,7 @@ the reply. Read [OpenCode](../opencode.md) before delegating code investigation.
 Environment knowledge is inspected through opencode-env/machine-env only when
 needed. Starter investigation uses starter-catalog to propose actual candidates;
 it does not create repositories, select a paid platform or establish a skeleton.
+
+An image-creator/video-creator/audio-creator hands leaf's option-backed
+reference catalog uses [Hands references](hands-references.md) instead of an
+ad hoc file investigation.
