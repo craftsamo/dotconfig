@@ -29,6 +29,10 @@ continuation. Read [Web UI](web-ui.md) for UI implementation handoffs.
 6. Verify the actual PR through QA before delivering. CI still running/failed is
    reported honestly; an unmet required check cannot be called complete.
 
+An image-creator/video-creator/audio-creator hands leaf's option-backed
+reference change uses [Hands references](hands-references.md) for its actual
+authoring and verification steps.
+
 Issue create/edit/comment needs separate issue_approval naming the Client's
 request to manage this job; a supplied Issue number is not a grant. Link a
 closing Issue only when this PR finishes its scope. No automatic epics, boards,

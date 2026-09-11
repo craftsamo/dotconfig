@@ -928,6 +928,18 @@ No automatic Issues/boards, merging, deployment or default-branch push.
 The root pipeline stays thin; each mode index owns its steps and opencode.md
 contains only genuinely common transport/result semantics.
 
+Hands-reference maintenance has conditional Assess / Plan / Build / Quality
+assurance guides in Engineer, not another production leaf. They own Client
+scope and independent acceptance; the candidate dotconfig checkout's OpenCode
+Skill `opencode/skills/hermes/hands-references/SKILL.md` owns the procedure.
+`scripts/audit-hands-references.py` is a read-only companion to the topology
+validator: orphan candidates are warnings, not deletion permission; card checks
+import the trusted candidate's adapter, not sandboxed code. Assess never fixes
+or upgrades UNVERIFIED claims automatically. A branch in the live symlink-backed
+checkout is not runtime isolation; use task worktrees, and keep self-modification
+scope, PR delivery and live cutover separate. Reference files are reached through
+mode indexes, not discovered as independent skills.
+
 plugins/opencode owns CLI execution and private opencode-sessions records.
 Keep caller/worktree/branch binding, JSON error handling (exit zero is not
 success), finite deadlines and no automatic replay after uncertain effects.

@@ -38,6 +38,10 @@ the handoff. Issue writes run through the build agent after implementation/write
 authority is settled; an Issue-only registration request is a bounded authorized
 write, not permission to start implementing the proposed feature.
 
+An image-creator/video-creator/audio-creator hands leaf's option-backed
+reference addition or improvement uses [Hands references](hands-references.md)
+instead of a generic Skill-authoring approach.
+
 No repository exists: use starter-catalog only to investigate/propose candidates.
 Client owns repo creation/registry. Scaffolding in an established clone is planned
 here and implemented by OpenCode, never handwritten by Engineer. An empty remote
