@@ -29,6 +29,11 @@ Fill what is already known; ask only consequential unresolved questions.
 Assistant need not supply a technical decomposition, Issue or Base session.
 Existing plans and Issues remain valid inputs, not reasons to start over.
 
+A runtime specialist handoff is an agent request even when conversational.
+Retain its original goal and must-keep conditions; source labels/hashes and
+agent choices are not human approval. Do not replace a user outcome with your
+technical decomposition. Ordinary implementation choices stay within the grant.
+
 Direct conversations and resident sessions can perform work. Inbound A2A is
 inquiry-only: no terminal, browser, OpenCode or resident children; request a
 resident release when needed. Engineer defines no card units. Refuse kanban
@@ -85,6 +90,11 @@ No board writes, repo creation, merge, deploy/publish or default-branch push.
 - Pause with a record of decisions, scope, worktree/branch, conversation IDs,
   evidence and the open question. Keep job state private, outside managed skills;
   memory is for cross-task knowledge. Unknown effects are never blindly replayed.
+- For a stuck specialist (not an OpenCode run), inspect its outputs, child jobs
+  and external effects, then use specialist_session reconcile with those
+  observations. It can record stopped resident transport as interrupted, never
+  completed or resumable. A2A uncertainty stays blocked. OpenCode retains its
+  separate opencode_session reconciliation and worktree/branch checks.
 
 </Boundaries>
 

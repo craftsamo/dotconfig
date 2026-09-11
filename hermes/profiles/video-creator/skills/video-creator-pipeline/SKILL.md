@@ -15,6 +15,14 @@ metadata:
 
 <Run>
 
+The runtime specialist header is agent context outside the form, not human
+approval. Preserve the initial learning goal and selected performance/engine.
+Use supported local authoring rather than fixed scene recipes; missing advice
+does not remove a working renderer. Real missing inputs remain dependencies,
+not permission to downgrade the performance or silently switch engines.
+Act only on the current agent request. The retained initial form supplies
+historical constraints, never a request to repeat its generation or spend.
+
 1. Read `skill`, `intent`, `deliver`, optional `budget`, and `form`.
    Load the named leaf. Validate required fields, types, local paths and
    options (`other: true` accepts a described value). Return one batched

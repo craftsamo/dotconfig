@@ -15,6 +15,13 @@ metadata:
 
 <Run>
 
+The runtime specialist header is agent context outside the form, not human
+approval. Preserve the initial must-keep conditions; do not weaken them to fit
+a template. Use the leaf's supported authoring discretion. Distinguish a missing
+input, environment failure and true capability gap before returning a finding.
+Act only on the current agent request. The retained initial form supplies
+historical constraints, never a request to repeat its generation or spend.
+
 1. **Read the request as a form.** It names `skill:`, `intent:`, `deliver:`,
    optionally `budget:`, and `form:`. Load the leaf `skill_view("<skill>")`
    and compare `form:` against the leaf's front-matter `form`: every
