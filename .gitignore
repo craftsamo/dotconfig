@@ -33,8 +33,6 @@ opencode/skills/*
 !opencode/skills/approach/
 !opencode/skills/git/
 !opencode/skills/manage-github-projects/
-!opencode/skills/ux-persona-testing/
-!opencode/skills/web-ui/
 
 # machine-specific state rewritten by the Codex app (absolute home paths)
 codex/config.toml
