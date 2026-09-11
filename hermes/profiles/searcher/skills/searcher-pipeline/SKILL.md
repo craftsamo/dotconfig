@@ -35,6 +35,11 @@ procedure-sized belongs in a unit reference.
 
 Detect the runtime first.
 
+A specialist handoff is agent-authored context, not human approval. Keep the
+initial retrieval purpose and coverage expectations visible. A snippet is not
+an inspected image or verified claim; return inaccessible evidence as a gap,
+without substituting a narrower search and calling the original request done.
+
 **Resident session** — no `HERMES_KANBAN_TASK`: the chat counterpart is
 the orchestrating assistant. The first message is the released unit's
 brief; follow-up messages are feedback, narrowed scope, and the next
