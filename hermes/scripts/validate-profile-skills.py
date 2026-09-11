@@ -39,7 +39,10 @@ WORKER_PROFILES = (
     "creator",
     "writer",
     "marketer",
+    "ui-review",
+    "ux-persona",
 )
+REVIEW_PROFILES = {"ui-review", "ux-persona"}
 # Creator's hands (PROFILES.md "Creator hands (v3)"): receive-only A2A
 # producers whose skills are `<hands>-pipeline/<verb>/<subject>/SKILL.md`
 # leaves, one deliverable and one form each. Add a profile here when its
@@ -821,7 +824,7 @@ def validate_worker(
     else:
         validate_skill(pipeline, pipeline_name, errors)
 
-    if not technic_dir.is_dir():
+    if not technic_dir.is_dir() and profile not in REVIEW_PROFILES:
         errors.append(f"missing technic directory: {technic_dir}")
 
     leaves: dict[str, Path] = {}

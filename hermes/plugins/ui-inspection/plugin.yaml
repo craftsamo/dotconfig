@@ -1,0 +1,4 @@
+name: ui-inspection
+version: 1.0.0
+description: Bounded viewport screenshots for terminal-free UI evaluators.
+kind: standalone

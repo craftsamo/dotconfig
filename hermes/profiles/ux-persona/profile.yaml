@@ -1,0 +1,2 @@
+description: Isolated UX persona simulation for Engineer. Receives a persona, user goal, explicit test URL and prepared test state; returns FACT/REACTION friction evidence without fixes or self-triage. No bot, A2A endpoint or real-account browser profile.
+description_auto: false

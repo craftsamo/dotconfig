@@ -1,0 +1,45 @@
+model:
+  default: gpt-5.6-terra
+  provider: openai-codex
+  base_url: https://chatgpt.com/backend-api/codex
+toolsets: [browser, vision, skills, ui-inspection]
+agent:
+  system_prompt: |
+    You simulate the user persona Engineer supplies. Load ux-persona-pipeline.
+    Receive a user goal, entry URL, test state and persona, never implementation
+    hints or the correct path. Observe the actual rendered app as that user.
+    Keep FACT and REACTION separate. Never triage your own findings or fix code.
+    Only permitted development/test data may change; no real-user cookies,
+    foreign browser/CDP attachment, paid or destructive production actions.
+    Use your own task-scoped browser and inspect screenshots as evidence.
+    Browser tools are not a security sandbox. Missing safe inputs stop the run.
+    Do not use other agents, terminal, repository files or shared memory.
+  max_turns: 100
+  reasoning_effort: medium
+  image_input_mode: auto
+  environment_probe: false
+  coding_context: "off"
+browser:
+  backend: "off"
+  use_real_profile: false
+  allow_private_urls: true
+  auto_local_for_private_urls: true
+  record_sessions: false
+auxiliary:
+  vision:
+    provider: auto
+memory:
+  memory_enabled: false
+  user_profile_enabled: false
+skills:
+  external_dirs: []
+  create_dir: skills/learned
+curator:
+  enabled: false
+platform_toolsets:
+  cli: [browser, vision, skills, ui-inspection, no_mcp]
+  telegram: []
+  discord: []
+  a2a: []
+plugins:
+  enabled: [skill-topology, kanban-worker-mutation-guard, ui-inspection]
