@@ -33,8 +33,8 @@ Four profiles are **primaries**: assistant (the original front door),
 engineer, creator, and marketer each run their own Telegram bot, all
 hosted by ONE `gateway.multiplex_profiles` process (see "Gateway as a
 persistent service"). Bots exchange work over the **A2A platform**
-(localhost JSON-RPC, `specialist_call` for Assistant/Creator and raw
-`a2a_call` for Engineer/Marketer against the per-profile `a2a_agents`
+(localhost JSON-RPC, `specialist_call` for Assistant/Creator/Marketer and raw
+`a2a_call` for Engineer against the per-profile `a2a_agents`
 peer list — configured peers only, never a direct URL; Telegram itself
 cannot carry bot-to-bot traffic). writer and researcher serve inbound
 A2A requests but initiate nothing; searcher keeps the classic
@@ -107,7 +107,7 @@ itself call `delegate_task` during its run.
 | **image-creator** | Creator's hands for still images: runs one `<verb>/<subject>` leaf from a filled form (icon family: source / create / generate / edit / analyze; emoji family: create / generate / edit / analyze), QA with evidence, report; answers only Creator | — (A2A receive-only) | `.` (launch / task ws) | `terminal,file,vision,image_gen,skills,memory` | served (a2a :9907) | yes |
 | **audio-creator** | Creator's spoken-audio hands: generate/edit/analyze-speech, create/generate/edit/analyze-sfx, create/generate/edit/analyze-music (instrumental BGM/melodic pieces only) and create/edit/analyze-mix (placing already-finished sources on a timeline, never synthesis) from approved forms; measured/readback QA, no claims of listening; no full songs or voice registration | — (A2A receive-only) | `.` (launch / task ws) | `terminal,file,tts,sfx_gen,music_gen,skills,memory` | served (a2a :9909) | yes |
 | **writer** | reader-facing prose and producer-facing scripts from released units (outline / piece / whole job); draft-only, never publishes; serves all four primaries | — (A2A receive-only) | `.` (launch / task ws) | `file,web,skills,memory,delegation` | served (a2a :9905) | yes |
-| **marketer** | primary: platform copy from released message units, four-stage pre-ship inspection, grounding judgment, and publishing only within a Publish grant; A2A peers engineer/creator/researcher/writer | Telegram (own bot) | `.` (launch / task ws) | `terminal,file,web,browser,x_search,vision,skills,memory,delegation,a2a` | served (bot + a2a :9904) | yes |
+| **marketer** | primary: strategy, offer discovery, producer coordination, existing-browser service drafts and outcome analysis; specialist peers engineer/creator/researcher/writer; no publishing | Telegram (own bot) | `.` (launch / task ws) | `terminal,file,web,browser,x_search,vision,skills,memory,delegation,specialist,clarify` | served (bot + a2a :9904) | yes |
 
 The table lists each role's native capability allowlist. `platform_toolsets` is
 the runtime authority; top-level `toolsets` mirrors it and retains `kanban` on
@@ -217,19 +217,16 @@ bytes, never re-encodes). Details: creator's `creator-pipeline` skill.
 the approved outline, or a whole small job — under the selected leaf's
 QA contract, returning
 undecided deliverable-defining choices as spec-gap or granularity findings. Details: writer's
-`writer-pipeline` skill. **marketer** speaks it with a
-**Publish** grant (publishing is public and irreversible: absent grant =
-draft-only + an `APPROVAL:`-headlined block — `kind=needs_input`, always
-relayed to the human like `REVIEW:` — showing the exact post
-text/attachments/destination; `P1` = consuming approved inventory within
-named caps — account, post count, content scope — never new claims),
-leaves `PROGRESS:` with the posted URL per post, and treats shipped posts
-as immutable facts on resume. It consumes **released message units**
-(settled claim + fact-ledger references + QA-passed parts) under a
-non-waivable four-stage pre-ship inspection (mechanical / style /
-factual / legal); strategy, offers, pricing, and calendars stay with the
-assistant, and open decisions return as spec-gap or granularity
-findings. Details: marketer's `marketer-pipeline` skill.
+`writer-pipeline` skill. **marketer** owns strategy, offer discovery, producer
+coordination and browser draft work. It accepts both human and Assistant clients;
+Assistant supplies goals/constraints, not a fully settled marketing strategy.
+Exact content/assets, service/account and create/update target need user approval
+BEFORE remote editor entry because autosave is an upload. Marketer never
+publishes, schedules, sends or generates sharing links. Old Publish/P1 grants
+are not adopted. Service drafts require same-object reopening and content plus
+unpublished-state verification; uncertain saves are reconciled before retrying.
+The user owns economic commitments and later publication. Details: marketer's
+four-mode `marketer-pipeline` skill and "Marketer strategy and browser drafts".
 **searcher** consumes released retrieval units the same way — a lookup
 unit (settled question), a sweep unit (coverage claim/floor + per-item
 fields), or a hunt unit (done criteria + scope exclusions) — under the
@@ -328,11 +325,10 @@ Three per-profile layers, kept separate:
   retrieved); writer = deliverable integrity (no fabricated
   facts/quotes/URLs; assumptions labeled; the selected leaf's applicable
   checks with explicit evidence gaps) + never publishes; marketer = the
-  Publish + red floor (absent grant ⇒ draft-only; every post needs verbatim
-  approval or in-cap consumption of approved inventory; claims resolve to
-  the fact ledger; no price/deadline/scarcity changes; the four-stage
-  pre-ship inspection is never skipped; posted URLs verified; shipped posts
-  never silently edited or deleted); front doors = heavy work never runs in their
+  draft + evidence floor (exact remote-save consent before input; no publishing,
+  scheduling or sending; traceable claims and no fabricated demand/metrics;
+  user-owned commitments; independent content acceptance and reopened unpublished
+  draft verification; uncertain effects never blindly retried); front doors = heavy work never runs in their
   own turn, deliverables are verified before delivery, and blocked cards
   resolve only through the guarded resolver after the one complete DECISION
   batch; a second block or a capability/spec-gap block pulls the card back.
@@ -481,16 +477,12 @@ Three per-profile layers, kept separate:
     `japanese-writing` language core with five notation defaults, single-sourced
     with the shared `agents/curated/` store) and upstream `creative/humanizer`
     (explicit-request only)
-  - marketer → `marketer-pipeline` (resident-only, cards refused; consumes
-    released message units under the Publish grant + red floor; engines
-    ground / produce / parts / verify / publish — grounding judgment and
-    red-team dissent, Writer-authored post and promotional copy consumption
-    (no local text rewrites), legacy platform-post craft for other channels, the
-    four-stage pre-ship inspection with Japanese ad-law triage, and the
-    approval-gated xurl publish bridge with per-post URL verification;
-    channel extension points for future Discord/IG/TikTok accounts;
-    shipped posts treated as immutable) + the upstream `social-media/xurl`
-    and `creative/humanizer` skills via `skills.external_dirs`
+  - marketer → `marketer-pipeline` (resident-only, cards refused; Plan / Build /
+    Quality assurance / Analyze, one shared file per platform and a private-state
+    schema; strategy and browser work stay here, no SNS hand/login profile).
+    Writer's pipeline is readable through `skills.external_dirs` for shared
+    requester acceptance, not local manuscript production. The old xurl/humanizer
+    imports and publish engine are absent from the active marketer path.
 
   Upstream wiring pattern: official `skills/` libraries attach per category
   directory, `optional-skills/` per individual skill directory, and unwanted
@@ -572,9 +564,9 @@ evidence. X Articles are not posts; Instagram captions are not image text.
 Metadata and unresolved insertion markers never enter published bodies.
 
 The requester accepts the actual draft; Marketer then checks platform fit,
-claims and legal conditions and applies its unchanged Publish gate. Text
-defects go back to Writer. A changed draft needs new approval. Unsupported
-publishing integrations stay draft-only. Analyze returns a report and never
+claims and legal conditions and requires exact remote-save consent. Text
+defects go back to Writer. A changed draft needs new approval. Service-draft
+support is verified separately; the user publishes. Analyze returns a report and never
 publishes or silently rewrites its target. Humanizer is explicit-only for
 these leaves; the legacy Japanese inspection path is not run in addition.
 All six writing families now use their own leaves; the shared Japanese skill
@@ -682,7 +674,7 @@ not added to served copy work.
 
 The requester independently accepts the actual draft/report. Marketer consumes
 accepted copy fields unchanged, performs its existing inspection and requires
-the exact-candidate Publish approval. A direct Writer peer response is not
+exact-candidate remote-save consent. A direct Writer peer response is not
 independently accepted merely because it includes self-review. Text defects go
 back to Writer, not through local shortening or a humanizer rewrite. This layer
 adds no page rendering, email delivery, channel integration, tool or profile.
@@ -724,7 +716,7 @@ current reference baseline; source links and local adaptations are explicit,
 with provenance in `agents/README.md`. No adopted rule mandates a genre template,
 personal anecdote, fixed sentence count or universal conclusion-first structure.
 
-Assistant's existing Writing QA independently scores the actual released unit
+The requester's shared Writing QA independently scores the actual released unit
 on purpose, structure/usability, reasoning/evidence, information economy,
 expression fit and fidelity/voice, using observable 0-4 anchors. Each applicable
 axis must reach 3 and mandatory evidence must be checked; no average offsets
@@ -742,6 +734,71 @@ to the same Writer under an explicit corrective release. User, production and
 Publish approvals remain separate. Review cases outside runtime discovery cover
 these boundaries; neither static tests nor isolated model trials establish
 live-session reliability or statistical score calibration.
+
+The canonical requester contract is public at
+`profiles/writer/skills/writer-pipeline/references/acceptance/{index,prose,script}.md`.
+Assistant's private QA files are thin adapters, and Marketer reads the same source
+through Writer's configured external skill root. No private task records moved.
+The 18 authoring leaves are disabled on the two callers; the root remains readable.
+An unavailable contract blocks acceptance; Writer never uses it for self-approval.
+
+## Marketer strategy and browser drafts
+
+Marketer v7 replaces its five flat engines with four mode indexes under
+`references/{plan,build,quality-assurance,analyze}/`. Plan holds discovery,
+positioning, offer, channels and campaign decisions; Build commissions parts,
+operates service drafts and collects measurements; QA separately checks strategy,
+content and saved objects; Analyze interprets results. One shared
+`references/platforms/{x,substack,note,zenn}.md` owns each platform's constraints,
+browser procedure and verification. `references/state.md` defines records;
+actual project/account/evidence/approval data remains private and outside config.
+These references are not new skills, a hands taxonomy or a generated registry.
+
+Assistant's old marketing leaves remain thin client pointers so other caller
+references still resolve. Marketer owns strategy and its record, including
+direct-human intake without a pre-existing offer/ledger. User decisions remain
+separate from evidence; a proposal can explicitly be exploratory. Existing state
+files retain their bytes/ownership and need no schema conversion.
+
+Browser operations use Marketer's existing dedicated Brave profile. No SNS
+profile or cookie sharing is introduced. `scripts/browser-lease.py` serializes
+cooperating jobs across tool calls; it refuses another owner, corrupt state and
+symlinks, and never expires/steals a lease. The owner holds it through saving and
+reopening or a reconciled stop. This is coordination, not a browser sandbox or
+authentication. Broad terminal/browser tools remain a residual authority risk.
+
+Before typing/upload, obtain approval of exact text/assets, destination account
+and create/update target. Autosave is already a remote write. No publication,
+scheduling, email/test-email, visibility change or shared-preview link generation.
+Service draft completion requires reopening the same object and checking content,
+attachments and unpublished state. Local files and input screenshots alone do
+not complete the request. Challenges and ambiguous saves stop for reconciliation;
+known automation risk may be accepted by the user but is not platform permission.
+
+The four platform procedures are authored. A 2026-09-10 note text-only native
+browser smoke verified new-draft saving, an unpublished-view banner and exact
+title/two-paragraph reopening using the existing Marketer browser. This is not
+a fresh candidate AIAgent creation/update run. A later fresh candidate agent did
+pass a constrained read-only recheck: mode-index loading, live content/status
+observations, explicit uncertainty and lease acquisition/release. Its browser
+programs were allowlisted; free-form interaction and gateway deployment were not
+tested. Other platforms, attachments and existing-user-draft updates remain
+unverified. Validate each service/content type in an approved
+nonpublishing trial. Stage the
+paired public/private candidate in isolated worktrees; static checks never imply
+the live symlink/Git boundary has been checked. Cut over and restart only with
+approval, after caller coverage and real skill discovery. Keep both baseline
+revisions as the recovery point; rollback the matched caller/producer contracts,
+not saved drafts or user data. Do not adopt old v6 publishing sessions/P1 grants.
+Reconcile unfinished old work before a new draft-only release.
+
+A 2026-09-11 constrained candidate-agent trial additionally saved the existing
+note fixture once without typing: direct homepage account check, unchanged
+content/status preconditions, actual save confirmation, reopened comparison and
+lease release. It re-read a transient incomplete editor rather than resaving.
+This does not validate arbitrary updates/new content; browser programs were
+allowlisted. Common mode indexes must be read before acting, but independent
+reference reads may run in parallel rather than imposing a serial loading ritual.
 
 ## Writer resource cleanup
 

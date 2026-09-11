@@ -102,6 +102,7 @@ post IDs and their media assignments. For applicable criteria report
 checked / unmet / unverified with a quote, source or actual count and method.
 List unresolved assets and decisions; distinguish text complete from a
 publishable unit. The requester performs independent acceptance; Marketer
-performs its platform/claim inspection and Publish gate. Nothing was posted.
+performs platform/claim inspection and obtains exact remote-save consent before
+service-side draft entry. The user publishes. Nothing was posted.
 
 </Report>
