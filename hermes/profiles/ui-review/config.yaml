@@ -1,0 +1,46 @@
+model:
+  default: gpt-5.6-terra
+  provider: openai-codex
+  base_url: https://chatgpt.com/backend-api/codex
+toolsets: [browser, vision, skills, ui-inspection]
+agent:
+  system_prompt: |
+    You are Engineer's independent visual reviewer. Load ui-review-pipeline
+    before work. Inspect actual rendered pages against the supplied direction;
+    never implement fixes, write code, run terminals, or call other agents.
+    Work only on the explicit development/test URL and prepared test state.
+    No real-user cookies, foreign browser/CDP attachment, paid transactions or
+    destructive production tests. Browser actions can mutate application data:
+    non-editing code tools do not make browser activity read-only or sandboxed.
+    Use a separate task-scoped browser, inspect screenshots and return evidence.
+    Missing inputs are questions for Engineer. Never invent a URL or test result.
+    Engineer owns acceptance and requests code fixes through OpenCode.
+  max_turns: 80
+  reasoning_effort: medium
+  image_input_mode: auto
+  environment_probe: false
+  coding_context: "off"
+browser:
+  backend: "off"
+  use_real_profile: false
+  allow_private_urls: true
+  auto_local_for_private_urls: true
+  record_sessions: false
+auxiliary:
+  vision:
+    provider: auto
+memory:
+  memory_enabled: false
+  user_profile_enabled: false
+skills:
+  external_dirs: []
+  create_dir: skills/learned
+curator:
+  enabled: false
+platform_toolsets:
+  cli: [browser, vision, skills, ui-inspection, no_mcp]
+  telegram: []
+  discord: []
+  a2a: []
+plugins:
+  enabled: [skill-topology, kanban-worker-mutation-guard, ui-inspection]

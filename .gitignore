@@ -33,8 +33,6 @@ opencode/skills/*
 !opencode/skills/approach/
 !opencode/skills/git/
 !opencode/skills/manage-github-projects/
-!opencode/skills/ux-persona-testing/
-!opencode/skills/web-ui/
 
 # machine-specific state rewritten by the Codex app (absolute home paths)
 codex/config.toml
@@ -66,6 +64,7 @@ hermes/**/SOUL.md
 hermes/profiles/assistant/config.yaml
 hermes/profiles/*/specialist-sessions/
 hermes/profiles/*/resident-sessions/
+hermes/profiles/*/opencode-sessions/
 
 # Hermes skills: maintainer-owned topology is tracked; adaptive libraries are not.
 # At the shared root, default-pipeline/ is the only managed surface — the
