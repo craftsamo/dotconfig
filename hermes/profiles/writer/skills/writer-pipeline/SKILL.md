@@ -195,6 +195,9 @@ and method. Include unresolved dependencies. Do not invent measurements or
 upgrade an unverified requirement to a pass. This is self-review, not the
 requester's independent acceptance. Consultation follows its own short advice
 contract and is not a completed draft or an accepted production part.
+The requester's own acceptance rubric lives at
+[references/acceptance/index.md](references/acceptance/index.md); Writer
+reads it only if a requester asks, and never runs it as self-QA.
 
 `Review: required` means present the exact candidate and wait for sign-off.
 Feedback changes only what it names; a changed requirement returns to the

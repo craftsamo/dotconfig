@@ -94,24 +94,23 @@ def test_analysis_is_not_new_copy_or_a_performance_verdict():
 
 
 def test_marketer_consumes_copy_without_bypassing_acceptance():
-    produce = content(MARKETER / "references/produce.md")
-    parts = content(MARKETER / "references/parts.md")
+    produce = content(MARKETER / "references/build/parts.md")
+    acceptance = content(MARKETER / "references/quality-assurance/content.md")
     for verb in ("write", "edit", "analyze"):
         assert f"`{verb}-copy`" in produce
-    assert "Writer peer response still needs the requester's writing QA" in produce
-    assert "Return wording changes to `edit-copy` via the requester" in parts
-    assert "Do not shorten, strengthen, add urgency or run humanizer" in produce
-    assert "An `analyze-copy` report is not publishable copy" in parts
-    assert "including a custom copy destination" in produce
+    assert "performs independent" in produce
+    assert "same Writer" in produce
+    assert "Do not shorten, strengthen, add urgency or run humanizer" in acceptance
+    assert "Analysis reports are decision inputs" in produce
+    assert "supported custom destination is not evidence" in produce
     assert "PASONA" not in produce
     config = yaml.safe_load((MARKETER.parents[1] / "config.yaml").read_text())
     prompt = config["agent"]["system_prompt"]
-    assert "write-copy/edit-copy/analyze-copy" in prompt
     assert "never local claim removal" in prompt
+    assert "references/acceptance/index.md" in prompt
     kernel = content(MARKETER / "SKILL.md")
-    for verb in ("write", "edit", "analyze"):
-        assert f"`{verb}-copy`" in kernel
-    assert "Other unmigrated platform-post channels" in kernel
+    assert "Writer authors and edits intended post/article/copy/script text" in kernel
+    assert "No Publish grant" in kernel
     assert "legacy copy craft" not in kernel
 
 
