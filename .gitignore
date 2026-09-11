@@ -91,6 +91,10 @@ hermes/profiles/*/skills/learned/
 # a real wrapper here; private/install.sh generates it and it stays machine-local.
 hermes/profiles/*/scripts/local-*.sh
 
+# Runtime-only coordination, even if a caller mistakenly selects the config home.
+hermes/profiles/*/marketing-browser-lease.json
+hermes/profiles/*/marketing-browser-lease.guard
+
 # Hermes skills bookkeeping: bundled skills (read via skills.external_dirs
 # from the agent clone) + curator/hub/usage bookkeeping are never tracked
 hermes/**/.bundled_manifest
