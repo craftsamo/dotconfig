@@ -362,6 +362,29 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
    Note also that `Browser.getVersion` reports `Chrome/…` on Brave, so it
    never proves you left the clone — check the process, not the product
    string.
+   **A fourth LOCAL patch, from the 2026-09-11 tab-accumulation case:
+   `fix/real-profile-no-session-restore`
+   (`tests/tools/test_browser_real_profile_session_restore.py`); re-check
+   after `hermes update` like the others.** The copy dir is long-lived, so
+   Chromium's ORDINARY session restore replays the previous run's tabs into
+   every new clone. Measured on Brave 152 headless in a throwaway
+   user-data-dir: the tabs come back after a graceful SIGTERM (`exit_type`
+   = `Normal`) exactly as after a SIGKILL, and removing `<profile>/Sessions`
+   is the only thing that stops it — so this is NOT crash restore, and
+   `exit_type` is a red herring (it reads `Crashed` on a RUNNING instance
+   because Chromium writes it at startup). Across relaunches it compounds:
+   the assistant's clone reached 128 pages / 79 workers / 7.5 GB RSS against
+   an expected ~230 MB, at which point `Runtime.evaluate` and
+   `Input.dispatch*` timed out "after 5s waiting for the daemon" and the
+   browser was too busy to answer SIGTERM — so the relaunch escalated to
+   SIGKILL and the next clone restored the same pile. `_launch_real_profile_chrome`
+   now purges that state before the launch; `Sessions` was also added to
+   `_SNAPSHOT_IGNORES`, since the owner's open tabs are their browsing, not
+   auth. Note the blast radius: the assistant opened ONE tab in the 35
+   `browser_exec` calls of the wedged lifetime, so tab growth was never the
+   agent's doing and no prompt-side rule would have prevented it.
+   `scripts/relaunch.sh --status` (private overlay) now prints `pages=` /
+   `rss=` per clone, which is how you notice the purge going missing.
    **Cookies are not the whole login.** The snapshot deliberately excludes
    `IndexedDB` (`hermes_cli/browser_connect.py`, `_SNAPSHOT_IGNORES`: it
    wedges a fresh renderer and costs hundreds of MB), and only the auth DBs
