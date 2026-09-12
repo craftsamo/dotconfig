@@ -20,7 +20,9 @@ metadata:
       product: {required: true, type: text, label: "what is being advertised"}
       audience: {required: true, type: text, label: "who watches, what they already know/need"}
       message: {required: true, type: text, label: "single approved headline claim/benefit; must appear verbatim in plan copy"}
-      cta: {required: true, type: text, label: "single approved call to action; must appear verbatim in plan copy, held >=2s"}
+      cta: {required: false, type: text, label: "final: exact CTA held >=2s; study: omit"}
+      purpose: {required: false, options: [final, study], label: "default final; study is separately approved, never final media"}
+      question: {required: false, type: text, label: "study only: one visual/motion question"}
       aspect: {required: false, options: ["9:16", "16:9", "1:1", "4:5"], label: "output canvas ratio, default 9:16 (fixed dims per ratio, see ad-render.py); no arbitrary size or cross-ratio crop/scale"}
       assets: {required: true, type: path, label: "local dir of approved product/logo/audio/video assets; always includes vendored GSAP files, even text-only"}
       claims: {required: false, type: text, label: "evidence/restrictions for claim-role copy; not fact-checked, required only if used"}
@@ -32,7 +34,7 @@ metadata:
       audio_workflow: {required: false, options: [supplied, mix], label: "supplied (default) = audio field; mix = approved Mix master via mix_bundle"}
       mix_bundle: {required: false, type: path, label: "mix only: bundle dir to verify+stage; plan binds staged master/receipt by hash"}
       reference: {required: false, type: file, label: "local reference/report for inspiration/claim evidence; never uploaded"}
-      duration: {required: false, type: int, label: "6..30 seconds total; default 15"}
+      duration: {required: false, type: int, label: "final 6..30s (default 15); study 1..10s"}
       approved_plan: {required: false, type: file, label: "Creator-relayed approval: exact approved plan.json; absent = proposal only"}
       approval_sha256: {required: false, type: text, label: "SHA-256 of the approved plan.json; required with approved_plan"}
       preview: {required: false, type: path, label: "client-approved preview folder from snapshot; required before render"}
@@ -54,6 +56,13 @@ metadata:
    9:16 (1080x1920, default), 16:9 (1920x1080), 1:1 (1080x1080), 4:5
    (1080x1350) — always 30fps; do not invent other dimensions, and never
    crop or scale a layout authored for one ratio into another.
+   A final ad still requires `cta`; absence never selects study implicitly.
+   Only an explicit `purpose: study` selects [diagnostic study](references/study.md).
+   Read it before proposing that unit; it preserves both approval rounds and
+   produces only study.mp4. Study rejects Mix mode and needs explicit duration
+   and question. Use approved supplied WAV cues if audio is part of the study.
+   For studies, use that reference's schema and freeze-study/render-study command
+   substitutions below; all remaining source and approval checks still apply.
    Before Round A, if `audio_workflow: mix` and `mix_bundle` is absent,
    read [Mix receiving](../../references/mix.md). Author/freeze a timing
    proposal from Creator's source inventory and video direction; return
@@ -69,7 +78,7 @@ metadata:
    implemented locally, verbatim, and never silently mapped onto a listed
    option. If direction is ambiguous, return one clarification or a concrete
    beat proposal before authoring.
-3. Round A (no `approved_plan`): author a `plan.json` per the schema in
+3. Round A (no `approved_plan`): for final purpose author `plan.json` per the schema in
    [authoring](references/authoring.md) — exact copy rows (id/text/role/
    start/end) that include the client's literal `message` and `cta` text,
    any approved `claims` backing a `claim`-role row, the complete asset SHA-256
@@ -78,6 +87,11 @@ metadata:
    copy hold. Compute and report its SHA-256; do not author `index.html` or
    call the helper's `freeze` yet. STOP for actual client approval in the same
    work conversation; the budget/plan is not itself approval.
+   Before reporting a ready proposal, run `ad-render.py preflight --plan
+   <plan.json> --assets <existing-assets-dir>` through the same Python command
+   used below. It reads the schema and exact asset inventory (including suffix,
+   size and vendor checks), writes nothing and executes no source. Preserve its
+   unverified checks: passing preflight does not approve or prove a render.
 4. Round B requires both `approved_plan` and `approval_sha256` from Creator.
    Before fresh authoring, read the shared HyperFrames reference policy
    through the parent skill (not this leaf):
@@ -165,6 +179,10 @@ metadata:
 </Procedure>
 
 <QA>
+
+For an explicit study, judge its named question and real message/copy; CTA-only
+requirements below apply only to final ads. All other evidence and safety checks
+remain required. A successful diagnostic is not an accepted final advertisement.
 
 - Plan-to-render fidelity: the message and CTA appear verbatim on screen for
   their declared hold; any claim-role text matches the plan and traces to the
