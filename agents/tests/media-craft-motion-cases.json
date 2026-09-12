@@ -1,0 +1,167 @@
+[
+  {
+    "id": "clip-camera-tag-cross-model",
+    "request": "Write a shot brief for a 6-second product clip reusing the 'slow dolly-in' camera tag from a brief that worked on a different text-to-video model.",
+    "operation": "generated_shot_brief",
+    "expected": [
+      "checks the target model's current documentation for its actual supported camera-control vocabulary before reusing the tag",
+      "falls back to plain compositional language for framing if the tag is not confirmed for the target model",
+      "treats resulting camera behavior as best-effort, not a guaranteed controllable parameter"
+    ],
+    "must_not": [
+      "assume a camera-motion tag documented for one provider transfers to a different model without checking",
+      "promise the exact framing described will be reproduced"
+    ],
+    "subjects": [
+      "clip"
+    ],
+    "review_evidence": [
+      "citation or note confirming the target model's documented camera-control feature set",
+      "the exact tag/phrasing used in the final brief, distinguished from the reused one"
+    ]
+  },
+  {
+    "id": "tour-modal-unlinked-origin",
+    "request": "Review a product tour where a settings modal always fades in centered on screen, regardless of which of several icons the user tapped to open it.",
+    "operation": "ui_choreography_review",
+    "expected": [
+      "flags the missing positional link between the trigger icon and the modal's entrance",
+      "recommends animating the modal's entrance from the tapped icon's on-screen position or nearest edge",
+      "distinguishes the modal's foreground motion from the backdrop's recede"
+    ],
+    "must_not": [
+      "recommend a blanket camera zoom on every icon tap as the fix",
+      "leave the fix as a generic center fade with no positional relationship to the trigger"
+    ],
+    "subjects": [
+      "tour"
+    ],
+    "review_evidence": [
+      "frame comparison of each icon's screen position against the modal's entrance origin",
+      "note of which specific icons were tested"
+    ]
+  },
+  {
+    "id": "ad-snapping-counter",
+    "request": "An ad's on-screen rep counter jumps from one number to the next with zero in-between frames and viewers say it looks broken.",
+    "operation": "timing_spacing_revision",
+    "expected": [
+      "identifies missing spacing (no velocity curve) between digit changes as the cause, not a frame-rate problem",
+      "adds a short eased scale or crossfade between digit states",
+      "sizes the added ease to stay brisk, matching a fast countdown rather than slowing it down"
+    ],
+    "must_not": [
+      "recommend simply lengthening total duration without adding any spacing curve",
+      "apply a heavy, slow ease that undermines the countdown's brisk pace"
+    ],
+    "subjects": [
+      "ad"
+    ],
+    "review_evidence": [
+      "before/after frame sequence around one digit change showing the added in-between frames"
+    ]
+  },
+  {
+    "id": "explainer-assumed-lipsync",
+    "request": "Draft a brief for an animated spokesperson explainer whose mouth 'naturally lip-syncs' to the narration, for a render pipeline that has not been confirmed to support viseme mapping.",
+    "operation": "explanation_performance_revision",
+    "expected": [
+      "checks whether the actual render pipeline has a confirmed lip-sync or viseme feature before the brief assumes it",
+      "rewrites the brief to use a neutral or generic non-synced mouth loop if the capability is unconfirmed",
+      "keeps the visual sequence able to communicate meaning independent of the narration audio"
+    ],
+    "must_not": [
+      "leave the brief asserting automatic lip-sync without confirming the pipeline supports it",
+      "assume any narrated character rig auto-syncs mouth movement to audio by default"
+    ],
+    "subjects": [
+      "explainer-video"
+    ],
+    "review_evidence": [
+      "confirmation (or lack thereof) from the specific pipeline's documentation about viseme/lip-sync support",
+      "the revised brief language describing the fallback mouth treatment"
+    ]
+  },
+  {
+    "id": "music-video-beat-pinned-cuts",
+    "request": "Plan cut points for a music video assembled from separately generated clips, timed to an existing track.",
+    "operation": "generated_shots_revision",
+    "expected": [
+      "pins each clip boundary to the track's verified beat markers from an actual detection or annotation pass",
+      "treats motion inside each generated clip as approximate, checked after generation rather than assumed frame-exact",
+      "documents the beat-detection evidence used, not an assumed tempo"
+    ],
+    "must_not": [
+      "guess beat placement from a nominal BPM without a verified beat grid",
+      "claim the generated clips' internal motion lands on-beat frame-exactly"
+    ],
+    "subjects": [
+      "music-video"
+    ],
+    "review_evidence": [
+      "the beat grid or waveform annotation the cut points were pinned against",
+      "note of which cuts, if any, needed adjustment after reviewing the generated clips against the beat grid"
+    ]
+  },
+  {
+    "id": "ad-review-authored-timecodes",
+    "request": "A review report for an ad states motion was checked 'at t=0:12 and t=0:34' using timecodes from the editing project's timeline, after the final export was re-encoded and trimmed.",
+    "operation": "motion_review_revision",
+    "expected": [
+      "flags that authored timeline timecodes may not match the real presentation timestamps (PTS) of the delivered file after re-encoding/trimming",
+      "re-extracts frames from the actual delivered file at its own PTS",
+      "labels reported timestamps as coming from the specific delivered file, not the project timeline"
+    ],
+    "must_not": [
+      "accept authored-timeline timecodes as equivalent to the delivered file's real timestamps without checking for drift",
+      "report the review as covering moments that were never actually located in the real output"
+    ],
+    "subjects": [
+      "ad"
+    ],
+    "review_evidence": [
+      "the measured drift/trim amount between timeline time and real file PTS",
+      "corrected timestamps sourced from the delivered file"
+    ]
+  },
+  {
+    "id": "tour-keyboard-modal-retain",
+    "request": "A reviewer flags a keyboard-shortcut-triggered modal for using a fixed center-anchored fade instead of animating from a trigger position, the way pointer-triggered modals in the same tour do.",
+    "operation": "ui_choreography_review",
+    "expected": [
+      "recognizes the keyboard trigger has no on-screen contact point to originate an entrance animation from",
+      "retains the center-anchored appearance for this specific trigger type",
+      "states the evidence for retaining it: no visible pointer contact point exists for a keyboard-triggered action"
+    ],
+    "must_not": [
+      "invent an arbitrary on-screen origin point for a keyboard-triggered action that never touched the screen",
+      "force the keyboard-triggered modal to match the pointer-triggered modals' origin behavior for consistency alone"
+    ],
+    "subjects": [
+      "tour"
+    ],
+    "review_evidence": [
+      "confirmation that the keyboard shortcut has no associated on-screen element or click position",
+      "explicit note that the center-anchored treatment was a deliberate retain, not an oversight"
+    ]
+  },
+  {
+    "id": "clip-near-miss-trim-only",
+    "request": "Trim 4 seconds off the head of a delivered clip and re-encode it to a smaller container; no motion, timing, or shot content is changing.",
+    "operation": "trim_reencode_metadata_only",
+    "expected": [
+      "recognizes this as a pure trim/re-encode task with no motion decision involved",
+      "completes the trim/re-encode without invoking motion-choreography judgment from this skill"
+    ],
+    "must_not": [
+      "apply timing/spacing, continuity, or motion-review judgment to a task that involves no motion decision",
+      "add easing, anticipation, or any other motion treatment that was not part of the original clip"
+    ],
+    "subjects": [
+      "clip"
+    ],
+    "review_evidence": [
+      "confirmation that only trim points and container/codec changed, with no reference to motion timing"
+    ]
+  }
+]
