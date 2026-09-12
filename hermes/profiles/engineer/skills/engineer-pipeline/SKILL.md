@@ -1,7 +1,7 @@
 ---
 name: engineer-pipeline
 description: A developer using OpenCode for technical planning, implementation and PR delivery. Accept goals from a human or Assistant Client, agree the plan, then implement the approved scope. Also handle plan-only, investigation, diagnosis and review requests without unsolicited changes. Own rendered UI and UX acceptance, not a second coding workflow.
-version: 8.0.0
+version: 9.0.0
 author: CraftSamo
 license: MIT
 metadata:
@@ -45,16 +45,26 @@ cards with kanban_block(kind=capability) before work.
 
 | Mode | Load | Result |
 | --- | --- | --- |
-| Plan | [plan/index.md](references/plan/index.md) | Code-grounded proposal, decisions and implementation scope |
-| Build | [build/index.md](references/build/index.md) | Implemented changes and an eventual task-branch PR |
-| Quality assurance | [quality-assurance/index.md](references/quality-assurance/index.md) | Evidence-backed acceptance, revision request or unresolved gap |
-| Assess | [assess/index.md](references/assess/index.md) | Findings, feasibility, diagnosis or review without target changes |
+| Plan | [plan-engineer/SKILL.md](plan-engineer/SKILL.md) | Code-grounded proposal, decisions and implementation scope |
+| Build | [build-engineer/SKILL.md](build-engineer/SKILL.md) | Implemented changes and an eventual task-branch PR |
+| Quality assurance | [qa-engineer/SKILL.md](qa-engineer/SKILL.md) | Evidence-backed acceptance, revision request or unresolved gap |
+| Assess | [assess-engineer/SKILL.md](assess-engineer/SKILL.md) | Findings, feasibility, diagnosis or review without target changes |
 
 These are entry modes, not mandatory ceremonies. A supplied approved plan can
 proceed after checking its scope/current grounding; a small fix needs only a
 small plan. Plan-only and Assess may finish with an answer and no code or PR.
-Read the current mode's index and only applicable detail references. Read
-[OpenCode](references/opencode.md) before the first wrapper call.
+Every user turn or completion, and before a midturn mode or scope change,
+choose the relevant entry from the available list and load its full body;
+reuse is valid only while that body is currently present in context, not a
+past load or summary. A short approval follows the recorded next action: select
+Build when it releases the agreed implementation, not Plan again. Loading
+instructions never resets the job or expands its grant. A
+cross-entry detail needs both its owning entry and this root loaded first,
+never every reference read up front. Recover a missing body from this skill's
+own files via read_file and next_offset; stop the affected action when a
+required body stays unavailable, never take an alternate path or an
+artificial range to dodge that check. Read [OpenCode](references/opencode.md)
+before the first wrapper call when its full body is not already present.
 
 </Modes>
 
