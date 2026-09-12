@@ -34,6 +34,8 @@ PUBLIC_PYTEST_FILES = (
     "hermes/scripts/tests/test_engineer_pipeline.py",
     "hermes/scripts/tests/test_engineer_entry_runtime.py",
     "hermes/scripts/tests/test_marketer_pipeline.py",
+    "hermes/scripts/tests/test_marketer_entry_runtime.py",
+    "hermes/scripts/tests/test_marketer_browser_lease.py",
     "hermes/scripts/tests/test_writer_leaves.py",
     "hermes/scripts/tests/test_writer_cleanup.py",
     "hermes/scripts/tests/test_writer_entry_runtime.py",
