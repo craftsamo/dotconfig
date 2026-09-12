@@ -40,7 +40,7 @@ def test_delivery_policy_does_not_expand_authority(profile):
 
 
 def test_creator_handoff_uses_the_same_nested_shape():
-    text = (ROOT / "profiles/creator/skills/creator-pipeline/references/build/index.md").read_text()
+    text = (ROOT / "profiles/creator/skills/creator-pipeline/build-creator/SKILL.md").read_text()
     assert "<G>/.agent/deliverables/<job>/video-plan" in text
     assert "All three hands accept" in text
     assert "Do not relocate a valid Group-local request" in text

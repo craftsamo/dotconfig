@@ -13,6 +13,38 @@ metadata:
     category: hands
 ---
 
+<InstructionContext>
+
+For execution as video-creator, re-evaluate the named leaf and its selected
+references on every inbound turn or completion, and before an action changes
+operation, subject or form options. Use the current request and retained approved
+job together; a new selection is not permission to expand the released work.
+Return an unreleased change to Creator rather than substituting a leaf or grant.
+This execution contract does not turn Creator's inspection of a form into a
+hands run. Clients read forms; only the owning hands executes the procedure.
+
+Require the full kernel, selected leaf and required reference bodies in current
+context before the affected action. Reuse those bodies, not a past load, summary
+or preload marker. Load missing bodies with skill_view, using the named leaf's
+file_path for its selected references. Read only applicable options, not the
+whole reference tree. Optional advisory references retain their existing fallback.
+
+If skill_view returns unchanged but the earlier body is unavailable, use
+read_file on the canonical document: this kernel is
+`${HERMES_SKILL_DIR}/SKILL.md`; a leaf is
+`${HERMES_SKILL_DIR}/<verb>/<subject>/SKILL.md`, and its references resolve from
+that leaf's directory. In raw file text, `${HERMES_SKILL_DIR}` always denotes the
+document's owning skill root, not the last loaded skill. Follow next_offset for
+a genuinely truncated read; never use alternate paths or artificial ranges to
+evade deduplication. If required instructions remain unavailable, stop the
+affected action and report the missing document.
+
+Loading instructions never restarts production, restores spent attempts or
+changes approval, engine, inputs or budget. Reuse surviving outputs and preserve
+the existing proposal/preview and revision gates.
+
+</InstructionContext>
+
 <Run>
 
 The runtime specialist header is agent context outside the form, not human

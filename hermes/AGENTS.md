@@ -461,9 +461,9 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
   owns finish/palette/atlas/measure, uses alpha bounds rather than colour
   trim for hollow UI frames, and rejects stale nonempty QA/atlas dirs);
   Creator
-  (pipeline v8: Plan → Build → Quality assurance,
-  `creator-pipeline/references/<phase>/index.md` followed by the selected
-  `<hands>/<subject>.md`; plain references, never additional `SKILL.md`s)
+  (pipeline v9: `plan-creator` / `build-creator` / `qa-creator`, independent
+  entries under `creator-pipeline/` followed by each entry's selected
+  `references/<hands>/<subject>.md`; subjects remain plain references)
    uses runtime caller context before message shape: agent Clients receive text
    `Q<n>:`, direct humans receive `clarify` (native buttons on Telegram).
    Conversational follow-ups are not proof of human origin or approval.
@@ -483,14 +483,16 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
   looks later and an unwritten run cycled 152 looks over three files;
   the write guard reads the WHOLE terminal command, so `cp … && <skill
   script>` is refused → a skill script runs in a command of its own).
-- **Creator's v8 broker references mirror subjects, not forms.** Each of
-  Plan / Build / Quality assurance owns a common index plus one flat
+- **Creator's v9 broker references mirror subjects, not forms.** Each of
+  Plan / Build / Quality assurance owns an entry `SKILL.md` plus one flat
   `<hands>/<subject>.md` for every subject actually served by the three
   hands; verb differences stay inside that file. `validate_creator_references`
   derives coverage from the hands leaves and checks both missing and orphan
-  references, real index links and local link targets. A v8 root requires the
-  complete tree and rejects the old phase monoliths; a v7 root with no phase
-  directories remains valid for the earlier Stack layer. New subject references
+  references, entry links and local link targets. A v9 root requires all three
+  independently discoverable entries and rejects stale `references/<phase>/`
+  trees; the shipped v7/v8 validation remains for earlier candidates. Each entry
+  requires the full kernel, with canonical read recovery or a stop when absent.
+  New subject references
   land with their hands family, never as placeholder stubs. Creator reads QA
   evidence against intent; do not transplant the hands' measurement commands
   into Creator's QA. Actual legacy capability retirement stays family-by-family
