@@ -644,13 +644,16 @@ goals:
   max_turns: 20
 mcp_servers: {}
 skills:
-  # Optional technical references for create-tour/create-ad only, governed by
-  # video-creator-pipeline/references/hyperframes.md. Never expose the whole store.
+  # Optional technical references keep references/hyperframes.md's leaf scope.
+  # Knowledge-only craft follows references/craft.md; never expose the whole store.
   external_dirs:
     - ~/.agents/skills/hyperframes-core
     - ~/.agents/skills/hyperframes-animation
     - ~/.agents/skills/cut-the-curve
     - ~/.agents/skills/oversized-cursor
+    - ~/.agents/skills/media-craft-direction
+    - ~/.agents/skills/media-craft-visual
+    - ~/.agents/skills/media-craft-motion
   create_dir: skills/learned
   disabled:
     - video-render-environment

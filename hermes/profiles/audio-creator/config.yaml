@@ -655,9 +655,11 @@ goals:
   max_turns: 20
 mcp_servers: {}
 skills:
-  # Hands see nothing but their own leaves: no upstream libraries, no
-  # ~/.agents store. A leaf that needs an engine names it in its Procedure.
-  external_dirs: []
+  # Knowledge-only craft pins; never expose the whole shared store or its tools.
+  # The pipeline's references/craft.md owns conditional reading.
+  external_dirs:
+    - ~/.agents/skills/media-craft-direction
+    - ~/.agents/skills/media-craft-audio
   create_dir: skills/learned
   disabled: []
   template_vars: true

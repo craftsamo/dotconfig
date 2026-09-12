@@ -55,6 +55,12 @@ def test_hands_config_safe_yaml_offline_mechanical(hands_config):
     expected = [f"~/.agents/skills/{name}" for name in (
         "hyperframes-core", "hyperframes-animation", "cut-the-curve", "oversized-cursor",
     )] if profile == "video-creator" else []
+    craft = {
+        "image-creator": ("direction", "visual"),
+        "video-creator": ("direction", "visual", "motion"),
+        "audio-creator": ("direction", "audio"),
+    }
+    expected += [f"~/.agents/skills/media-craft-{name}" for name in craft[profile]]
     assert safe["skills"]["external_dirs"] == expected
 
 

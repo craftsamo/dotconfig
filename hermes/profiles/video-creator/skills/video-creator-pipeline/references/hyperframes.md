@@ -4,6 +4,10 @@ Scope is narrow on purpose: read this leaf's own local authoring reference
 FIRST. These four external directories are optional advisory background,
 never a substitute for the leaf's own form, approvals or helper scripts.
 
+The kernel's [craft reading](craft.md) separately governs the three pinned
+media-craft knowledge skills. They are not extra HyperFrames workflows; this
+file's four technical references retain their existing leaf scope and fallback.
+
 Before authoring fresh source, attempt `skill_view(name="hyperframes-core")`
 and `skill_view(name="hyperframes-animation")`, then read only the relevant
 file via `skill_view(name=..., file_path="...")`; do not list or install.

@@ -64,7 +64,9 @@ historical constraints, never a request to repeat its generation or spend.
    `skill:` → `no skill fits: <what was asked>`.
 2. **Load what the leaf points at** — a `references/styles/<style>.md` for
    the chosen style, a listed reference image (vision), a previous delivery
-   for `intent: revise`. Nothing else.
+   for `intent: revise`. Nothing else, except the conditional
+   [craft reading](references/craft.md) before an actual creative decision;
+   this is knowledge, never another workflow.
 3. **Run `<Procedure>` exactly.** Scripts are invoked as the leaf writes
    them (`${HERMES_SKILL_DIR}/scripts/…`; shared ones live in this root's
    `scripts/`). Text with Japanese punctuation goes through a file, never

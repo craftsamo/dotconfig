@@ -21,6 +21,7 @@ TECHNICAL_SKILLS = (
     "cut-the-curve",
     "oversized-cursor",
 )
+CRAFT_SKILLS = ("media-craft-direction", "media-craft-visual", "media-craft-motion")
 
 
 class VideoCreatorConfigTest(unittest.TestCase):
@@ -54,10 +55,10 @@ class VideoCreatorConfigTest(unittest.TestCase):
 
     def test_only_curated_external_skill_dirs(self) -> None:
         self.assertEqual(
-            [f"~/.agents/skills/{name}" for name in TECHNICAL_SKILLS],
+            [f"~/.agents/skills/{name}" for name in (*TECHNICAL_SKILLS, *CRAFT_SKILLS)],
             self.video["skills"]["external_dirs"],
         )
-        self.assertFalse(set(TECHNICAL_SKILLS) & set(self.video["skills"]["disabled"]))
+        self.assertFalse(set((*TECHNICAL_SKILLS, *CRAFT_SKILLS)) & set(self.video["skills"]["disabled"]))
         self.assertIs(False, self.video["skills"]["inline_shell"])
 
     def test_technical_reading_is_scoped_to_authored_leaves(self) -> None:
