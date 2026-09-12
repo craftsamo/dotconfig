@@ -15,7 +15,7 @@ its bytes, purpose and evidence still match; do not rewrite for activity's sake.
 
 A Writer candidate is not writing-QA-gated merely because a peer returned it.
 Marketer, as requester, loads Writer's shared acceptance and applicable prose/script
-contract through [content QA](../quality-assurance/content.md), then performs independent checks
+contract through [content QA](../../qa-marketer/references/content.md), then performs independent checks
 before it can enter a message unit or approval relay. Missing shared QA blocks
 acceptance. No local shortening, claim removal, stronger urgency or humanizer:
 defects go to the same Writer under the contract's bounded corrective releases.

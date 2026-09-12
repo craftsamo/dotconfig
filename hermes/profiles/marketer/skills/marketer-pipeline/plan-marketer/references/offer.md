@@ -24,4 +24,4 @@ prices itself. A draft proposal is not an approved commercial claim.
 Keep scarcity, deadlines, guarantees and results truthful. If an announced term
 changes, flag the communication/commitment issue for a user decision; do not
 force an obsolete plan merely to satisfy a slogan. Register decided terms and
-their evidence in [state](../state.md); Writer receives those exact constraints.
+their evidence in [state](../../references/state.md); Writer receives those exact constraints.

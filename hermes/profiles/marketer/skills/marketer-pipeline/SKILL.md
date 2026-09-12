@@ -1,14 +1,12 @@
 ---
 name: marketer-pipeline
 description: >-
-  Marketing strategy, reader and offer discovery, content planning, service-side
-  browser drafts, measurement and outcome analysis. Use for growing an audience,
-  choosing channels, exploring what to sell, commissioning content, saving an
-  approved post or article as an unpublished service draft, or interpreting its
-  results. Marketer owns strategy and its existing browser; Writer owns prose and
-  Creator owns media. No publishing, scheduling, sending or new login profile.
-  Local manuscript delivery alone does not complete a service-draft request.
-version: 7.0.0
+  Marketer's shared client, approval, browser and delivery contract. Required by
+  plan-marketer, build-marketer, qa-marketer and analyze-marketer. Marketer owns
+  strategy and its existing browser; Writer owns prose and Creator owns media.
+  No publishing, scheduling, sending or new login profile. Local manuscript
+  delivery alone does not complete a service-draft request.
+version: 8.0.0
 author: CraftSamo
 license: MIT
 metadata:
@@ -25,8 +23,8 @@ service-side draft operations and interpretation of results. A product need
 not exist at intake. Revenue, reader relationships and personal interests can
 coexist; do not reduce every conversation or article to a sales funnel.
 
-Keep this kernel to routing and contracts. Read the selected mode index before
-working, then only the references relevant to the released request.
+Keep this kernel to routing and contracts. Read the selected independent entry
+before working, then only references relevant to the released request.
 
 </Goal>
 
@@ -62,28 +60,32 @@ Request a resident `specialist_call(kind="work")` for that unit.
 
 | Mode | Load | When |
 | --- | --- | --- |
-| Plan | [plan/index.md](references/plan/index.md) | Goal, direction, audience, offer, channel or campaign decisions |
-| Build | [build/index.md](references/build/index.md) | Commission parts, prepare/update a service draft, collect observations |
-| Quality assurance | [quality-assurance/index.md](references/quality-assurance/index.md) | Check a strategy, a content candidate or a saved service draft |
-| Analyze | [analyze/index.md](references/analyze/index.md) | Interpret observed results and recommend the next decision |
+| Plan | [plan-marketer](plan-marketer/SKILL.md) | Goal, direction, audience, offer, channel or campaign decisions |
+| Build | [build-marketer](build-marketer/SKILL.md) | Commission parts, prepare/update a service draft, collect observations |
+| Quality assurance | [qa-marketer](qa-marketer/SKILL.md) | Check a strategy, a content candidate or a saved service draft |
+| Analyze | [analyze-marketer](analyze-marketer/SKILL.md) | Interpret observed results and recommend the next decision |
 
 These are entry modes, not mandatory consecutive stages. A result analysis need
 not create content; a supplied approved manuscript need not restart strategy.
 Artifact quality and marketing effectiveness are different questions.
-Read the selected mode's index.md and applicable detailed/platform references
-before acting. Read-only references may be loaded in parallel; the common index
-must not be omitted. The root's direct links are not a replacement for that
-contract. A read-only recheck needs the Quality assurance index, saved-draft and
-the relevant platform reference before any browser verification.
+Select the relevant entry each user turn or specialist completion and before a
+mode, target, platform or scope-changing action. Approval-only replies resume
+the recorded job; they do not restart a plan or reset approvals. The selected
+entry is the complete mode procedure and lists its details. A cross-entry detail
+requires its owning entry before application, not this kernel alone.
 
-Plan references: [discovery](references/plan/discovery.md),
-[positioning](references/plan/positioning.md), [offer](references/plan/offer.md),
-[channels](references/plan/channels.md), [campaign](references/plan/campaign.md).
-Build references: [parts](references/build/parts.md),
-[draft](references/build/draft.md), [measurement](references/build/measurement.md).
-QA references: [strategy](references/quality-assurance/strategy.md),
-[content](references/quality-assurance/content.md),
-[saved draft](references/quality-assurance/saved-draft.md).
+Direct entry requires this full kernel too. Reuse full-body instructions only
+while present in current context; a past load, preload label or summary is not
+enough. Read-only references may be loaded in parallel. If skill_view returns
+unchanged while the earlier body is unavailable, recover with read_file on the
+canonical document and follow next_offset until complete. If still missing,
+stop the affected action. Never evade dedup with alternate paths or artificial
+ranges. Resolve skill-relative paths from the directory containing that
+document's owning SKILL.md, not whichever skill was loaded last.
+
+A read-only draft recheck loads qa-marketer, its saved-draft reference and the
+selected platform procedure before any browser action. Reading instructions
+does not authorize navigation or waive the browser lease.
 For a named service, read its one shared reference:
 [X](references/platforms/x.md), [Substack](references/platforms/substack.md),
 [note](references/platforms/note.md), [Zenn](references/platforms/zenn.md).
@@ -94,7 +96,7 @@ Use [state](references/state.md) for durable records, approvals and resumes.
 <Boundaries>
 
 - Writer authors and edits intended post/article/copy/script text. Requester
-  acceptance uses the shared contract loaded by [content QA](references/quality-assurance/content.md),
+  acceptance uses the shared contract loaded by [content QA](qa-marketer/references/content.md),
   never Writer's self-review as approval. Creator owns media. Marketer writes its own strategy,
   briefs and analysis, not substitute public manuscripts.
 - Use `specialist_call` / `specialist_session` for the configured engineer,
