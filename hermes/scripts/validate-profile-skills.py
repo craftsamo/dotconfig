@@ -5,12 +5,11 @@
 # ///
 """Validate Hermes skill topology, metadata, routing, and Git ownership.
 
-Workflow v5 (assistant-pipeline): the assistant profile owns the front-door
-reference tree at profiles/assistant/skills/assistant-pipeline/references/
-— modes chat / plan / execute / quality-assurance, each with optional
-capability subdirectories and work-category leaves. The kanban card catalog
-is the union of `card_units` front matter across the execute mode tree and
-is validated structurally here. The `default-pipeline` skill in the shared
+The assistant profile owns a kernel and 19 flat, selectable entry skills
+under profiles/assistant/skills/assistant-pipeline/. Each entry owns its
+references; only common phase references remain beside the kernel.
+The closed kanban card catalog belongs to the creative and search Execute
+entries. The `default-pipeline` skill in the shared
 skills/ dir is a thin CLI adapter over that tree. This validator checks the
 tree topology, the catalog schema, index routing completeness, worker
 pipeline/technic topology, plugin enablement, and Git ownership boundaries.
@@ -64,10 +63,28 @@ EXPECTED_CAPABILITIES = {
     "engineering",
     "marketing",
 }
-# Capability subdirectories are allowed in these modes; chat stays flat.
 CAPABILITY_MODES = {"plan", "execute", "quality-assurance"}
-# The sanctioned (mode, capability, subdir) shelf below a capability dir:
-# creative/legacy/, the flat home of retained production references with
+ASSISTANT_ENTRY_PREFIXES = {
+    "plan": "plan", "execute": "execute", "quality-assurance": "qa"
+}
+ASSISTANT_ENTRIES = {
+    "chat-assistant": ("chat", None),
+    **{
+        f"{prefix}-assistant-{capability}": (mode, capability)
+        for mode, prefix in ASSISTANT_ENTRY_PREFIXES.items()
+        for capability in EXPECTED_CAPABILITIES
+    },
+}
+ASSISTANT_CARD_UNITS = {
+    "execute-assistant-creative": {
+        "anchored-image-batch": "creator", "deterministic-render": "creator"
+    },
+    "execute-assistant-search": {
+        "survey-enumeration": "searcher", "exhaustive-hunt": "searcher"
+    },
+}
+# The sanctioned (mode, capability, subdir) shelf below entry references:
+# creative's legacy/, the flat home of retained production references with
 # fixed house prescriptions removed. Plan, execute and quality-assurance
 # each have one shelf; it never nests and never carries card_units.
 CREATIVE_LEGACY_SHELVES = {
@@ -75,7 +92,7 @@ CREATIVE_LEGACY_SHELVES = {
     ("execute", "creative", "legacy"),
     ("quality-assurance", "creative", "legacy"),
 }
-# Files that must exist directly inside a mode dir (beyond index.md).
+# Required Chat entry references and extra shared Execute files.
 REQUIRED_MODE_FILES = {
     "chat": {"workspace-ops.md", "cron.md", "lookups.md"},
     "execute": {"resident-sessions.md", "kanban-lite.md", "scheduled.md"},
@@ -83,9 +100,7 @@ REQUIRED_MODE_FILES = {
 # Verification contracts that must exist (migration-loss guard); extra
 # leaves may grow beside them as long as the dir index routes them.
 REQUIRED_QA_CONTRACTS = {
-    # creative's floor lives one level down, at quality-assurance/creative/
-    # legacy/ (see QA_CONTRACT_LEGACY_CAPABILITIES below) — the top
-    # quality-assurance/creative/ dir only routes to it.
+    # Creative's floor is qa-assistant-creative/references/legacy/.
     "creative": {
         "ascii-art.md",
         "ascii-video.md",
@@ -114,7 +129,7 @@ REQUIRED_QA_CONTRACTS = {
 }
 CARD_UNIT_NAME = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
 # Capabilities whose required QA contract floor lives under legacy/
-# rather than directly in quality-assurance/<capability>/.
+# rather than directly in qa-assistant-<capability>/references/.
 QA_CONTRACT_LEGACY_CAPABILITIES = {"creative"}
 
 
@@ -164,6 +179,19 @@ def capability_names(path: Path) -> set[str]:
 
 def rel_pipeline(path: Path) -> str:
     return path.relative_to(ASSISTANT_PIPELINE).as_posix()
+
+
+def assistant_entry_dir(
+    mode: str, capability: str | None = None, pipeline: Path | None = None
+) -> Path:
+    """Resolve an entry against the current root, never an import-time path."""
+    name = (
+        "chat-assistant" if mode == "chat" and capability is None
+        else f"{ASSISTANT_ENTRY_PREFIXES.get(mode)}-assistant-{capability}"
+    )
+    if name not in ASSISTANT_ENTRIES:
+        raise ValueError(f"unknown assistant entry: {mode}/{capability}")
+    return (ASSISTANT_PIPELINE if pipeline is None else pipeline) / name
 
 
 def validate_index_routes(directory: Path, errors: list[str]) -> None:
@@ -277,16 +305,16 @@ def validate_card_units(
 
 
 def collect_card_catalog() -> dict[str, str]:
-    """Best-effort card catalog (unit name -> assignee) from the execute tree.
+    """Best-effort card catalog from the two authorized Execute entries.
 
     Used when validating a single worker profile without the full assistant
     pass; schema errors are ignored here (the --all pass reports them).
     """
     catalog: dict[str, str] = {}
-    execute = ASSISTANT_PIPELINE / "references" / "execute"
-    if not execute.is_dir():
-        return catalog
-    for path in sorted(execute.rglob("*.md")):
+    for name in sorted(ASSISTANT_CARD_UNITS):
+        path = ASSISTANT_PIPELINE / name / "SKILL.md"
+        if not path.is_file():
+            continue
         units = frontmatter(path).get("card_units")
         if not isinstance(units, list):
             continue
@@ -303,122 +331,179 @@ def collect_card_catalog() -> dict[str, str]:
 def validate_assistant_pipeline(
     errors: list[str],
 ) -> tuple[int, dict[str, str]]:
-    """Validate the assistant-pipeline skill and its reference tree.
+    """Validate the kernel, exhaustive entry set and owned reference trees.
 
     Returns (markdown reference file count, card catalog name -> assignee).
     """
     catalog: dict[str, str] = {}
+    # Only the outer private-overlay link is permitted. Hermes follows nested
+    # links but pathlib's recursive validation does not, so reject them first.
+    links = [path for path in ASSISTANT_PIPELINE.rglob("*") if path.is_symlink()]
+    if links:
+        for path in sorted(links):
+            errors.append(f"assistant pipeline must not contain symlinks: {rel_pipeline(path)}")
+        return 0, catalog
     skill = ASSISTANT_PIPELINE / "SKILL.md"
     if not skill.is_file():
         errors.append(f"missing assistant pipeline skill: {skill}")
         return 0, catalog
     validate_skill(skill, "assistant-pipeline", errors, expected_category="orchestration")
 
+    allowed = {("SKILL.md",)} | {(name, "SKILL.md") for name in ASSISTANT_ENTRIES}
+    for child in sorted(ASSISTANT_PIPELINE.iterdir()):
+        if child.name.startswith("."):
+            continue
+        if child.name == "tests" and child.is_dir():
+            continue
+        if child.name not in {"SKILL.md", "references", *ASSISTANT_ENTRIES}:
+            errors.append(f"unexpected assistant pipeline child: {child.name}")
+
     references = ASSISTANT_PIPELINE / "references"
-    if not references.is_dir():
-        errors.append(f"missing assistant pipeline references: {references}")
-        return 0, catalog
-
-    for entry in sorted(references.iterdir()):
-        if entry.name.startswith("."):
+    shared_files = {
+        f"{mode}/{name}"
+        for mode in CAPABILITY_MODES
+        for name in {"index.md", *REQUIRED_MODE_FILES.get(mode, set())}
+    }
+    for rel in sorted(shared_files):
+        if not (references / rel).is_file():
+            errors.append(f"missing shared mode file: references/{rel}")
+    if references.is_dir():
+        for path in sorted(references.rglob("*")):
+            rel = path.relative_to(references).as_posix()
+            if any(part.startswith(".") for part in Path(rel).parts):
+                continue
+            if (path.is_dir() and rel in CAPABILITY_MODES) or rel in shared_files:
+                continue
+            errors.append(f"unexpected shared reference: references/{rel}")
+    for mode in sorted(CAPABILITY_MODES):
+        index = references / mode / "index.md"
+        if not index.is_file():
             continue
-        if entry.is_file():
-            errors.append(f"references root must hold mode dirs only: {entry.name}")
-        elif entry.name not in EXPECTED_MODES:
-            errors.append(f"unexpected mode directory: {entry.name}")
-    for mode in EXPECTED_MODES:
-        if not (references / mode).is_dir():
-            errors.append(f"missing mode directory: {mode}")
+        validate_index_routes(index.parent, errors)
+        text = index.read_text(encoding="utf-8")
+        for name, (entry_mode, _) in ASSISTANT_ENTRIES.items():
+            if entry_mode == mode and not re.search(rf"(?<![\w-]){re.escape(name)}(?![\w-])", text):
+                errors.append(f"shared {mode} index does not route {name}")
+        if any(
+            re.search(r"(?:chat-assistant|(?:plan|execute|qa)-assistant-[a-z]+)", call)
+            for call in re.findall(r"skill_view\s*\([^)]*\)", text, re.S)
+        ):
+            errors.append(f"shared {mode} index must not recursively load an entry")
 
-    files = 0
     units: dict[str, Path] = {}
-    for mode in EXPECTED_MODES:
-        mode_dir = references / mode
-        if not mode_dir.is_dir():
+    for name, (mode, capability) in sorted(ASSISTANT_ENTRIES.items()):
+        entry = ASSISTANT_PIPELINE / name
+        entry_skill = entry / "SKILL.md"
+        if not entry_skill.is_file():
+            errors.append(f"missing assistant entry skill: {name}/SKILL.md")
             continue
-        validate_index_routes(mode_dir, errors)
-        for name in sorted(REQUIRED_MODE_FILES.get(mode, set())):
-            if not (mode_dir / name).is_file():
-                errors.append(f"missing required mode file: {mode}/{name}")
-        for entry in sorted(mode_dir.iterdir()):
-            if entry.name.startswith("."):
+        validate_skill(entry_skill, name, errors, expected_category="assistant-pipeline")
+        data = frontmatter(entry_skill)
+        version = data.get("version")
+        if not isinstance(version, str) or not version.strip():
+            errors.append(f"assistant entry version must be a nonempty string: {name}")
+        description = data.get("description", "")
+        phase = "quality assurance" if mode == "quality-assurance" else mode
+        prefix = phase if capability is None else f"{phase} {capability}"
+        prefix_pattern = re.escape(prefix).replace(r"\ ", r"[\s:-]+")
+        if mode == "quality-assurance":
+            prefix_pattern = rf"(?:quality[\s-]+assurance|qa)[\s:-]+{capability}"
+        if not isinstance(description, str) or not re.match(
+            rf"^{prefix_pattern}\b", description, re.I
+        ):
+            errors.append(f"assistant entry description must frontload {prefix}: {name}")
+        text = entry_skill.read_text(encoding="utf-8").split("\n---\n", 1)[-1]
+        dependencies = ['skill_view(name="assistant-pipeline")']
+        paths = ["SKILL.md"]
+        if mode != "chat":
+            paths.append(f"references/{mode}/index.md")
+            dependencies.append(
+                f'skill_view(name="assistant-pipeline", file_path="{paths[-1]}")'
+            )
+        for call in dependencies:
+            if call not in text:
+                errors.append(f"assistant entry missing dependency {call}: {name}")
+        read_before = re.search(r"<ReadBeforeWork>(.*?)</ReadBeforeWork>", text, re.S)
+        block = " ".join(read_before.group(1).split()) if read_before else ""
+        for label, pattern in (
+            ("full body reuse", r"full[- ]bod(?:y|ies)"),
+            ("reuse instruction", r"\bre-?use\b"),
+            ("not a past summary", r"(?:not|never|no)\b[^.!?]*\bsummar(?:y|ies)"),
+            ("unchanged response", r"unchanged"),
+            ("missing earlier body", r"(?:earlier|previous|context)"),
+            ("missing body condition", r"(?:missing|unavailable|not\s+(?:available|present))"),
+            ("read_file fallback", r"read_file"),
+            ("stop if unavailable", r"\bstop\b"),
+        ):
+            if not re.search(pattern, block, re.I):
+                errors.append(f"assistant entry ReadBeforeWork missing {label}: {name}")
+        for path in paths:
+            canonical = f"${{HERMES_SKILL_DIR}}/../{path}"
+            if canonical not in block:
+                errors.append(f"assistant entry missing canonical fallback {canonical}: {name}")
+        for child in sorted(entry.iterdir()):
+            if child.name.startswith("."):
                 continue
-            if entry.is_file():
-                if entry.suffix != ".md":
-                    errors.append(f"non-markdown reference: {rel_pipeline(entry)}")
-                    continue
-                files += 1
-                if mode == "execute":
-                    validate_card_units(entry, units, errors, catalog)
-                elif "card_units" in frontmatter(entry):
-                    errors.append(
-                        f"card_units are only legal under execute/: "
-                        f"{rel_pipeline(entry)}"
-                    )
-                continue
-            # capability subdirectory
-            if mode not in CAPABILITY_MODES:
-                errors.append(
-                    f"{mode}/ must stay flat; unexpected dir: {rel_pipeline(entry)}"
-                )
-                continue
-            if entry.name not in EXPECTED_CAPABILITIES:
-                errors.append(f"unexpected capability dir: {rel_pipeline(entry)}")
-                continue
-            validate_index_routes(entry, errors)
-            for leaf in sorted(entry.iterdir()):
+            if child.name not in {"SKILL.md", "references"}:
+                errors.append(f"unexpected assistant entry child: {rel_pipeline(child)}")
+        own_refs = entry / "references"
+        if capability == "creative" and not (own_refs / "legacy" / "index.md").is_file():
+            errors.append(f"missing creative legacy index: {name}/references/legacy/index.md")
+        if mode == "chat":
+            for filename in sorted(REQUIRED_MODE_FILES["chat"]):
+                if not (own_refs / filename).is_file():
+                    errors.append(f"missing chat reference: {name}/references/{filename}")
+        if own_refs.is_dir():
+            for leaf in sorted(own_refs.iterdir()):
                 if leaf.name.startswith("."):
                     continue
+                if mode == "chat" and leaf.name not in REQUIRED_MODE_FILES["chat"]:
+                    errors.append(f"unexpected chat reference: {rel_pipeline(leaf)}")
+                route = f"references/{leaf.name}" + ("/index.md" if leaf.is_dir() else "")
+                if route not in text:
+                    errors.append(f"entry SKILL.md does not route {route}: {name}")
                 if leaf.is_dir():
-                    # creative/legacy/ is the sanctioned subdir: the flat,
-                    # retained home of the original
-                    # creator-technic-aligned leaves. The owning
-                    # capability's own index.md must route it explicitly
-                    # since the plain sibling-route check below only sees
-                    # flat .md files.
-                    if (mode, entry.name, leaf.name) in CREATIVE_LEGACY_SHELVES:
-                        capability_index = entry / "index.md"
-                        capability_text = (
-                            capability_index.read_text(encoding="utf-8")
-                            if capability_index.is_file()
-                            else ""
-                        )
-                        if "legacy/index.md" not in capability_text:
-                            errors.append(
-                                "capability index does not route "
-                                f"legacy/index.md: {rel_pipeline(entry)}"
-                            )
-                        files += validate_creative_legacy_shelf(leaf, mode, errors)
-                        continue
-                    errors.append(
-                        f"no nesting below capability dirs: {rel_pipeline(leaf)}"
-                    )
-                    continue
-                if leaf.suffix != ".md":
+                    if (mode, capability, leaf.name) in CREATIVE_LEGACY_SHELVES:
+                        validate_creative_legacy_shelf(leaf, mode, errors)
+                    else:
+                        errors.append(f"no nesting below entry references: {rel_pipeline(leaf)}")
+                elif leaf.suffix != ".md":
                     errors.append(f"non-markdown reference: {rel_pipeline(leaf)}")
-                    continue
-                files += 1
-                if mode == "execute":
-                    validate_card_units(leaf, units, errors, catalog)
-                elif "card_units" in frontmatter(leaf):
-                    errors.append(
-                        f"card_units are only legal under execute/: "
-                        f"{rel_pipeline(leaf)}"
-                    )
+                elif leaf.name == "index.md":
+                    errors.append(f"entry index must be promoted to SKILL.md: {name}")
+        if name in ASSISTANT_CARD_UNITS:
+            entry_catalog: dict[str, str] = {}
+            validate_card_units(entry_skill, units, errors, entry_catalog)
+            if entry_catalog != ASSISTANT_CARD_UNITS[name]:
+                errors.append(f"assistant entry card catalog must be {ASSISTANT_CARD_UNITS[name]}: {name}")
+            catalog.update(entry_catalog)
 
-    qa_root = references / "quality-assurance"
+    # Scan every document, including unexpected/nested directories, so an
+    # invalid shelf cannot hide a declaration or an escaping Markdown link.
+    files = 0
+    card_paths = {ASSISTANT_PIPELINE / name / "SKILL.md" for name in ASSISTANT_CARD_UNITS}
+    for doc in sorted(ASSISTANT_PIPELINE.rglob("*.md")):
+        files += doc.name != "SKILL.md"
+        if doc.name == "SKILL.md" and doc.relative_to(ASSISTANT_PIPELINE).parts not in allowed:
+            errors.append(f"unexpected skill root: {rel_pipeline(doc)}")
+        if doc not in card_paths and "card_units" in frontmatter(doc):
+            errors.append(f"card_units are only legal on creative/search Execute SKILL.md: {rel_pipeline(doc)}")
+        for link, target in markdown_links(doc):
+            if not target.is_relative_to(ASSISTANT_PIPELINE.resolve()):
+                errors.append(f"assistant reference link escapes the pipeline: {link} in {rel_pipeline(doc)}")
+            elif not target.is_file():
+                errors.append(f"assistant reference link is broken: {link} in {rel_pipeline(doc)}")
+
     for capability, required in REQUIRED_QA_CONTRACTS.items():
-        directory = qa_root / capability
-        rel_dir = capability
+        directory = assistant_entry_dir("quality-assurance", capability) / "references"
         if capability in QA_CONTRACT_LEGACY_CAPABILITIES:
             directory = directory / "legacy"
-            rel_dir = f"{capability}/legacy"
         present = (
             {p.name for p in directory.glob("*.md")} if directory.is_dir() else set()
         )
         for name in sorted(required - present):
             errors.append(
-                f"QA contract file missing: quality-assurance/{rel_dir}/{name}"
+                f"QA contract file missing: {rel_pipeline(directory / name)}"
             )
 
     return files, catalog
@@ -1466,11 +1551,11 @@ def validate_creator_references(pipeline_dir: Path, errors: list[str]) -> None:
 # ── Creative three-layer alignment ────────────────────────────────────────────
 #
 # Plan decides, creator produces, QA verifies. The 1:1 parity contract is
-# scoped to plan/creative/legacy/ and quality-assurance/creative/legacy/,
+# scoped to plan-assistant-creative/references/legacy/ and the matching QA shelf,
 # the flat shelves that still carry the original creator-technic-aligned
 # leaves: they must pair 1:1 with creator technics, and the legacy QA
 # index's Covers column must map every canonical family to exactly one
-# contract. The plain-language guides living directly under plan/creative/
+# contract. The plain-language guides in plan-assistant-creative/references/
 # (this migration's new client-facing surface) carry no such parity —
 # a new guide's name need not equal a creator hand, and an absent guide
 # does not mean the capability is unavailable. Families served by
@@ -1485,15 +1570,14 @@ CREATIVE_LEGACY_NON_FAMILY_LEAVES = {
     "composite-media.md",
 }
 # Headings every new plain-language creative guide must carry verbatim;
-# index.md and reference-research.md are
-# the common cross-family roots and are not guides themselves.
+# reference-research.md is a cross-family reference, not a guide itself.
 CREATIVE_GUIDE_HEADINGS = (
     "## Use",
     "## Client decisions",
     "## References",
     "## Acceptance",
 )
-CREATIVE_GUIDE_EXCLUDED_ROOTS = {"index.md", "reference-research.md"}
+CREATIVE_GUIDE_EXCLUDED_ROOTS = {"reference-research.md"}
 # Retired creative shelves/leaves: an active reference must never point
 # at them again.
 CREATIVE_RETIRED_REFERENCE_SEGMENTS = (
@@ -1509,8 +1593,8 @@ CREATIVE_BACKTICK_REF = re.compile(r"`([^`\s]+)`")
 
 
 def validate_creative_new_guides(plan_dir: Path, errors: list[str]) -> None:
-    """Every plain-language guide directly under plan/creative/ (i.e. not
-    index.md, reference-research.md or anything under legacy/) must carry
+    """Every plain-language guide directly under the Plan entry's references
+    (not reference-research.md or anything under legacy/) must carry
     the four client-facing headings verbatim."""
     for path in sorted(plan_dir.glob("*.md")):
         if path.name in CREATIVE_GUIDE_EXCLUDED_ROOTS:
@@ -1532,6 +1616,7 @@ def creative_doc_references(doc: Path) -> list[tuple[str, Path]]:
     fields are not treated as broken links."""
     refs = list(markdown_links(doc))
     text = doc.read_text(encoding="utf-8")
+    text = re.sub(r"(?ms)^\s*(`{3,}|~{3,})[^\n]*\n.*?^\s*\1\s*$", "", text)
     for raw in CREATIVE_BACKTICK_REF.findall(text):
         link = raw.strip().split("#", 1)[0]
         if any(char in link for char in "<>${}*"):
@@ -1547,13 +1632,12 @@ def creative_doc_references(doc: Path) -> list[tuple[str, Path]]:
 
 
 def validate_creative_references(pipeline_dir: Path, errors: list[str]) -> None:
-    """Local document references across the affected creative docs (plan,
-    execute and quality-assurance creative trees, legacy shelves
+    """Local document references across the three creative entries, legacy shelves
     included), confined to the pipeline root and never pointing at a
     retired shelf."""
     root = pipeline_dir.resolve()
     for mode in ("plan", "execute", "quality-assurance"):
-        tree = pipeline_dir / "references" / mode / "creative"
+        tree = assistant_entry_dir(mode, "creative", pipeline_dir)
         if not tree.is_dir():
             continue
         for doc in sorted(tree.rglob("*.md")):
@@ -1581,8 +1665,8 @@ def validate_creative_references(pipeline_dir: Path, errors: list[str]) -> None:
 
 
 def validate_creative_alignment(errors: list[str]) -> None:
-    plan_dir = ASSISTANT_PIPELINE / "references" / "plan" / "creative"
-    qa_dir = ASSISTANT_PIPELINE / "references" / "quality-assurance" / "creative"
+    plan_dir = assistant_entry_dir("plan", "creative") / "references"
+    qa_dir = assistant_entry_dir("quality-assurance", "creative") / "references"
     technic_dir = HERMES_ROOT / "profiles" / "creator" / "skills" / "technic"
     legacy_dir = plan_dir / "legacy"
     if plan_dir.is_dir():
@@ -1607,7 +1691,7 @@ def validate_creative_alignment(errors: list[str]) -> None:
         errors.append(f"creative legacy leaf has no canonical family: {name}")
 
     qa_legacy_dir = qa_dir / "legacy"
-    qa_index = qa_dir / "index.md"
+    qa_index = qa_dir.parent / "SKILL.md"
     if not qa_index.is_file():
         errors.append(f"missing creative QA index: {qa_index}")
         return
@@ -1643,23 +1727,15 @@ def validate_creative_alignment(errors: list[str]) -> None:
 # Technical decomposition and UI evaluation now belong to Engineer, not this
 # Assistant-side correspondence check.
 
-ENGINEERING_PLAN_DIR = ASSISTANT_PIPELINE / "references" / "plan" / "engineering"
-ENGINEERING_QA_INSPECTION = (
-    ASSISTANT_PIPELINE
-    / "references"
-    / "quality-assurance"
-    / "engineering"
-    / "inspection.md"
-)
-
-
 def validate_engineering_alignment(errors: list[str]) -> None:
-    if not (ENGINEERING_PLAN_DIR.is_dir() and ENGINEERING_QA_INSPECTION.is_file()):
+    plan_dir = assistant_entry_dir("plan", "engineering") / "references"
+    qa_inspection = assistant_entry_dir("quality-assurance", "engineering") / "references" / "inspection.md"
+    if not (plan_dir.is_dir() and qa_inspection.is_file()):
         return  # missing roots are reported by the tree validators
 
-    leaves = {path.stem for path in ENGINEERING_PLAN_DIR.glob("*.md")} - {"index"}
+    leaves = {path.stem for path in plan_dir.glob("*.md")}
     rows: set[str] = set()
-    for line in ENGINEERING_QA_INSPECTION.read_text(encoding="utf-8").splitlines():
+    for line in qa_inspection.read_text(encoding="utf-8").splitlines():
         if not line.startswith("|") or line.startswith("| ---"):
             continue
         cells = [cell.strip() for cell in line.strip("|").split("|")]
@@ -1674,28 +1750,22 @@ def validate_engineering_alignment(errors: list[str]) -> None:
 
 # ── Writing plan-QA alignment ───────────────────────────────────────────
 #
-# Every plan/writing type leaf must declare its QA contract via a
+# Every writing Plan reference must declare its QA contract via a
 # "QA `<contract>`" mapping line, the named contract file must exist,
 # and every writing QA contract must be claimed by at least one leaf —
 # a new text type can never ship with an ungated contract mapping.
 
-WRITING_PLAN_DIR = ASSISTANT_PIPELINE / "references" / "plan" / "writing"
-WRITING_QA_DIR = (
-    ASSISTANT_PIPELINE / "references" / "quality-assurance" / "writing"
-)
-
-
 def validate_writing_alignment(errors: list[str]) -> None:
-    if not (WRITING_PLAN_DIR.is_dir() and WRITING_QA_DIR.is_dir()):
+    plan_dir = assistant_entry_dir("plan", "writing") / "references"
+    qa_dir = assistant_entry_dir("quality-assurance", "writing") / "references"
+    if not (plan_dir.is_dir() and qa_dir.is_dir()):
         return  # missing roots are reported by the tree validators
 
     contracts = {
-        path.stem for path in WRITING_QA_DIR.glob("*.md")
-    } - {"index"}
+        path.stem for path in qa_dir.glob("*.md")
+    }
     claimed: set[str] = set()
-    for leaf in sorted(WRITING_PLAN_DIR.glob("*.md")):
-        if leaf.name == "index.md":
-            continue
+    for leaf in sorted(plan_dir.glob("*.md")):
         match = re.search(r"QA `([a-z-]+)`", leaf.read_text(encoding="utf-8"))
         if not match:
             errors.append(f"writing plan leaf missing QA mapping line: {leaf.name}")
@@ -1717,23 +1787,17 @@ def validate_writing_alignment(errors: list[str]) -> None:
 # contract must be claimed by at least one leaf — a new retrieval unit
 # can never ship with an ungated contract mapping.
 
-SEARCH_PLAN_DIR = ASSISTANT_PIPELINE / "references" / "plan" / "search"
-SEARCH_QA_DIR = (
-    ASSISTANT_PIPELINE / "references" / "quality-assurance" / "search"
-)
-
-
 def validate_search_alignment(errors: list[str]) -> None:
-    if not (SEARCH_PLAN_DIR.is_dir() and SEARCH_QA_DIR.is_dir()):
+    plan_dir = assistant_entry_dir("plan", "search") / "references"
+    qa_dir = assistant_entry_dir("quality-assurance", "search") / "references"
+    if not (plan_dir.is_dir() and qa_dir.is_dir()):
         return  # missing roots are reported by the tree validators
 
     contracts = {
-        path.stem for path in SEARCH_QA_DIR.glob("*.md")
-    } - {"index"}
+        path.stem for path in qa_dir.glob("*.md")
+    }
     claimed: set[str] = set()
-    for leaf in sorted(SEARCH_PLAN_DIR.glob("*.md")):
-        if leaf.name == "index.md":
-            continue
+    for leaf in sorted(plan_dir.glob("*.md")):
         match = re.search(r"QA `([a-z-]+)`", leaf.read_text(encoding="utf-8"))
         if not match:
             errors.append(f"search plan leaf missing QA mapping line: {leaf.name}")
@@ -1755,23 +1819,17 @@ def validate_search_alignment(errors: list[str]) -> None:
 # contract must be claimed by at least one leaf — a new depth unit can
 # never ship with an ungated contract mapping.
 
-RESEARCH_PLAN_DIR = ASSISTANT_PIPELINE / "references" / "plan" / "research"
-RESEARCH_QA_DIR = (
-    ASSISTANT_PIPELINE / "references" / "quality-assurance" / "research"
-)
-
-
 def validate_research_alignment(errors: list[str]) -> None:
-    if not (RESEARCH_PLAN_DIR.is_dir() and RESEARCH_QA_DIR.is_dir()):
+    plan_dir = assistant_entry_dir("plan", "research") / "references"
+    qa_dir = assistant_entry_dir("quality-assurance", "research") / "references"
+    if not (plan_dir.is_dir() and qa_dir.is_dir()):
         return  # missing roots are reported by the tree validators
 
     contracts = {
-        path.stem for path in RESEARCH_QA_DIR.glob("*.md")
-    } - {"index"}
+        path.stem for path in qa_dir.glob("*.md")
+    }
     claimed: set[str] = set()
-    for leaf in sorted(RESEARCH_PLAN_DIR.glob("*.md")):
-        if leaf.name == "index.md":
-            continue
+    for leaf in sorted(plan_dir.glob("*.md")):
         match = re.search(r"QA `([a-z-]+)`", leaf.read_text(encoding="utf-8"))
         if not match:
             errors.append(f"research plan leaf missing QA mapping line: {leaf.name}")
@@ -1815,6 +1873,7 @@ def validate_assistant(
     groups["learned"], learned_roots = validate_learned_skills(learned_dir, errors)
 
     allowed: set[tuple[str, ...]] = {("assistant-pipeline", "SKILL.md")}
+    allowed.update(("assistant-pipeline", name, "SKILL.md") for name in ASSISTANT_ENTRIES)
     for category in ("desks", "technic"):
         allowed.update((category, name, "SKILL.md") for name in groups[category])
     allowed.update(learned_roots)

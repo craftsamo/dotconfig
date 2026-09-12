@@ -125,8 +125,8 @@ neither interruption is proof of successful completion.
 
 `~/.hermes/skills` is symlinked to the repo. The maintainer-owned shared
 `default-pipeline/` CLI adapter is version-controlled; the assistant's
-`assistant-pipeline` lives under its profile and owns the shared reference
-tree — its content sits in the private overlay, reached through a symlink at
+`assistant-pipeline` lives under its profile and owns the kernel, child entries
+and shared mode references; its content sits in the private overlay, reached through a symlink at
 `profiles/assistant/skills/assistant-pipeline` (as do the `desks/`).
 The ~/Workspaces data-skill
 cluster lives in the private overlay (this repo is public) and is read through
@@ -221,16 +221,72 @@ the relevant `config.yaml`.
 - `mcp.json` — MCP server connections.
 - `skills/default-pipeline/` — the version-controlled thin CLI adapter for the
   default profile. Its reference source is
-  `profiles/assistant/skills/assistant-pipeline/references/`, whose mode-first
-  tree owns the front-door workflow and quality-assurance contracts.
-  The closed kanban catalog is the union of `card_units` front matter across
-  `execute/**` (each unit names its `assignee` worker); topology, routing,
+  `profiles/assistant/skills/assistant-pipeline/`, whose kernel and 19 child
+  entries own the front-door workflow and requester QA routing.
+  The closed kanban catalog is the union of `card_units` frontmatter in
+  `execute-assistant-creative/SKILL.md` and `execute-assistant-search/SKILL.md`
+  only (each unit names its `assignee` worker); no detail declares cards. Topology, routing,
   schema, required QA contracts, and the worker-kernel unit-gate parity are
   enforced by `scripts/validate-profile-skills.py`.
   The ~/Workspaces data-skill cluster lives in the private overlay, read
   through `skills.external_dirs` as `~/.config/private/hermes/skills`.
   `skills/learned/` is the untracked adaptive library; bundled skills are read
   from the clone via `external_dirs`.
+
+### Assistant entry routing and cutover
+
+The deployed layout retains the private-overlay directory and root name
+`assistant-pipeline`. Its 19 independent child skills sit outside `references/`:
+`chat-assistant` and `{plan,execute,qa}-assistant-<domain>` for engineering,
+creative, writing, research, search and marketing. A child's root `SKILL.md`
+owns the former mode/domain index; its `references/` contains detailed subjects
+and, for creative, retained `legacy/` material. Parent shared files are only
+`references/plan/index.md`, `references/execute/{index,resident-sessions,kanban-lite,scheduled}.md`
+and `references/quality-assurance/index.md`. Chat owns its common procedure in
+`chat-assistant/SKILL.md`. The four catalog units and their names are unchanged.
+No new aliases or symlink install mapping is needed, and desk bindings and
+inline-only restrictions are unchanged.
+
+Each user turn/completion and each action changing mode/domain/scope midturn
+selects the applicable entry from the available index. Reuse requires full
+bodies in current context, not a past load, summary or root preload. Each entry
+requires the invariant kernel and its mode-common procedure before applying
+relevant details; approval-only replies resume existing state and scope.
+Default's CLI adapter discovers the same names through a bounded filesystem
+listing of the known Assistant tree and reads canonical files with `read_file`,
+even when hidden from `skill_view`. Its `skills.external_dirs` stays unchanged,
+so the 19 entries are not imposed on default or clones. Raw child
+`${HERMES_SKILL_DIR}` means that owning child's directory, not the adapter's
+directory. Writer's public acceptance rubric remains its sole source; if
+`writer-pipeline` is unavailable by name, the CLI reads
+`~/.hermes/profiles/writer/skills/writer-pipeline/references/acceptance/index.md`
+and the selected `prose.md`/`script.md` for inspection only, without exposing
+the producer menu.
+
+Source limitation: upstream `tools/skills_tool_dedup.py` and
+`tools/file_tools.py` can return unchanged stubs; compression-aware resets do
+not establish that every required instruction body is currently visible to the
+model. The entry-local canonical `read_file` fallback, following `next_offset`
+for truncation, is recovery, not a prompt-perfect guarantee. If it cannot recover
+a required body, stop the affected action. Do not bypass dedup through alternate
+paths or artificial ranges.
+
+This topology was **cut over on 2026-09-12**. Live `--all --strict-git`
+validation passed and all 13 configured messaging/A2A connections returned
+after the controlled restart. A restricted fresh Assistant CLI conversation
+made two real model turns: the first loaded Writing's document guide, and the
+second reused its entry/common bodies and loaded only the script guide.
+Search, production, delegation, saving and publication were disabled; this
+does not establish refresh of existing messaging histories.
+Run public tests with `HERMES_PRIVATE_ROOT=<private-candidate>` and private tests
+with `HERMES_PUBLIC_ROOT=<public-candidate>`. These select paired source trees
+for tests, not runtime wiring. Never run install scripts or create live links
+for candidate checks, and keep live Git/symlink ownership checks intact.
+The gateway caches its skill index in-process; manual file edits require a
+controlled restart AND a fresh session (`/new`) after explicit cutover approval.
+A fresh session alone is not index invalidation, and root preload does not
+prove that child dependencies are loaded. Pair public/private rollout and
+rollback without modifying existing job outputs or approvals.
 
 ## Profiles
 
