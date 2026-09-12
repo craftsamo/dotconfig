@@ -1,8 +1,8 @@
 # Service-side browser draft
 
 This procedure creates or updates an unpublished draft in the selected service.
-Read [state](../state.md), [content QA](../quality-assurance/content.md) and the
-selected [platform reference](../plan/channels.md). A local file is an input,
+Read [state](../../references/state.md), [content QA](../../qa-marketer/references/content.md) and the
+selected [platform reference](../../plan-marketer/references/channels.md). A local file is an input,
 not the requested final draft. Do not substitute xurl/API publishing.
 
 ## Before writing to an editor
@@ -11,19 +11,21 @@ Resolve the actual Marketer profile home and stable originating session/job
 identity from the runtime. Do not guess another profile's home. Make a unique
 owner token from that session and job and retain it across resumes. Acquire the
 profile-wide lease before ANY browser action, including read-only navigation.
-Resolve the script's absolute path from the root skill_view result and the home
+Resolve the script's absolute path from the marketer-pipeline skill_view result and the home
 from the actual profile-scoped runtime. Replace the quoted placeholders below
 with those literal paths/identity; do not assume skill template variables are
 exported in the terminal or that the multiplex process environment is scoped:
 
 ```sh
-python3 "<skill-directory>/scripts/browser-lease.py" acquire --home "<profile-home>" --owner "<session-job-id>"
+python3 "<marketer-pipeline-directory>/scripts/browser-lease.py" acquire --home "<profile-home>" --owner "<session-job-id>"
 ```
 
 The helper rejects a home not shaped as the resolved profiles/marketer directory;
 do not default to the neutral profile or use the config checkout as runtime home.
 Exit 3 means another job holds the lease: wait/report;
 exit 5 means untrusted state: stop for investigation. No timeout-based stealing.
+Any nonzero acquire exit means do not proceed to the browser, including a
+missing script, invalid arguments or an unreadable profile home.
 The lease coordinates cooperating sessions; it is not authentication or a
 browser sandbox. A holding token grants no upload or editing authority.
 
@@ -63,7 +65,7 @@ browser sandbox. A holding token grants no upload or editing authority.
    a visibility change. Do not click an ambiguous forward/confirmation button
    to discover what happens. Record the identified draft as soon as available.
 7. Reopen the SAME draft from service management and run
-   [saved-draft QA](../quality-assurance/saved-draft.md). A saved indicator,
+   [saved-draft QA](../../qa-marketer/references/saved-draft.md). A saved indicator,
    screenshot of typed text, guessed URL or HTTP success alone is insufficient.
 
 On interruption, record known effects and `save-uncertain`; retain the lease
@@ -76,7 +78,7 @@ After a verified save, or an explicitly reconciled stop with no pending editor
 operation, release only this job's lease:
 
 ```sh
-python3 "<skill-directory>/scripts/browser-lease.py" release --home "<profile-home>" --owner "<session-job-id>"
+python3 "<marketer-pipeline-directory>/scripts/browser-lease.py" release --home "<profile-home>" --owner "<session-job-id>"
 ```
 
 If the original session cannot resume, ask the user/maintainer to reconcile its

@@ -9,7 +9,7 @@ HTML support or an embed merely because the source contains it.
 
 ## Browser procedure
 
-Follow [draft](../build/draft.md). Confirm the account and existing target before
+Follow [draft](../../build-marketer/references/draft.md). Confirm the account and existing target before
 entry. Approve new-draft creation BEFORE opening a new editor: it can allocate
 a service-side draft identity without any text. note also autosaves while editing;
 obtain exact input/upload consent, not just permission for a final save button.
@@ -50,7 +50,7 @@ URL with publication or generate a sharing link to reach this view.
 ## Verification and measurement
 
 Reopen the same article from the service's article/draft management surface and
-apply [saved-draft QA](../quality-assurance/saved-draft.md). Confirm unpublished
+apply [saved-draft QA](../../qa-marketer/references/saved-draft.md). Confirm unpublished
 status, no scheduling and no changed paid/access settings. Do not generate the
 separate sharing-preview link. A future public URL is not proof of publication
 or proof that this draft is privately accessible to the client.

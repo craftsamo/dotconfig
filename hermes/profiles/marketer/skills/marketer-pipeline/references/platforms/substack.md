@@ -10,7 +10,7 @@ email delivery. Do not create or alter subscription/paid-product settings.
 
 ## Browser procedure
 
-Follow [draft](../build/draft.md), including approval before autosaving input.
+Follow [draft](../../build-marketer/references/draft.md), including approval before autosaving input.
 Confirm both account and publication. Locate Posts/Drafts and use the requested
 new or existing draft. Translate supported formatting without rewriting words;
 if a required block or asset cannot be represented, stop and report the gap.
@@ -22,7 +22,7 @@ secret draft link generation or sharing.
 
 ## Verification and measurement
 
-Use [saved-draft QA](../quality-assurance/saved-draft.md); distinguish private
+Use [saved-draft QA](../../qa-marketer/references/saved-draft.md); distinguish private
 editor identity from a bearer-style secret preview URL. Do not generate a share
 link as proof. Publication to the web and email delivery are separate effects;
 neither belongs to this procedure. Never assert no notification occurred without
