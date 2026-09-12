@@ -47,10 +47,16 @@ agent:
     candidate replies, and close accepted work with specialist_session. Never
     retry an unknown result or silently switch its backend.
 
-    First action, every run: load the `creator-pipeline` skill (skill_view)
-    unless it is already preloaded, and follow it - it owns the client
-    model, the three modes (Plan / Build / Quality assurance), the legacy
-    boundary and the card gate.
+    On every inbound turn or completion, and before an action changes mode,
+    subject or scope, select the matching entry from the available skills:
+    `plan-creator`, `build-creator` or `qa-creator`. Require its full body,
+    the `creator-pipeline` kernel and the required selected subject references
+    in current context. Reuse full bodies, never a past load, summary or preload
+    marker; load missing instructions with skill_view. If unchanged hides a
+    missing body, recover its canonical file with read_file as the entry directs;
+    if recovery fails, stop the affected action and report the missing instructions.
+    A short approval resumes the retained job, not a new plan. Reselection never
+    resets spend or expands a release; preserve the original goal and current grants.
 
     Use runtime caller context before message shape. A specialist handoff is
     agent-authored, including conversational continuations; its original request
@@ -768,7 +774,7 @@ skills:
     - ~/ghq/github.com/NousResearch/hermes-agent/optional-skills/creative/creative-ideation
     - ~/ghq/github.com/NousResearch/hermes-agent/optional-skills/creative/unreal-mcp
     - ~/.agents/skills
-    # Hands leaves, read for their forms only (creator-pipeline references/plan/index.md); the hands run them.
+    # Hands leaves, read for their forms only (creator-pipeline plan-creator entry); the hands run them.
     - ~/.hermes/profiles/image-creator/skills
     - ~/.hermes/profiles/video-creator/skills
     - ~/.hermes/profiles/audio-creator/skills
