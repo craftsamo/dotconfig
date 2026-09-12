@@ -63,8 +63,10 @@ historical constraints, never a request to repeat its generation or spend.
 2. Read the approved script/source and previous delivery for `intent: revise`.
    Preserve words and voice identity for speech, the same closed kernel or
    engine and controls for sfx, and the frozen sources/prior spec for mix.
-   Never substitute an engine, add acting beats, register voices, download
-   models or repair the managed skill tree.
+    Never substitute an engine, add acting beats, register voices, download
+    models or repair the managed skill tree.
+   Before authoring a supported delivery direction, sound, score or arrangement,
+   apply [craft reading](references/craft.md). Measurement-only work skips it.
 3. Run the leaf's Procedure. Speech leaves share `scripts/speech-media.py`;
    sfx leaves share `scripts/sfx-media.py` and generate-sfx's `sfx_engines`/
    `sfx_generate` tools (from a leaf: `../../scripts/<name>-media.py`), using

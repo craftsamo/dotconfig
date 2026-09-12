@@ -41,6 +41,10 @@ of the document's owning SKILL.md, not whichever skill was loaded last.
 
 </ReadBeforeWork>
 
+Before a new creative translation or revision decision during Build, apply
+[craft decisions](../references/craft.md). An approved render-only resume does not
+reopen direction or consume another production allowance.
+
 # Build - hands make it; you hand off and supervise
 
 Build turns each filled form from [Plan](../plan-creator/SKILL.md) into a

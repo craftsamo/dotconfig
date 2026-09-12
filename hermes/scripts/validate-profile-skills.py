@@ -1826,7 +1826,7 @@ def validate_creator_references(pipeline_dir: Path, errors: list[str]) -> None:
             validate_creator_reference_links(index, pipeline_dir, errors)
         if references.is_dir():
             for shared in references.iterdir():
-                if not shared.name.startswith(".") and shared.name not in {"capabilities.md", "legacy"}:
+                if not shared.name.startswith(".") and shared.name not in {"capabilities.md", "craft.md", "legacy"}:
                     errors.append(f"unexpected creator shared reference: {shared.name}")
             for doc in references.rglob("*.md"):
                 validate_creator_reference_links(doc, pipeline_dir, errors)
