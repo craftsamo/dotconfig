@@ -983,6 +983,27 @@ paths to satisfy tests. Manual edits do not invalidate the gateway's process
 skill-index cache. Cutover needs explicit approval, a controlled gateway restart
 AND a fresh session; neither is authorized by candidate validation.
 
+## Searcher entry routing
+
+Searcher keeps `searcher-pipeline` as its retrieval, released-unit and card-gate
+kernel. Its three independent children are `lookup-searcher`, `sweep-searcher`
+and `hunt-searcher`; their SKILL.md bodies own the former unit references, with
+no aliases or empty reference wrappers. They require the full kernel even on
+direct entry. Each caller/judge/resume/completion turn and midturn unit/scope
+change reselects the applicable entry, reusing only full bodies in current
+context. Canonical read_file recovery follows next_offset; if the body is still
+missing, stop the affected action rather than bypassing dedup or inventing work.
+An entry load never resets coverage/frontier/budget or releases a different unit.
+The two Assistant-owned card units and Searcher's retrieval-only limits remain
+unchanged. No other profile gains Searcher entries through external_dirs.
+
+Candidate coverage lives in `test_searcher_pipeline.py` and the offline real-
+runtime `test_searcher_entry_runtime.py`, registered in verify-work-continuity.
+These check discovery/read mechanics and declared contracts, not model routing
+compliance or an actual web search. Cutover is separate: preserve active jobs,
+obtain approval, refresh the applicable resident/worker process and start a fresh
+session; do not assume an existing session's cached index refreshed on file edits.
+
 ## Engineer v9 entries and UI evaluation
 
 Engineer is a developer using OpenCode; User and Assistant are Clients. The
@@ -1221,7 +1242,7 @@ profiles/<name>/     # assistant, engineer, researcher, searcher, creator, write
                      #   references are modes only when tools, spend class and QA
                      #   stay the same; styles/presets/formats remain references.
                      #   (searcher: no technics — the lookup/sweep/hunt unit
-                     #   playbooks are searcher-pipeline references, paired with
+                     #   playbooks are independent *-searcher child skills, paired with
                      #   the assistant's plan-assistant-search and qa-assistant-search
                      #   references (validator-enforced QA mapping);
                      #   creator: canonical creator-* image/video/audio/music/
