@@ -151,6 +151,14 @@ symbol guidance, IBM Carbon's grid guidance, and Adobe's animation principles
 (source links and consultation dates are in the relevant references). No vendor
 artwork, symbols, screenshots or substantial source prose are redistributed.
 
+`media-craft-motion` owns temporal execution of a chosen effect: timing/spacing,
+continuity, UI choreography, explanation/performance, generated shots and actual
+motion review. It permits deliberate cuts, stillness and divergent visual styles;
+it imports no seam scripts or universal camera law. Technique sources include
+Adobe animation principles, Blender F-curve documentation, Material transitions
+and OpenAI's Sora prompting guide, independently expressed with original cases.
+Provider controls and detector-derived timing are never universal guarantees.
+
 Behavioral cases and the independent evaluation contract live under
 `agents/tests/`. Run `python3 -m unittest discover -s agents/tests` for structural
 checks; fresh-context use and actual-media quality need separate evidence.
