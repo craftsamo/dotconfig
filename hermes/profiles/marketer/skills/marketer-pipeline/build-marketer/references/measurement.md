@@ -29,6 +29,6 @@ proof nobody read. Preserve these limits in the record.
 
 Minimize personal data. Prefer counts and necessary redacted excerpts; do not
 send private reader/customer records to research peers or external analysis
-services without scoped consent. Record in [state](../state.md), release the
+services without scoped consent. Record in [state](../../references/state.md), release the
 lease once navigation is safely complete, and pass observations to
-[Analyze](../analyze/index.md). Collection itself makes no success verdict.
+[Analyze](../../analyze-marketer/SKILL.md). Collection itself makes no success verdict.

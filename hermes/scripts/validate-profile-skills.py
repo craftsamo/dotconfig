@@ -946,7 +946,11 @@ def validate_worker(
         entries = validate_engineer_references(pipeline_dir, errors)
         for name in entries.keys() & (leaves.keys() | learned.keys()):
             errors.append(f"duplicate engineer skill name: {name}")
-        allowed.update(path.relative_to(skills).parts for path in entries.values())
+    if profile == "marketer":
+        entries = validate_marketer_references(pipeline_dir, errors)
+        for name in entries.keys() & (leaves.keys() | learned.keys()):
+            errors.append(f"duplicate marketer skill name: {name}")
+    allowed.update(path.relative_to(skills).parts for path in entries.values())
     allowed.update(learned_roots)
     validate_allowed_skill_roots(skills, allowed, errors)
 
@@ -972,8 +976,6 @@ def validate_worker(
         validate_worker_card_gate(profile, catalog, errors)
     if profile == "creator":
         validate_creator_references(pipeline_dir, errors)
-    if profile == "marketer":
-        validate_marketer_references(pipeline_dir, errors)
     validate_git_boundary([pipeline_dir, technic_dir], learned_dir, errors)
     validate_plugin_enabled(profile, profile_root / "config.yaml", errors)
     return len(leaves) + len(writing) + len(entries) + len(creator_entries), len(learned)
@@ -1069,53 +1071,140 @@ def validate_engineer_references(pipeline_dir: Path, errors: list[str]) -> dict[
     return entries
 
 
+MARKETER_ENTRY_REFERENCES = {
+    "plan-marketer": {"discovery.md", "positioning.md", "offer.md", "channels.md", "campaign.md"},
+    "build-marketer": {"parts.md", "draft.md", "measurement.md"},
+    "qa-marketer": {"strategy.md", "content.md", "saved-draft.md"},
+    "analyze-marketer": set(),
+}
+MARKETER_SHARED_REFERENCES = {
+    "platforms/x.md", "platforms/substack.md", "platforms/note.md",
+    "platforms/zenn.md", "state.md",
+}
 MARKETER_REFERENCE_FILES = {
-    "plan/index.md", "plan/discovery.md", "plan/positioning.md", "plan/offer.md",
-    "plan/channels.md", "plan/campaign.md", "build/index.md", "build/parts.md",
-    "build/draft.md", "build/measurement.md", "quality-assurance/index.md",
-    "quality-assurance/strategy.md", "quality-assurance/content.md",
-    "quality-assurance/saved-draft.md", "analyze/index.md", "platforms/x.md",
-    "platforms/substack.md", "platforms/note.md", "platforms/zenn.md", "state.md",
+    f"references/{name}" for name in MARKETER_SHARED_REFERENCES
+} | {
+    f"{entry}/references/{name}"
+    for entry, names in MARKETER_ENTRY_REFERENCES.items() for name in names
 }
 
 
-def validate_marketer_references(pipeline_dir: Path, errors: list[str]) -> None:
-    """Marketer's four modes share platform procedures, not Creator hands."""
+def validate_marketer_references(pipeline_dir: Path, errors: list[str]) -> dict[str, Path]:
+    """Four selectable procedures depend on one kernel and shared platform rules."""
+    entries: dict[str, Path] = {}
+    symlinks = [path for path in pipeline_dir.rglob("*") if path.is_symlink()]
+    for path in symlinks:
+        errors.append(f"marketer pipeline must not contain symlinks: {path}")
+    if symlinks:
+        return entries
     pipeline = pipeline_dir / "SKILL.md"
     major = _pipeline_major_version(frontmatter(pipeline) if pipeline.is_file() else {})
     if major is None:
         errors.append("invalid marketer pipeline version")
-        return
+        return entries
     references = pipeline_dir / "references"
     if major < 7 and not any((references / mode).is_dir() for mode in
                              ("plan", "build", "quality-assurance", "analyze")):
-        return
-    found = {p.relative_to(references).as_posix() for p in references.rglob("*.md")}
+        return entries
+    if major < 8:
+        errors.append("marketer entry routing requires pipeline version 8 or later")
+
+    allowed_skills = {pipeline} | {
+        pipeline_dir / name / "SKILL.md" for name in MARKETER_ENTRY_REFERENCES
+    }
+    for path in pipeline_dir.rglob("SKILL.md"):
+        if path not in allowed_skills:
+            errors.append(f"unexpected marketer skill root: {path.relative_to(pipeline_dir)}")
+    found = {
+        p.relative_to(pipeline_dir).as_posix()
+        for p in pipeline_dir.rglob("*.md") if p.name != "SKILL.md"
+    }
     for name in sorted(MARKETER_REFERENCE_FILES - found):
         errors.append(f"missing marketer reference: {name}")
     for name in sorted(found - MARKETER_REFERENCE_FILES):
         errors.append(f"unexpected marketer reference: {name}")
+
+    for name in MARKETER_ENTRY_REFERENCES:
+        entry = pipeline_dir / name / "SKILL.md"
+        if not entry.is_file():
+            errors.append(f"missing marketer entry skill: {name}")
+            continue
+        entries[name] = entry
+        validate_skill(entry, name, errors, expected_category="marketer-pipeline")
+        data = frontmatter(entry)
+        if not isinstance(data.get("version"), str) or not data["version"].strip():
+            errors.append(f"marketer entry version must be a nonempty string: {name}")
+        description = data.get("description", "")
+        prefix = f"{name.split('-', 1)[0]} marketing"
+        if not isinstance(description, str) or not description.lower().startswith(prefix):
+            errors.append(f"marketer entry description must frontload {prefix}: {name}")
+        text = entry.read_text(encoding="utf-8")
+        read_before = re.search(r"<ReadBeforeWork>(.*?)</ReadBeforeWork>", text, re.S)
+        block = " ".join(read_before.group(1).split()) if read_before else ""
+        for required in (
+            'skill_view(name="marketer-pipeline")',
+            "${HERMES_SKILL_DIR}/../SKILL.md", "${HERMES_SKILL_DIR}/SKILL.md",
+            "read_file", "next_offset",
+        ):
+            if required not in block:
+                errors.append(f"marketer entry missing dependency/recovery {required}: {name}")
+        for label, pattern in (
+            ("full-body reuse", r"reuse full-body.*current context"),
+            ("not a summary", r"never a past load or summary"),
+            ("per-turn selection", r"each user turn.*completion"),
+            ("midturn selection", r"before a mode, target, platform or scope-changing action"),
+            ("missing body recovery", r"unchanged.*earlier body is unavailable"),
+            ("stop on missing body", r"body remains missing, stop"),
+            ("preserve grants", r"does not restart.*reset approvals or expand a grant"),
+        ):
+            if not re.search(pattern, block, re.I):
+                errors.append(f"marketer entry ReadBeforeWork missing {label}: {name}")
+        for child in entry.parent.iterdir():
+            if not child.name.startswith(".") and child.name not in {"SKILL.md", "references"}:
+                errors.append(f"unexpected marketer entry child: {name}/{child.name}")
+
     root = pipeline_dir.resolve()
-    linked = set()
-    for doc in [pipeline, *sorted(references.rglob("*.md"))]:
+    links_by_doc: dict[Path, set[Path]] = {}
+    for doc in sorted(pipeline_dir.rglob("*.md")):
         if not doc.is_file():
             continue
+        if "card_units" in frontmatter(doc):
+            errors.append(f"marketer defines no card units: {doc.relative_to(pipeline_dir)}")
+        linked = links_by_doc.setdefault(doc, set())
         for link, target in markdown_links(doc):
             if not target.is_relative_to(root):
                 errors.append(f"marketer reference escapes pipeline: {link}")
             elif not target.is_file():
                 errors.append(f"broken marketer reference: {link}")
-            if doc == pipeline:
-                linked.add(target)
-    for name in sorted(MARKETER_REFERENCE_FILES):
-        if (references / name).resolve() not in linked:
+            linked.add(target)
+    # Ownership, not one fat root: kernel names the shared files and entries;
+    # each entry names every detail it owns and its shared dependencies.
+    root_links = links_by_doc.get(pipeline, set())
+    for name in sorted(MARKETER_SHARED_REFERENCES):
+        if (references / name).resolve() not in root_links:
             errors.append(f"marketer root does not link reference: {name}")
+    for name, names in MARKETER_ENTRY_REFERENCES.items():
+        entry = pipeline_dir / name / "SKILL.md"
+        if entry.resolve() not in root_links:
+            errors.append(f"marketer root does not route entry: {name}")
+        if entry.is_file():
+            own_links = links_by_doc.get(entry, set())
+            expected = {entry.parent / "references" / filename for filename in names}
+            expected.update(references / filename for filename in MARKETER_SHARED_REFERENCES)
+            for target in sorted(expected):
+                if target.resolve() not in own_links:
+                    errors.append(f"marketer entry does not link reference: {name}: {target.name}")
+    for directory in [references, *(path.parent / "references" for path in entries.values())]:
+        for path in directory.rglob("*"):
+            if path.is_file() and path.suffix != ".md":
+                errors.append(f"non-markdown marketer reference: {path.relative_to(pipeline_dir)}")
     if not (pipeline_dir / "scripts/browser-lease.py").is_file():
         errors.append("missing marketer browser lease helper")
     acceptance = HERMES_ROOT / "profiles/writer/skills/writer-pipeline/references/acceptance"
     for name in ("index.md", "prose.md", "script.md"):
         if not (acceptance / name).is_file():
             errors.append(f"missing shared writing acceptance: {name}")
+    return entries
 
 
 def validate_writer_read_contract(path: Path, pipeline_dir: Path, errors: list[str]) -> None:
