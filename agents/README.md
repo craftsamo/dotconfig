@@ -159,6 +159,25 @@ Adobe animation principles, Blender F-curve documentation, Material transitions
 and OpenAI's Sora prompting guide, independently expressed with original cases.
 Provider controls and detector-derived timing are never universal guarantees.
 
+`media-craft-audio` owns sonic execution: delivery, sound shape, composition,
+arrangement, generation briefs and listening-based revision. It distinguishes
+score or meter evidence from hearing, and grants no audio-understanding service.
+Hermes uses human comparison listening for this release. Its independently
+written examples draw on the following sources (consulted 2026-09-12); no audio,
+score, source tables or substantial licensed text is copied:
+
+- [ElevenLabs TTS practices](https://elevenlabs.io/docs/overview/capabilities/text-to-speech/best-practices)
+  and [Google SSML](https://docs.cloud.google.com/text-to-speech/docs/ssml):
+  delivery concepts only, never portable control syntax.
+- [Ableton melody lessons](https://learningmusic.ableton.com/make-melodies/make-melodies.html)
+  and [Open Music Theory](https://viva.pressbooks.pub/openmusictheory/):
+  independently expressed musical principles and original note examples.
+- [Audiokinetic dynamics](https://www.audiokinetic.com/en/blog/loudness-processing-best-practices-chapter-2-loudness-dynamics-and-how-to-process-them/),
+  [iZotope masking](https://www.izotope.com/community/blog/unmasking-your-mix-with-neutron)
+  and [EBU R 128](https://tech.ebu.ch/publications/r128): sound-envelope,
+  priority and measurement concepts, not claims of available DSP or universal
+  loudness targets. Source licensing still governs any future direct adaptation.
+
 Behavioral cases and the independent evaluation contract live under
 `agents/tests/`. Run `python3 -m unittest discover -s agents/tests` for structural
 checks; fresh-context use and actual-media quality need separate evidence.
