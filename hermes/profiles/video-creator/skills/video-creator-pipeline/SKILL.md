@@ -66,9 +66,12 @@ historical constraints, never a request to repeat its generation or spend.
    the transport does not authenticate a profile name. Never ask the caller
    to prove its role by saying "I am Creator".
 2. Load only the leaf's selected references and previous delivery for
-   `intent: revise`. Reuse surviving intermediates before any new spend.
+    `intent: revise`. Reuse surviving intermediates before any new spend.
+   Before a creative decision or perceptual review, apply
+   [craft reading](references/craft.md). Pure trim/re-encode/metadata work skips it.
 3. Follow `<Procedure>`; no TTS, image generation, improvised pipelines, or
-   outside skills — except create-tour/create-ad/create-explainer-video's own
+   outside workflows. The knowledge-only craft reading above is separate from
+   create-tour/create-ad/create-explainer-video's own
    optional, read-only [HyperFrames references](references/hyperframes.md),
    consulted only when that leaf's own contract calls for it, never as a
    substitute leaf or workflow. create-explainer-video authors a bounded

@@ -15,6 +15,10 @@ Intent shapes the entry (kernel <IntentTriage>):
 
 ## CapabilityRouting
 
+For actual creative decisions, use [craft decisions](../craft.md) alongside the
+selected legacy method. This does not retire a method or override its scope,
+tools, approvals or budget. Mechanical salvage/re-encoding does not need it.
+
 Load `references/capabilities.md`, select the canonical leaf by final
 deliverable and production method, then `skill_view` it before work. The leaf
 owns craft and medium-specific production details; this pipeline continues to
