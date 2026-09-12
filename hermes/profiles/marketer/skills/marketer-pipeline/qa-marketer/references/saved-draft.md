@@ -1,6 +1,6 @@
 # Verify the saved service draft
 
-Keep the browser lease from [Build](../build/draft.md) until verification or a
+Keep the browser lease from [Build](../../build-marketer/references/draft.md) until verification or a
 reconciled stop. Read the selected platform's identity/persistence limitations.
 
 Reopen the same object through the service's draft management surface or a
@@ -27,7 +27,7 @@ notifications; do not claim a send audit the service does not expose.
 Report one of: `draft-created`, `draft-updated`, `draft-verified`, `save-uncertain`, `blocked`.
 The first two require reopened content and unpublished-state evidence. Record
 the private editor locator/identity, account, input version, timestamp, checks
-and any explicit limitations in [state](../state.md). A shared/secret preview
+and any explicit limitations in [state](../../references/state.md). A shared/secret preview
 link is not a private editor URL. Do not generate one as a delivery convenience.
 
 For an explicitly read-only recheck of an existing draft, use `draft-verified`
