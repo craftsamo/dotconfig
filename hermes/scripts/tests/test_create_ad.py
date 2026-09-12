@@ -4,6 +4,7 @@ surrounding ffprobe/ffmpeg decode/validation logic runs for real."""
 import importlib.util
 import json
 import math
+import os
 import re
 import struct
 import subprocess
@@ -1158,6 +1159,145 @@ def test_reference_options_are_backed_by_files():
         assert not form[key]["required"]
         for option in form[key]["options"]:
             assert (LEAF / "references" / folder / (option + ".md")).is_file()
-    for required_key in ("product", "audience", "message", "cta", "assets"):
+    for required_key in ("product", "audience", "message", "assets"):
         assert form[required_key]["required"] is True
+    assert form["cta"]["required"] is False  # final plan_model still requires it
+    assert form["purpose"]["options"] == ["final", "study"]
     assert form["assets"]["type"] == "path"
+
+
+def study_job(job):
+    """Original silent fixture, not an automatically approved user study."""
+    plan = load_plan(job)
+    plan.pop("cta")
+    plan.update(purpose="study", question="Does the title retain identity while moving?", duration=3)
+    plan["copy"] = [{"id": "message", "text": plan["message"], "role": "message", "start": 0, "end": 3}]
+    plan["samples"] = [{"at": t, "expect": "Title remains visible"} for t in (0, 1.5, 3 - 1 / 30)]
+    save_plan(job, plan)
+    from html import escape
+    (job / "source/index.html").write_text(f'''<!doctype html>
+<html><head><meta charset="utf-8"><title>Fictional study fixture</title>
+<style>@font-face {{ font-family: Fixture; src: local("Arial"); }}
+body {{ margin:0; }} #root {{ background:#ffffff; color:#111111; width:1080px; height:1920px; }}
+#message {{ position:absolute; left:80px; top:700px; width:800px; font:72px Fixture; }}</style></head>
+<body><div id="root" data-composition-id="ad" data-start="0" data-width="1080" data-height="1920" data-duration="3" data-fps="30">
+<div id="message">{escape(plan["message"])}</div></div>
+<script src="assets/gsap.min.js"></script><script>
+const tl=gsap.timeline({{paused:true}});
+tl.to('#message',{{x:80,duration:1,ease:'power2.inOut'}},0.5);
+window.__timelines={{ad:tl}};
+</script></body></html>''', encoding="utf-8")
+    return plan
+
+
+def test_preflight_is_read_only_without_source_execution(job, monkeypatch):
+    before = {str(p): p.read_bytes() for p in job.rglob("*") if p.is_file()}
+    monkeypatch.setattr(ad, "hf", lambda *a: pytest.fail("preflight executed renderer"))
+    result = ad.preflight(SimpleNamespace(plan=str(job / "plan.json"), assets=str(job / "source/assets")))
+    assert result["produced"] is False and result["approval"] is False
+    assert "runtime" in result["unverified"]
+    assert before == {str(p): p.read_bytes() for p in job.rglob("*") if p.is_file()}
+
+
+def test_preflight_rejects_unsupported_font_before_source(job):
+    add_asset(job, "font.otf", b"unsupported font fixture")
+    with pytest.raises(ValueError):
+        ad.preflight(SimpleNamespace(plan=str(job / "plan.json"), assets=str(job / "source/assets")))
+    assert not (job / "project").exists()
+
+
+@pytest.mark.parametrize("fault", ["wrong-purpose", "missing-question", "too-long", "cta", "mix", "missing-message"])
+def test_study_scope_is_closed(job, fault):
+    plan = study_job(job)
+    if fault == "wrong-purpose":
+        plan["purpose"] = "final"
+    elif fault == "missing-question":
+        plan.pop("question")
+    elif fault == "too-long":
+        plan["duration"] = 11
+    elif fault == "cta":
+        plan["cta"] = "Placeholder"
+    elif fault == "mix":
+        plan["mix"] = {}
+    else:
+        plan["copy"][0]["role"] = "support"
+    with pytest.raises(ValueError):
+        ad.plan_model(plan, study=True)
+
+
+def test_study_never_weakens_final_plan_or_freeze(job):
+    plan = study_job(job)
+    assert ad.plan_model(plan, study=True)["duration"] == 3
+    with pytest.raises(ValueError):
+        ad.plan_model(plan)
+    with pytest.raises(ValueError):
+        freeze(job)
+    assert not (job / "project").exists()
+
+
+def test_study_approval_and_final_render_separation(job, monkeypatch):
+    study_job(job)
+    args = SimpleNamespace(source=str(job / "source"), plan=str(job / "plan.json"),
+                           approval_sha256="0" * 64, project=str(job / "study-project"), study=True)
+    with pytest.raises(ValueError, match="plan changed"):
+        ad.freeze(args)
+    args.approval_sha256 = ad.digest(job / "plan.json")
+    ad.freeze(args)
+    assert ad.load(job / "study-project/integrity.json")["purpose"] == "study"
+    render = SimpleNamespace(project=args.project, approved_preview=None, approval_sha256=None,
+                             out=str(job / "final"))
+    with pytest.raises(ValueError, match="study/final command mismatch"):
+        ad.render(render)
+    render.study = True
+    with pytest.raises(ValueError, match="render requires"):
+        ad.render(render)
+    assert not (job / "final").exists()
+    monkeypatch.setattr(ad, "hf", fake_hf)
+    preview = ad.snapshot(SimpleNamespace(project=args.project, out=str(job / "study-preview")))
+    render.approved_preview = preview["preview"]
+    render.approval_sha256 = "0" * 64
+    with pytest.raises(ValueError, match="preview hash mismatch"):
+        ad.render(render)
+    render.approval_sha256 = preview["preview_sha256"]
+    result = ad.render(render)
+    assert result["artifact_role"] == "diagnostic-study" and result["final_eligible"] is False
+    assert Path(result["mp4"]).name == "study.mp4"
+    assert not (job / "final/ad.mp4").exists()
+    assert "not a final ad" in (job / "final/qa.md").read_text()
+
+
+def test_final_project_cannot_use_study_render(job):
+    freeze(job)
+    with pytest.raises(ValueError, match="study/final command mismatch"):
+        ad.render(SimpleNamespace(project=str(job / "project"), study=True))
+
+
+def test_study_frozen_purpose_tamper_is_rejected(job):
+    study_job(job)
+    ad.freeze(SimpleNamespace(source=str(job / "source"), plan=str(job / "plan.json"),
+                              approval_sha256=ad.digest(job / "plan.json"),
+                              project=str(job / "study-project"), study=True))
+    integrity = ad.load(job / "study-project/integrity.json")
+    integrity.pop("purpose")
+    (job / "study-project/integrity.json").write_text(json.dumps(integrity))
+    with pytest.raises(ValueError):
+        ad.project_model(str(job / "study-project"))
+
+
+@pytest.mark.skipif(not os.environ.get("AD_STUDY_SMOKE_DIR"), reason="explicit local renderer smoke directory required")
+def test_study_real_render(monkeypatch):
+    root = Path(os.environ["AD_STUDY_SMOKE_DIR"]).resolve()
+    assert not root.exists(), "Smoke output must be a new directory"
+    example.fixture(root)
+    study_job(root)
+    monkeypatch.setattr(ad, "runtime_identity", REAL_RUNTIME_IDENTITY)
+    ad.preflight(SimpleNamespace(plan=str(root / "plan.json"), assets=str(root / "source/assets")))
+    ad.freeze(SimpleNamespace(source=str(root / "source"), plan=str(root / "plan.json"),
+                              approval_sha256=ad.digest(root / "plan.json"),
+                              project=str(root / "project"), study=True))
+    preview = ad.snapshot(SimpleNamespace(project=str(root / "project"), out=str(root / "preview")))
+    result = ad.render(SimpleNamespace(project=str(root / "project"), approved_preview=preview["preview"],
+                                      approval_sha256=preview["preview_sha256"], out=str(root / "output"), study=True))
+    assert result["decoded"] and result["final_eligible"] is False
+    assert Path(result["mp4"]).name == "study.mp4"
+    print(f"Fictional local renderer fixture, not client or aesthetic acceptance: {root}")

@@ -2,6 +2,11 @@
 
 Read [common quality assurance](../../SKILL.md) first.
 
+An explicit study answers its named visual/motion question, not the final ad's
+CTA goal. Check the diagnostic label and preserved limitations; do not accept it
+as final media. A successful study informs a new final proposal and its own exact
+preview approval, never a promotion or relabeling of the frozen study project.
+
 An analyze-ad report is analysis, not a new video: assess its timeline/native
 copy evidence and the distinction between facts, interpretations and unknowns.
 Do not demand a new render or repeat its extraction. For create-ad, a proposal
