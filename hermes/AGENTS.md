@@ -981,7 +981,7 @@ paths to satisfy tests. Manual edits do not invalidate the gateway's process
 skill-index cache. Cutover needs explicit approval, a controlled gateway restart
 AND a fresh session; neither is authorized by candidate validation.
 
-## Engineer v8 and UI evaluation
+## Engineer v9 entries and UI evaluation
 
 Engineer is a developer using OpenCode; User and Assistant are Clients. The
 Client supplies purpose/constraints, not a pre-built technical decomposition.
@@ -989,8 +989,18 @@ Engineer plans through OpenCode; one explicit implementation approval releases
 the agreed scope through task-branch PR delivery. Issue create/edit/comment is
 explicit-only for this job, never inferred from an Issue URL or task size.
 No automatic Issues/boards, merging, deployment or default-branch push.
-The root pipeline stays thin; each mode index owns its steps and opencode.md
-contains only genuinely common transport/result semantics.
+The root pipeline stays thin. Four independent child skills outside references/
+own their mode procedures: plan-engineer, build-engineer, qa-engineer and
+assess-engineer. Each owns its detail references; only references/opencode.md
+and references/shared/design-catalog.md remain shared. No old mode-path aliases.
+Select an entry each user turn/completion and before a midturn mode/scope change.
+Direct entry requires the full engineer-pipeline kernel; read the shared OpenCode
+contract before a wrapper call when missing. Reuse current full bodies, never
+past-load records or summaries. Canonical read_file recovery follows next_offset;
+unavailable required instructions stop that action, never widen a grant or replay
+work. A short implementation approval advances to Build, not a restarted Plan.
+This candidate needs explicit cutover approval, a controlled gateway restart and
+fresh sessions; offline validation is not a live model-selection or delivery test.
 
 Hands-reference maintenance has conditional Assess / Plan / Build / Quality
 assurance guides in Engineer, not another production leaf. They own Client
@@ -1001,8 +1011,8 @@ validator: orphan candidates are warnings, not deletion permission; card checks
 import the trusted candidate's adapter, not sandboxed code. Assess never fixes
 or upgrades UNVERIFIED claims automatically. A branch in the live symlink-backed
 checkout is not runtime isolation; use task worktrees, and keep self-modification
-scope, PR delivery and live cutover separate. Reference files are reached through
-mode indexes, not discovered as independent skills.
+scope, PR delivery and live cutover separate. Detail references are reached through
+the four mode entries, not discovered as independent skills themselves.
 
 plugins/opencode owns CLI execution and private opencode-sessions records.
 Keep caller/worktree/branch binding, JSON error handling (exit zero is not
