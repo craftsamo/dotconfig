@@ -25,6 +25,7 @@ PUBLIC_PYTEST_FILES = (
     "hermes/plugins/opencode/tests/test_plugin.py",
     "hermes/scripts/tests/test_hands_routing_continuity.py",
     "hermes/scripts/tests/test_creator_references.py",
+    "hermes/scripts/tests/test_hands_instruction_context.py",
     "hermes/scripts/tests/test_ad_routing.py",
     "hermes/scripts/tests/test_creative_client_references.py",
     "hermes/scripts/tests/test_engineer_pipeline.py",
