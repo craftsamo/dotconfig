@@ -113,6 +113,7 @@ def build_plan(runtime: Path, private: Path, python: Path) -> list[dict]:
     """Pure: the ordered stage list, no side effects. Each stage is
     {name, argv, cwd, env}. Testable directly; never invoked at import."""
     env = build_env(runtime, python)
+    env["HERMES_PRIVATE_ROOT"] = str(private)
     return [
         dict(
             name="validate-profile-skills --all --strict-git",
