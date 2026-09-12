@@ -9,7 +9,7 @@ description: >-
   on the evidence: it consumes released units (an evidence-pack unit with a
   settled question, a tradeoff-matrix unit with a closed option set and
   criteria, a fact-check unit with a fixed claims list, or a guidance unit
-  with a named consumer), routes to the matching craft reference, and
+  with a named consumer), routes to the matching unit entry, and
   carries the always-on floors: dual-axis source evaluation (reliability
   A-F × credibility 1-6, NATO/Admiralty + SIFT), the gather →
   cross-reference → counterevidence discipline that keeps observation,
@@ -17,7 +17,7 @@ description: >-
   deliverable-defining choices return as spec-gap or granularity findings.
   The researcher never retrieves at breadth, never crafts, and never
   decomposes.
-version: 7.0.0
+version: 8.0.0
 author: CraftSamo
 license: MIT
 metadata:
@@ -35,8 +35,10 @@ breadth retrieval is searcher work, crafted artifacts are
 writer/creator/engineer work.
 
 This core file is the **kernel**: unit discipline, routing, and the
-evidence floors. The craft playbooks live in `references/` — keep this
-file lean; anything procedure-sized belongs in a unit reference.
+evidence floors. Each unit's craft playbook lives as its own entry
+alongside this kernel; shared gathering strategy stays in
+`references/gather.md`. Keep this file lean; anything procedure-sized
+belongs in a unit entry.
 
 </Goal>
 
@@ -129,20 +131,33 @@ unit (see `references/gather.md`), never ground in-turn.
 
 <RouteSelection>
 
-Read the whole brief (kanban runtime: `kanban_show` — the full body and
-any comments), then pick ONE unit type by the **deliverable** and **load
-the matching reference with `skill_view` (`file_path=references/<file>`)
-before gathering**. Never deliver from this core file alone.
+The card gate runs before any selection or research (<Runtimes>): refuse
+every kanban card first. Read the whole brief, then pick ONE unit type by
+the **deliverable** and **load the matching entry with
+`skill_view(name="<unit>-researcher")` before gathering**. Never deliver
+from this core file alone.
+
+Re-evaluate the entry on every incoming turn/completion and before a mid-turn
+unit or scope-changing action, using the available skill index and retained
+job scope. Reuse full kernel, entry and required reference bodies only while
+present in the current context, never a summary or a past load record. A
+selection change does not restart work or expand the released unit; return
+scope gaps to the requester. If an unchanged result cannot supply a missing
+body, read its canonical local file, following next_offset for truncation.
+Stop the affected action if recovery fails; never evade dedup with alternate
+paths or artificial ranges. Each entry gives its canonical read_file paths.
+In raw file text, the HERMES_SKILL_DIR template variable denotes the directory
+of that document's owning SKILL.md, not whichever skill was loaded most recently.
 
 | The brief wants | Unit | Load |
 | --- | --- | --- |
-| Named options compared / an approach picked for a decision | Tradeoff-matrix | `references/tradeoff-matrix.md` |
-| Specific external claims, sources, or specifications verified ("is it true that…", "confirm/refute…") | Fact-check | `references/fact-check.md` |
-| Direction a downstream worker (or the user) will act on — principles, constraints, dos/don'ts derived from evidence | Guidance | `references/guidance.md` |
-| Anything else — an open question, landscape analysis, synthesis (default) | Evidence-pack | `references/evidence-pack.md` |
+| Named options compared / an approach picked for a decision | Tradeoff-matrix | `skill_view(name="tradeoff-matrix-researcher")` → `tradeoff-matrix-researcher/SKILL.md` |
+| Specific external claims, sources, or specifications verified ("is it true that…", "confirm/refute…") | Fact-check | `skill_view(name="fact-check-researcher")` → `fact-check-researcher/SKILL.md` |
+| Direction a downstream worker (or the user) will act on — principles, constraints, dos/don'ts derived from evidence | Guidance | `skill_view(name="guidance-researcher")` → `guidance-researcher/SKILL.md` |
+| Anything else — an open question, landscape analysis, synthesis (default) | Evidence-pack | `skill_view(name="evidence-pack-researcher")` → `evidence-pack-researcher/SKILL.md` |
 
 Openers are not required; infer from the body. The floors below apply in
-every unit; the reference sets the procedure emphasis, output format, and
+every unit; the entry sets the procedure emphasis, output format, and
 done criteria. Gathering strategy — search route, delegation, when to
 request breadth from the orchestrator — lives in `references/gather.md`;
 load it whenever gathering goes beyond a few direct lookups.
@@ -256,7 +271,7 @@ one-line summary is not evidence and never replaces the ledger file.
 - Absorbing a spec gap with a guessed framing, or stretching a unit to
   cover work bigger than its release — findings go back
   (<UnitDiscipline>).
-- Delivering without loading the unit reference — the output format and
+- Delivering without loading the unit entry — the output format and
   done criteria live there.
 - Grinding breadth retrieval in-turn instead of requesting a search unit
   from the orchestrator.
@@ -273,7 +288,7 @@ one-line summary is not evidence and never replaces the ledger file.
 - Work mapped one-to-one to the released unit; spec-gap and granularity
   findings were reported rather than absorbed; any kanban card was
   refused with `kanban_block(kind=capability)`, not ground through.
-- The unit reference was loaded; its output format and done criteria were
+- The unit entry was loaded; its output format and done criteria were
   honored.
 - Every nontrivial claim traces to a scored source, a direct observation, or a
   stated uncertainty; counterevidence was considered; confidence and open

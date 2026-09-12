@@ -1004,6 +1004,28 @@ compliance or an actual web search. Cutover is separate: preserve active jobs,
 obtain approval, refresh the applicable resident/worker process and start a fresh
 session; do not assume an existing session's cached index refreshed on file edits.
 
+## Researcher entry routing
+
+Researcher keeps its `researcher-pipeline` kernel and shared
+`references/gather.md`. Four direct children outside `references/` own unit
+procedures: `{evidence-pack,tradeoff-matrix,fact-check,guidance}-researcher`.
+`validate_researcher_entries` enforces the closed tree, kernel dependencies,
+canonical recovery paths, output/verification sections and no card declarations.
+Do not add mode layers or move Assistant's separate research QA contracts.
+Preserve source scoring, verbatim claims, released scope and refusal of every
+kanban card. A new entry selection never creates a new release or resets a job.
+
+These are Hermes-specific entries, not standalone portable packages: named
+`skill_view` calls address the parent shared reference and canonical read_file
+recovery crosses the child directory. The generic skill-authoring validator
+flags those parent references as missing/escaping the standalone package;
+the Hermes topology and isolated runtime checks validate the actual owner.
+Do not duplicate gathering or evidence floors to silence that portability check.
+Run `scripts/tests/test_researcher_entries.py` with the Hermes venv and source
+PYTHONPATH. Its isolated runtime probe has no provider, network or credentials;
+it proves discovery/read/dedup mechanics, not real-model selection or live rollout.
+The existing controlled restart and fresh-session cutover gate still applies.
+
 ## Engineer v9 entries and UI evaluation
 
 Engineer is a developer using OpenCode; User and Assistant are Clients. The

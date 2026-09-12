@@ -954,6 +954,10 @@ def validate_worker(
         entries = validate_searcher_entries(pipeline_dir, errors)
         for name in entries.keys() & (leaves.keys() | learned.keys()):
             errors.append(f"duplicate searcher skill name: {name}")
+    if profile == "researcher":
+        entries = validate_researcher_entries(pipeline_dir, errors)
+        for name in entries.keys() & (leaves.keys() | learned.keys()):
+            errors.append(f"duplicate researcher skill name: {name}")
     allowed.update(path.relative_to(skills).parts for path in entries.values())
     allowed.update(learned_roots)
     validate_allowed_skill_roots(skills, allowed, errors)
@@ -1053,6 +1057,71 @@ def validate_searcher_entries(pipeline_dir: Path, errors: list[str]) -> dict[str
                 errors.append(f"searcher link escapes pipeline: {link} in {path}")
             elif not target.is_file():
                 errors.append(f"broken searcher link: {link} in {path}")
+    return entries
+
+
+RESEARCHER_ENTRIES = {
+    f"{unit}-researcher"
+    for unit in ("evidence-pack", "tradeoff-matrix", "fact-check", "guidance")
+}
+
+
+def validate_researcher_entries(pipeline_dir: Path, errors: list[str]) -> dict[str, Path]:
+    """Four released-unit procedures; source discipline and gathering stay shared."""
+    entries: dict[str, Path] = {}
+    expected = {"SKILL.md", "references/gather.md"} | {
+        f"{name}/SKILL.md" for name in RESEARCHER_ENTRIES
+    }
+    found = {p.relative_to(pipeline_dir).as_posix() for p in pipeline_dir.rglob("*.md")}
+    for path in sorted(expected - found):
+        errors.append(f"missing researcher document: {path}")
+    for path in sorted(found - expected):
+        errors.append(f"unexpected researcher document: {path}")
+    kernel = pipeline_dir / "SKILL.md"
+    kernel_text = kernel.read_text(encoding="utf-8") if kernel.is_file() else ""
+    for name in sorted(RESEARCHER_ENTRIES):
+        path = pipeline_dir / name / "SKILL.md"
+        if not path.is_file():
+            continue
+        entries[name] = path
+        validate_skill(path, name, errors, expected_category="researcher-pipeline")
+        data = frontmatter(path)
+        description = data.get("description")
+        if not isinstance(description, str) or not 1 <= len(description.strip()) <= 1024:
+            errors.append(f"researcher entry needs a description: {name}")
+        if not isinstance(data.get("version"), str) or not data["version"].strip():
+            errors.append(f"researcher entry needs a version: {name}")
+        text = path.read_text(encoding="utf-8")
+        if text.find("\n---", 4) not in range(4, 4000):
+            errors.append(f"researcher frontmatter exceeds discovery prefix: {name}")
+        if f"{name}/SKILL.md" not in kernel_text:
+            errors.append(f"researcher kernel does not route {name}")
+        block = re.search(r"<ReadBeforeWork>(.*?)</ReadBeforeWork>", text, re.S)
+        before = " ".join(block.group(1).split()) if block else ""
+        for required in (
+            'skill_view(name="researcher-pipeline")',
+            'skill_view(name="researcher-pipeline", file_path="references/gather.md")',
+            "${HERMES_SKILL_DIR}/../SKILL.md",
+            "${HERMES_SKILL_DIR}/../references/gather.md",
+            "${HERMES_SKILL_DIR}/SKILL.md",
+            "read_file", "next_offset", "stop", "kanban_block(kind=capability)",
+        ):
+            if required not in before:
+                errors.append(f"researcher entry missing dependency/recovery {required}: {name}")
+        if not re.search(r"reuse.*full.*(?:context|body)", before, re.I):
+            errors.append(f"researcher entry missing full-body reuse contract: {name}")
+        for section in ("## Output template", "## Verification"):
+            if section not in text:
+                errors.append(f"researcher entry missing {section}: {name}")
+    for doc in sorted(pipeline_dir.rglob("*.md")):
+        if doc.is_symlink() or not doc.resolve().is_relative_to(pipeline_dir.resolve()):
+            errors.append(f"researcher document escapes pipeline: {doc}")
+            continue
+        if "card_units" in frontmatter(doc):
+            errors.append(f"researcher defines no card units: {doc.name}")
+        for link, target in markdown_links(doc):
+            if not target.resolve().is_relative_to(pipeline_dir.resolve()) or not target.is_file():
+                errors.append(f"broken/escaping researcher link: {doc.name}: {link}")
     return entries
 
 
