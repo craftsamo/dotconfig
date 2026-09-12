@@ -1,9 +1,44 @@
+---
+name: build-engineer
+description: "Build engineering: implement explicitly approved scope."
+version: 1.0.0
+author: CraftSamo
+license: MIT
+metadata:
+  hermes:
+    category: engineer-pipeline
+    tags: [build, engineering]
+---
+
+<ReadBeforeWork>
+
+Re-evaluate the entry when the request, mode or scope changes, including within a turn.
+Load the root with skill_view(name="engineer-pipeline") only if its full body
+is not already present in the current context; reuse full-body instructions
+only while present in the current context, not a past load or summary. This
+entry is the mode procedure itself, not a second common mode index. Canonical
+root fallback when skill_view returns unchanged without its earlier body is
+`${HERMES_SKILL_DIR}/../SKILL.md`; recover this entry's own
+body and its references from `${HERMES_SKILL_DIR}` via read_file and
+next_offset. Stop the affected action when a required body is unavailable;
+never take an alternate path or an artificial range to dodge this check.
+
+Before the first wrapper call, or whenever transport context is lost, load
+skill_view(name="engineer-pipeline", file_path="references/opencode.md") if
+its full body is not already present, with fallback
+`${HERMES_SKILL_DIR}/../references/opencode.md`; no generic per-mode common
+transport copy. Reading the root or transport file is not implementation
+approval. A cross-mode link requires loading that mode's owning entry and the
+root before applying its details -- only the locally relevant details apply here.
+
+</ReadBeforeWork>
+
 # Build
 
-Read the approved plan/current release and [OpenCode](../opencode.md). One
+Read the approved plan/current release and [OpenCode](../references/opencode.md). One
 explicit implementation approval releases the agreed scope through PR delivery.
 Do not ask again for every internal step, or force a new planning run on every
-continuation. Read [Web UI](web-ui.md) for UI implementation handoffs.
+continuation. Read [Web UI](references/web-ui.md) for UI implementation handoffs.
 
 1. Confirm the Git worktree, branch, existing changes and scope. Engineer may
    create a separate task branch/worktree with ordinary Git setup; never move or
@@ -19,7 +54,7 @@ continuation. Read [Web UI](web-ui.md) for UI implementation handoffs.
    A follow-up continues the owned conversation. A fork copies its current state,
    not an arbitrary earlier checkpoint; for independent diagnosis use a fresh
    conversation with only the needed inputs.
-4. Send implementation evidence to [QA](../quality-assurance/index.md). Apply
+4. Send implementation evidence to [QA](../qa-engineer/SKILL.md). Apply
    accepted corrections through OpenCode and recheck affected behavior. Do not
    alter code yourself to manufacture a passing report.
 5. Once local QA passes, ask OpenCode to stage only intended changes, create
@@ -30,7 +65,7 @@ continuation. Read [Web UI](web-ui.md) for UI implementation handoffs.
    reported honestly; an unmet required check cannot be called complete.
 
 An image-creator/video-creator/audio-creator hands leaf's option-backed
-reference change uses [Hands references](hands-references.md) for its actual
+reference change uses [Hands references](references/hands-references.md) for its actual
 authoring and verification steps.
 
 Issue create/edit/comment needs separate issue_approval naming the Client's

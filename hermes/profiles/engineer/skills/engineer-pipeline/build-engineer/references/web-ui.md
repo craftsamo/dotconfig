@@ -6,7 +6,7 @@ load a removed Skill or delegate to a removed UI subagent.
 
 Give OpenCode the accepted direction/tokens, existing design-system references,
 approved copy/assets, relevant layouts/states, target devices and behavior.
-Reference the concrete design decisions from [Plan](../plan/web-ui.md); do not
+Reference the concrete design decisions from [Plan](../../plan-engineer/references/web-ui.md); do not
 paste a generic style catalog or rebuild a second design workflow in the prompt.
 
 Ask it to implement within scope, run project tests and check its own rendered
@@ -22,7 +22,7 @@ supervise the approved local test server through its terminal/process tools,
 recording its worktree, URL and process handle and stopping only that server
 after QA. This is test execution, not target-code editing or deployment.
 Engineer inspects the result through
-[visual QA](../quality-assurance/web-ui.md), commissioning independent visual or
+[visual QA](../../qa-engineer/references/web-ui.md), commissioning independent visual or
 persona evaluation when appropriate. Send accepted findings back to this same
 implementation conversation as specific corrections. Recheck affected evidence.
 

@@ -1,7 +1,7 @@
 # Hands option-backed references
 
 Judge a hands option-backed reference change against the agreed scope in
-[Plan](../plan/hands-references.md), not a generic diff review. Reference the
+[Plan](../../plan-engineer/references/hands-references.md), not a generic diff review. Reference the
 candidate Skill's Verify section
 (`opencode/skills/hermes/hands-references/SKILL.md`, hermes-hands-references)
 for the actual checks. Read it directly if not in Hermes discovery; it does not
@@ -28,6 +28,6 @@ audit and supporting evidence rather than accepting OpenCode's summary alone.
    reachable from their owning leaf. References are not separate skills-list
    entries. Structural success does not prove fresh-session loading or factual
    accuracy; report those checks separately, without live-link cutover.
-6. Verdict under the normal [Quality assurance](index.md) contract: accept,
-   request corrections through [Build](../build/hands-references.md), or
+6. Verdict under the normal [Quality assurance](../SKILL.md) contract: accept,
+   request corrections through [Build](../../build-engineer/references/hands-references.md), or
    return a scope decision to the Client.
