@@ -1116,6 +1116,22 @@ def validate_marketer_references(pipeline_dir: Path, errors: list[str]) -> None:
             errors.append(f"missing shared writing acceptance: {name}")
 
 
+def validate_writer_read_contract(path: Path, pipeline_dir: Path, errors: list[str]) -> None:
+    text = path.read_text(encoding="utf-8")
+    match = re.search(r"<ReadBeforeWork>(.*?)</ReadBeforeWork>", text, re.S)
+    block = " ".join(match.group(1).split()) if match else ""
+    up = "/".join(".." for _ in path.parent.relative_to(pipeline_dir).parts)
+    for required in (
+        'skill_view(name="writer-pipeline")',
+        f"${{HERMES_SKILL_DIR}}/{up}/SKILL.md",
+        "as Writer", "current context", "past load or summary", "Re-evaluate",
+        "Reuse", "unchanged", "read_file", "next_offset", "stop the affected action",
+        "Client reading", "inherit Writer's role",
+    ):
+        if required not in block:
+            errors.append(f"writer ReadBeforeWork missing {required}: {path}")
+
+
 def validate_writer_leaves(pipeline_dir: Path, errors: list[str]) -> dict[str, Path]:
     """Writer adopts form-based leaves without changing Creator's verb set."""
     leaves: dict[str, Path] = {}
@@ -1139,6 +1155,7 @@ def validate_writer_leaves(pipeline_dir: Path, errors: list[str]) -> dict[str, P
         if not isinstance(meta.get("output"), str) or not meta["output"].strip():
             errors.append(f"writer leaf must describe metadata.hermes.output: {path}")
         text = path.read_text(encoding="utf-8")
+        validate_writer_read_contract(path, pipeline_dir, errors)
         for section in ("Procedure", "QA", "Report"):
             if f"<{section}>" not in text or f"</{section}>" not in text:
                 errors.append(f"writer leaf must own <{section}>: {path}")

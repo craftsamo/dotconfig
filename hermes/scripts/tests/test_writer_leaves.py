@@ -15,6 +15,17 @@ VALIDATOR = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(VALIDATOR)
 
 
+def read_contract():
+    return (
+        '<ReadBeforeWork>\nWhen executing as Writer, require the kernel in current context.\n'
+        'skill_view(name="writer-pipeline")\n${HERMES_SKILL_DIR}/../../SKILL.md\n'
+        'A past load or summary is not its body. Re-evaluate the operation.\n'
+        'Reuse full bodies; if unchanged without the body, use read_file and next_offset.\n'
+        'If unavailable, stop the affected action. A Client reading a form does not\n'
+        "inherit Writer's role.\n</ReadBeforeWork>\n"
+    )
+
+
 def leaf(root, location="write/article", **overrides):
     path = root / location / "SKILL.md"
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -27,7 +38,7 @@ def leaf(root, location="write/article", **overrides):
         }},
     }
     data.update(overrides)
-    path.write_text("---\n" + yaml.safe_dump(data) + "---\n"
+    path.write_text("---\n" + yaml.safe_dump(data) + "---\n" + read_contract() +
                     "<Procedure>\nDraft.\n</Procedure>\n"
                     "<QA>\nRead the draft.\n</QA>\n"
                     "<Report>\nPath and evidence.\n</Report>\n")
@@ -122,6 +133,18 @@ def test_leaf_must_own_qa(tmp_path):
 def test_creator_verbs_are_unchanged():
     assert "write" not in VALIDATOR.HANDS_VERBS
     assert "writer" not in VALIDATOR.HANDS_PROFILES
+
+
+@pytest.mark.parametrize("required", [
+    'skill_view(name="writer-pipeline")', "../../SKILL.md", "as Writer",
+    "current context", "past load or summary", "Re-evaluate", "Reuse",
+    "unchanged", "read_file", "next_offset", "stop the affected action", "Client reading",
+    "inherit Writer's role",
+])
+def test_leaf_missing_read_contract_is_rejected(tmp_path, required):
+    path, _ = leaf(tmp_path)
+    path.write_text(path.read_text().replace(required, "REMOVED"))
+    assert any("ReadBeforeWork missing" in error for error in errors(tmp_path))
 
 
 def test_worker_accepts_leaves_and_rejects_duplicate_learned_name(tmp_path, monkeypatch):
