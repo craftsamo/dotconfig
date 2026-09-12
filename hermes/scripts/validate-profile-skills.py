@@ -950,6 +950,10 @@ def validate_worker(
         entries = validate_marketer_references(pipeline_dir, errors)
         for name in entries.keys() & (leaves.keys() | learned.keys()):
             errors.append(f"duplicate marketer skill name: {name}")
+    if profile == "searcher":
+        entries = validate_searcher_entries(pipeline_dir, errors)
+        for name in entries.keys() & (leaves.keys() | learned.keys()):
+            errors.append(f"duplicate searcher skill name: {name}")
     allowed.update(path.relative_to(skills).parts for path in entries.values())
     allowed.update(learned_roots)
     validate_allowed_skill_roots(skills, allowed, errors)
@@ -979,6 +983,77 @@ def validate_worker(
     validate_git_boundary([pipeline_dir, technic_dir], learned_dir, errors)
     validate_plugin_enabled(profile, profile_root / "config.yaml", errors)
     return len(leaves) + len(writing) + len(entries) + len(creator_entries), len(learned)
+
+
+SEARCHER_ENTRIES = ("lookup-searcher", "sweep-searcher", "hunt-searcher")
+
+
+def validate_searcher_entries(pipeline_dir: Path, errors: list[str]) -> dict[str, Path]:
+    """Searcher has three unit procedures, not a new plan/build/QA workflow."""
+    entries: dict[str, Path] = {}
+    links = [path for path in pipeline_dir.rglob("*") if path.is_symlink()]
+    if links:
+        for path in sorted(links):
+            errors.append(f"searcher pipeline must not contain symlinks: {path}")
+        return entries
+
+    expected = {"SKILL.md"} | {f"{name}/SKILL.md" for name in SEARCHER_ENTRIES}
+    found = {
+        path.relative_to(pipeline_dir).as_posix()
+        for path in pipeline_dir.rglob("*")
+        if path.is_file() and (
+            path.name == "SKILL.md"
+            or not any(part.startswith(".") for part in path.relative_to(pipeline_dir).parts)
+        )
+    }
+    for path in sorted(expected - found):
+        errors.append(f"missing searcher instruction: {path}")
+    for path in sorted(found - expected):
+        errors.append(f"unexpected searcher instruction: {path}")
+
+    kernel = pipeline_dir / "SKILL.md"
+    kernel_text = kernel.read_text(encoding="utf-8") if kernel.is_file() else ""
+    for name in SEARCHER_ENTRIES:
+        entry = pipeline_dir / name / "SKILL.md"
+        if not entry.is_file():
+            continue
+        entries[name] = entry
+        validate_skill(entry, name, errors, expected_category="searcher-pipeline")
+        data = frontmatter(entry)
+        version = data.get("version")
+        if not isinstance(version, str) or not version.strip():
+            errors.append(f"searcher entry version must be a nonempty string: {name}")
+        description = data.get("description", "")
+        unit = name.split("-", 1)[0]
+        if not isinstance(description, str) or not re.match(rf"^{unit}\b", description, re.I):
+            errors.append(f"searcher description must frontload {unit}: {name}")
+        text = entry.read_text(encoding="utf-8").split("\n---\n", 1)[-1]
+        read_before = re.search(r"<ReadBeforeWork>(.*?)</ReadBeforeWork>", text, re.S)
+        block = " ".join(read_before.group(1).split()) if read_before else ""
+        for required in (
+            'skill_view(name="searcher-pipeline")',
+            "${HERMES_SKILL_DIR}/../SKILL.md", "${HERMES_SKILL_DIR}/SKILL.md",
+            "full-body", "current context", "not a past load or summary",
+            "unchanged", "earlier body is unavailable", "read_file", "next_offset",
+            "stop", "card gate", "caller's release",
+        ):
+            if required not in block:
+                errors.append(f"searcher entry ReadBeforeWork missing {required}: {name}")
+        if "## Verification" not in text or "## Handoff" not in text:
+            errors.append(f"searcher entry must own its verification and handoff: {name}")
+        if f"({name}/SKILL.md)" not in kernel_text:
+            errors.append(f"searcher kernel does not route {name}")
+
+    # Searcher's cards are declared by Assistant, never re-declared on a unit.
+    for path in sorted(pipeline_dir.rglob("*.md")):
+        if "card_units" in frontmatter(path):
+            errors.append(f"searcher must not declare card_units: {path}")
+        for link, target in markdown_links(path):
+            if not target.is_relative_to(pipeline_dir.resolve()):
+                errors.append(f"searcher link escapes pipeline: {link} in {path}")
+            elif not target.is_file():
+                errors.append(f"broken searcher link: {link} in {path}")
+    return entries
 
 
 ENGINEER_ENTRIES = {
@@ -2234,7 +2309,8 @@ def main() -> int:
         )
         for profile in WORKER_PROFILES:
             technics, learned = validate_worker(profile, errors, catalog=catalog)
-            summaries.append(f"{profile}={technics} technics/{learned} learned")
+            kind = "unit entries" if profile == "searcher" else "technics"
+            summaries.append(f"{profile}={technics} {kind}/{learned} learned")
         hands_leaves: dict[str, dict[str, Path]] = {}
         for profile in HANDS_PROFILES:
             leaves, learned = validate_hands(profile, errors)
@@ -2267,7 +2343,8 @@ def main() -> int:
         technics, learned = validate_worker(
             args.profile, errors, args.dispatch, catalog=collect_card_catalog()
         )
-        summaries.append(f"{args.profile}={technics} technics/{learned} learned")
+        kind = "unit entries" if args.profile == "searcher" else "technics"
+        summaries.append(f"{args.profile}={technics} {kind}/{learned} learned")
 
     for warning in warnings:
         print(f"WARN: {warning}")

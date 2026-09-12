@@ -1,3 +1,44 @@
+---
+name: lookup-searcher
+description: >-
+  Lookup: targeted answers and links; retrieval only. Use for a specific fact,
+  document, version, date or itemized question batch. Not an enumeration,
+  exhaustive source hunt, truth verdict, recommendation or production task.
+version: 1.0.0
+author: CraftSamo
+license: MIT
+metadata:
+  hermes:
+    category: searcher-pipeline
+    tags: [search, lookup]
+---
+
+<ReadBeforeWork>
+
+Re-evaluate the entry every caller, judge, resume or completion turn and before
+an action whose unit or scope changes. Reuse full-body instructions only while
+present in the current context, not a past load or summary. Direct entry requires
+the full kernel before searching, including its runtime and card gate:
+
+```text
+skill_view(name="searcher-pipeline")
+```
+
+If a tool returns unchanged while the earlier body is unavailable, use read_file
+on `${HERMES_SKILL_DIR}/../SKILL.md` for the kernel and
+`${HERMES_SKILL_DIR}/SKILL.md` for this entry. Follow next_offset until the whole
+required document is available; do not invent alternate paths or artificial
+ranges to evade dedup. If the body remains missing, stop the affected search and
+report the missing instructions; on a card follow the kernel's blocking protocol,
+never claim completion. In raw file text, HERMES_SKILL_DIR is this entry's directory.
+
+Loading does not restart coverage or the frontier, reset a budget, or release
+another unit. Preserve the initial purpose and settled constraints. A change
+outside the released unit requires the caller's release, not self-decomposition.
+This entry owns the unit procedure and checks below; do not also load every entry.
+
+</ReadBeforeWork>
+
 # Lookup unit — targeted facts, fast
 
 Loaded when the released unit wants **specific answers**: a fact, a doc/link,
