@@ -38,6 +38,24 @@ metadata:
       note: {required: false, type: text, label: "Other edit constraints"}
 ---
 
+<ReadBeforeWork>
+
+When executing this leaf as Writer, require the full `writer-pipeline` kernel
+and this leaf in the current context. Load a missing kernel with
+`skill_view(name="writer-pipeline")`; a past load or summary is not its body.
+Re-evaluate the operation, subject and selected detail references on each turn
+and before a scope-changing action. Reuse bodies still present; reading does
+not restart a released unit, expand a grant or replace protected text.
+If `skill_view` returns unchanged without the earlier body, use `read_file` on
+`${HERMES_SKILL_DIR}/../../SKILL.md` for the kernel, or the canonical document
+under this leaf for its own instructions. Follow `next_offset` to complete a
+truncated read; never evade dedup with alternate paths or artificial ranges.
+If a required body remains unavailable, stop the affected action and report it.
+A Client reading a form or reference for briefing does not execute this procedure
+or inherit Writer's role. Read only the detail references selected below.
+
+</ReadBeforeWork>
+
 <Procedure>
 
 1. Read the entire supplied draft and the change request. Use a readable

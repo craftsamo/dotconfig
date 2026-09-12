@@ -1059,8 +1059,10 @@ thin adapters and Marketer reads the same contract. Caller external skill roots
 must expose Writer's pipeline for name-based reads. Default's filesystem adapter
 instead uses the documented canonical Writer acceptance path when the name is
 unavailable, for inspection only. Missing acceptance resources block acceptance;
-disable Writer's 18 production leaf names on Assistant/Marketer so this reference
-does not import an authoring menu. Do not copy the rubric or make Writer accept
+in the Writer v8 candidate, keep all 19 Writer non-kernel names disabled on
+Assistant/Marketer (18 production leaves plus `consult-writer`), so reference
+access does not import an execution menu. Consultation stays delegated to Writer.
+Do not copy the rubric or make Writer accept
 its own work. Marketer inbound A2A has no browser, terminal or delegation toolset;
 authenticated work needs a resident session. No private records
 or purchased source text are moved. Pair public/private rollout and rollback;
@@ -1079,15 +1081,29 @@ acceptance, consumer defects reopen acceptance under an explicit corrective
 release, not a silent reset of an unresolved finding. See PROFILES.md "Writer
 craft and independent editorial QA" and `agents/README.md` for provenance.
 
-Writer v7 accepts `<write|edit|analyze>/<subject>/SKILL.md` below
-`writer-pipeline`, with category `writing`, a named output and a form.
+Writer v8 is an implemented, user-approved migration candidate, pending explicit
+cutover; it is not deployed, restarted or real-model validated. The previous
+Assistant deployment status above is unchanged. The root `writer-pipeline` name
+and all 18 production leaf names, paths and forms remain unchanged:
+`<write|edit|analyze>/<subject>/SKILL.md`, category `writing`, with a named output.
 Each leaf owns Procedure, QA and Report; selected reference options need
 local backing files and direct body links. `validate_writer_leaves` checks
 this without changing Creator hands' verbs or media cost contract.
-All six families now use leaves. Pre-draft advice uses only the root's
-`references/consultation.md`; a request to edit/evaluate a target selects its
-leaf. Unsupported combinations return to the requester, never a generic
+All six families still use leaves. One independent non-production direct child,
+`consult-writer/SKILL.md`, holds the old pre-draft advice body; it is not a fourth
+production verb or form. A request to edit/evaluate a target selects its leaf.
+Unsupported combinations return to the requester, never a generic
 fallback. Keep new families in separate layers rather than bundling them.
+
+Every Writer execution entry, including consultation, checks for the full kernel,
+selected entry body and current required detail references on each inbound turn,
+completion notification and before a midturn operation/subject/scope change.
+Reuse only full bodies present in current context, never a past load, summary or
+root preload. Recover missing bodies with canonical `read_file`, following
+`next_offset` through truncation, or stop the affected action. No aliases,
+alternate-path or artificial-range dedup evasion. Shared
+`references/acceptance/` remains canonical and unchanged; a Client reading a form
+or acceptance contract does not execute Writer's procedure.
 
 Article leaves distinguish source drafts from destination rendering. Keep
 platform capability notes local to each leaf; do not promise note/X Article

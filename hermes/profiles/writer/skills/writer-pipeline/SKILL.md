@@ -1,12 +1,12 @@
 ---
 name: writer-pipeline
 description: >-
-  Writer's front door (v7). Select a writing operation and subject, read the
+  Writer's shared contract (v8). Select a writing operation and subject, read the
   installed leaf's form, and execute only the released writing unit.
   Leaves own their procedure, references, QA and report. Pre-draft advice
   uses a bounded consultation; unsupported requests return for clarification.
   Drafts only: no publishing, sending, code execution or kanban card units.
-version: 7.0.0
+version: 8.0.0
 author: CraftSamo
 license: MIT
 metadata:
@@ -47,11 +47,26 @@ Writer defines no card units. A kanban card is refused with
 
 <Selection>
 
+On every inbound turn or completion, and before an action changes operation,
+subject or scope, select the relevant entry from the available skills. A short
+approval resumes the recorded unit; it does not start another outline, draft or
+grant. Require this kernel and the selected entry's full bodies independently.
+Reuse only bodies present in the current context, not a past load, summary or
+root preload. Re-evaluate the selected format/style references even when the
+entry itself has not changed. Missing required instructions block that action.
+
+If `skill_view` returns unchanged but the earlier body is unavailable, recover
+the canonical local document with `read_file`, following `next_offset` until
+complete. If that also cannot recover it, stop and report the missing body.
+Never evade read dedup with alternate paths or artificial ranges. In raw file
+text, the `HERMES_SKILL_DIR` placeholder refers to the directory containing the
+document's owning `SKILL.md`, not whichever skill was loaded last.
+
 1. Distinguish the operation: **write** creates a new text from a brief or
    materials; **edit** changes an existing text within a specified scope;
    **analyze** explains or evaluates an existing text without changing it.
    Advice about a text that does not exist is a planning consultation, not
-   an analysis of an imaginary manuscript.
+   an analysis of an imaginary manuscript: select `consult-writer` instead.
 2. Identify the subject from the intended deliverable, not its length.
    Check the installed Writer leaves through the skill list. A leaf lives
    at `<operation>/<subject>/SKILL.md` and is named `<operation>-<subject>`.
@@ -65,9 +80,14 @@ Writer defines no card units. A kanban card is refused with
    leaf is a blocker, not permission to use a different workflow.
 4. If no installed leaf fits, return the unsupported scope to the requester.
    Do not substitute a generic writing workflow or invent another skill.
-   Pre-draft advice uses [consultation](references/consultation.md); it does
+   Pre-draft advice uses [consult-writer](consult-writer/SKILL.md); it does
    not authorize a manuscript or replace a leaf's QA. If the request changes
    to editing or evaluating an existing target, reselect the operation.
+
+The consultation is a separate advisory entry, not a fourth production
+operation. Reading a candidate leaf's form or reference for advice does not
+execute that leaf or make every production field required. Clients inspecting
+forms or the acceptance references do not inherit Writer's execution role.
 
 Each leaf owns its own checks. There is no additional shared review pipeline,
 statistical naturalness score or automatic humanizer pass. `japanese-writing`

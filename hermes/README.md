@@ -345,6 +345,32 @@ install or repoint live links. Deployment requires separate approval, controlled
 restart and fresh sessions as for Assistant. Existing jobs, artifacts, proposal
 hashes, grants and the four-unit card catalog remain unchanged.
 
+### Writer v8 candidate
+
+The user-approved Writer migration is implemented in an isolated candidate,
+pending explicit cutover. It has not been deployed, restarted or validated with
+a real model; the Assistant deployment recorded above remains unchanged.
+The root name `writer-pipeline` and its 18 production leaf names, paths and forms
+stay unchanged at `<write|edit|analyze>/<subject>/SKILL.md`. One independent
+non-production direct child, `writer-pipeline/consult-writer/SKILL.md`, holds the
+old advice body, not a fourth production verb or form. Shared
+`references/acceptance/` remains canonical and unchanged.
+
+Every Writer execution entry, including consultation, checks for the full kernel,
+selected entry body and current required detail references on each inbound turn,
+completion notification and before a midturn operation/subject/scope change.
+Reuse requires full bodies in current context, not past loads, summaries or root
+preload. Recover missing bodies using canonical `read_file`, following
+`next_offset` through truncation, or stop the affected action. No aliases or
+dedup evasion through alternate paths or artificial ranges.
+
+Assistant and Marketer keep all 19 Writer non-kernel names disabled: the 18
+production leaves plus `consult-writer`. Consultation remains delegated to Writer;
+Client reads of forms or acceptance references do not execute Writer's procedure.
+Candidate checks do not authorize live installation or restart; explicit cutover
+must pair public/private sources and refresh the gateway index and session as
+described above, without changing existing outputs or approvals.
+
 ## Profiles
 
 Named profiles live under `~/.hermes/profiles/<name>/` — each its own

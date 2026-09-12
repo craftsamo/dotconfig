@@ -15,6 +15,25 @@ VALIDATOR = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(VALIDATOR)
 
 
+def read_contract():
+    return (
+        '<ReadBeforeWork>\nWhen executing as Writer, require the kernel in current context.\n'
+        'skill_view(name="writer-pipeline")\n${HERMES_SKILL_DIR}/../../SKILL.md\n'
+        'A past load or summary is not its body. Re-evaluate the operation.\n'
+        'Reuse full bodies; if unchanged without the body, use read_file and next_offset.\n'
+        'If unavailable, stop the affected action. A Client reading a form does not\n'
+        "inherit Writer's role.\n</ReadBeforeWork>\n"
+    )
+
+
+def consultation(root):
+    source = SCRIPT.parent.parent / "profiles/writer/skills/writer-pipeline/consult-writer/SKILL.md"
+    path = root / "consult-writer/SKILL.md"
+    path.parent.mkdir(parents=True)
+    path.write_text(source.read_text())
+    return path
+
+
 def leaf(root, location="write/article", **overrides):
     path = root / location / "SKILL.md"
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -27,7 +46,7 @@ def leaf(root, location="write/article", **overrides):
         }},
     }
     data.update(overrides)
-    path.write_text("---\n" + yaml.safe_dump(data) + "---\n"
+    path.write_text("---\n" + yaml.safe_dump(data) + "---\n" + read_contract() +
                     "<Procedure>\nDraft.\n</Procedure>\n"
                     "<QA>\nRead the draft.\n</QA>\n"
                     "<Report>\nPath and evidence.\n</Report>\n")
@@ -122,6 +141,64 @@ def test_leaf_must_own_qa(tmp_path):
 def test_creator_verbs_are_unchanged():
     assert "write" not in VALIDATOR.HANDS_VERBS
     assert "writer" not in VALIDATOR.HANDS_PROFILES
+    assert VALIDATOR.WRITER_VERBS == ("write", "edit", "analyze")
+
+
+def test_consultation_is_separate_from_production_leaves(tmp_path):
+    path = consultation(tmp_path)
+    leaf(tmp_path)
+    found = []
+    assert set(VALIDATOR.validate_writer_leaves(tmp_path, found)) == {"write-article"}
+    assert VALIDATOR.validate_writer_consultation(tmp_path, found) == {"consult-writer": path}
+    assert found == []
+    meta = VALIDATOR.hermes_meta(VALIDATOR.frontmatter(path))
+    assert "form" not in meta
+
+
+def test_consultation_is_required_and_rejects_old_copy(tmp_path):
+    found = []
+    assert VALIDATOR.validate_writer_consultation(tmp_path, found) == {}
+    assert any("missing Writer advisory entry" in error for error in found)
+    consultation(tmp_path)
+    old = tmp_path / "references/consultation.md"
+    old.parent.mkdir()
+    old.write_text("# Obsolete duplicate\n")
+    found = []
+    VALIDATOR.validate_writer_consultation(tmp_path, found)
+    assert any("must not duplicate" in error for error in found)
+
+
+@pytest.mark.parametrize("field,value", [("name", "other"), ("description", "General advice")])
+def test_consultation_metadata_is_checked(tmp_path, field, value):
+    path = consultation(tmp_path)
+    data = VALIDATOR.frontmatter(path)
+    data[field] = value
+    update(path, data)
+    found = []
+    VALIDATOR.validate_writer_consultation(tmp_path, found)
+    assert found
+
+
+def test_consultation_cannot_acquire_a_production_form(tmp_path):
+    path = consultation(tmp_path)
+    data = VALIDATOR.frontmatter(path)
+    data["metadata"]["hermes"]["form"] = {"note": {"required": False, "label": "Note"}}
+    update(path, data)
+    found = []
+    VALIDATOR.validate_writer_consultation(tmp_path, found)
+    assert any("not a production form" in error for error in found)
+
+
+@pytest.mark.parametrize("required", [
+    'skill_view(name="writer-pipeline")', "../../SKILL.md", "as Writer",
+    "current context", "past load or summary", "Re-evaluate", "Reuse",
+    "unchanged", "read_file", "next_offset", "stop the affected action", "Client reading",
+    "inherit Writer's role",
+])
+def test_leaf_missing_read_contract_is_rejected(tmp_path, required):
+    path, _ = leaf(tmp_path)
+    path.write_text(path.read_text().replace(required, "REMOVED"))
+    assert any("ReadBeforeWork missing" in error for error in errors(tmp_path))
 
 
 def test_worker_accepts_leaves_and_rejects_duplicate_learned_name(tmp_path, monkeypatch):
@@ -131,6 +208,7 @@ def test_worker_accepts_leaves_and_rejects_duplicate_learned_name(tmp_path, monk
     (root / "SKILL.md").write_text("---\nname: writer-pipeline\n---\n")
     (skills / "technic").mkdir()
     leaf(root)
+    consultation(root)
     monkeypatch.setattr(VALIDATOR, "HERMES_ROOT", tmp_path)
     monkeypatch.setattr(VALIDATOR, "validate_git_boundary", lambda *args: None)
     monkeypatch.setattr(VALIDATOR, "validate_plugin_enabled", lambda *args: None)
@@ -142,6 +220,13 @@ def test_worker_accepts_leaves_and_rejects_duplicate_learned_name(tmp_path, monk
     duplicate.write_text("---\nname: write-article\n---\n")
     VALIDATOR.validate_worker("writer", found)
     assert any("duplicate writer skill name" in error for error in found)
+    duplicate.unlink()
+    duplicate = skills / "learned/consult-writer/SKILL.md"
+    duplicate.parent.mkdir(parents=True)
+    duplicate.write_text("---\nname: consult-writer\n---\n")
+    found = []
+    VALIDATOR.validate_worker("writer", found)
+    assert any("duplicate writer skill name: consult-writer" in error for error in found)
 
 
 def test_hermes_discovers_writer_and_serves_its_references(tmp_path, monkeypatch):
