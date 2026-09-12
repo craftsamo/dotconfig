@@ -263,8 +263,17 @@ catalog unit was retired in the 2026-09 peer rebuild). The assistant's
 research plan leaves
 (`plan/research/`) fix the decisions, and research QA gates each unit
 against evidence-pack/tradeoff-matrix/fact-check/guidance contracts
-(validator-enforced mapping). Details: researcher's
-`researcher-pipeline` skill.
+(validator-enforced mapping). Researcher's `researcher-pipeline` retains the
+evidence floors and shared `references/gather.md`; four independent entries
+outside `references/` own the unit procedures:
+`evidence-pack-researcher`, `tradeoff-matrix-researcher`,
+`fact-check-researcher`, and `guidance-researcher`. Every incoming turn and
+mid-turn unit/scope change reselects the fitting entry without regranting or
+restarting the released work. Each direct entry requires the full kernel;
+reuse needs full bodies in current context, not a past load or summary.
+Canonical `read_file` recovery stops the affected work if instructions remain
+unavailable. Names and descriptions are discoverable; this is not automatic
+intent matching or a promise that a model will always select correctly.
 
 ### Planning ownership
 
@@ -382,7 +391,9 @@ Three per-profile layers, kept separate:
     peer requests from engineer/creator/marketer; every card refused —
     the `claim-verification` unit is retired; consumes released units with unit
     discipline — evidence-pack / tradeoff-matrix / fact-check /
-    guidance — returning spec-gap and granularity findings, plus
+    guidance — through the independent children `evidence-pack-researcher`,
+    `tradeoff-matrix-researcher`, `fact-check-researcher` and
+    `guidance-researcher`, returning spec-gap and granularity findings, plus
     Admiralty/SIFT source evaluation, citation rules, and the Review gate
     in the kernel; researcher supplies evidence and does not own
     artifact-vs-brief QA; retrieval strategy in references/gather.md) +
