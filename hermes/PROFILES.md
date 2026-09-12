@@ -454,10 +454,11 @@ Three per-profile layers, kept separate:
     the only stable dispatch identities
   - writer → `writer-pipeline` (resident-only, cards refused; consumes
     released units — outline / piece / whole job — with spec-gap and
-    granularity findings). Its v7 kernel selects installed
+    granularity findings). Its v8 candidate kernel selects the unchanged 18
     `<write|edit|analyze>/<subject>/SKILL.md` leaves in category `writing`.
     Each leaf owns its form, Procedure, QA and Report. Pre-draft advice uses
-    `references/consultation.md`, not another writing/review pipeline;
+    `consult-writer`, an independent non-production direct child, not a fourth
+    production verb/form or another writing/review pipeline;
     unsupported requests return for clarification. The post family serves
     `write-post`, `edit-post` and
     `analyze-post` for X/Instagram, with per-leaf forms, platform references
@@ -778,7 +779,10 @@ The canonical requester contract is public at
 `profiles/writer/skills/writer-pipeline/references/acceptance/{index,prose,script}.md`.
 Assistant's private QA files are thin adapters, and Marketer reads the same source
 through Writer's configured external skill root. No private task records moved.
-The 18 authoring leaves are disabled on the two callers; the root remains readable.
+In the Writer v8 candidate, all 19 Writer non-kernel names stay disabled on both
+callers (18 production leaves plus `consult-writer`); the root remains readable.
+Consultation stays delegated to Writer. Reading a form or acceptance contract as
+a Client does not execute Writer's procedure.
 An unavailable contract blocks acceptance; Writer never uses it for self-approval.
 
 ## Marketer strategy and browser drafts
@@ -847,12 +851,32 @@ only `SKILL.md`; source attribution is recorded in `agents/README.md` and the
 pre-cleanup Git history. Do not place an archive back under a discovered skill
 root or restore a generic review fallback for an unsupported request.
 
-Pre-draft advice uses `writer-pipeline/references/consultation.md`. It preserves
+Pre-draft advice uses `writer-pipeline/consult-writer/SKILL.md`. It preserves
 structure/tone/sizing advice without producing or approving a draft. An explicit
 outline release still uses a write leaf; evaluating/editing a target selects its
 own operation. Caller QA uses the actual artifact and criterion evidence, not
 the removed inspection commands or pass counts. Restore matched producer/caller
 contracts together if rolling back; no runtime switch is implied by this cleanup.
+
+### Writer v8 candidate routing
+
+The user-approved migration is implemented only in the isolated candidate,
+pending explicit cutover. No Writer deployment, restart or real-model validation
+is claimed; the earlier Assistant deployment status remains unchanged.
+The root name `writer-pipeline` and all 18 production leaf names, paths and forms
+remain unchanged across write/edit/analyze and the six subjects. One independent
+non-production direct child, `consult-writer/SKILL.md`, holds the old advice body.
+It adds no fourth production verb or form. Shared `references/acceptance/`
+remains canonical and unchanged.
+
+Each Writer execution entry, including consultation, checks the full kernel,
+selected entry body and current required detail references on every inbound turn,
+completion notification and before a midturn operation/subject/scope change.
+Only full bodies present in current context are reusable; prior loads, summaries
+and root preload are insufficient. Missing bodies require canonical `read_file`
+recovery, following `next_offset` through truncation, or stopping the affected
+action. No aliases or dedup evasion through alternate paths or artificial ranges.
+Client form/acceptance reads are inspection, not local Writer execution.
 
 ## Broker shape
 
