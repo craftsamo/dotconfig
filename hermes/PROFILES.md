@@ -400,15 +400,15 @@ Three per-profile layers, kept separate:
     then pack; packs expressions / gaming / love-hype / meme-classics /
     custom; styles chibi-cartoon / kawaii-pastel / pixel / flat-sticker /
     clay), `edit/emoji`, `analyze/emoji` — see "Creator hands (v3)"
-  - creator → `creator-pipeline` v8 — clients and hands: Plan
-    (`references/plan/index.md`: use runtime caller context before message shape;
+  - creator → `creator-pipeline` v9 — clients and hands: Plan
+    (`plan-creator`: use runtime caller context before message shape;
     agent follow-ups are not direct human approval; fill the leaf's
     form with `clarify` or by parsing the brief; composites = a sequence of
-    forms), Build (`references/build/index.md`: the handoff text, specialist inquiry / work
+    forms), Build (`build-creator`: the handoff text, specialist inquiry / work
     session, supervision, relaying `Q<n>`), Quality assurance
-    (`references/quality-assurance/index.md`: vision at native size and at the size of use,
-    revise as a handoff, delivery). Each phase index leads to only the selected
-    `<hands>/<subject>.md`; verbs stay inside that subject reference and the
+    (`qa-creator`: vision at native size and at the size of use,
+    revise as a handoff, delivery). Each entry leads to only the selected
+    `references/<hands>/<subject>.md`; verbs stay inside that subject reference and the
     hands leaf remains the only form. `capabilities.md` is the capability router
     (served families first, then the technic table). Families with no
     hands yet keep the technic-era contract under `references/legacy/`
@@ -863,13 +863,15 @@ The migration has distinct ownership shapes, not one universal skill tree:
   Report owned there. Other profiles adopt that pattern only as their own
   operation/output contracts are settled; Creator's verbs and media budgets
   are not imposed on writing, engineering, research or marketing.
-- **Creator's broker** keeps phase-specific decision, handoff and acceptance guidance in
-  plain references below one root pipeline skill. Creator v8 uses
-  `references/<phase>/<hands>/<subject>.md` with a common `index.md` per phase.
+- **Creator's broker** exposes `plan-creator`, `build-creator` and `qa-creator`
+  below the unchanged `creator-pipeline` root. Each independently discoverable
+  entry owns its phase procedure and `references/<hands>/<subject>.md` details.
+  The parent owns invariant contracts, `references/capabilities.md` and legacy
+  procedures; it is a required dependency, not the sole discovery route.
 - **Assistant's Client entries** use 19 independent child
   skills with domain details in each child's `references/` and shared mode-common
   procedures at the parent. They express what Assistant owns, not a mirror of
-  every producer form; this does not migrate Creator's topology.
+  every producer form.
 - **Engineer's mode entries** use four independent child skills, one per actual
   mode, each owning its procedure and detail references. They depend on the
   invariant root and shared OpenCode transport, not a duplicated mode-common
@@ -877,13 +879,14 @@ The migration has distinct ownership shapes, not one universal skill tree:
   approval and evaluation responsibilities.
 
 Creator's phases are `plan`, `build`, `quality-assurance`. The current fifteen
-subjects occupy 45 references plus three common indexes. The subject is shared
+subjects occupy 45 references plus three entry skills. The subject is shared
 by its supported verbs; unavailable verb/subject pairs are not new capabilities.
-The root loads a phase index, then the selected subject reference. No new
-`SKILL.md`, generated menu, registry or shared style system is introduced.
-Hands discovery and names stay unchanged; reference files do not add entries
-to Hermes' skills index. `capabilities.md` retains its legacy technic table;
-only its phase links change in this structural migration.
+Every inbound turn/completion and each mode/subject/scope-changing action selects
+an entry from the available index, requires its full kernel, then reads only the
+selected subject references. The entry itself is the common phase procedure:
+there is no extra phase wrapper or generated menu. Hands discovery, forms and
+names stay unchanged; subject references are not independent skills.
+`capabilities.md` retains its legacy technic table and links the new entries.
 
 Each subject reference has one job in each phase: Plan interprets the client's
 request into the existing form and settles the applicable grants; Build relays
@@ -896,11 +899,11 @@ engine implementation and measurement scripts remain with their producers.
 `validate_creator_references` collects subjects from the actual hands leaves,
 deduplicates verbs, and requires exact per-hands coverage in all three phases.
 It rejects missing/orphan references, unsupported nesting, unlinked subjects,
-broken or escaping local links, and the old phase monoliths on v8. Earlier v7
-Stack layers remain valid before any phase directory exists. Once a tree is
-present it must be complete; do not commit a partially populated tree or keep
-the old monoliths as a second active source. Rollback restores the root,
-references and matching caller tests together from the preceding Stack layer;
+broken or escaping local links, missing kernel/recovery dependencies, and stale
+phase directories on v9. Shipped v7/v8 candidates retain their existing checks.
+Once an entry tree is present it must be complete; do not commit a partially
+populated tree or keep the old indexes as aliases. Rollback restores the root,
+entries/references and matching caller tests together from the preceding version;
 it never rewrites job outputs, proposal hashes or approvals.
 
 ### Assistant Client guides and retirement gates
@@ -2155,7 +2158,7 @@ researcher as needed; narration/mixed audio routes through audio-creator.
 VideoCreator cannot call any of those hands or peers directly — it
 returns a dependency request to Creator, which releases it as its own
 separately budgeted and approved unit, the same composite-request
-discipline used for any other multi-form job (`references/build/index.md`).
+discipline used for any other multi-form job (`build-creator`).
 
 The runtime lifecycle mirrors Tour/Ad's proposal-then-approval
 shape: `propose --spec SPEC --out <new proposal-vN dir>` writes
@@ -2420,9 +2423,10 @@ is `icon` (`source` / `create` / `generate` / `edit` / `analyze`). Nothing is
 retired in bulk; `refactor/creator-profile` is read only for scripts worth
 porting (`icon-fetch.sh`, `tour.py`, `explainer.py`, `item-loop.py`).
 
-**Creator's own pipeline is shaped for this** (v8, 2026-09-09): Plan →
-Build → Quality assurance, each loading `references/<phase>/index.md`
-and the selected `<hands>/<subject>.md` as described in "Broker shape".
+**Creator's own pipeline is shaped for this** (v9): Plan →
+Build → Quality assurance, selected through `plan-creator`, `build-creator`
+and `qa-creator`, each owning `references/<hands>/<subject>.md` as described
+in "Broker shape".
 The technic-era routes remain under `references/legacy/` for the families
 still to move. This reference split retires no production family. Each family that
 lands on a hands deletes its technic, its assistant plan leaf and QA

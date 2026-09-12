@@ -238,7 +238,8 @@ def test_creator_routes_authored_tours():
     config = yaml.safe_load((ROOT / "profiles/creator/config.yaml").read_text())
     assert "task-local" in config["agent"]["system_prompt"]
     assert "explicit none" in config["agent"]["system_prompt"]
-    for path in ("references/build/video-creator/tour.md", "references/plan/video-creator/tour.md",
+    for path in ("build-creator/references/video-creator/tour.md",
+                 "plan-creator/references/video-creator/tour.md",
                  "references/capabilities.md"):
         contents = (ROOT / "profiles/creator/skills/creator-pipeline" / path).read_text()
         assert "create-tour" in contents

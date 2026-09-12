@@ -86,17 +86,17 @@ class CreatorAndVideoConfigTest(unittest.TestCase):
         cls.creator_prompt = cls.creator_config["agent"]["system_prompt"]
         cls.video_prompt = cls.video_config["agent"]["system_prompt"]
         cls.pipeline_skill = (HERMES_ROOT / "profiles/creator/skills/creator-pipeline/SKILL.md").read_text()
-        refs = HERMES_ROOT / "profiles/creator/skills/creator-pipeline/references"
-        cls.plan_index_md = (refs / "plan/index.md").read_text()
-        cls.plan_ad_md = (refs / "plan/video-creator/ad.md").read_text()
+        pipeline = HERMES_ROOT / "profiles/creator/skills/creator-pipeline"
+        cls.plan_index_md = (pipeline / "plan-creator/SKILL.md").read_text()
+        cls.plan_ad_md = (pipeline / "plan-creator/references/video-creator/ad.md").read_text()
         cls.plan_md = cls.plan_index_md + cls.plan_ad_md
-        cls.build_index_md = (refs / "build/index.md").read_text()
-        cls.build_ad_md = (refs / "build/video-creator/ad.md").read_text()
+        cls.build_index_md = (pipeline / "build-creator/SKILL.md").read_text()
+        cls.build_ad_md = (pipeline / "build-creator/references/video-creator/ad.md").read_text()
         cls.build_md = cls.build_index_md + cls.build_ad_md
-        cls.qa_index_md = (refs / "quality-assurance/index.md").read_text()
-        cls.qa_ad_md = (refs / "quality-assurance/video-creator/ad.md").read_text()
+        cls.qa_index_md = (pipeline / "qa-creator/SKILL.md").read_text()
+        cls.qa_ad_md = (pipeline / "qa-creator/references/video-creator/ad.md").read_text()
         cls.qa_md = cls.qa_index_md + cls.qa_ad_md
-        cls.capabilities_md = (refs / "capabilities.md").read_text()
+        cls.capabilities_md = (pipeline / "references/capabilities.md").read_text()
 
     def test_creator_config_and_pipeline_name_both_leaves(self) -> None:
         for text in (self.creator_prompt, self.plan_md,
@@ -108,11 +108,11 @@ class CreatorAndVideoConfigTest(unittest.TestCase):
         """Root SKILL.md (v8) no longer enumerates every leaf; it routes to
         each phase's index, and those indexes link the exact ad.md subject
         reference exercised by the other assertions in this class."""
-        for path in ("references/plan/index.md", "references/build/index.md",
-                     "references/quality-assurance/index.md"):
+        for path in ("plan-creator/SKILL.md", "build-creator/SKILL.md",
+                     "qa-creator/SKILL.md"):
             self.assertIn(path, self.pipeline_skill)
         for index_text in (self.plan_index_md, self.build_index_md, self.qa_index_md):
-            self.assertIn("(video-creator/ad.md)", index_text)
+            self.assertIn("(references/video-creator/ad.md)", index_text)
 
     def test_video_root_and_profile_describe_both_leaves(self) -> None:
         for text in (self.video_prompt, self.video_profile):
@@ -128,7 +128,7 @@ class CreatorAndVideoConfigTest(unittest.TestCase):
         # Build's index, which carries the general specialist_call
         # kind="work" contract that ad's own transport row (asserted above)
         # follows.
-        self.assertIn("references/build/index.md", self.pipeline_skill)
+        self.assertIn("build-creator/SKILL.md", self.pipeline_skill)
         self.assertIn('kind="work")`; the tool starts the resident session you supervise',
                        self.build_index_md)
 
