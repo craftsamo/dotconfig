@@ -1,3 +1,51 @@
+---
+name: fact-check-researcher
+description: >-
+  Verify fixed claims; return sourced claim verdicts. Use for a
+  fixed claims list with source requirements, each claim resolved to a
+  verdict with evidence and counterevidence. Not for open synthesis
+  (evidence-pack), option comparisons (tradeoff-matrix), consumer guidance
+  (guidance), topic surveys, or artifact-quality/crafting verdicts.
+version: 1.0.0
+author: CraftSamo
+license: MIT
+compatibility: Requires Hermes Agent and the parent researcher-pipeline kernel and shared gather reference.
+metadata:
+  hermes:
+    category: researcher-pipeline
+    tags: [research, fact-check]
+---
+
+<ReadBeforeWork>
+
+Before working this entry, load the current researcher-pipeline kernel's full
+body (unit discipline, source evaluation, citation rules, and the card gate)
+with `skill_view(name="researcher-pipeline")` — reuse only a full
+current-context body, never a summary or a past load record. Direct entry
+into this unit still requires the kernel body first.
+
+Gathering beyond a few direct lookups needs the gather engine: call
+`skill_view(name="researcher-pipeline", file_path="references/gather.md")` —
+see [Gather](../references/gather.md).
+
+If `skill_view` returns unchanged while a full body is missing, or cannot
+return a required body, fall back to `read_file` on the
+canonical paths — `${HERMES_SKILL_DIR}/../SKILL.md` for the kernel,
+`${HERMES_SKILL_DIR}/../references/gather.md` for the gather engine, and
+`${HERMES_SKILL_DIR}/SKILL.md` for this entry — following `next_offset` only
+for actual truncation, never an artificial range or an alternate path to
+dodge dedup. If the body still cannot be recovered, stop the affected
+research rather than proceed without it.
+
+A selection change is not a new grant: if the request needs a missing or
+wider unit scope than what was released, return that gap to the requester
+and keep the original job scope — never restart or self-expand it.
+
+This entry does no card work: the kernel refuses every kanban card with
+`kanban_block(kind=capability)` before any research begins.
+
+</ReadBeforeWork>
+
 # Fact-check unit — claim-by-claim verdicts
 
 Loaded when the released unit presents specific external claims, cited
@@ -63,7 +111,6 @@ before finishing. Include every source URL/id, reliability/credibility
 score, counterevidence, and unverifiable gap. The assistant's quality-assurance
 pass reads this ledger; the report names the file, and the ledger remains the
 complete record.
-(Kanban runtime: also `kanban_attach` it.)
 
 ## Pitfalls
 
