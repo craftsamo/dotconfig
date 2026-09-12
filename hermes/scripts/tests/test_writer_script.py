@@ -56,11 +56,11 @@ def test_kernel_routes_scripts_without_legacy_inspection():
     assert "Do not run the legacy script/inspection workflow" in kernel
     assert "An analysis is a report, not a new script" in kernel
     assert "Production scripts retain their legacy" not in kernel
-    assert (PIPELINE / "references/consultation.md").is_file()
+    assert (PIPELINE / "consult-writer/SKILL.md").is_file()
 
 
 def test_consultation_does_not_reintroduce_legacy_script_limits():
-    advice = content(PIPELINE / "references/consultation.md")
+    advice = content(PIPELINE / "consult-writer/SKILL.md")
     assert "use the corresponding edit/analyze leaf" in advice
     assert "return to the kernel's operation selection" in advice
     assert "not an actual producer limit or measured timing" in advice
