@@ -24,6 +24,7 @@ explicitly require live agent/evidence acceptance at cutover instead:
 from __future__ import annotations
 
 import importlib.util
+import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -83,20 +84,44 @@ class CommandPlanTest(unittest.TestCase):
 
 
 class PreflightFailureTest(unittest.TestCase):
+    def setUp(self) -> None:
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        root = Path(directory.name)
+        self.private = root / "private"
+        hermes = root / "public/hermes"
+        for name in ("assistant-pipeline", "desks"):
+            rel = Path("profiles/assistant/skills") / name
+            target = self.private / "hermes" / rel
+            target.mkdir(parents=True)
+            link = hermes / rel
+            link.parent.mkdir(parents=True, exist_ok=True)
+            link.symlink_to(target)
+        self.home = root / "home"
+        (self.home / ".config").mkdir(parents=True)
+        (self.home / ".config/private").symlink_to(self.private)
+        for patcher in (patch.object(V, "HERMES_ROOT", hermes),
+                        patch.object(Path, "home", return_value=self.home)):
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
     def test_runtime_absent_fails_descriptively(self) -> None:
         with self.assertRaisesRegex(V.ContinuityError, "python not found"):
             V.check_runtime(Path("/definitely/not/a/real/runtime"))
 
     def test_candidate_pair_mismatch_fails_descriptively(self) -> None:
-        # A real, correctly-paired --private root, but Path.home()/.config/private
-        # resolves elsewhere: the two pairing halves disagree.
-        real_link = REAL_PUBLIC_ROOT / "hermes/profiles/assistant/skills/assistant-pipeline"
-        if not real_link.is_symlink():
-            self.skipTest("private overlay symlinks not present in this candidate")
-        real_private = real_link.resolve().parents[4]  # .../<private-root>/hermes/profiles/assistant/skills/<link>
+        # Correct overlay links, but the home boundary selects a different pair.
         with patch.object(Path, "home", return_value=Path("/fake/home/for/mismatch")):
             with self.assertRaisesRegex(V.ContinuityError, "unpaired candidate"):
-                V.check_candidate_pairing(real_private)
+                V.check_candidate_pairing(self.private)
+
+    def test_candidate_pair_matches_in_isolation(self) -> None:
+        V.check_candidate_pairing(self.private)
+
+    def test_missing_overlay_link_is_still_rejected(self) -> None:
+        (V.HERMES_ROOT / "profiles/assistant/skills/desks").unlink()
+        with self.assertRaisesRegex(V.ContinuityError, "must be a real symlink"):
+            V.check_candidate_pairing(self.private)
 
     def test_candidate_pair_wrong_private_root_fails_descriptively(self) -> None:
         with self.assertRaisesRegex(V.ContinuityError, "not under --private"):

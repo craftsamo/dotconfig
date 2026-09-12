@@ -497,15 +497,16 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
   after caller coverage and both-client soak, not merely because a leaf exists.
   Writer's released-unit ownership is unchanged; see PROFILES.md "Broker shape".
 - **Assistant is a deliverable-first Client, not a second production broker.**
-  Its plain `plan/creative/<deliverable>.md` guides hold Client questions and
-  acceptance criteria, with conditional reference research and common Execute
+  Its plain `plan-assistant-creative/references/<deliverable>.md` guides hold
+  Client questions and acceptance criteria, with conditional research and common Execute
   and QA. No hands-name parity, form/provider/limit catalog or duplicate
   per-deliverable Execute/QA tree: a missing guide never means unavailable.
-  The retained production decision/inspection files now live in each mode's
-  `creative/legacy/`; only those Plan/QA files retain technic/Covers parity.
-  Each parent index must route `legacy/index.md`; nested card declarations
-  are forbidden, and the two original creative card units stay in the normal
-  Execute index. Relocation is not capability retirement. Assistant's fixed
+  The retained production decision/inspection files live in each creative entry's
+  `references/legacy/`; only those Plan/QA files retain technic/Covers parity.
+  Each owning SKILL must route `references/legacy/index.md`; detail card
+  declarations are forbidden. The two original creative card units stay in
+  `execute-assistant-creative/SKILL.md` frontmatter. Relocation is not capability
+  retirement. Assistant's fixed
   house formats, device catalog and blanket past-film recipes are retired in
   both paths, not transplanted into Creator. Real technical constraints stay
   with the current producer; frozen outputs and approvals stay unchanged.
@@ -947,6 +948,39 @@ paired public/private tests and actual runtime regressions, not commit-name
 checks. Candidate worktrees need their own overlay links and isolated HOME;
 never repoint live links for a test. It does not install, restart or migrate jobs.
 
+## Assistant entry routing
+
+The deployed layout preserves the private-overlay `assistant-pipeline/` directory and
+root skill name. Its root is the invariant kernel; 19 independent child skills
+outside `references/` own the former mode/domain indexes: `chat-assistant` and
+`{plan,execute,qa}-assistant-<domain>` for engineering, creative, writing,
+research, search and marketing. Each child's `references/` owns its details.
+Only `references/plan/index.md`, `references/execute/index.md` plus
+`resident-sessions.md`, `kanban-lite.md`, `scheduled.md`, and
+`references/quality-assurance/index.md` remain shared at the parent.
+No entry aliases, new overlay mapping or default `skills.external_dirs` expansion.
+Desk bindings and inline-only restrictions stay unchanged. Writer acceptance
+remains in the public Writer pipeline, not copied into private QA entries.
+
+Always-on routing selects an entry each user turn/completion and before a
+midturn mode/domain/scope-changing action. Direct entry requires the full kernel
+and mode-common body; a past load, summary or root preload is not enough.
+Canonical `read_file` recovery must stop the affected action if a required body
+is still absent. Read dedup is source/runtime behavior, not a guarantee that
+instructions remain in model context; see README's entry cutover section.
+The CLI adapter reads the filesystem tree without exposing the 19 entries or
+Writer's production leaves in default's menu.
+
+Cut over on 2026-09-12: the restarted gateway restored all 13 configured
+connections, and a restricted fresh Assistant CLI conversation verified a
+document-to-script reference change across two real model turns. This does not
+prove that existing messaging histories refreshed. Test future paired
+checkouts with `HERMES_PRIVATE_ROOT` on public tests and
+`HERMES_PUBLIC_ROOT` on private tests; never install/link candidates into live
+paths to satisfy tests. Manual edits do not invalidate the gateway's process
+skill-index cache. Cutover needs explicit approval, a controlled gateway restart
+AND a fresh session; neither is authorized by candidate validation.
+
 ## Engineer v8 and UI evaluation
 
 Engineer is a developer using OpenCode; User and Assistant are Clients. The
@@ -1010,7 +1044,9 @@ approved live validation; static tests do not establish service-side persistence
 Generic requester Writing QA is public in Writer's pipeline at
 `references/acceptance/{index,prose,script}.md`; Assistant's private files are
 thin adapters and Marketer reads the same contract. Caller external skill roots
-must expose Writer's pipeline. Missing acceptance resources block acceptance;
+must expose Writer's pipeline for name-based reads. Default's filesystem adapter
+instead uses the documented canonical Writer acceptance path when the name is
+unavailable, for inspection only. Missing acceptance resources block acceptance;
 disable Writer's 18 production leaf names on Assistant/Marketer so this reference
 does not import an authoring menu. Do not copy the rubric or make Writer accept
 its own work. Marketer inbound A2A has no browser, terminal or delegation toolset;
@@ -1104,7 +1140,7 @@ mcp.json             # MCP servers ({} = none)
                      # (no cron/ — Hermes owns ~/.hermes/cron, machine-local)
 skills/              # shared maintainer-owned skills tracked
   default-pipeline/  # thin CLI adapter for default; points at the assistant's
-                     #   assistant-pipeline reference tree and records CLI deltas
+                     #   assistant-pipeline kernel/entry tree and records CLI deltas
                      # (the ~/Workspaces data-skill cluster — people/pp, household-budget/hb,
                      #   reports/rp, projects/pj, business-prospects/bp, message-reply,
                      #   scaffold + _cross.py — moved to the private overlay, read via
@@ -1139,12 +1175,12 @@ profiles/<name>/     # assistant, engineer, researcher, searcher, creator, write
                      #   stay the same; styles/presets/formats remain references.
                      #   (searcher: no technics — the lookup/sweep/hunt unit
                      #   playbooks are searcher-pipeline references, paired with
-                     #   the assistant's plan/search and quality-assurance/search
-                     #   leaves (validator-enforced QA mapping);
+                     #   the assistant's plan-assistant-search and qa-assistant-search
+                     #   references (validator-enforced QA mapping);
                      #   creator: canonical creator-* image/video/audio/music/
                      #   browser-motion/diagram/editorial/icon/card/meme/text-art/
                      #   pixel/sourcing/assembly leaves (1:1 with the assistant's
-                     #   plan/creative/legacy decision leaves; validator-enforced);
+                     #   plan-assistant-creative/references/legacy leaves; validator-enforced);
                      #   writer: the japanese-writing language core (one
                      #   SKILL.md, five notation defaults) via the curated
                      #   external-skills symlink dir;
@@ -1152,8 +1188,8 @@ profiles/<name>/     # assistant, engineer, researcher, searcher, creator, write
                      #   managed technics stay exactly one directory below skills/technic/
                      #   because validate-profile-skills.py enforces flat canonical leaves;
                      #   assistant keeps its front-door pipeline in
-                     #   profiles/assistant/skills/assistant-pipeline/ (mode-first
-                     #   chat/plan/execute/quality-assurance references) plus its
+                     #   profiles/assistant/skills/assistant-pipeline/ (kernel +
+                     #   19 child entries + shared mode references) plus its
                      #   surface skills — desks/ holds
                      #   topic-bound personal-desk / project-desk / brainstorm
                      #   (Inline-only; specialist work spins into a new topic);
@@ -1190,8 +1226,9 @@ writer, engineer, marketer and researcher are card-free and refuse every card
 (researcher's `claim-verification` unit was retired in the 2026-09 peer
 rebuild — fact-checks travel through researcher's A2A peers).
 The validator cross-checks worker kernels against the catalog's
-`assignee` front matter. The assistant itself is the quality gate (contracts under
-`profiles/assistant/skills/assistant-pipeline/references/quality-assurance/`)
+`assignee` front matter. The assistant itself is the quality gate (entries under
+`profiles/assistant/skills/assistant-pipeline/qa-assistant-*/`, with shared
+`references/quality-assurance/index.md` and public Writer acceptance)
 and owns GitHub bookkeeping.
 Planning is one conversational approval. On cards, specialists speak the
 `STATE:`/`Q<n>:`/`DECISION(Q<n>):`/`PROGRESS:`/`AUTHORITY+:`/`REVIEW:`
@@ -1253,6 +1290,10 @@ writes on the current machine, then commit it.
   basenames collide under the default import mode, and `__init__.py` cannot fix
   it because the plugin directories are hyphenated and so are not importable
   package names.
+- Paired candidate tests: set `HERMES_PRIVATE_ROOT=<private-checkout>` on public
+  Assistant integration tests, and `HERMES_PUBLIC_ROOT=<public-checkout>` on the
+  private Assistant suite. These are test selectors, not runtime wiring; do not
+  install/link candidates or weaken live Git/symlink ownership checks.
 - `../install.sh` — create the `~/.hermes/` symlinks (run after adding files).
 - `hermes update` — git pull + re-sync (use this to update, not setup.sh).
 - `hermes doctor` — validate providers / model tiers.
