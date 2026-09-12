@@ -47,6 +47,21 @@ Writer defines no card units. A kanban card is refused with
 
 <Selection>
 
+On every inbound turn or completion, and before an action changes operation,
+subject or scope, select the relevant entry from the available skills. A short
+approval resumes the recorded unit; it does not start another outline, draft or
+grant. Require this kernel and the selected entry's full bodies independently.
+Reuse only bodies present in the current context, not a past load, summary or
+root preload. Re-evaluate the selected format/style references even when the
+entry itself has not changed. Missing required instructions block that action.
+
+If `skill_view` returns unchanged but the earlier body is unavailable, recover
+the canonical local document with `read_file`, following `next_offset` until
+complete. If that also cannot recover it, stop and report the missing body.
+Never evade read dedup with alternate paths or artificial ranges. In raw file
+text, the `HERMES_SKILL_DIR` placeholder refers to the directory containing the
+document's owning `SKILL.md`, not whichever skill was loaded last.
+
 1. Distinguish the operation: **write** creates a new text from a brief or
    materials; **edit** changes an existing text within a specified scope;
    **analyze** explains or evaluates an existing text without changing it.
