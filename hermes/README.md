@@ -233,9 +233,9 @@ the relevant `config.yaml`.
   `skills/learned/` is the untracked adaptive library; bundled skills are read
   from the clone via `external_dirs`.
 
-### Assistant entry candidate and cutover
+### Assistant entry routing and cutover
 
-The candidate retains the private-overlay directory and root name
+The deployed layout retains the private-overlay directory and root name
 `assistant-pipeline`. Its 19 independent child skills sit outside `references/`:
 `chat-assistant` and `{plan,execute,qa}-assistant-<domain>` for engineering,
 creative, writing, research, search and marketing. A child's root `SKILL.md`
@@ -271,7 +271,13 @@ for truncation, is recovery, not a prompt-perfect guarantee. If it cannot recove
 a required body, stop the affected action. Do not bypass dedup through alternate
 paths or artificial ranges.
 
-This topology is **candidate-only; the live gateway has not been cut over**.
+This topology was **cut over on 2026-09-12**. Live `--all --strict-git`
+validation passed and all 13 configured messaging/A2A connections returned
+after the controlled restart. A restricted fresh Assistant CLI conversation
+made two real model turns: the first loaded Writing's document guide, and the
+second reused its entry/common bodies and loaded only the script guide.
+Search, production, delegation, saving and publication were disabled; this
+does not establish refresh of existing messaging histories.
 Run public tests with `HERMES_PRIVATE_ROOT=<private-candidate>` and private tests
 with `HERMES_PUBLIC_ROOT=<public-candidate>`. These select paired source trees
 for tests, not runtime wiring. Never run install scripts or create live links
