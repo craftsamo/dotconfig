@@ -371,6 +371,26 @@ Candidate checks do not authorize live installation or restart; explicit cutover
 must pair public/private sources and refresh the gateway index and session as
 described above, without changing existing outputs or approvals.
 
+### Marketer entry routing
+
+Marketer's v8 kernel remains `marketer-pipeline`. Its independently discoverable
+children are `plan-marketer`, `build-marketer`, `qa-marketer` and `analyze-marketer`;
+each owns its former mode index and local detail references. The parent retains
+only shared platform/state references and the unchanged browser-lease helper.
+Every direct entry requires the full kernel; reuse and canonical read recovery
+follow the Assistant contract above without adding a second common mode index.
+Browser reads still hold the lease, saving still needs exact approval, and
+publishing remains unavailable. No other profile's skill menu is expanded.
+
+The candidate checks are `scripts/tests/test_marketer_pipeline.py`,
+`test_marketer_entry_runtime.py` and `test_marketer_browser_lease.py`, using the
+provisioned Hermes Python and source PYTHONPATH. The runtime test copies only
+candidate Markdown into an isolated HOME and forbids network, providers and
+browser execution; it tests real discovery/reads/dedup, not model selection or
+live saving. These checks are registered in `verify-work-continuity.py`.
+Live cutover needs separate approval, a controlled restart AND fresh sessions;
+existing resident work, outputs, grants and approvals are not migrated/replayed.
+
 ## Profiles
 
 Named profiles live under `~/.hermes/profiles/<name>/` — each its own

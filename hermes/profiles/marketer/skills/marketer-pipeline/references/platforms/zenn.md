@@ -13,7 +13,7 @@ client rather than inventing expertise or tags to increase reach.
 
 ## Browser procedure
 
-Follow [draft](../build/draft.md); approval precedes any server-bound entry.
+Follow [draft](../../build-marketer/references/draft.md); approval precedes any server-bound entry.
 Confirm the account, personal-article destination and target identity. Inspect
 the current save and preview controls. Use explicit content save (the official
 editor documents Cmd/Ctrl+S); do not assume autosave or invoke a shortcut without
@@ -28,7 +28,7 @@ or formatting remain a reported dependency, never silently removed.
 Retain the service-assigned article identity/slug or confirmed editor locator;
 do not guess its URL or treat a public-shaped URL as a published result. Reopen
 the same draft from article management and apply
-[saved-draft QA](../quality-assurance/saved-draft.md).
+[saved-draft QA](../../qa-marketer/references/saved-draft.md).
 Inspect code and rendered content and confirm unpublished status. Do not enable
 preview access for anyone with a link, generate/share that link, associate a
 Publication, schedule or publish. The preview's default scope must be inspected,

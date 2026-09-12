@@ -17,7 +17,7 @@ policy changes rather than promising compliance.
 
 ## Browser procedure
 
-Follow [draft](../build/draft.md): lease, accepted exact inputs and approval BEFORE
+Follow [draft](../../build-marketer/references/draft.md): lease, accepted exact inputs and approval BEFORE
 editor entry. Verify account and inspect the current composer. Find its actual
 save-draft affordance and draft list without activating Post. Do not assume a
 mobile save path or that closing a dialog means server persistence.
