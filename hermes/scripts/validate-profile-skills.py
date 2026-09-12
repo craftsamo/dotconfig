@@ -927,6 +927,12 @@ def validate_worker(
 
     allowed = {(pipeline_name, "SKILL.md")}
     allowed.update(("technic", name, "SKILL.md") for name in leaves)
+    creator_entries: set[str] = set()
+    if profile == "creator" and pipeline.is_file() and (_pipeline_major_version(frontmatter(pipeline)) or 0) >= 9:
+        creator_entries = set(CREATOR_ENTRIES.values())
+        allowed.update((pipeline_name, name, "SKILL.md") for name in creator_entries)
+        for name in creator_entries & (leaves.keys() | learned.keys()):
+            errors.append(f"duplicate creator entry name: {name}")
     writing: dict[str, Path] = {}
     if profile == "writer":
         writing = validate_writer_leaves(pipeline_dir, errors)
@@ -968,7 +974,7 @@ def validate_worker(
         validate_marketer_references(pipeline_dir, errors)
     validate_git_boundary([pipeline_dir, technic_dir], learned_dir, errors)
     validate_plugin_enabled(profile, profile_root / "config.yaml", errors)
-    return len(leaves) + len(writing) + len(entries), len(learned)
+    return len(leaves) + len(writing) + len(entries) + len(creator_entries), len(learned)
 
 
 ENGINEER_ENTRIES = {
@@ -1480,8 +1486,16 @@ def validate_creator_reference_links(
             errors.append(f"creator reference link is broken: {link} in {rel_doc}")
 
 
+CREATOR_ENTRIES = {
+    "plan": "plan-creator",
+    "build": "build-creator",
+    "quality-assurance": "qa-creator",
+}
+
+
 def validate_creator_references(pipeline_dir: Path, errors: list[str]) -> None:
-    """Validate the v8 broker tree. Build-alongside: while no phase
+    """Validate independently discoverable v9 entries or the shipped v8 tree.
+    Build-alongside: while no phase
     directory exists yet and the root major version is below 8, the v7
     monolith files stay accepted. Any phase directory, or major >= 8,
     switches on full-tree validation for all three phases at once.
@@ -1493,6 +1507,54 @@ def validate_creator_references(pipeline_dir: Path, errors: list[str]) -> None:
         return
     references = pipeline_dir / "references"
     phase_dirs = {phase: references / phase for phase in CREATOR_REFERENCE_PHASES}
+    indexes = {phase: directory / "index.md" for phase, directory in phase_dirs.items()}
+
+    if major >= 9:
+        phase_dirs = {
+            phase: pipeline_dir / name / "references"
+            for phase, name in CREATOR_ENTRIES.items()
+        }
+        indexes = {
+            phase: pipeline_dir / name / "SKILL.md"
+            for phase, name in CREATOR_ENTRIES.items()
+        }
+        kernel_links = {target for _, target in markdown_links(pipeline)}
+        validate_creator_reference_links(pipeline, pipeline_dir, errors)
+        for phase, name in CREATOR_ENTRIES.items():
+            index = indexes[phase]
+            if (references / phase).exists():
+                errors.append(f"stale creator phase directory on v9: references/{phase}")
+            if not index.is_file():
+                errors.append(f"missing creator entry skill: {name}/SKILL.md")
+                continue
+            validate_skill(index, name, errors, expected_category="creator-pipeline")
+            if _pipeline_major_version(frontmatter(index)) is None:
+                errors.append(f"invalid creator entry version: {name}")
+            if not str(frontmatter(index).get("description", "")).strip():
+                errors.append(f"missing creator entry description: {name}")
+            if index.resolve() not in kernel_links:
+                errors.append(f"creator kernel does not link entry: {name}")
+            text = index.read_text(encoding="utf-8")
+            context = re.search(r"<ReadBeforeWork>(.*?)</ReadBeforeWork>", text, re.S)
+            block = " ".join(context.group(1).split()) if context else ""
+            for required in (
+                'skill_view(name="creator-pipeline")',
+                "full-body", "Reuse", "summary", "unchanged", "read_file",
+                "next_offset", "stop", "${HERMES_SKILL_DIR}/../SKILL.md",
+                "${HERMES_SKILL_DIR}/SKILL.md",
+            ):
+                if required not in block:
+                    errors.append(f"creator entry ReadBeforeWork missing {required}: {name}")
+            for child in index.parent.iterdir():
+                if not child.name.startswith(".") and child.name not in {"SKILL.md", "references"}:
+                    errors.append(f"unexpected creator entry child: {name}/{child.name}")
+            validate_creator_reference_links(index, pipeline_dir, errors)
+        if references.is_dir():
+            for shared in references.iterdir():
+                if not shared.name.startswith(".") and shared.name not in {"capabilities.md", "legacy"}:
+                    errors.append(f"unexpected creator shared reference: {shared.name}")
+            for doc in references.rglob("*.md"):
+                validate_creator_reference_links(doc, pipeline_dir, errors)
 
     if not any(d.is_dir() for d in phase_dirs.values()) and major < 8:
         return  # v7 baseline: still on the monolith references/{phase}.md files
@@ -1513,7 +1575,7 @@ def validate_creator_references(pipeline_dir: Path, errors: list[str]) -> None:
                     )
             continue
 
-        if not (phase_dir / "index.md").is_file():
+        if not indexes[phase].is_file():
             errors.append(f"missing creator reference phase index.md: {phase}")
 
         for entry in sorted(phase_dir.iterdir()):
@@ -1585,13 +1647,13 @@ def validate_creator_references(pipeline_dir: Path, errors: list[str]) -> None:
     for phase, phase_dir in phase_dirs.items():
         if not phase_dir.is_dir():
             continue
-        index = phase_dir / "index.md"
+        index = indexes[phase]
         if index.is_file():
             linked = {target for _, target in markdown_links(index)}
             for key, path in phase_subject_paths[phase].items():
                 if path.resolve() not in linked:
                     errors.append(
-                        f"phase {phase} index.md does not link {key}: "
+                        f"phase {phase} {index.name} does not link {key}: "
                         f"{path.relative_to(pipeline_dir)}"
                     )
         for doc in sorted(phase_dir.rglob("*.md")):
