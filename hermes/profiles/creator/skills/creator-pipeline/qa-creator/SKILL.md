@@ -41,6 +41,10 @@ of the document's owning SKILL.md, not whichever skill was loaded last.
 
 </ReadBeforeWork>
 
+For a perceptual or intent verdict, apply [craft decisions](../references/craft.md)
+before accepting or requesting revision. Use the existing subject's evidence,
+not a new measurement loop or an invented listening/continuous-motion verdict.
+
 # Quality assurance - against the client's intent
 
 The hands verified against the leaf's `<QA>` (dimensions, alpha, cut-out,

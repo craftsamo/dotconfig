@@ -922,12 +922,31 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
   residue. Check BOTH roots when the validator reports symlinks — the two
   intentional ones are the assistant's private-overlay `assistant-pipeline` and
   `desks`, which resolve and must stay. **`video-creator` pins four individual
-  dirs from the same store** (`hyperframes-core`, `hyperframes-animation`,
+  technical dirs from the same store** (`hyperframes-core`, `hyperframes-animation`,
   `cut-the-curve`, `oversized-cursor`) for its `create-tour`/`create-ad`/
   `create-explainer-video` leaves only — never the whole store, and the same
   never-copy/never-symlink rule applies (see `PROFILES.md` "Video authoring
   references"). A missing or unreadable entry there is a documented
   local-authoring fallback per that leaf's contract, not a runtime failure.
+  Separate knowledge-only media-craft pins for all three hands are documented
+  below; they do not widen this technical subset's scope.
+
+## Media craft knowledge
+
+Four portable knowledge skills live in `agents/curated/media-craft-*`, not in
+hands' production trees or generated Styles catalogs. Creator's existing shared
+store exposes them; image-creator pins direction/visual, video-creator pins
+direction/visual/motion, audio-creator pins direction/audio. Each kernel's
+`references/craft.md` owns conditional reading for all its current subjects.
+Creator's Plan/Build/QA and confirmed legacy path share its `references/craft.md`.
+The four optional HyperFrames technical pins and their old leaf scope/fallback
+are unchanged; craft pins are a separate knowledge-only exception, not outside
+workflows or executable scripts. Required craft bodies must be current before the
+affected creative decision; unavailable/ambiguous knowledge is a named stop for
+that decision, never an install or capability expansion. Mechanical work skips it.
+Audio perception remains human-reported; the shared skill authorizes no new tool.
+Run actual isolated discovery and `test_media_craft_routing.py` alongside existing
+hands/entry tests. Candidate validation is not live cutover or artistic acceptance.
 
 ## Shared work continuity
 

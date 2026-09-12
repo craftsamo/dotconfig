@@ -1895,12 +1895,36 @@ Tour proof frames show the caption inside its 2..3s interval and absent
 before/after. This verifies wiring, not real speech/ASR quality or a live
 Creator conversation. No paid generation or gateway restart was performed.
 
+### Media craft knowledge
+
+The four tracked, portable `media-craft-direction`, `media-craft-visual`,
+`media-craft-motion` and `media-craft-audio` skills live in `agents/curated/` and
+use the standard shared-store install links. Creator already reads that store;
+image-creator pins direction/visual, video-creator direction/visual/motion, and
+audio-creator direction/audio individually. No hands receives the whole store.
+Each hands kernel's `references/craft.md` maps its existing subjects and actual
+creative decisions to conditional knowledge. Creator's three entries share its
+own `references/craft.md`; confirmed legacy production uses that same knowledge
+without retiring or silently replacing its methods.
+
+These are technique and judgment resources, not new forms, producer roles,
+cross-media Styles or permissions. Local procedures still own engines, source
+integrity, proposal/preview approvals, budgets and QA commands. Required craft
+must be present for an affected creative decision; missing or ambiguous bodies
+stop that decision with a finding, while mechanical work and optional technical
+fallbacks remain unchanged. Audio acceptance uses attributed human listening;
+meters and ASR never become a listening verdict. Fresh conversations are needed
+after an explicitly approved install/cutover. Existing jobs and frozen outputs
+are not migrated. Structural/discovery tests do not prove artistic improvement.
+
 ### Video authoring references
 
-`video-creator`'s `skills.external_dirs` pins four individual curated
+`video-creator`'s `skills.external_dirs` includes four individual technical
 directories — `hyperframes-core`, `hyperframes-animation`, `cut-the-curve`,
 `oversized-cursor` — from the same harness-neutral `~/.agents/skills` store
 described under "HyperFrames skills live outside the repo" in `AGENTS.md`.
+These are the technical subset; the three knowledge-only craft pins are
+described in "Media craft knowledge" above.
 Only `create-tour`, `create-ad` and `create-explainer-video` may consult
 them, per the shared rule in
 `video-creator-pipeline/references/hyperframes.md`; every other leaf in this

@@ -88,6 +88,10 @@ Infer before you ask: a colour named in the message, a path pasted, a
 
 ## Choosing the leaf
 
+Before interpreting a reference, selecting direction or translating intent into
+a producer request, read [craft decisions](../references/craft.md) and its selected
+knowledge. Skip this for an already-settled mechanical request; it adds no form.
+
 Read [capabilities](../references/capabilities.md), served families before the legacy
 technic table, then the candidate hands leaf with
 `skill_view(name="<verb>-<subject>")`. Its `description` says what it
