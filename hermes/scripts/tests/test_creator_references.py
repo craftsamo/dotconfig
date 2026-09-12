@@ -14,7 +14,7 @@ VALIDATOR = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(VALIDATOR)
 
 
-class CreatorReferencesTestCase(unittest.TestCase):
+class CreatorReferenceFixture(unittest.TestCase):
     """Creator v8 broker tree: references/{plan,build,quality-assurance}/
     index.md plus flat <hands>/<subject>.md leaves, expected subjects
     collected dynamically from a synthetic hands tree below a patched
@@ -80,6 +80,7 @@ class CreatorReferencesTestCase(unittest.TestCase):
         VALIDATOR.validate_creator_references(self.pipeline_dir, errors)
         return errors
 
+class CreatorReferencesTestCase(CreatorReferenceFixture):
     # ── build-alongside gate ─────────────────────────────────────────
 
     def test_v7_missing_tree_is_accepted(self) -> None:
@@ -358,6 +359,98 @@ class CreatorReferencesTestCase(unittest.TestCase):
         self.assertTrue(
             any("creator reference link is broken" in e for e in errors), errors
         )
+
+
+class CreatorEntryReferencesTestCase(CreatorReferenceFixture):
+    def setUp(self) -> None:
+        super().setUp()
+        self.hands_leaf("image-creator", "generate", "icon")
+        self.hands_leaf("video-creator", "generate", "clip")
+        self.write_pipeline_skill("9.0.0")
+        kernel = self.pipeline_dir / "SKILL.md"
+        kernel.write_text(
+            kernel.read_text() + "\n".join(
+                f"[{name}]({name}/SKILL.md)" for name in VALIDATOR.CREATOR_ENTRIES.values()
+            ), encoding="utf-8",
+        )
+        for name in VALIDATOR.CREATOR_ENTRIES.values():
+            self.write(f"{name}/references/image-creator/icon.md", "# Icon\n")
+            self.write(f"{name}/references/video-creator/clip.md", "# Clip\n")
+            self.write(
+                f"{name}/SKILL.md",
+                f"---\nname: {name}\ndescription: Fixture entry\nversion: 1.0.0\n"
+                "metadata:\n  hermes:\n    category: creator-pipeline\n---\n"
+                '<ReadBeforeWork>\nskill_view(name="creator-pipeline")\n'
+                "Reuse full-body instructions, not a summary. If unchanged, read_file\n"
+                "${HERMES_SKILL_DIR}/../SKILL.md or ${HERMES_SKILL_DIR}/SKILL.md;\n"
+                "follow next_offset on truncation; stop if unavailable.\n</ReadBeforeWork>\n"
+                "[icon](references/image-creator/icon.md)\n"
+                "[clip](references/video-creator/clip.md)\n",
+            )
+
+    def test_valid_v9_entries(self) -> None:
+        self.assertEqual([], self.validate())
+
+    def test_missing_entry(self) -> None:
+        (self.pipeline_dir / "build-creator/SKILL.md").unlink()
+        self.assertIn("missing creator entry skill: build-creator/SKILL.md", self.validate())
+
+    def test_missing_subject(self) -> None:
+        (self.pipeline_dir / "qa-creator/references/video-creator/clip.md").unlink()
+        self.assertIn(
+            "creator reference phase quality-assurance missing hands subject: video-creator/clip",
+            self.validate(),
+        )
+
+    def test_orphan_subject(self) -> None:
+        self.write("plan-creator/references/image-creator/unused.md", "# Unused\n")
+        self.assertIn(
+            "creator reference phase plan has orphan hands subject: image-creator/unused",
+            self.validate(),
+        )
+
+    def test_missing_kernel_dependency(self) -> None:
+        entry = self.pipeline_dir / "plan-creator/SKILL.md"
+        entry.write_text(entry.read_text().replace('skill_view(name="creator-pipeline")', ""))
+        self.assertTrue(any("ReadBeforeWork missing skill_view" in e for e in self.validate()))
+
+    def test_missing_recovery_contract(self) -> None:
+        entry = self.pipeline_dir / "qa-creator/SKILL.md"
+        entry.write_text(entry.read_text().replace("read_file", "remember"))
+        self.assertIn("creator entry ReadBeforeWork missing read_file: qa-creator", self.validate())
+
+    def test_entry_must_link_every_subject(self) -> None:
+        entry = self.pipeline_dir / "plan-creator/SKILL.md"
+        entry.write_text(entry.read_text().replace("[clip](references/video-creator/clip.md)", ""))
+        self.assertTrue(any("phase plan SKILL.md does not link video-creator/clip" in e for e in self.validate()))
+
+    def test_stale_phase_tree_rejected(self) -> None:
+        self.write("references/plan/index.md", "# Retired\n")
+        self.assertIn("stale creator phase directory on v9: references/plan", self.validate())
+
+    def test_kernel_must_link_entry(self) -> None:
+        kernel = self.pipeline_dir / "SKILL.md"
+        kernel.write_text(kernel.read_text().replace("[qa-creator](qa-creator/SKILL.md)", ""))
+        self.assertIn("creator kernel does not link entry: qa-creator", self.validate())
+
+    def test_reference_cannot_escape(self) -> None:
+        self.write("plan-creator/references/image-creator/icon.md", "[escape](../../../../outside.md)\n")
+        self.assertTrue(any("link escapes the pipeline" in e for e in self.validate()))
+
+    def test_worker_allows_only_named_entries(self) -> None:
+        skills = self.pipeline_dir.parent
+        (skills / "technic").mkdir()
+        (skills / "learned").mkdir()
+        with mock.patch.object(VALIDATOR, "validate_git_boundary"), mock.patch.object(
+            VALIDATOR, "validate_plugin_enabled"
+        ):
+            errors: list[str] = []
+            count, _ = VALIDATOR.validate_worker("creator", errors)
+            self.assertEqual([], errors)
+            self.assertEqual(3, count)
+            self.write("rogue-creator/SKILL.md", "---\nname: rogue-creator\n---\n")
+            VALIDATOR.validate_worker("creator", errors)
+            self.assertTrue(any("unexpected skill root" in e for e in errors), errors)
 
 
 if __name__ == "__main__":

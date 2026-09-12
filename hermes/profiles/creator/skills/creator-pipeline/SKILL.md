@@ -1,14 +1,14 @@
 ---
 name: creator-pipeline
 description: >-
-  Creator's front door (v8). Creator has clients — a human on its bot or
+  Creator's front door (v9). Creator has clients — a human on its bot or
   the assistant — and hands — media profiles that make one deliverable
   from a filled form. Three modes: Plan (choose the leaf, fill its form
   with the client), Build (hand the form to the hands, supervise), Quality
   assurance (look at the result against the client's intent, deliver).
   Families with no hands yet are produced by Creator itself through the
   legacy technic routes.
-version: 8.0.0
+version: 9.0.0
 author: CraftSamo
 license: MIT
 metadata:
@@ -27,16 +27,16 @@ client's intent in mind and deliver. One skill on the hands = one
 deliverable = one form — there is nothing above the form (no menus,
 presets, or Styles) and nothing below it you run yourself.
 
-This kernel is preloaded in every creator run — keep it lean: the
+This kernel is required for every Creator entry — keep it lean: the
 client model, the three modes, the legacy boundary and the card gate
-live here; playbook detail lives in `references/` and never migrates
+live here; mode procedures and their references live in the three entries and never migrate
 back in.
 
 </Goal>
 
 <Client>
 
-Two kinds, one procedure ([Plan](references/plan/index.md)). A runtime
+Two kinds, one procedure ([Plan](plan-creator/SKILL.md)). A runtime
 specialist handoff identifies an agent Client, even when its current message
 is conversational. For older unmarked exchanges, brief shape can guide question
 presentation, never establish human origin or approval. Direct human chats use
@@ -65,17 +65,23 @@ with a pointer to the assistant and nothing is produced.
 
 | Mode | You end with | Load |
 | --- | --- | --- |
-| **Plan** | filled forms (leaf + fields), sequenced, budget lines on metered ones — or `no skill fits` | [Plan](references/plan/index.md) |
-| **Build** | the hands' reports: paths at `deliver:`, QA evidence, spend | [Build](references/build/index.md) |
-| **Quality assurance** | your verdict against the intent (accept / revise / back to Plan) and the client's delivery | [Quality assurance](references/quality-assurance/index.md) |
+| **Plan** | filled forms (leaf + fields), sequenced, budget lines on metered ones — or `no skill fits` | [Plan](plan-creator/SKILL.md) |
+| **Build** | the hands' reports: paths at `deliver:`, QA evidence, spend | [Build](build-creator/SKILL.md) |
+| **Quality assurance** | your verdict against the intent (accept / revise / back to Plan) and the client's delivery | [Quality assurance](qa-creator/SKILL.md) |
 
-Modes run in order per job and loop on revise. At each mode, load its
-index above, then its `<hands>/<subject>.md` reference for the selected
-hands leaf. The indexes link every subject; read only those needed by
-this job. For example, `create-card` and `analyze-card` both load
-`references/<mode>/image-creator/card.md`, with their different verbs
-handled inside that reference. These are plain references, not additional
-skills or copies of the hands' forms.
+Each mode is now its own independently selectable entry - `plan-creator`,
+`build-creator`, `qa-creator` - chosen from the available skills every inbound
+turn/completion and before a midturn mode, subject or scope-changing action,
+per that entry's own `<ReadBeforeWork>`. Preserve the current job and approvals;
+loading instructions never expands the grant or restarts completed work.
+Modes still run in order per job and loop on revise. The
+selected entry then loads its own `<hands>/<subject>.md` reference for
+the selected hands leaf. Every entry links every subject it serves; read
+only those needed by this job. For example, `create-card` and
+`analyze-card` both load `references/image-creator/card.md` inside the
+selected entry, with their different verbs handled inside that reference.
+Subject references remain plain references, not additional skills or
+copies of the hands' forms.
 
 Read [capabilities](references/capabilities.md) in Plan before choosing a
 leaf (served families first, then the legacy technic table). Hands leaves
@@ -96,7 +102,7 @@ A family with no hands leaf yet is still produced by you, through its
 anchor before a batch), `advisory.md`, with the engines `iterate.md`,
 `verify.md`, `delivery.md`, `resume.md`, and the MediaBrief checklist
 `brief.md` in place of a form. Enter it only from
-[Build](references/build/index.md) "Legacy", only for an unserved family,
+[Build](build-creator/SKILL.md) "Legacy", only for an unserved family,
 and never mix the two in one handoff.
 The legacy Unit floor holds there: deliverable-defining decisions are
 the assistant's, a spec gap is a `Q<n>:`, QA-passed input parts are
@@ -109,7 +115,7 @@ unit is a granularity finding.
 
 Generation spend is granted, not discretionary. For a hands leaf the
 form's `budget:` line is the grant; absent, use the leaf's documented
-allowance (the selected subject under [Plan](references/plan/index.md)). Card exception: generate-card's 3+1 is a
+allowance (the selected subject under [Plan](plan-creator/SKILL.md)). Card exception: generate-card's 3+1 is a
 proposed ceiling, not spend approval; paid generation requires explicit user
 approval in the current work conversation. The hands enforce it and report the
 tally; `cost: free` (no provider fee) is not the same gate as an

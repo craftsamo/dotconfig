@@ -29,7 +29,7 @@ it only when generative imagery is the primary production method.
 Use for generated covers, hero art, illustrations, thumbnails, social
 backgrounds, and slide/document art. Do not use for:
 
-- icons of any kind — sets from a logo, drawn icons (the hands — `creator-pipeline` references/plan/image-creator/icon.md),
+- icons of any kind — sets from a logo, drawn icons (the hands — `plan-creator` references/image-creator/icon.md),
 - exact text cards (`creator-text-card`),
 - pixel-art output (`creator-pixel-art`), or
 - deterministic HTML/CSS motion (`creator-html-motion`).

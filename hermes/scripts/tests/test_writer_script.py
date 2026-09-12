@@ -107,7 +107,7 @@ def test_narration_does_not_treat_estimated_timing_as_performance(verb):
 
 
 def test_creator_accepts_raw_approved_words_not_the_analysis():
-    path = HERMES / "profiles/creator/skills/creator-pipeline/references/plan/audio-creator/speech.md"
+    path = HERMES / "profiles/creator/skills/creator-pipeline/plan-creator/references/audio-creator/speech.md"
     text = content(path)
     assert "`write-script` or `edit-script`" in text
     assert "an `analyze-script` report is not a speech part" in text
