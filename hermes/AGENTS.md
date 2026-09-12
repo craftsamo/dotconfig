@@ -948,9 +948,9 @@ paired public/private tests and actual runtime regressions, not commit-name
 checks. Candidate worktrees need their own overlay links and isolated HOME;
 never repoint live links for a test. It does not install, restart or migrate jobs.
 
-## Assistant entry candidate
+## Assistant entry routing
 
-The candidate preserves the private-overlay `assistant-pipeline/` directory and
+The deployed layout preserves the private-overlay `assistant-pipeline/` directory and
 root skill name. Its root is the invariant kernel; 19 independent child skills
 outside `references/` own the former mode/domain indexes: `chat-assistant` and
 `{plan,execute,qa}-assistant-<domain>` for engineering, creative, writing,
@@ -967,12 +967,15 @@ midturn mode/domain/scope-changing action. Direct entry requires the full kernel
 and mode-common body; a past load, summary or root preload is not enough.
 Canonical `read_file` recovery must stop the affected action if a required body
 is still absent. Read dedup is source/runtime behavior, not a guarantee that
-instructions remain in model context; see README's candidate cutover section.
+instructions remain in model context; see README's entry cutover section.
 The CLI adapter reads the filesystem tree without exposing the 19 entries or
 Writer's production leaves in default's menu.
 
-This design is candidate-only, not a claim about the running gateway. Test the
-paired checkouts with `HERMES_PRIVATE_ROOT` on public tests and
+Cut over on 2026-09-12: the restarted gateway restored all 13 configured
+connections, and a restricted fresh Assistant CLI conversation verified a
+document-to-script reference change across two real model turns. This does not
+prove that existing messaging histories refreshed. Test future paired
+checkouts with `HERMES_PRIVATE_ROOT` on public tests and
 `HERMES_PUBLIC_ROOT` on private tests; never install/link candidates into live
 paths to satisfy tests. Manual edits do not invalidate the gateway's process
 skill-index cache. Cutover needs explicit approval, a controlled gateway restart
