@@ -142,6 +142,15 @@ Detailed material is read at the relevant decision, not loaded wholesale for
 mechanical edits. Installation uses the same curated links as other shared
 skills; it does not add an always-on rule to every CLI.
 
+`media-craft-visual` owns execution of the chosen visual effect: composition,
+typography, material/light, symbols/characters, asset systems and image-prompt
+craft. Direction selects the intended effect; this skill diagnoses how pixels
+realize it. The shared boundary is complementary, not two approval workflows.
+Its original examples independently express ideas from Apple HIG typography and
+symbol guidance, IBM Carbon's grid guidance, and Adobe's animation principles
+(source links and consultation dates are in the relevant references). No vendor
+artwork, symbols, screenshots or substantial source prose are redistributed.
+
 Behavioral cases and the independent evaluation contract live under
 `agents/tests/`. Run `python3 -m unittest discover -s agents/tests` for structural
 checks; fresh-context use and actual-media quality need separate evidence.
