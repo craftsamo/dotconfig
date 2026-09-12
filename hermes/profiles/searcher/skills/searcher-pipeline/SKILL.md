@@ -1,16 +1,16 @@
 ---
 name: searcher-pipeline
 description: >-
-  Searcher's front door for Workflow v5, serving both runtimes: a resident
-  chat session supervised by the assistant and a kanban card for the two
+  Searcher's shared retrieval, scope and card contract, serving both runtimes:
+  a resident chat session supervised by the assistant and a kanban card for the two
   catalog units (the classic home of goal-mode hunts). The searcher is the
   hands on the open web: it consumes released units (a lookup unit, a sweep
   unit with a coverage claim, or a hunt unit with done criteria), routes to
-  the matching craft reference, and carries the always-on floors for link
+  the matching independent entry, and carries the always-on floors for link
   integrity and retrieval-only output. Undecided deliverable-defining
   choices return as spec-gap or granularity findings. The searcher never
   concludes, decomposes, or publishes.
-version: 5.0.0
+version: 6.0.0
 author: CraftSamo
 license: MIT
 metadata:
@@ -26,8 +26,9 @@ dates with an honest statement of coverage. Retrieval only — analysis,
 verdicts, and implementation are researcher / engineer territory.
 
 This core file is the **kernel**: unit discipline, routing, and floors.
-The craft playbooks live in `references/` — keep this file lean; anything
-procedure-sized belongs in a unit reference.
+The unit playbooks live in the independently discoverable `lookup-searcher`,
+`sweep-searcher` and `hunt-searcher` skills. Keep this file to shared contracts;
+each entry owns its procedure, output shape and checks.
 
 </Goal>
 
@@ -114,16 +115,34 @@ not a reason to stall.
 
 <RouteSelection>
 
-Read the whole brief (kanban runtime: `kanban_show` — the full body and
-any comments), then pick ONE unit type by the **deliverable** and **load
-the matching reference with `skill_view` (`file_path=references/<file>`)
-before searching**. Never proceed on this core file alone.
+On every caller, judge, resume or completion turn, read the current request in
+the context of the released brief (kanban runtime: `kanban_show`, including the
+full body and comments). Select ONE matching unit entry from the available skill
+index by the **deliverable**, and re-evaluate before an action whose unit or scope
+changes within the turn. Never search from this kernel alone.
 
 | The brief wants | Unit | Load |
 | --- | --- | --- |
-| A specific answer: a fact, a link/doc, "latest on X", who-said-what (default when nothing else fits) | Lookup | `references/lookup.md` |
-| "Collect / enumerate / survey as many as possible" — candidates, examples, instances — or a quantified observation of public web state | Sweep | `references/sweep.md` |
-| An exhaustive source hunt: obscure topic, contested claim needing primary sources, provenance chase — usually dispatched with `goal_mode: true` | Hunt | `references/hunt.md` |
+| A specific answer: a fact, a link/doc, "latest on X", who-said-what (default when nothing else fits) | Lookup | [lookup-searcher](lookup-searcher/SKILL.md) |
+| "Collect / enumerate / survey as many as possible" — candidates, examples, instances — or a quantified observation of public web state | Sweep | [sweep-searcher](sweep-searcher/SKILL.md) |
+| An exhaustive source hunt: obscure topic, contested claim needing primary sources, provenance chase — usually dispatched with `goal_mode: true` | Hunt | [hunt-searcher](hunt-searcher/SKILL.md) |
+
+Load the selected entry with `skill_view(name="<entry-name>")`. Check this kernel
+and that entry independently: reuse only full bodies present in the current
+context, not a past load, summary or root preload. Direct entry also requires the
+kernel and its card gate. If a tool returns unchanged while the earlier body is
+unavailable, use `read_file` on the canonical document: `${HERMES_SKILL_DIR}/SKILL.md`
+for this kernel or `${HERMES_SKILL_DIR}/<entry-name>/SKILL.md` for its child. Follow
+`next_offset` until the whole required body is available. If recovery fails, stop
+the affected search and report it; on a card follow the blocking protocol, never
+claim completion. Do not evade dedup with alternate paths or artificial ranges.
+In raw file text, HERMES_SKILL_DIR is the directory of that document's owning skill.
+
+A short continuation resumes the existing coverage/frontier and remaining
+budget. Selecting or loading an entry is not a new release and never resets
+them. Changing lookup into sweep/hunt, or otherwise exceeding the released unit,
+returns a spec-gap/granularity finding and needs the caller's release; do not
+self-decompose or re-search unchanged scope merely because a new turn arrived.
 
 Openers are not required; infer from the body. A `goal_mode` dispatch is a
 strong Hunt signal but not proof — a goal-looped sweep stays a sweep.
@@ -145,14 +164,14 @@ strong Hunt signal but not proof — a goal-looped sweep stays a sweep.
 <Procedure>
 
 1. **Intake** — detect the runtime, read the whole brief, check the unit
-   against <UnitDiscipline>, select the route and load its reference.
-2. **Retrieve** — follow the loaded reference: official/primary sources
+   against <UnitDiscipline>, select the route and load its entry.
+2. **Retrieve** — follow the loaded entry: official/primary sources
    first, capture per-hit source URL and date, keep the running ledger
-   the reference prescribes (coverage matrix / hop ledger).
+   the entry prescribes (coverage matrix / hop ledger).
 3. **Verify** — every reported URL was retrieved this run; dedup done;
    the coverage statement matches what was actually searched; open
    judgments collected under `Open for researcher`.
-4. **Deliver** — findings in the reply/final message in the reference's
+4. **Deliver** — findings in the reply/final message in the entry's
    output shape; large tables at the brief's durable path, the path
    named; interpretation line first when the brief was assumed-on.
 
@@ -183,7 +202,7 @@ Always on, every unit:
 - Absorbing a spec gap with a guessed mission, or stretching a unit to
   cover work bigger than its release — findings go back
   (<UnitDiscipline>).
-- Proceeding on this kernel alone without loading the unit reference.
+- Proceeding on this kernel alone without loading the unit entry.
 - Answering from memory instead of retrieving — the link floor strikes
   it.
 - A list without a coverage statement, or a hunt without gaps named —
@@ -201,7 +220,7 @@ Always on, every unit:
   refused with `kanban_block(kind=capability)`, not ground through.
 - Work mapped one-to-one to the released unit; spec-gap and granularity
   findings were reported rather than absorbed.
-- The unit reference was loaded; its output shape and per-unit
+- The unit entry's full body was available; its output shape and per-unit
   verification checklist were honored.
 - Every claim carries a URL retrieved this run (+ date when
   time-sensitive); the coverage statement names searched AND unsearched
