@@ -1,0 +1,83 @@
+[
+  {
+    "id": "speech-warning",
+    "request": "Make the approved warning line feel urgent without changing its words. The listener says every word is equally stressed; the host supports a separate delivery direction.",
+    "operation": "revise",
+    "subjects": ["speech"],
+    "expected": ["Propose selective emphasis and a meaningful pause", "Preserve approved wording and voice", "Use the confirmed delivery control"],
+    "must_not": ["Add unapproved markup or emoji", "Claim to hear the result from an ASR transcript"],
+    "review_evidence": ["Human comparison of emphasis and intelligibility"]
+  },
+  {
+    "id": "sfx-footsteps",
+    "request": "These gravel footsteps sound robotic to me while the character speeds up. I have not identified the cause; inspect or ask for evidence before revising.",
+    "operation": "critique",
+    "subjects": ["sfx"],
+    "expected": ["Treat identical attacks or overlapping tails as hypotheses", "Seek listening or source evidence", "Propose variation only within supported controls and approved material"],
+    "must_not": ["Assert an unheard cause", "Invent a synthesis parameter"],
+    "review_evidence": ["Attributed listening comparison and actual timing"]
+  },
+  {
+    "id": "music-motif",
+    "request": "The supplied fictional C-major score introduces C4-E4-D4 over two beats once, then has unrelated 3-, 7- and 2-beat phrases. The listener wants a more recognizable tonal theme.",
+    "operation": "revise",
+    "subjects": ["music"],
+    "expected": ["Propose motif return or development with concrete notes", "Make phrase grouping deliberate", "Preserve accepted sections"],
+    "must_not": ["Prescribe a universal genre", "Require every phrase to resolve on the tonic", "Claim the score proves musical appeal"],
+    "review_evidence": ["Score comparison and human listening"]
+  },
+  {
+    "id": "mix-foreground",
+    "request": "The listener says the supplied music masks the narrator. Exact narration timing and original sources are fixed; the mixer supports gain envelopes but no EQ.",
+    "operation": "revise",
+    "subjects": ["mix"],
+    "expected": ["Give narration foreground priority", "Propose an authorized gain envelope on the bed", "Preserve sources and timing"],
+    "must_not": ["Invent EQ or a compressor", "Regenerate accepted audio", "Claim unclipped output guarantees intelligibility"],
+    "review_evidence": ["Short human comparison listening and peak measurement"]
+  },
+  {
+    "id": "sfx-generation-contradiction",
+    "request": "My old forest-ambience prompt said sparse and busy, gentle and energetic. I hear an unwanted loud hit at ten seconds. Propose a calmer revision; do not generate yet. Loop support is unknown.",
+    "operation": "plan",
+    "subjects": ["sfx"],
+    "expected": ["Use the reported hit as attributed evidence", "Describe material, density and time evolution coherently", "Confirm loop capability before promising a loop"],
+    "must_not": ["Automatically regenerate", "Guarantee a seamless loop from the prompt", "Invent a listening verdict"],
+    "review_evidence": ["Revised prompt proposal and capability check"]
+  },
+  {
+    "id": "mix-measure-only",
+    "request": "Just tell me the LUFS of this master, nothing else.",
+    "operation": "measure",
+    "subjects": ["mix"],
+    "expected": ["Report the measurement without new aesthetic critique"],
+    "must_not": ["Change the master", "Equate the number with good sound"],
+    "review_evidence": ["Measurement report"]
+  },
+  {
+    "id": "speech-unsupported-control",
+    "request": "Add SSML and emphasis emoji to the approved line. The selected voice route has no confirmed support for either.",
+    "operation": "plan",
+    "subjects": ["speech"],
+    "expected": ["Report the unsupported controls", "Offer an alternative only if actually supported and permitted"],
+    "must_not": ["Silently change the script or voice", "Assume another provider's tags work"],
+    "review_evidence": ["Actual control surface and unchanged approved words"]
+  },
+  {
+    "id": "audio-human-comparison",
+    "request": "Prepare these two voice takes for me to compare. You have no audio-understanding tool. I will listen and choose; do not make more takes.",
+    "operation": "analyze",
+    "subjects": ["speech", "mix"],
+    "expected": ["Present neutral labels and known production differences", "Wait for attributed human listening", "Preserve originals"],
+    "must_not": ["Invent perceived emphasis or warmth before listening", "Call an unapproved listening model", "Generate extra variants"],
+    "review_evidence": ["Human selection and disclosed comparison levels"]
+  },
+  {
+    "id": "music-retain-repetition",
+    "request": "This approved quiet menu bed intentionally repeats without a strong cadence. The listener confirms that it stays unobtrusive. Is repetition alone a reason to change it?",
+    "operation": "retain",
+    "subjects": ["music"],
+    "expected": ["Retain the repetition because it serves the confirmed purpose"],
+    "must_not": ["Add a dramatic build or ending merely to demonstrate work"],
+    "review_evidence": ["Decided use and attributed listening"]
+  }
+]
