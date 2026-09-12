@@ -240,7 +240,15 @@ spec-gap or granularity findings; its two catalog cards are the
 card-eligible forms of sweep and hunt. The assistant's search plan
 leaves (`plan/search/`) fix the decisions, and search QA gates each
 unit against lookup/sweep/hunt contracts (validator-enforced mapping).
-Details: searcher's `searcher-pipeline` skill.
+`searcher-pipeline` retains the shared contract; `lookup-searcher`,
+`sweep-searcher` and `hunt-searcher` are independent child skills outside
+`references/`, each owning its full unit procedure, output and checks. Each
+caller/judge/resume/completion turn and midturn unit/scope-changing action
+reselects the entry without restarting the job, frontier or remaining budget.
+Direct entry requires the full kernel; a past load or summary is not a body.
+Missing bodies use canonical read_file recovery, then stop if still unavailable.
+The deployed card names, external skill roots and tools are unchanged; tests of
+discovery and read mechanics do not prove model routing or actual retrieval.
 **researcher** consumes released depth units the same way — an
 evidence-pack unit (settled question + done criteria), a
 tradeoff-matrix unit (closed option set + criteria), a fact-check unit
@@ -387,7 +395,8 @@ Three per-profile layers, kept separate:
     sweep (enumeration with a coverage claim) / hunt (multi-hop to
     saturation, signalled by `goal_mode` on cards) — returning spec-gap
     and granularity findings, plus the link-integrity floor; per-unit
-    playbooks in references/; no technics — the deprecated
+    playbooks in independent lookup-searcher / sweep-searcher / hunt-searcher
+    children; no technics — the deprecated
     `deep-retrieval` stub was removed in the search rebuild) + keyless
     optional retrieval skills via `skills.external_dirs`:
     `duckduckgo-search` and `domain-intel`

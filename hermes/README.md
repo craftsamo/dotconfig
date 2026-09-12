@@ -391,6 +391,32 @@ live saving. These checks are registered in `verify-work-continuity.py`.
 Live cutover needs separate approval, a controlled restart AND fresh sessions;
 existing resident work, outputs, grants and approvals are not migrated/replayed.
 
+### Searcher entry routing
+
+Searcher uses its existing `searcher-pipeline` directory and kernel name, with
+three independently discoverable children outside `references/`: `lookup-searcher`,
+`sweep-searcher` and `hunt-searcher`. The former unit playbooks are their SKILL.md
+bodies, not aliases or additional common-mode layers. The kernel remains the
+single home of retrieval-only scope, released-unit discipline and the two card
+gates. Unit loads never reset coverage/frontier/budget or authorize broader work.
+
+On every caller/judge/resume/completion turn and before a unit/scope-changing
+action, select the appropriate entry. Require its full body and the kernel;
+reuse only bodies actually present in context. For an unchanged response whose
+body is missing, read the canonical file and follow next_offset for truncation.
+If recovery fails, stop that search. The Assistant entry source limitations
+above also apply; no alternate-path or artificial-range dedup bypass is allowed.
+
+`test_searcher_pipeline.py` checks the closed topology, dependencies, card gates
+and unchanged tool surface. `test_searcher_entry_runtime.py` uses the provisioned
+Hermes Python with the runtime checkout on PYTHONPATH, an isolated HOME and no
+network/model/search to test actual discovery, reads, dedup, recovery and
+relocation. It scripts unit selection; it does not prove a model chose the right
+unit. Both suites are registered in `scripts/verify-work-continuity.py`.
+No live rollout follows from a passing candidate: preserve active jobs and obtain
+approval before refreshing resident/worker processes and opening a fresh session.
+No new profile, external root, tool grant, card type or install mapping is added.
+
 ## Profiles
 
 Named profiles live under `~/.hermes/profiles/<name>/` — each its own
