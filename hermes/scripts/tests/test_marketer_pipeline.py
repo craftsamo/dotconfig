@@ -191,12 +191,16 @@ def test_real_skill_discovery_and_shared_reference_loading(monkeypatch):
     names = [s["name"] for s in skills_tool._find_all_skills()]
     assert names.count("marketer-pipeline") == 1
     assert names.count("writer-pipeline") == 1
-    authoring = {f"{verb}-{subject}" for verb in ("write", "edit", "analyze")
-                 for subject in ("post", "article", "document", "message", "copy", "script")}
+    authoring = {
+        yaml.safe_load(path.read_text().split("---", 2)[1])["name"]
+        for path in writer.rglob("SKILL.md") if path != writer / "SKILL.md"
+    }
+    assert "consult-writer" in authoring
     assert authoring <= disabled
     assert not authoring & set(names)
     denied = json.loads(skills_tool.skill_view("write-post", preprocess=False))
     assert denied["success"] is False
+    assert json.loads(skills_tool.skill_view("consult-writer", preprocess=False))["success"] is False
     for name, relative in (("marketer-pipeline", "references/build/draft.md"),
                            ("writer-pipeline", "references/acceptance/index.md")):
         result = json.loads(skills_tool.skill_view(name, relative, preprocess=False))

@@ -530,6 +530,7 @@ skills:
     - write-post
     - edit-post
     - analyze-post
+    - consult-writer
   create_dir: skills/learned
   template_vars: true
   inline_shell: false

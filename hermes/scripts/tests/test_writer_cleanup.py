@@ -15,12 +15,14 @@ def content(path):
     return " ".join(path.read_text().split())
 
 
-def test_only_consultation_remains_in_root_references():
-    assert sorted(path.name for path in (PIPELINE / "references").glob("*.md")) == [
-        "consultation.md"
+def test_consultation_is_an_entry_and_acceptance_remains_shared():
+    assert list((PIPELINE / "references").glob("*.md")) == []
+    assert (PIPELINE / "consult-writer/SKILL.md").is_file()
+    assert sorted(path.name for path in (PIPELINE / "references/acceptance").glob("*.md")) == [
+        "index.md", "prose.md", "script.md"
     ]
     kernel = (PIPELINE / "SKILL.md").read_text()
-    assert "](references/consultation.md)" in kernel
+    assert "](consult-writer/SKILL.md)" in kernel
     assert "If no installed leaf fits, return the unsupported scope" in kernel
     for name in RETIRED:
         assert f"references/{name}" not in kernel
@@ -41,7 +43,7 @@ def test_all_eighteen_leaves_are_retained_and_routed():
 
 
 def test_consultation_is_bounded_advice_not_a_fourth_operation():
-    advice = content(PIPELINE / "references/consultation.md")
+    advice = content(PIPELINE / "consult-writer/SKILL.md")
     assert "not a fourth writing operation" in advice
     assert "Reference text supplied merely to inform advice" in advice
     assert "does not itself change the operation" in advice
@@ -55,7 +57,11 @@ def test_consultation_is_bounded_advice_not_a_fourth_operation():
 def test_injected_policy_cannot_reactivate_legacy_workflows():
     config = yaml.safe_load((HERMES / "profiles/writer/config.yaml").read_text())
     policy = config["agent"]["system_prompt"]
-    assert "consultation reference" in policy
+    assert "consult-writer" in policy
+    assert "On every inbound turn or completion" in policy
+    assert "read_file" in policy and "next_offset" in policy
+    assert "a past load, summary" in policy
+    assert "not a new draft, outline or grant" in policy
     assert "no generic fallback or additional review pipeline" in policy
     assert "only on an explicit request" in policy
     assert "bounded consultation or analysis" in policy
@@ -72,3 +78,4 @@ def test_runtime_writer_files_do_not_reference_retired_paths():
         assert "japanese-writing/scripts/" not in text, path
         assert "references/inspection/" not in text, path
         assert "retained legacy" not in " ".join(text.split()), path
+        assert "references/consultation.md" not in text, path

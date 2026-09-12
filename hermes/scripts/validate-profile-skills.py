@@ -936,9 +936,11 @@ def validate_worker(
     writing: dict[str, Path] = {}
     if profile == "writer":
         writing = validate_writer_leaves(pipeline_dir, errors)
-        for name in writing.keys() & (leaves.keys() | learned.keys()):
+        consultation = validate_writer_consultation(pipeline_dir, errors)
+        entries = writing | consultation
+        for name in entries.keys() & (leaves.keys() | learned.keys()):
             errors.append(f"duplicate writer skill name: {name}")
-        allowed.update(path.relative_to(skills).parts for path in writing.values())
+        allowed.update(path.relative_to(skills).parts for path in entries.values())
     entries: dict[str, Path] = {}
     if profile == "engineer":
         entries = validate_engineer_references(pipeline_dir, errors)
@@ -1132,12 +1134,35 @@ def validate_writer_read_contract(path: Path, pipeline_dir: Path, errors: list[s
             errors.append(f"writer ReadBeforeWork missing {required}: {path}")
 
 
+def validate_writer_consultation(pipeline_dir: Path, errors: list[str]) -> dict[str, Path]:
+    """The sole advisory entry is not a form-based production operation."""
+    path = pipeline_dir / "consult-writer" / "SKILL.md"
+    if not path.is_file():
+        errors.append(f"missing Writer advisory entry: {path}")
+        return {}
+    validate_skill(path, "consult-writer", errors, expected_category="writing")
+    data = frontmatter(path)
+    meta = hermes_meta(data)
+    if not isinstance(data.get("description"), str) or not data["description"].startswith(
+        "Writer advice before drafting:"
+    ):
+        errors.append(f"Writer consultation description must frontload pre-draft advice: {path}")
+    if not isinstance(meta.get("output"), str) or not meta["output"].strip():
+        errors.append(f"Writer consultation must describe its advisory output: {path}")
+    if "form" in meta or "card_units" in data:
+        errors.append(f"Writer consultation is not a production form or card unit: {path}")
+    validate_writer_read_contract(path, pipeline_dir, errors)
+    if (pipeline_dir / "references/consultation.md").exists():
+        errors.append("retired Writer consultation reference must not duplicate the entry")
+    return {"consult-writer": path}
+
+
 def validate_writer_leaves(pipeline_dir: Path, errors: list[str]) -> dict[str, Path]:
     """Writer adopts form-based leaves without changing Creator's verb set."""
     leaves: dict[str, Path] = {}
     for path in sorted(pipeline_dir.rglob("SKILL.md")):
         rel = path.relative_to(pipeline_dir)
-        if rel.parts == ("SKILL.md",):
+        if rel.parts in (("SKILL.md",), ("consult-writer", "SKILL.md")):
             continue
         if len(rel.parts) != 3 or rel.parts[0] not in WRITER_VERBS:
             errors.append(f"writer leaf must sit at write|edit|analyze/<subject>/SKILL.md: {path}")

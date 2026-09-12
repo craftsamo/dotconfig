@@ -1,3 +1,38 @@
+---
+name: consult-writer
+description: >-
+  Writer advice before drafting: format, structure and voice. Recommend scope,
+  inputs and tradeoffs for a future text. Not a released outline or full draft,
+  editing or evaluating an existing target, requester acceptance or publishing.
+version: 1.0.0
+author: CraftSamo
+license: MIT
+metadata:
+  hermes:
+    category: writing
+    tags: [writing, consultation, planning]
+    output: "Brief advice with reasons, assumptions and unresolved inputs; not a production artifact"
+---
+
+<ReadBeforeWork>
+
+When executing this consultation as Writer, require the full `writer-pipeline`
+kernel and this entry in the current context. Load a missing kernel with
+`skill_view(name="writer-pipeline")`; a past load or summary is not its body.
+Re-evaluate the operation, subject and selected detail references on each turn
+and before a scope-changing action. Reuse bodies still present; reading does
+not restart a released unit, expand a grant or replace protected text.
+If `skill_view` returns unchanged without the earlier body, use `read_file` on
+`${HERMES_SKILL_DIR}/../SKILL.md` for the kernel or on this entry's canonical
+document. Follow `next_offset` to complete a truncated read; never evade dedup
+with alternate paths or artificial ranges. If a required body remains
+unavailable, stop the affected action and report it.
+A Client reading this contract for briefing does not execute the consultation
+or inherit Writer's role. Selected production forms/references inform advice
+only; reading them does not release their drafting, editing or analysis work.
+
+</ReadBeforeWork>
+
 # Pre-draft consultation
 
 Use when the requester wants advice about a future text: which format, scope,

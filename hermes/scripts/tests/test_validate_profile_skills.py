@@ -377,7 +377,7 @@ class SandboxTreeTest(unittest.TestCase):
                 with self.subTest(cap=cap, link=link):
                     self.write(rel, original + f"\n[bad]({link})\n")
                     self.assertTrue(any(diagnostic in e and rel in e for e in self.validate()))
-            self.write(rel, original + '\n`skill_view(name="writer-pipeline", file_path="references/consultation.md")`\n'
+            self.write(rel, original + '\n`skill_view(name="writer-pipeline", file_path="references/acceptance/index.md")`\n'
                        + '```sh\ncommand --output OUTPUT/report.md\n```\n')
         self.assertEqual([], self.validate())
 

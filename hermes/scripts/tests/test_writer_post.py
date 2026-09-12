@@ -35,7 +35,7 @@ def test_post_family_is_routed_without_generic_fallback():
     kernel = (PIPELINE / "SKILL.md").read_text()
     for verb in ("write", "edit", "analyze"):
         assert f"]({verb}/post/SKILL.md)" in kernel
-    assert (PIPELINE / "references/consultation.md").is_file()
+    assert (PIPELINE / "consult-writer/SKILL.md").is_file()
     assert "If no installed leaf fits, return the unsupported scope" in kernel
 
 

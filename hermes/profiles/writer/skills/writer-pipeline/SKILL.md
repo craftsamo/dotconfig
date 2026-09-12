@@ -1,12 +1,12 @@
 ---
 name: writer-pipeline
 description: >-
-  Writer's front door (v7). Select a writing operation and subject, read the
+  Writer's shared contract (v8). Select a writing operation and subject, read the
   installed leaf's form, and execute only the released writing unit.
   Leaves own their procedure, references, QA and report. Pre-draft advice
   uses a bounded consultation; unsupported requests return for clarification.
   Drafts only: no publishing, sending, code execution or kanban card units.
-version: 7.0.0
+version: 8.0.0
 author: CraftSamo
 license: MIT
 metadata:
@@ -66,7 +66,7 @@ document's owning `SKILL.md`, not whichever skill was loaded last.
    materials; **edit** changes an existing text within a specified scope;
    **analyze** explains or evaluates an existing text without changing it.
    Advice about a text that does not exist is a planning consultation, not
-   an analysis of an imaginary manuscript.
+   an analysis of an imaginary manuscript: select `consult-writer` instead.
 2. Identify the subject from the intended deliverable, not its length.
    Check the installed Writer leaves through the skill list. A leaf lives
    at `<operation>/<subject>/SKILL.md` and is named `<operation>-<subject>`.
@@ -80,9 +80,14 @@ document's owning `SKILL.md`, not whichever skill was loaded last.
    leaf is a blocker, not permission to use a different workflow.
 4. If no installed leaf fits, return the unsupported scope to the requester.
    Do not substitute a generic writing workflow or invent another skill.
-   Pre-draft advice uses [consultation](references/consultation.md); it does
+   Pre-draft advice uses [consult-writer](consult-writer/SKILL.md); it does
    not authorize a manuscript or replace a leaf's QA. If the request changes
    to editing or evaluating an existing target, reselect the operation.
+
+The consultation is a separate advisory entry, not a fourth production
+operation. Reading a candidate leaf's form or reference for advice does not
+execute that leaf or make every production field required. Clients inspecting
+forms or the acceptance references do not inherit Writer's execution role.
 
 Each leaf owns its own checks. There is no additional shared review pipeline,
 statistical naturalness score or automatic humanizer pass. `japanese-writing`
