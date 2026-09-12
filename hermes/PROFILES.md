@@ -122,7 +122,7 @@ by design.
 
 Role split: **the assistant** plans with the user, supervises specialists,
 performs the quality gate itself (the QA contracts under
-`profiles/assistant/skills/assistant-pipeline/references/quality-assurance/`), owns GitHub bookkeeping, and
+`profiles/assistant/skills/assistant-pipeline/qa-assistant-*/` plus shared QA), owns GitHub bookkeeping, and
 delivers; the **producer** self-verifies before reporting. The normal flow
 stays **searcher (retrieve) → researcher (synthesize) → engineer
 (implement)**, with **creator** (media) and **writer** (prose/scripts) as
@@ -135,7 +135,7 @@ assistant's own verification, not instead of it.
 The assistant is the quality gate. Every specialist deliverable — a resident
 session reply or a card completion — is a candidate until the assistant
 verified the actual artifact per the contracts under
-`profiles/assistant/skills/assistant-pipeline/references/quality-assurance/` (vision on images/frames, ffprobe on av
+`profiles/assistant/skills/assistant-pipeline/qa-assistant-*/` and common QA (vision on images/frames, ffprobe on av
 media, read the prose, spot-check sources; `delegate_task` fans out
 per-artifact checks on large sets). Defects go back to the same resident
 session as itemized feedback — a minutes-scale loop, not a card cycle.
@@ -261,7 +261,7 @@ OpenCode session IDs are resume handles, not the only durable copy of decisions.
 default and assistant are the two faces of the same front door: identical
 workflow behavior (assistant runs its own `assistant-pipeline`; default runs
 the thin `default-pipeline` adapter over the assistant tree at
-`~/.hermes/profiles/assistant/skills/assistant-pipeline/references/`), with the
+`~/.hermes/profiles/assistant/skills/assistant-pipeline/` kernel and child entries), with the
 Telegram chat-wide auto-load bound to `assistant-pipeline`,
 the same worker roster, the same media-full-delegation rule. The differences: platform
 (CLI vs Telegram gateway), persona (default stays **neutral** — every
@@ -269,6 +269,19 @@ the same worker roster, the same media-full-delegation rule. The differences: pl
 assistant-only surface skills (ccc-course-production,
 codebase-fact-finding) stay in the assistant profile. Keep default's `cron/` empty and run no gateway on it; bots and
 scheduled automation belong in named profiles.
+
+For the Assistant entry candidate, default discovers the same child names via
+a bounded filesystem listing under that known root, reads the root common
+contract and selected child `SKILL.md` with `read_file`, then mode-common and
+relevant details. It translates dependency names/file paths to canonical files
+even when Assistant names are hidden from CLI `skill_view`; no generated index
+or extra `skills.external_dirs` entry is needed. The 19 entries are not imposed
+on default or its clones. In raw content, `${HERMES_SKILL_DIR}` is the owning
+child's directory, never the adapter's or whichever skill was last loaded.
+When `writer-pipeline` is unavailable by name, requester QA reads the documented
+`~/.hermes/profiles/writer/skills/writer-pipeline/references/acceptance/index.md`
+and selected `prose.md`/`script.md` with `read_file`, for inspection only.
+Do not expose Writer's production leaves to solve a reference lookup.
 
 ### Two working directories per worker
 
@@ -313,8 +326,8 @@ Three per-profile layers, kept separate:
 - **skills/** — detailed, on-demand playbooks:
   Every local library uses the same ownership types. A worker has one tracked
   `<profile>-pipeline/` plus tracked, directly selectable `technic/` leaves.
-  The assistant owns `assistant-pipeline/` and its mode-first reference
-  tree; default owns the shared tracked `default-pipeline/` adapter. Assistant-only
+  The assistant owns `assistant-pipeline/`, its invariant kernel and 19 child
+  entries with local details; default owns the shared tracked `default-pipeline/` adapter. Assistant-only
   Telegram surfaces live in `desks/`. Both assistant dirs are private-overlay
   symlinks — maintainer-owned, but tracked by the private-dotconfig repo.
   Runtime-authored skills from background review, curator, `/learn`, or normal
@@ -325,9 +338,9 @@ Three per-profile layers, kept separate:
   remain provider-owned and never become local technics implicitly.
   - assistant → `assistant-pipeline` (front-door playbook: modes Chat / Plan /
     Execute / Quality Assurance over tiers inline / resident / kanban; the
-    mode-first reference tree at `references/{chat,plan,execute,quality-assurance}/`;
+    `chat-assistant` and `{plan,execute,qa}-assistant-<domain>` children;
     resident sessions via `resident-session.sh`; assistant-run QA contracts;
-    and the closed `card_units` catalog in `execute/**` front matter).      Default
+    and the closed `card_units` catalog only in authorized Execute SKILL frontmatter). Default
     runs the thin `default-pipeline` CLI adapter over this tree; it records only
     terminal-specific deltas. The assistant also reads the upstream official
     libraries (apple / creative / email / github / media / note-taking /
@@ -469,7 +482,40 @@ Three per-profile layers, kept separate:
   `media/gif-search` for marketer (`TENOR_API_KEY`), and the `mlops/`
   library (HF-account-centric).
 
-Routing (assistant): `assistant-pipeline` owns it. Telegram auto-loads the skill
+### Assistant entry routing (candidate)
+
+The candidate retains the `assistant-pipeline` root name and private directory
+overlay. The root owns invariant lifecycle, grants and delivery policy. Its
+19 independent child skills are `chat-assistant` plus
+`{plan,execute,qa}-assistant-<domain>` for engineering, creative, writing,
+research, search and marketing. Each child root `SKILL.md` owns its former
+mode/domain index; each child's `references/` holds details and creative legacy.
+No entry lives below the parent's `references/`. The shared parent files are
+`references/plan/index.md`, `references/execute/{index,resident-sessions,kanban-lite,scheduled}.md`
+and `references/quality-assurance/index.md`; Chat's common procedure is its
+entry body. No aliases, generated index or new symlink install mapping.
+
+Always-on routing selects the relevant entry from the available skill index on
+each user turn and completion notification, and BEFORE an action changing mode,
+domain or scope midturn. Full bodies already present in current context can be
+reused; a past load or summary cannot. If needed, read the selected entry, the
+full kernel, mode-common and relevant details. Direct entry has the same
+dependencies; root preload is not proof they are present. An approval-only reply
+follows existing job state and scope, never restarts planning or widens a grant.
+An unchanged result with a missing body requires the entry-local canonical
+`read_file` fallback, following `next_offset` for truncation, or stopping the
+affected action. Read dedup is a source/runtime limitation, not a prompt-level
+guarantee of complete current context; never evade it with alternate paths or
+artificial ranges. Writer's acceptance rubric remains in its public pipeline.
+
+**Not cut over live.** Paired candidate checks use `HERMES_PRIVATE_ROOT` on public
+tests and `HERMES_PUBLIC_ROOT` on private tests, without installing/linking live
+paths or relaxing their Git ownership checks. Manual edits do not invalidate
+the gateway's process skill-index cache: cutover requires explicit approval,
+a controlled restart AND a fresh session. Restore paired public/private sources
+for rollback without changing frozen outputs or approvals.
+
+Routing (assistant): Telegram auto-loads the root skill
 through its chat-wide `channel_skill_bindings` entry (root DM plus fixed and
 user-created topics). Discord binds the allowlisted guild channel explicitly;
 auto-created threads inherit that parent binding and channel prompt. Discord DM
@@ -477,8 +523,9 @@ bindings require the literal DM channel ID and cannot use a user-ID wildcard: th
 first authorized DM is bootstrap-only, then its channel ID is added to both
 `channel_skill_bindings` and `channel_prompts`, the gateway is restarted, and
 `/new` starts the first working session. The gateway injects the skill body into
-the session's first turn; `compression.protect_first_n` keeps it alive; existing
-sessions pick it up after `/new` or an idle reset. Every working request flows
+the session's first turn; `compression.protect_first_n` protects initial context,
+but does not prove all required bodies remain present. After the approved
+restart, `/new` starts a session on the refreshed index. Every working request flows
 Classify → Locate → Mode
 (Chat / Plan / Execute / Quality Assurance) → Deliver. Questions are risk/ambiguity driven:
 a settled request does not pay an interview tax. Tier selection is by context
@@ -490,7 +537,9 @@ conversational approval that sanctions the grants; Execute supervises the
 sessions turn by turn; QA verifies actual artifacts before delivery.
 
 The kanban catalog is closed: its machine-readable surface is the union of
-`card_units` front matter across `assistant-pipeline/references/execute/**`.
+`card_units` frontmatter in `assistant-pipeline/execute-assistant-creative/SKILL.md`
+and `assistant-pipeline/execute-assistant-search/SKILL.md` only. Detail references
+must never declare card units.
 A card must match one unit and carry every required input; otherwise the work
 stays resident or is decomposed during planning. Composites are never one card
 (never send 0→10 as one card). Seeded units are creative:
@@ -791,18 +840,20 @@ contracts together if rolling back; no runtime switch is implied by this cleanup
 
 ## Broker shape
 
-The migration has two complementary shapes, not one universal skill tree:
+The migration has distinct ownership shapes, not one universal skill tree:
 
 - **Producers** (Creator's hands and Writer today) expose one concrete operation
   and subject per `<verb>/<subject>/SKILL.md`, with the form, Procedure, QA and
   Report owned there. Other profiles adopt that pattern only as their own
   operation/output contracts are settled; Creator's verbs and media budgets
   are not imposed on writing, engineering, research or marketing.
-- **Brokers** keep phase-specific decision, handoff and acceptance guidance in
+- **Creator's broker** keeps phase-specific decision, handoff and acceptance guidance in
   plain references below one root pipeline skill. Creator v8 uses
   `references/<phase>/<hands>/<subject>.md` with a common `index.md` per phase.
-  Assistant already uses `references/<mode>/<capability>/...`; its domain
-  references express what Assistant owns, not a mirror of every producer form.
+- **Assistant's Client entries** in the candidate use 19 independent child
+  skills with domain details in each child's `references/` and shared mode-common
+  procedures at the parent. They express what Assistant owns, not a mirror of
+  every producer form; this does not migrate Creator or Engineer's topology.
 
 Creator's phases are `plan`, `build`, `quality-assurance`. The current fifteen
 subjects occupy 45 references plus three common indexes. The subject is shared
@@ -841,15 +892,15 @@ Assistant's final gate uses the returned artifacts and criterion evidence;
 it does not repeat the specialist's implementation QA or maintain another
 catalog of sizes, providers, forms and approval hashes.
 
-Assistant now reads deliverable-first Client guides under
-`references/plan/creative/<deliverable>.md`, with optional bounded
+In the entry candidate, Assistant reads deliverable-first Client guides under
+`plan-assistant-creative/references/<deliverable>.md`, with optional bounded
 `reference-research.md`, common Execute dialogue and common QA acceptance.
 Each guide owns the outcome's Client questions and acceptance criteria, not
 producer fields, providers, limits or recipes. Current guide names can match
 hands subjects without a parity contract: a new hands subject does not oblige
 a new guide, and an absent guide never establishes an unavailable capability.
 Operations and modifiers do not multiply guide files. No generated catalog,
-new Skill or per-deliverable copies of Execute and QA are added.
+per-deliverable Skill or per-deliverable copies of Execute and QA are added.
 
 References distinguish observed evidence, suggested direction, user decisions
 and open questions. Research material is inspiration only, not automatically
@@ -859,11 +910,12 @@ longer stands for consent. Budget, exact proposal approval, upload and Publish
 grants remain distinct. Creator coordinates its production dependencies;
 Assistant does not duplicate those Writer or hands requests.
 
-Retained methods are physically isolated under `creative/legacy/` in Plan,
-Execute and QA. Only the legacy Plan leaves and QA Covers mapping retain
+Retained methods are physically isolated under `references/legacy/` within
+`plan-assistant-creative`, `execute-assistant-creative` and `qa-assistant-creative`.
+Only the legacy Plan leaves and QA Covers mapping retain
 1:1 alignment with Creator's technics; the legacy directories are explicitly
-routed from their owning indexes. The two existing creative card definitions
-stay in `execute/creative/index.md`. The retained methods remain available,
+routed from their owning SKILL bodies. The two existing creative card definitions
+stay in `execute-assistant-creative/SKILL.md` frontmatter. The retained methods remain available,
 with fixed house prescriptions removed; this is not a byte-for-byte move
 and does not authorize a fallback from failed or unsupported hands work.
 
@@ -984,8 +1036,8 @@ The assistant keeps
 delivery to the user, the durable path, Budget lines and GitHub bookkeeping;
 it does not make production decisions on Creator's behalf. Its outcome guides
 support Client dialogue; the old production decision leaves now live at
-`plan/creative/legacy/<family>.md`, with their QA `Covers` mapping under
-`quality-assurance/creative/legacy/`. Those old mappings retire family by
+`plan-assistant-creative/references/legacy/<family>.md`, with their QA `Covers` mapping under
+`qa-assistant-creative/references/legacy/`. Those old mappings retire family by
 family only after replacement coverage and real-use gates (Phase 4 of the
 migration), independently of the Client guides.
 
@@ -2361,7 +2413,7 @@ Done 2026-09-05 (icon): steps 0-4 — validator rules, `image-creator`
 (:9907, in the multiplex allowlist), the five leaves each proven from the
 hands' CLI, Creator routing icon to the hands (`references/hands.md`,
 `a2a_agents.image-creator`), `creator-logo-icons` retired together with
-the assistant's `plan/creative/logo-icons.md` and the `icon-set.md` QA
+the assistant's then-current `plan/creative/logo-icons.md` and the `icon-set.md` QA
 contract. Both client paths verified from the CLI: a human sentence →
 `a2a_call` with the filled `source-icon` form (56 s end to end); an
 assistant SessionBrief without a style → `generate-icon` form filled and
@@ -2895,7 +2947,7 @@ profiles were retired. Heavy work now runs in resident specialist sessions
 (`resident-session.sh`: per-key serialization, session-id recapture,
 close-on-acceptance; smoke-tested against creator with retained context);
 the assistant owns planning (one conversational approval), the quality gate
-(contracts under `assistant-pipeline/references/quality-assurance/`), and GitHub bookkeeping;
+(contracts then under `assistant-pipeline/references/quality-assurance/`), and GitHub bookkeeping;
 the board shrank to fire-and-forget / cron / mass-parallel / `scheduled`
 with a lean card contract. The completion path-guard plugin, admission
 probes, and the 5-minute orphan watchdog were removed (the sweeper and the
