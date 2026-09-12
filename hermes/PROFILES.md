@@ -157,6 +157,17 @@ constraints and decisions; Engineer investigates and proposes the technical plan
 with OpenCode. No Assistant-produced decomposition, Issue or Base session is
 required. Existing plans remain useful context, not an automatic new approval.
 
+Engineer v9 exposes `plan-engineer`, `build-engineer`, `qa-engineer` and
+`assess-engineer` below the retained `engineer-pipeline` root, outside its
+`references/`. Their bodies own the former mode indexes and each entry routes
+its own details. The root retains invariant role, approval and delivery rules;
+OpenCode transport and the design catalog are shared once. Each turn/completion
+and midturn mode/scope change reselects the needed entry without resetting the
+job or its grant. Direct entry loads the kernel when its full body is absent;
+missing instructions recover through canonical reads or block the affected action.
+This candidate is not a live cutover: controlled restart and fresh-session checks
+need separate approval, and existing specialist jobs are never replayed by migration.
+
 | Relationship | Owner of decisions | Execution |
 | --- | --- | --- |
 | Client with Engineer | Outcome, scope and important tradeoffs agreed conversationally | Human clarify or structured Client Q<n> replies |
@@ -190,7 +201,7 @@ OpenCode's `-fast` alias is not a valid Hermes Codex model name.
 The former global OpenCode web-ui/ux-persona-testing skills and ui-review/
 ux-persona definitions move here; migrated globals are removed, not retained as
 aliases. OpenCode keeps implementation-time rendering and project tests. Details:
-engineer-pipeline's mode references and [Engineer Runtime](README.md#engineer-runtime).
+engineer-pipeline's mode entries and references and [Engineer Runtime](README.md#engineer-runtime).
 
 The dialogue discipline is specialist-generic, not engineer-specific:
 **creator** and **writer** also honor the `Review: required` gate; creator
@@ -858,7 +869,12 @@ The migration has distinct ownership shapes, not one universal skill tree:
 - **Assistant's Client entries** use 19 independent child
   skills with domain details in each child's `references/` and shared mode-common
   procedures at the parent. They express what Assistant owns, not a mirror of
-  every producer form; this does not migrate Creator or Engineer's topology.
+  every producer form; this does not migrate Creator's topology.
+- **Engineer's mode entries** use four independent child skills, one per actual
+  mode, each owning its procedure and detail references. They depend on the
+  invariant root and shared OpenCode transport, not a duplicated mode-common
+  wrapper. They do not copy Assistant's six-domain matrix or change the coding,
+  approval and evaluation responsibilities.
 
 Creator's phases are `plan`, `build`, `quality-assurance`. The current fifteen
 subjects occupy 45 references plus three common indexes. The subject is shared
