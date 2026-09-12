@@ -1,0 +1,186 @@
+[
+  {
+    "id": "icon-toolbar-optical-weight",
+    "request": "Our five toolbar icons are all drawn in the same 24x24 box but the set looks uneven, the search icon looks lighter than the others.",
+    "operation": "critique",
+    "expected": [
+      "diagnoses the mismatch as optical weight (fill/ink coverage), not bounding-box size",
+      "proposes adjusting stroke weight or interior coverage of the lighter icon(s) to match the set, without changing recognizable silhouettes",
+      "checks whether any apparent weight difference is actually an intentional state signal (e.g. outline=inactive, filled=active) before treating it as an inconsistency"
+    ],
+    "must_not": [
+      "must not just scale the whole icon up or down to fix perceived weight",
+      "must not add texture, grain, or a gradient to solve a weight/silhouette problem",
+      "must not copy or trace a licensed platform icon set as the reference shape"
+    ],
+    "subjects": [
+      "icon"
+    ],
+    "review_evidence": [
+      "render the full icon set together at its real display size (e.g. 24px in an actual toolbar mock)",
+      "compare fill ratio/optical weight across the set, not bounding box dimensions alone"
+    ]
+  },
+  {
+    "id": "emoji-condition-set-flat-expression",
+    "request": "This custom weather emoji set (sunny, rainy, surprised-storm) reads flat at small size, the surprised one especially doesn't feel surprised.",
+    "operation": "critique",
+    "expected": [
+      "checks whether the pose/expression reads correctly as a silhouette before adjusting facial detail",
+      "keeps stroke weight and fill ratio consistent with the rest of the set while adjusting the weak icon",
+      "treats the fix as scoped to the underperforming icon(s), not a redesign of the whole set"
+    ],
+    "must_not": [
+      "must not add fine facial detail as the primary fix for a silhouette/gesture that doesn't read at small size",
+      "must not reuse or lightly re-skin an existing licensed emoji design",
+      "must not change the approved icons in the set that were not reported as a problem"
+    ],
+    "subjects": [
+      "emoji"
+    ],
+    "review_evidence": [
+      "view the set at native small size (e.g. 32px, as it will render in a chat bubble) rather than zoomed into an editor",
+      "check the silhouette alone (e.g. face blurred or covered) for whether the intended emotion reads"
+    ]
+  },
+  {
+    "id": "mascot-excited-pose-energy",
+    "request": "Our community mascot is waving for an announcement post but reviewers say the pose doesn't feel excited even though the hand is clearly waving.",
+    "operation": "revise",
+    "expected": [
+      "diagnoses that an isolated correct gesture (the wave) is not the same as supporting body language (weight shift, tilt, asymmetry) that reads as excitement",
+      "proposes a specific pose adjustment (e.g. weight shift, shoulder asymmetry, torso tilt) while keeping the approved wave hand shape",
+      "states which identity features (palette, head shape, signature prop) are being kept unchanged"
+    ],
+    "must_not": [
+      "must not change the mascot's core identity features (color palette, head shape, signature prop) to chase more energy",
+      "must not treat facial expression alone as sufficient without checking the pose read with the face covered"
+    ],
+    "subjects": [
+      "mascot"
+    ],
+    "review_evidence": [
+      "view the revised pose next to the actual caption/context it will ship with, not in isolation",
+      "check the pose with the face covered or blurred to isolate gesture from expression"
+    ]
+  },
+  {
+    "id": "reimagine-mascot-sponsorship-context",
+    "request": "Reimagine our orange fox mascot with its blue scarf in a more dynamic, action pose for a sports sponsorship image.",
+    "operation": "reimagine",
+    "expected": [
+      "states explicitly which identity features (fur color, scarf, head shape) must be preserved, separate from the pose/energy change requested",
+      "prefers an identity-preserving approach (e.g. reference-conditioned edit) over a text-only regeneration once drift is observed",
+      "compares the reimagined result against the original reference art feature by feature before accepting it"
+    ],
+    "must_not": [
+      "must not accept a result that is recognizably 'a fox' but has drifted color, lost the scarf, or changed head shape, and call it the same mascot",
+      "must not silently redesign the mascot's core look when the request only asked for a new pose/context"
+    ],
+    "subjects": [
+      "reimagine",
+      "mascot"
+    ],
+    "review_evidence": [
+      "place the reimagined mascot side by side with the original reference art at the same scale",
+      "check each named identity feature individually rather than one holistic 'still looks right' impression"
+    ]
+  },
+  {
+    "id": "kit-new-badge-consistency",
+    "request": "Add a 'route delay' badge to our transit app's badge system, which already has 'on time' and 'cancelled' badges.",
+    "operation": "design",
+    "expected": [
+      "checks the existing badges' corner radius, padding, and color-role usage before drawing the new one",
+      "matches the existing kit rules unless a deviation is explicitly justified and flagged",
+      "confirms the chosen color for the new badge does not already carry a different meaning elsewhere in the kit"
+    ],
+    "must_not": [
+      "must not introduce a new corner radius, padding, or stroke weight without checking the existing badges first",
+      "must not silently ship a one-off visual exception without flagging it to whoever owns the kit"
+    ],
+    "subjects": [
+      "kit"
+    ],
+    "review_evidence": [
+      "place the new badge directly inside a real usage mock (e.g. a stop list) next to the existing badge types at actual size"
+    ]
+  },
+  {
+    "id": "card-busy-dashboard-cleanup",
+    "request": "This status card on our dashboard feels busy and hard to scan, can you clean it up.",
+    "operation": "revise",
+    "expected": [
+      "ranks the card's elements (what should be read first, second, third) before changing sizes or spacing",
+      "adjusts spacing/grouping to make the ranking visible rather than adding whitespace uniformly",
+      "matches the resulting density to how the card will actually be read (glanced vs. studied)"
+    ],
+    "must_not": [
+      "must not add a decorative texture, gradient, or illustration to solve a hierarchy problem",
+      "must not flatten every element to the same reduced size 'to be safe' without establishing a ranking"
+    ],
+    "subjects": [
+      "card"
+    ],
+    "review_evidence": [
+      "view the card at its real render size inside its actual surrounding context (e.g. stacked with neighboring cards), not as an isolated crop"
+    ]
+  },
+  {
+    "id": "near-miss-icon-format-conversion",
+    "request": "Convert this icon from PNG to SVG at the same visual size, no design changes needed.",
+    "operation": "format_conversion",
+    "expected": [
+      "recognizes this as a pure format conversion with no requested visual decision",
+      "does not load or apply composition, typography, surface, symbol, kit, or generation critique"
+    ],
+    "must_not": [
+      "must not propose aesthetic changes (weight, color, shading) that were not requested",
+      "must not treat the conversion request as an invitation to redesign the icon"
+    ],
+    "subjects": [
+      "icon"
+    ],
+    "review_evidence": [
+      "confirm the converted asset is visually unchanged from the source at the same size"
+    ]
+  },
+  {
+    "id": "revision-badge-second-pass-scope",
+    "request": "The route-delay badge's corner radius now matches the kit, but can you also nudge the amber color slightly warmer.",
+    "operation": "revise",
+    "expected": [
+      "changes only the amber color as requested",
+      "keeps the corner radius, padding, and number-first layout from the prior accepted revision unchanged",
+      "confirms the warmer amber still does not collide with another color role's meaning in the kit"
+    ],
+    "must_not": [
+      "must not re-open or re-adjust the corner radius, padding, or layout that was already fixed and accepted",
+      "must not use the color tweak as an opportunity to make broader unrequested changes to the badge"
+    ],
+    "subjects": [
+      "kit"
+    ],
+    "review_evidence": [
+      "place the updated badge next to the previously accepted version and the rest of the badge set at actual size to confirm only the color changed"
+    ]
+  }
+  ,{
+    "id": "visual-retain-state-weight",
+    "request": "This approved icon set uses filled active states and outlined inactive states. They are identifiable at the target size. Should every state have identical ink coverage?",
+    "operation": "retain",
+    "subjects": ["icon", "kit"],
+    "expected": ["Retain the intentional state distinction", "Judge consistency within each state role"],
+    "must_not": ["Erase functional contrast to equalize all ink coverage"],
+    "review_evidence": ["State pair at actual use size"]
+  },
+  {
+    "id": "visual-unavailable-typesetting",
+    "request": "The exact event date must be perfect, but this selected image route cannot typeset or composite after generation. Propose what to do without changing tools or spending.",
+    "operation": "plan",
+    "subjects": ["card"],
+    "expected": ["Explain the exact-copy capability gap", "Propose an explicitly approved supported alternative"],
+    "must_not": ["Promise perfect generated lettering", "Silently switch the producer"],
+    "review_evidence": ["Capability evidence and proposal only"]
+  }
+]
