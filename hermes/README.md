@@ -7,12 +7,39 @@ into place.
 
 ## Engineer Runtime
 
-Engineer v8 accepts human or Assistant Clients, owns technical planning with
+Engineer accepts human or Assistant Clients, owns technical planning with
 OpenCode, and proceeds after one explicit implementation approval through
 verification and PR delivery. Issue create/edit/comment is enabled only when
 the Client explicitly requests Issue management for this job. An Issue URL is
 not a write grant. Merge, deploy, repo creation, boards and default-branch push
 remain outside the implementation contract.
+
+The v9 candidate keeps `engineer-pipeline` as its invariant kernel and exposes
+four independent child skills: `plan-engineer`, `build-engineer`, `qa-engineer`
+and `assess-engineer`. Each `SKILL.md` is the mode procedure and routes its own
+`references/`; there is no second common mode index. Only `references/opencode.md`
+and `references/shared/design-catalog.md` stay at the parent. The entry list is
+reconsidered each user turn/completion and before a midturn mode/scope change.
+Direct selection still requires the complete kernel; a prior load or summary is
+not a substitute. Missing bodies use canonical `read_file` recovery, then stop
+if still unavailable. Reading instructions does not expand or reset approval.
+
+`scripts/tests/test_engineer_entry_runtime.py` exercises the real Hermes scanner,
+index, skill reader and canonical file recovery in an isolated HOME with no
+network, agents or execution tools. Its scripted mode changes are not evidence
+of real-model selection or approval compliance. Run it with the provisioned
+Hermes Python and explicit source `PYTHONPATH`; the continuity runner includes it.
+Candidate validation does not install or restart anything. Cutover needs explicit
+approval, a controlled gateway restart AND a fresh session because manual edits
+do not invalidate the process-wide skill index. Existing resident work and grants
+must be reconciled, never silently replayed; other profiles are not migrated here.
+
+These are Hermes-specific skills: nested discoverable entries, sibling/parent
+resource dependencies and structured `metadata.hermes` are intentional portable
+Skill-validator exceptions. That validator also treats named cross-checkout
+OpenCode resources as local files. The profile validator checks real pipeline
+link containment and ownership, and the runtime tests check actual discovery and
+reads; neither exception authorizes a broken local dependency.
 
 `plugins/opencode` exposes `opencode_call` and `opencode_session` only to
 Engineer. Enable its plugin/toolset plus `opencode_cli.enabled`; optional
@@ -38,7 +65,7 @@ so normal CLI context discovery cannot inherit the implementation repository's
 instructions. Memory and coding-context injection are disabled on those profiles.
 
 The migrated global OpenCode UI skills and agents are removed rather than
-retained as aliases. Engineer's phase references hold their design/QA knowledge;
+retained as aliases. Engineer's mode entries and references hold their design/QA knowledge;
 OpenCode retains implementation-time rendering and project tests.
 
 Roll out public settings and the private Assistant Client adapters together.
