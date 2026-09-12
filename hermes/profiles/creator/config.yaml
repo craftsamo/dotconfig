@@ -917,6 +917,39 @@ network:
 platforms:
   telegram:
     enabled: true
+    extra:
+      command_menu:
+        priority_mode: replace
+        max_commands: 28
+        priority:
+          - help
+          - new
+          - stop
+          - status
+          - resume
+          - sessions
+          - model
+          - restart
+          - commands
+          - approve
+          - deny
+          - queue
+          - steer
+          - btw
+          - usage
+          - topic
+          - save
+          - retry
+          - title
+          - branch
+          - compress
+          - agents
+          - plan
+          - moa
+          - context
+          - voice
+          - learn
+          - insights
   a2a:
     enabled: true
     extra:
