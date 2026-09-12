@@ -2,6 +2,11 @@
 
 Read [common build](../../SKILL.md) first.
 
+For explicit create-ad studies, relay the actual study plan and preview approvals
+in the same work conversation. The hands use freeze-study/render-study; a final
+render is not released. Preserve the existing allowance and require a fresh final
+proposal/preview before any final ad. Never append dummy CTA copy to a study.
+
 ## Transport
 
 | Leaf | Transport |

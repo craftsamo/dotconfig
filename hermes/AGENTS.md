@@ -933,6 +933,15 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
 
 ## Media craft knowledge
 
+`create-ad` additionally owns a narrowly scoped diagnostic purpose (`study`,
+1..10s, question, real message, no CTA/Mix). The CLI keeps freeze-study/render-study
+separate from final commands and binds purpose through frozen-plan/preview hashes;
+ordinary ad validation never accepts a study. Both real approval rounds and
+existing allowances remain. Read-only preflight checks plan/assets without source
+execution or output. Other families retain their own supported bounded units.
+`AD_STUDY_SMOKE_DIR=<new path>` opts into the real synthetic renderer fixture;
+it proves plumbing, not artistic quality, continuous viewing or client acceptance.
+
 Four portable knowledge skills live in `agents/curated/media-craft-*`, not in
 hands' production trees or generated Styles catalogs. Creator's existing shared
 store exposes them; image-creator pins direction/visual, video-creator pins
