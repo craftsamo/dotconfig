@@ -1,6 +1,6 @@
 # Web UI direction
 
-Read the [design catalog](../shared/design-catalog.md) as optional design
+Read the [design catalog](../../references/shared/design-catalog.md) as optional design
 knowledge, not a compulsory style menu. Engineer owns the consultation with the
 Client; OpenCode implements the chosen result. Existing design systems and an
 explicit Client brief outrank defaults. A small adjustment preserves the current
@@ -20,8 +20,8 @@ direction without a new design ceremony.
    product. The plan agent does not write HTML or produce imaginary screenshots.
 4. Agree the direction, relevant tokens, layout priorities and states with the
    Client. Suggestions remain proposals until decided; do not choose taste
-   silently. Pass the accepted choices to [Build](../build/web-ui.md) and
-   [visual QA](../quality-assurance/web-ui.md).
+   silently. Pass the accepted choices to [Build](../../build-engineer/references/web-ui.md) and
+   [visual QA](../../qa-engineer/references/web-ui.md).
 
 Substantial prose/media stays with its producer or the supplied inputs. UI design
 consultation does not authorize new claims, image generation, paid assets or
