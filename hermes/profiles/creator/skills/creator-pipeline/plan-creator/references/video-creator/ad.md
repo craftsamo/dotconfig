@@ -17,11 +17,17 @@ review criteria, not for the client to write a shot list. Retain the report at
 deliver when it feeds later production, otherwise scratch evidence suffices.
 Its claims are observations of the reference, not the client's usable facts.
 
-For create-ad settle product/audience/message/cta, approved assets, supported
+For final create-ad settle product/audience/message/cta, approved assets, supported
 claims and finished audio if needed; defaults are 15 seconds, aspect 9:16,
 office/bold-graphic/claim-led. Aspect selects 9:16 (1080x1920), 16:9
 (1920x1080), 1:1 (1080x1080) or 4:5 (1080x1350), all at 30fps. Author for
 that canvas; do not resize/crop an approved layout from another ratio.
+An explicitly requested diagnostic unit can instead use create-ad's
+`purpose: study`, concrete `question` and 1..10s duration, omitting CTA. It is
+never inferred from missing final fields. Read the leaf's study reference for
+its supplied-only audio/copy boundaries and separate plan/preview approvals.
+Ask the hands to run its zero-production asset preflight before presenting a
+ready proposal; missing source/runtime/visual evidence remains unverified.
 Each ratio is its own plan/source/preview and approval, not batch output.
 Existing portrait plans without aspect keep their bytes and approvals;
 never insert new defaults into a frozen plan. Theme builds the world, style presents it,

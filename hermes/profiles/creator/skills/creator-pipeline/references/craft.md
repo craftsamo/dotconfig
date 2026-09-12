@@ -1,5 +1,19 @@
 # Creator craft decisions
 
+Before presenting a ready production proposal, have the owner run the checks
+available without production approval: actual control/engine availability, input
+format/identity and schema checks. Record what later source/render/listening gates
+remain untested. Create-ad now has a read-only asset preflight; do not infer that
+every producer has the same command or that preflight grants production.
+
+Use supported representative units: the image families' existing anchor/concept
+rounds, a bounded single card, an approved short speech/SFX/music/mix unit, or a
+tour with an explicitly scoped flow. Create-ad's explicit diagnostic study can
+test 1..10s without a CTA but still needs both exact approvals and cannot become
+final media. Other leaves do not inherit a study flag. Unsupported units return
+a named gap, never placeholder content or an out-of-contract renderer. Keep the
+parent purpose and existing allowance; a study creates no parallel retry grant.
+
 Read this at an actual direction, production-translation or acceptance decision,
 not as a new phase, form or preset layer. Creator already sees the curated store;
 do not execute a hands leaf locally because its technique is understandable.

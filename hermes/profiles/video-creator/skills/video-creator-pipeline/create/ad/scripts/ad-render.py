@@ -43,18 +43,23 @@ MEDIA_ATTRS = {"id", "class", "src", "muted", "playsinline", "data-start", "data
                "data-media-start", "data-track-index", "style", "preload", "data-volume"}
 
 
-def plan_model(raw):
+def plan_model(raw, *, study=False):
     require(isinstance(raw, dict), "plan must be an object")
     allowed = {"version", "product", "audience", "message", "cta", "theme", "style",
                "direction", "theme_detail", "claims", "note", "duration", "width",
                "height", "fps", "assets", "copy", "samples", "aspect", "mix"}
+    if study:
+        allowed = (allowed - {"cta", "mix"}) | {"purpose", "question"}
     require(set(raw) <= allowed, "unknown plan field")
     required = allowed - {"theme_detail", "claims", "note", "aspect", "mix"}
     require(required <= set(raw), "plan missing a required field")
     require(type(raw["version"]) is int and raw["version"] == 1, "plan version must be 1")
+    if study:
+        require(raw["purpose"] == "study", "study purpose required")
+        text(raw["question"], "study question", 2000)
     for key in ("product", "audience", "theme", "style", "direction"):
         text(raw[key], key, 4000)
-    for key in ("message", "cta"):
+    for key in (("message",) if study else ("message", "cta")):
         # Capped identically to copy-row text: a message/cta the copy ledger
         # can never actually match would silently fail "has_message/has_cta"
         # with a confusing error, not a clear length rejection.
@@ -62,7 +67,7 @@ def plan_model(raw):
     for key in ("theme_detail", "claims", "note"):
         if key in raw:
             text(raw[key], key, 4000, empty=True)
-    duration = number(raw["duration"], 6, 30, "duration")
+    duration = number(raw["duration"], 1 if study else 6, 10 if study else 30, "duration")
     aspect = raw.get("aspect", DEFAULT_ASPECT)
     require(isinstance(aspect, str) and aspect in ASPECT_SIZES,
             "aspect must be a known ratio: " + ", ".join(sorted(ASPECT_SIZES)))
@@ -113,6 +118,7 @@ def plan_model(raw):
         if row["role"] == "message" and row["text"] == raw["message"]:
             has_message = True
         if row["role"] == "cta":
+            require(not study, "a diagnostic study has no CTA role; use the final ad plan")
             require(end - start >= 2, "CTA hold must be at least 2 readable seconds")
             if row["text"] == raw["cta"]:
                 has_cta = True
@@ -120,7 +126,8 @@ def plan_model(raw):
             require(raw.get("claims", "").strip(),
                     "claim role requires nonempty approved claims (not fact verification)")
     require(has_message, "copy must include a message row with the exact approved message text")
-    require(has_cta, "copy must include a cta row with the exact approved cta text")
+    if not study:
+        require(has_cta, "copy must include a cta row with the exact approved cta text")
 
     last_frame = duration - 1 / FPS
     samples = raw["samples"]
@@ -390,12 +397,33 @@ def _media_check(root, plan, markup):
                 "data-track-index values must be distinct across placed audio tracks")
 
 
+def preflight(args):
+    """Read a proposal and existing asset inventory; no source execution or output."""
+    plan_path = local(args.plan, {".json"})
+    original_hash = digest(plan_path)
+    raw = load(plan_path)
+    plan = plan_model(raw, study=isinstance(raw, dict) and raw.get("purpose") == "study")
+    assets = Path(args.assets)
+    inventory = source_files(assets, version=3)
+    require({f"assets/{name}": sha for name, sha in inventory.items()} == plan["assets"],
+            "asset inventory differs from proposal")
+    for name in ("gsap.min.js", "GSAP-LICENSE.txt", "gsap-provenance.json"):
+        require(name in inventory and inventory[name] == digest(VENDOR / name),
+                f"missing or changed vendored asset: {name}")
+    require(source_files(assets, version=3) == inventory and digest(plan_path) == original_hash,
+            "proposal/assets changed during preflight")
+    return {"plan_sha256": original_hash, "assets": len(inventory), "produced": False,
+            "approval": False, "checked": ["plan schema", "asset suffixes/paths/sizes/hashes", "vendor identity"],
+            "unverified": ["source markup/copy", "runtime", "rendered layout", "motion", "listening"]}
+
+
 def freeze(args):
     plan_path = local(args.plan, {".json"})
     require(isinstance(args.approval_sha256, str) and re.fullmatch(r"[0-9a-f]{64}", args.approval_sha256),
             "approval sha256 required")
     require(digest(plan_path) == args.approval_sha256, "plan changed since approval")
-    plan = plan_model(load(plan_path))
+    study = getattr(args, "study", False)
+    plan = plan_model(load(plan_path), study=study)
     source = Path(args.source)
     before = source_files(source, version=3)
     require(not RESERVED & before.keys(), "reserved source filenames")
@@ -423,9 +451,12 @@ def freeze(args):
     # published, not merely at validation time: reload and re-run it through
     # plan_model to catch any serialization drift (float rounding, key
     # ordering, silent coercion) before integrity.json binds it as truth.
-    republished = plan_model(load(project / "approved-plan.json"))
+    republished = plan_model(load(project / "approved-plan.json"), study=study)
     require(republished == plan, "approved plan changed shape after serialization; refusing to publish")
-    write(project / "integrity.json", {"version": 3, "files": source_files(project, 3)})
+    integrity = {"version": 3, "files": source_files(project, 3)}
+    if study:
+        integrity["purpose"] = "study"
+    write(project / "integrity.json", integrity)
     return {"project": str(project), "duration": plan["duration"], "next": "snapshot"}
 
 
@@ -436,7 +467,8 @@ def project_model(value):
     actual = source_files(project, 3)
     actual.pop("integrity.json")
     require(actual == saved.get("files"), "project changed since freeze; revise in fresh source/project")
-    plan = plan_model(load(project / "approved-plan.json"))
+    require(saved.get("purpose") in (None, "study"), "unknown project purpose")
+    plan = plan_model(load(project / "approved-plan.json"), study=saved.get("purpose") == "study")
     markup_check(project, plan)
     copy_check(project, plan)
     return project, plan
@@ -553,6 +585,9 @@ def measure_audio(path):
 
 def render(args):
     project, plan = project_model(args.project)
+    study = plan.get("purpose") == "study"
+    require(study == getattr(args, "study", False),
+            "study/final command mismatch; a study cannot be rendered as a final ad")
     require(args.approved_preview and args.approval_sha256,
             "render requires --approved-preview and --approval-sha256; no bypass")
     require(isinstance(args.approval_sha256, str) and re.fullmatch(r"[0-9a-f]{64}", args.approval_sha256),
@@ -561,7 +596,7 @@ def render(args):
     out = output_dir(args.out, project, Path(args.approved_preview))
     out.mkdir()
     times = check(project, plan, out)
-    movie = out / "ad.mp4"
+    movie = out / ("study.mp4" if study else "ad.mp4")
     hf(project, ["render", "--output", str(movie), "--fps", str(FPS), "--workers", "1",
                  "--strict", "--no-best-effort", "--quiet"], out / "render.log")
     info = json.loads(command(["ffprobe", "-v", "error", "-show_streams", "-show_format",
@@ -606,34 +641,47 @@ def render(args):
               "temporal_review": "sampled only", "audio_listening": "unverified", "media_generation": 0}
     if audio_measurement is not None:
         report["audio_measurement"] = audio_measurement
+    if study:
+        report.update(artifact_role="diagnostic-study", final_eligible=False, question=plan["question"])
     write(out / "qa.json", report)
-    (out / "qa.md").write_text(
-        "# Ad QA\n\nLocal full decode passed. See check.json and qa.json.\n"
+    qa_text = (
+        ("# Diagnostic study QA - not a final ad\n\n" if study else "# Ad QA\n\n") +
+        "Local full decode passed. See check.json and qa.json.\n"
         "Semantic fidelity, claim accuracy, CTA legibility, Japanese text fit and audio listening "
-        "require visual/listening review.\nSamples are not a complete temporal or listening verdict.\n",
-        encoding="utf-8")
+        "require visual/listening review.\nSamples are not a complete temporal or listening verdict.\n")
+    if study:
+        qa_text = qa_text.replace("CTA legibility, ", "")
+    (out / "qa.md").write_text(qa_text, encoding="utf-8")
     return report
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     subs = parser.add_subparsers(dest="command", required=True)
-    p = subs.add_parser("freeze")
-    p.add_argument("--source", required=True)
+    p = subs.add_parser("preflight")
     p.add_argument("--plan", required=True)
-    p.add_argument("--approval-sha256", required=True)
-    p.add_argument("--project", required=True)
+    p.add_argument("--assets", required=True)
+    for name in ("freeze", "freeze-study"):
+        p = subs.add_parser(name)
+        p.set_defaults(study=name == "freeze-study")
+        p.add_argument("--source", required=True)
+        p.add_argument("--plan", required=True)
+        p.add_argument("--approval-sha256", required=True)
+        p.add_argument("--project", required=True)
     p = subs.add_parser("snapshot")
     p.add_argument("--project", required=True)
     p.add_argument("--out", required=True)
-    p = subs.add_parser("render")
-    p.add_argument("--project", required=True)
-    p.add_argument("--approved-preview", required=True)
-    p.add_argument("--approval-sha256", required=True)
-    p.add_argument("--out", required=True)
+    for name in ("render", "render-study"):
+        p = subs.add_parser(name)
+        p.set_defaults(study=name == "render-study")
+        p.add_argument("--project", required=True)
+        p.add_argument("--approved-preview", required=True)
+        p.add_argument("--approval-sha256", required=True)
+        p.add_argument("--out", required=True)
     args = parser.parse_args()
     try:
-        print("RESULT: " + json.dumps(globals()[args.command](args)))
+        handler = globals()[args.command.removesuffix("-study")]
+        print("RESULT: " + json.dumps(handler(args)))
     except (ValueError, OSError, KeyError, TypeError, wave.Error, EOFError,
             subprocess.TimeoutExpired, PILImage.DecompressionBombError) as exc:
         print(f"ad-render: {type(exc).__name__}: {exc}", file=sys.stderr)

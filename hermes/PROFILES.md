@@ -1897,6 +1897,17 @@ Creator conversation. No paid generation or gateway restart was performed.
 
 ### Media craft knowledge
 
+Create-ad's explicit `purpose: study` is a 1..10s diagnostic unit with a concrete
+question and real copy but no CTA or Mix mode. Its separately approved plan uses
+`freeze-study`; the ordinary snapshot approval then releases `render-study`.
+The frozen purpose is bound into preview integrity and cannot run through final
+render. Output is study.mp4 with final_eligible=false, never an ad delivery.
+Final-ad schemas/bytes and 6..30s/CTA requirements stay unchanged. Both purposes
+have a read-only `preflight --plan --assets` to check actual suffix/path/size/hash
+and vendor compatibility before source authoring. Passing it proves neither
+source compatibility nor a visual result. Other subjects use existing supported
+representative units; they do not inherit an ad study flag or extra attempts.
+
 The four tracked, portable `media-craft-direction`, `media-craft-visual`,
 `media-craft-motion` and `media-craft-audio` skills live in `agents/curated/` and
 use the standard shared-store install links. Creator already reads that store;
