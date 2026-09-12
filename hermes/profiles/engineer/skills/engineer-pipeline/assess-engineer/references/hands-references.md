@@ -14,7 +14,7 @@ being informed and can read the same file for independent inspection.
 1. Resolve the target from the question and available sources first. If no leaf
    is chosen, agree a bounded inventory of the relevant hands; do not demand a
    filename from the Client. Adding/improving moves to
-   [Plan](../plan/hands-references.md) only when requested. Producing media or
+   [Plan](../../plan-engineer/references/hands-references.md) only when requested. Producing media or
    retiring an option uses a different workflow.
 2. Run the Skill's read-only audit from the candidate root
    (`python3 hermes/scripts/audit-hands-references.py --root . [--leaf REPO/RELATIVE/LEAF] --json`)
@@ -29,4 +29,4 @@ being informed and can read the same file for independent inspection.
    documents. Separate structural findings, evidence gaps and actual prose
    contradictions; file/heading parity is not a quality judgment.
 4. Return findings, evidence and the useful next decision under the normal
-   [Assess](index.md) contract. A confirmed gap is not implementation approval.
+   [Assess](../SKILL.md) contract. A confirmed gap is not implementation approval.

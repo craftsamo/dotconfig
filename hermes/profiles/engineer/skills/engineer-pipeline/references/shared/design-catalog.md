@@ -1,7 +1,7 @@
 # Design direction catalog (shared reference)
 
-Loaded from `plan/web-ui.md` (to fix a direction before building) and
-`quality-assurance/web-ui.md` (to judge mood consistency in review). Not a
+Loaded from `plan-engineer/references/web-ui.md` (to fix a direction before building) and
+`qa-engineer/references/web-ui.md` (to judge mood consistency in review). Not a
 mode file on its own — never load it standalone.
 
 Compressed catalog. Each entry: mood / type / color / shape / depth /
