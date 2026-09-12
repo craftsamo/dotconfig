@@ -132,6 +132,20 @@ Behavioral review cases live in `hermes/scripts/tests/writer-craft-cases.md`,
 outside skill discovery. Structural tests do not prove writing quality or
 live-profile adherence.
 
+## Media craft knowledge
+
+`media-craft-direction` supplies portable reference interpretation, direction,
+production translation and critique knowledge. It owns no host tools, budgets,
+approval workflow or style menu. Its fictional worked examples are original;
+the client's actual constraints and producer capabilities remain authoritative.
+Detailed material is read at the relevant decision, not loaded wholesale for
+mechanical edits. Installation uses the same curated links as other shared
+skills; it does not add an always-on rule to every CLI.
+
+Behavioral cases and the independent evaluation contract live under
+`agents/tests/`. Run `python3 -m unittest discover -s agents/tests` for structural
+checks; fresh-context use and actual-media quality need separate evidence.
+
 ## Third-party skills
 
 Third-party skills are never committed; they are restored from their source.

@@ -1,0 +1,56 @@
+[
+  {
+    "id": "tentative-analogy",
+    "request": "Maybe a field-notebook feeling would make these community garden instructions more inviting. Keep the instructions accurate.",
+    "operation": "plan",
+    "subjects": ["card", "tour"],
+    "expected": ["Separate the tentative analogy from fixed accuracy", "Propose an audience effect and observable mechanism", "Keep literal stationery optional"],
+    "must_not": ["Require rings or simulated paper as client decisions", "Start production without the host release"],
+    "review_evidence": ["Original request and resulting producer brief"]
+  },
+  {
+    "id": "content-not-pixels",
+    "request": "Give the catalog card a stronger editorial hierarchy. Keep the exact names and prices, but the old layout is not fixed.",
+    "operation": "revise",
+    "subjects": ["card"],
+    "expected": ["Preserve literal copy", "Allow a newly authored layout", "Explain why framing an unchanged bitmap may not fix its internal hierarchy"],
+    "must_not": ["Treat all earlier pixels as immutable", "Change a price for layout fit"],
+    "review_evidence": ["Old and new card at use size", "Exact-copy comparison"]
+  },
+  {
+    "id": "true-pixel-constraint",
+    "request": "This certified product screenshot must remain pixel-identical. Make the surrounding presentation quieter.",
+    "operation": "revise",
+    "subjects": ["card", "tour"],
+    "expected": ["Limit revisions to the authorized surroundings", "State any conflict before proposing a change to protected pixels"],
+    "must_not": ["Rebuild the protected UI because craft advice favors new typography"],
+    "review_evidence": ["Source identity and scoped visual comparison"]
+  },
+  {
+    "id": "metaphor-not-goal",
+    "request": "The paper texture is more realistic now, but the poster still feels empty. I want people to notice the workshop, not the paper.",
+    "operation": "critique",
+    "subjects": ["card"],
+    "expected": ["Reconsider composition and subject emphasis", "Identify a bounded revision rather than another texture pass"],
+    "must_not": ["Equate greater material detail with success"],
+    "review_evidence": ["Actual poster and first-reading comparison"]
+  },
+  {
+    "id": "unheard-warmth",
+    "request": "I listened to the welcome bed and it feels tense. The low pulse is relentless. Keep the accepted voice unchanged.",
+    "operation": "revise",
+    "subjects": ["music", "mix"],
+    "expected": ["Attribute the listening finding to the client", "Propose changing density or the low-part role", "Preserve voice and host budget"],
+    "must_not": ["Claim to have listened from waveform statistics", "Change the voice or install a processor"],
+    "review_evidence": ["Client comparison listening", "Source preservation"]
+  },
+  {
+    "id": "settled-trim",
+    "request": "Trim the supplied clip to the already approved 2-7 second interval without changing anything else.",
+    "operation": "edit",
+    "subjects": ["clip"],
+    "expected": ["Recognize that new creative direction is not needed"],
+    "must_not": ["Add a concept review or new transition"],
+    "review_evidence": ["Requested trim and no additional creative scope"]
+  }
+]
