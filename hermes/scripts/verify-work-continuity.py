@@ -45,6 +45,8 @@ PUBLIC_PYTEST_FILES = (
     "hermes/scripts/tests/test_writer_message.py",
     "hermes/scripts/tests/test_writer_copy.py",
     "hermes/scripts/tests/test_writer_script.py",
+    "hermes/scripts/tests/test_searcher_pipeline.py",
+    "hermes/scripts/tests/test_searcher_entry_runtime.py",
     "hermes/scripts/tests/test_validate_profile_skills.py",
     "hermes/scripts/tests/test_work_continuity.py",
     "hermes/scripts/tests/test_audio_creator_routing.py",
