@@ -315,6 +315,36 @@ A fresh session alone is not index invalidation, and root preload does not
 prove that child dependencies are loaded. Pair public/private rollout and
 rollback without modifying existing job outputs or approvals.
 
+### Creator and hands entry routing
+
+Creator v9 retains `creator-pipeline` as its invariant kernel and adds three
+independently discoverable children outside `references/`: `plan-creator`,
+`build-creator` and `qa-creator`. Their `SKILL.md` bodies are the phase procedures;
+each owns the corresponding `references/<hands>/<subject>.md` tree. Shared
+`references/capabilities.md` and `references/legacy/` stay at the parent. No
+phase-index alias, generated menu or extra common-mode wrapper is introduced.
+
+The three hands retain their existing `<verb>/<subject>/SKILL.md` names, forms,
+reference options and scripts. Their always-on contracts re-evaluate the named
+leaf and selected references on inbound turns/completions and before changed
+operations, subjects or options. The full executing profile's kernel and required
+instructions must be in current context, not merely recorded as loaded. Canonical
+`read_file` recovery follows genuine truncation offsets; unrecoverable required
+instructions stop the action. Optional advisory references keep their fallback.
+Loading never grants a new operation, resets spend or reruns a completed render.
+Creator inspecting a hands form does not become that hands' executor.
+
+The public `test_creator_entry_runtime.py` suite uses real discovery, index and
+read handlers in isolated child processes with copied Markdown and no network or
+model. `test_creator_entry_contract.py` and `test_hands_instruction_context.py`
+check the text/role/recovery contracts. These run in `verify-work-continuity.py`
+alongside the paired Assistant entry
+regressions. These are mechanical checks, not proof of model compliance or live
+media quality. Test candidates in paired worktrees and an isolated HOME; do not
+install or repoint live links. Deployment requires separate approval, controlled
+restart and fresh sessions as for Assistant. Existing jobs, artifacts, proposal
+hashes, grants and the four-unit card catalog remain unchanged.
+
 ## Profiles
 
 Named profiles live under `~/.hermes/profiles/<name>/` — each its own
