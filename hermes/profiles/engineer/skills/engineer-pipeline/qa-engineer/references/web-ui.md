@@ -1,6 +1,6 @@
 # Rendered UI acceptance
 
-Read the accepted direction and [shared design knowledge](../shared/design-catalog.md).
+Read the accepted direction and [shared design knowledge](../../references/shared/design-catalog.md).
 Use actual pixels and behavior, not code-only inspection or a build-agent claim.
 Do not mistake a style preference for a measured defect.
 
@@ -23,7 +23,7 @@ Do not mistake a style preference for a measured defect.
    through specialist_call(target="ui-review", kind="work"). Supply exact URLs,
    build identity, intended direction, test states, permitted operations and a
    private evidence location. Small fixes may be checked inline.
-6. Judge the report, return concrete corrections through [Build](../build/web-ui.md),
+6. Judge the report, return concrete corrections through [Build](../../build-engineer/references/web-ui.md),
    then continue the same reviewer conversation to check the changed build.
    Keep finding IDs stable. Reopen acceptance when accepted outputs change.
 

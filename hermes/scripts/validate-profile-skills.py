@@ -933,6 +933,12 @@ def validate_worker(
         for name in writing.keys() & (leaves.keys() | learned.keys()):
             errors.append(f"duplicate writer skill name: {name}")
         allowed.update(path.relative_to(skills).parts for path in writing.values())
+    entries: dict[str, Path] = {}
+    if profile == "engineer":
+        entries = validate_engineer_references(pipeline_dir, errors)
+        for name in entries.keys() & (leaves.keys() | learned.keys()):
+            errors.append(f"duplicate engineer skill name: {name}")
+        allowed.update(path.relative_to(skills).parts for path in entries.values())
     allowed.update(learned_roots)
     validate_allowed_skill_roots(skills, allowed, errors)
 
@@ -960,46 +966,99 @@ def validate_worker(
         validate_creator_references(pipeline_dir, errors)
     if profile == "marketer":
         validate_marketer_references(pipeline_dir, errors)
-    if profile == "engineer":
-        validate_engineer_references(pipeline_dir, errors)
     validate_git_boundary([pipeline_dir, technic_dir], learned_dir, errors)
     validate_plugin_enabled(profile, profile_root / "config.yaml", errors)
-    return len(leaves) + len(writing), len(learned)
+    return len(leaves) + len(writing) + len(entries), len(learned)
 
 
-ENGINEER_REFERENCE_FILES = {
-    "opencode.md", "plan/index.md", "plan/web-ui.md", "plan/hands-references.md",
-    "build/index.md", "build/web-ui.md", "build/hands-references.md",
-    "quality-assurance/index.md", "quality-assurance/web-ui.md", "quality-assurance/ux-persona.md",
-    "quality-assurance/personas.md", "quality-assurance/hands-references.md",
-    "assess/index.md", "assess/hands-references.md", "shared/design-catalog.md",
+ENGINEER_ENTRIES = {
+    "plan-engineer": {"web-ui.md", "hands-references.md"},
+    "build-engineer": {"web-ui.md", "hands-references.md"},
+    "qa-engineer": {"web-ui.md", "ux-persona.md", "personas.md", "hands-references.md"},
+    "assess-engineer": {"hands-references.md"},
 }
+ENGINEER_SHARED_REFERENCES = {"opencode.md", "shared/design-catalog.md"}
 
 
-def validate_engineer_references(pipeline_dir: Path, errors: list[str]) -> None:
-    """Engineer modes own their steps; only actual common knowledge is shared."""
-    references = pipeline_dir / "references"
-    found = {path.relative_to(references).as_posix() for path in references.rglob("*.md")}
-    for name in sorted(ENGINEER_REFERENCE_FILES - found):
+def validate_engineer_references(pipeline_dir: Path, errors: list[str]) -> dict[str, Path]:
+    """Four discoverable mode entries depend on one kernel and shared transport."""
+    entries: dict[str, Path] = {}
+    links = [path for path in pipeline_dir.rglob("*") if path.is_symlink()]
+    if links:
+        for path in sorted(links):
+            errors.append(f"engineer pipeline must not contain symlinks: {path.relative_to(pipeline_dir)}")
+        return entries
+    expected = {f"references/{name}" for name in ENGINEER_SHARED_REFERENCES} | {
+        f"{entry}/references/{name}"
+        for entry, names in ENGINEER_ENTRIES.items() for name in names
+    }
+    found = {
+        path.relative_to(pipeline_dir).as_posix()
+        for path in pipeline_dir.rglob("*.md") if path.name != "SKILL.md"
+    }
+    for name in sorted(expected - found):
         errors.append(f"missing engineer reference: {name}")
-    for name in sorted(found - ENGINEER_REFERENCE_FILES):
+    for name in sorted(found - expected):
         errors.append(f"unexpected engineer reference: {name}")
-    for path in [pipeline_dir / "SKILL.md", *references.rglob("*.md")]:
-        if not path.is_file():
+    allowed_skills = {"SKILL.md"} | {f"{name}/SKILL.md" for name in ENGINEER_ENTRIES}
+    for path in pipeline_dir.rglob("SKILL.md"):
+        if path.relative_to(pipeline_dir).as_posix() not in allowed_skills:
+            errors.append(f"unexpected engineer entry skill: {path.relative_to(pipeline_dir)}")
+    kernel = pipeline_dir / "SKILL.md"
+    kernel_text = kernel.read_text(encoding="utf-8") if kernel.is_file() else ""
+    for name, references in ENGINEER_ENTRIES.items():
+        skill = pipeline_dir / name / "SKILL.md"
+        if f"]({name}/SKILL.md)" not in kernel_text:
+            errors.append(f"engineer kernel does not route {name}")
+        if not skill.is_file():
+            errors.append(f"missing engineer entry skill: {name}/SKILL.md")
             continue
-        for link in re.findall(r"\]\(([^)]+)\)", path.read_text()):
-            if "://" not in link and not link.startswith("#"):
-                target = path.parent / link.split("#", 1)[0]
-                if not target.is_file():
-                    errors.append(f"broken engineer reference link: {path.name}: {link}")
-    for mode in ("plan", "build", "quality-assurance", "assess"):
-        index = references / mode / "index.md"
-        if index.is_file():
-            text = index.read_text()
-            for leaf in index.parent.glob("*.md"):
-                # Persona definitions are reached through their named QA procedure.
-                if leaf.name not in {"index.md", "personas.md"} and leaf.name not in text:
-                    errors.append(f"engineer {mode} index does not route {leaf.name}")
+        entries[name] = skill
+        validate_skill(skill, name, errors, expected_category="engineer-pipeline")
+        data = frontmatter(skill)
+        if not isinstance(data.get("version"), str) or not data["version"].strip():
+            errors.append(f"engineer entry version must be a nonempty string: {name}")
+        description = data.get("description", "")
+        mode = name.split("-", 1)[0]
+        if not isinstance(description, str) or not re.match(rf"^{mode} engineering\b", description, re.I):
+            errors.append(f"engineer entry description must frontload {mode} engineering: {name}")
+        text = skill.read_text(encoding="utf-8").split("\n---\n", 1)[-1]
+        read_before = re.search(r"<ReadBeforeWork>(.*?)</ReadBeforeWork>", text, re.S)
+        block = " ".join(read_before.group(1).split()) if read_before else ""
+        for required in (
+            'skill_view(name="engineer-pipeline")',
+            'skill_view(name="engineer-pipeline", file_path="references/opencode.md")',
+            "${HERMES_SKILL_DIR}/../SKILL.md",
+            "${HERMES_SKILL_DIR}/../references/opencode.md",
+            "read_file", "next_offset", "unchanged",
+        ):
+            if required not in block:
+                errors.append(f"engineer entry ReadBeforeWork missing {required}: {name}")
+        for label, pattern in (
+            ("current full-body reuse", r"reuse full-body instructions.*current context"),
+            ("no summary reuse", r"not a past load or summary"),
+            ("stop on missing body", r"stop.*(?:unavailable|missing)"),
+            ("no implicit approval", r"not implementation approval"),
+            ("entry re-evaluation", r"re-evaluate.*within a turn"),
+        ):
+            if not re.search(pattern, block, re.I):
+                errors.append(f"engineer entry ReadBeforeWork missing {label}: {name}")
+        for leaf in sorted(references - {"personas.md"}):
+            if f"](references/{leaf})" not in text:
+                errors.append(f"engineer {name} entry does not route {leaf}")
+    personas = pipeline_dir / "qa-engineer/references/ux-persona.md"
+    if personas.is_file() and "](personas.md)" not in personas.read_text(encoding="utf-8"):
+        errors.append("engineer ux-persona reference does not route personas.md")
+    root = pipeline_dir.resolve()
+    for path in pipeline_dir.rglob("*.md"):
+        if "card_units" in frontmatter(path):
+            errors.append(f"engineer defines no card units: {path.relative_to(pipeline_dir)}")
+        for link, target in markdown_links(path):
+            if not target.is_relative_to(root):
+                errors.append(f"engineer reference escapes pipeline: {path.name}: {link}")
+            elif not target.is_file():
+                errors.append(f"broken engineer reference link: {path.name}: {link}")
+    return entries
 
 
 MARKETER_REFERENCE_FILES = {
