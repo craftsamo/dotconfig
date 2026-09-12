@@ -270,7 +270,7 @@ assistant-only surface skills (ccc-course-production,
 codebase-fact-finding) stay in the assistant profile. Keep default's `cron/` empty and run no gateway on it; bots and
 scheduled automation belong in named profiles.
 
-For the Assistant entry candidate, default discovers the same child names via
+For Assistant entry routing, default discovers the same child names via
 a bounded filesystem listing under that known root, reads the root common
 contract and selected child `SKILL.md` with `read_file`, then mode-common and
 relevant details. It translates dependency names/file paths to canonical files
@@ -482,9 +482,9 @@ Three per-profile layers, kept separate:
   `media/gif-search` for marketer (`TENOR_API_KEY`), and the `mlops/`
   library (HF-account-centric).
 
-### Assistant entry routing (candidate)
+### Assistant entry routing
 
-The candidate retains the `assistant-pipeline` root name and private directory
+The deployed layout retains the `assistant-pipeline` root name and private directory
 overlay. The root owns invariant lifecycle, grants and delivery policy. Its
 19 independent child skills are `chat-assistant` plus
 `{plan,execute,qa}-assistant-<domain>` for engineering, creative, writing,
@@ -508,7 +508,12 @@ affected action. Read dedup is a source/runtime limitation, not a prompt-level
 guarantee of complete current context; never evade it with alternate paths or
 artificial ranges. Writer's acceptance rubric remains in its public pipeline.
 
-**Not cut over live.** Paired candidate checks use `HERMES_PRIVATE_ROOT` on public
+**Cut over 2026-09-12.** Live strict topology/Git validation passed, the single
+multiplex gateway restored all 13 configured connections, and a restricted
+two-turn Assistant CLI probe loaded the document guide then reused the current
+entry/common bodies while loading the script guide. No production or message
+sending was exercised; existing messaging histories are not proven refreshed.
+Paired candidate checks use `HERMES_PRIVATE_ROOT` on public
 tests and `HERMES_PUBLIC_ROOT` on private tests, without installing/linking live
 paths or relaxing their Git ownership checks. Manual edits do not invalidate
 the gateway's process skill-index cache: cutover requires explicit approval,
@@ -850,7 +855,7 @@ The migration has distinct ownership shapes, not one universal skill tree:
 - **Creator's broker** keeps phase-specific decision, handoff and acceptance guidance in
   plain references below one root pipeline skill. Creator v8 uses
   `references/<phase>/<hands>/<subject>.md` with a common `index.md` per phase.
-- **Assistant's Client entries** in the candidate use 19 independent child
+- **Assistant's Client entries** use 19 independent child
   skills with domain details in each child's `references/` and shared mode-common
   procedures at the parent. They express what Assistant owns, not a mirror of
   every producer form; this does not migrate Creator or Engineer's topology.
@@ -892,7 +897,7 @@ Assistant's final gate uses the returned artifacts and criterion evidence;
 it does not repeat the specialist's implementation QA or maintain another
 catalog of sizes, providers, forms and approval hashes.
 
-In the entry candidate, Assistant reads deliverable-first Client guides under
+Assistant reads deliverable-first Client guides under
 `plan-assistant-creative/references/<deliverable>.md`, with optional bounded
 `reference-research.md`, common Execute dialogue and common QA acceptance.
 Each guide owns the outcome's Client questions and acceptance criteria, not
