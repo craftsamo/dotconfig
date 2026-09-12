@@ -1036,13 +1036,32 @@ skills/agents move here and are removed there, not aliased. Ordinary OpenCode
 implementation/browser testing remains. Keep public/private rollout paired and
 test fresh candidate sessions before approved live linking/restart.
 
-## Marketer v7 and shared requester QA
+## Marketer v8 and shared requester QA
 
 Marketer owns strategy and its existing authenticated browser; do not add a
-SNS-Marketer profile or share/copy login profiles. Its four modes are Plan,
-Build, Quality assurance and Analyze, with one shared reference per platform
-and private task records outside this repository. `validate_marketer_references`
-checks the complete reference set and links independently of Creator's hands.
+SNS-Marketer profile or share/copy login profiles. Its invariant root remains
+`marketer-pipeline`; four independent children outside `references/` own the
+mode procedures: `plan-marketer`, `build-marketer`, `qa-marketer`, `analyze-marketer`.
+Each entry lists its own details under its `references/`, while parent
+`references/platforms/*.md`, `references/state.md` and `scripts/browser-lease.py`
+stay shared. No second common mode index, aliases or new external skill roots.
+This is a Hermes-specific skill family, not five portable standalone packages:
+the generic skill-authoring validator rejects nested roots and cross-entry
+links. Those are intentional here; the repository validator instead requires
+every resolved link to stay inside marketer-pipeline and name a real file,
+with each owner linking its own references. Hermes metadata remains canonical.
+`validate_marketer_references` checks the exact entry/reference sets, kernel
+dependencies, canonical recovery, owner links and the absence of card units.
+Select the applicable entry each turn/completion and before a changed action;
+reuse only full bodies in context. Missing bodies use canonical read_file
+recovery, then stop if unavailable, never an invented pass or dedup evasion.
+Direct entry requires the kernel. Cross-entry detail reads require their owner;
+loading never restarts work, resets approval or widens a grant. Instruction
+reads may run in parallel; browser reads still require the profile-wide lease.
+Candidate runtime tests use isolated HOME and actual Hermes tools, with no model
+or browser execution. They do not establish model routing or service-side saves.
+Cutover remains explicit: controlled gateway restart plus fresh sessions; never
+replay active resident work or rewrite outputs/approvals to adopt this layout.
 There is no publish path: exact remote-save consent precedes editor entry,
 autosave counts as upload, and completion requires reopening the same unpublished
 service draft. Old Publish/P1 grants are not adopted. The user publishes.

@@ -787,15 +787,29 @@ An unavailable contract blocks acceptance; Writer never uses it for self-approva
 
 ## Marketer strategy and browser drafts
 
-Marketer v7 replaces its five flat engines with four mode indexes under
-`references/{plan,build,quality-assurance,analyze}/`. Plan holds discovery,
+Marketer v8 keeps `marketer-pipeline` as its invariant kernel and exposes four
+independent entry skills beneath that directory, outside `references/`:
+`plan-marketer`, `build-marketer`, `qa-marketer` and `analyze-marketer`.
+Each entry's `SKILL.md` owns its mode procedure and lists its local details.
+Plan holds discovery,
 positioning, offer, channels and campaign decisions; Build commissions parts,
 operates service drafts and collects measurements; QA separately checks strategy,
 content and saved objects; Analyze interprets results. One shared
 `references/platforms/{x,substack,note,zenn}.md` owns each platform's constraints,
 browser procedure and verification. `references/state.md` defines records;
 actual project/account/evidence/approval data remains private and outside config.
-These references are not new skills, a hands taxonomy or a generated registry.
+Detailed references remain references, not a hands taxonomy or generated registry.
+The four entry descriptions expose mode selection in Hermes' ordinary index.
+Each turn/completion and each mode/target/platform/scope-changing action selects
+the relevant entry. Its full kernel dependency applies even on direct entry;
+the entry itself is the complete mode procedure, with no second common index.
+Full bodies in current context can be reused; a past load or summary cannot.
+Canonical read_file recovery follows next_offset and stops the action if a body
+remains missing, without alternate-path/range dedup workarounds. A short approval
+resumes recorded work rather than granting a new plan, save or producer run.
+Cross-entry details require the owning entry; ordinary instruction reads never
+authorize browser navigation. Shared state/platform paths and browser-lease.py
+remain stable, and Writer acceptance stays at its existing canonical location.
 
 Assistant's old marketing leaves remain thin client pointers so other caller
 references still resolve. Marketer owns strategy and its record, including
