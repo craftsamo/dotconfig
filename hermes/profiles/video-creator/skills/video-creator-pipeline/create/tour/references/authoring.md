@@ -17,6 +17,11 @@ generous spacing. Custom style is authored locally, not registered globally.
 
 ## Source Contract
 
+An explicitly approved `graphics: three-webgl2` form uses
+[Three graphics](../../../references/three-graphics.md). It requires v3's
+explicit screen_mode proposal and final preview approval even for preview=no.
+Ordinary v2/v3 DOM tours and persisted v1 projects keep their existing behavior.
+
 - One standalone `index.html` with a sized 1280x720 or 720x1280 `#root`,
   `data-composition-id="tour" data-start="0" data-width="1280"`
   `data-height="720" data-duration="20" data-fps="30"`. Adjust size/duration
