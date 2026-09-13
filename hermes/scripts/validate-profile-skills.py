@@ -989,11 +989,12 @@ def validate_worker(
     return len(leaves) + len(writing) + len(entries) + len(creator_entries), len(learned)
 
 
-SEARCHER_ENTRIES = ("lookup-searcher", "sweep-searcher", "hunt-searcher")
+SEARCHER_ENTRIES = ("plan-searcher", "build-searcher", "qa-searcher")
+SEARCHER_UNITS = ("lookup", "sweep", "hunt")
 
 
 def validate_searcher_entries(pipeline_dir: Path, errors: list[str]) -> dict[str, Path]:
-    """Searcher has three unit procedures, not a new plan/build/QA workflow."""
+    """Three phase owners retain retrieval units and the existing card gate."""
     entries: dict[str, Path] = {}
     links = [path for path in pipeline_dir.rglob("*") if path.is_symlink()]
     if links:
@@ -1002,6 +1003,7 @@ def validate_searcher_entries(pipeline_dir: Path, errors: list[str]) -> dict[str
         return entries
 
     expected = {"SKILL.md"} | {f"{name}/SKILL.md" for name in SEARCHER_ENTRIES}
+    expected.update(f"{name}/references/{unit}.md" for name in SEARCHER_ENTRIES for unit in SEARCHER_UNITS)
     found = {
         path.relative_to(pipeline_dir).as_posix()
         for path in pipeline_dir.rglob("*")
@@ -1031,27 +1033,42 @@ def validate_searcher_entries(pipeline_dir: Path, errors: list[str]) -> dict[str
         unit = name.split("-", 1)[0]
         if not isinstance(description, str) or not re.match(rf"^{unit}\b", description, re.I):
             errors.append(f"searcher description must frontload {unit}: {name}")
-        text = entry.read_text(encoding="utf-8").split("\n---\n", 1)[-1]
+        raw = entry.read_text(encoding="utf-8")
+        if raw.find("\n---", 4) not in range(4, 4000):
+            errors.append(f"searcher frontmatter exceeds 4000-character discovery prefix: {name}")
+        text = raw.split("\n---\n", 1)[-1]
         read_before = re.search(r"<ReadBeforeWork>(.*?)</ReadBeforeWork>", text, re.S)
         block = " ".join(read_before.group(1).split()) if read_before else ""
         for required in (
             'skill_view(name="searcher-pipeline")',
             "${HERMES_SKILL_DIR}/../SKILL.md", "${HERMES_SKILL_DIR}/SKILL.md",
+            "${HERMES_SKILL_DIR}/references/<unit>.md",
             "full-body", "current context", "not a past load or summary",
             "unchanged", "earlier body is unavailable", "read_file", "next_offset",
             "stop", "card gate", "caller's release",
         ):
             if required not in block:
                 errors.append(f"searcher entry ReadBeforeWork missing {required}: {name}")
-        if "## Verification" not in text or "## Handoff" not in text:
+        if any(section not in text for section in ("## Verification", "## Handoff", "## Output template")):
             errors.append(f"searcher entry must own its verification and handoff: {name}")
         if f"({name}/SKILL.md)" not in kernel_text:
             errors.append(f"searcher kernel does not route {name}")
+        for unit in SEARCHER_UNITS:
+            if f"(references/{unit}.md)" not in text:
+                errors.append(f"searcher entry does not link owned reference {unit}: {name}")
+            reference = pipeline_dir / name / "references" / f"{unit}.md"
+            if reference.is_file():
+                body = reference.read_text(encoding="utf-8")
+                section = {"plan": "## Plan", "build": "## Output template", "qa": "## Verification"}[name.split("-", 1)[0]]
+                if section not in body:
+                    errors.append(f"searcher reference missing {section}: {reference.relative_to(pipeline_dir)}")
 
     # Searcher's cards are declared by Assistant, never re-declared on a unit.
     for path in sorted(pipeline_dir.rglob("*.md")):
         if "card_units" in frontmatter(path):
             errors.append(f"searcher must not declare card_units: {path}")
+        if path.name != "SKILL.md" and "name" in frontmatter(path):
+            errors.append(f"searcher reference must not declare a skill name: {path}")
         for link, target in markdown_links(path):
             if not target.is_relative_to(pipeline_dir.resolve()):
                 errors.append(f"searcher link escapes pipeline: {link} in {path}")
