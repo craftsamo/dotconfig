@@ -62,7 +62,9 @@ or inherit Writer's role. Read only the detail references selected below.
    comparison and use common criteria. For platform-specific assessment,
    read only [X Article](references/x-article.md), [note](references/note.md),
    [Zenn](references/zenn.md) or [blog](references/blog.md). Unknown/custom
-   destination behavior is not inferred from a familiar platform.
+   destination behavior is not inferred from a familiar platform. For an
+   outline-only source, `outline`/`structure` modes of `writing_inspect` may
+   help if useful; a completed-prose full-text run is never required.
 3. Anchor substantive observations to quoted passages or section locations.
    Distinguish the argument's structure, evidence and stated uncertainty.
    Describe voice without inventing author identity, experience or intent.
@@ -71,11 +73,17 @@ or inherit Writer's role. Read only the detail references selected below.
    punctuation, notation consistency), report each finding with its quote or
    location, the reason it is flagged and a suggested correction where warranted.
    Distinguish a definite error from an uncertain issue or an optional style
-   suggestion; do not merge them into one list. This report never edits the source and
-   delivers no replacement article; a match verified only against supplied
-   material is reported as checked against that material, not as
-   independently verified fact, and no finding is fabricated to fill out
-   the requested depth.
+   suggestion; do not merge them into one list. `writing_inspect` may be
+   called on the exact source text, never a `read_file`-wrapped copy, to
+   substantiate a finding under review — it never rewrites the target.
+   Report each such finding as an observation (the tool's quoted candidate
+   and location) distinct from your interpreted defect and its explained
+   impact; an unavailable, errored, unverified or truncated result leaves
+   that mode unverified rather than a completed check. This report never
+   edits the source and delivers no replacement article; a match verified
+   only against supplied material is reported as checked against that
+   material, not as independently verified fact, and no finding is
+   fabricated to fill out the requested depth.
 5. When asset/editor requirements are in scope, read
    [production notes](references/production/assets.md). Inspect them only
    to the requested extent. An
@@ -83,8 +91,15 @@ or inherit Writer's role. Read only the detail references selected below.
    be analyzed. A source file does not prove successful rendering or working
    embeds. Attribute supplied descriptions and report unavailable evidence.
 6. Use `japanese-writing` for Japanese-language observations without loading
-   legacy workflows or statistical detectors. `humanizer` is explicit-only
-   and supplies observations, never a rewritten article or authorship score.
+    legacy workflows or statistical detectors. `humanizer` is explicit-only
+    and supplies observations, never a rewritten article or authorship score.
+    For technical/explanatory articles, read that skill's inspection reference
+    and use `writing_inspect` modes relevant to the requested question, not only
+    proofreading. Preserve raw text and record current input hash/version and
+    actual coverage. Respect the 131072-byte input bound without silent truncation;
+    report original ranges/offsets for excerpts, never whole-document ratios from
+    them. Unavailable required evidence stays unverified, with no installation or
+    terminal fallback. The tool analyzes only the supplied text, not its provenance.
 7. Apply QA to the analysis report. Return it in the reply if short and
    permitted, or at the requested durable path. Do not alter the source,
    publish, access live analytics or execute code from the article.

@@ -17,6 +17,7 @@ fallback_providers:
     api_mode: chat_completions
 credential_pool_strategies: {}
 toolsets:
+  - writing-inspection
   - file
   - web
   - skills
@@ -698,6 +699,7 @@ paste_collapse_char_threshold: 2000
 _config_version: 29
 platform_toolsets:
   cli:
+    - writing-inspection
     - file
     - web
     - skills
@@ -707,6 +709,7 @@ platform_toolsets:
   telegram: []
   discord: []
   a2a:
+    - writing-inspection
     - file
     - web
     - skills
@@ -715,5 +718,6 @@ platform_toolsets:
     - no_mcp
 plugins:
   enabled:
+    - writing-inspection
     - skill-topology
     - kanban-worker-mutation-guard
