@@ -67,6 +67,21 @@ def test_candidate_topology_and_always_on_contract():
     assert "report it as unverified and stop" in qa
 
 
+@pytest.mark.parametrize("caller", ("engineer", "creator", "marketer"))
+def test_primary_relays_acceptance_baseline_without_transferring_handle(caller):
+    root = HERMES / "profiles" / caller
+    if caller == "marketer":
+        source = (root / "skills/marketer-pipeline/build-marketer/references/parts.md").read_text()
+    else:
+        source = yaml.safe_load((root / "config.yaml").read_text())["agent"]["system_prompt"]
+    text = " ".join(source.split())
+    for field in ("questions", "done criteria", "source policy", "budget", "approved changes",
+                  "explicitly none when unchanged", "conclusions", "consuming primary"):
+        assert field in text
+    assert "handle" in text
+    assert "Assistant's handle" in text or "handle stays yours" in text
+
+
 def test_worker_integration(tmp_path, monkeypatch):
     root = tmp_path / "hermes"
     shutil.copytree(PROFILE, root / "profiles/researcher")
