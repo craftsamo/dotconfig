@@ -31,6 +31,8 @@ PUBLIC_PYTEST_FILES = (
     "hermes/scripts/tests/test_assistant_entry_runtime.py",
     "hermes/scripts/tests/test_ad_routing.py",
     "hermes/scripts/tests/test_creative_client_references.py",
+    "hermes/scripts/tests/test_three_graphics.py",
+    "hermes/scripts/tests/test_three_graphics_native.py",
     "hermes/scripts/tests/test_engineer_pipeline.py",
     "hermes/scripts/tests/test_engineer_entry_runtime.py",
     "hermes/scripts/tests/test_marketer_pipeline.py",

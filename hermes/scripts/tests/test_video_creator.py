@@ -110,7 +110,7 @@ def skill_environment(tmp_path, monkeypatch):
     local.mkdir(parents=True)
     config = {"skills": yaml.safe_load((PROFILE / "config.yaml").read_text())["skills"]}
     (home / "config.yaml").write_text(yaml.safe_dump(config))
-    sources = [*PIPELINE.glob("**/SKILL.md"), PIPELINE / "references/hyperframes.md"]
+    sources = [*PIPELINE.glob("**/SKILL.md"), PIPELINE / "references/hyperframes.md", PIPELINE / "references/three-graphics.md"]
     sources.extend(PIPELINE / "create" / subject / "references/authoring.md" for subject in ("tour", "ad", "explainer-video"))
     for source in sources:
         target = local / "video-creator-pipeline" / source.relative_to(PIPELINE)
@@ -148,6 +148,16 @@ def test_curated_skill_discovery_and_reference_reads(skill_environment):
         reference = json.loads(skills.skill_view(name, file_path="references/fixture.md"))
         assert reference["success"], reference
         assert f"Reference for {name}." in reference["content"]
+
+
+def test_local_three_contract_is_served_through_owning_pipeline(skill_environment):
+    skills, _, _ = skill_environment
+    result = json.loads(skills.skill_view("video-creator-pipeline", file_path="references/three-graphics.md"))
+    assert result["success"] and "graphics: three-webgl2" in result["content"]
+    assert '${HERMES_SKILL_DIR}/scripts/three_graphics.py' in result["content"]
+    for subject in ("tour", "ad", "explainer-video"):
+        leaf = json.loads(skills.skill_view("create-" + subject))
+        assert leaf["success"] and 'file_path="references/three-graphics.md"' in leaf["content"]
 
 
 @pytest.mark.parametrize("missing", [("hyperframes-core",), TECHNICAL_SKILLS])

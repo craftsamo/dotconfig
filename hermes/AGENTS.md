@@ -933,6 +933,23 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
 
 ## Media craft knowledge
 
+Three graphics is an opt-in on create-tour/create-ad and the HyperFrames path
+of create-explainer-video, not an Assistant runtime or a new video subject.
+`graphics: three-webgl2` selects one synchronous WebGL2 canvas, core procedural
+Three.js and custom GLSL under the same paused GSAP clock. The engine pins its
+own HyperFrames 0.8.35, Three 0.185.1, Node identity and dedicated
+browser/software backend; never use or downgrade the mutable global CLI for
+these jobs. `engines/three-webgl/setup.mjs --browser <path>` is
+maintainer-only; jobs only stage verified assets via `three_graphics.py`.
+Opted-in tours require explicit screen_mode/v3 and approved preview even when
+preview=no; old omitted-mode projects keep their exact behavior. Preview binds
+runtime/layer evidence, reverse seeks and fresh-process layer PNGs must match,
+and actual render-log errors fail even if the CLI exits zero. Audit logs and
+owned-browser cancellation remain observable. Pixel equality is not artistic
+acceptance: inspect encoded motion and native UI parts. No async loaders,
+addons, WebGPU, hardware fallback, global install or alteration of prior
+frozen jobs is authorized.
+
 Creative early-delivery candidate: ordinary Creator and Assistant creative work
 goes Plan -> Build/Execute -> delivery, including legacy units/cards. Keep the
 existing entry topology, but `qa-creator` and `qa-assistant-creative` are explicit

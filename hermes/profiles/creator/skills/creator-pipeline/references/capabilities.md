@@ -64,6 +64,14 @@ Only create-ad and analyze-ad are served; generate-ad and a PV leaf are not yet
 implemented. Never silently route a requested generated ad to MV or create-ad.
 Technical-only checks stay analyze-clip even for its what_for: ad option.
 
+create-tour, create-ad and HyperFrames create-explainer-video
+support opt-in graphics: three-webgl2 through their local Three graphics
+contract, not a separate subject. Creator selects it for actual depth or GLSL
+surface requirements and verifies provisioning; no silent flat substitute.
+It uses one procedural WebGL2 layer with pinned local Three/CLI/browser and
+GSAP time. Addons, async asset loading, WebGPU and Motion Canvas combinations
+remain outside that scope. Existing exact proposals and previews still apply.
+
 The clip, MV and explainer-video scopes above are served, not the whole
 former generated-video technic. create-explainer-video's HyperFrames- or
 Motion-Canvas-authored scope does not retire `creator-manim-explainer` for

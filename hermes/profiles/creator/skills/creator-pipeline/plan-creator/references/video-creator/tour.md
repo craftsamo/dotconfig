@@ -26,3 +26,9 @@ remain unchanged. Narration is a prior
 audio-creator delivery, not TTS in video-creator. Send tour work via
 `specialist_call(kind="work")` even though free. Broader authored motion
 remains creator-html-motion; this new subject retires no legacy 1:1 mapping.
+
+For a depth/shader requirement, the leaf's optional graphics: three-webgl2 is
+an implementation choice to propose, not a new default. Read its local Three
+contract and confirm installed support. It requires explicit screen_mode/v3
+and approved preview even if preview=no was requested. Preserve faithful UI
+and all design states; do not use a shader to reskin protected product pixels.

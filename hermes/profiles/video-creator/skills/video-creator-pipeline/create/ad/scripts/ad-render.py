@@ -32,6 +32,7 @@ from tour import (VENDOR, command, digest, fresh, hf, image, load, local,  # noq
                    number, require, text, write)
 from authored import Markup, source_files  # noqa: E402
 import mix_audio  # noqa: E402
+import three_graphics as graphics  # noqa: E402
 
 ASPECT_SIZES = {"9:16": (1080, 1920), "16:9": (1920, 1080), "1:1": (1080, 1080), "4:5": (1080, 1350)}
 DEFAULT_ASPECT = "9:16"
@@ -47,13 +48,14 @@ def plan_model(raw, *, study=False):
     require(isinstance(raw, dict), "plan must be an object")
     allowed = {"version", "product", "audience", "message", "cta", "theme", "style",
                "direction", "theme_detail", "claims", "note", "duration", "width",
-               "height", "fps", "assets", "copy", "samples", "aspect", "mix"}
+               "height", "fps", "assets", "copy", "samples", "aspect", "mix", "graphics"}
     if study:
         allowed = (allowed - {"cta", "mix"}) | {"purpose", "question"}
     require(set(raw) <= allowed, "unknown plan field")
-    required = allowed - {"theme_detail", "claims", "note", "aspect", "mix"}
+    required = allowed - {"theme_detail", "claims", "note", "aspect", "mix", "graphics"}
     require(required <= set(raw), "plan missing a required field")
     require(type(raw["version"]) is int and raw["version"] == 1, "plan version must be 1")
+    graphics.enabled(raw)
     if study:
         require(raw["purpose"] == "study", "study purpose required")
         text(raw["question"], "study question", 2000)
@@ -259,11 +261,12 @@ def markup_check(root, plan):
     require(float(attrs.get("data-duration", "nan")) == plan["duration"], "root duration mismatch")
     require("assets/gsap.min.js" in markup.assets and "__timelines" in code,
             "local GSAP and registered timeline required")
+    trusted = graphics.validate_assets(root, plan, markup)
     for p in root.rglob("*"):
         name = p.relative_to(root).as_posix()
         if name.split("/")[0] == ".hyperframes":
             continue
-        if p.suffix in (".css", ".js", ".html") and name != "assets/gsap.min.js":
+        if p.suffix in (".css", ".js", ".html") and name != "assets/gsap.min.js" and name not in trusted:
             content = p.read_text(encoding="utf-8")
             if p.suffix == ".html":
                 parsed = Markup()
@@ -274,6 +277,8 @@ def markup_check(root, plan):
                                r"Date\.now|performance\.now|@import", content)
             require(not match, f"{name}: network/clocks/unseekable animation forbidden: "
                                 f"{match.group() if match else ''}")
+            if graphics.enabled(plan):
+                graphics.check_authored_code(content)
             require(not re.search(r"\.(play|pause|load)\s*\(|\.currentTime\s*=|\.playbackRate\s*=", content),
                     "HyperFrames owns media playback/seeking")
             require(not re.search(r"\bvolume\s*:|\.(volume|muted)\s*=", content),
@@ -410,6 +415,9 @@ def preflight(args):
     for name in ("gsap.min.js", "GSAP-LICENSE.txt", "gsap-provenance.json"):
         require(name in inventory and inventory[name] == digest(VENDOR / name),
                 f"missing or changed vendored asset: {name}")
+    graphics.validate_assets(assets.parent, plan, assets=assets)
+    if graphics.enabled(plan):
+        graphics.identity()
     require(source_files(assets, version=3) == inventory and digest(plan_path) == original_hash,
             "proposal/assets changed during preflight")
     return {"plan_sha256": original_hash, "assets": len(inventory), "produced": False,
@@ -484,11 +492,12 @@ def output_dir(value, *excluded):
 
 def check(project, plan, out):
     times = [s["at"] for s in plan["samples"]]
-    hf(project, ["check", "--json", "--at", ",".join(map(str, times))], out / "check.json")
+    graphics.run_hf(hf, project, plan, ["check", "--json", "--at", ",".join(map(str, times))], out / "check.json")
     result = load(out / "check.json")
     contrast = result.get("contrast", {})
     require(result.get("ok") and contrast.get("enabled") and contrast.get("checked", 0) > 0,
-            "check/contrast audit failed or skipped")
+             "check/contrast audit failed or skipped")
+    graphics.audit(project, plan, times, out)
     return times
 
 
@@ -496,26 +505,31 @@ def runtime_identity():
     binary = shutil.which("hyperframes")
     require(binary, "hyperframes CLI missing; ask maintainer to provision it")
     return {"executable": str(Path(binary).resolve()),
-            "version": command([binary, "--version"]).strip()}
+             "version": command([binary, "--version"]).strip()}
+
+
+def selected_runtime(plan):
+    return graphics.identity() if graphics.enabled(plan) else runtime_identity()
 
 
 def snapshot(args):
     project, plan = project_model(args.project)
     out = output_dir(args.out, project)
     out.mkdir()
-    runtime = runtime_identity()
+    runtime = selected_runtime(plan)
     times = check(project, plan, out)
-    hf(project, ["snapshot", "--at", ",".join(map(str, times)), "--no-end", "--describe", "false",
+    graphics.run_hf(hf, project, plan, ["snapshot", "--at", ",".join(map(str, times)), "--no-end", "--describe", "false",
                  "-o", str(out / "frames")], out / "snapshot.log")
     frames = sorted((out / "frames").glob("*.png"))
     require(len(frames) == len(times), "snapshot count mismatch")
     for frame in frames:
         require(image(frame) == (plan["width"], plan["height"]), "snapshot dimensions mismatch")
     project_model(str(project))
-    require(runtime_identity() == runtime, "runtime changed during preview")
+    require(selected_runtime(plan) == runtime, "runtime changed during preview")
     preview = {"project": str(project), "integrity": digest(project / "integrity.json"), "runtime": runtime,
                "times": times, "frames": {p.name: digest(p) for p in frames},
                "check": digest(out / "check.json")}
+    graphics.bind_preview(preview, plan, out)
     write(out / "preview.json", preview)
     return {"preview": str(out), "preview_sha256": digest(out / "preview.json"),
             "frames": len(frames), "rendered_mp4": False}
@@ -525,7 +539,8 @@ def approved_preview(value, project, plan, approval_sha256):
     preview_path = local(str(Path(value) / "preview.json"), {".json"})
     require(digest(preview_path) == approval_sha256, "approved preview hash mismatch")
     data = load(preview_path)
-    require(data.get("runtime") == runtime_identity(), "runtime changed since preview; new preview approval required")
+    graphics.verify_preview(data, plan, preview_path.parent)
+    require(data.get("runtime") == selected_runtime(plan), "runtime changed since preview; new preview approval required")
     require(data.get("project") == str(project) and data.get("integrity") == digest(project / "integrity.json"),
             "approved preview belongs to another project")
     require(data.get("times") == [s["at"] for s in plan["samples"]], "approved sample times changed")
@@ -596,8 +611,9 @@ def render(args):
     out = output_dir(args.out, project, Path(args.approved_preview))
     out.mkdir()
     times = check(project, plan, out)
+    graphics.compare_final(plan, Path(args.approved_preview), out)
     movie = out / ("study.mp4" if study else "ad.mp4")
-    hf(project, ["render", "--output", str(movie), "--fps", str(FPS), "--workers", "1",
+    graphics.run_hf(hf, project, plan, ["render", "--output", str(movie), "--fps", str(FPS), "--workers", "1",
                  "--strict", "--no-best-effort", "--quiet"], out / "render.log")
     info = json.loads(command(["ffprobe", "-v", "error", "-show_streams", "-show_format",
                                 "-of", "json", str(movie)]))
@@ -641,6 +657,9 @@ def render(args):
               "temporal_review": "sampled only", "audio_listening": "unverified", "media_generation": 0}
     if audio_measurement is not None:
         report["audio_measurement"] = audio_measurement
+    if graphics.enabled(plan):
+        graphics.verify_preview(load(Path(args.approved_preview) / "preview.json"), plan, Path(args.approved_preview))
+        report["graphics"] = load(out / "graphics.json")
     if study:
         report.update(artifact_role="diagnostic-study", final_eligible=False, question=plan["question"])
     write(out / "qa.json", report)

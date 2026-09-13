@@ -18,6 +18,11 @@ and approvals, not a transform.
 
 ## Plan Contract (`plan.json`)
 
+Optional `graphics: three-webgl2` selects the local layer in
+[Three graphics](../../../references/three-graphics.md). Omission preserves old
+plans; present null/other values are invalid. Stage installed runtime assets
+before content approval and include all four Three files in the exact asset map.
+
 VideoCreator writes `plan.json`, NOT the client, but it may only contain
 client-approved product facts, exact copy and exact claims — nothing invented:
 
