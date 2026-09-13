@@ -228,6 +228,7 @@ def _child(case, sandbox, candidate, source):
                 rows = re.findall(r"^    - ([^: \n]+): (.*)$", prompt, re.MULTILINE)
                 assert len(rows) == len(expected) and {n for n, _ in rows} == expected
                 visible = dict(rows)
+                assert "ONLY on explicit user request" in visible["qa-creator"]
                 assert len({visible[n] for n in CREATOR_NAMES}) == 4
                 relevant = {"creator-pipeline": "creator", "plan-creator": "plan",
                             "build-creator": "dispatch", "qa-creator": "evidence"}
