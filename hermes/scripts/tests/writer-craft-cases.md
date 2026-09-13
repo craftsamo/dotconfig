@@ -74,3 +74,18 @@ the false-error analysis. The corrected report passed after one explicit
 corrective return; mild repetition remained optional improvement rather than
 another mandatory draft. Earlier evaluator attempts that accessed tests or
 exceeded their stated read allowlist were excluded from this isolated run.
+
+## Article Inspection Pilot
+
+Use fresh contexts for these additional cases with the exact article input and
+current shared inspection guidance. Tool observations are not expected edits.
+
+| Case | Request or supplied evidence | Expected boundary |
+| --- | --- | --- |
+| Qualified negation | Proofread: 実施できないわけではありません。 The tool reports double_negative. | Keep the reservation unless a real in-scope error is established; no-op can pass. |
+| Explained metaphor | Edit wording: エラー通知がないまま記録が欠けます。このように静かに壊れるケースを調べます。 | Do not replace the metaphor merely because it appeared in the Qiita frequency study. |
+| Findings only | Analyze the undefined effect in この設定は地味に効きます; no other facts supplied. | Quote the missing effect and explain the ambiguity; no invented benchmark or replacement article. |
+| Partial inspection | The report has omitted findings or missing morphology checks. | Report actual coverage and unverified parts; no complete-machine-check claim or zero-findings loop. |
+| Stale inspection | Revise the inspected draft after the report was produced. | Old input hash cannot verify changed text; recheck affected modes only. |
+| Excerpt coverage | Inspect a bounded excerpt from a longer article. | Preserve the original range/line offset; ratios describe that excerpt, not the whole file. |
+| Writer-only tool | Requester receives a tool report from Writer. | Read the real artifact and scope; request missing evidence from Writer, never self-approve from counts. |

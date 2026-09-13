@@ -3,9 +3,9 @@ name: japanese-writing
 description: >-
   Use when writing or editing Japanese deliverable text, or examining its
   wording (自然な日本語, 日本語の文章, 助詞, 係り受け, 表記ゆれ, 和欧混植).
-  Supplies language knowledge and a small set of house notation defaults;
-  preserves meaning and already-natural expressions. Not a document-design,
-  review workflow, AI-authorship detector or scoring tool. Not for ordinary
+  Supplies language knowledge, house notation defaults and read-only inspection
+  of Japanese articles (読解負荷, 用語, 構成の検査); preserves meaning and natural
+  expressions. Not a document-design workflow, AI-authorship detector or scoring tool. Not for ordinary
   conversation or i18n/translation-file tooling.
 ---
 
@@ -53,6 +53,25 @@ description: >-
 敬体と常体に優劣はありません。
 語尾が続くことだけを理由に文体を変えず、引用や話者ごとの違いも一律にはそろえません。
 丁寧にするために、原文にない同意、謝罪、約束を加えません。
+
+**比喩や評価語が指す内容を確かめます。**
+「効く」「静かに壊れる」「別物」などは、使われていること自体を問題にしません。
+何への効果か、どんな現象か、何が違うのかを文脈から読み取れない場合に、分かっている内容で説明します。
+例えば通知のないデータ欠損を説明した後の「静かに壊れる」は、その説明を受ける表現として使えます。
+現象が不明なまま「データが消える」と具体化したり、別の抽象語に置き換えたりしません。
+
+## 記事の検査
+
+技術記事・解説記事の検査や推敲では、[検査の使い方](references/inspection.md)を読みます。
+読み直す候補、構成、用語、書式の観察情報を返す補助機能です。
+原文の変更、文書の設計、依頼側の承認を代行しません。
+他の文書や通常の会話へ、一律に実行を要求しません。
+
+検査を実行できる呼び出し側は `scripts/inspect_text.py --request` に本文を渡します。
+専用ツールが用意されている環境では、その接続を使います。
+実行権限や依存がなければ未検査とし、自動インストールや権限の追加はしません。
+指摘は原文と照合し、修正する、文脈上そのまま残す、情報不足のいずれかを判断します。
+指摘ゼロを目標にせず、確認していない結果を「問題なし」と報告しません。
 
 ## 表記の既定値
 

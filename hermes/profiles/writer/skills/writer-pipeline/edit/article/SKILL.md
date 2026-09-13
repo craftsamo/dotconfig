@@ -83,7 +83,15 @@ or inherit Writer's role. Read only the detail references selected below.
    indentation and a trailing newline are the source's existing form, not
    errors to tidy. An unfamiliar proper noun, a suspicious number or a fact
    inconsistent with the rest of the source is flagged, not silently
-   corrected by inference.
+   corrected by inference. `writing_inspect` may be called on the exact
+   source text, never a `read_file`-wrapped copy, restricted to the
+   `reading-load` and `terms` modes; a candidate only becomes an applied
+   change when it also meets the minimal, in-scope correction bar above,
+   and an unconfirmed or merely stylistic candidate is left untouched
+   rather than auto-rewritten. Finding nothing in scope is a valid no-op.
+   An unavailable, errored, unverified or truncated result leaves that
+   mode unverified; keep reading the source directly for the rest and
+   never report a complete machine check.
 3. Read the matching destination guidance only: [X Article](references/x-article.md),
    [note](references/note.md), [Zenn](references/zenn.md) or [blog](references/blog.md).
    An unknown/custom destination retains the supplied constraints; do not
@@ -92,8 +100,16 @@ or inherit Writer's role. Read only the detail references selected below.
    quotations, uncertainty and the author's actual experience. New claims
    need sources; a style example is not evidence. Use `japanese-writing`
    for Japanese expression, not the retired workflows or lint.
-   Natural compounds and repeated formats are not errors by themselves.
-   `humanizer` is explicit-only and cannot override protected meaning.
+    Natural compounds and repeated formats are not errors by themselves.
+    `humanizer` is explicit-only and cannot override protected meaning.
+    For Japanese technical/explanatory articles, load that skill's inspection
+    reference before interpreting `writing_inspect`. Outside `proofread`, select
+    reading-load/outline/terms/structure modes relevant to the authorized edit.
+    Inspect exact available raw text; do not reconstruct missing text or silently
+    truncate the 131072-byte input. Report excerpt offsets and coverage when using
+    a portion. After changes, recheck affected modes on the revised text; prior
+    input hashes and results do not verify changed wording. Missing required
+    machine evidence stays unverified, with no install or terminal fallback.
 5. If the article has media/editor requirements, read
    [production notes](references/production/assets.md). Preserve stable IDs
    in `[[image:id]]`, `[[embed:id]]` and `[[table:id]]`
