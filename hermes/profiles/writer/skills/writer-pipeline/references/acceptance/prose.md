@@ -131,6 +131,17 @@ norm-layer loading or four-pass counts. Humanizer is explicit-request only.
 Defects return to the same Writer session; independent acceptance still
 reads the actual artifact rather than trusting its report.
 
+When Writer's report cites a `writing_inspect` result, treat it as candidate
+evidence only: the client still reads the complete actual file and the
+authorized brief, and independently verifies the reported changes. Confirm
+the cited evidence covers the current source — matching input hash/version,
+not a stale or superseded run — before crediting it; a finding count is
+never converted into a score, and Writer's own report is never
+self-approval. The client does not invoke this Writer-only tool directly;
+missing or stale machine evidence goes back to Writer as a request, not a
+client workaround. This changes neither the ordinal editorial rubric nor
+its corrective ceilings.
+
 ## Document draft (write-document / edit-document)
 
 Read the complete released document/outline, original for edits, brief and

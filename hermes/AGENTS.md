@@ -1244,9 +1244,20 @@ platform capability notes local to each leaf; do not promise note/X Article
 Markdown import, unknown HTML support or untested embeds. Insertion markers
 bind to stable production-note IDs and never imply generated assets. A missing
 asset or editor step is not removed to manufacture a publication-ready result.
-The shared Japanese core is a single `SKILL.md`, with no inspection resources
-or scripts. Writer's leaves own document construction and checks. Historical
-source attribution remains in `agents/README.md` and Git history.
+The shared Japanese core (`SKILL.md`) also carries a bounded, read-only
+`references/inspection.md` plus `scripts/inspect_text.py` and
+`scripts/requirements.txt`; Writer's leaves still own document construction and
+checks, and the inspector never edits, decides or scores. Its
+`writing_inspect` tool helper is single-purpose transport, not inspection
+rules: text-only input bounded to 131072 UTF-8 bytes, a 20-second deadline,
+reachable only from a Writer CLI or A2A session, and it runs the canonical
+inspector as a `subprocess` with no shell, no source writes and no network.
+Ordinary host conversation-history persistence still applies to whatever text
+is sent. It reports checked/unverified findings for the Article leaf to judge,
+never a pass/fail or naturalness score, and Writer never self-scores from it.
+Historical source attribution and provisioning steps remain in
+`agents/README.md` and Git history; do not restate that protocol or the
+adoption/license detail here.
 
 Article's `edit` scope includes `proofread` for minimal correction, separate
 from ordinary `wording` polishing (still the default). Findings-only requests
@@ -1343,8 +1354,9 @@ profiles/<name>/     # assistant, engineer, researcher, searcher, creator, write
                      #   browser-motion/diagram/editorial/icon/card/meme/text-art/
                      #   pixel/sourcing/assembly leaves (1:1 with the assistant's
                      #   plan-assistant-creative/references/legacy leaves; validator-enforced);
-                     #   writer: the japanese-writing language core (one
-                     #   SKILL.md, five notation defaults) via the curated
+                     #   writer: the japanese-writing language core (SKILL.md,
+                     #   five notation defaults, plus a bounded read-only
+                     #   inspector — see agents/README.md) via the curated
                      #   external-skills symlink dir;
                      #   marketer: Writer pipeline external reference for shared caller QA;
                      #   managed technics stay exactly one directory below skills/technic/
