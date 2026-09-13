@@ -933,6 +933,16 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
 
 ## Media craft knowledge
 
+Creative early-delivery candidate: ordinary Creator and Assistant creative work
+goes Plan -> Build/Execute -> delivery, including legacy units/cards. Keep the
+existing entry topology, but `qa-creator` and `qa-assistant-creative` are explicit
+user-requested inspection only, returning bounded findings without automatic
+revision. Producer checks, failed/unknown disclosure, approval/hash and budget
+gates remain; do not restore routine broker inspection through learned skills or
+delivery references. Early previews do not establish final readiness or approval.
+Other domains' QA is unchanged. See PROFILES.md "Creative early delivery
+candidate"; paired candidate verification does not authorize live cutover.
+
 `create-ad` additionally owns a narrowly scoped diagnostic purpose (`study`,
 1..10s, question, real message, no CTA/Mix). The CLI keeps freeze-study/render-study
 separate from final commands and binds purpose through frozen-plan/preview hashes;

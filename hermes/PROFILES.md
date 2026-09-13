@@ -121,18 +121,19 @@ servers. Worker Telegram / Discord lists and default's messaging lists are empty
 by design.
 
 Role split: **the assistant** plans with the user, supervises specialists,
-performs the quality gate itself (the QA contracts under
+performs the non-creative quality gate itself (the QA contracts under
 `profiles/assistant/skills/assistant-pipeline/qa-assistant-*/` plus shared QA), owns GitHub bookkeeping, and
 delivers; the **producer** self-verifies before reporting. The normal flow
 stays **searcher (retrieve) → researcher (synthesize) → engineer
 (implement)**, with **creator** (media) and **writer** (prose/scripts) as
 production stages and **marketer** as the outbound end stage — the only
 profile that publishes to public channels. User approval follows the
-assistant's own verification, not instead of it.
+domain's checks. Creative production uses direct early delivery below rather
+than another broker inspection.
 
 ### Assistant quality gate
 
-The assistant is the quality gate. Every specialist deliverable — a resident
+For non-creative work, the assistant is the quality gate. Every specialist deliverable — a resident
 session reply or a card completion — is a candidate until the assistant
 verified the actual artifact per the contracts under
 `profiles/assistant/skills/assistant-pipeline/qa-assistant-*/` and common QA (vision on images/frames, ffprobe on av
@@ -142,6 +143,33 @@ session as itemized feedback — a minutes-scale loop, not a card cycle.
 Delivery happens only after verification; the session is closed on
 acceptance. External factual claims still ride researcher evidence supplied
 in the flow.
+
+### Creative early delivery candidate
+
+Normal creative production is Plan -> Build/Execute -> delivery. Creator and
+Assistant do not run a routine perceptual acceptance stage, repeat measurements,
+invoke learned verification for a second gate or autonomously polish a candidate
+before showing it. This includes confirmed legacy methods and creative cards.
+The producer keeps its self-checks; brokers read report completeness, obvious
+settled-constraint conflicts and spend, then forward artifacts and limitations.
+Required failures still block final readiness and dependent use, but a viewable
+preview can be shown with those failures disclosed. Delivery is not acceptance.
+
+`qa-creator` and `qa-assistant-creative` remain explicit user-requested inspection
+entries, not automatic completion steps. They return one scoped findings pass,
+not an automatic repair grant or a chain of broker reviews. Existing topology,
+hands forms, producer scripts, proposal/preview hashes and approvals, upload and
+remote-analysis consent, budgets and non-creative QA remain unchanged.
+
+Use an early supported representative sample for unresolved direction. With a
+moving reference, demonstrate composition and progression, not just an ending
+or static frame. Rejection of the idea returns to interpretation rather than
+minor polish. Samples retain their existing approval and spending rules.
+
+This is a paired public/private candidate, not a live cutover. Validate discovery
+and contracts offline; timing and creative quality require fresh real work after
+explicit rollout approval. Rollback restores the paired prior configuration;
+never rewrite frozen jobs, outputs, grants or approvals.
 
 The org stays **flat by design**: profiles are global, resident sessions are
 owned by their originating Client, and the board is one shared queue. Specialists never register
@@ -466,9 +494,9 @@ Three per-profile layers, kept separate:
     agent follow-ups are not direct human approval; fill the leaf's
     form with `clarify` or by parsing the brief; composites = a sequence of
     forms), Build (`build-creator`: the handoff text, specialist inquiry / work
-    session, supervision, relaying `Q<n>`), Quality assurance
-    (`qa-creator`: vision at native size and at the size of use,
-    revise as a handoff, delivery). Each entry leads to only the selected
+    session, supervision, relaying `Q<n>` and direct delivery), optional inspection
+    (`qa-creator`: only on explicit user request, bounded findings without
+    automatic revision). Each entry leads to only the selected
     `references/<hands>/<subject>.md`; verbs stay inside that subject reference and the
     hands leaf remains the only form. `capabilities.md` is the capability router
     (served families first, then the technic table). Families with no
@@ -989,7 +1017,8 @@ names stay unchanged; subject references are not independent skills.
 
 Each subject reference has one job in each phase: Plan interprets the client's
 request into the existing form and settles the applicable grants; Build relays
-that form and approvals in the correct conversation; QA compares the returned
+that form and approvals in the correct conversation and delivers directly;
+explicitly requested QA compares the returned
 evidence with the client's intent. QA never reruns the producer's measurements,
 turns a sampled check into continuous-motion proof, or claims to have heard
 audio. Failure and unknown flags survive every handoff. Forms, style resources,
@@ -1011,13 +1040,14 @@ For migrated creative work, the existing Creator-first handoff is the model:
 Assistant owns the user's goal, context, constraints, durable location, grants,
 cross-domain coordination and GitHub bookkeeping. Creator owns media leaf
 selection, form interpretation, creative proposals and production sequencing.
-Assistant's final gate uses the returned artifacts and criterion evidence;
-it does not repeat the specialist's implementation QA or maintain another
+Assistant's direct delivery uses the producer's returned status and evidence;
+it does not add an aesthetic gate, repeat implementation QA or maintain another
 catalog of sizes, providers, forms and approval hashes.
 
 Assistant reads deliverable-first Client guides under
 `plan-assistant-creative/references/<deliverable>.md`, with optional bounded
-`reference-research.md`, common Execute dialogue and common QA acceptance.
+`reference-research.md`, common Execute dialogue/direct delivery and explicit-only
+QA inspection.
 Each guide owns the outcome's Client questions and acceptance criteria, not
 producer fields, providers, limits or recipes. Current guide names can match
 hands subjects without a parity contract: a new hands subject does not oblige
