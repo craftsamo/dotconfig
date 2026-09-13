@@ -131,10 +131,11 @@ matching explore-* tier:
 - `explore-max` — only for difficult, high-stakes, or previously failed
   exploration.
 
-These agents are pinned to their own models (spark/small on the OpenAI pool,
-medium/high/max on the Claude pool) so exploration never rides the primary's
-model. Use the default `explore` subagent only when the primary model is
-specifically needed for the exploration.
+These agents are pinned to their own models (small on the OpenAI pool, spark
+on Anthropic Haiku for narrow lookups, medium/high/max on the Claude pool) so
+exploration never rides the primary's model. Use the default `explore`
+subagent only when the primary model is specifically needed for the
+exploration.
 
 </ExplorationDelegation>
 
