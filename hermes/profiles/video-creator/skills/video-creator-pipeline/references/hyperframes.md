@@ -4,6 +4,11 @@ Scope is narrow on purpose: read this leaf's own local authoring reference
 FIRST. These four external directories are optional advisory background,
 never a substitute for the leaf's own form, approvals or helper scripts.
 
+The opt-in [Three graphics](three-graphics.md) is separately owned local runtime
+code for these three HyperFrames leaves, not another external workflow. Its
+fixed dependencies, source contract and proofs grant that support; this optional
+reference policy alone still grants none.
+
 The kernel's [craft reading](craft.md) separately governs the three pinned
 media-craft knowledge skills. They are not extra HyperFrames workflows; this
 file's four technical references retain their existing leaf scope and fallback.

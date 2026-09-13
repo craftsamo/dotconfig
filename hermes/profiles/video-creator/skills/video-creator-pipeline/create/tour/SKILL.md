@@ -17,18 +17,9 @@ metadata:
     cost: free
     output: "authored source project + preview frames; approved MP4/poster/review/qa.md"
     form:
-      what_for:
-        required: true
-        type: text
-        label: "what the viewer should learn/accomplish"
-      audience:
-        required: true
-        type: text
-        label: "who watches, what they already know"
-      reference:
-        required: false
-        type: text
-        label: "local files/dir or a UI description; a URL is context, not consent"
+      what_for: {required: true, type: text, label: "what the viewer should learn/accomplish"}
+      audience: {required: true, type: text, label: "who watches, what they already know"}
+      reference: {required: false, type: text, label: "local files/dir or a UI description; a URL is context, not consent"}
       screen_mode:
         required: false
         options: [recreate, supplied, capture]
@@ -37,10 +28,7 @@ metadata:
         required: false
         type: text
         label: "supplied/capture manifest path; step 1"
-      source_sha256:
-        required: false
-        type: text
-        label: "manifest SHA-256, pre-approval"
+      source_sha256: {required: false, type: text, label: "manifest SHA-256, pre-approval"}
       target:
         required: false
         type: text
@@ -97,10 +85,7 @@ metadata:
         other: true
         references: references/outro/*.md
         label: "ON by default; examples only, free text OK, none omits"
-      duration:
-        required: false
-        type: int
-        label: "seconds incl. intro/outro, 1..60; default 20"
+      duration: {required: false, type: int, label: "seconds incl. intro/outro, 1..60; default 20"}
       audio_workflow:
         required: false
         options: [supplied, mix]
@@ -117,12 +102,20 @@ metadata:
         required: false
         options: ["yes", "no"]
         label: "yes (default) stops for approval; no renders"
-      note:
-        required: false
-        type: text
+      note: {required: false, type: text}
+      graphics: {required: false, options: [three-webgl2], label: "Three.js/GLSL; v3 and approved preview required"}
 ---
 
 <Procedure>
+
+For `graphics: three-webgl2`, read [Three graphics](../../references/three-graphics.md)
+before proposing assets or authoring. It requires explicit screen_mode/v3
+content approval and an approved preview even when preview is no. The local
+Three runtime is the narrow exception to the external-runtime prohibition.
+
+```text
+skill_view(name="video-creator-pipeline", file_path="references/three-graphics.md")
+```
 
 1. Work only in `specialist_call(kind="work")`. Creator owns the goal, audience,
    semantic flow, fidelity and choice approvals; you own task-local UI layout and
