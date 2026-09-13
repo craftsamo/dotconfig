@@ -1,5 +1,5 @@
 """Opt-in, offline integration with the real Hermes source and the public
-Searcher candidate docs (root kernel + 3 flat units), no private checkout.
+Searcher candidate docs (kernel + 3 phases + 9 unit references), no private checkout.
 
 Empty PYTHONPATH skips (offline default); an explicit PYTHONPATH lacking a
 real Hermes source checkout fails. The candidate tree resolves relative to
@@ -30,7 +30,8 @@ import tempfile
 import pytest
 
 
-CHILDREN = ("lookup-searcher", "sweep-searcher", "hunt-searcher")
+CHILDREN = ("plan-searcher", "build-searcher", "qa-searcher")
+UNITS = ("lookup", "sweep", "hunt")
 EXPECTED = {"searcher-pipeline"} | set(CHILDREN)
 ALLOW = {"skills_list", "skill_view", "read_file"}
 CASES = ("discovery", "reads_and_reuse", "recovery", "relocation")
@@ -53,7 +54,10 @@ def test_searcher_entry_runtime(case):
         (candidate_tree / child / "SKILL.md").is_file() for child in CHILDREN
     ), "Searcher must have the kernel and all three entries"
     docs = sorted(candidate_tree.rglob("*.md"))
-    assert len(docs) == 4, "Searcher must have exactly four instruction documents"
+    assert {p.relative_to(candidate_tree).as_posix() for p in docs} == {
+        "SKILL.md", *(f"{name}/SKILL.md" for name in CHILDREN),
+        *(f"{name}/references/{unit}.md" for name in CHILDREN for unit in UNITS),
+    }, "Searcher must have exactly thirteen phase-owned instruction documents"
 
     with tempfile.TemporaryDirectory(prefix="searcher-entry-runtime-") as directory:
         sandbox = Path(directory).resolve()
@@ -134,7 +138,7 @@ def _child(case, sandbox, candidate_tree, source):
         skills = home / ".hermes/skills"
         tree = skills / "searcher-pipeline"
         docs = sorted(candidate_tree.rglob("*.md"))
-        assert len(docs) == 4, "Candidate tree must hold exactly the root + 3 flat children"
+        assert len(docs) == 13, "Candidate tree must hold kernel + phases + unit references"
         for path in docs:
             assert not path.is_symlink() and path.resolve().is_relative_to(candidate_tree)
             target = tree / path.relative_to(candidate_tree)
@@ -208,6 +212,7 @@ def _child(case, sandbox, candidate_tree, source):
                 assert 0 < len(desc) <= 60
                 path = tree / ("SKILL.md" if name == "searcher-pipeline" else f"{name}/SKILL.md")
                 fm, _ = su.parse_frontmatter(path.read_text(encoding="utf-8"))
+                assert su.parse_frontmatter(path.read_text(encoding="utf-8")[:4000])[0] == fm
                 assert desc == su.extract_skill_description(fm)
                 if name in CHILDREN:
                     assert name.split("-", 1)[0].lower() in desc.lower()
@@ -234,19 +239,25 @@ def _child(case, sandbox, candidate_tree, source):
                 repeat_root = view("searcher-pipeline", task=task)
                 assert repeat_root["status"] == "unchanged" and repeat_root["content_returned"] is False
 
-                # Explicit, scripted unit switch in the same task: authorized read of a
-                # second unit, not evidence of model behavior - state only.
-                lookup_first = view("lookup-searcher", task=task)
-                body_matches(lookup_first, tree / "lookup-searcher/SKILL.md", rendered=True)
-                sweep_first = view("sweep-searcher", task=task)
-                body_matches(sweep_first, tree / "sweep-searcher/SKILL.md", rendered=True)
-                assert sweep_first["content"] != lookup_first["content"]
+                # Scripted phase and unit switching proves read mechanics, not
+                # model routing or agreement compliance.
+                for name in CHILDREN:
+                    body_matches(view(name, task=task), tree / name / "SKILL.md", rendered=True)
+                    contents = []
+                    for unit in UNITS:
+                        relative = f"references/{unit}.md"
+                        result = view(name, relative, task=task)
+                        body_matches(result, tree / name / relative)
+                        contents.append(result["content"])
+                        repeat = view(name, relative, task=task)
+                        assert repeat["status"] == "unchanged" and repeat["content_returned"] is False
+                    assert len(set(contents)) == 3
 
                 root_again = view("searcher-pipeline", task=task)
                 assert root_again["status"] == "unchanged" and root_again["content_returned"] is False
 
-                lookup_again = view("lookup-searcher", task=task)
-                assert lookup_again["status"] == "unchanged" and lookup_again["content_returned"] is False
+                phase_again = view("build-searcher", task=task)
+                assert phase_again["status"] == "unchanged" and phase_again["content_returned"] is False
 
             elif case == "recovery":
                 from agent.conversation_compression import _reset_read_dedup_caches
@@ -280,20 +291,23 @@ def _child(case, sandbox, candidate_tree, source):
 
                 root_path = tree / "SKILL.md"
                 # Real tools can exhaust recovery. This is not model-compliance evidence.
-                for name in ("searcher-pipeline",) + CHILDREN:
-                    path = tree / ("SKILL.md" if name == "searcher-pipeline" else f"{name}/SKILL.md")
-                    task = f"recovery-{name}"
-                    body_matches(view(name, task=task), path, rendered=True)
-                    repeat = view(name, task=task)
+                documents = [("searcher-pipeline", None, tree / "SKILL.md")]
+                for name in CHILDREN:
+                    documents.append((name, None, tree / name / "SKILL.md"))
+                    documents.extend((name, f"references/{unit}.md", tree / name / f"references/{unit}.md") for unit in UNITS)
+                for name, relative, path in documents:
+                    task = f"recovery-{name}-{relative}"
+                    body_matches(view(name, relative, task=task), path, rendered=relative is None)
+                    repeat = view(name, relative, task=task)
                     assert repeat["status"] == "unchanged" and repeat["content_returned"] is False
 
                     assert_file_body(read(path, task), path)
-                    assert view(name, task=task)["status"] == "unchanged"
+                    assert view(name, relative, task=task)["status"] == "unchanged"
                     reread = read(path, task)
                     assert reread["status"] == "unchanged" and reread["content_returned"] is False
                     assert "BLOCKED" in read(path, task)["error"]
                     _reset_read_dedup_caches(task)
-                    body_matches(view(name, task=task), path, rendered=True)
+                    body_matches(view(name, relative, task=task), path, rendered=relative is None)
                     assert_file_body(read(path, task), path)
                     _reset_read_dedup_caches(task)
 
@@ -306,23 +320,23 @@ def _child(case, sandbox, candidate_tree, source):
                 config.write_text(config.read_text() + "file_read_max_chars: 1200\n", encoding="utf-8")
                 ft._max_read_chars_cached = None
                 assert ft._get_max_read_chars() == 1200
-                page_task = "recovery-pagination"
-                lines, offset, pages = [], 1, 0
-                while True:
-                    page = read(root_path, page_task, offset=offset)
-                    assert not page.get("error")
-                    # Split while line-number prefixes still preserve a blank
-                    # final line at a character-budget page boundary.
-                    lines.extend(strip_lines(line) for line in page["content"].splitlines())
-                    pages += 1
-                    if not page.get("truncated"):
-                        break
-                    assert page["next_offset"] > offset
-                    offset = page["next_offset"]
-                assert pages > 1
-                # Native numbering preserves the final newline as an empty line.
-                assert "\n".join(lines) == root_path.read_text(encoding="utf-8")
-                _reset_read_dedup_caches(page_task)
+                for path in (root_path, tree / "build-searcher/SKILL.md",
+                             tree / "build-searcher/references/hunt.md"):
+                    page_task = f"recovery-pagination-{path}"
+                    lines, offset, pages = [], 1, 0
+                    while True:
+                        page = read(path, page_task, offset=offset)
+                        assert not page.get("error")
+                        # Preserve blank lines at actual character-budget boundaries.
+                        lines.extend(strip_lines(line) for line in page["content"].splitlines())
+                        pages += 1
+                        if not page.get("truncated"):
+                            break
+                        assert page["next_offset"] > offset
+                        offset = page["next_offset"]
+                    assert pages > 1
+                    assert "\n".join(lines) == path.read_text(encoding="utf-8")
+                    _reset_read_dedup_caches(page_task)
 
             elif case == "relocation":
                 check_discovery()
@@ -341,6 +355,9 @@ def _child(case, sandbox, candidate_tree, source):
                         body_matches(result, target, rendered=True)
                         assert result["skill_dir"] == str(target.parent)
                         assert str(tree) not in result["content"]
+                        for unit in UNITS:
+                            relative = f"references/{unit}.md"
+                            body_matches(view(name, relative, task="moved-namespace-only"), target.parent / relative)
                 finally:
                     pb.clear_skills_system_prompt_cache(clear_snapshot=True)
                     reset_hermes_home_override(token)
