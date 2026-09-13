@@ -272,18 +272,29 @@ def _child(case, sandbox, candidate, source, disabled):
 
             # Discarded earlier bodies are NOT recovered by an unchanged stub.
             unchanged(view(ROOT))
+            source_lines = (tree / "SKILL.md").read_text(encoding="utf-8").splitlines()
             for recovery in range(2):
-                chunks, offset = [], 1
+                numbered, offset = [], 1
                 while True:
                     page = read(offset)
                     assert not page.get("error") and "content" in page
-                    chunks.extend(re.sub(r"^\d+\|", "", page["content"], flags=re.MULTILINE).splitlines())
-                    if not page.get("truncated"):
+                    for line in page["content"].splitlines():
+                        m = re.match(r"^(\d+)\|(.*)$", line)
+                        assert m, f"unnumbered page line: {line!r}"
+                        numbered.append((int(m.group(1)), m.group(2)))
+                    truncated = page.get("truncated")
+                    if not truncated:
                         break
                     assert page["next_offset"] > offset
                     offset = page["next_offset"]
                 assert offset > 1, "Exercise real char-budget truncation, not artificial ranges"
-                assert chunks == (tree / "SKILL.md").read_text(encoding="utf-8").splitlines()
+                # The final page may carry a trailing EOF marker line (one past the
+                # real source, empty, no further offset) that is not real content.
+                if numbered and numbered[-1] == (len(source_lines) + 1, "") and not page.get("truncated"):
+                    numbered.pop()
+                assert [number for number, _ in numbered] == list(range(1, len(source_lines) + 1))
+                chunks = [text for _, text in numbered]
+                assert chunks == source_lines
                 unchanged(read())
                 blocked = read()
                 assert "BLOCKED" in blocked["error"] and "content" not in blocked
