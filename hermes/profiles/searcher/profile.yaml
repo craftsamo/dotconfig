@@ -1,9 +1,8 @@
-description: 'Retrieval hands, as a resident chat session or a kanban
-  card for the two catalog units (survey-enumeration, exhaustive-hunt -
-  the home of goal-mode hunts; any other card is refused back to a
-  session). Consumes released lookup / sweep / hunt units, retrieves
-  real web/X sources, verifies URL and coverage floors, and hands off
-  bounded link-first findings with open gaps; undecided briefs return
-  as spec-gap or granularity findings. Never analyzes, decomposes, or
-  registers cards.'
+description: 'Purpose-led retrieval through Plan, Build and QA: proposes bounded
+  lookup / sweep / hunt units from client purpose, consumer, constraints and budget,
+  agrees scope, retrieves real web/X sources and checks links and coverage.
+  Resident work or unchanged survey-enumeration / exhaustive-hunt cards; valid
+  cards enter Build then QA directly, malformed cards are refused. Delivers
+  link-first findings with open gaps, never synthesis, rankings, whole-project
+  decomposition, cross-role assignment or card registration.'
 description_auto: false
