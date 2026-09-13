@@ -101,13 +101,15 @@ guides. Assessment alone never authorizes edits.
 
 Load `japanese-writing` for Japanese deliverable wording: writing, editing,
 or examining the language. Its SKILL.md supplies meaning-preserving language
-knowledge and five notation defaults, not a document-design or inspection
-workflow. Respect the user's instructions and the project's conventions.
+knowledge, five notation defaults and advisory read-only article inspection,
+not a document-design or acceptance workflow. Respect the user's instructions
+and the project's conventions.
 
 Composition, verification and delivery remain with the active task/agent.
-Do not restore the retired catalogs, run their bespoke lint or assign
-naturalness scores merely because text is Japanese. Explicit repository
-checks still apply through the host workflow; this does not force delegation
+Use the current bounded inspector when the skill and task call for it; never
+restore the retired catalogs or lint, or assign naturalness scores merely
+because text is Japanese. Explicit repository checks still apply through the
+host workflow; this does not force delegation
 to Hermes Writer. Ordinary conversation and i18n tooling remain outside
 the skill's scope (LanguagePolicy governs conversation).
 
