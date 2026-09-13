@@ -1,7 +1,9 @@
 ---
 name: qa-creator
 description: >-
-  Check delivered media against client intent and evidence.
+   Inspect media evidence ONLY on explicit user request. Requests may be direct
+   or relayed through a Client. Return bounded findings, not a routine QA stage.
+   Ordinary proposals, previews and completions use build-creator for delivery.
 version: 1.0.0
 author: CraftSamo
 license: MIT
@@ -47,6 +49,12 @@ not a new measurement loop or an invented listening/continuous-motion verdict.
 
 # Quality assurance - against the client's intent
 
+This entry is explicit-request-only. On an ordinary production completion,
+return to [Build](../build-creator/SKILL.md) for direct delivery without the
+inspection below. An inspection request authorizes one bounded findings pass on
+the named artifacts/criteria, not revision, generation or a second broker review.
+If scope is missing, clarify it; do not inspect an entire job by default.
+
 The hands verified against the leaf's `<QA>` (dimensions, alpha, cut-out,
 style cues) and said so with evidence. You verify the one thing they
 cannot: **is this what the client meant.** Nothing is re-measured here;
@@ -71,8 +79,8 @@ fresh ASR pass. For video, use the subject's sampled/native-frame
 procedure, never pass an MP4 to image vision or claim that a poster
 proves motion or sound.
 
-1. Open the recommended file (or every delivered file when there is no
-   recommendation) with vision at native size.
+1. Open only the artifacts within the requested inspection scope with vision
+   at native size.
 2. Open it again at the size the client will use - a Slack sidebar icon
    at 64 px, a favicon at 16 px - by resizing to a scratch copy under
    `deliver:` or `/tmp`. Write the verdict down before the next look;
@@ -98,16 +106,18 @@ saved draft does not prove the current version was saved. Unknown or failed
 checks remain visible, even when some parts are ready.
 
 - **Accept** - it is what was asked, at the size it will be used.
-- **Revise** - one `intent: revise <deliver dir>` handoff with the form
-  field that changes and nothing else changed ([Build](../build-creator/SKILL.md)).
+- **Revise recommended** - report the defect and proposed scope; do not dispatch
+   a correction from this inspection. A client-requested correction goes through
+   [Build](../build-creator/SKILL.md) with `intent: revise <deliver dir>`, the form
+   field that changes and nothing else changed.
   Name the defect the way you saw it ("the tail reads as a chip at 64 px"),
   not as an instruction to the model. A revise on a metered leaf costs
   the leaf's corrective; a second revise round is the client's call,
   with the cost stated. Preserve the subject's proposal-approval gates
   when the revision changes approved creative choices.
-- **Back to Plan** - the form was wrong, not the render (the wrong verb,
-  a field the client meant differently): re-fill with the client, then a
-  fresh `intent: new`.
+- **Back to Plan recommended** - the form was wrong, not the render (the wrong
+   verb or an interpretation mismatch). Report it; a new production request needs
+   the client's decision and the original proposal/budget gates.
 
 Never "fix it yourself": a local edit on the hands' file is a different
 deliverable wearing its filename. An `edit-icon` handoff is the way to
@@ -121,15 +131,15 @@ Reply in the client's language, short:
 - the recommended one, when there are variants, and why in one line;
 - the hands' spend line verbatim (`spend: img 2/2 ...` / `spend: free`);
 - the hands' open questions, if any, relayed (`clarify` / `Q<n>:`);
-- for the assistant: the hands' QA evidence lines too - it gates by
-  intent on its side and needs them.
+- for the assistant: the existing evidence and your scoped findings, without
+   asking it to repeat the inspection.
 
 On a human's bot the file itself is sent when the platform can carry it
 (an image inline), the path always.
 
 ## QA is done when
 
-- every delivered visual file was looked at, at native size and at the
+- every in-scope visual file was looked at, at native size and at the
   size of use, and the verdict is written (a speech, SFX, music or mix
   delivery's evidence was read per its subject reference, not looked
   at or listened to);

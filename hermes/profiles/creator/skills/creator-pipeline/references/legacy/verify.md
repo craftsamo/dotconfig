@@ -8,7 +8,11 @@ that the asset is right.**
 
 Six checks, V1-V6. Run the ones the intent profile (below) marks required;
 record what you checked and the outcomes as you go — they become the
-report's verification evidence (see `references/legacy/delivery.md`).
+report's verification evidence (see `references/legacy/delivery.md`). This is the
+producer self-check only. Do not add a broker inspection, repeat it through a
+learned skill, or turn uncertainty about appeal into autonomous polish. Report
+unmet/unverified criteria and deliver a labeled candidate; required failures
+still block final readiness. These checks are not the user's creative approval.
 
 ## V1 — AcceptanceCheck (asset vs the brief)
 
@@ -131,8 +135,9 @@ Advisory work never loads this production verifier.
 | Direction (anchor) | REQ | REQ | REQ | - | REQ | REQ | only anchor-allowance spend; the style spec + sample are attached before the sign-off block |
 | advisory | REQ | - | - | - | REQ | - | zero generation spend; every claim sourced from the catalog or a cheap prerequisite check |
 
-The profile is a floor, not a ceiling — escalate (more frames sampled, a
-full listen-through) when the asset's cost or visibility warrants it.
+Use the required profile once; extra sampling needs a named unresolved technical
+requirement or an explicit inspection request, not a general desire to improve
+the look. Never claim a listen-through that did not occur.
 
 ## Pitfalls
 

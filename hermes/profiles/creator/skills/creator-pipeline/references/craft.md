@@ -13,6 +13,10 @@ test 1..10s without a CTA but still needs both exact approvals and cannot become
 final media. Other leaves do not inherit a study flag. Unsupported units return
 a named gap, never placeholder content or an out-of-contract renderer. Keep the
 parent purpose and existing allowance; a study creates no parallel retry grant.
+For a time-based reference, the early sample must demonstrate the relevant
+composition and progression, not only a still frame or ending. Show it after
+producer checks, without another broker inspection. A rejected overall direction
+calls for a changed reference interpretation, not another round of minor polish.
 
 Read this at an actual direction, production-translation or acceptance decision,
 not as a new phase, form or preset layer. Creator already sees the curated store;

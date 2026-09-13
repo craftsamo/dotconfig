@@ -1,7 +1,8 @@
 ---
 name: build-creator
 description: >-
-  Dispatch approved media forms and supervise the hands.
+   Dispatch approved media forms, supervise the hands and deliver promptly with
+   producer checks and limitations. Normal completions stay here, without QA.
 version: 1.0.0
 author: CraftSamo
 license: MIT
@@ -170,10 +171,46 @@ first. A legacy job that needs spoken audio (narration for
 finished audio-creator delivery as its QA-passed input part - the
 legacy family consumes it, it never synthesizes speech itself.
 
+The legacy verifier is your producer self-check, not a reason to add another
+`qa-creator` or Assistant inspection. Apply the direct delivery procedure below
+after those checks; explicit Review/anchor approval stops remain unchanged.
+
+## Direct delivery
+
+Stay in Build on ordinary completion. Read the report for paths, output kind,
+required check status, obvious conflicts with settled constraints and spend.
+Request a missing receipt or a scoped technical fix from the same producer, or
+report the blocker; do not silently mark a required failure as passed. Do not
+re-probe files, create a second evidence report, repeat visual looks or spend
+the corrective allowance on your own aesthetic objections before showing work.
+
+Distinguish advice, findings, proposal, approval preview and final candidate.
+Show a usable preview promptly with known limitations; unverified taste, motion
+or listening is not a reason for another internal inspection. A failed required
+check still blocks final readiness and dependent use; labeling a preview does
+not waive that check. Delivery is not user acceptance or proposal approval.
+
+Reply in the client's language with the absolute durable paths and one sentence
+per artifact, the producer's spend line unchanged, unresolved questions and
+failed/unverified checks. For a human, attach the actual file when the platform
+supports it; otherwise give an accessible viewing route, not just an internal
+path. For an agent Client, relay existing evidence for disclosure and downstream
+constraints, not as a request for another QA pass. Keep approval-waiting work
+open; close only accepted work under the existing transport rules.
+
+If the user rejects the overall direction, return to the reference interpretation
+and propose a supported representative sample before full production. For a
+time-based reference, that sample must expose the relevant composition AND
+progression; a static frame or ending alone cannot settle them. Preserve the
+existing sample modes, exact approvals and consumed allowance. Do not start an
+unapproved sample, invent a study mode or repeat minor polish on a rejected idea.
+
 ## Build is done when
 
 - every form has a report with paths at `deliver:` (or findings only for
   analyze leaves) and a spend line;
+- the client received the actual candidate and disclosed limitations without
+  an automatic `qa-creator` pass;
 - every `Q<n>:` was relayed and answered, or the job is parked waiting
   for the client and says so;
 - sessions opened for the job are closed or explicitly kept for a revise
