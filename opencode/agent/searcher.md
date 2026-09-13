@@ -2,6 +2,7 @@
 description: "Fast web research subagent on the OpenAI subscription tier: fact checks, docs lookups, version/changelog checks, and broad option surveys. Reads local files only to ground queries. Prefer invoking through the built-in task tool."
 mode: subagent
 model: openai/gpt-5.6-terra-fast
+variant: low
 hidden: true
 permission:
   "*": deny
