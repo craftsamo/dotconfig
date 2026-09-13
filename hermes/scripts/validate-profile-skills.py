@@ -1061,18 +1061,27 @@ def validate_searcher_entries(pipeline_dir: Path, errors: list[str]) -> dict[str
 
 
 RESEARCHER_ENTRIES = {
-    f"{unit}-researcher"
-    for unit in ("evidence-pack", "tradeoff-matrix", "fact-check", "guidance")
+    f"{phase}-researcher" for phase in ("plan", "build", "qa")
 }
+RESEARCHER_UNITS = ("evidence-pack", "tradeoff-matrix", "fact-check", "guidance")
 
 
 def validate_researcher_entries(pipeline_dir: Path, errors: list[str]) -> dict[str, Path]:
-    """Four released-unit procedures; source discipline and gathering stay shared."""
+    """Three phase owners, each with four unit guides; gathering stays shared."""
     entries: dict[str, Path] = {}
+    for path in pipeline_dir.rglob("*"):
+        if path.is_symlink():
+            errors.append(f"researcher pipeline must not contain symlinks: {path}")
+    if any(path.is_symlink() for path in pipeline_dir.rglob("*")):
+        return entries
     expected = {"SKILL.md", "references/gather.md"} | {
         f"{name}/SKILL.md" for name in RESEARCHER_ENTRIES
     }
-    found = {p.relative_to(pipeline_dir).as_posix() for p in pipeline_dir.rglob("*.md")}
+    expected.update(f"{name}/references/{unit}.md" for name in RESEARCHER_ENTRIES for unit in RESEARCHER_UNITS)
+    found = {
+        p.relative_to(pipeline_dir).as_posix() for p in pipeline_dir.rglob("*")
+        if p.is_file() and (p.name == "SKILL.md" or not any(part.startswith(".") for part in p.relative_to(pipeline_dir).parts))
+    }
     for path in sorted(expected - found):
         errors.append(f"missing researcher document: {path}")
     for path in sorted(found - expected):
@@ -1094,7 +1103,7 @@ def validate_researcher_entries(pipeline_dir: Path, errors: list[str]) -> dict[s
         text = path.read_text(encoding="utf-8")
         if text.find("\n---", 4) not in range(4, 4000):
             errors.append(f"researcher frontmatter exceeds discovery prefix: {name}")
-        if f"{name}/SKILL.md" not in kernel_text:
+        if f"({name}/SKILL.md)" not in kernel_text:
             errors.append(f"researcher kernel does not route {name}")
         block = re.search(r"<ReadBeforeWork>(.*?)</ReadBeforeWork>", text, re.S)
         before = " ".join(block.group(1).split()) if block else ""
@@ -1104,21 +1113,33 @@ def validate_researcher_entries(pipeline_dir: Path, errors: list[str]) -> dict[s
             "${HERMES_SKILL_DIR}/../SKILL.md",
             "${HERMES_SKILL_DIR}/../references/gather.md",
             "${HERMES_SKILL_DIR}/SKILL.md",
+            "${HERMES_SKILL_DIR}/references/<unit>.md",
             "read_file", "next_offset", "stop", "kanban_block(kind=capability)",
         ):
             if required not in before:
                 errors.append(f"researcher entry missing dependency/recovery {required}: {name}")
         if not re.search(r"reuse.*full.*(?:context|body)", before, re.I):
             errors.append(f"researcher entry missing full-body reuse contract: {name}")
-        for section in ("## Output template", "## Verification"):
+        for section in ("## Output template", "## Verification", "## Handoff"):
             if section not in text:
                 errors.append(f"researcher entry missing {section}: {name}")
+        for unit in RESEARCHER_UNITS:
+            if f"(references/{unit}.md)" not in text:
+                errors.append(f"researcher entry does not link owned reference {unit}: {name}")
+            reference = pipeline_dir / name / "references" / f"{unit}.md"
+            if reference.is_file():
+                body = reference.read_text(encoding="utf-8")
+                section = {"plan": "## Plan", "build": "## Output template", "qa": "## Verification"}[name.split("-", 1)[0]]
+                if section not in body:
+                    errors.append(f"researcher reference missing {section}: {reference.relative_to(pipeline_dir)}")
     for doc in sorted(pipeline_dir.rglob("*.md")):
         if doc.is_symlink() or not doc.resolve().is_relative_to(pipeline_dir.resolve()):
             errors.append(f"researcher document escapes pipeline: {doc}")
             continue
         if "card_units" in frontmatter(doc):
             errors.append(f"researcher defines no card units: {doc.name}")
+        if doc.name != "SKILL.md" and "name" in frontmatter(doc):
+            errors.append(f"researcher reference must not declare a skill name: {doc}")
         for link, target in markdown_links(doc):
             if not target.resolve().is_relative_to(pipeline_dir.resolve()) or not target.is_file():
                 errors.append(f"broken/escaping researcher link: {doc.name}: {link}")
