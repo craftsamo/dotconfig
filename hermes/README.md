@@ -97,8 +97,10 @@ are resident-only, without bots or A2A ports. The default CLI flow is unchanged.
 Use `specialist_call(target, message, kind="inquiry"|"work")`, then continue
 with the same `target`, the returned `conversation_id`, and the next `message`.
 Free bounded single-reply requests use `inquiry`; metered, multi-turn or long
-work uses `work`. Pass the released unit, inputs, permissions and grant unchanged;
-transport selection grants no authority or budget. `specialist_session` supports `status`,
+work uses `work`. Pass purpose/consumer/constraints/budget for Researcher/Searcher
+framing, or the explicitly authorized settled brief for execution; preserve any
+released unit, inputs, permissions and grant unchanged.
+Transport selection grants no authority or budget. `specialist_session` supports `status`,
 `list`, and `close` in the same originating session and profile. The registry
 and restrictive request files live under that caller's real Hermes home in
 `specialist-sessions/`; resident JSON and logs retain the existing format in
@@ -391,31 +393,72 @@ live saving. These checks are registered in `verify-work-continuity.py`.
 Live cutover needs separate approval, a controlled restart AND fresh sessions;
 existing resident work, outputs, grants and approvals are not migrated/replayed.
 
-### Searcher entry routing
+### Researcher and Searcher phase routing
 
-Searcher uses its existing `searcher-pipeline` directory and kernel name, with
-three independently discoverable children outside `references/`: `lookup-searcher`,
-`sweep-searcher` and `hunt-searcher`. The former unit playbooks are their SKILL.md
-bodies, not aliases or additional common-mode layers. The kernel remains the
-single home of retrieval-only scope, released-unit discipline and the two card
-gates. Unit loads never reset coverage/frontier/budget or authorize broader work.
+The purpose-first migration is implemented in the isolated candidate, awaiting
+explicit live cutover and real-model verification. Other roles' deployment dates
+and status above are unchanged. The retained kernels are `researcher-pipeline`
+v9.0.0 and `searcher-pipeline` v7.0.0. Each has three independent entries outside
+`references/`: `plan-researcher`, `build-researcher`, `qa-researcher` and
+`plan-searcher`, `build-searcher`, `qa-searcher`, respectively. Entry bodies own
+phase procedures, not a second common-mode index.
 
-On every caller/judge/resume/completion turn and before a unit/scope-changing
-action, select the appropriate entry. Require its full body and the kernel;
-reuse only bodies actually present in context. For an unchanged response whose
-body is missing, read the canonical file and follow next_offset for truncation.
-If recovery fails, stop that search. The Assistant entry source limitations
-above also apply; no alternate-path or artificial-range dedup bypass is allowed.
+Each Researcher entry owns four plain `references/<unit>.md` files for
+`evidence-pack`, `tradeoff-matrix`, `fact-check` and `guidance`; each Searcher
+entry owns three for `lookup`, `sweep` and `hunt`. These exact unit names remain,
+but the former unit-named skills are removed without aliases. Researcher's shared
+`references/gather.md` stays at the parent, required beyond a few direct lookups.
+The generic skill-authoring parent-reference portability exception still applies:
+these are Hermes-dependent entries, not standalone packages; do not duplicate
+the kernel or Gather to silence that check.
 
-`test_searcher_pipeline.py` checks the closed topology, dependencies, card gates
-and unchanged tool surface. `test_searcher_entry_runtime.py` uses the provisioned
-Hermes Python with the runtime checkout on PYTHONPATH, an isolated HOME and no
-network/model/search to test actual discovery, reads, dedup, recovery and
-relocation. It scripts unit selection; it does not prove a model chose the right
-unit. Both suites are registered in `scripts/verify-work-continuity.py`.
-No live rollout follows from a passing candidate: preserve active jobs and obtain
-approval before refreshing resident/worker processes and opening a fresh session.
-No new profile, external root, tool grant, card type or install mapping is added.
+The Client supplies purpose, consumer, constraints and budget. Researcher proposes
+questions, options, criteria and exact claims; Searcher proposes retrieval scope,
+coverage, per-item fields, done conditions and exclusions. Both may propose an
+ordered sequence of their own units, never cross-role project decomposition.
+Client agreement within existing authority releases Build, followed by QA
+self-check and separate caller acceptance. An already explicitly authorized,
+settled execution brief goes directly to Build; filled fields or transport kind
+alone are insufficient. A narrow authorized inquiry can finish in one shot;
+complex framing, feedback and work use a resident conversation. Planning uses
+supplied material only; needed discovery is a separately agreed bounded
+preliminary Build, then QA and a refined Plan, not release of the main work.
+Assistant reaches Researcher through Engineer, Creator or Marketer, never a new
+direct peer. Searcher remains retrieval-only; Researcher retains evidence scoring
+and does not take over artifact craft QA.
+The consuming primary owns the Researcher conversation and returns the agreed
+baseline (questions, done criteria, source policy, budget and approved changes)
+with conclusions. Assistant requests a missing baseline through that primary;
+purpose alone cannot establish acceptance.
+
+Searcher still accepts only `survey-enumeration` (settled question, coverage
+claim/floor count and per-item fields) and `exhaustive-hunt` (settled question,
+done criteria and scope exclusions). The caller may author the complete spec.
+A valid card goes directly Build -> QA -> terminal without Plan negotiation or
+new approval. Malformed/missing-input/non-catalog/composite cards block with
+`kanban_block(kind=capability)` before any phase; Researcher refuses every card.
+Existing card dialogue, review and guarded-resume protocols remain intact.
+
+All six entries require the full kernel, selected phase body and selected unit
+reference in current context on each caller/judge/resume/completion turn and
+before phase/unit/scope changes. A past load, summary or root preload is not
+enough. If `skill_view` dedup returns unchanged with a missing body, recover via
+canonical `read_file`, following `next_offset` through actual truncation, or stop
+the affected action. No alternate-path/artificial-range bypass. Reads and resumes
+never grant scope, reset coverage/frontier/budget or replay completed work.
+
+The existing three suites are `scripts/tests/test_researcher_entries.py`,
+`test_searcher_pipeline.py` and `test_searcher_entry_runtime.py`, all registered
+in `scripts/verify-work-continuity.py`. They cover declared phase/unit contracts,
+card gates and actual discovery/read/dedup/recovery mechanics with provisioned
+Hermes Python and source PYTHONPATH, not real-model routing or actual research.
+Pair public tests with `HERMES_PRIVATE_ROOT=<private-candidate>` and private tests
+with `HERMES_PUBLIC_ROOT=<public-candidate>`, using isolated HOME. Never install,
+restart or repoint live links for tests, weaken live Git ownership checks, or
+rewrite runtime jobs, frozen outputs or approvals. Approved cutover must refresh
+the cached index in the applicable gateway/resident/worker processes and use fresh
+sessions; file edits alone do not refresh it. No new profile, peer, external root,
+tool grant, card type or install mapping is added.
 
 ## Profiles
 

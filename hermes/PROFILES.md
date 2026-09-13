@@ -103,8 +103,8 @@ itself call `delegate_task` during its run.
 | **assistant** | primary: messaging front door; A2A peers engineer/creator/marketer/writer | Telegram + Discord | `~/Workspaces` | `web,browser,terminal,file,vision,x_search,skills,todo,memory,clarify,delegation,cronjob,computer_use,kanban,a2a` + `unreal-engine` MCP | served | yes (token per-machine) |
 | **engineer** | developer using OpenCode; human/Assistant Clients; technical planning, approved implementation through PR and independent UI/UX QA; Issue writes only on explicit request | Telegram (own bot) | explicit task worktree | `terminal,file,web,browser,vision,skills,todo,memory,clarify,delegation,specialist,opencode` | bot + inquiry-only a2a :9902 | yes |
 | **ui-review / ux-persona** | independent visual review / isolated user simulation for Engineer; no code edits or self-acceptance | resident only | isolated test browser | `browser,vision,skills,ui-inspection` | no bot or A2A endpoint | inherited default OAuth |
-| **researcher** | verified conclusions from released units: evidence-pack / tradeoff-matrix / fact-check / guidance; heavy breadth is requested from the orchestrator as a search unit; serves engineer/creator/marketer only (not the assistant), cards refused | — (A2A receive-only) | `.` (launch / task ws) | `file,web,vision,video,skills,memory,delegation` | served (a2a :9906) | yes |
-| **searcher** | retrieval from released units: lookup / sweep / hunt (multi-hop via `goal_mode` on cards) | — (specialist) | `.` (launch / task ws) | `web,x_search,skills,memory` | — | yes |
+| **researcher** | purpose-first depth Plan / Build / QA: evidence-pack / tradeoff-matrix / fact-check / guidance; proposes own-role scope, requests heavy breadth from caller; serves engineer/creator/marketer only (not Assistant directly), cards refused | — (A2A receive-only) | `.` (launch / task ws) | `file,web,vision,video,skills,memory,delegation` | served (a2a :9906) | yes |
+| **searcher** | purpose-first retrieval Plan / Build / QA: lookup / sweep / hunt; valid settled catalog cards go directly Build / QA / terminal (multi-hop via `goal_mode`) | — (specialist) | `.` (launch / task ws) | `web,x_search,skills,memory` | — | yes |
 | **creator** | primary: plans with human/assistant clients, delegates served image/clip/speech/sfx/music/mix forms, gates evidence and delivers; remaining technics cover images, authored video and assembly of supplied parts; vocal-song generation and standalone audio visualization remain withdrawn | Telegram (own bot) | `.` (launch / task ws) | `terminal,file,vision,image_gen,video_gen,video,tts,skills,memory,delegation,a2a` + gen plugins + `unreal-engine` MCP | served (bot + a2a :9903) | yes |
 | **image-creator** | Creator's hands for still images: runs one `<verb>/<subject>` leaf from a filled form (icon family: source / create / generate / edit / analyze; emoji family: create / generate / edit / analyze), QA with evidence, report; answers only Creator | — (A2A receive-only) | `.` (launch / task ws) | `terminal,file,vision,image_gen,skills,memory` | served (a2a :9907) | yes |
 | **audio-creator** | Creator's spoken-audio hands: generate/edit/analyze-speech, create/generate/edit/analyze-sfx, create/generate/edit/analyze-music (instrumental BGM/melodic pieces only) and create/edit/analyze-mix (placing already-finished sources on a timeline, never synthesis) from approved forms; measured/readback QA, no claims of listening; no full songs or voice registration | — (A2A receive-only) | `.` (launch / task ws) | `terminal,file,tts,sfx_gen,music_gen,skills,memory` | served (a2a :9909) | yes |
@@ -232,48 +232,85 @@ are not adopted. Service drafts require same-object reopening and content plus
 unpublished-state verification; uncertain saves are reconciled before retrying.
 The user owns economic commitments and later publication. Details: marketer's
 four-mode `marketer-pipeline` skill and "Marketer strategy and browser drafts".
-**searcher** consumes released retrieval units the same way — a lookup
-unit (settled question), a sweep unit (coverage claim/floor + per-item
-fields), or a hunt unit (done criteria + scope exclusions) — under the
-link-integrity and retrieval-only floors, returning undecided briefs as
-spec-gap or granularity findings; its two catalog cards are the
-card-eligible forms of sweep and hunt. The assistant's search plan
-leaves (`plan/search/`) fix the decisions, and search QA gates each
-unit against lookup/sweep/hunt contracts (validator-enforced mapping).
-`searcher-pipeline` retains the shared contract; `lookup-searcher`,
-`sweep-searcher` and `hunt-searcher` are independent child skills outside
-`references/`, each owning its full unit procedure, output and checks. Each
-caller/judge/resume/completion turn and midturn unit/scope-changing action
-reselects the entry without restarting the job, frontier or remaining budget.
-Direct entry requires the full kernel; a past load or summary is not a body.
-Missing bodies use canonical read_file recovery, then stop if still unavailable.
-The deployed card names, external skill roots and tools are unchanged; tests of
-discovery and read mechanics do not prove model routing or actual retrieval.
-**researcher** consumes released depth units the same way — an
-evidence-pack unit (settled question + done criteria), a
-tradeoff-matrix unit (closed option set + criteria), a fact-check unit
-(fixed claims list + source requirements), or a guidance unit
-(consumer + decision
-points + evidence base) — under the evidence-integrity floor and the
-Admiralty/SIFT method, returning undecided briefs as spec-gap or
-granularity findings. Research units reach it only from engineer,
-creator, or marketer (its A2A peers / session owners) — never from the
-assistant directly, and never as cards (the `claim-verification`
-catalog unit was retired in the 2026-09 peer rebuild). The assistant's
-research plan leaves
-(`plan/research/`) fix the decisions, and research QA gates each unit
-against evidence-pack/tradeoff-matrix/fact-check/guidance contracts
-(validator-enforced mapping). Researcher's `researcher-pipeline` retains the
-evidence floors and shared `references/gather.md`; four independent entries
-outside `references/` own the unit procedures:
-`evidence-pack-researcher`, `tradeoff-matrix-researcher`,
-`fact-check-researcher`, and `guidance-researcher`. Every incoming turn and
-mid-turn unit/scope change reselects the fitting entry without regranting or
-restarting the released work. Each direct entry requires the full kernel;
-reuse needs full bodies in current context, not a past load or summary.
-Canonical `read_file` recovery stops the affected work if instructions remain
-unavailable. Names and descriptions are discoverable; this is not automatic
-intent matching or a promise that a model will always select correctly.
+
+### Research and search dialogue
+
+Researcher and Searcher accept Client purpose, consumer, constraints and budget,
+not only prereleased units. Researcher proposes questions, option sets, criteria,
+exact claims and evidence requirements; Searcher proposes retrieval questions,
+coverage/floor, per-item fields, done conditions and exclusions. Each may propose
+an ordered sequence of its own units with dependencies and stop points, never
+decompose the cross-role project or assign other specialists. The Client agrees
+within existing authority, then Build executes and QA self-checks. Caller
+acceptance remains separate; Assistant's Client guides and acceptance contracts
+are not a duplicate specialist planning or self-QA procedure.
+
+An already explicitly authorized settled execution brief goes directly to Build.
+Filled fields, a source/URL or transport kind alone are not authorization. Narrow
+authorized inquiry may complete in one shot without ceremonial approval; complex
+framing and feedback use a resident conversation. Agent Clients may authorize
+ordinary inquiry within their grant, never infer human-only permissions. Plan
+uses supplied material only: needed discovery is a separately agreed bounded
+preliminary Build, then QA, then revised Plan and agreement for the main scope.
+A short approval advances the retained proposal rather than restarting Plan.
+
+Researcher's v9.0.0 `researcher-pipeline` kernel routes three independent entries
+outside `references/`: `plan-researcher`, `build-researcher`, `qa-researcher`.
+Each owns four plain `references/<unit>.md` files for `evidence-pack` (question
+and done conditions), `tradeoff-matrix` (options and equal criteria), `fact-check`
+(exact claims and source requirements) and `guidance` (consumer decisions and
+evidence base). Shared `references/gather.md` stays at the parent and is required
+beyond a few direct lookups. Admiralty/SIFT scoring, exact claims, durable claim
+ledgers and Review gates remain; research self-check is neither artifact craft QA
+nor the caller's final decision. Assistant reaches Researcher only through
+Engineer, Creator or Marketer, its existing peers/session owners; no new direct
+peer. Researcher refuses every card, including the retired `claim-verification`.
+The consuming primary owns the Researcher conversation and relays the agreed
+baseline (questions, done criteria, source policy, budget and approved changes)
+with conclusions. A missing baseline is unverified, not acceptable from purpose
+alone. Assistant's separate research/search Plan and QA references retain the
+seven unit contract names; the validator enforces that caller-side mapping.
+
+Searcher's v7.0.0 `searcher-pipeline` kernel routes `plan-searcher`,
+`build-searcher`, `qa-searcher`. Each independent entry owns three plain
+`references/<unit>.md` files for `lookup`, `sweep`, `hunt`. Retrieval and link
+integrity remain its limits: no trust verdicts, synthesis, rankings or production.
+Only two cards remain legal: `survey-enumeration` requires a settled question,
+coverage claim/floor count and per-item fields; `exhaustive-hunt` requires a
+settled question, done criteria and scope exclusions. The caller may author the
+complete spec. A valid card goes directly Build -> QA -> terminal without Plan
+negotiation or new approval; malformed/missing-input/non-catalog/composite cards
+block with `kanban_block(kind=capability)` before any phase, not Plan on the card.
+Existing dialogue, review, goal-mode and guarded-resume protocols remain.
+
+Both trees preserve the exact old unit names as references, remove old unit-skill
+names without aliases and add no second common-mode index. All six phase entries
+require full kernel, selected entry and selected unit-reference bodies in current
+context on every caller/judge/resume/completion turn and before phase/unit/scope
+changes, including direct entry. Past loads, summaries and root preload are not
+sufficient. If `skill_view` dedup returns unchanged with a missing body, recover
+via canonical `read_file`, following `next_offset` through actual truncation, or
+stop the affected action. No alternate paths or artificial ranges to evade dedup.
+Selection/resume never grants scope, resets coverage/frontier or consumed/remaining
+budget, or replays completed work. Bounded corrections return to Build within
+scope/budget; expansion returns to Plan and agreement. Spec gaps and evidence
+shortfalls remain explicit, not silently absorbed or narrowed into success.
+
+This is an implemented isolated candidate, awaiting explicit live cutover and
+real-model verification; other roles' recorded deployment dates remain unchanged.
+The existing `test_researcher_entries.py`, `test_searcher_pipeline.py` and
+`test_searcher_entry_runtime.py` suites remain in `verify-work-continuity.py`.
+They check phase/unit contracts and real discovery/read/dedup/recovery mechanics,
+not model compliance or live research. Use provisioned Hermes Python/source
+PYTHONPATH, isolated HOME and paired public/private candidates through
+`HERMES_PRIVATE_ROOT` / `HERMES_PUBLIC_ROOT`, respectively. Never install/restart
+or repoint live links for tests, relax Git ownership checks, or rewrite runtime
+jobs, frozen outputs or approvals. Approved cutover refreshes applicable process
+indexes and uses fresh sessions; file edits do not invalidate cached indexes.
+The generic skill-authoring parent-reference portability exception remains:
+Hermes validates the real pipeline owner, not standalone child packages. Do not
+duplicate Gather or the kernel to silence that check. No new profiles, tool
+grants, external roots, card types or install mappings are introduced.
 
 ### Planning ownership
 
@@ -283,6 +320,9 @@ chooses scope and important tradeoffs. The technical plan lives in the agreed
 private job record unless the Client explicitly requests Issue registration.
 Do not infer tracking permission from complexity, project type or duration.
 OpenCode session IDs are resume handles, not the only durable copy of decisions.
+Researcher and Searcher likewise own their role-specific proposals and unit
+sequencing from Client purpose; they do not inherit cross-role orchestration.
+Agreement, specialist self-check and caller acceptance remain distinct gates.
 
 ### Default is the assistant's CLI counterpart (and stays a clean baseline)
 
@@ -389,11 +429,11 @@ Three per-profile layers, kept separate:
     script/CLI-based via uv / npx / docker)
   - researcher → `researcher-pipeline` (resident sessions + inbound A2A
     peer requests from engineer/creator/marketer; every card refused —
-    the `claim-verification` unit is retired; consumes released units with unit
-    discipline — evidence-pack / tradeoff-matrix / fact-check /
-    guidance — through the independent children `evidence-pack-researcher`,
-    `tradeoff-matrix-researcher`, `fact-check-researcher` and
-    `guidance-researcher`, returning spec-gap and granularity findings, plus
+    the `claim-verification` unit is retired; purpose-first v9 kernel with
+    independent `plan-researcher` / `build-researcher` / `qa-researcher` entries,
+    each owning plain evidence-pack / tradeoff-matrix / fact-check / guidance
+    references; proposes own-role scope for Client agreement, then executes and
+    self-checks, returning spec-gap and granularity findings, plus
     Admiralty/SIFT source evaluation, citation rules, and the Review gate
     in the kernel; researcher supplies evidence and does not own
     artifact-vs-brief QA; retrieval strategy in references/gather.md) +
@@ -401,13 +441,14 @@ Three per-profile layers, kept separate:
     `osint-investigation` (stdlib-only recon / public-records) plus keyless
     `duckduckgo-search` (run through `uvx ddgs`)
   - searcher → `searcher-pipeline` (dual runtime — cards only for the
-    `survey-enumeration` / `exhaustive-hunt` catalog units; consumes
-    released units with unit discipline — lookup (targeted facts) /
+    `survey-enumeration` / `exhaustive-hunt` catalog units; purpose-first v7
+    Plan / Build / QA with Client agreement and own-role sequencing; lookup (targeted facts) /
     sweep (enumeration with a coverage claim) / hunt (multi-hop to
     saturation, signalled by `goal_mode` on cards) — returning spec-gap
     and granularity findings, plus the link-integrity floor; per-unit
-    playbooks in independent lookup-searcher / sweep-searcher / hunt-searcher
-    children; no technics — the deprecated
+    references in each independent plan-searcher / build-searcher / qa-searcher
+    child; valid settled cards bypass Plan for Build / QA / terminal;
+    caller acceptance is separate; no technics — the deprecated
     `deep-retrieval` stub was removed in the search rebuild) + keyless
     optional retrieval skills via `skills.external_dirs`:
     `duckduckgo-search` and `domain-intel`
