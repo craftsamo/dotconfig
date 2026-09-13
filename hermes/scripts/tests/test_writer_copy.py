@@ -94,8 +94,8 @@ def test_analysis_is_not_new_copy_or_a_performance_verdict():
 
 
 def test_marketer_consumes_copy_without_bypassing_acceptance():
-    produce = content(MARKETER / "references/build/parts.md")
-    acceptance = content(MARKETER / "references/quality-assurance/content.md")
+    produce = content(MARKETER / "build-marketer/references/parts.md")
+    acceptance = content(MARKETER / "qa-marketer/references/content.md")
     for verb in ("write", "edit", "analyze"):
         assert f"`{verb}-copy`" in produce
     assert "performs independent" in produce
