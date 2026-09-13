@@ -2665,9 +2665,21 @@ turn. The default profile already proves the YAML shape.
 The fleet is split across the two subscription pools by role (2026-09-05).
 Most profiles lead with **Claude Fable 5.1** for judgment, long-context work
 and prose, and fall to **Claude Opus 5** before ever touching the OpenAI pool.
-**Researcher**, **creator** and creator's hands lead the other way, on **GPT-6
-Astra**. Every chain then keeps a role-appropriate OpenRouter tail, and a hand
-inherits its parent's tail so it can still eyeball what it produced.
+**Researcher** leads the other way, on **GPT-6 Astra**. The other profiles
+listed below retain their role-appropriate OpenRouter tails.
+
+**Creator's hands are on the Anthropic pool (2026-09-13 follow-up).**
+`creator`, `image-creator` and `audio-creator` lead on **Claude Sonnet 5**;
+`video-creator` leads on **Claude Opus 5** (heavier judgment for authored
+HTML/CSS/GSAP video work). All four keep the shared `base_url:
+https://api.anthropic.com`, fall to `openai-codex` / **GPT-6 Astra**, and
+keep their original `openrouter` / `minimax/minimax-m3` tail at the end of
+the chain (Claude -> GPT -> OpenRouter minimax), so a hand still inherits
+`creator`'s vision fallback for eyeballing generated assets. Grok is
+deliberately deferred as a possible insertion BEFORE the GPT tier, pending
+runtime capability/entitlement validation (vision support is unverified for
+these profiles); it is not adopted silently and the existing OpenRouter tail
+is not removed to make room for it.
 **Searcher** is unchanged
 on `xai-oauth` / grok-4.3: xAI capacity is reserved for Searcher, X search and
 Imagine video. The coding model inside OpenCode is a separate layer entirely —
@@ -2682,9 +2694,10 @@ an uncertain run lives in Engineer's Skill.
 | **engineer** | `anthropic` / **claude-fable-5-1** | `anthropic` / claude-opus-5 | `openai-codex` / gpt-6-astra | `openrouter` / `deepseek/deepseek-v4-flash` | `high` |
 | **researcher** | `openai-codex` / **gpt-6-astra** | `openai-codex` / gpt-5.6-sol | `anthropic` / claude-opus-5 | `openrouter` / `xiaomi/mimo-v2.5` | `medium` |
 | **searcher** | `xai-oauth` / grok-4.3 | `openrouter` / `xiaomi/mimo-v2.5` | — | — | `low` |
-| **creator** | `openai-codex` / **gpt-6-astra** | `anthropic` / claude-fable-5-1 | `anthropic` / claude-opus-5 | `openrouter` / `minimax/minimax-m3` | `medium` |
-| **image-creator** | `openai-codex` / **gpt-6-astra** | `anthropic` / claude-fable-5-1 | `anthropic` / claude-opus-5 | `openrouter` / `minimax/minimax-m3` | `medium` |
-| **audio-creator** | `openai-codex` / **gpt-6-astra** | `anthropic` / claude-fable-5-1 | `anthropic` / claude-opus-5 | `openrouter` / `minimax/minimax-m3` | `medium` |
+| **creator** | `anthropic` / **claude-sonnet-5** | `openai-codex` / gpt-6-astra | `openrouter` / `minimax/minimax-m3` | — | `medium` |
+| **image-creator** | `anthropic` / **claude-sonnet-5** | `openai-codex` / gpt-6-astra | `openrouter` / `minimax/minimax-m3` | — | `medium` |
+| **audio-creator** | `anthropic` / **claude-sonnet-5** | `openai-codex` / gpt-6-astra | `openrouter` / `minimax/minimax-m3` | — | `medium` |
+| **video-creator** | `anthropic` / **claude-opus-5** | `openai-codex` / gpt-6-astra | `openrouter` / `minimax/minimax-m3` | — | `medium` |
 | **writer** | `anthropic` / **claude-fable-5-1** | `anthropic` / claude-opus-5 | `openai-codex` / gpt-6-astra | `openrouter` / `deepseek/deepseek-v4-flash` | `medium` |
 | **marketer** | `anthropic` / **claude-fable-5-1** | `anthropic` / claude-opus-5 | `openai-codex` / gpt-6-astra | `openrouter` / `xiaomi/mimo-v2.5` | `medium` |
 
@@ -2721,13 +2734,15 @@ in 0.21.0** — `agent.reasoning_overrides` is a *session* concept
 (`gateway/session_state.py:226`, driven by `/model`), not a config key, so a
 profile's single `agent.reasoning_effort` applies to every tier in its chain.
 
-Model facts confirmed during the build (live `provider_models_cache.json` + test
-calls):
+Current routing and previously verified provider facts follow. The 2026-09-13
+Creator-family reassignment is configuration-validated, not live-tested.
 
-- **Anthropic native** — every profile except `researcher` / `creator` /
+- **Anthropic native** — every profile in the table except `researcher` /
   `searcher` leads with `anthropic`
   (`base_url: https://api.anthropic.com`), on `claude-fable-5-1` for the
-  five judgment/prose profiles and `claude-opus-5` on `default`. OAuth
+  five judgment/prose profiles, `claude-opus-5` on `default` and
+  `video-creator`, and `claude-sonnet-5` on creator's other hands
+  (`creator`, `image-creator`, `audio-creator`). OAuth
   resolves from the global Claude Code credential/token rather than
   per-profile `auth.json`. **Fable 5.1 is not in the `hermes model` picker** —
   `/v1/models` lags the alias, so the curated list stops at `claude-fable-5`.
@@ -2735,7 +2750,7 @@ calls):
   confirm the slug resolves and answers (2026-09-05), and
   `get_model_context_length` already reports 1M for it via the `claude-fable`
   prefix entry.
-- **GPT-6 Astra (T1 on researcher / creator)** — reached over the same
+- **GPT-6 Astra (T1 on researcher)** — reached over the same
   `openai-codex` OAuth path as Sol. Hermes identifies itself honestly
   (`originator: hermes-agent`, `User-Agent: HermesAgent/<ver>`,
   `agent/codex_headers.py:49-59`) and the Codex backend serves Astra to that
@@ -2770,12 +2785,14 @@ calls):
   (`tools/xai_http.py:243-310`). Re-authenticate with `hermes model` from the
   **default** profile — never with `-p`, which would write the worker's own
   `auth.json` and shadow the inherited credential.
-- **Codex** — every profile except searcher carries an `openai-codex` tier
+- **Codex** — every profile in the table except searcher carries an `openai-codex` tier
   (`base_url: https://chatgpt.com/backend-api/codex`): Astra as T1 on
-  researcher, creator and image-creator, Astra as T3 on the Fable profiles,
-  and Sol as researcher's T2. Creator's Codex-first image chain uses the same
-  pool, as do OpenCode's `build` primary and `debugger` subagent — so this one
-  ChatGPT Pro subscription now carries both harnesses. The former `gpt-5.6-terra` profile
+  researcher, Astra as the T2 fallback on creator's hands (`creator`,
+  `image-creator`, `audio-creator`, `video-creator`) ahead of their restored
+  OpenRouter T3, Astra as T3 on the
+  Fable profiles, and Sol as researcher's T2. OpenCode's `build` primary and
+  `debugger` subagent share this same ChatGPT Pro pool — so this one
+  subscription now carries both harnesses. The former `gpt-5.6-terra` profile
   routes were promoted to Sol; the engineer-pipeline's OpenCode ProviderLadder
   remains a separate model-routing layer.
 
@@ -2811,12 +2828,16 @@ calls):
   turns may need to SEE something keep a vision-capable tail:
   `default` / `assistant` / `researcher` / `searcher` / `marketer` use
   `xiaomi/mimo-v2.5` (omnimodal, cheap; video analysis stays decoupled via
-  the `video-analyze-mimo` plugin — see `README.md` "Plugins"), and
-  `creator` uses `minimax/minimax-m3` (image + video input) so it can still
-  eyeball generated assets. Text-only work rides the cheaper
-  `deepseek/deepseek-v4-flash` (`engineer`, `writer` tail). Researcher and
-  searcher gained vision in the 2026-07 copilot removal as a side effect of
-  standardizing on mimo.
+  the `video-analyze-mimo` plugin — see `README.md` "Plugins"). Text-only work
+  rides the cheaper `deepseek/deepseek-v4-flash` (`engineer`, `writer` tail).
+  Researcher and searcher gained vision in the 2026-07 copilot removal as a
+  side effect of standardizing on mimo. Creator's hands (`creator`,
+  `image-creator`, `audio-creator`, `video-creator`) keep their
+  `minimax/minimax-m3` OpenRouter vision tail (unchanged by the 2026-09-13
+  Anthropic-primary reassignment): the chain is Claude -> `openai-codex` /
+  `gpt-6-astra` -> `openrouter` / `minimax/minimax-m3`, so eyeballing
+  generated assets on the final fallback turn still rides the same
+  OpenRouter sibling as before.
 
 Optional: set `delegation.model: google/gemini-3.5-flash` on default /
 assistant to route `delegate_task` subagents to a cheap model.
