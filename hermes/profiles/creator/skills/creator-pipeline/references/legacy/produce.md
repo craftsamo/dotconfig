@@ -61,10 +61,11 @@ Per asset (or batch chunk):
    terminal tools (ffmpeg, the bundled scripts) in the task workspace;
    keep intermediates out of the delivery.
 3. **Verify before moving on** — `references/legacy/verify.md`, the intent's
-   profile. A clear miss gets the corrective pass (default: one per
-   asset); if it still misses, deliver the best attempt and state the gap
-   plainly — exceeding the Budget instead is a `Q<n>` block, never a
-   judgment call.
+   profile. A clear technical/spec miss may use the granted corrective pass
+   (default: one per asset). Do not consume it on autonomous aesthetic polish
+   before presenting the candidate. If a required check still fails, report the
+   blocker; a viewable best-attempt preview must retain the failure and cannot
+   be called final-ready. Exceeding Budget is a `Q<n>` block, never a judgment call.
 4. `PROGRESS:` with the running spend tally, then the next asset.
 
 Ambiguity discovered mid-loop (a spec the brief doesn't pin, a taste fork
@@ -76,6 +77,11 @@ questions, checkpoint, block once.
 All assets verified → `references/legacy/delivery.md`: attachment discipline
 (including the anchor/reuse contract), the Review gate when the body
 carries `Review:`, and the evidence-backed report + metadata.
+
+These are producer checks, not a separate broker QA stage. Deliver directly
+after them; do not invoke `qa-creator`, learned independent-verification loops
+or another Assistant inspection. User-requested corrections remain scoped to
+the existing approval and budget rules.
 
 ## Pitfalls
 
