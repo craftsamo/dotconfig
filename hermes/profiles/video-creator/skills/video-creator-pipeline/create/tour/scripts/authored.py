@@ -22,6 +22,7 @@ from tour import (CANVAS, VENDOR, command, digest, fresh, hf, image, load,
 PIPELINE_SCRIPTS = (Path(__file__).resolve().parents[3] / "scripts").resolve()
 sys.path.insert(0, str(PIPELINE_SCRIPTS))
 import mix_audio  # noqa: E402
+import three_graphics as graphics  # noqa: E402
 
 
 def form_model(raw):
@@ -30,7 +31,7 @@ def form_model(raw):
                "style", "background", "backdrop", "intro", "outro", "duration",
                "destination", "preview", "note", "screen_mode", "source", "target",
                "start_state", "approved_plan", "approval_sha256", "source_sha256",
-               "audio_workflow", "mix"}
+               "audio_workflow", "mix", "graphics"}
     require(set(raw) <= allowed, "unknown form field (v1 forms use tour.py)")
     form = {"fidelity": "faithful", "frame": "macos", "style": "flat",
             "background": "light", "intro": "title-reveal", "outro": "result-hold",
@@ -78,6 +79,8 @@ def form_model(raw):
                 require(mix[key].lower().endswith(".json"), f"mix.{key} must be a .json asset")
     elif "mix" in form:
         require(False, "mix field only applies when audio_workflow is mix")
+    if graphics.enabled(form):
+        require("screen_mode" in form, "Three tour needs explicit screen_mode and v3 content approval")
     # A custom direction is deliberately neither normalized nor classified.
     return form
 
@@ -130,6 +133,7 @@ class Markup(HTMLParser):
         self.code_tag = None
         self.media = []
         self.ids = []
+        self.canvases = []
 
     def handle_starttag(self, tag, attrs):
         attrs = dict(attrs)
@@ -137,6 +141,8 @@ class Markup(HTMLParser):
             self.ids.append(attrs["id"])
         if tag in ("video", "audio", "img"):
             self.media.append((tag, attrs))
+        if tag == "canvas":
+            self.canvases.append(attrs)
         if tag in ("script", "style"):
             self.code_tag = tag
         require(tag not in ("iframe", "object", "embed", "base", "form"), "active embeds/navigation forbidden")
@@ -190,11 +196,12 @@ def markup_check(root, form):
     require((attrs.get("data-width"), attrs.get("data-height"), attrs.get("data-fps")) == (str(W), str(H), "30"), "root dimensions/fps mismatch")
     require(float(attrs.get("data-duration", "nan")) == form["duration"], "root duration mismatch")
     require("assets/gsap.min.js" in markup.assets and "__timelines" in code, "local GSAP and registered timeline required")
+    trusted = graphics.validate_assets(root, form, markup)
     for p in root.rglob("*"):
         name = p.relative_to(root).as_posix()
         if name.split("/")[0] == ".hyperframes":
             continue
-        if p.suffix in (".css", ".js", ".html") and name != "assets/gsap.min.js":
+        if p.suffix in (".css", ".js", ".html") and name != "assets/gsap.min.js" and name not in trusted:
             content = p.read_text(encoding="utf-8")
             if p.suffix == ".html":
                 parsed = Markup()
@@ -202,6 +209,8 @@ def markup_check(root, form):
                 content = "\n".join(parsed.code)
             match = re.search(r"\b(fetch|XMLHttpRequest|WebSocket|EventSource|setTimeout|setInterval|requestAnimationFrame|Date)\s*\(|Math\.random|Date\.now|performance\.now|@import", content)
             require(not match, f"{name}: network/clocks/unseekable animation forbidden: {match.group() if match else ''}")
+            if graphics.enabled(form):
+                graphics.check_authored_code(content)
             if form.get("screen_mode") in ("supplied", "capture") or form.get("audio_workflow") == "mix":
                 # "JS playback/volume modifications prohibited for all mix
                 # modes" (hermes/AGENTS.md "audio_workflow") extends this
@@ -382,13 +391,15 @@ def output_dir(value, project):
     return out
 
 
-def check(project, contract, out):
+def check(project, contract, out, form=None):
     times = [s["at"] for s in contract["samples"]]
-    hf(project, ["check", "--json", "--at", ",".join(map(str, times))], out / "check.json")
+    form = form or {}
+    graphics.run_hf(hf, project, form, ["check", "--json", "--at", ",".join(map(str, times))], out / "check.json")
     result = load(out / "check.json")
     contrast = result.get("contrast", {})
     require(result.get("ok") and contrast.get("enabled") and contrast.get("checked", 0) > 0,
-            "check/contrast audit failed or skipped")
+             "check/contrast audit failed or skipped")
+    graphics.audit(project, form, times, out)
     return times
 
 
@@ -396,16 +407,18 @@ def snapshot(args):
     project, form, contract = project_model(args.project)
     out = output_dir(args.out, project)
     out.mkdir()
-    times = check(project, contract, out)
-    hf(project, ["snapshot", "--at", ",".join(map(str, times)), "--no-end", "--describe", "false", "-o", str(out / "frames")], out / "snapshot.log")
+    times = check(project, contract, out, form)
+    graphics.run_hf(hf, project, form, ["snapshot", "--at", ",".join(map(str, times)), "--no-end", "--describe", "false", "-o", str(out / "frames")], out / "snapshot.log")
     frames = sorted((out / "frames").glob("*.png"))
     require(len(frames) == len(times), "snapshot count mismatch")
     for frame in frames:
         require(image(frame) == CANVAS[form["destination"]], "snapshot dimensions mismatch")
     project_model(str(project))
-    write(out / "preview.json", {"project": str(project), "integrity": digest(project / "integrity.json"),
+    preview = {"project": str(project), "integrity": digest(project / "integrity.json"),
                                 "times": times, "frames": {p.name: digest(p) for p in frames},
-                                "check": digest(out / "check.json")})
+                                "check": digest(out / "check.json")}
+    graphics.bind_preview(preview, form, out)
+    write(out / "preview.json", preview)
     return {"preview": str(out), "frames": len(frames), "rendered_mp4": False}
 
 
@@ -427,11 +440,16 @@ def render(args):
     require(form["preview"] == "no" or args.approved_preview, "preview=yes requires --approved-preview after client approval")
     if args.approved_preview:
         approved_preview(args.approved_preview, project, contract)
+    if graphics.enabled(form):
+        require(args.approved_preview, "Three tour requires an approved preview even when preview=no")
+        graphics.verify_preview(load(Path(args.approved_preview) / "preview.json"), form, Path(args.approved_preview))
     out = output_dir(args.out, project)
     out.mkdir()
-    times = check(project, contract, out)
+    times = check(project, contract, out, form)
+    if graphics.enabled(form):
+        graphics.compare_final(form, Path(args.approved_preview), out)
     movie = out / "tour.mp4"
-    hf(project, ["render", "--output", str(movie), "--fps", "30", "--workers", "1", "--strict", "--no-best-effort", "--quiet"], out / "render.log")
+    graphics.run_hf(hf, project, form, ["render", "--output", str(movie), "--fps", "30", "--workers", "1", "--strict", "--no-best-effort", "--quiet"], out / "render.log")
     info = json.loads(command(["ffprobe", "-v", "error", "-show_streams", "-show_format", "-of", "json", str(movie)]))
     video = next(s for s in info["streams"] if s["codec_type"] == "video")
     if form.get("screen_mode") in ("supplied", "capture"):
@@ -462,6 +480,9 @@ def render(args):
               "temporal_review": "sampled only", "media_generation": 0}
     if mix_audio_measurement is not None:
         report["mix_audio_measurement"] = mix_audio_measurement
+    if graphics.enabled(form):
+        graphics.verify_preview(load(Path(args.approved_preview) / "preview.json"), form, Path(args.approved_preview))
+        report["graphics"] = load(out / "graphics.json")
     write(out / "qa.json", report)
     (out / "qa.md").write_text("# Authored Tour QA\n\nLocal full decode passed. See check.json and qa.json.\nSemantic fidelity, pointer contact, Japanese text fit and transitions require visual review.\nSamples are not a complete temporal or listening verdict.\n", encoding="utf-8")
     return report

@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Interface material study</title>
+<style>
+@font-face{font-family:Study;src:local("AvenirNext-Regular");font-weight:400}
+@font-face{font-family:Study;src:local("AvenirNext-DemiBold");font-weight:600}
+@font-face{font-family:Study;src:local("AvenirNext-Bold");font-weight:700}
+*{box-sizing:border-box}body{margin:0;background:#10191a;font-family:Study,sans-serif}
+#root{width:1920px;height:1080px;position:relative;overflow:hidden;background:#10191a;color:#f1eedf}
+#volume{position:absolute;inset:0;width:1920px;height:1080px;z-index:1}
+.masthead{position:absolute;left:116px;right:116px;top:58px;display:flex;justify-content:space-between;border-bottom:1px solid #415052;padding-bottom:24px;z-index:3}
+.eyebrow{font-size:20px;letter-spacing:3px;font-weight:600}.muted{color:#b0bdb8}
+#headline{position:absolute;left:112px;top:150px;width:780px;font-size:84px;line-height:1.4;letter-spacing:-3px;font-weight:600;z-index:3;opacity:0}
+#subtitle{position:absolute;left:116px;top:414px;width:730px;font-size:26px;line-height:1.5;color:#c4cec7;z-index:3;opacity:0}
+.caption{position:absolute;left:116px;bottom:87px;font-size:20px;letter-spacing:2px;color:#c4cec7;z-index:3}
+#console{position:absolute;left:1130px;top:195px;width:672px;height:744px;padding:34px;background:#edf0e6;color:#152e2b;z-index:4;border-radius:4px;box-shadow:0 22px 70px #00000040;opacity:0}
+.console-head{height:104px;display:flex;align-items:flex-start;justify-content:space-between;border-bottom:1px solid #b4c2b4}
+#task-title{font-size:32px;font-weight:600;letter-spacing:-.6px;margin:0}.count{font-size:22px;font-weight:600;color:#416256;border:1px solid #9bb49e;border-radius:50%;width:46px;height:46px;display:grid;place-items:center}
+.row{height:126px;border-bottom:1px solid #b4c2b4;display:flex;align-items:center;gap:23px;position:relative;padding:0 18px}
+.mark{width:31px;height:31px;flex:none;position:relative;z-index:1}.task{font-size:28px;font-weight:600;letter-spacing:-.3px;position:relative;z-index:1}
+.rank{margin-left:auto;font-size:20px;letter-spacing:1px;color:#416256;position:relative;z-index:1}
+#selection{position:absolute;inset:15px 0;background:#d4e1c8;border:1px solid #85a889;border-radius:2px;opacity:0}
+#command-rail{position:absolute;left:34px;right:34px;bottom:34px;height:128px;border-top:1px solid #789980;padding-top:25px}
+#rail-fill{position:absolute;inset:24px 0 0;background:#c3e886;border-radius:2px;transform-origin:right center}
+#rail-label{position:absolute;left:20px;top:59px;font-size:23px;font-weight:600;opacity:0}
+#action{position:absolute;right:0;top:25px;width:172px;height:102px;background:#c3e886;border:1px solid #6b8b47;border-radius:2px;display:flex;align-items:center;justify-content:center;gap:14px}
+#action-label{font-size:25px;font-weight:600}.arrow{width:28px;height:28px}
+#pointer{position:absolute;left:0;top:0;width:42px;height:52px;z-index:7;opacity:0;filter:drop-shadow(1px 3px 2px #00000055)}
+#footer{position:absolute;right:118px;bottom:42px;font-size:18px;color:#a7b9b0;letter-spacing:1.4px;z-index:3}
+</style></head><body>
+<div id="root" data-composition-id="ad" data-start="0" data-duration="8" data-width="1920" data-height="1080" data-fps="30" data-hermes-graphics="three-webgl2">
+  <canvas id="volume" data-layout-ignore></canvas>
+  <div class="masthead"><span id="eyebrow" class="eyebrow">FORM / FIELD</span><span id="study-label" class="eyebrow muted">INTERFACE MATERIAL STUDY</span></div>
+  <div id="headline"><span style="display:block">Make room for </span><span style="display:block">the next move.</span></div>
+  <div id="subtitle">One action. A clearer working set.</div>
+  <div id="volume-label" class="caption">01 / VOLUME &amp; SURFACE</div>
+  <div id="console">
+    <div class="console-head"><h2 id="task-title">Working set</h2><span id="task-count" class="count">03</span></div>
+    <div class="row"><svg class="mark" viewBox="0 0 32 32"><path d="M6 7h20v18H6zM6 13h20" fill="none" stroke="#416256" stroke-width="1.7"/></svg><span id="task-one" class="task">Review the brief</span><span id="rank-one" class="rank">01</span></div>
+    <div class="row"><svg class="mark" viewBox="0 0 32 32"><path d="M5 8h9v16H5zM18 8h9v16h-9z" fill="none" stroke="#416256" stroke-width="1.7"/></svg><span id="task-two" class="task">Shape the sequence</span><span id="rank-two" class="rank">02</span></div>
+    <div class="row"><div id="selection"></div><svg class="mark" viewBox="0 0 32 32"><path d="M5 23 13 8l6 11 8-12" fill="none" stroke="#416256" stroke-width="1.7"/></svg><span id="task-three" class="task">Resolve the motion</span><span id="rank-three" class="rank">03</span></div>
+    <div id="command-rail"><div id="rail-fill"></div><span id="rail-label">Ready to arrange</span><div id="action"><span id="action-label">Resolve</span><svg class="arrow" viewBox="0 0 32 32"><path d="M6 16h19M18 9l7 7-7 7" fill="none" stroke="#152e2b" stroke-width="1.8"/></svg></div></div>
+  </div>
+  <svg id="pointer" viewBox="0 0 42 52"><path d="M4 3 35 29l-14 2-6 15z" fill="#fffef5" stroke="#152e2b" stroke-width="2"/></svg>
+  <div id="footer">SYNTHETIC FIXTURE / NOT A PRODUCT CLAIM</div>
+</div>
+<script src="assets/gsap.min.js"></script>
+<script src="assets/three-runtime.js"></script>
+<script src="assets/three-layer.js"></script>
+<script>
+const tl = gsap.timeline({paused:true});
+window.__timelines ||= {};
+window.__timelines.ad = tl;
+const cameraState = {x:-0.65};
+const reveal = {value:0};
+tl.fromTo('#headline',{y:28,opacity:0},{y:0,opacity:1,duration:.7,ease:'power3.out'},.1);
+tl.fromTo('#subtitle',{y:18,opacity:0},{y:0,opacity:1,duration:.6,ease:'power3.out'},.3);
+tl.fromTo('#console',{x:50,opacity:0},{x:0,opacity:1,duration:.85,ease:'power3.out'},.25);
+tl.set('#rail-fill',{scaleX:0},0);
+tl.to(cameraState,{x:1.05,duration:2.25,ease:'power2.inOut'},.65);
+tl.fromTo('#pointer',{x:1820,y:1040,opacity:0},{x:1655,y:840,opacity:1,duration:.65,ease:'power2.out'},2.85);
+tl.to('#pointer',{scale:.84,duration:.1,ease:'power1.in'},3.5);
+tl.to('#pointer',{scale:1,duration:.14,ease:'power1.out'},3.6);
+tl.to(reveal,{value:1,duration:1.8,ease:'power2.inOut'},3.5);
+tl.to('#selection',{opacity:1,duration:.24,ease:'power1.out'},3.5);
+tl.to('#rail-fill',{scaleX:1,duration:.65,ease:'power3.out'},3.5);
+tl.to('#rail-label',{opacity:1,duration:.25},3.95);
+tl.to('#pointer',{x:1820,y:1000,opacity:0,duration:.6,ease:'power2.in'},4.45);
+tl.set({}, {}, 8);
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(34,1920/1080,.1,50);
+camera.position.set(cameraState.x,.8,8.2);
+const object = new THREE.Group();
+object.position.set(-2.05,-1.2,0);
+object.scale.setScalar(.72);
+object.rotation.set(.24,-.28,-.06);
+scene.add(object);
+const outline = new THREE.Shape();
+outline.moveTo(-1.4,-.9);outline.lineTo(1.4,-.9);outline.lineTo(1.4,.64);
+outline.lineTo(1.14,.9);outline.lineTo(-1.4,.9);outline.closePath();
+const solid = new THREE.ExtrudeGeometry(outline,{depth:.09,bevelEnabled:true,bevelSize:.024,bevelThickness:.025,bevelSegments:3,steps:1});
+const plate = new THREE.ShapeGeometry(outline);
+const materials = [new THREE.MeshStandardMaterial({color:'#4b766d',roughness:.38,metalness:.14}),
+  new THREE.MeshStandardMaterial({color:'#819c89',roughness:.52,metalness:.06}),
+  new THREE.MeshStandardMaterial({color:'#d0d8c1',roughness:.45,metalness:.08})];
+for(let i=0;i<3;i++){
+  const mesh=new THREE.Mesh(solid,materials[i]);
+  mesh.position.set(-.25*i,.2*i,-.48*i);object.add(mesh);
+  const lines=new THREE.LineSegments(new THREE.EdgesGeometry(solid,24),new THREE.LineBasicMaterial({color:'#b7d0b2',transparent:true,opacity:.4}));
+  mesh.add(lines);
+}
+const uniforms={uReveal:reveal,uBase:{value:new THREE.Color('#507168')},uFinish:{value:new THREE.Color('#c3e886')}};
+const surface=new THREE.Mesh(plate,new THREE.ShaderMaterial({uniforms,
+vertexShader:`varying vec2 vUv;void main(){vUv=position.xy/vec2(2.8,1.8)+.5;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`,
+fragmentShader:`varying vec2 vUv;uniform float uReveal;uniform vec3 uBase;uniform vec3 uFinish;
+void main(){float wave=(.035*sin(vUv.y*19.)+.016*sin(vUv.y*47.))*sin(uReveal*3.14159265);float edge=uReveal+wave;
+float region=1.-smoothstep(edge-.012,edge+.012,vUv.x);if(uReveal<=0.)region=0.;if(uReveal>=1.)region=1.;vec2 grid=abs(fract(vUv*vec2(9.,6.))-.5);
+float ink=1.-smoothstep(.465,.49,max(grid.x,grid.y));vec3 color=mix(uBase,uFinish,region)*(0.86+.14*ink);
+float rim=(1.-smoothstep(.0,.024,abs(vUv.x-edge)))*step(.0000001,uReveal)*(1.-step(.9999999,uReveal));color+=vec3(.08,.13,.035)*rim;
+gl_FragColor=vec4(color,1.);
+#include <tonemapping_fragment>
+#include <colorspace_fragment>
+}`}));
+surface.position.z=.13;object.add(surface);
+scene.add(new THREE.HemisphereLight('#fff4d5','#12272e',2.4));
+const light=new THREE.DirectionalLight('#f7ffd8',3.5);light.position.set(-3,4,7);scene.add(light);
+HermesThree.mount({canvas:document.querySelector('#volume'),scene,camera,timeline:tl,
+  update(time){camera.position.set(cameraState.x,.8,8.2);camera.lookAt(-.1,-.1,0);}});
+</script></body></html>

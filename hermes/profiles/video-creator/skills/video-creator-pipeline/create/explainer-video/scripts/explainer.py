@@ -21,6 +21,7 @@ sys.path.insert(0, str(HERE.parents[2] / "scripts"))
 from tour import VENDOR, command, digest, fresh as _fresh, hf, identifier, image, load, local as _local, number, require, text, write
 from authored import Markup as _Markup, source_files
 import mix_audio
+import three_graphics as graphics
 
 _mc_spec = importlib.util.spec_from_file_location("explainer_motion_canvas", HERE / "motion_canvas.py")
 mc = importlib.util.module_from_spec(_mc_spec)
@@ -74,7 +75,8 @@ def model(raw):
     required = {"version", "topic", "audience", "learning_goal", "theme", "style", "direction",
                 "renderer", "duration", "aspect", "character", "audio", "units", "copy",
                 "samples", "assets", "pending", "must_keep"}
-    require(isinstance(raw, dict) and set(raw) == required, "spec has missing or unknown fields")
+    require(isinstance(raw, dict) and required <= set(raw) <= required | {"graphics"}, "spec has missing or unknown fields")
+    graphics.enabled(raw)
     require(type(raw["version"]) is int and raw["version"] in (1, 2), "version must be 1 (HyperFrames) or 2 (Motion Canvas)")
     for name in ("topic", "audience", "learning_goal", "theme", "style", "direction"):
         text(raw[name], name, 4000)
@@ -215,6 +217,7 @@ def wav_duration(path):
 
 
 def input_check(root, plan):
+    graphics.validate_assets(root, plan)
     for name, sha in plan["assets"].items():
         path = local(str(root / name), {Path(name).suffix})
         require(digest(path) == sha, f"asset changed: {name}")
@@ -311,6 +314,10 @@ def propose(args):
             sources["assets/" + name] = VENDOR / name
     raw["assets"] = {name: digest(path) for name, path in sources.items()}
     plan, missing = model(raw)
+    if graphics.enabled(plan):
+        # Graphics assets must be provisioned/staged before this proposal, not
+        # invented as future paths in a partially written output directory.
+        graphics.identity()
     if plan["renderer"] == "motion-canvas" and plan["version"] == 2:
         try:
             mc.identity()
@@ -372,9 +379,10 @@ def markup_check(root, plan):
             "data-width": str(width), "data-height": str(height), "data-fps": str(FPS)}.items()), "root contract mismatch")
     require(float(attrs.get("data-duration", "nan")) == plan["duration"], "root duration mismatch")
     require("assets/gsap.min.js" in markup.assets and "__timelines" in code, "local GSAP/registered timeline required")
+    trusted = graphics.validate_assets(root, plan, markup)
     for path in root.rglob("*"):
         name = path.relative_to(root).as_posix()
-        if name.startswith(".hyperframes/") or name == "assets/gsap.min.js" or path.suffix not in (".html", ".css", ".js"):
+        if name.startswith(".hyperframes/") or name == "assets/gsap.min.js" or name in trusted or path.suffix not in (".html", ".css", ".js"):
             continue
         content = path.read_text(encoding="utf-8")
         if path.suffix == ".html":
@@ -383,7 +391,9 @@ def markup_check(root, plan):
             content = "\n".join(parsed.code)
         require(not re.search(r"\b(fetch|XMLHttpRequest|WebSocket|EventSource|setTimeout|setInterval|requestAnimationFrame|Date)\s*\(|"
                               r"Math\.random|Date\.now|performance\.now|@import|\.(play|pause|load)\s*\(|"
-                              r"\.(currentTime|playbackRate|volume|muted)\s*=|\bvolume\s*:", content), "network/clocks/media control forbidden")
+                               r"\.(currentTime|playbackRate|volume|muted)\s*=|\bvolume\s*:", content), "network/clocks/media control forbidden")
+        if graphics.enabled(plan):
+            graphics.check_authored_code(content)
         markup.assets.extend(re.findall(r"url\(\s*['\"]?([^) '\"]+)", content))
     for name in markup.assets:
         require(asset_name(name) in plan["assets"], "unapproved asset reference")
@@ -478,6 +488,8 @@ def runtime_identity():
 
 
 def selected_runtime(plan):
+    if graphics.enabled(plan):
+        return graphics.identity()
     return mc.identity() if plan["renderer"] == "motion-canvas" else runtime_identity()
 
 
@@ -494,10 +506,11 @@ def scene_check(root, plan):
 
 def check(root, plan, out):
     times = [sample["at"] for sample in plan["samples"]]
-    hf(root, ["check", "--json", "--at", ",".join(map(str, times))], out / "check.json")
+    graphics.run_hf(hf, root, plan, ["check", "--json", "--at", ",".join(map(str, times))], out / "check.json")
     result = load(out / "check.json")
     contrast = result.get("contrast", {})
     require(result.get("ok") and contrast.get("enabled") and contrast.get("checked", 0) > 0, "check/contrast audit failed or skipped")
+    graphics.audit(root, plan, times, out)
     return times
 
 
@@ -512,13 +525,15 @@ def snapshot(args):
         mc.snapshot(root, plan, out)
     else:
         check(root, plan, out)
-        hf(root, ["snapshot", "--at", ",".join(map(str, times)), "--no-end", "--describe", "false", "-o", str(out / "frames")], out / "snapshot.log")
+        graphics.run_hf(hf, root, plan, ["snapshot", "--at", ",".join(map(str, times)), "--no-end", "--describe", "false", "-o", str(out / "frames")], out / "snapshot.log")
     frames = sorted((out / "frames").glob("*.png"))
     require(len(frames) == len(times) and all(image(frame) == SIZES[plan["aspect"]] for frame in frames), "preview frames count/dimensions")
     project_model(str(root))
     require(runtime == selected_runtime(plan), "runtime changed during preview")
-    write(out / "preview.json", {"project": str(root), "integrity": digest(root / "integrity.json"), "runtime": runtime,
-        "times": times, "frames": {frame.name: digest(frame) for frame in frames}, "check": digest(out / "check.json")})
+    preview = {"project": str(root), "integrity": digest(root / "integrity.json"), "runtime": runtime,
+        "times": times, "frames": {frame.name: digest(frame) for frame in frames}, "check": digest(out / "check.json")}
+    graphics.bind_preview(preview, plan, out)
+    write(out / "preview.json", preview)
     return {"preview": str(out), "preview_sha256": digest(out / "preview.json"), "rendered_mp4": False}
 
 
@@ -527,6 +542,7 @@ def render(args):
     preview = local(str(Path(args.approved_preview) / "preview.json"), {".json"})
     require(digest(preview) == args.approval_sha256, "approved preview hash mismatch")
     data = load(preview)
+    graphics.verify_preview(data, plan, preview.parent)
     require(data["project"] == str(root) and data["integrity"] == digest(root / "integrity.json"), "preview belongs to another project")
     require(data["runtime"] == selected_runtime(plan), "runtime changed since preview; new preview approval required")
     require(data["times"] == [sample["at"] for sample in plan["samples"]], "preview times changed")
@@ -543,7 +559,8 @@ def render(args):
         mc.render(root, plan, out, preview.parent)
     else:
         check(root, plan, out)
-        hf(root, ["render", "--output", str(movie), "--fps", str(FPS), "--workers", "1", "--strict", "--no-best-effort", "--quiet"], out / "render.log")
+        graphics.compare_final(plan, preview.parent, out)
+        graphics.run_hf(hf, root, plan, ["render", "--output", str(movie), "--fps", str(FPS), "--workers", "1", "--strict", "--no-best-effort", "--quiet"], out / "render.log")
     info = json.loads(command(["ffprobe", "-v", "error", "-show_streams", "-show_format", "-of", "json", str(movie)]))
     videos = [s for s in info["streams"] if s["codec_type"] == "video"]
     require(len(videos) == 1, "one final video stream required")
@@ -571,11 +588,14 @@ def render(args):
     shutil.copyfile(out / "review/00.png", out / "poster.png")
     project_model(str(root))
     require(data["runtime"] == selected_runtime(plan), "runtime changed during render")
+    graphics.verify_preview(data, plan, preview.parent)
     result = {"mp4": str(movie), "decoded": True, "duration": float(info["format"]["duration"]),
               "width": video["width"], "height": video["height"], "fps": FPS, "audio": audio_metrics,
               "semantic_review": "pending", "lip_sync": "unverified" if plan["character"]["lip_sync"] != "off" else "not-requested",
               "temporal_review": "sampled only", "listening": "unverified", "media_generation": 0}
     result["renderer"] = plan["renderer"]
+    if graphics.enabled(plan):
+        result["graphics"] = load(out / "graphics.json")
     result["contrast"] = load(out / "check.json").get("contrast", {"enabled": False, "reason": "not reported"})
     write(out / "qa.json", result)
     (out / "qa.md").write_text("# Explainer QA\n\nFull decode and structural checks passed.\n"
