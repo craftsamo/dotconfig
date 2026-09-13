@@ -113,3 +113,25 @@ def test_creator_turn_selection_and_retired_paths():
         body = text(path)
         assert not re.search(r"\[\.\./\.\./(?:plan|build|quality-assurance)/", body), path
         assert not re.search(r"`creator-pipeline` references/(?:plan|build|quality-assurance)/", body), path
+
+
+def test_creative_delivery_skips_broker_qa_but_retains_requested_inspection():
+    """Instruction contracts only; not proof of model compliance or media quality."""
+    root = compact(text(pipeline("creator") / "SKILL.md"))
+    build = compact(text(pipeline("creator") / "build-creator/SKILL.md"))
+    qa = compact(text(pipeline("creator") / "qa-creator/SKILL.md"))
+    prompt = compact(yaml.safe_load(text(ROOT / "profiles/creator/config.yaml"))["agent"]["system_prompt"])
+    assert "Plan -> Build -> delivery, not through QA" in root
+    assert "only for an explicit user inspection request" in root
+    assert "never a routine completion stage" in prompt
+    assert "Stay in Build on ordinary completion" in build
+    assert "Do not re-probe files" in build
+    assert "not as a request for another QA pass" in build
+    assert "failed required check still blocks final readiness and dependent use" in build
+    assert "attach the actual file" in build
+    assert "composition AND progression" in build
+    assert "not revision, generation or a second broker review" in qa
+    assert "do not dispatch a correction from this inspection" in qa
+    legacy = compact(text(pipeline("creator") / "references/legacy/produce.md"))
+    assert "do not invoke `qa-creator`" in legacy
+    assert "clear technical/spec miss may use the granted corrective pass" in legacy

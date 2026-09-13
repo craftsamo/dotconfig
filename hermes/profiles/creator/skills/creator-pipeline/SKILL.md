@@ -4,8 +4,8 @@ description: >-
   Creator's front door (v9). Creator has clients — a human on its bot or
   the assistant — and hands — media profiles that make one deliverable
   from a filled form. Three modes: Plan (choose the leaf, fill its form
-  with the client), Build (hand the form to the hands, supervise), Quality
-  assurance (look at the result against the client's intent, deliver).
+   with the client), Build (hand the form to the hands, supervise and deliver),
+   Quality assurance (explicitly requested inspection, not a delivery stage).
   Families with no hands yet are produced by Creator itself through the
   legacy technic routes.
 version: 9.0.0
@@ -22,8 +22,8 @@ metadata:
 Get the client the media they meant, made by the hands. Exercise the client's
 granted creative discretion; consequential undecided choices return to them.
 The client fills the form with you; the hands
-make exactly what the form says; you look at the result with the
-client's intent in mind and deliver. One skill on the hands = one
+make what the form says and check their own output; you relay the result and
+its limitations promptly for the client's judgment. One skill on the hands = one
 deliverable = one form — there is nothing above the form (no menus,
 presets, or Styles) and nothing below it you run yourself.
 
@@ -66,15 +66,21 @@ with a pointer to the assistant and nothing is produced.
 | Mode | You end with | Load |
 | --- | --- | --- |
 | **Plan** | filled forms (leaf + fields), sequenced, budget lines on metered ones — or `no skill fits` | [Plan](plan-creator/SKILL.md) |
-| **Build** | the hands' reports: paths at `deliver:`, QA evidence, spend | [Build](build-creator/SKILL.md) |
-| **Quality assurance** | your verdict against the intent (accept / revise / back to Plan) and the client's delivery | [Quality assurance](qa-creator/SKILL.md) |
+| **Build** | client delivery: paths at `deliver:`, producer evidence, spend and limitations | [Build](build-creator/SKILL.md) |
+| **Quality assurance** | one bounded findings report, only when the user explicitly requests inspection | [Quality assurance](qa-creator/SKILL.md) |
 
 Each mode is now its own independently selectable entry - `plan-creator`,
 `build-creator`, `qa-creator` - chosen from the available skills every inbound
 turn/completion and before a midturn mode, subject or scope-changing action,
 per that entry's own `<ReadBeforeWork>`. Preserve the current job and approvals;
 loading instructions never expands the grant or restarts completed work.
-Modes still run in order per job and loop on revise. The
+Normal production runs Plan -> Build -> delivery, not through QA. A hands
+completion, proposal, preview or final never triggers `qa-creator`. Select it
+only for an explicit user inspection request, including one relayed by an agent
+Client. A broker's routine acceptance habit is not such a request. Do not load
+learned verification skills to recreate a second inspection or taste loop.
+Producer self-checks, required approvals and spend limits remain mandatory.
+The
 selected entry then loads its own `<hands>/<subject>.md` reference for
 the selected hands leaf. Every entry links every subject it serves; read
 only those needed by this job. For example, `create-card` and
@@ -172,10 +178,9 @@ Cards move to the hands family by family as their leaves land.
   settled answers and granted implementation discretion need no new taste vote.
 - "Fixing" a delivered file locally instead of an `edit-*` or `revise`
   handoff.
-- Reporting to the client without having looked at a visual file at the
-  size it will be used, or claiming to have heard a speech delivery
-  instead of relaying the hands' measured/readback evidence and
-  unverified-listening note.
+- Delaying ordinary delivery for another visual inspection, remeasurement or
+   autonomous aesthetic correction; claiming to have heard audio rather than
+   relaying measured/readback evidence and the unverified-listening note.
 - Falling back to a technic for a served family, or into the hands for
   a legacy one.
 - Leaving a resident session open after acceptance.
@@ -187,10 +192,9 @@ Cards move to the hands family by family as their leaves land.
 - The client kind was recognised and asked its own way (clarify / text).
 - Every handoff was the exact form text; every report had paths and a
   spend line; material unresolved `Q<n>:` decisions were relayed, not invented.
-- Every delivered visual file was looked at at native size and at the
-  size of use, and the verdict written before the reply; a speech
-  delivery carries the hands' measured/readback evidence and its
-  unverified-listening note forward, never a claim of having heard it.
+- Normal deliveries went directly from Build to the client with producer
+   evidence, failures and unknowns unchanged; no broker QA pass was added.
+   Explicit inspections stayed within the requested scope, without auto-revision.
 - Served families went to the hands; legacy families took the legacy
   route; nothing was produced locally for a served family.
 - The spend line in the client's reply is the hands' (or the legacy

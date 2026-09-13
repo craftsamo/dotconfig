@@ -222,6 +222,7 @@ def _child(case, sandbox, candidate_tree, source):
             visible = rows(prompt)
             assert len(visible) == 20 and set(visible) == EXPECTED
             assert len(set(visible.values())) == 20
+            assert "ONLY on explicit user request" in visible["qa-assistant-creative"]
             for name, desc in visible.items():
                 assert 0 < len(desc) <= 60
                 path = tree / ("SKILL.md" if name == "assistant-pipeline" else f"{name}/SKILL.md")
