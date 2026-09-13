@@ -5,6 +5,11 @@ durable paths, running the Review gate, and assembling the final report.
 Verification (`references/legacy/verify.md`) must already have run — delivery
 packages its evidence; it never substitutes for it.
 
+Deliver directly after the producer checks, without a separate Creator or
+Assistant QA pass. An explicit human Review/anchor approval remains a real stop.
+Attach viewable media when the channel supports it; otherwise provide an
+accessible viewing route. A best-attempt preview with failures is not final-ready.
+
 ## ArtifactDiscipline
 
 - **Every final artifact lands at a durable path** — the destination the
