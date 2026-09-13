@@ -79,6 +79,15 @@ configuration, not frozen job state or completed Git/remote effects.
 
 ## Specialist Calls
 
+Creative early-delivery candidate: ordinary Creator/Assistant media work goes
+from Build/Execute directly to a viewable candidate with producer evidence and
+caveats, without routine broker QA. The existing `qa-creator` and
+`qa-assistant-creative` entries remain for explicit user inspection only.
+Producer checks, exact approvals, budgets and other domains' QA are unchanged.
+See PROFILES.md "Creative early delivery candidate". Validate paired checkouts;
+do not install or restart for tests. Rollout needs separate approval and fresh
+sessions, and rollback restores the paired prior sources, not job state.
+
 The shared `plugins/specialist-call` plugin exposes the `specialist` toolset
 to assistant, creator, marketer and engineer. Enable `specialist-call` in `plugins.enabled`
 and `specialist` in the relevant `platform_toolsets` lists. Configure the
