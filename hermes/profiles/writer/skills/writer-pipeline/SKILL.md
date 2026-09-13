@@ -91,8 +91,11 @@ forms or the acceptance references do not inherit Writer's execution role.
 
 Each leaf owns its own checks. There is no additional shared review pipeline,
 statistical naturalness score or automatic humanizer pass. `japanese-writing`
-supplies expression/notation knowledge, not a workflow. Paths in a leaf resolve
-from that leaf; the shared language core is read from its own skill root.
+supplies expression/notation knowledge and read-only inspection candidates,
+not a workflow or a score; each leaf decides for itself whether and how its
+checks apply, and only the article family does so today. Paths in a leaf
+resolve from that leaf; the shared language core is read from its own skill
+root. This grants no general terminal or code-execution tool.
 
 </Selection>
 
