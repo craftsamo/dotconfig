@@ -24,6 +24,12 @@ old hash.
 
 ## Plan Contract (`plan.json`)
 
+Optional `graphics: three-webgl2` adds the local layer described in
+[Three graphics](../../../references/three-graphics.md). It requires
+renderer hyperframes/version 1; omission preserves old plans. Stage the four
+installed Three assets before proposing and include their real paths in spec
+assets. No raw shader-file loader or Motion Canvas combination is implied.
+
 VideoCreator writes `plan.json` (via `propose`), NOT the client, and only from
 client-approved topic/audience/goal, an approved script, and real supplied
 assets — nothing invented:

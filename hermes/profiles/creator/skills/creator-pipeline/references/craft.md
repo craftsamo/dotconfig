@@ -22,6 +22,13 @@ Read this at an actual direction, production-translation or acceptance decision,
 not as a new phase, form or preset layer. Creator already sees the curated store;
 do not execute a hands leaf locally because its technique is understandable.
 
+create-tour, create-ad and HyperFrames create-explainer-video accept an
+explicit `graphics: three-webgl2` option. Read the leaf's local Three contract
+and confirm the pinned runtime before proposing it. The option is one
+procedural WebGL2 canvas and custom ShaderMaterial GLSL under the existing
+GSAP clock, not every Three addon, loader or simulation. Missing installation
+remains a blocker; do not install, silently flatten, or pick another engine.
+
 Use `skill_view(name="media-craft-direction")` and the selected `file_path`:
 
 - Reference/analogy: `references/reference-interpretation.md`.
