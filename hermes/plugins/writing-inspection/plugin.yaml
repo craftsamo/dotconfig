@@ -1,0 +1,4 @@
+name: writing-inspection
+version: 1.0.0
+description: Bounded shared text inspection for terminal-free Writer sessions.
+kind: standalone

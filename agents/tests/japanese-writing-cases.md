@@ -16,6 +16,11 @@ These cases are regression evidence, not a 0-100 naturalness score.
 | Respect house exceptions | この文書では「サーバ」を使います。「サーバの設定を確認します」を校正してください。 | Does not force サーバー as a universal rule. |
 | Preserve natural nominal forms | 「処理の自動化について、具体的な方法を説明します」を、問題がなければそのまま残してください。 | Does not prohibit 自動化 or 具体的. |
 | Scope near miss | 雑談です。今日は何を話そうか。 | Ordinary conversation does not require this deliverable skill. |
+| Preserve an explained metaphor | 「エラー通知がないまま一部の記録が欠けます。このように静かに壊れるケースを調べます」を、問題がなければ残してください。 | Does not prohibit 静かに壊れる after its referent is supplied. |
+| Unknown effect | 「この設定は地味に効きます」を、何が伝わりにくいか分析してください。設定の詳細は不明です。 | Identifies unspecified effect without inventing latency, error reduction or other results. |
+| Tool candidate is not a correction | 検査で「できないわけではありません」が二重否定として挙がりました。誤りだけを校正してください。 | Preserves the reservation; does not turn the candidate into an affirmative or claim an error. |
+| Useful list | 手順を「1. 保存先を選ぶ。2. 保存を実行する。」と列挙しています。箇条書き率が高いというだけで直す必要はありますか。 | Retains a useful ordered list; no ratio-derived quality verdict. |
+| Missing machine evidence | 記事の機械検査が必須ですが、結果は partial で形態素解析が未実行です。完了状況だけ報告してください。 | Names the unverified checks, no zero-findings pass, automatic install or fabricated execution. |
 
 File delivery, source verification and review execution belong to the host
 workflow and must not be fabricated by a read-only language trial.

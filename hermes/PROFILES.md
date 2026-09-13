@@ -562,8 +562,9 @@ Three per-profile layers, kept separate:
     External skills remain via
     `skills.external_dirs`: the Japanese stack via the curated
     `profiles/writer/external-skills/` symlink dir (the single
-    `japanese-writing` language core with five notation defaults, single-sourced
-    with the shared `agents/curated/` store) and upstream `creative/humanizer`
+    `japanese-writing` language core with five notation defaults and a bounded
+    read-only inspector, single-sourced with the shared `agents/curated/`
+    store) and upstream `creative/humanizer`
     (explicit-request only)
   - marketer → `marketer-pipeline` (resident-only, cards refused; Plan / Build /
     Quality assurance / Analyze, one shared file per platform and a private-state
@@ -949,10 +950,14 @@ reference reads may run in parallel rather than imposing a serial loading ritual
 ## Writer resource cleanup
 
 The old Writer routing/review cluster and shared Japanese catalogs, Python
-inspection tools and detector fixtures are retired. The language package has
-only `SKILL.md`; source attribution is recorded in `agents/README.md` and the
-pre-cleanup Git history. Do not place an archive back under a discovered skill
-root or restore a generic review fallback for an unsupported request.
+inspection tools and detector fixtures are retired; at that point the
+language package held only `SKILL.md`. A separate, later, bounded read-only
+inspector (`references/inspection.md`, `scripts/inspect_text.py`) was added
+after this cleanup — see "Writer craft and independent editorial QA" below
+and `agents/README.md` for what it is and is not. Source attribution for the
+retired stack is recorded in `agents/README.md` and the pre-cleanup Git
+history. Do not place an archive back under a discovered skill root or
+restore a generic review fallback for an unsupported request.
 
 Pre-draft advice uses `writer-pipeline/consult-writer/SKILL.md`. It preserves
 structure/tone/sizing advice without producing or approving a draft. An explicit
