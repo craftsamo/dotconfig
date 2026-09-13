@@ -40,9 +40,18 @@ metadata:
       preview: {required: false, type: path, label: "client-approved preview folder from snapshot; required before render"}
       preview_sha256: {required: false, type: text, label: "SHA-256 of the approved preview.json; required with preview"}
       note: {required: false, type: text}
+      graphics: {required: false, options: [three-webgl2], label: "optional pinned Three.js/GLSL layer"}
 ---
 
 <Procedure>
+
+For `graphics: three-webgl2`, read [Three graphics](../../references/three-graphics.md)
+before proposing assets or authoring. This is the only local Three runtime
+exception below; optional external technical reading does not grant it.
+
+```text
+skill_view(name="video-creator-pipeline", file_path="references/three-graphics.md")
+```
 
 1. Work only in `specialist_call(kind="work")`. Creator owns product meaning,
    audience, message/CTA wording and PV routing; you own concrete layout,

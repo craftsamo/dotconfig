@@ -2006,6 +2006,26 @@ are not migrated. Structural/discovery tests do not prove artistic improvement.
 
 ### Video authoring references
 
+The Three graphics option extends these three HyperFrames leaves with
+optional graphics: three-webgl2, without a third explainer renderer or an
+Assistant execution path. Local contract: video-creator-pipeline's
+references/three-graphics.md. A dedicated pinned HyperFrames 0.8.35 / Three
+0.185.1 / esbuild 0.28.2 / puppeteer-core 25.10.0 runtime avoids shared CLI
+upgrade drift. Maintainer setup clones a dedicated browser and fixes software
+ANGLE/SwiftShader. Source/hash checks precede vendor-only scan exemptions;
+the adapter copy must match reviewed source. Jobs stage real assets, never
+install, upgrade or change the GPU mode. Existing proposals and preview
+approvals remain, with explicit v3/preview required for opted-in tours.
+
+The renderer responds synchronously to HyperFrames time and supports procedural
+Three geometry/materials and ShaderMaterial GLSL, not async loaders/addons or
+history-dependent simulations. Separate forward/reverse/repeat layer audits
+bind raw PNG hashes; actual HyperFrames errors are also checked. Encoded-video
+sampling and native component crops remain necessary: raw-layer determinism
+does not establish final UI appearance or continuous-motion quality. Synthetic
+fixture commands under scripts/tests/fixtures/three-graphics are engineering
+tests, not user approvals or an authorized advertisement.
+
 `video-creator`'s `skills.external_dirs` includes four individual technical
 directories — `hyperframes-core`, `hyperframes-animation`, `cut-the-curve`,
 `oversized-cursor` — from the same harness-neutral `~/.agents/skills` store

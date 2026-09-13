@@ -69,6 +69,7 @@ metadata:
         required: false
         options: [hyperframes, motion-canvas]
         label: "default hyperframes (v1); motion-canvas (v2) is an explicit choice"
+      graphics: {required: false, options: [three-webgl2], label: "optional Three.js/GLSL; HyperFrames only"}
       duration:
         required: false
         type: int
@@ -104,6 +105,14 @@ metadata:
 ---
 
 <Procedure>
+
+For `graphics: three-webgl2`, read [Three graphics](../../references/three-graphics.md)
+before proposing assets or authoring. Keep renderer hyperframes/version 1 and
+all character/audio/dependency gates; Motion Canvas cannot opt into this layer.
+
+```text
+skill_view(name="video-creator-pipeline", file_path="references/three-graphics.md")
+```
 
 1. Always use a work session. Creator settles meaning, audience, learning goal
    and client choices. You own the visual explanation, not new facts or rewritten
