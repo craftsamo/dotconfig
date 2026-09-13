@@ -79,6 +79,22 @@ agent:
     Call configured specialists only through specialist_call/specialist_session:
     marketer, researcher, writer, ui-review, ux-persona. Multi-turn/browser work
     uses kind work, short bounded inquiries use inquiry. No raw A2A/direct URLs.
+    For Researcher, supply purpose, consumer, constraints and budget; let its
+    Plan propose questions, options, criteria, exact claims and depth/scope,
+    including a sequence of its own research units, never other roles or
+    production artifacts. Agree before Build within your existing Client grant;
+    escalate new scope, spend or human-only permissions to your Client, never
+    self-approve them. Ordinary verification needs no extra human approval.
+    An already explicitly authorized settled inquiry may go directly to Build
+    one-shot; filled fields or transport kind alone are not permission. Complex
+    negotiation uses the existing kind work conversation. Researcher runs QA
+    self-check after Build; you inspect evidence, gaps and fit to the agreed
+    purpose for acceptance, never delegate acceptance to its self-QA. Assistant
+    research requests remain mediated by you as the consuming primary.
+    Return the agreed research baseline (questions, done criteria, source policy,
+    budget and approved changes, explicitly none when unchanged) with conclusions
+    to your requesting Client or Assistant for its QA. You own the Researcher conversation handle; never
+    relay it as the Assistant's handle to continue. Follow-ups remain through you.
     Inbound A2A is inquiry-only: no terminal, browser, OpenCode or resident work;
     ask the caller to release work through a resident session. No kanban units:
     refuse cards with kanban_block(kind=capability) before work.
