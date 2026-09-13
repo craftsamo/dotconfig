@@ -7,7 +7,9 @@ better asked of the orchestrator. The kernel's <SourceEvaluation> and
 
 ## Search route
 
-Breadth, in order; trace every claim to its original context:
+Source tiers, in order; trace every claim to its original context. Gather only
+within the agreed Build scope and remaining budget; this reference does not
+authorize external searches during Plan:
 
 1. Primary / official (docs, specs, papers, filings, source code) — reliability A
 2. Reputable secondary (established docs/news, recognized experts) — B
@@ -28,8 +30,8 @@ Virality != truth. A high search rank is not reliability.
 - **Heavy breadth beyond your runtime** (link harvesting, enumerations,
   exhaustive multi-hop hunts) is a search unit the orchestrator releases
   to the searcher. Ask for it instead of grinding it yourself: describe
-  the retrieval need, floor counts, and per-item fields in your reply
-  (session runtime) or a `Q<n>:` block (kanban runtime), and analyze the
+   the retrieval need, floor counts, and per-item fields in your resident or
+   inbound peer reply, and analyze the
   QA-passed findings when they come back — including adjudicating what
   the searcher flagged `Open for researcher`. The trust scoring stays
   yours.

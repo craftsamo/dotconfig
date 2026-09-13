@@ -1013,35 +1013,62 @@ AND a fresh session; neither is authorized by candidate validation.
 
 ## Searcher entry routing
 
-Searcher keeps `searcher-pipeline` as its retrieval, released-unit and card-gate
-kernel. Its three independent children are `lookup-searcher`, `sweep-searcher`
-and `hunt-searcher`; their SKILL.md bodies own the former unit references, with
-no aliases or empty reference wrappers. They require the full kernel even on
-direct entry. Each caller/judge/resume/completion turn and midturn unit/scope
-change reselects the applicable entry, reusing only full bodies in current
-context. Canonical read_file recovery follows next_offset; if the body is still
-missing, stop the affected action rather than bypassing dedup or inventing work.
-An entry load never resets coverage/frontier/budget or releases a different unit.
-The two Assistant-owned card units and Searcher's retrieval-only limits remain
-unchanged. No other profile gains Searcher entries through external_dirs.
+Searcher keeps `searcher-pipeline` v7.0.0 as its retrieval, release and card-gate
+kernel. Three independent children outside `references/` own phase procedures:
+`plan-searcher`, `build-searcher`, `qa-searcher`. Each owns three plain
+`references/<unit>.md` files: `lookup`, `sweep`, `hunt`. Unit names stay exact;
+old unit-named skills are removed without aliases or a second common-mode index.
+The Client supplies purpose, consumer, constraints and budget; Searcher proposes
+coverage, fields, done conditions and exclusions, with an ordered same-role unit
+sequence if useful. Client agreement within existing authority releases Build,
+then QA self-check; caller acceptance remains separate. No cross-role project
+decomposition, synthesis, ranking or production.
 
-Candidate coverage lives in `test_searcher_pipeline.py` and the offline real-
-runtime `test_searcher_entry_runtime.py`, registered in verify-work-continuity.
-These check discovery/read mechanics and declared contracts, not model routing
-compliance or an actual web search. Cutover is separate: preserve active jobs,
-obtain approval, refresh the applicable resident/worker process and start a fresh
-session; do not assume an existing session's cached index refreshed on file edits.
+The two Assistant-owned cards retain settled required inputs:
+`survey-enumeration` requires question, coverage claim/floor count and per-item
+fields; `exhaustive-hunt` requires question, done criteria and scope exclusions.
+The caller may author the complete spec. Valid cards go Build -> QA -> terminal
+without Plan ceremony or new approval; malformed cards block with
+`kanban_block(kind=capability)` before any phase, never Plan on the card.
+Keep card dialogue/review/guarded-resume protocols. No new card types, tool grants,
+external roots or install mappings; no other profile gains these entries.
 
 ## Researcher entry routing
 
-Researcher keeps its `researcher-pipeline` kernel and shared
-`references/gather.md`. Four direct children outside `references/` own unit
-procedures: `{evidence-pack,tradeoff-matrix,fact-check,guidance}-researcher`.
+Researcher keeps `researcher-pipeline` v9.0.0 and shared `references/gather.md`
+at the parent. Three independent children outside `references/` own phases:
+`plan-researcher`, `build-researcher`, `qa-researcher`. Each owns four plain
+`references/<unit>.md` files for the unchanged `evidence-pack`, `tradeoff-matrix`,
+`fact-check` and `guidance` units, not unit-skill aliases or another mode index.
 `validate_researcher_entries` enforces the closed tree, kernel dependencies,
 canonical recovery paths, output/verification sections and no card declarations.
-Do not add mode layers or move Assistant's separate research QA contracts.
-Preserve source scoring, verbatim claims, released scope and refusal of every
-kanban card. A new entry selection never creates a new release or resets a job.
+From Client purpose, consumer, constraints and budget, Researcher proposes its
+questions/options/criteria/exact claims and bounded same-role unit sequence;
+Client agreement precedes Build and QA self-check. Preserve source scoring,
+verbatim claims, evidence gaps, Review gates and refusal of every kanban card.
+Self-check never becomes caller acceptance or artifact-vs-brief craft QA.
+Assistant reaches Researcher only through existing Engineer/Creator/Marketer
+primaries; no new direct peer or cross-role project decomposition.
+The primary owns the Researcher handle and must relay the agreed baseline and
+approved changes with conclusions. Missing scope/evidence stays unverified;
+Assistant never reconstructs acceptance from purpose or continues that handle.
+
+For both roles, an already explicitly authorized settled brief goes directly to
+Build; filled fields or transport alone are insufficient. A narrow authorized
+inquiry is one shot without ceremonial approval; complex work uses resident
+conversation. Agent Clients may agree within existing authority, never substitute
+for human-only permissions. Plan uses supplied material; needed discovery requires
+its own agreed bounded preliminary Build, QA, then revised main Plan/agreement.
+Short approvals advance retained Plans, not restart them.
+
+All six entries require full kernel, entry and selected unit-reference bodies in
+current context on each incoming caller/judge/resume/completion turn and before a
+midturn phase/unit/scope change, including direct entry. Load Gather when required
+beyond a few direct lookups. A past load/summary/preload is not sufficient.
+If `skill_view` dedup returns unchanged with a missing body, recover via canonical
+`read_file` and genuine `next_offset` truncation offsets, or stop the affected
+action. No alternate-path/artificial-range bypass. Selection/resume never grants
+scope, resets consumed/remaining budget or coverage/frontier, or replays work.
 
 These are Hermes-specific entries, not standalone portable packages: named
 `skill_view` calls address the parent shared reference and canonical read_file
@@ -1049,10 +1076,17 @@ recovery crosses the child directory. The generic skill-authoring validator
 flags those parent references as missing/escaping the standalone package;
 the Hermes topology and isolated runtime checks validate the actual owner.
 Do not duplicate gathering or evidence floors to silence that portability check.
-Run `scripts/tests/test_researcher_entries.py` with the Hermes venv and source
-PYTHONPATH. Its isolated runtime probe has no provider, network or credentials;
-it proves discovery/read/dedup mechanics, not real-model selection or live rollout.
-The existing controlled restart and fresh-session cutover gate still applies.
+The existing three suites, `scripts/tests/test_researcher_entries.py`,
+`test_searcher_pipeline.py` and `test_searcher_entry_runtime.py`, remain registered
+in `verify-work-continuity.py`. Use provisioned Hermes Python/source PYTHONPATH,
+isolated HOME and paired candidates (`HERMES_PRIVATE_ROOT` for public tests,
+`HERMES_PUBLIC_ROOT` for private tests). They cover phase contracts and offline
+runtime discovery/read/dedup/recovery, not real-model selection or actual search.
+The implemented candidate awaits explicit live cutover and real-model verification;
+other roles' deployment dates remain unchanged. No test installs, restarts or live
+link changes; retain strict Git ownership checks. Approved cutover refreshes the
+applicable process index and uses fresh sessions, without runtime job rewrites,
+output migration, approval changes or replay of active work.
 
 ## Engineer v9 entries and UI evaluation
 
@@ -1291,10 +1325,10 @@ profiles/<name>/     # assistant, engineer, researcher, searcher, creator, write
                      #   pinned per card via kanban_create skills:[...]. A technic's
                      #   references are modes only when tools, spend class and QA
                      #   stay the same; styles/presets/formats remain references.
-                     #   (searcher: no technics — the lookup/sweep/hunt unit
-                     #   playbooks are independent *-searcher child skills, paired with
-                     #   the assistant's plan-assistant-search and qa-assistant-search
-                     #   references (validator-enforced QA mapping);
+                     #   (researcher/searcher: plan/build/qa-<profile> child skills,
+                     #   each with 4/3 plain references/<unit>.md respectively;
+                     #   researcher shares parent references/gather.md;
+                     #   searcher has no technics; caller acceptance stays separate);
                      #   creator: canonical creator-* image/video/audio/music/
                      #   browser-motion/diagram/editorial/icon/card/meme/text-art/
                      #   pixel/sourcing/assembly leaves (1:1 with the assistant's
