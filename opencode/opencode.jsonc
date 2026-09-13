@@ -75,8 +75,9 @@
   //     Build-hot subagents (explore-medium/high/max, worker, reviewer,
   //     reviewer-deep on Sonnet 5 / Opus 5) so Build's own pool is not the only
   //     one its delegates draw on — and so Astra's code is reviewed cross-family.
-  //   ChatGPT Pro x5 — build primary (GPT-6 Astra; fall back to Opus 5 by hand),
-  //     debugger (Astra), and the cheap/bulky subagents (explore-spark/small,
+  //   explore-spark also uses the Claude pool, on Haiku for narrow lookups.
+  //   ChatGPT Pro x20 — build primary (GPT-6 Astra; fall back to Opus 5 by hand),
+  //     debugger (Astra), and the cheap/bulky subagents (explore-small,
   //     verifier, searcher/searcher-deep, compaction).
   // GPT-6 Astra needs opencode >= 1.18.29: the ChatGPT-OAuth catalog filter
   // rejected integer major versions (`gpt-6`) before that. OpenCode never
