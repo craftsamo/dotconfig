@@ -1,8 +1,11 @@
 ---
 description: "Ultra-fast read-only needle lookups in a pre-identified narrow scope (specific files/dirs/symbols). Small context — not for open-ended exploration."
 mode: subagent
-model: openai/gpt-5.3-codex-spark
+model: anthropic/claude-haiku-4-5
 hidden: true
+options:
+  thinking:
+    type: disabled
 permission:
   "*": deny
   glob: allow
