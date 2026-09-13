@@ -63,25 +63,53 @@ to call tools they do not have.
 
 ## Japanese writing core
 
-The curated `japanese-writing` SKILL.md now contains language knowledge and
-five notation defaults: mixed-script typography, kana spelling, okurigana,
-no Japanese prose dashes, and contextual use of `〜化` / `〜的`.
-It does not select document types, orchestrate review, run tools or score
-naturalness. Fixed terminology tables, genre-wide registers and source-line
-wrapping rules are no longer part of the shared core.
+The curated `japanese-writing` SKILL.md contains language knowledge and five
+notation defaults: mixed-script typography, kana spelling, okurigana, no
+Japanese prose dashes, and contextual use of `〜化` / `〜的`. It does not select
+document types, orchestrate review or score naturalness. Fixed terminology
+tables, genre-wide registers and source-line wrapping rules are not part of
+the shared core.
 
-The package contains only `SKILL.md`. Document construction and checking belong
-to the host workflow; Hermes Writer uses its operation/subject leaves and a
-bounded pre-draft consultation. The old catalogs, inspection loop, naturalness
-scores, Python tools and their detector fixtures have been retired after their
-Writer and caller dependencies were removed. Do not reinstall that workflow by
-copying old resources back into a discovered skill directory.
+Document construction and checking belong to the host workflow; Hermes
+Writer uses its operation/subject leaves and a bounded pre-draft consultation.
+The old catalogs, naturalness scores and their detector fixtures were retired
+after their Writer and caller dependencies were removed; do not reinstall that
+workflow by copying old resources back into a discovered skill directory.
+
+The package is `SKILL.md` plus `references/inspection.md` (read-only usage
+notes) and `scripts/inspect_text.py` with `scripts/requirements.txt` (pinned
+SudachiPy/dictionary versions). This is a bounded, read-only technical/
+explanatory-article inspector: it returns reading-load, outline, terms and
+structure observations for a caller to judge, never edits, a quality score or
+an AI-authorship verdict. It is a new, original implementation (this repo),
+informed by reviewing actual upstream terms/lint behavior — see "Historical
+sources" below for what was and was not carried over. Within Hermes, only
+Writer receives the `writing_inspect` tool (CLI and A2A sessions); shared clients
+can use the same inspector CLI. Ordinary conversation does not require it.
+
+### Adoption matrix
+
+What the original inspector's ideas contributed, concisely, against what was
+deliberately left out:
+
+| Adopted | Left out |
+| --- | --- |
+| Bounded reading-load candidates (long sentences, kanji runs, particle "の" chains, double negation) | Regex forbidden-phrase lists |
+| Outline extraction (headings, paragraph starts) | Antithesis/CV/burstiness-style AI-detection heuristics |
+| Term/proper-noun candidates via morphological analysis | Mandatory noun-ending or fixed-count rules |
+| Structure observations (bold, lists, headings, summary-like headings) | A naturalness score or baseline heuristic score |
+| Context-based interpretation | Any semantic model; style/repetition review stays an editorial judgment |
+
+This does not promise feature parity with the upstream project; it is a
+bounded subset chosen for Writer's article checks.
 
 ### Historical sources
 
-The former stack is recoverable from Git history. Locate the deletion of its
-resource paths with `git log --all --diff-filter=D -- agents/curated/japanese-writing/`,
-then inspect the removal commit's parent rather than relying on a hash that
+The v1.3.0-era stack described below is retired and recoverable only from Git
+history; it is unrelated to the active `scripts/inspect_text.py` described
+above. Locate the deletion of its resource paths with
+`git log --all --diff-filter=D -- agents/curated/japanese-writing/`, then
+inspect the removal commit's parent rather than relying on a hash that
 changes during a rebase. This record preserves the origin of ideas also
 re-expressed in Writer references; it is not an active dependency or a
 skill-resource index.
@@ -99,13 +127,47 @@ Consider future source improvements only for an identified language or writing
 task. Preserve attribution for reused material; do not restore obsolete
 detectors, templates or review procedures as a bulk upstream update.
 
+The current, active `scripts/inspect_text.py` is a separate, original
+implementation (not a v1.3.0 restoration) informed by reviewing actual
+upstream `textcore`/`terms`/`lint` behavior in
+[coji/natural-japanese](https://github.com/coji/natural-japanese)
+`21e632661a910bf97289c501089ad11eb8b4d85f` (the same v1.5.0-era commit cited
+below), selecting only the bounded subset in the adoption matrix above. It is
+not vendored or copied substantial code, so it carries no upstream license
+header; `scripts/requirements.txt` pins `SudachiPy==0.6.11` and
+`sudachidict_core==20260723` for its morphological-analysis dependency, and
+the inspector otherwise uses no semantic model.
+
+### Runtime provisioning
+
+Hermes uses a dedicated Python 3.12 environment (the shared CLI supports 3.10+); there is no runtime
+auto-install, and this is an explicit, maintainer-only, one-time step (check
+that `hermes/local/writing-inspection/` does not already contain `venv/`
+before creating it):
+
+```sh
+uv venv hermes/local/writing-inspection/venv --python 3.12
+uv pip install --python hermes/local/writing-inspection/venv/bin/python \
+  -r agents/curated/japanese-writing/scripts/requirements.txt
+```
+
+Run this from the repo root. Shared clients (any caller other than the
+`writing_inspect` tool's own transport) may provision and point at their own
+Python instead. If SudachiPy/the dictionary are missing or their versions do
+not match `scripts/requirements.txt`, the inspector returns a partial report
+with morphology-dependent checks marked unverified, rather than failing
+outright. This section documents the one canonical setup; no command here has
+been executed as part of this change, and provisioning plus any gateway
+restart/fresh session is a separate, explicit cutover — current edits are not
+deployed or live-session validated, and no jobs have been moved.
+
 ### Maintaining the language core
 
 Write the Japanese core in readable prose with the selected notation.
 Separate actual ambiguity or meaning loss from an optional change of style.
 Examples must preserve facts, modality and register; natural counterexamples
 are as important as corrections. Do not reintroduce fixed repetition counts,
-genre templates, a mandatory review loop or a reference router.
+genre templates, a mandatory review loop or the retired reference router.
 Behavioral cases live outside the runtime skill under `agents/tests/`.
 
 ### Current Hermes Writer adaptation
@@ -131,6 +193,13 @@ substantial text or code rather than independently expressing its ideas.
 Behavioral review cases live in `hermes/scripts/tests/writer-craft-cases.md`,
 outside skill discovery. Structural tests do not prove writing quality or
 live-profile adherence.
+
+A published before/after analysis,
+["生成AI以前と以後でエンジニアの文章はどう変わったのか: Qiitaの7万記事を数えてみた話"](https://nyosegawa.com/posts/qiita-writing-before-after-ai/)
+(2026-09-11), was consulted for observations about changes in vocabulary and
+formatting frequency, not as evidence of writing quality or individual AI
+authorship. It does not establish causal attribution or replacement rules;
+the craft references retain their own cited sources.
 
 ## Media craft knowledge
 
