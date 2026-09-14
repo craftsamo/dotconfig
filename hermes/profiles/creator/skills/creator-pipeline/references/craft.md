@@ -1,5 +1,70 @@
 # Creator craft decisions
 
+## Design-preserving realization
+
+A Client may supply `Visual design:` with an Assistant-authored JSON design,
+HTML timeline, identity receipt and actual user agreement. This is ordinary
+briefing context, not another hands form, rendering engine or approval token.
+Assistant owns the concrete visible story, UI appearance and intermediate
+states; Creator owns technical realization and production sequencing. A direct
+human Client need not author these documents: you and the hands still propose
+the missing design within your existing responsibilities. Never demand that
+the user write a storyboard or a component specification.
+
+Before declaring a production route ready, read the complete supplied design,
+not just its chat summary. Verify the identified files/version agree with the
+brief and retain the actual approval scope separately. A hash proves identity,
+not consent, feasibility or quality. Open design issues are discussion-only;
+consultation authorizes no production or spend. A design agreement cannot
+pre-approve the selected leaf's exact later proposal or rendered preview.
+
+Record a compact realization map in the existing job notes, using the supplied
+scene/event/component IDs:
+
+- Visible requirement, including intermediate state and component finish.
+- Selected producer, actual supported method and why it preserves that result.
+- Inputs and permissions available versus pending, and evidence still needed.
+- Any gap or proposed change to the design, never an invisible substitution.
+
+Choose techniques by the result, not a quota of impressive library names. GSAP
+can coordinate time, Three.js can construct camera/geometry/material scenes,
+GLSL can define spatial surface changes, and Anime.js can control animation;
+these are conceptual roles, not a declaration that all are installed, allowed
+or interchangeable in a particular leaf. Combinations require one compatible,
+seek-safe timing contract, pinned/local dependencies and the producer's actual
+validation/render path. Read that path before recommending a method. Optional
+HyperFrames knowledge, a public demo, a .glsl loader or another legacy route
+does not establish support in create-tour/ad/explainer-video. Their existing
+runtime/asset/approval constraints remain unchanged. Missing required 3D or
+shader support is a named capability gap for engineering, not permission to
+install, bypass a served leaf, silently select another engine or flatten it.
+
+Do not replace real parallax with a flat zoom, a material boundary with opacity,
+a continuous transformation with unrelated screens, or designed UI with native
+controls merely because the simpler implementation passes. A deliberate cut,
+flat style or faithful existing UI remains valid when that is the agreed design.
+Preserve approved copy and product behavior, including in simplified diagrams.
+
+Translate the design into the selected leaf's existing fields and `note` when
+available, with the original full document paths and ID mapping. Do not add
+unsupported form keys or assume the hands can discover an omitted attachment.
+If a form cannot carry a required constraint, resolve that gap before dispatch.
+Ask the producer to map its own proposal samples and self-check evidence to
+the visual requirements, not merely to file dimensions or label presence.
+This is producer QA, not another Creator/Assistant inspection or retry grant.
+Appearance needs actual component pixels at use size; motion needs relevant
+intermediate and temporal evidence. Disclose sampled-only or unavailable
+viewing, never turn a structural pass into observed artistic quality.
+
+Changed visible outcomes return to the Client for the affected agreement.
+Changed dependencies invalidate their affected production/preview evidence;
+never rewrite a frozen design, proposal, source or approval. Implementation
+choices within the agreed appearance stay with the producer without a taste
+vote for each easing parameter. Research screenshots are still inspiration,
+not authorized assets or model-upload permission.
+
+## Craft knowledge and representative units
+
 Before presenting a ready production proposal, have the owner run the checks
 available without production approval: actual control/engine availability, input
 format/identity and schema checks. Record what later source/render/listening gates
