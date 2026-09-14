@@ -82,6 +82,15 @@ form:
 Paths are absolute. Japanese values are fine - the text travels as a
 message (or a file), never as an argv string.
 
+When a visual design accompanies the brief, apply the design-preserving
+realization contract in [craft decisions](../references/craft.md). Carry the
+full identified design and ID-to-requirement map through the leaf's existing
+fields/note, not just a style name. Require the producer's proposal and own
+checks to address its intermediate states and component appearance. Do not
+add form keys, claim unsupported Three.js/GLSL integration, or accept an
+unapproved simplified substitute. A planning HTML document is never production
+source and its receipt is not the producer's exact-preview approval.
+
 Use the client's existing Group-local job directory, for example
 `~/Workspaces/Personal/<G>/.agent/deliverables/<job>/video-plan` (expanded
 to an absolute path). All three hands accept these job-owned subdirectories,

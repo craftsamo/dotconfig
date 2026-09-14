@@ -33,6 +33,7 @@ PUBLIC_PYTEST_FILES = (
     "hermes/scripts/tests/test_creative_client_references.py",
     "hermes/scripts/tests/test_creative_timeline.py",
     "hermes/scripts/tests/test_timeline_review.py",
+    "hermes/scripts/tests/test_visual_design_contract.py",
     "hermes/scripts/tests/test_three_graphics.py",
     "hermes/scripts/tests/test_three_graphics_native.py",
     "hermes/scripts/tests/test_engineer_pipeline.py",

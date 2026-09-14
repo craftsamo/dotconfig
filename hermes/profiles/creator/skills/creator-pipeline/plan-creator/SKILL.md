@@ -1,7 +1,8 @@
 ---
 name: plan-creator
 description: >-
-  Plan media forms with the client; no production or spend.
+  Plan technical realization and media forms with the client; preserve concrete
+  visual designs and report unsupported methods. No production or spend.
 version: 1.0.0
 author: CraftSamo
 license: MIT
@@ -178,7 +179,10 @@ A research example is inspiration only, not automatically a production asset
 or a hands form's `reference:`. Use it to inform your proposal, not to claim
 the user approved an exact composition or supplied a licensed model input.
 
-You still own creative proposals, forms and production sequencing. Infer
+You still own implementation proposals, forms and production sequencing. When
+the Client supplies a concrete visual design, use the design-preserving
+realization contract in [craft decisions](../references/craft.md); do not
+re-author its agreed visible result or reduce it to a style label. Infer
 within the user's granted discretion, preserve explicit constraints, and
 return material open decisions as `Q<n>:`. Do not require a new taste vote
 for every minor suggestion, or bypass a leaf's exact-plan/preview approval
@@ -227,4 +231,7 @@ measurements - that is a handoff like any other.
   examples are not required production inputs or copied into a hands form;
 - metered forms carry a budget line;
 - the sequence and its dependencies are written down for
-  [Build](../build-creator/SKILL.md).
+  [Build](../build-creator/SKILL.md);
+- a supplied visual design has an identified version, actual agreement scope
+  and scene/event/component mapping to supported implementation and remaining
+  feasibility gaps; no unexplained degradation is classified as implementation.
