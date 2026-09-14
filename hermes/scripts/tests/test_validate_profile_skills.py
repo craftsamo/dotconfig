@@ -515,12 +515,12 @@ class GitBoundaryOverlayTest(unittest.TestCase):
         self._tmp = tempfile.TemporaryDirectory()
         root = Path(self._tmp.name)
         self.overlay = root / "private"
-        (self.overlay / "skills" / "desks").mkdir(parents=True)
-        (root / "elsewhere" / "desks").mkdir(parents=True)
+        (self.overlay / "skills" / "assistant-pipeline").mkdir(parents=True)
+        (root / "elsewhere" / "assistant-pipeline").mkdir(parents=True)
         self.overlay_link = root / "overlay-link"
-        self.overlay_link.symlink_to(self.overlay / "skills" / "desks")
+        self.overlay_link.symlink_to(self.overlay / "skills" / "assistant-pipeline")
         self.foreign_link = root / "foreign-link"
-        self.foreign_link.symlink_to(root / "elsewhere" / "desks")
+        self.foreign_link.symlink_to(root / "elsewhere" / "assistant-pipeline")
         self._original = VALIDATOR.PRIVATE_OVERLAY
         VALIDATOR.PRIVATE_OVERLAY = self.overlay
         # A real, gitignored path inside the repo keeps the learned probe green.
@@ -550,6 +550,57 @@ class GitBoundaryOverlayTest(unittest.TestCase):
         errors: list[str] = []
         VALIDATOR.validate_git_boundary([dangling], self.learned, errors)
         self.assertTrue(errors, "dangling overlay symlink must be reported")
+
+
+class AssistantDmTopicsTest(unittest.TestCase):
+    """Pinned DM topics are skill-less; Inbox keeps its literal name."""
+
+    def write_config(self, topics: str) -> Path:
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        path = Path(directory.name) / "config.yaml"
+        path.write_text(
+            "platforms:\n"
+            "  telegram:\n"
+            "    extra:\n"
+            "      dm_topics:\n"
+            "        - chat_id: 'tg-1'\n"
+            "          topics:\n" + topics,
+            encoding="utf-8",
+        )
+        return path
+
+    def test_accepts_skill_less_inbox_and_admin(self) -> None:
+        config = self.write_config(
+            "            - name: Inbox\n"
+            "              thread_id: 1\n"
+            "            - name: Admin\n"
+        )
+        errors: list[str] = []
+        VALIDATOR.validate_assistant_dm_topics(config, errors)
+        self.assertEqual([], errors)
+
+    def test_rejects_topic_skill_binding(self) -> None:
+        config = self.write_config(
+            "            - name: Inbox\n"
+            "              thread_id: 1\n"
+            "            - name: Admin\n"
+            "              skill: project-desk\n"
+        )
+        errors: list[str] = []
+        VALIDATOR.validate_assistant_dm_topics(config, errors)
+        self.assertTrue(any("binds a skill" in e for e in errors), errors)
+
+    def test_requires_inbox_topic_name(self) -> None:
+        config = self.write_config("            - name: Admin\n")
+        errors: list[str] = []
+        VALIDATOR.validate_assistant_dm_topics(config, errors)
+        self.assertTrue(any("named 'Inbox'" in e for e in errors), errors)
+
+    def test_missing_config_is_silent(self) -> None:
+        errors: list[str] = []
+        VALIDATOR.validate_assistant_dm_topics(Path("/nonexistent/config.yaml"), errors)
+        self.assertEqual([], errors)
 
 
 class AssistantMessagingConfigTest(unittest.TestCase):
