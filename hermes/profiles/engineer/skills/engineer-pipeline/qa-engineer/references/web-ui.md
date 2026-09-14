@@ -32,6 +32,13 @@ checks; separate test accounts/fixtures or serialize them. Never test actual
 payments, production sends or destructive real-data operations merely because
 a UI is clickable. Browser tooling and profile isolation are not a sandbox.
 
+For content-only photo changes, verify source-to-asset mapping and localized alt
+text against the source pixels, not filenames or handoff descriptions. Scroll
+lazy-loaded gallery items into view and check decoded natural dimensions as
+well as screenshots; HTTP 200 alone can hide missing or wrong images. Preserve
+unrelated live content and distinguish observed application errors from image
+acceptance rather than silently widening into code repairs.
+
 Report actual screenshots, viewports, states, findings and unverified criteria.
 Visual acceptance is distinct from [persona testing](ux-persona.md), functional
 test results and Client approval. An unverified required criterion cannot pass.
