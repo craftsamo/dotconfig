@@ -5,6 +5,18 @@ catalog. Before a creative choice, read `skill_view(name="media-craft-visual")`
 and only the applicable files below, using that skill's `file_path` argument.
 Existing leaf/style references still own actual tools, controls and constraints.
 
+When Creator relays component designs, preserve their anatomy/proportions,
+typography, surfaces, icon language and visible states, not just a palette or
+style name. Apply this to UI in cards and other images as well as explicit kits.
+Use actual native/use-size pixels in the leaf's own checks; a strong hero image
+does not excuse weak individual controls. A stock OS window or unstyled native
+button is not an accidental default for bespoke UI. Faithful supplied UI and
+deliberately simple designs stay valid. If the selected deterministic drawer
+cannot express the designed part, return that specific limitation to Creator;
+do not label a plain rectangle equivalent or silently choose generation. Keep
+the design IDs in existing evidence, all budgets/approvals unchanged, and never
+claim a diagram or textual specification proves the final visual quality.
+
 | Subject and decision | Visual reference files |
 | --- | --- |
 | card layout and exact-copy treatment | `references/composition.md`, `references/typography.md`; `references/surface-light.md` only when material/light is a real choice |
