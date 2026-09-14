@@ -90,7 +90,7 @@ class PreflightFailureTest(unittest.TestCase):
         root = Path(directory.name)
         self.private = root / "private"
         hermes = root / "public/hermes"
-        for name in ("assistant-pipeline", "desks"):
+        for name in ("assistant-pipeline",):
             rel = Path("profiles/assistant/skills") / name
             target = self.private / "hermes" / rel
             target.mkdir(parents=True)
@@ -119,7 +119,7 @@ class PreflightFailureTest(unittest.TestCase):
         V.check_candidate_pairing(self.private)
 
     def test_missing_overlay_link_is_still_rejected(self) -> None:
-        (V.HERMES_ROOT / "profiles/assistant/skills/desks").unlink()
+        (V.HERMES_ROOT / "profiles/assistant/skills/assistant-pipeline").unlink()
         with self.assertRaisesRegex(V.ContinuityError, "must be a real symlink"):
             V.check_candidate_pairing(self.private)
 

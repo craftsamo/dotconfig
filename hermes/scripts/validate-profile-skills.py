@@ -553,7 +553,6 @@ def untracked_managed_files() -> list[str]:
             "hermes/skills/default-pipeline/**",
             "hermes/profiles/*/skills/*-pipeline/**",
             "hermes/profiles/*/skills/technic/**",
-            "hermes/profiles/assistant/skills/desks/**",
             "hermes/plugins/skill-topology/**",
             f"hermes/plugins/{WORKER_MUTATION_GUARD_PLUGIN}/**",
         ],
@@ -619,8 +618,8 @@ def validate_allowed_skill_roots(
     errors: list[str],
 ) -> None:
     for entry in skills.iterdir():
-        # Private-overlay dirs (desks, assistant-pipeline) are sanctioned
-        # symlinks into ~/.config/private; anything else stays forbidden
+        # The private-overlay dir (assistant-pipeline) is a sanctioned
+        # symlink into ~/.config/private; anything else stays forbidden
         # (relative links into mutable stores have broken silently before).
         if entry.is_symlink() and not is_overlay_link(entry):
             errors.append(f"local skill root must not contain symlinks: {entry}")
@@ -2278,71 +2277,92 @@ def validate_research_alignment(errors: list[str]) -> None:
         errors.append(f"research QA contract claimed by no plan leaf: {name}")
 
 
+def validate_assistant_dm_topics(config: Path, errors: list[str]) -> None:
+    """Pinned Telegram DM topics are skill-less surfaces (Inbox, Admin).
+
+    The topic-bound desk skills were retired on 2026-09-14; every pinned topic
+    is governed by its ``channel_prompts`` contract only, and the chat-wide
+    ``assistant-pipeline`` binding stays the single skill surface. A ``skill``
+    key on a topic would silently resurrect a per-topic skill layer, so it is
+    rejected outright. ``Inbox`` must keep its literal name: the secrets helper
+    derives ``TELEGRAM_CRON_THREAD_ID`` from it by name.
+    """
+    if not config.is_file():
+        return
+    data = load_yaml(config)
+    dm_topics = (
+        data.get("platforms", {})
+        .get("telegram", {})
+        .get("extra", {})
+        .get("dm_topics", [])
+    )
+    names: list[str] = []
+    for chat in dm_topics if isinstance(dm_topics, list) else []:
+        for topic in chat.get("topics", []) if isinstance(chat, dict) else []:
+            if not isinstance(topic, dict):
+                continue
+            name = topic.get("name")
+            if isinstance(name, str):
+                names.append(name)
+            if topic.get("skill"):
+                errors.append(
+                    f"Telegram topic {name!r} binds a skill ({topic['skill']}); "
+                    "pinned topics are skill-less (desks retired 2026-09-14)"
+                )
+    if dm_topics and "Inbox" not in names:
+        errors.append(
+            "Telegram dm_topics must keep a topic named 'Inbox' "
+            "(profile-secrets.sh derives TELEGRAM_CRON_THREAD_ID from it)"
+        )
+
+
 def validate_assistant(
     errors: list[str],
-) -> tuple[int, dict[str, str], int, int, int]:
+) -> tuple[int, dict[str, str], int, int]:
     profile_root = HERMES_ROOT / "profiles" / "assistant"
     skills = profile_root / "skills"
-    desks_dir = skills / "desks"
     technic_dir = skills / "technic"
     learned_dir = skills / "learned"
 
     refs, catalog = validate_assistant_pipeline(errors)
-    if not desks_dir.is_dir():
-        errors.append(f"missing assistant desks directory: {desks_dir}")
     if not technic_dir.is_dir():
         errors.append(f"missing assistant technic directory: {technic_dir}")
+    if (skills / "desks").exists():
+        errors.append(
+            f"stale assistant desks directory: {skills / 'desks'} "
+            "(desk skills retired 2026-09-14; remove the overlay link)"
+        )
 
-    groups: dict[str, dict[str, Path]] = {"desks": {}, "technic": {}, "learned": {}}
-    for category, directory in (
-        ("desks", desks_dir),
-        ("technic", technic_dir),
-    ):
-        if not directory.is_dir():
-            continue
-        for path in sorted(directory.glob("*/SKILL.md")):
+    technics: dict[str, Path] = {}
+    if technic_dir.is_dir():
+        for path in sorted(technic_dir.glob("*/SKILL.md")):
             name = path.parent.name
-            validate_skill(path, name, errors, expected_category=category)
-            groups[category][name] = path
-    groups["learned"], learned_roots = validate_learned_skills(learned_dir, errors)
+            validate_skill(path, name, errors, expected_category="technic")
+            technics[name] = path
+    learned, learned_roots = validate_learned_skills(learned_dir, errors)
 
     allowed: set[tuple[str, ...]] = {("assistant-pipeline", "SKILL.md")}
     allowed.update(("assistant-pipeline", name, "SKILL.md") for name in ASSISTANT_ENTRIES)
-    for category in ("desks", "technic"):
-        allowed.update((category, name, "SKILL.md") for name in groups[category])
+    allowed.update(("technic", name, "SKILL.md") for name in technics)
     allowed.update(learned_roots)
     validate_allowed_skill_roots(skills, allowed, errors)
 
     config = profile_root / "config.yaml"
-    if config.is_file():
-        data = load_yaml(config)
-        dm_topics = (
-            data.get("platforms", {})
-            .get("telegram", {})
-            .get("extra", {})
-            .get("dm_topics", [])
-        )
-        for chat in dm_topics if isinstance(dm_topics, list) else []:
-            for topic in chat.get("topics", []) if isinstance(chat, dict) else []:
-                skill = topic.get("skill") if isinstance(topic, dict) else None
-                if skill and skill not in groups["desks"]:
-                    errors.append(f"Telegram topic binds a non-desk skill: {skill}")
+    validate_assistant_dm_topics(config, errors)
 
-    validate_git_boundary(
-        [ASSISTANT_PIPELINE, desks_dir, technic_dir], learned_dir, errors
-    )
+    validate_git_boundary([ASSISTANT_PIPELINE, technic_dir], learned_dir, errors)
     if config.is_file():
         validate_plugin_enabled("assistant", config, errors)
         validate_assistant_messaging_config(config, errors)
     example_config = profile_root / "config.example.yaml"
     validate_plugin_enabled("assistant", example_config, errors)
     validate_assistant_messaging_config(example_config, errors)
+    validate_assistant_dm_topics(example_config, errors)
     return (
         refs,
         catalog,
-        len(groups["desks"]),
-        len(groups["technic"]),
-        len(groups["learned"]),
+        len(technics),
+        len(learned),
     )
 
 
@@ -2409,10 +2429,10 @@ def main() -> int:
         validate_plugin_source(errors)
         managed, learned = validate_shared(errors)
         summaries.append(f"shared={managed} managed/{learned} learned")
-        refs, catalog, desks, technics, learned = validate_assistant(errors)
+        refs, catalog, technics, learned = validate_assistant(errors)
         summaries.append(
             f"assistant-pipeline={refs} refs/{len(catalog)} card-units; "
-            f"assistant={desks} desks/{technics} technics/{learned} learned"
+            f"assistant={technics} technics/{learned} learned"
         )
         for profile in WORKER_PROFILES:
             technics, learned = validate_worker(profile, errors, catalog=catalog)
@@ -2436,10 +2456,10 @@ def main() -> int:
             message = f"managed skill file is untracked: {path}"
             (errors if args.strict_git else warnings).append(message)
     elif args.profile == "assistant":
-        refs, catalog, desks, technics, learned = validate_assistant(errors)
+        refs, catalog, technics, learned = validate_assistant(errors)
         summaries.append(
             f"assistant-pipeline={refs} refs/{len(catalog)} card-units; "
-            f"assistant={desks} desks/{technics} technics/{learned} learned"
+            f"assistant={technics} technics/{learned} learned"
         )
     elif args.profile in HANDS_PROFILES:
         if args.dispatch:
