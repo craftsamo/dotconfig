@@ -144,6 +144,69 @@ Delivery happens only after verification; the session is closed on
 acceptance. External factual claims still ride researcher evidence supplied
 in the flow.
 
+### Visual design and timeline
+
+Assistant owns concrete visible intent for newly authored video: complete scene
+progression, intermediate changes, deliberate holds, camera/text/audio relations
+and per-component UI anatomy, typography, surfaces and states. Conditional
+reference research connects inspected studio process and actual UI examples to
+scene/event/component decisions, not just aesthetic labels. Exact edits,
+analysis, research-only and frozen render resumes keep their existing scope;
+static UI images use component design without an invented video duration.
+
+The existing private Plan entry owns a plain `video-design.md` guide; no new
+profile, skill root, toolset or card is added. Its public stdlib helper at
+`profiles/assistant/scripts/creative-timeline.py` renders validated data into
+an inert, self-contained HTML timeline, with retained JSON and an identity
+receipt in a fresh exclusive bundle. This is the narrow local planning-document
+exception, not a production renderer or arbitrary HTML execution. Diagrams
+and complete design text are visible together; omitted intermediate states or
+unaccounted visual time fail structural checks, but a pass is not artistic
+acceptance. Open issues stay discussion-only. Telegram receives a document;
+attached HTML opening needs actual client verification, not a promise based on
+message `parse_mode`. No hosting, Mini App or remote asset fetch is introduced.
+
+Use that identified version for the existing plan agreement, not a new approval
+ceremony. Creator's shared craft contract owns the technical realization map
+and sends full design requirements through existing hands fields/note. Required
+parallax, occlusion, material changes or bespoke components cannot be silently
+flattened into simpler substitutes. Actual GSAP/Three.js/GLSL/Anime.js roles
+must be checked against the selected producer; this feature does not install
+or newly support those runtimes. Three.js/shader runtime expansion is separate
+implementation work, not implied by reference access. Hands keep their own
+proposal/preview approvals, rendered checks and budgets. Ordinary production
+still delivers without another broker aesthetic inspection.
+
+Cut over on 2026-09-13 with explicit approval. Both live source trees were
+updated together on deployment branches; existing script-directory links were
+preserved. One launchd-owned SIGUSR1 restart restored all 13 connections with
+no adapter failure, secret timeout, duplicate poller or traceback in the bounded
+restart log. No existing job, frozen output or approval was rewritten.
+
+Preflight passed strict Git/topology validation, 1,137 public tests (14 skipped,
+203 subtests), 97 private tests and 66 runtime tests. Fresh restricted model
+probes used deployed profiles/instructions and actual local helper execution:
+Assistant authored a six-second fictional design with intermediate states and
+component appearances, then passed check/output; Creator read that same JSON
+and mapped requirements to technical methods while retaining unverified limits.
+These were separate process-local probes with no delegation or media generation,
+not an unrestricted end-to-end production conversation. The primary Assistant
+Claude request returned 429 before any instruction read; both successful probes
+explicitly used the already-configured Codex fallback without changing the live
+model configuration. Primary-Claude behavior and automatic failover remain
+unverified by this test.
+
+One explicitly approved native Telegram document send reached the user's
+Assistant DM; downloading that document reproduced the exact HTML hash, and
+the user confirmed opening it and seeing the diagrams and explanations. The
+ordinary gateway bare-path extractor also recognized the actual HTML under
+the deployed profile policy without changing it. This checks transport and
+client opening separately from the model probe; it does not prove artistic
+quality, actual video rendering or new Three.js/GLSL runtime support. Required
+craft bodies unavailable through name lookup recovered from canonical files;
+future rollouts still need paired validation, explicit restart approval and
+fresh-session checks. Existing conversation histories are not presumed refreshed.
+
 ### Creative early delivery candidate
 
 Normal creative production is Plan -> Build/Execute -> delivery. Creator and

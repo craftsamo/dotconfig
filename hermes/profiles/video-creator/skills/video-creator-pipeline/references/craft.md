@@ -4,6 +4,21 @@ Knowledge-only craft is distinct from the optional HyperFrames technical policy.
 It does not import another renderer, script, agent, approval gate or style menu.
 The selected leaf remains authoritative for controls, media and production.
 
+When Creator relays a concrete visual design, read its identified full version
+and scene/event/component mapping before authoring. It is design intent, not
+executable source, licensed assets or an approval receipt for this leaf. Keep
+its UI anatomy/typography/surfaces/states and the before/during/after of each
+important change. Do not postpone intermediate choreography until the client
+asks, or replace designed components with default OS controls. Faithful real
+UI and deliberately plain design remain valid; do not invent product behavior.
+Map existing proposal samples and producer self-check evidence to those IDs.
+Judge the actual pixels and temporal evidence against those requirements;
+structural checks and sparse stills cannot prove the whole motion or appeal.
+Unsupported techniques or visibly different simplifications return to Creator
+before production, never a silent engine switch or a library install. A design
+agreement does not replace this leaf's exact proposal/preview approvals. Render
+resumes keep their frozen inputs, not a newly discovered design document.
+
 Before a temporal design decision or perceptual review, read
 `skill_view(name="media-craft-motion")`, then use its `file_path` for the relevant
 files below. Do not load every file merely because the result is a video.

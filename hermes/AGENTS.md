@@ -499,8 +499,19 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
   after caller coverage and both-client soak, not merely because a leaf exists.
   Writer's released-unit ownership is unchanged; see PROFILES.md "Broker shape".
 - **Assistant is a deliverable-first Client, not a second production broker.**
+  The visual-design contract adds one narrow responsibility: Assistant concretizes
+  authored video and UI appearance, then uses `profiles/assistant/scripts/creative-timeline.py`
+  to diagram its data as planning-only HTML for the existing plan agreement.
+  This is not production HTML, another hands form or a media render. Creator owns
+  actual supported technology, realization and production approvals. Preserve full
+  design identity/IDs and intermediate states across the handoff; never silently
+  flatten required 3D/shader motion or replace bespoke UI with generic controls.
+  The helper validates structure, not artistic quality or user authority. This
+  feature changes neither the available renderers nor frozen jobs. Cut over on
+  2026-09-13; see PROFILES.md "Visual design and timeline" for the restricted
+  real-model probes, Telegram verification and remaining model/runtime limits.
   Its plain `plan-assistant-creative/references/<deliverable>.md` guides hold
-  Client questions and acceptance criteria, with conditional research and common Execute
+  Client decisions, visual-design requirements and acceptance criteria, with conditional research and common Execute
   and QA. No hands-name parity, form/provider/limit catalog or duplicate
   per-deliverable Execute/QA tree: a missing guide never means unavailable.
   The retained production decision/inspection files live in each creative entry's
