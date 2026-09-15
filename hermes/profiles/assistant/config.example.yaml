@@ -724,8 +724,11 @@ telegram:
         - assistant-pipeline
   channel_prompts:
     # On first startup Hermes creates the topics below and persists each thread_id.
-    # Replace the four *_THREAD_ID keys with those numeric ids, then restart once.
+    # Replace the two *_THREAD_ID keys with those numeric ids, then restart once.
     # Until that restart, Telegram cron delivery fails closed instead of using root DM.
+    # Pinned topics bind NO skill (the desk skills were retired 2026-09-14); the
+    # chat-wide assistant-pipeline binding above is the only skill surface, and
+    # each topic's contract lives entirely in its channel_prompts entry.
     "YOUR_TELEGRAM_CHAT_ID": |
       Telegram-specific overrides:
       - This chat renders rich Markdown — lean into it: tables, headings, bullet/numbered
@@ -735,20 +738,6 @@ telegram:
         makes Telegram show the .md as plain text instead of rendering markdown.
       - Deliver the document by putting its bare file path on its own line; the
         gateway sends it as a native file and strips the path from the text.
-    "PERSONAL_THREAD_ID": |
-      Topic contract — Personal desk:
-      - Apply the personal-desk skill and complete recurring personal operations inline.
-      - Never dispatch workers from this topic. When execution must leave the Assistant,
-        prepare a compact handoff and ask for a new topic.
-      - Treat everything under ~/Workspaces/Personal as sensitive; summarize and never
-        expose raw financial data, contacts, or PII.
-    "PROJECTS_THREAD_ID": |
-      Topic contract — Projects desk:
-      - Apply the project-desk skill and complete registry, scaffold, docs, and data
-        administration inline.
-      - Never dispatch workers from this topic. Code changes or other execution work get a
-        compact handoff and a new topic.
-      - Never commit or push without explicit approval.
     "INBOX_THREAD_ID": |
       Topic contract — system Inbox:
       - This topic receives automated reports, maintenance notices, scheduled-task releases,
@@ -756,13 +745,21 @@ telegram:
       - Summarize or explain a notification when asked, but do not start or dispatch execution
         work here. Prepare a handoff and ask for a new topic when action is required.
       - Normal kanban completion notifications belong to the topic that created the work.
-    "BRAINSTORM_THREAD_ID": |
-      Topic contract — Brainstorm desk:
-      - Apply the brainstorm skill and keep ideation inline.
-      - Externalize durable decisions only when useful and with the correct workspace privacy
-        rules.
-      - Never dispatch workers from this topic. When an idea becomes execution, prepare a
-        compact handoff and ask for a new topic.
+    "ADMIN_THREAD_ID": |
+      Topic contract — Admin:
+      - This topic is the inline surface for small administrative work that does not
+        deserve a topic of its own: workspace bookkeeping (project registry, group or repo
+        scaffolding, people and household-budget records, docs/data touch-ups), edits to
+        the ~/.config dotconfig repo and its Hermes profiles, and Hermes upkeep (browser
+        relaunch, cron and validator checks, skill housekeeping).
+      - Finish the work here in the Assistant session with the owning workspace skill or
+        local tools. Never start a resident session, delegate, or create a kanban card from
+        this topic; when a request grows into implementation, media, or sustained research,
+        prepare a compact handoff and ask for a new topic.
+      - Edit Hermes config in ~/.config only, never through ~/.hermes; follow the AGENTS.md
+        of the tree you touch. Commits, pushes, and gateway restarts need explicit approval.
+      - Treat everything under ~/Workspaces/Personal as sensitive; summarize and never
+        expose raw financial data, contacts, or PII.
   allowed_chats: ''
 platforms:
   telegram:
@@ -774,21 +771,15 @@ platforms:
       dm_topics:
       - chat_id: 'YOUR_TELEGRAM_CHAT_ID'
         topics:
-        - name: Personal
-          icon_custom_emoji_id: '5312486108309757006'
-          icon_color: 16766590
-          skill: personal-desk
-        - name: Projects
-          icon_custom_emoji_id: '5350554349074391003'
-          icon_color: 9367192
-          skill: project-desk
+        # Keep the literal name "Inbox": profile-secrets.sh derives
+        # TELEGRAM_CRON_THREAD_ID from it, so bare `deliver: telegram` cron jobs
+        # land there.
         - name: Inbox
           icon_custom_emoji_id: '5417915203100613993'
           icon_color: 7322096
-        - name: Brainstorm
-          icon_custom_emoji_id: '5310039132297242441'
-          icon_color: 13338331
-          skill: brainstorm
+        - name: Admin
+          icon_custom_emoji_id: '5350554349074391003'
+          icon_color: 9367192
 mattermost:
   require_mention: true
   free_response_channels: ''
