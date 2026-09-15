@@ -97,12 +97,13 @@ def check_runtime(runtime: Path) -> Path:
 
 
 def check_candidate_pairing(private: Path) -> None:
-    """Public assistant-pipeline/desks must be real symlinks resolving under
+    """The public assistant-pipeline must be a real symlink resolving under
     the passed --private root, AND the real Path.home()/.config/private must
     resolve to that SAME root -- never soften the original validator's own
-    symlink checks, just refuse an unpaired candidate here."""
+    symlink checks, just refuse an unpaired candidate here. (desks/ was the
+    second overlay link until the desk skills were retired on 2026-09-14.)"""
     private = private.resolve()
-    for name in ("assistant-pipeline", "desks"):
+    for name in ("assistant-pipeline",):
         link = HERMES_ROOT / "profiles/assistant/skills" / name
         require(link.is_symlink(), f"{link} must be a real symlink into the private overlay")
         target = link.resolve()

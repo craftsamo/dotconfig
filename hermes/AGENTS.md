@@ -531,6 +531,25 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
   separate. Validate the paired public/private candidate structurally before
   approved cutover, then check real Git ownership and fresh-session discovery;
   never weaken the live symlink/Git boundary to make temporary-copy tests pass.
+- **Pinned Telegram topics are skill-less: Inbox + Admin (2026-09-14).** The
+  assistant's `platforms.telegram.extra.dm_topics` (private `config.yaml`)
+  declares exactly those two; the four-desk layout (Personal / Projects /
+  Brainstorm + `desks/{personal-desk,project-desk,brainstorm}`) is retired,
+  the `desks/` overlay link is gone, and `validate_assistant_dm_topics`
+  rejects any topic carrying a `skill:` key and a `dm_topics` list without a
+  topic literally named `Inbox` (`profile-secrets.sh` derives
+  `TELEGRAM_CRON_THREAD_ID` from that name — rename it and every bare
+  `deliver: telegram` cron job fails closed). Inbox receives cron output and
+  starts no work; Admin is the inline surface for small admin work
+  (workspace `pj` / `pp` / `hb` / scaffold, `~/.config` edits, Hermes upkeep)
+  with no resident session, delegation or kanban card — its contract is the
+  `channel_prompts['<thread_id>']` text (template in
+  `config.example.yaml`), and the chat-wide `assistant-pipeline` binding is
+  the only skill surface. Adding a pinned topic = a `dm_topics` entry WITHOUT
+  `thread_id` → gateway restart creates it and writes the id back through the
+  symlink into the private repo (expect a full re-serialization diff there)
+  → then key its `channel_prompts` entry → `/restart`. Hermes never deletes a
+  Telegram topic: close retired ones by hand in the client.
 - **Card is one image subject with create/generate/edit/analyze leaves.**
   `create-card` also accepts task-authored static `layout_html` with exact
   copy/asset bindings and optional per-tile `copy_blocks`; ImageCreator authors
@@ -930,9 +949,11 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
   by the same validator failure and removed on 2026-09-01. That root is
   gitignored too (`.gitignore: hermes/skills/*`), and only `default-pipeline/`
   and `learned/` belong in it; anything else appearing there is installer
-  residue. Check BOTH roots when the validator reports symlinks — the two
-  intentional ones are the assistant's private-overlay `assistant-pipeline` and
-  `desks`, which resolve and must stay. **`video-creator` pins four individual
+  residue. Check BOTH roots when the validator reports symlinks — the one
+  intentional link is the assistant's private-overlay `assistant-pipeline`,
+  which resolves and must stay (its sibling `desks` link was retired with the
+  desk skills on 2026-09-14 and is now a validator error if it reappears).
+  **`video-creator` pins four individual
   technical dirs from the same store** (`hyperframes-core`, `hyperframes-animation`,
   `cut-the-curve`, `oversized-cursor`) for its `create-tour`/`create-ad`/
   `create-explainer-video` leaves only — never the whole store, and the same
@@ -1027,7 +1048,8 @@ Only `references/plan/index.md`, `references/execute/index.md` plus
 `resident-sessions.md`, `kanban-lite.md`, `scheduled.md`, and
 `references/quality-assurance/index.md` remain shared at the parent.
 No entry aliases, new overlay mapping or default `skills.external_dirs` expansion.
-Desk bindings and inline-only restrictions stay unchanged. Writer acceptance
+The pinned topics' inline-only restrictions stay unchanged (see "Pinned Telegram
+topics" below). Writer acceptance
 remains in the public Writer pipeline, not copied into private QA entries.
 
 Always-on routing selects an entry each user turn/completion and before a
@@ -1391,12 +1413,12 @@ profiles/<name>/     # assistant, engineer, researcher, searcher, creator, write
                      #   because validate-profile-skills.py enforces flat canonical leaves;
                      #   assistant keeps its front-door pipeline in
                      #   profiles/assistant/skills/assistant-pipeline/ (kernel +
-                     #   19 child entries + shared mode references) plus its
-                     #   surface skills — desks/ holds
-                     #   topic-bound personal-desk / project-desk / brainstorm
-                     #   (Inline-only; specialist work spins into a new topic);
-                     #   both assistant dirs are private-overlay symlinks
-                     #   (content tracked by private-dotconfig, not here);
+                     #   19 child entries + shared mode references), a
+                     #   private-overlay symlink (content tracked by
+                     #   private-dotconfig, not here); the pinned Telegram
+                     #   topics (Inbox, Admin) bind no skill — their contracts
+                     #   are channel_prompts entries in the assistant config
+                     #   (the topic-bound desks/ skills were retired 2026-09-14);
                      #   every profile's learned/ holds mutable runtime-authored
                      #   skills and is never a dispatch or Git ownership surface)
                      # (no cron/ here either; scheduled jobs live machine-local)
@@ -1460,11 +1482,11 @@ host-rendered plists.
 
 **Skill ownership follows the directory type.** Shared `default-pipeline/` and
 every worker's `<profile>-pipeline/` and `technic/` are maintainer-owned and
-tracked normally. The assistant's `assistant-pipeline/` and `desks/` are also
-maintainer-owned but live in the private overlay — symlinks into
-`~/.config/private`, tracked by the private-dotconfig repo (they encode the
-personal messaging operation; this repo is public). Edit them through the same
-paths; commit in the overlay repo. Runtime creates
+tracked normally. The assistant's `assistant-pipeline/` is also
+maintainer-owned but lives in the private overlay — a symlink into
+`~/.config/private`, tracked by the private-dotconfig repo (it encodes the
+personal messaging operation; this repo is public). Edit it through the same
+path; commit in the overlay repo. Runtime creates
 land in `learned/` because every `config.yaml` sets `skills.create_dir:
 skills/learned` (validator-enforced; a `category` nests as
 `learned/<category>/<name>`) — NOT because of the `skill-topology` plugin, whose
