@@ -165,7 +165,8 @@ neither interruption is proof of successful completion.
 `default-pipeline/` CLI adapter is version-controlled; the assistant's
 `assistant-pipeline` lives under its profile and owns the kernel, child entries
 and shared mode references; its content sits in the private overlay, reached through a symlink at
-`profiles/assistant/skills/assistant-pipeline` (as do the `desks/`).
+`profiles/assistant/skills/assistant-pipeline` (the only overlay link left
+since the topic-bound `desks/` were retired on 2026-09-14).
 The ~/Workspaces data-skill
 cluster lives in the private overlay (this repo is public) and is read through
 `skills.external_dirs` as `~/.config/private/hermes/skills`. Runtime-authored
@@ -282,8 +283,9 @@ and, for creative, retained `legacy/` material. Parent shared files are only
 `references/plan/index.md`, `references/execute/{index,resident-sessions,kanban-lite,scheduled}.md`
 and `references/quality-assurance/index.md`. Chat owns its common procedure in
 `chat-assistant/SKILL.md`. The four catalog units and their names are unchanged.
-No new aliases or symlink install mapping is needed, and desk bindings and
-inline-only restrictions are unchanged.
+No new aliases or symlink install mapping is needed, and the pinned topics'
+inline-only restrictions are unchanged (they lived in desk skills at the time;
+since 2026-09-14 they live in each topic's `channel_prompts` contract).
 
 Each user turn/completion and each action changing mode/domain/scope midturn
 selects the applicable entry from the available index. Reuse requires full
@@ -506,9 +508,11 @@ State (`memories/`, `sessions/`, `state.db*`, …) stays in
 Each worker profile tracks exactly one `<profile>-pipeline/` and a `technic/`
 directory. Pipelines implement the shared `admit → route → act_or_plan → verify
 → handoff → terminal` lifecycle; Workers never register Kanban cards. The
-assistant keeps `technic/` here, while its `desks/` and `assistant-pipeline/`
-are private-overlay symlinks (personal messaging operation; content tracked by
-the private-dotconfig repo); `default-pipeline` adapts that tree for the CLI. Every profile may grow an
+assistant keeps `technic/` here, while its `assistant-pipeline/` is a
+private-overlay symlink (personal messaging operation; content tracked by
+the private-dotconfig repo — a second `desks/` link existed until the desk
+skills were retired on 2026-09-14, and the validator now rejects a leftover);
+`default-pipeline` adapts that tree for the CLI. Every profile may grow an
 untracked `learned/` library. To promote a learned skill, review it, move the
 complete package into `technic/`, set `metadata.hermes.category: technic`, add
 it to the pipeline's capability registry when applicable, pin an agent-created

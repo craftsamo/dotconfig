@@ -486,9 +486,10 @@ Three per-profile layers, kept separate:
   Every local library uses the same ownership types. A worker has one tracked
   `<profile>-pipeline/` plus tracked, directly selectable `technic/` leaves.
   The assistant owns `assistant-pipeline/`, its invariant kernel and 19 child
-  entries with local details; default owns the shared tracked `default-pipeline/` adapter. Assistant-only
-  Telegram surfaces live in `desks/`. Both assistant dirs are private-overlay
-  symlinks — maintainer-owned, but tracked by the private-dotconfig repo.
+  entries with local details; default owns the shared tracked `default-pipeline/` adapter. The
+  assistant-pipeline dir is a private-overlay symlink — maintainer-owned, but
+  tracked by the private-dotconfig repo. (The topic-bound `desks/` overlay was
+  retired on 2026-09-14; pinned Telegram topics are skill-less, see "Routing".)
   Runtime-authored skills from background review, curator, `/learn`, or normal
   `skill_manage(create)` calls go to the untracked `learned/` category through
   `skills.create_dir: skills/learned` in every `config.yaml` (an optional
@@ -720,19 +721,32 @@ retired in the 2026-09 peer rebuild; fact-checks now travel through the
 researcher's A2A peers). All six worker pipelines fail fast at the
 Unit gate with `kanban_block(kind=capability)` for composite or malformed cards.
 
-The pinned Telegram topics are Assistant-owned **desks**, not worker threads:
-Personal binds `personal-desk` (household-budget / People / message-reply plus
-personal docs/data), Projects binds `project-desk` (the `pj` registry,
-workspace scaffold, and project docs/data), Brainstorm binds `brainstorm`, and
-Inbox has no skill because it is only the delivery target for system cron
-output. Each desk fixes the tier to `inline`; work that needs a specialist
-hands off to a new ad-hoc topic, which inherits chat-wide `assistant-pipeline` and
-owns the sessions. The fifth Telegram pin remains a UI-managed rotation slot
-rather than a configured topic. Kanban completion notifications remain
-attached to their originating topic; only maintenance/report/sweeper cron
-output targets Inbox: jobs keep bare `deliver: telegram`, while the gateway
-launcher derives `TELEGRAM_CRON_THREAD_ID` from the ignored runtime config's
-Inbox topic. Time-deferred work parks in `scheduled` via `hermes kanban
+The pinned Telegram topics are two skill-less Assistant surfaces, not worker
+threads (`platforms.telegram.extra.dm_topics`; the 2026-09-14 rebuild retired
+the four-desk layout — Personal / Projects / Brainstorm and their
+`personal-desk` / `project-desk` / `brainstorm` skills — because the
+chat-wide `assistant-pipeline` binding plus the workspace skills already
+covered every desk operation, and a per-topic skill layer only duplicated
+the routing). **Inbox** is the delivery target for system cron output and
+starts no work; **Admin** is the inline surface for small administrative
+work that does not deserve its own topic — workspace bookkeeping (`pj`
+registry, scaffold, `pp` / `hb` records, docs/data touch-ups), edits to the
+`~/.config` dotconfig repo and its Hermes profiles, and Hermes upkeep
+(browser relaunch, cron / validator checks, skill housekeeping). Each
+topic's contract lives entirely in its `channel_prompts` entry; neither
+binds a `skill`, and the validator rejects one (`validate_assistant_dm_topics`)
+so the desk layer cannot creep back. Both fix the tier to `inline`; work
+that needs a specialist hands off to a new ad-hoc topic, which inherits
+chat-wide `assistant-pipeline` and owns the sessions. Kanban completion
+notifications remain attached to their originating topic; only
+maintenance/report/sweeper cron output targets Inbox: jobs keep bare
+`deliver: telegram`, while `scripts/profile-secrets.sh` derives
+`TELEGRAM_CRON_THREAD_ID` from the topic literally named `Inbox` in the
+assistant config (the validator requires that name to survive). A new
+pinned topic is a `dm_topics` entry WITHOUT `thread_id`: the next gateway
+start creates the forum topic and writes the id back into the (private,
+symlinked) `config.yaml`, and only then can its `channel_prompts` entry be
+keyed. Time-deferred work parks in `scheduled` via `hermes kanban
 schedule <id> "until=<ISO8601> — <reason>"`; the assistant's no_agent
 `kanban-scheduled-sweeper.sh` cron releases due cards every 15 minutes. Dead
 cards close via `hermes kanban archive <id>`. Only terminal events
