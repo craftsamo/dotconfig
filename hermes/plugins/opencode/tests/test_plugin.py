@@ -265,6 +265,46 @@ def test_registry_symlink_refused(fixture):
     assert "symlink" in call(directory)["error"]
 
 
+def test_model_and_variant_require_allowlist_and_reach_cli(fixture):
+    home, directory, _ = fixture
+    assert "allowed_models" in call(directory, model="openai/gpt-5.6-sol")["error"]
+    assert not (directory / "invocation.json").exists()
+    (home / "config.yaml").write_text(
+        "opencode_cli:\n  enabled: true\n  timeout: 10\n"
+        "  allowed_models: [openai/gpt-5.6-sol]\n  allowed_variants: [high]\n")
+    assert "requires a model" in call(directory, variant="high")["error"]
+    assert "allowed_variants" in call(directory, model="openai/gpt-5.6-sol", variant="max")["error"]
+    assert "plain name" in call(directory, model="openai/gpt-5.6-sol; rm -rf")["error"]
+    first = call(directory, model="openai/gpt-5.6-sol", variant="high")
+    assert first["status"] == "completed", first
+    assert first["model"] == "openai/gpt-5.6-sol" and first["variant"] == "high"
+    args = json.loads((directory / "invocation.json").read_text())["args"]
+    assert args[args.index("--model") + 1] == "openai/gpt-5.6-sol"
+    assert args[args.index("--variant") + 1] == "high"
+    # An omitted selection keeps the conversation's recorded engine.
+    resumed = call(conversation_id=first["conversation_id"])
+    assert resumed["status"] == "completed" and resumed["variant"] == "high"
+    args = json.loads((directory / "invocation.json").read_text())["args"]
+    assert "--variant" in args
+    plain = call(directory)
+    assert plain["status"] == "completed" and "model" not in plain
+    args = json.loads((directory / "invocation.json").read_text())["args"]
+    assert "--model" not in args and "--variant" not in args
+
+
+def test_recorded_variant_without_model_is_refused_at_dispatch(fixture):
+    home, directory, _ = fixture
+    (home / "config.yaml").write_text(
+        "opencode_cli:\n  enabled: true\n  timeout: 10\n  models: {plan: openai/gpt-6-astra}\n"
+        "  allowed_variants: [high]\n")
+    first = call(directory, variant="high")
+    assert first["status"] == "completed" and "model" not in first, first
+    # Maintainer drops the configured model: the bound variant must not ride OpenCode's default.
+    (home / "config.yaml").write_text("opencode_cli:\n  enabled: true\n  timeout: 10\n  allowed_variants: [high]\n")
+    stale = call(conversation_id=first["conversation_id"])
+    assert stale["status"] == "failed" and "no model to bind" in stale["error"], stale
+
+
 def test_wait_blocks_until_run_finishes_without_polling_turns(fixture, monkeypatch):
     home, directory, _ = fixture
     monkeypatch.setenv("ENGINEER_FAKE", "sleep")
