@@ -36,6 +36,8 @@ BUSY = {"accepted", "running", "unknown"}
 MAX_LOG = 8 * 1024 * 1024
 MAX_LINE = 1024 * 1024
 SESSION_ID = re.compile(r"ses_[A-Za-z0-9_-]+\Z")
+MODEL_NAME = re.compile(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.:-]+\Z")
+VARIANT_NAME = re.compile(r"[A-Za-z0-9_-]{1,32}\Z")
 DEFAULT_WAIT_TIMEOUT = 3300
 WAIT_POLL = 1.0
 PROJECT_WRITES = (
@@ -72,7 +74,36 @@ def _config(home):
     wait_timeout = config.get("wait_timeout", DEFAULT_WAIT_TIMEOUT)
     if type(wait_timeout) is not int or not 1 <= wait_timeout <= 5400:
         raise ValueError("opencode_cli.wait_timeout must be 1..5400 seconds")
+    for key in ("allowed_models", "allowed_variants"):
+        values = config.get(key, [])
+        if not isinstance(values, list) or not all(isinstance(v, str) and v for v in values):
+            raise ValueError(f"opencode_cli.{key} must be a list of names")
     return config
+
+
+def _selection(args, config):
+    """Caller-requested model/variant, accepted only from the configured allowlists.
+
+    A request outside the allowlist is refused rather than silently replaced:
+    the caller asked for a specific engine, and running another one would return
+    a result that is not the one asked for.
+    """
+    selection = {}
+    for key, pattern, config_key in (("model", MODEL_NAME, "allowed_models"),
+                                     ("variant", VARIANT_NAME, "allowed_variants")):
+        value = args.get(key)
+        if value is None:
+            continue
+        if not isinstance(value, str) or not pattern.fullmatch(value):
+            raise ValueError(f"{key} must be a plain name" + (" in provider/model form" if key == "model" else ""))
+        if value not in config.get(config_key, []):
+            raise ValueError(f"{key} {value!r} is not in opencode_cli.{config_key}; ask the maintainer or omit it")
+        selection[key] = value
+    if "variant" in selection and "model" not in selection and not (config.get("models") or {}).get(args.get("agent")):
+        # A variant is provider-specific reasoning effort; without a chosen model it
+        # would bind to whatever OpenCode's own default resolves to.
+        raise ValueError("variant requires a model (explicit or configured for this agent)")
+    return selection
 
 
 def _git(directory, *args):
@@ -158,11 +189,20 @@ def _command(data, config):
                "--dir", data["directory"]]
     if data["agent"] == "build":
         command.append("--auto")
-    model = (config.get("models") or {}).get(data["agent"])
+    model = data.get("model") or (config.get("models") or {}).get(data["agent"])
     if model:
         if not isinstance(model, str) or not re.fullmatch(r"[A-Za-z0-9_.:/-]+", model):
             raise ValueError("Invalid configured OpenCode model")
         command += ["--model", model]
+    variant = data.get("variant")
+    if variant:
+        if not isinstance(variant, str) or not VARIANT_NAME.fullmatch(variant):
+            raise ValueError("Invalid recorded OpenCode variant")
+        if not model:
+            # Re-checked at dispatch: the configured per-agent model may have been
+            # removed since the conversation bound its variant.
+            raise ValueError("Recorded variant has no model to bind to; pass model explicitly")
+        command += ["--variant", variant]
     if data.get("session_id"):
         if not SESSION_ID.fullmatch(data["session_id"]):
             raise ValueError("Invalid saved OpenCode session identity")
@@ -186,8 +226,8 @@ def _env(data, protected):
 
 
 def _public(data):
-    keys = ("conversation_id", "job_id", "directory", "branch", "agent", "status", "session_id",
-            "result", "error", "exit_code", "log", "updated_at", "reconciliation")
+    keys = ("conversation_id", "job_id", "directory", "branch", "agent", "model", "variant", "status",
+            "session_id", "result", "error", "exit_code", "log", "updated_at", "reconciliation")
     return {key: data[key] for key in keys if key in data}
 
 
@@ -362,7 +402,8 @@ def _run(request_path):
 
 def opencode_call(args, **kwargs):
     try:
-        allowed = {"directory", "agent", "message", "conversation_id", "fork", "approval", "issue_approval"}
+        allowed = {"directory", "agent", "message", "conversation_id", "fork", "approval", "issue_approval",
+                   "model", "variant"}
         if set(args) - allowed:
             raise ValueError("Unexpected arguments; identity, executable and permissions are runtime-owned")
         home, owner, live = _scope()
@@ -370,6 +411,7 @@ def opencode_call(args, **kwargs):
         agent, message = args.get("agent"), args.get("message")
         if agent not in AGENTS or not isinstance(message, str) or not message.strip() or len(message) > 100000:
             raise ValueError("An allowed agent and a nonempty message of at most 100000 characters are required")
+        selection = _selection(args, config)
         if "fork" in args and type(args["fork"]) is not bool:
             raise ValueError("fork must be boolean")
         for key in ("approval", "issue_approval"):
@@ -402,6 +444,9 @@ def opencode_call(args, **kwargs):
                 for key in ("approval", "issue_approval"):
                     if key in args:
                         data[key] = args[key]
+                # An explicit selection binds this and later turns of the conversation;
+                # an omitted one keeps the conversation's recorded engine.
+                data.update(selection)
                 if agent == "build" and not data.get("approval"):
                     raise ValueError("Build requires the Client's explicit implementation approval")
                 branch, _ = _branch(directory, agent == "build")
@@ -579,6 +624,8 @@ def register(ctx):
             "directory": {"type": "string"}, "agent": {"type": "string", "enum": sorted(AGENTS)},
             "message": {"type": "string"}, "conversation_id": {"type": "string"},
             "fork": {"type": "boolean"}, "approval": {"type": "string"}, "issue_approval": {"type": "string"},
+            "model": {"type": "string", "description": "Optional provider/model from opencode_cli.allowed_models"},
+            "variant": {"type": "string", "description": "Optional reasoning-effort variant from opencode_cli.allowed_variants"},
         }, ["agent", "message"],
          "Drive OpenCode in an owned Git worktree; blocks until the run finishes. Build needs explicit Client "
          "implementation approval; Issue writes need separate explicit issue_approval. Completion is not acceptance. "
