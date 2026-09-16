@@ -380,3 +380,12 @@ def test_evaluator_git_workspace_refused_before_dispatch(fixture, monkeypatch):
     data = {"conversation_id": "a" * 32, "job_id": "b" * 32, "target": "ux-persona"}
     with pytest.raises(plugin.dispatch.NotDispatched, match="outside a Git project"):
         plugin.dispatch._resident(home, data, "Do not inherit implementation context")
+
+
+def test_reconcile_only_turn_refuses_execution(fixture, monkeypatch):
+    home, directory, _ = fixture
+    first = call(directory)
+    monkeypatch.setenv("RESIDENT_TURN_KIND", "reconcile")
+    assert "reconcile-only" in call(directory)["error"]
+    assert "reconcile-only" in call(conversation_id=first["conversation_id"])["error"]
+    assert session(first["conversation_id"])["status"] == "completed"

@@ -70,6 +70,12 @@ is ~15 minutes, do not start a new run: ask OpenCode for nothing further, make
 sure verified work is committed on the task branch, and end the turn with a
 checkpoint report (worktree, branch, HEAD, what is verified, what remains).
 
+An interrupted conversation may be continued by its Client only as a
+RECONCILE-ONLY turn (the handoff says so and opencode_call is refused). In it,
+inspect each owned child conversation (status, process liveness, event log,
+Git and remote effects), stop/reconcile with observed evidence, and report;
+do no other work.
+
 completed means the CLI ended with a matching JSON stop event, not that the task
 passed. Read result for open questions, assumptions and unverified claims. A
 question can arrive in an otherwise completed run. Engineer answers in-scope

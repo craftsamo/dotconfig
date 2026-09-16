@@ -1446,6 +1446,79 @@ def test_reconcile_blocks_wrong_owner_and_revoked_policy(caller, monkeypatch):
     assert p._read(record)["status"] == "running"
 
 
+def test_interrupted_conversation_accepts_only_a_reconcile_turn(caller, monkeypatch):
+    home, calls = caller
+    result = call(kind="work")
+    cid = result["conversation_id"]
+    record = home / "specialist-sessions" / (cid + ".json")
+    data = p._read(record)
+    data.update(status="running", pgid=_dead_pgid())
+    p._write(record, data)
+    assert reconcile(cid)["status"] == "interrupted"
+    # Work and inquiry continuations stay refused; a fresh conversation cannot reconcile.
+    assert "interrupted" in call(conversation_id=cid, kind="work")["error"]
+    assert "interrupted" in call(conversation_id=cid)["error"]
+    assert "conversation_id required" in call(kind="reconcile")["error"]
+    before = len(calls)
+    turn = call(conversation_id=cid, kind="reconcile", message="Reconcile child 197c only.")
+    assert turn["status"] == "reconciled", turn
+    assert turn["backend"] == "resident" and calls[before][0] == "resident"
+    stored = p._read(record)
+    assert stored["turn_kind"] == "reconcile" and stored["status"] == "reconciled"
+    assert stored["reconciliation"]["resume_permitted"] is False
+    # Bookkeeping never reopens work; a second reconcile turn and close remain available.
+    assert "interrupted" in call(conversation_id=cid, kind="work")["error"]
+    assert call(conversation_id=cid, kind="reconcile", message="Second look.")["status"] == "reconciled"
+    assert session("close", cid)["status"] == "closed"
+    assert "error" in call(conversation_id=cid, kind="reconcile", message="closed")
+
+
+def test_reconcile_turn_requires_resident_backend_and_established_session(caller):
+    home, calls = caller
+    peer = call()  # a2a inquiry
+    assert "resident" in call(conversation_id=peer["conversation_id"], kind="reconcile")["error"]
+    work = call(kind="work")
+    record = home / "specialist-sessions" / (work["conversation_id"] + ".json")
+    data = p._read(record)
+    data.update(status="interrupted", resident_id="")
+    p._write(record, data)
+    assert "never established" in call(conversation_id=work["conversation_id"], kind="reconcile")["error"]
+    data["status"] = "completed"
+    p._write(record, data)
+    assert "already recorded as interrupted" in call(conversation_id=work["conversation_id"], kind="reconcile")["error"]
+
+
+def test_reconcile_turn_that_dies_can_be_reconciled_and_repeated(caller, monkeypatch):
+    home, calls = caller
+    result = call(kind="work")
+    cid = result["conversation_id"]
+    record = home / "specialist-sessions" / (cid + ".json")
+    data = p._read(record)
+    data.update(status="running", pgid=_dead_pgid())
+    p._write(record, data)
+    assert reconcile(cid)["status"] == "interrupted"
+
+    def dying_resident(home, data, message):
+        data.update(status="unknown", resident_id="resident-sid", exit_code=124, pgid=_dead_pgid())
+
+    monkeypatch.setattr(p, "_resident", dying_resident)
+    dead = call(conversation_id=cid, kind="reconcile", message="Reconcile children.")
+    assert dead["status"] == "unknown" and p._read(record)["turn_kind"] == "reconcile"
+    # A dead reconcile turn is uncertain like any other: no work, no second reconcile turn until re-armed.
+    assert "error" in call(conversation_id=cid, kind="reconcile", message="again")
+    assert "error" in call(conversation_id=cid, kind="work")
+    assert reconcile(cid, "Turn killed at deadline; group absent; no child changes.")["status"] == "interrupted"
+    monkeypatch.setattr(p, "_resident", lambda home, data, message: data.update(status="completed", resident_id="resident-sid"))
+    assert call(conversation_id=cid, kind="reconcile", message="Second attempt.")["status"] == "reconciled"
+
+
+def test_reconcile_turn_marks_child_environment(tmp_path):
+    env = p._child_env(tmp_path, deadline=123.0, turn_kind="reconcile")
+    assert env["RESIDENT_TURN_KIND"] == "reconcile" and env["RESIDENT_DEADLINE"] == "123.0"
+    assert "RESIDENT_TURN_KIND" not in p._child_env(tmp_path, deadline=123.0)
+    assert "RESIDENT_TURN_KIND" not in p._child_env(tmp_path, deadline=123.0, turn_kind=None)
+
+
 def test_handoff_states_the_turn_budget():
     base = {"conversation_id": "a" * 32, "job_id": "b" * 32, "initial_job_id": "b" * 32,
             "initial_request": "hello", "requester_profile": "assistant"}
@@ -1456,3 +1529,6 @@ def test_handoff_states_the_turn_budget():
     assert "(~89 min from now)" in timed or "(~90 min from now)" in timed
     assert "committed checkpoint" in timed
     assert "(~1 min from now)" in p._handoff({**base, "deadline": time.time() + 65}, "hello")
+    assert "RECONCILE-ONLY" not in timed
+    limited = p._handoff({**base, "deadline": time.time() + 65, "turn_kind": "reconcile"}, "hello")
+    assert "Turn kind: RECONCILE-ONLY" in limited and "No opencode_call" in limited
