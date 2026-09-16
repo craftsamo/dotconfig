@@ -49,6 +49,8 @@ without creating a fix or a PR.
    that assertions express the requirement and were not weakened to match a bug.
    For sensitive changes request an independent OpenCode review/debug run with
    the requirement and current diff, not the implementation conversation's claims.
+   A review run settles high-risk areas in depth only when the message asks
+   ("deep review <area>"); otherwise it lists them under Notes for you to decide.
 3. Runtime: exercise the important behavior safely. CLI/API checks use real entry
    points against permitted test inputs. UI checks use Engineer's browser with
    explicit URL, worktree/build identity, target viewports and screenshot evidence.

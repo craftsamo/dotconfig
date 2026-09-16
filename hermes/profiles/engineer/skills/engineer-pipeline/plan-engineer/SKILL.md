@@ -56,7 +56,10 @@ Read [OpenCode](../references/opencode.md) before a wrapper call and
    stays explicit. Mixed work can be split technically without asking the Client
    to design the split, unless that changes the requested scope.
 4. Read OpenCode's proposal, challenge unsupported assumptions and request the
-   smallest useful additional investigation. For Web UI, agree direction before
+   smallest useful additional investigation. Its `Client decisions` section
+   arrives as `Q<n>:` lines with a default already taken; settle each with the
+   Client or within your authority and send `DECISION(Q<n>): …` back on the
+   same conversation. For Web UI, agree direction before
    target implementation; existing design systems outrank style-catalog defaults.
 5. Present the plan: intended change, boundaries, meaningful steps, verification,
    risks and unresolved decisions. Human clarify or Client Q<n>, not a fixed
