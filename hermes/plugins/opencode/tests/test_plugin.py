@@ -22,7 +22,8 @@ directory = pathlib.Path(args[args.index("--dir") + 1])
 prompt = sys.stdin.read()
 behavior = os.environ.get("ENGINEER_FAKE", "ok")
 (directory / "invocation.json").write_text(json.dumps({"args": args, "prompt": prompt,
-    "permission": json.loads(os.environ["OPENCODE_PERMISSION"])}))
+    "permission": json.loads(os.environ["OPENCODE_PERMISSION"]),
+    "config": json.loads(os.environ["OPENCODE_CONFIG_CONTENT"])}))
 sid = args[args.index("--session") + 1] if "--session" in args else "ses_first"
 if "--fork" in args:
     sid = "ses_fork"
@@ -130,6 +131,25 @@ def test_readonly_does_not_inherit_build_grant(fixture):
     assert permission["task"]["explore*"] == "allow"
     assert permission["task"]["reviewer*"] == "allow"
     assert permission["task"]["*"] == "deny"
+
+
+@pytest.mark.parametrize("role, installed, auto", [
+    ("plan", "hermes-plan", False), ("build", "hermes-build", True),
+    ("review", "hermes-review", False), ("debug", "debug", False),
+])
+def test_roles_run_on_hidden_hermes_primaries(fixture, role, installed, auto):
+    """Hermes keeps its role names; only the CLI --agent and the injected
+    per-agent permission key carry the installed OpenCode agent name."""
+    _, directory, _ = fixture
+    result = call(directory, agent=role, **({"approval": "Implement"} if role == "build" else {}))
+    assert result["status"] == "completed", result
+    assert result["agent"] == role
+    invocation = json.loads((directory / "invocation.json").read_text())
+    assert invocation["args"][invocation["args"].index("--agent") + 1] == installed
+    assert ("--auto" in invocation["args"]) is auto
+    assert list(invocation["config"]["agent"]) == [installed]
+    assert invocation["config"]["agent"][installed]["permission"] == invocation["permission"]
+    assert set(plugin.OPENCODE_AGENTS) == plugin.AGENTS
 
 
 def test_main_rejected_before_launch(fixture):
