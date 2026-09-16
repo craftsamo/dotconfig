@@ -280,6 +280,15 @@ rollback; reconcile requires observed process/Git/remote effects. Approval text
 is an operating-contract record, not authentication, and command rules are not
 an arbitrary-process sandbox. A CLI stop event is not technical acceptance.
 
+The plugin is the single owner of the hidden primaries' permission policy
+(the agent files carry none), and a conversation keeps its OpenCode session
+across agents: Plan hands over to Build by naming `agent="build"` on the
+same conversation, so the plan run's investigation and decisions stay in the
+build run's context. That requires an unchanged worktree and branch and a
+non-default branch, hence the task branch is taken before a plan that is
+likely to be implemented. A new conversation starts with no memory and
+receives the proposal verbatim; a fork copies the whole history.
+
 Engineer browses isolated development/test targets itself. The two independent
 evaluators have no terminal/file-edit tools, bots, A2A endpoint or personal login
 profile. Resident execution starts in their own non-Git job directory, not the
