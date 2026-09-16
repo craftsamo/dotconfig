@@ -804,3 +804,8 @@ specialist_call:
 opencode_cli:
   enabled: true
   timeout: 3600
+  wait_timeout: 3300
+timeouts:
+  tools:
+    sequential_call: 3660
+    concurrent_batch: 3660

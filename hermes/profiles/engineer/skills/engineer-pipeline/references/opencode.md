@@ -28,10 +28,14 @@ global instructions or whole Skill bodies.
   executable, environment or arbitrary permission JSON. No automatic fallback
   or retry after uncertain effects. Private logs are not public deliverables.
 
-`opencode_session(action, conversation_id?, evidence?)`
+`opencode_session(action, conversation_id?, evidence?, timeout?)`
 
 - status reads one owned conversation; list returns this originating session's
   conversations. It is not a cross-session discovery or ownership-transfer API.
+- wait blocks until the run leaves accepted/running (bounded by timeout,
+  opencode_cli.wait_timeout and the turn deadline) and returns the record with
+  waited_seconds and timed_out. It spends no model turns; a timed_out reply
+  means wait again, inspect, or stop, never a status/sleep loop.
 - stop records a stop request for the live runner. The reply does not prove the
   process stopped. Inspect status afterward. Stopping never rolls back Git,
   application data, provider requests, pushes or PRs already created.
@@ -43,9 +47,14 @@ global instructions or whole Skill bodies.
 ## Results
 
 accepted/running mean execution is outstanding. Live messaging uses Hermes'
-completion notification; CLI/resident calls wait within a finite inherited
-deadline. Do not poll in short loops. Unknown results hold the worktree until
-inspection and reconciliation, even when creating another conversation.
+completion notification. In a CLI/resident session opencode_call BLOCKS until
+the run finishes (the Engineer tool deadline is set above opencode_cli.timeout
+for this); a resident CLI has no completion wakeup, so blocking is the cheap
+path. Never poll: no status/terminal/sleep loops, no ps checks while a call is
+outstanding. If a call does return a tool-timeout error, issue ONE
+opencode_session wait for the conversation and read its result. Unknown
+results hold the worktree until inspection and reconciliation, even when
+creating another conversation.
 
 completed means the CLI ended with a matching JSON stop event, not that the task
 passed. Read result for open questions, assumptions and unverified claims. A

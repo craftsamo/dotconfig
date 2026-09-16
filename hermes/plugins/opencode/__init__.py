@@ -36,6 +36,8 @@ BUSY = {"accepted", "running", "unknown"}
 MAX_LOG = 8 * 1024 * 1024
 MAX_LINE = 1024 * 1024
 SESSION_ID = re.compile(r"ses_[A-Za-z0-9_-]+\Z")
+DEFAULT_WAIT_TIMEOUT = 3300
+WAIT_POLL = 1.0
 PROJECT_WRITES = (
     "github_project_create", "github_project_field_ensure", "github_project_item_add",
     "github_project_item_set", "github_project_item_note", "github_project_item_promote",
@@ -67,6 +69,9 @@ def _config(home):
     timeout = config.get("timeout", 3600)
     if type(timeout) is not int or not 1 <= timeout <= 5400:
         raise ValueError("opencode_cli.timeout must be 1..5400 seconds")
+    wait_timeout = config.get("wait_timeout", DEFAULT_WAIT_TIMEOUT)
+    if type(wait_timeout) is not int or not 1 <= wait_timeout <= 5400:
+        raise ValueError("opencode_cli.wait_timeout must be 1..5400 seconds")
     return config
 
 
@@ -465,10 +470,58 @@ def opencode_call(args, **kwargs):
         return json.dumps({"error": str(exc)})
 
 
+def _wait(root, cid, owner, data, requested, home):
+    """Block until the owned run leaves BUSY, or a bounded deadline passes.
+
+    The runner owns the record; this only reads it. It is the cheap alternative
+    to a status/sleep polling loop: no model turn is spent while waiting.
+    """
+    if requested is not None and (type(requested) is not int or requested < 1):
+        raise ValueError("timeout must be a positive integer number of seconds")
+    limit = time.time() + float(requested if requested is not None else DEFAULT_WAIT_TIMEOUT)
+    with contextlib.suppress(ValueError):
+        limit = min(limit, time.time() + _config(home).get("wait_timeout", DEFAULT_WAIT_TIMEOUT))
+    with contextlib.suppress(ValueError, TypeError):
+        limit = min(limit, float(os.environ.get("RESIDENT_DEADLINE", "inf")))
+    request_path = root / (data["job_id"] + ".request")
+    with contextlib.suppress(OSError, ValueError, KeyError, TypeError):
+        # The runner reaps its child within seconds of the job deadline.
+        limit = min(limit, float(dispatch._read(request_path)["deadline"]) + 30)
+    started = time.time()
+    dead_since = None
+    while True:
+        data = dispatch._owned(root, cid, owner)
+        # `unknown` is the runner's own verdict once its group is gone; only an
+        # unfinalized record (or a still-live group) is worth waiting on.
+        if data["status"] not in {"accepted", "running"} and not (
+                data["status"] == "unknown" and data.get("pgid") and _group_alive(data["pgid"])):
+            timed_out = False
+            break
+        now = time.time()
+        if now >= limit:
+            timed_out = True
+            break
+        if data.get("pgid") and not _group_alive(data["pgid"]):
+            # Process gone but record not finalized: give the runner a moment to
+            # write its verdict, then return the record rather than hang.
+            dead_since = dead_since or now
+            if now - dead_since > 15:
+                timed_out = False
+                break
+        else:
+            dead_since = None
+        time.sleep(min(WAIT_POLL, max(0.0, limit - now)))
+    return {**_public(data), "waited_seconds": round(time.time() - started, 1), "timed_out": timed_out,
+            **({"note": "Still active or uncertain; inspect, wait again, stop, or reconcile. Never retry."}
+               if data["status"] in BUSY else {})}
+
+
 def opencode_session(args, **kwargs):
     try:
-        if set(args) - {"action", "conversation_id", "evidence"}:
+        if set(args) - {"action", "conversation_id", "evidence", "timeout"}:
             raise ValueError("Unexpected arguments")
+        if "timeout" in args and args.get("action") != "wait":
+            raise ValueError("timeout is only accepted for wait")
         home, owner, _ = _scope()
         # Disabling new execution must not remove the owner's ability to inspect
         # or stop a run already in flight.
@@ -481,6 +534,8 @@ def opencode_session(args, **kwargs):
         data = dispatch._owned(root, cid, owner)
         if action == "status":
             return json.dumps(_public(data))
+        if action == "wait":
+            return json.dumps(_wait(root, cid, owner, data, args.get("timeout"), home))
         if action == "stop":
             if data["status"] not in BUSY:
                 raise ValueError("No active or uncertain run to stop")
@@ -525,12 +580,15 @@ def register(ctx):
             "message": {"type": "string"}, "conversation_id": {"type": "string"},
             "fork": {"type": "boolean"}, "approval": {"type": "string"}, "issue_approval": {"type": "string"},
         }, ["agent", "message"],
-         "Drive OpenCode in an owned Git worktree. Build needs explicit Client implementation approval; "
-         "Issue writes need separate explicit issue_approval. Completion is not acceptance. Never retry uncertain work."),
+         "Drive OpenCode in an owned Git worktree; blocks until the run finishes. Build needs explicit Client "
+         "implementation approval; Issue writes need separate explicit issue_approval. Completion is not acceptance. "
+         "Never retry uncertain work. If the call returns a timeout error, use opencode_session wait, never a status loop."),
         ("opencode_session", opencode_session, {
-            "action": {"type": "string", "enum": ["status", "list", "stop", "reconcile"]},
+            "action": {"type": "string", "enum": ["status", "list", "wait", "stop", "reconcile"]},
             "conversation_id": {"type": "string"}, "evidence": {"type": "string"},
-        }, ["action"], "Inspect or request stopping your OpenCode run. Stop never rolls back effects. "
+            "timeout": {"type": "integer", "description": "wait only: seconds to block (bounded by config and turn deadline)"},
+        }, ["action"], "Inspect, wait for, or request stopping your OpenCode run. wait blocks until the run leaves "
+         "active/uncertain state, spending no turns. Stop never rolls back effects. "
          "Reconcile inactive uncertain work only after observing its process, Git and remote effects."),
     ):
         ctx.register_tool(name=name, toolset="opencode", handler=scoped(handler), description=description,

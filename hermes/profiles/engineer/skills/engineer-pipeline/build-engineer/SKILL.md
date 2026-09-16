@@ -48,7 +48,8 @@ continuation. Read [Web UI](references/web-ui.md) for UI implementation handoffs
 2. Use opencode_call(agent="build", approval="<relayed scoped Client decision>").
    Reference the agreed plan/inputs and request actual check results. Select a
    useful work increment; OpenCode owns detailed coding/subagent choreography.
-   No rigid one-call-per-phase requirement or duplicate approach-skill content.
+   The call blocks until the run ends: do not poll it. No rigid
+   one-call-per-phase requirement or duplicate approach-skill content.
 3. Read progress/results for questions, blocked actions and assumptions. Answer
    ordinary technical questions within scope; relay material changes to the Client.
    A follow-up continues the owned conversation. A fork copies its current state,
