@@ -17,8 +17,20 @@ global instructions or whole Skill bodies.
 - A conversation is bound to its originating Hermes session, worktree and branch.
   To move to a new task worktree, start a new conversation with the actual approved
   plan as context. A copied plan does not grant additional work.
+- The agent may change between calls on one conversation: the OpenCode
+  session is resumed with the new agent's model and policy, and its whole
+  history stays in context. This is how Plan hands over to Build — the same
+  conversation, `agent="build"` plus `approval` — and it is the only way the
+  plan run's own investigation reaches the build run. Conditions: same
+  worktree, same branch, and for build a non-default branch; the primaries
+  never switch themselves (no `plan_exit`), Engineer does it with the next
+  call. Anything the new conversation must know that the old one learned
+  has to be pasted verbatim; there is no partial carry-over.
 - fork=true requires an owned conversation and returns a new conversation handle
-  and OpenCode session, preserving the source. It forks the current state only.
+  and OpenCode session, preserving the source. It copies the ENTIRE history at
+  that moment — it prunes nothing, so it is not a way to drop stale context —
+  and is for parallel variants or an independent diagnosis on the same
+  worktree; a lighter context is a new conversation with the needed inputs.
 - approval is the Client's explicit scoped implementation/write decision as text,
   not a boolean. The initial build call needs it; continuations retain it.
   issue_approval separately quotes the explicit current-job Issue-management

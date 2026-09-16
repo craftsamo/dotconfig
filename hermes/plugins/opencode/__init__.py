@@ -55,6 +55,50 @@ PROJECT_WRITES = (
     "github_project_item_set", "github_project_item_note", "github_project_item_promote",
     "github_project_view_ensure", "github_project_issue_link", "github_project_issue_develop",
 )
+# This module is the ONLY owner of the hidden primaries' permission policy. The
+# agent files in ~/.config/opencode/agent/hermes-*.md carry no `permission:`
+# block: OpenCode deep-merges frontmatter and OPENCODE_CONFIG_CONTENT (the
+# latter wins per key, nested maps union), so a rule that lived in both places
+# had no single source of truth. Read-only roles (plan / review / debug) share
+# one posture apart from their subagents; build gets the write surface below. An agent-level "*": deny
+# also shadows the user's global tool allows, so every tool a read-only role
+# needs is listed here explicitly.
+READ_ONLY_BASH = (
+    "git status*", "git diff*", "git log*", "git show*", "git blame*", "git ls-files*",
+    "git rev-parse*", "git merge-base*", "git branch --show-current", "git remote -v",
+    "git remote get-url*",
+    "gh issue view*", "gh issue list*", "gh pr view*", "gh pr diff*", "gh pr checks*",
+    "gh pr status*", "gh pr list*", "gh repo view*",
+)
+# Subagents per Hermes role. Plan only explores and researches; review fans
+# out to reviewer* and verifier; debug isolates through debugger and verifies.
+# verifier is not read-only in effect (it may apply a formatter), so plan
+# does not get it: a plan run leaves the tree exactly as it found it.
+ROLE_TASKS = {
+    "plan": ("explore*", "searcher*"),
+    "review": ("explore*", "searcher*", "reviewer*", "verifier"),
+    "debug": ("explore*", "searcher*", "debugger", "verifier"),
+    "build": ("explore*", "searcher*", "verifier", "worker", "reviewer", "reviewer-deep"),
+}
+GIT_READ_TOOLS = ("git_provenance", "git_history_digest", "git_related_scan")
+READ_RULES = {"*": "allow", "**/.env": "deny", "**/.env.*": "deny", "**/*.env": "deny",
+              "**/.ssh/**": "deny", "**/*.pem": "deny",
+              "**/.env.example": "allow", "**/.env.sample": "allow"}
+
+
+def _external_directory():
+    """Nothing outside the worktree, except OpenCode's own scratch locations.
+
+    OpenCode's global layer allows its truncated-tool-output dir and its temp dir
+    for every agent, but an agent-level "*" deny is evaluated last and shadows
+    them (measured 2026-09-16), so they are re-allowed here. A plain `ask` is
+    no alternative: `opencode run` without --auto rejects it, and with --auto
+    approves it, so it never means "ask" on this transport.
+    """
+    data = Path(os.environ.get("XDG_DATA_HOME") or Path.home() / ".local/share")
+    return {"*": "deny",
+            str(data / "opencode/tool-output/*"): "allow",
+            str(Path(os.environ.get("TMPDIR") or "/tmp") / "opencode/*"): "allow"}
 
 
 def _root(home):
@@ -163,22 +207,20 @@ def _branch(directory, building):
 
 def _permissions(agent, issue_approval, protected):
     if agent != "build":
+        # No human answers an ask in `opencode run`, and a read-only role has no
+        # business outside its worktree, so external_directory and question are
+        # denied outright rather than left to whatever run mode does with ask.
         return {
-            "*": "deny", "read": {"*": "allow", "**/.env": "deny", "**/.env.*": "deny",
-                                    "**/*.env": "deny", "**/.ssh/**": "deny", "**/*.pem": "deny",
-                                    "**/.env.example": "allow", "**/.env.sample": "allow"},
+            "*": "deny", "read": dict(READ_RULES),
             "glob": "allow", "grep": "allow", "list": "allow",
             "skill": "allow", "webfetch": "allow", "websearch": "allow", "todowrite": "allow",
-            "external_directory": "ask", "edit": "deny",
-            "task": {"*": "deny", "explore*": "allow", "reviewer*": "allow",
-                     "debugger": "allow", "searcher*": "allow"},
-            "bash": {"*": "deny", **{pattern: "allow" for pattern in (
-                "git status*", "git diff*", "git log*", "git show*", "git ls-files*",
-                "git rev-parse*", "git branch --show-current", "gh issue view*",
-                "gh issue list*", "gh pr view*", "gh pr diff*", "gh pr checks*",
-            )}},
+            "question": "deny", "external_directory": _external_directory(), "edit": "deny",
+            "task": {"*": "deny", **{name: "allow" for name in ROLE_TASKS[agent]}},
+            "bash": {"*": "deny", **{pattern: "allow" for pattern in READ_ONLY_BASH}},
+            **{name: "allow" for name in GIT_READ_TOOLS},
         }
-    # Leave global protective rules intact. --auto resolves asks; no wildcard
+    # Leave global protective rules intact. --auto resolves asks as approvals,
+    # so anything that must not happen is a deny here, never an ask; no wildcard
     # allow is injected. These rules are defence in depth, not a shell sandbox.
     bash = {pattern: "deny" for pattern in (
         "gh pr merge*", "gh repo create*", "gh repo delete*", "gh repo edit*", "gh api*",
@@ -191,7 +233,12 @@ def _permissions(agent, issue_approval, protected):
                      f"git push*:{branch}*": "deny", f"git push*:refs/heads/{branch}*": "deny"})
     if not issue_approval:
         bash.update({f"gh issue {verb}*": "deny" for verb in ("create", "edit", "comment", "reopen")})
-    return {"edit": "allow", "bash": bash, **{name: "deny" for name in PROJECT_WRITES}}
+    return {
+        "edit": "allow", "read": dict(READ_RULES), "todowrite": "allow", "skill": "allow",
+        "question": "deny", "external_directory": _external_directory(),
+        "task": {"*": "deny", **{name: "allow" for name in ROLE_TASKS["build"]}},
+        "bash": bash, **{name: "deny" for name in PROJECT_WRITES},
+    }
 
 
 def _command(data, config):
