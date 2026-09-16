@@ -1182,11 +1182,63 @@ scope, PR delivery and live cutover separate. Detail references are reached thro
 the four mode entries, not discovered as independent skills themselves.
 
 plugins/opencode owns CLI execution and private opencode-sessions records.
+Since 2026-09-16 it registers for `engineer` AND `assistant` (`PROFILES`),
+each with its own `opencode_cli` block and its own registry under its home:
+the Assistant's grant is the Admin topic's scope (this config repo, Hermes
+upkeep, a named workspace repo; contract text in the private
+`channel_prompts['29349']`), never Engineer's project work, and because the
+registries are per home the Assistant's worktree-busy check cannot see an
+Engineer hold — the contract, not the code, keeps them apart. Its Telegram
+calls run in the background with a completion notification, so the
+assistant's 420 s tool deadline stays; only a CLI assistant would block.
 Keep caller/worktree/branch binding, JSON error handling (exit zero is not
 success), finite deadlines and no automatic replay after uncertain effects.
 Approval text is not authentication and command policies are not a sandbox.
 Stop is not rollback. Only the owning live runner signals its child group;
 reconciliation requires inspection, not an invented completion assertion.
+
+**Resident turns block on OpenCode; they do not poll (2026-09-16 incident).**
+A resident Engineer is a plain CLI process, and CLI has NO background-process
+wakeup (`tools/terminal_tool_background.py`: completion notifications are
+gateway-only), so the cheap path is a blocking tool call. `opencode_call`
+already waits up to `opencode_cli.timeout` (3600) — but Hermes' generic
+sequential tool deadline is 420 s (`agent/tool_executor.py`,
+`timeouts.tools.sequential_call`), which cut 13 of 19 calls across three
+90-minute turns and turned each into a `status`/`ps`/`sleep` polling loop
+(~50 of 73 API calls, ~8M cache-read tokens, two compactions). The engineer
+`config.yaml` therefore sets `timeouts.tools.sequential_call` /
+`concurrent_batch: 3660` (verify with
+`HERMES_HOME=~/.hermes/profiles/engineer` +
+`agent.tool_executor._resolve_sequential_tool_timeout()`; assistant stays at
+420), and `opencode_session(action="wait", timeout?)` blocks on the record
+as the fallback (bounded by `opencode_cli.wait_timeout`, the job deadline
+and `RESIDENT_DEADLINE`). `opencode_call` also takes `model` / `variant`
+(OpenCode `--model` / `--variant`), fail-closed against
+`opencode_cli.allowed_models` / `allowed_variants` — a name outside the list
+is refused, never substituted, and an explicit selection binds the rest of
+that conversation.
+**The 90-minute turn (`TURN_TIMEOUT`, fixed in both `resident-session.sh`
+and `plugins/specialist-call`) is now visible to the specialist**: the
+handoff prints a `Turn budget:` line from `data["deadline"]`, and
+`build-engineer` checkpoint-commits verified increments and stops at ~15 min
+remaining. The Assistant contract sizes turns to one verifiable increment
+and continues in the same conversation; a whole "implement to PR" scope in
+one turn is what stranded 29→46→50 uncommitted files on 09-15/16.
+**An interrupted conversation accepts `specialist_call(kind="reconcile")`
+and nothing else.** OpenCode records are owned by the Engineer session +
+routing digest, so after a timeout only the SAME resident session can
+`opencode_session reconcile` its children; the previous "never continue an
+interrupted conversation" rule left two `unknown` holds on two worktrees
+that a fresh conversation, a terminal `hermes -p engineer --resume`, and an
+env-stripped resume all failed to clear (`belongs to another originating
+session`). The reconcile turn runs with `RESIDENT_TURN_KIND=reconcile`,
+under which `opencode_call` is refused; on success the conversation ends
+`reconciled` (closable, still never resumable for work). The Assistant-side
+`kind` validation runs INSIDE the gateway process, so this needs a gateway
+restart to take effect there; runner/handoff/opencode changes apply on the
+next turn without one. The `Warning: Unknown toolsets: opencode,
+specialist` line at every resident turn is the same benign
+plugin-discovery-order artifact PROFILES.md records for `a2a`.
 
 ui-review and ux-persona are terminal-free, resident-only evaluator profiles,
 not new bots or A2A endpoints. Their resident launcher uses an owned non-Git cwd
