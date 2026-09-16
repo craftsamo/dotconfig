@@ -265,14 +265,106 @@ def test_registry_symlink_refused(fixture):
     assert "symlink" in call(directory)["error"]
 
 
-def test_registration_is_engineer_only():
+def test_model_and_variant_require_allowlist_and_reach_cli(fixture):
+    home, directory, _ = fixture
+    assert "allowed_models" in call(directory, model="openai/gpt-5.6-sol")["error"]
+    assert not (directory / "invocation.json").exists()
+    (home / "config.yaml").write_text(
+        "opencode_cli:\n  enabled: true\n  timeout: 10\n"
+        "  allowed_models: [openai/gpt-5.6-sol]\n  allowed_variants: [high]\n")
+    assert "requires a model" in call(directory, variant="high")["error"]
+    assert "allowed_variants" in call(directory, model="openai/gpt-5.6-sol", variant="max")["error"]
+    assert "plain name" in call(directory, model="openai/gpt-5.6-sol; rm -rf")["error"]
+    first = call(directory, model="openai/gpt-5.6-sol", variant="high")
+    assert first["status"] == "completed", first
+    assert first["model"] == "openai/gpt-5.6-sol" and first["variant"] == "high"
+    args = json.loads((directory / "invocation.json").read_text())["args"]
+    assert args[args.index("--model") + 1] == "openai/gpt-5.6-sol"
+    assert args[args.index("--variant") + 1] == "high"
+    # An omitted selection keeps the conversation's recorded engine.
+    resumed = call(conversation_id=first["conversation_id"])
+    assert resumed["status"] == "completed" and resumed["variant"] == "high"
+    args = json.loads((directory / "invocation.json").read_text())["args"]
+    assert "--variant" in args
+    plain = call(directory)
+    assert plain["status"] == "completed" and "model" not in plain
+    args = json.loads((directory / "invocation.json").read_text())["args"]
+    assert "--model" not in args and "--variant" not in args
+
+
+def test_recorded_variant_without_model_is_refused_at_dispatch(fixture):
+    home, directory, _ = fixture
+    (home / "config.yaml").write_text(
+        "opencode_cli:\n  enabled: true\n  timeout: 10\n  models: {plan: openai/gpt-6-astra}\n"
+        "  allowed_variants: [high]\n")
+    first = call(directory, variant="high")
+    assert first["status"] == "completed" and "model" not in first, first
+    # Maintainer drops the configured model: the bound variant must not ride OpenCode's default.
+    (home / "config.yaml").write_text("opencode_cli:\n  enabled: true\n  timeout: 10\n  allowed_variants: [high]\n")
+    stale = call(conversation_id=first["conversation_id"])
+    assert stale["status"] == "failed" and "no model to bind" in stale["error"], stale
+
+
+def test_wait_blocks_until_run_finishes_without_polling_turns(fixture, monkeypatch):
+    home, directory, _ = fixture
+    monkeypatch.setenv("ENGINEER_FAKE", "sleep")
+    (home / "config.yaml").write_text("opencode_cli:\n  enabled: true\n  timeout: 3\n  wait_timeout: 60\n")
+    outcome = {}
+    def run():
+        outcome["call"] = call(directory)
+    thread = threading.Thread(target=run)
+    thread.start()
+    cid = None
+    for _ in range(300):
+        for path in (home / "opencode-sessions").glob("*.json"):
+            data = plugin.dispatch._read(path)
+            if data.get("status") == "running":
+                cid = data["conversation_id"]
+        if cid:
+            break
+        time.sleep(0.02)
+    assert cid
+    short = session(cid, "wait", timeout=1)
+    assert short["timed_out"] is True and short["status"] == "running" and "note" in short
+    waited = session(cid, "wait", timeout=30)
+    thread.join(timeout=30)
+    assert waited["timed_out"] is False
+    assert waited["status"] == "unknown", waited
+    assert waited["waited_seconds"] < 30
+    settled = session(cid, "wait")
+    assert settled["waited_seconds"] < 1 and settled["status"] == "unknown" and "note" in settled
+    assert "only accepted for wait" in session(cid, "status", timeout=5)["error"]
+    assert "positive integer" in session(cid, "wait", timeout=0)["error"]
+
+
+@pytest.mark.parametrize("profile", ["writer", "creator", "marketer", "researcher", "default"])
+def test_registration_is_engineer_and_assistant_only(profile):
     class Context:
-        profile_name = "writer"
+        profile_name = profile
 
         def register_tool(self, **kwargs):
             raise AssertionError("foreign profile gained OpenCode tools")
 
     plugin.register(Context())
+
+
+def test_assistant_home_runs_its_own_registry(fixture, monkeypatch):
+    home, directory, owner = fixture
+    assistant = home.parent / "assistant"
+    assistant.mkdir()
+    (assistant / "config.yaml").write_text("opencode_cli:\n  enabled: true\n  timeout: 10\n")
+    owner = {"profile": "assistant", "session_id": "client-b", "routing_digest": "b"}
+    monkeypatch.setattr(plugin, "_scope", lambda: (assistant, owner, False))
+    result = call(directory)
+    assert result["status"] == "completed", result
+    assert (assistant / "opencode-sessions" / (result["conversation_id"] + ".json")).exists()
+    assert not (home / "opencode-sessions").exists() or not list((home / "opencode-sessions").glob("*.json"))
+    # Another Client profile cannot pass the runner's home check even with a valid record.
+    creator = home.parent / "creator"
+    creator.mkdir()
+    (creator / "config.yaml").write_text("opencode_cli:\n  enabled: true\n  timeout: 10\n")
+    monkeypatch.setattr(plugin, "_scope", lambda: (creator, {"profile": "creator", "session_id": "c", "routing_digest": "c"}, False))
+    assert "error" in call(directory)
 
 
 def test_evaluator_resident_does_not_inherit_repository_cwd(fixture, monkeypatch):
@@ -308,3 +400,12 @@ def test_evaluator_git_workspace_refused_before_dispatch(fixture, monkeypatch):
     data = {"conversation_id": "a" * 32, "job_id": "b" * 32, "target": "ux-persona"}
     with pytest.raises(plugin.dispatch.NotDispatched, match="outside a Git project"):
         plugin.dispatch._resident(home, data, "Do not inherit implementation context")
+
+
+def test_reconcile_only_turn_refuses_execution(fixture, monkeypatch):
+    home, directory, _ = fixture
+    first = call(directory)
+    monkeypatch.setenv("RESIDENT_TURN_KIND", "reconcile")
+    assert "reconcile-only" in call(directory)["error"]
+    assert "reconcile-only" in call(conversation_id=first["conversation_id"])["error"]
+    assert session(first["conversation_id"])["status"] == "completed"

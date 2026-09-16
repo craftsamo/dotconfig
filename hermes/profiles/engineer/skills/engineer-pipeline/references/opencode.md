@@ -9,7 +9,7 @@ global instructions or whole Skill bodies.
 
 ## Calls
 
-`opencode_call(directory?, agent, message, conversation_id?, fork?, approval?, issue_approval?)`
+`opencode_call(directory?, agent, message, conversation_id?, fork?, approval?, issue_approval?, model?, variant?)`
 
 - New conversation: directory is an absolute Git worktree root. Agent is plan,
   build, review or debug. Use the returned opaque conversation_id for subsequent
@@ -24,14 +24,24 @@ global instructions or whole Skill bodies.
   issue_approval separately quotes the explicit current-job Issue-management
   request. Both are operating-contract records, not authentication.
 - Models normally follow OpenCode's configured agent defaults. Maintainer
-  opencode_cli.models may override per-agent models; the caller cannot change
-  executable, environment or arbitrary permission JSON. No automatic fallback
-  or retry after uncertain effects. Private logs are not public deliverables.
+  opencode_cli.models may override per-agent models. A Client may ask for a
+  specific engine: pass model (provider/model) and/or variant (reasoning effort
+  such as high) from the maintainer allowlists opencode_cli.allowed_models /
+  allowed_variants. A name outside the allowlist is refused, never substituted;
+  report the refusal and ask, do not stop the whole job over it. An explicit
+  selection binds the rest of that conversation; omitting it keeps the recorded
+  engine. The caller still cannot change executable, environment or arbitrary
+  permission JSON. No automatic fallback or retry after uncertain effects.
+  Private logs are not public deliverables.
 
-`opencode_session(action, conversation_id?, evidence?)`
+`opencode_session(action, conversation_id?, evidence?, timeout?)`
 
 - status reads one owned conversation; list returns this originating session's
   conversations. It is not a cross-session discovery or ownership-transfer API.
+- wait blocks until the run leaves accepted/running (bounded by timeout,
+  opencode_cli.wait_timeout and the turn deadline) and returns the record with
+  waited_seconds and timed_out. It spends no model turns; a timed_out reply
+  means wait again, inspect, or stop, never a status/sleep loop.
 - stop records a stop request for the live runner. The reply does not prove the
   process stopped. Inspect status afterward. Stopping never rolls back Git,
   application data, provider requests, pushes or PRs already created.
@@ -43,9 +53,28 @@ global instructions or whole Skill bodies.
 ## Results
 
 accepted/running mean execution is outstanding. Live messaging uses Hermes'
-completion notification; CLI/resident calls wait within a finite inherited
-deadline. Do not poll in short loops. Unknown results hold the worktree until
-inspection and reconciliation, even when creating another conversation.
+completion notification. In a CLI/resident session opencode_call BLOCKS until
+the run finishes (the Engineer tool deadline is set above opencode_cli.timeout
+for this); a resident CLI has no completion wakeup, so blocking is the cheap
+path. Never poll: no status/terminal/sleep loops, no ps checks while a call is
+outstanding. If a call does return a tool-timeout error, issue ONE
+opencode_session wait for the conversation and read its result. Unknown
+results hold the worktree until inspection and reconciliation, even when
+creating another conversation.
+
+Every resident turn carries a "Turn budget" line naming when the whole turn
+is killed. Give each blocking call a job that fits the remaining budget; an
+OpenCode run cut by the turn deadline is unknown and leaves a stale hold on
+its worktree that only this session can reconcile. When the remaining budget
+is ~15 minutes, do not start a new run: ask OpenCode for nothing further, make
+sure verified work is committed on the task branch, and end the turn with a
+checkpoint report (worktree, branch, HEAD, what is verified, what remains).
+
+An interrupted conversation may be continued by its Client only as a
+RECONCILE-ONLY turn (the handoff says so and opencode_call is refused). In it,
+inspect each owned child conversation (status, process liveness, event log,
+Git and remote effects), stop/reconcile with observed evidence, and report;
+do no other work.
 
 completed means the CLI ended with a matching JSON stop event, not that the task
 passed. Read result for open questions, assumptions and unverified claims. A
