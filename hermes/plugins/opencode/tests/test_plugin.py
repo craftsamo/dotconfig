@@ -357,6 +357,84 @@ def test_wait_blocks_until_run_finishes_without_polling_turns(fixture, monkeypat
     assert "positive integer" in session(cid, "wait", timeout=0)["error"]
 
 
+AGENT_DIR = Path(__file__).resolve().parents[4] / "opencode/agent"
+
+
+def external_only_opencode_scratch(permission):
+    """Outside the worktree only OpenCode's own scratch dirs are readable, and
+    the deny is listed first so the allows win under last-match evaluation."""
+    rules = list(permission["external_directory"].items())
+    assert rules[0] == ("*", "deny")
+    assert {action for _, action in rules[1:]} == {"allow"}
+    assert all(pattern.endswith(("/opencode/tool-output/*", "/opencode/*")) for pattern, _ in rules[1:])
+    return True
+
+
+@pytest.mark.parametrize("installed", ["hermes-plan", "hermes-build", "hermes-review"])
+def test_hidden_primaries_carry_no_permission_block(installed):
+    """The plugin is the single owner of the hidden primaries' policy: a
+    `permission:` key in the agent frontmatter would be deep-merged with the
+    injected one (nested maps union) and reopen the two-source ambiguity."""
+    text = (AGENT_DIR / f"{installed}.md").read_text()
+    frontmatter = text.split("---", 2)[1]
+    assert "permission" not in frontmatter, installed
+    assert "hidden: true" in frontmatter and "mode: primary" in frontmatter
+
+
+def test_readonly_roles_share_one_posture_and_list_every_tool_they_need():
+    """An agent-level "*": deny shadows the global tool allows, so the read-only
+    roles must name their own subagents, git/gh reads and custom git tools."""
+    for role in ("plan", "review", "debug"):
+        permission = plugin._permissions(role, None, {"main"})
+        without_tasks = {k: v for k, v in permission.items() if k != "task"}
+        assert without_tasks == {k: v for k, v in plugin._permissions("plan", None, {"main"}).items()
+                                 if k != "task"}, role
+        assert permission["*"] == permission["edit"] == "deny"
+        assert permission["question"] == "deny"
+        assert external_only_opencode_scratch(permission)
+        assert permission["task"]["*"] == "deny"
+        for name in ("explore*", "searcher*"):
+            assert permission["task"][name] == "allow", (role, name)
+        for name in ("git_provenance", "git_history_digest", "git_related_scan"):
+            assert permission[name] == "allow", (role, name)
+        for pattern in ("git blame*", "git merge-base*", "git remote -v", "gh pr status*",
+                        "gh pr list*", "gh repo view*"):
+            assert permission["bash"][pattern] == "allow", (role, pattern)
+        assert permission["bash"]["*"] == "deny"
+        assert permission["read"]["**/.env"] == "deny"
+
+
+def test_subagents_are_granted_per_role():
+    """verifier may apply a formatter, reviewer* includes the expensive deep
+    pass and debugger is diagnosis: each read-only role gets only its own."""
+    tasks = {role: plugin._permissions(role, None, {"main"})["task"] for role in ("plan", "review", "debug")}
+    assert set(tasks["plan"]) == {"*", "explore*", "searcher*"}
+    assert set(tasks["review"]) == {"*", "explore*", "searcher*", "reviewer*", "verifier"}
+    assert set(tasks["debug"]) == {"*", "explore*", "searcher*", "debugger", "verifier"}
+
+
+def test_build_denies_what_auto_would_otherwise_approve():
+    """`run --auto` answers every ask with an approval, so anything build must
+    not do is a deny, never an ask; the write surface is the explicit list."""
+    permission = plugin._permissions("build", None, {"main"})
+    assert permission["edit"] == "allow"
+    assert permission["question"] == "deny"
+    assert external_only_opencode_scratch(permission)
+
+    def values(node):
+        return [v for x in node.values() for v in (values(x) if isinstance(x, dict) else [x])]
+    assert "ask" not in values(permission)
+    assert permission["task"]["*"] == "deny"
+    for name in ("explore*", "searcher*", "verifier", "worker", "reviewer", "reviewer-deep"):
+        assert permission["task"][name] == "allow", name
+    assert "debugger" not in permission["task"]
+    assert permission["read"]["**/.env"] == "deny"
+    assert "*" not in permission["bash"], "build keeps the user's own bash rules"
+    assert permission["bash"]["git push* main"] == "deny"
+    assert permission["bash"]["gh issue create*"] == "deny"
+    assert "gh issue create*" not in plugin._permissions("build", "granted", {"main"})["bash"]
+
+
 @pytest.mark.parametrize("profile", ["writer", "creator", "marketer", "researcher", "default"])
 def test_registration_is_engineer_and_assistant_only(profile):
     class Context:

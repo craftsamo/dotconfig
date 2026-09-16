@@ -1217,6 +1217,34 @@ challenging or QA-ing its own OpenCode output; `opencode_cli.models` /
 to it. Note that OpenCode's plan-mode reminder is keyed on the literal
 agent name `plan`, so `hermes-plan` gets none of it — its read-only
 posture is prompt + permission, not plan mode.
+**The plugin is the ONLY owner of those primaries' permissions
+(2026-09-16, second pass).** The agent files carry NO `permission:` block
+(a test in `plugins/opencode/tests` fails if one reappears). OpenCode
+deep-merges frontmatter with the injected `OPENCODE_CONFIG_CONTENT`
+(nested maps union, injected value wins per key, last matching rule wins
+at evaluation), so while both existed neither file was the truth: review's
+`verifier` delegation lived only in the markdown, the markdown's
+`external_directory: deny` was overridden by the plugin's `ask`. Measured
+facts the policy is built on: an agent-level `"*": deny` shadows the
+user's global tool allows AND OpenCode's own auto-allows (skill dirs, the
+`tool-output/` overflow dir, its temp dir), so every tool a read-only role
+needs is listed in `_permissions` and only the two scratch dirs are
+re-allowed under `external_directory`; a plain `ask` on this transport is
+never a question — `opencode run` REJECTS it without `--auto` and APPROVES
+it with `--auto` — so build's former `external_directory: ask` was an
+allow, now a deny. Subagents (`verifier`, `explore-*`, `reviewer*`,
+`worker`) keep their own frontmatter permissions and are not governed by
+the injected policy.
+**Plan hands over to Build on the SAME conversation (2026-09-16).** The
+next `opencode_call` on a plan conversation may name `agent="build"` plus
+`approval`; OpenCode resumes the session under `hermes-build` with the
+whole history (investigation, proposal, `DECISION(Q<n>)` lines) in
+context. The wrapper requires the same worktree and branch and refuses a
+default-branch build, so `plan-engineer` now moves the checkout onto a
+task branch BEFORE the first plan call when implementation is likely (a
+worktree only for isolation); a plan made on the default branch still
+starts a new conversation whose message carries the proposal sections and
+decisions verbatim. `--fork` is a full-history copy and prunes nothing.
 
 **Resident turns block on OpenCode; they do not poll (2026-09-16 incident).**
 A resident Engineer is a plain CLI process, and CLI has NO background-process

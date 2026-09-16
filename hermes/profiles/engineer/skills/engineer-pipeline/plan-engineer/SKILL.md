@@ -44,6 +44,13 @@ Read [OpenCode](../references/opencode.md) before a wrapper call and
    Locate the intended repository; ask on ambiguity, never search all private
    workspaces or guess a project. A supplied Issue is read-only grounding unless
    the Client explicitly requested Issue management.
+   When implementation is the likely outcome, put the checkout on a task
+   branch BEFORE the first plan call (ordinary `git switch -c`; a separate
+   worktree only when another conversation holds this checkout or the main
+   checkout must stay untouched). A conversation is bound to its worktree
+   and branch, and the same conversation is the intended path from Plan to
+   Build, so the branch decides now whether the plan's context carries over.
+   A plan-only request or an unknown outcome may stay on the default branch.
 2. Ground in the current tree. Use opencode_call(agent="plan") for investigation,
    options and a technical proposal. Existing approved plans need a relevance
    check, not compulsory re-decomposition. Separate ordinary implementation
@@ -64,10 +71,15 @@ Read [OpenCode](../references/opencode.md) before a wrapper call and
 5. Present the plan: intended change, boundaries, meaningful steps, verification,
    risks and unresolved decisions. Human clarify or Client Q<n>, not a fixed
    questionnaire. Obtain explicit implementation approval for that scope.
-6. Prepare or identify a separate task worktree/branch before Build. A planning
-   conversation cannot silently change worktree/branch: start a new wrapper
-   conversation grounded on the approved plan text when moving from the main
-   checkout. Then follow [Build](../build-engineer/SKILL.md).
+6. Hand over to [Build](../build-engineer/SKILL.md) on the SAME conversation:
+   the next opencode_call names `agent="build"` with the Client's approval
+   and the plan history, the `Q<n>`/`DECISION` exchange and OpenCode's own
+   investigation stay in context. That works only while worktree and branch
+   are unchanged and the branch is not a default branch. A plan made on the
+   default branch cannot switch mid-conversation: switch the checkout to a
+   task branch and start a NEW conversation whose message carries the
+   proposal verbatim (see Build). Never use `--fork` to prune context: a
+   fork copies the whole history.
 
 Record the approved plan and the Client's decision in private job state or the
 agreed existing record. No automatic PLAN.md in the repository, Issue or board.
