@@ -32,6 +32,12 @@ if _name not in sys.modules:
 dispatch = sys.modules[_name]
 
 AGENTS = {"plan", "build", "review", "debug"}
+# Hermes-facing role -> installed OpenCode agent. plan/build/review run on the
+# hidden non-interactive primaries in ~/.config/opencode/agent/hermes-*.md
+# (no question tool, no plan->build handoff, verifier-only checks, review
+# passes only on request); debug still shares the human TUI primary. Every
+# other decision in this module keys on the Hermes role, never on this name.
+OPENCODE_AGENTS = {"plan": "hermes-plan", "build": "hermes-build", "review": "hermes-review", "debug": "debug"}
 # Profiles that may drive OpenCode. Engineer is the developer; Assistant uses it
 # for its own admin-scope work (this config repo, Hermes upkeep), never on a
 # worktree an Engineer job owns. Registries stay per profile home.
@@ -189,7 +195,7 @@ def _permissions(agent, issue_approval, protected):
 
 
 def _command(data, config):
-    command = ["opencode", "run", "--format", "json", "--agent", data["agent"],
+    command = ["opencode", "run", "--format", "json", "--agent", OPENCODE_AGENTS[data["agent"]],
                "--dir", data["directory"]]
     if data["agent"] == "build":
         command.append("--auto")
@@ -224,7 +230,7 @@ def _env(data, protected):
     permission = _permissions(data["agent"], data.get("issue_approval"), protected)
     env["OPENCODE_PERMISSION"] = json.dumps(permission)
     env["OPENCODE_CONFIG_CONTENT"] = json.dumps({
-        "share": "disabled", "agent": {data["agent"]: {"permission": permission}},
+        "share": "disabled", "agent": {OPENCODE_AGENTS[data["agent"]]: {"permission": permission}},
     })
     return env
 
