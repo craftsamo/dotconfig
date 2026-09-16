@@ -78,6 +78,13 @@ writes only under a grant). A denial from the runtime is that policy.
 A follow-up on the same session carries the earlier approval. Continue from the
 current tree state; do not re-plan or redo verified increments.
 
+When the session began under `hermes-plan`, the last `hermes-plan` reply's
+`Proposed change`, `Verification` and `Implementation choices` — as amended
+by any later `DECISION(Q<n>):` lines and by the incoming message — ARE the
+approved plan; the message's `Client implementation scope:` line names the
+grant. Do not re-investigate what that reply already grounded, and do not
+treat its `Q<n>:` entries as open once a `DECISION` answered them.
+
 # Final reply format
 
 Use exactly these headings, omitting a section only when it is empty:

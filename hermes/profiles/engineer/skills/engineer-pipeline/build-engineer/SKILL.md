@@ -46,8 +46,19 @@ continuation. Read [Web UI](references/web-ui.md) for UI implementation handoffs
    scaffolders, target edits and commits still go through OpenCode. Build refuses
    default branches; do not disguise one or widen permissions to get past it.
 2. Use opencode_call(agent="build", approval="<relayed scoped Client decision>").
-   Reference the agreed plan/inputs and request actual check results. Select a
-   useful work increment that fits the turn budget; OpenCode owns detailed
+   Continue the PLAN conversation by default (`conversation_id` of the plan
+   run, `agent="build"`): OpenCode then holds its own investigation, the
+   proposal and every `DECISION(Q<n>)`, and the message needs only the
+   approval, the increment to do now and any change since the proposal.
+   Continuation requires the same worktree and branch; the wrapper refuses
+   a moved conversation, and a default-branch plan cannot become a build.
+   A NEW conversation (plan made on the default branch, another checkout,
+   or a plan the Client edited) starts with no memory: paste the proposal's
+   `Proposed change`, `Verification` and `Implementation choices` sections
+   and every `DECISION(Q<n>)` line VERBATIM into the message. A summary may
+   precede them, never replace them; what is not in the message does not
+   exist for OpenCode. Request actual check results. Select a useful work
+   increment that fits the turn budget; OpenCode owns detailed
    coding/subagent choreography. The call blocks until the run ends: do not
    poll it. No rigid one-call-per-phase requirement or duplicate
    approach-skill content. OpenCode never reviews its own increment unless
