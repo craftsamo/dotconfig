@@ -23,7 +23,20 @@ global instructions or whole Skill bodies.
   not a boolean. The initial build call needs it; continuations retain it.
   issue_approval separately quotes the explicit current-job Issue-management
   request. Both are operating-contract records, not authentication.
-- Models normally follow OpenCode's configured agent defaults. Maintainer
+- plan, build and review run on hidden OpenCode primaries built for this
+  transport (hermes-plan / hermes-build / hermes-review), not the human TUI
+  agents: they take no questions, never wait for approval, do not hand off
+  between plan and build themselves, and answer with fixed report headings.
+  Plan returns Client decisions as `Q<n>:` lines with a recommended default
+  already taken; answer them with `DECISION(Q<n>): …` on the same
+  conversation. Build delegates every check to a verifier subagent and runs
+  a reviewer pass ONLY when the message asks for one ("run a review pass" /
+  "deep review <area>"); Review likewise runs reviewer-deep only on request.
+  Say so in the message when the increment warrants it; otherwise it is
+  skipped on purpose. debug is the ordinary primary.
+- Models normally follow OpenCode's configured agent defaults (plan and
+  review on Opus 5, build on GPT-5.6 Sol, independent of the family this
+  profile runs on, so your challenge and QA stay cross-family). Maintainer
   opencode_cli.models may override per-agent models. A Client may ask for a
   specific engine: pass model (provider/model) and/or variant (reasoning effort
   such as high) from the maintainer allowlists opencode_cli.allowed_models /
