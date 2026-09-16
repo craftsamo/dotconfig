@@ -265,6 +265,38 @@ def test_registry_symlink_refused(fixture):
     assert "symlink" in call(directory)["error"]
 
 
+def test_wait_blocks_until_run_finishes_without_polling_turns(fixture, monkeypatch):
+    home, directory, _ = fixture
+    monkeypatch.setenv("ENGINEER_FAKE", "sleep")
+    (home / "config.yaml").write_text("opencode_cli:\n  enabled: true\n  timeout: 3\n  wait_timeout: 60\n")
+    outcome = {}
+    def run():
+        outcome["call"] = call(directory)
+    thread = threading.Thread(target=run)
+    thread.start()
+    cid = None
+    for _ in range(300):
+        for path in (home / "opencode-sessions").glob("*.json"):
+            data = plugin.dispatch._read(path)
+            if data.get("status") == "running":
+                cid = data["conversation_id"]
+        if cid:
+            break
+        time.sleep(0.02)
+    assert cid
+    short = session(cid, "wait", timeout=1)
+    assert short["timed_out"] is True and short["status"] == "running" and "note" in short
+    waited = session(cid, "wait", timeout=30)
+    thread.join(timeout=30)
+    assert waited["timed_out"] is False
+    assert waited["status"] == "unknown", waited
+    assert waited["waited_seconds"] < 30
+    settled = session(cid, "wait")
+    assert settled["waited_seconds"] < 1 and settled["status"] == "unknown" and "note" in settled
+    assert "only accepted for wait" in session(cid, "status", timeout=5)["error"]
+    assert "positive integer" in session(cid, "wait", timeout=0)["error"]
+
+
 def test_registration_is_engineer_only():
     class Context:
         profile_name = "writer"
