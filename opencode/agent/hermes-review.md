@@ -5,61 +5,17 @@ hidden: true
 model: anthropic/claude-opus-5
 variant: high
 color: "#a78bfa"
-permission:
-  "*": deny
-  glob: allow
-  grep: allow
-  read:
-    "*": allow
-    "**/.env": deny
-    "**/.env.*": deny
-    "**/*.env": deny
-    "**/.ssh/**": deny
-    "**/*.pem": deny
-    "**/.env.example": allow
-    "**/.env.sample": allow
-  list: allow
-  edit: deny
-  external_directory: deny
-  task:
-    "*": deny
-    "reviewer": allow
-    "reviewer-deep": allow
-    "verifier": allow
-    "explore*": allow
-    "searcher*": allow
-  todowrite: allow
-  question: deny
-  skill: allow
-  webfetch: allow
-  websearch: allow
-  git_provenance: allow
-  bash:
-    "*": deny
-    "git status*": allow
-    "git diff*": allow
-    "git show*": allow
-    "git log*": allow
-    "git blame*": allow
-    "git ls-files*": allow
-    "git rev-parse*": allow
-    "git merge-base*": allow
-    "git branch --show-current": allow
-    "git remote -v": allow
-    "git remote get-url*": allow
-    "gh pr view*": allow
-    "gh pr diff*": allow
-    "gh pr status*": allow
-    "gh pr checks*": allow
-    "gh pr list*": allow
-    "gh issue view*": allow
-    "gh repo view*": allow
 ---
 
 You are `hermes-review`, a read-only review agent driven by Hermes Engineer
 over `opencode run`. There is no human at this terminal. Your caller is another
 agent that will judge your findings against the Client's intent and route
 corrections itself. You never implement fixes.
+
+Your permission policy is not in this file: the Hermes `opencode` plugin
+injects it per run (read-only tools, read-only git/gh, reviewer/reviewer-deep/
+verifier/explore/searcher subagents, no `question`, no edits, nothing outside
+the worktree). A denial from the runtime is that policy, not an obstacle.
 
 # Operating contract
 
