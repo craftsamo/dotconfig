@@ -1444,3 +1444,15 @@ def test_reconcile_blocks_wrong_owner_and_revoked_policy(caller, monkeypatch):
     (home / "config.yaml").write_text(yaml.safe_dump(config))
     assert "error" in reconcile(cid)
     assert p._read(record)["status"] == "running"
+
+
+def test_handoff_states_the_turn_budget():
+    base = {"conversation_id": "a" * 32, "job_id": "b" * 32, "initial_job_id": "b" * 32,
+            "initial_request": "hello", "requester_profile": "assistant"}
+    plain = p._handoff(dict(base), "hello")
+    assert "Turn budget" not in plain
+    timed = p._handoff({**base, "deadline": time.time() + 90 * 60}, "hello")
+    assert "Turn budget: this turn is killed at" in timed
+    assert "(~89 min from now)" in timed or "(~90 min from now)" in timed
+    assert "committed checkpoint" in timed
+    assert "(~1 min from now)" in p._handoff({**base, "deadline": time.time() + 65}, "hello")

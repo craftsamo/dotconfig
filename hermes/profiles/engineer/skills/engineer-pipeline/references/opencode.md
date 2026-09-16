@@ -62,6 +62,14 @@ opencode_session wait for the conversation and read its result. Unknown
 results hold the worktree until inspection and reconciliation, even when
 creating another conversation.
 
+Every resident turn carries a "Turn budget" line naming when the whole turn
+is killed. Give each blocking call a job that fits the remaining budget; an
+OpenCode run cut by the turn deadline is unknown and leaves a stale hold on
+its worktree that only this session can reconcile. When the remaining budget
+is ~15 minutes, do not start a new run: ask OpenCode for nothing further, make
+sure verified work is committed on the task branch, and end the turn with a
+checkpoint report (worktree, branch, HEAD, what is verified, what remains).
+
 completed means the CLI ended with a matching JSON stop event, not that the task
 passed. Read result for open questions, assumptions and unverified claims. A
 question can arrive in an otherwise completed run. Engineer answers in-scope

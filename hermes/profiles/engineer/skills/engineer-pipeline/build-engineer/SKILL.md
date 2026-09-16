@@ -47,11 +47,11 @@ continuation. Read [Web UI](references/web-ui.md) for UI implementation handoffs
    default branches; do not disguise one or widen permissions to get past it.
 2. Use opencode_call(agent="build", approval="<relayed scoped Client decision>").
    Reference the agreed plan/inputs and request actual check results. Select a
-   useful work increment; OpenCode owns detailed coding/subagent choreography.
-   The call blocks until the run ends: do not poll it. No rigid
-   one-call-per-phase requirement or duplicate approach-skill content.
-   Pass a Client-requested model/variant through the call's own arguments when
-   the allowlist permits it; otherwise report and ask.
+   useful work increment that fits the turn budget; OpenCode owns detailed
+   coding/subagent choreography. The call blocks until the run ends: do not
+   poll it. No rigid one-call-per-phase requirement or duplicate
+   approach-skill content. Pass a Client-requested model/variant through the
+   call's own arguments when the allowlist permits it; otherwise report and ask.
 3. Read progress/results for questions, blocked actions and assumptions. Answer
    ordinary technical questions within scope; relay material changes to the Client.
    A follow-up continues the owned conversation. A fork copies its current state,
@@ -60,10 +60,14 @@ continuation. Read [Web UI](references/web-ui.md) for UI implementation handoffs
 4. Send implementation evidence to [QA](../qa-engineer/SKILL.md). Apply
    accepted corrections through OpenCode and recheck affected behavior. Do not
    alter code yourself to manufacture a passing report.
-5. Once local QA passes, ask OpenCode to stage only intended changes, create
-   coherent commits, push the task branch and create the PR with evidence and
-   remaining limitations. Follow the repository's Git/PR conventions. Never
-   blanket-stage, force a WIP commit or amend without explicit authorization.
+5. Checkpoint as you go: after each increment whose focused checks pass, ask
+   OpenCode to stage only that increment's intended changes and create one
+   coherent local commit on the task branch. A turn that dies at its budget
+   must strand nothing uncommitted. Once local QA passes overall, push the
+   task branch and create the PR with evidence and remaining limitations.
+   Follow the repository's Git/PR conventions. Never blanket-stage, commit
+   unverified or broken state as a "WIP", or amend without explicit
+   authorization; a checkpoint commit is a real commit of verified work.
 6. Verify the actual PR through QA before delivering. CI still running/failed is
    reported honestly; an unmet required check cannot be called complete.
 
@@ -80,6 +84,8 @@ The current wrapper grants build-to-PR, not a sandboxed arbitrary smaller grant:
 if tool policy cannot represent a restriction, stop rather than weakening it.
 
 Before waiting, record the current plan/approval, worktree/branch, conversation
-IDs, evidence and open question. Stop/reconcile uncertain runs per the shared
-contract; never restart blindly or change backends to escape a block. Follow-up
-review corrections need a released scope, not an indefinite background loop.
+IDs, evidence and open question. When the turn budget nears its end (~15 min),
+finish with a checkpoint commit and report instead of starting a run.
+Stop/reconcile uncertain runs per the shared contract; never restart blindly
+or change backends to escape a block. Follow-up review corrections need a
+released scope, not an indefinite background loop.
