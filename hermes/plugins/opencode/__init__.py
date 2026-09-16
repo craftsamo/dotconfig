@@ -32,6 +32,10 @@ if _name not in sys.modules:
 dispatch = sys.modules[_name]
 
 AGENTS = {"plan", "build", "review", "debug"}
+# Profiles that may drive OpenCode. Engineer is the developer; Assistant uses it
+# for its own admin-scope work (this config repo, Hermes upkeep), never on a
+# worktree an Engineer job owns. Registries stay per profile home.
+PROFILES = {"engineer", "assistant"}
 BUSY = {"accepted", "running", "unknown"}
 MAX_LOG = 8 * 1024 * 1024
 MAX_LINE = 1024 * 1024
@@ -58,8 +62,8 @@ def _root(home):
 
 def _scope():
     home, owner, live, inbound = dispatch._scope()
-    if home.name != "engineer" or inbound:
-        raise ValueError("OpenCode execution requires an Engineer CLI/resident or live Client conversation")
+    if home.name not in PROFILES or inbound:
+        raise ValueError("OpenCode execution requires an Engineer/Assistant CLI/resident or live conversation")
     return home, owner, live
 
 
@@ -246,8 +250,8 @@ def _group_alive(pgid):
 def _run(request_path):
     request = dispatch._read(request_path)
     home = Path(request["home"])
-    if home.name != "engineer" or home.parent.name != "profiles":
-        raise ValueError("Invalid captured Engineer home")
+    if home.name not in PROFILES or home.parent.name != "profiles":
+        raise ValueError("Invalid captured OpenCode caller home")
     root = _root(home)
     cid, job = dispatch._id(request["conversation_id"]), dispatch._id(request["job_id"])
     if request_path != root / (job + ".request"):
@@ -603,7 +607,7 @@ def opencode_session(args, **kwargs):
 
 
 def register(ctx):
-    if ctx.profile_name != "engineer":
+    if ctx.profile_name not in PROFILES:
         return
     from hermes_constants import get_hermes_home
     identity = (ctx.profile_name, str(get_hermes_home().resolve()))
