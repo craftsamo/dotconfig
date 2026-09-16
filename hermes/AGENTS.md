@@ -1196,6 +1196,27 @@ success), finite deadlines and no automatic replay after uncertain effects.
 Approval text is not authentication and command policies are not a sandbox.
 Stop is not rollback. Only the owning live runner signals its child group;
 reconciliation requires inspection, not an invented completion assertion.
+**plan/build/review run on hidden OpenCode primaries, not the human TUI
+agents (2026-09-16).** `OPENCODE_AGENTS` in `plugins/opencode` maps the
+Hermes role to `~/.config/opencode/agent/hermes-{plan,build,review}.md`
+(`mode: primary`, `hidden: true`; `debug` stays shared). Every other
+decision in the plugin — `--auto`, the permission shape, the task-branch
+gate, the appended scope lines — still keys on the Hermes role name, so a
+rename of the installed agent touches the map and nothing else. Those
+primaries replace the provider default prompt with a non-interactive
+contract: no `question` tool, no plan→build handoff or PlanHandoff todos,
+Client decisions returned as `Q<n>:` with a default already taken, every
+check delegated to `verifier`, and reviewer / reviewer-deep passes ONLY
+when the message asks (the human-facing global AGENTS.md "consider a
+reviewer pass before commits" rule is explicitly overridden). Models are
+pinned per role in the frontmatter (plan + review Opus 5, build GPT-5.6
+Sol) so that Hermes' own family (Fable or Astra) is never the one
+challenging or QA-ing its own OpenCode output; `opencode_cli.models` /
+`--model` still override. A hidden primary is only reachable by name via
+`opencode run --agent`; `default_agent` refuses it and the TUI never cycles
+to it. Note that OpenCode's plan-mode reminder is keyed on the literal
+agent name `plan`, so `hermes-plan` gets none of it — its read-only
+posture is prompt + permission, not plan mode.
 
 **Resident turns block on OpenCode; they do not poll (2026-09-16 incident).**
 A resident Engineer is a plain CLI process, and CLI has NO background-process

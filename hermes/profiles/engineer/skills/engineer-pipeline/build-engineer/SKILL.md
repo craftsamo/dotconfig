@@ -50,8 +50,12 @@ continuation. Read [Web UI](references/web-ui.md) for UI implementation handoffs
    useful work increment that fits the turn budget; OpenCode owns detailed
    coding/subagent choreography. The call blocks until the run ends: do not
    poll it. No rigid one-call-per-phase requirement or duplicate
-   approach-skill content. Pass a Client-requested model/variant through the
-   call's own arguments when the allowlist permits it; otherwise report and ask.
+   approach-skill content. OpenCode never reviews its own increment unless
+   asked: for a risky increment (auth, data shape, concurrency, public API)
+   write "run a review pass" or "deep review <area>" into the message; a
+   small mechanical change needs none. Pass a Client-requested model/variant
+   through the call's own arguments when the allowlist permits it; otherwise
+   report and ask.
 3. Read progress/results for questions, blocked actions and assumptions. Answer
    ordinary technical questions within scope; relay material changes to the Client.
    A follow-up continues the owned conversation. A fork copies its current state,
