@@ -80,8 +80,13 @@ request to manage this job; a supplied Issue number is not a grant. Link a
 closing Issue only when this PR finishes its scope. No automatic epics, boards,
 merge, deploy/publish, new remote/repo or default-branch push. An explicit
 local-only exception stops before remote actions and is reported as an exception.
-The current wrapper grants build-to-PR, not a sandboxed arbitrary smaller grant:
-if tool policy cannot represent a restriction, stop rather than weakening it.
+The current wrapper grants build-to-PR, not a sandboxed arbitrary smaller grant.
+A Client instruction narrower than that surface (local commit only, no push,
+one file) is carried in the prompt and verified by you afterwards through Git
+state; it is not a reason to refuse the run. Only when a restriction cannot be
+honored even that way (it needs an enforcement the wrapper lacks and the effect
+is irreversible) do you stop and state it. State such a limitation once per
+conversation; an answered permission question is not re-asked next turn.
 
 Before waiting, record the current plan/approval, worktree/branch, conversation
 IDs, evidence and open question. When the turn budget nears its end (~15 min),
