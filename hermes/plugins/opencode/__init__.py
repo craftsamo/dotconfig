@@ -407,6 +407,8 @@ def opencode_call(args, **kwargs):
         if set(args) - allowed:
             raise ValueError("Unexpected arguments; identity, executable and permissions are runtime-owned")
         home, owner, live = _scope()
+        if os.environ.get("RESIDENT_TURN_KIND") == "reconcile":
+            raise ValueError("This resident turn is reconcile-only; inspect and reconcile, never execute OpenCode")
         config, root = _config(home), _root(home)
         agent, message = args.get("agent"), args.get("message")
         if agent not in AGENTS or not isinstance(message, str) or not message.strip() or len(message) > 100000:
