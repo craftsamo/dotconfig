@@ -804,3 +804,10 @@ specialist_call:
 opencode_cli:
   enabled: true
   timeout: 3600
+  wait_timeout: 3300
+  allowed_models: [openai/gpt-6-astra, openai/gpt-5.6-sol, openai/gpt-5.6-terra, anthropic/claude-fable-5-1]
+  allowed_variants: [minimal, low, medium, high, max]
+timeouts:
+  tools:
+    sequential_call: 3660
+    concurrent_batch: 3660
