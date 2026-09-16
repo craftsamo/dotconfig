@@ -9,7 +9,7 @@ global instructions or whole Skill bodies.
 
 ## Calls
 
-`opencode_call(directory?, agent, message, conversation_id?, fork?, approval?, issue_approval?)`
+`opencode_call(directory?, agent, message, conversation_id?, fork?, approval?, issue_approval?, model?, variant?)`
 
 - New conversation: directory is an absolute Git worktree root. Agent is plan,
   build, review or debug. Use the returned opaque conversation_id for subsequent
@@ -24,9 +24,15 @@ global instructions or whole Skill bodies.
   issue_approval separately quotes the explicit current-job Issue-management
   request. Both are operating-contract records, not authentication.
 - Models normally follow OpenCode's configured agent defaults. Maintainer
-  opencode_cli.models may override per-agent models; the caller cannot change
-  executable, environment or arbitrary permission JSON. No automatic fallback
-  or retry after uncertain effects. Private logs are not public deliverables.
+  opencode_cli.models may override per-agent models. A Client may ask for a
+  specific engine: pass model (provider/model) and/or variant (reasoning effort
+  such as high) from the maintainer allowlists opencode_cli.allowed_models /
+  allowed_variants. A name outside the allowlist is refused, never substituted;
+  report the refusal and ask, do not stop the whole job over it. An explicit
+  selection binds the rest of that conversation; omitting it keeps the recorded
+  engine. The caller still cannot change executable, environment or arbitrary
+  permission JSON. No automatic fallback or retry after uncertain effects.
+  Private logs are not public deliverables.
 
 `opencode_session(action, conversation_id?, evidence?, timeout?)`
 
