@@ -337,14 +337,34 @@ def test_wait_blocks_until_run_finishes_without_polling_turns(fixture, monkeypat
     assert "positive integer" in session(cid, "wait", timeout=0)["error"]
 
 
-def test_registration_is_engineer_only():
+@pytest.mark.parametrize("profile", ["writer", "creator", "marketer", "researcher", "default"])
+def test_registration_is_engineer_and_assistant_only(profile):
     class Context:
-        profile_name = "writer"
+        profile_name = profile
 
         def register_tool(self, **kwargs):
             raise AssertionError("foreign profile gained OpenCode tools")
 
     plugin.register(Context())
+
+
+def test_assistant_home_runs_its_own_registry(fixture, monkeypatch):
+    home, directory, owner = fixture
+    assistant = home.parent / "assistant"
+    assistant.mkdir()
+    (assistant / "config.yaml").write_text("opencode_cli:\n  enabled: true\n  timeout: 10\n")
+    owner = {"profile": "assistant", "session_id": "client-b", "routing_digest": "b"}
+    monkeypatch.setattr(plugin, "_scope", lambda: (assistant, owner, False))
+    result = call(directory)
+    assert result["status"] == "completed", result
+    assert (assistant / "opencode-sessions" / (result["conversation_id"] + ".json")).exists()
+    assert not (home / "opencode-sessions").exists() or not list((home / "opencode-sessions").glob("*.json"))
+    # Another Client profile cannot pass the runner's home check even with a valid record.
+    creator = home.parent / "creator"
+    creator.mkdir()
+    (creator / "config.yaml").write_text("opencode_cli:\n  enabled: true\n  timeout: 10\n")
+    monkeypatch.setattr(plugin, "_scope", lambda: (creator, {"profile": "creator", "session_id": "c", "routing_digest": "c"}, False))
+    assert "error" in call(directory)
 
 
 def test_evaluator_resident_does_not_inherit_repository_cwd(fixture, monkeypatch):
