@@ -2907,20 +2907,28 @@ an uncertain run lives in Engineer's Skill.
 chain, and a neutral starting point should not lead with the model that has
 the tightest sub-cap (Fable: 50% of the week). It leads on Opus 5.5.
 
-**Opus 5.5 thinking is always on.** Disabling it returns HTTP 400. Hermes
-0.21.0 sends adaptive thinking + `output_config.effort` for any unknown
-Claude model, so ordinary turns are fine, but its mandatory-thinking list
-(`_MANDATORY_THINKING_CLAUDE_SUBSTRINGS` in `agent/anthropic_adapter.py`)
-names only `claude-fable`. So on an Opus 5.5 profile the one-shot "answer
-without thinking" continuation (`turn_truncation.py`: fires only when a
-reply spent its whole output cap on thinking and returned no visible text)
-sends `thinking: {type: disabled}` and gets a 400. The session only learns
-to stop (`_reasoning_disable_rejected`) when the error text contains
-`reasoning is mandatory` (`error_classifier.py`, Nous Portal / OpenRouter
-wording); Anthropic's wording is unverified, so assume that continuation
-fails rather than self-heals. Ordinary turns are unaffected. Fix = add
-`claude-opus-5-5` to that list as a `fix/` branch merged into `local` with a
-regression test, like the other carried patches — not done yet.
+**Opus 5.5 needs two LOCAL patches (2026-09-23).** Anthropic documents two
+breaking changes that Hermes 0.21.0 (and upstream `main` as of that date)
+did not handle; both are carried as `fix/` branches merged into `local` in
+the hermes-agent checkout, each with a regression test:
+
+- `fix/anthropic-opus-5-5-mandatory-thinking` — Opus 5.5 thinking cannot be
+  disabled (`thinking: {type: disabled}` → HTTP 400). Upstream's
+  mandatory-thinking list (`_MANDATORY_THINKING_CLAUDE_SUBSTRINGS`) named
+  only `claude-fable`, so `reasoning: none` and the one-shot "answer without
+  thinking" length continuation (`turn_truncation.py`) sent the disable and
+  lost the turn — the classifier only self-heals on Portal/OpenRouter
+  wording. The branch adds both id spellings; open upstream PRs #119419 /
+  #119793 carry the same change, so drop the branch once one lands.
+- a follow-up commit on `fix/anthropic-oauth-tool-choice` — Opus 5.5,
+  **Fable 5.1** and Mythos 5.1 reject forced `tool_choice` (`any` / `tool`)
+  with HTTP 400. That branch's leaked-invoke-markup recovery forced `any`,
+  so its retries were dead on these models — Fable 5.1 included, since
+  2026-09-05, unnoticed because the recovery has not fired live since July.
+  On those models the recovery now resends the ordinary request.
+
+Ordinary turns were never affected. Re-check after `hermes update` that both
+merges survived (`git log --oneline --merges local | rg anthropic`).
 
 ```yaml
 # example — a 4-tier chain (the shape any profile may use)
