@@ -52,7 +52,10 @@ Browser operations use Marketer's existing dedicated Brave profile; no cookie
 sharing or migration. All browser navigation, including measurement reads, holds
 the profile-wide `scripts/browser-lease.py` lease, which serializes cooperating
 jobs across tool calls. It refuses another owner, corrupt state and symlinks, and
-has no TTL: it never expires or steals a lease. The owner holds it through
+has no TTL: it never expires or steals a lease. When the browser itself is
+stale or unreachable, Marketer relaunches its own clone and daemon through the
+private `hermes-browser-relaunch` skill while holding the lease, once per
+incident ([README "Browser"](../../README.md#browser)). The owner holds it through
 saving and reopening, until a verified or reconciled stop. This is coordination,
 not a browser sandbox or authentication; broad terminal/browser tools remain a
 residual authority risk. Marketer's inbound A2A has no browser, terminal or

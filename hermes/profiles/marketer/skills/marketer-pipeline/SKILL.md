@@ -110,6 +110,12 @@ Use [state](references/state.md) for durable records, approvals and resumes.
 - Browser operations stay in the existing Marketer profile, serialized through
   [browser-lease.py](scripts/browser-lease.py). No SNS hand, new login profile,
   cookie copying, attachment to another profile or login bypass.
+- When the browser itself is stale or unreachable (a login the owner already
+  made in the Marketer Brave profile does not show, or `browser_exec` reports
+  `All CDP discovery methods failed`), load `hermes-browser-relaunch` and
+  relaunch only your own pair (`--profile marketer`) while holding the lease:
+  once per incident, then report. Page-level failures, "update your browser"
+  pages and QR/pairing screens are not relaunch cases.
 - A draft means a service-side unpublished object that has been reopened and
   checked, not just a local file. Obtain exact target/content/upload approval
   BEFORE typing: editors can autosave immediately. No Publish grant, including
