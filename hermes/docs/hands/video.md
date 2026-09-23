@@ -206,7 +206,7 @@ coverage.
 `video-creator`'s `skills.external_dirs` pins four individual technical
 directories — `hyperframes-core`, `hyperframes-animation`, `cut-the-curve`,
 `oversized-cursor` — from the harness-neutral, CLI-owned `~/.agents/skills`
-store (never the whole store; store maintenance rules: `AGENTS.md`). These are
+store (never the whole store; store maintenance rules: [`AGENTS.md`](../../AGENTS.md)). These are
 the technical subset; the knowledge-only craft pins are separate
 ([`overview.md`](./overview.md) "Media craft knowledge") and do not widen this
 subset's scope. Only `create-tour`, `create-ad` and the HyperFrames path of

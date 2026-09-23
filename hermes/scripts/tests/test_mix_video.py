@@ -1,6 +1,6 @@
 """VideoCreator's Mix consumption: the preliminary `timing` freeze helper,
 the STAGED-delivery validation that backs `create-ad`/`create-tour`'s opt-in
-`audio_workflow: mix` (see hermes/AGENTS.md "audio_workflow"), and their
+`audio_workflow: mix` (see hermes/docs/hands/audio.md "Mix family"), and their
 markup/plan-level integration. `mix_audio.py` never reimplements Audio Mix's
 own hash/format/receipt checks - real bundles here are built through Audio
 Mix's OWN `mix-media.py` `propose`/`render`, never hand-faked, except where a

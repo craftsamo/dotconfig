@@ -1,1690 +1,274 @@
-# hermes/ — maintainer rules (for OpenCode)
+# hermes/ — maintainer rules
 
-Version-controlled, non-secret **Hermes Agent** config. `../install.sh` symlinks
-these into `~/.hermes/`; Hermes reads `~/.hermes/`, never `~/.config`. This file
-is guidance for the agent maintaining this subtree — **not** Hermes runtime config.
-Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent design).
+Rules for whoever edits this subtree: OpenCode, or a Hermes profile doing
+repository upkeep (Engineer through OpenCode, the Assistant's Admin topic).
+`../install.sh` symlinks these files into `~/.hermes/`; Hermes reads
+`~/.hermes/`, never `~/.config`, and never loads this file, `README.md` or
+`docs/` at runtime. What a profile actually sees at runtime is its
+`config.yaml` (`agent.system_prompt`), its `SOUL.md` and its skills.
 
-## Critical rules
+## Where things live
 
-- **Edit here, never `~/.hermes/…`.** Those are symlinks back to this repo. New
-  files need `../install.sh` to link them; `link()` never overwrites a real file
-  (prints `WARN … not overwriting` and skips). Adopt existing real files via the
-  move-then-`install.sh` steps in `README.md`.
-- **No secrets, no `.env`.** Keys live in the macOS Keychain, injected by the
-  `bin/hermes` shim. See the `keychain-secrets` skill / `opencode/instructions/secrets.md`.
-- **The upstream source tree has a macOS case collision — one file must stay
-  `skip-worktree`.** `contributors/emails/agent@Agents-Mac-mini.local` and
-  `contributors/emails/agent@agents-Mac-mini.local` differ only in case, so on
-  case-insensitive APFS they are ONE file on disk; whichever git writes last
-  wins and the other is reported modified forever. That permanently dirty file
-  makes every `git rebase` / `git merge` refuse to start with `cannot rebase:
-  You have unstaged changes`, and `git checkout --` just flips which twin is
-  dirty. The lowercase variant carries `git update-index --skip-worktree` in the
-  hermes-agent checkout (2026-09-01). Do not clear that bit, and re-apply it
-  after a fresh clone — this is an UPSTREAM bug, not local drift, so expect it
-  to survive until upstream renames one of the two.
-- **`config.yaml` is rewritten by Hermes on load.** Expect re-serialization churn;
-  match Hermes' output format (block style, key order), keep diffs minimal — don't
-  hand-reformat or alphabetize.
-- **`cron/` is not in this repo at all.** Hermes `mkdir -p`s its own cron dir and owns
-  everything in it — `jobs.json`, `output/`, `executions.db`, `.tick.lock`,
-  `.jobs.lock`, `ticker_*`, `catch_up_occurrences`, `suggestions.json` — so
-  `install.sh` leaves `~/.hermes/**/cron` a real machine-local directory and links
-  nothing. Do **not** re-link it, and do **not** re-add it with `skip-worktree`: that
-  flag hid new jobs from `git status` and made every branch switch fail on a
-  dirty-but-invisible file. A missing `jobs.json` is read as **zero jobs, silently**
-  (`cron/jobs.py:1013-1018`) — back it up before touching that directory. Schedules
-  for the private `local-*` jobs are recorded as runnable `hermes cron create`
-  commands in the private overlay's README (`~/.config/private`,
-  the `private-dotconfig` repo).
-- **`platform_toolsets.<platform>` is the effective tool allowlist.** Keep it granular;
-  `hermes-cli` / `hermes-telegram` expand to a broad surface and strip default-off
-  tools such as `video` / `video_gen`. Mirror the role in top-level `toolsets`, but
-  remember that top-level `kanban` is also the front-door runtime gate. Dispatcher
-  workers receive `kanban` automatically; writer / researcher / default keep their
-  Telegram / Discord lists empty (engineer / creator / marketer now carry real
-  `telegram` lists — they are bots), and every A2A-serving profile has an `a2a`
-  list for its inbound peer sessions. `a2a` is also the OUTBOUND toolset name
-  (the five `a2a_*` tools, default-off): Assistant/Creator/Marketer/Engineer
-  expose only `specialist` for outbound requests.
-  Use `no_mcp` when a platform needs none; otherwise list each allowed MCP
-  server explicitly so future servers are not inherited accidentally.
-- **Multiplex gateway + A2A peer graph (2026-09 rebuild).** ONE default-hosted
-  gateway process (`gateway.multiplex_profiles: true` + allowlist in the root
-  `config.yaml`) runs all four Telegram bots (assistant / engineer / creator /
-  marketer) and the A2A peer endpoints (writer / researcher receive-only;
-  ports 9902-9906 in each profile's `platforms.a2a.extra.port` — NEVER via an
-  `A2A_PORT` env var, which is read raw from the process env and would
-  collide across profiles). Peer lists live per profile in `a2a_agents`
-  (assistant→engineer/creator/marketer/writer; engineer→marketer/researcher/
-  writer; creator and marketer→engineer/each-other/researcher/writer;
-  creator additionally→image-creator/video-creator/audio-creator) with
-  `timeout: 310` (the 120s caller default undercuts the 300s server reply
-  window); enforcement is config + operating contract, and contracts forbid
-  `a2a_call` against a direct URL. Under multiplex, scope-aware secret reads
-  NEVER fall back to the process env: every profile's keys come from
-  `secrets.command` → `scripts/profile-secrets.sh <profile>` (Keychain layers
-  `global` + `hermes` minus messaging keys + `hermes-<profile>`); only raw-env
-  readers (`BU_CDP_URL`, dashboard auth) still see the launcher-injected env.
-  A new bot = a new `hermes-<name>` Keychain layer + `platforms` /
-  `a2a_agents` / toolset entries + the multiplex allowlist, never a second
-  gateway process. **Upstream (≤ 21b2095d) drops background-process /
-  async-delegation completion notifications for every secondary profile
-  silently** — two defects, both carried as fix branches merged into
-  `local` in the hermes-agent checkout, each with a regression test:
-  (1) `fix/watch-notification-multiplex-route` — `_inject_watch_notification`
-  resolved adapters from `self.adapters` (default only); it now routes
-  through the profile-aware `_adapter_for_source`. (2)
-  `fix/authz-adapter-process-profile` — `_authorization_adapter` compared
-  the stamped profile with `_active_profile_name()`, which follows the
-  task-scoped `HERMES_HOME` override; watcher tasks spawned at the end of
-  an assistant turn inherit that scope, so a completion for a RESTORED
-  session (pre-restart topic, no transport ref) was taken for the host's
-  and dropped as "no live adapter". It now compares with
-  `_process_profile_name()` under multiplex. Re-check after `hermes update`
-  that both merges survived (`git log --grep 'multiplex-route\|process
-  profile'`), or resident sessions stop waking the assistant again — and
-  the second one is invisible in a fresh topic: reproduce in a topic that
-  existed before the last gateway restart. Sibling paths still unpatched
-  upstream: shutdown / `/restart` notifications for secondary profiles.
-- **The secret helper has one shot per profile per process.** Hermes runs
-  `secrets.command` once per `HERMES_HOME` (no re-pull), kills it at
-  `helper_timeout_seconds`, and a Telegram adapter that then finds no token
-  fails NON-retryably — that bot is dead until the next gateway restart
-  (`✗ telegram failed to connect (profile: …)` right after `[secrets:command]
-  helper timed out`). `profile-secrets.sh` therefore fetches each Keychain
-  layer exactly once (~2s idle for three layers; a duplicated `hermes` fetch
-  for the bot profiles pushed them past 15s under boot load on 2026-09-02),
-  and every config sets the timeout to 60. Never add a `secret env` call
-  per key, and after touching the helper time it with
-  `time sh scripts/profile-secrets.sh creator >/dev/null`.
-- **`SOUL.md` = persona only** (voice/posture), per-profile (`HERMES_HOME`). No
-  project rules/paths/commands there. Headings aren't parsed (verbatim inject).
+| Content | Home |
+|---|---|
+| Maintainer rules: what must not break when editing, with a one-line why | this file |
+| Mechanics: install, symlinks, layout, tracking, engines, browser and web-search plumbing, commands | [`README.md`](README.md) |
+| Behavior contracts: topology, each profile, broker, hands, models and auth | [`docs/`](docs/) — index: [`PROFILES.md`](PROFILES.md) |
+| Knowledge a profile needs while working | that profile's skill `references/` (or `~/Workspaces/AGENTS.md` for rules of the Assistant's working area) |
+
+- **One fact, one place.** Change a contract in its owning doc and point to it
+  from elsewhere; do not restate it here. A rule belongs here only if editing
+  the repo can silently break it.
+- **Current state, not history.** No incident narratives, dated verification
+  logs or patch lists in docs — Git history keeps those. Keep the rule and one
+  clause of why, so nobody deletes it later as arbitrary.
+- **Runtime knowledge goes where the runtime reads it.** If a profile must know
+  something while working, it goes into that profile's skill or references,
+  not into these docs (Hermes will not see it here).
+
+## Repository and install
+
+- **Edit here, never `~/.hermes/…`** — those are symlinks back to this repo.
+  New files need `../install.sh`; `link()` never overwrites a real file (it
+  prints `WARN … not overwriting` and skips). Adopt real files with the steps
+  in [README "Tracking a profile"](README.md#tracking-a-profile).
+- **No secrets, no `.env`.** Keys live in the macOS Keychain and are injected
+  by the `bin/hermes` shim (see the `keychain-secrets` skill). Private data —
+  reference voices, the Irodori lexicon, manifest paths, Telegram ids — never
+  enters tracked config or docs; it lives in the private overlay
+  (`~/.config/private`, the `private-dotconfig` repo).
+- **`config.yaml` is rewritten by Hermes on load.** Match its output format
+  (block style, key order) and keep diffs minimal; never hand-reformat or
+  alphabetize. Custom top-level keys survive the rewrite.
+- **`cron/` is not in this repo.** Never re-link it and never re-add it with
+  `skip-worktree` (that hid new jobs and broke branch switches). A missing
+  `jobs.json` reads as zero jobs, silently — back it up before touching the
+  directory. See [README "Cron"](README.md#cron).
+- **Managed skills never get `skip-worktree`**: their changes must stay visible
+  in `git status`. Ownership by directory type and the `learned/` → `technic/`
+  promotion step: [README "Tracked vs ignored"](README.md#tracked-vs-ignored).
+- **The live checkout is not an isolated test bed.** `~/.hermes` points into
+  it, so a branch here is live for anything Hermes reads. Test behavior changes
+  in a task worktree with its own overlay links and isolated `HOME`; never
+  repoint live links, run candidate install scripts against the live
+  configuration, or weaken the live symlink/Git ownership checks to make a
+  temporary copy pass.
+
+## Profiles and config
+
+- **`SOUL.md` = persona only** (voice/posture; injected verbatim, headings are
+  not parsed). Operating policy lives in `agent.system_prompt`; detailed
+  playbooks live in skills. **Never run `/personality`** on a profile — it
+  shares the `agent.system_prompt` slot and overwrites the operating contract.
 - **Keep `default` neutral** — every `--clone` inherits its `config.yaml`.
-  Specialized personas, bots, and cron belong in named profiles.
-- **OAuth logins from `default` only** (`hermes model`, no `-p`). Codex / Copilot /
-  xAI creds are inherited read-only by every profile (Anthropic native resolves
-  separately via the global Claude Code credential/token); running `hermes model`
-  inside a worker writes that profile's `auth.json` and shadows the inherited creds.
-- **Anthropic account mapping — do not cross the streams.** Hermes' resolver
-  (`resolve_anthropic_token()`) ALWAYS prefers the default Keychain entry
-  `Claude Code-credentials` over the credential pool (pool entries and
-  `suppressed_sources` never override it). That default entry must stay logged
-  into the **Hermes** account. OpenCode runs on the **sub account** via the
-  `opencode-claude-auth` plugin pinned to a suffixed entry
-  (`Claude Code-credentials-<suffix>`; the concrete name lives in the untracked
-  `claude-account-source.txt`; `CLAUDE_CONFIG_DIR=~/.claude-sub`,
-  alias `claude-sub`). A plain `claude /login` re-login therefore changes
-  **Hermes'** account, not OpenCode's — after one, verify with
-  `security find-generic-password -s "Claude Code-credentials"` + the OAuth
-  profile endpoint before assuming the split still holds.
-- **Operating policy lives in `agent.system_prompt`** (per-profile, always-on);
-  detailed playbooks are per-profile skills. `SOUL.md` stays persona-only. Do **not**
-  run `/personality` on a profile — it shares the `agent.system_prompt` slot and
-  silently overwrites the operating contract (the messaging assistant is most at risk).
-- **Media stack lives in `plugins/`.** Backends are chosen via `*_gen.provider` /
-  `plugins.enabled`. Video analysis runs through the `video-analyze-mimo`
-  tool-override (config `video_analyze.model`) so `auxiliary.vision` can stay
-  `auto` — **pinning `auxiliary.vision` to a video-capable model disables the
-  main model's native image vision.** Custom top-level keys (e.g. `video_analyze:`)
-  survive Hermes' config rewrites (`_deep_merge` keeps user keys). Voice routes the
-  same way: `tts/tts-fallback` + `transcription/stt-fallback` chains, picked via
-  `tts.provider` / `stt.provider` + `*.fallback.chain` (custom keys preserved).
-- **TTS routes by LANGUAGE through the fallback chain, not a router.**
-  `irodori-tts` is Japanese-only — measured against `qwen3-tts` on English-only
-  text it scores 27% word error rate to Qwen's 8%, mangling `finished` into
-  "finito" — so it *declines* English-dominant input (< 20% kana/kanji) by
-  raising, and the ordinary chain advances to `qwen3-tts`. That is why the chain
-  order is `irodori-tts → qwen3-tts → edge`: no routing layer exists, and none
-  should be added. The hand-off is per utterance ON PURPOSE — the same reference
-  voice renders 309 cents apart on the two engines (against 20-40 cents of
-  seed-to-seed variation), so splicing them mid-sentence is audible.
-  **A named character asset is the opposite contract and must not touch the
-  chain.** AudioCreator's `character_voices` / `character_text_to_speech` live in
-  the `character-voice` plugin — engine-agnostic, so they belong to neither
-  engine plugin — and resolve a provider out of the TTS registry directly.
-  Voice ids are qualified `<engine>:<voice>` **because the engine is half of
-  the identity** (see the 309 cents above): a bare id would name a request,
-  not a sound.   A refusal there is an error that writes no file, never a
-  hand-off, so do not "helpfully" retry it on the other engine, and do not let
-  the tool read `tts.fallback.chain` — that would smuggle the language routing
-  into an explicit contract. Handlers take the model's JSON as ONE positional
-  dict (`handler(args, **kwargs)`); declaring schema fields as parameters
-  registers a tool that fails on every call.
-  **Style control belongs to that explicit contract only.** Irodori performs an
-  emoji as a non-verbal vocalisation instead of reading it, takes a free-text
-  `caption` for delivery, and honours a `seed`; measured here, one `U+1F92D`
-  adds 1.68 s to a 5.24 s line while the transcript keeps the same words, and a
-  pinned seed reproduces the take through post-processing (the predicted
-  duration is otherwise seed-invariant, so that duration jump is the proof it is
-  added vocalisation and not a re-roll). Verify a reproduced take on decoded
-  SAMPLES: the WAV is byte-identical but the delivered Ogg gets a random
-  bitstream serial from ffmpeg, so ~80 container bytes differ every time. `character-voice` reads
-  `provider.style_features` and REFUSES a control the named engine does not
-  advertise — it must never learn an engine name for this, and must never drop
-  one silently, which would return a file that is not the take that was asked
-  for. The chain passes no style arguments and must not start: emoji reaching
-  `qwen3-tts` or `edge` get read aloud as "smiling face", which is exactly why
-  Hermes' shared cleaner (`tools/tts_text_normalize.py`) strips them for
-  everyone. Do not weaken that cleaner — the character path parks the clusters
-  behind ASCII placeholders across it and restores them, so the script still
-  gets markdown, unit and newline handling.
-  **Voice data never enters this repo.** Reference audio lives in the private
-  character tree and is copied into the gitignored `local/<engine>/` by the
-  launchers; the Irodori pronunciation lexicon is a private-overlay symlink
-  (`private/hermes/local/irodori-tts/lexicon.json`). Do not add a `voice:` key
-  under `tts.*` and do not name a lexicon path in `config.yaml` — both are
-  tracked. `irodori-tts` repairs its own output (leading dead air, trailing
-  hallucinated fragments, and the in-pause codec rustle) using only numpy and
-  the stdlib, because the Hermes venv has no soundfile or scipy.
-- **Web search: PAID backends are pinned per profile; everyone else rides the
-  keyless ring.** Upstream DELETED the Tavily backend in v0.21.0 (`d6773cf26`,
-  2026-08-31): `plugins/web/tavily/` is gone, `keenable` replaced it, and a
-  leftover `TAVILY_API_KEY` in the Keychain is now dead weight. Auto-detect
-  (empty `web.search_backend` / `web.extract_backend`) takes the first backend
-  whose KEY EXISTS (`exa → parallel → keenable → firecrawl → searxng →
-  brave-free → ddgs`, `tools/web_tools.py:215-308`) and then walks the keyless
-  tier; availability is key presence, never quota. A NAME THAT NO LONGER EXISTS
-  does not error — it silently resolves to `firecrawl`, which is exactly how
-  four profiles would have piled onto researcher's credits after this upgrade.
-  Since v0.20.5 there IS runtime failover, but only inside the FREE ring
-  (`exa → parallel → firecrawl → keenable`, `plugins/web/keyless_mcp.py`): a
-  rate-limited keyless request advances to the next vendor, and a failed KEYED
-  call gets ONE stateless keyless rescue (`web.keyless_rescue`, default on;
-  rescued results are never cached, so the next call retries your own backend).
-  A keyed backend still never falls through to another KEYED backend, so the
-  per-profile pinning below is what stops one provider's exhaustion from taking
-  the fleet down.
-  **`web.provider_tier.<vendor>` picks the lane per profile** — `free` forces the
-  keyless endpoint EVEN WHEN the key is present and pins that vendor as the ring
-  entry point; `paid` forces the keyed path and drops that vendor from the
-  profile's ring; unset = auto (key present ⇒ keyed). Editing `search_backend`
-  alone is NOT enough: with a key in the environment, auto silently bills the
-  paid path.
-  Current split — the three paid keys stay with the high-volume profiles, and
-  everyone else sits on the free ring with DISTRIBUTED entry points so they do
-  not all start at the same vendor: assistant `exa` (paid), searcher `parallel`
-  (paid), researcher `firecrawl` (paid); engineer `exa`, creator `parallel`,
-  writer `firecrawl`, marketer `keenable`, each with `provider_tier: <vendor>:
-  free`. `default` keeps both backends EMPTY (neutral, so every `--clone`
-  inherits nothing opinionated) but pins `provider_tier.exa: free`, because
-  otherwise auto-detect resolves to the KEYED Exa path and eats the assistant's
-  grant. `KEENABLE_API_KEY` is not set and is not needed — a `free` pin resolves
-  without one. Verify a change by resolving the backend per profile
-  (`HERMES_HOME=~/.hermes/profiles/<p>` + `tools.web_tools._get_search_backend()`)
-  and by running `web_search_tool`; `data.served_by` appears only when the ring
-  failed over, so its ABSENCE means your pinned vendor answered.
-  Exhaustion is per-provider and each one self-heals: Exa `402` ($10/month Free
-  Tier grant), Firecrawl 4xx (1,000 cr/month, renews ~the 17th; balance:
-  `GET https://api.firecrawl.dev/v2/team/credit-usage`). `401` is a
-  dead/rotated key, not exhaustion. Parallel's quota model is UNVERIFIED (no
-  balance endpoint) — if searcher starts failing while the key is otherwise
-  valid, swap searcher and researcher (`parallel` ⇄ `firecrawl`) and note it
-  here. Switching = edit the keys in this repo (the `~/.hermes` configs are
-  symlinks, so a new CLI turn picks them up); rotating an API KEY additionally
-  needs a gateway restart, because resident sessions inherit the environment
-  injected at gateway launch.
-- **Browser stack (2026-09-06 rebuild): real-profile browsing on a CLONED
-  Brave bundle; no resident CDP instance, no `BU_CDP_URL`.** With
-  `browser.backend` unset and `uvx` present, `browser_exec` → `uvx browser-use`
-  → `browser_harness` attaches over CDP to whatever Hermes resolves
-  (`tools/browser_use_cli.py:_route_backend`); the built-in `browser_navigate`
-  surface and the `browser.engine` / `camofox` keys describe the DORMANT path.
-  Precedence there is fixed: a `BU_CDP_URL` / `BU_CDP_WS` in the PROCESS env
-  wins over everything, silently — it is copied raw from `os.environ`, so under
-  multiplex one value pre-empts real-profile browsing for EVERY profile with no
-  warning. That is why the old Keychain `hermes` entries `BU_CDP_URL` /
-  `BH_CHROME_PATH` were deleted with the resident `:9333` Chrome for Testing
-  (`chrome-agent-launchctl.sh`, removed from `launchd/`; rollback =
-  `git show 93bb5bb:hermes/launchd/...` + `secret set BU_CDP_URL`). Never add
-  such a key back to a layer the gateway launcher evals.
-  Profiles that need the owner's logins — assistant and marketer only — set
-  `browser.use_real_profile: true` + `real_profile_pin:` naming a dedicated
-  Brave profile DIRECTORY (`Local State → profile.info_cache` key, not the
-  display name): assistant → `"Profile 12"` (**Hermes Agent (Assistant)**),
-  marketer → `"Profile 13"` (**Hermes Agent (Marketer)**, 2026-09-09). Log
-  in to services THERE, in the everyday Brave; cookies / logins are merged
-  into `~/.hermes/profiles/<p>/browser-profile/brave/` on every fresh clone
-  launch (gitignored) + `real_profile_binary:` pointing at the clone.
-  Everyone else gets upstream's on-demand packaged Chromium in a throwaway
-  profile. **One Brave profile per consenting Hermes profile, never shared:**
-  Google rotates its session cookies (`__Secure-*PSIDTS`, a few times an
-  hour) and treats an older value as a stolen session, so every client that
-  shares one Google login signs the others out — the 2026-09-09 case, where
-  the everyday Brave, the assistant's clone and a dozen marketer job clones
-  all rode Profile 12 and the owner was logged out after each relaunch. X
-  and Instagram carry static tokens (`auth_token` / `sessionid`, unchanged
-  over days of clone use) and do not do this; the separate profile still
-  isolates their risk-detection from each other. **The owner counts as one
-  of those clients:** a pinned profile is for SIGNING IN, not for the
-  owner's own browsing. On 2026-09-11 the owner worked in Profile 12's
-  Sheets while the assistant's clone held the same Google session, and the
-  two rotations knocked each other out — a forced re-login (reCAPTCHA +
-  passkey) for the owner at 15:08, the account chooser for the clone at
-  17:43. Telling the owner to "log in again" is the wrong move there: a
-  fresh login supersedes the LIVE clone's session and just moves the
-  sign-out to the other side. Log in, close, work elsewhere.
-  Preconditions that fail closed: the macOS DEFAULT browser must be Brave
-  (detection is the LaunchServices `https` handler only —
-  `hermes_cli/browser_connect.py:_detect_default_darwin`; with Safari it
-  returns `None`), the pinned profile directory must exist (`Local State →
-  profile.info_cache`), and the clone binary must be executable.
-  **Why a clone:** macOS treats one app bundle as ONE running app, so while a
-  headless Brave launched from `/Applications/Brave Browser.app` is alive a
-  Dock / Spotlight / `open` launch only activates it and the everyday Brave
-  cannot be opened — the 2026-08-17 defect, reproduced on upstream's real-
-  profile path 2026-09-06. An APFS clone (`cp -Rc`) at another path has no
-  shared identity, and its untouched signature still satisfies the Keychain
-  `Brave Safe Storage` ACL (bundle id + team, not path), so cookies decrypt
-  with no prompt — verified from the CLI and from the launchd gateway. The
-  clone lives in the gitignored `local/brave-agent/Brave Agent.app`;
-  `scripts/brave-agent-sync.sh` re-clones on version drift and the gateway
-  launcher runs it before every start (Brave auto-updates; a stale clone keeps
-  working until then). NEVER edit the clone — any change breaks the signature
-  and with it cookie decryption. The `browser.real_profile_binary` key is a
-  LOCAL patch (`fix/real-profile-binary-override` merged into `local`, with
-  `tests/tools/test_browser_real_profile_binary.py`); re-check after `hermes
-  update` like the other fix branches — without it the config key is ignored
-  and the real bundle launches, bringing the Dock clash back.
-  Runtime facts: the clone is launched with `--remote-debugging-port=0` and
-  lives until the gateway process exits (only the atexit hook reaps it; the
-  inactivity janitor closes agent-browser sessions, not this process), so one
-  headless Brave (~230 MB) is resident whenever a consenting profile has
-  browsed. **Owned CDP routing (2026-09-07 local upstream fix:
-  `fix/browser-harness-target-scope`):** resolved CDP calls now use a private
-  daemon runtime and stable name scoped by profile + logical session/task,
-  rather than the global sticky `browser_harness` daemon. The binding and
-  browser UUID are verified before executing code; endpoint changes are
-  serialized. Do not use the old generic `bu-default` kill workaround.
-  Owned-daemon idle cleanup (600 s) is opportunistic on calls and exit, not
-  a background timer; it does not refresh a live browser's cookie snapshot.
-  Stale cookies still require a fresh browser launch. The read-only isolated
-  Instagram baseline succeeded; the user agent was not implicated.
-  **A fresh launch means the CLONE process, not the gateway.** Cookies are
-  mirrored (`snapshot_real_profile` → `_mirror_profile_auth`) only on the
-  cold path of `_real_profile_cdp`; a gateway restart finds the surviving
-  clone via `DevToolsActivePort` and RE-ATTACHES (`real-profile: re-attached
-  to surviving Chrome`), mirroring nothing — the 2026-09-09 case: the owner
-  logged in to Google in Profile 12 at 13:09, the clone from 10:48 kept
-  serving the account chooser through two gateway restarts. And the clone
-  must go TOGETHER with its agent-browser daemon (`hermes-real-profile-<p>`
-  session, pid in `/tmp/agent-browser-hermes-real-profile-<p>/`): upstream
-  only closes that session when `get cdp-url` succeeds, so a daemon that
-  outlived a killed clone keeps the dead port, ignores the `--cdp <new
-  port>` of the next launch ("daemon already running"), and every call
-  fails with `All CDP discovery methods failed for 127.0.0.1:<old port>`
-  until the gateway restarts — UNPATCHED upstream, so watch it after
-  `hermes update`. The relaunch procedure the assistant runs itself is the
-  private-overlay skill `hermes-browser-relaunch` (`scripts/relaunch.sh`:
-  SIGTERM clone → stop daemon → clear socket dir; never launches; the next
-  `browser_exec` does). Note also that `_find_agent_browser` resolves the
-  npx cache copy (0.26.0 on 2026-09-09) ahead of the mise shim (0.31.1);
-  not implicated, but the version you see on PATH is not the one the daemon
-  runs.
-  **Two more LOCAL patches carried in `local`, both from the 2026-09-09
-  incident; re-check after `hermes update` like the others.**
-  (1) `fix/real-profile-session-scope`
-  (`tests/tools/test_browser_real_profile_session_scope.py`): upstream names
-  the attach daemon `hermes-real-profile` in EVERY hermes process. Resident
-  specialist sessions are separate processes (`HERMES_HOME=profiles/
-  marketer`), so a marketer job found the assistant's daemon answering for a
-  foreign data dir, closed it, re-snapshotted, launched its own clone — a
-  dozen times an evening — and left a daemon holding a dead port for the
-  assistant's next call to hang on (`took too long to start` after 120 s).
-  The name is now per hermes home (`-<profile>` suffix, following the
-  context-local override under multiplex), the CDP cache is keyed by it, and
-  the reaper exempts every profile's live-owned daemon. The earlier note
-  that "every consenting profile shares ONE clone" was true only inside the
-  gateway process; across processes it was the bug.
-  (2) `fix/real-profile-cookie-merge`
-  (`tests/tools/test_browser_real_profile_cookie_merge.py`): the cookie
-  store is merged row by row on relaunch, newest `last_update_utc` wins on
-  the store's own unique index, source attached read-only; version / column
-  drift or a non-SQLite copy falls back to the old overwrite. Without it a
-  relaunch replaced the clone's freshly rotated Google token with the
-  everyday profile's stale one and signed the clone out — verified live:
-  after 25 minutes the clone's `__Secure-1PSIDTS` already differed from
-  Profile 12's. Deletions do not propagate (a sign-out in the everyday Brave
-   leaves the clone signed in). The worker-facing rule (spawn your own
-   browser with port 0, never attach to Hermes' instance) lives in
-   `~/Workspaces/AGENTS.md` (private overlay).
-   **A third LOCAL patch, from the 2026-09-10 WhatsApp case:
-   `fix/real-profile-headless-user-agent`
-   (`tests/tools/test_browser_real_profile_user_agent.py`); re-check after
-   `hermes update` like the others.** New headless advertises
-   `HeadlessChrome/<v>`, and a site that gates on the UA STRING refuses a
-   browser that is perfectly current: WhatsApp Web answered the Brave clone
-   (Chromium 152) with "WhatsApp works with Google Chrome 100+ / update
-   Chrome". A RELAUNCH CANNOT CLEAR THIS — nothing is stale, only the name
-   is wrong — so an "update your browser / unsupported browser" page is a UA
-   gate, never a relaunch case, and never evidence that the owner's login
-   expired. The headless launch now passes `--user-agent` carrying the same
-   major version the binary reports (`<binary> --version`; an unreadable
-   version adds no flag rather than guessing), headed launches untouched.
-   Measured on a throwaway profile: without it, the gate page; with it, the
-   QR login page. It also empties the UA-CH brand list
-   (`navigator.userAgentData.brands` → `[]`), which is Chromium's own
-   trade-off for the flag. The earlier Instagram note ("the user agent was
-   not implicated") stands for THAT case; it is not a general finding.
-   Note also that `Browser.getVersion` reports `Chrome/…` on Brave, so it
-   never proves you left the clone — check the process, not the product
-   string.
-   **A fourth LOCAL patch, from the 2026-09-11 tab-accumulation case:
-   `fix/real-profile-no-session-restore`
-   (`tests/tools/test_browser_real_profile_session_restore.py`); re-check
-   after `hermes update` like the others.** The copy dir is long-lived, so
-   Chromium's ORDINARY session restore replays the previous run's tabs into
-   every new clone. Measured on Brave 152 headless in a throwaway
-   user-data-dir: the tabs come back after a graceful SIGTERM (`exit_type`
-   = `Normal`) exactly as after a SIGKILL, and removing `<profile>/Sessions`
-   is the only thing that stops it — so this is NOT crash restore, and
-   `exit_type` is a red herring (it reads `Crashed` on a RUNNING instance
-   because Chromium writes it at startup). Across relaunches it compounds:
-   the assistant's clone reached 128 pages / 79 workers / 7.5 GB RSS against
-   an expected ~230 MB, at which point `Runtime.evaluate` and
-   `Input.dispatch*` timed out "after 5s waiting for the daemon" and the
-   browser was too busy to answer SIGTERM — so the relaunch escalated to
-   SIGKILL and the next clone restored the same pile. `_launch_real_profile_chrome`
-   now purges that state before the launch; `Sessions` was also added to
-   `_SNAPSHOT_IGNORES`, since the owner's open tabs are their browsing, not
-   auth. Note the blast radius: the assistant opened ONE tab in the 35
-   `browser_exec` calls of the wedged lifetime, so tab growth was never the
-   agent's doing and no prompt-side rule would have prevented it.
-   `scripts/relaunch.sh --status` (private overlay) now prints `pages=` /
-   `rss=` per clone, which is how you notice the purge going missing.
-   **Cookies are not the whole login.** The snapshot deliberately excludes
-   `IndexedDB` (`hermes_cli/browser_connect.py`, `_SNAPSHOT_IGNORES`: it
-   wedges a fresh renderer and costs hundreds of MB), and only the auth DBs
-   are re-synced per launch, so a site that keeps its session THERE rather
-   than in cookies — WhatsApp Web is the case at hand — arrives signed out
-   in the clone even when the everyday Brave is signed in. Such a site gets
-   its own login IN the clone (WhatsApp: pair it as a separate linked
-   device from the QR page); the state then persists in the clone's own
-   IndexedDB across relaunches, but NOT across a snapshot rebuild or
-   `use_real_profile` going off, both of which delete it. Never copy
-   IndexedDB across profiles to shortcut this: for WhatsApp that shares one
-   linked-device identity between two clients, which is the 09-09 Google
-   rotation failure in another costume.
-- **Worker terminal approvals cannot prompt — a flagged command just fails.** The
-  dispatcher runs workers with `stdin=DEVNULL` but still sets
-  `HERMES_INTERACTIVE=1`, so `approvals.mode: manual` reaches EOF, denies, and the
-  tool returns `status: "blocked"`. The guard reads only the OUTER command, never
-  inside a script — so `./scripts/x.sh`, `bash x.sh`, `opencode run`, `npx
-  hyperframes …`, `ffmpeg`, `git commit`, non-force `git push`, `gh pr create`,
-  `xurl` and `python3 script.py` all pass. What trips it: inline interpreters
-  (`bash -c`, `python3 -c`, `node -e`), `find -delete`, `chmod +x … && ./…`,
-  recursive `rm -rf`, `git reset --hard`, `git clean -f`, force push. Write worker
-  playbooks around scripts and wrapper CLIs, never inline one-liners.
-  `command_allowlist` is the escape hatch (exact match or fnmatch glob against the
-  WHOLE command; skipped when it contains `&&` `|` `>` `;`) and stays empty on
-  purpose — allowing `bash -c *` would reopen exactly what the guard exists to
-  catch. The hardline floor (`rm -rf /`, `$HOME`, system dirs) blocks regardless.
-- **Upstream skill wiring is external_dirs-only.** Official `skills/` libraries
-  attach per category directory, `optional-skills/` per individual skill
-  directory, pruned via `skills.disabled` (see each profile's `config.yaml`).
-  Never run `hermes skills install` — it copies into `~/.hermes/skills`, i.e.
-  this repo (that's what the `.no-bundled-skills` opt-out protects against).
-  The setup-gated candidate backlog lives in `PROFILES.md`
-  ("Upstream wiring pattern").
-  **v0.21.0 seeds PAST that opt-out.** Every gateway launch writes
-  `autonomous-ai-agents/DESCRIPTION.md` into the RUNNING profile's skill root
-  (assistant) even though `.no-bundled-skills` is present and linked, and an
-  upgrade that CHANGES a bundled skill copies the whole skill in too:
-  `hermes-agent/` landed there on 2026-09-01, byte-identical to upstream with
-  mtimes preserved. A lone `DESCRIPTION.md` is harmless — gitignored, no
-  `SKILL.md`, so the validator stays green and deleting it only invites it back
-  next launch. A seeded SKILL.md is not: it fails
-  `validate-profile-skills.py` with `unexpected skill root`. So after every
-  `hermes update`, run the validator and delete any category directory under
-  `profiles/*/skills/` that is not `<profile>-pipeline`, `technic` or
-  `learned`; the skills stay readable in place via `skills.external_dirs`.
-- **Creator's hands (v3) are `<hands>-pipeline/<verb>/<subject>/SKILL.md`
-  leaves, one form each — never a technic, never a generated index.** The
-  contract (client model, five verbs, front-matter `form`, handoff text,
-  family-by-family migration) lives in `PROFILES.md` "Creator hands (v3)";
-  the validator enforces the shape (`validate_hands`), and a subject must be
-  unique across every hands because Creator reads all of them through one
-  `skills.external_dirs` list. `image-creator` (A2A `:9907`, receive-only)
-  serves the icon, emoji, mascot, reimagine, kit and card families (`emoji-fit.sh`
-  is the ONE home of the platform table; `generate-emoji` and
-  `generate-mascot` are two rounds — anchor, then pack — and a mascot's
-  approved anchor is the `reference:` of its emoji pack; `mascot-fit.sh`
-  draws on chroma green, never white, because `key_px` on white counts
-  eye whites; `generate-reimagine` sends the photo as `image_url` — the
-  edit input — and every style reference opens with a Medium line,
-  because an edit model returns the photo with a filter unless told
-  what the picture IS; a human client consents to the upload in the
-  same clarify round as the style; kit has all five verbs, with a
-  style-sheet/list approval gate for generation and deterministic
-  `create-kit` for exact UI states/9-slice geometry; `kit-images.py`
-  owns finish/palette/atlas/measure, uses alpha bounds rather than colour
-  trim for hollow UI frames, and rejects stale nonempty QA/atlas dirs);
-  Creator
-  (pipeline v9: `plan-creator` / `build-creator` / `qa-creator`, independent
-  entries under `creator-pipeline/` followed by each entry's selected
-  `references/<hands>/<subject>.md`; subjects remain plain references)
-   uses runtime caller context before message shape: agent Clients receive text
-   `Q<n>:`, direct humans receive `clarify` (native buttons on Telegram).
-   Conversational follow-ups are not proof of human origin or approval.
-   Creator fills the leaf's form and hands off; the
-  technic-era routes for unmoved families sit in `references/legacy/`. Two earlier shapes failed —
-  the generic technics decided nothing, `refactor/creator-profile` governed
-  everything — so: no menu.yaml, no generated MENU.md, no preset layer, no
-  cross-media Styles; an execution-environment trap goes into the leaf's
-  Procedure that hits it (Japanese `。` in argv trips the guard → text via
-  file; > 420 s → `background: true`; vision holds ~3 images → contact sheet
-  then one at a time; `magick montage` aborts without a default font →
-  `+append`; a multi-file `rm` trips the guard → leave `/tmp` alone; an
-  inline `for` loop over a script variable trips it too → batches go
-  through a script file; a 32 px tile is judged point-magnified 4x; a
-  look whose finding is not appended to `qa.md` before the next
-  `vision_analyze` did not happen — an image leaves the context three
-  looks later and an unwritten run cycled 152 looks over three files;
-  the write guard reads the WHOLE terminal command, so `cp … && <skill
-  script>` is refused → a skill script runs in a command of its own).
-- **Creator's v9 broker references mirror subjects, not forms.** Each of
-  Plan / Build / Quality assurance owns an entry `SKILL.md` plus one flat
-  `<hands>/<subject>.md` for every subject actually served by the three
-  hands; verb differences stay inside that file. `validate_creator_references`
-  derives coverage from the hands leaves and checks both missing and orphan
-  references, entry links and local link targets. A v9 root requires all three
-  independently discoverable entries and rejects stale `references/<phase>/`
-  trees; the shipped v7/v8 validation remains for earlier candidates. Each entry
-  requires the full kernel, with canonical read recovery or a stop when absent.
-  New subject references
-  land with their hands family, never as placeholder stubs. Creator reads QA
-  evidence against intent; do not transplant the hands' measurement commands
-  into Creator's QA. Actual legacy capability retirement stays family-by-family
-  after caller coverage and both-client soak, not merely because a leaf exists.
-  Writer's released-unit ownership is unchanged; see PROFILES.md "Broker shape".
-- **Assistant is a deliverable-first Client, not a second production broker.**
-  The visual-design contract adds one narrow responsibility: Assistant concretizes
-  authored video and UI appearance, then uses `profiles/assistant/scripts/creative-timeline.py`
-  to diagram its data as planning-only HTML for the existing plan agreement.
-  This is not production HTML, another hands form or a media render. Creator owns
-  actual supported technology, realization and production approvals. Preserve full
-  design identity/IDs and intermediate states across the handoff; never silently
-  flatten required 3D/shader motion or replace bespoke UI with generic controls.
-  The helper validates structure, not artistic quality or user authority. This
-  feature changes neither the available renderers nor frozen jobs. Cut over on
-  2026-09-13; see PROFILES.md "Visual design and timeline" for the restricted
-  real-model probes, Telegram verification and remaining model/runtime limits.
-  Its plain `plan-assistant-creative/references/<deliverable>.md` guides hold
-  Client decisions, visual-design requirements and acceptance criteria, with conditional research and common Execute
-  and QA. No hands-name parity, form/provider/limit catalog or duplicate
-  per-deliverable Execute/QA tree: a missing guide never means unavailable.
-  The retained production decision/inspection files live in each creative entry's
-  `references/legacy/`; only those Plan/QA files retain technic/Covers parity.
-  Each owning SKILL must route `references/legacy/index.md`; detail card
-  declarations are forbidden. The two original creative card units stay in
-  `execute-assistant-creative/SKILL.md` frontmatter. Relocation is not capability
-  retirement. Assistant's fixed
-  house formats, device catalog and blanket past-film recipes are retired in
-  both paths, not transplanted into Creator. Real technical constraints stay
-  with the current producer; frozen outputs and approvals stay unchanged.
-  Research examples are inspiration only, not authorized production assets.
-  Creator's common Plan accepts observed/suggested/user-decided/open briefing
-  text but requires explicit relayed asset-and-operation upload consent;
-  Assistant origin, a path, a public URL or "use this" alone is insufficient.
-  Rights, upload, remote analysis, exact proposal approval and Publish remain
-  separate. Validate the paired public/private candidate structurally before
-  approved cutover, then check real Git ownership and fresh-session discovery;
-  never weaken the live symlink/Git boundary to make temporary-copy tests pass.
-- **Pinned Telegram topics are skill-less: Inbox + Admin (2026-09-14).** The
-  assistant's `platforms.telegram.extra.dm_topics` (private `config.yaml`)
-  declares exactly those two; the four-desk layout (Personal / Projects /
-  Brainstorm + `desks/{personal-desk,project-desk,brainstorm}`) is retired,
-  the `desks/` overlay link is gone, and `validate_assistant_dm_topics`
-  rejects any topic carrying a `skill:` key and a `dm_topics` list without a
-  topic literally named `Inbox` (`profile-secrets.sh` derives
-  `TELEGRAM_CRON_THREAD_ID` from that name — rename it and every bare
-  `deliver: telegram` cron job fails closed). Inbox receives cron output and
-  starts no work; Admin is the inline surface for small admin work
-  (workspace `pj` / `pp` / `hb` / scaffold, `~/.config` edits, Hermes upkeep)
-  with no resident session, delegation or kanban card — its contract is the
-  `channel_prompts['<thread_id>']` text (template in
-  `config.example.yaml`), and the chat-wide `assistant-pipeline` binding is
-  the only skill surface. Adding a pinned topic = a `dm_topics` entry WITHOUT
-  `thread_id` → gateway restart creates it and writes the id back through the
-  symlink into the private repo (expect a full re-serialization diff there)
-  → then key its `channel_prompts` entry → `/restart`. Hermes never deletes a
-  Telegram topic: close retired ones by hand in the client.
-- **Card is one image subject with create/generate/edit/analyze leaves.**
-  `create-card` also accepts task-authored static `layout_html` with exact
-  copy/asset bindings and optional per-tile `copy_blocks`; ImageCreator authors
-  it, not the Client. This is the continuity path for centered covers/custom
-  typography, not an expansion of the template CSS allowlist or silent legacy
-  fallback. Authored work uses resident transport, freezes source with a hash,
-  and measures rendered geometry, supported visibility checks and overlap
-  without auto-shrinking. Masks/occlusion/contrast/readability stay visual QA.
-  Old specs retain their template behavior; do not weaken a design to fit them.
-  `scripts/card.py` consumes canonical `create/card/references/destination/`
-  scalar front matter and `styles/*.md` CSS blocks. Generate's own style refs
-  are backdrop prompt prose, not duplicated CSS. Local HTML uses isolated
-  offline agent-browser with frozen assets/fonts, no inherited login/CDP, and
-  exclusive output bundles. Full panoramas render before exact PNG crops;
-  text belongs to individual tiles, not global destination crops. X pair 7:8
-  is UNVERIFIED; X article 5:2 is user-verified ratio, not official 1500x600.
-  Gap previews are configurable local simulations, never platform screenshots.
-  Generate proposes 3+1 attempts across resumes but needs explicit current-work
-  user budget approval before paid calls. Card routes before creator-text-card;
-  retain its files/private-overlay mappings until handoff coverage, paid live
-  validation and legacy caller migration prove retirement safe. No new profile,
-  toolsets, secrets, test posts, authenticated access or gateway restart.
-- **Video hands start with `clip`, not the whole legacy video surface.**
-  `video-creator` receives forms on loopback A2A `:9908`; its three clip leaves
-  are `generate-clip` (1-15 s, silent single shot), `edit-clip` (a <=60 s
-  segment), and `analyze-clip` (findings). It has no TTS; `create-tour`/
-  `create-ad`/`create-explainer-video` may optionally consult four curated HyperFrames technical
-  references via `skills.external_dirs` (read-only, procedural background
-  only — see `PROFILES.md` "Video authoring references"), and clip does not
-  use them. `clip-media.py` owns local probe/frames/edit with exclusive
-  output publication, measured byte caps and full decode; never treat
-  GIF repeat metadata as a seamless-motion guarantee. Frame times are
-  seek positions, not exact PTS. Remote video analysis is a separate
-  upload-consent field; without it temporal QA remains unverified.
-  xAI persistent public storage is disabled in this profile. Old learned
-  `video-render-environment` remains on disk but is disabled (it names
-  retired menu leaves). A2A identifies loopback callers by IP, NOT a
-  cryptographically verified profile; verbal origin confirmation adds no
-  security. Keep localhost restrictions, do not widen the transport.
-  The MiMo override now calls upstream `_download_media` with explicit
-  video options: `_download_video` was removed in `c4a9f2bf49`. Its tests
-  invoke the handler with real imports so registration-only tests cannot
-  hide another deferred ImportError.
-- **Tour is a new video subject, not a global legacy retirement.**
-  `create/tour` owns bounded (<=60 s) task-local authored UI walkthroughs,
-  with frozen source projects, exclusive preview/final directories and a safe
-  approval resume. VideoCreator authors HTML/CSS/GSAP from approved reference
-  images/design/text; Creator owns semantic flow/fidelity/choice approvals.
-  Intro/outro default ON; three reference examples are not exhaustive,
-  free-text directions stay verbatim and only explicit none omits them.
-  `authored.py` freezes/checks/renders v2/v3, never generates UI. The unchanged
-  `tour.py` entry remains for persisted v1 screenshot projects/direct calls.
-  `screen_mode` is recreate (omitted preserves v2), supplied or capture. Explicit
-  modes use v3 proposal/hash approval without migrating frozen v1/v2 artifacts.
-  `footage.py` prepares actual local video with bounded source ranges and explicit
-  keep/mute; `capture.py` owns isolated sanitized Web recording under job/scope
-  leases. Reference/source/target are distinct, never consent. Native capture is
-  UNAVAILABLE: cua-driver 0.23.2 records the main display, and no cross-profile
-  desktop guard covers Assistant's computer_use. Never grant it to VideoCreator
-  or use Assistant fallback. Wrapper checks are not a terminal/website sandbox;
-  no authenticated/private-region capture or privacy redaction is claimed.
-  No edits to frozen source, external runtime workflows/executables, or TTS
-  (the optional read-only HyperFrames references, `PROFILES.md` "Video
-  authoring references", are advisory background only); use finished
-  audio-creator WAV/words.json. Creator always uses specialist
-  `kind="work"` for tours. Keep creator-html-motion and its 1:1 mappings intact.
-  GSAP is minimally vendored with its own license and hash provenance.
-- **Ad is an audience/promise/action deliverable, not a product-category
-  skill tree.** VideoCreator serves `analyze-ad` (<=60s, bounded overview,
-  two dense windows, three native detail looks; facts/interpretations/unknowns
-  separate) and `create-ad` (6..30s, 30fps; aspect 9:16/16:9/1:1/4:5,
-  default 9:16; authored HTML/CSS/GSAP from supplied assets). Canonical sizes
-  live in ad-render.py; source, preview and output must match. A ratio change
-  needs re-layout and new approvals, never crop/scale or old-preview reuse.
-  Old aspect-less portrait plans keep their bytes and hashes. Always
-  specialist kind="work". Analyze may retain
-  report/evidence at explicit deliver, never a new ad; readable local video
-  paths use frame extraction, not requests for chat attachments. Remote video
-  analysis remains separately consented, at most once; image vision uses the
-  normal profile policy, not a promise of offline inference. Create requires
-  exact content-plan approval then exact frozen-preview approval in the same
-  work conversation. The helper binds bytes, not approver identity; static
-  copy checks are neither visual readability nor claim verification. No
-  invented metrics, client-live claims, generation, TTS or capture; theme
-  defaults never authorize missing asset generation. Generate-ad and PV are
-  future leaves, no legacy mappings are retired. PV primarily introduces
-  qualities/world; duration and CTA presence alone do not decide the route.
-- **Explainer video is a topic/audience/learning_goal deliverable, authored
-  locally, not a UI tour, an ad, or a talking-model product.**
-  `video-creator` serves `create-explainer-video`: 1..180 seconds, always
-  `specialist kind="work"` even though free, rendering through an
-  explicitly chosen v1 HyperFrames or v2 Motion Canvas engine at 16:9
-  (1280x720) or 9:16 (720x1280), 30fps — the engine is selected in the
-  proposal and preserved, never silently switched, including never on
-  failure. Motion Canvas is implemented (`engines/motion-canvas/`,
-  `create/explainer-video/scripts/motion_canvas.py`) as its own local
-  reference (`create/explainer-video/references/motion-canvas.md`) with no
-  dependency on the external HyperFrames skills; prefer it for reactive
-  diagrams, algorithms and Canvas-based explanation, and prefer HyperFrames
-  for HTML/UI or media-oriented compositions. Old version 1 Motion Canvas
-  discussion proposals stay non-executable and need a fresh version 2
-  proposal and a new approval, never a resume of the old hash.
-  `framing` (none/bust/full) is a field separate from `performance`
-  (still/puppet/animated) and `lip_sync` (off/cues/baked): bust only
-  proposes lip-sync cues by default, never a silent substitute for an
-  explicit `off`, and full supports whatever performance the client
-  actually approved rather than an automatic upgrade toward it. Neither
-  renderer provides automatic phoneme/viseme inference, rig authoring, or
-  native talking-model playback, so a naturally talking video is never
-  something this leaf generates on its own. Already-supplied authored cue
-  JSON plus mouth
-  PNGs can drive a deterministic mouth track; a supplied finished muted
-  MP4 carrying its own sync evidence can carry a continuous animated
-  performance instead. A missing required performance asset is reported
-  as pending-inputs, never a silent downgrade of framing/performance/
-  lip_sync. Creator, never VideoCreator, resolves the caller-selected
-  workspace/asset root: a direct path or an identity it already holds
-  first, else a bounded name-only lookup inside the caller's own known
-  workspace, with an ambiguous match going back as a question rather than
-  a guess — never a broad home-directory scan, and never a new character
-  invented merely because a file is missing. Explicit assets are retained
-  as unchanged originals; the resolved root and any asset's private name
-  stay working detail and never enter a public proposal, form, or report.
-  An unspecified character is not "no character" — Creator clarifies none
-  vs. an existing character vs. a new one, and an existing character
-  missing a needed pose is a missing-only generation request through the
-  fitting image-creator mascot leaf that preserves its approved identity.
-  New character art goes through image-creator's mascot family, script
-  text through Writer's current `write-script` family (never the retired
-  writer technic, and never Creator composing the script itself),
-  grounding facts through researcher as needed, and narration/audio
-  through audio-creator; VideoCreator cannot call those hands/peers
-  directly and instead returns a dependency request to Creator, released
-  as its own separately budgeted/approved unit. The runtime
-  lifecycle mirrors Tour/Ad's proposal-then-approval shape: `propose
-  --spec SPEC --out <new proposal-vN dir>` writes `plan.json` +
-  `proposal.md` + an assets snapshot and returns `pending-inputs` or
-  `awaiting-approval` with the proposal's SHA-256 — missing inputs are
-  described in `spec.pending`, never invented files or hashes; the
-  approved script and exact on-screen copy are settled inputs, and each
-  unit explains its before/change/after and visual expectations. A
-  formally ready proposal exists only once the selected modes' required
-  inputs and a supported renderer are in hand; silent/no-character modes
-  need no audio/character assets. The user approves it via
-  Creator. Only then does `freeze --approved-plan <proposal.md>
-  --approval-sha256 HASH --source SOURCE --project NEW` run, followed by
-  `snapshot --project PROJECT --out NEW`, and only a matching
-  `render --project PROJECT --approved-preview PREVIEW --approval-sha256
-  previewhash --out NEW` releases the final video. Nothing here
-  self-approves; frozen outputs stay unchanged. Client confirmation is
-  conversational like every other hands leaf — hashes bind bytes, not
-  approver authority. For a HyperFrames plan, the existing curated
-  HyperFrames external references and their read-only, discussion-scoped
-  policy (`video-creator-pipeline/references/hyperframes.md`, `PROFILES.md`
-  "Video authoring references") cover this leaf too, alongside
-  create-tour/create-ad; a missing or unreadable reference is reported with
-  a local-authoring fallback, never a blocker, while an actual runtime or
-  approval error still blocks as always. A Motion Canvas plan instead uses
-  only its own local reference and the pinned local runtime that a
-  maintainer explicitly provisions with
-  `node hermes/engines/motion-canvas/setup.mjs --browser <browser>` — jobs
-  never install or upgrade it. Setup APFS-clones a supplied macOS `.app`
-  browser into an ignored `runtime/browser/Renderer.app` (signed contents
-  preserved, avoiding a Dock/LaunchServices clash with the everyday
-  browser) and uses a non-app dedicated Chromium/headless-shell binary
-  directly; neither path copies cookies or a profile, so every render gets
-  a fresh isolated one. Rerunning setup against the same pinned lock skips
-  reinstalling dependencies but never overwrites a different existing
-  clone or a changed lock — that drift needs explicit maintainer
-  replacement/provisioning and a new preview approval. Every preview
-  records the actual runtime/Node/browser identity used; a normal browser
-  version change doesn't by itself require reinstalling, but any changed
-  identity still needs a fresh preview and approval, and final QA always
-  carries the engine's contrast-audit status — Motion Canvas has no
-  automated contrast check and reports it as requiring manual visual
-  review. This is additive: existing music-video, ad, tour and Mix routes
-  are unchanged.
-- **Audio hands own `speech`, `sfx`, `music` and `mix`.** `audio-creator` receives forms on A2A
-  `:9909`: generate/edit/analyze-speech. The character-voice plugin registers
-  only there; Creator retains ordinary conversational TTS, never a speech
-  asset bypass. House uses the language chain (including online Edge); a
-  qualified local voice never falls back and rejects unsupported style/seed.
-  `free` is a media-fee class, not unlimited takes: one plus one corrective
-  by default, failures counted. `speech-media.py` owns track/edit/analyze,
-  cached local ASR, exclusive bundles and measured normalization. Existing
-  WAV timing sidecars are checked before reuse; lossy sibling derivatives
-  get fresh ASR. Subtitle timing is estimated, pronunciation/performance
-  unverified. Never invent a listening verdict or re-roll for an ASR spelling
-  variant. Speech can feed a legacy film as a completed input; vocal-song
-  generation and standalone audio visualization are withdrawn, not migrated.
-  The old voice card is retired; no hands kanban contract is added.
-- **SFX is a separate four-leaf family, not music or mixing.** `create-sfx`
-  uses eight deterministic local kernels; `edit-sfx` and `analyze-sfx` never
-  generate. `sfx-media.py` preserves mono/stereo, freezes local inputs, bounds
-  decode to 22s/16 MiB and publishes new 48 kHz PCM WAV bundles. Short SFX may
-  have no integrated LUFS; that is WARN, not a reason to re-roll. Peak/clipping
-  and boundary samples are measurements, never hearing or seamless-loop proof.
-  `generate-sfx` uses the standalone `sfx-gen` plugin and `sfx_gen` toolset,
-  enabled only on audio-creator. **Local `local:stable-audio-3-medium` is
-  installed and is the default engine when `engine` is omitted** (installed
-  via `stable_audio3.py install --accept-terms`, a maintainer-only, one-time
-  step — jobs never install or download anything). It takes a `seed`
-  (default 0, 0..2^32-1, returned with the result); attempt N uses
-  `(base seed + N - 1) mod 2^32`. It rejects `loop=true` and any
-  `prompt_influence`/`paid_approved`/`max_usd` outright rather than dropping
-  them silently. Each render is a fresh subprocess under the shared runtime
-  lock (inherited by the child, 180s timeout) — no LaunchAgent, no port, no
-  GPU-resident process. `resume` never regenerates: it only re-validates the
-  saved `take-NN/raw.wav` + `take.json` + `inference.log` against the job's
-  frozen receipt; an interrupted attempt with no result and no running
-  process is marked failed (still counted), and `next` may use the
-  remaining grant. Explicit `fal:elevenlabs-sfx-v2` remains available as an
-  alternative: it must be named explicitly, needs explicit current-work
-  paid approval (prompt/seconds/loop/cap/`max_usd`), supports `loop` and
-  `prompt_influence`, and has NO seed (verified OpenAPI); requests cap at
-  21.5s to leave 0.5s padding/drift headroom. Neither engine ever falls
-  back to the other, automatically or silently. `max_calls` defaults to 4
-  (3 variants + 1 corrective) on local; fal requires an explicitly approved
-  cap. Both have hard cap 8, every attempt
-  including failures counted. Metadata cost stays `metered` (the leaf can
-  still spend on fal), but actual local spend is reported as `$0`. Frozen
-  job state counts before a paid submission and retains request IDs; paid
-  POSTs never use the SDK's automatic submit retries. Ambiguous fal
-  submissions stop. Secrets resolve from profile scope, never process-env
-  fallbacks. Old `local:stable-audio` (Stable Audio Open, 401-gated) is
-  retired history, not the current Medium engine's status — never describe
-  Medium as gated or blocked. `create-ad` accepts up to 16 distinct
-  finished WAV cues, one placement per source and distinct positive audio
-  track indices when multiple; final multi-audio true peak is checked. No
-  gain automation, TTS, music/mix family, tour changes or new peer is added.
-  SFX leaf commands use a literal Python path (or unquoted `~/ghq/...`),
-  never `$(ghq root)` in the executable: a real generate-sfx packaging run
-  was refused as "Nested executable body could not be resolved". Resolve
-  a different ghq root separately, then execute the absolute path. Reuse the
-  surviving raw WAV/receipt; this packaging repair consumes no generation.
-- **Music is instrumental BGM or a short melodic piece, not Song or Mix.**
-  Four leaves live at `audio-creator-pipeline/<verb>/music/`: create renders an
-  AudioCreator-authored, approved score using five synthetic colors; generate
-  uses `music-gen`/`music_gen` only on audio-creator; edit processes one source;
-  analyze is also a standalone musical-analysis request, including existing
-  vocal music without lyric or singing analysis. `music_plan.py` freezes the
-  effective form, exact score/prompt and reference hashes in a proposal. Both
-  creation leaves require Creator-relayed approval of that exact proposal;
-  hash matching is integrity, never approver authentication. No audio/uploads
-  in round A, no automatic reference-audio conditioning. Users need not author
-  a score or prompt. `music-media.py` owns 48 kHz PCM bundles and bounded local
-  tempo/key/activity estimates; instruments, genre and vocal absence stay
-  unverified. Create/generate cap at 60s, edit/analyze at 600s/128 MiB.
-  Local Stable Audio 3 Medium shares SFX's weights and runtime lock, never a
-  new daemon. `render_music` has its own bounds; SFX `render` remains <=21.5s.
-  Explicit `fal:stable-audio-3-medium` supports seed and needs current-work
-  approval and a dollar cap; neither direction falls back. Default local
-  grant is 2+1 attempts (hard cap 8), failures counted, resume never generates.
-  Corrected approved prompts retain the consumed-call ledger and frozen
-  engine/duration/seed/budget. Runtime adapter edits invalidate its install
-  fingerprint: maintainer `stable_audio3.py refresh --previous-adapter PATH`
-  verifies the previous adapter fingerprint and the entire existing install
-  offline before updating its marker. Never bypass drift checks or rewrite
-  existing job receipts; completed SFX resume remains valid, next detects drift.
-  **The stat fingerprint is inode + mtime_ns + size — never `st_dev`.**
-  macOS renumbers the APFS Data volume's device id across reboots
-  (`16777232 → 16777233` on 2026-09-10, the first restart after the 09-08
-  install), so a marker that recorded it reported `drift: … stat
-  fingerprint mismatch` on every weight and all 22 dependency records with
-  nothing changed on disk; AudioCreator read that as "local model broken"
-  and steered the Technicity BGM job toward paid fal. `_stat_matches`
-  compares only the three keys, so a schema-2 marker that still carries
-  `dev` stays valid without a rewrite. If `check` reports stat drift after a
-  reboot again, suspect a new volatile field before suspecting the weights —
-  `check --full` hashing clean while fast fails is the tell. Note also that
-  `status()`'s full mode HASHES the weights instead of stat-checking them
-  (dependency stats are checked in both modes), so a full pass does not prove
-  the fast guard is green.
-  Finished music uses create-ad's existing WAV cues. No new tour/MV finish,
-  song, mix, peer, secret, model download or launch service is implied.
-  **Keep music front matter inside the runtime's first 4,000 characters.**
-  Hermes discovery truncates before parsing YAML; an incomplete fence falls
-  back to the parent name, collapsing create/music and generate/music into
-  one `music` skill despite the topology validator passing. Compact labels,
-  keep full procedures in the body, and test actual `_find_all_skills` names.
-  MusicVideo is now `generate-music-video` at `generate/music-video/` and
-  its complete form also fits the discovery prefix. Runtime write protection
-  checks literal operations/targets, not `mv` inside a job path; the music
-  proposal CLI has a real guard-plus-proposal regression for that case.
-- **Mix places already-finished sources on a shared timeline, not a new
-  synthesis or a music/SFX family.** Three leaves live at
-  `audio-creator-pipeline/<verb>/mix/`: `create-mix` takes 1-16 standalone
-  local speech/sfx/music files (WAV/FLAC/Ogg/MP3/AIFF, each <=128 MiB,
-  <=512 MiB combined, <=600s decoded) and AudioCreator authors cue
-  placement (<=32 cues) from `direction`/`must_keep` when no exact
-  `arrangement` is supplied, with gain/fade/piecewise-dB-envelope
-  automation; `edit-mix` revises one existing bundle from a
-  plain-language change request against its frozen previous spec/
-  sources; `analyze-mix` returns format/loudness/clipping/true-peak
-  findings, plus recorded cue/source placement when a bundle is
-  supplied — findings only, no delivery file. `mix-media.py` owns
-  propose/render/analyze/verify; `create-mix`/`edit-mix` are TWO rounds
-  like music — round A is always a zero-render `proposal-v<N>/
-  proposal.md` + SHA-256, and only a matching Creator-relayed
-  `approved_plan`+`approval_sha256` releases the render. No loops,
-  speed/pitch changes, EQ, reverb, or source separation; every source
-  stays the original standalone file, frozen and hash-verified before
-  use — this leaf assembles, it never generates. `target_lufs`/
-  `true_peak_dbtp` are explicit authored choices with no hidden default
-  (`null` is a valid `target_lufs`); a source's own existing defect
-  (e.g. prior clipping) is retained and reported, never silently
-  corrected, and a mix that retains it still FAILs. Captions, when
-  produced, come only from an existing `.words.json` sidecar on a
-  speech source, timing-adjusted to that cue's placement — never a
-  fresh ASR pass on the mixed master. This is `cost: free` (no
-  provider fee) throughout; the leaf is deterministic placement/gain/
-  fade/sum on already-decoded PCM, not a model call. No new engine,
-  plugin, toolset, secret, peer or daemon is added; Mix shares no
-  runtime with SFX/Music's Stable Audio install. Old `no skill fits`
-  language for "audio mixing" in Creator's docs is replaced by a
-  pointer to these three leaves; the fact that a music/SFX leaf is not
-  itself a mixer is unchanged.
-  Normalization is measured constant gain only, never loudnorm's implicit
-  dynamic-limiter fallback. Infeasible loudness/peak targets FAIL; stereo-to-
-  mono cancellation is warned and recorded. Ad/Tour opt in with
-  `audio_workflow: mix`: preliminary timing first, Creator-brokered Mix next,
-  then ordinary video approval using real master/receipt hashes. No dummy
-  audio or placeholders in an approved plan. `mix_audio.py` validates the
-  staged subset; Tour binds `mix-caption-N` text/timing to the distinct
-  captions.json (never relax speech's words.json hash check). Only the master
-  plays; kept footage audio conflicts. Final decoded audio duration and peak
-  are measured again. Omitted Mix fields preserve frozen v1/v2/v3 behavior.
-- **Multiplex TTS needs the scoped toolset-cache fix in the local Hermes
-  checkout.** At upstream `4f0309e9cf`, `toolsets.resolve_toolset` memoized
-  by toolset/registry generation but NOT profile scope. After Creator lost
-  character-voice, warming its `tts` entry hid the two tools from AudioCreator
-  despite correct scoped registration. `toolsets.py` now also keys on
-  `registry.current_scope_key()` (static-only resolution uses an empty scope).
-  It is carried as `fix/toolset-profile-scope-memo` merged into `local` in the
-  hermes-agent checkout, with a regression test; re-check after `hermes update`
-  that the merge survived. `test_audio_creator_routing.py` also exercises the
-  real resolver across scopes at unchanged generation. Registration-only
-  tests and direct CLI synthesis cannot detect this gateway-specific failure.
-- **Opus 5.5 / Fable 5.1 on Anthropic OAuth need two local fixes
-  (2026-09-23).** `fix/anthropic-opus-5-5-mandatory-thinking` adds Opus 5.5
-  to the mandatory-thinking list, so a thinking-off request omits the
-  `thinking` field instead of sending the disable those models 400 on. A
-  follow-up commit on `fix/anthropic-oauth-tool-choice` stops the
-  leaked-markup recovery from forcing `tool_choice: any` on models that 400
-  on forced tool use (Opus 5.5, Fable 5.1, Mythos 5.1). Both are merged into
-  `local` with regression tests; re-check after `hermes update`, and drop the
-  first once upstream lands #119419 / #119793. A new Claude release is not
-  covered until someone reads its "What's new" breaking changes against
-  `_MANDATORY_THINKING_CLAUDE_SUBSTRINGS` and
-  `_NO_FORCED_TOOL_CHOICE_CLAUDE_SUBSTRINGS` — unknown Claude ids default to
-  "disable accepted, forcing accepted". Details: PROFILES.md "Models and
-  fallback chains".
-- **`image_generate` only advertises what the configured provider's
-  `capabilities()` declares, fail-closed to text-only.** The
-  `image-fallback` chain provider did not declare one until 2026-09-05,
-  so every profile on `img-codex-xai-fal` had NO `image_url` /
-  `reference_image_urls` in the tool schema while codex and xai both
-  supported them. The chain now reports the first available member's
-  surface and, for a call that carries images, skips text-only members
-  instead of falling through to a redraw. Verify after an upstream
-  change with `_build_dynamic_image_schema()` under the profile's
-  `HERMES_HOME` (`plugins/image_gen/image-fallback/tests`).
-- **MV is a deliverable, not a character/format skill product.** VideoCreator's
-  `generate-music-video` uses existing `video_generate`, with local style/theme/direction
-  references. Theme defaults are concrete world vocabulary overridden by
-  `theme_detail`; never introduce a menu generator or cross-media presets.
-  First round returns only a new `proposal-v<N>.md` and its SHA-256, with zero media calls.
-  Creator relays client approval; only a matching `approved_plan` and
-  `approval_sha256` in the same work conversation releases generation. This is
-  an operating contract, not cryptographic caller authorization. Changed inputs
-  or creative choices require a new proposal; attempts never reset on resume.
-  Supplied music may be pending in a zero-spend proposal via textual
-  `music_plan`: mark pending-inputs/can_generate:false, never invent a file
-  or hash. Pending image-upload consent does not block local-only planning.
-  Before generation, require real music_file/consent and a NEW numbered
-  proposal/hash approval; a preliminary approval is not executable. Music
-  production is separately released through Creator, never done in this leaf.
-  Native audio must be supported by the actual backend; reference videos and
-  supplied music are never uploaded by this leaf. Exact words/supplied music
-  may require separately approved finishing, and a silent visual master is
-  not a completed musical MV. Keep unverified temporal/audio QA explicit.
-  Recipes are authored, not yet paid-render validated; broader legacy video
-  remains available, and clip/tour are unchanged.
-  xAI's reference-image path silently clamps to 10s despite advertising 15s;
-  use a conditional 10s default and block explicit longer requests before spend.
-  The current xAI-first chain does not advertise native audio: generated sound
-  is blocked until a capable route is explicitly configured, never guessed.
-  Only the skill name/path is renamed; `mv_<slug>` output filenames and runtime
-  job paths stay unchanged. No old-name alias: reissue active legacy jobs with
-  a new proposal and client approval; never edit frozen old jobs. Keep the
-  closing frontmatter within 3800 characters for upstream's 4000-character scan.
-- **HyperFrames skills live outside the repo, on purpose.** `creator` reaches the
-  `hyperframes*` / `media-use` playbooks through `skills.external_dirs`
-  (`~/.agents/skills`) — a harness-neutral store owned by `hyperframes skills
-  update` and shared with Claude Code / Codex / Gemini, so it stays untracked.
-  Never symlink them into `profiles/creator/skills/`: the CLI already relocated
-  the store once (`~/.claude/skills` → `~/.agents/skills`) and the relative links
-  broke silently. A fresh machine needs `hyperframes skills update` before creator
-  can load them. Note that a bare `hyperframes skills` **installs** rather than
-  reports — verify with `hermes -p creator skills list` instead.
-  An installer run reseeds those links and every one lands DEAD (26 of them on
-  2026-08-19): `~/.hermes/profiles/creator/skills` is itself a symlink into this
-  repo, so a target of `../../../../.claude/skills/…` — correct counted from
-  `~/.hermes/…` — resolves one level short from the real path and hits
-  `~/.config/.claude/`. The tell is `validate-profile-skills.py` failing with
-  `local skill root must not contain symlinks` while `skills list` still shows
-  every skill, because `external_dirs` was serving them the whole time. DELETE
-  the links (gitignored by `hermes/profiles/*/skills/*`, so nothing leaves the
-  repo); never repoint them. **The SHARED root `hermes/skills/` gets seeded the
-  same way** — 26 dead `../../.claude/skills/…` links there on 2026-08-29, found
-  by the same validator failure and removed on 2026-09-01. That root is
-  gitignored too (`.gitignore: hermes/skills/*`), and only `default-pipeline/`
-  and `learned/` belong in it; anything else appearing there is installer
-  residue. Check BOTH roots when the validator reports symlinks — the one
-  intentional link is the assistant's private-overlay `assistant-pipeline`,
-  which resolves and must stay (its sibling `desks` link was retired with the
-  desk skills on 2026-09-14 and is now a validator error if it reappears).
-  **`video-creator` pins four individual
-  technical dirs from the same store** (`hyperframes-core`, `hyperframes-animation`,
-  `cut-the-curve`, `oversized-cursor`) for its `create-tour`/`create-ad`/
-  `create-explainer-video` leaves only — never the whole store, and the same
-  never-copy/never-symlink rule applies (see `PROFILES.md` "Video authoring
-  references"). A missing or unreadable entry there is a documented
-  local-authoring fallback per that leaf's contract, not a runtime failure.
-  Separate knowledge-only media-craft pins for all three hands are documented
-  below; they do not widen this technical subset's scope.
+  Personas, bots and cron belong in named profiles.
+- **`platform_toolsets.<platform>` is the effective tool allowlist.** Keep it
+  granular (composite toolsets such as `hermes-cli` / `hermes-telegram` expand
+  broadly and strip default-off tools), mirror the role in top-level
+  `toolsets`, and list each allowed MCP server explicitly or use `no_mcp`, so
+  future servers are not inherited by accident. Design:
+  [docs/topology.md "Toolsets"](docs/topology.md).
+- **`agent.*` does not inherit from the root profile** — set it per profile
+  ([docs/models-auth.md](docs/models-auth.md)).
+- **Pinned Telegram topics bind no skill.** The Assistant's `dm_topics` must
+  keep a topic literally named `Inbox` (`profile-secrets.sh` derives the cron
+  thread from that name; renaming it makes every bare `deliver: telegram` job
+  fail closed) and no topic may carry `skill:` (validator-enforced). Adding
+  one: a `dm_topics` entry without `thread_id` → gateway restart (writes the id
+  back into the private repo) → key its `channel_prompts` entry → `/restart`.
+  Hermes never deletes a Telegram topic; close retired ones by hand. See
+  [docs/profiles/assistant.md](docs/profiles/assistant.md).
 
-## Media craft knowledge
+## Secrets, auth and accounts
 
-Three graphics is an opt-in on create-tour/create-ad and the HyperFrames path
-of create-explainer-video, not an Assistant runtime or a new video subject.
-`graphics: three-webgl2` selects one synchronous WebGL2 canvas, core procedural
-Three.js and custom GLSL under the same paused GSAP clock. The engine pins its
-own HyperFrames 0.8.35, Three 0.185.1, Node identity and dedicated
-browser/software backend; never use or downgrade the mutable global CLI for
-these jobs. `engines/three-webgl/setup.mjs --browser <path>` is
-maintainer-only; jobs only stage verified assets via `three_graphics.py`.
-Opted-in tours require explicit screen_mode/v3 and approved preview even when
-preview=no; old omitted-mode projects keep their exact behavior. Preview binds
-runtime/layer evidence, reverse seeks and fresh-process layer PNGs must match,
-and actual render-log errors fail even if the CLI exits zero. Audit logs and
-owned-browser cancellation remain observable. Pixel equality is not artistic
-acceptance: inspect encoded motion and native UI parts. No async loaders,
-addons, WebGPU, hardware fallback, global install or alteration of prior
-frozen jobs is authorized.
+- **The secret helper has one shot per profile per process.** Hermes runs
+  `secrets.command` once per `HERMES_HOME` and kills it at
+  `helper_timeout_seconds`; a Telegram adapter that then finds no token is dead
+  until the next gateway restart. So `profile-secrets.sh` fetches each Keychain
+  layer exactly once, every config keeps the timeout at 60, and you never add
+  a `secret env` call per key. After touching the helper, time it:
+  `time sh scripts/profile-secrets.sh creator >/dev/null`.
+- **Never put `BU_CDP_URL` / `BU_CDP_WS` in a layer the gateway launcher
+  evals** — under multiplex one process-env value pre-empts real-profile
+  browsing for every profile, silently ([README "Browser"](README.md#browser)).
+- **Rotating an API key needs a gateway restart** — resident sessions keep the
+  environment injected at gateway launch.
+- **OAuth logins from `default` only** (`hermes model`, no `-p`). Running it in
+  a worker writes that profile's `auth.json` and shadows the inherited creds.
+- **Anthropic accounts — do not cross the streams.** The default Keychain entry
+  `Claude Code-credentials` always wins Hermes' resolver and must stay logged
+  into the **Hermes** account; OpenCode runs on the sub account through a
+  suffixed entry (`claude-sub`). A plain `claude /login` therefore changes
+  Hermes' account — afterwards verify with
+  `security find-generic-password -s "Claude Code-credentials"` plus the OAuth
+  profile endpoint. Details: [docs/models-auth.md](docs/models-auth.md).
+- **A new Claude model is not covered until checked.** Before adopting one,
+  read its breaking changes against the mandatory-thinking and
+  no-forced-`tool_choice` substring lists (unknown ids default to "disable
+  accepted, forcing accepted"). See
+  [docs/models-auth.md "Models and fallback chains"](docs/models-auth.md).
 
-Creative early-delivery candidate: ordinary Creator and Assistant creative work
-goes Plan -> Build/Execute -> delivery, including legacy units/cards. Keep the
-existing entry topology, but `qa-creator` and `qa-assistant-creative` are explicit
-user-requested inspection only, returning bounded findings without automatic
-revision. Producer checks, failed/unknown disclosure, approval/hash and budget
-gates remain; do not restore routine broker inspection through learned skills or
-delivery references. Early previews do not establish final readiness or approval.
-Other domains' QA is unchanged. See PROFILES.md "Creative early delivery
-candidate"; paired candidate verification does not authorize live cutover.
+## Gateway and A2A
 
-`create-ad` additionally owns a narrowly scoped diagnostic purpose (`study`,
-1..10s, question, real message, no CTA/Mix). The CLI keeps freeze-study/render-study
-separate from final commands and binds purpose through frozen-plan/preview hashes;
-ordinary ad validation never accepts a study. Both real approval rounds and
-existing allowances remain. Read-only preflight checks plan/assets without source
-execution or output. Other families retain their own supported bounded units.
-`AD_STUDY_SMOKE_DIR=<new path>` opts into the real synthetic renderer fixture;
-it proves plumbing, not artistic quality, continuous viewing or client acceptance.
+- **One multiplex gateway process** hosts every bot and A2A endpoint. A new bot
+  = a `hermes-<name>` Keychain layer + `platforms` / `a2a_agents` / toolset
+  entries + the multiplex allowlist — never a second gateway process (one bot
+  token = one live connection).
+- **A2A ports go in `platforms.a2a.extra.port`, never an `A2A_PORT` env var** —
+  it is read raw from the shared process env and would collide across
+  profiles. Peer `a2a_agents` entries keep `timeout: 310` (the 120 s caller
+  default undercuts the 300 s reply window). Design:
+  [docs/topology.md](docs/topology.md).
+- **Never run `hermes gateway run` / `restart` in a terminal while the
+  LaunchAgent is loaded** — a second poller causes Telegram 409 conflicts.
+  Restart with `launchd/gateway-launchctl.sh install` or `/restart`; stop with
+  `uninstall`.
+- Changes to code that runs inside the gateway (e.g. the Assistant-side
+  `specialist_call` kind validation) need a gateway restart; runner, handoff
+  and OpenCode-plugin changes apply on the next resident turn.
 
-Four portable knowledge skills live in `agents/curated/media-craft-*`, not in
-hands' production trees or generated Styles catalogs. Creator's existing shared
-store exposes them; image-creator pins direction/visual, video-creator pins
-direction/visual/motion, audio-creator pins direction/audio. Each kernel's
-`references/craft.md` owns conditional reading for all its current subjects.
-Creator's Plan/Build/QA and confirmed legacy path share its `references/craft.md`.
-The four optional HyperFrames technical pins and their old leaf scope/fallback
-are unchanged; craft pins are a separate knowledge-only exception, not outside
-workflows or executable scripts. Required craft bodies must be current before the
-affected creative decision; unavailable/ambiguous knowledge is a named stop for
-that decision, never an install or capability expansion. Mechanical work skips it.
-Audio perception remains human-reported; the shared skill authorizes no new tool.
-Run actual isolated discovery and `test_media_craft_routing.py` alongside existing
-hands/entry tests. Candidate validation is not live cutover or artistic acceptance.
+## Skills
 
-## Shared work continuity
+- **Upstream skills attach through `skills.external_dirs` only.** Never run
+  `hermes skills install` (it copies into `~/.hermes/skills`, i.e. this repo).
+  Wiring pattern and backlog:
+  [docs/topology.md "Upstream wiring pattern"](docs/topology.md).
+- **External skill stores are never copied or symlinked into a profile.** The
+  HyperFrames / `media-use` playbooks live in `~/.agents/skills` (owned by
+  `hyperframes skills update`, which a fresh machine needs before creator can
+  load them; shared with other harnesses); `video-creator`
+  pins four individual technical dirs from it, never the whole store. An
+  installer run reseeds dead relative links into `profiles/*/skills/` or the
+  shared `hermes/skills/` — the tell is the validator's `local skill root must
+  not contain symlinks` while `skills list` still works. **Delete** those
+  links, never repoint them; check both roots. The one intentional link is the
+  Assistant's private-overlay `assistant-pipeline`. Verify with
+  `hermes -p creator skills list` — a bare `hyperframes skills` installs rather
+  than reports.
+- **Writing worker playbooks:** worker terminal approvals cannot prompt, so a
+  flagged command just fails. Build playbooks on scripts and wrapper CLIs,
+  never inline interpreters or one-liners, and keep `command_allowlist` empty
+  (allowing `bash -c *` reopens what the guard catches). What trips the guard:
+  [README "Worker terminal approvals"](README.md#worker-terminal-approvals).
+- **Tool handlers take the model's JSON as one positional dict**
+  (`handler(args, **kwargs)`); declaring schema fields as parameters registers
+  a tool that fails on every call.
 
-Shared specialist continuity is implemented in `plugins/specialist-call`, not
-an upstream patch. Each new conversation retains its untruncated initial agent
-request; each turn has a private `.handoff` record. The current request is
-actionable; history supplies constraints only, never another production/regrant.
-Runtime attribution and request hashes are not human-approval authentication.
-`specialist_session(reconcile, evidence=...)` records only a confirmed stopped
-resident process group as `interrupted`, never `completed` or resumable. Missing
-handles, live groups and foreign/unverifiable locks stay blocked; an owned dead
-shell lock is retained, not reclaimed. A2A has no local liveness proof. Caller
-observations remain unverified external effects even after bookkeeping close.
-Task artifacts, grants and approvals are never migrated or rewritten on rollout.
+## Creator hands and broker
 
-Run `scripts/verify-work-continuity.py --runtime <hermes-agent-checkout>
---private <paired-private-checkout>` with the provisioned Python before cutover
-and after an upstream update. It runs the original strict Git/topology validator,
-paired public/private tests and actual runtime regressions, not commit-name
-checks. Candidate worktrees need their own overlay links and isolated HOME;
-never repoint live links for a test. It does not install, restart or migrate jobs.
+Contract: [docs/hands/overview.md](docs/hands/overview.md) and
+[docs/broker.md](docs/broker.md). When editing:
 
-## Assistant entry routing
+- A hands skill is a `<hands>-pipeline/<verb>/<subject>/SKILL.md` leaf with one
+  form — never a technic, a generated index, `menu.yaml`, a preset layer or
+  cross-media Styles (earlier shapes with those decided nothing or governed
+  everything). A subject must be unique across all hands, because Creator reads
+  them through one `external_dirs` list; the validator enforces the shape.
+- Creator's broker references mirror subjects, not forms: new subject
+  references land with their hands family, never as placeholder stubs.
+- An execution-environment trap goes into the Procedure of the leaf that hits
+  it, not into a shared rule.
+- Legacy capability retirement stays family-by-family, after caller coverage
+  and a both-client soak — a new leaf alone does not retire anything.
+- Tests that read the design text: `test_ad_routing.py` and
+  `test_audio_creator_routing.py` read `docs/`; after media-craft changes also
+  run `test_media_craft_routing.py` with the hands/entry tests.
 
-The deployed layout preserves the private-overlay `assistant-pipeline/` directory and
-root skill name. Its root is the invariant kernel; 19 independent child skills
-outside `references/` own the former mode/domain indexes: `chat-assistant` and
-`{plan,execute,qa}-assistant-<domain>` for engineering, creative, writing,
-research, search and marketing. Each child's `references/` owns its details.
-Only `references/plan/index.md`, `references/execute/index.md` plus
-`resident-sessions.md`, `kanban-lite.md`, `scheduled.md`, and
-`references/quality-assurance/index.md` remain shared at the parent.
-No entry aliases, new overlay mapping or default `skills.external_dirs` expansion.
-The pinned topics' inline-only restrictions stay unchanged (see "Pinned Telegram
-topics" below). Writer acceptance
-remains in the public Writer pipeline, not copied into private QA entries.
+## Media and engines
 
-Always-on routing selects an entry each user turn/completion and before a
-midturn mode/domain/scope-changing action. Direct entry requires the full kernel
-and mode-common body; a past load, summary or root preload is not enough.
-Canonical `read_file` recovery must stop the affected action if a required body
-is still absent. Read dedup is source/runtime behavior, not a guarantee that
-instructions remain in model context; see README's entry cutover section.
-The CLI adapter reads the filesystem tree without exposing the 19 entries or
-Writer's production leaves in default's menu.
+- **`auxiliary.vision` stays `auto`** — pinning it to a video-capable model
+  disables the main model's native image vision; video analysis runs through
+  the `video-analyze-mimo` override instead ([README "Plugins"](README.md#plugins)).
+- **TTS routes by language through the fallback chain; do not add a router.**
+  The explicit character-voice path is the opposite contract: it must never
+  read `tts.fallback.chain`, never retry on another engine, and never drop a
+  style control silently. Do not weaken the shared TTS text cleaner — the
+  character path works around it on purpose. Contract:
+  [docs/hands/audio.md "Speech family"](docs/hands/audio.md); plumbing:
+  [README "Local TTS engines"](README.md#local-tts-engines).
+- Engine pins stay hash-locked in `engines/`; private voice/lexicon paths go
+  through the launchers' `register*` commands, never into tracked files.
 
-Cut over on 2026-09-12: the restarted gateway restored all 13 configured
-connections, and a restricted fresh Assistant CLI conversation verified a
-document-to-script reference change across two real model turns. This does not
-prove that existing messaging histories refreshed. Test future paired
-checkouts with `HERMES_PRIVATE_ROOT` on public tests and
-`HERMES_PUBLIC_ROOT` on private tests; never install/link candidates into live
-paths to satisfy tests. Manual edits do not invalidate the gateway's process
-skill-index cache. Cutover needs explicit approval, a controlled gateway restart
-AND a fresh session; neither is authorized by candidate validation.
+## Browser and web search
 
-## Searcher entry routing
+- **Browser:** read [README "Browser"](README.md#browser) before touching
+  browser config. Invariants: one dedicated Brave profile per consenting Hermes
+  profile, never shared (Google rotates session cookies and signs out every
+  other holder); never edit the cloned bundle (it breaks the signature and
+  cookie decryption); never copy IndexedDB between profiles.
+- **Web search:** paid backends are pinned per profile with
+  `web.provider_tier`; editing `search_backend` alone is not enough (a present
+  key makes auto bill the paid path), and a backend name that no longer exists
+  silently resolves to `firecrawl`. Current split and how to verify:
+  [README "Web search backends"](README.md#web-search-backends).
 
-Searcher keeps `searcher-pipeline` v7.0.0 as its retrieval, release and card-gate
-kernel. Three independent children outside `references/` own phase procedures:
-`plan-searcher`, `build-searcher`, `qa-searcher`. Each owns three plain
-`references/<unit>.md` files: `lookup`, `sweep`, `hunt`. Unit names stay exact;
-old unit-named skills are removed without aliases or a second common-mode index.
-The Client supplies purpose, consumer, constraints and budget; Searcher proposes
-coverage, fields, done conditions and exclusions, with an ordered same-role unit
-sequence if useful. Client agreement within existing authority releases Build,
-then QA self-check; caller acceptance remains separate. No cross-role project
-decomposition, synthesis, ranking or production.
+## OpenCode integration
 
-The two Assistant-owned cards retain settled required inputs:
-`survey-enumeration` requires question, coverage claim/floor count and per-item
-fields; `exhaustive-hunt` requires question, done criteria and scope exclusions.
-The caller may author the complete spec. Valid cards go Build -> QA -> terminal
-without Plan ceremony or new approval; malformed cards block with
-`kanban_block(kind=capability)` before any phase, never Plan on the card.
-Keep card dialogue/review/guarded-resume protocols. No new card types, tool grants,
-external roots or install mappings; no other profile gains these entries.
+Contract: [docs/profiles/engineer.md "OpenCode runtime"](docs/profiles/engineer.md).
+When editing `plugins/opencode` or `~/.config/opencode/agent/hermes-*.md`:
 
-## Researcher entry routing
+- **The plugin is the only owner of the hidden primaries' permissions.** The
+  agent files carry no `permission:` block (a plugin test fails if one
+  reappears) — OpenCode deep-merges both, so two owners means neither is the
+  truth. On `opencode run`, `ask` is never a question (rejected without
+  `--auto`, approved with it); write `allow` or `deny`.
+- Role → agent mapping lives only in `OPENCODE_AGENTS`; renaming an installed
+  agent touches that map and nothing else.
+- Keep caller/worktree/branch binding, JSON error handling (exit zero is not
+  success), finite deadlines and no automatic replay after uncertain effects.
+- Keep `TURN_TIMEOUT` identical in `profiles/assistant/scripts/resident-session.sh`
+  and `plugins/specialist-call`. Engineer's tool deadline
+  (`timeouts.tools.sequential_call` / `concurrent_batch`) must stay above
+  `opencode_cli.timeout`, or long calls turn into polling loops; verify with
+  `HERMES_HOME=~/.hermes/profiles/engineer` +
+  `agent.tool_executor._resolve_sequential_tool_timeout()`.
+- The Assistant's Admin-topic calls being planned and reviewed by its own
+  model is an accepted exception; do not extend it to Engineer, and move the
+  reviewer to another model family before moving Engineer off Fable.
 
-Researcher keeps `researcher-pipeline` v9.0.0 and shared `references/gather.md`
-at the parent. Three independent children outside `references/` own phases:
-`plan-researcher`, `build-researcher`, `qa-researcher`. Each owns four plain
-`references/<unit>.md` files for the unchanged `evidence-pack`, `tradeoff-matrix`,
-`fact-check` and `guidance` units, not unit-skill aliases or another mode index.
-`validate_researcher_entries` enforces the closed tree, kernel dependencies,
-canonical recovery paths, output/verification sections and no card declarations.
-From Client purpose, consumer, constraints and budget, Researcher proposes its
-questions/options/criteria/exact claims and bounded same-role unit sequence;
-Client agreement precedes Build and QA self-check. Preserve source scoring,
-verbatim claims, evidence gaps, Review gates and refusal of every kanban card.
-Self-check never becomes caller acceptance or artifact-vs-brief craft QA.
-Assistant reaches Researcher only through existing Engineer/Creator/Marketer
-primaries; no new direct peer or cross-role project decomposition.
-The primary owns the Researcher handle and must relay the agreed baseline and
-approved changes with conclusions. Missing scope/evidence stays unverified;
-Assistant never reconstructs acceptance from purpose or continues that handle.
+## Candidates and cutover
 
-For both roles, an already explicitly authorized settled brief goes directly to
-Build; filled fields or transport alone are insufficient. A narrow authorized
-inquiry is one shot without ceremonial approval; complex work uses resident
-conversation. Agent Clients may agree within existing authority, never substitute
-for human-only permissions. Plan uses supplied material; needed discovery requires
-its own agreed bounded preliminary Build, QA, then revised main Plan/agreement.
-Short approvals advance retained Plans, not restart them.
+Rollout contract: [docs/topology.md "Candidate rollout and cutover"](docs/topology.md).
 
-All six entries require full kernel, entry and selected unit-reference bodies in
-current context on each incoming caller/judge/resume/completion turn and before a
-midturn phase/unit/scope change, including direct entry. Load Gather when required
-beyond a few direct lookups. A past load/summary/preload is not sufficient.
-If `skill_view` dedup returns unchanged with a missing body, recover via canonical
-`read_file` and genuine `next_offset` truncation offsets, or stop the affected
-action. No alternate-path/artificial-range bypass. Selection/resume never grants
-scope, resets consumed/remaining budget or coverage/frontier, or replays work.
+- Pair public and private changes for rollout and rollback; validate the
+  paired candidate structurally, then check real Git ownership and
+  fresh-session discovery before an approved cutover.
+- Run `scripts/verify-work-continuity.py --runtime <hermes-agent-checkout>
+  --private <paired-private-checkout>` before a cutover and after every
+  upstream update. It installs, restarts and migrates nothing.
+- Task artifacts, grants and approvals are never migrated or rewritten on
+  rollout. Commits, pushes and gateway restarts need explicit approval.
 
-These are Hermes-specific entries, not standalone portable packages: named
-`skill_view` calls address the parent shared reference and canonical read_file
-recovery crosses the child directory. The generic skill-authoring validator
-flags those parent references as missing/escaping the standalone package;
-the Hermes topology and isolated runtime checks validate the actual owner.
-Do not duplicate gathering or evidence floors to silence that portability check.
-The existing three suites, `scripts/tests/test_researcher_entries.py`,
-`test_searcher_pipeline.py` and `test_searcher_entry_runtime.py`, remain registered
-in `verify-work-continuity.py`. Use provisioned Hermes Python/source PYTHONPATH,
-isolated HOME and paired candidates (`HERMES_PRIVATE_ROOT` for public tests,
-`HERMES_PUBLIC_ROOT` for private tests). They cover phase contracts and offline
-runtime discovery/read/dedup/recovery, not real-model selection or actual search.
-The implemented candidate awaits explicit live cutover and real-model verification;
-other roles' deployment dates remain unchanged. No test installs, restarts or live
-link changes; retain strict Git ownership checks. Approved cutover refreshes the
-applicable process index and uses fresh sessions, without runtime job rewrites,
-output migration, approval changes or replay of active work.
+## After `hermes update`
 
-## Engineer v9 entries and UI evaluation
+1. `./scripts/check-local-patches.sh` — every local `fix/*` branch in the
+   hermes-agent checkout must still be merged into `local`, and the
+   case-collision twin must keep `skip-worktree` (without it every rebase and
+   merge refuses to start; `git checkout --` only flips which twin is dirty). A missing patch fails silently at runtime, e.g.
+   completion notifications for secondary profiles or browser isolation.
+2. `./scripts/validate-profile-skills.py --all`; delete any seeded category
+   directory under `profiles/*/skills/` other than `<profile>-pipeline`,
+   `technic` or `learned` (upstream seeds past `.no-bundled-skills`). A lone
+   seeded `DESCRIPTION.md` is harmless and comes back each launch.
+3. `scripts/verify-work-continuity.py` (above) and the test suite.
+4. Still unpatched upstream, so re-check behavior rather than a branch: a
+   browser attach daemon that outlived its clone keeps a dead port
+   ([README "Browser"](README.md#browser)), and shutdown / `/restart`
+   notifications for secondary profiles are not routed.
 
-Engineer is a developer using OpenCode; User and Assistant are Clients. The
-Client supplies purpose/constraints, not a pre-built technical decomposition.
-Engineer plans through OpenCode; one explicit implementation approval releases
-the agreed scope through task-branch PR delivery. Issue create/edit/comment is
-explicit-only for this job, never inferred from an Issue URL or task size.
-No automatic Issues/boards, merging, deployment or default-branch push.
-The root pipeline stays thin. Four independent child skills outside references/
-own their mode procedures: plan-engineer, build-engineer, qa-engineer and
-assess-engineer. Each owns its detail references; only references/opencode.md
-and references/shared/design-catalog.md remain shared. No old mode-path aliases.
-Select an entry each user turn/completion and before a midturn mode/scope change.
-Direct entry requires the full engineer-pipeline kernel; read the shared OpenCode
-contract before a wrapper call when missing. Reuse current full bodies, never
-past-load records or summaries. Canonical read_file recovery follows next_offset;
-unavailable required instructions stop that action, never widen a grant or replay
-work. A short implementation approval advances to Build, not a restarted Plan.
-This candidate needs explicit cutover approval, a controlled gateway restart and
-fresh sessions; offline validation is not a live model-selection or delivery test.
+## Maintenance loop
 
-Hands-reference maintenance has conditional Assess / Plan / Build / Quality
-assurance guides in Engineer, not another production leaf. They own Client
-scope and independent acceptance; the candidate dotconfig checkout's OpenCode
-Skill `opencode/skills/hermes/hands-references/SKILL.md` owns the procedure.
-`scripts/audit-hands-references.py` is a read-only companion to the topology
-validator: orphan candidates are warnings, not deletion permission; card checks
-import the trusted candidate's adapter, not sandboxed code. Assess never fixes
-or upgrades UNVERIFIED claims automatically. A branch in the live symlink-backed
-checkout is not runtime isolation; use task worktrees, and keep self-modification
-scope, PR delivery and live cutover separate. Detail references are reached through
-the four mode entries, not discovered as independent skills themselves.
+Full reference: [README "Commands"](README.md#commands).
 
-plugins/opencode owns CLI execution and private opencode-sessions records.
-Since 2026-09-16 it registers for `engineer` AND `assistant` (`PROFILES`),
-each with its own `opencode_cli` block and its own registry under its home:
-the Assistant's grant is the Admin topic's scope (this config repo, Hermes
-upkeep, a named workspace repo; contract text in the private
-`channel_prompts['29349']`), never Engineer's project work, and because the
-registries are per home the Assistant's worktree-busy check cannot see an
-Engineer hold — the contract, not the code, keeps them apart. Its Telegram
-calls run in the background with a completion notification, so the
-assistant's 420 s tool deadline stays; only a CLI assistant would block.
-Keep caller/worktree/branch binding, JSON error handling (exit zero is not
-success), finite deadlines and no automatic replay after uncertain effects.
-Approval text is not authentication and command policies are not a sandbox.
-Stop is not rollback. Only the owning live runner signals its child group;
-reconciliation requires inspection, not an invented completion assertion.
-**plan/build/review run on hidden OpenCode primaries, not the human TUI
-agents (2026-09-16).** `OPENCODE_AGENTS` in `plugins/opencode` maps the
-Hermes role to `~/.config/opencode/agent/hermes-{plan,build,review}.md`
-(`mode: primary`, `hidden: true`; `debug` stays shared). Every other
-decision in the plugin — `--auto`, the permission shape, the task-branch
-gate, the appended scope lines — still keys on the Hermes role name, so a
-rename of the installed agent touches the map and nothing else. Those
-primaries replace the provider default prompt with a non-interactive
-contract: no `question` tool, no plan→build handoff or PlanHandoff todos,
-Client decisions returned as `Q<n>:` with a default already taken, every
-check delegated to `verifier`, and reviewer / reviewer-deep passes ONLY
-when the message asks (the human-facing global AGENTS.md "consider a
-reviewer pass before commits" rule is explicitly overridden). Models are
-pinned per role in the frontmatter (plan + review Opus 5.5, build GPT-6
-Sol) so that Engineer's own model (Fable 5.1) is never the one
-challenging or QA-ing its own OpenCode output; `opencode_cli.models` /
-`--model` still override. **Accepted exception (2026-09-23):** the
-Assistant now runs on Opus 5.5 too, so its Admin-topic OpenCode calls
-are planned and reviewed by the same model that requested them. The
-owner accepted this because Admin work is small, inline upkeep; do not
-extend it to Engineer. Moving Engineer off Fable, or broadening Admin's
-grant, needs the reviewer moved to another family first (e.g. hermes-review
-on GPT-6 Astra). `allowed_models` keeps `openai/gpt-5.6-sol` on both
-profiles as the one-flag rollback if GPT-6 Sol builds regress.
-A hidden primary is only reachable by name via
-`opencode run --agent`; `default_agent` refuses it and the TUI never cycles
-to it. Note that OpenCode's plan-mode reminder is keyed on the literal
-agent name `plan`, so `hermes-plan` gets none of it — its read-only
-posture is prompt + permission, not plan mode.
-**The plugin is the ONLY owner of those primaries' permissions
-(2026-09-16, second pass).** The agent files carry NO `permission:` block
-(a test in `plugins/opencode/tests` fails if one reappears). OpenCode
-deep-merges frontmatter with the injected `OPENCODE_CONFIG_CONTENT`
-(nested maps union, injected value wins per key, last matching rule wins
-at evaluation), so while both existed neither file was the truth: review's
-`verifier` delegation lived only in the markdown, the markdown's
-`external_directory: deny` was overridden by the plugin's `ask`. Measured
-facts the policy is built on: an agent-level `"*": deny` shadows the
-user's global tool allows AND OpenCode's own auto-allows (skill dirs, the
-`tool-output/` overflow dir, its temp dir), so every tool a read-only role
-needs is listed in `_permissions` and only the two scratch dirs are
-re-allowed under `external_directory`; a plain `ask` on this transport is
-never a question — `opencode run` REJECTS it without `--auto` and APPROVES
-it with `--auto` — so build's former `external_directory: ask` was an
-allow, now a deny. Subagents (`verifier`, `explore-*`, `reviewer*`,
-`worker`) keep their own frontmatter permissions and are not governed by
-the injected policy.
-**Plan hands over to Build on the SAME conversation (2026-09-16).** The
-next `opencode_call` on a plan conversation may name `agent="build"` plus
-`approval`; OpenCode resumes the session under `hermes-build` with the
-whole history (investigation, proposal, `DECISION(Q<n>)` lines) in
-context. The wrapper requires the same worktree and branch and refuses a
-default-branch build, so `plan-engineer` now moves the checkout onto a
-task branch BEFORE the first plan call when implementation is likely (a
-worktree only for isolation); a plan made on the default branch still
-starts a new conversation whose message carries the proposal sections and
-decisions verbatim. `--fork` is a full-history copy and prunes nothing.
-
-**Resident turns block on OpenCode; they do not poll (2026-09-16 incident).**
-A resident Engineer is a plain CLI process, and CLI has NO background-process
-wakeup (`tools/terminal_tool_background.py`: completion notifications are
-gateway-only), so the cheap path is a blocking tool call. `opencode_call`
-already waits up to `opencode_cli.timeout` (3600) — but Hermes' generic
-sequential tool deadline is 420 s (`agent/tool_executor.py`,
-`timeouts.tools.sequential_call`), which cut 13 of 19 calls across three
-90-minute turns and turned each into a `status`/`ps`/`sleep` polling loop
-(~50 of 73 API calls, ~8M cache-read tokens, two compactions). The engineer
-`config.yaml` therefore sets `timeouts.tools.sequential_call` /
-`concurrent_batch: 3660` (verify with
-`HERMES_HOME=~/.hermes/profiles/engineer` +
-`agent.tool_executor._resolve_sequential_tool_timeout()`; assistant stays at
-420), and `opencode_session(action="wait", timeout?)` blocks on the record
-as the fallback (bounded by `opencode_cli.wait_timeout`, the job deadline
-and `RESIDENT_DEADLINE`). `opencode_call` also takes `model` / `variant`
-(OpenCode `--model` / `--variant`), fail-closed against
-`opencode_cli.allowed_models` / `allowed_variants` — a name outside the list
-is refused, never substituted, and an explicit selection binds the rest of
-that conversation.
-**The 90-minute turn (`TURN_TIMEOUT`, fixed in both `resident-session.sh`
-and `plugins/specialist-call`) is now visible to the specialist**: the
-handoff prints a `Turn budget:` line from `data["deadline"]`, and
-`build-engineer` checkpoint-commits verified increments and stops at ~15 min
-remaining. The Assistant contract sizes turns to one verifiable increment
-and continues in the same conversation; a whole "implement to PR" scope in
-one turn is what stranded 29→46→50 uncommitted files on 09-15/16.
-**An interrupted conversation accepts `specialist_call(kind="reconcile")`
-and nothing else.** OpenCode records are owned by the Engineer session +
-routing digest, so after a timeout only the SAME resident session can
-`opencode_session reconcile` its children; the previous "never continue an
-interrupted conversation" rule left two `unknown` holds on two worktrees
-that a fresh conversation, a terminal `hermes -p engineer --resume`, and an
-env-stripped resume all failed to clear (`belongs to another originating
-session`). The reconcile turn runs with `RESIDENT_TURN_KIND=reconcile`,
-under which `opencode_call` is refused; on success the conversation ends
-`reconciled` (closable, still never resumable for work). The Assistant-side
-`kind` validation runs INSIDE the gateway process, so this needs a gateway
-restart to take effect there; runner/handoff/opencode changes apply on the
-next turn without one. The `Warning: Unknown toolsets: opencode,
-specialist` line at every resident turn is the same benign
-plugin-discovery-order artifact PROFILES.md records for `a2a`.
-
-ui-review and ux-persona are terminal-free, resident-only evaluator profiles,
-not new bots or A2A endpoints. Their resident launcher uses an owned non-Git cwd
-to avoid importing implementation context through ordinary CLI startup.
-Native browser tools require backend: "off" to
-disable Browser Use replacement; browser_exec runs host Python and upstream
-intentionally hides it without terminal. ui-inspection exposes only viewport
-capture, attaches actual PNGs and returns private evidence paths. Do not add
-terminal merely to restore browser_exec. Use isolated test accounts/state,
-never owner cookies or another profile's CDP. The former global OpenCode UI
-skills/agents move here and are removed there, not aliased. Ordinary OpenCode
-implementation/browser testing remains. Keep public/private rollout paired and
-test fresh candidate sessions before approved live linking/restart.
-
-## Marketer v8 and shared requester QA
-
-Marketer owns strategy and its existing authenticated browser; do not add a
-SNS-Marketer profile or share/copy login profiles. Its invariant root remains
-`marketer-pipeline`; four independent children outside `references/` own the
-mode procedures: `plan-marketer`, `build-marketer`, `qa-marketer`, `analyze-marketer`.
-Each entry lists its own details under its `references/`, while parent
-`references/platforms/*.md`, `references/state.md` and `scripts/browser-lease.py`
-stay shared. No second common mode index, aliases or new external skill roots.
-This is a Hermes-specific skill family, not five portable standalone packages:
-the generic skill-authoring validator rejects nested roots and cross-entry
-links. Those are intentional here; the repository validator instead requires
-every resolved link to stay inside marketer-pipeline and name a real file,
-with each owner linking its own references. Hermes metadata remains canonical.
-`validate_marketer_references` checks the exact entry/reference sets, kernel
-dependencies, canonical recovery, owner links and the absence of card units.
-Select the applicable entry each turn/completion and before a changed action;
-reuse only full bodies in context. Missing bodies use canonical read_file
-recovery, then stop if unavailable, never an invented pass or dedup evasion.
-Direct entry requires the kernel. Cross-entry detail reads require their owner;
-loading never restarts work, resets approval or widens a grant. Instruction
-reads may run in parallel; browser reads still require the profile-wide lease.
-Candidate runtime tests use isolated HOME and actual Hermes tools, with no model
-or browser execution. They do not establish model routing or service-side saves.
-Cutover remains explicit: controlled gateway restart plus fresh sessions; never
-replay active resident work or rewrite outputs/approvals to adopt this layout.
-There is no publish path: exact remote-save consent precedes editor entry,
-autosave counts as upload, and completion requires reopening the same unpublished
-service draft. Old Publish/P1 grants are not adopted. The user publishes.
-
-All browser navigation, including measurement reads, holds the Marketer
-profile-wide `browser-lease.py` lease until a verified or reconciled stop.
-No TTL, lease stealing, automatic retry of unknown effects or cookie migration.
-The helper is coordination, not a browser sandbox. Platform procedures require
-approved live validation; static tests do not establish service-side persistence.
-
-Generic requester Writing QA is public in Writer's pipeline at
-`references/acceptance/{index,prose,script}.md`; Assistant's private files are
-thin adapters and Marketer reads the same contract. Caller external skill roots
-must expose Writer's pipeline for name-based reads. Default's filesystem adapter
-instead uses the documented canonical Writer acceptance path when the name is
-unavailable, for inspection only. Missing acceptance resources block acceptance;
-in the Writer v8 candidate, keep all 19 Writer non-kernel names disabled on
-Assistant/Marketer (18 production leaves plus `consult-writer`), so reference
-access does not import an execution menu. Consultation stays delegated to Writer.
-Do not copy the rubric or make Writer accept
-its own work. Marketer inbound A2A has no browser, terminal or delegation toolset;
-authenticated work needs a resident session. No private records
-or purchased source text are moved. Pair public/private rollout and rollback;
-never run candidate install scripts against the live configuration for testing.
-
-## Writer leaf migration
-
-Writer's leaf references use `natural-japanese` v1.5.0 as a craft source, not
-an imported inspection workflow. Keep worked examples grounded in their stated
-material, include retain conditions and preserve operation-specific scope.
-Assistant's existing Writing QA owns evidence-anchored ordinal scoring and
-its correction ceiling; Writer still reports checked / unmet / unverified,
-never numeric self-scores or independent acceptance. The QA contract must be
-self-contained for QA-mode loading; Execute relays its revision rules. After
-acceptance, consumer defects reopen acceptance under an explicit corrective
-release, not a silent reset of an unresolved finding. See PROFILES.md "Writer
-craft and independent editorial QA" and `agents/README.md` for provenance.
-
-Writer v8 is an implemented, user-approved migration candidate, pending explicit
-cutover; it is not deployed, restarted or real-model validated. The previous
-Assistant deployment status above is unchanged. The root `writer-pipeline` name
-and all 18 production leaf names, paths and forms remain unchanged:
-`<write|edit|analyze>/<subject>/SKILL.md`, category `writing`, with a named output.
-Each leaf owns Procedure, QA and Report; selected reference options need
-local backing files and direct body links. `validate_writer_leaves` checks
-this without changing Creator hands' verbs or media cost contract.
-All six families still use leaves. One independent non-production direct child,
-`consult-writer/SKILL.md`, holds the old pre-draft advice body; it is not a fourth
-production verb or form. A request to edit/evaluate a target selects its leaf.
-Unsupported combinations return to the requester, never a generic
-fallback. Keep new families in separate layers rather than bundling them.
-
-Every Writer execution entry, including consultation, checks for the full kernel,
-selected entry body and current required detail references on each inbound turn,
-completion notification and before a midturn operation/subject/scope change.
-Reuse only full bodies present in current context, never a past load, summary or
-root preload. Recover missing bodies with canonical `read_file`, following
-`next_offset` through truncation, or stop the affected action. No aliases,
-alternate-path or artificial-range dedup evasion. Shared
-`references/acceptance/` remains canonical and unchanged; a Client reading a form
-or acceptance contract does not execute Writer's procedure.
-
-Article leaves distinguish source drafts from destination rendering. Keep
-platform capability notes local to each leaf; do not promise note/X Article
-Markdown import, unknown HTML support or untested embeds. Insertion markers
-bind to stable production-note IDs and never imply generated assets. A missing
-asset or editor step is not removed to manufacture a publication-ready result.
-The shared Japanese core (`SKILL.md`) also carries a bounded, read-only
-`references/inspection.md` plus `scripts/inspect_text.py` and
-`scripts/requirements.txt`; Writer's leaves still own document construction and
-checks, and the inspector never edits, decides or scores. Its
-`writing_inspect` tool helper is single-purpose transport, not inspection
-rules: text-only input bounded to 131072 UTF-8 bytes, a 20-second deadline,
-reachable only from a Writer CLI or A2A session, and it runs the canonical
-inspector as a `subprocess` with no shell, no source writes and no network.
-Ordinary host conversation-history persistence still applies to whatever text
-is sent. It reports checked/unverified findings for the Article leaf to judge,
-never a pass/fail or naturalness score, and Writer never self-scores from it.
-Historical source attribution and provisioning steps remain in
-`agents/README.md` and Git history; do not restate that protocol or the
-adoption/license detail here.
-
-Article's `edit` scope includes `proofread` for minimal correction, separate
-from ordinary `wording` polishing (still the default). Findings-only requests
-use `analyze-article`; never add a fourth verb or shared proofreading pipeline.
-No-op output is legitimate; preserve protected text and flag uncertain names
-or numbers instead of guessing. Assistant's article Client guide and article
-acceptance branches preserve editorial ownership while exempting bounded edits
-and analyses from new-writing outline/research requirements. This is an article
-pilot, not a migration of the other five families or retirement of writing QA.
-
-Document leaves are `<write|edit|analyze>/document/`, including legacy briefs
-named documentation/business-document. Formats are local form options, not
-new profiles: README, guide, reference, report, minutes, proposal, slides,
-release notes and issue. Keep absent records distinct from explicit decisions;
-never infer owners, deadlines, release status or runtime success. Analysis
-returns a report, not a replacement document. No additional inspection workflow
-is added to a document leaf's checks.
-
-Message leaves are `<write|edit|analyze>/message/` for email, chat, notification,
-UI and error wording, not sending or system diagnosis. Preserve the sender's
-intent and unknown outcome states; an existing retry control does not establish
-safe repetition. Field labels/review notes are not recipient-facing text.
-Use supplied context without new personal-record lookups. Source assertions,
-actual runtime state and rendered UI fit are separate evidence questions.
-
-Copy leaves are `<write|edit|analyze>/copy/` for landing pages, promotional mail
-and announcements, including legacy marketing-copy briefs. Destination options
-have operation-specific local references. Keep approved claims, offer terms and
-disclosures; evidence conflicts are not solved by inventing proof or silently
-weakening a protected promise. CTA requirements depend on the released purpose.
-Marketer consumes accepted text unchanged, returns edits to Writer and keeps its
-own inspection/remote-save gate. It saves drafts only; the user publishes.
-Analysis is not new copy or a performance/legal
-verdict. Script and unmigrated platform-post workflows remain separate.
-
-Script leaves are `<write|edit|analyze>/script/`, with local narration/comic/
-storyboard/screenplay/slide-script references. The actual producer contract
-decides units, fields and limits; never impose genre-wide counts or timing.
-Plain spoken files contain only intended words, not labels, fences or notes.
-Keep `.production.md` and required raw exports consistent with the master.
-Existing unit IDs remain stable; retired IDs are not recycled and any remapping
-needs requester/consumer agreement. Changed words invalidate dependent evidence
-until rechecked. Script analysis is a report, not a new production input. Each
-leaf owns QA. Consultation may propose bounds but cannot present them as actual
-producer requirements or measured evidence, nor execute a writing workflow.
-
-## Layout
-
-```
-config.yaml          # model/providers, toolsets, agent settings (Hermes-rewritten)
-SOUL.md              # default persona (prompt slot #1)
-mcp.json             # MCP servers ({} = none)
-                     # (no cron/ — Hermes owns ~/.hermes/cron, machine-local)
-skills/              # shared maintainer-owned skills tracked
-  default-pipeline/  # thin CLI adapter for default; points at the assistant's
-                     #   assistant-pipeline kernel/entry tree and records CLI deltas
-                     # (the ~/Workspaces data-skill cluster — people/pp, household-budget/hb,
-                     #   reports/rp, projects/pj, business-prospects/bp, message-reply,
-                     #   scaffold + _cross.py — moved to the private overlay, read via
-                     #   skills.external_dirs as ~/.config/private/hermes/skills; this repo is public)
-                     # (creative/ moved to profiles/creator/skills — creator owns media)
-  learned/           # runtime-authored adaptive skills; mutable and ignored
-plugins/             # backend chains, tool overrides, completion and Worker
-                     # mutation guards; source tracked, __pycache__ ignored
-launchd/              # LaunchAgents: multiplex gateway (all bots, one process),
-                     #   local TTS engines
-engines/             # tracked pin/lock definitions for local engines
-                     #   (irodori-tts, qwen3-tts, stable-audio-3) — grouped
-                     #   here; local/ still owns their untracked
-                     #   weights/venvs and plugins/ still owns adapters
-scripts/             # profile-secrets.sh (secrets.command helper),
-                     #   brave-agent-sync.sh (real-profile browser clone),
-                     #   validate-profile-skills.py
-local/               # gitignored machine-local installs: TTS engines, the
-                     #   brave-agent clone bundle
-profiles/<name>/     # assistant, engineer, researcher, searcher, creator, writer, marketer,
-                     #   image-creator (Creator's hands; leaves under
-                     #   image-creator-pipeline/<verb>/<subject>/)
-  - config.yaml      # model/fallback + agent.system_prompt (operating contract)
-  - profile.yaml     # routing description (kanban/delegation)
-  - SOUL.md          # per-profile persona (BASE + role posture)
-  - skills/          # per-profile skills. Every worker has exactly ONE
-                     #   root pipeline skill `<profile>-pipeline` (lifecycle +
-                     #   capability router, auto-loaded by its operating contract)
-                     #   + directly selectable LEAF technics under skills/technic/,
-                     #   pinned per card via kanban_create skills:[...]. A technic's
-                     #   references are modes only when tools, spend class and QA
-                     #   stay the same; styles/presets/formats remain references.
-                     #   (researcher/searcher: plan/build/qa-<profile> child skills,
-                     #   each with 4/3 plain references/<unit>.md respectively;
-                     #   researcher shares parent references/gather.md;
-                     #   searcher has no technics; caller acceptance stays separate);
-                     #   creator: canonical creator-* image/video/audio/music/
-                     #   browser-motion/diagram/editorial/icon/card/meme/text-art/
-                     #   pixel/sourcing/assembly leaves (1:1 with the assistant's
-                     #   plan-assistant-creative/references/legacy leaves; validator-enforced);
-                     #   writer: the japanese-writing language core (SKILL.md,
-                     #   five notation defaults, plus a bounded read-only
-                     #   inspector — see agents/README.md) via the curated
-                     #   external-skills symlink dir;
-                     #   marketer: Writer pipeline external reference for shared caller QA;
-                     #   managed technics stay exactly one directory below skills/technic/
-                     #   because validate-profile-skills.py enforces flat canonical leaves;
-                     #   assistant keeps its front-door pipeline in
-                     #   profiles/assistant/skills/assistant-pipeline/ (kernel +
-                     #   19 child entries + shared mode references), a
-                     #   private-overlay symlink (content tracked by
-                     #   private-dotconfig, not here); the pinned Telegram
-                     #   topics (Inbox, Admin) bind no skill — their contracts
-                     #   are channel_prompts entries in the assistant config
-                     #   (the topic-bound desks/ skills were retired 2026-09-14);
-                     #   every profile's learned/ holds mutable runtime-authored
-                     #   skills and is never a dispatch or Git ownership surface)
-                     # (no cron/ here either; scheduled jobs live machine-local)
-                     # assistant/scripts/ holds resident-session.sh (the resident
-                     # specialist-session wrapper), kanban-scheduled-sweeper.sh,
-                     # kanban-resolve-block.sh for guarded resume, and the
-                     # local-* cron scripts
-setup.sh README.md PROFILES.md
-```
-
-## Profiles
-
-default (CLI front door, neutral persona; hosts the multiplex gateway) +
-four PRIMARIES with their own Telegram bots — assistant (messaging front
-door + dispatcher home board), engineer, creator, marketer — + researcher /
-searcher / writer (Workflow v5
-specialists; writer and researcher also serve inbound A2A peer requests,
-searcher has no A2A endpoint). The A2A peer graph and the multiplex rules
-live in the critical rule above and PROFILES.md. Heavy work runs by default in resident chat sessions the
-assistant starts through `specialist_call(kind="work")` (backed by
-`assistant/scripts/resident-session.sh`) and
-supervises conversationally; the kanban board is only for fire-and-forget,
-cron-originated, mass-parallel, and `scheduled` work with a lean card
-contract (no manifests/digests/probes — the v4 machinery is retired, see the
-2026-08-06 rebuild). The card catalog is CLOSED and per-assignee: creator
-(`anchored-image-batch`, `deterministic-render`), searcher
-(`survey-enumeration`, `exhaustive-hunt`);
-writer, engineer, marketer and researcher are card-free and refuse every card
-(researcher's `claim-verification` unit was retired in the 2026-09 peer
-rebuild — fact-checks travel through researcher's A2A peers).
-The validator cross-checks worker kernels against the catalog's
-`assignee` front matter. The assistant itself is the quality gate (entries under
-`profiles/assistant/skills/assistant-pipeline/qa-assistant-*/`, with shared
-`references/quality-assurance/index.md` and public Writer acceptance)
-and owns GitHub bookkeeping.
-Planning is one conversational approval. On cards, specialists speak the
-`STATE:`/`Q<n>:`/`DECISION(Q<n>):`/`PROGRESS:`/`AUTHORITY+:`/`REVIEW:`
-comment protocol; resumes go through `kanban-resolve-block.sh`; scheduled
-parking uses `SCHEDULED: until=` comments and the assistant sweeper cron.
-Workers batch questions into one `needs_input` block; a second block,
-`capability` block, or spec gap pulls the card back to a resident session or
-re-plan.
-Grants: Engineer's explicit implementation approval through PR and separate,
-explicit-only current-job Issue management (repo creation/registry, boards,
-merge and deployment remain outside Engineer; no mandatory Base session or Issue),
-creator Budget caps, marketer exact remote-save consent (before autosaving
-input; no publishing/P1 execution) — see PROFILES.md "Engineer dialogue
-loop". Tracked per
-profile: `config.yaml`, `profile.yaml`, `SOUL.md`, `skills/`, `.no-bundled-skills`.
-Create with `hermes profile create <name> --description "…"`, then adopt into the
-repo (move real files → `../install.sh`); see `README.md` / `PROFILES.md`.
-
-## Tracked vs ignored
-
-Tracked: config / SOUL / `profile.yaml`, `plugins/` source, `launchd/`, docs.
-Ignored (see `../.gitignore`): `auth.json`, `.env`, `memories/`, `sessions/`,
-`state.db*`, `logs/`, `workspace/`, `.hub/`, `.curator_state`, `.usage*`,
-`**/__pycache__/`, `*.pyc`. `cron/` is absent entirely — it is not linked, so
-nothing it writes ever reaches the repo. Never commit secrets, state, or
-host-rendered plists.
-
-**Skill ownership follows the directory type.** Shared `default-pipeline/` and
-every worker's `<profile>-pipeline/` and `technic/` are maintainer-owned and
-tracked normally. The assistant's `assistant-pipeline/` is also
-maintainer-owned but lives in the private overlay — a symlink into
-`~/.config/private`, tracked by the private-dotconfig repo (it encodes the
-personal messaging operation; this repo is public). Edit it through the same
-path; commit in the overlay repo. Runtime creates
-land in `learned/` because every `config.yaml` sets `skills.create_dir:
-skills/learned` (validator-enforced; a `category` nests as
-`learned/<category>/<name>`) — NOT because of the `skill-topology` plugin, whose
-`category: learned` rewrite only saw the flat `action: create` shape and missed
-every `operations[]` create after upstream `72874b0675`. `learned/`, external
-skills and Hermes bookkeeping stay ignored. Do not use `skip-worktree` for
-managed skills: their changes must remain visible in `git status`. Promotion
-from `learned/` to `technic/` is an explicit review step; move the complete
-package, normalize its technic metadata and routing, pin it against curator
-writes on the current machine, then commit it.
-
-## Commands
-
-- `./setup.sh` — install/refresh the hermes binary (uv venv); idempotent.
-- `./scripts/validate-profile-skills.py --all` — validate managed/learned skill
-  topology, metadata, routing registries, hands leaves, Creator's phase/subject
-  references and Git ownership; add
-  `--strict-git` in a staged/clean tree to fail on managed files that are
-  still untracked.
-- Tests: `PYTHONPATH=$(ghq root)/github.com/NousResearch/hermes-agent \
-  $(ghq root)/github.com/NousResearch/hermes-agent/venv/bin/python -m pytest \
-  plugins/ scripts/tests/ -q --import-mode=importlib`. The Hermes venv is
-  required (plugins import `agent.*` / `tools.*`), and `--import-mode=importlib`
-  is NOT optional: every plugin keeps its suite at `tests/test_plugin.py`, those
-  basenames collide under the default import mode, and `__init__.py` cannot fix
-  it because the plugin directories are hyphenated and so are not importable
-  package names.
-- Paired candidate tests: set `HERMES_PRIVATE_ROOT=<private-checkout>` on public
-  Assistant integration tests, and `HERMES_PUBLIC_ROOT=<public-checkout>` on the
-  private Assistant suite. These are test selectors, not runtime wiring; do not
-  install/link candidates or weaken live Git/symlink ownership checks.
-- `../install.sh` — create the `~/.hermes/` symlinks (run after adding files).
-- `hermes update` — git pull + re-sync (use this to update, not setup.sh).
-- `hermes doctor` — validate providers / model tiers.
-- `launchd/qwen3-tts-launchctl.sh {install,register,unregister,voices,status,uninstall}`
-  — multi-voice Qwen3-TTS LaunchAgent (`qwen3-tts` on `127.0.0.1:10102`). It
-  shares one pinned Base model across registered character voices and uses an
-  ignored Python 3.12 venv/model cache plus an ignored `catalog.json` under
-  `hermes/local/qwen3-tts/`. First install requires
-  `install --voice-manifest PATH`; add voices with
-  `register --voice-manifest PATH [--default]`. The private manifest paths must
-  never enter tracked config or docs. Dependencies come from
-  `engines/qwen3-tts/requirements.lock` and must stay hash-locked.
-- `launchd/irodori-tts-launchctl.sh {install,register,register-lexicon,voices,status,uninstall,purge}`
-  — Irodori-TTS LaunchAgent (`irodori-tts` on `127.0.0.1:10103`), coexisting with
-  qwen3-tts on `:10102`. Pins live in `engines/irodori-tts/pinned.conf` — named `.conf`
-  because `**/*.env` is ignored and the pins must be tracked. It installs a git
-  checkout of the upstream server plus a uv venv under the ignored
-  `local/irodori-tts/`; `--python` is mandatory there, since uv otherwise picks
-  3.12 and the pinned `sentencepiece` has no wheel for it. `register --voice PATH
-  --id NAME` and `register-lexicon --file PATH` copy private data in, so those
-  paths must never reach tracked config. `register-lexicon` refuses to write
-  through a symlink, which is what the private overlay installs.
-- `launchd/gateway-launchctl.sh {install,status,uninstall}` — the MULTIPLEX
-  gateway LaunchAgent (`local.hermes.gateway.multiplex`), **one host only**
-  (one bot token = one live connection, four bots in this one process). The
-  default-hosted process serves assistant Telegram + Discord, the
-  engineer / creator / marketer bots, the A2A endpoints (127.0.0.1:9902-9906),
-  and the embedded dispatcher; `install` also unloads the legacy
-  `local.hermes.gateway.assistant` agent. Discord requires
-  the `AsyncSessionDB` regression guards for resolved upstream #40695.
-  `install` re-renders + reloads = **restart** (new process re-reads `config.yaml`);
-  to apply config you can also send **`/restart`** in chat (drain → `KeepAlive`
-  respawns one). **Stop = `uninstall`** (plist `KeepAlive:true`; a plain `kill` just
-  respawns). **Never** run `hermes gateway run`/`restart` in a terminal while it's
-  loaded — the 2nd poller causes Telegram `getUpdates` 409 conflicts
-  (verify a single instance: `pgrep -fl 'gateway run'` ⇒ exactly 1).
-- `scripts/brave-agent-sync.sh {sync,check,path,remove}` — the cloned Brave
-  bundle real-profile browsing launches (see the browser-stack rule above).
-  `sync` re-clones when `/Applications/Brave Browser.app` changed version
-  (the gateway launcher runs it before every start; run it by hand after a
-  Brave update if you do not want to wait for a restart), `check` reports
-  drift, `path` prints the `real_profile_binary` value. Signing in for the
-  agent = log in to the **Hermes Agent** profile in the everyday Brave; there
-  is no separate headful login step any more.
+- `./scripts/validate-profile-skills.py --all` (`--strict-git` in a staged or
+  clean tree fails on managed files that are still untracked).
+- Tests: `PYTHONPATH=$(ghq root)/github.com/NousResearch/hermes-agent
+  $(ghq root)/github.com/NousResearch/hermes-agent/venv/bin/python -m pytest
+  plugins/ scripts/tests/ -q --import-mode=importlib` — the Hermes venv is
+  required and `--import-mode=importlib` is not optional (plugin suites share
+  the `tests/test_plugin.py` basename in hyphenated, non-importable dirs).
+- `../install.sh` after adding files; `hermes update` to update (not
+  `setup.sh`); `hermes doctor` for providers and model tiers.
 
 ## Commits
 
