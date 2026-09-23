@@ -1140,6 +1140,7 @@ plugins:
     - tts-fallback
     - skill-topology
     - kanban-worker-mutation-guard
+    - vision-window
   entries:
     video-analyze-mimo:
       allow_tool_override: true

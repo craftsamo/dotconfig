@@ -890,6 +890,7 @@ plugins:
     - video-fallback
     - video-analyze-mimo
     - skill-topology
+    - vision-window
   entries:
     video-analyze-mimo:
       allow_tool_override: true
