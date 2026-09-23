@@ -2918,7 +2918,10 @@ the hermes-agent checkout, each with a regression test:
   only `claude-fable`, so `reasoning: none` and the one-shot "answer without
   thinking" length continuation (`turn_truncation.py`) sent the disable and
   lost the turn — the classifier only self-heals on Portal/OpenRouter
-  wording. The branch adds both id spellings; open upstream PRs #119419 /
+  wording. Verified live 2026-09-23: with the list reverted in-process the
+  disable came back `HTTP 400: "thinking.type.disabled" is not supported for
+  this model` and the turn failed with no retry; with the branch, the same
+  request omits `thinking` and answers. The branch adds both id spellings; open upstream PRs #119419 /
   #119793 carry the same change, so drop the branch once one lands.
 - a follow-up commit on `fix/anthropic-oauth-tool-choice` — Opus 5.5,
   **Fable 5.1** and Mythos 5.1 reject forced `tool_choice` (`any` / `tool`)
@@ -2960,8 +2963,14 @@ in 0.21.0** — `agent.reasoning_overrides` is a *session* concept
 profile's single `agent.reasoning_effort` applies to every tier in its chain.
 
 Current routing and previously verified provider facts follow. The 2026-09-13
-Creator-family reassignment and the 2026-09-23 capability reallocation are
-configuration-validated, not live-tested.
+Creator-family reassignment is configuration-validated, not live-tested. The
+2026-09-23 capability reallocation was probed live after the gateway restart
+(17:05, all 13 connections up): one-token requests answered on
+`anthropic` / `claude-opus-5-5` (Hermes account), `openai-codex` /
+`gpt-6-sol` and `gpt-6-luna`, the auxiliary route (`title_generation` on
+creator → `gpt-6-luna`), and OpenCode's `hermes-review` (Opus 5.5 on the sub
+account) plus `gpt-6-sol-fast` / `gpt-6-luna-fast`. Per-profile behavior and
+prose quality are not evaluated by that.
 
 - **Anthropic native** — every profile in the table except `researcher` /
   `searcher` leads with `anthropic`
