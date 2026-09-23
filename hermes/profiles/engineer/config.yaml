@@ -805,7 +805,7 @@ opencode_cli:
   enabled: true
   timeout: 3600
   wait_timeout: 3300
-  allowed_models: [openai/gpt-6-astra, openai/gpt-5.6-sol, openai/gpt-5.6-terra, anthropic/claude-fable-5-1, anthropic/claude-opus-5]
+  allowed_models: [openai/gpt-6-astra, openai/gpt-6-sol, openai/gpt-5.6-sol, openai/gpt-5.6-terra, anthropic/claude-fable-5-1, anthropic/claude-opus-5-5]
   allowed_variants: [minimal, low, medium, high, max]
 timeouts:
   tools:
