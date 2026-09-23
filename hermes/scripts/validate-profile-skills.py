@@ -42,7 +42,7 @@ WORKER_PROFILES = (
     "ux-persona",
 )
 REVIEW_PROFILES = {"ui-review", "ux-persona"}
-# Creator's hands (PROFILES.md "Creator hands (v3)"): receive-only A2A
+# Creator's hands (docs/hands/overview.md "Creator hands (v3)"): receive-only A2A
 # producers whose skills are `<hands>-pipeline/<verb>/<subject>/SKILL.md`
 # leaves, one deliverable and one form each. Add a profile here when its
 # skeleton lands; subjects must stay unique across every listed hands.
