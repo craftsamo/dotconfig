@@ -67,6 +67,17 @@ script exits `143` on INT/TERM with `status: interrupted` and retained partial
 logs and session identity; `124` means deadline expiry. Neither is proof of
 successful completion.
 
+`specialist_call` is a blocking tool for those CLI callers, so the caller's
+generic tool deadline (`timeouts.tools.sequential_call`, default 420 s) cuts it
+long before the runner's 5400 s: 41 Creator calls timed out that way and turned
+into `specialist_session` polling. `creator` and `marketer` (the CLI callers of
+long hands/peer turns) set `sequential_call` / `concurrent_batch` to 5460 —
+the runner deadline plus its cleanup allowance. The key applies to every tool of
+that profile; long terminal commands keep their own timeouts. Verify with
+`HERMES_HOME=~/.hermes/profiles/<p>` +
+`agent.tool_executor._resolve_sequential_tool_timeout()`. Telegram/Discord
+calls are background completions and never hit this deadline.
+
 A2A inbound permits only synchronous A2A inquiries and rejects `work` before
 launch. This is not a durable queue: notification delivery does not survive
 every gateway restart. Resident polling defaults to one second; the upstream

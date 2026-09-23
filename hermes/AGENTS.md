@@ -221,7 +221,9 @@ When editing `plugins/opencode` or `~/.config/opencode/agent/hermes-*.md`:
   (`timeouts.tools.sequential_call` / `concurrent_batch`) must stay above
   `opencode_cli.timeout`, or long calls turn into polling loops; verify with
   `HERMES_HOME=~/.hermes/profiles/engineer` +
-  `agent.tool_executor._resolve_sequential_tool_timeout()`.
+  `agent.tool_executor._resolve_sequential_tool_timeout()`. Likewise `creator`
+  and `marketer` keep theirs (5460) above `TURN_TIMEOUT` + cleanup, or a
+  blocking CLI `specialist_call` times out at 420 s and polls.
 - The Assistant's Admin-topic calls being planned and reviewed by its own
   model is an accepted exception; do not extend it to Engineer, and move the
   reviewer to another model family before moving Engineer off Fable.
