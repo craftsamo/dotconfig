@@ -2845,14 +2845,34 @@ list (tiers 2+). `fallback_providers` is **per-turn**: it triggers on errors
 turn. The default profile already proves the YAML shape.
 
 The fleet is split across the two subscription pools by role (2026-09-05).
-Most profiles lead with **Claude Fable 5.1** for judgment, long-context work
-and prose, and fall to **Claude Opus 5** before ever touching the OpenAI pool.
+Most profiles lead with Claude for judgment, long-context work and prose,
+and fall to a second Claude model before ever touching the OpenAI pool.
 **Researcher** leads the other way, on **GPT-6 Astra**. The other profiles
 listed below retain their role-appropriate OpenRouter tails.
 
+**Capability reallocation (2026-09-23).** Models are chosen per role by the
+capability the role needs, not by the strongest model; the budget is each
+subscription's usage allowance, not dollars. **Claude Opus 5.5** (released
+2026-09-22) replaced Fable 5.1 on `assistant`, `writer` and `marketer` and
+Opus 5 on `default` and `video-creator`: Anthropic's own table puts it above
+Fable 5.1 on reasoning (HLE), agentic terminal work (Terminal-Bench 4.0) and
+coding (SWE-bench Pro) at ~40% of Fable's token rate and ~80% of Opus 5's.
+Those Opus-led profiles take **Fable 5.1 as T2** rather than another Opus:
+every Opus model draws on the same Opus weekly sub-cap, so an Opus T2 fails
+exactly when that cap is the reason T1 failed, while Fable draws on its own
+50%-of-week ceiling. Prose quality (`writer`, `marketer`) is not covered by
+any public benchmark — revert those two to Fable 5.1 if their output
+degrades. `engineer` alone stays on **Fable 5.1** (T2 now Opus 5.5) so the
+OpenCode hidden primaries that plan for and review it (Opus 5.5) remain a
+different model; see `AGENTS.md` for the Assistant Admin-topic exception.
+On the Codex side, GPT-6 Sol replaced GPT-5.6 Sol wherever Sol was a
+fallback (`default` T2, `researcher` T2), and GPT-6 Luna replaced GPT-5.6
+Luna as the pinned auxiliary model (half the allowance, fewer
+hallucinations on AA-Omniscience).
+
 **Creator's hands are on the Anthropic pool (2026-09-13 follow-up).**
 `creator`, `image-creator` and `audio-creator` lead on **Claude Sonnet 5**;
-`video-creator` leads on **Claude Opus 5** (heavier judgment for authored
+`video-creator` leads on **Claude Opus 5.5** (heavier judgment for authored
 HTML/CSS/GSAP video work). All four keep the shared `base_url:
 https://api.anthropic.com`, fall to `openai-codex` / **GPT-6 Astra**, and
 keep their original `openrouter` / `minimax/minimax-m3` tail at the end of
@@ -2871,21 +2891,36 @@ an uncertain run lives in Engineer's Skill.
 
 | Profile | T1 (primary) | T2 | T3 | T4 | `reasoning_effort` |
 | --- | --- | --- | --- | --- | --- |
-| **default** | `anthropic` / claude-opus-5 | `openai-codex` / gpt-5.6-sol | `openrouter` / `xiaomi/mimo-v2.5` | — | `medium` |
-| **assistant** | `anthropic` / **claude-fable-5-1** | `anthropic` / claude-opus-5 | `openai-codex` / gpt-6-astra | `openrouter` / `xiaomi/mimo-v2.5` | `medium` |
-| **engineer** | `anthropic` / **claude-fable-5-1** | `anthropic` / claude-opus-5 | `openai-codex` / gpt-6-astra | `openrouter` / `deepseek/deepseek-v4-flash` | `high` |
-| **researcher** | `openai-codex` / **gpt-6-astra** | `openai-codex` / gpt-5.6-sol | `anthropic` / claude-opus-5 | `openrouter` / `xiaomi/mimo-v2.5` | `medium` |
+| **default** | `anthropic` / claude-opus-5-5 | `openai-codex` / gpt-6-sol | `openrouter` / `xiaomi/mimo-v2.5` | — | `medium` |
+| **assistant** | `anthropic` / **claude-opus-5-5** | `anthropic` / claude-fable-5-1 | `openai-codex` / gpt-6-astra | `openrouter` / `xiaomi/mimo-v2.5` | `medium` |
+| **engineer** | `anthropic` / **claude-fable-5-1** | `anthropic` / claude-opus-5-5 | `openai-codex` / gpt-6-astra | `openrouter` / `deepseek/deepseek-v4-flash` | `high` |
+| **researcher** | `openai-codex` / **gpt-6-astra** | `openai-codex` / gpt-6-sol | `anthropic` / claude-opus-5-5 | `openrouter` / `xiaomi/mimo-v2.5` | `medium` |
 | **searcher** | `xai-oauth` / grok-4.3 | `openrouter` / `xiaomi/mimo-v2.5` | — | — | `low` |
 | **creator** | `anthropic` / **claude-sonnet-5** | `openai-codex` / gpt-6-astra | `openrouter` / `minimax/minimax-m3` | — | `medium` |
 | **image-creator** | `anthropic` / **claude-sonnet-5** | `openai-codex` / gpt-6-astra | `openrouter` / `minimax/minimax-m3` | — | `medium` |
 | **audio-creator** | `anthropic` / **claude-sonnet-5** | `openai-codex` / gpt-6-astra | `openrouter` / `minimax/minimax-m3` | — | `medium` |
-| **video-creator** | `anthropic` / **claude-opus-5** | `openai-codex` / gpt-6-astra | `openrouter` / `minimax/minimax-m3` | — | `medium` |
-| **writer** | `anthropic` / **claude-fable-5-1** | `anthropic` / claude-opus-5 | `openai-codex` / gpt-6-astra | `openrouter` / `deepseek/deepseek-v4-flash` | `medium` |
-| **marketer** | `anthropic` / **claude-fable-5-1** | `anthropic` / claude-opus-5 | `openai-codex` / gpt-6-astra | `openrouter` / `xiaomi/mimo-v2.5` | `medium` |
+| **video-creator** | `anthropic` / **claude-opus-5-5** | `openai-codex` / gpt-6-astra | `openrouter` / `minimax/minimax-m3` | — | `medium` |
+| **writer** | `anthropic` / **claude-opus-5-5** | `anthropic` / claude-fable-5-1 | `openai-codex` / gpt-6-astra | `openrouter` / `deepseek/deepseek-v4-flash` | `medium` |
+| **marketer** | `anthropic` / **claude-opus-5-5** | `anthropic` / claude-fable-5-1 | `openai-codex` / gpt-6-astra | `openrouter` / `xiaomi/mimo-v2.5` | `medium` |
 
-**`default` stays on Opus 5 deliberately** — every `--clone` inherits its
-chain, and a neutral starting point should not lead with the model that has a
-sub-cap.
+**`default` stays off Fable deliberately** — every `--clone` inherits its
+chain, and a neutral starting point should not lead with the model that has
+the tightest sub-cap (Fable: 50% of the week). It leads on Opus 5.5.
+
+**Opus 5.5 thinking is always on.** Disabling it returns HTTP 400. Hermes
+0.21.0 sends adaptive thinking + `output_config.effort` for any unknown
+Claude model, so ordinary turns are fine, but its mandatory-thinking list
+(`_MANDATORY_THINKING_CLAUDE_SUBSTRINGS` in `agent/anthropic_adapter.py`)
+names only `claude-fable`. So on an Opus 5.5 profile the one-shot "answer
+without thinking" continuation (`turn_truncation.py`: fires only when a
+reply spent its whole output cap on thinking and returned no visible text)
+sends `thinking: {type: disabled}` and gets a 400. The session only learns
+to stop (`_reasoning_disable_rejected`) when the error text contains
+`reasoning is mandatory` (`error_classifier.py`, Nous Portal / OpenRouter
+wording); Anthropic's wording is unverified, so assume that continuation
+fails rather than self-heals. Ordinary turns are unaffected. Fix = add
+`claude-opus-5-5` to that list as a `fix/` branch merged into `local` with a
+regression test, like the other carried patches — not done yet.
 
 ```yaml
 # example — a 4-tier chain (the shape any profile may use)
@@ -2917,13 +2952,14 @@ in 0.21.0** — `agent.reasoning_overrides` is a *session* concept
 profile's single `agent.reasoning_effort` applies to every tier in its chain.
 
 Current routing and previously verified provider facts follow. The 2026-09-13
-Creator-family reassignment is configuration-validated, not live-tested.
+Creator-family reassignment and the 2026-09-23 capability reallocation are
+configuration-validated, not live-tested.
 
 - **Anthropic native** — every profile in the table except `researcher` /
   `searcher` leads with `anthropic`
-  (`base_url: https://api.anthropic.com`), on `claude-fable-5-1` for the
-  five judgment/prose profiles, `claude-opus-5` on `default` and
-  `video-creator`, and `claude-sonnet-5` on creator's other hands
+  (`base_url: https://api.anthropic.com`), on `claude-opus-5-5` for
+  `default`, `assistant`, `writer`, `marketer` and `video-creator`,
+  `claude-fable-5-1` on `engineer`, and `claude-sonnet-5` on creator's other hands
   (`creator`, `image-creator`, `audio-creator`). OAuth
   resolves from the global Claude Code credential/token rather than
   per-profile `auth.json`. **Fable 5.1 is not in the `hermes model` picker** —
@@ -2972,7 +3008,8 @@ Creator-family reassignment is configuration-validated, not live-tested.
   researcher, Astra as the T2 fallback on creator's hands (`creator`,
   `image-creator`, `audio-creator`, `video-creator`) ahead of their restored
   OpenRouter T3, Astra as T3 on the
-  Fable profiles, and Sol as researcher's T2. OpenCode's `build` primary and
+  Claude-judgment profiles (`assistant`, `engineer`, `writer`, `marketer`),
+  and GPT-6 Sol as the T2 of `researcher` and `default`. OpenCode's `build` primary and
   `debugger` subagent share this same ChatGPT Pro pool — so this one
   subscription now carries both harnesses. The former `gpt-5.6-terra` profile
   routes were promoted to Sol; the engineer-pipeline's OpenCode ProviderLadder
@@ -2990,8 +3027,9 @@ Creator-family reassignment is configuration-validated, not live-tested.
   (`agent/auxiliary_client.py:7-15`), so compression, title generation, triage
   and the rest were all running on the profile's most expensive model. Every
   task except `vision` and `web_extract` is now pinned to a cheap sibling on
-  the same pool — Claude profiles to `anthropic` / `claude-sonnet-5`, Astra
-  profiles to `openai-codex` / `gpt-5.6-luna` — each with a `fallback_chain`
+  the same pool — Claude profiles to `anthropic` / `claude-sonnet-5`; Astra
+  profiles and Creator's family to `openai-codex` / `gpt-6-luna` (GPT-5.6
+  Luna until 2026-09-23) — each with a `fallback_chain`
   to `openrouter` / `deepseek/deepseek-v4-flash`. Two safety nets already
   exist below that: the configured chain (`auxiliary_client.py:3887`) and a
   last-resort hop to the main agent model (`:3801`), so a pinned aux model
