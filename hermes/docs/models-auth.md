@@ -125,7 +125,7 @@ configuration-validated, not live-tested. Provider facts:
   Below that sit the configured chain and a last-resort hop to the main agent
   model, so a pinned aux model never becomes a single point of failure.
   **`vision` deliberately stays `auto`** — pinning it disables the main
-  model's native image vision (see `AGENTS.md`).
+  model's native image vision (see [`README.md`](../README.md#plugins)).
 - **OpenRouter tails split vision vs text-only.** Profiles whose fallback turns
   may need to SEE something keep a vision-capable tail: `default` /
   `assistant` / `researcher` / `searcher` / `marketer` use `xiaomi/mimo-v2.5`
@@ -292,8 +292,8 @@ at startup (and derives `TELEGRAM_CRON_THREAD_ID` from the persisted Inbox
 topic for assistant). Raw-env readers (dashboard auth) still read the process
 env the gateway launcher injects — which is also why `BU_CDP_URL` must never be
 in those layers: `browser_exec` copies it raw from the process env and it would
-pre-empt real-profile browsing for every profile at once (see the browser-stack
-rule in `AGENTS.md`).
+pre-empt real-profile browsing for every profile at once (see
+[`README.md`](../README.md#browser)).
 
 **The helper has one shot per profile per process.** Hermes runs
 `secrets.command` once per `HERMES_HOME` (no re-pull) and kills it at

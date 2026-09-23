@@ -1,493 +1,218 @@
 # Hermes Agent
 
-Self-improving AI agent CLI by Nous Research. Hermes keeps everything under
-`~/.hermes/` (it does **not** read `~/.config` natively), so
-[`install.sh`](../install.sh) symlinks the version-controlled, non-secret files
-into place.
+Mechanics of the `hermes/` subtree: install, symlinks, layout, tracking, secrets,
+engines, browser/web-search/voice plumbing and commands. Behavior contracts of
+the agents live in [`docs/`](./docs/) (index: [`PROFILES.md`](./PROFILES.md));
+maintainer rules live in [`AGENTS.md`](./AGENTS.md).
 
-## Engineer Runtime
+Hermes is the self-improving agent CLI by Nous Research. It keeps everything
+under `~/.hermes/` and does **not** read `~/.config`, so
+[`install.sh`](../install.sh) symlinks the version-controlled files into place.
 
-Engineer accepts human or Assistant Clients, owns technical planning with
-OpenCode, and proceeds after one explicit implementation approval through
-verification and PR delivery. Issue create/edit/comment is enabled only when
-the Client explicitly requests Issue management for this job. An Issue URL is
-not a write grant. Merge, deploy, repo creation, boards and default-branch push
-remain outside the implementation contract.
+**Contents:** [Where behavior lives](#where-behavior-lives) ·
+[Installing the binary](#installing-the-binary) · [Symlinks](#symlinks) ·
+[Layout](#layout) · [Tracked vs ignored](#tracked-vs-ignored) ·
+[Profiles](#profiles) ([Tracking a profile](#tracking-a-profile)) ·
+[Skills](#skills) · [Cron](#cron) · [Plugins](#plugins) · [Secrets](#secrets) ·
+[Web dashboard (tailnet)](#web-dashboard-tailnet) ·
+[Capabilities & dependencies](#capabilities--dependencies) ·
+[Local TTS engines](#local-tts-engines) ·
+[Speech-to-text](#speech-to-text--fallback-chain) ·
+[Audio hands tooling](#audio-hands-tooling) ·
+[Web search backends](#web-search-backends) · [Browser](#browser) ·
+[Worker terminal approvals](#worker-terminal-approvals) · [Commands](#commands)
 
-The v9 candidate keeps `engineer-pipeline` as its invariant kernel and exposes
-four independent child skills: `plan-engineer`, `build-engineer`, `qa-engineer`
-and `assess-engineer`. Each `SKILL.md` is the mode procedure and routes its own
-`references/`; there is no second common mode index. Only `references/opencode.md`
-and `references/shared/design-catalog.md` stay at the parent. The entry list is
-reconsidered each user turn/completion and before a midturn mode/scope change.
-Direct selection still requires the complete kernel; a prior load or summary is
-not a substitute. Missing bodies use canonical `read_file` recovery, then stop
-if still unavailable. Reading instructions does not expand or reset approval.
+## Where behavior lives
 
-`scripts/tests/test_engineer_entry_runtime.py` exercises the real Hermes scanner,
-index, skill reader and canonical file recovery in an isolated HOME with no
-network, agents or execution tools. Its scripted mode changes are not evidence
-of real-model selection or approval compliance. Run it with the provisioned
-Hermes Python and explicit source `PYTHONPATH`; the continuity runner includes it.
-Candidate validation does not install or restart anything. Cutover needs explicit
-approval, a controlled gateway restart AND a fresh session because manual edits
-do not invalidate the process-wide skill index. Existing resident work and grants
-must be reconciled, never silently replayed; other profiles are not migrated here.
+This file does not restate agent behavior. Contracts:
 
-These are Hermes-specific skills: nested discoverable entries, sibling/parent
-resource dependencies and structured `metadata.hermes` are intentional portable
-Skill-validator exceptions. That validator also treats named cross-checkout
-OpenCode resources as local files. The profile validator checks real pipeline
-link containment and ownership, and the runtime tests check actual discovery and
-reads; neither exception authorizes a broken local dependency.
+| Topic | Contract |
+| --- | --- |
+| Engineer modes, OpenCode runtime, resident turns, UI evaluators | [docs/profiles/engineer.md](docs/profiles/engineer.md) |
+| `specialist_call` / `specialist_session`, completion, deadlines, work continuity | [docs/profiles/specialist-calls.md](docs/profiles/specialist-calls.md) |
+| Assistant entry routing, creative early delivery, kanban catalog, pinned topics | [docs/profiles/assistant.md](docs/profiles/assistant.md) |
+| Writer v8 leaves, Marketer v8 entries, Researcher/Searcher phases | [writer.md](docs/profiles/writer.md), [marketer.md](docs/profiles/marketer.md), [research.md](docs/profiles/research.md) |
+| Entry loading contract, candidate rollout and cutover | [docs/topology.md](docs/topology.md) |
+| Creator v9 broker phases | [docs/broker.md](docs/broker.md) |
+| Hands entry routing and instruction context | [docs/hands/overview.md](docs/hands/overview.md) "Skill tree" |
+| Character voices, performance direction, Speech / SFX / Music / Mix families | [docs/hands/audio.md](docs/hands/audio.md) |
+| Model chains, auth inheritance, what belongs in each secret layer | [docs/models-auth.md](docs/models-auth.md) |
+| Gateway service design | [docs/operations.md](docs/operations.md) "Gateway as a persistent service" |
 
-`plugins/opencode` exposes `opencode_call` and `opencode_session` only to
-Engineer. Enable its plugin/toolset plus `opencode_cli.enabled`; optional
-`opencode_cli.models` chooses per-agent overrides, otherwise OpenCode's defaults
-apply. The CLI is resolved through PATH, preserving the normal secret shim.
-State, prompts and bounded logs live in `opencode-sessions/`, never Git. Calls
-bind originating session, worktree and branch; no implicit last-session resume.
-`stop` requests termination, never rollback. An `unknown` result blocks replay
-until observed process/Git/remote effects are explicitly reconciled. These
-records and command-deny policies are not authentication or a process sandbox.
-CLI error events can arrive with exit zero, so exit code alone is insufficient.
+## Installing the binary
 
-Engineer uses its own isolated test browser. Independent `ui-review` and
-`ux-persona` profiles are resident-only: no new bot, port or real-account profile.
-They have no terminal/file-edit tools. Set `browser.backend: "off"` there to use
-native browser tools: the Browser Use replacement executes arbitrary host Python
-and is correctly withheld when terminal is unavailable. `plugins/ui-inspection`
-adds only `ui_capture(width,height)` for bounded viewport PNGs with private paths
-and inline images. Browser actions may still change test data; this is not a
-website sandbox. Their model is `gpt-5.6-terra`, not OpenCode's `-fast` alias.
-The resident launcher gives each evaluator an owned non-Git working directory,
-so normal CLI context discovery cannot inherit the implementation repository's
-instructions. Memory and coding-context injection are disabled on those profiles.
+Outside the [Brewfile](../Brewfile). Run [`./setup.sh`](./setup.sh) — an
+idempotent installer that clones the agent via `ghq`, builds a Python 3.11 venv
+with `uv` (installing the `EXTRAS` capability set — `all,voice,messaging,
+tts-premium` — plus `faster-whisper` for free local STT), and symlinks
+`~/.local/bin/hermes` (already on `PATH` behind the shim). It makes no shell-rc
+edits and runs no interactive wizard. Trim `EXTRAS` / `EXTRA_PIP` at the top of
+`setup.sh` for a leaner venv.
 
-The migrated global OpenCode UI skills and agents are removed rather than
-retained as aliases. Engineer's mode entries and references hold their design/QA knowledge;
-OpenCode retains implementation-time rendering and project tests.
+```sh
+~/.config/hermes/setup.sh     # install (safe to re-run)
+hermes --version              # verify
+```
 
-Roll out public settings and the private Assistant Client adapters together.
-Validate candidates before installing: the live homes are symlinks, so never
-run candidate install scripts against them for tests. Preserve the previous
-public/private revisions and active-job decisions before an approved cutover.
-Old sessions/grants are reconciled into a new release, not silently adopted.
-OpenCode must restart to discover removed globals; Hermes gateway changes also
-need an approved restart after linking. A rollback restores the paired prior
-configuration, not frozen job state or completed Git/remote effects.
+Requires `ghq` + `uv` (both from `./install.sh --deps`). To update later, use
+`hermes update` (git pull + re-sync), not this script. The upstream
+`setup-hermes.sh` is deliberately avoided: it appends a PATH line to `~/.zshrc`,
+which is a symlink into this repo.
 
-## Specialist Calls
+`setup.sh` installs only the binary. Run [`../install.sh`](../install.sh)
+separately for the `~/.hermes/` symlinks, and store keys with `secret set …`
+(no `.env`).
 
-Creative early-delivery candidate: ordinary Creator/Assistant media work goes
-from Build/Execute directly to a viewable candidate with producer evidence and
-caveats, without routine broker QA. The existing `qa-creator` and
-`qa-assistant-creative` entries remain for explicit user inspection only.
-Producer checks, exact approvals, budgets and other domains' QA are unchanged.
-See PROFILES.md "Creative early delivery candidate". Validate paired checkouts;
-do not install or restart for tests. Rollout needs separate approval and fresh
-sessions, and rollback restores the paired prior sources, not job state.
+## Symlinks
 
-The shared `plugins/specialist-call` plugin exposes the `specialist` toolset
-to assistant, creator, marketer and engineer. Enable `specialist-call` in `plugins.enabled`
-and `specialist` in the relevant `platform_toolsets` lists. Configure the
-explicit `specialist_call.resident_targets` allowlist; short inquiries use an
-allowed target's existing `a2a_agents` RPC endpoint when present. No endpoint
-is discovered from model text or a supplied URL. Work always uses the existing
-resident script. Creator's hard policy and resident allowlist match its seven
-configured peers: engineer, marketer, researcher, writer, image-creator,
-video-creator and audio-creator. Assistant's target policy is unchanged; it
-cannot call the hands directly. Marketer's targets are engineer, creator,
-researcher and writer; it retains inbound A2A but exposes no raw outbound A2A
-tools. Engineer's targets are marketer, researcher, writer, ui-review and
-ux-persona; it also uses specialist tools, not raw outbound A2A. UI evaluators
-are resident-only, without bots or A2A ports. The default CLI flow is unchanged.
+Every link below points back into this repo, so edit the repo copy.
+`install.sh`'s `link()` never overwrites a real file — it prints
+`WARN … not overwriting` and skips (the repo-wide drift policy).
 
-Use `specialist_call(target, message, kind="inquiry"|"work")`, then continue
-with the same `target`, the returned `conversation_id`, and the next `message`.
-Free bounded single-reply requests use `inquiry`; metered, multi-turn or long
-work uses `work`. Pass purpose/consumer/constraints/budget for Researcher/Searcher
-framing, or the explicitly authorized settled brief for execution; preserve any
-released unit, inputs, permissions and grant unchanged.
-Transport selection grants no authority or budget. `specialist_session` supports `status`,
-`list`, and `close` in the same originating session and profile. The registry
-and restrictive request files live under that caller's real Hermes home in
-`specialist-sessions/`; resident JSON and logs retain the existing format in
-`resident-sessions/`. Old resident keys remain runnable through the original
-script. Automatic adoption is intentionally unsupported because old entries
-do not establish an originating-session owner.
-
-Verified live Telegram/Discord contexts use the official terminal background
-completion notification. The current single-profile gateway verifies its
-process home against the plugin's registered profile; multiplex gateways must
-provide an explicit task-scoped home. Unbound routing or ambiguous multiplex
-flags fail closed. CLI, including creator nested under assistant's resident
-child, waits for a short-lived runner with a maximum 5400-second deadline.
-Nested calls inherit the outer wall-clock deadline rather than resetting it.
-If the caller dies, the runner terminates its resident process group, preserves
-an `unknown` result, and exits. This covers caller death, not simultaneous
-termination of the runner itself or descendants that deliberately leave the group.
-A2A inbound permits only synchronous A2A inquiries and rejects work before
-launch. `close` is bookkeeping, not cancellation. An uncertain transport result
-or an interrupted runner is never retried, reclaimed, or moved to another
-backend automatically: inspect retained status/logs and reconcile manually.
-Proven pre-dispatch failures (including terminal rejection, invalid request
-configuration, DNS/refused connections, and spawn failures) are `failed` and
-closable even when no resident session exists. Ambiguous launches retain their
-request file and become `unknown`; they cannot be closed or retried. Listing
-conversations skips revoked targets without hiding other permitted rows.
-This is not a durable queue; notification delivery does not survive every
-gateway restart. Resident polling defaults to one second; the upstream
-completion watcher still polls every five seconds.
-
-Gateway ownership uses the framework-dispatched agent session ID and the
-gateway turn's session ID, not a model argument or process environment fallback.
-The dispatched ID is bound task-locally for the official notification stamp too;
-cached turns work even when gateway setup leaves the ID ContextVar empty, and
-resetting a chat does not grant access to its previous specialist conversations.
-The resident script exits `143` on INT/TERM with `status: interrupted` and
-retained partial logs/session identity. Exit `124` denotes deadline expiry;
-neither interruption is proof of successful completion.
-
-## Default profile symlinks
-
-| Symlink                 | Target              |
-| ----------------------- | ------------------- |
+| Symlink | Target |
+| --- | --- |
 | `~/.hermes/config.yaml` | `hermes/config.yaml` |
-| `~/.hermes/SOUL.md`     | `hermes/SOUL.md`    |
-| `~/.hermes/mcp.json`    | `hermes/mcp.json`   |
-| `~/.hermes/skills`      | `hermes/skills/`    |
-| `~/.hermes/plugins`     | `hermes/plugins/`   |
+| `~/.hermes/SOUL.md` | `hermes/SOUL.md` (untracked; see below) |
+| `~/.hermes/mcp.json` | `hermes/mcp.json` |
+| `~/.hermes/skills` | `hermes/skills/` |
+| `~/.hermes/plugins` | `hermes/plugins/` |
+| `~/.hermes/.no-bundled-skills` | `hermes/.no-bundled-skills` |
 
-### Skills — managed core tracked, learned library ignored
+For every `hermes/profiles/<name>/`, `install.sh` links into
+`~/.hermes/profiles/<name>/`: `config.yaml`, `profile.yaml`, `SOUL.md`,
+`mcp.json`, `scripts/`, `skills/` and `.no-bundled-skills` when present, plus
+the shared `hermes/plugins/` (plugin discovery is `HERMES_HOME`-scoped). It
+never links `cron/` and migrates an old cron link back to a real directory.
 
-`~/.hermes/skills` is symlinked to the repo. The maintainer-owned shared
-`default-pipeline/` CLI adapter is version-controlled; the assistant's
-`assistant-pipeline` lives under its profile and owns the kernel, child entries
-and shared mode references; its content sits in the private overlay, reached through a symlink at
-`profiles/assistant/skills/assistant-pipeline` (the only overlay link left
-since the topic-bound `desks/` were retired on 2026-09-14).
-The ~/Workspaces data-skill
-cluster lives in the private overlay (this repo is public) and is read through
-`skills.external_dirs` as `~/.config/private/hermes/skills`. Runtime-authored
-skills are mutable state under `learned/` and are git-ignored. Every
-`config.yaml` sets `skills.create_dir: skills/learned` (HERMES_HOME-relative),
-which `skill_manage` consults on every create — background review, curator,
-`/learn`, the `/skills approve` replay, flat or `operations[]` call shape — so
-new skills land at `HERMES_HOME/skills/learned/[<category>/]<name>`. (Until
-2026-09-09 the `skill-topology` plugin injected `category: learned` instead;
-upstream `72874b0675` made `operations[]` the advertised call shape and the
-rewrite silently missed every batched create.) The ~73 **bundled** skills are also kept
-out of the repo: seeding is disabled — `hermes skills opt-out --remove` writes a
-`.no-bundled-skills` marker, which is tracked here and symlinked into
-`~/.hermes/` by `install.sh` so the opt-out reproduces on a fresh machine — and
-`config.yaml` points `skills.external_dirs` at the agent clone
-(`~/ghq/github.com/NousResearch/hermes-agent/skills`), so they're read in place
-(read-only, auto-updated by `hermes update`). Curator/hub/usage bookkeeping
-(`.curator_state`, `.hub/`, `.usage.json`, `.archive/`, …) lands in
-`hermes/skills/` but is git-ignored.
+`install.sh` seeds a missing `SOUL.md` from the tracked `SOUL.example.md` and the
+assistant's missing `config.yaml` from `config.example.yaml`; seeded copies stay
+untracked. The private overlay (`~/.config/private`, the `private-dotconfig`
+repo), when present, runs its own `install.sh` last and overlays the real
+`SOUL.md` files and `profiles/assistant/config.yaml` into this tree.
 
-### Cron — machine-local, outside the repo
+## Layout
 
-`~/.hermes/cron` (and each profile's) is a real directory this repo neither
-links nor tracks. Hermes creates it and owns every file in it: `jobs.json`,
-`output/`, `executions.db`, `.tick.lock`, `.jobs.lock`, `ticker_*`,
-`catch_up_occurrences`, `suggestions.json`. Because definition and run-state
-share one file, tracking `jobs.json` meant either constant churn or a
-`skip-worktree` flag that hid new jobs and broke branch switches — so the whole
-directory stays out.
+```
+config.yaml            # default profile: model/providers, toolsets (Hermes-rewritten)
+SOUL.example.md        # persona template; real SOUL.md is private/untracked
+mcp.json               # MCP servers ({} = none)
+.no-bundled-skills     # bundled-skill seeding opt-out marker
+                       # (no cron/ — Hermes owns ~/.hermes/cron, machine-local)
+skills/
+  default-pipeline/    # thin CLI adapter for default over the assistant's
+                       #   assistant-pipeline kernel/entry tree
+  learned/             # runtime-authored skills; mutable, ignored
+plugins/               # backend chains, tool overrides, specialist/OpenCode
+                       #   transports, Worker guards; source tracked
+launchd/               # multiplex gateway launcher + plist template, local
+                       #   TTS engine launchers + plist templates
+engines/               # tracked pins/locks: irodori-tts, qwen3-tts,
+                       #   stable-audio-3, motion-canvas, three-webgl
+scripts/               # profile-secrets.sh (secrets.command helper),
+                       #   brave-agent-sync.sh, validate-profile-skills.py,
+                       #   verify-work-continuity.py, audit-hands-references.py,
+                       #   qwen3_tts_server.py, qwen3_tts_reading_check.py,
+                       #   stable_audio3.py, tests/ (pytest suites + fixtures)
+local/                 # ignored machine-local installs: engine venvs/weights,
+                       #   brave-agent clone bundle, …
+docs/                  # behavior/design contracts (index: PROFILES.md)
+profiles/<name>/       # bots: assistant, engineer, creator, marketer; specialists:
+                       #   writer, researcher, searcher; Creator's hands:
+                       #   image-, video-, audio-creator; resident-only UI
+                       #   evaluators: ui-review, ux-persona
+  config.yaml          # model/fallback + agent.system_prompt (operating contract);
+                       #   assistant tracks config.example.yaml instead
+  profile.yaml         # routing description (kanban/delegation)
+  SOUL.example.md      # persona template; real SOUL.md (BASE + role posture) untracked
+  .no-bundled-skills
+  skills/              # <profile>-pipeline/ (the one root pipeline skill;
+                       #   assistant's is a private-overlay symlink), technic/
+                       #   (flat leaf technics, where used), learned/ (ignored)
+  scripts/             # assistant: resident-session.sh, kanban-resolve-block.sh,
+                       #   kanban-scheduled-sweeper.sh, creative-timeline.py,
+                       #   local-* cron wrappers (generated, ignored);
+                       #   creator: hyperframes-env.sh
+  external-skills/     # writer: curated japanese-writing symlink
+setup.sh README.md PROFILES.md AGENTS.md
+```
 
-Nothing recreates a lost `jobs.json`; Hermes reads a missing one as zero jobs
-without warning. The private `local-*` schedules are re-creatable from the
-`hermes cron create` commands in the private overlay's README
-(`~/.config/private`, the `private-dotconfig` repo).
+Shared `skills/` holds only `default-pipeline/` and `learned/`; creative skills
+live under `profiles/creator/skills`. Skill placement (validator-enforced):
 
-### Plugins — provider chains & tool overrides
+- Every worker has exactly ONE root pipeline skill `<profile>-pipeline`
+  (lifecycle + capability router, auto-loaded by its operating contract); entry
+  and leaf shapes per profile are in the per-profile docs.
+- Directly selectable leaf technics sit exactly one directory below
+  `skills/technic/` (flat canonical leaves) and are pinned per card via
+  `kanban_create skills:[...]`. A technic's references are modes only when
+  tools, spend class and QA stay the same; styles/presets/formats remain
+  references. Creator's `creator-*` technics stay 1:1 with the assistant's
+  legacy Plan leaves ([docs/broker.md](docs/broker.md)).
+- Researcher/Searcher entries own plain `references/<unit>.md` (4/3); Researcher
+  shares parent `references/gather.md`; Searcher has no technics.
+- Writer reads the `japanese-writing` core through its curated
+  `external-skills/` symlink; Marketer reads Writer's pipeline as an external
+  reference for shared caller QA.
+- The assistant's `assistant-pipeline` (kernel + 19 child entries + shared mode
+  references) is a private-overlay symlink; its pinned Telegram topics bind no
+  skill (their contracts are `channel_prompts` entries).
+- `learned/` is never a dispatch or Git ownership surface.
 
-`~/.hermes/plugins` is symlinked to `hermes/plugins/` (and into each profile's
-home — plugin discovery is `HERMES_HOME`-scoped). Plugin **source is tracked**;
-Python bytecode (`**/__pycache__/`, `*.pyc`) is git-ignored. The whole dir is
-symlinked, so a new plugin needs no re-`install.sh` — only `plugins.enabled` in
-the relevant `config.yaml`.
+## Tracked vs ignored
 
-- **image_gen / video_gen fallback chains** (`kind: backend`):
-  `image_gen/image-fallback` registers `img-codex-xai` (Codex → xAI),
-  `img-xai-codex-fal` (xAI → Codex → FAL), and `img-codex-xai-fal`
-  (Codex → xAI → FAL); Creator uses the Codex-first `img-codex-xai-fal` chain.
-  `video_gen/video-fallback` registers `vid-xai-fal` (Grok Imagine → FAL) and the
-  reverse `vid-fal-xai`. Pick one per profile via `image_gen.provider` /
-  `video_gen.provider`.
-- **video-analyze-mimo** (`kind: standalone`): overrides the built-in
-  `video_analyze` to route video understanding to a fixed, config-driven backend
-  (`video_analyze: {provider, model}`, default OpenRouter / `xiaomi/mimo-v2.5`),
-  bypassing `auxiliary.vision`. This lets `auxiliary.vision` stay `auto` so images
-  route natively to the active main model while video always lands on a
-  video-capable backend.
-- **tts/irodori-tts** (`kind: backend`): Irodori-TTS client for the loopback
-  server on `127.0.0.1:10103`. Japanese only — it refuses English-dominant text
-  so the chain advances — and it rewrites Latin proper nouns from a private
-  lexicon and repairs its own output before delivery
-  (see [Local TTS engines](#local-tts-engines)).
-- **tts/qwen3-tts** (`kind: backend`): registered-voice Qwen3-TTS client for the
-  loopback server on `127.0.0.1:10102`. The multilingual tier, and the one that
-  takes whatever Irodori declines (see [Local TTS engines](#local-tts-engines)).
-- **tts/character-voice** (`kind: standalone`): the two Creator-only character
-  voice tools. It owns no backend: it resolves an engine out of the TTS registry
-  and calls it directly, so a named character asset never routes
-  (see [Character voices](#character-voices)).
-- **tts/tts-fallback** (`kind: backend`): TTS fallback chain. Tries
-  `tts.fallback.chain` in order (`irodori-tts → qwen3-tts → edge`) and returns
-  the first tier that produces audio, so a down local server still speaks
-  (Edge TTS, `tts.edge.voice: ja-JP-NanamiNeural`). Active via
-  `tts.provider: tts-fallback`.
-- **transcription/stt-fallback** (`kind: backend`): STT fallback chain. Tries
-  `stt.fallback.chain` in order (default `groq → xai → openai → elevenlabs →
-  local`) and returns the first successful transcript. Active via
-  `stt.provider: stt-fallback` (see [Speech-to-text](#speech-to-text--fallback-chain)).
-- **skill-topology** (`kind: standalone`): the topology guard's home. It no
-  longer rewrites skill creation — `skills.create_dir` places new skills under
-  `learned/` — and it does not intercept dashboard direct-create APIs or
-  arbitrary terminal/file writes; the topology validator catches those paths
-  after the fact.
+**Tracked:** root `config.yaml` / `mcp.json` / `.no-bundled-skills`; per profile
+`config.yaml` (assistant: `config.example.yaml`), `profile.yaml`,
+`.no-bundled-skills`, `skills/<profile>-pipeline/` and `skills/technic/`,
+`scripts/`; every `SOUL.example.md`; `skills/default-pipeline/`; `plugins/`
+source; `launchd/`; `engines/`; `scripts/`; docs.
 
-## User-managed content
+**Ignored** (see [`../.gitignore`](../.gitignore)): every `SOUL.md` and
+`profiles/assistant/config.yaml` (private overlay); `auth.json`, `.env*`,
+`memories/`, `sessions/`, `state.db*`, `logs/`, `workspace/`, `plans/`,
+`*_cache/`, `local/`, `browser-profile/` (copied cookies — must never ship);
+`specialist-sessions/`, `resident-sessions/`, `opencode-sessions/`; skill
+bookkeeping (`.bundled_manifest`, `.usage.json*`, `.curator_*`, `.archive/`,
+`.hub/`, `index-cache/`, `.restore-backups/`); every other directory under
+`skills/` (`learned/`, seeded categories); `profiles/*/scripts/local-*.sh`;
+Marketer lease files; `**/__pycache__/`, `*.pyc`; the
+`plugins/hermes-achievements/` runtime data. `cron/` is absent entirely — it is
+not linked, so nothing it writes reaches the repo. Never commit secrets, state
+or host-rendered plists (`~/Library/LaunchAgents/…`).
 
-- `config.yaml` — model/provider, terminal backend, memory, compression,
-  toolsets, `skills.external_dirs`, media backends (`image_gen` / `video_gen` /
-  `video_analyze` providers, `auxiliary.vision`). No secrets. Hermes rewrites
-  this on load.
-- `SOUL.md` — global agent identity (system-prompt slot #1).
-- `mcp.json` — MCP server connections.
-- `skills/default-pipeline/` — the version-controlled thin CLI adapter for the
-  default profile. Its reference source is
-  `profiles/assistant/skills/assistant-pipeline/`, whose kernel and 19 child
-  entries own the front-door workflow and requester QA routing.
-  The closed kanban catalog is the union of `card_units` frontmatter in
-  `execute-assistant-creative/SKILL.md` and `execute-assistant-search/SKILL.md`
-  only (each unit names its `assignee` worker); no detail declares cards. Topology, routing,
-  schema, required QA contracts, and the worker-kernel unit-gate parity are
-  enforced by `scripts/validate-profile-skills.py`.
-  The ~/Workspaces data-skill cluster lives in the private overlay, read
-  through `skills.external_dirs` as `~/.config/private/hermes/skills`.
-  `skills/learned/` is the untracked adaptive library; bundled skills are read
-  from the clone via `external_dirs`.
+**Skill ownership follows the directory type.** Shared `default-pipeline/` and
+every worker's `<profile>-pipeline/` and `technic/` are maintainer-owned and
+tracked normally. The assistant's `assistant-pipeline/` is maintainer-owned too
+but lives in the private overlay — a symlink into `~/.config/private`, because
+it encodes the personal messaging operation and this repo is public. Edit it
+through the same path; commit in the overlay repo. Never use `skip-worktree` for
+managed skills: their changes must remain visible in `git status`.
 
-### Assistant entry routing and cutover
-
-The deployed layout retains the private-overlay directory and root name
-`assistant-pipeline`. Its 19 independent child skills sit outside `references/`:
-`chat-assistant` and `{plan,execute,qa}-assistant-<domain>` for engineering,
-creative, writing, research, search and marketing. A child's root `SKILL.md`
-owns the former mode/domain index; its `references/` contains detailed subjects
-and, for creative, retained `legacy/` material. Parent shared files are only
-`references/plan/index.md`, `references/execute/{index,resident-sessions,kanban-lite,scheduled}.md`
-and `references/quality-assurance/index.md`. Chat owns its common procedure in
-`chat-assistant/SKILL.md`. The four catalog units and their names are unchanged.
-No new aliases or symlink install mapping is needed, and the pinned topics'
-inline-only restrictions are unchanged (they lived in desk skills at the time;
-since 2026-09-14 they live in each topic's `channel_prompts` contract).
-
-Each user turn/completion and each action changing mode/domain/scope midturn
-selects the applicable entry from the available index. Reuse requires full
-bodies in current context, not a past load, summary or root preload. Each entry
-requires the invariant kernel and its mode-common procedure before applying
-relevant details; approval-only replies resume existing state and scope.
-Default's CLI adapter discovers the same names through a bounded filesystem
-listing of the known Assistant tree and reads canonical files with `read_file`,
-even when hidden from `skill_view`. Its `skills.external_dirs` stays unchanged,
-so the 19 entries are not imposed on default or clones. Raw child
-`${HERMES_SKILL_DIR}` means that owning child's directory, not the adapter's
-directory. Writer's public acceptance rubric remains its sole source; if
-`writer-pipeline` is unavailable by name, the CLI reads
-`~/.hermes/profiles/writer/skills/writer-pipeline/references/acceptance/index.md`
-and the selected `prose.md`/`script.md` for inspection only, without exposing
-the producer menu.
-
-Source limitation: upstream `tools/skills_tool_dedup.py` and
-`tools/file_tools.py` can return unchanged stubs; compression-aware resets do
-not establish that every required instruction body is currently visible to the
-model. The entry-local canonical `read_file` fallback, following `next_offset`
-for truncation, is recovery, not a prompt-perfect guarantee. If it cannot recover
-a required body, stop the affected action. Do not bypass dedup through alternate
-paths or artificial ranges.
-
-This topology was **cut over on 2026-09-12**. Live `--all --strict-git`
-validation passed and all 13 configured messaging/A2A connections returned
-after the controlled restart. A restricted fresh Assistant CLI conversation
-made two real model turns: the first loaded Writing's document guide, and the
-second reused its entry/common bodies and loaded only the script guide.
-Search, production, delegation, saving and publication were disabled; this
-does not establish refresh of existing messaging histories.
-Run public tests with `HERMES_PRIVATE_ROOT=<private-candidate>` and private tests
-with `HERMES_PUBLIC_ROOT=<public-candidate>`. These select paired source trees
-for tests, not runtime wiring. Never run install scripts or create live links
-for candidate checks, and keep live Git/symlink ownership checks intact.
-The gateway caches its skill index in-process; manual file edits require a
-controlled restart AND a fresh session (`/new`) after explicit cutover approval.
-A fresh session alone is not index invalidation, and root preload does not
-prove that child dependencies are loaded. Pair public/private rollout and
-rollback without modifying existing job outputs or approvals.
-
-### Creator and hands entry routing
-
-Creator v9 retains `creator-pipeline` as its invariant kernel and adds three
-independently discoverable children outside `references/`: `plan-creator`,
-`build-creator` and `qa-creator`. Their `SKILL.md` bodies are the phase procedures;
-each owns the corresponding `references/<hands>/<subject>.md` tree. Shared
-`references/capabilities.md` and `references/legacy/` stay at the parent. No
-phase-index alias, generated menu or extra common-mode wrapper is introduced.
-
-The three hands retain their existing `<verb>/<subject>/SKILL.md` names, forms,
-reference options and scripts. Their always-on contracts re-evaluate the named
-leaf and selected references on inbound turns/completions and before changed
-operations, subjects or options. The full executing profile's kernel and required
-instructions must be in current context, not merely recorded as loaded. Canonical
-`read_file` recovery follows genuine truncation offsets; unrecoverable required
-instructions stop the action. Optional advisory references keep their fallback.
-Loading never grants a new operation, resets spend or reruns a completed render.
-Creator inspecting a hands form does not become that hands' executor.
-
-The public `test_creator_entry_runtime.py` suite uses real discovery, index and
-read handlers in isolated child processes with copied Markdown and no network or
-model. `test_creator_entry_contract.py` and `test_hands_instruction_context.py`
-check the text/role/recovery contracts. These run in `verify-work-continuity.py`
-alongside the paired Assistant entry
-regressions. These are mechanical checks, not proof of model compliance or live
-media quality. Test candidates in paired worktrees and an isolated HOME; do not
-install or repoint live links. Deployment requires separate approval, controlled
-restart and fresh sessions as for Assistant. Existing jobs, artifacts, proposal
-hashes, grants and the four-unit card catalog remain unchanged.
-
-### Writer v8 candidate
-
-The user-approved Writer migration is implemented in an isolated candidate,
-pending explicit cutover. It has not been deployed, restarted or validated with
-a real model; the Assistant deployment recorded above remains unchanged.
-The root name `writer-pipeline` and its 18 production leaf names, paths and forms
-stay unchanged at `<write|edit|analyze>/<subject>/SKILL.md`. One independent
-non-production direct child, `writer-pipeline/consult-writer/SKILL.md`, holds the
-old advice body, not a fourth production verb or form. Shared
-`references/acceptance/` remains canonical and unchanged.
-
-Every Writer execution entry, including consultation, checks for the full kernel,
-selected entry body and current required detail references on each inbound turn,
-completion notification and before a midturn operation/subject/scope change.
-Reuse requires full bodies in current context, not past loads, summaries or root
-preload. Recover missing bodies using canonical `read_file`, following
-`next_offset` through truncation, or stop the affected action. No aliases or
-dedup evasion through alternate paths or artificial ranges.
-
-Assistant and Marketer keep all 19 Writer non-kernel names disabled: the 18
-production leaves plus `consult-writer`. Consultation remains delegated to Writer;
-Client reads of forms or acceptance references do not execute Writer's procedure.
-Candidate checks do not authorize live installation or restart; explicit cutover
-must pair public/private sources and refresh the gateway index and session as
-described above, without changing existing outputs or approvals.
-
-### Marketer entry routing
-
-Marketer's v8 kernel remains `marketer-pipeline`. Its independently discoverable
-children are `plan-marketer`, `build-marketer`, `qa-marketer` and `analyze-marketer`;
-each owns its former mode index and local detail references. The parent retains
-only shared platform/state references and the unchanged browser-lease helper.
-Every direct entry requires the full kernel; reuse and canonical read recovery
-follow the Assistant contract above without adding a second common mode index.
-Browser reads still hold the lease, saving still needs exact approval, and
-publishing remains unavailable. No other profile's skill menu is expanded.
-
-The candidate checks are `scripts/tests/test_marketer_pipeline.py`,
-`test_marketer_entry_runtime.py` and `test_marketer_browser_lease.py`, using the
-provisioned Hermes Python and source PYTHONPATH. The runtime test copies only
-candidate Markdown into an isolated HOME and forbids network, providers and
-browser execution; it tests real discovery/reads/dedup, not model selection or
-live saving. These checks are registered in `verify-work-continuity.py`.
-Live cutover needs separate approval, a controlled restart AND fresh sessions;
-existing resident work, outputs, grants and approvals are not migrated/replayed.
-
-### Researcher and Searcher phase routing
-
-The purpose-first migration is implemented in the isolated candidate, awaiting
-explicit live cutover and real-model verification. Other roles' deployment dates
-and status above are unchanged. The retained kernels are `researcher-pipeline`
-v9.0.0 and `searcher-pipeline` v7.0.0. Each has three independent entries outside
-`references/`: `plan-researcher`, `build-researcher`, `qa-researcher` and
-`plan-searcher`, `build-searcher`, `qa-searcher`, respectively. Entry bodies own
-phase procedures, not a second common-mode index.
-
-Each Researcher entry owns four plain `references/<unit>.md` files for
-`evidence-pack`, `tradeoff-matrix`, `fact-check` and `guidance`; each Searcher
-entry owns three for `lookup`, `sweep` and `hunt`. These exact unit names remain,
-but the former unit-named skills are removed without aliases. Researcher's shared
-`references/gather.md` stays at the parent, required beyond a few direct lookups.
-The generic skill-authoring parent-reference portability exception still applies:
-these are Hermes-dependent entries, not standalone packages; do not duplicate
-the kernel or Gather to silence that check.
-
-The Client supplies purpose, consumer, constraints and budget. Researcher proposes
-questions, options, criteria and exact claims; Searcher proposes retrieval scope,
-coverage, per-item fields, done conditions and exclusions. Both may propose an
-ordered sequence of their own units, never cross-role project decomposition.
-Client agreement within existing authority releases Build, followed by QA
-self-check and separate caller acceptance. An already explicitly authorized,
-settled execution brief goes directly to Build; filled fields or transport kind
-alone are insufficient. A narrow authorized inquiry can finish in one shot;
-complex framing, feedback and work use a resident conversation. Planning uses
-supplied material only; needed discovery is a separately agreed bounded
-preliminary Build, then QA and a refined Plan, not release of the main work.
-Assistant reaches Researcher through Engineer, Creator or Marketer, never a new
-direct peer. Searcher remains retrieval-only; Researcher retains evidence scoring
-and does not take over artifact craft QA.
-The consuming primary owns the Researcher conversation and returns the agreed
-baseline (questions, done criteria, source policy, budget and approved changes)
-with conclusions. Assistant requests a missing baseline through that primary;
-purpose alone cannot establish acceptance.
-
-Searcher still accepts only `survey-enumeration` (settled question, coverage
-claim/floor count and per-item fields) and `exhaustive-hunt` (settled question,
-done criteria and scope exclusions). The caller may author the complete spec.
-A valid card goes directly Build -> QA -> terminal without Plan negotiation or
-new approval. Malformed/missing-input/non-catalog/composite cards block with
-`kanban_block(kind=capability)` before any phase; Researcher refuses every card.
-Existing card dialogue, review and guarded-resume protocols remain intact.
-
-All six entries require the full kernel, selected phase body and selected unit
-reference in current context on each caller/judge/resume/completion turn and
-before phase/unit/scope changes. A past load, summary or root preload is not
-enough. If `skill_view` dedup returns unchanged with a missing body, recover via
-canonical `read_file`, following `next_offset` through actual truncation, or stop
-the affected action. No alternate-path/artificial-range bypass. Reads and resumes
-never grant scope, reset coverage/frontier/budget or replay completed work.
-
-The existing three suites are `scripts/tests/test_researcher_entries.py`,
-`test_searcher_pipeline.py` and `test_searcher_entry_runtime.py`, all registered
-in `scripts/verify-work-continuity.py`. They cover declared phase/unit contracts,
-card gates and actual discovery/read/dedup/recovery mechanics with provisioned
-Hermes Python and source PYTHONPATH, not real-model routing or actual research.
-Pair public tests with `HERMES_PRIVATE_ROOT=<private-candidate>` and private tests
-with `HERMES_PUBLIC_ROOT=<public-candidate>`, using isolated HOME. Never install,
-restart or repoint live links for tests, weaken live Git ownership checks, or
-rewrite runtime jobs, frozen outputs or approvals. Approved cutover must refresh
-the cached index in the applicable gateway/resident/worker processes and use fresh
-sessions; file edits alone do not refresh it. No new profile, peer, external root,
-tool grant, card type or install mapping is added.
+**Promoting a learned skill** is an explicit review step: review it, move the
+complete package from `learned/` into `technic/`, set
+`metadata.hermes.category: technic` and normalize its routing, add it to the
+pipeline's capability registry when applicable, pin an agent-created source
+against curator writes with `hermes -p <profile> curator pin <name>`, then
+commit it normally.
 
 ## Profiles
 
 Named profiles live under `~/.hermes/profiles/<name>/` — each its own
-`HERMES_HOME` with its own `config.yaml` / `SOUL.md` / `skills/` /
-`cron/`. The alias `~/.local/bin/<name>` is just a wrapper that runs
+`HERMES_HOME` with its own `config.yaml` / `SOUL.md` / `skills/` / `cron/` /
+state. The alias `~/.local/bin/<name>` is a wrapper that runs
 `exec hermes -p <name> "$@"` — **bare `hermes`**, so it still resolves through
-the `bin/hermes` shim and the shared `global` + `hermes` Keychain keys are
-injected for every profile.
+the `bin/hermes` shim and the shared `global` + `hermes` Keychain layers are
+injected for every profile. The default profile is `~/.hermes` itself. Roster
+and roles: [docs/topology.md](docs/topology.md) "Profile roster".
 
 ### Tracking a profile
 
-`install.sh`'s `link()` never overwrites a real file — it prints
-`WARN … not overwriting` and skips (the repo-wide drift policy). Because
-`hermes profile create` writes **real** files into `~/.hermes/profiles/<name>/`,
-move them into the repo (clearing the real files) before linking:
+Because `hermes profile create` writes **real** files into
+`~/.hermes/profiles/<name>/` and `link()` never replaces a real file, move them
+into the repo (clearing the real files) before linking:
 
-1. `hermes profile create <name>` — seeds state + the `~/.local/bin/<name>` alias.
+1. `hermes profile create <name> --description "<role>"` — seeds state + the
+   `~/.local/bin/<name>` alias. Routing quality depends on the description
+   (`hermes profile describe <name> --text "…"` to change it).
 2. Stop bundled-skill seeding so bundled skills stay in `external_dirs`:
    ```sh
    hermes -p <name> skills opt-out --remove --yes
@@ -495,62 +220,170 @@ move them into the repo (clearing the real files) before linking:
 3. Move the version-controllable files into the repo (skip any that don't exist):
    ```sh
    mkdir -p ~/.config/hermes/profiles/<name>
-   mv ~/.hermes/profiles/<name>/{config.yaml,profile.yaml,SOUL.md,mcp.json,cron,skills} \
+   mv ~/.hermes/profiles/<name>/{config.yaml,profile.yaml,SOUL.md,mcp.json,skills} \
       ~/.config/hermes/profiles/<name>/
    ```
-4. In that profile's tracked `config.yaml`, point `skills.external_dirs` at the
-   clone (`~/ghq/github.com/NousResearch/hermes-agent/skills`) — same as default.
+   Commit a `SOUL.example.md` persona template; `SOUL.md` itself stays
+   untracked (put the real one in the private overlay). A config holding private
+   identifiers follows the assistant pattern: track `config.example.yaml`, keep
+   the real `config.yaml` in the overlay.
+4. In that profile's `config.yaml`, point `skills.external_dirs` at the clone
+   (`~/ghq/github.com/NousResearch/hermes-agent/skills`) — same as default.
 5. `./install.sh` — the `[hermes]` loop now symlinks them (no WARN).
 
-State (`memories/`, `sessions/`, `state.db*`, …) stays in
-`~/.hermes/profiles/<name>/` — never moved, never tracked.
-
-Each worker profile tracks exactly one `<profile>-pipeline/` and a `technic/`
-directory. Pipelines implement the shared `admit → route → act_or_plan → verify
-→ handoff → terminal` lifecycle; Workers never register Kanban cards. The
-assistant keeps `technic/` here, while its `assistant-pipeline/` is a
-private-overlay symlink (personal messaging operation; content tracked by
-the private-dotconfig repo — a second `desks/` link existed until the desk
-skills were retired on 2026-09-14, and the validator now rejects a leftover);
-`default-pipeline` adapts that tree for the CLI. Every profile may grow an
-untracked `learned/` library. To promote a learned skill, review it, move the
-complete package into `technic/`, set `metadata.hermes.category: technic`, add
-it to the pipeline's capability registry when applicable, pin an agent-created
-source with `hermes -p <profile> curator pin <name>`, then commit it normally.
+State (`memories/`, `sessions/`, `state.db*`, `cron/`, …) stays in
+`~/.hermes/profiles/<name>/` — never moved, never tracked. A new bot also needs
+a `hermes-<name>` Keychain layer and a multiplex allowlist entry — see
+[docs/topology.md](docs/topology.md) "Multiplex gateway and A2A peer graph".
 
 ### Caveats
 
 - **Order matters / "already installed".** The symlink must exist *before*
   Hermes writes a real file. If real files already exist (a named profile, or a
   `~/.hermes/` set up before this repo), `install.sh` won't replace them — use
-  the move-then-`install.sh` adoption above. Hermes itself still runs fine
-  either way; only the symlink tracking is affected.
-- **Per-profile secrets aren't isolated by the shim.** The wrapper always calls
-  `hermes`, so every profile gets the same `global` + `hermes` Keychain layers.
-  Profile isolation happens in the multiplex gateway's per-profile secret
-  scopes instead: each profile's `secrets.command` runs
-  `scripts/profile-secrets.sh <profile>`, which layers `global` + `hermes`
-  (minus messaging keys) + the profile's own `hermes-<profile>` Keychain layer
-  (bot tokens). Never introduce `.env` files.
-- **Background / launchd profiles** may start with a restricted `PATH`. The
-  tracked multiplex gateway launcher sets `PATH` explicitly and injects the
-  approved Keychain layers before `exec`; other services must follow the same
-  pattern.
+  the move-then-`install.sh` adoption above. Hermes itself runs fine either way;
+  only the symlink tracking is affected.
+- **Background / launchd processes** may start with a restricted `PATH`. The
+  multiplex gateway launcher sets `PATH` explicitly and injects the approved
+  Keychain layers before `exec`; other services must follow the same pattern.
+
+## Skills
+
+`~/.hermes/skills` and each profile's `skills/` are symlinks into this repo.
+
+- **Runtime creates land in `learned/`.** Every `config.yaml` sets
+  `skills.create_dir: skills/learned` (`HERMES_HOME`-relative,
+  validator-enforced), which `skill_manage` consults on every create —
+  background review, curator, `/learn`, the `/skills approve` replay, flat or
+  `operations[]` call shape — so new skills land at
+  `HERMES_HOME/skills/learned/[<category>/]<name>`. The `skill-topology` plugin
+  does not do this placement (its old rewrite missed batched `operations[]`
+  creates); it no longer rewrites skill creation.
+- **Bundled skills stay out of the repo.** Seeding is disabled:
+  `hermes skills opt-out --remove` writes a `.no-bundled-skills` marker, tracked
+  here and linked by `install.sh` so the opt-out reproduces on a fresh machine.
+  `skills.external_dirs` points at the agent clone
+  (`~/ghq/github.com/NousResearch/hermes-agent/skills`), so bundled skills are
+  read in place (read-only, refreshed by `hermes update`).
+- **Upstream wiring is `external_dirs`-only.** Official `skills/` libraries
+  attach per category directory, `optional-skills/` per individual skill
+  directory, pruned via `skills.disabled` (see each profile's `config.yaml`).
+  Never run `hermes skills install` — it copies into `~/.hermes/skills`, i.e.
+  this repo. The setup-gated candidate backlog is the "Upstream wiring pattern"
+  paragraph in [docs/topology.md](docs/topology.md).
+- **Upstream still seeds past the opt-out.** Each gateway launch writes
+  `autonomous-ai-agents/DESCRIPTION.md` into the running profile's skill root,
+  and an upgrade that changes a bundled skill copies the whole skill in. A lone
+  `DESCRIPTION.md` is harmless (ignored, no `SKILL.md`; deleting it only invites
+  it back). A seeded `SKILL.md` fails `validate-profile-skills.py` with
+  `unexpected skill root`. So **after every `hermes update`**, run the validator
+  and delete any category directory under `profiles/*/skills/` that is not
+  `<profile>-pipeline`, `technic` or `learned`; the skills stay readable via
+  `skills.external_dirs`.
+- **Private and shared stores.** The `~/Workspaces` data-skill cluster lives in
+  the private overlay and is read through `skills.external_dirs` as
+  `~/.config/private/hermes/skills`. HyperFrames / `media-use` playbooks and the
+  curated `media-craft-*` skills are read from `~/.agents/skills` via
+  `external_dirs`; the store's maintenance rules are in `AGENTS.md`.
+
+## Cron
+
+`~/.hermes/cron` (and each profile's) is a real machine-local directory this
+repo neither links nor tracks. Hermes `mkdir -p`s it and owns every file in it:
+`jobs.json`, `output/`, `executions.db`, `.tick.lock`, `.jobs.lock`,
+`ticker_*`, `catch_up_occurrences`, `suggestions.json`. Definition and run-state
+share one file, so tracking `jobs.json` meant constant churn.
+
+- Do **not** re-link it, and do **not** re-add it with `skip-worktree` — that
+  flag hid new jobs from `git status` and made branch switches fail on a
+  dirty-but-invisible file.
+- A missing `jobs.json` is read as **zero jobs, silently**, and nothing
+  recreates it — back it up before touching that directory.
+- The private `local-*` schedules are re-creatable from the `hermes cron create`
+  commands in the private overlay's README. Hermes' scheduler only runs a script
+  resolving inside `<HERMES_HOME>/scripts`, so the overlay's `install.sh`
+  generates the ignored `profiles/*/scripts/local-*.sh` wrappers.
+
+## Plugins
+
+`~/.hermes/plugins` (and each profile's) is symlinked to `hermes/plugins/`, so a
+new plugin needs no re-`install.sh` — only `plugins.enabled` (and any toolset)
+in the relevant `config.yaml`. After a plugin enablement change the multiplex
+gateway needs one normal drained restart (`/restart` or
+`gateway-launchctl.sh install`); never launch a second gateway.
+
+**Media stack.** Backends are chosen via `*_gen.provider` / `tts.provider` /
+`stt.provider` plus `*.fallback.chain`. These custom keys (and top-level ones
+such as `video_analyze:`) survive Hermes' config rewrites because `_deep_merge`
+keeps user keys.
+
+- **image_gen/image-fallback** (`backend`): `img-codex-xai`, `img-xai-codex-fal`,
+  `img-codex-xai-fal` (Creator's chain) — names spell the order. Capabilities:
+  [docs/hands/image.md](docs/hands/image.md) "Image generation capabilities".
+- **video_gen/video-fallback** (`backend`): `vid-xai-fal` (Grok Imagine → FAL),
+  `vid-fal-xai`.
+- **video-analyze-mimo** (`standalone`): overrides `video_analyze` with a fixed,
+  config-driven backend (`video_analyze: {provider, model}`, default OpenRouter /
+  `xiaomi/mimo-v2.5`), so `auxiliary.vision` can stay `auto` and images route
+  natively to the main model. **Pinning `auxiliary.vision` to a video-capable
+  model disables the main model's native image vision.**
+- **tts/tts-fallback** (`backend`, `tts.provider: tts-fallback`) and
+  **tts/irodori-tts** / **tts/qwen3-tts** (`backend`, loopback clients): see
+  [Local TTS engines](#local-tts-engines).
+- **tts/character-voice** (`standalone`): AudioCreator-only character tools; it
+  owns no backend and resolves an engine from the TTS registry directly.
+  Contract: [docs/hands/audio.md](docs/hands/audio.md) "Character voices and
+  performance direction".
+- **transcription/stt-fallback** (`backend`): see
+  [Speech-to-text](#speech-to-text--fallback-chain).
+- **audio_gen/sfx-gen**, **audio_gen/music-gen** (`standalone`): audio-creator
+  only, with the dedicated `sfx_gen` / `music_gen` toolsets.
+
+**Transports and guards.**
+
+- **specialist-call** (`standalone`): the `specialist` toolset for assistant,
+  creator, marketer and engineer. Enable `specialist-call` in `plugins.enabled`,
+  `specialist` in the relevant `platform_toolsets` lists, and configure the
+  explicit `specialist_call.resident_targets` allowlist. Behavior:
+  [docs/profiles/specialist-calls.md](docs/profiles/specialist-calls.md).
+- **opencode** (`standalone`): `opencode_call` / `opencode_session` for engineer
+  and assistant. Enable the plugin and `opencode` toolset plus
+  `opencode_cli.enabled: true`; optional `opencode_cli.models` sets per-agent
+  overrides, otherwise OpenCode's defaults apply. The CLI resolves through
+  `PATH`, preserving the secret shim. Behavior:
+  [docs/profiles/engineer.md](docs/profiles/engineer.md) "OpenCode runtime".
+- **ui-inspection** (`standalone`): `ui_capture` for ui-review / ux-persona.
+- **writing-inspection** (`standalone`): Writer's bounded `writing_inspect`.
+- **kanban-worker-mutation-guard** (`standalone`): stops dispatcher workers
+  from creating, linking or releasing Kanban cards outside the Assistant path.
+- **skill-topology** (`standalone`): the topology guard's home; it does not
+  intercept dashboard direct-create APIs or arbitrary terminal/file writes — the
+  validator catches those after the fact.
+- `hermes-achievements/` holds only per-machine runtime data and is ignored.
 
 ## Secrets
 
 No `.env` files. API keys live in the macOS Keychain and are injected at launch
 by the [`bin/hermes`](../bin/secret-shim) secret-shim (`secret env -p global`
 then `secret env -p hermes`). The `hermes` layer holds keys only Hermes uses
-(e.g. `OPENROUTER_API_KEY`, `GITHUB_TOKEN`) — it's injected for every `hermes`
-invocation, including every profile alias (`~/.local/bin/<name>` runs bare
-`hermes -p <name>`). The `global` layer is for keys shared with other shimmed
-tools. Per-bot layers `hermes-assistant` / `hermes-engineer` /
-`hermes-creator` / `hermes-marketer` hold each bot's `TELEGRAM_BOT_TOKEN`
-(+ allowlists; assistant also carries the Discord keys) and reach the
-multiplex gateway through each profile's `secrets.command` helper
-(`scripts/profile-secrets.sh`), because multiplex secret scopes never read
-the process env. See [`secret`](../zsh/functions/secret.md).
+(e.g. `OPENROUTER_API_KEY`, `GITHUB_TOKEN`, `FAL_KEY`, `GROQ_API_KEY`, the
+dashboard auth pair); it is injected for every `hermes` invocation, including
+every profile alias. The `global` layer is for keys shared with other shimmed
+tools (e.g. the web-search keys). Per-bot layers `hermes-assistant` /
+`hermes-engineer` / `hermes-creator` / `hermes-marketer` hold each bot's
+`TELEGRAM_BOT_TOKEN` (+ allowlists; assistant also carries the Discord keys).
+
+The shim does not isolate profiles: every alias gets the same `global` +
+`hermes` layers. Isolation happens in the multiplex gateway: each served
+profile's `secrets.command` runs `scripts/profile-secrets.sh <profile>`, which
+emits `global` + `hermes` (minus messaging keys) + `hermes-<profile>`, because
+multiplex secret scopes never read the process env. Every config sets
+`helper_timeout_seconds: 60`. Layer contents and the helper's one-shot design:
+[docs/models-auth.md](docs/models-auth.md) "Secrets layering". CLI:
+[`secret`](../zsh/functions/secret.md).
+
+Rotating an API key needs a gateway restart: resident sessions inherit the
+environment injected at gateway launch.
 
 ## Web dashboard (tailnet)
 
@@ -584,42 +417,11 @@ dashboard's web Chat starts its own profile-scoped TUI process — a parallel
 entry point that shares the profile and saved sessions, not a mirror of an
 in-progress terminal conversation.
 
-## Installing the binary
-
-Outside the [Brewfile](../Brewfile). Run [`./setup.sh`](./setup.sh) — an
-idempotent installer that clones the agent via `ghq`, builds a Python 3.11 venv
-with `uv` (installing the `EXTRAS` capability set — `all,voice,messaging,
-tts-premium` — plus `faster-whisper` for free local STT), and symlinks
-`~/.local/bin/hermes` (already on `PATH` behind the shim). It makes no shell-rc
-edits and runs no interactive wizard. Trim `EXTRAS` / `EXTRA_PIP` at the top of
-`setup.sh` for a leaner venv.
-
-```sh
-~/.config/hermes/setup.sh     # install (safe to re-run)
-hermes --version              # verify
-```
-
-Requires `ghq` + `uv` (both from `./install.sh --deps`). To update later, use
-`hermes update` (git pull + re-sync), not this script. The upstream
-`setup-hermes.sh` is deliberately avoided: it appends a PATH line to `~/.zshrc`,
-which is a symlink into this repo.
-
-`setup.sh` installs only the binary. Run [`../install.sh`](../install.sh)
-separately for the `~/.hermes/` config symlinks, and store keys with
-`secret set …` (no `.env`).
-
 ## Capabilities & dependencies
 
-Maximal CLI setup — what enables each tool group:
-
-**System packages** (declared in the [Brewfile](../Brewfile)):
-
-- `ffmpeg` — TTS / voice audio conversion (all platforms)
-- `portaudio` — CLI voice mode microphone input + playback
-- `opus` — Discord voice-channel codec
-
-The local `browser` toolset already works via `agent-browser` + Playwright
-Chromium (from mise) — no Browserbase key needed.
+**System packages** (declared in the [Brewfile](../Brewfile)): `ffmpeg` (TTS /
+voice audio conversion), `portaudio` (CLI voice mode mic + playback), `opus`
+(Discord voice-channel codec).
 
 **`cua-driver`** (the macOS `computer_use` toolset — background desktop control)
 has no Brewfile formula and needs one-time GUI grants:
@@ -632,58 +434,63 @@ hermes computer-use status       # verify
 
 `hermes update` refreshes the driver automatically when it's on `PATH`.
 
-**API keys** — stored in the Keychain; the `bin/hermes` shim injects them (no
-`.env`). Run these yourself (the value is read from stdin, never argv):
+**API keys** — stored in the Keychain; the shim injects them. Run these
+yourself (the value is read from a no-echo prompt, never argv):
 
 ```sh
-secret set OPENROUTER_API_KEY -p hermes   # T3 fallback + moa + vision + video analysis (mimo)
+secret set OPENROUTER_API_KEY -p hermes   # OpenRouter tiers + moa + vision + video analysis (mimo)
 secret set GITHUB_TOKEN       -p hermes   # Skills Hub
-secret set EXA_API_KEY        -p hermes   # web_search / web_extract
 secret set GROQ_API_KEY       -p hermes   # cloud STT (local faster-whisper needs no key)
+secret set EXA_API_KEY        -p global   # web search (see Web search backends)
+secret set PARALLEL_API_KEY   -p global
+secret set FIRECRAWL_API_KEY  -p global
 ```
 
-Other optional keys (`-p hermes` unless shared): `FAL_KEY` (image + video
-generation fallback), `ELEVENLABS_API_KEY` (premium TTS), `XAI_API_KEY`
-(x_search / video_gen),
-`BROWSERBASE_API_KEY` (cloud browser), `TELEGRAM_BOT_TOKEN` /
-`DISCORD_BOT_TOKEN` (gateway). Voice runs through fallback chains: TTS is
-`tts-fallback` (`irodori-tts → qwen3-tts → edge`) and STT is `stt-fallback`
-(`groq → xai → openai → elevenlabs → local`). See the local TTS and
-Speech-to-text sections below.
+Other optional keys: `FAL_KEY` (image/video generation fallback, paid SFX/music;
+resolved through the scoped Keychain helper — no new key, `.env`, provider-key
+terminal passthrough or ElevenLabs subscription setup is needed for SFX),
+`ELEVENLABS_API_KEY` (premium TTS / Scribe STT), `XAI_API_KEY` (x_search /
+video_gen), `BROWSERBASE_API_KEY` (cloud browser). Bot tokens go in the per-bot
+layers (see [Secrets](#secrets)).
 
 ## Local TTS engines
 
 Two loopback-only engines run as LaunchAgents and take no API key:
-`irodori-tts` on `127.0.0.1:10103` and `qwen3-tts` on `127.0.0.1:10102`. The
-chain is `irodori-tts → qwen3-tts → edge`, and there is no router in front of
-it — Irodori is Japanese-only and *declines* text under 20% kana/kanji by
-raising, which is what promotes an English-dominant line to Qwen3. Measured on
-English-only text, Irodori scores 27% word error rate against Qwen3's 8%.
+`irodori-tts` on `127.0.0.1:10103` and `qwen3-tts` on `127.0.0.1:10102`.
 
-The hand-off is per utterance on purpose. The same reference voice renders 309
-cents apart on the two engines, against 20-40 cents of seed-to-seed variation,
-so splicing them inside one sentence is audible. For anything longer than a
-chat reply, pin the engine instead (see [Character voices](#character-voices)).
+**Language routing is the chain order, not a router.** `tts.fallback.chain` is
+`irodori-tts → qwen3-tts → edge`. Irodori is Japanese-only — it mangles
+English — so it *declines* English-dominant text (under 20% kana/kanji) by
+raising, and the chain advances to Qwen3. No routing layer exists and none
+should be added. The hand-off is per utterance on purpose: the same reference
+voice sounds audibly different on the two engines, so splicing them inside one
+sentence is audible. When a server is unavailable or still loading,
+`tts-fallback` advances to the next tier and finally to Edge TTS
+(`tts.edge.voice: ja-JP-NanamiNeural`); the call only errors if every tier
+fails. Normal speech omits a voice ID and uses each engine's default. For a
+pinned, named voice (no routing, no substitution), see
+[docs/hands/audio.md](docs/hands/audio.md) "Character voices and performance
+direction".
 
-Irodori runs fp32 on MPS — bf16 is CUDA/XPU-only upstream — from a git checkout
-pinned in `engines/irodori-tts/pinned.conf`. It rewrites Latin proper nouns to katakana
-through a private pronunciation lexicon, then repairs its own WAV before
+Auto-speech (`voice.auto_tts: true`, set for `default` + `assistant`) is
+voice-in → voice-out in the gateway and TTS-on-by-default inside CLI voice
+mode — it never auto-speaks plain text turns. After changing a live config,
+restart the relevant Hermes process (e.g. the gateway).
+
+**Voice data never enters this repo.** Reference audio lives in the private
+character tree and is copied into the ignored `local/<engine>/` by the
+launchers; the Irodori pronunciation lexicon is a private-overlay symlink
+(`private/hermes/local/irodori-tts/lexicon.json`). Do not add a local-engine
+voice (`voice:`) key under `tts.*` and do not name a lexicon or manifest path in
+`config.yaml` — both are tracked.
+
+**Irodori** runs fp32 on MPS (bf16 is CUDA/XPU-only upstream) from a git
+checkout pinned in `engines/irodori-tts/pinned.conf`. It rewrites Latin proper
+nouns to katakana through the private lexicon, then repairs its own WAV before
 delivery: the in-pause codec rustle is gated, leading dead air and trailing
 hallucinated fragments are trimmed, the onset click is faded and the level is
 normalised. That repair uses numpy and the stdlib only, because the Hermes venv
 carries no soundfile or scipy.
-
-Irodori also performs emoji as non-verbal vocalisations and accepts a free-text
-delivery caption, but only the explicit character-voice contract reaches those —
-see [Performance direction](#performance-direction).
-
-Normal speech omits a voice ID and uses each engine's default. When a server is
-unavailable or still loading, `tts-fallback` advances to the next tier and
-finally to Edge TTS (`ja-JP-NanamiNeural`); the call only errors if every tier
-fails. Auto-speech (`voice.auto_tts: true`, set for `default` + `assistant`) is
-voice-in → voice-out in the gateway and TTS-on-by-default inside CLI voice
-mode — it never auto-speaks plain text turns. After changing a live config,
-restart the relevant Hermes process (e.g. the gateway) to apply it.
 
 ### Qwen3-TTS voice catalog
 
@@ -699,19 +506,14 @@ pin the same model and exact Hugging Face commit; the server loads that local
 snapshot so processor/tokenizer lookups cannot drift to `main`.
 
 Voice-specific settings live in private character manifests, not in this public
-repo. A manifest location is supplied only during machine-local registration:
-
-```text
-/absolute/path/to/voice.json
-```
-
-Each manifest contains the voice id, language, model revision, generation seed,
-and paths to the approved reference audio/transcript. It also pins both
-reference SHA-256 digests and the PCM WAV metadata. Reference paths are relative
-to the manifest, so the character tree can move as one unit. The reference
-transcript and audio drive in-context cloning, which carries the reference's
-prosody into synthesis — an expressive, natural reference is the primary lever
-for output intonation.
+repo. A manifest location (`/absolute/path/to/voice.json`) is supplied only
+during machine-local registration. Each manifest contains the voice id,
+language, model revision, generation seed, and paths to the approved reference
+audio/transcript; it pins both reference SHA-256 digests and the PCM WAV
+metadata. Reference paths are relative to the manifest, so the character tree
+can move as one unit. The reference transcript and audio drive in-context
+cloning, which carries the reference's prosody into synthesis — an expressive,
+natural reference is the primary lever for output intonation.
 
 A manifest may add an optional `pronunciation.lexicon` entry (`path` +
 `sha256`) pointing to a JSON object of surface-form → reading substitutions.
@@ -720,19 +522,16 @@ normalization and before synthesis; use it to pin down words the model
 misreads, not to rewrite whole sentences into kana. Long inputs are split into
 sentence-aligned chunks (~200 chars, clause fallback), each chunk is generated
 with the manifest seed re-applied, and the chunks are joined with a 150 ms
-gap — this stabilizes intonation and avoids the known Japanese end-of-text
-truncation.
+gap — this stabilizes intonation and avoids Japanese end-of-text truncation.
 
-The first install registers the default voice. Additional characters can be
+The first install registers the default voice. Additional characters are
 registered by manifest without adding ports, providers, or LaunchAgents:
 
 ```sh
 hermes/launchd/qwen3-tts-launchctl.sh install \
   --voice-manifest /absolute/path/to/voice.json
 hermes/launchd/qwen3-tts-launchctl.sh register \
-  --voice-manifest /absolute/path/to/another-voice.json
-hermes/launchd/qwen3-tts-launchctl.sh register \
-  --voice-manifest /absolute/path/to/another-voice.json --default
+  --voice-manifest /absolute/path/to/another-voice.json [--default]
 hermes/launchd/qwen3-tts-launchctl.sh unregister --voice another-voice
 hermes/launchd/qwen3-tts-launchctl.sh voices
 hermes/launchd/qwen3-tts-launchctl.sh install  # reuses the local catalog
@@ -740,35 +539,33 @@ hermes/launchd/qwen3-tts-launchctl.sh status
 hermes/launchd/qwen3-tts-launchctl.sh uninstall
 ```
 
-When authoring a new manifest, validate it standalone before registering:
+Validate a new manifest standalone before registering:
 `python3 hermes/scripts/qwen3_tts_server.py check-manifest /path/to/voice.json`.
-
-To find misreadings before they surface in conversation, run the round-trip
-checker against the live server: `hermes/scripts/qwen3_tts_reading_check.py
---text "…"` (or `--file corpus.txt`). It synthesizes each sentence,
-transcribes it with faster-whisper, compares expected and heard readings in
-kana, and prints paste-ready lexicon candidates. Findings are candidates, not
-verdicts — ASR can mask real errors or mishear correct ones, so confirm by
-ear (`--keep-audio DIR` keeps the wavs) before adding an entry to the voice's
-pronunciation lexicon and re-running `install`. The script resolves its own
-dependencies through `uv run`; the server venv stays untouched.
+To find misreadings, run `hermes/scripts/qwen3_tts_reading_check.py --text "…"`
+(or `--file corpus.txt`) against the live server: it synthesizes, transcribes
+with faster-whisper, compares readings in kana and prints paste-ready lexicon
+candidates. Findings are candidates, not verdicts — confirm by ear
+(`--keep-audio DIR` keeps the wavs) before adding a lexicon entry and re-running
+`install`. It resolves its own dependencies through `uv run`; the server venv
+stays untouched.
 
 `install` creates an isolated Python 3.12.11 venv under the ignored
 `hermes/local/qwen3-tts/`, stores absolute private manifest locations only in the
 ignored `catalog.json`, synchronizes the hash-locked
-`engines/qwen3-tts/requirements.lock`, validates every manifest, renders the LaunchAgent,
-and atomically activates the catalog. A failed registration, service load, or
-identity-bound health check restores the previous catalog and service. The
-tracked plist contains only the stable ignored catalog path. An existing
-single-voice `voice.json` registration is migrated automatically on the first
-catalog install. Model weights are cached below the same ignored directory. A
-first start can take several minutes; later starts reuse the cache. Logs land in
+`engines/qwen3-tts/requirements.lock`, validates every manifest, renders the
+LaunchAgent, and atomically activates the catalog. A failed registration,
+service load, or identity-bound health check restores the previous catalog and
+service. The tracked plist contains only the stable ignored catalog path. An
+existing single-voice `voice.json` registration is migrated automatically on the
+first catalog install. Model weights are cached below the same ignored
+directory; a first start can take several minutes. Logs land in
 `~/Library/Logs/qwen3-tts-engine.log`. `uninstall` removes the LaunchAgent but
 retains the catalog, venv, and model cache.
 
 `engines/qwen3-tts/requirements.in` records the top-level package, while
-`engines/qwen3-tts/tested-constraints.txt` captures the verified environment used to
-regenerate the hashed lock. Review dependency changes before recompiling it.
+`engines/qwen3-tts/tested-constraints.txt` captures the verified environment used
+to regenerate the hashed lock. Dependencies must stay hash-locked; review
+changes before recompiling.
 
 ### Irodori voice registration
 
@@ -791,246 +588,21 @@ hermes/launchd/irodori-tts-launchctl.sh uninstall   # stop (plist KeepAlive)
 hermes/launchd/irodori-tts-launchctl.sh purge       # + delete the runtime dir
 ```
 
+`install` builds a git checkout of the upstream server plus a uv venv under the
+ignored `local/irodori-tts/`; the launcher's explicit uv `--python` is mandatory,
+since uv otherwise picks 3.12 and the pinned `sentencepiece` has no wheel for it. The pins file is
+named `.conf` because `**/*.env` is ignored and the pins must be tracked.
 `register-lexicon` validates the JSON before installing it, and refuses to
 write through a symlink — that is how the private overlay owns the file. The
 plugin caches the lexicon per process, so a live gateway needs a restart.
 
-## Character voices
-
-AudioCreator — and only AudioCreator — gets `character_voices` and
-`character_text_to_speech` from the `tts/character-voice` plugin. They exist to
-render a *named* asset, which is the opposite contract from ordinary speech:
-the caller pins the sound, so nothing routes, nothing substitutes, and a
-refusal writes no file.
-
-`character_voices` lists every voice registered on a live engine, each as a
-qualified `<engine>:<voice-id>`. Reference-free entries an engine may advertise
-are filtered out — their timbre changes per run, so they are not characters.
-Pass one id verbatim to `character_text_to_speech`.
-
-A bare voice id is rejected. The engine is half of what identifies a sound: the
-same reference renders 309 cents apart on the two engines, so `<voice-id>`
-alone under-specifies the request. That also makes the qualified id the right
-value for `generate-speech`'s `voice` field, since it survives as a durable,
-unambiguous name for the sound that was approved.
-
-Failures stay failures. A voice that is not registered on the named engine, a
-stopped engine, and Irodori refusing English-dominant text all come back as
-errors naming the engine — never as a quiet render by the other one.
-
-### Performance direction
-
-Each engine reports the style controls it honours, and the tool refuses one the
-named engine does not list rather than dropping it quietly — a silently ignored
-direction returns a file that is not the take that was asked for. Irodori lists
-all three; Qwen3 lists none.
-
-**Emoji become performance, not words.** On an engine listing `emoji`, an emoji
-in the script is acted out where it stands — 🤭 a stifled laugh, 😭 sobbing, 🎵
-humming, 😠 a sulk — and is never read aloud. The script is still cleaned the
-usual way (markdown, units, newlines); the clusters are parked through that pass
-and restored, so nothing else changes. Everywhere else emoji are stripped as
-before. Spend them sparingly: one 🤭 measured **+1.68 s** of added audio on a
-5.24 s line.
-
-**`style` directs the whole take.** A free-text direction in the language of the
-script (`落ち着いた低い声で、ゆっくりと話す`) shapes pace and manner while the
-reference keeps the voice's identity. Measured, the wording is obeyed — *ゆっくり*
-ran +0.56 s and *早口で* −0.32 s on the same sentence.
-
-**`seed` means the caller can pin one, not that the engine is otherwise
-random.** Irodori draws a fresh seed per request when left alone — three unpinned
-renders of one line came back as three different takes — so the tool always pins
-one, generating it when the caller does not, and returns it with the result.
-Re-rendering that script with that seed rebuilds the same audio, post-processing
-included. Qwen3 exposes no seed because its server already fixes one per voice:
-an identical request reproduces on its own (three renders, one hash), and there
-is nothing for the caller to vary or record. What a seed buys is rebuilding *that
-take* from the same request — making a **different** line match an approved one
-is continuity work it does not buy. Compare decoded samples, not file hashes: the
-WAV comes back byte-identical, but the delivered Ogg carries a randomly generated
-bitstream serial, so two identical takes differ in ~80 container bytes.
-
-Ordinary chat speech is untouched by all of this: `tts.fallback.chain` passes no
-style arguments, so it sends the request it always did — which on Irodori means
-an unpinned, freshly rolled take per call, exactly as before.
-
-AudioCreator is a receive-only hands profile on A2A `:9909`. Creator fills
-its `generate-speech`, `edit-speech` or `analyze-speech` form for either a
-human client or an Assistant brief. Speech assets use these leaves; the
-old voice card is retired. Generation defaults to one take plus one
-corrective, including failed calls, despite zero media-provider fees.
-The helper uses cached local faster-whisper `base`, ffmpeg and ffprobe;
-it never installs an engine or downloads weights from inside a job.
-WAV + `.words.json` + SRT + take evidence are delivered together, with
-subtitle timing explicitly estimated. Readback and loudness measurements
-are not a listening/performance verdict. See `PROFILES.md` "Speech family".
-
-## Sound effects
-
-AudioCreator also owns `create-sfx`, `generate-sfx`, `edit-sfx` and
-`analyze-sfx`. These are short effects, not music or mixed soundtracks.
-`create-sfx` needs no model or API: eight local kernels produce a 48 kHz
-PCM WAV and measured take evidence. Editing/analysis is local too. For
-example, from this directory with an existing output parent:
-
-```sh
-"$(ghq root)/github.com/NousResearch/hermes-agent/venv/bin/python" profiles/audio-creator/skills/audio-creator-pipeline/scripts/sfx-media.py synth --kind whoosh --seconds 0.5 --pitch 880 --seed 0 --out /tmp/sfx-example --slug whoosh
-```
-
-The directory must be new. `track`, `edit` and `analyze` subcommands document
-their flags via `--help`; no command installs an engine or overwrites media.
-SFX measurements preserve stereo, and short sounds may legitimately have
-unmeasurable LUFS. A waveform or a matching seed is not a listening verdict.
-
-`generate-sfx` uses the audio-creator-only `sfx-gen` plugin. Local
-`local:stable-audio-3-medium` is installed and is the default engine when
-`engine` is omitted: it takes a `seed` (default 0; attempt N uses
-`(base + N - 1) mod 2^32`, returned with the result), rejects `loop=true`
-and any `prompt_influence`, and needs no `paid_approved`/`max_usd` — actual
-spend reports as `$0`. Each render runs a fresh, non-resident subprocess
-under `hermes/scripts/stable_audio3.py`; see `PROFILES.md` "SFX family" for
-the install/runtime/licensing detail and the M4 Max benchmark. Explicitly
-selecting `fal:elevenlabs-sfx-v2` instead requires explicit current-work
-paid approval; the default 3+1 call proposal is not permission to spend on
-either engine. Its request/state files support recovery without generating
-again. `FAL_KEY` uses the existing scoped Keychain helper; no new key,
-`.env`, provider-key terminal passthrough or ElevenLabs subscription setup
-is required. fal's SFX v2 does **not** support a seed. The API caps
-duration at 22s; our request ceiling is 21.5s to leave room for MP3
-padding before the helper's 22s limit. Neither engine ever falls back to
-the other, automatically or silently.
-
-After plugin enablement changes the existing multiplex gateway needs one
-normal drained restart; never launch a second gateway. The existing linked
-`plugins/` and profile `skills/` directories already expose these new files.
-
-VideoCreator consumes finished effects through `create-ad` as distinct,
-explicitly timed WAV cues (up to 16, no volume automation); `tour`, music,
-mixing and supplied-MV finishing are unchanged.
-
-## Music
-
-AudioCreator also owns `create-music`, `generate-music`, `edit-music` and
-`analyze-music`, scoped to instrumental BGM or a short melodic opener/
-closer (create/generate up to 60 seconds; edit/analyze up to 600 seconds
-and 128 MiB) — a full song with lyrics/singing or standalone
-sound design is `no skill fits`. Combining already-finished sources onto
-one timeline is the separate Mix family below ("Mix"), never a music
-leaf approximating a mixer. `create-music` composes
-an exact deterministic score from five closed electronic waveforms
-(sine/triangle/pulse/fm-bell/noise) and renders it locally at zero spend,
-zero network calls; `generate-music` sends a compact text prompt to the
-same `local:stable-audio-3-medium` default engine as SFX ($0, seed-
-controlled), or an explicitly chosen paid `fal:stable-audio-3-medium`
-(unlike SFX's fal endpoint, both music engines take a seed). Both are
-two-round leaves: the first round always returns an unspent
-`proposal-v<N>/proposal.md` and its SHA-256; only a second round with Creator-
-relayed `approved_plan`+`approval_sha256` releases a render or a
-`music_generate` call. Local default allowance is 2 variants + 1
-corrective (hard cap 8); an explicit fal request needs its own
-current-work paid approval and cap. `edit-music` trims, loop-crossfades,
-fades, applies gain or two-pass LUFS normalization (-1 dBTP ceiling) to an
-existing file, always into a new bundle; `analyze-music` returns local numpy-based tempo/beat/key/triad/
-structural-boundary estimates plus format/loudness/clipping findings,
-with half/double BPM and key ambiguity disclosed — never a genre, mood,
-instrument, lyrics or vocal-performance verdict, and it works standalone
-on any client-supplied song, not only this pipeline's own deliveries.
-
-`generate-music` uses the same audio-creator-only `sfx-gen`-shaped
-`music-gen` plugin (dedicated `music_gen` CLI/A2A toolset), and the same
-runtime's `render_music()` entry point alongside SFX's `render()` — one
-shared pinned Medium/MLX install, lock and 180s subprocess timeout, no
-second engine or install step. See `PROFILES.md` "Music family" for the
-proposal-approval contract, plugin/state details and the shared-runtime
-note.
-
-After a maintainer-only adapter change, `stable_audio3.py refresh
---previous-adapter /absolute/path/to/previous-stable_audio3.py` verifies
-the old adapter fingerprint and the complete existing installation offline
-before refreshing its marker. It never downloads models, reinstalls packages,
-accepts new terms, or rewrites old job receipts. The install marker's stat
-fingerprints are inode + mtime_ns + size only — `st_dev` is excluded because
-macOS renumbers the Data volume's device id on reboot, which made the fast
-guard report drift on an intact install (2026-09-10); an older marker that
-still records `dev` remains valid as-is. The 5s/30s/60s local music
-paths and a real create-ad WAV handoff were exercised on this machine;
-fal live generation and gateway/A2A soak remain unverified.
-
-## Mix
-
-AudioCreator also owns `create-mix`, `edit-mix` and `analyze-mix`,
-scoped to placing 1-16 already-finished, standalone local speech/sfx/
-music sources (WAV/FLAC/Ogg/MP3/AIFF, each ≤128 MiB, ≤512 MiB combined,
-≤600 s decoded) on one shared timeline (≤32 cues, ≤600 s total) with
-gain/fade/piecewise-dB-envelope automation, rendered to one 48 kHz PCM
-master — never a new component sound, a looped source, EQ, reverb,
-source separation or video assembly; a request needing those routes to
-the fitting leaf (generate-speech/create-sfx/generate-sfx/create-music/
-generate-music) first. AudioCreator authors relative cue placement from
-`direction`/`must_keep` when no exact `arrangement` is supplied; a
-supplied `arrangement` is preserved verbatim, never reinterpreted.
-
-Like `create-music`/`generate-music`, `create-mix` and `edit-mix` are
-two-round leaves: the first round always returns an unspent
-`proposal-v<N>/proposal.md` and its SHA-256, with zero renders; only a
-second round with Creator-relayed `approved_plan`+`approval_sha256`
-releases the render. A changed source, cue placement, gain/fade/
-envelope, duration or loudness target needs a new proposal, never a
-render against stale approval text. `edit-mix` revises one existing
-bundle from a plain-language `changes` request against its frozen
-`mix.json`/`sources/`, the same two-round shape; `analyze-mix` returns
-format/loudness/clipping/true-peak findings on any finished mix file,
-plus recorded cue/source placement when a previous bundle directory is
-supplied — findings only, no delivery file.
-
-`mix-media.py` (`audio-creator-pipeline/scripts/`) owns `propose`,
-`render`, `analyze` and `verify`; it calls no model and no network —
-this entire family is `cost: free` with no attempt ledger, since it is
-deterministic placement/gain/fade/sum on already-decoded PCM, not
-generation. Every input source is hash-verified against its frozen
-`sources/` copy before render, and an existing source's own defect
-(e.g. prior clipping) is retained and reported, never silently
-corrected. Captions (`captions.json` + `mix_<slug>.srt`), when
-produced, come only from an existing `.words.json` sidecar on a speech
-source, timing-adjusted to that cue's placement — never a fresh ASR
-pass on the mixed master. See `PROFILES.md` "Mix family" for the
-proposal-approval contract and bundle layout in full.
-
-A finished sfx/speech/music WAV from its own leaf may feed `create-mix`
-as one of its `sources`, the same way a finished sfx WAV may feed
-`create-ad` as a distinct placed cue — the two are separate forms,
-never folded into one handoff. No new profile, peer, plugin, toolset
-or service registration is needed for this family. Existing resident
-conversations may retain older instructions; fresh sessions are the
-validation target, not an assumption that an old conversation hot-reloaded.
-
-For create-ad/create-tour, `audio_workflow: mix` first returns a timing
-proposal through Creator, then consumes the finished Mix bundle before
-ordinary video plan/preview approval. Only the master plays; Tour's Mix
-captions retain their clean-speech origin separately from the master hash.
-MV/clip finishing is unchanged. Local scalar-gain normalization never
-silently invokes a limiter, and every output retains measured peak/LUFS.
-
-Automated integration fixture (synthetic tones, not real speech or client
-approval), from this directory with a fresh absolute output path:
-
-```sh
-~/ghq/github.com/NousResearch/hermes-agent/venv/bin/python scripts/tests/fixtures/mix-video/example.py --root <new-absolute-test-directory> --freeze
-```
-
-The fixture freezes real Mix/Ad/Tour bundles; each video leaf's normal
-snapshot/render helper then verifies its exact test preview hashes. Actual
-15s Ad and 8s Tour smoke renders passed, including timed Tour captions.
-Live Creator dialogue/approval soak and human listening remain unverified.
-
 ## Speech-to-text — fallback chain
 
-STT for `default` / `assistant` runs through the
-[`transcription/stt-fallback`](#plugins--provider-chains--tool-overrides) chain
-(`stt.provider: stt-fallback`): it tries `stt.fallback.chain` in order (default
-`groq → xai → openai → elevenlabs → local`) and returns the first successful,
-non-empty transcript — outage fallback, not quality fallback. Per-tier auth:
+STT for `default` / `assistant` runs through the `transcription/stt-fallback`
+chain (`stt.provider: stt-fallback`): it tries `stt.fallback.chain` in order
+(default `groq → xai → openai → elevenlabs → local`) and returns the first
+successful, non-empty transcript — outage fallback, not quality fallback.
+Per-tier auth:
 
 - **groq** — `GROQ_API_KEY` (Whisper `large-v3-turbo`; fast + accurate).
 - **xai** — SuperGrok OAuth (`hermes auth add xai-oauth`) or `XAI_API_KEY`.
@@ -1044,7 +616,331 @@ Edit `stt.fallback.chain` to reorder/add/remove tiers; tiers whose credentials
 are missing are skipped at runtime. STT serves the gateway (voice input) and CLI
 voice mode.
 
-## Never tracked
+## Audio hands tooling
 
-Per-machine state stays in `~/.hermes/`: `auth.json`, `memories/`,
-`sessions/`, `state.db*`, `logs/`, `workspace/`, `plans/`, `*_cache/`, `local/`.
+Contracts for every audio leaf: [docs/hands/audio.md](docs/hands/audio.md).
+This section only holds the maintainer commands. Run leaf helpers with the
+Hermes venv Python by literal path (resolve a non-default ghq root first).
+
+**SFX helper.** From this directory, with an existing output parent and a new
+output directory:
+
+```sh
+~/ghq/github.com/NousResearch/hermes-agent/venv/bin/python \
+  profiles/audio-creator/skills/audio-creator-pipeline/scripts/sfx-media.py \
+  synth --kind whoosh --seconds 0.5 --pitch 880 --seed 0 \
+  --out /tmp/sfx-example --slug whoosh
+```
+
+The output directory must be new. `track`, `edit` and `analyze` document their
+flags via `--help`; no command installs an engine or overwrites media.
+
+**Local Stable Audio 3 Medium runtime** (`scripts/stable_audio3.py`, shared by
+SFX and music; pins in `engines/stable-audio-3/`, install under the ignored
+`local/stable-audio-3/`):
+
+```sh
+python3 hermes/scripts/stable_audio3.py install --accept-terms   # maintainer-only, once
+python3 hermes/scripts/stable_audio3.py check [--full]           # readiness / drift
+python3 hermes/scripts/stable_audio3.py refresh \
+  --previous-adapter /absolute/path/to/previous-stable_audio3.py
+```
+
+Jobs never install or download anything. After a maintainer-only adapter
+change, `refresh` verifies the old adapter fingerprint and the complete existing
+installation offline before refreshing its marker. It never downloads models,
+reinstalls packages, accepts new terms, or rewrites old job receipts. Drift
+semantics: [docs/hands/audio.md](docs/hands/audio.md) "Local Stable Audio 3
+Medium runtime".
+
+**Mix/video integration fixture** (synthetic tones, not real speech or client
+approval), from this directory with a fresh absolute output path:
+
+```sh
+~/ghq/github.com/NousResearch/hermes-agent/venv/bin/python \
+  scripts/tests/fixtures/mix-video/example.py \
+  --root <new-absolute-test-directory> --freeze
+```
+
+It freezes real Mix/Ad/Tour bundles; each video leaf's snapshot/render helper
+then verifies its exact test preview hashes. It proves wiring only.
+
+Motion Canvas and Three WebGL runtimes are maintainer-provisioned from
+`engines/motion-canvas/setup.mjs` / `engines/three-webgl/setup.mjs`; see
+[docs/hands/video.md](docs/hands/video.md).
+
+## Web search backends
+
+Paid backends are pinned per profile; everyone else rides the keyless ring.
+
+**Auto-detect.** With empty `web.search_backend` / `web.extract_backend`, Hermes
+takes the first backend whose **key exists** (`exa → parallel → keenable →
+firecrawl → searxng → brave-free → ddgs`), then walks the keyless tier.
+Availability is key presence, never quota. Never configure a backend name that
+no longer exists: it does not error, it silently resolves to `firecrawl` (and
+bills researcher's credits). The Tavily backend no longer exists upstream
+(`keenable` replaced it), so never configure `tavily`; a leftover
+`TAVILY_API_KEY` is unused.
+
+**Keyless ring and rescue.** Runtime failover exists only inside the free ring
+(`exa → parallel → firecrawl → keenable`, `plugins/web/keyless_mcp.py` in the
+agent checkout): a rate-limited keyless request advances to the next vendor, and
+a failed **keyed** call gets ONE stateless keyless rescue (`web.keyless_rescue`,
+default on; rescued results are never cached, so the next call retries the
+profile's own backend). A keyed backend never falls through to another keyed
+backend — per-profile pinning is what stops one provider's exhaustion from
+taking the fleet down.
+
+**`web.provider_tier.<vendor>` picks the lane per profile.** `free` forces the
+keyless endpoint even when the key is present and pins that vendor as the ring
+entry point; `paid` forces the keyed path and drops that vendor from the
+profile's ring; unset = auto (key present ⇒ keyed). Editing `search_backend`
+alone is not enough: with a key in the environment, auto silently bills the
+paid path.
+
+**Current split** — the three paid keys stay with the high-volume profiles;
+everyone else is on the free ring with distributed entry points:
+
+| Profile | search / extract backend | Lane |
+| --- | --- | --- |
+| assistant | `exa` | paid (auto, key present) |
+| searcher | `parallel` | paid (auto) |
+| researcher | `firecrawl` | paid (auto) |
+| engineer | `exa` | `provider_tier.exa: free` |
+| creator, image-creator, video-creator, audio-creator | `parallel` | `provider_tier.parallel: free` |
+| writer | `firecrawl` | `provider_tier.firecrawl: free` |
+| marketer | `keenable` | `provider_tier.keenable: free` |
+| default | empty (neutral for `--clone`) | `provider_tier.exa: free` — otherwise auto-detect resolves to keyed Exa and spends the assistant's grant |
+| ui-review, ux-persona | no `web` block | — |
+
+`KEENABLE_API_KEY` is not set and not needed — a `free` pin resolves without one.
+
+**Exhaustion signals** are per provider and each self-heals: Exa `402`
+($10/month Free Tier grant); Firecrawl 4xx (1,000 credits/month, renews around
+the 17th; balance: `GET https://api.firecrawl.dev/v2/team/credit-usage`). `401`
+is a dead/rotated key, not exhaustion. Parallel's quota model is unverified (no
+balance endpoint) — if searcher starts failing while the key is otherwise
+valid, swap searcher and researcher (`parallel` ⇄ `firecrawl`) and update the
+table above.
+
+**Verify** a change by resolving the backend per profile
+(`HERMES_HOME=~/.hermes/profiles/<p>` + `tools.web_tools._get_search_backend()`)
+and by running `web_search_tool`; `data.served_by` appears only when the ring
+failed over, so its absence means the pinned vendor answered. **Switch** by
+editing the keys in this repo (the `~/.hermes` configs are symlinks, so a new
+CLI turn picks them up); rotating an API key additionally needs a gateway
+restart.
+
+## Browser
+
+**Routing and precedence.** With `browser.backend` unset and `uvx` present,
+`browser_exec` → `uvx browser-use` → `browser_harness` attaches over CDP to the
+endpoint Hermes resolves; the built-in `browser_navigate` surface and the
+`browser.engine` / `camofox` keys describe the dormant path. There is no
+resident CDP browser. A `BU_CDP_URL` / `BU_CDP_WS` in the **process env** wins
+over everything, silently — it is copied raw from `os.environ`, so under
+multiplex one value pre-empts real-profile browsing for every profile. Never add
+either key to a Keychain layer the gateway launcher evals (`global`, `hermes`).
+See also [engineer.md](docs/profiles/engineer.md) "UI evaluators" (native
+browser tools) and [marketer.md](docs/profiles/marketer.md) "Browser lease".
+
+**Real-profile pins.** Only profiles that need the owner's logins set
+`browser.use_real_profile: true`, `real_profile_pin:` (a Brave profile
+**directory** — the `Local State → profile.info_cache` key, not the display
+name) and `real_profile_binary:` (the clone, `brave-agent-sync.sh path`):
+
+| Hermes profile | `real_profile_pin` | Brave profile name |
+| --- | --- | --- |
+| assistant | `"Profile 12"` | Hermes Agent (Assistant) |
+| marketer | `"Profile 13"` | Hermes Agent (Marketer) |
+
+Everyone else gets upstream's on-demand packaged Chromium in a throwaway
+profile. To sign an agent in, log in to services in its pinned profile in the
+everyday Brave; cookies/logins are merged into
+`~/.hermes/profiles/<p>/browser-profile/brave/` (ignored) on every cold clone
+launch. There is no separate headful login step.
+
+- **One Brave profile per consenting Hermes profile, never shared** — Google
+  rotates its session cookies and treats an older value as a stolen session, so
+  every client sharing one Google login signs the others out (static-token
+  sites such as X/Instagram do not, but separate profiles still isolate their
+  risk detection).
+- **The owner must not browse in a pinned profile** — the owner is one more
+  client of the same rotation. A pinned profile is for signing in: log in,
+  close, work elsewhere. When a live clone is signed out, "log in again" in the
+  everyday Brave just supersedes the clone's session and moves the sign-out.
+- **Preconditions fail closed:** the macOS default browser must be Brave
+  (detected from the LaunchServices `https` handler only; Safari yields none),
+  the pinned profile directory must exist, and the clone binary must be
+  executable.
+
+**Why a cloned bundle.** macOS treats one app bundle as one running app, so
+while a headless Brave launched from `/Applications/Brave Browser.app` is alive,
+a Dock / Spotlight / `open` launch only activates it and the everyday Brave
+cannot open. An APFS clone (`cp -Rc`) at another path has no shared identity,
+and its untouched signature still satisfies the Keychain `Brave Safe Storage`
+ACL (bundle id + team, not path), so cookies decrypt without a prompt. The clone
+lives in the ignored `local/brave-agent/Brave Agent.app`.
+`scripts/brave-agent-sync.sh` re-clones on version drift, and the gateway
+launcher runs `sync` before every start (a stale clone keeps working until
+then). **Never edit the clone** — any change breaks the signature and with it
+cookie decryption; re-clone instead. `browser.real_profile_binary` is honored
+only through a local patch; without it the real bundle launches and the Dock
+clash returns.
+
+**Clone lifetime.** The clone starts with `--remote-debugging-port=0` and lives
+until the Hermes process that launched it exits (only the atexit hook reaps it;
+the inactivity janitor closes agent-browser sessions, not this process), so one
+headless Brave (expected ~230 MB) stays resident per consenting profile that has
+browsed. Each Hermes home gets its own attach daemon
+(`hermes-real-profile-<profile>`, pid under
+`/tmp/agent-browser-hermes-real-profile-<profile>/`), and CDP calls use an owned
+daemon runtime scoped by profile + logical session/task whose binding and
+browser UUID are verified before code runs (local patches). Owned-daemon idle
+cleanup (600 s) is opportunistic on calls and exit, not a timer, and never
+refreshes cookies. Do not use the old generic `bu-default` kill workaround.
+`_find_agent_browser` resolves the npx cache copy ahead of the mise shim, so the
+agent-browser version on `PATH` is not necessarily the one the daemon runs.
+
+**Cookies mirror only on a cold launch.** `snapshot_real_profile` →
+`_mirror_profile_auth` runs only on the cold path of `_real_profile_cdp`; a
+gateway restart finds the surviving clone via `DevToolsActivePort` and
+re-attaches (`real-profile: re-attached to surviving Chrome`), mirroring nothing.
+To pick up a fresh login, **relaunch the clone, not the gateway**. The cookie
+store is merged row by row, newest `last_update_utc` wins, so a relaunch keeps
+the clone's freshly rotated tokens (local patch; schema drift or a non-SQLite
+copy falls back to overwrite). Deletions do not propagate: a sign-out in the
+everyday Brave leaves the clone signed in.
+
+**Stop the clone and its daemon together.** Upstream closes the daemon session
+only when `get cdp-url` succeeds, so a daemon that outlived a killed clone keeps
+the dead port, ignores the next launch's `--cdp` ("daemon already running"), and
+every call fails with `All CDP discovery methods failed for 127.0.0.1:<old
+port>` until the gateway restarts (unpatched upstream). The private-overlay
+skill `hermes-browser-relaunch` (`scripts/relaunch.sh`) does it right: SIGTERM
+clone → stop daemon → clear socket dir; it never launches — the next
+`browser_exec` does. `relaunch.sh --status` prints `pages=` / `rss=` per clone.
+
+**UA gate pages are not a relaunch case.** Sites gating on the UA string reject
+headless `HeadlessChrome/<v>`, so the headless launch passes `--user-agent` with
+the binary's major version (local patch; unreadable version → no flag; headed
+untouched; UA-CH brands become empty). An "update your browser / unsupported
+browser" page is a UA gate — never a relaunch case and never evidence that the
+owner's login expired. `Browser.getVersion` reports `Chrome/…` on Brave: check
+the process, not the product string, to know which browser answered.
+
+**Session-restore purge.** The long-lived copy directory would let Chromium's
+ordinary session restore replay old tabs into every new clone, compounding until
+the browser wedges; `_launch_real_profile_chrome` purges `<profile>/Sessions`
+before launch and `Sessions` is in `_SNAPSHOT_IGNORES` (local patch). It is not
+crash restore (`exit_type` is no signal), and tab growth is launcher state, not
+agent behavior — never try to fix it with prompt-side rules. Rising `pages=` /
+`rss=` in `relaunch.sh --status` means the purge went missing.
+
+**IndexedDB-backed logins.** The snapshot excludes `IndexedDB` (it wedges a
+fresh renderer and costs hundreds of MB) and only auth DBs re-sync per launch,
+so a site that keeps its session there (WhatsApp Web) arrives signed out even
+when the everyday Brave is signed in. Such a site needs its own login **in the
+clone** (WhatsApp: pair it as a separate linked device from the QR page); that
+state persists across relaunches but not across a snapshot rebuild or
+`use_real_profile` going off. **Never copy IndexedDB across profiles** — for
+WhatsApp that shares one linked-device identity between two clients, the same
+failure as a shared Google session.
+
+The worker-facing rule (spawn your own browser with port 0, never attach to
+Hermes' instance) lives in `~/Workspaces/AGENTS.md` (private overlay).
+
+## Worker terminal approvals
+
+Dispatcher workers cannot answer an approval prompt — a flagged command just
+fails. The dispatcher runs workers with `stdin=DEVNULL` but still sets
+`HERMES_INTERACTIVE=1`, so `approvals.mode: manual` reaches EOF, denies, and the
+tool returns `status: "blocked"`.
+
+- **The guard reads only the outer command**, never inside a script. These pass:
+  `./scripts/x.sh`, `bash x.sh`, `python3 script.py`, `opencode run`,
+  `npx hyperframes …`, `ffmpeg`, `git commit`, non-force `git push`,
+  `gh pr create`, `xurl`.
+- **What trips it:** inline interpreters (`bash -c`, `python3 -c`, `node -e`),
+  `find -delete`, `chmod +x … && ./…`, recursive `rm -rf`, `git reset --hard`,
+  `git clean -f`, force push. Write worker playbooks around scripts and wrapper
+  CLIs, never inline one-liners.
+- **`command_allowlist` stays empty on purpose.** It is the escape hatch (exact
+  match or fnmatch glob against the whole command; skipped when the command
+  contains `&&` `|` `>` `;`), and allowing e.g. `bash -c *` would reopen exactly
+  what the guard exists to catch.
+- The hardline floor (`rm -rf /`, `$HOME`, system dirs) blocks regardless.
+
+## Commands
+
+**Setup and upkeep**
+
+- `./setup.sh` — install/refresh the hermes binary (uv venv); idempotent.
+- `../install.sh` — create the `~/.hermes/` symlinks (run after adding files).
+- `hermes update` — git pull + re-sync (use this to update, not `setup.sh`);
+  afterwards run the validator and clean seeded skill roots (see [Skills](#skills)).
+- `hermes doctor` — validate providers / model tiers.
+
+**Validation and tests**
+
+- `./scripts/validate-profile-skills.py --all` — validate managed/learned skill
+  topology, metadata, routing registries, hands leaves, Creator's phase/subject
+  references and Git ownership; add `--strict-git` in a staged/clean tree to
+  fail on managed files that are still untracked.
+- Full suite:
+  ```sh
+  PYTHONPATH=$(ghq root)/github.com/NousResearch/hermes-agent \
+    $(ghq root)/github.com/NousResearch/hermes-agent/venv/bin/python -m pytest \
+    plugins/ scripts/tests/ -q --import-mode=importlib
+  ```
+  The Hermes venv is required (plugins import `agent.*` / `tools.*`), and
+  `--import-mode=importlib` is not optional: every plugin keeps its suite at
+  `tests/test_plugin.py`, those basenames collide under the default import mode,
+  and `__init__.py` cannot fix it because the hyphenated plugin directories are
+  not importable package names.
+- `scripts/verify-work-continuity.py --runtime <hermes-agent-checkout>
+  --private <paired-private-checkout>` — run with the provisioned Hermes Python
+  before cutover and after an upstream update. It runs the strict Git/topology
+  validator, paired public/private tests and runtime regressions; it never
+  installs, restarts or migrates jobs.
+- Entry-runtime suites in `scripts/tests/` (provisioned Hermes Python, explicit
+  source `PYTHONPATH`, isolated HOME, no network; registered in
+  `verify-work-continuity.py`): `test_{engineer,creator,marketer,searcher}_entry_runtime.py`,
+  `test_creator_entry_contract.py`, `test_hands_instruction_context.py`,
+  `test_marketer_{pipeline,browser_lease}.py`, `test_researcher_entries.py`,
+  `test_searcher_pipeline.py`; run `test_media_craft_routing.py` and
+  `test_audio_creator_routing.py` with the hands tests. What they prove:
+  [docs/topology.md](docs/topology.md) "Candidate rollout and cutover".
+- Paired candidate selectors: set `HERMES_PRIVATE_ROOT=<private-checkout>` on
+  public tests and `HERMES_PUBLIC_ROOT=<public-checkout>` on private tests.
+  These select source trees for tests, not runtime wiring. Never run install
+  scripts or create live links for candidate checks, and never weaken live
+  Git/symlink ownership checks.
+
+**Services** (LaunchAgents; host-rendered plists land in
+`~/Library/LaunchAgents/`, never committed)
+
+- `launchd/gateway-launchctl.sh {install,status,uninstall}` — the multiplex
+  gateway LaunchAgent (`local.hermes.gateway.multiplex`), **one host only** (one
+  bot token = one live connection; four bots in this one process). The
+  default-hosted process serves assistant Telegram + Discord, the engineer /
+  creator / marketer bots, the A2A endpoints (`127.0.0.1:9902-9909`) and the
+  embedded dispatcher; `install` also unloads the legacy
+  `local.hermes.gateway.assistant` agent. `install` re-renders + reloads =
+  **restart**; `/restart` in chat also applies config (drain → `KeepAlive`
+  respawns one). **Stop = `uninstall`** (`KeepAlive:true`; a plain `kill` just
+  respawns). **Never** run `hermes gateway run`/`restart` in a terminal while it
+  is loaded — a second poller causes Telegram `getUpdates` 409 conflicts
+  (`pgrep -fl 'gateway run'` ⇒ exactly 1). Design:
+  [docs/operations.md](docs/operations.md) "Gateway as a persistent service".
+- `launchd/qwen3-tts-launchctl.sh {install,register,unregister,voices,status,uninstall}`
+  — Qwen3-TTS on `:10102`; see [Qwen3-TTS voice catalog](#qwen3-tts-voice-catalog).
+- `launchd/irodori-tts-launchctl.sh {install,register,register-lexicon,voices,status,uninstall,purge}`
+  — Irodori-TTS on `:10103`; see [Irodori voice registration](#irodori-voice-registration).
+- `scripts/brave-agent-sync.sh {sync,check,path,remove}` — the real-profile
+  Brave clone ([Browser](#browser)). `sync` (default) re-clones when
+  `/Applications/Brave Browser.app` changed version or the clone is missing,
+  terminating a running clone first (the gateway launcher runs it before every
+  start; run it by hand after a Brave update rather than wait); `check` exits 0
+  when the clone matches; `path` prints the `real_profile_binary` value;
+  `remove` deletes the clone and any running instance.
