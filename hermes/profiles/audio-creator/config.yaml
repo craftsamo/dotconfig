@@ -361,7 +361,7 @@ auxiliary:
     extra_body: {}
   compression:
     provider: openai-codex
-    model: gpt-5.6-luna
+    model: gpt-6-luna
     base_url: https://chatgpt.com/backend-api/codex
     api_key: ""
     timeout: 120
@@ -373,7 +373,7 @@ auxiliary:
         api_mode: chat_completions
   skills_hub:
     provider: openai-codex
-    model: gpt-5.6-luna
+    model: gpt-6-luna
     base_url: https://chatgpt.com/backend-api/codex
     api_key: ""
     timeout: 30
@@ -385,7 +385,7 @@ auxiliary:
         api_mode: chat_completions
   approval:
     provider: openai-codex
-    model: gpt-5.6-luna
+    model: gpt-6-luna
     base_url: https://chatgpt.com/backend-api/codex
     api_key: ""
     timeout: 30
@@ -397,7 +397,7 @@ auxiliary:
         api_mode: chat_completions
   mcp:
     provider: openai-codex
-    model: gpt-5.6-luna
+    model: gpt-6-luna
     base_url: https://chatgpt.com/backend-api/codex
     api_key: ""
     timeout: 30
@@ -409,7 +409,7 @@ auxiliary:
         api_mode: chat_completions
   title_generation:
     provider: openai-codex
-    model: gpt-5.6-luna
+    model: gpt-6-luna
     base_url: https://chatgpt.com/backend-api/codex
     api_key: ""
     timeout: 30
@@ -421,7 +421,7 @@ auxiliary:
         api_mode: chat_completions
   tts_audio_tags:
     provider: openai-codex
-    model: gpt-5.6-luna
+    model: gpt-6-luna
     base_url: https://chatgpt.com/backend-api/codex
     api_key: ""
     timeout: 30
@@ -433,7 +433,7 @@ auxiliary:
         api_mode: chat_completions
   triage_specifier:
     provider: openai-codex
-    model: gpt-5.6-luna
+    model: gpt-6-luna
     base_url: https://chatgpt.com/backend-api/codex
     api_key: ""
     timeout: 120
@@ -445,7 +445,7 @@ auxiliary:
         api_mode: chat_completions
   kanban_decomposer:
     provider: openai-codex
-    model: gpt-5.6-luna
+    model: gpt-6-luna
     base_url: https://chatgpt.com/backend-api/codex
     api_key: ""
     timeout: 180
@@ -457,7 +457,7 @@ auxiliary:
         api_mode: chat_completions
   profile_describer:
     provider: openai-codex
-    model: gpt-5.6-luna
+    model: gpt-6-luna
     base_url: https://chatgpt.com/backend-api/codex
     api_key: ""
     timeout: 60
@@ -469,7 +469,7 @@ auxiliary:
         api_mode: chat_completions
   curator:
     provider: openai-codex
-    model: gpt-5.6-luna
+    model: gpt-6-luna
     base_url: https://chatgpt.com/backend-api/codex
     api_key: ""
     timeout: 600
@@ -481,7 +481,7 @@ auxiliary:
         api_mode: chat_completions
   monitor:
     provider: openai-codex
-    model: gpt-5.6-luna
+    model: gpt-6-luna
     base_url: https://chatgpt.com/backend-api/codex
     api_key: ""
     timeout: 60
