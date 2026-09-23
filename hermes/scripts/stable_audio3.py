@@ -75,6 +75,35 @@ UV_CANDIDATES = ("/opt/homebrew/bin/uv", "/usr/local/bin/uv")
 DOWNLOAD_CHUNK = 8 * 1024 * 1024
 DOWNLOAD_TIMEOUT_SECONDS = 880
 STDERR_TAIL_BYTES = 4000
+# Sample-peak ceiling applied as one constant gain BEFORE the upstream writer
+# quantizes. Upstream `save_wav` hard-clips float output to [-1, 1]; the Medium
+# model routinely decodes past full scale, so every such take arrived already
+# clipped and was refused downstream with no repair possible (3/3 music takes on
+# 2026-09-23). Attenuating above the ceiling keeps the waveform intact; quieter
+# takes are left untouched. It is not loudness normalization or limiting.
+HEADROOM_CEILING_DBFS = -1.0
+# Runs inside the pinned venv: load upstream sa3_mlx.py unmodified as a module,
+# wrap its save_wav with the headroom gain, record the measured gain, run main().
+_HEADROOM_BOOTSTRAP = """
+import importlib.util, json, sys
+import numpy as np
+script, sidecar, ceiling_dbfs = sys.argv[1], sys.argv[2], float(sys.argv[3])
+sys.argv = [script, *sys.argv[4:]]
+spec = importlib.util.spec_from_file_location("sa3_mlx", script)
+module = importlib.util.module_from_spec(spec)
+sys.modules["sa3_mlx"] = module
+spec.loader.exec_module(module)
+original = module.save_wav
+ceiling = 10 ** (ceiling_dbfs / 20)
+def save_wav(path, audio, *args, **kwargs):
+    peak = float(np.abs(audio).max()) if audio.size and np.isfinite(audio).all() else 0.0
+    gain = ceiling / peak if peak > ceiling else 1.0
+    with open(sidecar, "w") as handle:
+        json.dump({"ceiling_dbfs": ceiling_dbfs, "pre_gain_peak": peak, "gain": gain}, handle)
+    return original(path, audio * np.float32(gain) if gain != 1.0 else audio, *args, **kwargs)
+module.save_wav = save_wav
+module.main()
+"""
 
 # Indirection point for tests: patching this (not the shared `subprocess`
 # module) keeps install()'s real git/uv subprocess.run calls unaffected when
@@ -692,6 +721,20 @@ def _tail(path: Path, n: int = STDERR_TAIL_BYTES) -> str:
         return "(log unavailable)"
 
 
+def _headroom_record(path: Path) -> dict | None:
+    """The bootstrap's measured pre-gain peak and applied gain, or None when absent."""
+    try:
+        data = json.loads(path.read_text())
+        peak, gain = float(data["pre_gain_peak"]), float(data["gain"])
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+    if not (math.isfinite(peak) and math.isfinite(gain) and 0 < gain <= 1):
+        raise RenderError(f"invalid headroom record: {data!r}")
+    return {"ceiling_dbfs": float(data["ceiling_dbfs"]),
+            "pre_gain_peak_dbfs": round(20 * math.log10(peak), 3) if peak > 0 else None,
+            "gain_db": round(20 * math.log10(gain), 3)}
+
+
 def render(payload: dict, out: str | Path, root: str | Path | None = None) -> dict:
     """Render one Stable Audio 3 Medium/SAME-L take; publish a raw-needs-qa
     bundle at `out`. Raises RenderError for busy/not-ready/failed/timeout -
@@ -729,7 +772,9 @@ def _render(payload, out, root, *, min_duration, max_duration, max_bytes):
         with tempfile.TemporaryDirectory(prefix=".sa3-work-", dir=out.parent) as work_str:
             work = Path(work_str)
             raw_wav = work / "raw.wav"
-            argv = [str(layout["venv_python"]), str(layout["sa3_mlx"]),
+            headroom_path = work / "headroom.json"
+            argv = [str(layout["venv_python"]), "-c", _HEADROOM_BOOTSTRAP, str(layout["sa3_mlx"]),
+                    str(headroom_path), str(HEADROOM_CEILING_DBFS),
                     "--prompt", text, "--dit", gen["dit"], "--decoder", gen["decoder"],
                     "--seconds", str(duration_seconds), "--steps", str(gen["steps"]),
                     "--seed", str(seed), "--out", str(raw_wav)]
@@ -796,6 +841,7 @@ def _render(payload, out, root, *, min_duration, max_duration, max_bytes):
                     "frames": n_frames, "duration_seconds": n_frames / frame_rate, "elapsed_seconds": elapsed,
                     "inference_log": "inference.log",
                 },
+                "headroom": _headroom_record(headroom_path),
                 "generated_at": datetime.now(timezone.utc).isoformat(),
             }
             take_path = work / "take.json"

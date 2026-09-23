@@ -1126,3 +1126,61 @@ def test_refresh_refuses_symlinked_marker_or_lock(refresh_env, name):
     with pytest.raises(sa3.RenderError):
         sa3.refresh(e["root"], previous_adapter=e["previous"])
     assert (e["root"] / sa3.MARKER_NAME).read_bytes() == e["before"]
+
+
+# ---- headroom bootstrap (upstream save_wav hard-clips at full scale) -------------
+
+FAKE_SA3 = '''
+import sys, wave
+import numpy as np
+def save_wav(path, audio, sample_rate=44100):
+    audio = np.clip(audio, -1.0, 1.0)
+    pcm = (audio * 32767.0).astype(np.int16).T
+    with wave.open(path, "wb") as w:
+        w.setnchannels(audio.shape[0]); w.setsampwidth(2); w.setframerate(sample_rate)
+        w.writeframes(pcm.tobytes())
+def main():
+    out = sys.argv[sys.argv.index("--out") + 1]
+    peak = float(sys.argv[sys.argv.index("--peak") + 1])
+    t = np.arange(44100, dtype=np.float32) / 44100
+    save_wav(out, np.stack([peak * np.sin(2 * np.pi * 440 * t)] * 2).astype(np.float32))
+if __name__ == "__main__":
+    raise SystemExit("must be driven through main() by the bootstrap")
+'''
+
+
+def _run_bootstrap(tmp_path, peak):
+    script = tmp_path / "sa3_mlx.py"
+    script.write_text(FAKE_SA3)
+    sidecar, out = tmp_path / "headroom.json", tmp_path / "raw.wav"
+    subprocess.run([sys.executable, "-c", sa3._HEADROOM_BOOTSTRAP, str(script), str(sidecar),
+                    str(sa3.HEADROOM_CEILING_DBFS), "--out", str(out), "--peak", str(peak)], check=True)
+    with wave.open(str(out), "rb") as w:
+        import numpy as np
+        pcm = np.frombuffer(w.readframes(w.getnframes()), dtype=np.int16)
+    return int(np.abs(pcm.astype(np.int32)).max()), sa3._headroom_record(sidecar)
+
+
+def test_bootstrap_attenuates_over_full_scale_before_the_upstream_clip(tmp_path):
+    peak_pcm, record = _run_bootstrap(tmp_path, 1.4)
+    ceiling = 32767 * 10 ** (sa3.HEADROOM_CEILING_DBFS / 20)
+    assert peak_pcm <= ceiling + 1 and peak_pcm < 32767
+    assert record["ceiling_dbfs"] == sa3.HEADROOM_CEILING_DBFS
+    assert record["pre_gain_peak_dbfs"] == pytest.approx(20 * __import__("math").log10(1.4), abs=0.01)
+    assert record["gain_db"] == pytest.approx(sa3.HEADROOM_CEILING_DBFS - record["pre_gain_peak_dbfs"], abs=0.01)
+
+
+def test_bootstrap_leaves_quieter_takes_untouched(tmp_path):
+    peak_pcm, record = _run_bootstrap(tmp_path, 0.5)
+    assert abs(peak_pcm - 0.5 * 32767) <= 2
+    assert record["gain_db"] == 0.0
+
+
+def test_render_runs_upstream_through_the_bootstrap_and_records_headroom(env, tmp_path, fake_popen):
+    sa3.install(root=env["root"], accept_terms=True)
+    sa3.render({"text": "riser", "duration_seconds": 1.0, "seed": 3}, tmp_path / "out", root=env["root"])
+    argv = fake_popen.calls[0]["argv"]
+    assert argv[1:3] == ["-c", sa3._HEADROOM_BOOTSTRAP]
+    assert argv[3].endswith("sa3_mlx.py") and argv[5] == str(sa3.HEADROOM_CEILING_DBFS)
+    take = json.loads((tmp_path / "out/take.json").read_text())
+    assert "headroom" in take  # None under the fake, which never runs the bootstrap
