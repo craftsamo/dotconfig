@@ -876,3 +876,4 @@ plugins:
     - sfx-gen
     - music-gen
     - skill-topology
+    - vision-window

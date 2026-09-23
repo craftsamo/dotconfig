@@ -730,3 +730,4 @@ plugins:
   enabled:
     - image-fallback
     - skill-topology
+    - vision-window
