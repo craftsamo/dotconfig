@@ -309,7 +309,10 @@ def test_actual_config_preserves_browser_and_limits_dispatch():
     assert "clarify" in config["platform_toolsets"]["telegram"]
     assert config["browser"]["use_real_profile"] is True
     assert config["browser"]["real_profile_pin"] == "Profile 13"
-    assert config["skills"]["external_dirs"] == ["~/.hermes/profiles/writer/skills/writer-pipeline"]
+    assert config["skills"]["external_dirs"] == [
+        "~/.hermes/profiles/writer/skills/writer-pipeline",
+        "~/.config/private/hermes/skills/operations/hermes-browser-relaunch",
+    ]
     prompt = " ".join(config["agent"]["system_prompt"].split())
     for name in ENTRIES:
         assert name in prompt
