@@ -463,7 +463,7 @@ class CliTest(FixtureTreeCase):
 
 class CardAdapterTest(FixtureTreeCase):
     """Reuses the real, checked-in card.py bytes rather than imitating its
-    contract, per hermes/AGENTS.md's card adapter rules."""
+    contract, per hermes/docs/hands/image.md "Card family"."""
 
     def build_card_pipeline(self) -> Path:
         pipeline = self.profile_pipeline()

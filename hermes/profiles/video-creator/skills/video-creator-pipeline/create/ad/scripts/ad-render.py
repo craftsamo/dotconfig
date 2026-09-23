@@ -85,7 +85,7 @@ def plan_model(raw, *, study=False):
 
     if "mix" in raw:
         # An opt-in, already-approved Audio Mix master replaces every other
-        # WAV placement (see hermes/AGENTS.md "audio_workflow"): the exact
+        # WAV placement (see hermes/docs/hands/audio.md "Mix family"): the exact
         # staged asset paths named here are the ONLY audio this ad may ever
         # place, bound by hash through the ordinary asset map above - never
         # by the mutable original mix_bundle path.
@@ -383,7 +383,7 @@ def _media_check(root, plan, markup):
     mix = plan.get("mix")
     if mix is not None:
         # Mix mode plays only the approved master - never a stem alongside
-        # it (see hermes/AGENTS.md "audio_workflow"). Video-in-video stays
+        # it (see hermes/docs/hands/audio.md "Mix family"). Video-in-video stays
         # muted regardless (checked above), so no other audio can hide there.
         require(wav_assets == {mix["master"]},
                 "when mix is used, the Mix master is the only declared WAV asset")
