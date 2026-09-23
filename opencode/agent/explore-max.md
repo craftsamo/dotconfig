@@ -1,7 +1,7 @@
 ---
 description: "Max-depth read-only codebase exploration for difficult, ambiguous, or high-stakes questions."
 mode: subagent
-model: anthropic/claude-opus-5
+model: anthropic/claude-opus-5-5
 variant: xhigh
 hidden: true
 permission:

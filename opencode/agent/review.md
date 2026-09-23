@@ -1,7 +1,8 @@
 ---
 description: "Primary PR review mode. Reviews a PR end-to-end, delegates broad scans to reviewer and high-risk deep dives to reviewer-deep, and reports only final PR findings."
 mode: primary
-model: anthropic/claude-fable-5-1
+model: anthropic/claude-opus-5-5
+variant: high
 permission:
   "*": ask
   glob: allow

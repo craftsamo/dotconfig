@@ -66,19 +66,30 @@
     "../private/opencode/instructions/*.md"
   ],
   // Title generation etc. → light OpenAI Pro model without priority-tier cost.
-  // Luna is the light tier of the 5.6 generation (the same tier gpt-5.4-mini
-  // held for 5.4), so this tracks the current generation at comparable cost.
-  "small_model": "openai/gpt-5.6-luna",
-  // Model split (2026-09-05). Two subscription pools, one per primary family:
-  //   Claude Max x20 (sub account) — plan / review / debug / explain / deepsearch
-  //     primaries (Fable 5.1; fall back to Opus 5 by hand), plus the
-  //     Build-hot subagents (explore-medium/high/max, worker, reviewer,
-  //     reviewer-deep on Sonnet 5 / Opus 5) so Build's own pool is not the only
-  //     one its delegates draw on — and so Astra's code is reviewed cross-family.
+  // Luna is the light tier of the current OpenAI generation (GPT-6 Luna meters
+  // ~1/100 of Astra on the Codex allowance), so this tracks the generation at
+  // the lowest cost.
+  "small_model": "openai/gpt-6-luna",
+  // Model split (reallocated 2026-09-23 by required capability, not by
+  // strongest model). Both pools are flat-rate subscriptions, so the budget is
+  // the usage allowance, not dollars. Two pools, one per primary family:
+  //   Claude Max x20 (sub account) — plan / review / debug (Opus 5.5 high) and
+  //     explain / deepsearch (Opus 5.5 medium) primaries, plus the Build-hot
+  //     subagents (explore-medium/high, worker, reviewer on Sonnet 5;
+  //     explore-max, reviewer-deep on Opus 5.5) so Build's own pool is not the
+  //     only one its delegates draw on — and so Astra's code is reviewed
+  //     cross-family. Opus 5.5 replaced Fable 5.1 on the primaries: it scores
+  //     higher on reasoning, agentic and coding evals at ~40% of Fable's token
+  //     rate, but everything now sits on the Opus weekly sub-cap — fall back to
+  //     Sonnet 5 by hand when that cap runs out.
   //   explore-spark also uses the Claude pool, on Haiku for narrow lookups.
-  //   ChatGPT Pro x20 — build primary (GPT-6 Astra; fall back to Opus 5 by hand),
-  //     debugger (Astra), and the cheap/bulky subagents (explore-small,
-  //     verifier, searcher/searcher-deep, compaction).
+  //   ChatGPT Pro x20 (shared with Hermes and Codex CLI) — build primary
+  //     (GPT-6 Astra; fall back to Opus 5.5 by hand), debugger (Astra), and the
+  //     cheap/bulky subagents: explore-small / verifier (GPT-6 Luna),
+  //     searcher / searcher-deep (GPT-6 Sol), compaction (GPT-5.6 Terra until
+  //     GPT-6 Sol's long-context retrieval is independently measured).
+  //   `-fast` aliases run the priority tier, which burns ~2.5x the allowance;
+  //   keep them to latency-bound, high-frequency subagents.
   // GPT-6 Astra needs opencode >= 1.18.29: the ChatGPT-OAuth catalog filter
   // rejected integer major versions (`gpt-6`) before that. OpenCode never
   // falls back across models by itself — switch in the TUI when a pool is
@@ -86,13 +97,14 @@
   // or a TUI pick overrides them.
   // Hermes Engineer does NOT use these primaries: hermes/plugins/opencode maps
   // plan/build/review onto the hidden primaries agent/hermes-{plan,build,review}.md
-  // (plan + review on Opus 5, build on GPT-5.6 Sol — decoupled from whichever
-  // family Hermes itself runs on, so Hermes' challenge/QA stays cross-family).
-  // Only `debug` is still shared with the human TUI.
+  // (plan + review on Opus 5.5, build on GPT-6 Sol — decoupled from the family
+  // Hermes Engineer itself runs on (Fable 5.1), so Hermes' challenge/QA stays
+  // cross-family). Only `debug` is still shared with the human TUI.
   "agent": {
     "plan": {
       "color": "#f5f5f5",
-      "model": "anthropic/claude-fable-5-1",
+      "model": "anthropic/claude-opus-5-5",
+      "variant": "high",
     },
     "build": {
       "color": "#ff6f00",
