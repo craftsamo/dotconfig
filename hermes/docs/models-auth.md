@@ -269,17 +269,22 @@ same shim (`~/.config/bin` precedes `~/.local/bin` on `PATH`), so **every
 profile gets `global` + `hermes`** — mechanics in
 [`README.md`](../README.md#secrets). What belongs in each layer:
 
-- **`hermes`** — shared model/fallback keys every profile and every
-  dispatcher-spawned worker needs: `OPENROUTER_API_KEY` (the OpenRouter tails)
-  and `GITHUB_TOKEN` (Skills Hub). Legacy messaging keys (`TELEGRAM_*` /
-  `DISCORD_*`) still parked here are IGNORED by the profile scopes (filtered by
-  `profile-secrets.sh`); the per-bot layers are authoritative.
-- **`global`** — keys shared with *other* tools (editor, MCP servers, CLIs).
-  Nothing Hermes-specific needs to live here.
+- **`hermes`** — keys only Hermes uses, needed by every profile and every
+  dispatcher-spawned worker: `OPENROUTER_API_KEY` (the OpenRouter tails),
+  `GITHUB_TOKEN` (Skills Hub), `FAL_KEY`, `GROQ_API_KEY` and the dashboard auth
+  pair. The messaging keys (`TELEGRAM_*` / `DISCORD_*`) parked here are the
+  **assistant's**: `profile-secrets.sh` passes them to assistant unfiltered,
+  keeps only the shared owner allowlist `TELEGRAM_ALLOWED_USERS` for
+  engineer / creator / marketer, and drops every messaging key for the other
+  profiles. Do not delete them as dead weight.
+- **`global`** — keys the shim shares with other tools (editor, MCP servers,
+  CLIs), including the web-search keys (`EXA_API_KEY`, `PARALLEL_API_KEY`,
+  `FIRECRAWL_API_KEY`).
 - **`hermes-<profile>`** (assistant / engineer / creator / marketer) — that
   bot's own `TELEGRAM_BOT_TOKEN` + `TELEGRAM_ALLOWED_USERS` (assistant also
   `TELEGRAM_HOME_CHANNEL` / `TELEGRAM_DM_CHAT_ID` / `DISCORD_*`). One bot, one
-  layer; never share a token between layers.
+  layer; never share a bot token between layers (the owner allowlist in
+  `hermes` is the one deliberately shared value).
 - **OAuth** is not a layer: see "Authentication inheritance".
 
 **Multiplex changes where these layers land.** Scope-aware reads inside the
@@ -287,7 +292,8 @@ gateway (bot tokens, `OPENROUTER_API_KEY`, `EXA/PARALLEL/FIRECRAWL/XAI` keys,
 `GITHUB_TOKEN`, TTS keys, …) resolve ONLY from each profile's secret scope and
 never fall back to the process env. Every gateway-served profile therefore
 carries `secrets.command` → `scripts/profile-secrets.sh <profile>`, which emits
-`global` + `hermes` (minus messaging keys) + `hermes-<profile>` as dotenv lines
+`global` + `hermes` (messaging keys filtered per profile, as above) +
+`hermes-<profile>` as dotenv lines
 at startup (and derives `TELEGRAM_CRON_THREAD_ID` from the persisted Inbox
 topic for assistant). Raw-env readers (dashboard auth) still read the process
 env the gateway launcher injects — which is also why `BU_CDP_URL` must never be
