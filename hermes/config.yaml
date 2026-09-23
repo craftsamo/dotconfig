@@ -1,10 +1,10 @@
 model:
-  default: claude-opus-5
+  default: claude-opus-5-5
   provider: anthropic
   base_url: https://api.anthropic.com
 fallback_providers:
   - provider: openai-codex
-    model: gpt-5.6-sol
+    model: gpt-6-sol
     base_url: https://chatgpt.com/backend-api/codex
   - provider: openrouter
     model: xiaomi/mimo-v2.5

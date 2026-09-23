@@ -2,7 +2,7 @@
 description: "Hidden primary for Hermes Engineer: non-interactive, read-only review of a branch/PR/diff, fanning out to reviewer (and reviewer-deep only on request) and verifier, returning findings-first. Driven only through `opencode run --agent hermes-review`; never selected by a human."
 mode: primary
 hidden: true
-model: anthropic/claude-opus-5
+model: anthropic/claude-opus-5-5
 variant: high
 color: "#a78bfa"
 ---

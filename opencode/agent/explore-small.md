@@ -1,7 +1,7 @@
 ---
 description: "Fast/cheap read-only codebase lookups: find files, simple keyword search."
 mode: subagent
-model: openai/gpt-5.6-luna-fast
+model: openai/gpt-6-luna-fast
 hidden: true
 options:
   reasoningEffort: low
