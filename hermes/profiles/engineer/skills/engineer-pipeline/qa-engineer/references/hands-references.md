@@ -9,7 +9,7 @@ need to become a second Hermes Skill. Engineer independently inspects the diff,
 audit and supporting evidence rather than accepting OpenCode's summary alone.
 
 1. Confirm the diff stays inside the agreed scope and required consumers: no drive-by rewrite of
-   sibling catalogs, no new registry/menu/preset layer, no PROFILES.md/
+   sibling catalogs, no new registry/menu/preset layer, no docs/ or
    AGENTS.md edit beyond an actually changed contract.
 2. Re-run the scoped audit, then the whole-hands audit for cross-leaf drift;
    report pre-existing warnings separately from new ones. From the candidate's

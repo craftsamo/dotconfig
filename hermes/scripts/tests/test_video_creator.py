@@ -27,7 +27,7 @@ CRAFT_SKILLS = ("media-craft-direction", "media-craft-visual", "media-craft-moti
 class VideoCreatorConfigTest(unittest.TestCase):
     """The video-creator profile config must mirror image-creator's shape
     (Creator's other 'hand') except for the video-specific toolset/budget/
-    plugin differences documented in hermes/AGENTS.md."""
+    plugin differences documented in hermes/docs/hands/video.md."""
 
     @classmethod
     def setUpClass(cls) -> None:

@@ -9,7 +9,7 @@ substitute for calling it.
 Installed and ready; used automatically when `engine` is omitted from
 `sfx_generate`. Runs entirely on this machine through
 the maintainer-owned `stable_audio3.py` adapter (pinned code + weights, hash-locked
-dependencies; see `PROFILES.md` "SFX family" for the install/runtime
+dependencies; see `docs/hands/audio.md` "SFX family" for the install/runtime
 detail). Inference uses local files with no per-call fee. The optimized
 weights download anonymously, but use still accepts the Community License
 and Gemma terms. Commercial registration is separate and was not performed

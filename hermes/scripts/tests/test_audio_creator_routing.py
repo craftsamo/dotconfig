@@ -120,7 +120,9 @@ class AudioCreatorRoutingTest(unittest.TestCase):
         self.assertIn("generate-music", creator_prompt)
 
     def test_docs_list_all_three_hands_and_no_tts_voice_residue(self) -> None:
-        profiles_md = (HERMES_ROOT / "PROFILES.md").read_text()
+        profiles_md = "\n".join(
+            p.read_text() for p in [HERMES_ROOT / "PROFILES.md", *sorted((HERMES_ROOT / "docs").rglob("*.md"))]
+        )
         self.assertIn("image-creator", profiles_md)
         self.assertIn("video-creator", profiles_md)
         self.assertIn("audio-creator", profiles_md)
