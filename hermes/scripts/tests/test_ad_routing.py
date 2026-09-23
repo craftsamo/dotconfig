@@ -148,7 +148,7 @@ class CreatorAndVideoConfigTest(unittest.TestCase):
                        "production.", self.plan_md)
         self.assertIn("Only create-ad and analyze-ad are served; generate-ad and a PV leaf are not yet\n"
                        "implemented.", self.capabilities_md)
-        profiles_md = (HERMES_ROOT / "PROFILES.md").read_text()
+        profiles_md = (HERMES_ROOT / "docs" / "hands" / "video.md").read_text()
         self.assertIn("`generate-ad` and PV are planned, not advertised capabilities.", profiles_md)
         # Root (v8) no longer states served/unserved status per family; it
         # points Plan at capabilities.md, which carries that status (asserted

@@ -11,7 +11,7 @@ entirely on this machine through the maintainer-owned `stable_audio3.py`
 adapter's `render_music` entry point (fixed Medium/SAME-L recipe, 8
 steps, 44.1 kHz 16-bit stereo WAV), the same runtime root lock and
 inherited child lock as the SFX engine, and the same 180-second timeout.
-Official docs/pins: see `PROFILES.md` "SFX family" for the shared install
+Official docs/pins: see `docs/hands/audio.md` "SFX family" for the shared install
 detail (this engine is the same pinned local model, extended to music).
 
 - Inputs: text prompt (1-450 chars), `duration_seconds` (1-60), `seed`

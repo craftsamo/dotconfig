@@ -40,7 +40,7 @@ name here is hermes-hands-references at hermes/hands-references.
 <Locate>
 
 1. Resolve the selected dotconfig checkout or task worktree. Read its AGENTS.md,
-   hermes/AGENTS.md, and the relevant Creator hands sections of hermes/PROFILES.md.
+   hermes/AGENTS.md, and the relevant Creator hands docs under hermes/docs/hands/.
    Inspect Git status and the real paths before any edit. Paths below are relative
    to that checkout, never hardcoded to the live ~/.config or ~/.hermes tree.
 2. Locate hermes/profiles/<hands>/skills/<hands>-pipeline/<verb>/<subject>/SKILL.md
@@ -122,7 +122,7 @@ Do not infer any platform upload limit or crop guarantee from an authoring canva
    generate-card's destination label and test_card.py's expected dimensions.
    For card styles, inspect both leaves' options/body links, the CSS/prose pair,
    and the style test cases. Do not assume current lists are dynamically derived.
-4. Change broker guidance, PROFILES.md or AGENTS.md only when their actual contract
+4. Change broker guidance, hermes/docs/ or AGENTS.md only when their actual contract
    or statement changes. Mere addition of an option needs no per-option broker
    file, new Skill, profile, toolset or secret.
 
