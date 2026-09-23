@@ -520,6 +520,7 @@ goals:
 skills:
   external_dirs:
     - ~/.hermes/profiles/writer/skills/writer-pipeline
+    - ~/.config/private/hermes/skills/operations/hermes-browser-relaunch
   disabled:
     - write-article
     - edit-article
