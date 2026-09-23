@@ -16,8 +16,9 @@ dollars. Most profiles lead with Claude for judgment, long-context work and
 prose and fall to a second Claude model before touching the OpenAI pool;
 **researcher** leads the other way, on **GPT-6 Astra**.
 
-- **Opus 5.5 leads `default`, `assistant`, `writer`, `marketer` and
-  `video-creator`** — above Fable 5.1 on reasoning, agentic terminal work and
+- **Opus 5.5 leads `default`, `assistant`, `writer`, `marketer` and the
+  whole Creator family (`creator`, `image-creator`, `video-creator`,
+  `audio-creator`)** — above Fable 5.1 on reasoning, agentic terminal work and
   coding at a lower token rate. The Opus-led judgment profiles take **Fable 5.1
   as T2**, never another Opus: every Opus model draws on the same Opus weekly
   sub-cap, so an Opus T2 fails exactly when that cap is why T1 failed, while
@@ -31,12 +32,19 @@ prose and fall to a second Claude model before touching the OpenAI pool;
 - **`default` stays off Fable deliberately** — every `--clone` inherits its
   chain, and a neutral starting point should not lead with the model that has
   the tightest sub-cap.
-- **Creator's hands are on the Anthropic pool:** `creator`, `image-creator`
-  and `audio-creator` lead on **Claude Sonnet 5**, `video-creator` on Opus 5.5
-  (heavier judgment for authored HTML/CSS/GSAP video). All four fall to
-  `openai-codex` / GPT-6 Astra and keep `openrouter` / `minimax/minimax-m3` as
-  the tail, so a hand still inherits `creator`'s vision fallback for eyeballing
-  generated assets. Grok is deliberately deferred as a possible insertion
+- **The Creator family leads on Opus 5.5 (2026-09-23).** A blind A/B on one
+  launch-video brief (isolated homes, model pinned, fallback off; evidence in
+  `~/Workspaces/.deliverables/creator-ab-2026-09/VERDICT.md`) scored every
+  Sonnet 5 run fidelity 1/5 whether it ran the full pipeline or a bare single
+  agent, while Opus 5.5 reached 3-4/5 on both — the model, not the pipeline,
+  was the quality ceiling. All four take Fable 5.1 as T2 like the other
+  Opus-led profiles, then `openai-codex` / GPT-6 Astra, and keep
+  `openrouter` / `minimax/minimax-m3` as the tail, so a hand still inherits
+  `creator`'s vision fallback for eyeballing generated assets. The same study
+  measured 500-970 `vision_analyze` calls and 20-39M input tokens per video
+  job; three concurrent Opus video jobs hit the account 429 within ~20 min.
+  Watch the Opus sub-cap: a silent drop to Astra/minimax is what degraded
+  Creator output before. Grok is deliberately deferred as a possible insertion
   BEFORE the GPT tier, pending runtime capability/entitlement validation
   (vision is unverified for these profiles); it is not adopted silently, and
   the OpenRouter tail is not removed to make room for it.
@@ -54,8 +62,7 @@ prose and fall to a second Claude model before touching the OpenAI pool;
 | **engineer** | `anthropic` / **claude-fable-5-1** | `anthropic` / claude-opus-5-5 | `openai-codex` / gpt-6-astra | `openrouter` / `deepseek/deepseek-v4-flash` | `high` |
 | **researcher** | `openai-codex` / **gpt-6-astra** | `openai-codex` / gpt-6-sol | `anthropic` / claude-opus-5-5 | `openrouter` / `xiaomi/mimo-v2.5` | `medium` |
 | **searcher** | `xai-oauth` / grok-4.3 | `openrouter` / `xiaomi/mimo-v2.5` | — | — | `low` |
-| **creator**, **image-creator**, **audio-creator** | `anthropic` / **claude-sonnet-5** | `openai-codex` / gpt-6-astra | `openrouter` / `minimax/minimax-m3` | — | `medium` |
-| **video-creator** | `anthropic` / **claude-opus-5-5** | `openai-codex` / gpt-6-astra | `openrouter` / `minimax/minimax-m3` | — | `medium` |
+| **creator**, **image-creator**, **video-creator**, **audio-creator** | `anthropic` / **claude-opus-5-5** | `anthropic` / claude-fable-5-1 | `openai-codex` / gpt-6-astra | `openrouter` / `minimax/minimax-m3` | `medium` |
 | **writer** | `anthropic` / **claude-opus-5-5** | `anthropic` / claude-fable-5-1 | `openai-codex` / gpt-6-astra | `openrouter` / `deepseek/deepseek-v4-flash` | `medium` |
 | **marketer** | `anthropic` / **claude-opus-5-5** | `anthropic` / claude-fable-5-1 | `openai-codex` / gpt-6-astra | `openrouter` / `xiaomi/mimo-v2.5` | `medium` |
 | **ui-review**, **ux-persona** | `openai-codex` / gpt-5.6-terra | — | — | — | `medium` |
@@ -69,8 +76,8 @@ profile config and re-resolves both from provider / base URL / model
 profile's single `agent.reasoning_effort` applies to every tier in its chain.
 
 Routing is probed with one-token requests per provider/model, not evaluated
-for per-profile behavior or prose quality; the Creator-family Sonnet 5 lead is
-configuration-validated, not live-tested. Provider facts:
+for per-profile behavior or prose quality; the Creator-family Opus 5.5 lead is
+backed by the blind A/B above (one brief, Opus n=1 per arm). Provider facts:
 
 - **Anthropic native** (`base_url: https://api.anthropic.com`) — OAuth resolves
   from the global Claude Code credential/token, not per-profile `auth.json`
