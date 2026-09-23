@@ -1209,10 +1209,17 @@ Client decisions returned as `Q<n>:` with a default already taken, every
 check delegated to `verifier`, and reviewer / reviewer-deep passes ONLY
 when the message asks (the human-facing global AGENTS.md "consider a
 reviewer pass before commits" rule is explicitly overridden). Models are
-pinned per role in the frontmatter (plan + review Opus 5, build GPT-5.6
-Sol) so that Hermes' own family (Fable or Astra) is never the one
+pinned per role in the frontmatter (plan + review Opus 5.5, build GPT-6
+Sol) so that Engineer's own model (Fable 5.1) is never the one
 challenging or QA-ing its own OpenCode output; `opencode_cli.models` /
-`--model` still override. A hidden primary is only reachable by name via
+`--model` still override. **Accepted exception (2026-09-23):** the
+Assistant now runs on Opus 5.5 too, so its Admin-topic OpenCode calls
+are planned and reviewed by the same model that requested them. The
+owner accepted this because Admin work is small, inline upkeep; do not
+extend it to Engineer. Moving Engineer off Fable, or broadening Admin's
+grant, needs the reviewer moved to another family first (e.g. hermes-review
+on GPT-6 Astra). `allowed_models` keeps `openai/gpt-5.6-sol` on both
+profiles as the one-flag rollback if GPT-6 Sol builds regress. A hidden primary is only reachable by name via
 `opencode run --agent`; `default_agent` refuses it and the TUI never cycles
 to it. Note that OpenCode's plan-mode reminder is keyed on the literal
 agent name `plan`, so `hermes-plan` gets none of it — its read-only
