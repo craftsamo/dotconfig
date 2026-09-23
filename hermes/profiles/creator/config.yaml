@@ -1135,3 +1135,7 @@ plugins:
   entries:
     video-analyze-mimo:
       allow_tool_override: true
+timeouts:
+  tools:
+    sequential_call: 5460
+    concurrent_batch: 5460

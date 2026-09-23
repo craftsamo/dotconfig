@@ -821,3 +821,7 @@ specialist_call:
     - creator
     - researcher
     - writer
+timeouts:
+  tools:
+    sequential_call: 5460
+    concurrent_batch: 5460
