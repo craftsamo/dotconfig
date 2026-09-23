@@ -2,7 +2,7 @@
 description: "Hidden primary for Hermes Engineer: implements an already-approved scope non-interactively, verifies through verifier, commits/PRs only when asked. Driven only through `opencode run --agent hermes-build --auto`; never selected by a human."
 mode: primary
 hidden: true
-model: openai/gpt-5.6-sol
+model: openai/gpt-6-sol
 variant: medium
 color: "#f59e0b"
 ---
