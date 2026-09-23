@@ -1,6 +1,6 @@
 # Video hands (video-creator)
 
-Ad, music-video, authoring references, tour, explainer-video and clip families. Part of the Hermes design docs — index: [`PROFILES.md`](../../PROFILES.md).
+Ad, music-video, authoring references, tour, explainer-video, motion and clip families. Part of the Hermes design docs — index: [`PROFILES.md`](../../PROFILES.md).
 
 `video-creator` receives filled forms on loopback A2A `:9908` (receive-only).
 It has video generation/analysis but no TTS, no image generation and no
@@ -510,6 +510,52 @@ automated contrast check and reports "requires manual visual review". Synthetic
 tone, manual-cue and test-video fixtures are technical evidence only, not real
 speech/character quality or live Creator-to-hands handoff proof. The family is
 additive: existing music-video, ad, tour and Mix routes are unchanged.
+
+## Motion family
+
+`video-creator-pipeline/create/motion/` serves `create-motion` (2026-09-23):
+authored motion design — launch/promo, brand or sizzle pieces, feature
+reveals, kinetic typography, logo stings — 3..60 s at 30fps, 16:9 (default),
+9:16, 1:1 or 4:5, that VideoCreator designs and draws itself in
+HTML/CSS/SVG/GSAP, optionally matching a local reference video
+(`reference_use: inspiration | reproduce`). Always `kind="work"`; free.
+
+**Why it exists.** Before it, no served video leaf fit a launch/promo piece
+(ad needs approved assets and a CTA, tour is a UI walkthrough, explainer a
+learning goal), so Creator fell through to legacy `creator-html-motion` and
+authored the video in its own broker context. The 2026-09-23 A/B
+(`~/Workspaces/.deliverables/creator-ab-2026-09/VERDICT.md`) saw Creator do
+exactly that in all four pipeline runs. The leaf moves the authoring into
+the hands, next to its HyperFrames/motion references, and keeps Creator a
+broker.
+
+**Lifecycle.** Round A writes `storyboard.md` (front matter + beats table
+covering 0..duration + copy, design, motion language, audio plan, pending
+list) and `motion.py propose` stores it as `proposal-vN/storyboard.md` with
+its SHA-256 and `awaiting-approval` / `pending-inputs`. One approval — the
+Creator-relayed `approved_plan` + `approval_sha256` — releases authoring,
+bounded draft renders (≤4) and the final. There is no separate preview
+approval round, unlike ad/tour/explainer: small execution fixes stay inside
+the approved storyboard; changed beats/copy/duration/aspect need a new
+storyboard. `motion.py render --quality final` verifies the hash, the root
+canvas/duration, no remote references, strict lint, then renders with the
+installed `hyperframes` CLI and checks canvas, fps, duration (±0.1 s), audio
+presence against the storyboard, true peak < 0 dBTP, and every pending id
+resolved by `--inputs` to a file under the source. It records a source tree
+hash, never freezes a copy.
+
+**Dependencies.** VideoCreator has no image generation, TTS, music or SFX.
+The storyboard's audio plan (tempo, energy curve, hit times) is the brief
+Creator gives audio-creator (usually generate-/create-music + SFX + create-mix
+into one master WAV); rasters go through the fitting image-creator leaf. Each
+is its own released unit. Reproducing a third-party brand needs the client's
+permitted-use statement relayed in `note`.
+
+**Knowledge.** It shares the four pinned HyperFrames technical references
+(`references/hyperframes.md`); create-motion alone may also use cut-the-curve's
+seam techniques. Craft reading uses media-craft-motion continuity/timing.
+Tests: `scripts/tests/test_create_motion.py` (render smoke opt-in with
+`MOTION_RENDER_SMOKE=1`). Not yet run by a live Creator conversation.
 
 ## Clip family
 

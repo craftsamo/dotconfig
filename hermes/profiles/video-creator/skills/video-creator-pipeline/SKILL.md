@@ -1,8 +1,8 @@
 ---
 name: video-creator-pipeline
 description: >-
-  Root of video-creator's clip, MV, authored-UI-tour, ad and authored-explainer-video leaves. Load first for a filled form naming
-  generate-clip, edit-clip, analyze-clip, generate-music-video, create-tour, create-ad, analyze-ad or create-explainer-video, then load only that leaf.
+  Root of video-creator's clip, MV, authored-UI-tour, ad, authored-explainer-video and authored-motion leaves. Load first for a filled form naming
+  generate-clip, edit-clip, analyze-clip, generate-music-video, create-tour, create-ad, analyze-ad, create-explainer-video or create-motion, then load only that leaf.
   Not an interview, a video menu, or a generic movie-making workflow.
 version: 1.0.0
 author: CraftSamo
@@ -71,7 +71,7 @@ historical constraints, never a request to repeat its generation or spend.
    [craft reading](references/craft.md). Pure trim/re-encode/metadata work skips it.
 3. Follow `<Procedure>`; no TTS, image generation, improvised pipelines, or
    outside workflows. The knowledge-only craft reading above is separate from
-   create-tour/create-ad/create-explainer-video's own
+   create-tour/create-ad/create-explainer-video/create-motion's own
    optional, read-only [HyperFrames references](references/hyperframes.md),
    consulted only when that leaf's own contract calls for it, never as a
    substitute leaf or workflow. create-explainer-video authors a bounded
@@ -90,6 +90,10 @@ historical constraints, never a request to repeat its generation or spend.
    pending-inputs — never invented and never a silent downgrade of
    framing/performance/lip_sync. generate-music-video authors a proposal within its form;
    no approved proposal/digest means no generation, even with a budget.
+   create-motion is the authored motion-design leaf (launch/promo, brand,
+   kinetic type; 3..60s): you draw the visuals in HTML/CSS/SVG/GSAP; storyboard
+   approval releases authoring, drafts and the checked final render. Rasters,
+   voice, music and SFX stay dependency requests back to Creator.
    create-ad permits task-local HTML/CSS/GSAP advertising from supplied assets:
    content-plan approval, frozen-source preview, then exact-preview approval
    before final rendering. No approval fields means proposal only, not render.
