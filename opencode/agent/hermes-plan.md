@@ -2,7 +2,7 @@
 description: "Hidden primary for Hermes Engineer: non-interactive investigation and technical proposal in one turn. Driven only through `opencode run --agent hermes-plan`; never selected by a human."
 mode: primary
 hidden: true
-model: anthropic/claude-opus-5
+model: anthropic/claude-opus-5-5
 variant: high
 color: "#94a3b8"
 ---
