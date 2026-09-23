@@ -888,6 +888,20 @@ Authoritative depth: `README.md` (mechanics) and `PROFILES.md` (multi-agent desi
   that the merge survived. `test_audio_creator_routing.py` also exercises the
   real resolver across scopes at unchanged generation. Registration-only
   tests and direct CLI synthesis cannot detect this gateway-specific failure.
+- **Opus 5.5 / Fable 5.1 on Anthropic OAuth need two local fixes
+  (2026-09-23).** `fix/anthropic-opus-5-5-mandatory-thinking` adds Opus 5.5
+  to the mandatory-thinking list, so a thinking-off request omits the
+  `thinking` field instead of sending the disable those models 400 on. A
+  follow-up commit on `fix/anthropic-oauth-tool-choice` stops the
+  leaked-markup recovery from forcing `tool_choice: any` on models that 400
+  on forced tool use (Opus 5.5, Fable 5.1, Mythos 5.1). Both are merged into
+  `local` with regression tests; re-check after `hermes update`, and drop the
+  first once upstream lands #119419 / #119793. A new Claude release is not
+  covered until someone reads its "What's new" breaking changes against
+  `_MANDATORY_THINKING_CLAUDE_SUBSTRINGS` and
+  `_NO_FORCED_TOOL_CHOICE_CLAUDE_SUBSTRINGS` — unknown Claude ids default to
+  "disable accepted, forcing accepted". Details: PROFILES.md "Models and
+  fallback chains".
 - **`image_generate` only advertises what the configured provider's
   `capabilities()` declares, fail-closed to text-only.** The
   `image-fallback` chain provider did not declare one until 2026-09-05,
@@ -1209,10 +1223,18 @@ Client decisions returned as `Q<n>:` with a default already taken, every
 check delegated to `verifier`, and reviewer / reviewer-deep passes ONLY
 when the message asks (the human-facing global AGENTS.md "consider a
 reviewer pass before commits" rule is explicitly overridden). Models are
-pinned per role in the frontmatter (plan + review Opus 5, build GPT-5.6
-Sol) so that Hermes' own family (Fable or Astra) is never the one
+pinned per role in the frontmatter (plan + review Opus 5.5, build GPT-6
+Sol) so that Engineer's own model (Fable 5.1) is never the one
 challenging or QA-ing its own OpenCode output; `opencode_cli.models` /
-`--model` still override. A hidden primary is only reachable by name via
+`--model` still override. **Accepted exception (2026-09-23):** the
+Assistant now runs on Opus 5.5 too, so its Admin-topic OpenCode calls
+are planned and reviewed by the same model that requested them. The
+owner accepted this because Admin work is small, inline upkeep; do not
+extend it to Engineer. Moving Engineer off Fable, or broadening Admin's
+grant, needs the reviewer moved to another family first (e.g. hermes-review
+on GPT-6 Astra). `allowed_models` keeps `openai/gpt-5.6-sol` on both
+profiles as the one-flag rollback if GPT-6 Sol builds regress.
+A hidden primary is only reachable by name via
 `opencode run --agent`; `default_agent` refuses it and the TUI never cycles
 to it. Note that OpenCode's plan-mode reminder is keyed on the literal
 agent name `plan`, so `hermes-plan` gets none of it — its read-only

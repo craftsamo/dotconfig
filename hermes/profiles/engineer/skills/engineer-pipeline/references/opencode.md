@@ -47,7 +47,7 @@ global instructions or whole Skill bodies.
   Say so in the message when the increment warrants it; otherwise it is
   skipped on purpose. debug is the ordinary primary.
 - Models normally follow OpenCode's configured agent defaults (plan and
-  review on Opus 5, build on GPT-5.6 Sol, independent of the family this
+  review on Opus 5.5, build on GPT-6 Sol, independent of the model this
   profile runs on, so your challenge and QA stay cross-family). Maintainer
   opencode_cli.models may override per-agent models. A Client may ask for a
   specific engine: pass model (provider/model) and/or variant (reasoning effort
