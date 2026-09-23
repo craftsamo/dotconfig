@@ -65,10 +65,10 @@ class VideoCreatorConfigTest(unittest.TestCase):
         for leaf in PIPELINE.glob("*/*/SKILL.md"):
             contents = leaf.read_text()
             self.assertEqual(
-                leaf.parent.parent.name == "create" and leaf.parent.name in {"tour", "ad", "explainer-video"},
+                leaf.parent.parent.name == "create" and leaf.parent.name in {"tour", "ad", "explainer-video", "motion"},
                 'file_path="references/hyperframes.md"' in contents,
             )
-        for subject in ("tour", "ad", "explainer-video"):
+        for subject in ("tour", "ad", "explainer-video", "motion"):
             contents = (PIPELINE / "create" / subject / "SKILL.md").read_text()
             self.assertIn(
                 'skill_view(name="video-creator-pipeline", file_path="references/hyperframes.md")',
@@ -111,7 +111,7 @@ def skill_environment(tmp_path, monkeypatch):
     config = {"skills": yaml.safe_load((PROFILE / "config.yaml").read_text())["skills"]}
     (home / "config.yaml").write_text(yaml.safe_dump(config))
     sources = [*PIPELINE.glob("**/SKILL.md"), PIPELINE / "references/hyperframes.md", PIPELINE / "references/three-graphics.md"]
-    sources.extend(PIPELINE / "create" / subject / "references/authoring.md" for subject in ("tour", "ad", "explainer-video"))
+    sources.extend(PIPELINE / "create" / subject / "references/authoring.md" for subject in ("tour", "ad", "explainer-video", "motion"))
     for source in sources:
         target = local / "video-creator-pipeline" / source.relative_to(PIPELINE)
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -171,7 +171,7 @@ def test_missing_external_skills_leave_local_authoring_available(skill_environme
         assert "not found" in result["error"]
     for name in set(TECHNICAL_SKILLS) - set(missing):
         assert json.loads(skills.skill_view(name))["success"]
-    for name in ("create-tour", "create-ad", "create-explainer-video"):
+    for name in ("create-tour", "create-ad", "create-explainer-video", "create-motion"):
         assert json.loads(skills.skill_view(name))["success"]
         reference = json.loads(skills.skill_view(name, file_path="references/authoring.md"))
         assert reference["success"], reference

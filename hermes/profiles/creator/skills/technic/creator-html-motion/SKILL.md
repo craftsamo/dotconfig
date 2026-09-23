@@ -23,7 +23,11 @@ router and its domain/workflow skills are the implementation engine.
 <Scope>
 Use for motion graphics, typographic/video overlays, product or website tours,
 captioned narration, audio-reactive visuals, social promos, and other authored
-HTML compositions rendered to MP4/WebM. Route p5.js interactive/generative
+HTML compositions rendered to MP4/WebM. Served hands leaves come first:
+authored launch/promo/brand motion, kinetic type and logo stings of 3..60s
+are video-creator's `create-motion`, UI task walkthroughs `create-tour`,
+approved-asset ads `create-ad`, learning explainers `create-explainer-video`;
+this technic covers what remains. Route p5.js interactive/generative
 canvas work to `creator-p5js-experience`, math explainers to
 `creator-manim-explainer`, and model-generated footage to
 `creator-generated-video`.
