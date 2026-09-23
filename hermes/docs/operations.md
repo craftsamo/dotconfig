@@ -69,7 +69,8 @@ hermes/launchd/gateway-launchctl.sh uninstall      # unload + remove
 
 Per-profile, tracked in `hermes/profiles/<name>/` and symlinked by
 `install.sh`: `config.yaml`, `profile.yaml` (holds the routing `description`),
-`SOUL.md`, `skills/`, `.no-bundled-skills` (`mcp.json` when present). `cron/`
+`SOUL.md` (untracked; seeded from the tracked `SOUL.example.md`), `skills/`,
+`.no-bundled-skills` (`mcp.json` when present). `cron/`
 is never linked or tracked — Hermes owns it machine-local. Everything outside
 the symlink set stays untracked (`~/.hermes/kanban.db`, `kanban/`,
 `workspace/`, `auth.json`, `.env`, `memories/`, `sessions/`, `state.db*`);
