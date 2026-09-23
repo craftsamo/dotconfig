@@ -51,7 +51,9 @@ notification. A single-profile gateway verifies its process home against the
 plugin's registered profile; a multiplex gateway must provide an explicit
 task-scoped home. Unbound routing or ambiguous multiplex flags fail closed.
 Background completions for secondary profiles depend on profile-aware
-notification routing (carried as a local patch); shutdown and `/restart`
+notification routing (carried as a local patch); verify it in a topic that
+existed before the last gateway restart, because a restored session is the
+case that breaks and a fresh topic hides it. Shutdown and `/restart`
 notifications for secondary profiles are still not routed.
 
 CLI callers — including creator nested under the assistant's resident child —

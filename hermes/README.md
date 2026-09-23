@@ -110,6 +110,7 @@ engines/               # tracked pins/locks: irodori-tts, qwen3-tts,
                        #   stable-audio-3, motion-canvas, three-webgl
 scripts/               # profile-secrets.sh (secrets.command helper),
                        #   brave-agent-sync.sh, validate-profile-skills.py,
+                       #   check-local-patches.sh,
                        #   verify-work-continuity.py, audit-hands-references.py,
                        #   qwen3_tts_server.py, qwen3_tts_reading_check.py,
                        #   stable_audio3.py, tests/ (pytest suites + fixtures)
@@ -284,7 +285,8 @@ a `hermes-<name>` Keychain layer and a multiplex allowlist entry — see
   the private overlay and is read through `skills.external_dirs` as
   `~/.config/private/hermes/skills`. HyperFrames / `media-use` playbooks and the
   curated `media-craft-*` skills are read from `~/.agents/skills` via
-  `external_dirs`; the store's maintenance rules are in `AGENTS.md`.
+  `external_dirs`; the store's maintenance rules are in `AGENTS.md`. A fresh
+  machine needs `hyperframes skills update` before creator can load them.
 
 ## Cron
 
@@ -376,7 +378,8 @@ tools (e.g. the web-search keys). Per-bot layers `hermes-assistant` /
 The shim does not isolate profiles: every alias gets the same `global` +
 `hermes` layers. Isolation happens in the multiplex gateway: each served
 profile's `secrets.command` runs `scripts/profile-secrets.sh <profile>`, which
-emits `global` + `hermes` (minus messaging keys) + `hermes-<profile>`, because
+emits `global` + `hermes` + `hermes-<profile>` (the `hermes` messaging keys
+filtered per profile), because
 multiplex secret scopes never read the process env. Every config sets
 `helper_timeout_seconds: 60`. Layer contents and the helper's one-shot design:
 [docs/models-auth.md](docs/models-auth.md) "Secrets layering". CLI:
@@ -878,7 +881,12 @@ tool returns `status: "blocked"`.
 - `./setup.sh` — install/refresh the hermes binary (uv venv); idempotent.
 - `../install.sh` — create the `~/.hermes/` symlinks (run after adding files).
 - `hermes update` — git pull + re-sync (use this to update, not `setup.sh`);
-  afterwards run the validator and clean seeded skill roots (see [Skills](#skills)).
+  afterwards follow the post-update sequence in [`AGENTS.md`](AGENTS.md)
+  (local patches, validator, seeded skill roots — see [Skills](#skills)).
+- `./scripts/check-local-patches.sh [hermes-agent-dir]` — every local `fix/*`
+  branch in the hermes-agent checkout must be merged into `local`, and the
+  case-collision twin must keep `skip-worktree`; exit 1 names what is missing.
+  `git checkout --` does not fix that twin (it only flips which twin is dirty).
 - `hermes doctor` — validate providers / model tiers.
 
 **Validation and tests**
@@ -905,7 +913,7 @@ tool returns `status: "blocked"`.
   installs, restarts or migrates jobs.
 - Entry-runtime suites in `scripts/tests/` (provisioned Hermes Python, explicit
   source `PYTHONPATH`, isolated HOME, no network; registered in
-  `verify-work-continuity.py`): `test_{engineer,creator,marketer,searcher}_entry_runtime.py`,
+  `verify-work-continuity.py`): `test_{engineer,creator,marketer,searcher,writer,assistant}_entry_runtime.py`,
   `test_creator_entry_contract.py`, `test_hands_instruction_context.py`,
   `test_marketer_{pipeline,browser_lease}.py`, `test_researcher_entries.py`,
   `test_searcher_pipeline.py`; run `test_media_craft_routing.py` and

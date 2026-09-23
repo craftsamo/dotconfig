@@ -67,8 +67,9 @@ hermes/launchd/gateway-launchctl.sh uninstall      # unload + remove
 
 ## Tracking
 
-Per-profile, tracked in `hermes/profiles/<name>/` and symlinked by
-`install.sh`: `config.yaml`, `profile.yaml` (holds the routing `description`),
+Per-profile files in `hermes/profiles/<name>/`, symlinked by `install.sh`
+(tracked unless noted): `config.yaml` (assistant: private, seeded from the
+tracked `config.example.yaml`), `profile.yaml` (holds the routing `description`),
 `SOUL.md` (untracked; seeded from the tracked `SOUL.example.md`), `skills/`,
 `.no-bundled-skills` (`mcp.json` when present). `cron/`
 is never linked or tracked — Hermes owns it machine-local. Everything outside
