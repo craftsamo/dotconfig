@@ -197,7 +197,7 @@ def validate_staged_delivery(master, receipt_path, captions_path=None, timing_pa
     `mix.take.json` receipt, and optionally `captions.json`/`timing.json` -
     never the full physical bundle (`sources/`, `proposal.md`, `mix.json`).
     This is the canonical path for `create-ad`/`create-tour`'s opt-in mix
-    consumption (see hermes/AGENTS.md "audio_workflow"): those leaves copy
+    consumption (see hermes/docs/hands/audio.md "Mix family"): those leaves copy
     only these files into their own frozen source, and bind them by hash
     through the SAME asset/source-file map every other input already goes
     through - never by the original (mutable) `mix_bundle` path.
@@ -240,7 +240,7 @@ def verify_full_bundle(bundle):
     entirely to Audio Mix's own `verify_bundle` - no local reimplementation
     of its source/spec/manifest checks. Used only for an initial staging
     check against an externally supplied `mix_bundle` path (see
-    hermes/AGENTS.md "audio_workflow"); the formal, approved video form
+    hermes/docs/hands/audio.md "Mix family"); the formal, approved video form
     always binds the STAGED subset afterward via `validate_staged_delivery`,
     never this mutable bundle path."""
     media = load_mix_media()
