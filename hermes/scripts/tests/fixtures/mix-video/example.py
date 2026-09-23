@@ -2,7 +2,7 @@
 """TEST FIXTURE ONLY - Ad + Tour local Mix consumption evidence.
 
 Builds, under a fresh `--root`, two illustrative deliverables that opt into
-Audio Mix's `audio_workflow: mix` (see hermes/AGENTS.md "audio_workflow"):
+Audio Mix's `audio_workflow: mix` (see hermes/docs/hands/audio.md "Mix family"):
 
   ad/    the existing create-ad fixture (fixtures/create-ad/example.py, 15s)
   tour/  the existing authored-tour fixture, variant "none"

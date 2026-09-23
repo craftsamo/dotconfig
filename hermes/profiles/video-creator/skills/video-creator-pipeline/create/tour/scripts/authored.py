@@ -60,8 +60,8 @@ def form_model(raw):
         require("source" not in form and "target" not in form, "recreate uses reference, not source/target")
     require(form.get("audio_workflow", "supplied") in ("supplied", "mix"), "audio_workflow must be supplied or mix")
     if form.get("audio_workflow") == "mix":
-        # An opt-in, already-approved Audio Mix master (see hermes/AGENTS.md
-        # "audio_workflow"): the exact staged asset paths named here are
+        # An opt-in, already-approved Audio Mix master (see hermes/docs/hands/audio.md
+        # "Mix family"): the exact staged asset paths named here are
         # bound by hash through the ordinary source-file map, never by the
         # mutable original mix_bundle path.
         mix = form.get("mix")
@@ -213,7 +213,7 @@ def markup_check(root, form):
                 graphics.check_authored_code(content)
             if form.get("screen_mode") in ("supplied", "capture") or form.get("audio_workflow") == "mix":
                 # "JS playback/volume modifications prohibited for all mix
-                # modes" (hermes/AGENTS.md "audio_workflow") extends this
+                # modes" (hermes/docs/hands/audio.md "Mix family") extends this
                 # footage-only guard to every project that opts into mix,
                 # regardless of screen_mode.
                 require(not re.search(r"\.(play|pause|load)\s*\(|\.currentTime\s*=|\.playbackRate\s*=", content), "HyperFrames owns media playback/seeking")
@@ -239,7 +239,7 @@ MIX_AUDIO_ATTRS = {"id", "class", "src", "data-start", "data-duration", "data-tr
 
 def mix_check(root, form, markup):
     """Validate the opt-in Mix master placement and the staged delivery it
-    names (hermes/AGENTS.md "audio_workflow"). Exactly one <audio> element
+    names (hermes/docs/hands/audio.md "Mix family"). Exactly one <audio> element
     is ever permitted once opted in - the approved master - never a stem
     alongside it, and never kept footage audio (mute it upstream instead;
     this never silently mutes it here)."""

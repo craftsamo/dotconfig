@@ -2,8 +2,8 @@
 
 All network access is mocked or monkeypatched — nothing here reaches the
 internet. A separate, manual live smoke fetch is documented in the leaf's
-worker report rather than run from this suite (see AGENTS.md: "Network
-tests fixture-based not CI internet").
+worker report rather than run from this suite (network tests
+stay fixture-based, never live CI internet).
 """
 from __future__ import annotations
 
