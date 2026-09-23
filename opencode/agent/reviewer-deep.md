@@ -1,7 +1,7 @@
 ---
 description: "Deep read-only review subagent for high-risk hunks: system assumptions, responsibility ownership, runtime regressions, and subtle edge cases. Prefer invoking through the built-in task tool."
 mode: subagent
-model: anthropic/claude-opus-5
+model: anthropic/claude-opus-5-5
 variant: high
 hidden: true
 permission:

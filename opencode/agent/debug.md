@@ -1,7 +1,8 @@
 ---
 description: "Primary Debug mode. Diagnoses bugs, errors, failing tests, regressions, and incidents read-only; delegates root-cause investigation to debugger and routine checks to verifier; never edits files."
 mode: primary
-model: anthropic/claude-fable-5-1
+model: anthropic/claude-opus-5-5
+variant: high
 permission:
   "*": ask
   glob: allow
