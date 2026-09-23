@@ -822,7 +822,9 @@ every call fails with `All CDP discovery methods failed for 127.0.0.1:<old
 port>` until the gateway restarts (unpatched upstream). The private-overlay
 skill `hermes-browser-relaunch` (`scripts/relaunch.sh`) does it right: SIGTERM
 clone → stop daemon → clear socket dir; it never launches — the next
-`browser_exec` does. `relaunch.sh --status` prints `pages=` / `rss=` per clone.
+`browser_exec` does. Assistant reads it through the private skills root and
+Marketer through a single-skill `external_dirs` entry; each relaunches only
+its own pair (Marketer while holding its browser lease). `relaunch.sh --status` prints `pages=` / `rss=` per clone.
 
 **UA gate pages are not a relaunch case.** Sites gating on the UA string reject
 headless `HeadlessChrome/<v>`, so the headless launch passes `--user-agent` with

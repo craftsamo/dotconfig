@@ -101,6 +101,10 @@ inspect each owned child conversation (status, process liveness, event log,
 Git and remote effects), stop/reconcile with observed evidence, and report;
 do no other work.
 
+A `Warning: Unknown toolsets: opencode, specialist` line at the start of a
+resident turn is a plugin-discovery-order artifact, not a missing capability:
+the tools load right after it. Do not report it or work around it.
+
 completed means the CLI ended with a matching JSON stop event, not that the task
 passed. Read result for open questions, assumptions and unverified claims. A
 question can arrive in an otherwise completed run. Engineer answers in-scope
