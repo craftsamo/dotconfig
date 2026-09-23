@@ -4,6 +4,8 @@ Marketer strategy and browser drafts. Part of the Hermes design docs — index: 
 
 ## Marketer strategy and browser drafts
 
+Marketer owns strategy and its existing authenticated browser; there is no
+SNS-Marketer profile or hand, and login profiles are never shared or copied.
 Marketer v8 keeps `marketer-pipeline` as its invariant kernel and exposes four
 independent entry skills beneath that directory, outside `references/`:
 `plan-marketer`, `build-marketer`, `qa-marketer` and `analyze-marketer`.
@@ -16,17 +18,27 @@ content and saved objects; Analyze interprets results. One shared
 browser procedure and verification. `references/state.md` defines records;
 actual project/account/evidence/approval data remains private and outside config.
 Detailed references remain references, not a hands taxonomy or generated registry.
-The four entry descriptions expose mode selection in Hermes' ordinary index.
-Each turn/completion and each mode/target/platform/scope-changing action selects
-the relevant entry. Its full kernel dependency applies even on direct entry;
-the entry itself is the complete mode procedure, with no second common index.
-Full bodies in current context can be reused; a past load or summary cannot.
-Canonical read_file recovery follows next_offset and stops the action if a body
-remains missing, without alternate-path/range dedup workarounds. A short approval
-resumes recorded work rather than granting a new plan, save or producer run.
-Cross-entry details require the owning entry; ordinary instruction reads never
-authorize browser navigation. Shared state/platform paths and browser-lease.py
-remain stable, and Writer acceptance stays at its existing canonical location.
+Shared state/platform paths and `scripts/browser-lease.py` stay at the parent;
+Writer acceptance stays at its canonical location (see [writer.md](./writer.md)
+"Writer craft and independent editorial QA"). No new external skill roots, and
+no other profile's skill menu is expanded.
+
+Loading follows the shared [entry loading contract](../topology.md#entry-loading-contract);
+Marketer's deltas: each mode/target/platform/scope-changing action reselects the
+entry; the entry itself is the complete mode procedure, with no second common
+index. Cross-entry detail reads require their owning entry. Instruction reads may
+run in parallel rather than as a serial loading ritual, but ordinary instruction
+reads never authorize browser navigation, and browser reads still need the
+lease. A short approval resumes recorded work rather than granting a new plan,
+save or producer run.
+
+This is a Hermes-specific skill family, not five portable packages: the generic
+skill-authoring validator's rejection of nested roots and cross-entry links is
+expected. The repository validator (`validate_marketer_references`) instead
+requires every resolved link to stay inside `marketer-pipeline` and name a real
+file, with each owner linking its own references; it checks the exact
+entry/reference sets, kernel dependencies, canonical recovery and the absence of
+card units. Hermes metadata remains canonical.
 
 Assistant's old marketing leaves remain thin client pointers so other caller
 references still resolve. Marketer owns strategy and its record, including
@@ -34,42 +46,48 @@ direct-human intake without a pre-existing offer/ledger. User decisions remain
 separate from evidence; a proposal can explicitly be exploratory. Existing state
 files retain their bytes/ownership and need no schema conversion.
 
-Browser operations use Marketer's existing dedicated Brave profile. No SNS
-profile or cookie sharing is introduced. `scripts/browser-lease.py` serializes
-cooperating jobs across tool calls; it refuses another owner, corrupt state and
-symlinks, and never expires/steals a lease. The owner holds it through saving and
-reopening or a reconciled stop. This is coordination, not a browser sandbox or
-authentication. Broad terminal/browser tools remain a residual authority risk.
+### Browser lease
 
-Before typing/upload, obtain approval of exact text/assets, destination account
-and create/update target. Autosave is already a remote write. No publication,
-scheduling, email/test-email, visibility change or shared-preview link generation.
-Service draft completion requires reopening the same object and checking content,
-attachments and unpublished state. Local files and input screenshots alone do
-not complete the request. Challenges and ambiguous saves stop for reconciliation;
-known automation risk may be accepted by the user but is not platform permission.
+Browser operations use Marketer's existing dedicated Brave profile; no cookie
+sharing or migration. All browser navigation, including measurement reads, holds
+the profile-wide `scripts/browser-lease.py` lease, which serializes cooperating
+jobs across tool calls. It refuses another owner, corrupt state and symlinks, and
+has no TTL: it never expires or steals a lease. The owner holds it through
+saving and reopening, until a verified or reconciled stop. This is coordination,
+not a browser sandbox or authentication; broad terminal/browser tools remain a
+residual authority risk. Marketer's inbound A2A has no browser, terminal or
+delegation toolset, so authenticated work needs a resident session.
 
-The four platform procedures are authored. A 2026-09-10 note text-only native
-browser smoke verified new-draft saving, an unpublished-view banner and exact
-title/two-paragraph reopening using the existing Marketer browser. This is not
-a fresh candidate AIAgent creation/update run. A later fresh candidate agent did
-pass a constrained read-only recheck: mode-index loading, live content/status
-observations, explicit uncertainty and lease acquisition/release. Its browser
-programs were allowlisted; free-form interaction and gateway deployment were not
-tested. Other platforms, attachments and existing-user-draft updates remain
-unverified. Validate each service/content type in an approved
-nonpublishing trial. Stage the
-paired public/private candidate in isolated worktrees; static checks never imply
-the live symlink/Git boundary has been checked. Cut over and restart only with
-approval, after caller coverage and real skill discovery. Keep both baseline
-revisions as the recovery point; rollback the matched caller/producer contracts,
-not saved drafts or user data. Do not adopt old v6 publishing sessions/P1 grants.
-Reconcile unfinished old work before a new draft-only release.
+### Draft-only saving
 
-A 2026-09-11 constrained candidate-agent trial additionally saved the existing
-note fixture once without typing: direct homepage account check, unchanged
-content/status preconditions, actual save confirmation, reopened comparison and
-lease release. It re-read a transient incomplete editor rather than resaving.
-This does not validate arbitrary updates/new content; browser programs were
-allowlisted. Common mode indexes must be read before acting, but independent
-reference reads may run in parallel rather than imposing a serial loading ritual.
+There is no publish path. Before typing or upload — i.e. before editor entry —
+obtain approval of the exact text/assets, destination account and create/update
+target; autosave is already a remote write. No publication, scheduling,
+email/test-email, visibility change or shared-preview link generation. Service
+draft completion requires reopening the same object and checking content,
+attachments and unpublished state; local files and input screenshots alone do
+not complete the request. Challenges and ambiguous saves stop for
+reconciliation; unknown effects are never retried automatically. Known
+automation risk may be accepted by the user but is not platform permission. Old
+Publish/P1 grants and v6 publishing sessions are not adopted; reconcile
+unfinished old work before a new draft-only release. The user publishes.
+
+### Validation status
+
+The four platform procedures are authored; each service/content type requires
+approved, nonpublishing live validation, since static tests never establish
+service-side persistence. Verified so far: a note text-only new-draft save with
+unpublished-view reopening, plus constrained fresh-candidate-agent runs (a
+read-only recheck and a no-typing resave of an existing note fixture) with
+allowlisted browser programs. Free-form interaction, gateway deployment, other
+platforms, attachments, arbitrary updates/new content and existing-user-draft
+updates remain unverified.
+
+The candidate checks `test_marketer_pipeline.py`, `test_marketer_entry_runtime.py`
+and `test_marketer_browser_lease.py` are registered in `verify-work-continuity.py`.
+The runtime test copies only candidate Markdown into an isolated HOME with actual
+Hermes tools and no network, providers, model or browser execution: it tests real
+discovery/reads/dedup, not model routing or service-side saves. Cutover follows
+[topology](../topology.md) "Candidate rollout and cutover"; it needs caller
+coverage and real skill discovery first, and rollback restores the matched
+caller/producer contracts, not saved drafts or user data.
