@@ -115,7 +115,7 @@ def test_hands_owner_context_offline_mechanical(profile):
         assert required in context, required
 
 
-@pytest.mark.parametrize("leaf", ("tour", "ad", "explainer-video"))
+@pytest.mark.parametrize("leaf", ("tour", "ad", "explainer-video", "motion"))
 def test_optional_hyperframes_fallback_offline_mechanical(leaf):
     root = pipeline("video-creator")
     policy = compact(text(root / "references/hyperframes.md"))

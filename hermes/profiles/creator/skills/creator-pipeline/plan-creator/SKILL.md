@@ -124,7 +124,7 @@ each dependency's subject when planning that unit, not every media family.
 | Hands | Subject references |
 | --- | --- |
 | image-creator | [card](references/image-creator/card.md), [icon](references/image-creator/icon.md), [emoji](references/image-creator/emoji.md), [mascot](references/image-creator/mascot.md), [reimagine](references/image-creator/reimagine.md), [kit](references/image-creator/kit.md) |
-| video-creator | [clip](references/video-creator/clip.md), [music-video](references/video-creator/music-video.md), [ad](references/video-creator/ad.md), [tour](references/video-creator/tour.md), [explainer-video](references/video-creator/explainer-video.md) |
+| video-creator | [clip](references/video-creator/clip.md), [music-video](references/video-creator/music-video.md), [ad](references/video-creator/ad.md), [tour](references/video-creator/tour.md), [explainer-video](references/video-creator/explainer-video.md), [motion](references/video-creator/motion.md) |
 | audio-creator | [speech](references/audio-creator/speech.md), [sfx](references/audio-creator/sfx.md), [music](references/audio-creator/music.md), [mix](references/audio-creator/mix.md) |
 
 ## Composite requests - a sequence of forms
