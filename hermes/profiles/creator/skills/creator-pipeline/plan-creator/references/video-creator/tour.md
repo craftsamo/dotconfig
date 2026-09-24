@@ -24,8 +24,8 @@ the explicit mode and report its blocker. Supplied/captured video stays footage
 with source-time mapping and explicit keep/mute. Old v1/v2 artifacts and approvals
 remain unchanged. Narration is a prior
 audio-creator delivery, not TTS in video-creator. Send tour work via
-`specialist_call(kind="work")` even though free. Broader authored motion
-remains creator-html-motion; this new subject retires no legacy 1:1 mapping.
+`specialist_call(kind="work")` even though free. Authored launch/promo/brand
+motion is [create-promotion](promotion.md); this subject retires no legacy 1:1 mapping.
 
 For a depth/shader requirement, the leaf's optional graphics: three-webgl2 is
 an implementation choice to propose, not a new default. Read its local Three

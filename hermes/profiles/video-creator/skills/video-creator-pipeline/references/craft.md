@@ -28,6 +28,7 @@ files below. Do not load every file merely because the result is a video.
 | clip generation and shot interpretation | `references/generated-shots.md`; `references/timing-spacing.md` for an actual motion choice |
 | tour action, pointer, camera and UI state | `references/ui-choreography.md`, `references/timing-spacing.md`; `references/continuity.md` for state/scene connections |
 | ad pacing, attention and scene relationships | `references/timing-spacing.md`, `references/continuity.md` |
+| promotion storyboard beats, seams and kinetic type | `references/continuity.md`, `references/timing-spacing.md`; `references/ui-choreography.md` for drawn UI states or a pointer |
 | explainer-video causal state and supplied performance | `references/explanation-performance.md`; timing/continuity files when needed |
 | music-video shots against supplied music | `references/generated-shots.md`, `references/continuity.md` |
 

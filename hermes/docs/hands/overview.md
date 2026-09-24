@@ -256,6 +256,34 @@ Fresh conversations are needed after an explicitly approved install/cutover.
 Existing jobs and frozen outputs are not migrated. Candidate and
 structural/discovery validation is neither live cutover nor artistic acceptance.
 
+### Vision window
+
+Native `vision_analyze` puts the image itself into the tool result, and Hermes
+sends only the newest three image-bearing tool results with each request. A
+step that asked for 29 frames showed three, while the other 26 results still
+read "Image loaded into your context"; the model saw no image, assumed the
+load had failed and asked again. In the 2026-09-23 Creator A/B one frame was
+opened 68-80 times, 566-972 looks per 16 s job over 30-44 files, against 19-47
+for OpenCode on the same brief. Most of the 20-40M input tokens per job were
+that long history replayed, not the images.
+
+The `vision-window` plugin (enabled on creator and the three hands) rewrites
+native `vision_analyze` results through the `transform_tool_result` hook, with
+no Hermes core change:
+
+- The 4th and later image in one step returns "Image not shown: <path>. Only 3
+  images can be shown to you per step ... request it again in your next step."
+  The model is told the truth instead of a false "loaded".
+- An image whose bytes were already shown 3 times in the turn returns "Image
+  not shown again ... Use what you already noted about it." This stops
+  flip-flopping comparisons; a re-rendered file has new bytes and is shown.
+
+Which three of a parallel batch are shown follows completion order. Verified
+on an isolated home with the unmodified runtime (6 parallel frames: 3 shown, 3
+"not shown", and the model reported exactly which). Leaf procedures keep their
+rules: contact sheets, at most three looks per step, a finding in `qa.md`
+before the next look.
+
 ### Migration
 
 Each family moves on its own, each step verified before the next: (0) contract
@@ -284,6 +312,7 @@ scripts worth porting.
 | tour | video-creator | create | `creator-html-motion` and its 1:1 mappings kept intact |
 | ad | video-creator | analyze, create (`generate-ad`, PV planned) | no legacy mapping retired |
 | explainer-video | video-creator | create | `creator-manim-explainer` kept for explicit Manim / math / 3D scope |
+| promotion | video-creator | create | `creator-html-motion` kept, narrowed in routing to what no served video leaf covers (overlays on footage, captioned narration, audio-reactive, >60 s); its 1:1 mappings kept until caller coverage and both-client soak |
 | speech | audio-creator | generate, edit, analyze | voice card, assistant plan/QA and canonical TTS special case retired; AudioCraft/HeartMuLa/songsee technics withdrawn without replacement |
 | sfx | audio-creator | create, generate, edit, analyze | no technic mapping |
 | music | audio-creator | create, generate, edit, analyze | vocal-song generation and standalone audio visualization withdrawn, not migrated |
