@@ -163,5 +163,25 @@
     "review_evidence": [
       "confirmation that only trim points and container/codec changed, with no reference to motion timing"
     ]
+  },
+  {
+    "id": "promotion-hard-cut-launch",
+    "request": "A 16-second launch motion piece jumps between its title, feature cards and logo with hard cuts and empty frames, and the client says it feels like a slideshow rather than one film.",
+    "operation": "continuity_revision",
+    "expected": [
+      "identifies missing motion-matched seams (no shared direction or element carried across beats) as the cause, not the number of scenes",
+      "proposes concrete handoffs per seam such as a zoom-through into the next beat's hero element or a match-move of a carried element",
+      "keeps each beat's hold long enough to read its copy while tightening the transitions"
+    ],
+    "must_not": [
+      "recommend adding generic crossfades between every beat",
+      "lengthen the piece or add scenes to hide the cuts"
+    ],
+    "subjects": [
+      "promotion"
+    ],
+    "review_evidence": [
+      "before/after contact sheets around each seam showing the carried element or direction across the boundary"
+    ]
   }
 ]

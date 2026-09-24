@@ -193,6 +193,21 @@ mutate the runtime. `check` / `check --full` report readiness: the fast check
 trusts stat fingerprints (a version-pin guarantee, not a tamper-proof sandbox),
 `--full` re-hashes weights and re-collects the dependency manifest.
 
+**Headroom before quantization (2026-09-23).** Upstream `sa3_mlx.save_wav`
+hard-clips the float decoder output to [-1, 1] before writing 16-bit PCM, and
+Medium routinely decodes past full scale: all three approved music takes of the
+Creator A/B arrived clipped (+0.1 to +1.3 dBTP), sfx-/music-media refused them,
+and edit-music cannot repair a clipped source, so the video shipped without
+music. The adapter now runs the unmodified upstream script through a small
+`python -c` bootstrap that wraps `save_wav` with one constant gain whenever the
+sample peak exceeds `HEADROOM_CEILING_DBFS` (-1.0) — no limiter, no loudness
+normalization, quieter takes untouched — and records `headroom`
+(`pre_gain_peak_dbfs`, `gain_db`) in `take.json`. Re-rendering the failed
+seed-0 prompt: pre-gain +0.27 dBFS, −1.27 dB applied, true peak −0.56 dBTP,
+`music-media.py track` PASS. The headroom lives in the adapter, so it changed the
+install fingerprint; activate an adapter edit with `stable_audio3.py refresh
+--previous-adapter <old source>`, never a reinstall.
+
 Each render is a brand-new subprocess — no LaunchAgent, no port, no
 GPU-resident process — that inherits the shared runtime lock (one
 install-or-render at a time; the child keeps the lock across a parent death)
