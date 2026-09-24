@@ -511,51 +511,56 @@ tone, manual-cue and test-video fixtures are technical evidence only, not real
 speech/character quality or live Creator-to-hands handoff proof. The family is
 additive: existing music-video, ad, tour and Mix routes are unchanged.
 
-## Motion family
+## Promotion family
 
-`video-creator-pipeline/create/motion/` serves `create-motion` (2026-09-23):
-authored motion design — launch/promo, brand or sizzle pieces, feature
-reveals, kinetic typography, logo stings — 3..60 s at 30fps, 16:9 (default),
-9:16, 1:1 or 4:5, that VideoCreator designs and draws itself in
-HTML/CSS/SVG/GSAP, optionally matching a local reference video
-(`reference_use: inspiration | reproduce`). Always `kind="work"`; free.
+`video-creator-pipeline/create/promotion/` serves `create-promotion`
+(2026-09-23, renamed from `create-motion` the same day): authored promotion
+video — launch/promo, brand or sizzle pieces, feature reveals, kinetic
+typography, logo stings — 3..60 s at 30fps, 16:9 (default), 9:16, 1:1 or
+4:5, that VideoCreator designs and draws itself in HTML/CSS/SVG/GSAP,
+optionally matching a local reference video (`reference_use: inspiration |
+reproduce`). Always `kind="work"`; free.
 
 **Why it exists.** Before it, no served video leaf fit a launch/promo piece
 (ad needs approved assets and a CTA, tour is a UI walkthrough, explainer a
 learning goal), so Creator fell through to legacy `creator-html-motion` and
-authored the video in its own broker context. The 2026-09-23 A/B
-(`~/Workspaces/.deliverables/creator-ab-2026-09/VERDICT.md`) saw Creator do
-exactly that in all four pipeline runs. The leaf moves the authoring into
-the hands, next to its HyperFrames/motion references, and keeps Creator a
-broker.
+authored the video in its own broker context. The owner chose to move the
+authoring into the hands (`~/Workspaces/.deliverables/creator-ab-2026-09/`).
 
-**Lifecycle.** Round A writes `storyboard.md` (front matter + beats table
-covering 0..duration + copy, design, motion language, audio plan, pending
-list) and `motion.py propose` stores it as `proposal-vN/storyboard.md` with
-its SHA-256 and `awaiting-approval` / `pending-inputs`. One approval — the
-Creator-relayed `approved_plan` + `approval_sha256` — releases authoring,
-bounded draft renders (≤4) and the final. There is no separate preview
-approval round, unlike ad/tour/explainer: small execution fixes stay inside
-the approved storyboard; changed beats/copy/duration/aspect need a new
-storyboard. `motion.py render --quality final` verifies the hash, the root
-canvas/duration, no remote references, strict lint, then renders with the
-installed `hyperframes` CLI and checks canvas, fps, duration (±0.1 s), audio
-presence against the storyboard, true peak < 0 dBTP, and every pending id
-resolved by `--inputs` to a file under the source. It records a source tree
-hash, never freezes a copy.
+**Structure approval, free look (v2).** The first version approved a
+storyboard that fixed pixel sizes and allowed only "small execution fixes"
+afterwards. In the blind re-measure (r11) the same three "too small, too
+flat" gaps survived from the first review to the final render and the film
+scored lowest of three (fidelity 3, taste 2, against 4/4 for Creator's own
+authoring). v2 therefore approves structure only — beats, timing, verbatim
+copy, seams, audio plan, the look in words — and makes the look an explicit
+improve loop: every draft renders a `compare.png` (reference above, draft
+below, same eight timestamps), VideoCreator writes the three biggest gaps
+against the reference and the leaf's `<Standard>` (scale, depth, type,
+motion, density) and fixes them by redesign, up to 8 drafts. The earlier
+12-look reference cap is gone; the `vision-window` plugin still limits a step
+to three images.
+
+**Lifecycle.** Round A writes `storyboard.md` and `promotion.py propose`
+stores it as `proposal-vN/storyboard.md` with its SHA-256 and
+`awaiting-approval` / `pending-inputs`. One Creator-relayed approval
+releases authoring, drafts and the final. `promotion.py render --quality
+final` verifies the hash, root canvas/duration, no remote references, strict
+lint, then renders with the installed `hyperframes` CLI and checks canvas,
+fps, duration (±0.1 s), audio presence, true peak < 0 dBTP, and every
+pending id resolved by `--inputs`. It records a source tree hash, never
+freezes a copy.
 
 **Dependencies.** VideoCreator has no image generation, TTS, music or SFX.
-The storyboard's audio plan (tempo, energy curve, hit times) is the brief
-Creator gives audio-creator (usually generate-/create-music + SFX + create-mix
-into one master WAV); rasters go through the fitting image-creator leaf. Each
-is its own released unit. Reproducing a third-party brand needs the client's
-permitted-use statement relayed in `note`.
+The storyboard's audio plan is the brief Creator gives audio-creator; rasters
+go through the fitting image-creator leaf. Each is its own released unit.
+Reproducing a third-party brand needs the client's permitted-use statement
+relayed in `note`.
 
-**Knowledge.** It shares the four pinned HyperFrames technical references
-(`references/hyperframes.md`); create-motion alone may also use cut-the-curve's
-seam techniques. Craft reading uses media-craft-motion continuity/timing.
-Tests: `scripts/tests/test_create_motion.py` (render smoke opt-in with
-`MOTION_RENDER_SMOKE=1`). Not yet run by a live Creator conversation.
+**Knowledge.** It shares the four pinned HyperFrames technical references;
+create-promotion alone may also use cut-the-curve's seam techniques. Tests:
+`scripts/tests/test_create_promotion.py` (render smoke opt-in with
+`PROMOTION_RENDER_SMOKE=1`).
 
 ## Clip family
 

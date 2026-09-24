@@ -25,7 +25,7 @@ pointer such as `PROFILES.md "Broker shape"` resolves through this table.
 | [Creator broker shape](./docs/broker.md) | Broker shape (Assistant Client guides and retirement gates) |
 | [Creator hands — overview](./docs/hands/overview.md) | Creator hands (v3, 2026-09) (Client model, Skill tree, The form (front matter is the only representation), Handoff message (Creator → hands, A2A or resident session alike), Media craft knowledge, Migration) |
 | [Image hands (image-creator)](./docs/hands/image.md) | Image generation capabilities; Icon, emoji and mascot families; Reimagine family; Card family; Kit family |
-| [Video hands (video-creator)](./docs/hands/video.md) | Ad family; Music-video family; Video authoring references; Tour family (Footage And Capture v3); Explainer-video family; Motion family; Clip family |
+| [Video hands (video-creator)](./docs/hands/video.md) | Ad family; Music-video family; Video authoring references; Tour family (Footage And Capture v3); Explainer-video family; Promotion family; Clip family |
 | [Audio hands (audio-creator)](./docs/hands/audio.md) | Speech family (Character voices and performance direction); SFX family (Local Stable Audio 3 Medium runtime); Music family; Mix family |
 | [Models, authentication and secrets](./docs/models-auth.md) | Models and fallback chains (Fable and the Max weekly pool, `agent.*` does not inherit from the root profile); Authentication inheritance; Secrets layering |
 | [Gateway, tracking and status](./docs/operations.md) | Gateway as a persistent service; Tracking; Current state |

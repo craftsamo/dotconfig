@@ -1,4 +1,4 @@
-"""create-motion: storyboard/render helper contract and Creator routing."""
+"""create-promotion: storyboard/render helper contract and Creator routing."""
 
 from __future__ import annotations
 
@@ -13,11 +13,11 @@ import yaml
 
 HERMES_ROOT = Path(__file__).resolve().parents[2]
 VIDEO = HERMES_ROOT / "profiles/video-creator/skills/video-creator-pipeline"
-LEAF = VIDEO / "create/motion"
+LEAF = VIDEO / "create/promotion"
 CREATOR = HERMES_ROOT / "profiles/creator"
 CAPABILITIES = CREATOR / "skills/creator-pipeline/references/capabilities.md"
 
-spec = importlib.util.spec_from_file_location("motion", LEAF / "scripts/motion.py")
+spec = importlib.util.spec_from_file_location("promotion", LEAF / "scripts/promotion.py")
 motion = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(motion)
 
@@ -90,7 +90,7 @@ def test_render_refuses_changed_storyboard_and_remote_source(tmp_path):
     digest = hashlib.sha256(approved.read_bytes()).hexdigest()
     source = tmp_path / "source"
     (source / "assets").mkdir(parents=True)
-    root = ('<div id="root" data-composition-id="motion" data-start="0" data-width="1920" '
+    root = ('<div id="root" data-composition-id="promotion" data-start="0" data-width="1920" '
             'data-height="1080" data-duration="4" data-fps="30"></div>')
     (source / "index.html").write_text(root + '<img src="https://example.com/x.png">')
     args = ["render", "--approved-plan", str(approved), "--source", str(source), "--quality", "draft"]
@@ -112,25 +112,25 @@ def test_leaf_form_and_shared_policy():
     assert len(leaf.split("---")[1]) < 3800
     assert 'file_path="references/hyperframes.md"' in leaf
     assert "dependency request back to Creator" in leaf
-    assert "create-motion" in (VIDEO / "references/hyperframes.md").read_text()
+    assert "create-promotion" in (VIDEO / "references/hyperframes.md").read_text()
 
 
 def test_creator_routes_authored_motion_to_video_creator():
     table = CAPABILITIES.read_text()
-    assert "| video-creator: create-motion |" in table
+    assert "| video-creator: create-promotion |" in table
     legacy = next(line for line in table.splitlines() if "`creator-html-motion` |" in line)
-    assert "create-motion first" in legacy
+    assert "create-promotion first" in legacy
     prompt = yaml.safe_load((CREATOR / "config.yaml").read_text())["agent"]["system_prompt"]
-    assert "create-motion on video-creator" in prompt
+    assert "create-promotion on video-creator" in prompt
     assert "you do not author that HTML motion" in prompt
     for phase in ("plan", "build", "qa"):
         entry = CREATOR / f"skills/creator-pipeline/{phase}-creator"
-        assert "references/video-creator/motion.md" in (entry / "SKILL.md").read_text()
-        assert (entry / "references/video-creator/motion.md").is_file()
+        assert "references/video-creator/promotion.md" in (entry / "SKILL.md").read_text()
+        assert (entry / "references/video-creator/promotion.md").is_file()
 
 
 @pytest.mark.skipif(not shutil.which("hyperframes"), reason="hyperframes CLI not installed")
-@pytest.mark.skipif(not __import__("os").environ.get("MOTION_RENDER_SMOKE"), reason="set MOTION_RENDER_SMOKE=1")
+@pytest.mark.skipif(not __import__("os").environ.get("PROMOTION_RENDER_SMOKE"), reason="set PROMOTION_RENDER_SMOKE=1")
 def test_render_smoke(tmp_path):
     draft = write(tmp_path)
     motion.main(["propose", "--storyboard", str(draft), "--out", str(tmp_path / "p")])
@@ -141,12 +141,35 @@ def test_render_smoke(tmp_path):
     for name in ("gsap.min.js", "GSAP-LICENSE.txt", "gsap-provenance.json"):
         shutil.copy(VIDEO / "create/tour/assets" / name, source / "assets" / name)
     (source / "index.html").write_text(
-        '<!doctype html><html><body><div id="root" data-composition-id="motion" data-start="0" '
+        '<!doctype html><html><body><div id="root" data-composition-id="promotion" data-start="0" '
         'data-width="1920" data-height="1080" data-duration="4" data-fps="30" style="background:#fff;'
         'width:1920px;height:1080px"><div id="t">Fixture</div></div><script src="assets/gsap.min.js">'
         '</script><script>const tl=gsap.timeline({paused:true});tl.from("#t",{opacity:0,duration:1},0);'
-        'window.__timelines||={};window.__timelines["motion"]=tl;</script></body></html>')
+        'window.__timelines||={};window.__timelines["promotion"]=tl;</script></body></html>')
     assert motion.main(["render", "--approved-plan", str(approved), "--approval-sha256", digest,
                         "--source", str(source), "--out", str(tmp_path / "final"), "--quality", "final"]) == 0
     result = json.loads((tmp_path / "final/render.json").read_text())
     assert result["status"] == "PASS" and result["probe"]["duration"] == 4.0
+
+
+def test_storyboard_approves_structure_not_pixels():
+    leaf = (LEAF / "SKILL.md").read_text()
+    authoring = (LEAF / "references/authoring.md").read_text()
+    assert "never fixes pixel sizes" in leaf and "by redesign, not nudges" in leaf
+    assert "up to 8 drafts" in leaf and "<Standard>" in leaf
+    assert "never in pixels" in authoring and "## Look" in authoring
+    build = (CREATOR / "skills/creator-pipeline/build-creator/references/video-creator/promotion.md").read_text()
+    assert "needs no new approval" in build and "Small execution fixes" not in build
+
+
+@pytest.mark.skipif(not shutil.which("ffmpeg"), reason="ffmpeg not installed")
+def test_compare_sheet_stacks_reference_over_draft(tmp_path):
+    import subprocess
+    for name, colour in (("ref.mp4", "red"), ("draft.mp4", "blue")):
+        subprocess.run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i", f"color={colour}:size=640x360:rate=30",
+                        "-t", "2", str(tmp_path / name)], check=True)
+    motion.compare_sheet(tmp_path / "ref.mp4", tmp_path / "draft.mp4", 2.0, tmp_path / "compare.png")
+    out = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "stream=width,height", "-of", "csv=p=0",
+                          str(tmp_path / "compare.png")], capture_output=True, text=True).stdout.strip()
+    assert out == "3200,452"
+    assert not list(tmp_path.glob(".compare-*"))

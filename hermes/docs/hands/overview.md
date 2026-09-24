@@ -312,7 +312,7 @@ scripts worth porting.
 | tour | video-creator | create | `creator-html-motion` and its 1:1 mappings kept intact |
 | ad | video-creator | analyze, create (`generate-ad`, PV planned) | no legacy mapping retired |
 | explainer-video | video-creator | create | `creator-manim-explainer` kept for explicit Manim / math / 3D scope |
-| motion | video-creator | create | `creator-html-motion` kept, narrowed in routing to what no served video leaf covers (overlays on footage, captioned narration, audio-reactive, >60 s); its 1:1 mappings kept until caller coverage and both-client soak |
+| promotion | video-creator | create | `creator-html-motion` kept, narrowed in routing to what no served video leaf covers (overlays on footage, captioned narration, audio-reactive, >60 s); its 1:1 mappings kept until caller coverage and both-client soak |
 | speech | audio-creator | generate, edit, analyze | voice card, assistant plan/QA and canonical TTS special case retired; AudioCraft/HeartMuLa/songsee technics withdrawn without replacement |
 | sfx | audio-creator | create, generate, edit, analyze | no technic mapping |
 | music | audio-creator | create, generate, edit, analyze | vocal-song generation and standalone audio visualization withdrawn, not migrated |
