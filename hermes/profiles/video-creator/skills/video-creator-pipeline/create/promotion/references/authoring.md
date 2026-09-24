@@ -131,7 +131,8 @@ installed `hyperframes` CLI, probes the MP4 (canvas, 30fps, duration ±0.1s,
 audio presence), measures loudness/true peak, writes `sheet.png` and
 `render.json` with a source tree hash. With `--reference` it also writes
 `compare.png`: reference frames above, draft frames below, at the same eight
-timestamps. `final` additionally requires every pending id resolved in
+relative positions of each film (a reference of another length still fills
+its row). `final` additionally requires every pending id resolved in
 `--inputs` to a file under the source, audio present unless the storyboard
 says `audio: none`, and true peak < 0 dBTP. Outputs go to a new directory;
 nothing is overwritten.

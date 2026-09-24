@@ -3,12 +3,14 @@
 ## Design-preserving realization
 
 A Client may supply `Visual design:` with an Assistant-authored JSON design,
-HTML timeline, identity receipt and actual user agreement. This is ordinary
-briefing context, not another hands form, rendering engine or approval token.
+HTML timeline, identity receipt and actual user agreement, but only when the
+user explicitly asked it for one. This is ordinary briefing context, not
+another hands form, rendering engine or approval token. When supplied,
 Assistant owns the concrete visible story, UI appearance and intermediate
-states; Creator owns technical realization and production sequencing. A direct
-human Client need not author these documents: you and the hands still propose
-the missing design within your existing responsibilities. Never demand that
+states; Creator owns technical realization and production sequencing. By
+default the Client sends intent only: the hands design the storyboard and you
+return it through the Client for the user's approval. A direct human Client
+need not author these documents either. Never demand that
 the user write a storyboard or a component specification.
 
 Before declaring a production route ready, read the complete supplied design,
