@@ -544,6 +544,19 @@ to three images. In the same-session blind re-measure (2026-09-24) v2 (fidelity 
 taste 3) tied the OpenCode baseline on pairwise preference and beat both v1 and
 Creator's own authoring; cost 28 vision looks and ~17M input tokens per job.
 
+**Storyboard vocabulary.** The storyboard decides the film's taste, not
+the implementer: in a blind swap (2026-09-24,
+`~/Workspaces/.deliverables/video-craft-ab-2026-09/`) the same storyboard
+scored the same whether Hermes or OpenCode built it. Round A therefore
+reads the kernel's `references/motion-vocabulary.md` — names of text
+animations, transitions, camera moves, effects, components and compositions,
+each with its look and usual build, and no rules — and names them in the
+storyboard instead of generic "fade", "slide" or "card". With it, films
+reached through the Assistant ranked first and second of eight. A rules
+layer (numeric defaults, avoid-lists, self-scoring), a static-frame metrics
+gate and a cross-family critic were tried in the same study and lowered or
+did not move the ratings; keep them out.
+
 **Lifecycle.** Round A writes `storyboard.md` and `promotion.py propose`
 stores it as `proposal-vN/storyboard.md` with its SHA-256 and
 `awaiting-approval` / `pending-inputs`. One Creator-relayed approval
@@ -561,7 +574,8 @@ Reproducing a third-party brand needs the client's permitted-use statement
 relayed in `note`.
 
 **Knowledge.** It shares the four pinned HyperFrames technical references;
-create-promotion alone may also use cut-the-curve's seam techniques. Tests:
+create-promotion alone may also use cut-the-curve's seam techniques and
+reads the kernel's motion vocabulary before Round A. Tests:
 `scripts/tests/test_create_promotion.py` (render smoke opt-in with
 `PROMOTION_RENDER_SMOKE=1`).
 
