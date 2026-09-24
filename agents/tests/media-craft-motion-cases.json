@@ -165,7 +165,7 @@
     ]
   },
   {
-    "id": "motion-hard-cut-launch",
+    "id": "promotion-hard-cut-launch",
     "request": "A 16-second launch motion piece jumps between its title, feature cards and logo with hard cuts and empty frames, and the client says it feels like a slideshow rather than one film.",
     "operation": "continuity_revision",
     "expected": [
@@ -178,7 +178,7 @@
       "lengthen the piece or add scenes to hide the cuts"
     ],
     "subjects": [
-      "motion"
+      "promotion"
     ],
     "review_evidence": [
       "before/after contact sheets around each seam showing the carried element or direction across the boundary"

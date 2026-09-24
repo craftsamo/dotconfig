@@ -1,4 +1,4 @@
-# Quality assurance — video-creator: motion
+# Quality assurance — video-creator: promotion
 
 Read [common quality assurance](../../SKILL.md) first.
 
@@ -7,7 +7,9 @@ review against the client's subject, purpose and look, not a missing video.
 Check that its beats tell one continuous piece, its copy is what the client
 wants on screen, and its audio plan is concrete enough to brief audio-creator.
 
-For a final, compare the delivered sheets and video against the approved
+Review a storyboard for structure; a storyboard that fixes pixel sizes or
+coordinates is a defect to return, because it freezes the look before any
+draft exists. For a final, compare the delivered sheets and video against the approved
 storyboard beat by beat: order and timing (±0.25s), verbatim copy, palette
 and type, the named seams and motion, audio hits on their times. With
 `reproduce`, also compare against the reference beat by beat and name every

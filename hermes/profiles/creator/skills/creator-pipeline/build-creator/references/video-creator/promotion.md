@@ -1,4 +1,4 @@
-# Build — video-creator: motion
+# Build — video-creator: promotion
 
 Read [common build](../../SKILL.md) first.
 
@@ -6,7 +6,7 @@ Read [common build](../../SKILL.md) first.
 
 | Leaf | Transport |
 | --- | --- |
-| video-creator's `create-motion` | `specialist_call(target="video-creator", message=<the text>, kind="work")` even though free; storyboard, authoring/drafts and final render are not one-reply work |
+| video-creator's `create-promotion` | `specialist_call(target="video-creator", message=<the text>, kind="work")` even though free; storyboard, authoring/drafts and final render are not one-reply work |
 
 ## Supervising
 
@@ -31,6 +31,12 @@ finished file into the same video conversation:
   spec (subject, size, background/alpha, style). Never ask VideoCreator to
   generate it.
 
-Small execution fixes after a draft (spacing, easing, legibility, a missed
-hit) stay inside the approved storyboard. Changed beats, copy, duration,
-aspect or look need a new numbered storyboard and a new approval.
+The storyboard approval covers structure: beats, timing, verbatim copy,
+seams and the audio plan, with the look described in words. It does not fix
+sizes or layout. After approval the hands iterate the look against the
+reference as far as the drafts show is needed — redrawing, resizing or
+restyling a scene needs no new approval. Changed beats, copy, duration,
+aspect or audio plan need a new numbered storyboard and a new approval.
+When relaying a brief with a reference, pass what the client said about it
+verbatim and let the hands analyse the reference; do not replace it with
+your own summary.

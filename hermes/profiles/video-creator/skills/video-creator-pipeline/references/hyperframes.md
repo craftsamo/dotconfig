@@ -1,4 +1,4 @@
-# HyperFrames technical references (create-tour / create-ad / create-explainer-video / create-motion only)
+# HyperFrames technical references (create-tour / create-ad / create-explainer-video / create-promotion only)
 
 Scope is narrow on purpose: read this leaf's own local authoring reference
 FIRST. These four external directories are optional advisory background,
@@ -25,7 +25,7 @@ file via `skill_view(name=..., file_path="...")`; do not list or install.
   Not alternate runtimes, a new scene workflow, or its bundled scripts.
 - **cut-the-curve**: only the Waterfall ENTRY and Nudge Curve techniques,
   and only when the already-approved design needs in-scene staging or a
-  group slide. Never its seam-injector or ledger system. create-motion may
+  group slide. Never its seam-injector or ledger system. create-promotion may
   also use its seam techniques (zoom-through, inverse zoom-through,
   cut-the-curve, waterfall cut, rack-focus blur-cut) as authoring knowledge
   for seams its approved storyboard names; still never the injector/ledger.

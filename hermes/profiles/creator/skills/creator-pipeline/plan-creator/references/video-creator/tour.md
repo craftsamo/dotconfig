@@ -25,7 +25,7 @@ with source-time mapping and explicit keep/mute. Old v1/v2 artifacts and approva
 remain unchanged. Narration is a prior
 audio-creator delivery, not TTS in video-creator. Send tour work via
 `specialist_call(kind="work")` even though free. Authored launch/promo/brand
-motion is [create-motion](motion.md); this subject retires no legacy 1:1 mapping.
+motion is [create-promotion](promotion.md); this subject retires no legacy 1:1 mapping.
 
 For a depth/shader requirement, the leaf's optional graphics: three-webgl2 is
 an implementation choice to propose, not a new default. Read its local Three

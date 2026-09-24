@@ -1,8 +1,8 @@
-# Plan — video-creator: motion
+# Plan — video-creator: promotion
 
 Read [common plan](../../SKILL.md) first.
 
-`create-motion` is the served route for authored motion design: a launch or
+`create-promotion` is the served route for authored motion design: a launch or
 promo piece, brand/sizzle video, feature reveal, kinetic typography or logo
 sting that VideoCreator designs and draws itself in HTML/CSS/SVG/GSAP,
 3..60 seconds at 30fps (16:9 default, 9:16, 1:1, 4:5). It is checked before
@@ -19,7 +19,9 @@ Settle with the client only what changes the piece: `subject`, `what_for`
 copy they fix, supplied assets, and the look/energy in their words. Do not
 ask the client for a storyboard, a shot list or timings: VideoCreator
 proposes them. A reference video is read locally; it never authorizes an
-upload. Reproducing a third-party brand, logo or copy needs the client's
+upload. The storyboard the client approves is the structure (beats,
+timing, copy, seams, audio plan); the look is iterated after approval, so
+do not ask the client to sign off pixel sizes. Reproducing a third-party brand, logo or copy needs the client's
 permitted-use statement (for example "internal study, not published"),
 relayed verbatim in `note`; without it, the form says `inspiration`.
 

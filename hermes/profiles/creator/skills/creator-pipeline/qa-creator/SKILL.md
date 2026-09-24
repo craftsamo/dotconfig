@@ -67,7 +67,7 @@ are different outputs, not interchangeable completion states.
 | Hands | Subject references |
 | --- | --- |
 | image-creator | [card](references/image-creator/card.md), [icon](references/image-creator/icon.md), [emoji](references/image-creator/emoji.md), [mascot](references/image-creator/mascot.md), [reimagine](references/image-creator/reimagine.md), [kit](references/image-creator/kit.md) |
-| video-creator | [clip](references/video-creator/clip.md), [music-video](references/video-creator/music-video.md), [ad](references/video-creator/ad.md), [tour](references/video-creator/tour.md), [explainer-video](references/video-creator/explainer-video.md), [motion](references/video-creator/motion.md) |
+| video-creator | [clip](references/video-creator/clip.md), [music-video](references/video-creator/music-video.md), [ad](references/video-creator/ad.md), [tour](references/video-creator/tour.md), [explainer-video](references/video-creator/explainer-video.md), [promotion](references/video-creator/promotion.md) |
 | audio-creator | [speech](references/audio-creator/speech.md), [sfx](references/audio-creator/sfx.md), [music](references/audio-creator/music.md), [mix](references/audio-creator/mix.md) |
 
 ## Look before you answer (visual deliveries)
