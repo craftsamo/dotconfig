@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""create-motion helper: storyboard proposal hash + checked local render.
+"""create-promotion helper: storyboard proposal hash + checked local render.
 
 Stdlib only. Never generates media, installs anything or touches the network.
 
-    motion.py propose --storyboard DRAFT.md --out NEW_DIR
-    motion.py render --approved-plan STORYBOARD.md --approval-sha256 HEX \
-        --source DIR --out NEW_DIR --quality draft|final [--inputs JSON]
+    promotion.py propose --storyboard DRAFT.md --out NEW_DIR
+    promotion.py render --approved-plan STORYBOARD.md --approval-sha256 HEX \
+        --source DIR --out NEW_DIR --quality draft|final [--reference VIDEO] [--inputs JSON]
 
 Every command prints one RESULT JSON object and exits 0 on PASS, 1 on FAIL.
 """
@@ -218,6 +218,31 @@ def contact_sheet(movie: Path, duration: float, target: Path) -> None:
         timeout=300)
 
 
+def compare_sheet(reference: Path, movie: Path, duration: float, target: Path) -> None:
+    """Reference frames on the top row, draft frames on the bottom, same 8 timestamps."""
+    times = [round(duration * (i + 0.5) / 8, 3) for i in range(8)]
+    rows = []
+    for index, source in enumerate((reference, movie)):
+        frames = []
+        for n, at in enumerate(times):
+            frame = target.parent / f".compare-{index}-{n}.png"
+            run(["ffmpeg", "-nostdin", "-v", "error", "-y", "-ss", str(at), "-i", str(source), "-frames:v", "1",
+                 "-vf", "scale=400:-2", str(frame)], timeout=120)
+            frames.append(frame)
+        row = target.parent / f".compare-row-{index}.png"
+        inputs = [arg for f in frames for arg in ("-i", str(f))]
+        run(["ffmpeg", "-nostdin", "-v", "error", "-y", *inputs, "-filter_complex",
+             "".join(f"[{i}:v]" for i in range(len(frames))) + f"hstack=inputs={len(frames)}", str(row)], timeout=120)
+        rows.append(row)
+        for f in frames:
+            f.unlink(missing_ok=True)
+    run(["ffmpeg", "-nostdin", "-v", "error", "-y", "-i", str(rows[0]), "-i", str(rows[1]), "-filter_complex",
+         "[0:v]scale=iw:-2[a];[1:v]scale=iw:-2[b];[a][b]vstack=inputs=2", str(target)], timeout=120)
+    for r in rows:
+        r.unlink(missing_ok=True)
+    require(target.is_file(), "reference comparison sheet was not written")
+
+
 def render(args) -> dict:
     plan_path = Path(args.approved_plan).expanduser()
     require(re.fullmatch(r"[0-9a-f]{64}", args.approval_sha256 or ""), "approval sha256 required")
@@ -254,7 +279,7 @@ def render(args) -> dict:
         lint_data = {"ok": False, "errorCount": None}
     require(lint_data.get("ok") and lint_data.get("errorCount") == 0 and lint_data.get("filesScanned", 1) > 0,
             "hyperframes lint failed; see lint.json")
-    movie = out / "motion.mp4"
+    movie = out / "promotion.mp4"
     cmd = [binary, "render", "--output", str(movie), "--fps", str(FPS),
            "--quality", "delivery" if final else "draft", "--quiet"]
     if final:
@@ -265,6 +290,12 @@ def render(args) -> dict:
     require(tree_hash(source) == source_hash, "source changed during render")
     facts = probe(movie)
     contact_sheet(movie, plan["duration"], out / "sheet.png")
+    compare = None
+    if args.reference:
+        reference = Path(args.reference).expanduser()
+        require(reference.is_file(), f"reference not found: {reference}")
+        compare_sheet(reference, movie, plan["duration"], out / "compare.png")
+        compare = str(out / "compare.png")
     checks = {
         "canvas": (facts["width"], facts["height"]) == (plan["width"], plan["height"]),
         "fps": abs(facts["fps"] - FPS) < 0.01,
@@ -278,7 +309,7 @@ def render(args) -> dict:
         tp = (level or {}).get("true_peak_dbtp")
         checks["true_peak_below_0"] = (not facts["audio"]) or (tp is not None and tp < 0)
     status = "PASS" if all(checks.values()) else "FAIL"
-    result = {"status": status, "quality": args.quality, "movie": str(movie), "sheet": str(out / "sheet.png"),
+    result = {"status": status, "quality": args.quality, "movie": str(movie), "sheet": str(out / "sheet.png"), "compare": compare,
               "approved_plan": str(plan_path), "approval_sha256": args.approval_sha256,
               "source": str(source), "source_tree_sha256": source_hash, "movie_sha256": sha(movie),
               "probe": facts, "loudness": level, "checks": checks, "inputs": inputs,
@@ -304,6 +335,7 @@ def main(argv=None) -> int:
     r.add_argument("--out", required=True)
     r.add_argument("--quality", choices=["draft", "final"], required=True)
     r.add_argument("--inputs")
+    r.add_argument("--reference")
     args = ap.parse_args(argv)
     try:
         result = propose(args) if args.cmd == "propose" else render(args)

@@ -86,7 +86,7 @@ agent:
     generate-reimagine alone, all five <verb>-kit leaves, plus create-card,
     generate-card, edit-card and analyze-card; also clip on
     video-creator: generate-clip, edit-clip, analyze-clip, generate-music-video, create-tour,
-    create-ad, analyze-ad, create-explainer-video and create-motion; also speech, sfx, music and mix on
+    create-ad, analyze-ad, create-explainer-video and create-promotion; also speech, sfx, music and mix on
     audio-creator: generate-speech, edit-speech, analyze-speech, plus
     create-sfx, generate-sfx, edit-sfx, analyze-sfx, plus
     create-music, generate-music, edit-music, analyze-music, plus
@@ -166,7 +166,7 @@ agent:
     fresh directory; changed fields need a new project. Authored motion
     design (launch/promo, brand/sizzle, feature reveal, kinetic type, logo
     sting; 3..60s), including "make/reproduce one like this" from a motion
-    reference, is create-motion on video-creator, always specialist
+    reference, is create-promotion on video-creator, always specialist
     kind="work": you settle subject/purpose/look/rights and broker the
     storyboard approval, then its audio and raster dependencies as separate
     audio-creator/image-creator units; you do not author that HTML motion
