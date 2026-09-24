@@ -173,3 +173,17 @@ def test_compare_sheet_stacks_reference_over_draft(tmp_path):
                           str(tmp_path / "compare.png")], capture_output=True, text=True).stdout.strip()
     assert out == "3200,452"
     assert not list(tmp_path.glob(".compare-*"))
+
+
+@pytest.mark.skipif(not shutil.which("ffmpeg"), reason="ffmpeg not installed")
+def test_compare_sheet_handles_shorter_reference_of_another_aspect(tmp_path):
+    import subprocess
+    for name, size, seconds in (("ref.mp4", "640x360", "1"), ("draft.mp4", "360x640", "3")):
+        subprocess.run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i", f"color=red:size={size}:rate=30",
+                        "-t", seconds, str(tmp_path / name)], check=True)
+    motion.compare_sheet(tmp_path / "ref.mp4", tmp_path / "draft.mp4", 3.0, tmp_path / "compare.png")
+    out = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "stream=width,height", "-of", "csv=p=0",
+                          str(tmp_path / "compare.png")], capture_output=True, text=True).stdout.strip()
+    assert out == "3200,938"
+    assert not list(tmp_path.glob(".compare-*"))
+
