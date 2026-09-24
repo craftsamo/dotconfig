@@ -110,9 +110,9 @@ template and not "close enough". Judge every frame against it:
    ```
 
 6. Improve loop, per draft: look at `compare.png` (reference above, draft
-   below, same timestamps) or `sheet.png`, then write to `qa.md` the three
-   biggest visible gaps against the reference and the Standard, ranked by
-   how much they hurt the film. Fix those three by redesign, not nudges:
+   below, same relative positions) or `sheet.png`, then write to `qa.md`
+   the three biggest visible gaps against the reference and the Standard,
+   ranked by how much they hurt the film. Fix those three by redesign, not nudges:
    redraw a scene, rebuild a layout, double a scale, add the missing depth
    or detail. A gap that survives two drafts must be attacked a different
    way. Everything that keeps the approved beats, copy, timing, seams and

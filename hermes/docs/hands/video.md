@@ -535,9 +535,10 @@ scored lowest of three (fidelity 3, taste 2, against 4/4 for Creator's own
 authoring). v2 therefore approves structure only — beats, timing, verbatim
 copy, seams, audio plan, the look in words — and makes the look an explicit
 improve loop: every draft renders a `compare.png` (reference above, draft
-below, same eight timestamps), VideoCreator writes the three biggest gaps
-against the reference and the leaf's `<Standard>` (scale, depth, type,
-motion, density) and fixes them by redesign, up to 8 drafts. The earlier
+below, at the same eight relative positions of each film), VideoCreator
+writes the three biggest gaps against the reference and the leaf's
+`<Standard>` (scale, depth, type, motion, density) and fixes them by
+redesign, up to 8 drafts. The earlier
 12-look reference cap is gone; the `vision-window` plugin still limits a step
 to three images. In the same-session blind re-measure (2026-09-24) v2 (fidelity 4,
 taste 3) tied the OpenCode baseline on pairwise preference and beat both v1 and
