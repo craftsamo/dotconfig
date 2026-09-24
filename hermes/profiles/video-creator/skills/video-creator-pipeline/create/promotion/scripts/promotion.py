@@ -219,10 +219,16 @@ def contact_sheet(movie: Path, duration: float, target: Path) -> None:
 
 
 def compare_sheet(reference: Path, movie: Path, duration: float, target: Path) -> None:
-    """Reference frames on the top row, draft frames on the bottom, same 8 timestamps."""
-    times = [round(duration * (i + 0.5) / 8, 3) for i in range(8)]
+    """Reference frames on the top row, draft frames on the bottom, 8 matching positions.
+
+    Each row samples its own film at the same relative positions, so a
+    reference shorter or longer than the draft still yields 8 frames (seeking
+    the draft's absolute times past a shorter reference's end wrote nothing).
+    """
     rows = []
     for index, source in enumerate((reference, movie)):
+        length = duration if source == movie else probe(source)["duration"]
+        times = [round(length * (i + 0.5) / 8, 3) for i in range(8)]
         frames = []
         for n, at in enumerate(times):
             frame = target.parent / f".compare-{index}-{n}.png"

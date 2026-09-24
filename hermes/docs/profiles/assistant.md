@@ -20,15 +20,24 @@ in the flow.
 
 ## Visual design and timeline
 
-Assistant is a deliverable-first Client, not a second production broker. Its
-one narrow design responsibility: it owns concrete visible intent for newly
-authored video and UI — complete scene progression, intermediate changes,
-deliberate holds, camera/text/audio relations and per-component UI anatomy,
-typography, surfaces and states. Conditional reference research connects
-inspected studio process and actual UI examples to scene/event/component
-decisions, not just aesthetic labels. Exact edits, analysis, research-only and
-frozen render resumes keep their existing scope; static UI images use component
-design without an invented video duration.
+Assistant is a deliverable-first Client, not a second production broker. For
+newly authored video it passes intent and acceptance — purpose, audience,
+destination, fixed words, brand rules, exclusions, inputs, references and
+what each is for — and the producer designs the storyboard, which Assistant
+relays for the user's approval. In a blind study (2026-09-24,
+`~/Workspaces/.deliverables/video-craft-ab-2026-09/`) every film whose visual
+design the Assistant authored as a timeline ranked in the bottom half, with or
+without a motion vocabulary, because the diagram's shapes and opacities bind
+the producer; producer-designed storyboards ranked first. Static UI images
+still use Assistant's component design without an invented video duration.
+
+Assistant authors a designed timeline only when the user explicitly asks for
+one; then it owns concrete visible intent — complete scene progression,
+intermediate changes, deliberate holds, camera/text/audio relations and
+per-component UI anatomy, typography, surfaces and states — and conditional
+reference research connects inspected examples to scene/event/component
+decisions. Exact edits, analysis, research-only and frozen render resumes keep
+their existing scope.
 
 The existing private Plan entry owns a plain `video-design.md` guide; no new
 profile, skill root, toolset or card is added. Its public stdlib helper at
