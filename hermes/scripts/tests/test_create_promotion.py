@@ -187,3 +187,12 @@ def test_compare_sheet_handles_shorter_reference_of_another_aspect(tmp_path):
     assert out == "3200,938"
     assert not list(tmp_path.glob(".compare-*"))
 
+
+def test_round_a_names_techniques_from_the_vocabulary():
+    leaf = (LEAF / "SKILL.md").read_text()
+    vocab = (LEAF.parent.parent / "references/motion-vocabulary.md").read_text()
+    assert 'file_path="references/motion-vocabulary.md"' in leaf
+    assert "name the" in leaf and 'instead of generic "fade", "slide" or "card"' in " ".join(leaf.split())
+    for section in ("## Text animations", "## Transitions", "## Camera", "## Effects", "## Components", "## Compositions"):
+        assert section in vocab
+    assert "A dictionary, not a rulebook" in vocab
