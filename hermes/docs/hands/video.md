@@ -539,7 +539,9 @@ below, same eight timestamps), VideoCreator writes the three biggest gaps
 against the reference and the leaf's `<Standard>` (scale, depth, type,
 motion, density) and fixes them by redesign, up to 8 drafts. The earlier
 12-look reference cap is gone; the `vision-window` plugin still limits a step
-to three images.
+to three images. In the same-session blind re-measure (2026-09-24) v2 (fidelity 4,
+taste 3) tied the OpenCode baseline on pairwise preference and beat both v1 and
+Creator's own authoring; cost 28 vision looks and ~17M input tokens per job.
 
 **Lifecycle.** Round A writes `storyboard.md` and `promotion.py propose`
 stores it as `proposal-vN/storyboard.md` with its SHA-256 and
