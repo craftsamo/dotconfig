@@ -82,14 +82,24 @@ template and not "close enough". Judge every frame against it:
    ```
 
    Attempt the applicable technical lookups, report unavailable references
-   and continue with local authoring.
+   and continue with local authoring. Also read the kernel's motion and
+   component vocabulary:
+
+   ```text
+   skill_view(name="video-creator-pipeline", file_path="references/motion-vocabulary.md")
+   ```
+
 4. Round A (no `approved_plan`): write `storyboard.md` per
    [authoring](references/authoring.md). It fixes STRUCTURE only: beat order
    and timing, verbatim on-screen copy, the look in words (palette,
    type family, mood, references), seams, and the audio plan (tempo, energy
    curve, hit times) precise enough for audio-creator to score to. It
    never fixes pixel sizes, positions, easing values or layout coordinates; those
-   belong to iteration. Unresolved needs go in `pending`. Then run:
+   belong to iteration. In the scene and motion columns, name the
+   composition, components, text animations, transitions, camera and
+   effects from the vocabulary (or a more precise name), with what each
+   shows, instead of generic "fade", "slide" or "card". Unresolved needs go
+   in `pending`. Then run:
 
    ```sh
    python3 ${HERMES_SKILL_DIR}/scripts/promotion.py propose --storyboard <draft storyboard.md> --out <deliver>/proposal-v<N>
