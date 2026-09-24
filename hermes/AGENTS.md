@@ -179,6 +179,13 @@ Contract: [docs/hands/overview.md](docs/hands/overview.md) and
 - **`auxiliary.vision` stays `auto`** — pinning it to a video-capable model
   disables the main model's native image vision; video analysis runs through
   the `video-analyze-mimo` override instead ([README "Plugins"](README.md#plugins)).
+- **Native vision shows the model only the newest 3 tool images per request.**
+  Past that, a `vision_analyze` result still says "Image loaded" while carrying
+  no image the model can see, and models re-request in a loop (500-970 looks
+  per video job). The `vision-window` plugin, enabled on the Creator family,
+  fixes this through `transform_tool_result` without touching Hermes core; see
+  [docs/hands/overview.md "Vision window"](docs/hands/overview.md). Do not
+  solve it with a hermes-agent patch.
 - **TTS routes by language through the fallback chain; do not add a router.**
   The explicit character-voice path is the opposite contract: it must never
   read `tts.fallback.chain`, never retry on another engine, and never drop a
@@ -221,7 +228,9 @@ When editing `plugins/opencode` or `~/.config/opencode/agent/hermes-*.md`:
   (`timeouts.tools.sequential_call` / `concurrent_batch`) must stay above
   `opencode_cli.timeout`, or long calls turn into polling loops; verify with
   `HERMES_HOME=~/.hermes/profiles/engineer` +
-  `agent.tool_executor._resolve_sequential_tool_timeout()`.
+  `agent.tool_executor._resolve_sequential_tool_timeout()`. Likewise `creator`
+  and `marketer` keep theirs (5460) above `TURN_TIMEOUT` + cleanup, or a
+  blocking CLI `specialist_call` times out at 420 s and polls.
 - The Assistant's Admin-topic calls being planned and reviewed by its own
   model is an accepted exception; do not extend it to Engineer, and move the
   reviewer to another model family before moving Engineer off Fable.

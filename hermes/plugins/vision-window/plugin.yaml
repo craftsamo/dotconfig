@@ -1,0 +1,8 @@
+name: vision-window
+version: 1.0.0
+description: >-
+  Keeps native vision_analyze honest about what the model can see. Hermes sends
+  only the newest three tool images per request, so images past that window in
+  one step are replaced by a plain "not shown" result, and an image already
+  shown three times in a turn is not sent again.
+kind: standalone
