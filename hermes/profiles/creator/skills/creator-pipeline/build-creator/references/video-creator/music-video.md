@@ -39,7 +39,8 @@ reference text to that prompt. An oversized approved prompt must be shortened
 in a new proposal and approved before a newly granted attempt, not retried
 automatically after a provider rejects it.
 Native-audio availability is checked before spend, not guessed from a prompt.
-If the report says needs finishing, release only the agreed existing edit or
-legacy assembly with its own inputs/grant. Exact text and supplied music are
-not magically handled by edit-clip; never invent an editing capability. Do not
+If the report says needs finishing, release only the agreed finishing unit
+with its own inputs/grant: supplied music under the visual master is
+[create-master](master.md); exact lettering stays a separately agreed legacy
+job. Neither is handled by edit-clip; never invent an editing capability. Do not
 close a visual-master job as a complete musical MV while its finish is pending.
