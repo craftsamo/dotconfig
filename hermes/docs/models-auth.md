@@ -86,22 +86,24 @@ backed by the blind A/B above (one brief, Opus n=1 per arm). Provider facts:
   `claude-fable-5`), so it is written straight into `config.yaml`;
   `get_model_context_length` reports 1M for it via the `claude-fable` prefix.
 - **Codex** (`base_url: https://chatgpt.com/backend-api/codex`) — every profile
-  except searcher has a tier here. OpenCode's `build` primary and `debugger`
-  subagent share this same ChatGPT Pro pool, so one subscription carries both
-  harnesses. Hermes identifies itself honestly (`originator: hermes-agent`,
+  except searcher has a tier here. OpenCode draws on this same ChatGPT Pro
+  pool only in auxiliary seats (its `build` primary runs on Claude; the
+  `debugger` and `reviewer-deep` subagents on Astra, plus cheap Luna/Sol
+  subagents), so one subscription carries both harnesses. Hermes identifies itself honestly (`originator: hermes-agent`,
   `User-Agent: HermesAgent/<ver>`, `agent/codex_headers.py`) and the backend
   serves Astra to that identity. Astra is also **absent from the picker**
   (`DEFAULT_CODEX_MODELS` in `hermes_cli/codex_models.py` stops at 5.x), so it
   is config-only; `get_model_context_length` resolves 1,050,000 locally, so no
   `hermes update` is required for it.
 
-  **Sizing the shared pool.** On Pro 5x, Astra meters at roughly 25-225
-  messages per 5h window for the whole account. Move to Pro 20x when either
-  signal repeats: the OpenAI meter (`npx -y @slkiser/opencode-quota show`)
-  drops under ~15% partway through a window on ordinary days, or researcher
-  and OpenCode Build visibly fall through to their T2 more often than they run
-  on Astra. **The upgrade needs no config change** — the same chains simply
-  stop descending.
+  **Sizing the shared pool.** The account is on Pro 5x, where Astra meters
+  at roughly 25-225 messages per 5h window for the whole account; researcher
+  is now its largest steady consumer. If the OpenAI meter
+  (`npx -y @slkiser/opencode-quota show`) repeatedly drops under ~15% partway
+  through a window on ordinary days, or researcher visibly falls through to
+  its T2 more often than it runs on Astra, first move researcher's T1 to
+  GPT-6 Sol; move to Pro 20x only if that is not enough. **The upgrade needs
+  no config change** — the same chains simply stop descending.
 - **xAI (searcher only)** — `xai-oauth` (`base_url: https://api.x.ai/v1`) is a
   flat-rate **SuperGrok / Premium+ subscription**, not the metered
   `XAI_API_KEY` API, so per-token prices do not apply and searcher adds no
@@ -162,7 +164,7 @@ These facts govern the paired Claude tiers (Fable 5 and 5.1 behave the same):
    profile: the sub-cap case is the *long* failure — it persists until the
    week rolls over — and in exactly that case the other Claude model is still
    alive. Astra there would hand days of ordinary traffic to the ChatGPT Pro
-   pool that OpenCode Build and researcher depend on.
+   pool that researcher and OpenCode's cross-family reviewers depend on.
 2. **The T2 step depends on the token being resolvable outside the credential
    pool.** A `usage_limit_reached` 429 marks the *credential* exhausted, and
    that mark has **no model dimension** (`credential_pool.py`), so the pool
