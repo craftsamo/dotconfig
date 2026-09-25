@@ -5,8 +5,9 @@ Read [common plan](../../SKILL.md) first.
 Advertising references and authored ads use analyze-ad and create-ad respectively.
 Ad is a specific audience/promise/action; PV introduces qualities or a world.
 Do not route by duration, presence of a CTA, or the word "promo" alone. Clarify
-the main outcome only when it changes the route. generate-ad/PV are not served
-yet; do not quietly replace them with MV or clip production.
+the main outcome only when it changes the route. A PV authored from supplied
+material is [create-promotion](promotion.md); generate-ad and a model-generated
+PV are not served yet; do not quietly replace them with MV or clip production.
 
 For analyze-ad pass the local source path, purpose reference/review, any known
 brief/focus and remote_analysis. A readable MP4 needs local frame extraction,

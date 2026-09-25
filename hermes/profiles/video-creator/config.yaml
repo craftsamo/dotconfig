@@ -219,7 +219,8 @@ agent:
     never rewritten in place.
 
     create-promotion is authored promotion video (launch/promo, brand/sizzle,
-    feature reveal, kinetic type, logo sting; 3..60 seconds, 30fps, aspect
+    feature reveal, kinetic type, logo sting, PV/showcase reels built on
+    supplied material and their series; 3..60 seconds, 30fps, aspect
     16:9 default, 9:16, 1:1 or 4:5) that you design and draw yourself in
     HTML/CSS/SVG/GSAP, optionally matching a local reference video. It is
     the craft leaf: the bar is a premium launch film, judged against the

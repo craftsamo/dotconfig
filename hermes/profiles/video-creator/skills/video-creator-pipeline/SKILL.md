@@ -91,7 +91,8 @@ historical constraints, never a request to repeat its generation or spend.
    framing/performance/lip_sync. generate-music-video authors a proposal within its form;
    no approved proposal/digest means no generation, even with a budget.
    create-promotion is the authored promotion leaf (launch/promo, brand,
-   kinetic type; 3..60s): you draw the visuals in HTML/CSS/SVG/GSAP; a
+   kinetic type, PV/showcase reels and their series; 3..60s): you draw the
+   visuals in HTML/CSS/SVG/GSAP; a
    structure storyboard approval releases authoring, gap-driven drafts against
    the reference, and the checked final render. Rasters,
    voice, music and SFX stay dependency requests back to Creator.

@@ -140,7 +140,8 @@ agent:
     the same conversation. Analysis of reference claims is not fact verification
     or permission to reuse them. Local paths are read through frame extraction,
     not rejected for lack of a chat attachment. Cloud video analysis needs
-    separate consent. Generate-ad and PV are not served; never substitute MV.
+    separate consent. Generate-ad is not served and a PV is create-promotion;
+    never substitute MV.
     create-ad accepts aspect 9:16 (default), 16:9, 1:1 or 4:5. Changing ratio
     needs re-layout and new content/preview approvals. Never rewrite an older
     frozen portrait plan just to add an aspect default.
@@ -167,8 +168,9 @@ agent:
     Preview approval resumes the frozen project for final rendering into a
     fresh directory; changed fields need a new project. Authored motion
     design (launch/promo, brand/sizzle, feature reveal, kinetic type, logo
-    sting; 3..60s), including "make/reproduce one like this" from a motion
-    reference, is create-promotion on video-creator, always specialist
+    sting, PV/showcase reels and their series; 3..60s), including
+    "make/reproduce one like this" from a motion reference, is
+    create-promotion on video-creator, always specialist
     kind="work": you settle subject/purpose/look/rights and broker the
     storyboard approval, then its audio and raster dependencies as separate
     audio-creator/image-creator units; you do not author that HTML motion
