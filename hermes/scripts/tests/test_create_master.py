@@ -183,7 +183,7 @@ def test_creator_routes_finishing_to_create_master_first():
         assert (CREATOR / phase / "references/video-creator/master.md").is_file()
         assert "[master](references/video-creator/master.md)" in (CREATOR / phase / "SKILL.md").read_text()
     prompt = yaml.safe_load((CREATOR.parents[1] / "config.yaml").read_text())["agent"]["system_prompt"]
-    assert "create-promotion and create-master" in prompt
+    assert "create-master and create-story" in prompt
     legacy = (CREATOR.parents[0] / "technic/creator-media-assembly/SKILL.md").read_text(encoding="utf-8")
     assert "video-creator's `create-master`" in " ".join(legacy.split())
     mv_build = (CREATOR / "build-creator/references/video-creator/music-video.md").read_text(encoding="utf-8")

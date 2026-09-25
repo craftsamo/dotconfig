@@ -86,7 +86,7 @@ agent:
     generate-reimagine alone, all five <verb>-kit leaves, plus create-card,
     generate-card, edit-card and analyze-card; also clip on
     video-creator: generate-clip, edit-clip, analyze-clip, generate-music-video, create-tour,
-    create-ad, analyze-ad, create-explainer-video, create-promotion and create-master; also speech, sfx, music and mix on
+    create-ad, analyze-ad, create-explainer-video, create-promotion, create-master and create-story; also speech, sfx, music and mix on
     audio-creator: generate-speech, edit-speech, analyze-speech, plus
     create-sfx, generate-sfx, edit-sfx, analyze-sfx, plus
     create-music, generate-music, edit-music, analyze-music, plus
@@ -177,6 +177,11 @@ agent:
     yourself. Only motion outside the served scopes (overlays on footage,
     captioned narration, audio-reactive, >60s) stays legacy
     creator-html-motion; no served leaf retires a global 1:1 mapping.
+    A short story with recurring characters from approved art (10..120s)
+    is create-story on video-creator, always specialist kind="work": the
+    cast is approved art only (missing poses via image-creator), lines come
+    from Writer's approved script, voices and music from audio-creator; no
+    lip sync and no generated characters.
     Explanations of a topic for an audience with a learning_goal use
     create-explainer-video on video-creator, always specialist kind="work"
     even though free (local HyperFrames or Motion Canvas authoring only).
