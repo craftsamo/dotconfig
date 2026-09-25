@@ -1,6 +1,6 @@
 # Video hands (video-creator)
 
-Ad, music-video, authoring references, tour, explainer-video, motion and clip families. Part of the Hermes design docs — index: [`PROFILES.md`](../../PROFILES.md).
+Ad, music-video, authoring references, tour, explainer-video, promotion, master and clip families. Part of the Hermes design docs — index: [`PROFILES.md`](../../PROFILES.md).
 
 `video-creator` receives filled forms on loopback A2A `:9908` (receive-only).
 It has video generation/analysis but no TTS, no image generation and no
@@ -593,6 +593,42 @@ and the kernel's motion vocabulary ("Video authoring references");
 create-promotion alone may also use cut-the-curve's seam techniques. Tests:
 `scripts/tests/test_create_promotion.py` (render smoke opt-in with
 `PROMOTION_RENDER_SMOKE=1`).
+
+## Master family
+
+`video-creator-pipeline/create/master/` serves `create-master`: one finished
+delivery master from already-approved parts — up to 24 silent segments
+joined in order by cut or dissolve, a finished WAV or audio-creator Mix
+bundle laid under them, and optional captions burned in plus an SRT
+sidecar, at most 180 s. Always `kind="work"`; free. It covers the finishing
+that generate-music-video's supplied mode, several generated clips or cut
+promotion pieces need, before legacy `creator-media-assembly`, which keeps
+overlays on footage, segments' own sound, ducking and edit-spec trims.
+
+It decides nothing creative and has no proposal round: every part is
+already approved and the form is the spec; a missing decision is `Q<n>:`.
+Segments must be 8-bit SDR (converting HDR would grade it) and share size
+and frame rate with square pixels and no rotation, and the soundtrack must
+last the joined picture within one frame (a dissolve shortens it at every
+join). A mismatch is a dependency request for
+`edit-clip` or audio-creator; this leaf never trims, pads, stretches,
+reframes or retimes a part. Segment sound is dropped.
+
+`scripts/master.py build` joins the picture with ffmpeg in one H.264 encode
+(CRF 18). The installed ffmpeg has no subtitle or text filter, so burned-in
+captions are drawn first by the installed `hyperframes` CLI as a transparent
+ProRes 4444 layer in one fixed style (Noto Sans JP, auto-resolved by the
+renderer) and composited inside that same encode; the picture never passes
+through the browser. A Mix bundle is verified by AudioCreator's own
+`verify_bundle` through `mix_audio.py`, then used from re-validated byte
+copies, never its mutable paths; its captions are the default caption source, and the final
+true peak is checked against its approved ceiling; a plain WAV must stay
+below 0 dBTP. Full decode, canvas, fps, duration and audio presence are
+checked before the directory is published; a FAIL publishes nothing. Review
+is `sheet.png` plus one before/at/after sheet per join; sync, listening and
+caption reading speed stay unverified. Tests:
+`scripts/tests/test_create_master.py` (the caption render is opt-in with
+`MASTER_RENDER_SMOKE=1`).
 
 ## Clip family
 

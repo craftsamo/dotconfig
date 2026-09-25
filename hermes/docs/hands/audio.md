@@ -389,7 +389,9 @@ the staged subset. Only the master plays; kept footage audio is a conflict.
 Tour binds `mix-caption-N` text/timing to the distinct Mix `captions.json`;
 never relax speech's `words.json` hash check or rewrite its hash. Final decoded
 audio duration and peak are measured again. Omitted Mix fields preserve frozen
-v1/v2/v3 behavior; MV/clip finishing is unchanged. The synthetic fixture
+v1/v2/v3 behavior; MV/clip finishing is create-master's
+([`video.md`](./video.md) "Master family"), which verifies a whole bundle and
+uses the master under joined segments. The synthetic fixture
 (`scripts/tests/fixtures/mix-video/example.py`) verifies wiring, not real
 speech/ASR quality or a live Creator conversation. Existing resident
 conversations may retain older instructions; validate with fresh sessions.
