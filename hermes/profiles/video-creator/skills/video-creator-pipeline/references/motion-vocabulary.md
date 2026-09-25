@@ -150,6 +150,21 @@ what it looks like and how it is usually built in HTML/CSS/SVG/GSAP.
 | screen within screen | a device whose screen shows another device or the film itself |
 | before / after split | two states side by side with a moving divider |
 
+## Film structures
+
+The shape of a whole piece, named in the storyboard's intent.
+
+| Name | Looks like |
+| --- | --- |
+| product reveal | teaser detail, build-up, full reveal on the drop, name and one line, end card |
+| showcase reel (PV) | the subject's own cover in the first frame, a tour of its best moments, a brand end card |
+| series opening | world, each character or feature in one signature glimpse, a held key visual with room for the title |
+| sizzle montage | fast cuts of many moments on the beat, energy rising to one closing line |
+| before / after story | the problem state held long enough to feel, a turn, the resolved state |
+| day in the life | one person or place across a sequence of moments in time order |
+| countdown / list | numbered items, each with one hero moment, the last one biggest |
+| logo sting | a short build that resolves into the mark and holds |
+
 ## Visual metaphors
 
 An idea shown as a physical thing the viewer already understands, instead
