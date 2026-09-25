@@ -227,6 +227,17 @@ while an actual CLI/dependency failure or failed approval/validation check
 still blocks. A config change is picked up by a fresh session; an already-open
 resident session may not see new `external_dirs` entries.
 
+**Motion vocabulary.** Separately from those external pins, the kernel's own
+`references/motion-vocabulary.md` is read by all four authored leaves —
+create-promotion, create-ad, create-tour and create-explainer-video (both
+renderers; Motion Canvas uses names and looks only) — before the plan that
+fixes their beats, and they name its entries instead of generic "fade",
+"slide" or "card". It is a dictionary of names, looks and usual builds for
+text animations, transitions, camera, effects, components, compositions and
+visual metaphors (an abstract idea carried by a physical image, such as a
+bottleneck as a funnel). It adds no plan field, schema or rule; why it stays
+rule-free: "Storyboard vocabulary" under the Promotion family.
+
 **Three graphics** is an opt-in (`graphics: three-webgl2`) on create-tour,
 create-ad and the HyperFrames path of create-explainer-video — not a third
 explainer renderer, an Assistant runtime or a new video subject. It selects one
@@ -573,9 +584,9 @@ go through the fitting image-creator leaf. Each is its own released unit.
 Reproducing a third-party brand needs the client's permitted-use statement
 relayed in `note`.
 
-**Knowledge.** It shares the four pinned HyperFrames technical references;
-create-promotion alone may also use cut-the-curve's seam techniques and
-reads the kernel's motion vocabulary before Round A. Tests:
+**Knowledge.** It shares the four pinned HyperFrames technical references
+and the kernel's motion vocabulary ("Video authoring references");
+create-promotion alone may also use cut-the-curve's seam techniques. Tests:
 `scripts/tests/test_create_promotion.py` (render smoke opt-in with
 `PROMOTION_RENDER_SMOKE=1`).
 
