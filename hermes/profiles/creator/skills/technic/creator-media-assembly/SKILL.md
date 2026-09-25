@@ -31,7 +31,11 @@ scene concatenation, music beds and ducking, caption/logo overlays, trims, and
 destination re-containering. Do not use to create content — generation routes
 to the part's canonical technic; authored motion to `creator-html-motion`;
 pixel encoding to `creator-pixel-video`. Editing a user-supplied video without
-any generation is this technic.
+any generation is this technic. Served hands leaves come first: joining
+finished segments in order under a finished soundtrack, with optional
+captions, is video-creator's `create-master`; a single-clip trim, fit or
+re-encode is `edit-clip`; placing finished audio on one timeline is
+audio-creator's `create-mix`. This technic keeps what they do not cover.
 
 </Scope>
 

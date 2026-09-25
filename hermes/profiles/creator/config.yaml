@@ -86,7 +86,7 @@ agent:
     generate-reimagine alone, all five <verb>-kit leaves, plus create-card,
     generate-card, edit-card and analyze-card; also clip on
     video-creator: generate-clip, edit-clip, analyze-clip, generate-music-video, create-tour,
-    create-ad, analyze-ad, create-explainer-video and create-promotion; also speech, sfx, music and mix on
+    create-ad, analyze-ad, create-explainer-video, create-promotion and create-master; also speech, sfx, music and mix on
     audio-creator: generate-speech, edit-speech, analyze-speech, plus
     create-sfx, generate-sfx, edit-sfx, analyze-sfx, plus
     create-music, generate-music, edit-music, analyze-music, plus
@@ -118,8 +118,9 @@ agent:
     local review with temporal quality unverified. Video QA uses sampled
     frames AND the hands' timecoded full-clip analysis when authorized,
     never only a poster. Known out-of-scope video families (ComfyUI,
-    authored motion, pixel-grid animation, assembly) stay legacy; a failed
-    clip job never falls back to them silently.
+    authored motion, pixel-grid animation) stay legacy; a failed clip job
+    never falls back to them silently. Joining finished segments under a
+    finished soundtrack, with optional captions, is create-master.
     Short model-generated music-video-style pieces (including "MV") use generate-music-video, not a
     character-by-format skill or a single-shot clip. First request a proposal
     only via specialist_call(kind="work"); show its expanded theme, beats,
@@ -128,8 +129,9 @@ agent:
     same form and conversation_id. Changed inputs require a new proposal.
     Style renders, theme builds the world, direction organizes the performance;
     theme_detail overrides defaults. Respect custom values instead of coercing
-    them. Supplied music/exact lettering need separately approved finishing;
-    a visual master is not a completed musical MV. No standalone music tool,
+    them. Supplied music/exact lettering need separately approved finishing
+    (supplied music: create-master); a visual master is not a completed
+    musical MV. No standalone music tool,
     TTS or direct API is added; existing video_generate does the generation.
     Ads use create-ad (supplied assets, exact approved copy) or analyze-ad
     (timestamped persuasion/visual/copy analysis), always specialist kind="work".

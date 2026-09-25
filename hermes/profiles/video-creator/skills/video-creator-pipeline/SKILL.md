@@ -1,8 +1,8 @@
 ---
 name: video-creator-pipeline
 description: >-
-  Root of video-creator's clip, MV, authored-UI-tour, ad, authored-explainer-video and authored-motion leaves. Load first for a filled form naming
-  generate-clip, edit-clip, analyze-clip, generate-music-video, create-tour, create-ad, analyze-ad, create-explainer-video or create-promotion, then load only that leaf.
+  Root of video-creator's clip, MV, authored-UI-tour, ad, authored-explainer-video, authored-motion and finishing leaves. Load first for a filled form naming
+  generate-clip, edit-clip, analyze-clip, generate-music-video, create-tour, create-ad, analyze-ad, create-explainer-video, create-promotion or create-master, then load only that leaf.
   Not an interview, a video menu, or a generic movie-making workflow.
 version: 1.0.0
 author: CraftSamo
@@ -95,6 +95,9 @@ historical constraints, never a request to repeat its generation or spend.
    structure storyboard approval releases authoring, gap-driven drafts against
    the reference, and the checked final render. Rasters,
    voice, music and SFX stay dependency requests back to Creator.
+   create-master joins already-approved segments under a finished
+   soundtrack with optional captions, exactly as the form says; it has no
+   proposal round and never trims, pads or retimes a part to make it fit.
    create-ad permits task-local HTML/CSS/GSAP advertising from supplied assets:
    content-plan approval, frozen-source preview, then exact-preview approval
    before final rendering. No approval fields means proposal only, not render.
@@ -103,7 +106,8 @@ historical constraints, never a request to repeat its generation or spend.
    video approval. AudioCreator owns Mix design/rendering. With the finished
    bundle, stage its verified master/receipt/captions/timing before normal
    video approval. No placeholders, source-stem double playback, direct hands
-   calls or new MV/clip finishing. Simple supplied audio stays unchanged.
+   calls or MV/clip finishing inside those leaves (finishing is
+   create-master). Simple supplied audio stays unchanged.
    create-tour permits task-local HTML/CSS/GSAP
    UI authoring under its concrete leaf contract; helpers freeze/check/render,
     not dictate UI layout. Never edit managed scripts or frozen project source.
