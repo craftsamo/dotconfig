@@ -32,7 +32,7 @@ metadata:
         label: "motif/palette/material/light overrides"
       style:
         required: true
-        options: [anime-3d, anime-2d, live-action, mixed-media]
+        options: [anime-3d, anime-2d, painted-anime, picture-book, live-action, mixed-media]
         other: true
         references: references/styles/*.md
         label: "rendering medium; custom OK"
@@ -171,6 +171,8 @@ discovery window; these details and the steps below remain part of the contract.
 2. Load only the selected local references: styles from
    [anime-3d](references/styles/anime-3d.md),
    [anime-2d](references/styles/anime-2d.md),
+   [painted-anime](references/styles/painted-anime.md),
+   [picture-book](references/styles/picture-book.md),
    [live-action](references/styles/live-action.md),
    [mixed-media](references/styles/mixed-media.md); themes from
    [theater](references/themes/theater.md),

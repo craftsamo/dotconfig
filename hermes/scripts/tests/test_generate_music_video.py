@@ -77,7 +77,7 @@ class GenerateMusicVideoLeafTest(unittest.TestCase):
             "note": "text",
         }, {name: field["type"] for name, field in form.items() if "type" in field})
         families = {
-            "style": ("styles", ["anime-3d", "anime-2d", "live-action", "mixed-media"]),
+            "style": ("styles", ["anime-3d", "anime-2d", "painted-anime", "picture-book", "live-action", "mixed-media"]),
             "theme": ("themes", ["theater", "night-city", "dream-garden", "graphic-space"]),
             "direction": ("direction", ["performance", "typographic", "montage"]),
             "pace": ("pace", ["relaxed", "steady", "snappy", "intense"]),
@@ -210,7 +210,7 @@ class MusicVideoRootAndRoutingTest(unittest.TestCase):
         top_level = {p.name for p in MUSIC_VIDEO_LEAF_DIR.iterdir() if p.is_file()}
         self.assertEqual({"SKILL.md"}, top_level)
         self.assertFalse((MUSIC_VIDEO_LEAF_DIR / "scripts").exists())
-        self.assertEqual(21, len(list((MUSIC_VIDEO_LEAF_DIR / "references").rglob("*.md"))))
+        self.assertEqual(23, len(list((MUSIC_VIDEO_LEAF_DIR / "references").rglob("*.md"))))
 
     def test_generation_tool_is_video_generate(self) -> None:
         text = MUSIC_VIDEO_SKILL.read_text(encoding="utf-8")
