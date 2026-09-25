@@ -1,6 +1,6 @@
 # Video hands (video-creator)
 
-Ad, music-video, authoring references, tour, explainer-video, promotion, master and clip families. Part of the Hermes design docs — index: [`PROFILES.md`](../../PROFILES.md).
+Ad, music-video, authoring references, tour, explainer-video, promotion, story, master and clip families. Part of the Hermes design docs — index: [`PROFILES.md`](../../PROFILES.md).
 
 `video-creator` receives filled forms on loopback A2A `:9908` (receive-only).
 It has video generation/analysis but no TTS, no image generation and no
@@ -214,8 +214,9 @@ directories — `hyperframes-core`, `hyperframes-animation`, `cut-the-curve`,
 store (never the whole store; store maintenance rules: [`AGENTS.md`](../../AGENTS.md)). These are
 the technical subset; the knowledge-only craft pins are separate
 ([`overview.md`](./overview.md) "Media craft knowledge") and do not widen this
-subset's scope. Only `create-tour`, `create-ad` and the HyperFrames path of
-`create-explainer-video` may consult them, per the shared rule in
+subset's scope. Only `create-tour`, `create-ad`, `create-promotion`,
+`create-story` and the HyperFrames path of `create-explainer-video` may
+consult them, per the shared rule in
 `video-creator-pipeline/references/hyperframes.md`; clip, MV and analyze-ad do
 not, and Motion Canvas uses only its own local reference.
 
@@ -233,8 +234,8 @@ still blocks. A config change is picked up by a fresh session; an already-open
 resident session may not see new `external_dirs` entries.
 
 **Motion vocabulary.** Separately from those external pins, the kernel's own
-`references/motion-vocabulary.md` is read by all four authored leaves —
-create-promotion, create-ad, create-tour and create-explainer-video (both
+`references/motion-vocabulary.md` is read by all five authored leaves —
+create-promotion, create-story, create-ad, create-tour and create-explainer-video (both
 renderers; Motion Canvas uses names and looks only) — before the plan that
 fixes their beats, and they name its entries instead of generic "fade",
 "slide" or "card". It is a dictionary of names, looks and usual builds for
@@ -602,6 +603,43 @@ and the kernel's motion vocabulary ("Video authoring references");
 create-promotion alone may also use cut-the-curve's seam techniques. Tests:
 `scripts/tests/test_create_promotion.py` (render smoke opt-in with
 `PROMOTION_RENDER_SMOKE=1`).
+
+## Story family
+
+`video-creator-pipeline/create/story/` serves `create-story`: a short
+character story, 10..120 s at 30fps (9:16 default, 16:9, 1:1, 4:5), in
+which recurring characters from their approved art act out a narrative
+across scenes with dialogue from an approved script and a finished
+soundtrack, staged by VideoCreator as 2.5D HyperFrames animation. Always
+`kind="work"`; free. It is not a learning explainer with a presenter
+(create-explainer-video), a piece presenting a subject (create-promotion)
+or a generated MV.
+
+**Why authored, not generated.** Generated video redraws a character on
+every shot and drifts from its approved design, and a generated clip has
+no shared clock with separately synthesised speech, so lip sync cannot be
+aligned. The leaf therefore uses the cast's approved art byte for byte
+(pose packs from image-creator's mascot family or supplied images) and
+stages speech with poses, expressions and timing; it offers no lip sync
+and never claims one. Generated shots may appear only as footage inserts
+without a cast member.
+
+**Lifecycle.** The same structure-approval and free-look loop as
+create-promotion: Round A writes a storyboard with `## Cast` and a beats
+table whose dialogue column quotes lines verbatim; `story.py propose`
+checks the cast ids against the `--cast id=PATH` art (a mascot pack counts
+only its manifest's passed items), each beat's speaker against the cast on
+screen and each quoted line against the approved script, then appends every
+cast image's and the script's SHA-256 to the stored storyboard, so the one
+approval hash binds them. One Creator-relayed approval releases drafts (up to
+8, gap-driven) and the final. `story.py render` runs create-promotion's
+render checks through a private instance of its helper (limits 10..120 s,
+`story.mp4`), requires every cast member's bound bytes referenced by the
+source, checks a script that arrived after approval against the quoted
+lines, and checks `mix-caption-N` markup against the Mix sidecar (none may
+exist without one). Script, missing poses (a missing-only mascot revise) and voices,
+music and SFX (speech per line, then one Mix) are separate units Creator
+releases. Tests: `scripts/tests/test_create_story.py`.
 
 ## Master family
 
