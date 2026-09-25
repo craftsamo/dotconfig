@@ -114,8 +114,9 @@ scan keeps every form field.
 
 - Style choices: anime-3d, anime-2d, painted-anime, picture-book,
   live-action, mixed-media. Theme choices: theater, night-city, dream-garden,
-  graphic-space. Direction choices: performance, typographic, montage.
-  All accept free text. These are authored reference recipes, not
+  graphic-space. Direction choices: performance, typographic, montage,
+  opening (an animated-series opening: world, cast glimpses, a text-free key
+  visual). All accept free text. These are authored reference recipes, not
   yet validated with a paid render and not live-render-certified presets.
   Only chosen references load. Looks are described by traits, never by a
   studio, director or artist name — that goes into neither options nor
