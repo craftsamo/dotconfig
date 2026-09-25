@@ -21,6 +21,7 @@ unverified. Ask in the same clarify round, not after production. An
 assistant brief must carry that consent or explicitly request remote
 analysis; never infer consent from a bare local file path. No TTS happens
 inside VideoCreator; tour narration uses completed audio-creator inputs,
+joining finished clips under a finished soundtrack is [create-master](master.md),
 and other narration/assembly remain separate legacy jobs.
 
 For edits, destination (landscape/portrait/square/exact size) and fit

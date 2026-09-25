@@ -183,5 +183,26 @@
     "review_evidence": [
       "before/after contact sheets around each seam showing the carried element or direction across the boundary"
     ]
+  },
+  {
+    "id": "master-join-review-only",
+    "request": "Join three approved generated clips with 0.5-second dissolves under the approved Mix master and burn in its captions; the client already fixed the order and the transition.",
+    "operation": "assembly_review",
+    "subjects": [
+      "master"
+    ],
+    "expected": [
+      "treats order, transition and soundtrack as fixed inputs and makes no new motion decision",
+      "reviews each join before, at and after for black or frozen frames and a visible dissolve",
+      "reports sync and caption reading speed as unverified from sampled sheets"
+    ],
+    "must_not": [
+      "retime, reorder or re-cut a segment to improve the flow",
+      "propose transitions or effects beyond the requested dissolve"
+    ],
+    "review_evidence": [
+      "one before/at/after sheet per join with its time",
+      "a qa.md finding per join"
+    ]
   }
 ]
