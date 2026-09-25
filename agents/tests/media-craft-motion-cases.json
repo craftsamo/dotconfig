@@ -204,5 +204,26 @@
       "one before/at/after sheet per join with its time",
       "a qa.md finding per join"
     ]
+  },
+  {
+    "id": "story-speaker-without-lip-sync",
+    "request": "In a 40-second two-character story the viewer cannot tell who is talking; the client asks for moving mouths, but the cast art has no mouth shapes and no cue timing exists.",
+    "operation": "acting_revision",
+    "subjects": [
+      "story"
+    ],
+    "expected": [
+      "stages the speaker with framing, focus, a pose or expression swap and a lean or bounce on the stressed word",
+      "dims or softens the listener and holds reactions long enough to read",
+      "states that lip sync is unavailable without separate approved mouth art and reviewed cues"
+    ],
+    "must_not": [
+      "draw new mouth shapes over the approved character art",
+      "call amplitude-driven or guessed mouth motion lip sync"
+    ],
+    "review_evidence": [
+      "frames at each line start showing who holds focus",
+      "qa.md note naming the staging device per line"
+    ]
   }
 ]
