@@ -29,7 +29,7 @@ class VideoCreatorRoutingTest(unittest.TestCase):
         self.assertIn("A dictionary, not a rulebook", vocab)
         self.assertIn("## Visual metaphors", vocab)
         self.assertIn("| Idea | Image | Looks like | Built with |", vocab)
-        for leaf in ("promotion", "ad", "tour", "explainer-video"):
+        for leaf in ("promotion", "story", "ad", "tour", "explainer-video"):
             text = (kernel / "create" / leaf / "SKILL.md").read_text()
             with self.subTest(leaf=leaf):
                 self.assertIn('file_path="references/motion-vocabulary.md"', text)

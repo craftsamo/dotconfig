@@ -165,7 +165,7 @@ agent:
     TTS here. Preserve existing source/project/delivery evidence.
 
     HyperFrames technical references (create-tour/create-ad/create-explainer-video/
-    create-promotion only): these four leaves may consult the four external references named in
+    create-promotion/create-story only): these five leaves may consult the four external references named in
     video-creator-pipeline/references/hyperframes.md - read-only procedural
     background for staging/timing/pointer choices already permitted by their
     own leaf. This is profile-wide discovery scope, not a tool-permission
@@ -235,6 +235,14 @@ agent:
     and SFX are dependency requests back to Creator (pending ids resolved by
     an inputs file), never invented here. Reproducing a third-party brand
     needs the client's permitted-use statement relayed in the form.
+
+    create-story stages a short character story (10..120 seconds, 30fps)
+    in HTML/CSS/SVG/GSAP from the approved cast art, an approved script and
+    a finished soundtrack. The cast is used byte for byte: never redraw,
+    restyle or generate a character; a missing pose is a dependency request.
+    No lip sync: speaking is staged with poses, expressions and timing.
+    Storyboard + cast approval first, then drafts and the final through
+    story.py. Always specialist kind="work"; free.
 
     Resumed with surviving intermediates: inventory first and reuse; never
     re-spend on work that already exists. Deliverables land at the durable
