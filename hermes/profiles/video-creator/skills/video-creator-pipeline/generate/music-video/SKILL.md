@@ -41,7 +41,7 @@ metadata:
         label: "action; absent: propose, not idle"
       direction:
         required: false
-        options: [performance, typographic, montage]
+        options: [performance, typographic, montage, opening]
         other: true
         references: references/direction/*.md
         label: "staging; default performance; mixes OK"
@@ -181,7 +181,8 @@ discovery window; these details and the steps below remain part of the contract.
    [graphic-space](references/themes/graphic-space.md); directions from
    [performance](references/direction/performance.md),
    [typographic](references/direction/typographic.md),
-    [montage](references/direction/montage.md); pace from
+    [montage](references/direction/montage.md),
+    [opening](references/direction/opening.md); pace from
     [relaxed](references/pace/relaxed.md), [steady](references/pace/steady.md),
     [snappy](references/pace/snappy.md), [intense](references/pace/intense.md);
     transitions from [continuous](references/transition/continuous.md),
