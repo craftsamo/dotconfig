@@ -142,14 +142,15 @@ class CreatorAndVideoConfigTest(unittest.TestCase):
         self.assertNotIn("a2a_call(", self.build_md)
         self.assertNotIn("a2a_call(", self.plan_md)
 
-    def test_generate_ad_and_pv_are_unimplemented(self) -> None:
-        self.assertIn("Generate-ad and PV are not served; never substitute MV.", self.creator_prompt)
-        self.assertIn("generate-ad/PV are not served\nyet; do not quietly replace them with MV or clip "
-                       "production.", self.plan_md)
-        self.assertIn("Only create-ad and analyze-ad are served; generate-ad and a PV leaf are not yet\n"
-                       "implemented.", self.capabilities_md)
+    def test_generate_ad_is_unimplemented_and_pv_is_promotion(self) -> None:
+        self.assertIn("Generate-ad is not served and a PV is create-promotion;\nnever substitute MV.",
+                      self.creator_prompt)
+        self.assertIn("A PV authored from supplied\nmaterial is [create-promotion](promotion.md); generate-ad "
+                      "and a model-generated\nPV are not served yet", self.plan_md)
+        self.assertIn("A PV authored from supplied material is create-promotion; generate-ad and a\n"
+                      "model-generated PV are not yet implemented.", self.capabilities_md)
         profiles_md = (HERMES_ROOT / "docs" / "hands" / "video.md").read_text()
-        self.assertIn("`generate-ad` and PV are planned, not advertised capabilities.", profiles_md)
+        self.assertIn("`generate-ad` is planned, not an advertised capability.", profiles_md)
         # Root (v8) no longer states served/unserved status per family; it
         # points Plan at capabilities.md, which carries that status (asserted
         # above).

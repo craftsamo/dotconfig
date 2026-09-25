@@ -10,7 +10,8 @@ requests to Creator instead. Shared contract: [`overview.md`](./overview.md).
 ## Ad family
 
 `ad` belongs to video-creator. The first release is `analyze-ad` and
-`create-ad`; `generate-ad` and PV are planned, not advertised capabilities.
+`create-ad`; `generate-ad` is planned, not an advertised capability. A PV
+authored from supplied material is create-promotion ("Promotion family").
 No legacy technic or mapping is retired. Both leaves always use specialist
 `kind="work"` even though media-generation cost is free.
 
@@ -587,6 +588,14 @@ The storyboard's audio plan is the brief Creator gives audio-creator; rasters
 go through the fitting image-creator leaf. Each is its own released unit.
 Reproducing a third-party brand needs the client's permitted-use statement
 relayed in `note`.
+
+**PV and series.** A PV or showcase reel of a store, site, product or event
+is this leaf, not a separate subject: the same storyboard, improve loop and
+render, with the supplied photos, page stills and footage as the picture and
+every on-screen fact taken from that material. A series episode names the
+approved earlier episode in `series_of`; it shares that episode's look and
+ending, opens on its own material, starts from a copy of its source and
+gets its own storyboard approval. A model-generated PV is not served.
 
 **Knowledge.** It shares the four pinned HyperFrames technical references
 and the kernel's motion vocabulary ("Video authoring references");
