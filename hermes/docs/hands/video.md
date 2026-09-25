@@ -112,11 +112,14 @@ consumed attempts; never edit frozen old jobs or approvals. The closing front
 matter stays within 3,800 characters so upstream's 4,000-character discovery
 scan keeps every form field.
 
-- Style choices: anime-3d, anime-2d, live-action, mixed-media. Theme choices:
-  theater, night-city, dream-garden, graphic-space. Direction choices:
-  performance, typographic, montage. All accept free text. These are authored
-  reference recipes, not yet validated with a paid render and not
-  live-render-certified presets. Only chosen references load.
+- Style choices: anime-3d, anime-2d, painted-anime, picture-book,
+  live-action, mixed-media. Theme choices: theater, night-city, dream-garden,
+  graphic-space. Direction choices: performance, typographic, montage.
+  All accept free text. These are authored reference recipes, not
+  yet validated with a paid render and not live-render-certified presets.
+  Only chosen references load. Looks are described by traits, never by a
+  studio, director or artist name — that goes into neither options nor
+  prompts.
 - A theme specifies concrete world vocabulary: space, materials, light, default
   colors and staging opportunities. `theme_detail`/`must_keep` override those
   defaults. A theme is a starting point, not an immutable look or fixed
@@ -600,9 +603,10 @@ their own scripts, and no external menu/router is pulled in.
 
 - `generate-clip`: 1-15 seconds, silent single-shot MP4, requested 720p, text
   or one starting image and one appearance reference. Styles are cinematic,
-  flat-animation, clay, pixel or described. Default: 2 variant attempts +
-  1 corrective total; failures count. Pixel is an aesthetic, not a proven
-  sprite grid. Exact model capabilities are checked before spending.
+  flat-animation, painted-anime, picture-book, clay, pixel or described.
+  Default: 2 variant attempts + 1 corrective total; failures count. Pixel is
+  an aesthetic, not a proven sprite grid. Exact model capabilities are checked
+  before spending.
 - `edit-clip`: trim/contain-or-cover/mute/encode one <=60-second segment.
   MP4/WebM use optional two-pass byte targeting and an actual cap check;
   GIF checks its cap without silently changing size/fps. Never treat GIF repeat
