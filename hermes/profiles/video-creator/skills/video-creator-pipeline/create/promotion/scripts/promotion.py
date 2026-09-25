@@ -27,6 +27,7 @@ FPS = 30
 DIMS = {"16:9": (1920, 1080), "9:16": (1080, 1920), "1:1": (1080, 1080), "4:5": (1080, 1350)}
 AUDIO = {"none", "supplied", "pending"}
 MIN_S, MAX_S = 3, 60
+MOVIE = "promotion.mp4"
 TOL = 0.05
 REMOTE = re.compile(r"""(?:src|href)\s*=\s*["']\s*(?:https?:)?//|url\(\s*["']?\s*(?:https?:)?//|@import\s+["']?(?:https?:)?//|\bfetch\s*\(|XMLHttpRequest|WebSocket\s*\(""", re.I)
 TEXT_SUFFIXES = {".html", ".htm", ".css", ".js", ".mjs", ".svg", ".json"}
@@ -285,7 +286,7 @@ def render(args) -> dict:
         lint_data = {"ok": False, "errorCount": None}
     require(lint_data.get("ok") and lint_data.get("errorCount") == 0 and lint_data.get("filesScanned", 1) > 0,
             "hyperframes lint failed; see lint.json")
-    movie = out / "promotion.mp4"
+    movie = out / MOVIE
     cmd = [binary, "render", "--output", str(movie), "--fps", str(FPS),
            "--quality", "delivery" if final else "draft", "--quiet"]
     if final:
