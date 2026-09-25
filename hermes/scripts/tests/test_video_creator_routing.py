@@ -23,6 +23,18 @@ class VideoCreatorRoutingTest(unittest.TestCase):
         self.assertIn("~/.hermes/profiles/video-creator/skills", creator["skills"]["external_dirs"])
         self.assertEqual({}, video["a2a_agents"])
 
+    def test_every_hyperframes_leaf_names_from_the_vocabulary(self) -> None:
+        kernel = HERMES_ROOT / "profiles/video-creator/skills/video-creator-pipeline"
+        vocab = (kernel / "references/motion-vocabulary.md").read_text()
+        self.assertIn("A dictionary, not a rulebook", vocab)
+        self.assertIn("## Visual metaphors", vocab)
+        self.assertIn("| Idea | Image | Looks like | Built with |", vocab)
+        for leaf in ("promotion", "ad", "tour", "explainer-video"):
+            text = (kernel / "create" / leaf / "SKILL.md").read_text()
+            with self.subTest(leaf=leaf):
+                self.assertIn('file_path="references/motion-vocabulary.md"', text)
+                self.assertIn('instead of generic "fade", "slide" or "card"', " ".join(text.split()))
+
 
 if __name__ == "__main__":
     unittest.main()
