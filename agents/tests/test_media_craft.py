@@ -11,7 +11,7 @@ SKILLS = sorted((ROOT / "curated").glob("media-craft-*/SKILL.md"))
 FIELDS = {"id", "request", "operation", "subjects", "expected", "must_not", "review_evidence"}
 SUBJECTS = {
     "icon", "emoji", "mascot", "reimagine", "kit", "card",
-    "clip", "tour", "ad", "explainer-video", "music-video",
+    "clip", "tour", "ad", "explainer-video", "music-video", "promotion", "master",
     "speech", "sfx", "music", "mix",
 }
 

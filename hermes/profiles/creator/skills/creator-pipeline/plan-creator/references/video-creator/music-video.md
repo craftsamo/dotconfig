@@ -63,7 +63,9 @@ then hand off the real file for a new numbered video proposal/hash and its
 approval. Pending image-upload consent likewise does not prevent zero-upload
 planning. Never turn preliminary approval into generation permission or
 ask the client to choose the accepted concept again. Supplied produces a silent visual master for a
-separately released finishing job; silent is an explicitly silent MV-style
+separately released finishing job ([create-master](master.md)); a generated
+master rarely lasts exactly as long as the music, so plan an audio-creator
+edit-music trim to the delivered video's length before it; silent is an explicitly silent MV-style
 piece. VideoCreator never uploads reference_video/music_file or generates a
 standalone song. An exact lyric/beat/lip-sync requirement is unsupported, not
 an optional note to ignore. Exact lettering needs a text-free generated base

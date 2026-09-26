@@ -42,6 +42,7 @@ only when they share tools, spend class, and verification.
 | a UI task walkthrough: recreate from reference/design/text, edit supplied local footage, or record an approved sanitized Web demo | video-creator: create-tour | free, <=60 seconds; task-local source/preview/MP4, always kind="work"; free-text intro/outro default ON; explicit mode/proposal/scope gates, isolated Web wrapper only; native capture/login/privacy redaction unavailable; optional finished audio-creator WAV/words.json |
 | a bounded local-authored explanation of a topic for an audience with a learning_goal | video-creator: create-explainer-video | free, 1..180 seconds, always kind="work"; explicit v1 HyperFrames or v2 Motion Canvas render (never a silent switch; an old v1 Motion Canvas discussion-only proposal needs a fresh v2 proposal and approval), 16:9 (1280x720)/9:16 (720x1280) at 30fps; framing none/bust/full separate from performance still/puppet/animated and lip_sync off/cues/baked; missing character/script/grounding/audio inputs return as dependency requests, never invented; propose/freeze/snapshot/render mirrors Tour/Ad's proposal-then-approval shape |
 | authored motion design: a launch/promo, brand or sizzle piece, feature reveal, kinetic typography or logo sting that the hands draw in HTML/CSS/SVG/GSAP, including "reproduce / make one like this" from a motion-graphics reference | video-creator: create-promotion | free, 3..60 seconds, 30fps, 16:9 default / 9:16 / 1:1 / 4:5; always kind="work"; storyboard + hash first, approval releases authoring/drafts/final; music/SFX/voice/raster assets are separate audio-creator/image-creator units scored to the approved storyboard; third-party reproduction needs the client's permitted-use statement |
+| one finished master from already-approved parts: silent segments joined in order (cut or dissolve), a finished WAV or audio-creator Mix bundle laid under them, optional captions burned in plus an SRT | video-creator: create-master | free, <=180 seconds, always kind="work"; no proposal round, decides nothing creative; size/fps/length mismatches return as edit-clip or audio-creator dependency requests, never trimmed, padded or stretched; captions come from the Mix bundle or a supplied SRT |
 | a house-voice or registered-character spoken line from an approved script (up to 600 characters), as narration or a voice message | audio-creator: generate-speech | free of provider cost, NOT free of an attempt allowance: 1 take + 1 corrective per script by default, counting every synthesis call including failures; house uses the language fallback chain, a qualified `<engine>:<voice>` id never falls back |
 | concatenation, boundary trim, speed, loudness normalization or format conversion of existing speech | audio-creator: edit-speech | free of generation; no resynthesis, no word changes, no voice conversion |
 | findings on an existing speech file against a destination format, with optional script readback | audio-creator: analyze-speech | free; measured and readback evidence only, never a listening verdict; deliver may be omitted |
@@ -106,7 +107,7 @@ are findings back to the client, never a silent switch to legacy.
 | sprite/cel animation, procedural pixel loop, pixel MP4/GIF | `creator-pixel-video` | deterministic native-grid animation; never ordinary AI video |
 | educational, biography, or tutorial comic with storyboarded panels | `creator-knowledge-comic` | metered page art + deterministic lettering; multi-page work uses the plan/anchor gate |
 | official third-party logo/mark acquisition and provenance | `creator-brand-asset-sourcing` | source, do not redraw |
-| assembly of QA-passed parts — mux, concat, mix, overlay, trim, re-container per a fixed edit spec | `creator-media-assembly` | deterministic ffmpeg; parts consumed verbatim; zero generation spend |
+| assembly outside create-master: overlays or logos on footage, keeping segments' own sound, audio ducking, trims or re-containering per a fixed edit spec | `creator-media-assembly` | deterministic ffmpeg; parts consumed verbatim; zero generation spend; joining finished segments under a finished soundtrack goes to create-master first |
 
 Spoken lines with a durable deliverable route to the hands above
 (audio-creator: generate-speech / edit-speech / analyze-speech); only an
@@ -163,7 +164,8 @@ identity only after an availability preflight.
    design (launch/promo/brand/kinetic type, 3..60s) selects create-promotion,
    before the legacy table; neither retires creator-html-motion or its 1:1
    mapping. Creator does not author such a piece itself when create-promotion
-   fits.
+   fits. Joining finished segments under a finished soundtrack, with optional
+   captions, selects create-master before `creator-media-assembly`.
    Route by authorship method as well as container. A model-generated MP4 is
     `generate-clip` within its short-shot contract; a requested legacy
       backend stays `creator-generated-video`. Short model-generated MV progression
