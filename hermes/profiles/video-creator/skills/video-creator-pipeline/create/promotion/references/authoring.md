@@ -76,7 +76,9 @@ and that `pending` ids are listed under `## Pending`. It never judges taste.
 - Copy `gsap.min.js`, `GSAP-LICENSE.txt`, `gsap-provenance.json` from
   `../tour/assets/` into `source/assets/`. Everything else is local under
   `source/assets/`: drawn SVG, supplied or dependency-delivered images,
-  local fonts (`@font-face` with a local file or `local(...)`), finished WAVs.
+  local fonts (`@font-face` with a local file or `local(...)`), finished WAVs,
+  supplied footage as given (a segment that needs trimming or fitting is an
+  edit-clip dependency first, never re-encoded inside the source).
   No `http(s)://` URL anywhere in the source; the helper rejects it.
 - One paused timeline, built synchronously:
   `const tl = gsap.timeline({paused: true}); ...;
@@ -116,6 +118,34 @@ and that `pending` ids are listed under `## Pending`. It never judges taste.
   differ, move the visual hits to the measured audio, not the reverse.
 - Name simplified stand-ins in the Report; do not present them as the
   reference's real assets.
+
+## Showcase and series
+
+A PV or showcase reel introduces one subject (a store, site, product,
+event) through its own supplied material. Its content decides the middle
+of the film; the motion carries it.
+
+- Footage is one `<video id=… class="clip" src="assets/…" muted playsinline
+  data-start data-duration data-media-start>` per range; HyperFrames owns
+  playback, JS never touches it, and its sound, if kept, is a separate
+  timed `<audio>` with the same timing. Stills move by an animated wrapper
+  (camera push, pan, parallax), never by editing the image.
+- A page capture slid or scrolled as a still keeps its viewport-fixed UI
+  (header, floating buttons) on a separate stationary layer, or the fixed
+  UI moves and duplicates. Say "edited motion" in the Report, never
+  "native scrolling".
+- Lay out for this subject's real item count and name lengths. More items
+  get more time or a sequence, not smaller type; if they cannot all fit
+  the approved duration readably, the storyboard says which ones appear.
+- Series (`series_of`): read the earlier episode's approved
+  `storyboard.md` and final `sheet.png`. The new storyboard keeps what
+  makes it the same series (look, type, audio identity, brand ending) and
+  gives this subject its own opening from its own material in the first
+  frame and its own middle scenes. An earlier episode's intro is not
+  carried over by default; episodes that open the same way read as the
+  same video. Start the source from a copy of that episode's source in a
+  new directory; the earlier episode is never edited. Every episode is
+  its own storyboard approval.
 
 ## Render
 

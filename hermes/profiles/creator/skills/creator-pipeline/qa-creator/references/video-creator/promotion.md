@@ -18,6 +18,11 @@ and intentional versus generic, template-like or cheap; readable holds; no
 dead frames, clipped text or jumpy counters. The helper's PASS covers canvas,
 duration, audio presence and true peak only; temporal feel and listening stay
 unverified until a human watches it. A revise stays on this leaf.
+For a PV or series episode, also check that the supplied material is the
+picture (not a drawn stand-in), that no item, price or claim appears that
+the material or client did not give, and that an episode is recognisably
+its own subject from the first frame rather than the earlier episode with
+new names.
 
 The look-before-you-answer numbered steps and the verdict/delivery shape are
 common — see [common quality assurance](../../SKILL.md).

@@ -13,6 +13,14 @@ the legacy `creator-html-motion` table row. It is not a UI task walkthrough
 ([generate-clip](clip.md) / [generate-music-video](music-video.md)).
 "Reproduce this video" / "make one like this" with a motion-graphics
 reference is this leaf with `reference_use: reproduce` or `inspiration`.
+A PV or showcase reel that introduces a store, site, product or event
+through its own photos, page stills or footage is this leaf too, with that
+material as `assets`; its facts (items, prices, hours, claims) come only
+from the material or the client. A series (one reel per store) is one
+approved first episode, then one form per store with `series_of` pointing
+at the approved episode's directory: each episode shares the series' look
+and ending, opens on its own material, and gets its own storyboard
+approval.
 
 Settle with the client only what changes the piece: `subject`, `what_for`
 (purpose, destination, viewer), aspect/duration if not obvious, any exact
