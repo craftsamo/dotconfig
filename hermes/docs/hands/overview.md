@@ -310,7 +310,7 @@ scripts worth porting.
 | clip | video-creator | generate, edit, analyze | `creator-generated-video` and its assistant plan/QA kept for explicit legacy coverage (e.g. local ComfyUI) |
 | music-video | video-creator | generate | broader legacy video kept; nothing retires on partial MV coverage |
 | tour | video-creator | create | `creator-html-motion` and its 1:1 mappings kept intact |
-| ad | video-creator | analyze, create (`generate-ad` planned; an authored PV is create-promotion) | no legacy mapping retired |
+| ad | video-creator | analyze, create (a generated ad is generate-clip shots composed by create-ad; an authored PV is create-promotion) | no legacy mapping retired |
 | explainer-video | video-creator | create | `creator-manim-explainer` kept for explicit Manim / math / 3D scope |
 | promotion | video-creator | create | `creator-html-motion` kept, narrowed in routing to what no served video leaf covers (overlays on footage, captioned narration, audio-reactive, >60 s); its 1:1 mappings kept until caller coverage and both-client soak |
 | story | video-creator | create | `creator-html-motion` kept for captioned narration and pieces outside the served scopes; nothing retires on this leaf alone |
