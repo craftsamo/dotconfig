@@ -10,8 +10,11 @@ requests to Creator instead. Shared contract: [`overview.md`](./overview.md).
 ## Ad family
 
 `ad` belongs to video-creator. The first release is `analyze-ad` and
-`create-ad`; `generate-ad` is planned, not an advertised capability. A PV
-authored from supplied material is create-promotion ("Promotion family").
+`create-ad`. A generated ad is not a leaf: its picture is text-free
+generate-clip shots, composed by create-ad as supplied muted footage with
+the exact copy, claims, product/logo rasters and CTA; generated footage
+never stands in for the product. A PV authored from supplied material is
+create-promotion ("Promotion family").
 No legacy technic or mapping is retired. Both leaves always use specialist
 `kind="work"` even though media-generation cost is free.
 

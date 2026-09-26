@@ -6,8 +6,23 @@ Advertising references and authored ads use analyze-ad and create-ad respectivel
 Ad is a specific audience/promise/action; PV introduces qualities or a world.
 Do not route by duration, presence of a CTA, or the word "promo" alone. Clarify
 the main outcome only when it changes the route. A PV authored from supplied
-material is [create-promotion](promotion.md); generate-ad and a model-generated
-PV are not served yet; do not quietly replace them with MV or clip production.
+material is [create-promotion](promotion.md); a model-generated PV is not
+served; do not quietly replace it with MV or clip production.
+
+A generated ad (its picture drawn by a video model) is a chain of existing
+units, not one leaf. First settle the ad itself with the client: audience,
+message, CTA, claims, duration and aspect, as for any create-ad. Then plan
+the shot list: each generated shot is one [generate-clip](clip.md) form
+(1..15 s, silent, text-free: no lettering, logo or UI) with its own budget,
+upload and analysis consents, in the ad's aspect. Generated shots carry the
+setting, mood, people and action; they never stand in for the real product.
+The product and logo appear from their supplied rasters in create-ad, or a
+shot animates the approved product image as its `source` with upload
+consent, and a shot that alters the product's shape, colour or label is
+rejected, not shipped. When the approved shots exist, create-ad receives
+them in `assets` as muted MP4s, each placed with explicit timing, and binds
+them in its content plan like any supplied asset. Exact copy, claims and
+CTA are only ever create-ad's typeset text.
 
 For analyze-ad pass the local source path, purpose reference/review, any known
 brief/focus and remote_analysis. A readable MP4 needs local frame extraction,

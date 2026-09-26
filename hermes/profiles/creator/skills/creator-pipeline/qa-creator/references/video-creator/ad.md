@@ -20,6 +20,10 @@ nor a client's unsupported statement becomes verified by rendering it. Review
 at mobile display size as well as native size. Keep sampled temporal and
 unheard audio limitations; do not certify conversion performance. Mandatory
 copy/CTA defects require correction or a new client-approved scope, not silence.
+In a generated ad, check that every generated shot is free of lettering,
+logos and fake UI, that the product seen is the supplied raster or an
+unaltered animated product image, and that no generated shot implies a
+feature or result the approved claims do not state.
 
 The look-before-you-answer numbered steps and the verdict/delivery shape are
 common — see [common quality assurance](../../SKILL.md).

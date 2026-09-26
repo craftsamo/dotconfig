@@ -142,15 +142,23 @@ class CreatorAndVideoConfigTest(unittest.TestCase):
         self.assertNotIn("a2a_call(", self.build_md)
         self.assertNotIn("a2a_call(", self.plan_md)
 
-    def test_generate_ad_is_unimplemented_and_pv_is_promotion(self) -> None:
-        self.assertIn("Generate-ad is not served and a PV is create-promotion;\nnever substitute MV.",
-                      self.creator_prompt)
-        self.assertIn("A PV authored from supplied\nmaterial is [create-promotion](promotion.md); generate-ad "
-                      "and a model-generated\nPV are not served yet", self.plan_md)
-        self.assertIn("A PV authored from supplied material is create-promotion; generate-ad and a\n"
-                      "model-generated PV are not yet implemented.", self.capabilities_md)
-        profiles_md = (HERMES_ROOT / "docs" / "hands" / "video.md").read_text()
-        self.assertIn("`generate-ad` is planned, not an advertised capability.", profiles_md)
+    def test_generated_ad_is_a_clip_to_ad_chain_and_pv_is_promotion(self) -> None:
+        prompt = " ".join(self.creator_prompt.split())
+        self.assertIn("A generated ad is text-free generate-clip shots then create-ad with them as muted footage; "
+                      "a PV is create-promotion; never substitute MV.", prompt)
+        plan = " ".join(self.plan_md.split())
+        self.assertIn("A generated ad (its picture drawn by a video model) is a chain of existing units, not one leaf.",
+                      plan)
+        self.assertIn("they never stand in for the real product", plan)
+        capabilities = " ".join(self.capabilities_md.split())
+        self.assertIn("A generated ad is not a leaf of its own", capabilities)
+        self.assertIn("Never silently route a requested generated ad or PV to MV.", capabilities)
+        profiles_md = " ".join((HERMES_ROOT / "docs" / "hands" / "video.md").read_text().split())
+        self.assertIn("A generated ad is not a leaf", profiles_md)
+        self.assertNotIn("generate-ad` is planned", profiles_md)
+        leaves = {p.parent.name for p in (HERMES_ROOT / "profiles/video-creator/skills/video-creator-pipeline")
+                  .glob("generate/*/SKILL.md")}
+        self.assertNotIn("ad", leaves)
         # Root (v8) no longer states served/unserved status per family; it
         # points Plan at capabilities.md, which carries that status (asserted
         # above).
