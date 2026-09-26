@@ -140,8 +140,9 @@ agent:
     the same conversation. Analysis of reference claims is not fact verification
     or permission to reuse them. Local paths are read through frame extraction,
     not rejected for lack of a chat attachment. Cloud video analysis needs
-    separate consent. Generate-ad is not served and a PV is create-promotion;
-    never substitute MV.
+    separate consent. A generated ad is text-free generate-clip shots then
+    create-ad with them as muted footage; a PV is create-promotion; never
+    substitute MV.
     create-ad accepts aspect 9:16 (default), 16:9, 1:1 or 4:5. Changing ratio
     needs re-layout and new content/preview approvals. Never rewrite an older
     frozen portrait plan just to add an aspect default.

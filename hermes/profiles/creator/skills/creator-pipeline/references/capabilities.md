@@ -63,9 +63,11 @@ only when they share tools, spend class, and verification.
 
 Ad means a specific audience, promise and intended action. PV primarily
 introduces qualities/experience/world: neither duration nor a CTA alone decides.
-A PV authored from supplied material is create-promotion; generate-ad and a
-model-generated PV are not yet implemented. Never silently route a requested
-generated ad or PV to MV or create-ad.
+A PV authored from supplied material is create-promotion. A generated ad is
+not a leaf of its own: its picture is text-free generate-clip shots, and
+create-ad then composes them as supplied muted footage with the exact copy,
+claims, product/logo rasters, CTA and audio. A model-generated PV is not
+implemented. Never silently route a requested generated ad or PV to MV.
 Technical-only checks stay analyze-clip even for its what_for: ad option.
 
 create-tour, create-ad and HyperFrames create-explainer-video
