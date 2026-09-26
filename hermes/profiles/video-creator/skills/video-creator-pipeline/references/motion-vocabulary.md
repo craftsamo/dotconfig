@@ -1,7 +1,8 @@
 # Motion and component vocabulary
 
 A dictionary, not a rulebook. Left alone, a plan collapses every idea into
-"fade in", "slide", "card" and "transition". Use these names instead: pick
+"fade in", "slide", "card" and "transition", and every abstract idea into a
+label or an icon. Use these names instead: pick
 the one that says exactly what the viewer should see, and write it into the
 storyboard or design by name (one entry per event or component; combine
 entries freely; a more precise name of your own is fine). Each entry gives
@@ -148,3 +149,46 @@ what it looks like and how it is usually built in HTML/CSS/SVG/GSAP.
 | collage | many cut-out elements overlapping at different scales |
 | screen within screen | a device whose screen shows another device or the film itself |
 | before / after split | two states side by side with a moving divider |
+
+## Visual metaphors
+
+An idea shown as a physical thing the viewer already understands, instead
+of a word on a card. Name the idea and the image together ("bottleneck as
+funnel"); the image can be drawn in any style and combined with any entry
+above.
+
+| Idea | Image | Looks like | Built with |
+| --- | --- | --- | --- |
+| bottleneck | funnel / hourglass neck | many items crowd the wide mouth and trickle through one at a time | dots on paths converging to one point, staggered release |
+| filtering / selection | sieve | a stream of items falls, only the right ones pass, the rest bounce away | two particle groups, one passes a mesh line, one deflects |
+| growth | sprout | a stem rises, leaves unfold, the plant reaches the number | SVG stem path draw, leaf scale from the node, count-up at the tip |
+| compounding | snowball | a small ball rolls downhill and swells with each turn | scale tied to x, rotation, trail |
+| scale / replication | tile cloning | one unit copies itself outward until it fills a grid | one element, staggered clones from its position |
+| sync / integration | meshing gears | separate gears slide together, teeth catch, all turn as one | SVG gears, rotation ratios by tooth count, start on contact |
+| connection / network | nodes and threads | points appear, lines draw between them, a pulse travels the links | node pop, path draw, dot along path |
+| handoff / trust | baton pass | an object passes from one hand or lane to the next without stopping | carrier handoff between two tracks |
+| pipeline / flow | conveyor or pipe | items ride through stations and change at each one | items on a path, state swap at station x |
+| transformation | machine or box | a rough shape goes in one side, a finished one comes out | occluder box, swap the shape while hidden |
+| automation | repeating arm | a mechanism does the same task again and again without a hand | looped sub-timeline repeated on the master clock |
+| chaos to order | snap to grid | scattered, rotated pieces fly into a clean aligned layout | seeded start positions and angles, shared end layout |
+| simplification | untangling | a knotted line pulls straight | SVG path morph from a tangled path to a straight one |
+| complexity / clutter | pile or tangle | items overlap and keep arriving until the frame is crowded | growing stack with jitter-free seeded offsets |
+| overload | overflow | a container fills past its rim and spills | fill level tween, spill particles past the edge |
+| accumulation / saving | filling jar or stack | coins or blocks drop in and the level climbs | stacked drops with settle, level line |
+| waiting / delay | queue | a line of items shuffles forward one step at a time | row x steps with holds between |
+| speed | streak | the subject leaves speed lines and a blurred trail | lines behind the motion vector, directional blur |
+| breakthrough | wall cracking | a barrier fractures and the subject bursts through | crack path draw, pre-cut shards pushed outward |
+| protection / security | shield or lock | a shell closes around the subject; attacks glance off | shield scale-in, deflected dots, lock shackle drop |
+| isolation / sandbox | glass bubble | the subject sits inside a clear sphere; outside things bounce off | circle with sheen, collisions reflect at its radius |
+| unlock / access | key and door | a key turns, a door or lid opens onto what was inside | key rotate, door `rotateY` on its hinge |
+| dependency / chain reaction | dominoes | one tile tips and knocks the rest down in sequence | per-tile rotate with stagger from the pivot edge |
+| layers / abstraction | stacked plates | thin layers separate vertically, each labelled | exploded view of flat panels in `translateZ` or y |
+| decision / branching | forked path | a road splits; one branch lights up and the traveller takes it | path draw, highlight one branch, dot along it |
+| journey / progress | road with milestones | a traveller moves past markers toward a goal | camera truck along a path, markers pop as passed |
+| feedback loop | circular track | a pulse runs round a loop and changes something each lap | dot on a closed path, state change per lap |
+| balance / trade-off | scale | two pans tip as weight moves from one side to the other | beam rotation from summed weights, pans hang level |
+| memory / cache | shelf or drawer | a thing is put away, later pulled out instantly instead of fetched far | drawer x slide, second retrieval much shorter |
+| fit / solution | puzzle piece | the missing piece turns and clicks into the gap | rotate + translate into the slot, small settle |
+| signal from noise | tuning wave | a jagged waveform smooths into a clean wave | SVG path morph between noisy and clean |
+| clarity / focus | lens | a blurry scene sharpens where a lens passes | masked sharp layer under a moving circle |
+| spark / idea | ignition | a small point flashes and lights up the shapes around it | pulse ring, bloom, radial stagger of lit elements |

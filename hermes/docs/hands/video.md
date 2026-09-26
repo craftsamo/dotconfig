@@ -112,11 +112,15 @@ consumed attempts; never edit frozen old jobs or approvals. The closing front
 matter stays within 3,800 characters so upstream's 4,000-character discovery
 scan keeps every form field.
 
-- Style choices: anime-3d, anime-2d, live-action, mixed-media. Theme choices:
-  theater, night-city, dream-garden, graphic-space. Direction choices:
-  performance, typographic, montage. All accept free text. These are authored
-  reference recipes, not yet validated with a paid render and not
-  live-render-certified presets. Only chosen references load.
+- Style choices: anime-3d, anime-2d, painted-anime, picture-book,
+  live-action, mixed-media. Theme choices: theater, night-city, dream-garden,
+  graphic-space. Direction choices: performance, typographic, montage,
+  opening (an animated-series opening: world, cast glimpses, a text-free key
+  visual). All accept free text. These are authored reference recipes, not
+  yet validated with a paid render and not live-render-certified presets.
+  Only chosen references load. Looks are described by traits, never by a
+  studio, director or artist name — that goes into neither options nor
+  prompts.
 - A theme specifies concrete world vocabulary: space, materials, light, default
   colors and staging opportunities. `theme_detail`/`must_keep` override those
   defaults. A theme is a starting point, not an immutable look or fixed
@@ -226,6 +230,17 @@ uses local authoring for that topic — not a blocker and not a runtime failure 
 while an actual CLI/dependency failure or failed approval/validation check
 still blocks. A config change is picked up by a fresh session; an already-open
 resident session may not see new `external_dirs` entries.
+
+**Motion vocabulary.** Separately from those external pins, the kernel's own
+`references/motion-vocabulary.md` is read by all four authored leaves —
+create-promotion, create-ad, create-tour and create-explainer-video (both
+renderers; Motion Canvas uses names and looks only) — before the plan that
+fixes their beats, and they name its entries instead of generic "fade",
+"slide" or "card". It is a dictionary of names, looks and usual builds for
+text animations, transitions, camera, effects, components, compositions and
+visual metaphors (an abstract idea carried by a physical image, such as a
+bottleneck as a funnel). It adds no plan field, schema or rule; why it stays
+rule-free: "Storyboard vocabulary" under the Promotion family.
 
 **Three graphics** is an opt-in (`graphics: three-webgl2`) on create-tour,
 create-ad and the HyperFrames path of create-explainer-video — not a third
@@ -573,9 +588,9 @@ go through the fitting image-creator leaf. Each is its own released unit.
 Reproducing a third-party brand needs the client's permitted-use statement
 relayed in `note`.
 
-**Knowledge.** It shares the four pinned HyperFrames technical references;
-create-promotion alone may also use cut-the-curve's seam techniques and
-reads the kernel's motion vocabulary before Round A. Tests:
+**Knowledge.** It shares the four pinned HyperFrames technical references
+and the kernel's motion vocabulary ("Video authoring references");
+create-promotion alone may also use cut-the-curve's seam techniques. Tests:
 `scripts/tests/test_create_promotion.py` (render smoke opt-in with
 `PROMOTION_RENDER_SMOKE=1`).
 
@@ -589,9 +604,10 @@ their own scripts, and no external menu/router is pulled in.
 
 - `generate-clip`: 1-15 seconds, silent single-shot MP4, requested 720p, text
   or one starting image and one appearance reference. Styles are cinematic,
-  flat-animation, clay, pixel or described. Default: 2 variant attempts +
-  1 corrective total; failures count. Pixel is an aesthetic, not a proven
-  sprite grid. Exact model capabilities are checked before spending.
+  flat-animation, painted-anime, picture-book, clay, pixel or described.
+  Default: 2 variant attempts + 1 corrective total; failures count. Pixel is
+  an aesthetic, not a proven sprite grid. Exact model capabilities are checked
+  before spending.
 - `edit-clip`: trim/contain-or-cover/mute/encode one <=60-second segment.
   MP4/WebM use optional two-pass byte targeting and an actual cap check;
   GIF checks its cap without silently changing size/fps. Never treat GIF repeat
