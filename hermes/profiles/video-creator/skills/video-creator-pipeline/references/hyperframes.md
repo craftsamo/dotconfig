@@ -1,4 +1,4 @@
-# HyperFrames technical references (create-tour / create-ad / create-explainer-video / create-promotion only)
+# HyperFrames technical references (create-tour / create-ad / create-explainer-video / create-promotion / create-story only)
 
 Scope is narrow on purpose: read this leaf's own local authoring reference
 FIRST. These four external directories are optional advisory background,

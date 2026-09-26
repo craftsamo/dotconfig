@@ -1,8 +1,8 @@
 ---
 name: video-creator-pipeline
 description: >-
-  Root of video-creator's clip, MV, authored-UI-tour, ad, authored-explainer-video, authored-motion and finishing leaves. Load first for a filled form naming
-  generate-clip, edit-clip, analyze-clip, generate-music-video, create-tour, create-ad, analyze-ad, create-explainer-video, create-promotion or create-master, then load only that leaf.
+  Root of video-creator's clip, MV, authored-UI-tour, ad, authored-explainer-video, authored-motion, story and finishing leaves. Load first for a filled form naming
+  generate-clip, edit-clip, analyze-clip, generate-music-video, create-tour, create-ad, analyze-ad, create-explainer-video, create-promotion, create-story or create-master, then load only that leaf.
   Not an interview, a video menu, or a generic movie-making workflow.
 version: 1.0.0
 author: CraftSamo
@@ -71,7 +71,7 @@ historical constraints, never a request to repeat its generation or spend.
    [craft reading](references/craft.md). Pure trim/re-encode/metadata work skips it.
 3. Follow `<Procedure>`; no TTS, image generation, improvised pipelines, or
    outside workflows. The knowledge-only craft reading above is separate from
-   create-tour/create-ad/create-explainer-video/create-promotion's own
+   create-tour/create-ad/create-explainer-video/create-promotion/create-story's own
    optional, read-only [HyperFrames references](references/hyperframes.md),
    consulted only when that leaf's own contract calls for it, never as a
    substitute leaf or workflow. create-explainer-video authors a bounded
@@ -96,6 +96,10 @@ historical constraints, never a request to repeat its generation or spend.
    structure storyboard approval releases authoring, gap-driven drafts against
    the reference, and the checked final render. Rasters,
    voice, music and SFX stay dependency requests back to Creator.
+   create-story stages a character story (10..120s) from the approved cast
+   art, an approved script and a finished soundtrack: storyboard and cast
+   approval first; never redraw or generate a character, never claim lip
+   sync.
    create-master joins already-approved segments under a finished
    soundtrack with optional captions, exactly as the form says; it has no
    proposal round and never trims, pads or retimes a part to make it fit.
