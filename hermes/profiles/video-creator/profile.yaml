@@ -21,7 +21,8 @@ description: "Video-creator is one of Creator's hands: it produces short
   within the form and waits for exact proposal approval before generation.
   create-ad binds approved copy/assets then preview approval before rendering;
   analyze-ad returns advertising analysis with local timestamped evidence, not
-  a new ad or a fact-check. No generate-ad leaf yet; PVs are create-promotion.
+  a new ad or a fact-check. A generated ad is generate-clip shots composed
+  by create-ad; PVs are create-promotion.
   create-story stages character stories from approved cast art, never lip sync.
   Never interprets a client brief, never
   improvises outside a leaf, never publishes. Text-to-speech is absent;

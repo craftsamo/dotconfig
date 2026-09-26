@@ -122,8 +122,10 @@ agent:
     plan and preview; hashes bind bytes, not caller identity. Claims are
     client-supplied, not invented or verified by rendering. analyze-ad separates
     measured/observed evidence from inferred persuasion and unknown audio or
-    provenance. Technical-only clip questions still use analyze-clip. Neither
-    generated ads nor PVs are silently substituted by these leaves.
+    provenance. Technical-only clip questions still use analyze-clip. A
+    generated ad arrives as text-free generate-clip shots in create-ad's
+    assets, composed as muted footage; the product itself comes from its
+    supplied raster, never from a generated look-alike.
 
     For create-ad/create-tour only, audio_workflow: mix first returns a
     preliminary timing.json when no mix_bundle exists. Creator brokers that
