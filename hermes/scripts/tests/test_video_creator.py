@@ -65,10 +65,10 @@ class VideoCreatorConfigTest(unittest.TestCase):
         for leaf in PIPELINE.glob("*/*/SKILL.md"):
             contents = leaf.read_text()
             self.assertEqual(
-                leaf.parent.parent.name == "create" and leaf.parent.name in {"tour", "ad", "explainer-video", "promotion"},
+                leaf.parent.parent.name == "create" and leaf.parent.name in {"tour", "ad", "explainer-video", "promotion", "story"},
                 'file_path="references/hyperframes.md"' in contents,
             )
-        for subject in ("tour", "ad", "explainer-video", "promotion"):
+        for subject in ("tour", "ad", "explainer-video", "promotion", "story"):
             contents = (PIPELINE / "create" / subject / "SKILL.md").read_text()
             self.assertIn(
                 'skill_view(name="video-creator-pipeline", file_path="references/hyperframes.md")',
@@ -111,7 +111,7 @@ def skill_environment(tmp_path, monkeypatch):
     config = {"skills": yaml.safe_load((PROFILE / "config.yaml").read_text())["skills"]}
     (home / "config.yaml").write_text(yaml.safe_dump(config))
     sources = [*PIPELINE.glob("**/SKILL.md"), PIPELINE / "references/hyperframes.md", PIPELINE / "references/three-graphics.md"]
-    sources.extend(PIPELINE / "create" / subject / "references/authoring.md" for subject in ("tour", "ad", "explainer-video", "promotion"))
+    sources.extend(PIPELINE / "create" / subject / "references/authoring.md" for subject in ("tour", "ad", "explainer-video", "promotion", "story"))
     for source in sources:
         target = local / "video-creator-pipeline" / source.relative_to(PIPELINE)
         target.parent.mkdir(parents=True, exist_ok=True)

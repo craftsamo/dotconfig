@@ -140,8 +140,16 @@ skill_view(name="video-creator-pipeline", file_path="references/three-graphics.m
    [capture](references/screen-mode/capture.md). For capture also read
    [Web](references/capture/web.md) or [macOS](references/capture/macos.md).
    Propose semantic steps from the goal/audience/start state; the client approves
-   outcomes and scope, not a coordinate/keystroke script. For explicit screen_mode,
-   first return only proposal-vN.md + SHA-256. Use a single fenced `tour` JSON
+   outcomes and scope, not a coordinate/keystroke script. Before proposing,
+   read the kernel's motion, component and visual-metaphor vocabulary and
+   name its entries (or a more precise name) for the intro, outro and
+   transitions between steps, instead of generic "fade", "slide" or "card":
+
+   ```text
+   skill_view(name="video-creator-pipeline", file_path="references/motion-vocabulary.md")
+   ```
+
+   For explicit screen_mode, first return only proposal-vN.md + SHA-256. Use a single fenced `tour` JSON
    block containing `form` (fully defaulted form, excluding approved_plan and
    approval_sha256) and, for capture, `scope` as defined in the Web reference.
    No target access before scope consent; no stateful actions before action

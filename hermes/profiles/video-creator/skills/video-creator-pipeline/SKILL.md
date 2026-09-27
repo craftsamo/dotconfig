@@ -1,8 +1,8 @@
 ---
 name: video-creator-pipeline
 description: >-
-  Root of video-creator's clip, MV, authored-UI-tour, ad, authored-explainer-video and authored-motion leaves. Load first for a filled form naming
-  generate-clip, edit-clip, analyze-clip, generate-music-video, create-tour, create-ad, analyze-ad, create-explainer-video or create-promotion, then load only that leaf.
+  Root of video-creator's clip, MV, authored-UI-tour, ad, authored-explainer-video, authored-motion, story and finishing leaves. Load first for a filled form naming
+  generate-clip, edit-clip, analyze-clip, generate-music-video, create-tour, create-ad, analyze-ad, create-explainer-video, create-promotion, create-story or create-master, then load only that leaf.
   Not an interview, a video menu, or a generic movie-making workflow.
 version: 1.0.0
 author: CraftSamo
@@ -71,7 +71,7 @@ historical constraints, never a request to repeat its generation or spend.
    [craft reading](references/craft.md). Pure trim/re-encode/metadata work skips it.
 3. Follow `<Procedure>`; no TTS, image generation, improvised pipelines, or
    outside workflows. The knowledge-only craft reading above is separate from
-   create-tour/create-ad/create-explainer-video/create-promotion's own
+   create-tour/create-ad/create-explainer-video/create-promotion/create-story's own
    optional, read-only [HyperFrames references](references/hyperframes.md),
    consulted only when that leaf's own contract calls for it, never as a
    substitute leaf or workflow. create-explainer-video authors a bounded
@@ -91,10 +91,18 @@ historical constraints, never a request to repeat its generation or spend.
    framing/performance/lip_sync. generate-music-video authors a proposal within its form;
    no approved proposal/digest means no generation, even with a budget.
    create-promotion is the authored promotion leaf (launch/promo, brand,
-   kinetic type; 3..60s): you draw the visuals in HTML/CSS/SVG/GSAP; a
+   kinetic type, PV/showcase reels and their series; 3..60s): you draw the
+   visuals in HTML/CSS/SVG/GSAP; a
    structure storyboard approval releases authoring, gap-driven drafts against
    the reference, and the checked final render. Rasters,
    voice, music and SFX stay dependency requests back to Creator.
+   create-story stages a character story (10..120s) from the approved cast
+   art, an approved script and a finished soundtrack: storyboard and cast
+   approval first; never redraw or generate a character, never claim lip
+   sync.
+   create-master joins already-approved segments under a finished
+   soundtrack with optional captions, exactly as the form says; it has no
+   proposal round and never trims, pads or retimes a part to make it fit.
    create-ad permits task-local HTML/CSS/GSAP advertising from supplied assets:
    content-plan approval, frozen-source preview, then exact-preview approval
    before final rendering. No approval fields means proposal only, not render.
@@ -103,7 +111,8 @@ historical constraints, never a request to repeat its generation or spend.
    video approval. AudioCreator owns Mix design/rendering. With the finished
    bundle, stage its verified master/receipt/captions/timing before normal
    video approval. No placeholders, source-stem double playback, direct hands
-   calls or new MV/clip finishing. Simple supplied audio stays unchanged.
+   calls or MV/clip finishing inside those leaves (finishing is
+   create-master). Simple supplied audio stays unchanged.
    create-tour permits task-local HTML/CSS/GSAP
    UI authoring under its concrete leaf contract; helpers freeze/check/render,
     not dictate UI layout. Never edit managed scripts or frozen project source.

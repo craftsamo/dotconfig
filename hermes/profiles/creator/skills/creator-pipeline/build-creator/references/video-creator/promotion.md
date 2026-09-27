@@ -40,3 +40,8 @@ aspect or audio plan need a new numbered storyboard and a new approval.
 When relaying a brief with a reference, pass what the client said about it
 verbatim and let the hands analyse the reference; do not replace it with
 your own summary.
+
+For a series episode, send `series_of` as the approved earlier episode's
+delivery directory (its `proposal-vN/` and final render) and this
+subject's own material as `assets`; never ask the hands to reuse an
+earlier episode's storyboard approval.

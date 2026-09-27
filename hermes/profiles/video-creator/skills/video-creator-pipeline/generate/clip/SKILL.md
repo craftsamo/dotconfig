@@ -26,7 +26,7 @@ metadata:
         example: "The robot turns its head toward camera; camera stays fixed"
       style:
         required: true
-        options: [cinematic, flat-animation, clay, pixel]
+        options: [cinematic, flat-animation, painted-anime, picture-book, clay, pixel]
         other: true
         label: "a listed style or a described look; pixel is an aesthetic, not guaranteed grid-correct sprite animation"
       source:
