@@ -86,7 +86,14 @@ skill_view(name="video-creator-pipeline", file_path="references/three-graphics.m
    points, not an exhaustive preset menu; a custom `other: true` value is
    implemented locally, verbatim, and never silently mapped onto a listed
    option. If direction is ambiguous, return one clarification or a concrete
-   beat proposal before authoring.
+   beat proposal before authoring. Also read the kernel's motion, component
+   and visual-metaphor vocabulary and name its entries (or a more precise
+   name) in the samples' `expect` text, instead of generic "fade", "slide"
+   or "card"; it adds no plan field and no rule:
+
+   ```text
+   skill_view(name="video-creator-pipeline", file_path="references/motion-vocabulary.md")
+   ```
 3. Round A (no `approved_plan`): for final purpose author `plan.json` per the schema in
    [authoring](references/authoring.md) — exact copy rows (id/text/role/
    start/end) that include the client's literal `message` and `cta` text,
@@ -139,7 +146,10 @@ skill_view(name="video-creator-pipeline", file_path="references/three-graphics.m
    the plan's `mix` object (never the original `mix_bundle` path), and place
    the master with exactly one `<audio>` element spanning the full ad
    duration at `data-start="0"` — no other WAV asset or placement is allowed
-   in this mode. Any MP4 is muted with the same explicit timing. No autoplay,
+   in this mode. Any MP4 is muted with the same explicit timing. An MP4 may
+   be a generate-clip shot the client accepted: it is footage for setting
+   and mood, never the product itself, and any lettering, logo or UI that
+   appears in it is a defect to report, not copy to keep. No autoplay,
    clocks, randomness, remote requests, active embeds/event handlers or JS
    media playback/seek control — HyperFrames owns the timeline. Only
    PNG/JPG/WebP logos/images are accepted this version; ask the client to

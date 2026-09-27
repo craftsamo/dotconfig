@@ -196,3 +196,19 @@ def test_round_a_names_techniques_from_the_vocabulary():
     for section in ("## Text animations", "## Transitions", "## Camera", "## Effects", "## Components", "## Compositions"):
         assert section in vocab
     assert "A dictionary, not a rulebook" in vocab
+
+
+def test_pv_and_series_are_promotion_not_a_new_subject():
+    text = (LEAF / "SKILL.md").read_text()
+    meta = yaml.safe_load(text.split("---")[1])
+    assert meta["metadata"]["hermes"]["form"]["series_of"]["type"] == "path"
+    assert "PV/showcase reel" in " ".join(meta["description"].split())
+    body = " ".join(text.split())
+    assert "never redrawn as stand-ins" in body and "never invented" in body
+    authoring = (LEAF / "references/authoring.md").read_text()
+    assert "## Showcase and series" in authoring and "the earlier episode is never edited" in authoring
+    vocab = (LEAF.parent.parent / "references/motion-vocabulary.md").read_text()
+    assert "## Film structures" in vocab and "showcase reel (PV)" in vocab
+    assert not (LEAF.parent / "pv").exists()
+    row = next(line for line in CAPABILITIES.read_text().splitlines() if "| video-creator: create-promotion |" in line)
+    assert "PV/showcase reel" in row and "`series_of`" in row

@@ -41,7 +41,9 @@ only when they share tools, spend class, and verification.
 | exact-copy advertisement from approved product/logo/media assets | video-creator: create-ad | 6..30 seconds, 30fps; aspect 9:16 (default), 16:9, 1:1 or 4:5; native canvas per plan, no automatic crop/scale; kind="work", content-plan then preview approval; no generation/TTS/capture |
 | a UI task walkthrough: recreate from reference/design/text, edit supplied local footage, or record an approved sanitized Web demo | video-creator: create-tour | free, <=60 seconds; task-local source/preview/MP4, always kind="work"; free-text intro/outro default ON; explicit mode/proposal/scope gates, isolated Web wrapper only; native capture/login/privacy redaction unavailable; optional finished audio-creator WAV/words.json |
 | a bounded local-authored explanation of a topic for an audience with a learning_goal | video-creator: create-explainer-video | free, 1..180 seconds, always kind="work"; explicit v1 HyperFrames or v2 Motion Canvas render (never a silent switch; an old v1 Motion Canvas discussion-only proposal needs a fresh v2 proposal and approval), 16:9 (1280x720)/9:16 (720x1280) at 30fps; framing none/bust/full separate from performance still/puppet/animated and lip_sync off/cues/baked; missing character/script/grounding/audio inputs return as dependency requests, never invented; propose/freeze/snapshot/render mirrors Tour/Ad's proposal-then-approval shape |
-| authored motion design: a launch/promo, brand or sizzle piece, feature reveal, kinetic typography or logo sting that the hands draw in HTML/CSS/SVG/GSAP, including "reproduce / make one like this" from a motion-graphics reference | video-creator: create-promotion | free, 3..60 seconds, 30fps, 16:9 default / 9:16 / 1:1 / 4:5; always kind="work"; storyboard + hash first, approval releases authoring/drafts/final; music/SFX/voice/raster assets are separate audio-creator/image-creator units scored to the approved storyboard; third-party reproduction needs the client's permitted-use statement |
+| authored motion design: a launch/promo, brand or sizzle piece, feature reveal, kinetic typography or logo sting that the hands draw in HTML/CSS/SVG/GSAP, including "reproduce / make one like this" from a motion-graphics reference; also a PV/showcase reel of a store, site, product or event built on its supplied photos, page stills or footage, and the next episode of such a series (`series_of`) | video-creator: create-promotion | free, 3..60 seconds, 30fps, 16:9 default / 9:16 / 1:1 / 4:5; always kind="work"; storyboard + hash first, approval releases authoring/drafts/final; music/SFX/voice/raster assets are separate audio-creator/image-creator units scored to the approved storyboard; third-party reproduction needs the client's permitted-use statement |
+| a short character story: recurring characters from their approved art act out a narrative across scenes with dialogue from an approved script, staged as 2.5D HTML animation | video-creator: create-story | free, 10..120 seconds, 30fps, 9:16 default / 16:9 / 1:1 / 4:5; always kind="work"; storyboard + cast hashes first, approval releases drafts/final; script (Writer), missing poses (image-creator mascot revise), voices/music (audio-creator speech + mix) are separate units; no lip sync, no generated characters |
+| one finished master from already-approved parts: silent segments joined in order (cut or dissolve), a finished WAV or audio-creator Mix bundle laid under them, optional captions burned in plus an SRT | video-creator: create-master | free, <=180 seconds, always kind="work"; no proposal round, decides nothing creative; size/fps/length mismatches return as edit-clip or audio-creator dependency requests, never trimmed, padded or stretched; captions come from the Mix bundle or a supplied SRT |
 | a house-voice or registered-character spoken line from an approved script (up to 600 characters), as narration or a voice message | audio-creator: generate-speech | free of provider cost, NOT free of an attempt allowance: 1 take + 1 corrective per script by default, counting every synthesis call including failures; house uses the language fallback chain, a qualified `<engine>:<voice>` id never falls back |
 | concatenation, boundary trim, speed, loudness normalization or format conversion of existing speech | audio-creator: edit-speech | free of generation; no resynthesis, no word changes, no voice conversion |
 | findings on an existing speech file against a destination format, with optional script readback | audio-creator: analyze-speech | free; measured and readback evidence only, never a listening verdict; deliver may be omitted |
@@ -61,8 +63,11 @@ only when they share tools, spend class, and verification.
 
 Ad means a specific audience, promise and intended action. PV primarily
 introduces qualities/experience/world: neither duration nor a CTA alone decides.
-Only create-ad and analyze-ad are served; generate-ad and a PV leaf are not yet
-implemented. Never silently route a requested generated ad to MV or create-ad.
+A PV authored from supplied material is create-promotion. A generated ad is
+not a leaf of its own: its picture is text-free generate-clip shots, and
+create-ad then composes them as supplied muted footage with the exact copy,
+claims, product/logo rasters, CTA and audio. A model-generated PV is not
+implemented. Never silently route a requested generated ad or PV to MV.
 Technical-only checks stay analyze-clip even for its what_for: ad option.
 
 create-tour, create-ad and HyperFrames create-explainer-video
@@ -98,7 +103,7 @@ are findings back to the client, never a silent switch to legacy.
 | static banner, framed/message art, image conversion, or sourced ASCII art | `creator-ascii-art` | deterministic UTF-8 text master; ANSI only when requested |
 | existing reaction or communication GIF sourced from Tenor | `creator-gif-sourcing` | retrieval with provenance and rights caveat; never asset generation |
 | generated video outside the served clip/MV contracts, notably an explicitly requested local ComfyUI workflow | `creator-generated-video` | retained until coverage is migrated; core short shots use generate-clip and bounded MVs use generate-music-video; no silent backend substitution |
-| HTML/CSS/JS motion outside the served create-promotion/create-tour/create-ad/create-explainer-video scopes: overlays on existing footage, captioned narration, audio-reactive visuals, pieces over 60 seconds | `creator-html-motion` | HyperFrames source project + MP4/WebM; supporting generation is separately budgeted; authored launch/promo/brand motion goes to create-promotion first |
+| HTML/CSS/JS motion outside the served create-promotion/create-tour/create-ad/create-explainer-video/create-story scopes: overlays on existing footage, captioned narration, audio-reactive visuals, pieces over 60 seconds | `creator-html-motion` | HyperFrames source project + MP4/WebM; supporting generation is separately budgeted; authored launch/promo/brand motion goes to create-promotion first |
 | generative art, interactive canvas/WebGL experience, custom data visual, or p5.js export | `creator-p5js-experience` | seeded browser-native source; PNG/GIF/MP4/SVG are optional exports |
 | video-to-ASCII, audio-reactive, generative, hybrid, lyric, or TTS-backed ASCII motion | `creator-ascii-video` | deterministic Python/ffmpeg render; supporting generation/TTS is separately budgeted |
 | mathematical, algorithmic, data, paper, or 3D educational animation | `creator-manim-explainer` | deterministic Manim render; supporting TTS is separately budgeted |
@@ -106,7 +111,7 @@ are findings back to the client, never a silent switch to legacy.
 | sprite/cel animation, procedural pixel loop, pixel MP4/GIF | `creator-pixel-video` | deterministic native-grid animation; never ordinary AI video |
 | educational, biography, or tutorial comic with storyboarded panels | `creator-knowledge-comic` | metered page art + deterministic lettering; multi-page work uses the plan/anchor gate |
 | official third-party logo/mark acquisition and provenance | `creator-brand-asset-sourcing` | source, do not redraw |
-| assembly of QA-passed parts — mux, concat, mix, overlay, trim, re-container per a fixed edit spec | `creator-media-assembly` | deterministic ffmpeg; parts consumed verbatim; zero generation spend |
+| assembly outside create-master: overlays or logos on footage, keeping segments' own sound, audio ducking, trims or re-containering per a fixed edit spec | `creator-media-assembly` | deterministic ffmpeg; parts consumed verbatim; zero generation spend; joining finished segments under a finished soundtrack goes to create-master first |
 
 Spoken lines with a durable deliverable route to the hands above
 (audio-creator: generate-speech / edit-speech / analyze-speech); only an
@@ -163,7 +168,11 @@ identity only after an availability preflight.
    design (launch/promo/brand/kinetic type, 3..60s) selects create-promotion,
    before the legacy table; neither retires creator-html-motion or its 1:1
    mapping. Creator does not author such a piece itself when create-promotion
-   fits.
+   fits. Joining finished segments under a finished soundtrack, with optional
+   captions, selects create-master before `creator-media-assembly`. A
+   narrative with recurring characters from approved art selects
+   create-story; a character explaining a topic toward a learning_goal stays
+   create-explainer-video, and a generated MV stays generate-music-video.
    Route by authorship method as well as container. A model-generated MP4 is
     `generate-clip` within its short-shot contract; a requested legacy
       backend stays `creator-generated-video`. Short model-generated MV progression

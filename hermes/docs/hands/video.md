@@ -1,6 +1,6 @@
 # Video hands (video-creator)
 
-Ad, music-video, authoring references, tour, explainer-video, motion and clip families. Part of the Hermes design docs — index: [`PROFILES.md`](../../PROFILES.md).
+Ad, music-video, authoring references, tour, explainer-video, promotion, story, master and clip families. Part of the Hermes design docs — index: [`PROFILES.md`](../../PROFILES.md).
 
 `video-creator` receives filled forms on loopback A2A `:9908` (receive-only).
 It has video generation/analysis but no TTS, no image generation and no
@@ -10,7 +10,11 @@ requests to Creator instead. Shared contract: [`overview.md`](./overview.md).
 ## Ad family
 
 `ad` belongs to video-creator. The first release is `analyze-ad` and
-`create-ad`; `generate-ad` and PV are planned, not advertised capabilities.
+`create-ad`. A generated ad is not a leaf: its picture is text-free
+generate-clip shots, composed by create-ad as supplied muted footage with
+the exact copy, claims, product/logo rasters and CTA; generated footage
+never stands in for the product. A PV authored from supplied material is
+create-promotion ("Promotion family").
 No legacy technic or mapping is retired. Both leaves always use specialist
 `kind="work"` even though media-generation cost is free.
 
@@ -112,11 +116,15 @@ consumed attempts; never edit frozen old jobs or approvals. The closing front
 matter stays within 3,800 characters so upstream's 4,000-character discovery
 scan keeps every form field.
 
-- Style choices: anime-3d, anime-2d, live-action, mixed-media. Theme choices:
-  theater, night-city, dream-garden, graphic-space. Direction choices:
-  performance, typographic, montage. All accept free text. These are authored
-  reference recipes, not yet validated with a paid render and not
-  live-render-certified presets. Only chosen references load.
+- Style choices: anime-3d, anime-2d, painted-anime, picture-book,
+  live-action, mixed-media. Theme choices: theater, night-city, dream-garden,
+  graphic-space. Direction choices: performance, typographic, montage,
+  opening (an animated-series opening: world, cast glimpses, a text-free key
+  visual). All accept free text. These are authored reference recipes, not
+  yet validated with a paid render and not live-render-certified presets.
+  Only chosen references load. Looks are described by traits, never by a
+  studio, director or artist name — that goes into neither options nor
+  prompts.
 - A theme specifies concrete world vocabulary: space, materials, light, default
   colors and staging opportunities. `theme_detail`/`must_keep` override those
   defaults. A theme is a starting point, not an immutable look or fixed
@@ -209,8 +217,9 @@ directories — `hyperframes-core`, `hyperframes-animation`, `cut-the-curve`,
 store (never the whole store; store maintenance rules: [`AGENTS.md`](../../AGENTS.md)). These are
 the technical subset; the knowledge-only craft pins are separate
 ([`overview.md`](./overview.md) "Media craft knowledge") and do not widen this
-subset's scope. Only `create-tour`, `create-ad` and the HyperFrames path of
-`create-explainer-video` may consult them, per the shared rule in
+subset's scope. Only `create-tour`, `create-ad`, `create-promotion`,
+`create-story` and the HyperFrames path of `create-explainer-video` may
+consult them, per the shared rule in
 `video-creator-pipeline/references/hyperframes.md`; clip, MV and analyze-ad do
 not, and Motion Canvas uses only its own local reference.
 
@@ -226,6 +235,17 @@ uses local authoring for that topic — not a blocker and not a runtime failure 
 while an actual CLI/dependency failure or failed approval/validation check
 still blocks. A config change is picked up by a fresh session; an already-open
 resident session may not see new `external_dirs` entries.
+
+**Motion vocabulary.** Separately from those external pins, the kernel's own
+`references/motion-vocabulary.md` is read by all five authored leaves —
+create-promotion, create-story, create-ad, create-tour and create-explainer-video (both
+renderers; Motion Canvas uses names and looks only) — before the plan that
+fixes their beats, and they name its entries instead of generic "fade",
+"slide" or "card". It is a dictionary of names, looks and usual builds for
+text animations, transitions, camera, effects, components, compositions and
+visual metaphors (an abstract idea carried by a physical image, such as a
+bottleneck as a funnel). It adds no plan field, schema or rule; why it stays
+rule-free: "Storyboard vocabulary" under the Promotion family.
 
 **Three graphics** is an opt-in (`graphics: three-webgl2`) on create-tour,
 create-ad and the HyperFrames path of create-explainer-video — not a third
@@ -573,11 +593,92 @@ go through the fitting image-creator leaf. Each is its own released unit.
 Reproducing a third-party brand needs the client's permitted-use statement
 relayed in `note`.
 
-**Knowledge.** It shares the four pinned HyperFrames technical references;
-create-promotion alone may also use cut-the-curve's seam techniques and
-reads the kernel's motion vocabulary before Round A. Tests:
+**PV and series.** A PV or showcase reel of a store, site, product or event
+is this leaf, not a separate subject: the same storyboard, improve loop and
+render, with the supplied photos, page stills and footage as the picture and
+every on-screen fact taken from that material. A series episode names the
+approved earlier episode in `series_of`; it shares that episode's look and
+ending, opens on its own material, starts from a copy of its source and
+gets its own storyboard approval. A model-generated PV is not served.
+
+**Knowledge.** It shares the four pinned HyperFrames technical references
+and the kernel's motion vocabulary ("Video authoring references");
+create-promotion alone may also use cut-the-curve's seam techniques. Tests:
 `scripts/tests/test_create_promotion.py` (render smoke opt-in with
 `PROMOTION_RENDER_SMOKE=1`).
+
+## Story family
+
+`video-creator-pipeline/create/story/` serves `create-story`: a short
+character story, 10..120 s at 30fps (9:16 default, 16:9, 1:1, 4:5), in
+which recurring characters from their approved art act out a narrative
+across scenes with dialogue from an approved script and a finished
+soundtrack, staged by VideoCreator as 2.5D HyperFrames animation. Always
+`kind="work"`; free. It is not a learning explainer with a presenter
+(create-explainer-video), a piece presenting a subject (create-promotion)
+or a generated MV.
+
+**Why authored, not generated.** Generated video redraws a character on
+every shot and drifts from its approved design, and a generated clip has
+no shared clock with separately synthesised speech, so lip sync cannot be
+aligned. The leaf therefore uses the cast's approved art byte for byte
+(pose packs from image-creator's mascot family or supplied images) and
+stages speech with poses, expressions and timing; it offers no lip sync
+and never claims one. Generated shots may appear only as footage inserts
+without a cast member.
+
+**Lifecycle.** The same structure-approval and free-look loop as
+create-promotion: Round A writes a storyboard with `## Cast` and a beats
+table whose dialogue column quotes lines verbatim; `story.py propose`
+checks the cast ids against the `--cast id=PATH` art (a mascot pack counts
+only its manifest's passed items), each beat's speaker against the cast on
+screen and each quoted line against the approved script, then appends every
+cast image's and the script's SHA-256 to the stored storyboard, so the one
+approval hash binds them. One Creator-relayed approval releases drafts (up to
+8, gap-driven) and the final. `story.py render` runs create-promotion's
+render checks through a private instance of its helper (limits 10..120 s,
+`story.mp4`), requires every cast member's bound bytes referenced by the
+source, checks a script that arrived after approval against the quoted
+lines, and checks `mix-caption-N` markup against the Mix sidecar (none may
+exist without one). Script, missing poses (a missing-only mascot revise) and voices,
+music and SFX (speech per line, then one Mix) are separate units Creator
+releases. Tests: `scripts/tests/test_create_story.py`.
+
+## Master family
+
+`video-creator-pipeline/create/master/` serves `create-master`: one finished
+delivery master from already-approved parts — up to 24 silent segments
+joined in order by cut or dissolve, a finished WAV or audio-creator Mix
+bundle laid under them, and optional captions burned in plus an SRT
+sidecar, at most 180 s. Always `kind="work"`; free. It covers the finishing
+that generate-music-video's supplied mode, several generated clips or cut
+promotion pieces need, before legacy `creator-media-assembly`, which keeps
+overlays on footage, segments' own sound, ducking and edit-spec trims.
+
+It decides nothing creative and has no proposal round: every part is
+already approved and the form is the spec; a missing decision is `Q<n>:`.
+Segments must be 8-bit SDR (converting HDR would grade it) and share size
+and frame rate with square pixels and no rotation, and the soundtrack must
+last the joined picture within one frame (a dissolve shortens it at every
+join). A mismatch is a dependency request for
+`edit-clip` or audio-creator; this leaf never trims, pads, stretches,
+reframes or retimes a part. Segment sound is dropped.
+
+`scripts/master.py build` joins the picture with ffmpeg in one H.264 encode
+(CRF 18). The installed ffmpeg has no subtitle or text filter, so burned-in
+captions are drawn first by the installed `hyperframes` CLI as a transparent
+ProRes 4444 layer in one fixed style (Noto Sans JP, auto-resolved by the
+renderer) and composited inside that same encode; the picture never passes
+through the browser. A Mix bundle is verified by AudioCreator's own
+`verify_bundle` through `mix_audio.py`, then used from re-validated byte
+copies, never its mutable paths; its captions are the default caption source, and the final
+true peak is checked against its approved ceiling; a plain WAV must stay
+below 0 dBTP. Full decode, canvas, fps, duration and audio presence are
+checked before the directory is published; a FAIL publishes nothing. Review
+is `sheet.png` plus one before/at/after sheet per join; sync, listening and
+caption reading speed stay unverified. Tests:
+`scripts/tests/test_create_master.py` (the caption render is opt-in with
+`MASTER_RENDER_SMOKE=1`).
 
 ## Clip family
 
@@ -589,9 +690,10 @@ their own scripts, and no external menu/router is pulled in.
 
 - `generate-clip`: 1-15 seconds, silent single-shot MP4, requested 720p, text
   or one starting image and one appearance reference. Styles are cinematic,
-  flat-animation, clay, pixel or described. Default: 2 variant attempts +
-  1 corrective total; failures count. Pixel is an aesthetic, not a proven
-  sprite grid. Exact model capabilities are checked before spending.
+  flat-animation, painted-anime, picture-book, clay, pixel or described.
+  Default: 2 variant attempts + 1 corrective total; failures count. Pixel is
+  an aesthetic, not a proven sprite grid. Exact model capabilities are checked
+  before spending.
 - `edit-clip`: trim/contain-or-cover/mute/encode one <=60-second segment.
   MP4/WebM use optional two-pass byte targeting and an actual cap check;
   GIF checks its cap without silently changing size/fps. Never treat GIF repeat

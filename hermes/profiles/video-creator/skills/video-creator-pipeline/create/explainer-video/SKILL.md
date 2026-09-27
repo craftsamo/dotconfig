@@ -55,7 +55,7 @@ metadata:
         label: "world; default studio; custom OK"
       style:
         required: false
-        options: [flat-vector, paper-cut, mixed-media]
+        options: [flat-vector, paper-cut, mixed-media, picture-book, cartoon]
         other: true
         references: references/styles/*.md
         label: "medium; default flat-vector; preserve supplied identity"
@@ -150,14 +150,24 @@ skill_view(name="video-creator-pipeline", file_path="references/three-graphics.m
    [classroom](references/themes/classroom.md), [workbench](references/themes/workbench.md),
    [abstract-space](references/themes/abstract-space.md); style:
    [flat-vector](references/styles/flat-vector.md), [paper-cut](references/styles/paper-cut.md),
-   [mixed-media](references/styles/mixed-media.md); direction:
+   [mixed-media](references/styles/mixed-media.md), [picture-book](references/styles/picture-book.md),
+   [cartoon](references/styles/cartoon.md); direction:
    [mechanism](references/direction/mechanism.md), [process](references/direction/process.md),
    [comparison](references/direction/comparison.md), [misconception](references/direction/misconception.md),
    [worked-example](references/direction/worked-example.md). Expand each choice
    into concrete space, materials, visual relationships and changes. Free text
    overrides defaults, never maps to the nearest option. No theme/style/character
    combination menu. The same explanation without a character needs intentional
-   recomposition, not an empty presenter slot.
+   recomposition, not an empty presenter slot. Also read the kernel's motion,
+   component and visual-metaphor vocabulary and name its entries (or a more
+   precise name) in each unit's `change` and the samples' `expect` text,
+   instead of generic "fade", "slide" or "card"; an abstract idea gets a
+   visual metaphor rather than a label. For Motion Canvas use its names and
+   looks, and build them per that engine's own reference:
+
+   ```text
+   skill_view(name="video-creator-pipeline", file_path="references/motion-vocabulary.md")
+   ```
 5. Round A: author `spec.json` per the reference, not HTML. Preserve exact spoken
    and on-screen words. Every unit names its learning goal and before/change/after
    states; every important change has a proof sample. User-facing forms do not

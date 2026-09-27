@@ -21,6 +21,11 @@ promote source-ad claims into approved client claims or re-upload/re-analyze
 the same file yourself. Missing listening/continuous-motion evidence stays
 unverified. A reference analysis is not authorization to produce a new ad.
 
+For a generated ad, release each generate-clip shot as its own metered
+unit first and accept or reject it against the shot list (text-free, the
+product not altered) before create-ad's proposal; the proposal binds the
+accepted clip files by hash, so a regenerated shot means a new proposal.
+
 For create-ad, keep all three turns in one specialist work conversation:
 proposal-only (no approval fields), approved_plan + approval_sha256 for source
 authoring/preview, then preview + preview_sha256 for final render. Preserve

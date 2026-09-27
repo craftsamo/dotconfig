@@ -2,7 +2,9 @@
 name: create-promotion
 description: >-
   Create an authored promotion video (product launch, promo, brand or sizzle
-  piece, feature reveal, kinetic type, logo sting; 3..60s, 30fps) that
+  piece, feature reveal, kinetic type, logo sting, or a PV/showcase reel of
+  a store, site, product or event built on supplied photos, page stills or
+  footage, also as the next episode of a series; 3..60s, 30fps) that
   VideoCreator designs and draws itself in HTML/CSS/SVG/GSAP, optionally
   matching a local reference video. A structure storyboard is approved first;
   the look is then iterated freely against the reference and a premium bar,
@@ -26,6 +28,7 @@ metadata:
       reference_use: {required: false, options: [inspiration, reproduce], label: "default inspiration; reproduce = same beats/timing/look"}
       copy: {required: false, type: text, label: "exact on-screen lines the client fixed; else proposed in the storyboard"}
       assets: {required: false, type: path, label: "supplied logos/images/fonts/footage; absent = everything is drawn"}
+      series_of: {required: false, type: path, label: "earlier approved episode dir this one follows; shares the series, swaps the content"}
       style: {required: false, type: text, label: "described look; free text is first-class"}
       direction: {required: false, type: text, label: "pacing/energy/transition language; free text"}
       audio: {required: false, type: file, label: "finished WAV, or JSON list of <=16 {source,start} cues from audio-creator"}
@@ -65,6 +68,13 @@ template and not "close enough". Judge every frame against it:
    dependency request back to Creator, never invented or silently substituted. Reproducing a
    third-party brand, logo or copy needs the client's permitted-use
    statement in `note`; without it, treat the reference as inspiration.
+   A PV/showcase reel puts the supplied material at the centre: the photos,
+   page stills and footage are the picture (footage stays moving footage,
+   stills get camera moves), never redrawn as stand-ins, and every fact on
+   screen (items, prices, hours, claims) comes from that material or the
+   brief, never invented. With `series_of`, read that episode's approved
+   storyboard and final sheet first, per [authoring](references/authoring.md)
+   "Showcase and series".
 2. Reference. Extract frames locally (`ffmpeg` fps=4, or
    `python3 ${HERMES_SKILL_DIR}/../../scripts/clip-media.py --help`) and
    measure the soundtrack's tempo, drops and hits with `ffmpeg`. Look at
@@ -99,7 +109,8 @@ template and not "close enough". Judge every frame against it:
    composition, components, text animations, transitions, camera and
    effects from the vocabulary (or a more precise name), with what each
    shows, instead of generic "fade", "slide" or "card". Unresolved needs go
-   in `pending`. Then run:
+   in `pending`. A series episode names what it shares with `series_of`
+   and what this subject gets on its own. Then run:
 
    ```sh
    python3 ${HERMES_SKILL_DIR}/scripts/promotion.py propose --storyboard <draft storyboard.md> --out <deliver>/proposal-v<N>
