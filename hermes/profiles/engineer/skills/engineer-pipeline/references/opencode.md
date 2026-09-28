@@ -75,6 +75,16 @@ global instructions or whole Skill bodies.
   refuses an active runner/process group. A record is not proof of the observed
   facts; Engineer remains responsible. Do not reconcile just to unlock a retry.
 
+`opencode_history(action, …)` reads OpenCode's own session history across all
+projects, including sessions a person ran in the TUI. It launches no agent and
+never touches the conversations above: list/get/children for metadata, usage
+for tokens and activity over a `[from, to)` window. Titles and costs appear only
+with include_title / include_cost; message content never. usage activity is
+time assistant steps ran with question waits removed (a permission-prompt wait
+still counts) — not human working time.
+Check `source` and `status`: a `partial` or database-fallback answer carries
+its reason in diagnostics; pass that limitation on rather than filling the gap.
+
 ## Results
 
 accepted/running mean execution is outstanding. Live messaging uses Hermes'

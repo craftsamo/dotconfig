@@ -354,6 +354,8 @@ keeps user keys.
   overrides, otherwise OpenCode's defaults apply. The CLI resolves through
   `PATH`, preserving the secret shim. Behavior:
   [docs/profiles/engineer.md](docs/profiles/engineer.md) "OpenCode runtime".
+  The same toolset carries the read-only `opencode_history`, which needs no
+  `opencode_cli` setting and also runs as a CLI (`plugins/opencode/history.py`).
 - **ui-inspection** (`standalone`): `ui_capture` for ui-review / ux-persona.
 - **writing-inspection** (`standalone`): Writer's bounded `writing_inspect`.
 - **kanban-worker-mutation-guard** (`standalone`): stops dispatcher workers
