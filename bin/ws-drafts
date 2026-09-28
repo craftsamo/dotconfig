@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# ws-drafts — the drafts under ~/Workspaces (every job directory below an .agent/).
+#
+#   ws-drafts                      per-Group summary (counts, size, stale/misnamed/legacy)
+#   ws-drafts list --stale         drafts nobody touched for 14+ days
+#   ws-drafts list --group Acme
+#   ws-drafts list --legacy        the earlier layout still to clean up
+#   ws-drafts --help
+#
+# The code lives in the Hermes workspace-drafts plugin (hermes/plugins/
+# workspace-drafts/drafts.py). Read-only: nothing is opened, moved or deleted.
+# Override: WS_DRAFTS_CLI, WORKSPACES_ROOT.
+set -euo pipefail
+
+cli="${WS_DRAFTS_CLI:-$HOME/.config/hermes/plugins/workspace-drafts/drafts.py}"
+if [[ ! -f $cli ]]; then
+  echo "ws-drafts: cannot find $cli (set WS_DRAFTS_CLI)" >&2
+  exit 127
+fi
+exec python3 "$cli" "$@"
