@@ -275,61 +275,83 @@ def render(result, *, max_rows=None):
     return "\n".join(lines)
 
 
-CHAT_NAME = 16
+RICH_LIMIT = 30000          # Telegram rich messages cap at 32,768 characters
+SECTION_ROWS = 25
 
 
 def _group_label(group):
-    """Chat label: the Group name alone; Personal Groups carry a trailing *."""
-    if group == UNASSIGNED:
-        return "(root)"
-    area, _, name = group.partition("/")
-    return name + ("*" if area == "Personal" else "")
+    return "(root)" if group == UNASSIGNED else group.partition("/")[2]
 
 
-def _within(draft):
-    """The draft's path inside its Group's .agent/ (or the root), e.g. scratch/job."""
-    parts = draft["relative"].split("/")
-    if draft["group"] != UNASSIGNED:
-        parts = parts[2:]                       # drop <Area>/<Group>
-    if parts and parts[0] in (".agent",) + LEGACY_ROOT:
-        head = parts.pop(0)
-        if head != ".agent":
-            parts.insert(0, head.lstrip("."))
-    return "/".join(parts)
+def _group_area(group):
+    return "root" if group == UNASSIGNED else group.partition("/")[0]
 
 
-def _clip(text, width):
-    return text if len(text) <= width else text[:width - 1] + "…"
+def _section(draft):
+    """Where a draft sits inside its Group: current, or the earlier scratch/deliverables/notes."""
+    return (draft["legacy_area"] or "").lstrip(".") or "current"
 
 
-def render_chat(result, *, max_rows=20):
-    """Narrow text for a phone: no wide table, one or two short lines per row."""
+def _cell(text):
+    """A table cell as a code span: no Markdown inside names, and no pipe to break the row."""
+    return "`" + text.replace("`", "'").replace("|", "/") + "`"
+
+
+def _idle(draft):
+    return f"{draft['idle_days']}d" if draft["idle_days"] is not None else "?"
+
+
+def _details(title, rows, max_rows):
+    out = [f"<details><summary>{title}</summary>", "", "| Draft | Idle | Size |",
+           "| :--- | ---: | ---: |"]
+    for d in rows[:max_rows]:
+        name = d["name"] + (" (misnamed)" if "misnamed" in d["flags"] else "")
+        out.append(f"| {_cell(name)} | {_idle(d)} | {human_size(d['bytes'])} |")
+    if len(rows) > max_rows:
+        out += ["", f"… {len(rows) - max_rows} more (`ws-drafts list`)"]
+    return out + ["", "</details>"]
+
+
+def render_rich(result, *, title="Drafts", max_rows=SECTION_ROWS):
+    """Markdown for a chat that renders tables and <details> (Telegram rich messages):
+    totals first, one table for the overview, and each section folded."""
     t = result["totals"]
-    lines = [f"Drafts: {t['drafts']} · {human_size(t['bytes'])}",
-             f"stale {t['stale']} · legacy {t['legacy']} · misnamed {t['misnamed']}"]
+    lines = [f"## {title}", "",
+             f"**{t['drafts']}** drafts · **{human_size(t['bytes'])}** · stale {t['stale']} · "
+             f"earlier layout {t['legacy']} · misnamed {t['misnamed']}", ""]
     if result["action"] == "summary":
-        lines.append("")
-        groups = result["groups"]
-        for g in groups[:max_rows]:
-            lines.append(f"{_clip(_group_label(g['group']), CHAT_NAME):<{CHAT_NAME}} "
-                         f"{g['drafts']:>4} {human_size(g['bytes']):>6}")
-        if len(groups) > max_rows:
-            lines.append(f"… {len(groups) - max_rows} more Groups")
-        if any(g["group"].startswith("Personal/") for g in groups):
-            lines.append("* Personal")
+        lines += ["| Group | Area | Drafts | Size | Stale |", "| :--- | :--- | ---: | ---: | ---: |"]
+        lines += [f"| {_group_label(g['group'])} | {_group_area(g['group'])} | {g['drafts']} | "
+                  f"{human_size(g['bytes'])} | {g['stale']} |" for g in result["groups"]]
+        lines += ["", "<details><summary>How to read</summary>", "",
+                  f"- stale: no file changed for {result['stale_days']}+ days",
+                  "- earlier layout: scratch / deliverables / notes, still to be cleaned up",
+                  "- misnamed: not `<YYYYMMDD>-<job>`",
+                  "- `/drafts <group>` or `/drafts stale|legacy|misnamed` for the drafts themselves",
+                  "", "</details>"]
     else:
         drafts = result["drafts"]
         one_group = len({d["group"] for d in drafts}) <= 1
-        for d in drafts[:max_rows]:
-            name = _within(d) if one_group else f"{_group_label(d['group'])}: {_within(d)}"
-            idle = f"{d['idle_days']}d idle" if d["idle_days"] is not None else "idle ?"
-            lines += ["", name, "  " + " · ".join([idle, human_size(d["bytes"]), *d["flags"]])]
-        shown = min(len(drafts), max_rows)
-        if len(drafts) > shown or result.get("truncated"):
-            lines += ["", f"… showing {shown} of {t['drafts']}; full list: ws-drafts list"]
-    lines.append(f"stale = no change for {result['stale_days']}d+")
+        sections = {}
+        for d in drafts:
+            key = _section(d) if one_group else f"{_group_label(d['group'])} · {_section(d)}"
+            sections.setdefault(key, []).append(d)
+        order = sorted(sections.items(), key=lambda kv: (-sum(d["bytes"] for d in kv[1]), kv[0]))
+        lines += ["| Where | Drafts | Size | Stale |", "| :--- | ---: | ---: | ---: |"]
+        lines += [f"| {key} | {len(rows)} | {human_size(sum(d['bytes'] for d in rows))} | "
+                  f"{sum('stale' in d['flags'] for d in rows)} |" for key, rows in order]
+        for rows_cap in (max_rows, 10, 5):
+            body = []
+            for key, rows in order:
+                size = human_size(sum(d["bytes"] for d in rows))
+                body += [""] + _details(f"{key} · {len(rows)} · {size}", rows, rows_cap)
+            if len("\n".join(lines + body)) <= RICH_LIMIT:
+                break
+        lines += body
+        if result.get("truncated"):
+            lines += ["", "… list cut at the limit (`ws-drafts list`)"]
     for d in result["diagnostics"][:3]:
-        lines.append(f"! {d['code']}")
+        lines.append(f"\n! {d['code']}")
     return "\n".join(lines)
 
 

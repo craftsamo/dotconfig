@@ -157,21 +157,44 @@ def test_tool_and_command_use_the_same_reader(ws, monkeypatch):
     result = json.loads(plugin.workspace_drafts({"action": "summary"}))
     assert result["root"] == str(ws)
     assert json.loads(plugin.workspace_drafts({"action": "delete"}))["error"]
-    assert plugin.drafts_text("").startswith("```\nDrafts: 9")
-    assert "20260920-landing-copy" in plugin.drafts_text("Acme")
+    text = plugin.drafts_text("")
+    assert text.startswith("## Drafts") and "```" not in text
+    assert "`20260920-landing-copy`" in plugin.drafts_text("Acme")
     assert "legacy" in plugin.drafts_text("legacy")
 
 
-def test_chat_text_stays_narrow_and_names_drafts_inside_their_group(ws):
-    summary = drafts.render_chat(drafts.run({"action": "summary"}, root=ws, today=TODAY))
-    assert max(len(line) for line in summary.splitlines()) <= 40
-    assert "Acme" in summary and "Projects/" not in summary
-    assert "Budget*" in summary and "* Personal" in summary and "(root)" in summary
-    one = drafts.render_chat(listed(ws, group="Acme"))
-    assert "\nscratch/job-a\n" in one and ".agent" not in one
-    mixed = drafts.render_chat(listed(ws, flags=["legacy"]), max_rows=2)
-    assert "(root): deliverables/old-job" in mixed or "Acme: scratch/job-a" in mixed
-    assert "showing 2 of 4" in mixed
+def test_rich_summary_is_a_table_with_a_folded_legend(ws):
+    text = drafts.render_rich(drafts.run({"action": "summary"}, root=ws, today=TODAY))
+    assert "| Group | Area | Drafts | Size | Stale |" in text
+    assert "| Acme | Projects | 5 |" in text and "| Budget | Personal |" in text and "| (root) | root |" in text
+    assert text.count("<details>") == 1 and text.count("</details>") == 1
+
+
+def test_rich_list_folds_one_section_per_place(ws):
+    text = drafts.render_rich(listed(ws, group="Acme"))
+    assert "| Where | Drafts | Size | Stale |" in text
+    for section in ("current", "scratch", "deliverables"):
+        assert f"<summary>{section} · " in text
+    assert "`Evidence Pack (misnamed)`" in text and ".agent" not in text
+    mixed = drafts.render_rich(listed(ws, flags=["legacy"]), max_rows=1)
+    assert "<summary>(root) · deliverables · 1 · " in mixed and "<summary>Acme · scratch · 1 · " in mixed
+
+
+def test_rich_cells_cannot_break_a_row():
+    row = {"name": "a|b`c", "flags": [], "idle_days": 1, "bytes": 1}
+    out = "\n".join(drafts._details("t", [row], 5))
+    assert "| `a/b'c` | 1d | 1B |" in out
+
+
+def test_rich_output_shrinks_sections_to_fit_the_message_cap(ws, monkeypatch):
+    monkeypatch.setattr(drafts, "RICH_LIMIT", 700)
+    many = {"action": "list", "drafts": [
+        {"group": "Projects/Acme", "name": f"20260901-job-{i:03d}", "relative": f"x/{i}", "legacy_area": None,
+         "flags": [], "idle_days": 3, "bytes": 10} for i in range(40)],
+        "totals": {"drafts": 40, "bytes": 400, "stale": 0, "legacy": 0, "misnamed": 0},
+        "diagnostics": [], "stale_days": 14}
+    text = drafts.render_rich(many)
+    assert "… 30 more" in text and len(text) <= 700      # 25 rows did not fit; 10 do
 
 
 class Ctx:
