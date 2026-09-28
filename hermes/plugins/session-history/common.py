@@ -10,7 +10,7 @@ Stdlib only: readers run as CLIs from cron as well as inside Hermes.
 
 from __future__ import annotations
 
-from datetime import date, datetime, time as dtime, timezone
+from datetime import date, datetime, time as dtime, timedelta, timezone
 import os
 import re
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -122,12 +122,30 @@ def under(path, prefix):
     return path == prefix or path.startswith(prefix.rstrip("/") + "/")
 
 
+MAX_DAYS = 366
+
+
+def today(tz):
+    now = datetime.now(tz) if tz is not None else datetime.now()
+    return now.date()
+
+
 def window(args, tz, *, required):
-    """Return (from_ms, to_ms) for a half-open [from, to) window."""
+    """Return (from_ms, to_ms) for a half-open [from, to) window.
+
+    ``days`` is the everyday shorthand: the last N local calendar days ending
+    with today, i.e. [today-(N-1) 00:00, tomorrow 00:00)."""
+    if args.get("days") is not None:
+        if args.get("from") is not None or args.get("to") is not None:
+            raise ValueError("days cannot be combined with from/to")
+        days = integer(args, "days", 1, 1, MAX_DAYS)
+        end = today(tz) + timedelta(days=1)
+        start = end - timedelta(days=days)
+        return instant(start.isoformat(), tz, "from"), instant(end.isoformat(), tz, "to")
     lo = instant(args["from"], tz, "from") if args.get("from") is not None else None
     hi = instant(args["to"], tz, "to") if args.get("to") is not None else None
     if required and (lo is None or hi is None):
-        raise ValueError(f"{required} requires both from and to")
+        raise ValueError(f"{required} requires days, or both from and to")
     if lo is not None and hi is not None and lo >= hi:
         raise ValueError("from must be earlier than to")
     return lo, hi

@@ -53,7 +53,7 @@ ACTIONS = ("list", "get", "children", "usage")
 KINDS = ("root", "child", "all")
 GROUPS = ("model", "agent", "directory", "kind", "day")
 SOURCES = ("auto", "api", "db")
-FIELDS = {"action", "session_id", "from", "to", "timezone", "directory", "kind", "agent", "model",
+FIELDS = {"action", "session_id", "from", "to", "days", "timezone", "directory", "kind", "agent", "model",
           "archived", "search", "include_title", "include_cost", "limit", "offset", "group_by", "source"}
 SESSION_ID = re.compile(r"ses_[A-Za-z0-9_-]{1,64}\Z")
 URL = re.compile(r"http://127\.0\.0\.1:(\d+)")
@@ -651,6 +651,7 @@ def main(argv=None):
     parser.add_argument("session_id", nargs="?")
     for flag in ("from", "to", "timezone", "directory", "kind", "agent", "model", "search"):
         parser.add_argument(f"--{flag}")
+    parser.add_argument("--days", type=int, help="last N local days ending today")
     parser.add_argument("--limit", type=int)
     parser.add_argument("--offset", type=int)
     parser.add_argument("--group-by", help="comma-separated: " + ",".join(GROUPS))
@@ -662,7 +663,7 @@ def main(argv=None):
     args = {"action": ns.action}
     if ns.session_id is not None:
         args["session_id"] = ns.session_id
-    for key in ("from", "to", "timezone", "directory", "kind", "agent", "model", "search", "limit",
+    for key in ("from", "to", "days", "timezone", "directory", "kind", "agent", "model", "search", "limit",
                 "offset", "source"):
         if getattr(ns, key) is not None:
             args[key] = getattr(ns, key)

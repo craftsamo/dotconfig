@@ -100,7 +100,9 @@ def ids(result):
 @pytest.mark.parametrize("args, message", [
     ({"action": "list", "surprise": 1}, "Unexpected"),
     ({"action": "remove"}, "action"),
-    ({"action": "usage", "from": "2026-09-21"}, "requires both"),
+    ({"action": "usage", "from": "2026-09-21"}, "requires days, or both"),
+    ({"action": "usage", "days": 7, "from": "2026-09-21"}, "cannot be combined"),
+    ({"action": "usage", "days": 0}, "days"),
     ({"action": "usage", "from": "2026-09-22", "to": "2026-09-21"}, "earlier"),
     ({"action": "usage", "from": "2026-09-21", "to": "2026-09-22", "source": "api"}, "message content"),
     ({"action": "get", "session_id": "ses_x", "kind": "all"}, "no filters"),
@@ -371,12 +373,12 @@ def test_auto_falls_back_to_database_and_says_so(fake, db, monkeypatch, mode):
 
 def test_cli_prints_json_and_error_exit(db, monkeypatch, capsys):
     monkeypatch.setattr(history, "db_path", lambda: str(db))
-    monkeypatch.setattr(history.run, "__kwdefaults__", {"server_factory": history.ApiServer,
+    monkeypatch.setattr(history.run, "__kwdefaults__", {**history.run.__kwdefaults__,
                                                          "path_factory": lambda: str(db)})
     assert history.main(["list", "--source", "db", "--kind", "all", "--archived"]) == 0
     assert json.loads(capsys.readouterr().out)["total"] == 5
     assert history.main(["usage", "--from", "2026-09-21"]) == 1
-    assert "requires both" in json.loads(capsys.readouterr().out)["error"]
+    assert "requires days, or both" in json.loads(capsys.readouterr().out)["error"]
 
 
 # ---------------------------------------------------------------- Hermes tool
@@ -410,7 +412,7 @@ def test_tool_is_registered_strict_and_gated(db, monkeypatch):
     assert json.loads(plugin.opencode_history({"action": "list"}))["error"] == "inbound refused"
 
     monkeypatch.setattr(plugin, "_scope", lambda: None)
-    monkeypatch.setattr(plugin.inventory.run, "__kwdefaults__", {"server_factory": plugin.inventory.ApiServer,
+    monkeypatch.setattr(plugin.inventory.run, "__kwdefaults__", {**plugin.inventory.run.__kwdefaults__,
                                                                   "path_factory": lambda: str(db)})
     result = json.loads(plugin.opencode_history({"action": "list", "source": "db"}))
     assert result["source"] == "db" and "ses_root" in ids(result)
