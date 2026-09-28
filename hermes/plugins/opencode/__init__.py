@@ -690,7 +690,8 @@ HISTORY_DESCRIPTION = (
     "A tool held on a permission prompt still counts as active. None of these measure human working "
     "time. usage includes archived sessions unless archived is false. Tokens count steps started in the "
     "window; day groups by "
-    "step start in timezone. Dates are YYYY-MM-DD at local midnight of timezone (default system). "
+    "step start in timezone. Dates are YYYY-MM-DD at local midnight of timezone (default system); "
+    "days=N is the last N local days ending today. "
     "Titles and costs are returned only when include_title / include_cost is true; message content never. "
     "Every result states its source (api or db), status (complete or partial) and diagnostics.")
 
@@ -735,8 +736,9 @@ def register(ctx):
         ("opencode_history", opencode_history, {
             "action": {"type": "string", "enum": list(inventory.ACTIONS)},
             "session_id": {"type": "string", "description": "get / children only"},
-            "from": {"type": "string", "description": "YYYY-MM-DD or ISO 8601; required for usage"},
+            "from": {"type": "string", "description": "YYYY-MM-DD or ISO 8601; usage needs from+to or days"},
             "to": {"type": "string", "description": "Exclusive end; YYYY-MM-DD or ISO 8601; required for usage"},
+            "days": {"type": "integer", "description": "Instead of from/to: the last N local days ending today (1 = today)"},
             "timezone": {"type": "string", "description": "IANA name for dates and day groups"},
             "directory": {"type": "string", "description": "Absolute path; matches it and everything below"},
             "kind": {"type": "string", "enum": list(inventory.KINDS)},

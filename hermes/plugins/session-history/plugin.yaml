@@ -1,0 +1,4 @@
+name: session-history
+version: 1.0.0
+description: Read-only Hermes session history across profiles, and the /activity summary for OpenCode and Hermes.
+kind: standalone
