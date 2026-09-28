@@ -378,3 +378,39 @@ def test_cli_prints_json_and_error_exit(db, monkeypatch, capsys):
     assert history.main(["usage", "--from", "2026-09-21"]) == 1
     assert "requires both" in json.loads(capsys.readouterr().out)["error"]
 
+
+# ---------------------------------------------------------------- Hermes tool
+
+def _plugin():
+    pytest.importorskip("hermes_constants")
+    source = ROOT / "__init__.py"
+    plugin_spec = importlib.util.spec_from_file_location("opencode_plugin_history_test", source)
+    plugin = importlib.util.module_from_spec(plugin_spec)
+    plugin_spec.loader.exec_module(plugin)
+    return plugin
+
+
+def test_tool_is_registered_strict_and_gated(db, monkeypatch):
+    plugin = _plugin()
+    tools = {}
+
+    class Context:
+        profile_name = "engineer"
+
+        def register_tool(self, **kwargs):
+            tools[kwargs["name"]] = kwargs
+
+    plugin.register(Context())
+    tool = tools["opencode_history"]
+    assert tool["toolset"] == "opencode"
+    assert tool["schema"]["parameters"]["additionalProperties"] is False
+    assert set(tool["schema"]["parameters"]["properties"]) == history.FIELDS
+
+    monkeypatch.setattr(plugin, "_scope", lambda: (_ for _ in ()).throw(ValueError("inbound refused")))
+    assert json.loads(plugin.opencode_history({"action": "list"}))["error"] == "inbound refused"
+
+    monkeypatch.setattr(plugin, "_scope", lambda: None)
+    monkeypatch.setattr(plugin.inventory.run, "__kwdefaults__", {"server_factory": plugin.inventory.ApiServer,
+                                                                  "path_factory": lambda: str(db)})
+    result = json.loads(plugin.opencode_history({"action": "list", "source": "db"}))
+    assert result["source"] == "db" and "ses_root" in ids(result)
