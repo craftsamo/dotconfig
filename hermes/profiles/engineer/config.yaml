@@ -29,6 +29,7 @@ toolsets:
   - specialist
   - opencode
   - session_history
+  - workspace_drafts
 max_concurrent_sessions: null
 agent:
   system_prompt: |
@@ -769,6 +770,7 @@ platform_toolsets:
     - specialist
     - opencode
     - session_history
+    - workspace_drafts
     - no_mcp
   telegram:
     - terminal
@@ -784,6 +786,7 @@ platform_toolsets:
     - specialist
     - opencode
     - session_history
+    - workspace_drafts
     - no_mcp
   discord: []
   a2a:
@@ -803,6 +806,7 @@ plugins:
     - specialist-call
     - opencode
     - session-history
+    - workspace-drafts
 specialist_call:
   resident_targets: [marketer, researcher, writer, ui-review, ux-persona]
 opencode_cli:

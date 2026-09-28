@@ -360,6 +360,10 @@ keeps user keys.
   `session_history`) and the `/activity` command for engineer and assistant;
   also the code behind `bin/ai-history`. Behavior:
   [docs/session-history.md](docs/session-history.md).
+- **workspace-drafts** (`standalone`): read-only `workspace_drafts` (toolset
+  `workspace_drafts`) and the `/drafts` command for engineer and assistant;
+  also the code behind `bin/ws-drafts`. Behavior:
+  [docs/workspace-drafts.md](docs/workspace-drafts.md).
 - **ui-inspection** (`standalone`): `ui_capture` for ui-review / ux-persona.
 - **writing-inspection** (`standalone`): Writer's bounded `writing_inspect`.
 - **kanban-worker-mutation-guard** (`standalone`): stops dispatcher workers

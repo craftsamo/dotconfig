@@ -1,0 +1,102 @@
+"""Drafts under ~/Workspaces for Engineer and Assistant: the workspace_drafts tool and /drafts.
+
+The lister is the stdlib module ``drafts.py`` beside this file, so cron and the
+``ws-drafts`` launcher run the same code. This file only registers it; it
+moves and deletes nothing.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import importlib.util
+import json
+from pathlib import Path
+import sys
+
+
+def _load(name, path):
+    if name not in sys.modules:
+        spec = importlib.util.spec_from_file_location(name, path)
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[name] = module
+        spec.loader.exec_module(module)
+    return sys.modules[name]
+
+
+drafts = _load("hermes_workspace_drafts", Path(__file__).resolve().parent / "drafts.py")
+PROFILES = {"engineer", "assistant"}
+COMMAND_ROWS = 30
+
+DESCRIPTION = (
+    "List drafts under ~/Workspaces (read-only; names, sizes, file counts and modification times only). "
+    "A draft is any job directory below an .agent/: <Group>/.agent/<YYYYMMDD>-<job>/, or "
+    "~/Workspaces/.agent/<YYYYMMDD>-<job>/ for unassigned work; everything there is non-canonical and a "
+    "draft that remains is work not yet promoted. The earlier layout (root .scratch/.deliverables/.notes and "
+    "<Group>/.agent/{scratch,deliverables,notes}/) is reported with layout legacy. summary: counts and size "
+    "per Group; list: one row per draft (sort idle|size|name|started). Flags: stale = no file changed for "
+    "stale_days (default 14), misnamed = not <YYYYMMDD>-<kebab-slug>, legacy = earlier layout. Filter by "
+    "group (Acme, Projects/Acme or (unassigned)), layout and flags (all must match). It never "
+    "reads file contents and never moves or deletes; promotion and deletion follow ~/Workspaces/AGENTS.md "
+    "\"Drafts\" and need the user's approval.")
+
+PROPERTIES = {
+    "action": {"type": "string", "enum": list(drafts.ACTIONS)},
+    "group": {"type": "string", "description": "Group name, Area/Group, or (unassigned)"},
+    "layout": {"type": "string", "enum": list(drafts.LAYOUTS)},
+    "flags": {"type": "array", "items": {"type": "string", "enum": list(drafts.FLAGS)}},
+    "stale_days": {"type": "integer", "description": "Idle days that count as stale (default 14)"},
+    "sort": {"type": "string", "enum": list(drafts.SORTS), "description": "list only"},
+    "limit": {"type": "integer", "description": f"list only: 1..{drafts.MAX_LIMIT}"},
+}
+
+
+def _inbound_peer():
+    """An A2A turn (a peer agent's request) never reads this machine's workspace."""
+    try:
+        from gateway.session_context import get_session_env
+    except Exception:
+        return False
+    return "a2a" in (get_session_env("HERMES_SESSION_PLATFORM", ""), get_session_env("HERMES_SESSION_SOURCE", ""))
+
+
+def workspace_drafts(args, **kwargs):
+    try:
+        if _inbound_peer():
+            raise ValueError("workspace_drafts is not available to inbound A2A requests")
+        return json.dumps(drafts.run(args), ensure_ascii=False)
+    except Exception as exc:
+        return json.dumps({"error": str(exc)})
+
+
+def drafts_text(raw):
+    """/drafts [stale|misnamed|legacy|<group>]: summary, or a list narrowed by flag or Group."""
+    word = (raw or "").strip()
+    if not word:
+        args = {"action": "summary"}
+    elif word.lower() in drafts.FLAGS:
+        args = {"action": "list", "flags": [word.lower()]}
+    else:
+        args = {"action": "list", "group": word}
+    try:
+        text = drafts.render(drafts.run(args), max_rows=COMMAND_ROWS)
+    except Exception as exc:
+        return f"drafts unavailable: {exc}"
+    return "```\n" + text + "\n```"
+
+
+async def drafts_command(raw):
+    # Walking a large workspace blocks on the filesystem; keep it off the gateway loop.
+    return await asyncio.to_thread(drafts_text, raw)
+
+
+def register(ctx):
+    if ctx.profile_name not in PROFILES:
+        return
+    ctx.register_tool(name="workspace_drafts", toolset="workspace_drafts", handler=workspace_drafts,
+                      description=DESCRIPTION,
+                      schema={"name": "workspace_drafts", "description": DESCRIPTION, "parameters": {
+                          "type": "object", "properties": PROPERTIES, "required": ["action"],
+                          "additionalProperties": False}})
+    ctx.register_command("drafts", drafts_command,
+                         description="Drafts under ~/Workspaces: summary, or stale|misnamed|legacy|<group>",
+                         args_hint="[stale|misnamed|legacy|<group>]")
