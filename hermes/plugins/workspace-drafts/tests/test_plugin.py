@@ -41,6 +41,7 @@ def ws(tmp_path):
     touch(root / ".inbox" / "incoming.pdf")                     # not a draft area
     group = root / "Projects" / "Acme"
     touch(group / "docs" / "spec.md")                           # canon, never listed
+    touch(root / "Projects" / ".registry" / "projects.db")     # hidden, not a Group
     touch(group / ".agent" / "20260920-landing-copy" / "draft.md", day=date(2026, 9, 10))
     touch(group / ".agent" / "20260920-landing-copy" / "v2" / "draft.md", day=date(2026, 9, 26))
     touch(group / ".agent" / "Evidence Pack" / "n.md")         # breaks the naming rule
@@ -99,6 +100,7 @@ def test_symlinks_are_never_followed(ws):
 def test_filters_by_group_layout_and_flags(ws):
     assert {d["group"] for d in listed(ws, group="acme")["drafts"]} == {"Projects/Acme"}
     assert {d["group"] for d in listed(ws, group="(unassigned)")["drafts"]} == {"(unassigned)"}
+    assert {d["group"] for d in listed(ws, group="root")["drafts"]} == {"(unassigned)"}
     assert all(d["layout"] == "legacy" for d in listed(ws, layout="legacy")["drafts"])
     both = listed(ws, flags=["legacy", "stale"])["drafts"]
     assert {d["relative"] for d in both} == {".deliverables/old-job", ".scratch/loose.py",
@@ -167,7 +169,8 @@ def test_rich_summary_is_a_table_with_a_folded_legend(ws):
     text = drafts.render_rich(drafts.run({"action": "summary"}, root=ws, today=TODAY))
     assert "| Group | Area | Drafts | Size | Stale |" in text
     assert "| Acme | Projects | 5 |" in text and "| Budget | Personal |" in text and "| (root) | root |" in text
-    assert text.count("<details>") == 1 and text.count("</details>") == 1
+    assert text.count("<details>") == 2 and text.count("</details>") == 2
+    assert "`/drafts Acme`" in text and "`/drafts root`" in text and "`/drafts stale`" in text
 
 
 def test_rich_list_folds_one_section_per_place(ws):
@@ -195,6 +198,27 @@ def test_rich_output_shrinks_sections_to_fit_the_message_cap(ws, monkeypatch):
         "diagnostics": [], "stale_days": 14}
     text = drafts.render_rich(many)
     assert "… 30 more" in text and len(text) <= 700      # 25 rows did not fit; 10 do
+
+
+def test_group_names_resolve_forgivingly(ws):
+    groups = drafts.known_groups(ws)
+    assert groups[0] == "(unassigned)" and "Projects/Acme" in groups and "Personal/Budget" in groups
+    assert not any(".registry" in g for g in groups)
+    assert drafts.resolve_group("ACME", groups) == ["Projects/Acme"]
+    assert drafts.resolve_group("ac", groups) == ["Projects/Acme"]            # prefix
+    assert drafts.resolve_group("udg", groups) == ["Personal/Budget"]         # substring
+    assert drafts.resolve_group("Personal/Budget", groups) == ["Personal/Budget"]
+    with pytest.raises(drafts.UnknownGroup) as err:
+        drafts.resolve_group("zzz", groups)
+    assert "Acme" in str(err.value)
+
+
+def test_unknown_group_offers_copyable_commands(ws, monkeypatch):
+    monkeypatch.setenv("WORKSPACES_ROOT", str(ws))
+    text = plugin.drafts_text("zzz")
+    assert text.startswith("No Group matches `zzz`") and "`/drafts Acme`" in text
+    assert plugin.drafts_text("ac").startswith("## Drafts · Acme")
+    assert "`/drafts Acme`" in plugin.drafts_text("")
 
 
 class Ctx:

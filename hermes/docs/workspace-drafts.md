@@ -47,6 +47,10 @@ Stdlib only, loaded by path, so the tool, the launcher and cron run the same cod
   overview table, then one folded `<details>` section per place (current or
   an earlier-layout area) with a Draft / Idle / Size table. Chats with
   Telegram rich messages (the Assistant's) render the tables and folds;
-  elsewhere they degrade to plain lines.
+  elsewhere they degrade to plain lines. Telegram has no argument
+  completion, so a Group name matches case-insensitively by name, then prefix,
+  then substring (`/drafts tech`), an unknown name answers with the choices,
+  and the summary folds a tap-to-copy `/drafts <Group>` list. `/drafts` and
+  `/activity` are in the Engineer and Assistant command menus.
 - Enabled per profile: plugin `workspace-drafts`, toolset `workspace_drafts`
   (never on `a2a`); registration is limited to Engineer and Assistant in code.

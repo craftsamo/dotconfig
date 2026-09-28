@@ -111,7 +111,8 @@ def _areas(root):
     for name in LEGACY_ROOT:
         yield UNASSIGNED, "legacy", root / name
     for area in AREAS:
-        for group in sorted(p for p in _jobs(root / area) if p.is_dir() and not p.is_symlink()):
+        for group in sorted(p for p in _jobs(root / area)
+                            if p.is_dir() and not p.is_symlink() and not p.name.startswith(".")):
             yield f"{area}/{group.name}", "current", group / ".agent"
 
 
@@ -184,6 +185,40 @@ def _flags(args):
     return value
 
 
+class UnknownGroup(ValueError):
+    """No Group matches; carries the names a caller can offer instead."""
+
+    def __init__(self, needle, groups):
+        self.needle, self.groups = needle, groups
+        super().__init__(f"no Group matches {needle!r}; Groups: " + ", ".join(label(g) for g in groups))
+
+
+def label(group):
+    return "root" if group == UNASSIGNED else group.partition("/")[2]
+
+
+def known_groups(root=None):
+    """Every place a draft may sit, as Group keys: the root first, then each Group directory."""
+    root = Path(root) if root is not None else default_root()
+    return list(dict.fromkeys(g for g, _layout, _area in _areas(root)))
+
+
+def resolve_group(needle, groups):
+    """Group keys for a typed name, forgiving: exact name, then prefix, then substring,
+    all case-insensitive. ``root`` (or ``(unassigned)``) is the Workspace root."""
+    text = needle.strip().lower()
+    if text in ("root", UNASSIGNED):
+        return [UNASSIGNED]
+    names = {g: (g.lower(), label(g).lower()) for g in groups if g != UNASSIGNED}
+    for test in (lambda full, name: text in (full, name),
+                 lambda full, name: name.startswith(text),
+                 lambda full, name: text in name):
+        found = [g for g, (full, name) in names.items() if test(full, name)]
+        if found:
+            return found
+    raise UnknownGroup(needle, groups)
+
+
 def run(args, *, root=None, today=None):
     """Tool/CLI entry: summary or list. Every result states source, status and diagnostics."""
     action = _choice(args, "action", ACTIONS, "summary")
@@ -195,8 +230,8 @@ def run(args, *, root=None, today=None):
     wanted = _flags(args)
     drafts, diagnostics = scan(root, today=today, stale_days=stale_days)
     if group:
-        needle = group.strip().lower()
-        drafts = [d for d in drafts if needle in (d["group"].lower(), d["group"].split("/")[-1].lower())]
+        chosen = resolve_group(group, known_groups(root))
+        drafts = [d for d in drafts if d["group"] in chosen]
     if layout != "all":
         drafts = [d for d in drafts if d["layout"] == layout]
     if wanted:
@@ -327,8 +362,11 @@ def render_rich(result, *, title="Drafts", max_rows=SECTION_ROWS):
                   f"- stale: no file changed for {result['stale_days']}+ days",
                   "- earlier layout: scratch / deliverables / notes, still to be cleaned up",
                   "- misnamed: not `<YYYYMMDD>-<job>`",
-                  "- `/drafts <group>` or `/drafts stale|legacy|misnamed` for the drafts themselves",
-                  "", "</details>"]
+                  "- a Group name may be shortened: `/drafts tech`",
+                  "", "</details>", "",
+                  "<details><summary>Open (tap to copy)</summary>", ""]
+        lines += [f"`/drafts {label(g['group'])}`" for g in result["groups"]]
+        lines += ["`/drafts stale`", "`/drafts legacy`", "`/drafts misnamed`", "", "</details>"]
     else:
         drafts = result["drafts"]
         one_group = len({d["group"] for d in drafts}) <= 1
