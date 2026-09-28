@@ -25,7 +25,6 @@ def _load(name, path):
 
 drafts = _load("hermes_workspace_drafts", Path(__file__).resolve().parent / "drafts.py")
 PROFILES = {"engineer", "assistant"}
-COMMAND_ROWS = 15
 
 DESCRIPTION = (
     "List drafts under ~/Workspaces (read-only; names, sizes, file counts and modification times only). "
@@ -72,16 +71,17 @@ def drafts_text(raw):
     """/drafts [stale|misnamed|legacy|<group>]: summary, or a list narrowed by flag or Group."""
     word = (raw or "").strip()
     if not word:
-        args = {"action": "summary"}
+        args, title = {"action": "summary"}, "Drafts"
     elif word.lower() in drafts.FLAGS:
-        args = {"action": "list", "flags": [word.lower()]}
+        args, title = {"action": "list", "flags": [word.lower()]}, f"Drafts · {word.lower()}"
     else:
-        args = {"action": "list", "group": word}
+        args, title = {"action": "list", "group": word}, f"Drafts · {word}"
     try:
-        text = drafts.render_chat(drafts.run(args), max_rows=COMMAND_ROWS)
+        # Plain Markdown, not a code block: chats with rich messages render the
+        # tables and fold each <details> section.
+        return drafts.render_rich(drafts.run(args), title=title)
     except Exception as exc:
         return f"drafts unavailable: {exc}"
-    return "```\n" + text + "\n```"
 
 
 async def drafts_command(raw):
