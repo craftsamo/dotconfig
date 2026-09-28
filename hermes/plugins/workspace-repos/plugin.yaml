@@ -1,0 +1,4 @@
+name: workspace-repos
+version: 1.0.0
+description: Read-only local Git state and open GitHub pull requests and issues of the repositories in ~/Workspaces, and the /repos command.
+kind: standalone
