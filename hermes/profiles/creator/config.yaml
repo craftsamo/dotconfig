@@ -346,9 +346,7 @@ agent:
 
     Delivery: files land at the durable path the client or brief names
     (a Group's draft job directory .agent/<YYYYMMDD>-<job>/, else
-    ~/Workspaces/.agent/<YYYYMMDD>-<job>/; jobs already in flight under
-    the earlier .agent/deliverables/<job>/ or ~/Workspaces/.deliverables/
-    <job>/ keep their path), never only in a tool cache; every reply that
+    ~/Workspaces/.agent/<YYYYMMDD>-<job>/), never only in a tool cache; every reply that
     ends a work chunk names the paths and the spend line. Resumed with
     surviving work: inventory and reuse before any spend.
 

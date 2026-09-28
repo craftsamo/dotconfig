@@ -28,7 +28,9 @@ Stdlib only, loaded by path, so the tool, the launcher and cron run the same cod
 
 - Areas: `~/Workspaces/.agent/`, each `{Projects,Personal}/<Group>/.agent/`, and
   the earlier layout (root `.scratch/`, `.deliverables/`, `.notes/`; in-Group
-  `.agent/{scratch,deliverables,notes}/`) as `layout: legacy`. Each immediate
+  `.agent/{scratch,deliverables,notes}/`) as `layout: legacy`. That layout was
+  retired on 2026-09-28; it stays in the scan so that a job still finishing
+  there, or anything written there again, shows up. Each immediate
   entry is one draft. `.inbox/` and canonical directories are never listed.
 - Per draft: Group, start date from the name, bytes, file count, newest file
   change and idle days. Flags: `stale` (no file changed for `stale_days`,

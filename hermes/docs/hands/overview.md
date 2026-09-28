@@ -202,9 +202,7 @@ form:
 The selected Group must already exist. Its draft job directory
 `.agent/<YYYYMMDD>-<job>/` and job-owned descendants (such as `video-plan` or
 `music-plan`) are accepted by all three hands; so are the Group root itself
-and the unassigned `~/Workspaces/.agent/<YYYYMMDD>-<job>/`. Jobs already in
-flight under `.agent/deliverables/<job>/` or `~/Workspaces/.deliverables/<job>/`
-keep their path. Everything under `.agent/` is a draft; the Workspaces rules
+and the unassigned `~/Workspaces/.agent/<YYYYMMDD>-<job>/`. Everything under `.agent/` is a draft; the Workspaces rules
 own promotion and cleanup.
 A job directory may be created beneath an existing parent, subject to the
 leaf's exclusive-output checks. Never create a new Group or relocate a

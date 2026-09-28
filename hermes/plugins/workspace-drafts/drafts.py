@@ -3,7 +3,7 @@
     ws-drafts                       per-Group summary (counts, size, flags)
     ws-drafts list                  every draft, most idle first
     ws-drafts list --group Acme --stale
-    ws-drafts list --legacy         only the earlier layout still to clean up
+    ws-drafts list --legacy         anything written to the retired layout
     ... --json                      the raw result instead of the table
 
 The layout rule lives in ~/Workspaces/AGENTS.md "Drafts": a job is one
@@ -360,7 +360,7 @@ def render_rich(result, *, title="Drafts", max_rows=SECTION_ROWS):
                   f"{human_size(g['bytes'])} | {g['stale']} |" for g in result["groups"]]
         lines += ["", "<details><summary>How to read</summary>", "",
                   f"- stale: no file changed for {result['stale_days']}+ days",
-                  "- earlier layout: scratch / deliverables / notes, still to be cleaned up",
+                  "- earlier layout: scratch / deliverables / notes, retired; nothing new starts there",
                   "- misnamed: not `<YYYYMMDD>-<job>`",
                   "- a Group name may be shortened: `/drafts tech`",
                   "", "</details>", "",

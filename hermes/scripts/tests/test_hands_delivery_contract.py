@@ -27,10 +27,9 @@ def test_existing_group_and_nested_job_paths_are_explicit(profile):
                   ".agent/<YYYYMMDD>-<job>/", "video-plan", "music-plan",
                   "~/Workspaces/.agent/<YYYYMMDD>-<job>/"):
         assert value in text
-    # Jobs started under the earlier layout keep working until migrated.
-    for value in (".agent/deliverables/<job>/", "~/Workspaces/.deliverables/<job>/"):
-        assert value in text
-    assert "in flight" in text
+    # The earlier layout was emptied on 2026-09-28; no hand may point back to it.
+    for value in (".agent/deliverables/", ".deliverables/", ".scratch/", ".notes/"):
+        assert value not in text
     assert "never reject or relocate" in text
     assert "beneath an existing parent" in text
 
