@@ -213,8 +213,8 @@ source of the client's experiences, results or testimonials.
 <Delivery>
 
 Write the complete artifact to the durable destination in the brief.
-Default to the owning Group's `.agent/deliverables/<job>/deliverable.md`,
-or `~/Workspaces/.deliverables/<job>/deliverable.md` for unassigned work.
+Default to the owning Group's `.agent/<YYYYMMDD>-<job>/deliverable.md`,
+or `~/Workspaces/.agent/<YYYYMMDD>-<job>/deliverable.md` for unassigned work.
 Do not overwrite source material without explicit authorization. A short
 consultation or analysis may be answered in the reply when its contract
 allows it; this does not waive file delivery for an actual draft unit.

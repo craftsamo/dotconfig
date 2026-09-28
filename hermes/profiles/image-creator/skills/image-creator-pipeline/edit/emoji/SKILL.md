@@ -22,7 +22,7 @@ metadata:
         required: true
         type: path
         label: "one image (png / webp / jpg / gif first frame), or a directory — a delivered <platform>/ dir re-platforms as a whole"
-        example: "~/Workspaces/Projects/Acme/.agent/deliverables/emoji/slack/"
+        example: "~/Workspaces/Projects/Acme/.agent/20260315-emoji/slack/"
       platform:
         required: true
         options: [slack, discord, telegram, telegram-emoji, line, generic]

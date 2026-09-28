@@ -23,7 +23,7 @@ metadata:
         required: true
         type: path
         label: "one mascot file, or a directory holding a concept round or a pack (every png / webp / jpg inside is measured)"
-        example: "~/Workspaces/Projects/Forge/.agent/deliverables/mascot/pack/"
+        example: "~/Workspaces/Projects/Forge/.agent/20260315-mascot/pack/"
       against:
         required: false
         type: image

@@ -225,7 +225,7 @@ measurements - that is a handoff like any other.
   infer (and said you inferred), or the open ones are in flight as one
   clarify / one `Q<n>:` block;
 - the `deliver:` path is decided: the brief's, else the owning Group's
-  `.agent/deliverables/<job>/`, else `~/Workspaces/.deliverables/<job>/`;
+  `.agent/<YYYYMMDD>-<job>/`, else `~/Workspaces/.agent/<YYYYMMDD>-<job>/`;
 - an actual production reference image, if required, has been copied under
   `deliver:` with its role and necessary permissions settled; research-only
   examples are not required production inputs or copied into a hands form;
