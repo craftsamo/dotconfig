@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import argparse
 import base64
-from datetime import date, datetime, time as dtime, timezone
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -30,7 +30,23 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
-from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+
+def _load_common():
+    # The shared contract lives with the session-history plugin; load it by path so
+    # this file stays runnable as a plain CLI (no package, no Hermes).
+    name = "hermes_session_history_common"
+    if name not in sys.modules:
+        spec = importlib.util.spec_from_file_location(
+            name, Path(__file__).resolve().parents[1] / "session-history" / "common.py")
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[name] = module
+        spec.loader.exec_module(module)
+    return sys.modules[name]
+
+
+common = _load_common()
+Unavailable = common.Unavailable
 
 
 ACTIONS = ("list", "get", "children", "usage")
@@ -40,7 +56,6 @@ SOURCES = ("auto", "api", "db")
 FIELDS = {"action", "session_id", "from", "to", "timezone", "directory", "kind", "agent", "model",
           "archived", "search", "include_title", "include_cost", "limit", "offset", "group_by", "source"}
 SESSION_ID = re.compile(r"ses_[A-Za-z0-9_-]{1,64}\Z")
-DATE = re.compile(r"\d{4}-\d{2}-\d{2}\Z")
 URL = re.compile(r"http://127\.0\.0\.1:(\d+)")
 DEFAULT_LIMIT = 50
 MAX_LIMIT = 200
@@ -61,10 +76,6 @@ PART_COLUMNS = {"session_id", "time_created", "data"}
 WAIT_TOOLS = ("question",)
 
 
-class Unavailable(Exception):
-    """A source cannot answer; auto mode may fall back and must disclose it."""
-
-
 class ApiNotFound(Unavailable):
     """The API has no such session. Auto mode confirms against the database, which
     also covers a server that scopes lookups to its own project."""
@@ -72,73 +83,6 @@ class ApiNotFound(Unavailable):
 
 # --------------------------------------------------------------------------
 # Request parsing
-
-
-def _local_zone():
-    """The system zone as an IANA zone when resolvable (DST-correct), else None."""
-    candidates = [os.environ.get("TZ", "").lstrip(":")]
-    try:
-        target = os.path.realpath("/etc/localtime")
-        if "/zoneinfo/" in target:
-            candidates.append(target.split("/zoneinfo/", 1)[1])
-    except OSError:
-        pass
-    for name in candidates:
-        if name:
-            try:
-                return ZoneInfo(name), name
-            except (ZoneInfoNotFoundError, ValueError):
-                continue
-    return None, "local"
-
-
-def _zone(name):
-    """Return (tzinfo or None for the process's local rules, label)."""
-    if name is None:
-        return _local_zone()
-    if not isinstance(name, str):
-        raise ValueError("timezone must be an IANA name such as Asia/Tokyo")
-    try:
-        return ZoneInfo(name), name
-    except (ZoneInfoNotFoundError, ValueError):
-        raise ValueError(f"Unknown timezone {name!r}") from None
-
-
-def _instant(value, tz, name):
-    if not isinstance(value, str):
-        raise ValueError(f"{name} must be YYYY-MM-DD or an ISO 8601 datetime")
-    try:
-        if DATE.fullmatch(value):
-            moment = datetime.combine(date.fromisoformat(value), dtime())
-        else:
-            moment = datetime.fromisoformat(value.replace("Z", "+00:00"))
-        if moment.tzinfo is None:
-            # tz None: naive astimezone() applies the local rules for that date.
-            moment = moment.replace(tzinfo=tz) if tz is not None else moment.astimezone()
-    except ValueError:
-        raise ValueError(f"{name} must be YYYY-MM-DD or an ISO 8601 datetime") from None
-    return int(moment.timestamp() * 1000)
-
-
-def _flag(args, key):
-    value = args.get(key, False)
-    if type(value) is not bool:
-        raise ValueError(f"{key} must be boolean")
-    return value
-
-
-def _int(args, key, default, low, high):
-    value = args.get(key, default)
-    if type(value) is not int or not low <= value <= high:
-        raise ValueError(f"{key} must be an integer in {low}..{high}")
-    return value
-
-
-def _text(args, key):
-    value = args.get(key)
-    if value is not None and (not isinstance(value, str) or not value.strip() or len(value) > 512):
-        raise ValueError(f"{key} must be a nonempty string")
-    return value
 
 
 def parse(args):
@@ -150,9 +94,10 @@ def parse(args):
     action = args.get("action")
     if action not in ACTIONS:
         raise ValueError("action must be one of " + ", ".join(ACTIONS))
-    tz, label = _zone(args.get("timezone"))
+    tz, label = common.zone(args.get("timezone"))
     q = {"action": action, "tz": tz, "timezone": label,
-         "include_title": _flag(args, "include_title"), "include_cost": _flag(args, "include_cost"),
+         "include_title": common.flag(args, "include_title"),
+         "include_cost": common.flag(args, "include_cost"),
          "source": args.get("source", "auto")}
     if q["source"] not in SOURCES:
         raise ValueError("source must be one of " + ", ".join(SOURCES))
@@ -167,43 +112,29 @@ def parse(args):
         return q
     if "session_id" in args:
         raise ValueError(f"{action} does not take session_id")
-    q["from"] = _instant(args["from"], tz, "from") if args.get("from") is not None else None
-    q["to"] = _instant(args["to"], tz, "to") if args.get("to") is not None else None
-    if action == "usage" and (q["from"] is None or q["to"] is None):
-        raise ValueError("usage requires both from and to")
-    if q["from"] is not None and q["to"] is not None and q["from"] >= q["to"]:
-        raise ValueError("from must be earlier than to")
-    directory = _text(args, "directory")
-    if directory is not None:
-        directory = os.path.normpath(os.path.expanduser(directory))
-        if not os.path.isabs(directory):
-            raise ValueError("directory must be an absolute path")
-    q["directory"] = directory
+    q["from"], q["to"] = common.window(args, tz, required="usage" if action == "usage" else None)
+    q["directory"] = common.directory(args)
     q["kind"] = args.get("kind", "root" if action == "list" else "all")
     if q["kind"] not in KINDS:
         raise ValueError("kind must be one of " + ", ".join(KINDS))
-    q["agent"] = _text(args, "agent")
-    q["model"] = _text(args, "model")
+    q["agent"] = common.text(args, "agent")
+    q["model"] = common.text(args, "model")
     # Archiving hides a session in the UI; it does not undo the work, so usage
     # counts archived sessions unless told otherwise.
     q["archived"] = args.get("archived", action == "usage")
     if type(q["archived"]) is not bool:
         raise ValueError("archived must be boolean")
     if action == "list":
-        q["search"] = _text(args, "search")
-        q["limit"] = _int(args, "limit", DEFAULT_LIMIT, 1, MAX_LIMIT)
-        q["offset"] = _int(args, "offset", 0, 0, 10**9)
+        q["search"] = common.text(args, "search")
+        q["limit"] = common.integer(args, "limit", DEFAULT_LIMIT, 1, MAX_LIMIT)
+        q["offset"] = common.integer(args, "offset", 0, 0, 10**9)
         if "group_by" in args:
             raise ValueError("group_by is only accepted for usage")
     else:
         for key in ("search", "limit", "offset"):
             if key in args:
                 raise ValueError(f"{key} is only accepted for list")
-        group_by = args.get("group_by", ["model"])
-        if (not isinstance(group_by, list) or not group_by or len(set(group_by)) != len(group_by)
-                or any(g not in GROUPS for g in group_by)):
-            raise ValueError("group_by must be a nonempty list drawn from " + ", ".join(GROUPS))
-        q["group_by"] = group_by
+        q["group_by"] = common.group_by(args, GROUPS, ["model"])
         if q["source"] == "api":
             raise ValueError("usage needs message-level timing and tokens, which the API only returns "
                              "with message content; use source auto or db")
@@ -254,10 +185,7 @@ def _from_api(item):
                     "cache_write": cache.get("write")}, changes)
 
 
-def _iso(ms):
-    if ms is None:
-        return None
-    return datetime.fromtimestamp(ms / 1000, timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+_iso = common.iso
 
 
 def _present(rec, q):
@@ -273,10 +201,7 @@ def _present(rec, q):
     return out
 
 
-def _under(directory, prefix):
-    if not isinstance(directory, str):
-        return False
-    return directory == prefix or directory.startswith(prefix.rstrip("/") + "/")
+_under = common.under
 
 
 def _model_matches(name, wanted):
@@ -563,33 +488,8 @@ def _db_window_sessions(snap, q):
 # Usage: message-level tokens and activity intervals
 
 
-def _union_ms(intervals):
-    total, end = 0, None
-    for start, stop in sorted(intervals):
-        if end is None or start > end:
-            total += stop - start
-            end = stop
-        elif stop > end:
-            total += stop - end
-            end = stop
-    return total
-
-
-def _subtract(interval, waits):
-    """Split one step interval around the waits inside it; return (pieces, waited_ms)."""
-    begin, stop = interval
-    pieces, waited, cursor = [], 0, begin
-    for w_begin, w_end in waits:
-        if w_end <= cursor or w_begin >= stop:
-            continue
-        cut_begin, cut_end = max(w_begin, cursor), min(w_end, stop)
-        if cut_begin > cursor:
-            pieces.append((cursor, cut_begin))
-        waited += cut_end - cut_begin
-        cursor = cut_end
-    if cursor < stop:
-        pieces.append((cursor, stop))
-    return pieces, waited
+_union_ms = common.union_ms
+_subtract = common.subtract
 
 
 def _usage(snap, q):
@@ -636,7 +536,7 @@ def _usage(snap, q):
         anchor = max(created, lo)
         key = {"model": model, "agent": agent if isinstance(agent, str) else None,
                "directory": rec["directory"], "kind": "child" if rec["parent_id"] else "root",
-               "day": datetime.fromtimestamp(anchor / 1000, q["tz"]).date().isoformat()}
+               "day": common.local_day(anchor, q["tz"])}
         key = {g: key[g] for g in q["group_by"]}
         name = json.dumps(key, sort_keys=True)
         for b in (groups.setdefault(name, bucket(key)), totals):
@@ -678,12 +578,6 @@ def _usage(snap, q):
 
 # --------------------------------------------------------------------------
 # Dispatch
-
-
-def _window(q):
-    if q.get("from") is None and q.get("to") is None:
-        return None
-    return {"from": _iso(q["from"]), "to": _iso(q["to"]), "timezone": q["timezone"]}
 
 
 def _page(records, q):
@@ -734,12 +628,11 @@ def run(args, *, server_factory=ApiServer, path_factory=db_path):
     """Answer one request. Raises ValueError for caller mistakes, Unavailable for sources."""
     q = parse(args)
     diagnostics = []
-    envelope = {"action": q["action"], "window": _window(q)}
+    window = common.window_view(q.get("from"), q.get("to"), q["timezone"])
     if q["action"] != "usage" and q["source"] in ("auto", "api"):
         try:
             body, version = _via_api(q, server_factory)
-            return {**envelope, "source": "api", "opencode_version": version, "status": "complete",
-                    "diagnostics": diagnostics, **body}
+            return common.envelope(q["action"], window, "api", diagnostics, body, opencode_version=version)
         except Unavailable as exc:
             if q["source"] == "api":
                 if isinstance(exc, ApiNotFound):
@@ -749,9 +642,7 @@ def run(args, *, server_factory=ApiServer, path_factory=db_path):
                                 "effect": "answered from the local database"})
     body, notes = _via_db(q, path_factory)
     diagnostics.extend(notes)
-    partial = any(d.get("partial") for d in diagnostics)
-    return {**envelope, "source": "db", "opencode_version": None,
-            "status": "partial" if partial else "complete", "diagnostics": diagnostics, **body}
+    return common.envelope(q["action"], window, "db", diagnostics, body, opencode_version=None)
 
 
 def main(argv=None):
