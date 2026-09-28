@@ -1,3 +1,4 @@
+import asyncio
 import importlib.util
 import json
 import os
@@ -284,3 +285,61 @@ def test_intervals_for_cross_tool_union(root):
     assert sum(b - a for a, b in spans) == result["totals"]["active_union_seconds"] * 1000
     assert "intervals_ms" not in run(root, action="usage", **window())["totals"]
 
+
+# ------------------------------------------------------------------ plugin
+
+def _plugin():
+    pytest.importorskip("hermes_constants")
+    return _load("session_history_plugin_test", ROOT / "__init__.py")
+
+
+@pytest.mark.parametrize("profile", ["writer", "creator", "marketer", "default"])
+def test_registration_is_engineer_and_assistant_only(profile):
+    plugin = _plugin()
+
+    class Context:
+        profile_name = profile
+
+        def register_tool(self, **kwargs):
+            raise AssertionError("foreign profile gained hermes_history")
+
+        def register_command(self, *args, **kwargs):
+            raise AssertionError("foreign profile gained /activity")
+
+    plugin.register(Context())
+
+
+def test_tool_and_command(root, monkeypatch):
+    plugin = _plugin()
+    tools, commands = {}, {}
+
+    class Context:
+        profile_name = "engineer"
+
+        def register_tool(self, **kwargs):
+            tools[kwargs["name"]] = kwargs
+
+        def register_command(self, name, handler, **kwargs):
+            commands[name] = handler
+
+    plugin.register(Context())
+    tool = tools["hermes_history"]
+    assert tool["toolset"] == "session_history"
+    assert tool["schema"]["parameters"]["additionalProperties"] is False
+    assert set(tool["schema"]["parameters"]["properties"]) == hermes.FIELDS
+    monkeypatch.setenv("HERMES_ROOT", str(root))
+    result = json.loads(tool["handler"]({"action": "list", **window()}))
+    assert [s["id"] for s in result["sessions"]] == ["e2", "e1"]
+    assert "error" in json.loads(tool["handler"]({"action": "nope"}))
+
+    assert "Usage: /activity" in asyncio.run(commands["activity"]("yesterday"))
+    seen = {}
+
+    def fake_summary(args):
+        seen.update(args)
+        return {"action": "summary", "window": None, "status": "complete", "active_union_seconds": 60,
+                "tools": {}}
+
+    monkeypatch.setattr(plugin.cli, "summary", fake_summary)
+    text = asyncio.run(commands["activity"]("week"))
+    assert seen == {"days": 7} and text.startswith("```") and "Combined" in text

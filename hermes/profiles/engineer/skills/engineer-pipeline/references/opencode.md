@@ -84,6 +84,8 @@ time assistant steps ran with question waits removed (a permission-prompt wait
 still counts) — not human working time.
 Check `source` and `status`: a `partial` or database-fallback answer carries
 its reason in diagnostics; pass that limitation on rather than filling the gap.
+`hermes_history` is the same for Hermes' own sessions across every profile
+(profile, platform, lineage); `/activity` shows both tools' activity together.
 
 ## Results
 
