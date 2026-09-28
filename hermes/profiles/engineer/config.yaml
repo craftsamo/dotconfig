@@ -28,6 +28,7 @@ toolsets:
   - delegation
   - specialist
   - opencode
+  - session_history
 max_concurrent_sessions: null
 agent:
   system_prompt: |
@@ -767,6 +768,7 @@ platform_toolsets:
     - delegation
     - specialist
     - opencode
+    - session_history
     - no_mcp
   telegram:
     - terminal
@@ -781,6 +783,7 @@ platform_toolsets:
     - delegation
     - specialist
     - opencode
+    - session_history
     - no_mcp
   discord: []
   a2a:
@@ -799,6 +802,7 @@ plugins:
     - kanban-worker-mutation-guard
     - specialist-call
     - opencode
+    - session-history
 specialist_call:
   resident_targets: [marketer, researcher, writer, ui-review, ux-persona]
 opencode_cli:

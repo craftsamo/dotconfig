@@ -355,7 +355,11 @@ keeps user keys.
   `PATH`, preserving the secret shim. Behavior:
   [docs/profiles/engineer.md](docs/profiles/engineer.md) "OpenCode runtime".
   The same toolset carries the read-only `opencode_history`, which needs no
-  `opencode_cli` setting and also runs as a CLI (`plugins/opencode/history.py`).
+  `opencode_cli` setting ([docs/session-history.md](docs/session-history.md)).
+- **session-history** (`standalone`): `hermes_history` (toolset
+  `session_history`) and the `/activity` command for engineer and assistant;
+  also the code behind `bin/ai-history`. Behavior:
+  [docs/session-history.md](docs/session-history.md).
 - **ui-inspection** (`standalone`): `ui_capture` for ui-review / ux-persona.
 - **writing-inspection** (`standalone`): Writer's bounded `writing_inspect`.
 - **kanban-worker-mutation-guard** (`standalone`): stops dispatcher workers
