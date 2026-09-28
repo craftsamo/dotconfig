@@ -29,5 +29,6 @@ pointer such as `PROFILES.md "Broker shape"` resolves through this table.
 | [Audio hands (audio-creator)](./docs/hands/audio.md) | Speech family (Character voices and performance direction); SFX family (Local Stable Audio 3 Medium runtime); Music family; Mix family |
 | [Session history](./docs/session-history.md) | Shape; Activity, not work time; OpenCode reader; Hermes reader; Everyday use |
 | [Workspace drafts](./docs/workspace-drafts.md) | The rule it reads; Shape; What it reports; Everyday use |
+| [Workspace repos](./docs/workspace-repos.md) | What counts as a repository; Shape; What it reports; Everyday use |
 | [Models, authentication and secrets](./docs/models-auth.md) | Models and fallback chains (Fable and the Max weekly pool, `agent.*` does not inherit from the root profile); Authentication inheritance; Secrets layering |
 | [Gateway, tracking and status](./docs/operations.md) | Gateway as a persistent service; Tracking; Current state |
