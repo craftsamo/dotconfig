@@ -4,7 +4,7 @@
 #   ws-drafts                      per-Group summary (counts, size, stale/misnamed/legacy)
 #   ws-drafts list --stale         drafts nobody touched for 14+ days
 #   ws-drafts list --group Acme
-#   ws-drafts list --legacy        the earlier layout still to clean up
+#   ws-drafts list --legacy        anything written to the retired layout
 #   ws-drafts --help
 #
 # The code lives in the Hermes workspace-drafts plugin (hermes/plugins/
