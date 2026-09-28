@@ -189,7 +189,7 @@ topology validator passes.
 ```
 skill: generate-icon
 intent: new | revise <path of the previous delivery>
-deliver: ~/Workspaces/Projects/<Group>/.agent/deliverables/<job>/
+deliver: ~/Workspaces/Projects/<Group>/.agent/<YYYYMMDD>-<job>/
 budget: 4 variants + 1 corrective          # media calls or local speech takes
 form:
   what_for: Slack 通知 bot のアプリアイコン
@@ -199,10 +199,11 @@ form:
   note: 青系、角丸は控えめ
 ```
 
-The selected Group must already exist. Its `.agent/deliverables/<job>/`
-directory and job-owned descendants (such as `video-plan` or `music-plan`)
-are accepted by all three hands; the Group root itself and
-`~/Workspaces/.deliverables/<job>/` remain valid for existing callers.
+The selected Group must already exist. Its draft job directory
+`.agent/<YYYYMMDD>-<job>/` and job-owned descendants (such as `video-plan` or
+`music-plan`) are accepted by all three hands; so are the Group root itself
+and the unassigned `~/Workspaces/.agent/<YYYYMMDD>-<job>/`. Everything under `.agent/` is a draft; the Workspaces rules
+own promotion and cleanup.
 A job directory may be created beneath an existing parent, subject to the
 leaf's exclusive-output checks. Never create a new Group or relocate a
 valid Group-local job merely because it is below the Group root. This is
