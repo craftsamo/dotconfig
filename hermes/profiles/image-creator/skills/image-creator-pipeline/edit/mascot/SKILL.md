@@ -23,7 +23,7 @@ metadata:
         required: true
         type: path
         label: "one mascot image (png / webp / jpg), or a directory — a delivered concept/ or pack/ dir is edited as a whole"
-        example: "~/Workspaces/Projects/Forge/.agent/deliverables/mascot/pack/"
+        example: "~/Workspaces/Projects/Forge/.agent/20260315-mascot/pack/"
       background:
         required: false
         options: [transparent, chromakey]

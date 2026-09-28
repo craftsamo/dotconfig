@@ -115,9 +115,9 @@ used, `must_keep`/`timing` omitted since neither is needed here:
   "target_lufs": -16,
   "true_peak_dbtp": -1,
   "sources": [
-    {"id": "vo-toggle", "path": "/Users/agent/Workspaces/.deliverables/job-42/speech/vo_toggle.wav", "role": "speech", "words": "/Users/agent/Workspaces/.deliverables/job-42/speech/vo_toggle.words.json"},
-    {"id": "bed", "path": "/Users/agent/Workspaces/.deliverables/job-42/music/bed_warm.wav", "role": "music"},
-    {"id": "tick", "path": "/Users/agent/Workspaces/.deliverables/job-42/sfx/ui_tick.wav", "role": "sfx"}
+    {"id": "vo-toggle", "path": "/Users/agent/Workspaces/.agent/20260315-job-42/speech/vo_toggle.wav", "role": "speech", "words": "/Users/agent/Workspaces/.agent/20260315-job-42/speech/vo_toggle.words.json"},
+    {"id": "bed", "path": "/Users/agent/Workspaces/.agent/20260315-job-42/music/bed_warm.wav", "role": "music"},
+    {"id": "tick", "path": "/Users/agent/Workspaces/.agent/20260315-job-42/sfx/ui_tick.wav", "role": "sfx"}
   ],
   "cues": [
     {"id": "vo", "source": "vo-toggle", "start": 1, "source_start": 0, "duration": 8,
