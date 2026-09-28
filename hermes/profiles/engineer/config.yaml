@@ -655,7 +655,7 @@ platforms:
     extra:
       command_menu:
         priority_mode: replace
-        max_commands: 28
+        max_commands: 30
         priority:
           - help
           - new
@@ -672,6 +672,8 @@ platforms:
           - steer
           - btw
           - usage
+          - activity
+          - drafts
           - topic
           - save
           - retry
