@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# ws-repos — the repositories under ~/Workspaces (<Area>/<Group>/github/<repo>).
+#
+#   ws-repos                       per-repo local state and open PR/issue counts
+#   ws-repos --no-github           local Git state only (no network)
+#   ws-repos prs                   open pull requests of writable repos
+#   ws-repos issues --group tech   open issues of one Group
+#   ws-repos --help
+#
+# The code lives in the Hermes workspace-repos plugin (hermes/plugins/
+# workspace-repos/repos.py). Read-only: nothing is fetched, committed or pushed.
+# Override: WS_REPOS_CLI, WORKSPACES_ROOT.
+set -euo pipefail
+
+cli="${WS_REPOS_CLI:-$HOME/.config/hermes/plugins/workspace-repos/repos.py}"
+if [[ ! -f $cli ]]; then
+  echo "ws-repos: cannot find $cli (set WS_REPOS_CLI)" >&2
+  exit 127
+fi
+exec python3 "$cli" "$@"

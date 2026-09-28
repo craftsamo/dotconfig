@@ -364,6 +364,10 @@ keeps user keys.
   `workspace_drafts`) and the `/drafts` command for engineer and assistant;
   also the code behind `bin/ws-drafts`. Behavior:
   [docs/workspace-drafts.md](docs/workspace-drafts.md).
+- **workspace-repos** (`standalone`): read-only `workspace_repos` (toolset
+  `workspace_repos`) and the `/repos` command for engineer and assistant;
+  also the code behind `bin/ws-repos`. Behavior:
+  [docs/workspace-repos.md](docs/workspace-repos.md).
 - **ui-inspection** (`standalone`): `ui_capture` for ui-review / ux-persona.
 - **writing-inspection** (`standalone`): Writer's bounded `writing_inspect`.
 - **kanban-worker-mutation-guard** (`standalone`): stops dispatcher workers
