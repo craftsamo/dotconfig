@@ -34,11 +34,11 @@ prose and fall to a second Claude model before touching the OpenAI pool;
   the tightest sub-cap.
 - **The Creator family leads on Opus 5.5 (2026-09-23).** A blind A/B on one
   launch-video brief (isolated homes, model pinned, fallback off; evidence in
-  `~/Workspaces/.deliverables/creator-ab-2026-09/VERDICT.md`) scored every
-  Sonnet 5 run fidelity 1/5 whether it ran the full pipeline or a bare single
-  agent, while Opus 5.5 reached 3-4/5 on both — the model, not the pipeline,
-  was the quality ceiling. All four take Fable 5.1 as T2 like the other
-  Opus-led profiles, then `openai-codex` / GPT-6 Astra, and keep
+  `~/Workspaces/Projects/Acme/docs/hermes-studies/creator-ab-2026-09/VERDICT.md`)
+  scored every Sonnet 5 run fidelity 1/5 whether it ran the full pipeline or a
+  bare single agent, while Opus 5.5 reached 3-4/5 on both — the model, not the
+  pipeline, was the quality ceiling. All four take Fable 5.1 as T2 like the
+  other Opus-led profiles, then `openai-codex` / GPT-6 Astra, and keep
   `openrouter` / `minimax/minimax-m3` as the tail, so a hand still inherits
   `creator`'s vision fallback for eyeballing generated assets. The same study
   measured 500-970 `vision_analyze` calls and 20-39M input tokens per video
