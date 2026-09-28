@@ -30,6 +30,7 @@ toolsets:
   - opencode
   - session_history
   - workspace_drafts
+  - workspace_repos
 max_concurrent_sessions: null
 agent:
   system_prompt: |
@@ -655,7 +656,7 @@ platforms:
     extra:
       command_menu:
         priority_mode: replace
-        max_commands: 30
+        max_commands: 31
         priority:
           - help
           - new
@@ -674,6 +675,7 @@ platforms:
           - usage
           - activity
           - drafts
+          - repos
           - topic
           - save
           - retry
@@ -773,6 +775,7 @@ platform_toolsets:
     - opencode
     - session_history
     - workspace_drafts
+    - workspace_repos
     - no_mcp
   telegram:
     - terminal
@@ -789,6 +792,7 @@ platform_toolsets:
     - opencode
     - session_history
     - workspace_drafts
+    - workspace_repos
     - no_mcp
   discord: []
   a2a:
@@ -809,6 +813,7 @@ plugins:
     - opencode
     - session-history
     - workspace-drafts
+    - workspace-repos
 specialist_call:
   resident_targets: [marketer, researcher, writer, ui-review, ux-persona]
 opencode_cli:
