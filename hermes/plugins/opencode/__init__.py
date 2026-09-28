@@ -31,6 +31,16 @@ if _name not in sys.modules:
     _spec.loader.exec_module(_module)
 dispatch = sys.modules[_name]
 
+# Read-only session inventory. A stdlib-only sibling so cron scripts can run the
+# same code as a CLI; it never touches the execution registry above.
+_name = "hermes_opencode_history"
+if _name not in sys.modules:
+    _spec = importlib.util.spec_from_file_location(_name, Path(__file__).resolve().parent / "history.py")
+    _module = importlib.util.module_from_spec(_spec)
+    sys.modules[_name] = _module
+    _spec.loader.exec_module(_module)
+inventory = sys.modules[_name]
+
 AGENTS = {"plan", "build", "review", "debug"}
 # Hermes-facing role -> installed OpenCode agent. plan/build/review run on the
 # hidden non-interactive primaries in ~/.config/opencode/agent/hermes-*.md
@@ -659,6 +669,32 @@ def opencode_session(args, **kwargs):
         return json.dumps({"error": str(exc)})
 
 
+def opencode_history(args, **kwargs):
+    try:
+        # Same caller gate as execution (no inbound A2A), but no registry, grant
+        # or opencode_cli.enabled: reading history launches no agent.
+        _scope()
+        return json.dumps(inventory.run(args), ensure_ascii=False)
+    except Exception as exc:
+        return json.dumps({"error": str(exc)})
+
+
+HISTORY_DESCRIPTION = (
+    "Read OpenCode session history across all projects (read-only; launches no agent). "
+    "list: sessions overlapping [from, to) (created before to, last updated at or after from), newest first, "
+    "paged by limit/offset; kind defaults to root. get / children: one session or its subagent sessions. "
+    "usage: message-level tokens and activity for [from, to) grouped by group_by (default model); kind "
+    "defaults to all. active_seconds = time assistant steps were running (model output plus tool execution), "
+    "clipped to the window, minus question-tool waits; active_union_seconds = the same with parallel "
+    "sessions' overlap removed; question_wait_seconds = time steps sat waiting on a person's answer. "
+    "A tool held on a permission prompt still counts as active. None of these measure human working "
+    "time. usage includes archived sessions unless archived is false. Tokens count steps started in the "
+    "window; day groups by "
+    "step start in timezone. Dates are YYYY-MM-DD at local midnight of timezone (default system). "
+    "Titles and costs are returned only when include_title / include_cost is true; message content never. "
+    "Every result states its source (api or db), status (complete or partial) and diagnostics.")
+
+
 def register(ctx):
     if ctx.profile_name not in PROFILES:
         return
@@ -696,6 +732,25 @@ def register(ctx):
         }, ["action"], "Inspect, wait for, or request stopping your OpenCode run. wait blocks until the run leaves "
          "active/uncertain state, spending no turns. Stop never rolls back effects. "
          "Reconcile inactive uncertain work only after observing its process, Git and remote effects."),
+        ("opencode_history", opencode_history, {
+            "action": {"type": "string", "enum": list(inventory.ACTIONS)},
+            "session_id": {"type": "string", "description": "get / children only"},
+            "from": {"type": "string", "description": "YYYY-MM-DD or ISO 8601; required for usage"},
+            "to": {"type": "string", "description": "Exclusive end; YYYY-MM-DD or ISO 8601; required for usage"},
+            "timezone": {"type": "string", "description": "IANA name for dates and day groups"},
+            "directory": {"type": "string", "description": "Absolute path; matches it and everything below"},
+            "kind": {"type": "string", "enum": list(inventory.KINDS)},
+            "agent": {"type": "string"}, "model": {"type": "string", "description": "provider/model or model"},
+            "archived": {"type": "boolean", "description": "Include archived sessions"},
+            "search": {"type": "string", "description": "list only: title substring"},
+            "include_title": {"type": "boolean"}, "include_cost": {"type": "boolean"},
+            "limit": {"type": "integer", "description": f"list only: 1..{inventory.MAX_LIMIT}"},
+            "offset": {"type": "integer", "description": "list only"},
+            "group_by": {"type": "array", "items": {"type": "string", "enum": list(inventory.GROUPS)},
+                         "description": "usage only"},
+            "source": {"type": "string", "enum": list(inventory.SOURCES),
+                       "description": "auto (API, disclosed database fallback), api, or db"},
+        }, ["action"], HISTORY_DESCRIPTION),
     ):
         ctx.register_tool(name=name, toolset="opencode", handler=scoped(handler), description=description,
                           schema={"name": name, "description": description, "parameters": {
