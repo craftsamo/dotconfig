@@ -193,6 +193,17 @@ def subtract(interval, waits):
     return pieces, waited
 
 
+def merged(intervals):
+    """Sorted, non-overlapping intervals; the compact form handed to a cross-tool union."""
+    out = []
+    for start, stop in sorted(intervals):
+        if out and start <= out[-1][1]:
+            out[-1][1] = max(out[-1][1], stop)
+        else:
+            out.append([start, stop])
+    return out
+
+
 def clip(begin, stop, lo, hi):
     """The part of [begin, stop) inside [lo, hi), or None."""
     begin, stop = max(begin, lo), min(stop, hi)
