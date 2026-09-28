@@ -5,6 +5,8 @@
 #   ws-repos --no-github           local Git state only (no network)
 #   ws-repos prs                   open pull requests of writable repos
 #   ws-repos issues --group tech   open issues of one Group
+#   ws-repos commits --period week your commits of the last 7 days
+#   ws-repos prs --period month    PRs updated in 30 days, merged and closed too
 #   ws-repos --help
 #
 # The code lives in the Hermes workspace-repos plugin (hermes/plugins/

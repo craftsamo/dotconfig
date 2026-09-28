@@ -37,6 +37,17 @@ launcher and cron run the same code.
   repository you cannot push to (an upstream clone), whose PRs and issues are
   neither counted nor listed. A GitHub repository counts once however many
   local clones point at it.
+- A period — `today`, `week` (7 days), `month` (30 days) or N days, counted in
+  local calendar days like `/activity` — turns `prs` and `issues` into every
+  item updated in it, merged and closed included (up to 50 per repository,
+  disclosed as `partial` beyond), and drives `commits`: your commits (author
+  equal to the repo's Git `user.name` or `user.email`, bots and merges
+  excluded) on local and remote-tracking branches, newest first, as of the
+  last fetch and without network. A commit reached from two clones of one
+  GitHub repository counts once; a pushed commit links to GitHub.
+- Items are fetched only for repositories you can write to, four per query in
+  parallel, after one query for the counts: a single query for every item
+  timed out on GitHub.
 - The repos needing attention are those with any flag except `behind`,
   `detached` and `read-only`.
 - When `gh` fails (not logged in, offline), the local state is still returned
@@ -48,16 +59,19 @@ read here; the board has its own tools (`github_project_*`).
 
 ## Everyday use
 
-- `ws-repos [--group G] [--no-github] [--json]`, `ws-repos prs|issues
-  [--group G]`.
-- `/repos [prs|issues] [<group>]` in Engineer and Assistant sessions (Telegram
-  included) answers without a model turn as plain Markdown, like `/drafts`: a
-  per-Group table (one Group: per repo), the repos needing attention folded,
-  and for `prs` / `issues` one folded section per repository with linked
-  items. A Group name matches case-insensitively by name, then prefix, then
-  substring (`/repos prs tech`); an unknown name answers with the choices, and
-  every answer folds tap-to-copy next commands. `pr`, `pulls` and
-  `pullrequests` are accepted for `prs`. `/repos` is in the Engineer and
+- `ws-repos [--group G] [--no-github] [--json]`, `ws-repos prs|issues|commits
+  [--period today|week|month|N] [--group G]`.
+- `/repos [prs|issues|commits] [today|week|month|N] [<group>]`, words in any
+  order (`/repos commits week tech`); `commits` alone means today, and a
+  period without `commits`, `prs` or `issues` answers with those three. In
+  Engineer and Assistant sessions (Telegram included) answers without a model
+  turn as plain Markdown, like `/drafts`: a per-Group table (one Group: per
+  repo), the repos needing attention folded, and for `prs` / `issues` /
+  `commits` one folded section per repository with linked items. A Group name
+  matches case-insensitively by name, then prefix, then substring (`/repos prs
+  tech`); an unknown name answers with the choices, and every answer folds
+  tap-to-copy next commands. `pr`, `pulls` and `pullrequests` are accepted for
+  `prs`, `commit` and `log` for `commits`. `/repos` is in the Engineer and
   Assistant command menus.
 - Enabled per profile: plugin `workspace-repos`, toolset `workspace_repos`
   (never on `a2a`); registration is limited to Engineer and Assistant in code.

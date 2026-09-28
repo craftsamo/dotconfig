@@ -2,9 +2,11 @@ import asyncio
 from datetime import datetime, timezone
 import importlib.util
 import json
+import os
 import re
 from pathlib import Path
 import subprocess
+import time
 
 import pytest
 
@@ -21,12 +23,16 @@ def _load(name, path):
 
 repos = _load("workspace_repos_test", ROOT / "repos.py")
 plugin = _load("workspace_repos_plugin_test", ROOT / "__init__.py")
-NOW = datetime(2026, 9, 28, tzinfo=timezone.utc)
+NOW = datetime(2026, 9, 28, 12, tzinfo=timezone.utc)
+OLD = "2026-09-20T10:00:00+00:00"
 
 
-def git(cwd, *args):
+def git(cwd, *args, date=None):
+    env = None
+    if date:
+        env = {**os.environ, "GIT_AUTHOR_DATE": date, "GIT_COMMITTER_DATE": date}
     subprocess.run(["git", "-c", "commit.gpgsign=false", "-c", "core.hooksPath=/dev/null",
-                    "-c", "init.defaultBranch=main", *args], cwd=cwd, check=True, capture_output=True)
+                    "-c", "init.defaultBranch=main", *args], cwd=cwd, check=True, capture_output=True, env=env)
 
 
 def clone(tmp, name, remote_url=None):
@@ -35,9 +41,11 @@ def clone(tmp, name, remote_url=None):
     git(tmp, "init", "--bare", "-q", str(bare))
     work = tmp / "ghq" / name
     git(tmp, "clone", "-q", str(bare), str(work))
+    git(work, "config", "user.name", "t")
+    git(work, "config", "user.email", "t@x")
     (work / "README.md").write_text("x")
     git(work, "add", ".")
-    git(work, "commit", "-q", "-m", "init")
+    git(work, "commit", "-q", "-m", "init", date=OLD)
     git(work, "push", "-q", "-u", "origin", "HEAD:main")
     if remote_url:
         git(work, "remote", "set-url", "origin", remote_url)
@@ -46,6 +54,8 @@ def clone(tmp, name, remote_url=None):
 
 @pytest.fixture
 def ws(tmp_path, monkeypatch):
+    monkeypatch.setenv("TZ", "UTC")
+    time.tzset()
     for key, value in {"GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@x", "GIT_COMMITTER_NAME": "t",
                        "GIT_COMMITTER_EMAIL": "t@x", "GIT_CONFIG_GLOBAL": "/dev/null"}.items():
         monkeypatch.setenv(key, value)
@@ -61,8 +71,17 @@ def ws(tmp_path, monkeypatch):
     git(busy, "switch", "-q", "-c", "feature")
     (busy / "f.txt").write_text("f")
     git(busy, "add", "f.txt")
-    git(busy, "commit", "-q", "-m", "local only")               # unpushed, no upstream
+    git(busy, "commit", "-q", "-m", "local only", date="2026-09-28T08:00:00+00:00")  # unpushed, no upstream
     git(busy, "worktree", "add", "-q", str(tmp_path / "wt"), "main")
+    (clean / "o.txt").write_text("o")
+    git(clean, "add", "o.txt")
+    git(clean, "commit", "-q", "-m", "by someone else", "--author", "Other <o@x>", date="2026-09-27T09:00:00+00:00")
+    (clean / "b.txt").write_text("b")
+    git(clean, "add", "b.txt")
+    git(clean, "commit", "-q", "-m", "bump", "--author", "dependabot[bot] <b@x>", date="2026-09-27T09:00:00+00:00")
+    git(clean, "commit", "-q", "--allow-empty", "-m", "mine, pushed", date="2026-09-25T09:00:00+00:00")
+    git(clean, "push", "-q", str(tmp_path / "remotes" / "site.git"), "HEAD:main")
+    git(clean, "update-ref", "refs/remotes/origin/main", "HEAD")      # as a fetch would
     twin = clone(tmp_path, "twin", "git@github.com:acme/site.git")   # same origin as site
     upstream = clone(tmp_path, "tool", "https://github.com/someone/tool.git")
     (acme / "site").symlink_to(clean)
@@ -74,7 +93,8 @@ def ws(tmp_path, monkeypatch):
     (budget / "tool").symlink_to(upstream)
     (budget / "notes").mkdir()                                  # a plain directory, not Git
     (root / "Projects" / ".registry").mkdir()                   # hidden, not a Group
-    return root
+    yield root
+    time.tzset()
 
 
 def node(slug, prs=0, issues=0, permission="ADMIN", items=None):
@@ -88,6 +108,8 @@ PR = {"number": 7, "title": "Add | pipe <b>", "url": "https://github.com/acme/ap
       "headRefName": "feature", "author": {"login": "someone"},
       "reviewRequests": {"nodes": [{"requestedReviewer": {"login": "me"}}]},
       "commits": {"nodes": [{"commit": {"statusCheckRollup": {"state": "FAILURE"}}}]}}
+MERGED = {**PR, "number": 8, "state": "MERGED", "updatedAt": "2026-09-24T00:00:00Z", "author": {"login": "me"}}
+OLD_MERGED = {**PR, "number": 2, "state": "MERGED", "updatedAt": "2026-08-01T00:00:00Z"}
 ISSUE = {"number": 3, "title": "Bug", "url": "https://github.com/acme/app/issues/3",
          "createdAt": "2026-09-01T00:00:00Z", "updatedAt": "2026-09-27T00:00:00Z", "author": {"login": "x"},
          "assignees": {"nodes": [{"login": "me"}]}, "labels": {"nodes": [{"name": "bug"}]},
@@ -100,11 +122,12 @@ def fake_gh(queries):
         queries.append(query)
         detail = "items:" in query
         kind = PR if "items: pullRequests" in query else ISSUE
+        extra = [OLD_MERGED, MERGED] if "MERGED" in query else []
         data = {"viewer": {"login": "me"}}
         for alias, owner, name in re.findall(r'(r\d+): repository\(owner: "([^"]+)", name: "([^"]+)"\)', query):
             slug = f"{owner}/{name}"
             if slug == "acme/app":
-                items = [kind] if detail else None
+                items = ([kind] + (extra if kind is PR else [])) if detail else None
                 data[alias] = node(slug, prs=1, issues=4, items=items)
             elif slug == "acme/site":
                 data[alias] = node(slug, prs=2, issues=0, items=[] if detail else None)
@@ -161,6 +184,39 @@ def test_prs_and_issues_list_only_writable_repos(ws):
     assert repos.pr_state(prs[0]) == "CI failing, your review"
     issues = repos.run({"action": "issues", "group": "acme"}, root=ws, runner=fake_gh([]), now=NOW)["issues"]
     assert issues[0]["assigned_to_you"] and issues[0]["labels"] == ["bug"]
+
+
+def test_commits_are_yours_in_the_period_without_network(ws):
+    def no_network(query):
+        raise AssertionError("commits must not query GitHub")
+    week = repos.run({"action": "commits", "days": 7}, root=ws, runner=no_network, now=NOW)
+    assert week["source"] == "git" and week["since"] == "2026-09-22T00:00:00+00:00"
+    rows = [(c["repo"], c["subject"], c["pushed"], c["branch"]) for c in week["commits"]]
+    # newest first; the other author and the bot are not yours; twin's copy of site counts once
+    assert rows == [("Acme/app", "local only", False, "feature"), ("Acme/site", "mine, pushed", True, "main")]
+    assert week["commits"][0]["url"] is None
+    assert week["commits"][1]["url"].startswith("https://github.com/acme/site/commit/")
+    today = repos.run({"action": "commits"}, root=ws, now=NOW)
+    assert today["days"] == 1 and [c["subject"] for c in today["commits"]] == ["local only"]
+    month = repos.run({"action": "commits", "days": 30}, root=ws, now=NOW)
+    assert sum(c["subject"] == "init" for c in month["commits"]) == 3     # app, site (= twin), tool
+    text = repos.render_rich(week, title="Commits · week")
+    assert "**2** commits in **2** repos · since 09-22 (week) · unpushed **1**" in text
+    assert "(unpushed)" in text and "`/repos commits week`" in text
+    with pytest.raises(ValueError):
+        repos.run({"action": "summary", "days": 7}, root=ws)
+
+
+def test_prs_in_a_period_include_merged_and_drop_older(ws):
+    queries = []
+    result = repos.run({"action": "prs", "days": 7}, root=ws, runner=fake_gh(queries), now=NOW)
+    assert len(queries) == 2 and "someone/tool" not in queries[1]    # items only for writable repos
+    assert "states: [OPEN, MERGED, CLOSED]" in queries[1]
+    assert [(p["number"], repos.pr_state(p)) for p in result["prs"]] == [(7, "CI failing, your review"), (8, "merged")]
+    text = repos.render_rich(result, title="PRs")
+    assert "updated since 09-22 (week)" in text and "merged **1**" in text and "| Repo | Updated |" in text
+    issues = repos.run({"action": "issues", "days": 7}, root=ws, runner=fake_gh(queries), now=NOW)
+    assert 'filterBy: {since: "2026-09-22T00:00:00Z"}' in queries[-1] and issues["issues"][0]["number"] == 3
 
 
 def test_github_failure_keeps_local_state(ws):
@@ -226,7 +282,10 @@ def test_rich_output_is_tables_folds_and_commands(ws):
 def test_command_parses_subcommand_and_group(ws, monkeypatch):
     monkeypatch.setenv("WORKSPACES_ROOT", str(ws))
     monkeypatch.setattr(repos, "_gh", fake_gh([]))
-    assert plugin.parse("pulls tech") == ("prs", "tech") and plugin.parse("Acme") == ("summary", "Acme")
+    assert plugin.parse("pulls tech") == ("prs", None, "tech") and plugin.parse("Acme") == ("summary", None, "Acme")
+    assert plugin.parse("week commits acme") == ("commits", 7, "acme") and plugin.parse("prs 14") == ("prs", 14, None)
+    assert plugin.repos_text("month").startswith("A period goes with commits")
+    assert plugin.repos_text("commits week acme").startswith("## Commits · week · Acme")
     assert plugin.repos_text("prs acme").startswith("## Pull requests · Acme")
     assert "`/repos issues Acme`" in plugin.repos_text("acme")
     unknown = plugin.repos_text("issues zzz")
@@ -257,4 +316,4 @@ def test_registers_only_for_engineer_and_assistant():
         assert len(ctx.tools) == expected and ctx.commands == ["repos"] * expected
     schema = Ctx("engineer")
     plugin.register(schema)
-    assert schema.tools[0]["schema"]["parameters"]["properties"]["action"]["enum"] == ["summary", "prs", "issues"]
+    assert schema.tools[0]["schema"]["parameters"]["properties"]["action"]["enum"] == ["summary", "prs", "issues", "commits"]
