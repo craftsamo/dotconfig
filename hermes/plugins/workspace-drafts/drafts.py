@@ -275,6 +275,64 @@ def render(result, *, max_rows=None):
     return "\n".join(lines)
 
 
+CHAT_NAME = 16
+
+
+def _group_label(group):
+    """Chat label: the Group name alone; Personal Groups carry a trailing *."""
+    if group == UNASSIGNED:
+        return "(root)"
+    area, _, name = group.partition("/")
+    return name + ("*" if area == "Personal" else "")
+
+
+def _within(draft):
+    """The draft's path inside its Group's .agent/ (or the root), e.g. scratch/job."""
+    parts = draft["relative"].split("/")
+    if draft["group"] != UNASSIGNED:
+        parts = parts[2:]                       # drop <Area>/<Group>
+    if parts and parts[0] in (".agent",) + LEGACY_ROOT:
+        head = parts.pop(0)
+        if head != ".agent":
+            parts.insert(0, head.lstrip("."))
+    return "/".join(parts)
+
+
+def _clip(text, width):
+    return text if len(text) <= width else text[:width - 1] + "…"
+
+
+def render_chat(result, *, max_rows=20):
+    """Narrow text for a phone: no wide table, one or two short lines per row."""
+    t = result["totals"]
+    lines = [f"Drafts: {t['drafts']} · {human_size(t['bytes'])}",
+             f"stale {t['stale']} · legacy {t['legacy']} · misnamed {t['misnamed']}"]
+    if result["action"] == "summary":
+        lines.append("")
+        groups = result["groups"]
+        for g in groups[:max_rows]:
+            lines.append(f"{_clip(_group_label(g['group']), CHAT_NAME):<{CHAT_NAME}} "
+                         f"{g['drafts']:>4} {human_size(g['bytes']):>6}")
+        if len(groups) > max_rows:
+            lines.append(f"… {len(groups) - max_rows} more Groups")
+        if any(g["group"].startswith("Personal/") for g in groups):
+            lines.append("* Personal")
+    else:
+        drafts = result["drafts"]
+        one_group = len({d["group"] for d in drafts}) <= 1
+        for d in drafts[:max_rows]:
+            name = _within(d) if one_group else f"{_group_label(d['group'])}: {_within(d)}"
+            idle = f"{d['idle_days']}d idle" if d["idle_days"] is not None else "idle ?"
+            lines += ["", name, "  " + " · ".join([idle, human_size(d["bytes"]), *d["flags"]])]
+        shown = min(len(drafts), max_rows)
+        if len(drafts) > shown or result.get("truncated"):
+            lines += ["", f"… showing {shown} of {t['drafts']}; full list: ws-drafts list"]
+    lines.append(f"stale = no change for {result['stale_days']}d+")
+    for d in result["diagnostics"][:3]:
+        lines.append(f"! {d['code']}")
+    return "\n".join(lines)
+
+
 def _home(path):
     home = str(Path.home())
     return "~" + path[len(home):] if path.startswith(home + "/") or path == home else path

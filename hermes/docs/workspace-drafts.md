@@ -43,6 +43,8 @@ Stdlib only, loaded by path, so the tool, the launcher and cron run the same cod
 - `ws-drafts` — per-Group summary; `ws-drafts list [--group G] [--stale]
   [--misnamed] [--legacy] [--sort idle|size|name|started] [--json]`.
 - `/drafts [stale|misnamed|legacy|<group>]` in Engineer and Assistant sessions
-  (Telegram included) answers without a model turn.
+  (Telegram included) answers without a model turn, in a narrow layout for a
+  phone: Group name only (`*` = Personal), and each draft named inside its
+  Group's `.agent/`.
 - Enabled per profile: plugin `workspace-drafts`, toolset `workspace_drafts`
   (never on `a2a`); registration is limited to Engineer and Assistant in code.
