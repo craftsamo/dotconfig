@@ -56,6 +56,25 @@ def test_summary_survives_one_missing_tool():
                                                "hermes": missing})
     assert result["status"] == "partial" and result["tools"]["hermes"] == {"error": "no Hermes state.db"}
     assert "Hermes: unavailable" in cli.render_summary(result)
+    rich = cli.render_summary_rich(result)
+    assert "| Hermes | unavailable |" in rich and "Hermes unavailable: no Hermes state.db" in rich
+
+
+def test_rich_summary_is_tables_with_folded_breakdowns():
+    def run(args, keep_intervals):
+        result = usage([[0, H]], 3600, diagnostics=[{"code": "usage-crosses-window", "count": 2, "partial": True}])
+        result["groups"][0]["key"] = {"directory": "/tmp/a|b"}
+        result["totals"]["question_wait_seconds"] = 600
+        return result
+    result = cli.summary({"days": 1, "timezone": "UTC"}, runners={"opencode": run, "hermes": run})
+    text = cli.render_summary_rich(result)
+    assert text.startswith("## AI activity") and "```" not in text
+    assert "| Tool | Active | Sessions | Output |" in text and "| OpenCode | 1.0h | 1 | 10 |" in text
+    assert "<summary>OpenCode by directory</summary>" in text and "<summary>Hermes by profile</summary>" in text
+    assert "`/tmp/a/b`" in text                                   # a pipe cannot break the row
+    assert "waiting for your answer 10m" in text
+    assert "`usage-crosses-window` ×2 (undercounts)" in text and "`/activity week`" in text
+    assert text.count("<details>") == text.count("</details>") == 3
 
 
 def test_caller_mistakes_are_not_hidden():

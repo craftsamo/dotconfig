@@ -97,8 +97,10 @@ derived from `HERMES_HOME`, else `~/.hermes`), including `default`.
   runs on Hermes' interpreter (read from the real `hermes` launcher's shebang)
   so the Hermes reader can use `SessionDB`.
 - `/activity [today|week|month|N]` in Engineer and Assistant sessions (Telegram
-  included) returns the same summary without a model turn. `/history` is a
-  Hermes built-in, hence the name.
+  included) returns the same summary without a model turn, as plain Markdown:
+  a per-tool table, then each tool's breakdown and the notes folded in
+  `<details>`. Chats with Telegram rich messages render the tables and folds.
+  `/history` is a Hermes built-in, hence the name.
 - The tools are enabled per profile: plugin `session-history`, toolset
   `session_history` (never on `a2a`). Registration is limited to Engineer and
   Assistant in code as well.

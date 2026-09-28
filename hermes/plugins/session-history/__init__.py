@@ -91,18 +91,19 @@ def hermes_history(args, **kwargs):
 
 
 def activity_text(raw):
-    """/activity [today|week|month|N]: activity of OpenCode and Hermes, as a fixed-width block."""
+    """/activity [today|week|month|N]: activity of OpenCode and Hermes as plain Markdown;
+    chats with rich messages render its tables and folded breakdowns."""
     word = (raw or "").strip().lower()
     days = PERIODS.get(word)
     if days is None:
         if not word.isdigit() or not 1 <= int(word) <= cli.common.MAX_DAYS:
-            return "Usage: /activity [today|week|month|N days]"
+            return ("Usage: /activity [today|week|month|N days]\n\n"
+                    + "\n".join(f"`/activity {p}`" for p in cli.PERIOD_COMMANDS))
         days = int(word)
     try:
-        text = cli.render_summary(cli.summary({"days": days}))
+        return cli.render_summary_rich(cli.summary({"days": days}))
     except Exception as exc:
         return f"activity unavailable: {exc}"
-    return "```\n" + text + "\n```"
 
 
 async def activity_command(raw):

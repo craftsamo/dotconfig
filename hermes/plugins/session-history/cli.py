@@ -172,6 +172,70 @@ def render_summary(result, top=5):
     return "\n".join(lines)
 
 
+LABELS = {"opencode": "OpenCode", "hermes": "Hermes"}
+GROUPED_BY = {"opencode": "Directory", "hermes": "Profile"}
+PERIOD_COMMANDS = ("today", "week", "month")
+
+
+def _cell(text):
+    """A table cell as a code span: no Markdown inside names, and no pipe to break the row."""
+    return "`" + str(text).replace("`", "'").replace("|", "/") + "`"
+
+
+def _waits(t):
+    parts = []
+    if t.get("question_wait_seconds"):
+        parts.append(f"waiting for your answer {_dur(t['question_wait_seconds'])}")
+    if t.get("opencode_wait_seconds"):
+        parts.append(f"waiting on OpenCode {_dur(t['opencode_wait_seconds'])}")
+    if t.get("specialist_wait_seconds"):
+        parts.append(f"waiting on another profile {_dur(t['specialist_wait_seconds'])}")
+    return parts
+
+
+def render_summary_rich(result, top=10):
+    """Markdown for a chat that renders tables and <details> (Telegram rich messages):
+    the combined figure, one table per tool, and each breakdown folded."""
+    lines = [f"## AI activity · {_window_line(result['window'])}", "",
+             f"**{_dur(result['active_union_seconds'])}** agents running, overlap removed"
+             + ("" if result["status"] == "complete" else " · *partial*"), "",
+             "| Tool | Active | Sessions | Output |", "| :--- | ---: | ---: | ---: |"]
+    for name, tool in result["tools"].items():
+        if "error" in tool:
+            lines.append(f"| {LABELS[name]} | unavailable | | |")
+            continue
+        t = tool["totals"]
+        lines.append(f"| {LABELS[name]} | {_dur(t['active_union_seconds'])} | {t['sessions']} | "
+                     f"{_count(t['tokens']['output'])} |")
+    notes = []
+    for name, tool in result["tools"].items():
+        if "error" in tool:
+            notes.append(f"- {LABELS[name]} unavailable: {tool['error']}")
+            continue
+        ranked = sorted((g for g in tool["groups"] if g["active_seconds"] or g["tokens"]["output"]),
+                        key=lambda g: (-g["active_union_seconds"], -g["tokens"]["output"]))
+        if ranked:
+            lines += ["", f"<details><summary>{LABELS[name]} by {GROUPED_BY[name].lower()}</summary>", "",
+                      f"| {GROUPED_BY[name]} | Active | Sessions | Output |", "| :--- | ---: | ---: | ---: |"]
+            lines += [f"| {_cell(_short(_key_text(g['key']), 40))} | {_dur(g['active_union_seconds'])} | "
+                      f"{g['sessions']} | {_count(g['tokens']['output'])} |" for g in ranked[:top]]
+            if len(ranked) > top:
+                lines += ["", f"… {len(ranked) - top} more (`ai-history --days N`)"]
+            waits = _waits(tool["totals"])
+            if waits:
+                lines += ["", "Not counted as active: " + ", ".join(waits)]
+            lines += ["", "</details>"]
+        for d in tool.get("diagnostics", []):
+            count = f" ×{d['count']}" if "count" in d else ""
+            notes.append(f"- {LABELS[name]}: `{d['code']}`{count}"
+                         + (" (undercounts)" if d.get("partial") else ""))
+    lines += ["", "<details><summary>How to read</summary>", "", f"- {NOTE}"]
+    lines += notes
+    lines += ["", "Other periods (tap to copy):", ""]
+    lines += [f"`/activity {p}`" for p in PERIOD_COMMANDS] + ["`/activity 14`", "", "</details>"]
+    return "\n".join(lines)
+
+
 def render(tool, result, args):
     tz, _ = common.zone(args.get("timezone"))
     head = f"{tool} {result['action']}  source={result['source']}  [{result['status']}]"
