@@ -76,30 +76,9 @@ completion notification, so its 420 s tool deadline stays; only a CLI assistant
 would block.
 
 **Session history.** `opencode_history` is the read side of the same plugin,
-separate from execution: it reads OpenCode's own sessions across every project
-and never touches `opencode-sessions/`, grants or `opencode_cli`. Its code is
-`plugins/opencode/history.py`, stdlib only, so cron scripts run the same file as
-a CLI (`python3 history.py usage --from … --to …`). Contract:
-
-- **Official API first.** Each call starts a private `opencode serve --pure` on
-  127.0.0.1 with a one-shot password (explicit env wins over the secret shim, so
-  no Keychain value is needed) in a throwaway directory, and stops it before
-  returning. Listing uses the all-project `/experimental/session` route, whose
-  `start` bounds `time.updated`; a full page counts as truncation.
-- **Database only where the API cannot answer.** `usage` needs message-level
-  model, tokens and step times, which the API returns only with message content,
-  so it reads `opencode db path` read-only in one snapshot, selecting scalar JSON
-  paths only. list/get/children fall back to the database only in `auto` and say
-  so (`api-unavailable`). A missing required column fails closed; the internal
-  schema has no compatibility promise.
-- **Activity, not work time.** A session's created→updated span includes idle
-  and resumed gaps, so it is not reported. Activity is the union of assistant
-  step intervals (tool execution sits inside a step) minus `question`-tool waits,
-  which otherwise count a question left open overnight as hours of work. A tool
-  held on a permission prompt is not visible and still counts. Nothing here
-  observes human working time. `usage` includes archived sessions by default —
-  archiving hides a session, it does not undo the work.
-- Titles and costs only on request; message content, tool input and output never.
+separate from execution: it never touches `opencode-sessions/`, grants or
+`opencode_cli`. Contract, with the Hermes counterpart:
+[docs/session-history.md](../session-history.md).
 
 **Hidden primaries.** plan/build/review run on hidden OpenCode primaries, not the
 human TUI agents: `OPENCODE_AGENTS` in the plugin maps each Hermes role to
@@ -185,8 +164,9 @@ with `RESIDENT_TURN_KIND=reconcile`, under which `opencode_call` is refused; on
 success the conversation ends `reconciled` (closable, never resumable for
 work). The Assistant-side `kind` validation runs inside the gateway process, so
 changing it needs a gateway restart; runner/handoff/opencode changes apply on
-the next turn. The `Warning: Unknown toolsets: opencode, specialist` line on
-every resident turn is a benign plugin-discovery-order artifact.
+the next turn. The `Warning: Unknown toolsets: …` line naming plugin toolsets
+(`opencode`, `specialist`, `session_history`) on every resident turn is a benign
+plugin-discovery-order artifact.
 
 ### UI evaluators
 
