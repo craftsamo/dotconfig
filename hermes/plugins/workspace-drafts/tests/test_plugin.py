@@ -157,9 +157,21 @@ def test_tool_and_command_use_the_same_reader(ws, monkeypatch):
     result = json.loads(plugin.workspace_drafts({"action": "summary"}))
     assert result["root"] == str(ws)
     assert json.loads(plugin.workspace_drafts({"action": "delete"}))["error"]
-    assert plugin.drafts_text("").startswith("```\nDrafts under")
-    assert "Projects/Acme" in plugin.drafts_text("Acme")
+    assert plugin.drafts_text("").startswith("```\nDrafts: 9")
+    assert "20260920-landing-copy" in plugin.drafts_text("Acme")
     assert "legacy" in plugin.drafts_text("legacy")
+
+
+def test_chat_text_stays_narrow_and_names_drafts_inside_their_group(ws):
+    summary = drafts.render_chat(drafts.run({"action": "summary"}, root=ws, today=TODAY))
+    assert max(len(line) for line in summary.splitlines()) <= 40
+    assert "Acme" in summary and "Projects/" not in summary
+    assert "Budget*" in summary and "* Personal" in summary and "(root)" in summary
+    one = drafts.render_chat(listed(ws, group="Acme"))
+    assert "\nscratch/job-a\n" in one and ".agent" not in one
+    mixed = drafts.render_chat(listed(ws, flags=["legacy"]), max_rows=2)
+    assert "(root): deliverables/old-job" in mixed or "Acme: scratch/job-a" in mixed
+    assert "showing 2 of 4" in mixed
 
 
 class Ctx:

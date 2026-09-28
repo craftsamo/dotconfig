@@ -25,7 +25,7 @@ def _load(name, path):
 
 drafts = _load("hermes_workspace_drafts", Path(__file__).resolve().parent / "drafts.py")
 PROFILES = {"engineer", "assistant"}
-COMMAND_ROWS = 30
+COMMAND_ROWS = 15
 
 DESCRIPTION = (
     "List drafts under ~/Workspaces (read-only; names, sizes, file counts and modification times only). "
@@ -78,7 +78,7 @@ def drafts_text(raw):
     else:
         args = {"action": "list", "group": word}
     try:
-        text = drafts.render(drafts.run(args), max_rows=COMMAND_ROWS)
+        text = drafts.render_chat(drafts.run(args), max_rows=COMMAND_ROWS)
     except Exception as exc:
         return f"drafts unavailable: {exc}"
     return "```\n" + text + "\n```"
