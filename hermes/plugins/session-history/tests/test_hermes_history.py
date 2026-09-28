@@ -342,4 +342,4 @@ def test_tool_and_command(root, monkeypatch):
 
     monkeypatch.setattr(plugin.cli, "summary", fake_summary)
     text = asyncio.run(commands["activity"]("week"))
-    assert seen == {"days": 7} and text.startswith("```") and "Combined" in text
+    assert seen == {"days": 7} and text.startswith("## AI activity") and "**1m**" in text
