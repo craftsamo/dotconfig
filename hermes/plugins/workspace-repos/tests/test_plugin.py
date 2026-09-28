@@ -198,6 +198,9 @@ def test_commits_are_yours_in_the_period_without_network(ws):
     assert week["commits"][1]["url"].startswith("https://github.com/acme/site/commit/")
     today = repos.run({"action": "commits"}, root=ws, now=NOW)
     assert today["days"] == 1 and [c["subject"] for c in today["commits"]] == ["local only"]
+    rows = [r for r in repos.scan(ws) if r["name"] in ("app", "site")]
+    window = repos.commits(rows, datetime(2026, 9, 25, tzinfo=timezone.utc), datetime(2026, 9, 28, tzinfo=timezone.utc))
+    assert [c["subject"] for c in window] == ["mine, pushed"]       # the 09-28 commit is past the end
     month = repos.run({"action": "commits", "days": 30}, root=ws, now=NOW)
     assert sum(c["subject"] == "init" for c in month["commits"]) == 3     # app, site (= twin), tool
     text = repos.render_rich(week, title="Commits · week")
@@ -213,6 +216,7 @@ def test_prs_in_a_period_include_merged_and_drop_older(ws):
     assert len(queries) == 2 and "someone/tool" not in queries[1]    # items only for writable repos
     assert "states: [OPEN, MERGED, CLOSED]" in queries[1]
     assert [(p["number"], repos.pr_state(p)) for p in result["prs"]] == [(7, "CI failing, your review"), (8, "merged")]
+    assert result["prs"][1]["merged"] is None and result["prs"][0]["created"] == "2026-09-20T00:00:00Z"
     text = repos.render_rich(result, title="PRs")
     assert "updated since 09-22 (week)" in text and "merged **1**" in text and "| Repo | Updated |" in text
     issues = repos.run({"action": "issues", "days": 7}, root=ws, runner=fake_gh(queries), now=NOW)
