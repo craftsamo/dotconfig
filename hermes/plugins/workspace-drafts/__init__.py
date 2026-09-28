@@ -40,7 +40,7 @@ DESCRIPTION = (
 
 PROPERTIES = {
     "action": {"type": "string", "enum": list(drafts.ACTIONS)},
-    "group": {"type": "string", "description": "Group name, Area/Group, or (unassigned)"},
+    "group": {"type": "string", "description": "Group name (case-insensitive; a unique prefix or substring also matches), Area/Group, or root"},
     "layout": {"type": "string", "enum": list(drafts.LAYOUTS)},
     "flags": {"type": "array", "items": {"type": "string", "enum": list(drafts.FLAGS)}},
     "stale_days": {"type": "integer", "description": "Idle days that count as stale (default 14)"},
@@ -75,11 +75,17 @@ def drafts_text(raw):
     elif word.lower() in drafts.FLAGS:
         args, title = {"action": "list", "flags": [word.lower()]}, f"Drafts · {word.lower()}"
     else:
-        args, title = {"action": "list", "group": word}, f"Drafts · {word}"
+        args, title = {"action": "list", "group": word}, None
     try:
+        if title is None:           # name the Group(s) actually matched, not what was typed
+            matched = drafts.resolve_group(word, drafts.known_groups())
+            title = "Drafts · " + ", ".join(drafts.label(g) for g in matched)
         # Plain Markdown, not a code block: chats with rich messages render the
         # tables and fold each <details> section.
         return drafts.render_rich(drafts.run(args), title=title)
+    except drafts.UnknownGroup as exc:
+        return (f"No Group matches `{exc.needle}`. Try one of:\n\n"
+                + "\n".join(f"`/drafts {drafts.label(g)}`" for g in exc.groups))
     except Exception as exc:
         return f"drafts unavailable: {exc}"
 
