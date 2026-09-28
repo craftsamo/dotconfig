@@ -560,6 +560,8 @@ def _usage(snap, q):
             out["cost"] = round(b["cost"], 6)
         if not b["key"]:
             del out["key"]
+            if q.get("keep_intervals"):
+                out["intervals_ms"] = common.merged(b["intervals"])
         return out
 
     ordered = sorted(groups.values(), key=lambda b: (-b["active_ms"], json.dumps(b["key"], sort_keys=True)))
@@ -624,9 +626,13 @@ def _read_db(q, path_factory):
         return {"sessions": [_present(r, q) for r in children]}, []
 
 
-def run(args, *, server_factory=ApiServer, path_factory=db_path):
-    """Answer one request. Raises ValueError for caller mistakes, Unavailable for sources."""
+def run(args, *, server_factory=ApiServer, path_factory=db_path, keep_intervals=False):
+    """Answer one request. Raises ValueError for caller mistakes, Unavailable for sources.
+
+    keep_intervals (callers in code only) adds the merged activity intervals to
+    usage totals, so a cross-tool summary can remove overlap between tools."""
     q = parse(args)
+    q["keep_intervals"] = keep_intervals
     diagnostics = []
     window = common.window_view(q.get("from"), q.get("to"), q["timezone"])
     if q["action"] != "usage" and q["source"] in ("auto", "api"):
