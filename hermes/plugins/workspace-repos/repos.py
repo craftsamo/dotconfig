@@ -4,6 +4,8 @@
     ws-repos --group Acme           one Group, repository by repository
     ws-repos prs                    open pull requests, grouped by repository
     ws-repos issues --group tech    open issues of one Group
+    ws-repos commits --period week  your commits of the last 7 days, by repository
+    ws-repos prs --period week      pull requests updated in the period, merged and closed too
     ... --no-github                 local state only (no network)
     ... --json                      the raw result instead of the table
 
@@ -11,7 +13,9 @@ A repository is an entry of ``<Area>/<Group>/github/`` (usually a symlink to a
 ``~/ghq`` clone). Local state comes from Git's own refs and never fetches, so
 "behind" is as of the last fetch. Open pull requests, issues and discussion
 counts come from one GitHub GraphQL query through ``gh``; when that fails the
-local state is still reported and the result is ``partial``.
+local state is still reported and the result is ``partial``. A period (today,
+week, month or N local calendar days) lists your commits from the local and
+remote-tracking branches, or the pull requests and issues updated in it.
 
 Read-only: Git runs with optional locks off, so not even the index is
 refreshed, and nothing is committed, fetched, pulled or pushed. Stdlib only, so
@@ -22,7 +26,7 @@ from __future__ import annotations
 
 import argparse
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timezone
+from datetime import datetime, time, timedelta, timezone
 import json
 import os
 from pathlib import Path
@@ -31,7 +35,10 @@ import subprocess
 import sys
 
 
-ACTIONS = ("summary", "prs", "issues")
+ACTIONS = ("summary", "prs", "issues", "commits")
+PERIODS = {"today": 1, "week": 7, "month": 30}
+MAX_DAYS = 365
+COMMIT_LIMIT = 300
 AREAS = ("Projects", "Personal")
 FLAGS = ("broken", "not-git", "no-remote", "remote-missing", "shared-origin", "dirty", "unpushed",
          "no-upstream", "behind", "detached", "stash", "worktrees", "read-only")
@@ -42,6 +49,8 @@ GIT_TIMEOUT = 15
 GH_TIMEOUT = 40
 PR_LIMIT = 30
 ISSUE_LIMIT = 50
+PERIOD_LIMIT = 50           # items per repository when a period also brings merged and closed ones
+ITEM_CHUNK = 4              # repositories per items query; one large query times out on GitHub
 GITHUB = re.compile(r"(?:git@github\.com:|ssh://git@github\.com/|https://github\.com/)"
                     r"([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+?)(?:\.git)?/?\Z")
 
@@ -158,31 +167,108 @@ def scan(root=None):
     return repos
 
 
+def period_start(days, now):
+    """Local midnight ``days - 1`` days before today: the same window as /activity."""
+    local = now.astimezone()
+    return datetime.combine(local.date() - timedelta(days=days - 1), time.min, tzinfo=local.tzinfo)
+
+
+BOT = re.compile(r"\[bot\]|^dependabot|^renovate", re.I)
+
+
+def commits_of(repo, since):
+    """Your commits since ``since`` on local and remote-tracking branches, merges excluded.
+    "Yours" = author name or email equal to the repo's configured user.name / user.email."""
+    path = Path(repo["path"])
+    if any(f in repo["flags"] for f in ("broken", "not-git")):
+        return []
+    me = {v.strip().lower() for v in ((_git(path, "config", "user.name") or ""),
+                                      (_git(path, "config", "user.email") or "")) if v.strip()}
+    stamp = since.isoformat()
+    log = _git(path, "log", "--branches", "--remotes", "--no-merges", "--source", f"--since={stamp}",
+               f"--max-count={COMMIT_LIMIT}", "--format=%H%x1f%an%x1f%ae%x1f%cI%x1f%S%x1f%s")
+    unpushed = set((_git(path, "rev-list", "--branches", "--not", "--remotes", f"--since={stamp}")
+                    or "").split())
+    # --source names the first ref that reaches a commit; show origin/HEAD as the branch it points at.
+    heads = {}
+    for ref in (_git(path, "for-each-ref", "--format=%(refname) %(symref)", "refs/remotes") or "").splitlines():
+        name, _, target = ref.partition(" ")
+        if target:
+            heads[name.removeprefix("refs/remotes/")] = target.removeprefix("refs/remotes/")
+    out = []
+    for line in (log or "").splitlines():
+        parts = line.split("\x1f")
+        if len(parts) != 6:
+            continue
+        sha, name, email, when, source, subject = parts
+        if BOT.search(name) or (me and name.lower() not in me and email.lower() not in me):
+            continue
+        branch = re.sub(r"^refs/(heads|remotes)/", "", source)
+        branch = heads.get(branch, branch)
+        pushed = sha not in unpushed
+        linkable = pushed and repo["slug"] and "remote-missing" not in repo["flags"]
+        out.append({"repo": f"{label(repo['group'])}/{repo['name']}", "slug": repo["slug"], "sha": sha,
+                    "short": sha[:7], "author": name, "date": when, "branch": branch, "subject": subject,
+                    "pushed": pushed,
+                    "url": f"https://github.com/{repo['slug']}/commit/{sha}" if linkable else None})
+    return out
+
+
+def commits(repos, since):
+    """Commits of every repo; a commit reached from two clones of one GitHub repo counts once."""
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        found = list(pool.map(lambda r: commits_of(r, since), repos))
+    seen, out = set(), []
+    for repo, rows in zip(repos, found):
+        for c in rows:
+            key = (repo["slug"] or repo["path"], c["sha"])
+            if key not in seen:
+                seen.add(key)
+                out.append(c)
+    return sorted(out, key=lambda c: c["date"], reverse=True)
+
+
 # --------------------------------------------------------------------------
 # GitHub (one GraphQL query through gh)
 
-PR_FIELDS = """number title url isDraft createdAt updatedAt reviewDecision headRefName
+PR_FIELDS = """number title url state isDraft createdAt updatedAt mergedAt closedAt reviewDecision headRefName
   author { login }
   reviewRequests(first: 10) { nodes { requestedReviewer { ... on User { login } ... on Team { slug } } } }
   commits(last: 1) { nodes { commit { statusCheckRollup { state } } } }"""
-ISSUE_FIELDS = """number title url createdAt updatedAt author { login }
+ISSUE_FIELDS = """number title url state createdAt updatedAt closedAt author { login }
   assignees(first: 5) { nodes { login } } labels(first: 5) { nodes { name } } comments { totalCount }"""
 
 
-def github_query(slugs, *, detail=None):
-    """GraphQL text: counts for every repository, and the open items when ``detail``
-    is "prs" or "issues"."""
+def github_query(slugs):
+    """GraphQL text: open counts and your permission for every repository."""
     parts = ["viewer { login }"]
     for i, slug in enumerate(slugs):
         owner, name = slug.split("/", 1)
-        items = ""
-        if detail == "prs":
-            items = f"items: pullRequests(states: OPEN, first: {PR_LIMIT}, orderBy: {{field: UPDATED_AT, direction: DESC}}) {{ nodes {{ {PR_FIELDS} }} }}"
-        elif detail == "issues":
-            items = f"items: issues(states: OPEN, first: {ISSUE_LIMIT}, orderBy: {{field: UPDATED_AT, direction: DESC}}) {{ nodes {{ {ISSUE_FIELDS} }} }}"
-        parts.append(f"r{i}: repository(owner: {json.dumps(owner)}, name: {json.dumps(name)}) {{ nameWithOwner isArchived viewerPermission "
-                     "prs: pullRequests(states: OPEN) { totalCount } issues(states: OPEN) { totalCount } "
-                     f"discussions {{ totalCount }} {items} }}")
+        parts.append(f"r{i}: repository(owner: {json.dumps(owner)}, name: {json.dumps(name)}) {{ nameWithOwner "
+                     "isArchived viewerPermission prs: pullRequests(states: OPEN) { totalCount } "
+                     "issues(states: OPEN) { totalCount } discussions { totalCount } }")
+    return "query {\n  " + "\n  ".join(parts) + "\n}"
+
+
+def items_query(slugs, detail, since=None):
+    """GraphQL text for the items of a few repositories: open PRs or issues, or with
+    ``since`` every one updated since then, merged and closed included."""
+    order = "orderBy: {field: UPDATED_AT, direction: DESC}"
+    if detail == "prs":
+        states, limit, extra, fields = ("[OPEN, MERGED, CLOSED]", PERIOD_LIMIT, "", PR_FIELDS) if since else \
+            ("OPEN", PR_LIMIT, "", PR_FIELDS)
+        connection = "pullRequests"
+    else:
+        stamp = json.dumps(since.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")) if since else None
+        states, limit, extra, fields = ("[OPEN, CLOSED]", PERIOD_LIMIT, f", filterBy: {{since: {stamp}}}",
+                                        ISSUE_FIELDS) if since else ("OPEN", ISSUE_LIMIT, "", ISSUE_FIELDS)
+        connection = "issues"
+    parts = []
+    for i, slug in enumerate(slugs):
+        owner, name = slug.split("/", 1)
+        parts.append(f"r{i}: repository(owner: {json.dumps(owner)}, name: {json.dumps(name)}) {{ "
+                     f"items: {connection}(states: {states}, first: {limit}, {order}{extra}) "
+                     f"{{ nodes {{ {fields} }} }} }}")
     return "query {\n  " + "\n  ".join(parts) + "\n}"
 
 
@@ -220,6 +306,7 @@ def _pr(node, slug, viewer, now):
     requested = [r.get("login") or r.get("slug") for r in requested if r]
     author = (node.get("author") or {}).get("login")
     return {"repo": slug, "number": node["number"], "title": node["title"], "url": node["url"],
+            "state": node.get("state", "OPEN"), "updated": node.get("updatedAt"),
             "author": author, "mine": author == viewer, "draft": node.get("isDraft", False),
             "review": node.get("reviewDecision"), "ci": rollup.get("state"),
             "requested": requested, "review_requested_from_you": viewer in requested,
@@ -230,6 +317,7 @@ def _pr(node, slug, viewer, now):
 def _issue(node, slug, viewer, now):
     assignees = [n["login"] for n in (node.get("assignees") or {}).get("nodes") or []]
     return {"repo": slug, "number": node["number"], "title": node["title"], "url": node["url"],
+            "state": node.get("state", "OPEN"), "updated": node.get("updatedAt"),
             "author": (node.get("author") or {}).get("login"), "assignees": assignees,
             "assigned_to_you": viewer in assignees,
             "labels": [n["name"] for n in (node.get("labels") or {}).get("nodes") or []],
@@ -238,13 +326,31 @@ def _issue(node, slug, viewer, now):
             "idle_days": _age_days(node.get("updatedAt"), now)}
 
 
-def github(repos, *, detail=None, runner=None, now=None):
+def _stamp(iso):
+    return datetime.fromisoformat(iso.replace("Z", "+00:00")) if iso else None
+
+
+def _collect(nodes, slug, detail, since, viewer, now, items, diagnostics):
+    """Items of one repository, cut to the period; a full page still inside it is disclosed."""
+    for node in nodes:
+        row = _pr(node, slug, viewer, now) if detail == "prs" else _issue(node, slug, viewer, now)
+        if since and row["updated"] and _stamp(row["updated"]) < since:
+            continue
+        items.append(row)
+    if since and len(nodes) >= PERIOD_LIMIT and (_stamp(nodes[-1].get("updatedAt")) or since) >= since:
+        diagnostics.append({"code": "github-items-truncated", "repos": [slug],
+                            "detail": f"{slug}: more than {PERIOD_LIMIT} updated in the period",
+                            "partial": True})
+
+
+def github(repos, *, detail=None, since=None, runner=None, now=None):
     """Attach GitHub counts to ``repos`` in place; return (viewer, items, diagnostics)."""
     now = now or datetime.now(timezone.utc)
     slugs = list(dict.fromkeys(r["slug"] for r in repos if r["slug"]))
     if not slugs:
         return None, [], []
-    data, errors = (runner or _gh)(github_query(slugs, detail=detail))
+    runner = runner or _gh
+    data, errors = runner(github_query(slugs))
     viewer = (data.get("viewer") or {}).get("login")
     by_slug, items, diagnostics = {}, [], []
     for i, slug in enumerate(slugs):
@@ -256,10 +362,26 @@ def github(repos, *, detail=None, runner=None, now=None):
                          "discussions": (node.get("discussions") or {}).get("totalCount", 0),
                          "archived": node.get("isArchived", False),
                          "writable": node.get("viewerPermission") in WRITABLE}
-        if not by_slug[slug]["writable"]:
-            continue                # an upstream you only read: its PRs and issues are not your work
-        for item in (node.get("items") or {}).get("nodes") or []:
-            items.append(_pr(item, slug, viewer, now) if detail == "prs" else _issue(item, slug, viewer, now))
+    # Items come in small parallel queries, only for repositories you can write to:
+    # an upstream you only read is not your work, and one large query times out.
+    targets = [s for s in slugs if by_slug.get(s) and by_slug[s]["writable"]] if detail else []
+    chunks = [targets[i:i + ITEM_CHUNK] for i in range(0, len(targets), ITEM_CHUNK)]
+
+    def fetch(chunk):
+        try:
+            return chunk, runner(items_query(chunk, detail, since))[0], None
+        except RuntimeError as exc:
+            return chunk, {}, str(exc)
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        answers = list(pool.map(fetch, chunks))
+    for chunk, answer, failure in answers:
+        if failure:
+            diagnostics.append({"code": "github-items-unavailable", "repos": chunk,
+                                "detail": f"{', '.join(chunk)}: {failure}", "partial": True})
+            continue
+        for j, slug in enumerate(chunk):
+            nodes = ((answer.get(f"r{j}") or {}).get("items") or {}).get("nodes") or []
+            _collect(nodes, slug, detail, since, viewer, now, items, diagnostics)
     missing = [s for s, v in by_slug.items() if v is None]
     if missing:
         detail_text = "; ".join(e.get("message", "") for e in errors)[:300] or "not visible to gh"
@@ -278,6 +400,18 @@ def github(repos, *, detail=None, runner=None, now=None):
 
 # --------------------------------------------------------------------------
 # Requests
+
+
+def parse_period(word):
+    """today | week | month | N (days) → days, or None when the word is no period."""
+    word = str(word).strip().lower()
+    if word in PERIODS:
+        return PERIODS[word]
+    if word.isdigit():
+        if not 1 <= int(word) <= MAX_DAYS:
+            raise ValueError(f"a period is 1..{MAX_DAYS} days")
+        return int(word)
+    return None
 
 
 class UnknownGroup(ValueError):
@@ -316,8 +450,17 @@ def run(args, *, root=None, runner=None, now=None):
     use_github = args.get("github", True)
     if not isinstance(use_github, bool):
         raise ValueError("github must be true or false")
-    if action != "summary" and not use_github:
+    days = args.get("days")
+    if days is not None and (type(days) is not int or not 1 <= days <= MAX_DAYS):
+        raise ValueError(f"days must be an integer in 1..{MAX_DAYS}")
+    if action == "summary" and days is not None:
+        raise ValueError("days applies to commits, prs and issues, not the summary")
+    if action == "commits":
+        days, use_github = days or 1, False       # commits are local; no network needed
+    elif action != "summary" and not use_github:
         raise ValueError(f"{action} needs GitHub; drop github=false")
+    now = now or datetime.now(timezone.utc)
+    since = period_start(days, now) if days else None
     repos = scan(root)
     groups = list(dict.fromkeys(r["group"] for r in repos))
     if group:
@@ -326,20 +469,24 @@ def run(args, *, root=None, runner=None, now=None):
     diagnostics, viewer, items = [], None, []
     for r in repos:
         r["github"] = None
-    if use_github:
+    if action == "commits":
+        items = commits(repos, since)
+    elif use_github:
         try:
             viewer, items, diagnostics = github(repos, detail=None if action == "summary" else action,
-                                                runner=runner, now=now)
+                                                since=since, runner=runner, now=now)
         except RuntimeError as exc:
             diagnostics.append({"code": "github-unavailable", "detail": str(exc), "partial": True})
     body = {"action": action, "root": str(Path(root) if root is not None else default_root()),
             "source": "git+github" if use_github else "git", "github": use_github, "viewer": viewer,
             "status": "partial" if any(d.get("partial") for d in diagnostics) else "complete",
             "diagnostics": diagnostics, "groups": groups if not group else chosen, "narrowed": bool(group),
+            "days": days, "since": since.isoformat() if since else None,
             "totals": _totals(repos), "repos": repos}
-    if action != "summary":
-        key = "prs" if action == "prs" else "issues"
-        body[key] = sorted(items, key=lambda i: (i["repo"], i["idle_days"] or 0, -i["number"]))
+    if action == "commits":
+        body["commits"] = items
+    elif action != "summary":
+        body[action] = sorted(items, key=lambda i: (i["repo"], i["idle_days"] or 0, -i["number"]))
     return body
 
 
@@ -421,6 +568,10 @@ def _days(n):
 
 
 def pr_state(pr):
+    if pr.get("state") == "MERGED":
+        return "merged"
+    if pr.get("state") == "CLOSED":
+        return "closed"
     parts = []
     if pr["draft"]:
         parts.append("draft")
@@ -444,14 +595,24 @@ def _fit(lines, build):
     return body
 
 
+def period_label(days):
+    return {1: "today", 7: "week", 30: "month"}.get(days, f"{days} days")
+
+
+def _since_text(result):
+    since = datetime.fromisoformat(result["since"])
+    return f"since {since:%m-%d} ({period_label(result['days'])})"
+
+
 def _commands(groups, narrowed):
-    """Next commands to copy: for one Group its PRs and issues, else every Group."""
+    """Next commands to copy: for one Group its views, else every Group."""
     if narrowed:
         names = " ".join(label(g) for g in groups) if len(groups) == 1 else None
-        rows = ([f"`/repos {names}`", f"`/repos prs {names}`", f"`/repos issues {names}`"] if names
-                else []) + ["`/repos`"]
+        rows = ([f"`/repos {names}`", f"`/repos prs {names}`", f"`/repos issues {names}`",
+                 f"`/repos commits week {names}`"] if names else []) + ["`/repos`"]
     else:
-        rows = ["`/repos prs`", "`/repos issues`"] + [f"`/repos {label(g)}`" for g in groups]
+        rows = (["`/repos prs`", "`/repos issues`", "`/repos commits`", "`/repos commits week`",
+                 "`/repos prs week`"] + [f"`/repos {label(g)}`" for g in groups])
     return ["", "<details><summary>Open (tap to copy)</summary>", ""] + rows + ["", "</details>"]
 
 
@@ -471,20 +632,31 @@ def render_rich(result, *, title="Repos"):
     if action == "summary":
         gh_line = (f" · PRs **{t['prs']}** · issues **{t['issues']}**" if result["github"] else "")
         head.append(f"**{t['repos']}** repos · need attention **{t['attention']}**{gh_line}{partial}")
+    elif action == "commits":
+        items = result["commits"]
+        head.append(f"**{len(items)}** commits in **{len({c['repo'] for c in items})}** repos · "
+                    f"{_since_text(result)} · unpushed **{sum(not c['pushed'] for c in items)}**{partial}")
     else:
-        items = result[action]
-        head.append(f"**{len(items)}** open {'pull requests' if action == 'prs' else 'issues'} in "
-                    f"**{len({i['repo'] for i in items})}** repos{partial}")
+        items, noun = result[action], ("pull requests" if action == "prs" else "issues")
+        scope = (f"updated {_since_text(result)}" if result["since"] else "open")
+        head.append(f"**{len(items)}** {noun} {scope} in **{len({i['repo'] for i in items})}** repos{partial}")
     head.append("")
     if action == "summary":
         lines = head + _summary_rich(result)
+    elif action == "commits":
+        lines = head + _commits_rich(result)
     else:
         lines = head + _items_rich(result)
     notes = _notes(result)
     lines += ["", "<details><summary>How to read</summary>", "",
               "- Local state is read from Git's refs without fetching; \"behind\" is as of the last fetch.",
               "- unpushed: commits on any local branch that no remote branch contains.",
-              "- A Group name may be shortened: `/repos tech`, `/repos prs tech`."]
+              "- A Group name may be shortened: `/repos tech`, `/repos prs tech`.",
+              "- Periods: today, week (7 days), month (30 days) or a number of days, in local calendar "
+              "days: `/repos commits week`, `/repos prs week tech`. With a period, PRs and issues "
+              "include merged and closed ones updated in it.",
+              "- commits: yours (author matches the repo's Git user.name or user.email) on local and "
+              "remote-tracking branches as of the last fetch; merges and bots excluded."]
     if result["github"] and t["discussions"]:
         lines.append(f"- Discussions: {t['discussions']} in total, not listed here.")
     upstream = [r["name"] for r in result["repos"] if "read-only" in r["flags"]]
@@ -520,24 +692,59 @@ def _summary_rich(result):
     return lines
 
 
+def _when(iso):
+    return datetime.fromisoformat(iso.replace("Z", "+00:00")).astimezone().strftime("%m-%d %H:%M")
+
+
+def _commits_rich(result):
+    items = result["commits"]
+    by_repo = {}
+    for c in items:
+        by_repo.setdefault(c["repo"], []).append(c)
+    order = sorted(by_repo.items(), key=lambda kv: (-len(kv[1]), kv[0]))
+    lines = ["| Repo | Commits | Unpushed |", "| :--- | ---: | ---: |"]
+    lines += [f"| {_code(repo)} | {len(rows)} | {sum(not c['pushed'] for c in rows)} |" for repo, rows in order]
+    if not items:
+        return lines + ["", "No commits in the period."]
+
+    def build(cap):
+        body = []
+        for repo, rows in order:
+            body += ["", f"<details><summary>{repo} · {len(rows)}</summary>", "",
+                     "| Commit | Branch | When |", "| :--- | :--- | ---: |"]
+            for c in rows[:cap]:
+                sha = f"[{c['short']}]({c['url']})" if c["url"] else f"`{c['short']}`"
+                mark = "" if c["pushed"] else " (unpushed)"
+                body.append(f"| {sha} {_title(c['subject'])}{mark} | {_code(c['branch'] or '-')} | "
+                            f"{_when(c['date'])} |")
+            if len(rows) > cap:
+                body += ["", f"… {len(rows) - cap} more (`ws-repos commits --group …`)"]
+            body += ["", "</details>"]
+        return body
+    return lines + _fit(lines, build)
+
+
 def _items_rich(result):
     action = result["action"]
     items = result["prs"] if action == "prs" else result["issues"]
     if action == "prs":
         yours = sum(p["review_requested_from_you"] for p in items)
-        failing = sum(p["ci"] in ("FAILURE", "ERROR") for p in items)
+        failing = sum(p["ci"] in ("FAILURE", "ERROR") and p["state"] == "OPEN" for p in items)
+        merged = f" · merged **{sum(p['state'] == 'MERGED' for p in items)}**" if result["since"] else ""
         lines = [f"Your review requested **{yours}** · CI failing **{failing}** · "
-                 f"yours **{sum(p['mine'] for p in items)}**", ""]
+                 f"yours **{sum(p['mine'] for p in items)}**{merged}", ""]
     else:
-        lines = [f"Assigned to you **{sum(i['assigned_to_you'] for i in items)}**", ""]
+        closed = f" · closed **{sum(i['state'] == 'CLOSED' for i in items)}**" if result["since"] else ""
+        lines = [f"Assigned to you **{sum(i['assigned_to_you'] for i in items)}**{closed}", ""]
     by_repo = {}
     for item in items:
         by_repo.setdefault(item["repo"], []).append(item)
     order = sorted(by_repo.items(), key=lambda kv: (-len(kv[1]), kv[0]))
-    lines += ["| Repo | Open |", "| :--- | ---: |"]
+    column = "Updated" if result["since"] else "Open"
+    lines += [f"| Repo | {column} |", "| :--- | ---: |"]
     lines += [f"| {_code(slug)} | {len(rows)} |" for slug, rows in order]
     if not items:
-        return lines + ["", "Nothing open."]
+        return lines + ["", "Nothing updated in the period." if result["since"] else "Nothing open."]
 
     def build(cap):
         body = []
@@ -549,7 +756,8 @@ def _items_rich(result):
                          f"{_days(p['idle_days'])} |" for p in rows[:cap]]
             else:
                 body += ["| Issue | Assignee | Idle |", "| :--- | :--- | ---: |"]
-                body += [f"| [#{i['number']}]({i['url']}) {_title(i['title'])} | "
+                body += [f"| [#{i['number']}]({i['url']}) {_title(i['title'])}"
+                         f"{' (closed)' if i['state'] == 'CLOSED' else ''} | "
                          f"{', '.join(i['assignees']) or '-'} | {_days(i['idle_days'])} |" for i in rows[:cap]]
             if len(rows) > cap:
                 body += ["", f"… {len(rows) - cap} more (`ws-repos {action} --group …`)"]
@@ -571,14 +779,19 @@ def render(result):
         rows += [(f"{label(r['group'])}/{r['name']}", r["branch"] or "-", state_text(r),
                   _gh_cell(r, "prs", result["github"]), _gh_cell(r, "issues", result["github"]))
                  for r in result["repos"]]
+    elif action == "commits":
+        lines[-1:] = [f"{len(result['commits'])} commits {_since_text(result)}", ""]
+        rows = [("when", "repo", "commit", "branch", "subject")]
+        rows += [(_when(c["date"]), c["repo"], c["short"] + ("" if c["pushed"] else "*"), c["branch"] or "-",
+                  _title(c["subject"], 70)) for c in result["commits"]]
     elif action == "prs":
         rows = [("pr", "state", "idle", "title")]
         rows += [(f"{p['repo']}#{p['number']}", pr_state(p), _days(p["idle_days"]), _title(p["title"], 70))
                  for p in result["prs"]]
     else:
-        rows = [("issue", "assignee", "idle", "title")]
-        rows += [(f"{i['repo']}#{i['number']}", ",".join(i["assignees"]) or "-", _days(i["idle_days"]),
-                  _title(i["title"], 70)) for i in result["issues"]]
+        rows = [("issue", "state", "assignee", "idle", "title")]
+        rows += [(f"{i['repo']}#{i['number']}", i["state"].lower(), ",".join(i["assignees"]) or "-",
+                  _days(i["idle_days"]), _title(i["title"], 70)) for i in result["issues"]]
     widths = [max(len(r[i]) for r in rows) for i in range(len(rows[0]))]
     lines += ["  ".join(c.ljust(w) for c, w in zip(r, widths)).rstrip() for r in rows]
     for d in result["diagnostics"]:
@@ -595,6 +808,7 @@ def main(argv=None):
     parser.add_argument("action", nargs="?", choices=ACTIONS, default="summary")
     parser.add_argument("--group", help="Group name (a unique prefix or substring also matches)")
     parser.add_argument("--no-github", action="store_true", help="local Git state only; no network")
+    parser.add_argument("--period", help="today, week, month or a number of days (commits, prs, issues)")
     parser.add_argument("--root", help="Workspaces root (default $WORKSPACES_ROOT or ~/Workspaces)")
     parser.add_argument("--json", action="store_true")
     ns = parser.parse_args(argv)
@@ -602,6 +816,8 @@ def main(argv=None):
     if ns.group:
         args["group"] = ns.group
     try:
+        if ns.period:
+            args["days"] = parse_period(ns.period)
         result = run(args, root=ns.root)
     except (ValueError, FileNotFoundError) as exc:
         print(f"ws-repos: {exc}", file=sys.stderr)

@@ -26,7 +26,8 @@ def _load(name, path):
 repos = _load("hermes_workspace_repos", Path(__file__).resolve().parent / "repos.py")
 PROFILES = {"engineer", "assistant"}
 ALIASES = {"prs": "prs", "pr": "prs", "pulls": "prs", "pullrequests": "prs", "pull-requests": "prs",
-           "issues": "issues", "issue": "issues"}
+           "issues": "issues", "issue": "issues", "commits": "commits", "commit": "commits", "log": "commits"}
+PERIOD_HINT = ["`/repos commits week`", "`/repos prs week`", "`/repos issues week`"]
 
 DESCRIPTION = (
     "Repositories under ~/Workspaces (<Area>/<Group>/github/<repo>): local Git state and open GitHub work. "
@@ -34,14 +35,18 @@ DESCRIPTION = (
     "pulled or pushed; GitHub is read with one GraphQL query through gh. summary: every repo with its local "
     "flags (broken link, not-git, no-remote, remote-missing, shared-origin, dirty, unpushed, no-upstream, "
     "behind, detached, stash, worktrees, read-only upstream) and its open PR/issue/discussion counts; "
-    "prs / issues: the open items of writable repos (review requested from you, CI state, assignees). "
-    "Filter by group (Acme, a unique prefix or substring). github=false skips the network for "
-    "summary. When GitHub is unreachable the local state is still returned with status partial.")
+    "prs / issues: the open items of writable repos (review requested from you, CI state, assignees), or "
+    "with days every one updated in the period, merged and closed included; commits: your commits "
+    "(author = the repo's Git user.name or user.email) on local and remote-tracking branches in the last "
+    "days local calendar days (default 1 = today; week = 7, month = 30), no network. Filter by group "
+    "(Acme, a unique prefix or substring). github=false skips the network for summary. When GitHub "
+    "is unreachable the local state is still returned with status partial.")
 
 PROPERTIES = {
     "action": {"type": "string", "enum": list(repos.ACTIONS)},
     "group": {"type": "string", "description": "Group name (case-insensitive; a unique prefix or substring also matches)"},
     "github": {"type": "boolean", "description": "summary only: false = local Git state without network (default true)"},
+    "days": {"type": "integer", "description": "commits, prs, issues: the last N local calendar days (1 = today, 7 = week, 30 = month)"},
 }
 
 
@@ -64,21 +69,34 @@ def workspace_repos(args, **kwargs):
 
 
 def parse(raw):
-    """``/repos [prs|issues] [group]`` or ``/repos <group>`` → (action, group or None)."""
-    words = (raw or "").split()
-    action = "summary"
-    if words and words[0].lower() in ALIASES:
-        action = ALIASES[words.pop(0).lower()]
-    return action, " ".join(words) or None
+    """``/repos [prs|issues|commits] [today|week|month|N] [group]``, in any order →
+    (action, days or None, group or None)."""
+    action, days, rest = None, None, []
+    for word in (raw or "").split():
+        if action is None and word.lower() in ALIASES:
+            action = ALIASES[word.lower()]
+        elif days is None and repos.parse_period(word) is not None:
+            days = repos.parse_period(word)
+        else:
+            rest.append(word)
+    return action or "summary", days, " ".join(rest) or None
 
 
 def repos_text(raw):
-    """/repos [prs|issues] [<group>]: overview, or open PRs / issues, optionally for one Group."""
-    action, group = parse(raw)
-    args = {"action": action, **({"group": group} if group else {})}
+    """/repos [prs|issues|commits] [period] [<group>]: overview, open PRs / issues, or what
+    changed in a period, optionally for one Group."""
+    try:
+        action, days, group = parse(raw)
+    except ValueError as exc:
+        return f"{exc}\n\n" + "\n".join(PERIOD_HINT)
+    if action == "summary" and days is not None:
+        return "A period goes with commits, prs or issues:\n\n" + "\n".join(PERIOD_HINT)
+    args = {"action": action, **({"group": group} if group else {}), **({"days": days} if days else {})}
     try:
         result = repos.run(args)
-        title = {"summary": "Repos", "prs": "Pull requests", "issues": "Issues"}[action]
+        title = {"summary": "Repos", "prs": "Pull requests", "issues": "Issues", "commits": "Commits"}[action]
+        if result.get("days") and action != "summary":
+            title += " · " + repos.period_label(result["days"])
         if group:                   # name the Group(s) actually matched, not what was typed
             title += " · " + ", ".join(repos.label(g) for g in result["groups"])
         # Plain Markdown, not a code block: chats with rich messages render the
@@ -106,5 +124,5 @@ def register(ctx):
                           "type": "object", "properties": PROPERTIES, "required": ["action"],
                           "additionalProperties": False}})
     ctx.register_command("repos", repos_command,
-                         description="Repos under ~/Workspaces: overview, or prs|issues [group], or <group>",
-                         args_hint="[prs|issues] [<group>]")
+                         description="Repos under ~/Workspaces: overview, prs|issues|commits [period] [group], or <group>",
+                         args_hint="[prs|issues|commits] [today|week|month|N] [<group>]")
