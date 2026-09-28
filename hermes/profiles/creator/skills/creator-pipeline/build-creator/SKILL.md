@@ -92,13 +92,13 @@ unapproved simplified substitute. A planning HTML document is never production
 source and its receipt is not the producer's exact-preview approval.
 
 Use the client's existing Group-local job directory, for example
-`~/Workspaces/Personal/<G>/.agent/deliverables/<job>/video-plan` (expanded
+`~/Workspaces/Personal/<G>/.agent/<YYYYMMDD>-<job>/video-plan` (expanded
 to an absolute path). All three hands accept these job-owned subdirectories,
-not only a Group root. The existing Group-root and
-`~/Workspaces/.deliverables/<job>/` forms remain valid. Create missing
+not only a Group root. The existing Group-root form and the unassigned
+`~/Workspaces/.agent/<YYYYMMDD>-<job>/` form remain valid. Create missing
 job-owned descendants only beneath existing parents; never create a Group,
 overwrite an existing output, or infer upload consent from a local path.
-Do not relocate a valid Group-local request to the global deliverables area.
+Do not relocate a valid Group-local request to the unassigned root.
 
 ## Transport
 

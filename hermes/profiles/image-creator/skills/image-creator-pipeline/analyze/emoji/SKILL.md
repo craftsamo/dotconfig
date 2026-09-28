@@ -22,7 +22,7 @@ metadata:
         required: true
         type: path
         label: "one emoji file, or a directory holding a pack (every png / webp / jpg / gif inside is measured)"
-        example: "~/Workspaces/Projects/Acme/.agent/deliverables/emoji/slack/"
+        example: "~/Workspaces/Projects/Acme/.agent/20260315-emoji/slack/"
       platform:
         required: true
         options: [slack, discord, telegram, telegram-emoji, line, generic]

@@ -1,0 +1,4 @@
+name: workspace-drafts
+version: 1.0.0
+description: Read-only list of drafts (job directories under .agent/) in ~/Workspaces, and the /drafts summary.
+kind: standalone

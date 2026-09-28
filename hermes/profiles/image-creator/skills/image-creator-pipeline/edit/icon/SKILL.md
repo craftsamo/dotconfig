@@ -21,7 +21,7 @@ metadata:
         required: true
         type: file
         label: "the icon to edit (PNG / WebP / JPG / SVG)"
-        example: "~/Workspaces/Projects/Acme/.agent/deliverables/icons/icon_rocket_512.png"
+        example: "~/Workspaces/Projects/Acme/.agent/20260315-icons/icon_rocket_512.png"
       color:
         required: false
         label: "recolour: every opaque pixel of a raster takes this #rrggbb (monochrome marks only); an SVG only gets its currentColor substituted"

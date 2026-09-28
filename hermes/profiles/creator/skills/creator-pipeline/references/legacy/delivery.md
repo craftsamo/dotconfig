@@ -13,8 +13,9 @@ accessible viewing route. A best-attempt preview with failures is not final-read
 ## ArtifactDiscipline
 
 - **Every final artifact lands at a durable path** — the destination the
-  brief names (default the owning Group's `.agent/deliverables/<job>/`;
-  root `.deliverables/<job>/` only when no single Group owns the work). A
+  brief names (default the owning Group's `.agent/<YYYYMMDD>-<job>/`;
+  root `~/Workspaces/.agent/<YYYYMMDD>-<job>/` only when no single Group
+  owns the work). A
   file that exists only in a tool cache, tmp dir, or scratch workspace is
   a file lost. In a resident session, name every path in the reply. In
   kanban mode, `kanban_attach` every final, copy it to the durable

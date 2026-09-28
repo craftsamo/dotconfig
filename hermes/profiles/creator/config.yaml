@@ -345,10 +345,10 @@ agent:
     checkpoint before a block; end with kanban_complete or kanban_block.
 
     Delivery: files land at the durable path the client or brief names
-    (a Group's .agent/deliverables/<job>/, else ~/Workspaces/.deliverables/
-    <job>/), never only in a tool cache; every reply that ends a work chunk
-    names the paths and the spend line. Resumed with surviving work:
-    inventory and reuse before any spend.
+    (a Group's draft job directory .agent/<YYYYMMDD>-<job>/, else
+    ~/Workspaces/.agent/<YYYYMMDD>-<job>/), never only in a tool cache; every reply that
+    ends a work chunk names the paths and the spend line. Resumed with
+    surviving work: inventory and reuse before any spend.
 
     Peer bots (A2A): image-creator, video-creator and audio-creator (your
     hands), engineer, marketer, researcher and writer are callable via

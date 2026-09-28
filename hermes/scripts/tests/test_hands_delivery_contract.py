@@ -24,9 +24,12 @@ def test_all_hands_share_one_delivery_contract():
 def test_existing_group_and_nested_job_paths_are_explicit(profile):
     text = delivery(profile)
     for value in ("~/Workspaces/Projects/<G>", "~/Workspaces/Personal/<G>",
-                  ".agent/deliverables/<job>/", "video-plan", "music-plan",
-                  "~/Workspaces/.deliverables/<job>/"):
+                  ".agent/<YYYYMMDD>-<job>/", "video-plan", "music-plan",
+                  "~/Workspaces/.agent/<YYYYMMDD>-<job>/"):
         assert value in text
+    # The earlier layout was emptied on 2026-09-28; no hand may point back to it.
+    for value in (".agent/deliverables/", ".deliverables/", ".scratch/", ".notes/"):
+        assert value not in text
     assert "never reject or relocate" in text
     assert "beneath an existing parent" in text
 
@@ -41,6 +44,6 @@ def test_delivery_policy_does_not_expand_authority(profile):
 
 def test_creator_handoff_uses_the_same_nested_shape():
     text = (ROOT / "profiles/creator/skills/creator-pipeline/build-creator/SKILL.md").read_text()
-    assert "<G>/.agent/deliverables/<job>/video-plan" in text
+    assert "<G>/.agent/<YYYYMMDD>-<job>/video-plan" in text
     assert "All three hands accept" in text
     assert "Do not relocate a valid Group-local request" in text
