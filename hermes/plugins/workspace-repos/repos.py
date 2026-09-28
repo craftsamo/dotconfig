@@ -176,8 +176,8 @@ def period_start(days, now):
 BOT = re.compile(r"\[bot\]|^dependabot|^renovate", re.I)
 
 
-def commits_of(repo, since):
-    """Your commits since ``since`` on local and remote-tracking branches, merges excluded.
+def commits_of(repo, since, until=None):
+    """Your commits in [since, until) on local and remote-tracking branches, merges excluded.
     "Yours" = author name or email equal to the repo's configured user.name / user.email."""
     path = Path(repo["path"])
     if any(f in repo["flags"] for f in ("broken", "not-git")):
@@ -185,7 +185,8 @@ def commits_of(repo, since):
     me = {v.strip().lower() for v in ((_git(path, "config", "user.name") or ""),
                                       (_git(path, "config", "user.email") or "")) if v.strip()}
     stamp = since.isoformat()
-    log = _git(path, "log", "--branches", "--remotes", "--no-merges", "--source", f"--since={stamp}",
+    window = [f"--since={stamp}"] + ([f"--until={until.isoformat()}"] if until else [])
+    log = _git(path, "log", "--branches", "--remotes", "--no-merges", "--source", *window,
                f"--max-count={COMMIT_LIMIT}", "--format=%H%x1f%an%x1f%ae%x1f%cI%x1f%S%x1f%s")
     unpushed = set((_git(path, "rev-list", "--branches", "--not", "--remotes", f"--since={stamp}")
                     or "").split())
@@ -201,6 +202,8 @@ def commits_of(repo, since):
         if len(parts) != 6:
             continue
         sha, name, email, when, source, subject = parts
+        if until and datetime.fromisoformat(when) >= until:
+            continue                # --until is inclusive; the window is half-open
         if BOT.search(name) or (me and name.lower() not in me and email.lower() not in me):
             continue
         branch = re.sub(r"^refs/(heads|remotes)/", "", source)
@@ -214,10 +217,10 @@ def commits_of(repo, since):
     return out
 
 
-def commits(repos, since):
+def commits(repos, since, until=None):
     """Commits of every repo; a commit reached from two clones of one GitHub repo counts once."""
     with ThreadPoolExecutor(max_workers=8) as pool:
-        found = list(pool.map(lambda r: commits_of(r, since), repos))
+        found = list(pool.map(lambda r: commits_of(r, since, until), repos))
     seen, out = set(), []
     for repo, rows in zip(repos, found):
         for c in rows:
@@ -306,7 +309,8 @@ def _pr(node, slug, viewer, now):
     requested = [r.get("login") or r.get("slug") for r in requested if r]
     author = (node.get("author") or {}).get("login")
     return {"repo": slug, "number": node["number"], "title": node["title"], "url": node["url"],
-            "state": node.get("state", "OPEN"), "updated": node.get("updatedAt"),
+            "state": node.get("state", "OPEN"), "created": node.get("createdAt"),
+            "updated": node.get("updatedAt"), "merged": node.get("mergedAt"), "closed": node.get("closedAt"),
             "author": author, "mine": author == viewer, "draft": node.get("isDraft", False),
             "review": node.get("reviewDecision"), "ci": rollup.get("state"),
             "requested": requested, "review_requested_from_you": viewer in requested,
@@ -317,7 +321,8 @@ def _pr(node, slug, viewer, now):
 def _issue(node, slug, viewer, now):
     assignees = [n["login"] for n in (node.get("assignees") or {}).get("nodes") or []]
     return {"repo": slug, "number": node["number"], "title": node["title"], "url": node["url"],
-            "state": node.get("state", "OPEN"), "updated": node.get("updatedAt"),
+            "state": node.get("state", "OPEN"), "created": node.get("createdAt"),
+            "updated": node.get("updatedAt"), "closed": node.get("closedAt"),
             "author": (node.get("author") or {}).get("login"), "assignees": assignees,
             "assigned_to_you": viewer in assignees,
             "labels": [n["name"] for n in (node.get("labels") or {}).get("nodes") or []],
