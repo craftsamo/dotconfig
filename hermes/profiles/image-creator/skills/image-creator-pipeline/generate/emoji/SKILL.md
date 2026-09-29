@@ -4,7 +4,8 @@ description: >-
   A custom-emoji pack of one character — the client's face, pet or
   mascot from a reference photo, or a described one — drawn by an image
   model in a named style (chibi-cartoon, kawaii-pastel, pixel,
-  flat-sticker, clay, or a described one) across a pack of expressions
+  flat-sticker, clay, crayon, sumi-ink, origami, neon, or a described
+  one) across a pack of expressions
   (expressions, gaming, love-hype, meme-classics, custom), finished for a
   platform (Slack, Discord, Telegram, LINE). Two rounds: without an
   `anchor` it draws the character sheet and stops for approval; with one
@@ -40,7 +41,7 @@ metadata:
         example: "nemui: eyes half closed, yawning\nkami: sparkling eyes, hands raised"
       style:
         required: true
-        options: [chibi-cartoon, kawaii-pastel, pixel, flat-sticker, clay]
+        options: [chibi-cartoon, kawaii-pastel, pixel, flat-sticker, clay, crayon, sumi-ink, origami, neon]
         other: true
         label: "a listed style, or a described look in a sentence"
       platform:

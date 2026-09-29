@@ -242,9 +242,14 @@ create-promotion, create-story, create-ad, create-tour and create-explainer-vide
 renderers; Motion Canvas uses names and looks only) — before the plan that
 fixes their beats, and they name its entries instead of generic "fade",
 "slide" or "card". It is a dictionary of names, looks and usual builds for
-text animations, transitions, camera, effects, components, compositions and
-visual metaphors (an abstract idea carried by a physical image, such as a
-bottleneck as a funnel). It adds no plan field, schema or rule; why it stays
+text animations, transitions, camera, character and physical motion (spring,
+squash and stretch, jointed walk, page turn), effects, components,
+compositions, drawn looks (risograph, sumi-ink, CRT, flow field and the like,
+with 2.5D stand-ins where 3D needs `graphics: three-webgl2`) and visual
+metaphors (an abstract idea carried by a physical image, such as a
+bottleneck as a funnel). It adds no plan field, schema or rule; a leaf's
+`style` option stays its own reference, and a drawn look never re-renders
+supplied art, a cast or a logo. Why it stays
 rule-free: "Storyboard vocabulary" under the Promotion family.
 
 **Three graphics** is an opt-in (`graphics: three-webgl2`) on create-tour,

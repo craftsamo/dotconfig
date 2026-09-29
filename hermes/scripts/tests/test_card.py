@@ -13,6 +13,8 @@ HELPER = ROOT / "profiles/image-creator/skills/image-creator-pipeline/scripts/ca
 MODULE = importlib.util.spec_from_file_location("card", HELPER)
 card = importlib.util.module_from_spec(MODULE)
 MODULE.loader.exec_module(card)
+STYLES = ("glass", "flat-minimal", "dark-pro", "gradient-glow", "paper", "soft-3d",
+          "risograph", "blueprint", "crt", "chalkboard")
 
 
 class CardTests(unittest.TestCase):
@@ -73,8 +75,8 @@ class CardTests(unittest.TestCase):
                 card.local(path)
 
     def test_css_separate_and_bounded(self):
-        styles = [card.css_style({"style": name}) for name in ("glass", "flat-minimal", "dark-pro", "gradient-glow", "paper", "soft-3d")]
-        self.assertEqual(len(set(styles)), 6)
+        styles = [card.css_style({"style": name}) for name in STYLES]
+        self.assertEqual(len(set(styles)), len(STYLES))
         path = self.work / "custom.css"
         base = ":root {--surface:#fff4bc;--ink:#232330;--accent:#c83538;}"
         path.write_text(base + ".panel {border:4px solid var(--ink);}")
@@ -251,6 +253,13 @@ class CardTests(unittest.TestCase):
             self.assertIn(phrase, generated)
         for reference in (card.ROOT / "generate/card/references/styles").glob("*.md"):
             self.assertNotIn("```css", reference.read_text())
+        # create/generate share one named style vocabulary: CSS on one side, backdrop prose on the other.
+        for verb in ("create", "generate"):
+            text = (card.ROOT / verb / "card/SKILL.md").read_text()
+            options = next(line for line in text.splitlines() if "options: [glass" in line)
+            self.assertEqual(options.split("[", 1)[1].rstrip("]").split(", "), list(STYLES))
+            for style in STYLES:
+                self.assertTrue((card.ROOT / verb / "card/references/styles" / (style + ".md")).is_file())
         self.assertTrue((ROOT / "profiles/creator/skills/technic/creator-text-card/SKILL.md").is_file())
 
 
@@ -274,12 +283,12 @@ class CardRenderSmoke(unittest.TestCase):
             with self.subTest(name=name):
                 result = card.create({**copy, **spec}, out / name)
                 self.assertTrue(result["reassembly_rgba_equal"])
-        # All six styles at the same canvas/copy must differ in actual pixels.
+        # Every named style at the same canvas/copy must differ in actual pixels.
         hashes = set()
-        for style in ("glass", "flat-minimal", "dark-pro", "gradient-glow", "paper", "soft-3d"):
+        for style in STYLES:
             result = card.create({**copy, "destination": "og", "style": style}, out / ("style-" + style))
             hashes.add(result["master"]["sha256"])
-        self.assertEqual(len(hashes), 6)
+        self.assertEqual(len(hashes), len(STYLES))
         # Same input/environment, fresh output: stable decoded pixels.
         self.assertEqual(card.command(["magick", out / "og/master.png", "rgba:-"]),
                          card.command(["magick", out / "style-glass/master.png", "rgba:-"]))
