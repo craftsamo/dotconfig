@@ -3,7 +3,8 @@ name: generate-reimagine
 description: >-
   A client's photo — a person, a pet, an object, a scene — re-rendered by
   an image model in a named style (3d-character, comic-book, chibi,
-  70s-street, 80s-anime, or a described one) with the SAME subject, pose
+  70s-street, 80s-anime, risograph, sumi-ink, watercolor, origami,
+  stained-glass, crayon, or a described one) with the SAME subject, pose
   and composition: the photo is the edit input, not a reference. One or
   several styles per request, two candidates each, delivered at the
   photo's own size next to a comparison sheet. Metered; the photo leaves
@@ -26,7 +27,7 @@ metadata:
         example: "~/Downloads/IMG_4021.jpg"
       style:
         required: true
-        options: [3d-character, comic-book, chibi, 70s-street, 80s-anime]
+        options: [3d-character, comic-book, chibi, 70s-street, 80s-anime, risograph, sumi-ink, watercolor, origami, stained-glass, crayon]
         other: true
         label: "one listed style (references/styles/<style>.md), several as a comma list, or a described look in a sentence"
         example: "comic-book, 80s-anime"
