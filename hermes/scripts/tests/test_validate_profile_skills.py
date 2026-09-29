@@ -820,6 +820,33 @@ class LearnedPlacementTest(unittest.TestCase):
         VALIDATOR.validate_allowed_skill_roots(learned.parent, roots, errors)
         self.assertEqual([], errors)
 
+    def test_hands_profiles_accept_a_learned_category(self) -> None:
+        """Hands profiles share the worker contract: ``learned/<category>/<name>`` is valid."""
+        import shutil
+
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        root = Path(directory.name) / "hermes"
+        for profile in VALIDATOR.HANDS_PROFILES:
+            source = VALIDATOR.HERMES_ROOT / "profiles" / profile
+            target = root / "profiles" / profile
+            shutil.copytree(source / "skills" / f"{profile}-pipeline",
+                            target / "skills" / f"{profile}-pipeline")
+            shutil.copy2(source / "config.yaml", target / "config.yaml")
+        learned = root / "profiles" / "audio-creator" / "skills" / "learned"
+        for rel in ("flat", "audio/nested", "learned/doubled"):
+            skill = learned / rel / "SKILL.md"
+            skill.parent.mkdir(parents=True)
+            skill.write_text(
+                f"---\nname: {skill.parent.name}\ndescription: x\n---\n", encoding="utf-8"
+            )
+        errors: list[str] = []
+        with mock.patch.object(VALIDATOR, "HERMES_ROOT", root), \
+                mock.patch.object(VALIDATOR, "validate_git_boundary", lambda *args: None):
+            _leaves, count = VALIDATOR.validate_hands("audio-creator", errors)
+        self.assertEqual([], errors)
+        self.assertEqual(3, count)
+
 
 class HandsLeafTest(unittest.TestCase):
     """Creator hands v3: `<verb>/<subject>/SKILL.md` leaves with a form."""
