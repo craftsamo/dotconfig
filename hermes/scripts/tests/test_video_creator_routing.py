@@ -29,6 +29,9 @@ class VideoCreatorRoutingTest(unittest.TestCase):
         self.assertIn("A dictionary, not a rulebook", vocab)
         self.assertIn("## Visual metaphors", vocab)
         self.assertIn("| Idea | Image | Looks like | Built with |", vocab)
+        self.assertIn("## Character and physical motion", vocab)
+        self.assertIn("## Drawn looks", vocab)
+        self.assertIn("never re-renders supplied\nart, a cast or a logo", vocab)
         for leaf in ("promotion", "story", "ad", "tour", "explainer-video"):
             text = (kernel / "create" / leaf / "SKILL.md").read_text()
             with self.subTest(leaf=leaf):
