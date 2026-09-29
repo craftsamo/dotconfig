@@ -2,7 +2,8 @@
 name: generate-icon
 description: >-
   One icon drawn by an image model in a named style (flat-minimal, glass,
-  pixel, line, clay, or a described one), cut out and delivered as square
+  pixel, line, clay, origami, isometric, neon, stained-glass, or a
+  described one), cut out and delivered as square
   PNG variants at an exact size on a transparent, tiled or flat
   background. For a subject no icon library has, or a look no library
   draws. Metered: default 4 variants + 1 corrective.
@@ -23,7 +24,7 @@ metadata:
         example: "Slack 通知 bot のアプリアイコン。ベルと吹き出しを組み合わせたモチーフ"
       style:
         required: true
-        options: [flat-minimal, glass, pixel, line, clay]
+        options: [flat-minimal, glass, pixel, line, clay, origami, isometric, neon, stained-glass]
         other: true
         label: "a listed style, or a described look in a sentence"
       background:
