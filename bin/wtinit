@@ -11,7 +11,7 @@
 # non-interactive zsh that sources only ~/.zshenv (= env.zsh -> PATH), NOT
 # ~/.zshrc (= config.zsh, where functions/aliases live). env.zsh already puts
 # ~/.config/bin first on PATH, so a script here is visible to both opencode's
-# `!` and interactive shells — same stance as bin/pj. No zsh/dotconfig changes.
+# `!` and interactive shells — same stance as bin/wsreg. No zsh/dotconfig changes.
 #
 # Safety:
 #   - never writes to the main worktree (reads from it; copies/links OUT only)
