@@ -1686,19 +1686,13 @@ def validate_hands(profile: str, errors: list[str]) -> tuple[dict[str, Path], in
         errors.append(f"hands profile must not carry a technic directory: {skills / 'technic'}")
 
     leaves = validate_hands_leaves(pipeline_dir, profile, errors)
-
-    learned: dict[str, Path] = {}
-    if learned_dir.is_dir():
-        for path in sorted(learned_dir.glob("*/SKILL.md")):
-            name = path.parent.name
-            validate_skill(path, name, errors)
-            learned[name] = path
+    learned, learned_roots = validate_learned_skills(learned_dir, errors)
 
     allowed = {(pipeline_name, "SKILL.md")}
     allowed.update(
         (pipeline_name, *path.relative_to(pipeline_dir).parts) for path in leaves.values()
     )
-    allowed.update(("learned", name, "SKILL.md") for name in learned)
+    allowed.update(learned_roots)
     validate_allowed_skill_roots(skills, allowed, errors)
     validate_git_boundary([pipeline_dir], learned_dir, errors)
     validate_plugin_enabled(profile, profile_root / "config.yaml", errors)

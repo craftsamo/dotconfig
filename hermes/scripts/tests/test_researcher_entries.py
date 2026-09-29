@@ -22,6 +22,13 @@ SPEC = importlib.util.spec_from_file_location(
 )
 VALIDATOR = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(VALIDATOR)
+
+
+def _skip_learned(directory, names):
+    """copytree filter: leave out ``skills/learned`` (untracked runtime library)."""
+    return ["learned"] if Path(directory).name == "skills" and "learned" in names else []
+
+
 PHASES = ("plan", "build", "qa")
 UNITS = ("evidence-pack", "tradeoff-matrix", "fact-check", "guidance")
 ENTRIES = {f"{phase}-researcher" for phase in PHASES}
@@ -84,7 +91,8 @@ def test_primary_relays_acceptance_baseline_without_transferring_handle(caller):
 
 def test_worker_integration(tmp_path, monkeypatch):
     root = tmp_path / "hermes"
-    shutil.copytree(PROFILE, root / "profiles/researcher")
+    # The learned library is gitignored runtime data; its size varies per machine.
+    shutil.copytree(PROFILE, root / "profiles/researcher", ignore=_skip_learned)
     monkeypatch.setattr(VALIDATOR, "HERMES_ROOT", root)
     # Only Git ownership is outside this synthetic structure test.
     monkeypatch.setattr(VALIDATOR, "validate_git_boundary", lambda *args: None)
