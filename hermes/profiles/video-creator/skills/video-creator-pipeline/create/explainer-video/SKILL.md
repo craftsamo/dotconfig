@@ -55,7 +55,7 @@ metadata:
         label: "world; default studio; custom OK"
       style:
         required: false
-        options: [flat-vector, paper-cut, mixed-media, picture-book, cartoon]
+        options: [flat-vector, paper-cut, mixed-media, picture-book, cartoon, chalkboard, blueprint, isometric, one-line]
         other: true
         references: references/styles/*.md
         label: "medium; default flat-vector; preserve supplied identity"
@@ -151,7 +151,9 @@ skill_view(name="video-creator-pipeline", file_path="references/three-graphics.m
    [abstract-space](references/themes/abstract-space.md); style:
    [flat-vector](references/styles/flat-vector.md), [paper-cut](references/styles/paper-cut.md),
    [mixed-media](references/styles/mixed-media.md), [picture-book](references/styles/picture-book.md),
-   [cartoon](references/styles/cartoon.md); direction:
+   [cartoon](references/styles/cartoon.md), [chalkboard](references/styles/chalkboard.md),
+   [blueprint](references/styles/blueprint.md), [isometric](references/styles/isometric.md),
+   [one-line](references/styles/one-line.md); direction:
    [mechanism](references/direction/mechanism.md), [process](references/direction/process.md),
    [comparison](references/direction/comparison.md), [misconception](references/direction/misconception.md),
    [worked-example](references/direction/worked-example.md). Expand each choice

@@ -1,8 +1,8 @@
 # Motion and component vocabulary
 
 A dictionary, not a rulebook. Left alone, a plan collapses every idea into
-"fade in", "slide", "card" and "transition", and every abstract idea into a
-label or an icon. Use these names instead: pick
+"fade in", "slide", "card" and "transition", every abstract idea into a
+label or an icon, and every look into "clean flat". Use these names instead: pick
 the one that says exactly what the viewer should see, and write it into the
 storyboard or design by name (one entry per event or component; combine
 entries freely; a more precise name of your own is fine). Each entry gives
@@ -13,7 +13,7 @@ what it looks like and how it is usually built in HTML/CSS/SVG/GSAP.
 | Name | Looks like | Built with |
 | --- | --- | --- |
 | split-text stagger | letters/words/lines arrive one after another as a wave | split into spans; stagger 0.02-0.08 s on y/opacity |
-| mask reveal (line rise) | each line slides up out of an invisible slot, cut off below | line wrapper `overflow:hidden`; inner span y 110% -> 0 |
+| mask reveal (line rise) | each line slides up out of an invisible slot, cut off below (vertical writing: each column slides down from above) | line wrapper `overflow:hidden`; inner span y 110% -> 0 (x for vertical columns) |
 | blur-in / focus pull | words arrive soft and snap sharp as they land | `filter: blur()` 12-20px -> 0 with y or scale |
 | scale punch | a key word lands oversized and settles to size | scale 1.3-1.6 -> 1, expo/back ease |
 | tracking-in | letters spread wide then contract into the word | letter-spacing 0.5em -> normal, opacity |
@@ -55,6 +55,8 @@ what it looks like and how it is usually built in HTML/CSS/SVG/GSAP.
 | push stack | the new beat slides over the old like a card on a pile | incoming y from 100%, old scales to 0.94 and dims |
 | split-screen expand | a divider opens, one side grows to fill the frame | width/clip tween on two panes |
 | dither / pixel dissolve | the image breaks into pixels and rebuilds | canvas or SVG pattern mask, seeded |
+| ink bleed | a wash spreads from a point with a soft ragged edge and floods the frame; the next beat is under it | a growing blurred shape through a fixed-seed displacement mask, scale tween, swap at full cover |
+| brush wipe | one broad brush stroke sweeps across and leaves the next beat behind it | reveal mask along a thick stroked path (`stroke-dashoffset` on the mask), ragged edge by displacement |
 
 ## Camera
 
@@ -69,6 +71,30 @@ what it looks like and how it is usually built in HTML/CSS/SVG/GSAP.
 | tilt-shift | top and bottom blurred, middle sharp; looks miniature | gradient-masked blurred copies or backdrop-filter bands |
 | dutch tilt | slightly rotated frame for energy | small rotate on the camera wrapper |
 | focus follow | depth of field shifts to whatever becomes important | per-layer blur tweens |
+| camera shake | a short jolt after an impact that dies away | seeded list of x/y/rotate offsets on the camera wrapper, amplitude decaying over 0.3-0.6 s |
+
+## Character and physical motion
+
+How things and characters move as if they had weight, joints and material.
+Joint-level entries (walk cycle, blink, follow-through of a tail) need a
+character built from separate parts: your own drawn shapes or supplied part
+files. Supplied whole-pose art moves by pose swaps and whole-body transforms
+only; a walk is then a swap between approved walk poses over a sliding ground.
+
+| Name | Looks like | Built with |
+| --- | --- | --- |
+| timing contrast | the same move reads heavy when slow-in, light when snappy; a hold makes the next move land | duration and ease choice per move; a short hold before a fast move |
+| spring settle | the object overshoots and settles in shrinking swings | `elastic.out(amplitude, period)` or a damped keyframe list; a drawn coil is an SVG zig-zag scaled in y with `vector-effect: non-scaling-stroke` |
+| squash and stretch | stretched along its path while falling, flat only while touching the floor, leaves stretched, round at the top | scaleX/scaleY with `transform-origin` at the contact point, width x height kept near constant; one `fromTo` per phase so seeking in any order gives the same frame |
+| anticipation | a small move the opposite way just before the main action | a short reverse tween before the main one |
+| follow-through / lag | hair, tails, cloth and chained parts arrive after the body and swing past its stop | the same rotation on each link with a growing delay and a small overshoot |
+| jointed walk cycle | legs swing from the hip, the knee folds on the forward swing, the body bobs twice per stride, arms swing against the legs | nested limbs with `transform-origin` at each joint; thigh +-25-30 deg per stride, the knee folds so the foot trails behind (away from the facing direction); finite repeats; the ground or background slides under a walker held in frame |
+| blink and mouth flap | eyes shut for 2-4 frames at uneven intervals; a loose mouth open/close on spoken syllables | eye scaleY to ~0.1 and back; a mouth-shape swap on a list of times. Loose flapping, not lip sync |
+| line draw and retract | a line draws itself, loops, then pulls back into its own tip | `stroke-dasharray` + `stroke-dashoffset` forward, then continue the offset past the length so the tail chases the head |
+| page turn | a page lifts, turns over the spine under a travelling shadow and shows its back | page with two faces (`backface-visibility: hidden`, back face `rotateY(180deg)`), `rotateY` on the spine edge inside `perspective`; a shade overlay peaks at 90 deg. Stacked faces trip the layout overlap audit: mark only the page-number/text blocks `data-layout-allow-overlap` |
+| seamless loop | the last frame matches the first, so it can repeat | every tween returns to its start or travels a whole period; finite repeat count |
+| boil | a drawn line redraws slightly every few frames, alive like hand animation | swap between 2-3 fixed displacement seeds on steps of 2-3 frames |
+| animate on twos | the motion updates every other frame, reading as hand-drawn or stop motion | `steps()` ease, or time rounded to 1/12 s |
 
 ## Effects
 
@@ -149,6 +175,72 @@ what it looks like and how it is usually built in HTML/CSS/SVG/GSAP.
 | collage | many cut-out elements overlapping at different scales |
 | screen within screen | a device whose screen shows another device or the film itself |
 | before / after split | two states side by side with a moving divider |
+
+## Drawn looks
+
+The rendering language of the world you draw: backgrounds, props, type and
+your own drawn shapes. Name one in the look-in-words; the leaf's own `style`
+reference, when chosen, is the fuller brief. A look never re-renders supplied
+art, a cast or a logo: apply a look's filters and textures to world layers,
+never to a wrapper that contains supplied art. Entries marked 3D need
+`graphics: three-webgl2` where the leaf offers it; elsewhere build the 2.5D
+imitation named in the same row.
+
+### Hand-drawn and paper
+
+| Name | Looks like | Built with |
+| --- | --- | --- |
+| risograph | two or three flat spot inks overprinted, darker where they overlap, halftone dots, plates slightly out of register, paper grain | one layer per ink with `mix-blend-mode: multiply`; dots as a `radial-gradient` with `background-size`; a few px offset per plate; fixed-seed `feTurbulence` grain (see halftone / dither) |
+| origami | everything folded from paper: triangle facets and creases, each facet one tone lighter or darker than its neighbour, soft shadows | SVG polygons in 2-3 tones of one hue; unfolding = facets rotating on their shared crease (`transform-origin` on the edge) |
+| sumi-ink brush | black ink on off-white paper; strokes swell and thin with pressure, dry-brush streaks at the tail, soft grey wash hills | a filled variable-width stroke shape revealed by a mask path drawn along its centreline (`stroke-dashoffset` on the mask, slow-fast-slow ease; a plain stroke keeps one width); fixed-seed `feTurbulence` + `feDisplacementMap` for the ragged edge; a thinner offset stroke through a grain mask for dry brush; washes as blurred low-opacity shapes; ink bleed / brush wipe between beats |
+| pencil sketch | graphite on white: construction lines, hatching for shade, smudged edges; objects look drawn, not rendered | shapes made of many thin hatch paths; draw-on per stroke group; low-scale displacement for hand wobble; paper-tooth overlay |
+| crayon | waxy thick strokes, paper tooth showing through, scribble fills that miss the outline, wobbly child-like shapes | fills as dense zig-zag strokes clipped to the shape; coarse grain mask on fill and outline; boil |
+| watercolor | soft pigment pools with darker dried edges, colours bleeding into each other, white paper kept for highlights | layered blurred shapes with `mix-blend-mode: multiply`; the same shape stroked and less blurred for the edge; fixed-seed noise mask for blooms; bleed-in = slow scale/opacity spread |
+| paper cut-out (kirie) | silhouettes cut from stacked coloured paper, a flat colour per layer with a small shadow, lit windows punched through | flat SVG layers, one drop shadow per layer, parallax by layer |
+| chalkboard | chalk lines and handwriting on dark green slate, dusty edges, faint ghosts of erased writing | stroked paths through a grain mask on a dark green surface; write-on via `stroke-dashoffset`; ghosts as low-opacity blurred copies |
+| one-line drawing | a whole object drawn as one continuous line, a few flat colour blobs offset behind it | a single path drawn by `stroke-dashoffset`; blobs as soft shapes that fade in after the line passes |
+
+### Graphic
+
+| Name | Looks like | Built with |
+| --- | --- | --- |
+| flat Bauhaus | red, blue, yellow and black on cream: circles, half discs, bars, one strong diagonal | SVG primitives; motion as half discs rotating and bars sliding on a grid |
+| isometric | see Compositions: isometric; blocks with a light top and two darker sides, things travel along the axes | SVG on an isometric grid, or one `rotateX(60deg) rotateZ(45deg)` plane |
+| infographic | calm charts: donut, flowing bands (sankey), dot matrix, labelled axes, one accent colour | SVG paths; donut arcs by `stroke-dashoffset`; labels by count-up |
+| blueprint | white hairlines on blue over a fine grid, dimension arrows, section marks, numbered callouts | grid from repeating linear gradients; line draw per part; callouts as tooltip / callout |
+| stained glass | jewel-coloured panes between thick dark lead lines, light glowing through | SVG polygons with a thick dark stroke, an inner radial glow, a sheen / shimmer passing over |
+| tile mosaic | the image built from small square tiles with grout gaps and slightly uneven colours | a grid of small rects coloured from a source shape, fixed-seed jitter; reveal staggered from the centre |
+| silhouette | solid dark shapes against a warm gradient sky; smoke and steam as soft shapes | flat dark SVG shapes over a gradient, parallax layers |
+
+### Screen and retro
+
+| Name | Looks like | Built with |
+| --- | --- | --- |
+| CRT / VHS | curved glass, scanlines, colour bleed, a rolling tracking band | repeating-gradient scanlines; rounded inner vignette for the glass; chromatic aberration; a band tweened down the frame |
+| pixel art | a low-resolution grid with hard edges and a small palette | draw small and scale with `image-rendering: pixelated`, or `shape-rendering: crispEdges` rects; motion in whole-pixel steps |
+| ASCII terminal | the subject drawn with characters in a monospace grid under a command prompt | a `<pre>` grid whose characters come from a brightness ramp computed per frame from a deterministic shape; typewriter + caret for the prompt |
+| glitch | slices of the frame jump sideways, colour channels split, blocks flicker | `clip-path` slices offset on a seeded schedule; RGB-split copies; each burst held 2-6 frames |
+| neon sign | glowing tubes on a dark wall, a flicker on ignition, a coloured halo on the wall | stroked text/paths with layered blurred copies (bloom / glow); seeded opacity steps for the flicker; radial gradient halo |
+
+### Solid (3D)
+
+| Name | Looks like | Built with |
+| --- | --- | --- |
+| low-poly 3D | faceted, flat-shaded meshes; bright toy landscapes | 3D: flat-shaded procedural geometry; 2.5D: SVG triangles in three tones |
+| toon 3D | 3D forms with two-tone cel shading and an outline | 3D: toon material plus an inverted-hull outline; 2.5D: flat shapes with one hard shadow shape |
+| clay stop-motion | soft rounded forms with a handled, fingerprinted surface, moving on twos | 3D: rough material with fixed noise; 2.5D: soft gradients and grain; animate on twos |
+| product shot | a real product on a seamless sweep, soft key light, contact shadow, slow turn | only from supplied product photos or renders, never invented packaging; shadow stack, reflection floor; 3D turntable only for a procedural stand-in shape |
+
+### Generative, math and data
+
+| Name | Looks like | Built with |
+| --- | --- | --- |
+| flow field | thousands of fine lines streaming across the frame and bending around an obstacle | lines precomputed from a field (potential flow around a circle, psi = y(1 - R^2/r^2), or fixed-seed noise angles); motion by `stroke-dashoffset` along each line |
+| particles | a shape made of fine grains that disperses and re-forms into another shape | canvas or SVG points with seeded starts, each grain tweening between two samplings of the shapes |
+| marbling (suminagashi) | concentric ink rings on water, pulled into swirls | closed rings around seeded centres, warped by fixed-seed displacement whose scale tweens |
+| math diagram | a unit circle whose turning radius draws y = sin theta beside it, with live values | SVG; one angle tween drives the radius end, a growing path and the written number |
+| transit map | coloured lines over a faint street map, a station marker, the camera closing on one station | lines by `stroke-dashoffset`; map + pin + route; push-in |
+| kinetic typography | one giant character with small vertical kana beside it, letters that snap, blur and settle | kinetic lockup, scale punch, blur-in, outline-to-fill |
 
 ## Film structures
 

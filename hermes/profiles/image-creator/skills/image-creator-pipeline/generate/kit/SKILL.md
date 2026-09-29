@@ -3,7 +3,8 @@ name: generate-kit
 description: >-
   A game props and UI asset kit in one visual language: world props,
   icon sets, buttons, panels and bars, in pixel art, 3D-rendered,
-  cel-shaded, hand-painted, flat-vector or a described style. Two rounds:
+  cel-shaded, hand-painted, flat-vector, isometric, low-poly, neon,
+  stained-glass or a described style. Two rounds:
   three style-sheet candidates, then individual transparent PNG assets
   on the approved sheet. UI states are named items. Not a functional web
   component library, 3D models or engine-ready UI code. For exact SVG
@@ -27,7 +28,7 @@ metadata:
         example: "A cosy forest alchemist game: bottles, crates, crafting inventory and warm wooden HUD"
       style:
         required: true
-        options: [pixel, 3d-render, cel-shaded, hand-painted, flat-vector]
+        options: [pixel, 3d-render, cel-shaded, hand-painted, flat-vector, isometric, low-poly, neon, stained-glass]
         other: true
         label: "a listed look or a described one; 3d-render means 2D pictures of rendered objects, not model files"
       contents:

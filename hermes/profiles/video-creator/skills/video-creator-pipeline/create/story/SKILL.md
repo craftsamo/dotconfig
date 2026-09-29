@@ -24,7 +24,7 @@ metadata:
       script: {required: false, type: file, label: "approved script with every spoken/on-screen line; absent = pending"}
       aspect: {required: false, options: ["16:9", "9:16", "1:1", "4:5"], label: "default 9:16"}
       duration: {required: false, type: int, label: "10..120s; default 60"}
-      style: {required: false, options: [picture-book, cartoon, paper-cut], other: true, label: "world rendering; must suit the cast art"}
+      style: {required: false, options: [picture-book, cartoon, paper-cut, sumi-ink, watercolor, crayon, silhouette], other: true, label: "world rendering; must suit the cast art"}
       world: {required: false, type: text, label: "setting, era, places, mood"}
       assets: {required: false, type: path, label: "supplied backgrounds, props, footage inserts"}
       audio: {required: false, type: file, label: "finished WAV or Mix master from audio-creator"}
@@ -48,7 +48,11 @@ metadata:
 2. Read [authoring](references/authoring.md), the selected style
    ([picture-book](references/styles/picture-book.md),
    [cartoon](references/styles/cartoon.md),
-   [paper-cut](references/styles/paper-cut.md); a custom value is written
+   [paper-cut](references/styles/paper-cut.md),
+   [sumi-ink](references/styles/sumi-ink.md),
+   [watercolor](references/styles/watercolor.md),
+   [crayon](references/styles/crayon.md),
+   [silhouette](references/styles/silhouette.md); a custom value is written
    out as concretely, never mapped onto these), the kernel's
    [craft reading](../../references/craft.md) (motion + visual) and the
    shared HyperFrames policy and vocabulary through the parent skill:
