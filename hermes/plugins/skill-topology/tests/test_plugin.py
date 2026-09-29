@@ -37,15 +37,43 @@ class SkillTopologyPluginTest(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls.plugin = load_plugin()
 
-    def test_no_tool_request_middleware_rewrites_creates(self) -> None:
-        """Placement is skills.create_dir's job; a category rewrite would nest learned/learned/."""
+    def test_registers_the_guard_and_the_category_normalizer(self) -> None:
         context = FakeContext()
 
         self.plugin.register(context)
 
-        self.assertNotIn("tool_request", context.middleware)
+        self.assertIs(context.middleware["tool_request"], self.plugin._strip_redundant_learned_category)
         self.assertFalse(hasattr(self.plugin, "_route_skill_create"))
         self.assertIs(context.hooks["pre_tool_call"], self.plugin._guard_managed_skill_writes)
+
+    def strip(self, tool_name: str = "skill_manage", **args: Any) -> Any:
+        return self.plugin._strip_redundant_learned_category(tool_name=tool_name, args=args)
+
+    def test_flat_create_drops_a_learned_category(self) -> None:
+        """create_dir already is skills/learned; keeping the category nests learned/learned/."""
+        for category in ("learned", "Learned", " learned/ "):
+            with self.subTest(category=category):
+                result = self.strip(action="create", name="x", content="c", category=category)
+                self.assertEqual({"action": "create", "name": "x", "content": "c"}, result["args"])
+
+    def test_batched_creates_drop_only_the_learned_category(self) -> None:
+        ops = [
+            {"action": "create", "name": "a", "content": "c", "category": "learned"},
+            {"action": "create", "name": "b", "content": "c", "category": "audio"},
+            {"action": "patch", "name": "c", "category": "learned", "old_string": "x", "new_string": "y"},
+        ]
+        result = self.strip(operations=ops)
+        self.assertEqual(
+            [{"action": "create", "name": "a", "content": "c"}, ops[1], ops[2]],
+            result["args"]["operations"],
+        )
+        self.assertEqual("learned", ops[0]["category"], "the caller's args are not mutated")
+
+    def test_other_categories_and_tools_pass_untouched(self) -> None:
+        self.assertIsNone(self.strip(action="create", name="x", content="c", category="audio"))
+        self.assertIsNone(self.strip(action="create", name="x", content="c"))
+        self.assertIsNone(self.strip(operations=[{"action": "create", "name": "x", "category": "audio"}]))
+        self.assertIsNone(self.strip("write_file", path="x", category="learned"))
 
     def test_learned_category_name_is_the_create_dir_leaf(self) -> None:
         self.assertEqual(self.plugin.LEARNED_CATEGORY, "learned")
