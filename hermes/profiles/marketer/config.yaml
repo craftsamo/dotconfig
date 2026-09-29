@@ -7,9 +7,9 @@ fallback_providers:
   - provider: anthropic
     model: claude-fable-5-1
     base_url: https://api.anthropic.com
-  - provider: openai-codex
-    model: gpt-6-astra
-    base_url: https://chatgpt.com/backend-api/codex
+  - provider: anthropic
+    model: claude-sonnet-5-5
+    base_url: https://api.anthropic.com
   - provider: openrouter
     model: xiaomi/mimo-v2.5
     base_url: https://openrouter.ai/api/v1
