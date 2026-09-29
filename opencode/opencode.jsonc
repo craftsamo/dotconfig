@@ -90,7 +90,7 @@
       "color": "#3B82F6",
     },
     "compaction": {
-      "model": "openai/gpt-6-sol",
+      "model": "anthropic/claude-sonnet-5-5",
       "variant": "medium",
     },
   },

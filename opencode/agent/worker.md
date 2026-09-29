@@ -1,7 +1,7 @@
 ---
 description: "Implements well-specified, mechanical code changes: bulk edits, boilerplate, rote refactors, applying an already-decided design. Give it exact specs; it makes no design decisions. Prefer invoking through the built-in task tool."
 mode: subagent
-model: anthropic/claude-sonnet-5
+model: anthropic/claude-sonnet-5-5
 variant: low
 hidden: true
 permission:

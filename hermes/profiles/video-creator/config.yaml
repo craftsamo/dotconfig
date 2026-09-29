@@ -7,9 +7,9 @@ fallback_providers:
   - provider: anthropic
     model: claude-fable-5-1
     base_url: https://api.anthropic.com
-  - provider: openai-codex
-    model: gpt-6-astra
-    base_url: https://chatgpt.com/backend-api/codex
+  - provider: anthropic
+    model: claude-sonnet-5-5
+    base_url: https://api.anthropic.com
   - provider: openrouter
     model: minimax/minimax-m3
     base_url: https://openrouter.ai/api/v1
@@ -392,9 +392,9 @@ auxiliary:
     timeout: 360
     extra_body: {}
   compression:
-    provider: openai-codex
-    model: gpt-6-luna
-    base_url: https://chatgpt.com/backend-api/codex
+    provider: anthropic
+    model: claude-sonnet-5-5
+    base_url: https://api.anthropic.com
     api_key: ""
     timeout: 120
     extra_body: {}
@@ -404,9 +404,9 @@ auxiliary:
         base_url: https://openrouter.ai/api/v1
         api_mode: chat_completions
   skills_hub:
-    provider: openai-codex
-    model: gpt-6-luna
-    base_url: https://chatgpt.com/backend-api/codex
+    provider: anthropic
+    model: claude-sonnet-5-5
+    base_url: https://api.anthropic.com
     api_key: ""
     timeout: 30
     extra_body: {}
@@ -416,9 +416,9 @@ auxiliary:
         base_url: https://openrouter.ai/api/v1
         api_mode: chat_completions
   approval:
-    provider: openai-codex
-    model: gpt-6-luna
-    base_url: https://chatgpt.com/backend-api/codex
+    provider: anthropic
+    model: claude-sonnet-5-5
+    base_url: https://api.anthropic.com
     api_key: ""
     timeout: 30
     extra_body: {}
@@ -428,9 +428,9 @@ auxiliary:
         base_url: https://openrouter.ai/api/v1
         api_mode: chat_completions
   mcp:
-    provider: openai-codex
-    model: gpt-6-luna
-    base_url: https://chatgpt.com/backend-api/codex
+    provider: anthropic
+    model: claude-sonnet-5-5
+    base_url: https://api.anthropic.com
     api_key: ""
     timeout: 30
     extra_body: {}
@@ -440,9 +440,9 @@ auxiliary:
         base_url: https://openrouter.ai/api/v1
         api_mode: chat_completions
   title_generation:
-    provider: openai-codex
-    model: gpt-6-luna
-    base_url: https://chatgpt.com/backend-api/codex
+    provider: anthropic
+    model: claude-sonnet-5-5
+    base_url: https://api.anthropic.com
     api_key: ""
     timeout: 30
     extra_body: {}
@@ -452,9 +452,9 @@ auxiliary:
         base_url: https://openrouter.ai/api/v1
         api_mode: chat_completions
   tts_audio_tags:
-    provider: openai-codex
-    model: gpt-6-luna
-    base_url: https://chatgpt.com/backend-api/codex
+    provider: anthropic
+    model: claude-sonnet-5-5
+    base_url: https://api.anthropic.com
     api_key: ""
     timeout: 30
     extra_body: {}
@@ -464,9 +464,9 @@ auxiliary:
         base_url: https://openrouter.ai/api/v1
         api_mode: chat_completions
   triage_specifier:
-    provider: openai-codex
-    model: gpt-6-luna
-    base_url: https://chatgpt.com/backend-api/codex
+    provider: anthropic
+    model: claude-sonnet-5-5
+    base_url: https://api.anthropic.com
     api_key: ""
     timeout: 120
     extra_body: {}
@@ -476,9 +476,9 @@ auxiliary:
         base_url: https://openrouter.ai/api/v1
         api_mode: chat_completions
   kanban_decomposer:
-    provider: openai-codex
-    model: gpt-6-luna
-    base_url: https://chatgpt.com/backend-api/codex
+    provider: anthropic
+    model: claude-sonnet-5-5
+    base_url: https://api.anthropic.com
     api_key: ""
     timeout: 180
     extra_body: {}
@@ -488,9 +488,9 @@ auxiliary:
         base_url: https://openrouter.ai/api/v1
         api_mode: chat_completions
   profile_describer:
-    provider: openai-codex
-    model: gpt-6-luna
-    base_url: https://chatgpt.com/backend-api/codex
+    provider: anthropic
+    model: claude-sonnet-5-5
+    base_url: https://api.anthropic.com
     api_key: ""
     timeout: 60
     extra_body: {}
@@ -500,9 +500,9 @@ auxiliary:
         base_url: https://openrouter.ai/api/v1
         api_mode: chat_completions
   curator:
-    provider: openai-codex
-    model: gpt-6-luna
-    base_url: https://chatgpt.com/backend-api/codex
+    provider: anthropic
+    model: claude-sonnet-5-5
+    base_url: https://api.anthropic.com
     api_key: ""
     timeout: 600
     extra_body: {}
@@ -512,9 +512,9 @@ auxiliary:
         base_url: https://openrouter.ai/api/v1
         api_mode: chat_completions
   monitor:
-    provider: openai-codex
-    model: gpt-6-luna
-    base_url: https://chatgpt.com/backend-api/codex
+    provider: anthropic
+    model: claude-sonnet-5-5
+    base_url: https://api.anthropic.com
     api_key: ""
     timeout: 60
     extra_body: {}
