@@ -196,14 +196,19 @@ These facts govern the paired Claude tiers (Fable 5 and 5.1 behave the same):
    disabled (`thinking: {type: disabled}` → HTTP 400), so a thinking-off
    request (`reasoning: none`, the one-shot "answer without thinking" length
    continuation) omits `thinking` instead (for Opus 5.5 carried as a local
-   patch). Opus 5.5, Fable 5.1 and Mythos 5.1 reject forced `tool_choice`
+   patch). Sonnet 5.5 also refuses the disable but has a real off: its
+   thinking-off request sends `thinking: {type: between_tools}` bare on
+   anthropic.com (no up-front thinking; it rejects xhigh/max effort and any
+   other thinking field) and omits `thinking` elsewhere (local patch). Opus
+   5.5, Sonnet 5.5, Fable 5.1 and Mythos 5.1 reject forced `tool_choice`
    (`any` / `tool`) with HTTP 400, so on them the leaked-invoke-markup
    recovery resends the ordinary request (carried as a local patch). Ordinary
-   turns are unaffected. Hermes decides both from
-   `_MANDATORY_THINKING_CLAUDE_SUBSTRINGS` and
+   turns are unaffected. Hermes decides these from
+   `_MANDATORY_THINKING_CLAUDE_SUBSTRINGS`,
+   `_BETWEEN_TOOLS_OFF_CLAUDE_SUBSTRINGS` and
    `_NO_FORCED_TOOL_CHOICE_CLAUDE_SUBSTRINGS`; an unknown Claude id defaults to
    "disable accepted, forcing accepted", so a new Claude release is not
-   covered until its breaking changes are read against both lists (see
+   covered until its breaking changes are read against these lists (see
    `AGENTS.md`).
 
 ### `agent.*` does not inherit from the root profile
