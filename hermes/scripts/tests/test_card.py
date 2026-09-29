@@ -15,7 +15,7 @@ MODULE = importlib.util.spec_from_file_location("card", HELPER)
 card = importlib.util.module_from_spec(MODULE)
 MODULE.loader.exec_module(card)
 STYLES = ("glass", "flat-minimal", "dark-pro", "gradient-glow", "paper", "soft-3d",
-          "risograph", "blueprint", "crt", "chalkboard")
+          "risograph", "blueprint", "crt", "chalkboard", "watercolor", "sumi-ink", "neon")
 
 
 class CardTests(unittest.TestCase):
@@ -136,6 +136,14 @@ class CardTests(unittest.TestCase):
                 self.assertIn("url(data:image/png;base64,", first)
                 # Every resource is an inline PNG; nothing is fetched.
                 self.assertIsNone(re.search(r"url\((?!data:image/png;base64,)", first))
+
+    def test_named_styles_own_their_texture(self):
+        self.assertEqual(card.texture_name({"style": "sumi-ink"}), "washi")
+        self.assertEqual(card.texture_name({"style": "watercolor"}), "watercolor")
+        self.assertEqual(card.texture_name({"style": "chalkboard"}), "chalk")
+        self.assertIsNone(card.texture_name({"style": "neon"}))
+        with self.assertRaises(ValueError):
+            card.texture_name({"style": "sumi-ink", "texture": "paper"})
 
     def test_escaping_and_separate_tile_text(self):
         # A small stand-in font keeps this pure markup test portable/offline.
