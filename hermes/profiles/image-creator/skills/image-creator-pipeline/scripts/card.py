@@ -19,14 +19,78 @@ ROOT = Path(__file__).resolve().parents[1]
 REFERENCES = ROOT / "create/card/references"
 TEXT = {"title", "subtitle", "brand", "label", "meta", "slug", "note"}
 TILING = {"destination", "tiles", "tile", "gap"}
-CREATE = TEXT | TILING | {"style", "style_css", "layout_html", "copy_blocks", "background", "motif", "palette", "font", "tile_titles"}
+CREATE = TEXT | TILING | {"style", "style_css", "texture", "layout_html", "copy_blocks", "background", "motif", "palette", "font", "tile_titles"}
 EDIT = TILING | {"source", "fit", "focus", "protected", "text_band", "title", "font", "slug", "note"}
 ANALYZE = TILING | {"files", "input_kind", "expected_text", "note"}
+
+
+# Template CSS contract: base properties apply to every selector. Bounded text
+# effects go only to copy; compositing (filter, opacity, masks, blend) only to
+# `.panel`/`.orb`, which paint below the copy. `.stage` is the copy's ancestor and
+# `.accent` sits inside it, so both get background-only extras: a stacking context
+# there could hide or cover text. `.texture` tunes the generated layer only.
+SELECTORS_TEXT = {"h1", "h2", "p", ".label", ".brand", "footer"}
+SELECTORS_LAYER = {".panel", ".orb"}
+SELECTORS_BACKGROUND = {".stage", ".accent"}
+TEXT_OFFSET_MAX, TEXT_BLUR_MAX, TEXT_STROKE_MAX = 4, 48, 3
+PROPS_BASE = {"background", "background-color", "background-size", "color", "border", "border-radius", "outline",
+              "outline-offset", "box-shadow", "backdrop-filter", "font-weight", "letter-spacing",
+              "--surface", "--ink", "--accent"}
+PROPS_TEXT = {"text-shadow", "-webkit-text-stroke"}
+PROPS_BACKGROUND = {"background-blend-mode", "background-position", "background-repeat"}
+PROPS_LAYER = PROPS_BACKGROUND | {"filter", "mix-blend-mode", "opacity", "mask-image", "-webkit-mask-image"}
+PROPS_TEXTURE = {"opacity", "mix-blend-mode", "filter", "mask-image", "-webkit-mask-image"}
+
+# Procedural textures: fixed seeds, offline ImageMagick, grayscale. `tile` repeats at
+# 512 CSS px (tileable through virtual-pixel tile); `field` covers the whole master.
+TEXTURE_TILE = ["-size", "512x512", "xc:gray50", "-virtual-pixel", "tile"]
+TEXTURES = {
+    "paper": {"tile": TEXTURE_TILE[:3] + ["-seed", "11", "+noise", "Gaussian"] + TEXTURE_TILE[3:]
+              + ["-blur", "0x0.8", "-colorspace", "Gray", "-auto-level", "+level", "86%,100%"]},
+    "washi": {"tile": TEXTURE_TILE[:3] + ["-seed", "17", "+noise", "Random"] + TEXTURE_TILE[3:]
+              + ["-colorspace", "Gray", "-threshold", "99.2%", "(", "+clone", "-motion-blur", "0x22+35", ")",
+                 "(", "-clone", "0", "-motion-blur", "0x18+160", ")", "-delete", "0", "-compose", "lighten",
+                 "-composite", "-auto-level", "-negate", "+level", "86%,100%", "(", "-size", "512x512", "xc:gray50",
+                 "-seed", "19", "+noise", "Gaussian", "-virtual-pixel", "tile", "-blur", "0x0.8", "-colorspace",
+                 "Gray", "-auto-level", "+level", "90%,100%", ")", "-compose", "multiply", "-composite"]},
+    "watercolor": {"tile": TEXTURE_TILE[:3] + ["-seed", "11", "+noise", "Gaussian"] + TEXTURE_TILE[3:]
+                   + ["-blur", "0x0.8", "-colorspace", "Gray", "-auto-level", "+level", "88%,100%"],
+                   "field": ["-seed", "23", "plasma:gray70-white", "-virtual-pixel", "mirror", "-blur", "0x10",
+                             "-colorspace", "Gray", "-auto-level", "(", "+clone", "+dither", "-posterize", "5",
+                             "-morphology", "EdgeIn", "Disk:1", "-negate", "-blur", "0x1", "+level", "45%,100%", ")",
+                             "-compose", "multiply", "-composite", "+level", "60%,100%"]},
+    "chalk": {"tile": TEXTURE_TILE[:3] + ["-seed", "29", "+noise", "Random"] + TEXTURE_TILE[3:]
+              + ["-colorspace", "Gray", "-threshold", "93%", "-blur", "0x0.8", "-auto-level", "+level", "0%,80%"]},
+}
 
 
 def require(condition, message):
     if not condition:
         raise ValueError(message)
+
+
+def bounded_text_effect(prop, value):
+    """Text shadows and strokes stay near their glyphs: small offsets, bounded blur
+    and stroke, px only, so no ghost copy or blobbed letters escape the layout check."""
+    shadows, depth, start = [], 0, 0
+    for i, c in enumerate(value + ","):
+        depth += (c == "(") - (c == ")")
+        if c == "," and depth == 0:
+            shadows.append(value[start:i]); start = i + 1
+    require(all(f in ("rgb", "rgba", "hsl", "hsla", "var") for f in re.findall(r"([a-z-]+)\(", value))
+            and not re.search(r"\b(?:thin|medium|thick)\b", value), prop + ": colours may be functions; lengths are plain px")
+    for shadow in shadows:
+        bare = re.sub(r"#[0-9a-fA-F]{3,8}\b|[a-z-]+\([^()]*\)|\b[a-z]+\b", " ", shadow.strip())
+        lengths = re.findall(r"-?(?:\d+\.?\d*|\.\d+)(?:px)?(?=\s|$)", bare.strip() + " ")
+        require(len(re.findall(r"-?(?:\d+\.?\d*|\.\d+)[a-z%]+", bare)) == len(re.findall(r"-?(?:\d+\.?\d*|\.\d+)px", bare)),
+                prop + ": lengths in px only")
+        numbers = [abs(float(v.removesuffix("px"))) for v in lengths]
+        if prop == "-webkit-text-stroke":
+            require(len(numbers) <= 1 and all(n <= TEXT_STROKE_MAX for n in numbers), f"{prop}: at most {TEXT_STROKE_MAX}px")
+        else:
+            require(len(numbers) <= 3 and all(n <= TEXT_OFFSET_MAX for n in numbers[:2])
+                    and all(n <= TEXT_BLUR_MAX for n in numbers[2:]),
+                    f"{prop}: offsets <= {TEXT_OFFSET_MAX}px, blur <= {TEXT_BLUR_MAX}px")
 
 
 def text(value, name, empty=False):
@@ -130,6 +194,41 @@ def titles(value, count):
     return result
 
 
+def texture_name(spec):
+    """The generated texture a template card uses: a named style's own ```texture
+    block (part of its identity), or `texture` beside a described style_css."""
+    style = text(spec.get("style"), "style")
+    path = REFERENCES / "styles" / (style + ".md") if re.fullmatch(r"[a-z0-9-]+", style) else None
+    if path and path.is_file():
+        blocks = re.findall(r"```texture\n(.*?)\n```", path.read_text(), re.S)
+        require(len(blocks) <= 1, "style may declare at most one texture block")
+        require("texture" not in spec, "named style owns its texture; texture needs a described style_css")
+        name = blocks[0].strip() if blocks else None
+    else:
+        name = spec.get("texture")
+    require(name is None or (isinstance(name, str) and name in TEXTURES), "texture: one of " + ", ".join(sorted(TEXTURES)))
+    return name
+
+
+def texture_css(name, width, height):
+    """Render the texture layer once per card as data URIs; deterministic for a given ImageMagick."""
+    recipe = TEXTURES[name]
+    layers = []
+    with tempfile.TemporaryDirectory(prefix="card-texture-") as temp:
+        tile = Path(temp) / "tile.png"
+        command(["magick"] + recipe["tile"] + ["-depth", "8", "-strip", tile])
+        layers.append((tile, "512px 512px", "repeat"))
+        if "field" in recipe:
+            field = Path(temp) / "field.png"
+            size = f"{max(16, math.ceil(width / 4))}x{max(16, math.ceil(height / 4))}"
+            command(["magick", "-size", size] + recipe["field"] + ["-depth", "8", "-strip", field])
+            layers.append((field, "100% 100%", "no-repeat"))
+        urls = ",".join(f"url(data:image/png;base64,{base64.b64encode(p.read_bytes()).decode()})" for p, _, _ in layers)
+    return (f".texture{{position:absolute;inset:0;pointer-events:none;z-index:1;background-image:{urls};"
+            f"background-size:{','.join(s for _, s, _ in layers)};background-repeat:{','.join(r for _, _, r in layers)};"
+            "mix-blend-mode:multiply}.copy{z-index:2}")
+
+
 def css_style(spec):
     style = text(spec.get("style"), "style")
     path = REFERENCES / "styles" / (style + ".md") if re.fullmatch(r"[a-z0-9-]+", style) else None
@@ -142,18 +241,25 @@ def css_style(spec):
         require("style_css" in spec, "described style needs concrete task-local style_css; no named-style fallback")
         css = local(spec["style_css"]).read_text()
     require(len(css) <= 16000 and not re.search(r"[<>@\\]|/\*|url\s*\(|image-set\s*\(|expression\s*\(", css, re.I), "CSS forbids URLs, imports, escapes, comments and markup")
-    selectors = {":root", ".stage", ".panel", ".accent", ".orb", "h1", ".label", ".brand"}
-    props = {"background", "background-color", "background-size", "color", "border", "border-radius", "outline", "outline-offset", "box-shadow", "backdrop-filter", "font-weight", "letter-spacing", "--surface", "--ink", "--accent"}
+    texture_name(spec)
     cursor = 0
     for match in re.finditer(r"([^{}]+)\{([^{}]*)\}", css):
         require(not css[cursor:match.start()].strip(), "invalid CSS structure")
-        require(match[1].strip() in selectors, "unsupported CSS selector")
+        selector = match[1].strip()
+        require(selector in {":root", ".texture"} | SELECTORS_TEXT | SELECTORS_LAYER | SELECTORS_BACKGROUND, "unsupported CSS selector")
+        if selector == ".texture":
+            props = PROPS_TEXTURE
+        else:
+            props = PROPS_BASE | (PROPS_TEXT if selector in SELECTORS_TEXT else set()) | (
+                PROPS_LAYER if selector in SELECTORS_LAYER else PROPS_BACKGROUND if selector in SELECTORS_BACKGROUND else set())
         for declaration in match[2].split(";"):
             if not declaration.strip():
                 continue
             require(":" in declaration, "invalid CSS declaration")
             prop, value = declaration.split(":", 1)
             require(prop.strip() in props and value.strip() and "!" not in value, "unsupported CSS property/value")
+            if prop.strip() in PROPS_TEXT:
+                bounded_text_effect(prop.strip(), value.strip())
             if prop.strip().startswith("--"):
                 require(re.fullmatch(r"#[0-9a-fA-F]{6}", value.strip()), "palette variables require #rrggbb")
         cursor = match.end()
@@ -182,7 +288,7 @@ def validate(spec, mode):
         titles(spec.get("tile_titles"), dims["tiles"])
         if "layout_html" in spec:
             text(spec.get("style"), "style")
-            require(not {"style_css", "palette"} & set(spec), "layout_html owns CSS; style_css/palette conflict")
+            require(not {"style_css", "palette", "texture"} & set(spec), "layout_html owns CSS; style_css/palette/texture conflict")
             authored_fragment(spec, dims, local(spec["layout_html"]).read_bytes())
         else:
             require("copy_blocks" not in spec, "copy_blocks requires layout_html")
@@ -353,6 +459,7 @@ def authored_fragment(spec, dims, source):
 def page(spec, dims, band=0, layout_source=None):
     authored = "layout_html" in spec
     css = "" if authored else css_style(spec)
+    texture = None if authored else texture_name(spec)
     font = local(spec["font"]) if spec.get("font") else Path("/System/Library/Fonts/\u30d2\u30e9\u30ae\u30ce\u89d2\u30b4\u30b7\u30c3\u30af W6.ttc")
     require(font.is_file(), "default Japanese font unavailable; supply an absolute font path")
     font_bytes = font.read_bytes()
@@ -391,6 +498,7 @@ li{{list-style:none}}
                      f'<footer><div class="brand" data-copy>{esc(fields["brand"])}</div><div data-copy>{esc(fields["meta"])}</div></footer>'
                      '</div></section>')
     bg = f'<img class="background" src="{data_uri(spec["background"])}" alt="">' if spec.get("background") else ""
+    layer = texture_css(texture, w * n, h) if texture else ""
     if band:
         css += f'.panel{{display:none}}.copy{{top:auto;bottom:0;left:0;right:0;height:{band}px;padding:{minor}px;background:#f6f4ee;color:#17202e}}.accent,footer{{display:none}}.top{{margin:0}}'
     return f'''<!doctype html><html lang="ja"><head><meta charset="utf-8">
@@ -412,7 +520,7 @@ p{{font-size:{size*.45}px;line-height:1.5;margin:{minor}px 0 0}}[data-copy]:empt
 .accent{{width:{size}px;height:6px;margin-bottom:{minor}px}}footer{{display:flex;justify-content:space-between;gap:{minor}px}}
 footer>*{{max-width:60%}}.brand{{font-weight:600}}
 .motif{{display:block;object-fit:contain;width:100%;height:{min(h*.24,w*.3):.0f}px;margin-top:{minor}px}}
-{css}</style></head><body><main class="stage">{bg}<div class="orb"></div>{''.join(parts)}</main></body></html>'''
+{layer}{css}</style></head><body><main class="stage">{bg}<div class="orb"></div>{'<div class="texture"></div>' if texture else ''}{''.join(parts)}</main></body></html>'''
 
 
 # Evaluated through stdin after fonts/assets settle, never interpolated from the spec.
@@ -429,12 +537,14 @@ LAYOUT = """(async () => {
    let size=start;
    while (!fits() && size>minimum) { size=Math.max(minimum,size-2); title.style.fontSize=size+'px'; }
    const b=box.getBoundingClientRect(), t=tile.getBoundingClientRect();
+   const visible=e=>{for(let p=e;p;p=p.parentElement){const s=getComputedStyle(p);
+     if(s.display==='none'||s.visibility!=='visible'||Number(s.opacity)===0||s.filter!=='none'||s.maskImage!=='none'||s.webkitMaskImage!=='none') return false;}return true;};
    for (const e of tile.querySelectorAll('[data-copy]')) {
      if (!e.textContent) continue;
      const r=e.getBoundingClientRect();
      const range=document.createRange();range.selectNodeContents(e);
      const ink=range.getBoundingClientRect();
-     const ok=fits() && r.left>=t.left && r.right<=t.right && r.top>=b.top-1 && r.bottom<=b.bottom+1
+     const ok=fits() && visible(e) && r.left>=t.left && r.right<=t.right && r.top>=b.top-1 && r.bottom<=b.bottom+1
        && e.scrollWidth<=e.clientWidth+1 && ink.left>=t.left && ink.right<=t.right
        && ink.top>=b.top-1 && ink.bottom<=b.bottom+1;
      checks.push({text:e.textContent,ok,x:r.x,y:r.y,width:r.width,height:r.height,font:getComputedStyle(e).fontSize});
