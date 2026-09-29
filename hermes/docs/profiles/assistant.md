@@ -218,7 +218,7 @@ overlay link) cannot creep back.
   attached to their originating topic; only maintenance/report/sweeper cron
   output targets Inbox.
 - **Admin** is the inline surface for small administrative work: workspace
-  bookkeeping (`pj` registry, scaffold, `pp` / `hb` records, docs/data
+  bookkeeping (`workspace_registry`, scaffold, `hb` records, docs/data
   touch-ups), edits to the `~/.config` dotconfig repo and its Hermes profiles,
   and Hermes upkeep (browser relaunch, cron / validator checks, skill
   housekeeping). No resident session, delegation or kanban card. Its OpenCode
