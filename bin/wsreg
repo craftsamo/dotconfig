@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# Thin launcher for the workspace registry CLI (people, projects, memberships,
+# repos), which lives in the private overlay repo reached through the fixed path
+# ~/.config/private (see README.md "Private overlay"). Point WSREG_BIN at it to
+# override.
+set -euo pipefail
+
+wsreg_bin="${WSREG_BIN:-$HOME/.config/private/hermes/plugins/workspace-registry/wsreg}"
+
+if [[ ! -f $wsreg_bin ]]; then
+  echo "wsreg: cannot locate the workspace registry CLI at $wsreg_bin" >&2
+  echo "wsreg: install the private-dotconfig overlay, or set WSREG_BIN." >&2
+  exit 127
+fi
+
+exec python3 "$wsreg_bin" "$@"

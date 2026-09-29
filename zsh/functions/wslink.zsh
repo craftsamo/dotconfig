@@ -10,13 +10,13 @@
 #   wslink help
 #
 # A workspace "link" is a symlink Projects/<group>/github/<name> -> a ~/ghq clone.
-# The projects registry (pj) is the source of truth for which repo belongs to which
-# group; this is a thin, ergonomic layer over `pj` + ghq + the filesystem.
+# The workspace registry (wsreg) is the source of truth for which repo belongs to which
+# group; this is a thin, ergonomic layer over `wsreg` + ghq + the filesystem.
 #
 # Safety invariants:
 #   - the ~/ghq clone itself is NEVER deleted; only symlinks are created/removed
 #   - a real file/directory occupying a link path is never overwritten (abort)
-#   - registry changes always go through `pj` (never hand-edit the DB)
+#   - registry changes always go through `wsreg` (it validates every write)
 #
 # Implementation note: it mirrors secret.zsh — a dispatcher + `_wslink_cmd_*`
 # subcommands, loaded interactively by config.zsh and callable non-interactively
@@ -30,7 +30,7 @@ _wslink_need_commands() {
   emulate -L zsh
   local -a missing
   local c
-  for c in pj ghq fzf jq; do
+  for c in wsreg ghq fzf jq; do
     command -v "$c" >/dev/null 2>&1 || missing+=("$c")
   done
   if (( ${#missing[@]} )); then
@@ -118,19 +118,19 @@ _wslink_sigil() {
 # groups: "id\tdir_path" for every non-archived project with a dir_path
 _wslink_groups() {
   emulate -L zsh
-  pj projects --json 2>/dev/null \
+  wsreg projects --json 2>/dev/null \
     | jq -r '.data.projects[] | select(.status != "archived") | select(.dir_path != null) | [.id, .dir_path] | @tsv'
 }
 
 _wslink_group_dir() {
   emulate -L zsh
-  pj projects --json 2>/dev/null \
+  wsreg projects --json 2>/dev/null \
     | jq -r --arg g "$1" '.data.projects[] | select(.id == $g) | .dir_path' | head -n1
 }
 
 _wslink_registered_keys() {
   emulate -L zsh
-  pj repos --json 2>/dev/null \
+  wsreg repos --json 2>/dev/null \
     | jq -r '.data.repos[] | [(.host // "github.com"), (.owner // "-"), .name] | @tsv'
 }
 
@@ -143,7 +143,7 @@ _wslink_group_entries() {
   local -a pc
   typeset -A seen
 
-  repos_json=$(pj repos --json --project "$g" 2>/dev/null) || return 1
+  repos_json=$(wsreg repos --json --project "$g" 2>/dev/null) || return 1
   while IFS=$'\t' read -r name owner host url ghq link; do
     [[ -n $name ]] || continue
     seen[$name]=1
@@ -257,7 +257,7 @@ _wslink_repo_set() {
   [[ -n $url   && $url   != "-" ]] && args+=(--url "$url")
   [[ -n $ghq   && $ghq   != "-" ]] && args+=(--ghq-path "$ghq")
   [[ -n $ghq   && -f "$ghq/AGENTS.md" ]] && args+=(--has-agents-md)
-  pj "${args[@]}" >/dev/null
+  wsreg "${args[@]}" >/dev/null
 }
 
 # locate a clone by "repo" or "owner/repo"; print its ghq path
@@ -354,7 +354,7 @@ _wslink_add_clone() {
     _wslink_err "refusing: real entry at $link"; return 1
   fi
   _wslink_repo_set "$group" "$name" "$owner" "$host" "$url" "$clone" || return 1
-  pj link-repo --project "$group" --name "$name" >/dev/null \
+  wsreg link-repo --project "$group" --name "$name" >/dev/null \
     && print -r -- "added $group/$name -> $clone" \
     || { _wslink_err "link failed: $group/$name"; return 1; }
 }
@@ -372,7 +372,7 @@ _wslink_repair_rows() {
       _wslink_err "skip (not in registry): $name — use 'wslink add'"; continue
     fi
     [[ -L $link && $st != ok ]] && { _wslink_safe_unlink "$link" || continue; }
-    pj link-repo --project "$group" --name "$name" >/dev/null \
+    wsreg link-repo --project "$group" --name "$name" >/dev/null \
       && print -r -- "repaired $group/$name" \
       || _wslink_err "repair failed: $group/$name"
   done
@@ -391,7 +391,7 @@ _wslink_repoint_row() {
   [[ "${pc[3]}" != "$name" ]] && _wslink_err "note: link '$name' will point at clone '${pc[3]}'"
   [[ -L $link ]] && { _wslink_safe_unlink "$link" || return 1; }
   _wslink_repo_set "$group" "$name" "$owner" "$host" "$url" "$clone" || return 1
-  pj link-repo --project "$group" --name "$name" >/dev/null \
+  wsreg link-repo --project "$group" --name "$name" >/dev/null \
     && print -r -- "repointed $group/$name -> $clone" \
     || { _wslink_err "repoint failed: $group/$name"; return 1; }
 }
@@ -421,9 +421,9 @@ _wslink_move_rows() {
     owner="${c[7]}"; host="${c[8]}"; url="${c[9]}"
     [[ $group == "$dest" ]] && { _wslink_err "skip: $name already in $dest"; continue; }
     _wslink_repo_set "$dest" "$name" "$owner" "$host" "$url" "$ghq" || continue
-    pj link-repo --project "$dest" --name "$name" >/dev/null || { _wslink_err "link failed in $dest: $name"; continue; }
+    wsreg link-repo --project "$dest" --name "$name" >/dev/null || { _wslink_err "link failed in $dest: $name"; continue; }
     _wslink_safe_unlink "$link" || continue
-    [[ $kind == registry ]] && pj repo-rm --project "$group" --name "$name" >/dev/null 2>&1
+    [[ $kind == registry ]] && wsreg repo-rm --project "$group" --name "$name" >/dev/null 2>&1
     print -r -- "moved $name: $group -> $dest"
   done
 }
@@ -441,10 +441,10 @@ _wslink_delete_rows() {
     _wslink_safe_unlink "$link" || continue
     if [[ $kind == registry ]]; then
       if [[ $keep_registry == 1 ]]; then
-        pj repo-set --project "$group" --name "$name" --status declared >/dev/null \
+        wsreg repo-set --project "$group" --name "$name" --status declared >/dev/null \
           && print -r -- "unlinked $group/$name (registry kept)"
       else
-        pj repo-rm --project "$group" --name "$name" >/dev/null \
+        wsreg repo-rm --project "$group" --name "$name" >/dev/null \
           && print -r -- "removed $group/$name (link + registry)"
       fi
     else
@@ -691,11 +691,11 @@ _wslink_cmd_sync() {
       case "$st" in
         ok) ;;
         declared)
-          pj link-repo --project "$g" --name "$name" >/dev/null \
+          wsreg link-repo --project "$g" --name "$name" >/dev/null \
             && print -r -- "linked $g/$name" || _wslink_err "link failed: $g/$name" ;;
         broken-link)
           if [[ -n $ghq && -e $ghq ]]; then
-            _wslink_safe_unlink "$link" && pj link-repo --project "$g" --name "$name" >/dev/null \
+            _wslink_safe_unlink "$link" && wsreg link-repo --project "$g" --name "$name" >/dev/null \
               && print -r -- "repaired $g/$name"
           else
             report+=("missing clone: $g/$name (ghq get $url)")
