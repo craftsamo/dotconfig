@@ -183,8 +183,8 @@ returns private evidence paths. `browser_exec` runs host Python, so upstream
 withholds it from terminal-free profiles; never add terminal merely to restore
 it. Use isolated test accounts/state, never owner cookies or another profile's
 CDP. Browser actions may still change test data; this is not a website sandbox.
-Model is `openai-codex/gpt-5.6-terra`; OpenCode's `-fast` alias is not a valid
-Hermes Codex model name.
+Model is `anthropic/claude-sonnet-5-5` with `claude-opus-5-5` as fallback
+(chains: [`../models-auth.md`](../models-auth.md)).
 
 The former global OpenCode web-ui/ux-persona-testing skills and ui-review/
 ux-persona definitions moved into Engineer's mode entries and references and
