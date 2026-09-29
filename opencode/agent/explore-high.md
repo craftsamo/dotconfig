@@ -1,7 +1,7 @@
 ---
 description: "Read-only codebase exploration for hard or ambiguous questions where explore-medium falls short."
 mode: subagent
-model: anthropic/claude-sonnet-5
+model: anthropic/claude-sonnet-5-5
 variant: high
 hidden: true
 permission:
