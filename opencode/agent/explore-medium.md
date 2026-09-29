@@ -1,7 +1,7 @@
 ---
 description: "Standard read-only codebase exploration: multi-file traces and how-does-X-work questions."
 mode: subagent
-model: anthropic/claude-sonnet-5
+model: anthropic/claude-sonnet-5-5
 variant: medium
 hidden: true
 permission:
