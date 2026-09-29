@@ -72,7 +72,10 @@ Destinations are values of one subject (OG, social, headers, thumbnails, title
 cards, X pair/carousel and custom WxH), not a menu or a new profile. The shared
 `scripts/card.py` owns file-spec rendering/fit/measurement and consumes the
 canonical `create/card/references/destination/` scalar front matter and
-`styles/*.md` CSS blocks. Generate's style references are backdrop prompt prose
+`styles/*.md` CSS blocks (bounded text effects on copy; compositing and gradient
+masks only on layers that paint below it) plus an optional seeded texture — paper, washi,
+watercolor or chalk — that card.py renders offline with ImageMagick, since CSS
+alone cannot draw grain. Generate's style references are backdrop prompt prose
 only, never duplicated CSS. Exact text is font-rendered after generation.
 Generate proposes 3+1 attempts across resumes but needs explicit current-work
 user budget approval before paid calls.
