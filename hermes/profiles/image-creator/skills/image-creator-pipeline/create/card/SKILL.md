@@ -28,7 +28,7 @@ metadata:
         label: "destination or custom WxH; local bounds in spec"
       style:
         required: true
-        options: [glass, flat-minimal, dark-pro, gradient-glow, paper, soft-3d]
+        options: [glass, flat-minimal, dark-pro, gradient-glow, paper, soft-3d, risograph, blueprint, crt, chalkboard]
         other: true
         label: "named look or verbatim visual direction; no nearest-style fallback"
       layout_html:
@@ -119,7 +119,9 @@ metadata:
    For template work, read the chosen canonical CSS block:
    [glass](references/styles/glass.md), [flat-minimal](references/styles/flat-minimal.md),
    [dark-pro](references/styles/dark-pro.md), [gradient-glow](references/styles/gradient-glow.md),
-   [paper](references/styles/paper.md), [soft-3d](references/styles/soft-3d.md).
+   [paper](references/styles/paper.md), [soft-3d](references/styles/soft-3d.md),
+   [risograph](references/styles/risograph.md), [blueprint](references/styles/blueprint.md),
+   [crt](references/styles/crt.md), [chalkboard](references/styles/chalkboard.md).
    For a template's described appearance read [the bounded spec contract](references/spec.md)
    and author concrete CSS in the task directory. Preserve the description in
    `style` and pass absolute `style_css` in the execution JSON. Never modify the

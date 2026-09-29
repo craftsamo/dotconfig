@@ -27,7 +27,7 @@ metadata:
         label: "og, x-post, x-article, x-header, x-pair, x-carousel, instagram, instagram-square, story, youtube-thumb, hero, slide-title, note, or explicit WxH"
       style:
         required: true
-        options: [glass, flat-minimal, dark-pro, gradient-glow, paper, soft-3d]
+        options: [glass, flat-minimal, dark-pro, gradient-glow, paper, soft-3d, risograph, blueprint, crt, chalkboard]
         other: true
         label: "backdrop direction plus exact typesetting look; free style remains verbatim"
       art:
@@ -90,7 +90,9 @@ metadata:
    this leaf's matching backdrop prompt direction:
    [glass](references/styles/glass.md), [flat-minimal](references/styles/flat-minimal.md),
    [dark-pro](references/styles/dark-pro.md), [gradient-glow](references/styles/gradient-glow.md),
-   [paper](references/styles/paper.md), [soft-3d](references/styles/soft-3d.md).
+   [paper](references/styles/paper.md), [soft-3d](references/styles/soft-3d.md),
+   [risograph](references/styles/risograph.md), [blueprint](references/styles/blueprint.md),
+   [crt](references/styles/crt.md), [chalkboard](references/styles/chalkboard.md).
    These are art prose, not duplicated composition CSS. Free style requires a
    concrete backdrop prompt AND task-local CSS under create-card's contract.
 2. Before ANY media call, obtain explicit budget approval from the user in the
