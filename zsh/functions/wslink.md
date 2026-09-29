@@ -2,21 +2,21 @@
 
 `wslink` manages the symlinks that group your `~/ghq` clones under
 `~/Workspaces/Projects/<group>/github/<repo>`: an fzf browser plus a small CLI,
-backed by the projects registry (`pj`). It exists so that linking a freshly
+backed by the workspace registry (`wsreg`). It exists so that linking a freshly
 cloned repo into its workspace group is one quick step instead of a chore you
 forget after every `ghq get`.
 
-Implementation: [`wslink.zsh`](./wslink.zsh) — plain zsh over `pj`, `ghq`, `jq`
+Implementation: [`wslink.zsh`](./wslink.zsh) — plain zsh over `wsreg`, `ghq`, `jq`
 and `fzf`, no daemons. Loaded automatically by [`config.zsh`](../config.zsh).
 `wslink help` prints the full reference.
 
 ## Requirements
 
-`fzf` (browser), `jq` (registry JSON), `ghq` (clone listing) and `pj` (the
-projects registry CLI). [`bin/pj`](../../bin/pj) is a launcher: the registry
-skill itself lives in the private overlay (`~/.config/private`), so it
-resolves the implementation there (`PJ_BIN` overrides) and fails with a clear
-message when the overlay is not installed.
+`fzf` (browser), `jq` (registry JSON), `ghq` (clone listing) and `wsreg` (the
+workspace registry CLI). [`bin/wsreg`](../../bin/wsreg) is a launcher: the
+registry itself lives in the private overlay (`~/.config/private`), so it
+resolves the implementation there (`WSREG_BIN` overrides) and fails with a
+clear message when the overlay is not installed.
 
 ## Quick start
 
@@ -34,9 +34,9 @@ wslink sync                           # fix unlinked registered repos; report dr
 ## Model
 
 A *link* is a symlink `Projects/<group>/github/<name>` → a `~/ghq/<host>/<owner>/<name>`
-clone. The registry (`pj`) records which repo belongs to which group; `wslink`
-keeps the filesystem symlinks and the registry in step. A *group* is a `pj`
-project that has a `dir_path`.
+clone. The registry (`wsreg`) records which repo belongs to which group; `wslink`
+keeps the filesystem symlinks and the registry in step. A *group* is a registry
+project whose `Projects/<id>` directory exists (`dir_path`).
 
 | Sigil | State          | Meaning                                            |
 | ----- | -------------- | -------------------------------------------------- |
@@ -94,7 +94,7 @@ relocates the link (and its registry row) to another group.
   removes **symlinks**.
 - A real file or directory sitting at a link path is never overwritten; the
   operation aborts and reports it.
-- Registry changes always go through `pj`; the SQLite DB is never hand-edited.
+- Registry changes always go through `wsreg`, which validates every write.
 - Destructive actions (`rm`, and Delete/Move in the browser) confirm first
   (`-f` skips the prompt for `rm`).
 
