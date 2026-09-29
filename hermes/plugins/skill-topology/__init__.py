@@ -11,10 +11,14 @@ This plugin used to inject ``category: learned`` through a ``tool_request``
 middleware keyed on a top-level ``action == "create"``. Upstream ``72874b0675``
 (2026-08-28) made ``operations[]`` the only advertised call shape, so the
 rewrite silently missed every batched create and those skills landed in the
-profile's skill root (2026-09-07..09). ``create_dir`` cannot miss, and with
-it a middleware would only double the path (``learned/learned/<name>``), so
-the rewrite is gone. The plugin stays registered as the home of the
-topology guard (maintainer-owned skill roots are read-only at runtime).
+profile's skill root (2026-09-07..09). ``create_dir`` cannot miss, so the
+plugin never adds a category.
+
+It removes one instead: prompts tell a profile never to write outside
+``skills/learned/``, and models read that as "pass ``category: learned``",
+which under ``create_dir`` nests ``learned/learned/<name>``. A
+``tool_request`` middleware drops exactly that redundant category from
+flat and ``operations[]`` creates; any other category passes through.
 
 The remaining policy: maintainer-owned skill files are read-only at
 runtime. ``write_file`` / ``patch`` / ``skill_manage`` edits and terminal
@@ -472,6 +476,39 @@ def _guard_managed_skill_writes(**kwargs: Any) -> dict[str, str] | None:
     return None
 
 
+def _is_learned_category(value: Any) -> bool:
+    return isinstance(value, str) and value.strip().strip("/").lower() == LEARNED_CATEGORY
+
+
+def _drop_learned_category(op: Any) -> Any:
+    """``op`` without a redundant ``category: learned`` on a create, else ``op`` itself."""
+    if not isinstance(op, Mapping) or op.get("action") != "create":
+        return op
+    if not _is_learned_category(op.get("category")):
+        return op
+    return {key: value for key, value in op.items() if key != "category"}
+
+
+def _strip_redundant_learned_category(**kwargs: Any) -> dict[str, Any] | None:
+    """Keep ``create_dir`` from nesting ``learned/learned/<name>``."""
+    if kwargs.get("tool_name") != "skill_manage":
+        return None
+    args = kwargs.get("args")
+    if not isinstance(args, Mapping):
+        return None
+    new_args = _drop_learned_category(args)
+    operations = args.get("operations")
+    if isinstance(operations, list):
+        new_ops = [_drop_learned_category(op) for op in operations]
+        if any(new is not old for new, old in zip(new_ops, operations)):
+            new_args = {**new_args, "operations": new_ops}
+    if new_args is args:
+        return None
+    return {"args": dict(new_args), "source": "skill-topology",
+            "reason": "category 'learned' is already skills.create_dir"}
+
+
 def register(ctx: Any) -> None:
-    """Register the write guard (placement is skills.create_dir)."""
+    """Register the write guard and the learned-category normalizer (placement is skills.create_dir)."""
+    ctx.register_middleware("tool_request", _strip_redundant_learned_category)
     ctx.register_hook("pre_tool_call", _guard_managed_skill_writes)

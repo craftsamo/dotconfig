@@ -259,7 +259,9 @@ a `hermes-<name>` Keychain layer and a multiplex allowlist entry — see
   `operations[]` call shape — so new skills land at
   `HERMES_HOME/skills/learned/[<category>/]<name>`. The `skill-topology` plugin
   does not do this placement (its old rewrite missed batched `operations[]`
-  creates); it no longer rewrites skill creation.
+  creates); it only drops a redundant `category: learned`, which would
+  otherwise nest `learned/learned/<name>`. The validator accepts one category
+  level on every profile, hands included.
 - **Bundled skills stay out of the repo.** Seeding is disabled:
   `hermes skills opt-out --remove` writes a `.no-bundled-skills` marker, tracked
   here and linked by `install.sh` so the opt-out reproduces on a fresh machine.
@@ -372,7 +374,9 @@ keeps user keys.
 - **writing-inspection** (`standalone`): Writer's bounded `writing_inspect`.
 - **kanban-worker-mutation-guard** (`standalone`): stops dispatcher workers
   from creating, linking or releasing Kanban cards outside the Assistant path.
-- **skill-topology** (`standalone`): the topology guard's home; it does not
+- **skill-topology** (`standalone`): the topology guard's home, plus a
+  `tool_request` middleware that strips a redundant `category: learned` from
+  skill creates; it does not
   intercept dashboard direct-create APIs or arbitrary terminal/file writes — the
   validator catches those after the fact.
 - `hermes-achievements/` holds only per-machine runtime data and is ignored.
