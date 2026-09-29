@@ -63,11 +63,22 @@ without rendering media. Pair output remains unchanged.
 Author a task-local UTF-8 `.css` file and add `style_css: /absolute/look.css`
 to the execution JSON while retaining the free description in `style`.
 Named styles reject style_css rather than secretly overriding their identity.
-One or more flat rules only; allowed selectors:
-`:root`, `.stage`, `.panel`, `.accent`, `.orb`, `h1`, `.label`, `.brand`.
-Allowed properties: `background`, `background-color`, `background-size`, `color`,
-`border`, `border-radius`, `outline`, `outline-offset`, `box-shadow`,
-`backdrop-filter`, `font-weight`, `letter-spacing`, `--surface`, `--ink`, `--accent`.
+One or more flat rules only. Selectors: `:root`; `.stage`, `.panel`, `.accent`,
+`.orb`; copy `h1`, `h2`, `p`, `.label`, `.brand`, `footer`; and `.texture`.
+Every selector except `.texture` takes `background`, `background-color`,
+`background-size`, `color`, `border`, `border-radius`, `outline`,
+`outline-offset`, `box-shadow`, `backdrop-filter`, `font-weight`,
+`letter-spacing`, `--surface`, `--ink`, `--accent`. `.stage` and `.accent` add
+`background-blend-mode`, `background-position` and `background-repeat` only:
+the stage holds the copy and the accent sits inside it, so a filter, opacity,
+mask or blend there could hide or cover text. `.panel` and `.orb` paint below
+the copy and add those plus `filter`, `mix-blend-mode`, `opacity`, `mask-image`
+and `-webkit-mask-image` (gradient masks). Copy adds `text-shadow` (offsets at
+most 4px, blur at most 48px) and `-webkit-text-stroke` (at most 3px), px only,
+colours as hex, keywords or `rgb()`/`hsl()`/`var()`. `.texture` takes only
+`opacity`, `mix-blend-mode`, `filter` and the masks. The template check rejects
+copy whose ancestors are hidden, filtered or masked; colour and contrast remain
+visual QA.
 Declare all three root palette variables as #rrggbb. No other variables, URLs,
 imports, comments, escapes, nested rules, markup or `!important`. This is an
 appearance contract, NOT arbitrary HTML/JS or positioning code. Concrete example:
@@ -79,6 +90,16 @@ appearance contract, NOT arbitrary HTML/JS or positioning code. Concrete example
 .accent { background: var(--accent); }
 h1 { font-weight: 800; letter-spacing: -0.025em; }
 ```
+
+**Textures.** CSS cannot draw grain, so card.py renders one grayscale texture
+per card locally with ImageMagick from a fixed seed and layers it above the
+panels and below the copy (multiply by default): `paper` (fine grain), `washi`
+(sparse crossed fibres), `watercolor` (grain plus pigment blooms with dried
+rims) or `chalk` (bright dust, use `mix-blend-mode: screen`). A named style
+declares its texture in one fenced `texture` block as part of its identity; a
+described style adds `"texture": "<name>"` beside `style_css`. No other name,
+URL or file is accepted, and authored `layout_html` does not take one. Tune it
+with `.texture { opacity: …; }`, never replace it.
 
 If the requested look needs a layout outside this template contract, use the
 authored path below instead of substituting a named style. A genuine remaining

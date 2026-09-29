@@ -3,6 +3,7 @@
 import importlib.util
 import json
 import os
+import re
 from pathlib import Path
 import tempfile
 import unittest
@@ -14,7 +15,7 @@ MODULE = importlib.util.spec_from_file_location("card", HELPER)
 card = importlib.util.module_from_spec(MODULE)
 MODULE.loader.exec_module(card)
 STYLES = ("glass", "flat-minimal", "dark-pro", "gradient-glow", "paper", "soft-3d",
-          "risograph", "blueprint", "crt", "chalkboard")
+          "risograph", "blueprint", "crt", "chalkboard", "watercolor", "sumi-ink", "neon")
 
 
 class CardTests(unittest.TestCase):
@@ -91,6 +92,58 @@ class CardTests(unittest.TestCase):
             card.css_style({"style": "glass", "style_css": str(path)})
         with self.assertRaises(ValueError):
             card.css_style({"style": "unknown"})
+
+    def test_effects_scoped_to_text_or_layers(self):
+        path = self.work / "effects.css"
+        base = ":root {--surface:#fff4bc;--ink:#232330;--accent:#c83538;}"
+        allowed = (base + "h1{text-shadow:0 0 2px #ffffff, 0 0 42px rgba(255, 61, 139, 0.7), 0.6px 0.4px 0 var(--ink)}"
+                   " .label{-webkit-text-stroke:1px #232330} .stage{background-blend-mode:multiply}"
+                   " .panel{filter:blur(2px);mix-blend-mode:multiply;opacity:0.8}"
+                   " .orb{-webkit-mask-image:conic-gradient(#000, transparent)} .texture{opacity:0.5;mix-blend-mode:screen}")
+        path.write_text(allowed)
+        self.assertIn("text-shadow", card.css_style({"style": "Custom", "style_css": str(path)}))
+        # Copy never gets compositing or masks; layers never get text effects; the
+        # generated texture is tuned, never replaced.
+        for css in ("h1{opacity:0}", "p{filter:blur(9px)}", ".brand{mix-blend-mode:screen}",
+                    "h1{mask-image:linear-gradient(transparent, transparent)}", ".stage{text-shadow:0 0 2px red}",
+                    ".texture{background:#000}", ".copy{opacity:0}", ".panel{filter:url(#x)}",
+                    # The stage holds the copy and the accent sits inside it: no stacking contexts there.
+                    ".stage{opacity:0}", ".stage{filter:blur(40px)}", ".accent{filter:blur(1px);box-shadow:0 0 0 3000px #000}",
+                    ".accent{mask-image:linear-gradient(#000, transparent)}",
+                    # Shadows and strokes stay near the glyphs.
+                    "h1{text-shadow:900px 0 0 #000}", "h1{text-shadow:0 0 2px #fff, 0 -400px 0 #000}",
+                    "h1{text-shadow:0 0 200px #000}", "h1{text-shadow:calc(900px) 0 0 #000}",
+                    "h1{text-shadow:1em 0 0 #000}", "h1{-webkit-text-stroke:40px #000}", "h1{-webkit-text-stroke:thick #000}"):
+            path.write_text(base + css)
+            with self.subTest(css=css), self.assertRaises(ValueError):
+                card.css_style({"style": "Custom", "style_css": str(path)})
+
+    def test_texture_ownership_and_determinism(self):
+        self.assertIsNone(card.texture_name({"style": "glass"}))
+        path = self.work / "custom.css"
+        path.write_text(":root {--surface:#fff4bc;--ink:#232330;--accent:#c83538;}")
+        self.assertEqual(card.texture_name({"style": "Custom", "style_css": str(path), "texture": "paper"}), "paper")
+        for spec in ({"style": "glass", "texture": "washi"}, {"style": "Custom", "style_css": str(path), "texture": ["paper"]},
+                     {"style": "Custom", "style_css": str(path), "texture": "https://example.com/x.png"}):
+            with self.subTest(spec=spec), self.assertRaises(ValueError):
+                card.texture_name(spec)
+        with self.assertRaisesRegex(ValueError, "texture"):
+            card.validate({**self.spec, "layout_html": str(path), "texture": "paper"}, "create")
+        for name in card.TEXTURES:
+            with self.subTest(texture=name):
+                first = card.texture_css(name, 1200, 630)
+                self.assertEqual(first, card.texture_css(name, 1200, 630))
+                self.assertIn("url(data:image/png;base64,", first)
+                # Every resource is an inline PNG; nothing is fetched.
+                self.assertIsNone(re.search(r"url\((?!data:image/png;base64,)", first))
+
+    def test_named_styles_own_their_texture(self):
+        self.assertEqual(card.texture_name({"style": "sumi-ink"}), "washi")
+        self.assertEqual(card.texture_name({"style": "watercolor"}), "watercolor")
+        self.assertEqual(card.texture_name({"style": "chalkboard"}), "chalk")
+        self.assertIsNone(card.texture_name({"style": "neon"}))
+        with self.assertRaises(ValueError):
+            card.texture_name({"style": "sumi-ink", "texture": "paper"})
 
     def test_escaping_and_separate_tile_text(self):
         # A small stand-in font keeps this pure markup test portable/offline.

@@ -1,11 +1,12 @@
 # Risograph
 
-Warm off-white stock printed in two spot inks: fluorescent pink and a deep
-riso blue. Interleaved pink and blue halftone dots texture the paper, a flat
-pink disc sits over a blue plate printed a few pixels out of register (a blue
-crescent peeks out), and the accent bar carries the same offset. Zine-like
-and graphic; the type is solid blue ink, never dotted. On tiled
-destinations the disc appears once, near the top of the last tile.
+Warm off-white stock with generated paper grain, printed in two spot inks:
+fluorescent pink and a deep riso blue. Interleaved pink and blue halftone dots
+texture the paper, a flat pink disc sits over a blue plate printed a few
+pixels out of register (a blue crescent peeks out), and the accent bar carries
+the same offset. Zine-like and graphic; the type is solid blue ink, never
+dotted. On tiled destinations the disc appears once, near the top of the last
+tile.
 
 ```css
 :root { --surface: #f3ede0; --ink: #1d3b8f; --accent: #ff5a4e; }
@@ -15,4 +16,9 @@ destinations the disc appears once, near the top of the last tile.
 .accent { background: var(--accent); box-shadow: 4px 3px 0 #1d3b8fb3; }
 h1 { font-weight: 800; letter-spacing: -0.01em; }
 .label { color: var(--accent); font-weight: 700; letter-spacing: 0.08em; }
+.texture { opacity: 0.9; }
+```
+
+```texture
+paper
 ```
