@@ -287,19 +287,19 @@ def test_registry_symlink_refused(fixture):
 
 def test_model_and_variant_require_allowlist_and_reach_cli(fixture):
     home, directory, _ = fixture
-    assert "allowed_models" in call(directory, model="openai/gpt-5.6-sol")["error"]
+    assert "allowed_models" in call(directory, model="openai/gpt-6-sol")["error"]
     assert not (directory / "invocation.json").exists()
     (home / "config.yaml").write_text(
         "opencode_cli:\n  enabled: true\n  timeout: 10\n"
-        "  allowed_models: [openai/gpt-5.6-sol]\n  allowed_variants: [high]\n")
+        "  allowed_models: [openai/gpt-6-sol]\n  allowed_variants: [high]\n")
     assert "requires a model" in call(directory, variant="high")["error"]
-    assert "allowed_variants" in call(directory, model="openai/gpt-5.6-sol", variant="max")["error"]
-    assert "plain name" in call(directory, model="openai/gpt-5.6-sol; rm -rf")["error"]
-    first = call(directory, model="openai/gpt-5.6-sol", variant="high")
+    assert "allowed_variants" in call(directory, model="openai/gpt-6-sol", variant="max")["error"]
+    assert "plain name" in call(directory, model="openai/gpt-6-sol; rm -rf")["error"]
+    first = call(directory, model="openai/gpt-6-sol", variant="high")
     assert first["status"] == "completed", first
-    assert first["model"] == "openai/gpt-5.6-sol" and first["variant"] == "high"
+    assert first["model"] == "openai/gpt-6-sol" and first["variant"] == "high"
     args = json.loads((directory / "invocation.json").read_text())["args"]
-    assert args[args.index("--model") + 1] == "openai/gpt-5.6-sol"
+    assert args[args.index("--model") + 1] == "openai/gpt-6-sol"
     assert args[args.index("--variant") + 1] == "high"
     # An omitted selection keeps the conversation's recorded engine.
     resumed = call(conversation_id=first["conversation_id"])
