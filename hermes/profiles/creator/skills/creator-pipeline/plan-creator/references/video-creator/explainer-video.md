@@ -46,7 +46,10 @@ sequenced the same way as any other composite request
 VideoCreator never calls those hands/peers directly; a form that needs
 one comes back to you as a dependency request, not a `no skill fits`.
 
-The caller-selected workspace/asset root and any private asset names are
+A character from the library resolves through the `characters` tool:
+`list`, then `show <slug> visual` / `animation` / `voice` for its approved
+files and voice ids; drafts and archive are never canon. Any other
+workspace/asset root and private asset names are
 yours to resolve, never VideoCreator's: prefer a direct path or an
 identity you already hold, else a bounded name-only lookup inside the
 caller's own known workspace; an ambiguous match is a `Q<n>:`/`clarify`,

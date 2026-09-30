@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# characters — the character library (private overlay plugin).
+#
+#   characters                          list characters and facet statuses
+#   characters show <slug> [facet]      overview, or one facet's document and files
+#   characters check [slug]             report drift (package, declaration, voice engines)
+#   characters init <slug> --name NAME  empty package + draft templates
+#   characters sync [--apply] [--prune] register voices from the declarations
+#
+# The code and its contract (README.md) live in the private overlay's
+# characters plugin. Override: CHARACTERS_CLI.
+set -euo pipefail
+
+cli="${CHARACTERS_CLI:-$HOME/.config/private/hermes/plugins/characters/characters.py}"
+if [[ ! -f $cli ]]; then
+  echo "characters: cannot find $cli (set CHARACTERS_CLI)" >&2
+  exit 127
+fi
+exec python3 "$cli" "$@"

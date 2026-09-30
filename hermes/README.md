@@ -362,6 +362,11 @@ keeps user keys.
   `session_history`) and the `/activity` command for engineer and assistant;
   also the code behind `bin/ai-history`. Behavior:
   [docs/session-history.md](docs/session-history.md).
+- **characters** (private overlay): the character library — `characters`
+  (toolset `characters`) for writer, assistant and creator, and the code behind
+  `bin/characters`, whose `sync` registers character voices in the local TTS
+  engines. Writer and Creator enable it by name; without the overlay the
+  toolset is simply absent.
 - **workspace-drafts** (`standalone`): read-only `workspace_drafts` (toolset
   `workspace_drafts`) and the `/drafts` command for engineer and assistant;
   also the code behind `bin/ws-drafts`. Behavior:
@@ -526,13 +531,15 @@ path can overflow in its code predictor on MPS. Every registered manifest must
 pin the same model and exact Hugging Face commit; the server loads that local
 snapshot so processor/tokenizer lookups cannot drift to `main`.
 
-Voice-specific settings live in private character manifests, not in this public
-repo. A manifest location (`/absolute/path/to/voice.json`) is supplied only
-during machine-local registration. Each manifest contains the voice id,
-language, model revision, generation seed, and paths to the approved reference
-audio/transcript; it pins both reference SHA-256 digests and the PCM WAV
-metadata. Reference paths are relative to the manifest, so the character tree
-can move as one unit. The reference transcript and audio drive in-context
+Voice-specific settings live in the private character library, not in this
+public repo: `characters sync` copies a character's reference files into a
+content-addressed bundle under the ignored `local/qwen3-tts/manifests/`,
+generates the voice manifest there and registers it. A manifest location
+(`/absolute/path/to/voice.json`) is supplied only during machine-local
+registration. Each manifest contains the voice id, language, model revision,
+generation seed, and paths to the approved reference audio/transcript; it pins
+both reference SHA-256 digests and the PCM WAV metadata. Relative reference
+paths resolve against the manifest. The reference transcript and audio drive in-context
 cloning, which carries the reference's prosody into synthesis — an expressive,
 natural reference is the primary lever for output intonation.
 
@@ -591,16 +598,21 @@ changes before recompiling.
 ### Irodori voice registration
 
 Irodori takes a reference WAV rather than a manifest, and its catalog is a
-directory the server reads at startup — so `register` restarts the agent for
-you. Reference audio and the pronunciation lexicon are private data: both are
-copied into the ignored runtime directory, and neither source path may reach
-tracked config.
+directory the server reads at startup — so `register` and `unregister` restart
+the agent for you (`--no-restart` defers that to one `restart`). Character
+voices are registered by `characters sync`, which calls these commands from
+the library's declarations; use them directly only for non-character voices.
+`unregister` refuses the default voice. Reference audio and the pronunciation
+lexicon are private data: both are copied into the ignored runtime directory,
+and neither source path may reach tracked config.
 
 ```sh
 hermes/launchd/irodori-tts-launchctl.sh install \
   --voice /absolute/path/to/reference.wav --id <voice-id>
 hermes/launchd/irodori-tts-launchctl.sh register \
   --voice /absolute/path/to/another.wav --id <voice-id> --default
+hermes/launchd/irodori-tts-launchctl.sh unregister --id <voice-id>
+hermes/launchd/irodori-tts-launchctl.sh restart
 hermes/launchd/irodori-tts-launchctl.sh register-lexicon \
   --file /absolute/path/to/lexicon.json
 hermes/launchd/irodori-tts-launchctl.sh voices
