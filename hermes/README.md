@@ -591,8 +591,9 @@ changes before recompiling.
 ### Irodori voice registration
 
 Irodori takes a reference WAV rather than a manifest, and its catalog is a
-directory the server reads at startup — so `register` restarts the agent for
-you. Reference audio and the pronunciation lexicon are private data: both are
+directory the server reads at startup — so `register` and `unregister` restart
+the agent for you (`--no-restart` defers that to one `restart`). `unregister`
+refuses the default voice. Reference audio and the pronunciation lexicon are private data: both are
 copied into the ignored runtime directory, and neither source path may reach
 tracked config.
 
@@ -601,6 +602,8 @@ hermes/launchd/irodori-tts-launchctl.sh install \
   --voice /absolute/path/to/reference.wav --id <voice-id>
 hermes/launchd/irodori-tts-launchctl.sh register \
   --voice /absolute/path/to/another.wav --id <voice-id> --default
+hermes/launchd/irodori-tts-launchctl.sh unregister --id <voice-id>
+hermes/launchd/irodori-tts-launchctl.sh restart
 hermes/launchd/irodori-tts-launchctl.sh register-lexicon \
   --file /absolute/path/to/lexicon.json
 hermes/launchd/irodori-tts-launchctl.sh voices
