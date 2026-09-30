@@ -13,7 +13,7 @@ identical provider+model pair is skipped.
 Models are chosen per role by the capability the role needs, not by the
 strongest model; the budget is each subscription's usage allowance, not
 dollars. **Hermes chat and auxiliary models run on Claude only**, on the
-Hermes Max 5x account; the ChatGPT Plus subscription belongs to OpenCode, and
+Hermes Claude account; the ChatGPT subscription belongs to OpenCode, and
 Hermes touches it only for image generation (see "Codex" below). Judgment
 profiles lead with Opus or Fable and fall through a second Claude model and
 Sonnet 5.5 before the OpenRouter tail; **researcher** and the UI evaluators
@@ -92,18 +92,18 @@ backed by the blind A/B above (one brief, Opus n=1 per arm). Provider facts:
   `claude-fable-5`), so it is written straight into `config.yaml`;
   `get_model_context_length` reports 1M for it via the `claude-fable` prefix.
 - **Codex** (`base_url: https://chatgpt.com/backend-api/codex`) — **image
-  generation only.** No chat tier or auxiliary task uses it; the ChatGPT Plus
+  generation only.** No chat tier or auxiliary task uses it; the ChatGPT
   subscription is sized for OpenCode (its searchers, `debugger`,
-  `reviewer-deep`, `hermes-build` and cheap subagents), and Plus meters GPT-6
-  Astra at only ~5-45 messages per 5h window. The Codex OAuth login in
+  `reviewer-deep`, `hermes-build` and cheap subagents) and meters GPT-6 Astra
+  tightly per 5h window. The Codex OAuth login in
   `default` stays on purpose: the `image-fallback` chains
   (`img-codex-xai-fal` on creator / image-creator, `img-xai-codex-fal` on
-  default) still try `openai-codex` for images, which draws on that Plus pool.
+  default) still try `openai-codex` for images, which draws on that shared pool.
   Do not re-add a Codex chat or aux tier without re-sizing OpenCode's usage.
 - **xAI (searcher only)** — `xai-oauth` (`base_url: https://api.x.ai/v1`) is a
-  flat-rate **SuperGrok / Premium+ subscription**, not the metered
+  flat-rate **xAI subscription**, not the metered
   `XAI_API_KEY` API, so per-token prices do not apply and searcher adds no
-  worker to the Max weekly pool. grok-4.3 is positioned for *tool calling and
+  worker to the Claude weekly pool. grok-4.3 is positioned for *tool calling and
   instruction following* — the right shape for link-first retrieval — and its
   reasoning can be switched off (`none`). It is on the reasoning-capable
   allowlist (`model_metadata.py`), so its `reasoning_effort` really is sent as
@@ -147,12 +147,12 @@ backed by the blind A/B above (one brief, Opus n=1 per arm). Provider facts:
 Optional: set `delegation.model: google/gemini-3.5-flash` on default /
 assistant to route `delegate_task` subagents to a cheap model.
 
-### Fable and the Max weekly pool
+### Fable and the Claude weekly pool
 
 These facts govern the paired Claude tiers (Fable 5 and 5.1 behave the same):
 
-1. **Fable is not a separate quota tank.** On Max it is included but capped at
-   **≤50% of the plan's weekly pool**, drawn from the *same* pool as Opus, and
+1. **Fable is not a separate quota tank.** It is included but capped at
+   **≤50% of the weekly pool**, drawn from the *same* pool as Opus, and
    it burns that pool faster. A Fable ⇄ Opus step therefore only rescues the
    case where one model's sub-cap is exhausted while the overall weekly still
    has room; if the shared weekly or the 5-hour session limit tripped, both
@@ -161,7 +161,7 @@ These facts govern the paired Claude tiers (Fable 5 and 5.1 behave the same):
    the second Claude model sits at T2** on every Claude-judgment profile: the
    sub-cap case is the *long* failure — it persists until the week rolls over
    — and in exactly that case the other Claude model is still alive. With one
-   Max 5x account behind every profile, a busy Creator week can drain the
+   Claude account behind every profile, a busy Creator week can drain the
    shared pool for all of them; watch it before adding concurrency.
 2. **The T2 step depends on the token being resolvable outside the credential
    pool.** A `usage_limit_reached` 429 marks the *credential* exhausted, and
@@ -169,7 +169,7 @@ These facts govern the paired Claude tiers (Fable 5 and 5.1 behave the same):
    refuses to hand it out. The same-provider T2 only succeeds because
    `resolve_anthropic_token()` checks `ANTHROPIC_TOKEN` /
    `CLAUDE_CODE_OAUTH_TOKEN` / the Claude Code Keychain entry **before** the
-   pool (`anthropic_adapter.py`). Park the Max subscription *only* in the
+   pool (`anthropic_adapter.py`). Park the Claude subscription *only* in the
    credential pool and every later Claude tier is silently skipped — the
    chain quietly degrades straight to OpenRouter.
 3. **Hermes has no per-model quota memory.** The "included Fable usage for
@@ -245,7 +245,7 @@ default profile's `~/.hermes/auth.json`.
   dropping that provider key so the profile inherits default again. Prefer
   editing the file over `hermes auth logout`, which may revoke upstream and
   take the shared credential down with it.
-- **Anthropic native** is OAuth (Claude Pro/Max) but its creds live **outside**
+- **Anthropic native** is OAuth (a Claude subscription) but its creds live **outside**
   `auth.json` (`~/.hermes/.anthropic_oauth.json` for Hermes' PKCE flow, else
   the Claude Code credential / `CLAUDE_CODE_OAUTH_TOKEN`). That source is
   machine-global, so every profile authenticates with **no per-worker login**
@@ -255,8 +255,8 @@ default profile's `~/.hermes/auth.json`.
   `resolve_anthropic_token()` ALWAYS prefers the default Keychain entry
   `Claude Code-credentials` over the credential pool (pool entries and
   `suppressed_sources` never override it), and that entry must stay logged
-  into the **Hermes** account (Max 5x). OpenCode runs on the **sub account**
-  (its own Max 5x) via the
+  into the **Hermes** account. OpenCode runs on the **sub account** (its own
+  subscription) via the
   `opencode-claude-auth` plugin pinned to a suffixed entry
   (`Claude Code-credentials-<suffix>`; the concrete name lives in the untracked
   `claude-account-source.txt`; `CLAUDE_CONFIG_DIR=~/.claude-sub`, alias
