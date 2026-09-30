@@ -18,6 +18,7 @@ fallback_providers:
 credential_pool_strategies: {}
 toolsets:
   - writing-inspection
+  - characters
   - file
   - web
   - skills
@@ -700,6 +701,7 @@ _config_version: 29
 platform_toolsets:
   cli:
     - writing-inspection
+    - characters
     - file
     - web
     - skills
@@ -719,5 +721,6 @@ platform_toolsets:
 plugins:
   enabled:
     - writing-inspection
+    - characters
     - skill-topology
     - kanban-worker-mutation-guard

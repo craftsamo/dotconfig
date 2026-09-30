@@ -12,6 +12,9 @@
 #
 #   install  [--voice PATH --id NAME [--default]]   build/refresh and load
 #   register --voice PATH --id NAME [--default]     add a reference voice
+#   unregister --id NAME                            remove a voice (never the default)
+#   restart                                         reload the voice catalog
+#   (register/unregister take --no-restart so a batch restarts once)
 #   register-lexicon --file PATH                    install the pronunciation dict
 #   voices                                          list registered voices
 #   status                                          plist + health + model state
@@ -48,12 +51,14 @@ VOICE_SRC=""
 VOICE_ID=""
 LEXICON_SRC=""
 SET_DEFAULT=0
+RESTART=1
 while [ $# -gt 0 ]; do
   case "$1" in
     --voice) VOICE_SRC="${2:-}"; shift 2 ;;
     --id) VOICE_ID="${2:-}"; shift 2 ;;
     --file) LEXICON_SRC="${2:-}"; shift 2 ;;
     --default) SET_DEFAULT=1; shift ;;
+    --no-restart) RESTART=0; shift ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
   esac
 done
@@ -96,6 +101,30 @@ register_voice() {
   if [ "$SET_DEFAULT" -eq 1 ]; then
     printf '%s\n' "$VOICE_ID" > "$RUNTIME_DIR/default-voice"
     echo "default voice is now '$VOICE_ID'"
+  fi
+}
+
+unregister_voice() {
+  [ -n "${VOICE_ID:-}" ] || die "unregister needs --id NAME"
+  case "$VOICE_ID" in
+    *[!A-Za-z0-9_-]*) die "voice id must be [A-Za-z0-9_-]: $VOICE_ID" ;;
+  esac
+  [ -f "$VOICES_DIR/$VOICE_ID.wav" ] || die "voice '$VOICE_ID' is not registered"
+  # Removing the default would silently move every unnamed request to whichever
+  # voice sorts first; make the change explicit by registering a new default.
+  [ "$(default_voice || true)" != "$VOICE_ID" ] \
+    || die "'$VOICE_ID' is the default voice; register another voice with --default first"
+  rm -f "$VOICES_DIR/$VOICE_ID.wav"
+  echo "unregistered voice '$VOICE_ID'"
+}
+
+restart_agent() {
+  write_env
+  if [ -f "$DEST" ]; then
+    # The voice catalog is read at startup, so a changed voice needs a restart.
+    unload_agent
+    load_agent
+    wait_healthy || true
   fi
 }
 
@@ -277,13 +306,16 @@ case "$ACTION" in
 
   register)
     register_voice
-    write_env
-    if [ -f "$DEST" ]; then
-      # The voice catalog is read at startup, so a new voice needs a restart.
-      unload_agent
-      load_agent
-      wait_healthy || true
-    fi
+    if [ "$RESTART" -eq 1 ]; then restart_agent; fi
+    ;;
+
+  unregister)
+    unregister_voice
+    if [ "$RESTART" -eq 1 ]; then restart_agent; fi
+    ;;
+
+  restart)
+    restart_agent
     ;;
 
   voices)
@@ -329,6 +361,6 @@ case "$ACTION" in
     ;;
 
   *)
-    die "unknown action '$ACTION' (install|register|register-lexicon|voices|status|uninstall|purge)"
+    die "unknown action '$ACTION' (install|register|unregister|restart|register-lexicon|voices|status|uninstall|purge)"
     ;;
 esac

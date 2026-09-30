@@ -66,6 +66,10 @@ ordinary speech: the caller pins the sound, so nothing routes, nothing
 substitutes, and the tool never touches `tts.fallback.chain` — reading it would
 smuggle language routing into an explicit contract.
 
+- Voices are registered from the private character library by
+  `characters sync`; `characters show <slug> voice` names a
+  character's `engine:id` pairs and whether each is in sync. AudioCreator never
+  registers a voice.
 - `character_voices` lists every voice registered on a live engine as a
   qualified `<engine>:<voice-id>`; reference-free entries an engine may
   advertise are filtered out (their timbre changes per run). Pass one ID
