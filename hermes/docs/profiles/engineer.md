@@ -104,9 +104,7 @@ still override. Accepted exception: the Assistant also runs on Opus 5.5, so its
 Admin-topic OpenCode calls are planned and reviewed by the requesting model —
 accepted because Admin work is small inline upkeep. Do not extend it to
 Engineer; moving Engineer off Fable, or broadening Admin's grant, needs the
-reviewer moved to another model family first. `allowed_models` keeps
-`openai/gpt-5.6-sol` on both profiles as the one-flag rollback if GPT-6 Sol
-builds regress. `opencode_call` also takes `model` / `variant` (OpenCode
+reviewer moved to another model family first. `opencode_call` also takes `model` / `variant` (OpenCode
 `--model` / `--variant`), fail-closed against `opencode_cli.allowed_models` /
 `allowed_variants`: a name outside the list is refused, never substituted, and
 an explicit selection binds the rest of that conversation.
