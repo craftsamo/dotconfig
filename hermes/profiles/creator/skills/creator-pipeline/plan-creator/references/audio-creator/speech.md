@@ -23,7 +23,9 @@ words requires renewed acceptance/approval; the old take's timing is not proof
 for the revision. A request for sectioning is not an automatic take grant.
 
 `voice:` is filled from a name the client actually gave (`house`, or the
-exact `<engine>:<voice>` id); do not guess an id from a description. A
+exact `<engine>:<voice>` id); do not guess an id from a description. For a
+library character, `characters show <slug> voice` names its `engine:id`
+pairs and whether each engine is in sync. A
 qualified voice's optional `style` or `seed` may only be offered from
 what that engine's catalogue advertises — look it up first with a
 no-synthesis `character_voices` A2A query to audio-creator, never invent

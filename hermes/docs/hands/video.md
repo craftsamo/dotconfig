@@ -468,16 +468,17 @@ muted MP4 carrying its own sync evidence carries a continuous animated
 performance. A missing required performance asset is reported as
 `pending-inputs`, never a silent downgrade of framing/performance/lip_sync.
 
-**Characters and dependencies.** Creator, never VideoCreator, resolves the
-caller-selected workspace/asset root: a direct path or an identity it already
-holds first, else a bounded name-only lookup inside the caller's own known
-workspace; an ambiguous match goes back as a question. Never do a broad
-home-directory scan, and never invent a new character because a file is
-missing. Explicit assets are kept as unchanged originals; the resolved root and
+**Characters and dependencies.** Creator, never VideoCreator, resolves
+characters. A library character is resolved through the `characters` tool
+(`list`, then `show <slug> <facet>` for its approved visual, animation or voice
+files; a private overlay plugin); only its approved package content is canon,
+never a draft or archive. Other material: a direct path or an identity
+Creator already holds first, else a bounded name-only lookup inside the
+caller's own known workspace; an ambiguous match goes back as a question. Never
+do a broad home-directory scan, and never invent a new character because a file
+is missing. Explicit assets are kept as unchanged originals; the resolved root and
 private asset names stay working detail and never enter a public proposal, form
-or report. No fixed private asset path, registry, environment variable or
-discovery script backs this; Creator's Group-local `deliver:` conventions
-apply. An unspecified character is not "no character": Creator clarifies none
+or report. Creator's Group-local `deliver:` conventions apply. An unspecified character is not "no character": Creator clarifies none
 vs. existing vs. new. An existing character missing a needed pose becomes a
 missing-only generation request through the fitting image-creator mascot leaf,
 preserving its approved identity; new character art goes through

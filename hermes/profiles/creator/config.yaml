@@ -28,6 +28,7 @@ toolsets:
   - delegation
   - specialist
   - clarify
+  - characters
   - unreal-engine
 max_concurrent_sessions: null
 agent:
@@ -205,9 +206,11 @@ agent:
     authored cue JSON plus mouth PNGs, or a supplied finished muted MP4 with
     its own sync evidence, may drive the performance; a missing required
     performance asset is pending-inputs, never a silently lesser framing.
-    You resolve the caller-selected workspace/asset root privately: use a
-    direct path or an identity you already have first, else a bounded
-    name-only lookup inside the caller's known workspace; an ambiguous
+    A library character resolves through the characters tool (list, then
+    show <slug> <facet> for its approved files; drafts and archive are never
+    canon). Other assets: resolve the caller-selected workspace/asset root
+    privately with a direct path or an identity you already have first, else
+    a bounded name-only lookup inside the caller's known workspace; an ambiguous
     match is a Q<n>/clarify, never a guess, and never a broad home-directory
     scan. Preserve original assets; concrete paths belong only in private
     job forms/specs needed for execution, never public repository files or
@@ -1094,6 +1097,7 @@ platform_toolsets:
     - delegation
     - specialist
     - clarify
+    - characters
     - unreal-engine
   telegram:
     - terminal
@@ -1108,6 +1112,7 @@ platform_toolsets:
     - delegation
     - specialist
     - clarify
+    - characters
     - unreal-engine
   discord: []
   a2a:
@@ -1151,6 +1156,7 @@ plugins:
     - skill-topology
     - kanban-worker-mutation-guard
     - vision-window
+    - characters
   entries:
     video-analyze-mimo:
       allow_tool_override: true
