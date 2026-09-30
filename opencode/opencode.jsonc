@@ -135,42 +135,6 @@
             },
           },
         },
-        "gpt-5.6-sol": {
-          "cost": {
-            "input": 4,
-            "cache_read": 0.4,
-            "output": 20,
-            "context_over_200k": {
-              "input": 8,
-              "cache_read": 0.8,
-              "output": 30,
-            },
-          },
-        },
-        "gpt-5.6-terra": {
-          "cost": {
-            "input": 2,
-            "cache_read": 0.2,
-            "output": 12,
-            "context_over_200k": {
-              "input": 4,
-              "cache_read": 0.4,
-              "output": 18,
-            },
-          },
-        },
-        "gpt-5.6-luna": {
-          "cost": {
-            "input": 0.2,
-            "cache_read": 0.02,
-            "output": 1.2,
-            "context_over_200k": {
-              "input": 0.4,
-              "cache_read": 0.04,
-              "output": 1.8,
-            },
-          },
-        },
         // Spark has no separate public API pricing table; use the published
         // gpt-5.3-codex rate so OpenCode cost estimates are not unknown.
         "gpt-5.3-codex-spark": {
