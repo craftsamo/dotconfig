@@ -16,12 +16,11 @@ dollars. **Hermes chat and auxiliary models run on Claude only**, on the
 Hermes Claude account; the ChatGPT subscription belongs to OpenCode, and
 Hermes touches it only for image generation (see "Codex" below). Judgment
 profiles lead with Opus or Fable and fall through a second Claude model and
-Sonnet 5.5 before the OpenRouter tail; **researcher** and the UI evaluators
-lead on **Sonnet 5.5**.
+Sonnet 5.5 before the OpenRouter tail; **researcher**, the UI evaluators and
+the **image-creator** / **audio-creator** hands lead on **Sonnet 5.5**.
 
-- **Opus 5.5 leads `default`, `assistant`, `writer`, `marketer` and the
-  whole Creator family (`creator`, `image-creator`, `video-creator`,
-  `audio-creator`)** — above Fable 5.1 on reasoning, agentic terminal work and
+- **Opus 5.5 leads `default`, `assistant`, `writer`, `marketer`, `creator`
+  and `video-creator`** — above Fable 5.1 on reasoning, agentic terminal work and
   coding at a lower token rate. The Opus-led judgment profiles take **Fable 5.1
   as T2**, never another Opus: every Opus model draws on the same Opus weekly
   sub-cap, so an Opus T2 fails exactly when that cap is why T1 failed, while
@@ -37,19 +36,26 @@ lead on **Sonnet 5.5**.
 - **`default` stays off Fable deliberately** — every `--clone` inherits its
   chain, and a neutral starting point should not lead with the model that has
   the tightest sub-cap.
-- **The Creator family leads on Opus 5.5 (2026-09-23).** A blind A/B on one
-  launch-video brief (isolated homes, model pinned, fallback off; evidence in
+- **The Creator family splits by hand.** `creator` and `video-creator` lead
+  on Opus 5.5; `image-creator` and `audio-creator` lead on Sonnet 5.5. A blind
+  A/B on one launch-video brief (isolated homes, model pinned, fallback off;
+  evidence in
   `~/Workspaces/Projects/Acme/docs/hermes-studies/creator-ab-2026-09/VERDICT.md`)
   scored every Sonnet 5 run fidelity 1/5 whether it ran the full pipeline or a
-  bare single agent, while Opus 5.5 reached 3-4/5 on both — the model, not the
-  pipeline, was the quality ceiling. All four take Fable 5.1 as T2 like the
-  other Opus-led profiles, then Sonnet 5.5, and keep `openrouter` /
-  `minimax/minimax-m3` as the tail, so a hand still inherits `creator`'s
-  vision fallback for eyeballing generated assets. The same study measured
+  bare single agent, while Opus 5.5 reached 3-4/5 on both. A later blind
+  per-family A/B of Opus 5.5 against Sonnet 5.5 (same isolation; evidence in
+  `~/Workspaces/Projects/Acme/docs/hermes-studies/creator-quality-2026-09-29/VERDICT.md`)
+  found Sonnet 5.5 equal on image and audio leaves at about 0.6x the tokens,
+  but clearly behind on authored video (craft −0.8, lost 8 of 8 explainer
+  pairings) and inconclusive for Creator as broker. The Opus-led pair takes
+  Fable 5.1 as T2, then Sonnet 5.5; the Sonnet-led pair takes Opus 5.5 as T2,
+  then Fable 5.1. All four keep `openrouter` / `minimax/minimax-m3` as the
+  tail, so a hand still inherits `creator`'s vision fallback for eyeballing
+  generated assets. The launch-video study measured
   500-970 `vision_analyze` calls and 20-39M input tokens per video job; three
   concurrent Opus video jobs hit a 429 within ~20 min — a concurrency limit,
   not the usage cap. Watch the Opus sub-cap: a silent drop to the Sonnet or
-  minimax tier degrades Creator output (Sonnet 5 scored 1/5 in that study).
+  minimax tier degrades Creator and video output.
   Grok is deliberately deferred as a possible insertion BEFORE the Sonnet
   tier, pending runtime capability/entitlement validation (vision is
   unverified for these profiles); it is not adopted silently, and the
@@ -68,7 +74,8 @@ lead on **Sonnet 5.5**.
 | **engineer** | `anthropic` / **claude-fable-5-1** | `anthropic` / claude-opus-5-5 | `anthropic` / claude-sonnet-5-5 | `openrouter` / `deepseek/deepseek-v4-flash` | `high` |
 | **researcher** | `anthropic` / **claude-sonnet-5-5** | `anthropic` / claude-opus-5-5 | `openrouter` / `xiaomi/mimo-v2.5` | — | `medium` |
 | **searcher** | `xai-oauth` / grok-4.3 | `openrouter` / `xiaomi/mimo-v2.5` | — | — | `low` |
-| **creator**, **image-creator**, **video-creator**, **audio-creator** | `anthropic` / **claude-opus-5-5** | `anthropic` / claude-fable-5-1 | `anthropic` / claude-sonnet-5-5 | `openrouter` / `minimax/minimax-m3` | `medium` |
+| **creator**, **video-creator** | `anthropic` / **claude-opus-5-5** | `anthropic` / claude-fable-5-1 | `anthropic` / claude-sonnet-5-5 | `openrouter` / `minimax/minimax-m3` | `medium` |
+| **image-creator**, **audio-creator** | `anthropic` / **claude-sonnet-5-5** | `anthropic` / claude-opus-5-5 | `anthropic` / claude-fable-5-1 | `openrouter` / `minimax/minimax-m3` | `medium` |
 | **writer** | `anthropic` / **claude-opus-5-5** | `anthropic` / claude-fable-5-1 | `anthropic` / claude-sonnet-5-5 | `openrouter` / `deepseek/deepseek-v4-flash` | `medium` |
 | **marketer** | `anthropic` / **claude-opus-5-5** | `anthropic` / claude-fable-5-1 | `anthropic` / claude-sonnet-5-5 | `openrouter` / `xiaomi/mimo-v2.5` | `medium` |
 | **ui-review**, **ux-persona** | `anthropic` / claude-sonnet-5-5 | `anthropic` / claude-opus-5-5 | — | — | `medium` |
@@ -82,8 +89,8 @@ profile config and re-resolves both from provider / base URL / model
 profile's single `agent.reasoning_effort` applies to every tier in its chain.
 
 Routing is probed with one-token requests per provider/model, not evaluated
-for per-profile behavior or prose quality; the Creator-family Opus 5.5 lead is
-backed by the blind A/B above (one brief, Opus n=1 per arm). Provider facts:
+for per-profile behavior or prose quality; the Creator-family split is
+backed by the two blind A/Bs above (small n per arm). Provider facts:
 
 - **Anthropic native** (`base_url: https://api.anthropic.com`) — OAuth resolves
   from the global Claude Code credential/token, not per-profile `auth.json`
