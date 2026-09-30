@@ -27,21 +27,24 @@ CRAFT_SKILLS = ("media-craft-direction", "media-craft-visual", "media-craft-moti
 class VideoCreatorConfigTest(unittest.TestCase):
     """The video-creator profile config must mirror image-creator's shape
     (Creator's other 'hand') except for the video-specific toolset/budget/
-    plugin differences documented in hermes/docs/hands/video.md."""
+    plugin differences documented in hermes/docs/hands/video.md. Its model
+    chain follows Creator's, not image-creator's (docs/models-auth.md)."""
 
     @classmethod
     def setUpClass(cls) -> None:
         video_path = HERMES_ROOT / "profiles" / "video-creator" / "config.yaml"
         image_path = HERMES_ROOT / "profiles" / "image-creator" / "config.yaml"
+        creator_path = HERMES_ROOT / "profiles" / "creator" / "config.yaml"
         cls.video = yaml.safe_load(video_path.read_text())
         cls.image = yaml.safe_load(image_path.read_text())
+        cls.creator = yaml.safe_load(creator_path.read_text())
 
     def test_auxiliary_matches_image_creator(self) -> None:
         self.assertEqual(self.image["auxiliary"], self.video["auxiliary"])
 
-    def test_model_matches_image_creator(self) -> None:
-        self.assertEqual(self.image["model"], self.video["model"])
-        self.assertEqual(self.image["fallback_providers"], self.video["fallback_providers"])
+    def test_model_matches_creator(self) -> None:
+        self.assertEqual(self.creator["model"], self.video["model"])
+        self.assertEqual(self.creator["fallback_providers"], self.video["fallback_providers"])
 
     def test_toolsets_contain_video_not_tts_image_gen_delegation_a2a(self) -> None:
         toolsets = self.video["toolsets"]
