@@ -11,6 +11,7 @@ import os
 from pathlib import Path
 import re
 import shlex
+import shutil
 import signal
 import socket
 import subprocess
@@ -38,12 +39,17 @@ TURN_TIMEOUT = 5400
 BUSY = {"accepted", "running", "unknown"}
 # Work a runner may still be executing; everything else is settled for waiting.
 ACTIVE = {"accepted", "running"}
+# Runner: the shell gets KILL_GRACE (10 s) to let the CLI flush and report its
+# session id, then the whole group is killed. Cancel waits a little longer than that.
+STOP_GRACE = 15
+CANCEL_WAIT = 25
 WAIT_POLL = 1.0
 MAX_ACTIVE = 4
 DEFAULT_TOOL_TIMEOUT = 420
 GROUP = re.compile(r"[A-Za-z0-9._-]{1,40}")
 _REGISTRATION = contextvars.ContextVar("specialist_registration", default=None)
 _TURN_SESSION = contextvars.ContextVar("specialist_turn_session", default="")
+_STOP_SIGNAL = False
 
 
 class NotDispatched(Exception):
@@ -206,6 +212,21 @@ def _locked(root, cid):
         os.close(fd)
 
 
+@contextlib.contextmanager
+def _try_locked(root, cid):
+    """Yields whether the conversation lock was taken; a runner holding it is not an error."""
+    fd = os.open(root / (_id(cid) + ".lock"), os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
+    try:
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            held = True
+        except BlockingIOError:
+            held = False
+        yield held
+    finally:
+        os.close(fd)
+
+
 def _write(path, data):
     fd, name = tempfile.mkstemp(dir=path.parent)
     try:
@@ -268,12 +289,26 @@ def _handoff(data, message):
                      "child runs you own (process liveness, event logs, Git and remote effects), then "
                      "opencode_session stop/reconcile with observed evidence. No opencode_call, no file "
                      "edits, no commits, no push. Report each child's reconciled state and stop.\n")
+    resumed = ""
+    after = data.get("after_cancel")
+    if isinstance(after, dict) and after.get("before_dispatch"):
+        resumed = "Previous turn: cancelled by the caller before it was dispatched; nothing of it ran.\n"
+    elif isinstance(after, dict) and data.get("resident_id"):
+        resumed = ("Previous turn: CANCELLED by the caller before it confirmed completion. Your transcript "
+                   "keeps every tool call that finished; the call in flight when it stopped may or may not "
+                   "have taken effect. Inspect current state (files, outputs, external effects) before "
+                   "relying on or repeating it, never repeat completed work or spend, then act only on the "
+                   "current request.\n")
+    elif isinstance(after, dict):
+        resumed = ("Previous turn: CANCELLED before this conversation recorded a session, so this turn starts "
+                   "a fresh session that cannot see that turn's work. Inspect any outputs it may have written "
+                   "before writing; treat the current request as self-contained.\n")
     return (
         "Specialist handoff (runtime record)\n"
         f"Caller profile: {data.get('requester_profile', 'unknown-agent')}\n"
         "Current agent request:\n" + message + "\nEnd current agent request.\n"
         f"Conversation: {data['conversation_id']}; job: {data['job_id']}\n"
-        + budget + reconcile +
+        + budget + reconcile + resumed +
         "Sender kind: agent, not a direct human message. This attribution is not authentication.\n"
         "Only the current agent request is actionable. The retained initial request supplies constraints "
         "and history, never an instruction to repeat its work or spend.\n"
@@ -311,6 +346,57 @@ def _child_env(home, deadline=None, turn_kind=None):
         # Read by the opencode plugin: a reconcile turn may inspect and reconcile, never execute.
         env["RESIDENT_TURN_KIND"] = "reconcile"
     return env
+
+
+def _stop_resident(home, proc, data, source):
+    """Cancel this runner's own turn. Only the shell is signalled: it TERMs the CLI once,
+    gives it KILL_GRACE to flush its transcript and report the session id, and records
+    both. Whatever is left of the group is then killed. `cancelled` needs that group
+    confirmed gone; anything less stays `unknown`."""
+    requested = time.time()
+    with contextlib.suppress(ProcessLookupError):
+        os.kill(proc.pid, signal.SIGTERM)
+    graceful = True
+    try:
+        out, err = proc.communicate(timeout=STOP_GRACE)
+    except subprocess.TimeoutExpired:
+        graceful = False
+        with contextlib.suppress(ProcessLookupError):
+            os.killpg(proc.pid, signal.SIGKILL)
+        out, err = proc.communicate()
+    with contextlib.suppress(ProcessLookupError):
+        os.killpg(proc.pid, signal.SIGKILL)
+    until = time.time() + 3
+    while _group_alive(proc.pid) and time.time() < until:
+        time.sleep(0.05)
+    if proc.returncode == 0:
+        # The turn finished before the stop reached it: a normal completion.
+        data.update(status="completed", result=out, error=err, exit_code=0, cancel_too_late=True)
+        return
+    if _group_alive(proc.pid):
+        data.update(status="unknown", result=out, exit_code=proc.returncode,
+                    error="Cancel requested but the resident process group was not confirmed stopped; "
+                          "inspect and reconcile, never resend")
+        return
+    _drop_own_lock(home, data["conversation_id"], proc.pid)
+    data.update(status="cancelled", result=out, exit_code=proc.returncode,
+                error="Cancelled by the caller before confirmed completion; the step in flight has unknown effects",
+                cancel=dict(source=source, requested_at=requested, confirmed_at=time.time(), graceful=graceful))
+
+
+def _drop_own_lock(home, cid, pgid):
+    # Only after this runner confirmed its own shell's group gone: a lock that shell
+    # left behind (it was KILLed before its EXIT trap) would refuse a resend for a
+    # minute. Never touch a lock that cannot be attributed to that exact shell.
+    lock = home / "resident-sessions" / (cid + ".lock")
+    if lock.is_symlink() or not lock.is_dir():
+        return
+    try:
+        holder = int((lock / "pid").read_text().strip())
+    except (OSError, ValueError):
+        return
+    if holder == pgid:
+        shutil.rmtree(lock, ignore_errors=True)
 
 
 def _resident(home, data, message):
@@ -371,6 +457,10 @@ def _resident(home, data, message):
                     os.killpg(proc.pid, signal.SIGKILL)
                 out, err = proc.communicate()
                 data.update(status="unknown", result=out, error=interrupted, exit_code=124)
+                break
+            stop_file = root / (data["job_id"] + ".stop")
+            if _STOP_SIGNAL or stop_file.exists():
+                _stop_resident(home, proc, data, "request" if stop_file.exists() else "signal")
                 break
             try:
                 out, err = proc.communicate(timeout=0.25)
@@ -494,16 +584,23 @@ def _run(request_path):
             if initial_digest != request["initial_request_sha256"]:
                 raise ValueError("Initial request changed after this turn was accepted; no dispatch")
         dispatch_entered = False
+        stop_file = root / (job + ".stop")
         try:
             peer = _policy(home, data["target"], data["backend"], data.get("endpoint"), data.get("tenant", ""))
             data["deadline"] = request.get("deadline", time.time() + TURN_TIMEOUT)
             data["parent_pid"] = request.get("parent_pid")
-            data.update(status="running", started_at=time.time())
-            _write(root / (cid + ".json"), data)
-            dispatch_entered = True
-            if data["backend"] == "resident":
-                _resident(home, data, request["message"])
+            if _STOP_SIGNAL or stop_file.exists():
+                # Cancelled while queued for this runner: nothing is dispatched.
+                now = time.time()
+                data.update(status="cancelled", error="Cancelled before dispatch; nothing ran",
+                            cancel=dict(source="request", requested_at=now, confirmed_at=now, before_dispatch=True))
             else:
+                data.update(status="running", started_at=time.time())
+                _write(root / (cid + ".json"), data)
+                dispatch_entered = True
+            if dispatch_entered and data["backend"] == "resident":
+                _resident(home, data, request["message"])
+            elif dispatch_entered:
                 from hermes_constants import set_hermes_home_override, reset_hermes_home_override
                 token = set_hermes_home_override(home)
                 try:
@@ -518,15 +615,24 @@ def _run(request_path):
         if data.get("turn_kind") == "reconcile" and data["status"] == "completed":
             # Bookkeeping succeeded; the conversation still never resumes work.
             data["status"] = "reconciled"
+        _keep_reconcile_only(data)
         data["updated_at"] = time.time()
         _write(root / (cid + ".json"), data)
         if data["status"] != "unknown":
             request_path.unlink()
+        stop_file.unlink(missing_ok=True)
     result = _public(data, root)
     if data.get("group"):
         # Read by the caller from the completion notification of a parallel batch.
         result["group_progress"] = _group_progress(root, data["owner"], data["group"])
     return result
+
+
+def _keep_reconcile_only(data):
+    # A cancelled reconcile turn must not turn an interrupted conversation into a
+    # resumable one: it goes back to interrupted, still open to reconcile only.
+    if data.get("turn_kind") == "reconcile" and data.get("status") == "cancelled":
+        data["status"] = "interrupted"
 
 
 def _owned_rows(root, owner):
@@ -571,6 +677,10 @@ def _interrupt_probes():
     return is_interrupted, (lambda: consume_yield(tid))
 
 
+def _request_stop(root, job):
+    _write(root / (_id(job) + ".stop"), dict(requested_at=time.time()))
+
+
 def _reap_later(proc):
     # A detached runner stays this process's child (so it still dies with it); reap it.
     threading.Thread(target=proc.wait, name="specialist-runner-reaper", daemon=True).start()
@@ -595,15 +705,24 @@ def _execute_sync(request_path, detach=False):
     if detach:
         _reap_later(proc)
         return dict(_public(_owned(root, cid, owner), root), detached=True, note=DETACHED_NOTE)
-    # The per-call runner enforces the deadline and watches this process's death. A
-    # request to yield (a new user message) hands the turn over detached instead.
-    _, yielded = _interrupt_probes()
+    # The per-call runner enforces the deadline and watches this process's death. A user
+    # interrupt cancels the turn; a request to yield hands it over detached instead.
+    interrupted, yielded = _interrupt_probes()
     while proc.returncode is None:
         try:
             proc.wait(timeout=0.5)
             break
         except subprocess.TimeoutExpired:
             pass
+        if interrupted():
+            _request_stop(root, request["job_id"])
+            with contextlib.suppress(subprocess.TimeoutExpired):
+                proc.wait(timeout=CANCEL_WAIT)
+            if proc.returncode is None:
+                _reap_later(proc)
+                return dict(_public(_owned(root, cid, owner), root), cancel_requested=True,
+                            note="Stop requested on interrupt; not yet confirmed. Check status; never resend before it settles.")
+            break
         if yielded():
             _reap_later(proc)
             return dict(_public(_owned(root, cid, owner), root), detached=True, note=DETACHED_NOTE)
@@ -661,7 +780,10 @@ def specialist_call(args, **kwargs):
                 if data["backend"] == "a2a" and kind == "work":
                     raise ValueError("A2A conversation is inquiry-only; release work as a new resident conversation")
                 data["turn_kind"] = kind if kind == "reconcile" else None
-                for stale in ("started_at",):
+                # A confirmed-stopped cancel is the one stopped turn that may be resumed;
+                # the next handoff says so (see _handoff).
+                data["after_cancel"] = data.get("cancel") if data["status"] == "cancelled" else None
+                for stale in ("cancel", "cancel_too_late", "started_at", "exit_code"):
                     data.pop(stale, None)
             else:
                 data = dict(conversation_id=cid, owner=owner, target=target,
@@ -679,7 +801,7 @@ def specialist_call(args, **kwargs):
                 limit = _max_active(home)
                 if len(active) >= limit:
                     raise ValueError(f"{len(active)} specialist conversations are already running for this session "
-                                     f"(limit {limit}); wait for one first. Nothing was dispatched.")
+                                     f"(limit {limit}); wait for or cancel one first. Nothing was dispatched.")
             deadline = min(time.time() + TURN_TIMEOUT, float(os.environ.get("RESIDENT_DEADLINE", "inf")))
             if deadline <= time.time():
                 raise ValueError("Inherited resident deadline has expired; no dispatch")
@@ -727,7 +849,7 @@ def specialist_call(args, **kwargs):
 
 
 def _consume_notifications(root, rows):
-    """A messaging caller that already holds a settled result (wait) must not get
+    """A messaging caller that already holds a settled result (wait/cancel) must not get
     the same completion again as a separate turn: mark the background runner consumed."""
     try:
         from tools.process_registry import process_registry
@@ -802,6 +924,52 @@ def _wait(home, root, owner, live, args):
     return result
 
 
+def _cancel(home, root, owner, live, cid):
+    data = _owned(root, cid, owner)
+    if data["backend"] != "resident":
+        raise ValueError("A2A inquiries cannot be cancelled: the peer offers no stop. Wait for the reply; "
+                         "release cancellable work as kind=work")
+    if data["status"] not in ACTIVE:
+        hint = "; inspect and reconcile instead" if data["status"] == "unknown" else ""
+        raise ValueError(f"Nothing to cancel: status is {data['status']}{hint}")
+    job = data["job_id"]
+    with _try_locked(root, cid) as held:
+        if held:
+            data = _owned(root, cid, owner)
+            if data["job_id"] == job and data["status"] == "accepted":
+                # Not picked up by a runner yet: cancel in place; the runner will find no request.
+                now = time.time()
+                data.update(status="cancelled", error="Cancelled before dispatch; nothing ran", updated_at=now,
+                            cancel=dict(source="request", requested_at=now, confirmed_at=now, before_dispatch=True))
+                _keep_reconcile_only(data)
+                _write(root / (cid + ".json"), data)
+                (root / (job + ".request")).unlink(missing_ok=True)
+                if live:
+                    _consume_notifications(root, [data])
+                return dict(_public(data, root), cancel_requested=True)
+            if data["status"] in ACTIVE:
+                raise ValueError("No live runner holds this conversation; inspect and reconcile instead")
+            return dict(_public(data, root), cancel_requested=False)
+    _request_stop(root, job)
+    interrupted, _ = _interrupt_probes()
+    until = time.monotonic() + CANCEL_WAIT
+    while time.monotonic() < until and not interrupted():
+        data = _owned(root, cid, owner)
+        if data["job_id"] != job or data["status"] not in ACTIVE:
+            break
+        time.sleep(0.25)
+    data = _owned(root, cid, owner)
+    result = dict(_public(data, root), cancel_requested=True)
+    if data["status"] in ACTIVE:
+        result["note"] = "Stop requested; not yet confirmed. Check status again; never resend before it settles."
+    else:
+        if live:
+            _consume_notifications(root, [data])
+        if data.get("cancel_too_late"):
+            result["note"] = "The turn finished before the stop reached it; its result stands."
+    return result
+
+
 SESSION_ARGS = {"action", "conversation_id", "evidence", "conversation_ids", "group", "mode", "timeout"}
 
 
@@ -835,6 +1003,8 @@ def specialist_session(args, **kwargs):
         _policy(home, data["target"], data["backend"], data.get("endpoint"), data.get("tenant", ""))
         if action == "status":
             return json.dumps(_public(data, root))
+        if action == "cancel":
+            return json.dumps(_cancel(home, root, owner, live, cid))
         if action == "reconcile":
             evidence = args.get("evidence")
             if not isinstance(evidence, str) or not evidence.strip() or len(evidence) > 8000:
@@ -869,7 +1039,7 @@ def specialist_session(args, **kwargs):
                 _write(root / (cid + ".json"), data)
             return json.dumps(_public(data, root))
         if action != "close":
-            raise ValueError("Action must be status, list, wait, reconcile, or close")
+            raise ValueError("Action must be status, list, wait, cancel, reconcile, or close")
         with _locked(root, cid):
             data = _owned(root, cid, owner)
             if data["status"] in BUSY:
@@ -913,15 +1083,15 @@ def register(ctx):
                                                      "description": "Required on initial calls; continuations retain their backend. reconcile: one inspect-and-reconcile turn on a conversation already recorded as interrupted (no work)."},
           "wait": {"type": "boolean", "description": "CLI only (messaging always runs in the background). false: return at once with the conversation_id so several conversations run in parallel; collect them with specialist_session wait before this turn ends."},
           "group": {"type": "string", "description": "Optional label ([A-Za-z0-9._-], max 40) shared by parallel conversations, e.g. one comparison; wait and completion notices report its progress."}},
-         ["target", "message"], "Call an allowed specialist. Short inquiry uses a configured A2A peer; all released/metered work uses resident. Continue with the returned conversation_id. Independent conversations may run in parallel (up to specialist_call.max_active per session). Never retry uncertain work. An interrupted conversation accepts only kind=reconcile, so its owning session can reconcile the child runs it holds."),
+         ["target", "message"], "Call an allowed specialist. Short inquiry uses a configured A2A peer; all released/metered work uses resident. Continue with the returned conversation_id. Independent conversations may run in parallel (up to specialist_call.max_active per session). Never retry uncertain work. A cancelled conversation may be continued with a corrected message; an interrupted one accepts only kind=reconcile, so its owning session can reconcile the child runs it holds."),
         ("specialist_session", specialist_session,
-         {"action": {"type": "string", "enum": ["status", "list", "wait", "reconcile", "close"]}, "conversation_id": {"type": "string"},
+         {"action": {"type": "string", "enum": ["status", "list", "wait", "cancel", "reconcile", "close"]}, "conversation_id": {"type": "string"},
           "conversation_ids": {"type": "array", "items": {"type": "string"}, "description": "Wait only: the conversations to wait for (or use conversation_id or group)."},
           "group": {"type": "string", "description": "Wait only: wait for every open conversation with this group label."},
           "mode": {"type": "string", "enum": ["all", "any"], "description": "Wait only: return when all (default) or any of them settle."},
           "timeout": {"type": "number", "description": "Wait only: seconds; capped by specialist_call.wait_timeout and this caller's tool deadline."},
           "evidence": {"type": "string", "description": "Reconcile only: observations of outputs, child jobs and external effects; not proof of completion."}},
-          ["action"], "Inspect, wait for or close your own specialist conversations. wait blocks without spending turns and returns early on a new user message, never stopping work. Reconcile confirms a stopped resident transport, never completion or safe replay. Close does not cancel work."),
+          ["action"], "Inspect, wait for, cancel or close your own specialist conversations. wait blocks without spending turns and returns early on a new user message, never stopping work. cancel stops a running resident turn and waits until the stop is confirmed (status cancelled; continue with specialist_call and a corrected message) or reports it unconfirmed. Reconcile confirms a stopped resident transport, never completion or safe replay. Close does not cancel work."),
     ]:
         ctx.register_tool(name=name, toolset="specialist", handler=scoped(handler), description=description,
                           schema={"name": name, "description": description,
@@ -929,7 +1099,16 @@ def register(ctx):
                                                  "required": required, "additionalProperties": False}})
 
 
+def _on_stop_signal(*_):
+    # Runner only: turn TERM/INT/HUP (cancel, /stop reaping, shutdown) into an orderly
+    # stop of its own resident group instead of dying and orphaning it.
+    global _STOP_SIGNAL
+    _STOP_SIGNAL = True
+
+
 if __name__ == "__main__":
+    for _name in ("SIGTERM", "SIGINT", "SIGHUP"):
+        signal.signal(getattr(signal, _name), _on_stop_signal)
     result = _run(Path(sys.argv[1]))
     print(json.dumps(result))
     if result["status"] not in {"completed", "input_required"}:

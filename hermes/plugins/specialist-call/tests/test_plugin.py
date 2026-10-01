@@ -1546,7 +1546,7 @@ def test_handoff_states_the_turn_budget():
     assert "Turn kind: RECONCILE-ONLY" in limited and "No opencode_call" in limited
 
 
-# -- parallel launch and wait ------------------------------------------------
+# -- parallel launch, wait and cancel ------------------------------------------
 
 FAKE_HERMES = r'''
 import json, os, signal, sys, time
@@ -1629,14 +1629,135 @@ def test_parallel_detached_calls_settle_together_under_wait(real_cli, monkeypatc
     assert progress == dict(group="tagline", settled=3, total=3, pending=[])
 
 
-def test_blocking_cli_call_detaches_on_yield(real_cli, monkeypatch):
+def test_cancel_confirms_stop_and_resumes_the_same_session(real_cli):
     home, tmp_path = real_cli
+    started = call("writer", kind="work", wait=False, message="SLOW first draft")
+    cid = started["conversation_id"]
+    assert wait_for(lambda: len(fake_calls(tmp_path)) == 1)
+    assert "error" in call("writer", conversation_id=cid, message="too early")
+    cancelled = session_args(action="cancel", conversation_id=cid)
+    assert cancelled["status"] == "cancelled" and cancelled["cancel_requested"]
+    assert cancelled["cancel"]["graceful"] and cancelled["cancel"]["source"] == "request"
+    assert not p._group_alive(cancelled["pgid"])
+    first_sid = cancelled["resident_id"]
+    assert first_sid.startswith("sid-"), "the shell must wait for the CLI to report its session"
+    assert not (home / "resident-sessions" / (cid + ".lock")).exists()
+    assert not (home / "specialist-sessions" / (cancelled["job_id"] + ".stop")).exists()
+    assert "INTERRUPTED" in Path(cancelled["log"]).read_text()
+    # Resend: same conversation, same resident session, told the last step is uncertain.
+    resumed = call("writer", conversation_id=cid, message="shorter please")
+    assert resumed["status"] == "completed" and resumed["result"].strip() == "reply to shorter please"
+    second = fake_calls(tmp_path)[-1]
+    assert second["resume"] == first_sid
+    assert "Previous turn: CANCELLED by the caller" in second["prompt"]
+    assert "after_cancel" in p._read(home / "specialist-sessions" / (cid + ".json"))
+    assert session("close", cid)["status"] == "closed"
+
+
+def test_stubborn_cli_is_killed_and_the_cancel_still_confirmed(real_cli, monkeypatch):
+    home, tmp_path = real_cli
+    proc = subprocess.Popen(["/bin/sh", "-c", "trap '' TERM; echo ready; sleep 30"], start_new_session=True,
+                            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    assert proc.stdout.readline() == "ready\n"
+    cid = "c" * 32
+    lock = home / "resident-sessions" / (cid + ".lock")
+    lock.mkdir(parents=True)
+    (lock / "pid").write_text(f"{proc.pid}\n")
+    monkeypatch.setattr(p, "STOP_GRACE", 0.5)
+    data = {"conversation_id": cid}
+    p._stop_resident(home, proc, data, "signal")
+    assert data["status"] == "cancelled" and not data["cancel"]["graceful"]
+    assert not p._group_alive(proc.pid)
+    assert not lock.exists(), "the runner's own dead shell lock blocks a resend"
+    # A lock that names another process is never touched.
+    other = subprocess.Popen(["/bin/sh", "-c", "exit 0"], start_new_session=True)
+    other.wait()
+    lock.mkdir()
+    (lock / "pid").write_text("1\n")
+    p._drop_own_lock(home, cid, other.pid)
+    assert lock.exists()
+
+
+def test_cancel_finished_before_the_stop_keeps_the_result(tmp_path):
+    proc = subprocess.Popen(["/bin/sh", "-c", "echo done"], start_new_session=True,
+                            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    proc.wait()
+    data = {"conversation_id": "d" * 32}
+    p._stop_resident(tmp_path, proc, data, "request")
+    assert data["status"] == "completed" and data["cancel_too_late"] and "done" in data["result"]
+
+
+def test_runner_signal_is_an_orderly_cancel(real_cli):
+    # Gateway /stop reaping and shutdown signal the runner itself.
+    home, tmp_path = real_cli
+    launched = call("writer", kind="work", wait=False, message="SLOW draft")
+    cid = launched["conversation_id"]
+    assert wait_for(lambda: len(fake_calls(tmp_path)) == 1)
+    runner = [line for line in subprocess.run(["ps", "-ax", "-o", "pid=,command="], capture_output=True,
+                                              text=True).stdout.splitlines()
+              if launched["job_id"] + ".request" in line and "specialist-call" in line]
+    assert len(runner) == 1
+    os.kill(int(runner[0].split()[0]), signal.SIGTERM)
+    assert wait_for(lambda: session("status", cid)["status"] != "running")
+    data = session("status", cid)
+    assert data["status"] == "cancelled" and data["cancel"]["source"] == "signal"
+    assert not p._group_alive(data["pgid"])
+
+
+def test_blocking_cli_call_cancels_on_interrupt_and_detaches_on_yield(real_cli, monkeypatch):
+    home, tmp_path = real_cli
+    began = time.monotonic()
+    monkeypatch.setattr(p, "_interrupt_probes", lambda: ((lambda: time.monotonic() - began > 1), (lambda: False)))
+    interrupted = call("writer", kind="work", message="SLOW draft")
+    assert interrupted["status"] == "cancelled" and not p._group_alive(interrupted["pgid"])
     monkeypatch.setattr(p, "_interrupt_probes", lambda: ((lambda: False), (lambda: True)))
     yielded = call("writer", kind="work", message="quick draft")
     assert yielded["detached"] and yielded["status"] in {"accepted", "running"}
     monkeypatch.setattr(p, "_interrupt_probes", lambda: ((lambda: False), (lambda: False)))
     done = session_args(action="wait", conversation_id=yielded["conversation_id"], timeout=30)
     assert done["conversations"][0]["status"] == "completed"
+
+
+def test_cancel_before_dispatch_never_runs(caller, monkeypatch):
+    home, calls = caller
+    commands = background(caller, monkeypatch)
+    accepted = call("writer", kind="work")
+    cid = accepted["conversation_id"]
+    cancelled = session_args(action="cancel", conversation_id=cid)
+    assert cancelled["status"] == "cancelled" and cancelled["cancel"]["before_dispatch"]
+    with pytest.raises(FileNotFoundError):
+        p._run(Path(shlex.split(commands[0]["command"])[-1]))
+    assert not calls
+    # Queued for a runner that already holds the lock: the stop file wins before dispatch.
+    second = call("writer", kind="work")
+    path = Path(shlex.split(commands[1]["command"])[-1])
+    p._request_stop(path.parent, second["job_id"])
+    assert p._run(path)["status"] == "cancelled" and not calls
+    assert not (path.parent / (second["job_id"] + ".stop")).exists()
+    resumed = call("writer", conversation_id=cid, message="again")
+    assert resumed["status"] == "accepted"
+    assert p._read(path.parent / (cid + ".json"))["after_cancel"]["before_dispatch"]
+
+
+def test_cancel_refuses_what_it_cannot_stop(caller, monkeypatch):
+    inquiry = call()
+    assert inquiry["backend"] == "a2a"
+    assert "cannot be cancelled" in session_args(action="cancel", conversation_id=inquiry["conversation_id"])["error"]
+    done = call("writer", kind="work")
+    assert "Nothing to cancel" in session_args(action="cancel", conversation_id=done["conversation_id"])["error"]
+
+    def uncertain(home, data, message):
+        raise RuntimeError("lost")
+
+    monkeypatch.setattr(p, "_resident", uncertain)
+    unknown = call("writer", kind="work")
+    assert "reconcile" in session_args(action="cancel", conversation_id=unknown["conversation_id"])["error"]
+    # A record left running with no runner is not cancelled blind.
+    record = caller[0] / "specialist-sessions" / (done["conversation_id"] + ".json")
+    data = p._read(record)
+    data["status"] = "running"
+    p._write(record, data)
+    assert "reconcile" in session_args(action="cancel", conversation_id=done["conversation_id"])["error"]
 
 
 def test_active_conversations_are_capped_per_session(caller):
@@ -1687,8 +1808,9 @@ def test_wait_is_released_by_a_new_message_without_stopping(caller, monkeypatch)
     {"action": "wait", "group": "../x"},
     {"action": "wait", "group": "nothing-here"},
     {"action": "status", "conversation_id": "a" * 32, "mode": "all"},
+    {"action": "cancel", "conversation_id": "a" * 32, "timeout": 5},
 ])
-def test_wait_argument_validation(caller, args):
+def test_wait_and_cancel_argument_validation(caller, args):
     assert "error" in session_args(**args)
 
 
@@ -1723,6 +1845,40 @@ def test_wait_limit_stays_below_the_callers_tool_deadline(tmp_path, monkeypatch)
     monkeypatch.delenv("HERMES_CONCURRENT_TOOL_TIMEOUT_S")
     monkeypatch.setenv("RESIDENT_DEADLINE", str(time.time() + 100))
     assert 90 <= limit({"timeouts": {"tools": {"sequential_call": 5460}}}) <= 95
+
+
+def test_handoff_after_cancel_names_the_uncertain_step():
+    base = {"conversation_id": "a" * 32, "job_id": "b" * 32, "initial_job_id": "c" * 32,
+            "initial_request": "hello", "requester_profile": "assistant"}
+    assert "Previous turn" not in p._handoff(dict(base), "next")
+    resumed = p._handoff({**base, "resident_id": "sid", "after_cancel": {"graceful": True}}, "next")
+    assert "Previous turn: CANCELLED by the caller" in resumed and "may or may not have taken effect" in resumed
+    fresh = p._handoff({**base, "resident_id": "", "after_cancel": {"graceful": False}}, "next")
+    assert "fresh session" in fresh and "self-contained" in fresh
+    queued = p._handoff({**base, "resident_id": "sid", "after_cancel": {"before_dispatch": True}}, "next")
+    assert "nothing of it ran" in queued
+
+
+def test_cancelled_reconcile_turn_stays_reconcile_only(caller, monkeypatch):
+    home, _ = caller
+    commands = background(caller, monkeypatch)
+    started = call("writer", kind="work")
+    cid = started["conversation_id"]
+    record = home / "specialist-sessions" / (cid + ".json")
+    data = p._read(record)
+    data.update(status="interrupted", resident_id="resident-sid", reconciliation={"resume_permitted": False})
+    p._write(record, data)
+    # Cancelled before dispatch.
+    call("writer", conversation_id=cid, kind="reconcile", message="Reconcile children.")
+    assert session_args(action="cancel", conversation_id=cid)["status"] == "interrupted"
+    assert "error" in call("writer", conversation_id=cid, kind="work", message="resume work")
+    # Cancelled by its runner.
+    call("writer", conversation_id=cid, kind="reconcile", message="Reconcile children.")
+    path = Path(shlex.split(commands[-1]["command"])[-1])
+    monkeypatch.setattr(p, "_resident", lambda home, data, message: data.update(status="cancelled", cancel={}))
+    assert p._run(path)["status"] == "interrupted"
+    assert "error" in call("writer", conversation_id=cid, kind="work", message="resume work")
+    assert "error" in call("writer", conversation_id=cid, message="resume work")
 
 
 def test_inbound_inquiry_cannot_detach(caller, monkeypatch):
