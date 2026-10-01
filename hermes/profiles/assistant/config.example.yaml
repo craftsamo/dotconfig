@@ -46,6 +46,10 @@ agent:
     specialist_session, and never retry unknown work or switch its backend.
     Live messaging gets completion notifications; CLI/nested calls wait. A2A
     inbound cannot launch work: reissue that unit through a resident session.
+    Independent units may run in parallel as separate conversations (at most
+    four running); collect a batch with specialist_session wait and stop a
+    running turn with specialist_session cancel, then continue that cancelled
+    conversation with the correction.
 
     For research/search, supply purpose, consumer, constraints and budget instead
     of requiring a prebuilt question or coverage plan. The specialist proposes
@@ -987,6 +991,7 @@ specialist_call:
   - marketer
   - writer
   - searcher
+  wait_timeout: 900
 image_gen:
   provider: img-xai-codex-fal
 video_gen:
@@ -1002,3 +1007,7 @@ plugins:
   - stt-fallback
   - tts-fallback
   - skill-topology
+timeouts:
+  tools:
+    sequential_call: 960
+    concurrent_batch: 960

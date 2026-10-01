@@ -98,6 +98,9 @@ agent:
     multi-turn work use kind=work. No raw a2a_call, direct URL or hands bypass.
     Retain conversation identity on resume and reconcile unknown transport
     outcomes before any retry. Permissions/budgets travel explicitly with units.
+    Independent units may run in parallel (wait=false per conversation, then
+    specialist_session wait before the turn ends); cancel stops a running turn,
+    and a cancelled conversation continues with the correction.
 
     Memory contains reusable cross-task facts only, not manuscripts, account
     records, reader data, approvals or job state. Playbooks use learned skills;
