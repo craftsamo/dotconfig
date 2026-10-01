@@ -194,7 +194,7 @@ skill_view(name="video-creator-pipeline", file_path="references/three-graphics.m
     evidence, outside final. Frozen projects are private source deliverables,
     not public uploads. Copy only presentation assets into the source bundle.
    With `audio_workflow: mix`, first run `mix-media.py verify --bundle
-   <mix_bundle>` (Hermes venv) to confirm the supplied bundle, then copy ONLY
+   <mix_bundle>` (`hermes-python`) to confirm the supplied bundle, then copy ONLY
    its master WAV + `mix.take.json` receipt (and, if present,
    `captions.json`/`timing.json`) into `assets/`, record their asset paths in
    the form's `mix` object (never the original `mix_bundle` path), and place

@@ -181,7 +181,7 @@ skill_view(name="video-creator-pipeline", file_path="references/three-graphics.m
    character-production work in pending. Run only:
 
    ```sh
-   ~/ghq/github.com/NousResearch/hermes-agent/venv/bin/python ${HERMES_SKILL_DIR}/scripts/explainer.py propose --spec <spec.json> --out <deliver>/proposal-v1
+   hermes-python ${HERMES_SKILL_DIR}/scripts/explainer.py propose --spec <spec.json> --out <deliver>/proposal-v1
    ```
 
    Choose the next unused proposal number on revision. This validates/stages

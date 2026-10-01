@@ -78,16 +78,13 @@ metadata:
    which this leaf does not do - return `Q<n>` instead of shortening it.
    `target_lufs` has no hidden default; omit it to leave loudness
    untouched rather than guessing a target.
-3. Run through the Hermes venv Python:
+3. Run through Hermes' Python (`hermes-python`):
 
    ```sh
-   ~/ghq/github.com/NousResearch/hermes-agent/venv/bin/python "${HERMES_SKILL_DIR}/../../scripts/music-media.py" edit <source> --out <deliver>/take-01 --slug <slug> [--start S] [--end E] [--loop-seconds S] [--crossfade-ms N] [--fade-in-ms N] [--fade-out-ms N] [--gain-db DB] [--target-lufs LUFS]
+   hermes-python "${HERMES_SKILL_DIR}/../../scripts/music-media.py" edit <source> --out <deliver>/take-01 --slug <slug> [--start S] [--end E] [--loop-seconds S] [--crossfade-ms N] [--fade-in-ms N] [--fade-out-ms N] [--gain-db DB] [--target-lufs LUFS]
    ```
 
-   Do not use command substitution in executable paths; if `ghq root`
-   differs on this machine, resolve it with a separate `ghq root` call
-   first and then invoke the literal absolute Python path - never repeat
-   generation to fix a packaging step (this leaf never generates in the
+   Never repeat generation to fix a packaging step (this leaf never generates in the
    first place). Add only the flags the form actually set. The source
    must decode to <=600s and <=128 MiB or the helper refuses before
    writing anything.

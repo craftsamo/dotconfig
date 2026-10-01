@@ -26,7 +26,12 @@
 
 set -u
 
-HERMES="$(command -v hermes || echo "$HOME/.local/bin/hermes")"
+# The Keychain shim (~/.config/bin/hermes) first, by path: inside a Hermes process PM puts the
+# checkout's own launcher ahead of it on PATH, and a bare `hermes` would skip the shim's
+# global/hermes Keychain layers and its dispatcher-worker guard.
+_hermes_default="$HOME/.config/bin/hermes"
+[ -x "$_hermes_default" ] || _hermes_default="$(command -v hermes || echo "$HOME/.local/bin/hermes")"
+HERMES="$_hermes_default"
 export HERMES_BIN="$HERMES"
 
 exec /usr/bin/env python3 - <<'PY'

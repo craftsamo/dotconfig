@@ -148,13 +148,10 @@ metadata:
    report the mismatch instead. Then run:
 
    ```sh
-   ~/ghq/github.com/NousResearch/hermes-agent/venv/bin/python "${HERMES_SKILL_DIR}/../../scripts/music_plan.py" propose --kind create --form-file <deliver>/form.json --arrangement-file <deliver>/arrangement.md --score-file <deliver>/score.json --out <deliver>/proposal-v<N>
+   hermes-python "${HERMES_SKILL_DIR}/../../scripts/music_plan.py" propose --kind create --form-file <deliver>/form.json --arrangement-file <deliver>/arrangement.md --score-file <deliver>/score.json --out <deliver>/proposal-v<N>
    ```
 
-   Do not use command substitution in executable paths; if `ghq root`
-   differs on this machine, resolve it with a separate `ghq root` call
-   first and then invoke the literal absolute Python path. Choose the
-   next unused `N` even after a rejected proposal; never overwrite a
+   Choose the next unused `N` even after a rejected proposal; never overwrite a
    previous proposal directory. This helper writes the resolved
    settings/hashes and refuses conflicts on its own; it makes no audio
    call. Report the returned proposal path and its SHA-256, and STOP.
@@ -166,7 +163,7 @@ metadata:
    generation against stale approval text. Run:
 
    ```sh
-   ~/ghq/github.com/NousResearch/hermes-agent/venv/bin/python "${HERMES_SKILL_DIR}/../../scripts/music-media.py" create --approved-plan <approved_plan> --approval-sha256 <approval_sha256> --out <deliver>/take-01 --slug <slug>
+   hermes-python "${HERMES_SKILL_DIR}/../../scripts/music-media.py" create --approved-plan <approved_plan> --approval-sha256 <approval_sha256> --out <deliver>/take-01 --slug <slug>
    ```
 
    Use a fresh, previously unused `--out` directory under `<deliver>` for

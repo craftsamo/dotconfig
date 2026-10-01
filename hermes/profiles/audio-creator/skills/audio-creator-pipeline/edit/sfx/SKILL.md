@@ -78,17 +78,13 @@ metadata:
    change needs a fresh downstream duration approval, not a silent
    re-sync. Loop-to-length stretching, music mixing and multi-track
    assembly are out of scope for this leaf.
-3. Run through the Hermes venv Python:
+3. Run through Hermes' Python (`hermes-python`):
 
    ```sh
-   ~/ghq/github.com/NousResearch/hermes-agent/venv/bin/python "${HERMES_SKILL_DIR}/../../scripts/sfx-media.py" edit <source> --out <deliver>/take-01 --slug <slug> [--start S] [--end E] [--pad-ms N] [--fade-in-ms N] [--fade-out-ms N] [--pitch-semitones N] [--reverse] [--target-peak N] [--format wav|mp3|ogg]
+   hermes-python "${HERMES_SKILL_DIR}/../../scripts/sfx-media.py" edit <source> --out <deliver>/take-01 --slug <slug> [--start S] [--end E] [--pad-ms N] [--fade-in-ms N] [--fade-out-ms N] [--pitch-semitones N] [--reverse] [--target-peak N] [--format wav|mp3|ogg]
    ```
 
-   Do not use command substitution in executable paths; if `ghq root`
-   differs on this machine, resolve it with a separate `ghq root` call
-   first and then invoke the literal absolute Python path — never repeat
-   the model generation to fix a packaging step. (Actual live failure:
-   "Nested executable body could not be resolved.")
+   Never repeat the model generation to fix a packaging step.
 
    Add only the flags the form actually set; never invent a
    `--target-peak` — normalization is always an explicit ask, there is no

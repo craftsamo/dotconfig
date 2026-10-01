@@ -42,7 +42,7 @@ class CommandPlanTest(unittest.TestCase):
     def setUp(self) -> None:
         self.runtime = Path("/fake/runtime")
         self.private = Path("/fake/private")
-        self.python = self.runtime / "venv/bin/python"
+        self.python = Path("/fake/pm/test-python")
 
     def test_exact_scopes_no_dot_no_forbidden(self) -> None:
         plan = V.build_plan(self.runtime, self.private, self.python)
@@ -106,7 +106,7 @@ class PreflightFailureTest(unittest.TestCase):
             self.addCleanup(patcher.stop)
 
     def test_runtime_absent_fails_descriptively(self) -> None:
-        with self.assertRaisesRegex(V.ContinuityError, "python not found"):
+        with self.assertRaisesRegex(V.ContinuityError, "no test interpreter|python not found"):
             V.check_runtime(Path("/definitely/not/a/real/runtime"))
 
     def test_candidate_pair_mismatch_fails_descriptively(self) -> None:
@@ -134,7 +134,7 @@ class PreflightFailureTest(unittest.TestCase):
 
 class MockedRunPropagationTest(unittest.TestCase):
     def test_first_stage_failure_stops_remaining_stages(self) -> None:
-        plan = V.build_plan(Path("/fake/runtime"), Path("/fake/private"), Path("/fake/runtime/venv/bin/python"))
+        plan = V.build_plan(Path("/fake/runtime"), Path("/fake/private"), Path("/fake/pm/test-python"))
         calls = []
 
         def fake_run(argv, **kwargs):

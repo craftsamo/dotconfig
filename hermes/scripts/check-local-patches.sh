@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Verify the hermes-agent checkout still carries every local patch.
 #
-# Local fixes live as `fix/*` branches in the hermes-agent checkout and are
-# merged into the running branch (`local`). `hermes update` can drop them
+# Local fixes live as `fix/*` (and `feat/*`) branches in the hermes-agent checkout and
+# are merged into the running branch (`local`). Superseded branches are archived under
+# `archive/<date>/…`, which this check ignores. `hermes update` can drop them
 # silently, and several guard behavior with no visible error when missing
 # (e.g. completion notifications for secondary profiles, real-profile browser
 # isolation). The branch list is the ledger: this script checks it against
@@ -29,9 +30,9 @@ echo "checkout: $dir"
 echo "HEAD:     $head_ref @ $(git -C "$dir" rev-parse --short HEAD)"
 [ "$head_ref" = "local" ] || { echo "WARN  HEAD is not the 'local' branch"; status=1; }
 
-branches="$(git -C "$dir" for-each-ref --format='%(refname:short)' 'refs/heads/fix/*')"
+branches="$(git -C "$dir" for-each-ref --format='%(refname:short)' 'refs/heads/fix/*' 'refs/heads/feat/*')"
 if [ -z "$branches" ]; then
-  echo "WARN  no fix/* branches found"
+  echo "WARN  no fix/* or feat/* branches found"
   status=1
 fi
 while IFS= read -r b; do

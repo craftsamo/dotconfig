@@ -79,7 +79,7 @@ metadata:
    directory beneath the agreed Group, never a new Group. Run:
 
    ```sh
-   "$(ghq root)/github.com/NousResearch/hermes-agent/venv/bin/python" "${HERMES_SKILL_DIR}/../../scripts/speech-media.py" track <raw-audio> --script-file <script-file> --take-file <tool-response-json> --out <new-bundle-dir> --slug <slug>
+   hermes-python "${HERMES_SKILL_DIR}/../../scripts/speech-media.py" track <raw-audio> --script-file <script-file> --take-file <tool-response-json> --out <new-bundle-dir> --slug <slug>
    ```
 
    Add `--language <code>` only when supplied; add `--voice-message` for that

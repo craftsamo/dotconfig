@@ -110,10 +110,13 @@ repository upkeep (Engineer through OpenCode, the Assistant's Admin topic).
 
 ## Gateway and A2A
 
-- **One multiplex gateway process** hosts every bot and A2A endpoint. A new bot
-  = a `hermes-<name>` Keychain layer + `platforms` / `a2a_agents` / toolset
-  entries + the multiplex allowlist — never a second gateway process (one bot
-  token = one live connection).
+- **One multiplex gateway process** (LaunchAgent `ai.hermes.keychain-multiplex`)
+  hosts every bot and A2A endpoint and serves every profile directory under
+  `profiles/` — there is no allowlist. A new bot = a `hermes-<name>` Keychain
+  layer + `platforms` / `a2a_agents` / toolset entries — never a second gateway
+  process (one bot token = one live connection). Never run
+  `hermes -p <role> gateway stop` on a specialist that must stay reachable: it
+  parks that profile in the shared gateway.
 - **A2A ports go in `platforms.a2a.extra.port`, never an `A2A_PORT` env var** —
   it is read raw from the shared process env and would collide across
   profiles. Peer `a2a_agents` entries keep `timeout: 310` (the 120 s caller
@@ -254,16 +257,16 @@ Rollout contract: [docs/topology.md "Candidate rollout and cutover"](docs/topolo
    hermes-agent checkout must still be merged into `local`, and the
    case-collision twin must keep `skip-worktree` (without it every rebase and
    merge refuses to start; `git checkout --` only flips which twin is dirty). A missing patch fails silently at runtime, e.g.
-   completion notifications for secondary profiles or browser isolation.
+   browser isolation.
 2. `./scripts/validate-profile-skills.py --all`; delete any seeded category
    directory under `profiles/*/skills/` other than `<profile>-pipeline`,
    `technic` or `learned` (upstream seeds past `.no-bundled-skills`). A lone
    seeded `DESCRIPTION.md` is harmless and comes back each launch.
 3. `scripts/verify-work-continuity.py` (above) and the test suite.
-4. Still unpatched upstream, so re-check behavior rather than a branch: a
-   browser attach daemon that outlived its clone keeps a dead port
-   ([README "Browser"](README.md#browser)), and shutdown / `/restart`
-   notifications for secondary profiles are not routed.
+4. Re-check behavior rather than a branch: a browser attach daemon that
+   outlived its clone keeps a dead port (unpatched upstream;
+   [README "Browser"](README.md#browser)), and whether shutdown / `/restart`
+   notifications reach secondary profiles.
 
 ## Maintenance loop
 
@@ -271,11 +274,13 @@ Full reference: [README "Commands"](README.md#commands).
 
 - `./scripts/validate-profile-skills.py --all` (`--strict-git` in a staged or
   clean tree fails on managed files that are still untracked).
-- Tests: `PYTHONPATH=$(ghq root)/github.com/NousResearch/hermes-agent
-  $(ghq root)/github.com/NousResearch/hermes-agent/venv/bin/python -m pytest
-  plugins/ scripts/tests/ -q --import-mode=importlib` — the Hermes venv is
-  required and `--import-mode=importlib` is not optional (plugin suites share
-  the `tests/test_plugin.py` basename in hyphenated, non-importable dirs).
+- Tests: `cd ~/.config/hermes && PYTHONPATH=$(ghq root)/github.com/NousResearch/hermes-agent
+  hermes-python --test -m pytest plugins/ scripts/tests/ -q
+  --import-mode=importlib` — the Hermes test interpreter is required (PM owns
+  it; there is no venv path) and `--import-mode=importlib` is not optional
+  (plugin suites share the `tests/test_plugin.py` basename in hyphenated,
+  non-importable dirs). Private overlay tests likewise run with
+  `hermes-python --test -m unittest …`.
 - `../install.sh` after adding files; `hermes update` to update (not
   `setup.sh`); `hermes doctor` for providers and model tiers.
 
