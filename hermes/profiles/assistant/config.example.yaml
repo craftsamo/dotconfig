@@ -10,6 +10,9 @@ fallback_providers:
 - provider: anthropic
   model: claude-sonnet-5-5
   base_url: https://api.anthropic.com
+- provider: openai-codex
+  model: gpt-6.1-sol
+  base_url: https://chatgpt.com/backend-api/codex
 - provider: openrouter
   model: xiaomi/mimo-v2.5
   base_url: https://openrouter.ai/api/v1
@@ -436,6 +439,15 @@ auxiliary:
       model: deepseek/deepseek-v4-flash
       base_url: https://openrouter.ai/api/v1
       api_mode: chat_completions
+  background_review:
+    enabled: true
+    provider: anthropic
+    model: claude-sonnet-5-5
+    base_url: https://api.anthropic.com
+    api_key: ''
+    timeout: 120
+    extra_body: {}
+    max_input_tokens: 600000
 display:
   compact: false
   personality: ''

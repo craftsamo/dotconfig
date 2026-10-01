@@ -123,6 +123,13 @@
             },
           },
         },
+        "gpt-6.1-sol": {
+          "cost": {
+            "input": 2,
+            "cache_read": 0.1,
+            "output": 10,
+          },
+        },
         "gpt-6-luna": {
           "cost": {
             "input": 0.1,

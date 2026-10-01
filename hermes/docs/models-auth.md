@@ -12,14 +12,16 @@ identical provider+model pair is skipped.
 
 Models are chosen per role by the capability the role needs, not by the
 strongest model; the budget is each subscription's usage allowance, not
-dollars. **Hermes chat and auxiliary models run on Claude only**, on the
+dollars. **Hermes chat and auxiliary models run on Claude first**, on the
 Hermes Claude account; the ChatGPT subscription belongs to OpenCode, and
-Hermes touches it only for image generation (see "Codex" below). Judgment
-profiles lead with Opus or Fable and fall through a second Claude model and
-Sonnet 5.5 before the OpenRouter tail; **researcher**, the UI evaluators and
-the **image-creator** / **audio-creator** hands lead on **Sonnet 5.5**.
+Hermes touches it for image generation and, on `writer` / `researcher` /
+`assistant` only, as a last-resort chat tier ahead of the OpenRouter tail (see
+"Codex" below). Judgment profiles lead with Opus or Fable and fall through a
+second Claude model and Sonnet 5.5 before that tail; **researcher**, **writer**,
+the UI evaluators and the **image-creator** / **audio-creator** hands lead on
+**Sonnet 5.5**.
 
-- **Opus 5.5 leads `default`, `assistant`, `writer`, `marketer`, `creator`
+- **Opus 5.5 leads `default`, `assistant`, `marketer`, `creator`
   and `video-creator`** — above Fable 5.1 on reasoning, agentic terminal work and
   coding at a lower token rate. The Opus-led judgment profiles take **Fable 5.1
   as T2**, never another Opus: every Opus model draws on the same Opus weekly
@@ -27,8 +29,10 @@ the **image-creator** / **audio-creator** hands lead on **Sonnet 5.5**.
   Fable draws on its own 50%-of-week ceiling. **Sonnet 5.5 is the last Claude
   tier** everywhere: Anthropic meters Opus separately from "all other models"
   per week, so Sonnet stays alive when the Opus cap is the reason T1 failed.
-  Prose quality (`writer`, `marketer`) has no public benchmark — revert those
-  two to Fable 5.1 if their output degrades.
+  Prose quality (`writer`, `marketer`) has no public benchmark. `writer` leads
+  on Sonnet 5.5 to spare the shared Claude weekly pool (T2 Opus 5.5, T3 Fable
+  5.1) — revert it to Opus 5.5 if its output degrades; `marketer` still leads
+  on Opus 5.5 — revert it to Fable 5.1 if its output degrades.
 - **`engineer` alone leads on Fable 5.1** (T2 Opus 5.5) so the OpenCode hidden
   primaries that plan for and review it (Opus 5.5) remain a different model;
   see [`profiles/engineer.md`](./profiles/engineer.md) "OpenCode runtime" for
@@ -67,18 +71,18 @@ the **image-creator** / **audio-creator** hands lead on **Sonnet 5.5**.
   `opencode_cli.models`. No second fixed ladder or automatic replay of an
   uncertain run lives in Engineer's Skill.
 
-| Profile | T1 (primary) | T2 | T3 | T4 | `reasoning_effort` |
-| --- | --- | --- | --- | --- | --- |
-| **default** | `anthropic` / claude-opus-5-5 | `anthropic` / claude-sonnet-5-5 | `openrouter` / `xiaomi/mimo-v2.5` | — | `medium` |
-| **assistant** | `anthropic` / **claude-opus-5-5** | `anthropic` / claude-fable-5-1 | `anthropic` / claude-sonnet-5-5 | `openrouter` / `xiaomi/mimo-v2.5` | `medium` |
-| **engineer** | `anthropic` / **claude-fable-5-1** | `anthropic` / claude-opus-5-5 | `anthropic` / claude-sonnet-5-5 | `openrouter` / `deepseek/deepseek-v4-flash` | `high` |
-| **researcher** | `anthropic` / **claude-sonnet-5-5** | `anthropic` / claude-opus-5-5 | `openrouter` / `xiaomi/mimo-v2.5` | — | `medium` |
-| **searcher** | `xai-oauth` / grok-4.3 | `openrouter` / `xiaomi/mimo-v2.5` | — | — | `low` |
-| **creator**, **video-creator** | `anthropic` / **claude-opus-5-5** | `anthropic` / claude-fable-5-1 | `anthropic` / claude-sonnet-5-5 | `openrouter` / `minimax/minimax-m3` | `medium` |
-| **image-creator**, **audio-creator** | `anthropic` / **claude-sonnet-5-5** | `anthropic` / claude-opus-5-5 | `anthropic` / claude-fable-5-1 | `openrouter` / `minimax/minimax-m3` | `medium` |
-| **writer** | `anthropic` / **claude-opus-5-5** | `anthropic` / claude-fable-5-1 | `anthropic` / claude-sonnet-5-5 | `openrouter` / `deepseek/deepseek-v4-flash` | `medium` |
-| **marketer** | `anthropic` / **claude-opus-5-5** | `anthropic` / claude-fable-5-1 | `anthropic` / claude-sonnet-5-5 | `openrouter` / `xiaomi/mimo-v2.5` | `medium` |
-| **ui-review**, **ux-persona** | `anthropic` / claude-sonnet-5-5 | `anthropic` / claude-opus-5-5 | — | — | `medium` |
+| Profile | T1 (primary) | T2 | T3 | T4 | T5 | `reasoning_effort` |
+| --- | --- | --- | --- | --- | --- | --- |
+| **default** | `anthropic` / claude-opus-5-5 | `anthropic` / claude-sonnet-5-5 | `openrouter` / `xiaomi/mimo-v2.5` | — | — | `medium` |
+| **assistant** | `anthropic` / **claude-opus-5-5** | `anthropic` / claude-fable-5-1 | `anthropic` / claude-sonnet-5-5 | `openai-codex` / gpt-6.1-sol | `openrouter` / `xiaomi/mimo-v2.5` | `medium` |
+| **engineer** | `anthropic` / **claude-fable-5-1** | `anthropic` / claude-opus-5-5 | `anthropic` / claude-sonnet-5-5 | `openrouter` / `deepseek/deepseek-v4-flash` | — | `high` |
+| **researcher** | `anthropic` / **claude-sonnet-5-5** | `anthropic` / claude-opus-5-5 | `openai-codex` / gpt-6.1-sol | `openrouter` / `xiaomi/mimo-v2.5` | — | `medium` |
+| **searcher** | `xai-oauth` / grok-4.3 | `openrouter` / `xiaomi/mimo-v2.5` | — | — | — | `low` |
+| **creator**, **video-creator** | `anthropic` / **claude-opus-5-5** | `anthropic` / claude-fable-5-1 | `anthropic` / claude-sonnet-5-5 | `openrouter` / `minimax/minimax-m3` | — | `medium` |
+| **image-creator**, **audio-creator** | `anthropic` / **claude-sonnet-5-5** | `anthropic` / claude-opus-5-5 | `anthropic` / claude-fable-5-1 | `openrouter` / `minimax/minimax-m3` | — | `medium` |
+| **writer** | `anthropic` / **claude-sonnet-5-5** | `anthropic` / claude-opus-5-5 | `anthropic` / claude-fable-5-1 | `openai-codex` / gpt-6.1-sol | `openrouter` / `deepseek/deepseek-v4-flash` | `medium` |
+| **marketer** | `anthropic` / **claude-opus-5-5** | `anthropic` / claude-fable-5-1 | `anthropic` / claude-sonnet-5-5 | `openrouter` / `xiaomi/mimo-v2.5` | — | `medium` |
+| **ui-review**, **ux-persona** | `anthropic` / claude-sonnet-5-5 | `anthropic` / claude-opus-5-5 | — | — | — | `medium` |
 
 A `fallback_providers` entry carries no per-entry `reasoning_effort` or
 `api_mode` for the main agent: on each fallback activation Hermes re-reads the
@@ -98,15 +102,23 @@ backed by the two blind A/Bs above (small n per arm). Provider facts:
   picker** (`/v1/models` lags the alias; the curated list stops at
   `claude-fable-5`), so it is written straight into `config.yaml`;
   `get_model_context_length` reports 1M for it via the `claude-fable` prefix.
-- **Codex** (`base_url: https://chatgpt.com/backend-api/codex`) — **image
-  generation only.** No chat tier or auxiliary task uses it; the ChatGPT
-  subscription is sized for OpenCode (its searchers, `debugger`,
-  `reviewer-deep`, `hermes-build` and cheap subagents) and meters GPT-6 Astra
-  tightly per 5h window. The Codex OAuth login in
-  `default` stays on purpose: the `image-fallback` chains
+- **Codex** (`base_url: https://chatgpt.com/backend-api/codex`) — **images,
+  plus one last-resort chat tier.** GPT-6.1 Sol sits ahead of the OpenRouter
+  tail on `writer`, `researcher` and `assistant` only, so a spent Claude weekly
+  pool degrades to a capable model instead of a cheap one. No auxiliary task is
+  pinned to it. The ChatGPT subscription is sized for OpenCode (its searchers,
+  `debugger`, `reviewer-deep`, `hermes-build`, all on GPT-6.1 Sol, and cheap
+  subagents) and shares one Plus allowance with Hermes, so keep the tier off
+  profiles with heavy jobs: a single `video-creator` job reads tens of millions
+  of tokens and would exhaust it for OpenCode too. GPT-6.1 Sol rejects
+  `reasoning.effort` `none` / `minimal` and its context length is not in
+  Hermes' static table (it resolves from the live Codex catalog, else the 256K
+  default), so keep the profile's `reasoning_effort` at `low` or above. The
+  Codex OAuth login in `default` stays on purpose: the `image-fallback` chains
   (`img-codex-xai-fal` on creator / image-creator, `img-xai-codex-fal` on
   default) still try `openai-codex` for images, which draws on that shared pool.
-  Do not re-add a Codex chat or aux tier without re-sizing OpenCode's usage.
+  Do not add the tier to another profile or an aux task without re-sizing
+  OpenCode's usage.
 - **xAI (searcher only)** — `xai-oauth` (`base_url: https://api.x.ai/v1`) is a
   flat-rate **xAI subscription**, not the metered
   `XAI_API_KEY` API, so per-token prices do not apply and searcher adds no
@@ -139,6 +151,12 @@ backed by the two blind A/Bs above (small n per arm). Provider facts:
   model, so a pinned aux model never becomes a single point of failure.
   **`vision` deliberately stays `auto`** — pinning it disables the main
   model's native image vision (see [`README.md`](../README.md#plugins)).
+  **`background_review`** (the post-turn memory / skill review fork) is pinned
+  to `claude-sonnet-5-5` on `assistant`: left on `auto` it replays the whole
+  conversation on the main Opus model every few turns, which was most of the
+  Assistant's weekly cache reads. Auxiliary usage is read from the
+  `session_model_usage` table in each profile's `state.db` (`task <> ''`), not
+  from `sessions`.
 - **OpenRouter tails split vision vs text-only.** Profiles whose fallback turns
   may need to SEE something keep a vision-capable tail: `default` /
   `assistant` / `researcher` / `searcher` / `marketer` use `xiaomi/mimo-v2.5`
