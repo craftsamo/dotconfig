@@ -23,7 +23,10 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
-import yaml
+try:  # Hermes' YAML 1.1 reader when run on the Hermes test interpreter (no PyYAML there)
+    import hermes_yaml as yaml
+except ImportError:  # `uv run --script` with the inline PyYAML dependency
+    import yaml
 
 
 HERMES_ROOT = Path(__file__).resolve().parents[1]

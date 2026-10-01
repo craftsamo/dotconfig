@@ -78,13 +78,10 @@ metadata:
    run:
 
    ```sh
-   ~/ghq/github.com/NousResearch/hermes-agent/venv/bin/python "${HERMES_SKILL_DIR}/../../scripts/mix-media.py" propose --spec-file <deliver>/spec.json --description-file <deliver>/description.md --out <deliver>/proposal-v<N> --previous <source>
+   hermes-python "${HERMES_SKILL_DIR}/../../scripts/mix-media.py" propose --spec-file <deliver>/spec.json --description-file <deliver>/description.md --out <deliver>/proposal-v<N> --previous <source>
    ```
 
-   Do not use command substitution in executable paths; if `ghq root`
-   differs on this machine, resolve it with a separate `ghq root` call
-   first and then invoke the literal absolute Python path. This step
-   fully decodes and validates every source again (not zero audio
+   This step fully decodes and validates every source again (not zero audio
    work), but produces no mixed audio, no ASR, no network call. Report
    the returned proposal path and its SHA-256, and STOP.
 3. Round B requires both `approved_plan` and `approval_sha256` from
@@ -92,7 +89,7 @@ metadata:
    conversation. Run:
 
    ```sh
-   ~/ghq/github.com/NousResearch/hermes-agent/venv/bin/python "${HERMES_SKILL_DIR}/../../scripts/mix-media.py" render --approved-plan <approved_plan> --approval-sha256 <approval_sha256> --kind edit --out <deliver>/take-01 --slug <slug>
+   hermes-python "${HERMES_SKILL_DIR}/../../scripts/mix-media.py" render --approved-plan <approved_plan> --approval-sha256 <approval_sha256> --kind edit --out <deliver>/take-01 --slug <slug>
    ```
 
    Use a fresh, previously unused `--out` directory; never overwrite the

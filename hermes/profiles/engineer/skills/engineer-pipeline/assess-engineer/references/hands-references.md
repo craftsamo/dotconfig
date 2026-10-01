@@ -17,8 +17,8 @@ being informed and can read the same file for independent inspection.
    [Plan](../../plan-engineer/references/hands-references.md) only when requested. Producing media or
    retiring an option uses a different workflow.
 2. Run the Skill's read-only audit from the candidate root
-   (`python3 hermes/scripts/audit-hands-references.py --root . [--leaf REPO/RELATIVE/LEAF] --json`)
-   using the documented Hermes-venv Python. Exit 0 means no structural errors,
+   (`hermes-python hermes/scripts/audit-hands-references.py --root . [--leaf REPO/RELATIVE/LEAF] --json`)
+   on Hermes' Python. Exit 0 means no structural errors,
    not verified quality; UNVERIFIED is useful uncertainty, not itself a defect.
    The adapter imports trusted candidate Python, not sandboxed third-party code.
    Missing tools do not authorize installation. Inbound A2A cannot run the audit;

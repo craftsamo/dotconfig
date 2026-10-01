@@ -39,13 +39,10 @@ metadata:
    `deliver` directory - this leaf produces no file. Run:
 
    ```sh
-   ~/ghq/github.com/NousResearch/hermes-agent/venv/bin/python "${HERMES_SKILL_DIR}/../../scripts/mix-media.py" analyze <source> [--bundle <bundle>]
+   hermes-python "${HERMES_SKILL_DIR}/../../scripts/mix-media.py" analyze <source> [--bundle <bundle>]
    ```
 
-   Do not use command substitution in executable paths; if `ghq root`
-   differs on this machine, resolve it with a separate `ghq root` call
-   first and then invoke the literal absolute Python path. This runs
-   entirely locally - no upload, no re-synthesis, no ASR is ever run on
+   This runs entirely locally - no upload, no re-synthesis, no ASR is ever run on
    the mixed master by this leaf.
 2. Read the whole `RESULT:` JSON. Without `bundle`, findings are
    audio-only measurements (format, duration, channels, peak/true-peak,

@@ -16,7 +16,7 @@ actual lengths and intent). Author `timing-spec.json` and freeze it:
 From either create leaf:
 
 ```sh
-~/ghq/github.com/NousResearch/hermes-agent/venv/bin/python "${HERMES_SKILL_DIR}/../../scripts/mix_audio.py" timing --spec-file <absolute-timing-spec.json> --out <new-timing-directory>
+hermes-python "${HERMES_SKILL_DIR}/../../scripts/mix_audio.py" timing --spec-file <absolute-timing-spec.json> --out <new-timing-directory>
 ```
 
 At most 32 unique cue IDs; sources may repeat. Times are finite seconds; each
@@ -27,7 +27,7 @@ formal video approval. Users never need to write the JSON.
 
 ## Finished Mix
 
-With `mix_bundle`, use the Hermes venv and the literal absolute path to
+With `mix_bundle`, use `hermes-python` and the literal absolute path to
 AudioCreator's `audio-creator-pipeline/scripts/mix-media.py` to run
 `verify --bundle <bundle>` before staging. This is read-only validation, not
 permission to execute any AudioCreator creation leaf. The Mix's frozen

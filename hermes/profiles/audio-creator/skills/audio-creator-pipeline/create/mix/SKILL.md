@@ -109,13 +109,10 @@ metadata:
    helper validates this itself and refuses a mismatch. Then run:
 
    ```sh
-   ~/ghq/github.com/NousResearch/hermes-agent/venv/bin/python "${HERMES_SKILL_DIR}/../../scripts/mix-media.py" propose --spec-file <deliver>/spec.json --description-file <deliver>/description.md --out <deliver>/proposal-v<N>
+   hermes-python "${HERMES_SKILL_DIR}/../../scripts/mix-media.py" propose --spec-file <deliver>/spec.json --description-file <deliver>/description.md --out <deliver>/proposal-v<N>
    ```
 
-   Do not use command substitution in executable paths; if `ghq root`
-   differs on this machine, resolve it with a separate `ghq root` call
-   first and then invoke the literal absolute Python path. Choose the
-   next unused `N` even after a rejected proposal; never overwrite a
+   Choose the next unused `N` even after a rejected proposal; never overwrite a
    previous proposal directory. This step fully decodes and validates
    every source (and any speech `.words.json` PCM hash) as part of
    proposal validation - it is not zero audio work - but it produces no
@@ -132,7 +129,7 @@ metadata:
    against stale approval text. Run:
 
    ```sh
-   ~/ghq/github.com/NousResearch/hermes-agent/venv/bin/python "${HERMES_SKILL_DIR}/../../scripts/mix-media.py" render --approved-plan <approved_plan> --approval-sha256 <approval_sha256> --kind create --out <deliver>/take-01 --slug <slug>
+   hermes-python "${HERMES_SKILL_DIR}/../../scripts/mix-media.py" render --approved-plan <approved_plan> --approval-sha256 <approval_sha256> --kind create --out <deliver>/take-01 --slug <slug>
    ```
 
    Use a fresh, previously unused `--out` directory under `<deliver>`

@@ -23,19 +23,19 @@ metadata:
       cta: {required: false, type: text, label: "final: exact CTA held >=2s; study: omit"}
       purpose: {required: false, options: [final, study], label: "default final; study is separately approved, never final media"}
       question: {required: false, type: text, label: "study only: one visual/motion question"}
-      aspect: {required: false, options: ["9:16", "16:9", "1:1", "4:5"], label: "output canvas ratio, default 9:16 (fixed dims per ratio, see ad-render.py); no arbitrary size or cross-ratio crop/scale"}
-      assets: {required: true, type: path, label: "local dir of approved product/logo/audio/video assets; always includes vendored GSAP files, even text-only"}
+      aspect: {required: false, options: ["9:16", "16:9", "1:1", "4:5"], label: "canvas ratio, default 9:16 (fixed dims per ratio, ad-render.py); no arbitrary size or cross-ratio crop/scale"}
+      assets: {required: true, type: path, label: "local dir of approved product/logo/audio/video assets, always with vendored GSAP (even text-only)"}
       claims: {required: false, type: text, label: "evidence/restrictions for claim-role copy; not fact-checked, required only if used"}
-      theme: {required: false, options: [office], other: true, references: references/themes/*.md, label: "world/setting vocabulary; listed default is a starting point, not a fixed preset"}
-      theme_detail: {required: false, type: text, label: "override motifs/palette/materials/light; replaces conflicting theme defaults"}
+      theme: {required: false, options: [office], other: true, references: references/themes/*.md, label: "world/setting vocabulary; the listed default is a starting point"}
+      theme_detail: {required: false, type: text, label: "motifs/palette/materials/light overriding conflicting theme defaults"}
       style: {required: false, options: [bold-graphic], other: true, references: references/styles/*.md, label: "presentation treatment; a described look is equally valid"}
       direction: {required: false, options: [claim-led], other: true, references: references/direction/*.md, label: "how message/claim/cta stage and pace; free text is first-class"}
-      audio: {required: false, type: file, label: "supplied only: finished WAV, or JSON list of <=16 {source, start} cues; plays from its start, pre-edited; no TTS here"}
+      audio: {required: false, type: file, label: "supplied only: finished WAV or JSON list of <=16 {source, start} cues, pre-edited, played from start; no TTS"}
       audio_workflow: {required: false, options: [supplied, mix], label: "supplied (default) = audio field; mix = approved Mix master via mix_bundle"}
       mix_bundle: {required: false, type: path, label: "mix only: bundle dir to verify+stage; plan binds staged master/receipt by hash"}
       reference: {required: false, type: file, label: "local reference/report for inspiration/claim evidence; never uploaded"}
       duration: {required: false, type: int, label: "final 6..30s (default 15); study 1..10s"}
-      approved_plan: {required: false, type: file, label: "Creator-relayed approval: exact approved plan.json; absent = proposal only"}
+      approved_plan: {required: false, type: file, label: "Creator-relayed exact approved plan.json; absent = proposal only"}
       approval_sha256: {required: false, type: text, label: "SHA-256 of the approved plan.json; required with approved_plan"}
       preview: {required: false, type: path, label: "client-approved preview folder from snapshot; required before render"}
       preview_sha256: {required: false, type: text, label: "SHA-256 of the approved preview.json; required with preview"}
@@ -140,7 +140,7 @@ skill_view(name="video-creator-pipeline", file_path="references/three-graphics.m
    more than one placed WAV requires an explicit, distinct positive
    `data-track-index` per file (one legacy placement may omit it). With
    `audio_workflow: mix`, first run `mix-media.py verify --bundle
-   <mix_bundle>` (via the Hermes venv) to confirm the supplied bundle, then
+   <mix_bundle>` (via `hermes-python`) to confirm the supplied bundle, then
    copy ONLY its master WAV + `mix.take.json` receipt (and, if present,
    `captions.json`/`timing.json`) into `assets/`, record their asset paths in
    the plan's `mix` object (never the original `mix_bundle` path), and place

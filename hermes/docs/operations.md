@@ -6,13 +6,15 @@ Gateway as a persistent service, what is tracked, and the current state. Part of
 
 The **default** profile hosts ONE multiplex gateway (with the embedded kanban
 dispatcher, `dispatch_interval_seconds: 15`) keychain-pure via a
-**LaunchAgent**: `gateway.multiplex_profiles: true` + the allowlist (assistant,
-engineer, creator, marketer, writer, researcher, image-creator, video-creator,
-audio-creator) in the root `config.yaml` make that single process connect every
-served profile's enabled platforms — assistant Telegram (+ topics) and Discord,
-the engineer / creator / marketer Telegram bots, and the A2A endpoints on
-127.0.0.1:9902-9909. Secondary profiles never run their own gateway. Three
-tracked, machine-agnostic files in `hermes/launchd/`:
+**LaunchAgent**: `gateway.multiplex_profiles: true` in the root `config.yaml`
+makes that single process serve every profile directory under `profiles/`
+(there is no allowlist; only `hermes -p <name> gateway stop` parks one, so never
+use it on a role that must stay reachable) and connect each one's enabled
+platforms — assistant Telegram (+ topics) and Discord, the engineer / creator /
+marketer Telegram bots, and the A2A endpoints on 127.0.0.1:9902-9909. Profiles
+without platforms (searcher, ui-review, ux-persona) are served as well and
+carry `secrets.command` → `profile-secrets.sh`. Secondary profiles never run
+their own gateway. Three tracked, machine-agnostic files in `hermes/launchd/`:
 
 - **`hermes-gateway-multiplex`** — the launcher. Sets its own `PATH` (a
   LaunchAgent can start with a stripped one), `cd`s to `~/Workspaces`, logs to
@@ -20,18 +22,28 @@ tracked, machine-agnostic files in `hermes/launchd/`:
   Keychain layers (minus messaging keys) into the process env for raw-env
   readers and subprocess inheritance — the scope-aware keys come per profile
   from `secrets.command` (see [`models-auth.md`](./models-auth.md) "Secrets
-  layering") — re-syncs the Brave clone, then execs `hermes gateway run` (no
-  `-p` — default is the multiplex host). Every path is `$HOME`-relative; no
-  `.env`. (`secret env` has **no `-- <cmd>` form**, hence the `eval`.) It
-  exports no `HERMES_PROFILE`: one process serves many profiles.
-- **`local.hermes.gateway.multiplex.plist.tmpl`** — LaunchAgent template with a
+  layering") — re-syncs the Brave clone, then execs the checkout's
+  `.hermes/bin/hermes gateway run --accept-hooks --external-supervisor` with
+  `HERMES_SUPERVISED_CHILD=1` (no `-p` — default is the multiplex host; no
+  `--replace` — a KeepAlive respawn must not re-arm takeover). The supervisor
+  flags let `hermes update` drain the process and leave the respawn to launchd.
+  Every path is `$HOME`-relative; no `.env`. (`secret env` has **no `-- <cmd>`
+  form**, hence the `eval`.) It exports no `HERMES_PROFILE`: one process serves
+  many profiles.
+- **`ai.hermes.keychain-multiplex.plist.tmpl`** — LaunchAgent template with a
   `__HOME__` placeholder (launchd can't expand `~`). Runs the launcher as
   `ProgramArguments[0]`, so the login item reads `hermes-gateway-multiplex`, not
-  `sh`.
+  `sh`. The `ai.hermes` label prefix gives Hermes its launchd identity (drain
+  budget from `ExitTimeOut`, restart route), while not being `ai.hermes.gateway*`
+  means `hermes gateway install/start/update` never regenerates it over the
+  Keychain launcher. `KeepAlive` is `SuccessfulExit: false` (a clean exit parks
+  the job; exit 75 and crashes relaunch), `ThrottleInterval` 30,
+  `ExitTimeOut` 60.
 - **`gateway-launchctl.sh`** — renders the template (`__HOME__` → `$HOME`) into
   `~/Library/LaunchAgents/` (host-local, never committed) and loads it; on
-  install it also unloads the legacy `local.hermes.gateway.assistant` agent so
-  two pollers never race one bot token.
+  install it also unloads and removes the legacy `local.hermes.gateway.multiplex`
+  and `local.hermes.gateway.assistant` agents so two pollers never race one bot
+  token.
 
 **Telegram + Discord.** Gateway DB calls run off the asyncio loop
 (`AsyncSessionDB` / `asyncio.to_thread`, upstream #40695) with dedicated
@@ -48,8 +60,8 @@ gateway restart requires a manual rejoin. Cron/system Inbox delivery stays on
 Telegram to avoid duplicate proactive notifications.
 
 **Per-profile tool resolution.** In one multiplex process, toolset resolution
-must be memoized per profile scope as well as per registry generation (carried
-as a local patch) — otherwise warming one profile's `tts` entry hides
+must be memoized per profile scope as well as per registry generation (upstream
+behavior) — otherwise warming one profile's `tts` entry hides
 scope-registered tools such as character-voice from another.
 `test_audio_creator_routing.py` exercises the real resolver across scopes;
 registration-only tests and direct CLI synthesis cannot detect this

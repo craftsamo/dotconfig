@@ -18,7 +18,7 @@ import urllib.error
 from types import SimpleNamespace
 
 import pytest
-import yaml
+import hermes_yaml as yaml
 
 
 PLUGIN = Path(__file__).resolve().parents[1] / "__init__.py"
@@ -481,8 +481,16 @@ def test_reset_context_sentinel_cannot_fall_back_to_inherited_route(tmp_path, mo
 def test_runner_real_subprocess_scrubs_injected_scope(caller, monkeypatch, tmp_path, exit_code):
     commands = background(caller, monkeypatch)
     result = call(kind="work")
-    bindir = tmp_path / "bin"
-    bindir.mkdir()
+    # resident-session.sh prefers the Keychain shim at $HOME/.config/bin/hermes over
+    # PATH, so the child is resolved from an isolated HOME (never the real shim and
+    # Keychain); a PATH decoy proves the shim path wins.
+    user_home = tmp_path / "home"
+    bindir = user_home / ".config" / "bin"
+    bindir.mkdir(parents=True)
+    decoy = tmp_path / "path-bin"
+    decoy.mkdir()
+    (decoy / "hermes").write_text("#!/bin/sh\necho 'PATH hermes used' >&2\nexit 97\n")
+    (decoy / "hermes").chmod(0o755)
     binary = bindir / "hermes"
     binary.write_text(f"#!{sys.executable}\n" + "import json, os, sys\n"
                       "print(json.dumps({'args': sys.argv[1:], 'env': {k:v for k,v in os.environ.items() "
@@ -490,7 +498,7 @@ def test_runner_real_subprocess_scrubs_injected_scope(caller, monkeypatch, tmp_p
                       "print('session_id: child-session', file=sys.stderr)\n"
                       f"sys.exit({exit_code})\n")
     binary.chmod(0o755)
-    env = {**os.environ, "PATH": f"{bindir}:/usr/bin:/bin", "HERMES": "/not/a/binary",
+    env = {**os.environ, "HOME": str(user_home), "PATH": f"{decoy}:/usr/bin:/bin", "HERMES": "/not/a/binary",
            "HERMES_HOME": "/spoof/profiles/writer", "HERMES_SESSION_PROFILE": "writer",
            "HERMES_SESSION_PLATFORM": "telegram", "HERMES_SESSION_ID": "stale-owner",
            "HERMES_SESSION_SOURCE": "telegram", "HERMES_KANBAN_TASK": "spoofed",
@@ -522,6 +530,7 @@ def test_runner_real_subprocess_scrubs_injected_scope(caller, monkeypatch, tmp_p
     fresh = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(fresh)
     monkeypatch.setattr(p, "_resident", fresh._resident)
+    monkeypatch.setenv("HOME", env["HOME"])
     monkeypatch.setenv("PATH", env["PATH"])
     resumed = call(conversation_id=result["conversation_id"])
     assert resumed["status"] == "completed"
@@ -1003,7 +1012,7 @@ else:
 ''')
     binary.chmod(0o755)
     env = {k: v for k, v in os.environ.items() if not k.startswith(("HERMES_", "RESIDENT_"))}
-    env.update(TEST_ROOT=str(tmp_path), TEST_PLUGIN=str(PLUGIN), HERMES=str(binary),
+    env.update(TEST_ROOT=str(tmp_path), TEST_PLUGIN=str(PLUGIN), HERMES=str(binary), HOME=str(tmp_path / "home"),
                PATH=f"{bindir}:{Path(sys.executable).parent}:/usr/bin:/bin",
                RESIDENT_SESSION_DIR=str(tmp_path / "outer-registry"), TURN_TIMEOUT="6", POLL_INTERVAL="1", KILL_GRACE="1")
     outer = subprocess.Popen(["/bin/sh", str(p.RESIDENT), "start", "outer", "--profile", "creator", "-q", "brief"],
@@ -1166,7 +1175,7 @@ def test_resident_prompt_preamble_is_handoff_text(caller, monkeypatch, tmp_path)
                       "sys.stdout.write(prompt)\n"
                       "print('session_id: child-session', file=sys.stderr)\n")
     binary.chmod(0o755)
-    env = {**os.environ, "PATH": f"{bindir}:/usr/bin:/bin"}
+    env = {**os.environ, "HOME": str(tmp_path / "home"), "PATH": f"{bindir}:/usr/bin:/bin"}
     run = subprocess.run(shlex.split(commands[0]["command"]), env=env, capture_output=True, text=True, timeout=15)
     data = json.loads(run.stdout)
     logged_prompt = data["result"]
@@ -1189,6 +1198,7 @@ def test_resident_log_preview_shows_raw_current_title_within_400_chars(caller, m
     binary.write_text(f"#!{sys.executable}\n" + "import sys\n"
                       "print('session_id: child-session', file=sys.stderr)\n")
     binary.chmod(0o755)
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
     monkeypatch.setenv("PATH", f"{bindir}:/usr/bin:/bin")
     outcome = p._run(request)
     assert outcome["status"] == "completed"
@@ -1216,6 +1226,7 @@ def test_resident_persists_pgid_before_wait(caller, monkeypatch, tmp_path):
                       "time.sleep(1)\n"
                       "print('session_id: child-session', file=sys.stderr)\n")
     binary.chmod(0o755)
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
     monkeypatch.setenv("PATH", f"{bindir}:/usr/bin:/bin")
     record = caller[0] / "specialist-sessions" / (cid + ".json")
     thread = threading.Thread(target=p._run, args=(request,))

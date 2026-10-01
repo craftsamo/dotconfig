@@ -4,7 +4,7 @@ from pathlib import Path
 from unittest.mock import Mock
 
 import pytest
-import yaml
+import hermes_yaml as yaml
 
 
 HERMES = Path(__file__).resolve().parents[2]
@@ -66,7 +66,7 @@ def test_profile_selection_contract_and_unchanged_tool_surface():
     ):
         assert phrase in prompt
     assert set(config["toolsets"]) == {"file", "web", "x_search", "skills", "memory"}
-    assert set(config["platform_toolsets"]["cli"]) == {"file", "web", "x_search", "skills", "memory", "no_mcp"}
+    assert set(config["platform_toolsets"]["cli"]) == {"file", "web", "x_search", "skills", "memory", "no_mcp", "connections"}
     assert config["platform_toolsets"]["telegram"] == []
     assert config["platform_toolsets"]["discord"] == []
     assert config["skills"]["create_dir"] == "skills/learned"

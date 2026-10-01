@@ -41,7 +41,7 @@ selected create leaf or the last craft skill. Use the actual returned path;
 never substitute a fixed live-home path when working in a candidate checkout.
 
 ```sh
-~/ghq/github.com/NousResearch/hermes-agent/venv/bin/python "${HERMES_SKILL_DIR}/scripts/three_graphics.py" --assets <absolute-new-source-assets-directory>
+hermes-python "${HERMES_SKILL_DIR}/scripts/three_graphics.py" --assets <absolute-new-source-assets-directory>
 ```
 
 The directory must exist and contain none of the reserved Three filenames.

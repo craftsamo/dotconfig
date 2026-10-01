@@ -8,25 +8,32 @@
 # can't expand ~) into ~/Library/LaunchAgents/ and loads it. The rendered plist
 # is host-local and never committed; only the template lives in git.
 #
-# The legacy single-profile agent (local.hermes.gateway.assistant) is unloaded
-# on install so the two pollers never run at once (Telegram getUpdates 409).
+# Older agents (local.hermes.gateway.multiplex, local.hermes.gateway.assistant)
+# are unloaded and removed on install so two pollers never run at once
+# (Telegram getUpdates 409).
 set -e
 
-LABEL=local.hermes.gateway.multiplex
-LEGACY_LABEL=local.hermes.gateway.assistant
+LABEL=ai.hermes.keychain-multiplex
+LEGACY_LABELS="local.hermes.gateway.multiplex local.hermes.gateway.assistant"
 TMPL="$HOME/.config/hermes/launchd/$LABEL.plist.tmpl"
 DEST="$HOME/Library/LaunchAgents/$LABEL.plist"
-LEGACY_DEST="$HOME/Library/LaunchAgents/$LEGACY_LABEL.plist"
+
+remove_legacy() {
+  for legacy in $LEGACY_LABELS; do
+    legacy_dest="$HOME/Library/LaunchAgents/$legacy.plist"
+    if [ -f "$legacy_dest" ]; then
+      launchctl unload -w "$legacy_dest" 2>/dev/null || true
+      rm -f "$legacy_dest"
+      echo "unloaded + removed legacy $legacy"
+    fi
+  done
+}
 
 case "${1:-install}" in
   install)
     [ -f "$TMPL" ] || { echo "template not found: $TMPL" >&2; exit 1; }
     mkdir -p "$HOME/Library/LaunchAgents"
-    if [ -f "$LEGACY_DEST" ]; then
-      launchctl unload -w "$LEGACY_DEST" 2>/dev/null || true
-      rm -f "$LEGACY_DEST"
-      echo "unloaded + removed legacy $LEGACY_LABEL"
-    fi
+    remove_legacy
     sed "s|__HOME__|$HOME|g" "$TMPL" > "$DEST"
     launchctl unload "$DEST" 2>/dev/null || true
     launchctl load -w "$DEST"
@@ -35,10 +42,11 @@ case "${1:-install}" in
   uninstall)
     launchctl unload -w "$DEST" 2>/dev/null || true
     rm -f "$DEST"
+    remove_legacy
     echo "unloaded + removed $LABEL"
     ;;
   status)
-    launchctl list | grep -e "$LABEL" -e "$LEGACY_LABEL" || echo "$LABEL not loaded"
+    launchctl list | grep -e "$LABEL" -e local.hermes.gateway || echo "$LABEL not loaded"
     ;;
   *)
     echo "usage: $0 [install|uninstall|status]" >&2

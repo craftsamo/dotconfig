@@ -53,7 +53,7 @@ and decoded PCM hashes are evidence; ASR confidence is retained.
 Speech can feed a legacy film as a completed input. Vocal-song generation and
 standalone audio visualization are withdrawn, not migrated. To withdraw this
 family, restore only task-owned configuration/routes, remove the audio-creator
-peer/external-root/allowlist entry together and restart the single gateway;
+peer/external-root entries together and restart the single gateway;
 keep all audio, sessions, models and voice data and never reset other work.
 
 ### Character voices and performance direction
@@ -177,10 +177,9 @@ the SDK's retry path. `FAL_KEY` resolves from profile scope into an explicit SDK
 client, never a process-env fallback. The tool's acknowledgment of paid approval
 is an operating contract, not proof of caller identity.
 
-Leaf commands use a literal Python path (or unquoted `~/ghq/...`), never
-`$(ghq root)` in the executable — the terminal guard refuses a nested executable
-body. Resolve a different ghq root separately, then run the absolute path. A
-packaging repair reuses the surviving raw WAV/receipt and consumes no generation.
+Leaf helpers run as `hermes-python <script>` — a plain command on `PATH`, so
+the executable needs no command substitution (the terminal guard refuses a
+nested executable body). A packaging repair reuses the surviving raw WAV/receipt and consumes no generation.
 
 Finished SFX reach video only as `create-ad` WAV cues ([`video.md`](./video.md)
 "Ad family") or as Mix sources.

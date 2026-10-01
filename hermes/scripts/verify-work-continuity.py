@@ -59,8 +59,9 @@ PUBLIC_PYTEST_FILES = (
     "hermes/plugins/image_gen/image-fallback/tests/test_plugin.py",
 )
 
+# Local patches carried on the runtime's `local` branch, plus the upstream contracts they lean on.
 RUNTIME_PYTEST_FILES = (
-    "tests/gateway/test_watch_notification_multiplex_route.py",
+    "tests/gateway/test_completion_delivery.py",
     "tests/gateway/test_multiplex_profile_authz.py",
     "tests/gateway/test_multiplex_toolsets_profile_isolation.py",
     "tests/tools/test_browser_real_profile_binary.py",
@@ -68,6 +69,15 @@ RUNTIME_PYTEST_FILES = (
     "tests/tools/test_browser_real_profile_cookie_merge.py",
     "tests/tools/test_browser_real_profile_user_agent.py",
     "tests/tools/test_browser_real_profile_session_restore.py",
+    "tests/tools/test_browser_real_profile_stall.py",
+    "tests/tools/test_browser_use_target_scope.py",
+    "tests/agent/test_anthropic_thinking_disable.py",
+    "tests/agent/test_anthropic_oauth_invoke_recovery.py",
+    "tests/agent/test_anthropic_oauth_billing_header.py",
+    "tests/gateway/test_dm_topics.py",
+    "tests/gateway/test_kanban_notifier.py",
+    "tests/gateway/test_auto_voice_reply_format.py",
+    "tests/pm/test_runtime_journal_safety.py",
 )
 
 PRIVATE_TESTS = "hermes/profiles/assistant/skills/assistant-pipeline/tests"
@@ -90,8 +100,16 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 
 def check_runtime(runtime: Path) -> Path:
-    """Returns the provisioned interpreter; fails descriptively if absent."""
-    python = runtime / "venv" / "bin" / "python"
+    """Returns the runtime's PM test interpreter (pytest + its dependency set); fails
+    descriptively if absent. PM owns the interpreter, so it is asked, never guessed."""
+    resolver = PUBLIC_ROOT / "bin" / "hermes-python"
+    env = {**os.environ, "HERMES_AGENT_DIR": str(runtime)}
+    result = subprocess.run(
+        [str(resolver), "--test", "-c", "import sys; print(sys.executable)"],
+        env=env, capture_output=True, text=True, timeout=STAGE_TIMEOUT,
+    )
+    require(result.returncode == 0, f"--runtime has no test interpreter ({resolver} --test): {result.stderr.strip()}")
+    python = Path(result.stdout.strip().splitlines()[-1])
     require(python.is_file(), f"--runtime python not found: {python}")
     return python
 

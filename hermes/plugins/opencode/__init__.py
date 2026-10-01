@@ -17,7 +17,7 @@ import sys
 import time
 import uuid
 
-import yaml
+import hermes_yaml as yaml
 
 
 # Reuse this repository's caller binding and atomic-record primitives. Do not

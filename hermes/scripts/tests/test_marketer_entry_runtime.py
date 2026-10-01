@@ -95,6 +95,8 @@ def _child(case, sandbox, candidate_tree, source):
             raise AssertionError("External execution/network forbidden")
         if event == "open" and isinstance(args[0], (str, bytes, os.PathLike)):
             path = Path(os.fsdecode(args[0])).resolve()
+            if path in {Path("/proc/1/cgroup"), Path("/proc/self/mountinfo")} and args[1] == "r":
+                return  # load_config's read-only container probe; refusing it fails config open
             mode, flags = args[1:3]
             write = (isinstance(mode, str) and any(c in mode for c in "wax+")) or (
                 isinstance(flags, int) and flags & (os.O_WRONLY | os.O_RDWR | os.O_CREAT | os.O_TRUNC)
@@ -111,6 +113,12 @@ def _child(case, sandbox, candidate_tree, source):
                 return
             raise AssertionError("Read outside candidate docs/source/runtime forbidden")
 
+    # Importing the native file backend pulls in hermes_cli.auth, whose constants
+    # resolve Hermes' own provenance with `git` once per process. Resolve it before
+    # the sandbox is armed; nothing under test may spawn a command afterwards.
+    from hermes_cli.version_info import get_version_info
+
+    get_version_info()
     sys.addaudithook(audit)
     with ExitStack() as stack:
         for name in ("connect", "connect_ex", "sendto"):

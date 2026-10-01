@@ -27,14 +27,10 @@ metadata:
    directory — this leaf produces no file. Run:
 
    ```sh
-   ~/ghq/github.com/NousResearch/hermes-agent/venv/bin/python "${HERMES_SKILL_DIR}/../../scripts/sfx-media.py" analyze <source>
+   hermes-python "${HERMES_SKILL_DIR}/../../scripts/sfx-media.py" analyze <source>
    ```
 
-   Do not use command substitution in executable paths; if `ghq root`
-   differs on this machine, resolve it with a separate `ghq root` call
-   first and then invoke the literal absolute Python path — never repeat
-   the model generation to fix a packaging step. (Actual live failure:
-   "Nested executable body could not be resolved.")
+   Never repeat the model generation to fix a packaging step.
 
 2. Read the whole `RESULT:` JSON regardless of its exit code. This CLI
    exits 0 for a measured PASS or WARN, 1 for a measured FAIL (clipping,

@@ -42,22 +42,31 @@ This file does not restate agent behavior. Contracts:
 ## Installing the binary
 
 Outside the [Brewfile](../Brewfile). Run [`./setup.sh`](./setup.sh) — an
-idempotent installer that clones the agent via `ghq`, builds a Python 3.11 venv
-with `uv` (installing the `EXTRAS` capability set — `all,voice,messaging,
-tts-premium` — plus `faster-whisper` for free local STT), and symlinks
-`~/.local/bin/hermes` (already on `PATH` behind the shim). It makes no shell-rc
-edits and runs no interactive wizard. Trim `EXTRAS` / `EXTRA_PIP` at the top of
-`setup.sh` for a leaner venv.
+idempotent installer that clones the agent via `ghq` (only if missing), runs
+upstream `setup-hermes.sh --runtime-only --test-environment` (Hermes' package
+manager, PM, installs the pinned uv, Python 3.14 and tools, the hash-verified
+`all` dependency generation and the checkout's test interpreter), syncs the
+`EXTRAS` capability set into that same generation, and publishes the
+checkout's launchers into `~/.local/bin` via `hermes_cli/_launchers.py`
+(wrappers forwarding to `<checkout>/.hermes/bin/hermes`; already on `PATH`
+behind the shim). It makes no shell-rc edits and runs no interactive wizard.
+Trim `EXTRAS` at the top of `setup.sh` for a leaner environment.
 
 ```sh
 ~/.config/hermes/setup.sh     # install (safe to re-run)
 hermes --version              # verify
+hermes-python --print         # Hermes' own interpreter
 ```
 
-Requires `ghq` + `uv` (both from `./install.sh --deps`). To update later, use
-`hermes update` (git pull + re-sync), not this script. The upstream
-`setup-hermes.sh` is deliberately avoided: it appends a PATH line to `~/.zshrc`,
-which is a symlink into this repo.
+Requires `ghq` (from `./install.sh --deps`). To update later, use
+`hermes update`, not this script. PM owns the interpreter and the dependency
+generation; there is no in-tree `venv/`, so never hardcode a Python path —
+helpers that need Hermes' dependencies run through
+[`hermes-python`](../bin/hermes-python) (`hermes-python <script.py>`,
+`hermes-python -m <module>`; `--test` selects the checkout's test interpreter,
+`HERMES_AGENT_DIR` overrides the checkout). The full upstream installer is
+deliberately avoided: it edits shell rc files (`~/.zshrc` is a symlink into
+this repo), seeds bundled skills and runs interactive stages.
 
 `setup.sh` installs only the binary. Run [`../install.sh`](../install.sh)
 separately for the `~/.hermes/` symlinks, and store keys with `secret set …`
@@ -234,7 +243,8 @@ into the repo (clearing the real files) before linking:
 
 State (`memories/`, `sessions/`, `state.db*`, `cron/`, …) stays in
 `~/.hermes/profiles/<name>/` — never moved, never tracked. A new bot also needs
-a `hermes-<name>` Keychain layer and a multiplex allowlist entry — see
+a `hermes-<name>` Keychain layer plus its `platforms`/`a2a`/toolset entries (the
+single host gateway serves every profile directory; there is no allowlist) — see
 [docs/topology.md](docs/topology.md) "Multiplex gateway and A2A peer graph".
 
 ### Caveats
@@ -515,8 +525,8 @@ checkout pinned in `engines/irodori-tts/pinned.conf`. It rewrites Latin proper
 nouns to katakana through the private lexicon, then repairs its own WAV before
 delivery: the in-pause codec rustle is gated, leading dead air and trailing
 hallucinated fragments are trimmed, the onset click is faded and the level is
-normalised. That repair uses numpy and the stdlib only, because the Hermes venv
-carries no soundfile or scipy.
+normalised. That repair uses numpy and the stdlib only, because Hermes'
+dependency generation carries no soundfile or scipy.
 
 ### Qwen3-TTS voice catalog
 
@@ -652,14 +662,14 @@ voice mode.
 ## Audio hands tooling
 
 Contracts for every audio leaf: [docs/hands/audio.md](docs/hands/audio.md).
-This section only holds the maintainer commands. Run leaf helpers with the
-Hermes venv Python by literal path (resolve a non-default ghq root first).
+This section only holds the maintainer commands. Run leaf helpers with Hermes'
+Python through `hermes-python`.
 
 **SFX helper.** From this directory, with an existing output parent and a new
 output directory:
 
 ```sh
-~/ghq/github.com/NousResearch/hermes-agent/venv/bin/python \
+hermes-python \
   profiles/audio-creator/skills/audio-creator-pipeline/scripts/sfx-media.py \
   synth --kind whoosh --seconds 0.5 --pitch 880 --seed 0 \
   --out /tmp/sfx-example --slug whoosh
@@ -690,7 +700,7 @@ Medium runtime".
 approval), from this directory with a fresh absolute output path:
 
 ```sh
-~/ghq/github.com/NousResearch/hermes-agent/venv/bin/python \
+hermes-python \
   scripts/tests/fixtures/mix-video/example.py \
   --root <new-absolute-test-directory> --freeze
 ```
@@ -910,7 +920,8 @@ tool returns `status: "blocked"`.
 
 **Setup and upkeep**
 
-- `./setup.sh` — install/refresh the hermes binary (uv venv); idempotent.
+- `./setup.sh` — install/refresh the hermes runtime (PM generation + launchers);
+  idempotent.
 - `../install.sh` — create the `~/.hermes/` symlinks (run after adding files).
 - `hermes update` — git pull + re-sync (use this to update, not `setup.sh`);
   afterwards follow the post-update sequence in [`AGENTS.md`](AGENTS.md)
@@ -929,18 +940,21 @@ tool returns `status: "blocked"`.
   fail on managed files that are still untracked.
 - Full suite:
   ```sh
-  PYTHONPATH=$(ghq root)/github.com/NousResearch/hermes-agent \
-    $(ghq root)/github.com/NousResearch/hermes-agent/venv/bin/python -m pytest \
+  cd ~/.config/hermes &&
+    PYTHONPATH=$(ghq root)/github.com/NousResearch/hermes-agent \
+    hermes-python --test -m pytest \
     plugins/ scripts/tests/ -q --import-mode=importlib
   ```
-  The Hermes venv is required (plugins import `agent.*` / `tools.*`), and
+  The Hermes test interpreter is required (plugins import `agent.*` /
+  `tools.*`; it exists once `source ./activate` has run in the checkout), and
   `--import-mode=importlib` is not optional: every plugin keeps its suite at
   `tests/test_plugin.py`, those basenames collide under the default import mode,
   and `__init__.py` cannot fix it because the hyphenated plugin directories are
   not importable package names.
 - `scripts/verify-work-continuity.py --runtime <hermes-agent-checkout>
-  --private <paired-private-checkout>` — run with the provisioned Hermes Python
-  before cutover and after an upstream update. It runs the strict Git/topology
+  --private <paired-private-checkout>` — run before cutover and after an
+  upstream update; it resolves the runtime's PM test interpreter through
+  `bin/hermes-python --test`. It runs the strict Git/topology
   validator, paired public/private tests and runtime regressions; it never
   installs, restarts or migrates jobs.
 - Entry-runtime suites in `scripts/tests/` (provisioned Hermes Python, explicit
@@ -961,15 +975,21 @@ tool returns `status: "blocked"`.
 `~/Library/LaunchAgents/`, never committed)
 
 - `launchd/gateway-launchctl.sh {install,status,uninstall}` — the multiplex
-  gateway LaunchAgent (`local.hermes.gateway.multiplex`), **one host only** (one
+  gateway LaunchAgent (`ai.hermes.keychain-multiplex`), **one host only** (one
   bot token = one live connection; four bots in this one process). The
-  default-hosted process serves assistant Telegram + Discord, the engineer /
-  creator / marketer bots, the A2A endpoints (`127.0.0.1:9902-9909`) and the
-  embedded dispatcher; `install` also unloads the legacy
-  `local.hermes.gateway.assistant` agent. `install` re-renders + reloads =
-  **restart**; `/restart` in chat also applies config (drain → `KeepAlive`
-  respawns one). **Stop = `uninstall`** (`KeepAlive:true`; a plain `kill` just
-  respawns). **Never** run `hermes gateway run`/`restart` in a terminal while it
+  default-hosted process serves every profile directory: assistant Telegram +
+  Discord, the engineer / creator / marketer bots, the A2A endpoints
+  (`127.0.0.1:9902-9909`) and the embedded dispatcher. The launcher execs the
+  checkout's `.hermes/bin/hermes gateway run --accept-hooks
+  --external-supervisor` as a supervised child (`HERMES_SUPERVISED_CHILD=1`);
+  the `ai.hermes` label prefix gives Hermes its launchd identity (drain budget,
+  restart route) while not being `ai.hermes.gateway*`, so Hermes never
+  regenerates the plist. `install` also unloads and removes the legacy
+  `local.hermes.gateway.{multiplex,assistant}` agents. `install` re-renders +
+  reloads = **restart**; `/restart` in chat also applies config (drain →
+  `KeepAlive` respawns one). **Stop = `uninstall`** (`KeepAlive` relaunches
+  crashes and exit 75, throttled to 30 s; `ExitTimeOut` 60 s is the drain
+  budget). **Never** run `hermes gateway run`/`restart` in a terminal while it
   is loaded — a second poller causes Telegram `getUpdates` 409 conflicts
   (`pgrep -fl 'gateway run'` ⇒ exactly 1). Design:
   [docs/operations.md](docs/operations.md) "Gateway as a persistent service".

@@ -44,13 +44,10 @@ metadata:
    analysis, not only on this pipeline's own delivered cues. Run:
 
    ```sh
-   ~/ghq/github.com/NousResearch/hermes-agent/venv/bin/python "${HERMES_SKILL_DIR}/../../scripts/music-media.py" analyze <source> [--start S] [--end E] [--focus TEXT]
+   hermes-python "${HERMES_SKILL_DIR}/../../scripts/music-media.py" analyze <source> [--start S] [--end E] [--focus TEXT]
    ```
 
-   Do not use command substitution in executable paths; if `ghq root`
-   differs on this machine, resolve it with a separate `ghq root` call
-   first and then invoke the literal absolute Python path. This runs
-   entirely locally (numpy STFT/onset/chroma estimation) - no external
+   This runs entirely locally (numpy STFT/onset/chroma estimation) - no external
    inference call, upload or ASR is ever made by this leaf.
 2. Read the whole `RESULT:` JSON regardless of its exit code, distinguishing
    a measured finding from a dependency/input error raised before any
