@@ -901,7 +901,7 @@ def test_sync_exit_reconciliation_reads_under_lock(caller, monkeypatch):
             yield
 
     monkeypatch.setattr(p, "_locked", completed_before_lock)
-    monkeypatch.setattr(p.subprocess, "Popen", lambda *a, **kw: SimpleNamespace(communicate=lambda: ("", "")))
+    monkeypatch.setattr(p.subprocess, "Popen", lambda *a, **kw: SimpleNamespace(returncode=0, wait=lambda timeout=None: 0))
     result = EXECUTE_SYNC(path)
     assert result["status"] == "completed" and result["result"] == "newer durable result"
     assert p._read(record)["status"] == "completed"
@@ -1544,3 +1544,189 @@ def test_handoff_states_the_turn_budget():
     assert "RECONCILE-ONLY" not in timed
     limited = p._handoff({**base, "deadline": time.time() + 65, "turn_kind": "reconcile"}, "hello")
     assert "Turn kind: RECONCILE-ONLY" in limited and "No opencode_call" in limited
+
+
+# -- parallel launch and wait ------------------------------------------------
+
+FAKE_HERMES = r'''
+import json, os, signal, sys, time
+argv = sys.argv[1:]
+prompt = argv[argv.index("-q") + 1]
+resume = argv[argv.index("--resume") + 1] if "--resume" in argv else None
+sid = resume or "sid-%d" % os.getpid()
+current = prompt.split("Current agent request:\n")[1].split("\n")[0]
+with open(os.path.join(os.environ["FAKE_ROOT"], "calls.jsonl"), "a") as log:
+    log.write(json.dumps({"resume": resume, "prompt": prompt, "start": time.time()}) + "\n")
+
+def term(*_):
+    # Like the real CLI: the session id is only reported on the way out.
+    print("session_id: " + sid, file=sys.stderr, flush=True)
+    sys.exit(130)
+
+signal.signal(signal.SIGTERM, term)
+time.sleep(60 if "SLOW" in current else float(os.environ.get("FAKE_DELAY", "0")))
+print("reply to " + current)
+print("session_id: " + sid, file=sys.stderr)
+'''
+
+
+@pytest.fixture
+def real_cli(caller, monkeypatch, tmp_path):
+    """A CLI caller driving real runners and resident-session.sh against a fake Hermes CLI."""
+    home, _ = caller
+    monkeypatch.setattr(p, "_execute_sync", EXECUTE_SYNC)
+    monkeypatch.setattr(p, "_resident", RESIDENT_IMPL)
+    bindir = tmp_path / "home" / ".config" / "bin"
+    bindir.mkdir(parents=True)
+    (bindir / "hermes").write_text(f"#!{sys.executable}\n" + FAKE_HERMES)
+    (bindir / "hermes").chmod(0o755)
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    # No version-manager shims: with a fresh HOME they resolve tools over the network.
+    monkeypatch.setenv("PATH", "/usr/bin:/bin")
+    monkeypatch.setenv("FAKE_ROOT", str(tmp_path))
+    monkeypatch.setenv("FAKE_DELAY", "1.5")
+    yield home, tmp_path
+    for record in (home / "specialist-sessions").glob("*.json"):
+        data = p._read(record)
+        if type(data.get("pgid")) is int:
+            with __import__("contextlib").suppress(ProcessLookupError, PermissionError):
+                os.killpg(data["pgid"], signal.SIGKILL)
+
+
+def fake_calls(tmp_path):
+    path = tmp_path / "calls.jsonl"
+    return [json.loads(line) for line in path.read_text().splitlines()] if path.exists() else []
+
+
+def session_args(**args):
+    return json.loads(p.specialist_session(args))
+
+
+def wait_for(predicate, seconds=20):
+    until = time.monotonic() + seconds
+    while time.monotonic() < until:
+        if predicate():
+            return True
+        time.sleep(0.05)
+    return False
+
+
+def test_parallel_detached_calls_settle_together_under_wait(real_cli, monkeypatch):
+    home, tmp_path = real_cli
+    # Long enough that one-after-another starts would be >= 3 s apart, whatever the load.
+    monkeypatch.setenv("FAKE_DELAY", "3")
+    started = time.monotonic()
+    launched = [call("writer", kind="work", wait=False, group="tagline", message=f"draft {n}") for n in range(3)]
+    assert time.monotonic() - started < 5, "wait=false must not block on the turn"
+    assert all(r["detached"] and r["status"] in {"accepted", "running"} for r in launched)
+    result = session_args(action="wait", group="tagline", timeout=30)
+    assert not result["timed_out"] and not result["pending"] and result["released_by"] is None
+    assert [r["status"] for r in result["conversations"]] == ["completed"] * 3
+    assert {r["result"].strip() for r in result["conversations"]} == {f"reply to draft {n}" for n in range(3)}
+    starts = sorted(c["start"] for c in fake_calls(tmp_path))
+    assert len(starts) == 3 and starts[-1] - starts[0] < 2.5, "conversations ran one after another"
+    progress = p._group_progress(home / "specialist-sessions", "owner-one", "tagline")
+    assert progress == dict(group="tagline", settled=3, total=3, pending=[])
+
+
+def test_blocking_cli_call_detaches_on_yield(real_cli, monkeypatch):
+    home, tmp_path = real_cli
+    monkeypatch.setattr(p, "_interrupt_probes", lambda: ((lambda: False), (lambda: True)))
+    yielded = call("writer", kind="work", message="quick draft")
+    assert yielded["detached"] and yielded["status"] in {"accepted", "running"}
+    monkeypatch.setattr(p, "_interrupt_probes", lambda: ((lambda: False), (lambda: False)))
+    done = session_args(action="wait", conversation_id=yielded["conversation_id"], timeout=30)
+    assert done["conversations"][0]["status"] == "completed"
+
+
+def test_active_conversations_are_capped_per_session(caller):
+    home, calls = caller
+    (home / "config.yaml").write_text(yaml.safe_dump({
+        "specialist_call": {"resident_targets": sorted(p.TARGETS["assistant"]), "max_active": 1}}))
+    first = call("writer", kind="work")
+    record = home / "specialist-sessions" / (first["conversation_id"] + ".json")
+    data = p._read(record)
+    data["status"] = "running"
+    p._write(record, data)
+    before = len(calls)
+    assert "limit 1" in call("writer", kind="work")["error"]
+    assert len(calls) == before
+    data["owner"] = "someone-else"
+    p._write(record, data)
+    assert call("writer", kind="work")["status"] == "completed"
+
+
+def test_wait_is_released_by_a_new_message_without_stopping(caller, monkeypatch):
+    home, _ = caller
+    first = call("writer", kind="work", group="cmp")
+    record = home / "specialist-sessions" / (first["conversation_id"] + ".json")
+    data = p._read(record)
+    data.update(status="running", started_at=time.time() - 5)
+    p._write(record, data)
+    monkeypatch.setattr(p, "_interrupt_probes", lambda: ((lambda: False), (lambda: True)))
+    released = session_args(action="wait", group="cmp")
+    assert released["released_by"] == "user_message" and released["pending"] == [first["conversation_id"]]
+    assert not released["timed_out"] and released["conversations"][0]["elapsed_seconds"] >= 5
+    monkeypatch.setattr(p, "_interrupt_probes", lambda: ((lambda: True), (lambda: False)))
+    assert session_args(action="wait", conversation_ids=[first["conversation_id"]])["released_by"] == "interrupt"
+    monkeypatch.setattr(p, "_interrupt_probes", lambda: ((lambda: False), (lambda: False)))
+    timed = session_args(action="wait", conversation_id=first["conversation_id"], timeout=1)
+    assert timed["timed_out"] and "nothing was stopped" in timed["note"]
+    assert p._read(record)["status"] == "running"
+    other = call("writer", kind="work")
+    anyone = session_args(action="wait", conversation_ids=[first["conversation_id"], other["conversation_id"]], mode="any")
+    assert not anyone["timed_out"] and anyone["pending"] == [first["conversation_id"]]
+
+
+@pytest.mark.parametrize("args", [
+    {"action": "wait"},
+    {"action": "wait", "conversation_id": "a" * 32, "group": "x"},
+    {"action": "wait", "conversation_ids": []},
+    {"action": "wait", "conversation_ids": ["a" * 32], "mode": "some"},
+    {"action": "wait", "conversation_ids": ["a" * 32], "timeout": 0},
+    {"action": "wait", "group": "../x"},
+    {"action": "wait", "group": "nothing-here"},
+    {"action": "status", "conversation_id": "a" * 32, "mode": "all"},
+])
+def test_wait_argument_validation(caller, args):
+    assert "error" in session_args(**args)
+
+
+@pytest.mark.parametrize("args", [{"wait": "no"}, {"group": "bad group"}, {"group": "x" * 41}])
+def test_call_argument_validation(caller, args):
+    assert "error" in call("writer", kind="work", **args)
+    assert not caller[1]
+
+
+def test_wait_limit_stays_below_the_callers_tool_deadline(tmp_path, monkeypatch):
+    home = tmp_path / "profiles" / "assistant"
+    home.mkdir(parents=True)
+    monkeypatch.delenv("RESIDENT_DEADLINE", raising=False)
+
+    def limit(config, requested=None):
+        (home / "config.yaml").write_text(yaml.safe_dump(config))
+        return p._wait_limit(home, requested)
+
+    assert limit({}) == 390  # upstream's 420 s tool deadline, minus the margin
+    assert limit({"timeouts": {"tools": {"sequential_call": 960}}, "specialist_call": {"wait_timeout": 900}}) == 900
+    assert limit({"timeouts": {"tools": {"sequential_call": 300}}, "specialist_call": {"wait_timeout": 900}}) == 270
+    assert limit({"timeouts": {"tools": {"concurrent_batch": 100}}}) == 70
+    assert limit({"timeouts": {"tools": {"sequential_call": 960}}}, requested=60) == 60
+    assert limit({"timeouts": {"tools": {"sequential_call": 0}}}) == 390
+    # Upstream's coercion: numeric strings count, null/invalid fall back to the concurrent deadline.
+    assert limit({"timeouts": {"tools": {"sequential_call": "300"}}, "specialist_call": {"wait_timeout": 900}}) == 270
+    assert limit({"timeouts": {"tools": {"sequential_call": None, "concurrent_batch": 200}}}) == 170
+    assert limit({"timeouts": {"tools": {"sequential_call": True, "concurrent_batch": "bad"}}}) == 390
+    monkeypatch.setenv("HERMES_CONCURRENT_TOOL_TIMEOUT_S", "150")
+    assert limit({}) == 120
+    assert limit({"timeouts": {"tools": {"concurrent_batch": 600}}}) == 570
+    monkeypatch.delenv("HERMES_CONCURRENT_TOOL_TIMEOUT_S")
+    monkeypatch.setenv("RESIDENT_DEADLINE", str(time.time() + 100))
+    assert 90 <= limit({"timeouts": {"tools": {"sequential_call": 5460}}}) <= 95
+
+
+def test_inbound_inquiry_cannot_detach(caller, monkeypatch):
+    home, calls = caller
+    monkeypatch.setattr(p, "_scope", lambda: (home, "owner-one", False, True))
+    assert "synchronous" in call(wait=False)["error"]
+    assert not calls and not list((home / "specialist-sessions").glob("*.json"))
