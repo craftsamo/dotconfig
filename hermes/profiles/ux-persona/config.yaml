@@ -47,3 +47,11 @@ platform_toolsets:
   a2a: []
 plugins:
   enabled: [skill-topology, kanban-worker-mutation-guard, ui-inspection]
+# Served by the host gateway like every profile (no platforms of its own); its secret scope
+# comes from the Keychain through the shared helper, never from the process env.
+secrets:
+  command:
+    enabled: true
+    command: '"$HOME/.config/hermes/scripts/profile-secrets.sh" ux-persona'
+    helper_timeout_seconds: 60
+_config_version: 49

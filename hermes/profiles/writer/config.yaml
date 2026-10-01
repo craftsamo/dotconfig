@@ -3,7 +3,6 @@ model:
   provider: anthropic
   base_url: https://api.anthropic.com
   api_mode: anthropic_messages
-providers: {}
 fallback_providers:
   - provider: anthropic
     model: claude-opus-5-5
@@ -18,7 +17,6 @@ fallback_providers:
     model: deepseek/deepseek-v4-flash
     base_url: https://openrouter.ai/api/v1
     api_mode: chat_completions
-credential_pool_strategies: {}
 toolsets:
   - writing-inspection
   - characters
@@ -27,7 +25,7 @@ toolsets:
   - skills
   - memory
   - delegation
-max_concurrent_sessions: null
+max_concurrent_sessions:
 agent:
   system_prompt: |
     Operating contract - writer (v8 text specialist):
@@ -128,12 +126,7 @@ terminal:
   env_passthrough: []
   shell_init_files: []
   auto_source_bashrc: true
-  docker_image: nikolaik/python-nodejs:python3.11-nodejs20
   docker_forward_env: []
-  docker_env: {}
-  singularity_image: docker://nikolaik/python-nodejs:python3.11-nodejs20
-  modal_image: nikolaik/python-nodejs:python3.11-nodejs20
-  daytona_image: nikolaik/python-nodejs:python3.11-nodejs20
   container_cpu: 1
   container_memory: 5120
   container_disk: 51200
@@ -224,7 +217,6 @@ auxiliary:
     base_url: ""
     api_key: ""
     timeout: 120
-    extra_body: {}
     download_timeout: 30
   web_extract:
     provider: auto
@@ -239,7 +231,6 @@ auxiliary:
     base_url: https://api.anthropic.com
     api_key: ""
     timeout: 120
-    extra_body: {}
     fallback_chain:
       - provider: openrouter
         model: deepseek/deepseek-v4-flash
@@ -251,7 +242,6 @@ auxiliary:
     base_url: https://api.anthropic.com
     api_key: ""
     timeout: 30
-    extra_body: {}
     fallback_chain:
       - provider: openrouter
         model: deepseek/deepseek-v4-flash
@@ -263,7 +253,6 @@ auxiliary:
     base_url: https://api.anthropic.com
     api_key: ""
     timeout: 30
-    extra_body: {}
     fallback_chain:
       - provider: openrouter
         model: deepseek/deepseek-v4-flash
@@ -275,7 +264,6 @@ auxiliary:
     base_url: https://api.anthropic.com
     api_key: ""
     timeout: 30
-    extra_body: {}
     fallback_chain:
       - provider: openrouter
         model: deepseek/deepseek-v4-flash
@@ -287,7 +275,6 @@ auxiliary:
     base_url: https://api.anthropic.com
     api_key: ""
     timeout: 30
-    extra_body: {}
     fallback_chain:
       - provider: openrouter
         model: deepseek/deepseek-v4-flash
@@ -299,7 +286,6 @@ auxiliary:
     base_url: https://api.anthropic.com
     api_key: ""
     timeout: 30
-    extra_body: {}
     fallback_chain:
       - provider: openrouter
         model: deepseek/deepseek-v4-flash
@@ -311,7 +297,6 @@ auxiliary:
     base_url: https://api.anthropic.com
     api_key: ""
     timeout: 120
-    extra_body: {}
     fallback_chain:
       - provider: openrouter
         model: deepseek/deepseek-v4-flash
@@ -323,7 +308,6 @@ auxiliary:
     base_url: https://api.anthropic.com
     api_key: ""
     timeout: 180
-    extra_body: {}
     fallback_chain:
       - provider: openrouter
         model: deepseek/deepseek-v4-flash
@@ -335,7 +319,6 @@ auxiliary:
     base_url: https://api.anthropic.com
     api_key: ""
     timeout: 60
-    extra_body: {}
     fallback_chain:
       - provider: openrouter
         model: deepseek/deepseek-v4-flash
@@ -347,7 +330,6 @@ auxiliary:
     base_url: https://api.anthropic.com
     api_key: ""
     timeout: 600
-    extra_body: {}
     fallback_chain:
       - provider: openrouter
         model: deepseek/deepseek-v4-flash
@@ -359,7 +341,6 @@ auxiliary:
     base_url: https://api.anthropic.com
     api_key: ""
     timeout: 60
-    extra_body: {}
     fallback_chain:
       - provider: openrouter
         model: deepseek/deepseek-v4-flash
@@ -503,10 +484,10 @@ delegation:
   api_key: ""
   api_mode: ""
   inherit_mcp_toolsets: true
-  max_iterations: 50
+  max_iterations: 250
   child_timeout_seconds: 0
   reasoning_effort: ""
-  max_concurrent_children: 3
+  max_concurrent_children: 10
   max_spawn_depth: 1
   orchestrator_enabled: true
   subagent_auto_approve: false
@@ -527,19 +508,17 @@ curator:
   enabled: true
   interval_hours: 168
   min_idle_hours: 2
-  stale_after_days: 30
-  archive_after_days: 90
+  stale_after_days: 14
+  archive_after_days: 30
   prune_builtins: true
   backup:
     enabled: true
     keep: 5
-honcho: {}
 timezone: ""
 slack:
   require_mention: true
   free_response_channels: ""
   allowed_channels: ""
-  channel_prompts: {}
 discord:
   require_mention: true
   free_response_channels: ""
@@ -549,7 +528,6 @@ discord:
   history_backfill: true
   history_backfill_limit: 50
   reactions: true
-  channel_prompts: {}
   dm_role_auth_guild: ""
   server_actions: ""
   allow_any_attachment: false
@@ -568,16 +546,13 @@ discord:
       - Checking on that now.
       - Give me a sec.
       - On it.
-whatsapp: {}
 telegram:
   reactions: false
-  channel_prompts: {}
   allowed_chats: ""
 mattermost:
   require_mention: true
   free_response_channels: ""
   allowed_channels: ""
-  channel_prompts: {}
 matrix:
   require_mention: true
   free_response_rooms: ""
@@ -589,10 +564,7 @@ approvals:
   mcp_reload_confirm: true
   destructive_slash_confirm: true
 command_allowlist: []
-quick_commands: {}
-hooks: {}
 hooks_auto_accept: false
-personalities: {}
 security:
   allow_private_urls: false
   redact_secrets: true
@@ -608,7 +580,7 @@ security:
   allow_lazy_installs: true
 cron:
   wrap_response: true
-  max_parallel_jobs: null
+  max_parallel_jobs:
 kanban:
   dispatch_in_gateway: true
   dispatch_interval_seconds: 60
@@ -617,7 +589,7 @@ kanban:
   worker_log_backup_count: 1
   orchestrator_profile: ""
   default_assignee: ""
-  max_in_progress_per_profile: null
+  max_in_progress_per_profile:
   auto_decompose: false
   auto_decompose_per_tick: 3
   dispatch_stale_timeout_seconds: 14400
@@ -636,8 +608,6 @@ logging:
 model_catalog:
   enabled: true
   url: https://hermes-agent.nousresearch.com/docs/api/model-catalog.json
-  ttl_hours: 1
-  providers: {}
 network:
   force_ipv4: false
 platforms:
@@ -655,7 +625,7 @@ streaming:
   transport: auto
   edit_interval: 0.8
   buffer_threshold: 24
-  cursor: " \u2589"
+  cursor: " ▉"
   fresh_final_after_seconds: 60.0
 sessions:
   auto_prune: false
@@ -679,7 +649,6 @@ lsp:
   wait_mode: document
   wait_timeout: 5.0
   install_strategy: auto
-  servers: {}
 x_search:
   model: grok-4.20-reasoning
   timeout_seconds: 180
@@ -700,27 +669,29 @@ secrets:
 paste_collapse_threshold: 5
 paste_collapse_threshold_fallback: 5
 paste_collapse_char_threshold: 2000
-_config_version: 29
+_config_version: 49
 platform_toolsets:
   cli:
-    - writing-inspection
     - characters
-    - file
-    - web
-    - skills
-    - memory
+    - connections
     - delegation
+    - file
+    - memory
     - no_mcp
+    - skills
+    - web
+    - writing-inspection
   telegram: []
   discord: []
   a2a:
-    - writing-inspection
-    - file
-    - web
-    - skills
-    - memory
+    - connections
     - delegation
+    - file
+    - memory
     - no_mcp
+    - skills
+    - web
+    - writing-inspection
 plugins:
   enabled:
     - writing-inspection

@@ -265,8 +265,10 @@ class MusicVideoRootAndRoutingTest(unittest.TestCase):
         no leaf-specific override block was introduced for generate-music-video."""
         config = VALIDATOR.HERMES_ROOT / "profiles" / "video-creator" / "config.yaml"
         lines = config.read_text(encoding="utf-8").splitlines()
-        top_level_keys = [l for l in lines if l.startswith(("model:", "providers:", "video_gen:"))]
-        self.assertEqual(3, len(top_level_keys))
+        self.assertEqual(1, sum(l.startswith("model:") for l in lines))
+        self.assertEqual(1, sum(l.startswith("video_gen:") for l in lines))
+        # Hermes' migration drops an empty `providers: {}`; a populated block would be drift.
+        self.assertFalse(any(l.startswith("providers:") and l.strip() != "providers: {}" for l in lines))
         self.assertFalse(any(l.strip().startswith("generate-music-video:") for l in lines))
 
 
