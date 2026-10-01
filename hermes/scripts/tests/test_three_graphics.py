@@ -7,7 +7,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-import yaml
+import hermes_yaml as yaml
 
 ROOT = Path(__file__).resolve().parents[2]
 PIPELINE = ROOT / "profiles/video-creator/skills/video-creator-pipeline"

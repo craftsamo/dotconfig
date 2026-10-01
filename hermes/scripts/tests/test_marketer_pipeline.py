@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-import yaml
+import hermes_yaml as yaml
 
 
 HERMES = Path(__file__).resolve().parents[2]

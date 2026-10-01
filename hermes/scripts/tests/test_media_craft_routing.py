@@ -5,7 +5,7 @@ from pathlib import Path
 import shutil
 
 import pytest
-import yaml
+import hermes_yaml as yaml
 
 
 ROOT = Path(__file__).resolve().parents[3]

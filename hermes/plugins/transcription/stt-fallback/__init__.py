@@ -57,17 +57,19 @@ def _tt():
     return tt
 
 
-def _env(name: str) -> str:
-    """Resolve an env/secret value the way the built-ins do, with a fallback."""
+def _key(env_var: str, provider_id: str) -> str:
+    """Resolve an STT key the way the built-in transcribers do (config > profile secret
+    scope / .env > credential pool), so availability agrees with the actual call. Falls back
+    to the plain environment only when that resolver is missing (an older runtime)."""
     try:
-        getter = getattr(_tt(), "get_env_value", None)
-        if callable(getter):
-            return getter(name) or ""
-    except Exception:  # noqa: BLE001
+        from tools.tool_backend_helpers import resolve_provider_secret  # noqa: WPS433
+
+        return resolve_provider_secret(env_var, provider_id) or ""
+    except Exception:  # noqa: BLE001 — availability must never raise
         pass
     import os
 
-    return os.getenv(name, "") or ""
+    return os.getenv(env_var, "") or ""
 
 
 def _get_chain() -> List[str]:
@@ -116,7 +118,7 @@ class FallbackSTTProvider(TranscriptionProvider):
         try:
             tt = _tt()
             if backend == "groq":
-                return bool(getattr(tt, "_HAS_OPENAI", False) and _env("GROQ_API_KEY"))
+                return bool(getattr(tt, "_HAS_OPENAI", False) and _key("GROQ_API_KEY", "groq"))
             if backend == "xai":
                 from tools.xai_http import resolve_xai_http_credentials
 
@@ -127,7 +129,7 @@ class FallbackSTTProvider(TranscriptionProvider):
                     getattr(tt, "_HAS_OPENAI", False) and callable(checker) and checker()
                 )
             if backend == "elevenlabs":
-                return bool(_env("ELEVENLABS_API_KEY"))
+                return bool(_key("ELEVENLABS_API_KEY", "elevenlabs"))
             if backend == "local":
                 if getattr(tt, "_HAS_FASTER_WHISPER", False):
                     return True

@@ -455,7 +455,7 @@ def test_video_range_not_container_audio_duration(tmp_path):
 
 
 def test_effective_toolsets_not_widened():
-    import yaml
+    import hermes_yaml as yaml
     config = yaml.safe_load((ROOT / "profiles/video-creator/config.yaml").read_text())
     for platform in ("cli", "a2a"):
         tools = config["platform_toolsets"][platform]
