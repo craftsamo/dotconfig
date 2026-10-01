@@ -16,6 +16,7 @@ import socket
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import urllib.request
 import urllib.error
@@ -35,6 +36,12 @@ TARGETS = {
 RESIDENT = Path(__file__).resolve().parents[2] / "profiles/assistant/scripts/resident-session.sh"
 TURN_TIMEOUT = 5400
 BUSY = {"accepted", "running", "unknown"}
+# Work a runner may still be executing; everything else is settled for waiting.
+ACTIVE = {"accepted", "running"}
+WAIT_POLL = 1.0
+MAX_ACTIVE = 4
+DEFAULT_TOOL_TIMEOUT = 420
+GROUP = re.compile(r"[A-Za-z0-9._-]{1,40}")
 _REGISTRATION = contextvars.ContextVar("specialist_registration", default=None)
 _TURN_SESSION = contextvars.ContextVar("specialist_turn_session", default="")
 
@@ -111,12 +118,61 @@ def _scope():
     return home, owner, live, inbound
 
 
+def _config(home):
+    # Read, never load_config(): upstream may rewrite configuration on load.
+    return yaml.safe_load((home / "config.yaml").read_text()) or {}
+
+
+def _seconds(raw):
+    # Same coercion as upstream resolve_timeout: numbers or numeric strings; bool/NaN/junk fall through.
+    if raw is None or isinstance(raw, bool):
+        return None
+    try:
+        value = float(raw)
+    except (TypeError, ValueError):
+        return None
+    return value if value == value else None
+
+
+def _positive(value):
+    value = _seconds(value)
+    return value if value is not None and value > 0 else None
+
+
+def _max_active(home):
+    value = (_config(home).get("specialist_call") or {}).get("max_active", MAX_ACTIVE)
+    return value if type(value) is int and value > 0 else MAX_ACTIVE
+
+
+def _wait_limit(home, requested=None):
+    """Longest a blocking wait may run: below the caller's own tool deadline (else the
+    executor abandons the call into polling), the inherited resident deadline, the
+    configured wait_timeout and the request."""
+    config = _config(home)
+    tools = (config.get("timeouts") or {}).get("tools") or {}
+    # Mirrors agent.tool_executor: sequential_call, else the concurrent deadline
+    # (config, then its legacy env bridge, then 420 s); 0 or less disables it.
+    concurrent = _seconds(tools.get("concurrent_batch"))
+    if concurrent is None:
+        concurrent = _seconds(os.environ.get("HERMES_CONCURRENT_TOOL_TIMEOUT_S", "").strip() or None)
+    tool = _seconds(tools.get("sequential_call"))
+    tool = tool if tool is not None else concurrent if concurrent is not None else DEFAULT_TOOL_TIMEOUT
+    limits = [_positive((config.get("specialist_call") or {}).get("wait_timeout")), _positive(requested)]
+    if tool > 0:
+        limits.append(tool - 30)
+    inherited = os.environ.get("RESIDENT_DEADLINE")
+    if inherited:
+        with contextlib.suppress(ValueError):
+            limits.append(float(inherited) - time.time() - 5)
+    limits = [x for x in limits if x is not None]
+    return max(1.0, min(limits)) if limits else float(DEFAULT_TOOL_TIMEOUT - 30)
+
+
 def _policy(home, target, backend=None, endpoint=None, tenant=""):
     profile = _profile(home)
     if target not in TARGETS[profile]:
         raise ValueError("Target is not permitted for this caller")
-    # Read, never load_config(): upstream may rewrite configuration on load.
-    config = yaml.safe_load((home / "config.yaml").read_text()) or {}
+    config = _config(home)
     allowed = (config.get("specialist_call") or {}).get("resident_targets", [])
     if not isinstance(allowed, list) or target not in allowed:
         raise ValueError("Target is not enabled in specialist_call.resident_targets")
@@ -182,6 +238,9 @@ def _public(data, root=None):
         receipt = root / (data["job_id"] + ".receipt")
         if receipt.exists():
             result["process_session_id"] = _read(receipt).get("session_id")
+    started = data.get("started_at")
+    if data.get("status") in ACTIVE and isinstance(started, (int, float)):
+        result["elapsed_seconds"] = int(time.time() - started)
     return result
 
 
@@ -439,7 +498,7 @@ def _run(request_path):
             peer = _policy(home, data["target"], data["backend"], data.get("endpoint"), data.get("tenant", ""))
             data["deadline"] = request.get("deadline", time.time() + TURN_TIMEOUT)
             data["parent_pid"] = request.get("parent_pid")
-            data["status"] = "running"
+            data.update(status="running", started_at=time.time())
             _write(root / (cid + ".json"), data)
             dispatch_entered = True
             if data["backend"] == "resident":
@@ -463,7 +522,27 @@ def _run(request_path):
         _write(root / (cid + ".json"), data)
         if data["status"] != "unknown":
             request_path.unlink()
-    return _public(data, root)
+    result = _public(data, root)
+    if data.get("group"):
+        # Read by the caller from the completion notification of a parallel batch.
+        result["group_progress"] = _group_progress(root, data["owner"], data["group"])
+    return result
+
+
+def _owned_rows(root, owner):
+    rows = []
+    for path in root.glob("*.json"):
+        with contextlib.suppress(OSError, ValueError, KeyError):
+            data = _read(path)
+            if data["owner"] == owner:
+                rows.append(data)
+    return rows
+
+
+def _group_progress(root, owner, group):
+    rows = [r for r in _owned_rows(root, owner) if r.get("group") == group and r.get("status") != "closed"]
+    pending = sorted(r["conversation_id"] for r in rows if r.get("status") in ACTIVE)
+    return dict(group=group, settled=len(rows) - len(pending), total=len(rows), pending=pending)
 
 
 def _launch_failure(root, cid, owner, job, status):
@@ -482,18 +561,52 @@ def _launch_failure(root, cid, owner, job, status):
         return _owned(root, cid, owner)["status"]
 
 
-def _execute_sync(request_path):
+def _interrupt_probes():
+    """(interrupted, yield_requested) for the current tool thread; inert outside Hermes."""
+    try:
+        from tools.interrupt import consume_yield, is_interrupted
+    except ImportError:
+        return (lambda: False), (lambda: False)
+    tid = threading.current_thread().ident
+    return is_interrupted, (lambda: consume_yield(tid))
+
+
+def _reap_later(proc):
+    # A detached runner stays this process's child (so it still dies with it); reap it.
+    threading.Thread(target=proc.wait, name="specialist-runner-reaper", daemon=True).start()
+
+
+DETACHED_NOTE = ("Running detached. Collect it with specialist_session(action='wait') before this turn ends: "
+                 "a one-shot caller that exits takes its runners down with it.")
+
+
+def _execute_sync(request_path, detach=False):
     request = _read(request_path)
     root = request_path.parent
+    cid, owner = request["conversation_id"], request["owner"]
     try:
+        # Output goes to the record; an unread pipe would block a runner with a long reply.
         proc = subprocess.Popen([sys.executable, str(Path(__file__).resolve()), str(request_path)],
-                                stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                                text=True, start_new_session=True)
+                                stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                                start_new_session=True)
     except OSError:
-        _launch_failure(root, request["conversation_id"], request["owner"], request["job_id"], "failed")
-        return _public(_owned(root, request["conversation_id"], request["owner"]), root)
-    # The per-call runner enforces the deadline and watches this process's death.
-    proc.communicate()
+        _launch_failure(root, cid, owner, request["job_id"], "failed")
+        return _public(_owned(root, cid, owner), root)
+    if detach:
+        _reap_later(proc)
+        return dict(_public(_owned(root, cid, owner), root), detached=True, note=DETACHED_NOTE)
+    # The per-call runner enforces the deadline and watches this process's death. A
+    # request to yield (a new user message) hands the turn over detached instead.
+    _, yielded = _interrupt_probes()
+    while proc.returncode is None:
+        try:
+            proc.wait(timeout=0.5)
+            break
+        except subprocess.TimeoutExpired:
+            pass
+        if yielded():
+            _reap_later(proc)
+            return dict(_public(_owned(root, cid, owner), root), detached=True, note=DETACHED_NOTE)
     with _locked(root, request["conversation_id"]):
         data = _owned(root, request["conversation_id"], request["owner"])
         if data["job_id"] == request["job_id"] and data["status"] in {"accepted", "running"}:
@@ -507,8 +620,13 @@ def _execute_sync(request_path):
 
 def specialist_call(args, **kwargs):
     try:
-        if set(args) - {"target", "message", "conversation_id", "kind"}:
+        if set(args) - {"target", "message", "conversation_id", "kind", "wait", "group"}:
             raise ValueError("Unexpected arguments; caller identity is runtime-owned")
+        wait, group = args.get("wait", True), args.get("group")
+        if type(wait) is not bool:
+            raise ValueError("wait must be true or false")
+        if group is not None and (not isinstance(group, str) or not GROUP.fullmatch(group)):
+            raise ValueError("group must be 1-40 characters of [A-Za-z0-9._-]")
         home, owner, live, inbound = _scope()
         if not args.get("conversation_id") and "kind" not in args:
             raise ValueError("Initial calls require kind inquiry|work; all released/metered work must use work")
@@ -518,6 +636,8 @@ def specialist_call(args, **kwargs):
         peer = _policy(home, target)
         if inbound and kind != "inquiry":
             raise ValueError("A2A inbound cannot deliver background work; reissue this unit through a resident session")
+        if inbound and not wait:
+            raise ValueError("A2A inbound inquiries are synchronous; wait=false has no completion delivery here")
         if kind == "reconcile" and not args.get("conversation_id"):
             raise ValueError("reconcile continues an interrupted resident conversation; conversation_id required")
         root = _root(home)
@@ -541,6 +661,8 @@ def specialist_call(args, **kwargs):
                 if data["backend"] == "a2a" and kind == "work":
                     raise ValueError("A2A conversation is inquiry-only; release work as a new resident conversation")
                 data["turn_kind"] = kind if kind == "reconcile" else None
+                for stale in ("started_at",):
+                    data.pop(stale, None)
             else:
                 data = dict(conversation_id=cid, owner=owner, target=target,
                             backend="a2a" if kind == "inquiry" and peer.get("url") else "resident",
@@ -549,6 +671,15 @@ def specialist_call(args, **kwargs):
                     data.update(endpoint=peer["url"], tenant=peer.get("tenant") or "", context_id=uuid.uuid4().hex)
             if inbound and data["backend"] != "a2a":
                 raise ValueError("A2A inbound supports short peer inquiries only; reissue through resident")
+            if group:
+                data["group"] = group
+            if kind != "reconcile":
+                active = [r for r in _owned_rows(root, owner)
+                          if r.get("status") in ACTIVE and r.get("conversation_id") != cid]
+                limit = _max_active(home)
+                if len(active) >= limit:
+                    raise ValueError(f"{len(active)} specialist conversations are already running for this session "
+                                     f"(limit {limit}); wait for one first. Nothing was dispatched.")
             deadline = min(time.time() + TURN_TIMEOUT, float(os.environ.get("RESIDENT_DEADLINE", "inf")))
             if deadline <= time.time():
                 raise ValueError("Inherited resident deadline has expired; no dispatch")
@@ -567,7 +698,9 @@ def specialist_call(args, **kwargs):
             _write(request_path, request)
             _write(root / (cid + ".json"), data)
         if not live:
-            return json.dumps(_execute_sync(request_path))
+            # Messaging callers are always notified in the background; wait=false is the
+            # CLI's way to start several conversations and collect them with wait.
+            return json.dumps(_execute_sync(request_path, detach=True) if not wait else _execute_sync(request_path))
         from tools.terminal_tool import terminal_tool
 
         try:
@@ -593,15 +726,98 @@ def specialist_call(args, **kwargs):
         return json.dumps({"error": str(exc)})
 
 
+def _consume_notifications(root, rows):
+    """A messaging caller that already holds a settled result (wait) must not get
+    the same completion again as a separate turn: mark the background runner consumed."""
+    try:
+        from tools.process_registry import process_registry
+    except ImportError:
+        return
+    for data in rows:
+        receipt = root / (data["job_id"] + ".receipt")
+        with contextlib.suppress(Exception):
+            process_id = _read(receipt).get("session_id") if receipt.exists() else None
+            if process_id:
+                # The runner exits right after writing the record; wait() marks it consumed.
+                process_registry.wait(process_id, timeout=3)
+
+
+def _wait(home, root, owner, live, args):
+    selectors = [k for k in ("conversation_id", "conversation_ids", "group") if args.get(k) is not None]
+    if len(selectors) != 1:
+        raise ValueError("wait needs exactly one of conversation_id, conversation_ids or group")
+    mode, timeout = args.get("mode", "all"), args.get("timeout")
+    if mode not in {"all", "any"}:
+        raise ValueError("mode must be all or any")
+    if timeout is not None and (type(timeout) not in (int, float) or timeout <= 0):
+        raise ValueError("timeout must be a positive number of seconds")
+    if selectors == ["conversation_ids"]:
+        ids = args["conversation_ids"]
+        if not isinstance(ids, list) or not ids or len(ids) > 16:
+            raise ValueError("conversation_ids must list 1-16 conversation ids")
+        cids = list(dict.fromkeys(_id(x) for x in ids))
+    elif selectors == ["conversation_id"]:
+        cids = [_id(args["conversation_id"])]
+    else:
+        group = args["group"]
+        if not isinstance(group, str) or not GROUP.fullmatch(group):
+            raise ValueError("group must be 1-40 characters of [A-Za-z0-9._-]")
+        cids = sorted(r["conversation_id"] for r in _owned_rows(root, owner)
+                      if r.get("group") == group and r.get("status") != "closed")
+        if not cids:
+            raise ValueError("No open conversations in this group")
+    for cid in cids:
+        data = _owned(root, cid, owner)
+        _policy(home, data["target"], data["backend"], data.get("endpoint"), data.get("tenant", ""))
+    limit = _wait_limit(home, timeout)
+    interrupted, yielded = _interrupt_probes()
+    started, released = time.monotonic(), None
+    while True:
+        rows = [_owned(root, cid, owner) for cid in cids]
+        pending = [r["conversation_id"] for r in rows if r["status"] in ACTIVE]
+        if not pending or (mode == "any" and len(pending) < len(rows)):
+            break
+        if interrupted():
+            released = "interrupt"
+            break
+        if yielded():
+            released = "user_message"
+            break
+        if time.monotonic() - started >= limit:
+            break
+        time.sleep(WAIT_POLL)
+    settled = [r for r in rows if r["status"] not in ACTIVE]
+    if live:
+        _consume_notifications(root, settled)
+    done = not pending or (mode == "any" and settled)
+    result = dict(mode=mode, waited_seconds=int(time.monotonic() - started), limit_seconds=int(limit),
+                  timed_out=not done and released is None, released_by=released, pending=pending,
+                  conversations=[_public(r, root) for r in rows])
+    if released:
+        result["note"] = ("Released by a new message; nothing was stopped. Answer it, then wait again "
+                          "or let the completions arrive.")
+    elif not done:
+        result["note"] = ("Wait limit reached; nothing was stopped. Report that the work is still in progress; "
+                          "wait again later (CLI) or let the completions arrive (messaging).")
+    return result
+
+
+SESSION_ARGS = {"action", "conversation_id", "evidence", "conversation_ids", "group", "mode", "timeout"}
+
+
 def specialist_session(args, **kwargs):
     try:
-        if set(args) - {"action", "conversation_id", "evidence"}:
+        if set(args) - SESSION_ARGS:
             raise ValueError("Unexpected arguments")
         if "evidence" in args and args.get("action") != "reconcile":
             raise ValueError("evidence is only accepted for reconcile")
-        home, owner, _, _ = _scope()
+        if {"conversation_ids", "group", "mode", "timeout"} & set(args) and args.get("action") != "wait":
+            raise ValueError("conversation_ids, group, mode and timeout are only accepted for wait")
+        home, owner, live, _ = _scope()
         root = _root(home)
         action = args.get("action")
+        if action == "wait":
+            return json.dumps(_wait(home, root, owner, live, args))
         if action == "list":
             rows = []
             for path in root.glob("*.json"):
@@ -653,7 +869,7 @@ def specialist_session(args, **kwargs):
                 _write(root / (cid + ".json"), data)
             return json.dumps(_public(data, root))
         if action != "close":
-            raise ValueError("Action must be status, list, reconcile, or close")
+            raise ValueError("Action must be status, list, wait, reconcile, or close")
         with _locked(root, cid):
             data = _owned(root, cid, owner)
             if data["status"] in BUSY:
@@ -694,12 +910,18 @@ def register(ctx):
         ("specialist_call", specialist_call,
          {"target": {"type": "string"}, "message": {"type": "string"},
           "conversation_id": {"type": "string"}, "kind": {"type": "string", "enum": ["inquiry", "work", "reconcile"],
-                                                     "description": "Required on initial calls; continuations retain their backend. reconcile: one inspect-and-reconcile turn on a conversation already recorded as interrupted (no work)."}},
-         ["target", "message"], "Call an allowed specialist. Short inquiry uses a configured A2A peer; all released/metered work uses resident. Continue with the returned conversation_id. Never retry uncertain work. An interrupted conversation accepts only kind=reconcile, so its owning session can reconcile the child runs it holds."),
+                                                     "description": "Required on initial calls; continuations retain their backend. reconcile: one inspect-and-reconcile turn on a conversation already recorded as interrupted (no work)."},
+          "wait": {"type": "boolean", "description": "CLI only (messaging always runs in the background). false: return at once with the conversation_id so several conversations run in parallel; collect them with specialist_session wait before this turn ends."},
+          "group": {"type": "string", "description": "Optional label ([A-Za-z0-9._-], max 40) shared by parallel conversations, e.g. one comparison; wait and completion notices report its progress."}},
+         ["target", "message"], "Call an allowed specialist. Short inquiry uses a configured A2A peer; all released/metered work uses resident. Continue with the returned conversation_id. Independent conversations may run in parallel (up to specialist_call.max_active per session). Never retry uncertain work. An interrupted conversation accepts only kind=reconcile, so its owning session can reconcile the child runs it holds."),
         ("specialist_session", specialist_session,
-         {"action": {"type": "string", "enum": ["status", "list", "reconcile", "close"]}, "conversation_id": {"type": "string"},
-           "evidence": {"type": "string", "description": "Reconcile only: observations of outputs, child jobs and external effects; not proof of completion."}},
-          ["action"], "Inspect or close your own specialist conversations. Reconcile confirms a stopped resident transport, never completion or safe replay. Close does not cancel work."),
+         {"action": {"type": "string", "enum": ["status", "list", "wait", "reconcile", "close"]}, "conversation_id": {"type": "string"},
+          "conversation_ids": {"type": "array", "items": {"type": "string"}, "description": "Wait only: the conversations to wait for (or use conversation_id or group)."},
+          "group": {"type": "string", "description": "Wait only: wait for every open conversation with this group label."},
+          "mode": {"type": "string", "enum": ["all", "any"], "description": "Wait only: return when all (default) or any of them settle."},
+          "timeout": {"type": "number", "description": "Wait only: seconds; capped by specialist_call.wait_timeout and this caller's tool deadline."},
+          "evidence": {"type": "string", "description": "Reconcile only: observations of outputs, child jobs and external effects; not proof of completion."}},
+          ["action"], "Inspect, wait for or close your own specialist conversations. wait blocks without spending turns and returns early on a new user message, never stopping work. Reconcile confirms a stopped resident transport, never completion or safe replay. Close does not cancel work."),
     ]:
         ctx.register_tool(name=name, toolset="specialist", handler=scoped(handler), description=description,
                           schema={"name": name, "description": description,
