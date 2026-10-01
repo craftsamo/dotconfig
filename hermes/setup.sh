@@ -55,10 +55,12 @@ else
   ghq get "$REPO_URL"
 fi
 
-# 2. PM runtime + tools + `all` generation + test interpreter (no rc edits, no .env)
+# 2. PM runtime + tools + `all` generation + test interpreter (no rc edits, no .env). The test
+#    interpreter carries the same extras: plugin and hands tests import numpy, fal_client, ...
 echo "[hermes] provisioning the PM runtime (first run takes a few minutes) ..."
+test_extras=$(IFS=,; echo "all,${EXTRAS[*]}")
 ( unset PYTHONHOME PYTHONPATH VIRTUAL_ENV UV_PYTHON UV_PROJECT_ENVIRONMENT
-  bash "$SRC/setup-hermes.sh" --runtime-only --test-environment )
+  bash "$SRC/setup-hermes.sh" --runtime-only "--test-environment=$test_extras" )
 
 launcher="$SRC/.hermes/bin/hermes"
 [ -x "$launcher" ] || die "PM did not publish $launcher"
