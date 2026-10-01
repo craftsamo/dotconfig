@@ -112,6 +112,8 @@ def _child(case, sandbox, candidate_tree, source):
             raise AssertionError("External execution/network forbidden")
         if event == "open" and isinstance(args[0], (str, bytes, os.PathLike)):
             path = Path(os.fsdecode(args[0])).resolve()
+            if path in {Path("/proc/1/cgroup"), Path("/proc/self/mountinfo")} and args[1] == "r":
+                return  # load_config's read-only container probe; refusing it fails config open
             mode, flags = args[1:3]
             write = (isinstance(mode, str) and any(c in mode for c in "wax+")) or (
                 isinstance(flags, int) and flags & (os.O_WRONLY | os.O_RDWR | os.O_CREAT | os.O_TRUNC)
@@ -128,6 +130,12 @@ def _child(case, sandbox, candidate_tree, source):
                 return
             raise AssertionError("Read outside candidate docs/source/runtime forbidden")
 
+    # Importing the native file backend pulls in hermes_cli.auth, whose constants
+    # resolve Hermes' own provenance with `git` once per process. Resolve it before
+    # the sandbox is armed; nothing under test may spawn a command afterwards.
+    from hermes_cli.version_info import get_version_info
+
+    get_version_info()
     sys.addaudithook(audit)
     with ExitStack() as stack:
         for target, name in ((socket.socket, "connect"), (socket.socket, "connect_ex"),
@@ -318,7 +326,6 @@ def _child(case, sandbox, candidate_tree, source):
                 # next_offset is returned by the character-budget cap instead.
                 config = home / ".hermes/config.yaml"
                 config.write_text(config.read_text() + "file_read_max_chars: 1200\n", encoding="utf-8")
-                ft._max_read_chars_cached = None
                 assert ft._get_max_read_chars() == 1200
                 for path in (root_path, tree / "build-searcher/SKILL.md",
                              tree / "build-searcher/references/hunt.md"):
@@ -335,7 +342,9 @@ def _child(case, sandbox, candidate_tree, source):
                         assert page["next_offset"] > offset
                         offset = page["next_offset"]
                     assert pages > 1
-                    assert "\n".join(lines) == path.read_text(encoding="utf-8")
+                    expected_lines = path.read_text(encoding="utf-8").splitlines()
+                    # The final page may or may not carry an empty EOF marker line.
+                    assert lines in (expected_lines, expected_lines + [""])
                     _reset_read_dedup_caches(page_task)
 
             elif case == "relocation":

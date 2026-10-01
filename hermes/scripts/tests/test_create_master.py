@@ -14,7 +14,7 @@ import sys
 from pathlib import Path
 
 import pytest
-import yaml
+import hermes_yaml as yaml
 
 HERMES_ROOT = Path(__file__).resolve().parents[2]
 LEAF = HERMES_ROOT / "profiles/video-creator/skills/video-creator-pipeline/create/master"

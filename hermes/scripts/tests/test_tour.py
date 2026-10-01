@@ -172,7 +172,7 @@ class TourTest(unittest.TestCase):
         self.assertEqual(original, (self.root / "screen.png").read_bytes())
 
     def test_routing_contract(self):
-        import yaml
+        import hermes_yaml as yaml
         video = yaml.safe_load((ROOT / "profiles/video-creator/config.yaml").read_text())
         self.assertNotIn("tts", video["toolsets"])
         for path in ("build-creator/references/video-creator/tour.md",

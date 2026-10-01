@@ -13,7 +13,7 @@ import shutil
 from pathlib import Path
 
 import pytest
-import yaml
+import hermes_yaml as yaml
 from PIL import Image
 
 HERMES_ROOT = Path(__file__).resolve().parents[2]

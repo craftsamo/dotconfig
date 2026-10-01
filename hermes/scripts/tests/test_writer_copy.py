@@ -3,7 +3,7 @@
 from pathlib import Path
 
 import pytest
-import yaml
+import hermes_yaml as yaml
 
 
 PIPELINE = Path(__file__).resolve().parents[2] / "profiles/writer/skills/writer-pipeline"

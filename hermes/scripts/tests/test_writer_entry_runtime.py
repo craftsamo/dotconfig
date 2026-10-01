@@ -40,7 +40,7 @@ def test_writer_entry_runtime(case):
     assert source is not None, "PYTHONPATH must explicitly include the Hermes source checkout"
     disabled = []
     if case.startswith("caller_"):
-        import yaml
+        import hermes_yaml as yaml
 
         caller = case.removeprefix("caller_")
         filename = "config.example.yaml" if caller == "assistant" else "config.yaml"
@@ -99,6 +99,10 @@ def _child(case, sandbox, candidate, source, disabled):
             mode, flags = args[1:3]
             write = (isinstance(mode, str) and any(c in mode for c in "wax+")) or (
                 isinstance(flags, int) and flags & (os.O_WRONLY | os.O_RDWR | os.O_CREAT | os.O_TRUNC))
+            if path == hermes / ".env" and not write:
+                # skill_view snapshots the isolated profile's own .env for secret
+                # capture; it never exists here and is asserted absent below.
+                return
             if path.name in {".env", "auth.json", "jobs.json", "state.db", "executions.db"}:
                 allowed = False
             elif path.is_relative_to(sandbox):
@@ -107,7 +111,8 @@ def _child(case, sandbox, candidate, source, disabled):
                 return
             else:
                 allowed = not write and (
-                    path in {Path(__file__).resolve(), Path("/proc/1/cgroup")}
+                    # Container detection probes (absent on macOS), read via load_config.
+                    path in {Path(__file__).resolve(), Path("/proc/1/cgroup"), Path("/proc/self/mountinfo")}
                     or path.is_relative_to(candidate) and path.suffix == ".md"
                     or path.name not in {"config.yaml", "SOUL.md"}
                     and any(path.is_relative_to(root) for root in code_roots))
@@ -115,6 +120,12 @@ def _child(case, sandbox, candidate, source, disabled):
                 violations.append(str(path))
                 raise AssertionError(f"Non-fixture file access forbidden: {path}")
 
+    # Importing the native file backend pulls in hermes_cli.auth, whose constants
+    # resolve Hermes' own provenance with `git` once per process. Resolve it before
+    # the sandbox is armed; nothing under test may spawn a command afterwards.
+    from hermes_cli.version_info import get_version_info
+
+    get_version_info()
     sys.addaudithook(audit)
     with ExitStack() as stack:
         # urllib3's import-time IPv6 probe binds loopback; no socket is needed here.
@@ -303,6 +314,7 @@ def _child(case, sandbox, candidate, source, disabled):
                 body(view(ROOT), tree / "SKILL.md")
                 body(view("write-document"), tree / PATHS["write-document"])
         assert not violations, violations
+        assert not (hermes / ".env").exists()
 
 
 if __name__ == "__main__":

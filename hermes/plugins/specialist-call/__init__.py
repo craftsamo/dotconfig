@@ -22,7 +22,7 @@ import urllib.error
 import urllib.parse
 import uuid
 
-import yaml
+import hermes_yaml as yaml
 
 
 # Role policy is deliberately NOT inferred from the A2A endpoint inventory.

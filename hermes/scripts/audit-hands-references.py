@@ -41,7 +41,10 @@ import re
 from pathlib import Path
 from typing import Any
 
-import yaml
+try:  # Hermes' YAML 1.1 reader (PyYAML is no longer a Hermes dependency)
+    import hermes_yaml as yaml
+except ImportError:  # standalone python3 with PyYAML
+    import yaml
 
 
 SCRIPT_DIR = Path(__file__).resolve().parent

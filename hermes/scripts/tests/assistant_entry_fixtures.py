@@ -1,6 +1,6 @@
 """Synthetic post-migration trees. Paths here are the actual on-disk layout."""
 
-import yaml
+import hermes_yaml as yaml
 
 
 CAPABILITIES = ("engineering", "creative", "writing", "research", "search", "marketing")

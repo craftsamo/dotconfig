@@ -24,7 +24,8 @@ class CreatorClientBriefTest(unittest.TestCase):
     def test_suggestions_and_user_decisions_are_distinct(self):
         plan = read("plan-creator/SKILL.md")
         self.assertIn("observed evidence, suggested direction, user-decided constraints", plan)
-        self.assertIn("You still own creative proposals, forms and production sequencing", plan)
+        self.assertIn("You still own implementation proposals, forms and production sequencing", plan)
+        self.assertIn("do not re-author its agreed visible result", plan)
         self.assertIn("Do not require a new taste vote for every minor suggestion", plan)
         self.assertIn("exact-plan/preview approval", plan)
 
