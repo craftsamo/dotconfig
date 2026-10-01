@@ -233,7 +233,12 @@ When editing `plugins/opencode` or `~/.config/opencode/agent/hermes-*.md`:
   `HERMES_HOME=~/.hermes/profiles/engineer` +
   `agent.tool_executor._resolve_sequential_tool_timeout()`. Likewise `creator`
   and `marketer` keep theirs (5460) above `TURN_TIMEOUT` + cleanup, or a
-  blocking CLI `specialist_call` times out at 420 s and polls.
+  blocking CLI `specialist_call` times out at 420 s and polls; the Assistant
+  keeps its (960) above `specialist_call.wait_timeout` (900) + 30.
+- **`cancelled` is the only early stop a specialist conversation resumes
+  from**, and only because the owning runner confirmed its group gone; never
+  make `unknown`/`interrupted` resumable or let anything but that runner signal
+  the group ([docs/profiles/specialist-calls.md](docs/profiles/specialist-calls.md)).
 - The Assistant's Admin-topic calls being planned and reviewed by its own
   model is an accepted exception; do not extend it to Engineer, and move the
   reviewer to another model family before moving Engineer off Fable.
