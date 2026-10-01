@@ -10,10 +10,19 @@
 
     ProgramArguments is the launcher script itself (not `/bin/sh …`) so the
     login item shows "hermes-gateway-multiplex". All runtime setup (PATH, cwd,
-    logging, Keychain injection) lives in that script.
+    logging, Keychain injection, the supervised-child contract) lives in that script.
+
+    The label starts with `ai.hermes` on purpose: Hermes reads its launchd identity
+    from that prefix (drain budget from ExitTimeOut, restart route, control-socket
+    supervisor declaration), but it is NOT `ai.hermes.gateway*`, so `hermes gateway
+    install/start/update` never regenerates this plist over the Keychain launcher.
+
+    KeepAlive / ThrottleInterval / ExitTimeOut mirror Hermes' own generated plist:
+    a clean exit (0) parks the job, exit 75 and crashes relaunch, at most every 30 s;
+    60 s is the drain headroom the per-user launchd domain allows before SIGKILL.
   -->
   <key>Label</key>
-  <string>local.hermes.gateway.multiplex</string>
+  <string>ai.hermes.keychain-multiplex</string>
 
   <key>ProgramArguments</key>
   <array>
@@ -23,9 +32,14 @@
   <key>RunAtLoad</key>
   <true/>
   <key>KeepAlive</key>
-  <true/>
+  <dict>
+    <key>SuccessfulExit</key>
+    <false/>
+  </dict>
   <key>ThrottleInterval</key>
-  <integer>15</integer>
+  <integer>30</integer>
+  <key>ExitTimeOut</key>
+  <integer>60</integer>
   <key>ProcessType</key>
   <string>Background</string>
 </dict>

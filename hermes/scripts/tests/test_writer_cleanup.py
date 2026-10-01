@@ -3,7 +3,7 @@
 from itertools import product
 from pathlib import Path
 
-import yaml
+import hermes_yaml as yaml
 
 
 HERMES = Path(__file__).resolve().parents[2]

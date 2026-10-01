@@ -137,14 +137,10 @@ metadata:
      written by `stable_audio3.py`). Package with:
 
      ```sh
-     ~/ghq/github.com/NousResearch/hermes-agent/venv/bin/python "${HERMES_SKILL_DIR}/../../scripts/sfx-media.py" track <raw> --out <deliver>/take-NN --slug <slug> --take-file <take_json> --prompt-file <deliver>/prompt.txt
+     hermes-python "${HERMES_SKILL_DIR}/../../scripts/sfx-media.py" track <raw> --out <deliver>/take-NN --slug <slug> --take-file <take_json> --prompt-file <deliver>/prompt.txt
      ```
 
-     Do not use command substitution in executable paths; if `ghq root`
-     differs on this machine, resolve it with a separate `ghq root` call
-     first and then invoke the literal absolute Python path — never repeat
-     the model generation to fix a packaging step. (Actual live failure:
-     "Nested executable body could not be resolved.")
+     Never repeat the model generation to fix a packaging step.
 
      Pass the receipt exactly as `stable_audio3.py` wrote it — never
      fabricate or edit `take.json`. It already carries `engine`, the
@@ -160,14 +156,10 @@ metadata:
      return:
 
      ```sh
-     ~/ghq/github.com/NousResearch/hermes-agent/venv/bin/python "${HERMES_SKILL_DIR}/../../scripts/sfx-media.py" track <job_dir>/take-NN.mp3 --out <deliver>/take-NN --slug <slug> --take-file <evidence.json> --prompt-file <deliver>/prompt.txt
+     hermes-python "${HERMES_SKILL_DIR}/../../scripts/sfx-media.py" track <job_dir>/take-NN.mp3 --out <deliver>/take-NN --slug <slug> --take-file <evidence.json> --prompt-file <deliver>/prompt.txt
      ```
 
-     Do not use command substitution in executable paths; if `ghq root`
-     differs on this machine, resolve it with a separate `ghq root` call
-     first and then invoke the literal absolute Python path — never repeat
-     the model generation to fix a packaging step. (Actual live failure:
-     "Nested executable body could not be resolved.")
+     Never repeat the model generation to fix a packaging step.
 
    Never mix the two engines' arguments — a local `take.json` and a fal
    `evidence.json` are shaped differently and belong to different job

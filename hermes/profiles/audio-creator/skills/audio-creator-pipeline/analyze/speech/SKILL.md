@@ -39,7 +39,7 @@ metadata:
    create a deliver directory. Run:
 
    ```sh
-   "$(ghq root)/github.com/NousResearch/hermes-agent/venv/bin/python" "${HERMES_SKILL_DIR}/../../scripts/speech-media.py" analyze <source>
+   hermes-python "${HERMES_SKILL_DIR}/../../scripts/speech-media.py" analyze <source>
    ```
 
    Add `--script-file <path>` and `--language <code>` only when supplied.

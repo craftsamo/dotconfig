@@ -734,7 +734,7 @@ disabled — it names retired menu leaves.
 
 A failed served clip is a finding, never a silent fallback to the legacy
 technic. To withdraw the route, remove the video-creator peer, external skill
-root, served-clip routing and multiplex allowlist entry together, then restart
+root and served-clip routing together, then restart
 the single gateway; leave artifacts and session state intact and never reset a
 working tree over other changes. Bundled hermes-agent residue is retained as
 `SKILL.upstream.md`, not an active leaf.

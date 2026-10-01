@@ -70,7 +70,7 @@ historical constraints, never a request to repeat its generation or spend.
 3. Run the leaf's Procedure. Speech leaves share `scripts/speech-media.py`;
    sfx leaves share `scripts/sfx-media.py` and generate-sfx's `sfx_engines`/
    `sfx_generate` tools (from a leaf: `../../scripts/<name>-media.py`), using
-   the Hermes venv Python. Music uses `scripts/music_plan.py` for frozen
+   Hermes' Python (`hermes-python`). Music uses `scripts/music_plan.py` for frozen
    proposals, `scripts/music-media.py` for score rendering/editing/analysis,
    and `music_engines`/`music_generate` for model generation. Mix uses
    `scripts/mix-media.py` for its own two-round proposal gate

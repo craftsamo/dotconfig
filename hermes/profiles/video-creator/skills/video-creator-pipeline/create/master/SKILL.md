@@ -48,12 +48,12 @@ metadata:
    (`edit-music` / `edit-mix`); it is never cut, padded or stretched here.
    A dissolve shortens the picture by its length at every join, so state
    the resulting total in the question.
-4. Build into a new directory. Use the Hermes venv Python (a Mix bundle is
+4. Build into a new directory. Use Hermes' Python, `hermes-python` (a Mix bundle is
    verified by AudioCreator's own helper) and run the script in its own
    terminal command, `background: true` for anything long:
 
    ```sh
-   ~/ghq/github.com/NousResearch/hermes-agent/venv/bin/python ${HERMES_SKILL_DIR}/scripts/master.py build \
+   hermes-python ${HERMES_SKILL_DIR}/scripts/master.py build \
      --segments <a.mp4>,<b.mp4> --out <deliver>/master-v<N> --slug <slug> \
      [--transition cut|dissolve] [--transition-seconds S] [--audio <track.wav> | --mix-bundle <dir>] \
      [--captions <file>] [--burn-captions yes|no] [--caption-position bottom|top]

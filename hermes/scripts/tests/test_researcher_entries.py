@@ -11,7 +11,7 @@ import sys
 import tempfile
 
 import pytest
-import yaml
+import hermes_yaml as yaml
 
 
 HERMES = Path(__file__).resolve().parents[2]
@@ -65,7 +65,7 @@ def test_candidate_topology_and_always_on_contract():
     assert "terminal" not in config["toolsets"]
     assert set(config["toolsets"]) == {"file", "web", "vision", "video", "skills", "memory", "delegation"}
     for platform in ("cli", "a2a"):
-        assert set(config["platform_toolsets"][platform]) == set(config["toolsets"]) | {"no_mcp"}
+        assert set(config["platform_toolsets"][platform]) == set(config["toolsets"]) | {"no_mcp", "connections"}
     assert config["platform_toolsets"]["telegram"] == []
     assert config["platform_toolsets"]["discord"] == []
     assert not config.get("a2a_agents")
@@ -328,6 +328,8 @@ def runtime_child(sandbox, source, configured_external):
             raise AssertionError("External execution/network forbidden")
         if event == "open" and isinstance(args[0], (str, bytes, os.PathLike)):
             path = Path(os.fsdecode(args[0])).resolve()
+            if path in {Path("/proc/1/cgroup"), Path("/proc/self/mountinfo")} and args[1] == "r":
+                return  # load_config's read-only container probe; refusing it fails config open
             if path.is_relative_to(sandbox):
                 return
             mode, flags = args[1:3]
@@ -339,6 +341,12 @@ def runtime_child(sandbox, source, configured_external):
             if not any(path.is_relative_to(root) for root in code_roots):
                 raise AssertionError("Read outside source/runtime/sandbox forbidden")
 
+    # Importing the native file backend pulls in hermes_cli.auth, whose constants
+    # resolve Hermes' own provenance with `git` once per process. Resolve it before
+    # the sandbox is armed; nothing under test may spawn a command afterwards.
+    from hermes_cli.version_info import get_version_info
+
+    get_version_info()
     sys.addaudithook(audit)
     with ExitStack() as stack:
         import hermes_cli.plugins as plugins

@@ -400,6 +400,7 @@ class ManagedSkillWriteGuardTest(unittest.TestCase):
             '"${HERMES_SKILL_DIR}/../../scripts/speech-media.py" analyze /tmp/a.wav',
             '$(ghq root)/github.com/NousResearch/hermes-agent/venv/bin/python '
             '"${HERMES_SKILL_DIR}/../../scripts/speech-media.py" analyze /tmp/a.wav',
+            'hermes-python "${HERMES_SKILL_DIR}/../../scripts/speech-media.py" analyze /tmp/a.wav',
             '"${HOME}/bin/python" "${HERMES_SKILL_DIR}/scripts/thing.py" --out /tmp/lethe-mv-no-voice',
             '$HOME/bin/python "${HERMES_SKILL_DIR}/scripts/thing.py" --out /tmp/lethe-mv-no-voice',
         )

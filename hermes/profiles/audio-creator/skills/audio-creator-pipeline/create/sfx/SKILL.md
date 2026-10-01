@@ -55,17 +55,13 @@ metadata:
    what `pitch` does (some kernels ignore it or use it as a filter cutoff,
    not a note) and a sane duration range, before proposing `seconds`/
    `pitch` values. Do not guess numbers the kernel cannot express.
-3. Run through the Hermes venv Python:
+3. Run through Hermes' Python (`hermes-python`):
 
    ```sh
-   ~/ghq/github.com/NousResearch/hermes-agent/venv/bin/python "${HERMES_SKILL_DIR}/../../scripts/sfx-media.py" synth --kind <kind> --seconds <seconds> --pitch <pitch> --seed <seed> --out <deliver>/take-01 --slug <slug>
+   hermes-python "${HERMES_SKILL_DIR}/../../scripts/sfx-media.py" synth --kind <kind> --seconds <seconds> --pitch <pitch> --seed <seed> --out <deliver>/take-01 --slug <slug>
    ```
 
-   Do not use command substitution in executable paths; if `ghq root`
-   differs on this machine, resolve it with a separate `ghq root` call
-   first and then invoke the literal absolute Python path — never repeat
-   the model generation to fix a packaging step. (Actual live failure:
-   "Nested executable body could not be resolved.")
+   Never repeat the model generation to fix a packaging step.
 
    Omit `--pitch`/`--seed` to use their defaults only when the form left
    them unset. Never call `image_generate`/`video_generate`/any model —
