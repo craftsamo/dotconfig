@@ -24,7 +24,11 @@ class AssistantScriptTest(unittest.TestCase):
         launcher = HERMES_ROOT / "launchd" / "hermes-gateway-multiplex"
         text = launcher.read_text(encoding="utf-8")
         self.assertIn("grep -v -E '^export (TELEGRAM_|DISCORD_)'", text)
-        self.assertIn("gateway run --replace --accept-hooks", text)
+        # launchd owns respawns: the supervised child never re-arms a takeover.
+        self.assertIn("gateway run --accept-hooks --external-supervisor", text)
+        code = "\n".join(line for line in text.splitlines() if not line.lstrip().startswith("#"))
+        self.assertNotIn("--replace", code)
+        self.assertIn("export HERMES_SUPERVISED_CHILD=1", text)
         self.assertNotIn(" -p assistant", text)
         self.assertFalse((HERMES_ROOT / "launchd" / "hermes-gateway-assistant").exists())
 

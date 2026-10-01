@@ -23,13 +23,24 @@
 # from os.environ and it silently pre-empts real-profile browsing for every
 # multiplexed profile (tools/browser_use_cli.py: _has_cdp_env wins first).
 #
+# Supervisor contract (same as Hermes' own launchd plist): HERMES_SUPERVISED_CHILD marks
+# this process as the launchd child (profile-lock and lifecycle guards), and
+# --external-supervisor tells `hermes update` to drain it and let launchd respawn it
+# instead of relaunching a second copy. No --replace: a KeepAlive respawn must not re-arm
+# takeover of another gateway. The ai.hermes.* job label (see the plist template) gives
+# Hermes its launchd identity for the drain budget.
+#
 # NOTE: no HERMES_PROFILE export here — the old assistant-only launcher pinned
 # it for the kanban comment identity, but under multiplex one process serves
 # many profiles and a global pin would stamp every session with the wrong
 # author.
 set -e
 
-export PATH="$HOME/.config/bin:$HOME/.local/bin:$HOME/.homebrew/bin:$HOME/.homebrew/sbin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+# ~/.config/bin first (Keychain shims, hermes-python); Hermes prepends its own PM tool and
+# dependency dirs inside the process.
+export PATH="$HOME/.config/bin:$HOME/.local/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+export HERMES_SUPERVISED_CHILD=1
+HERMES_AGENT_DIR="${HERMES_AGENT_DIR:-$HOME/ghq/github.com/NousResearch/hermes-agent}"
 
 mkdir -p "$HOME/.hermes/logs"
 exec >>"$HOME/.hermes/logs/gateway-multiplex.log" 2>&1
@@ -52,4 +63,5 @@ eval "$(secret env -p hermes | grep -v -E '^export (TELEGRAM_|DISCORD_)')"
 # gateway down — the browser tool fails closed on its own with a clear message.
 "$HOME/.config/hermes/scripts/brave-agent-sync.sh" sync || echo "WARN: brave-agent clone sync failed"
 
-exec "$HOME/.local/bin/hermes" gateway run --replace --accept-hooks
+# The checkout's own PM launcher (store Python + bootstrap), not a PATH lookup.
+exec "$HERMES_AGENT_DIR/.hermes/bin/hermes" gateway run --accept-hooks --external-supervisor
