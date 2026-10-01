@@ -63,10 +63,10 @@ metadata:
    never an eval/inline shell loop. Multiple inputs require `concat`. Reject
    contradictory/inapplicable options and requests outside this leaf.
 2. Use a fresh bundle below `deliver`, never overwrite inputs or prior takes.
-   Run the shared helper through the Hermes venv:
+   Run the shared helper through Hermes' Python (`hermes-python`):
 
    ```sh
-   "$(ghq root)/github.com/NousResearch/hermes-agent/venv/bin/python" "${HERMES_SKILL_DIR}/../../scripts/speech-media.py" edit <source-1> <source-2> --out <new-bundle-dir> --slug <slug> --operations <comma-list>
+   hermes-python "${HERMES_SKILL_DIR}/../../scripts/speech-media.py" edit <source-1> <source-2> --out <new-bundle-dir> --slug <slug> --operations <comma-list>
    ```
 
    Use one input without concat. Add only applicable flags: `--target-lufs`,

@@ -141,13 +141,10 @@ metadata:
    do not concatenate the whole narrative into the model prompt. Then run:
 
    ```sh
-    ~/ghq/github.com/NousResearch/hermes-agent/venv/bin/python "${HERMES_SKILL_DIR}/../../scripts/music_plan.py" propose --kind generate --form-file <deliver>/form.json --arrangement-file <deliver>/arrangement.md --prompt-file <deliver>/prompt-v<N>.txt --out <deliver>/proposal-v<N>
+    hermes-python "${HERMES_SKILL_DIR}/../../scripts/music_plan.py" propose --kind generate --form-file <deliver>/form.json --arrangement-file <deliver>/arrangement.md --prompt-file <deliver>/prompt-v<N>.txt --out <deliver>/proposal-v<N>
    ```
 
-   Do not use command substitution in executable paths; if `ghq root`
-   differs on this machine, resolve it with a separate `ghq root` call
-   first and then invoke the literal absolute Python path. Choose the
-   next unused `N` even after a rejected proposal; never overwrite a
+   Choose the next unused `N` even after a rejected proposal; never overwrite a
    previous proposal directory. Include the resolved `engine` (default
    local) and `seed` (default 0) in `form.json`. That `form.json` is
    AudioCreator's **internal** control file for `music_plan.py`, distinct
@@ -216,13 +213,10 @@ metadata:
      correction's scratch prompt. Match its approval hash to the attempt:
 
     ```sh
-    ~/ghq/github.com/NousResearch/hermes-agent/venv/bin/python "${HERMES_SKILL_DIR}/../../scripts/music-media.py" track <raw> --take-file <take_json> --prompt-file <deliver>/proposal-v<N>/generation-prompt.txt --out <deliver>/take-NN --slug <slug>
+    hermes-python "${HERMES_SKILL_DIR}/../../scripts/music-media.py" track <raw> --take-file <take_json> --prompt-file <deliver>/proposal-v<N>/generation-prompt.txt --out <deliver>/take-NN --slug <slug>
     ```
 
-    Do not use command substitution in executable paths; if `ghq root`
-    differs on this machine, resolve it with a separate `ghq root` call
-    first and then invoke the literal absolute Python path. Pass the
-    receipt exactly as returned - never fabricate or edit `take.json`.
+    Pass the receipt exactly as returned - never fabricate or edit `take.json`.
     Keep the job's `state.json` and every raw take file as the audit
     trail; a QA failure on a packaged bundle is never grounds to
     regenerate rather than report the finding.

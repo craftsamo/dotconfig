@@ -18,7 +18,8 @@ audit and supporting evidence rather than accepting OpenCode's summary alone.
    an audit import; this is not a sandbox. Do not install missing dependencies.
 3. Inspect the named test results, skips and their candidate revision. Re-run
    only bounded checks whose side effects were inspected and authorized, with
-   the documented Hermes venv and --import-mode=importlib. Do not blindly run
+   the Hermes test interpreter (`hermes-python --test`) and
+   --import-mode=importlib. Do not blindly run
    the whole plugin suite, restart services or regenerate media for acceptance.
 4. For card CSS/geometry changes inspect the actual approved-scope scratch
    render and readback, not just metadata. Missing render evidence is UNVERIFIED;

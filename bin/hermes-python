@@ -1,0 +1,68 @@
+#!/usr/bin/env bash
+# hermes-python — run a script or module on the Hermes install's own Python and dependencies.
+#
+#   hermes-python <script.py> [args...]         a helper that imports Hermes' dependencies
+#   hermes-python -m <module> [args...]
+#   hermes-python --test -m pytest [args...]    the checkout's test interpreter (pytest + dev
+#                                               groups) with the checkout on PYTHONPATH
+#   hermes-python --print                       the resolved interpreter, then exit
+#
+# Hermes' package manager (PM) owns the interpreter and selects a dependency generation at
+# every start; the in-tree venv/ is gone, so nothing may hardcode a python path. This asks
+# the published launcher for its runtime command (store Python + bootstrap) and runs the
+# target under that same bootstrap, which activates the committed generation before any
+# third-party import. Never a secret shim: it injects nothing.
+# Override: HERMES_AGENT_DIR (default: the ghq checkout).
+set -euo pipefail
+
+checkout="${HERMES_AGENT_DIR:-$HOME/ghq/github.com/NousResearch/hermes-agent}"
+launcher="$checkout/.hermes/bin/hermes"
+
+if [[ ${1:-} == --test ]]; then
+  shift
+  # The test interpreter exists once `source ./activate` has run in the checkout.
+  py=$("$0" -c 'import sys; from pathlib import Path; from pm.testenv import testenv_python
+p = testenv_python(Path(sys.argv[1])); print(p or "")' "$checkout")
+  if [[ -z $py || ! -x $py ]]; then
+    echo "hermes-python: no test interpreter for $checkout; run 'source ./activate' there once" >&2
+    exit 127
+  fi
+  exec env PYTHONPATH="$checkout${PYTHONPATH:+:$PYTHONPATH}" "$py" "$@"
+fi
+
+if [[ ! -x $launcher ]]; then
+  echo "hermes-python: no Hermes launcher at $launcher (is the install PM-managed?)" >&2
+  exit 127
+fi
+py=$("$launcher" --print-runtime-command | /usr/bin/python3 -c 'import json, sys; print(json.load(sys.stdin)[0])')
+if [[ ${1:-} == --print ]]; then
+  echo "$py"
+  exit 0
+fi
+
+# Same isolation and bootstrap as hermes_cli._launchers.runtime_command, then dispatch like
+# the python CLI: -m <module>, -c <code>, or a script path.
+bootstrap='
+import os, runpy, sys
+root = sys.argv[1]
+os.environ.pop("PYTHONHOME", None); os.environ.pop("PYTHONPATH", None); os.environ.pop("VIRTUAL_ENV", None)
+sys.path.insert(0, root)
+from hermes_constants import get_default_hermes_root
+os.environ["HERMES_HOME"] = os.environ.get("HERMES_HOME") or str(get_default_hermes_root())
+import hermes_bootstrap
+args = sys.argv[2:]
+if not args:
+    sys.exit("usage: hermes-python <script.py> | -m <module> | -c <code> [args...]")
+if args[0] == "-m" and len(args) > 1:
+    sys.argv = [args[1], *args[2:]]
+    runpy.run_module(args[1], run_name="__main__", alter_sys=True)
+elif args[0] == "-c" and len(args) > 1:
+    sys.argv = ["-c", *args[2:]]
+    exec(compile(args[1], "<string>", "exec"), {"__name__": "__main__"})
+else:
+    script = os.path.abspath(args[0])
+    sys.argv = [script, *args[1:]]
+    sys.path.insert(0, os.path.dirname(script))
+    runpy.run_path(script, run_name="__main__")
+'
+exec "$py" -I -c "$bootstrap" "$checkout" "$@"

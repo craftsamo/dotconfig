@@ -372,20 +372,20 @@ unrelated `scene.tsx`/`scene.meta` source contract — see
 ## Freeze / Snapshot / Render
 
 ```sh
-~/ghq/github.com/NousResearch/hermes-agent/venv/bin/python ${HERMES_SKILL_DIR}/scripts/explainer.py propose \
+hermes-python ${HERMES_SKILL_DIR}/scripts/explainer.py propose \
   --spec <spec>.json --out <deliver>/proposal-v1
 # spec.assets maps staged asset names to local files (not yet hashed);
 # prints RESULT with status pending-inputs|awaiting-approval and approval_sha256
 
-~/ghq/github.com/NousResearch/hermes-agent/venv/bin/python ${HERMES_SKILL_DIR}/scripts/explainer.py freeze \
+hermes-python ${HERMES_SKILL_DIR}/scripts/explainer.py freeze \
   --approved-plan <deliver>/proposal-v1/proposal.md --approval-sha256 <hash> \
   --source <absolute-source-dir> --project <deliver>/explainer-project
 
-~/ghq/github.com/NousResearch/hermes-agent/venv/bin/python ${HERMES_SKILL_DIR}/scripts/explainer.py snapshot \
+hermes-python ${HERMES_SKILL_DIR}/scripts/explainer.py snapshot \
   --project <deliver>/explainer-project --out <deliver>/explainer-preview
 # prints preview_sha256; that folder + hash are what the client approves next
 
-~/ghq/github.com/NousResearch/hermes-agent/venv/bin/python ${HERMES_SKILL_DIR}/scripts/explainer.py render \
+hermes-python ${HERMES_SKILL_DIR}/scripts/explainer.py render \
   --project <deliver>/explainer-project --approved-preview <deliver>/explainer-preview \
   --approval-sha256 <sha256-of-preview.json> --out <deliver>/explainer-final
 ```

@@ -502,7 +502,7 @@ class ContinuityCandidateEnvironmentTest(unittest.TestCase):
         runtime = Path("/candidate/runtime")
         for inherited in ({}, {"HERMES_PRIVATE_ROOT": "/wrong/private"}):
             with self.subTest(inherited=inherited), mock.patch.dict(os.environ, inherited, clear=True):
-                plan = continuity.build_plan(runtime, private, runtime / "venv/bin/python")
+                plan = continuity.build_plan(runtime, private, Path("/fake/pm/test-python"))
                 for stage in plan:
                     self.assertEqual(str(private), stage["env"]["HERMES_PRIVATE_ROOT"])
                     self.assertEqual(str(SCRIPT.parents[2]), stage["env"]["HERMES_PUBLIC_ROOT"])

@@ -9,7 +9,7 @@
 #
 # The code lives in the Hermes session-history plugin (hermes/plugins/
 # session-history/cli.py). It runs on Hermes' own Python so the Hermes reader
-# can use Hermes' session store; without it, plain python3 still works and the
+# can use Hermes' session store (via hermes-python); without it, plain python3 still works and the
 # result says it read the databases directly. Read-only: nothing is written.
 # Overrides: AI_HISTORY_PYTHON, AI_HISTORY_CLI.
 set -euo pipefail
@@ -20,20 +20,12 @@ if [[ ! -f $cli ]]; then
   exit 127
 fi
 
-py="${AI_HISTORY_PYTHON:-}"
-if [[ -z $py ]]; then
-  # The real hermes launcher (not the secret shim in this directory) names
-  # Hermes' interpreter in its shebang.
-  here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
-  while IFS= read -r candidate; do
-    [[ "$(cd "$(dirname "$candidate")" && pwd -P)" == "$here" ]] && continue
-    read -r first < "$candidate" || continue
-    interpreter="${first#\#!}"
-    interpreter="${interpreter%% *}"
-    if [[ $first == '#!'* && $interpreter == */python* && -x $interpreter ]]; then
-      py="$interpreter"
-      break
-    fi
-  done < <(type -ap hermes 2>/dev/null || true)
+if [[ -n ${AI_HISTORY_PYTHON:-} ]]; then
+  exec "$AI_HISTORY_PYTHON" "$cli" "$@"
 fi
-exec "${py:-python3}" "$cli" "$@"
+# Hermes' own interpreter and dependency generation (PM-managed; see bin/hermes-python).
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+if "$here/hermes-python" --print >/dev/null 2>&1; then
+  exec "$here/hermes-python" "$cli" "$@"
+fi
+exec python3 "$cli" "$@"
