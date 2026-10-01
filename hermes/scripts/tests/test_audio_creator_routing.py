@@ -7,7 +7,7 @@ import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
-import yaml
+import hermes_yaml as yaml
 
 HERMES_ROOT = Path(__file__).resolve().parents[2]
 
@@ -27,9 +27,9 @@ class AudioCreatorRoutingTest(unittest.TestCase):
         )
 
     def test_root_allowlist_and_creator_peer(self) -> None:
-        self.assertIn(
-            "audio-creator", self.root["gateway"]["multiplex_profile_allowlist"]
-        )
+        # One host gateway serves every profile directory; there is no allowlist to join.
+        self.assertTrue(self.root["gateway"]["multiplex_profiles"])
+        self.assertNotIn("multiplex_profile_allowlist", self.root["gateway"])
         self.assertEqual(9909, self.audio["platforms"]["a2a"]["extra"]["port"])
         self.assertEqual(
             "http://127.0.0.1:9909",
@@ -46,8 +46,9 @@ class AudioCreatorRoutingTest(unittest.TestCase):
         self.assertEqual(expected, set(self.audio["toolsets"]))
         self.assertNotIn("no_mcp", self.audio["toolsets"])
         platform_toolsets = self.audio["platform_toolsets"]
-        self.assertEqual(expected | {"no_mcp"}, set(platform_toolsets["cli"]))
-        self.assertEqual(expected | {"no_mcp"}, set(platform_toolsets["a2a"]))
+        # Platform lists also carry `connections` (schema v45 adds it; gated on the portal sign-in).
+        self.assertEqual(expected | {"no_mcp", "connections"}, set(platform_toolsets["cli"]))
+        self.assertEqual(expected | {"no_mcp", "connections"}, set(platform_toolsets["a2a"]))
         self.assertEqual([], platform_toolsets["telegram"])
         self.assertEqual([], platform_toolsets["discord"])
         self.assertEqual({}, self.audio["a2a_agents"])
