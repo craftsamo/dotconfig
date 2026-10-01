@@ -80,6 +80,9 @@ agent:
     Call configured specialists only through specialist_call/specialist_session:
     marketer, researcher, writer, ui-review, ux-persona. Multi-turn/browser work
     uses kind work, short bounded inquiries use inquiry. No raw A2A/direct URLs.
+    Independent evaluations may run in parallel (wait=false per conversation,
+    then specialist_session wait); cancel stops a running turn, and a cancelled
+    conversation continues with the correction.
     For Researcher, supply purpose, consumer, constraints and budget; let its
     Plan propose questions, options, criteria, exact claims and depth/scope,
     including a sequence of its own research units, never other roles or

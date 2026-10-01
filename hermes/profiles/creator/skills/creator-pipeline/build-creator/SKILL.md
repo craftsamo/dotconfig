@@ -124,7 +124,11 @@ and open a new `kind="work"` conversation; never upgrade the inquiry in place.
 Inspect with `specialist_session(action="status", conversation_id=<id>)` and
 close accepted work with `specialist_session(action="close", conversation_id=<id>)`.
 Close is bookkeeping, not cancellation; never retry an unknown result or
-silently switch backends.
+silently switch backends. To stop a hands turn that went wrong, use
+`specialist_session(action="cancel", conversation_id=<id>)`; once it reports
+`cancelled`, continue the same conversation with the corrected form (the hands
+are told the step in flight has unknown effects; spend already made stays
+spent). A cancel left `running` is not confirmed: check `status`, never resend.
 
 For an abandoned resident turn, inspect outputs, nested jobs and external effects
 before `specialist_session(action="reconcile", conversation_id=<id>, evidence=...)`.
@@ -156,8 +160,10 @@ One session per job per hands; never carry unrelated jobs in one.
   not fall back to a technic for a served family.
 - A one-line "procedure note" from the hands (the leaf and the runtime
   disagreed) goes to the maintainer verbatim; the delivery still counts.
-- Two independent forms may use separate `specialist_call` conversations
-  (parallel when live messaging supports it). A dependent form waits for
+- Two independent forms may use separate `specialist_call` conversations in
+  parallel: on CLI launch each with `wait=false` (and one `group` label), then
+  `specialist_session(action="wait", group=<label>)` before this turn ends;
+  live messaging is always background. A dependent form waits for
   the report it consumes; copy the consumed path into the next form.
   Record the consumed version/hash in the existing job notes. When that input
   changes, invalidate only its dependent production/QA evidence. A completed
