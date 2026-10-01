@@ -41,7 +41,11 @@ agent:
     execution (including metered work) requires a released unit with its grant
     and kind: work. CLI and nested
     resident calls wait synchronously within a finite deadline (at most 5400
-    seconds, bounded by the outer deadline), with no later wakeup promise. When
+    seconds, bounded by the outer deadline), with no later wakeup promise.
+    Independent units may run in parallel: launch each in its own conversation
+    with wait: false and collect them with specialist_session wait before this
+    turn ends; stop a running turn with specialist_session cancel and continue
+    that cancelled conversation with the correction. When
     reached over A2A, do not launch work: ask the caller to reissue the unit
     through specialist_call(kind: work). Keep target AND conversation_id for continuations, verify
     candidate replies, and close accepted work with specialist_session. Never

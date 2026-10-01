@@ -72,8 +72,8 @@ repo; contract text in that topic's private `channel_prompts` entry), never
 Engineer's project work. Because registries are per home, the Assistant's
 worktree-busy check cannot see an Engineer hold — the contract, not the code,
 keeps them apart. The Assistant's Telegram calls run in the background with a
-completion notification, so its 420 s tool deadline stays; only a CLI assistant
-would block.
+completion notification; its tool deadline (960 s) is sized for waiting on
+specialist conversations, not for these calls.
 
 **Session history.** `opencode_history` is the read side of the same plugin,
 separate from execution: it never touches `opencode-sessions/`, grants or
@@ -140,7 +140,8 @@ wakeup (completion notifications are gateway-only), so resident turns block on
 OpenCode rather than poll. `opencode_call` waits up to `opencode_cli.timeout`
 (3600); the engineer `config.yaml` raises `timeouts.tools.sequential_call` /
 `concurrent_batch` to 3660 because the generic 420 s tool deadline cut calls
-into costly `status`/`ps`/`sleep` polling loops (the assistant stays at 420).
+into costly `status`/`ps`/`sleep` polling loops (the assistant uses 960 for
+`specialist_session wait`; see [specialist-calls.md](./specialist-calls.md)).
 The fallback `opencode_session(action="wait", timeout?)` blocks on the record,
 bounded by `opencode_cli.wait_timeout`, the job deadline and
 `RESIDENT_DEADLINE`.
