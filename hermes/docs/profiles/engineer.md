@@ -97,7 +97,7 @@ reviewer / reviewer-deep passes ONLY when the message asks (overriding the
 human-facing "consider a reviewer pass before commits" rule).
 
 **Models.** Models are pinned per role in the agent frontmatter (plan + review
-Opus 5.5, build GPT-6 Sol) so Engineer's own model (Fable 5.1, see
+Opus 5.5, build GPT-6.1 Sol) so Engineer's own model (Fable 5.1, see
 [`models-auth.md`](../models-auth.md) "Models and fallback chains") never
 challenges or QAs its own OpenCode output; `opencode_cli.models` / `--model`
 still override. Accepted exception: the Assistant also runs on Opus 5.5, so its
