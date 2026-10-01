@@ -224,7 +224,18 @@ run_turn() {
   pid=""
   interrupt_turn() {
     trap '' INT TERM
-    [ -n "${pid:-}" ] && kill -TERM "$pid" 2>/dev/null
+    if [ -n "${pid:-}" ]; then
+      # Let the CLI unwind before reading its stderr: on TERM it flushes the
+      # transcript and prints `session_id:` on the way out, which is what lets a
+      # cancelled first turn be resumed instead of restarted blind.
+      kill -TERM "$pid" 2>/dev/null
+      it_waited=0
+      while kill -0 "$pid" 2>/dev/null && [ "$it_waited" -lt "$KILL_GRACE" ]; do
+        sleep 1; it_waited=$((it_waited + 1))
+      done
+      kill -KILL "$pid" 2>/dev/null
+      wait "$pid" 2>/dev/null
+    fi
     {
       printf 'INTERRUPTED before confirmed completion\n'
       tail -20 "$lock/out" 2>/dev/null
