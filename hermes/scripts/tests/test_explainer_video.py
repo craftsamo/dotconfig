@@ -162,7 +162,8 @@ def test_ready_approval_cannot_release_pending_revision(cue_job):
 @pytest.mark.parametrize("path,value", [
     (("version",), True), (("version",), 0), (("duration",), 0), (("duration",), 181),
     (("duration",), True), (("duration",), float("nan")), (("aspect",), "1:1"),
-    (("width",), 1920), (("fps",), 60), (("units",), []), (("copy",), []),
+    (("width",), 1920), (("fps",), 120), (("fps",), 29), (("fps",), True), (("fps",), "60"),
+    (("fps",), 60), (("units",), []), (("copy",), []),
     (("units", 0, "start"), .1), (("units", 1, "start"), 1), (("units", 1, "start"), 3),
     (("units", 2, "end"), 5), (("units", 1, "id"), "lookup"),
     (("units", 0, "narration"), "Silent mode must not drop this"),
@@ -812,3 +813,30 @@ def test_skill_frontmatter_and_real_hermes_discovery(monkeypatch):
     names = [item["name"] for item in skills_tool._find_all_skills(skip_disabled=True)]
     assert names.count("create-explainer-video") == 1
     assert "explainer-video" not in names
+
+
+# ── frame rate ───────────────────────────────────────────────────────────
+
+def with_fps(plan, fps):
+    plan["fps"] = fps
+    plan["samples"][-1]["at"] = plan["duration"] - 1 / fps
+    return plan
+
+
+@pytest.mark.parametrize("fps", [24, 25, 30, 50, 60])
+def test_hyperframes_plan_accepts_allowed_rates(job, fps):
+    plan, _ = ex.model(with_fps(hashed(ex.load(job / "spec.json")), fps))
+    assert ex.rate(plan) == fps
+
+
+def test_omitted_fps_stays_omitted_and_means_30(job):
+    result = propose(job)
+    plan = ex.load(Path(result["proposal"]).parent / "plan.json")
+    assert "fps" not in plan and ex.rate(plan) == 30
+
+
+def test_motion_canvas_renders_only_30fps(job):
+    plan = with_fps(hashed(ex.load(job / "spec.json")), 60)
+    plan.update(renderer="motion-canvas", version=2)
+    with pytest.raises(ValueError, match="Motion Canvas renders only 30fps"):
+        ex.model(plan)
