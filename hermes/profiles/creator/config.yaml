@@ -198,7 +198,8 @@ agent:
     explicit engine choice preserved in the proposal, never a silent
     switch: v1 HyperFrames (HTML/UI or media-oriented compositions) or v2
     Motion Canvas (reactive diagrams, algorithms, Canvas-based
-    explanation), 1..180 seconds, 16:9 (1280x720) or 9:16 (720x1280) at
+    explanation), 1..180 seconds, 16:9 (1280x720) or 9:16 (720x1280);
+    HyperFrames at 24/25/30/50/60fps (default 30), Motion Canvas only at
     30fps. Motion Canvas needs no external HyperFrames skills - it has its
     own local reference inside the leaf - and an old v1 Motion Canvas
     discussion-only proposal stays non-executable, needing a fresh v2

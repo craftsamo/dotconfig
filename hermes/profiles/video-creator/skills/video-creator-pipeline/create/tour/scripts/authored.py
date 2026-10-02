@@ -21,8 +21,15 @@ from tour import (CANVAS, VENDOR, command, digest, fresh, hf, image, load,
 
 PIPELINE_SCRIPTS = (Path(__file__).resolve().parents[3] / "scripts").resolve()
 sys.path.insert(0, str(PIPELINE_SCRIPTS))
+import frame_rate  # noqa: E402
 import mix_audio  # noqa: E402
 import three_graphics as graphics  # noqa: E402
+
+
+def fps_of(form):
+    """The form's frame rate. Never inserted as a default: approved v3
+    proposals and frozen form.json files without it must stay byte-equal."""
+    return form.get("fps", frame_rate.DEFAULT)
 
 
 def form_model(raw):
@@ -31,8 +38,10 @@ def form_model(raw):
                "style", "background", "backdrop", "intro", "outro", "duration",
                "destination", "preview", "note", "screen_mode", "source", "target",
                "start_state", "approved_plan", "approval_sha256", "source_sha256",
-               "audio_workflow", "mix", "graphics"}
+               "audio_workflow", "mix", "graphics", "fps"}
     require(set(raw) <= allowed, "unknown form field (v1 forms use tour.py)")
+    if "fps" in raw:
+        require(frame_rate.valid(raw["fps"]), f"fps must be one of {frame_rate.describe()}")
     form = {"fidelity": "faithful", "frame": "macos", "style": "flat",
             "background": "light", "intro": "title-reveal", "outro": "result-hold",
             "duration": 20, "destination": "landscape", "preview": "yes", **raw}
@@ -110,7 +119,7 @@ def contract_model(raw, form):
     previous = -1
     for sample in samples:
         require(isinstance(sample, dict) and set(sample) == {"at", "expect"}, "sample needs at and expect")
-        at = number(sample["at"], 0, total - 1 / 30, "sample time")
+        at = number(sample["at"], 0, total - 1 / fps_of(form), "sample time")
         require(at > previous, "sample times must be unique and ordered")
         text(sample["expect"], "visible expectation", 2000)
         previous = at
@@ -193,7 +202,7 @@ def markup_check(root, form):
     attrs = markup.roots[0]
     W, H = CANVAS[form["destination"]]
     require(attrs.get("data-composition-id") == "tour" and attrs.get("data-start") == "0", "root id tour and start 0 required")
-    require((attrs.get("data-width"), attrs.get("data-height"), attrs.get("data-fps")) == (str(W), str(H), "30"), "root dimensions/fps mismatch")
+    require((attrs.get("data-width"), attrs.get("data-height"), attrs.get("data-fps")) == (str(W), str(H), str(fps_of(form))), "root dimensions/fps mismatch")
     require(float(attrs.get("data-duration", "nan")) == form["duration"], "root duration mismatch")
     require("assets/gsap.min.js" in markup.assets and "__timelines" in code, "local GSAP and registered timeline required")
     trusted = graphics.validate_assets(root, form, markup)
@@ -449,7 +458,7 @@ def render(args):
     if graphics.enabled(form):
         graphics.compare_final(form, Path(args.approved_preview), out)
     movie = out / "tour.mp4"
-    graphics.run_hf(hf, project, form, ["render", "--output", str(movie), "--fps", "30", "--workers", "1", "--strict", "--no-best-effort", "--quiet"], out / "render.log")
+    graphics.run_hf(hf, project, form, ["render", "--output", str(movie), "--fps", str(fps_of(form)), "--workers", "1", "--strict", "--no-best-effort", "--quiet"], out / "render.log")
     info = json.loads(command(["ffprobe", "-v", "error", "-show_streams", "-show_format", "-of", "json", str(movie)]))
     video = next(s for s in info["streams"] if s["codec_type"] == "video")
     if form.get("screen_mode") in ("supplied", "capture"):
@@ -457,7 +466,7 @@ def render(args):
         if any(c["audio"] == "keep" for c in clips):
             require(any(s["codec_type"] == "audio" for s in info["streams"]), "kept source audio missing in final render")
     require((video["width"], video["height"]) == CANVAS[form["destination"]], "render dimensions mismatch")
-    require(video["codec_name"] == "h264" and video["pix_fmt"] == "yuv420p" and Fraction(video["avg_frame_rate"]) == 30, "render format mismatch")
+    require(video["codec_name"] == "h264" and video["pix_fmt"] == "yuv420p" and Fraction(video["avg_frame_rate"]) == fps_of(form), "render format mismatch")
     require(abs(float(info["format"]["duration"]) - form["duration"]) <= .1, "render duration mismatch")
     mix_audio_measurement = None
     if form.get("audio_workflow") == "mix":
@@ -475,7 +484,7 @@ def render(args):
     project_model(str(project))
     report = {"project": str(project), "mp4": str(movie), "decoded": True, "bytes": movie.stat().st_size,
               "duration": float(info["format"]["duration"]), "width": video["width"], "height": video["height"],
-              "fps": 30, "samples": contract["samples"], "intro": contract["intro"], "outro": contract["outro"],
+              "fps": fps_of(form), "samples": contract["samples"], "intro": contract["intro"], "outro": contract["outro"],
               "semantic_review": "pending visual comparison to approved form and sample expectations",
               "temporal_review": "sampled only", "media_generation": 0}
     if mix_audio_measurement is not None:

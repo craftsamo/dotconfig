@@ -4,9 +4,13 @@
 import argparse
 import hashlib
 import json
+import sys
 from pathlib import Path
 
 from tour import command, fresh, image, load, local, number, require, write
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "scripts"))
+import frame_rate  # noqa: E402
 
 VIDEO = {".mp4", ".mov", ".webm", ".mkv"}
 STILL = {".png", ".jpg", ".jpeg", ".webp"}
@@ -60,7 +64,8 @@ def probe(path, decode=False):
             "audio": bool(audios), "audio_duration": stream_duration(audios[0]) if audios else 0}
 
 
-def prepare(manifest, output):
+def prepare(manifest, output, fps=frame_rate.DEFAULT):
+    require(frame_rate.valid(fps), f"fps must be one of {frame_rate.describe()}")
     raw = load(local(manifest, {".json"}))
     require(isinstance(raw, dict) and "clips" in raw and set(raw) <= {"clips", "capture_receipt"}, "source manifest needs clips and optional capture_receipt")
     clips = raw["clips"]
@@ -96,7 +101,7 @@ def prepare(manifest, output):
             cmd = ["ffmpeg", "-nostdin", "-v", "error", "-xerror", "-n", "-protocol_whitelist", "file,pipe",
                    "-i", str(path), "-ss", str(clip["source_start"]), "-t", str(clip["duration"]),
                    "-map", "0:v:0", "-c:v", "libx264", "-preset", "fast", "-crf", "18", "-pix_fmt", "yuv420p",
-                   "-r", "30", "-map_metadata", "-1"]
+                   "-r", str(fps), "-map_metadata", "-1"]
             cmd += ["-map", "0:a:0", "-c:a", "aac"] if clip["audio"] == "keep" else ["-an"]
             command(cmd + ["-movflags", "+faststart", str(dest)], timeout=360)
             cooked = probe(dest, decode=True)
@@ -118,5 +123,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--manifest", required=True)
     parser.add_argument("--out", required=True)
+    parser.add_argument("--fps", type=int, default=frame_rate.DEFAULT, help="the form's fps; default 30")
     args = parser.parse_args()
-    print(json.dumps(prepare(args.manifest, args.out)))
+    print(json.dumps(prepare(args.manifest, args.out, args.fps)))

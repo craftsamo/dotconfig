@@ -1,7 +1,7 @@
 ---
 name: create-story
 description: >-
-  Create an authored character story video (10..120s, 30fps): recurring
+  Create an authored character story video (10..120s, 24-60fps): recurring
   characters from their approved art act out a short narrative across
   scenes, with dialogue from an approved script and a finished soundtrack,
   staged by VideoCreator in HTML/CSS/SVG/GSAP as 2.5D animation. A
@@ -24,6 +24,7 @@ metadata:
       script: {required: false, type: file, label: "approved script with every spoken/on-screen line; absent = pending"}
       aspect: {required: false, options: ["16:9", "9:16", "1:1", "4:5"], label: "default 9:16"}
       duration: {required: false, type: int, label: "10..120s; default 60"}
+      fps: {required: false, options: ["24", "25", "30", "50", "60"], label: "default 30"}
       style: {required: false, options: [picture-book, cartoon, paper-cut, sumi-ink, watercolor, crayon, silhouette], other: true, label: "world rendering; must suit the cast art"}
       world: {required: false, type: text, label: "setting, era, places, mood"}
       assets: {required: false, type: path, label: "supplied backgrounds, props, footage inserts"}
@@ -99,8 +100,9 @@ metadata:
    approval, lint, canvas, duration, audio and true peak, that every cast
    member appears from its approved bytes referenced by the source, a
    script that arrived after approval against the quoted lines, and
-   caption markup against the Mix sidecar. A FAIL is fixed in source and rendered into a new
-   directory. Changed beats, lines, cast, duration or aspect need a new
+   caption markup against the Mix sidecar. Drafts render at most 30fps;
+   the final renders at the storyboard's `fps`. A FAIL is fixed in source and rendered into a new
+   directory. Changed beats, lines, cast, duration, aspect or fps need a new
    storyboard and approval. Long commands use `background: true`.
 
 </Procedure>

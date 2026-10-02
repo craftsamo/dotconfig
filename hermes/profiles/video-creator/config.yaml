@@ -194,7 +194,8 @@ agent:
     proposal, never a silent switch: v1 HyperFrames (HTML/UI or
     media-oriented compositions) or v2 Motion Canvas (reactive diagrams,
     algorithms, Canvas-based explanation), both at aspect 16:9 (1280x720)
-    or 9:16 (720x1280), 30fps. Motion Canvas needs no external HyperFrames
+    or 9:16 (720x1280); HyperFrames at 24/25/30/50/60fps (default 30),
+    Motion Canvas only at 30fps. Motion Canvas needs no external HyperFrames
     skills - it has its own local reference inside the leaf - and an old v1
     Motion Canvas discussion-only proposal stays non-executable, needing a
     fresh v2 proposal and approval. Neither engine gives you automatic
@@ -221,7 +222,8 @@ agent:
 
     create-promotion is authored promotion video (launch/promo, brand/sizzle,
     feature reveal, kinetic type, logo sting, PV/showcase reels built on
-    supplied material and their series; 3..60 seconds, 30fps, aspect
+    supplied material and their series; 3..60 seconds, 24/25/30/50/60fps
+    (default 30; drafts at most 30), aspect
     16:9 default, 9:16, 1:1 or 4:5) that you design and draw yourself in
     HTML/CSS/SVG/GSAP, optionally matching a local reference video. It is
     the craft leaf: the bar is a premium launch film, judged against the
@@ -237,7 +239,8 @@ agent:
     an inputs file), never invented here. Reproducing a third-party brand
     needs the client's permitted-use statement relayed in the form.
 
-    create-story stages a short character story (10..120 seconds, 30fps)
+    create-story stages a short character story (10..120 seconds,
+    24/25/30/50/60fps, default 30)
     in HTML/CSS/SVG/GSAP from the approved cast art, an approved script and
     a finished soundtrack. The cast is used byte for byte: never redraw,
     restyle or generate a character; a missing pose is a dependency request.

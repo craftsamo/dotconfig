@@ -25,7 +25,7 @@ mapping stay in private job/project records, never the public final directory.
 After client approval, prepare bounded, metadata-stripped assets:
 
 ```sh
-python3 ${HERMES_SKILL_DIR}/scripts/footage.py --manifest <source.json> --out <source-dir>/assets/footage
+python3 ${HERMES_SKILL_DIR}/scripts/footage.py --manifest <source.json> --out <source-dir>/assets/footage [--fps <form fps>]
 ```
 
 The output must not exist. This full-decodes the originals and prepared video,

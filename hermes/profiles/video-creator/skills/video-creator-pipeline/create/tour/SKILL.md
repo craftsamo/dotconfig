@@ -20,88 +20,27 @@ metadata:
       what_for: {required: true, type: text, label: "what the viewer should learn/accomplish"}
       audience: {required: true, type: text, label: "who watches, what they already know"}
       reference: {required: false, type: text, label: "local files/dir or a UI description; a URL is context, not consent"}
-      screen_mode:
-        required: false
-        options: [recreate, supplied, capture]
-        label: "recreate by default; see references/screen-mode/*.md"
-      source:
-        required: false
-        type: text
-        label: "supplied/capture manifest path; step 1"
+      screen_mode: {required: false, options: [recreate, supplied, capture], label: "recreate by default; see references/screen-mode/*.md"}
+      source: {required: false, type: text, label: "supplied/capture manifest path; step 1"}
       source_sha256: {required: false, type: text, label: "manifest SHA-256, pre-approval"}
-      target:
-        required: false
-        type: text
-        label: "capture only: URL/app; no consent implied"
-      start_state:
-        required: false
-        type: text
-        label: "capture starting state/context; no pixels/keystrokes"
-      approved_plan:
-        required: false
-        type: text
-        label: "approved proposal-vN.md; absent = proposal only"
-      approval_sha256:
-        required: false
-        type: text
-        label: "SHA-256 of the approved proposal"
-      flow:
-        required: false
-        type: text
-        label: "approved semantic sequence/result, not steps.json"
-      fidelity:
-        required: false
-        options: [faithful, simplified]
-        label: "faithful (default) preserves product UI"
-      frame:
-        required: false
-        other: true
-        options: [macos, browser, ios, android, none]
-        label: "decorative outer chrome, macos by default"
-      style:
-        required: false
-        options: [flat, glass, outline]
-        other: true
-        references: references/styles/*.md
-        label: "flat by default; presentation only"
-      background:
-        required: false
-        other: true
-        options: [light, dark]
-        label: "light by default; decorative backdrop"
-      backdrop:
-        required: false
-        type: image
-        label: "optional local static image; approve cropping"
-      intro:
-        required: false
-        options: [title-reveal, ui-overview, result-first]
-        other: true
-        references: references/intro/*.md
-        label: "ON by default; examples only, free text OK, none omits"
-      outro:
-        required: false
-        options: [result-hold, overview-close, next-action]
-        other: true
-        references: references/outro/*.md
-        label: "ON by default; examples only, free text OK, none omits"
+      target: {required: false, type: text, label: "capture only: URL/app; no consent implied"}
+      start_state: {required: false, type: text, label: "capture starting state/context; no pixels/keystrokes"}
+      approved_plan: {required: false, type: text, label: "approved proposal-vN.md; absent = proposal only"}
+      approval_sha256: {required: false, type: text, label: "SHA-256 of the approved proposal"}
+      flow: {required: false, type: text, label: "approved semantic sequence/result, not steps.json"}
+      fidelity: {required: false, options: [faithful, simplified], label: "faithful (default) preserves product UI"}
+      frame: {required: false, other: true, options: [macos, browser, ios, android, none], label: "decorative outer chrome, macos by default"}
+      style: {required: false, options: [flat, glass, outline], other: true, references: references/styles/*.md, label: "flat by default; presentation only"}
+      background: {required: false, other: true, options: [light, dark], label: "light by default; decorative backdrop"}
+      backdrop: {required: false, type: image, label: "optional local static image; approve cropping"}
+      intro: {required: false, options: [title-reveal, ui-overview, result-first], other: true, references: references/intro/*.md, label: "ON by default; examples only, free text OK, none omits"}
+      outro: {required: false, options: [result-hold, overview-close, next-action], other: true, references: references/outro/*.md, label: "ON by default; examples only, free text OK, none omits"}
       duration: {required: false, type: int, label: "seconds incl. intro/outro, 1..60; default 20"}
-      audio_workflow:
-        required: false
-        options: [supplied, mix]
-        label: "supplied = existing narration path; mix = Mix master"
-      mix_bundle:
-        required: false
-        type: path
-        label: "mix only: bundle dir; binds staged master/receipt by hash"
-      destination:
-        required: false
-        options: [landscape, portrait]
-        label: "1280x720 (default) or 720x1280; 30 fps"
-      preview:
-        required: false
-        options: ["yes", "no"]
-        label: "yes (default) stops for approval; no renders"
+      audio_workflow: {required: false, options: [supplied, mix], label: "supplied = existing narration path; mix = Mix master"}
+      mix_bundle: {required: false, type: path, label: "mix only: bundle dir; binds staged master/receipt by hash"}
+      destination: {required: false, options: [landscape, portrait], label: "1280x720 (default) or 720x1280"}
+      fps: {required: false, options: ["24", "25", "30", "50", "60"], label: "default 30; omitted stays omitted"}
+      preview: {required: false, options: ["yes", "no"], label: "yes (default) stops for approval; no renders"}
       note: {required: false, type: text}
       graphics: {required: false, options: [three-webgl2], label: "Three.js/GLSL; v3 and approved preview required"}
 ---
@@ -187,7 +126,11 @@ skill_view(name="video-creator-pipeline", file_path="references/three-graphics.m
    approval. Mode omitted retains the shipped recreate/v2 path; explicit mode
    uses v3 and proposal approval. Never upgrade or overwrite frozen projects.
 4. Write UTF-8 `form.json` and your `contract.json` in job scratch; text goes
-   through files, not Japanese argv. Author `index.html`, local assets and
+   through files, not Japanese argv. Copy `fps` into `form.json` as an
+   integer only when the form names one (omitted means 30 and stays
+   omitted, so earlier approvals keep matching); `#root data-fps`, the
+   footage preparation `--fps` and the render follow it. Author
+   `index.html`, local assets and
     QA motion assertions in a fresh task-local source directory. Prepare supplied
     or captured media using its mode reference; do not replace video with stills.
     Keep raw recordings, proposal, hashes and acquisition logs in private job
