@@ -2345,6 +2345,9 @@ def validate_assistant(
     validate_allowed_skill_roots(skills, allowed, errors)
 
     config = profile_root / "config.yaml"
+    private_technics = validate_assistant_private_technics(
+        assistant_private_technic_dir(), config, errors
+    )
     validate_assistant_dm_topics(config, errors)
 
     validate_git_boundary([ASSISTANT_PIPELINE, technic_dir], learned_dir, errors)
@@ -2358,9 +2361,119 @@ def validate_assistant(
     return (
         refs,
         catalog,
-        len(technics),
+        len(technics) + private_technics,
         len(learned),
     )
+
+
+def assistant_private_technic_dir() -> Path:
+    """The Assistant's private technic shelf, mirrored at the public path."""
+    return PRIVATE_OVERLAY / "hermes" / "profiles" / "assistant" / "skills" / "technic"
+
+
+_SKIPPED_SKILL_PARTS = {"__pycache__", "node_modules"}
+
+
+def _skill_dir_names(root: Path) -> dict[str, Path]:
+    """Name -> SKILL.md for every visible skill below ``root``, keyed by both
+    directory name and frontmatter ``name`` (``skill_view`` matches either)."""
+    names: dict[str, Path] = {}
+    if not root.is_dir():
+        return names
+    for path in sorted(root.rglob("SKILL.md")):
+        rel = path.relative_to(root).parts
+        if any(part.startswith(".") or part in _SKIPPED_SKILL_PARTS for part in rel):
+            continue
+        names.setdefault(path.parent.name, path)
+        try:
+            declared = frontmatter(path).get("name")
+        except (OSError, UnicodeDecodeError, yaml.YAMLError):
+            continue
+        if isinstance(declared, str) and declared.strip():
+            names.setdefault(declared.strip(), path)
+    return names
+
+
+def _configured_external_dirs(config: Path) -> list[Path]:
+    if not config.is_file():
+        return []
+    skills_cfg = load_yaml(config).get("skills")
+    entries = skills_cfg.get("external_dirs") if isinstance(skills_cfg, dict) else None
+    dirs: list[Path] = []
+    for entry in entries if isinstance(entries, list) else []:
+        if isinstance(entry, str) and entry.strip():
+            dirs.append(Path(entry.strip()).expanduser().resolve())
+    return dirs
+
+
+def validate_assistant_private_technics(
+    technic_dir: Path, config: Path, errors: list[str]
+) -> int:
+    """Validate the private technic shelf the Assistant reads via external_dirs.
+
+    It mirrors the public ``technic/``: flat ``<name>/SKILL.md`` leaves with
+    ``metadata.hermes.category: technic``, real files only, and names unique
+    across every skill source the Assistant indexes (a duplicate makes
+    ``skill_view`` refuse an ambiguous name). Returns the leaf count.
+    """
+    external = _configured_external_dirs(config)
+    # Listing an ancestor would index assistant-pipeline a second time.
+    pipeline = ASSISTANT_PIPELINE.resolve() if ASSISTANT_PIPELINE.exists() else None
+    for directory in external:
+        if pipeline is not None and pipeline.is_relative_to(directory):
+            errors.append(
+                f"external_dirs entry also contains assistant-pipeline: {directory}"
+            )
+    resolved = technic_dir.resolve() if technic_dir.exists() else None
+    listed = resolved is not None and resolved in external
+    if not technic_dir.exists():
+        target = technic_dir.expanduser().resolve()
+        if target in external:
+            errors.append(f"external_dirs lists a missing private technic directory: {technic_dir}")
+        return 0
+    if technic_dir.is_symlink() or not technic_dir.is_dir():
+        errors.append(f"private technic directory must be a real directory: {technic_dir}")
+        return 0
+
+    links = sorted(path for path in technic_dir.rglob("*") if path.is_symlink())
+    for path in links:
+        errors.append(f"private technic must not contain symlinks: {path}")
+    if links:
+        return 0
+
+    leaves: dict[str, Path] = {}
+    for path in sorted(technic_dir.glob("*/SKILL.md")):
+        name = path.parent.name
+        if name.startswith("."):
+            continue
+        validate_skill(path, name, errors, expected_category="technic")
+        leaves[name] = path
+    for path in sorted(technic_dir.rglob("SKILL.md")):
+        rel = path.relative_to(technic_dir).parts
+        if any(part.startswith(".") for part in rel):
+            continue
+        if len(rel) != 2:
+            errors.append(f"unexpected private technic root: {path}")
+    if leaves and not listed:
+        errors.append(
+            f"private technic directory is not in skills.external_dirs: {technic_dir} ({config})"
+        )
+
+    # Every other source the Assistant indexes: its own skills dir and the
+    # remaining external dirs.
+    others: dict[str, Path] = {}
+    sources = [config.parent / "skills", *(d for d in external if d != resolved)]
+    for source in sources:
+        for name, path in _skill_dir_names(source).items():
+            others.setdefault(name, path)
+    for name in ("assistant-pipeline", *ASSISTANT_ENTRIES):
+        others.setdefault(name, ASSISTANT_PIPELINE)
+    for name, path in sorted(leaves.items()):
+        if name in others:
+            errors.append(
+                f"private technic name {name} is not unique: {path} and {others[name]}"
+            )
+    return len(leaves)
 
 
 def validate_shared(errors: list[str]) -> tuple[int, int]:

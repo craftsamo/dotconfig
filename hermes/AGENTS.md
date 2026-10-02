@@ -145,7 +145,9 @@ repository upkeep (Engineer through OpenCode, the Assistant's Admin topic).
   shared `hermes/skills/` — the tell is the validator's `local skill root must
   not contain symlinks` while `skills list` still works. **Delete** those
   links, never repoint them; check both roots. The one intentional link is the
-  Assistant's private-overlay `assistant-pipeline`. Verify with
+  Assistant's private-overlay `assistant-pipeline`; its private technics are
+  read through one `external_dirs` entry, never a link (see
+  [README "Layout"](README.md#layout)). Verify with
   `hermes -p creator skills list` — a bare `hyperframes skills` installs rather
   than reports.
 - **Writing worker playbooks:** worker terminal approvals cannot prompt, so a
