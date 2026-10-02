@@ -81,6 +81,20 @@ The hook decides before a tool runs; the rule is `approval_request` in
   falls back to ids and column letters. Telegram has no tables, and Hermes
   owns the rest of the card. Many rows go in one `batch_update` (up to 500
   ranges) so one card covers them.
+- **Row guards.** Writes by row number can land on the wrong row when another
+  writer inserts, deletes or sorts rows. `update`, `batch_update` and `clear`
+  take `expect` — up to 200 single cells with the value each must display
+  (typically the row's id column). Right before writing, after the approval,
+  the engine reads them in one call and writes nothing unless every one still
+  matches as displayed text (surrounding whitespace ignored, booleans as
+  `TRUE`/`FALSE`, numbers as shown, so `2535` does not match `2,535`); a
+  failed read also writes nothing, and the error names up to five mismatches.
+  The card shows them as `Check: A2534 = …`, keeping the tab when it is not
+  the one written.
+  `expect` on any other action is refused. Sheets has no conditional write,
+  so a change in the moment between the read and the write is not caught;
+  `expect` is optional, and the tool description asks for it on every write
+  by row number.
 - "Always" persists as `plugin_rule:<key>` in the profile's `command_allowlist`;
   remove the entry there to revoke it.
 - Calls the tool would reject anyway are blocked without asking: gcloud
