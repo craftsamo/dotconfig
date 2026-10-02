@@ -1,0 +1,4 @@
+name: google-access
+version: 1.0.0
+description: Personal Google Sheets, Gmail and Drive plus the gcloud CLI for the Assistant, with writes held for human approval and a profile-scoped token and gcloud configuration.
+kind: standalone
