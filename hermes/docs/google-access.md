@@ -45,10 +45,11 @@ project and every project-scoped call names one.
 The hook decides before a tool runs; the rule is `approval_request` in
 `access.py`.
 
-- **Changes ask first**: Sheets `update` / `append` / `clear` / `create` /
-  `add_sheet`, Gmail `send`, Drive `upload`, and every gcloud command that is
-  not a read. The action must be spelled exactly; the gate and the engine
-  share one check, so no variant is read differently by each.
+- **Changes ask first**: Sheets `update` / `batch_update` / `append` /
+  `clear` / `create` / `add_sheet`, Gmail `send`, Drive `upload`, and every
+  gcloud command that is not a read. The action must be spelled exactly; the
+  gate and the engine share one check, so no variant is read differently by
+  each.
 - **A gcloud read** is a command path that resolves, in the installed SDK's
   own command tree (`data/cli/gcloud_completions.py`), to a command — not a
   group — named by a read verb (`list`, `list-*`, `describe`, `get`,
@@ -59,10 +60,29 @@ The hook decides before a tool runs; the rule is `approval_request` in
 - The request goes through Hermes' own gate (`request_tool_approval`), the
   same as dangerous shell commands: `/approve` or `/deny` on Telegram, a prompt
   in the CLI. Silence, denial, a gate error, cron (`approvals.cron_mode: deny`)
-  and contexts without a human all block. The card shows the target, range,
-  values, recipients, body or the full gcloud command.
-- The allowlist key covers the exact arguments, so "always" only repeats that
-  identical call.
+  and contexts without a human all block. The card shows recipients and body,
+  the upload, or the full gcloud command.
+- **Spreadsheet edits are approved per spreadsheet.** `update`,
+  `batch_update`, `append` and `add_sheet` share one allowlist key per
+  spreadsheet id, so "session" on the first card lets the rest of that
+  spreadsheet's edits run for the session and "always" for good; another
+  spreadsheet asks again. The spreadsheet's version history undoes them.
+  `clear` and `create` keep a key per exact call, like every other change:
+  "always" there only repeats that identical call.
+- **Spreadsheet cards** are plain English, one fact per line —
+  `SpreadSheet: <title>`, `Sheet: <tab>`, a blank line, then each cell as
+  `K3257 > <column header>: <value>`, row 1 being the header. A whole tab whose
+  name cannot be confirmed, or a named range, shows positions relative to the
+  range (`R1C2`) instead of guessing addresses. The card fits 480 escaped
+  UTF-16 units, Telegram's budget for a reason; the title gives way first and
+  the remaining cells are counted. The title and header lookup waits at most
+  three seconds (the hook runs before Hermes checks a grant, so it must not
+  hold up approved edits), is cached for ten minutes (a failure for one), and
+  falls back to ids and column letters. Telegram has no tables, and Hermes
+  owns the rest of the card. Many rows go in one `batch_update` (up to 500
+  ranges) so one card covers them.
+- "Always" persists as `plugin_rule:<key>` in the profile's `command_allowlist`;
+  remove the entry there to revoke it.
 - Calls the tool would reject anyway are blocked without asking: gcloud
   `auth` (except `auth list`), `config` (except reads), `init`, `components`,
   and the flags `--account`, `--configuration`, `--project` (use the parameter),
