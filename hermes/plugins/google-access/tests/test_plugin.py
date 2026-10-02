@@ -23,6 +23,7 @@ TREE = {"commands": {"projects": {"commands": {"list": LEAF}}, "run": {"commands
 @pytest.fixture(autouse=True)
 def fake_tree(monkeypatch):
     monkeypatch.setattr(plugin.access, "_command_tree", lambda: TREE)
+    monkeypatch.setattr(plugin, "_card_home", lambda: None)  # cards never reach a real account
 
 
 class Ctx:
@@ -63,11 +64,12 @@ def test_action_enums_match_the_engine():
 
 
 def test_gate_asks_for_writes_only():
-    assert plugin.gate(tool_name="google_sheets", args={"action": "get", "spreadsheet_id": "s"}) is None
+    sid = "1AbCdEfGhIjKlMnOpQrStUvWxYz0123456789_-abcd"
+    assert plugin.gate(tool_name="google_sheets", args={"action": "get", "spreadsheet_id": sid}) is None
     directive = plugin.gate(tool_name="google_sheets", args={
-        "action": "append", "spreadsheet_id": "s", "range": "A1", "values": [["x"]]})
-    assert directive["action"] == "approve" and "append on s" in directive["message"]
-    assert directive["rule_key"].startswith("google-access:google_sheets:")
+        "action": "append", "spreadsheet_id": sid, "range": "A1", "values": [["x"]]})
+    assert directive["action"] == "approve" and "A(+1) > x" in directive["message"]
+    assert directive["rule_key"] == f"google-access:sheets-edit:{sid}"
     assert plugin.gate(tool_name="gcloud", args={"command": ["projects", "list"]}) is None
     assert plugin.gate(tool_name="gcloud", args={"command": ["run", "deploy"]})["action"] == "approve"
 
@@ -97,7 +99,8 @@ def test_inbound_a2a_is_refused(monkeypatch):
 def test_handlers_return_json_errors(tmp_path, monkeypatch):
     monkeypatch.setattr(plugin, "_inbound_peer", lambda: False)
     monkeypatch.setattr(plugin, "_home", lambda: tmp_path)
-    result = json.loads(plugin.google_sheets({"action": "get", "spreadsheet_id": "s", "range": "A1"}))
+    result = json.loads(plugin.google_sheets({"action": "get", "spreadsheet_id": "1AbCdEfGhIjKlMnOp",
+                                              "range": "A1"}))
     assert result["ok"] is False and "gaccess auth" in result["error"]
     result = json.loads(plugin.gcloud({"command": ["projects", "list"]}))
     assert result["ok"] is False and "gcloud-login" in result["error"]

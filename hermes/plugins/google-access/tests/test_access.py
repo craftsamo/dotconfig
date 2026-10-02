@@ -198,24 +198,189 @@ def test_gcloud_output_is_clipped(tmp_path, monkeypatch):
 
 # --- approval for Google writes -------------------------------------------------------------------
 
+SID = "1AbCdEfGhIjKlMnOpQrStUvWxYz0123456789_-abcd"
+OTHER = "1ZyXwVuTsRqPoNmLkJiHgFeDcBa9876543210_-zyxw"
+
+
+@pytest.fixture(autouse=True)
+def fresh_context():
+    access._CONTEXT.clear()
+    yield
+    access._CONTEXT.clear()
+
+
 def test_sheets_reads_pass_and_writes_ask():
     for action in ("search", "info", "get"):
-        assert access.approval_request("google_sheets", {"action": action, "spreadsheet_id": "s"}) is None
-    args = {"action": "update", "spreadsheet_id": "abc", "range": "Sheet1!A1:B2",
+        assert access.approval_request("google_sheets", {"action": action, "spreadsheet_id": SID}) is None
+    args = {"action": "update", "spreadsheet_id": SID, "range": "Sheet1!A1:B2",
             "values": [["Name", "Score"], ["Alice", 95]]}
     reason, key = access.approval_request("google_sheets", args)
-    assert "update on abc" in reason and "Sheet1!A1:B2" in reason and "Alice" in reason
-    assert access.approval_request("google_sheets", dict(args))[1] == key
-    changed = dict(args, values=[["Bob", 1]])
-    assert access.approval_request("google_sheets", changed)[1] != key
-    for action in ("clear", "create", "add_sheet"):
-        assert access.approval_request("google_sheets", {"action": action, "spreadsheet_id": "s",
-                                                         "range": "A1", "title": "t"})
+    assert SID in reason and "A2 > Alice" in reason and "B2 > 95" in reason
+    assert key == f"google-access:sheets-edit:{SID}"
+
+
+def test_edits_share_one_key_per_spreadsheet():
+    edits = [
+        {"action": "update", "spreadsheet_id": SID, "range": "A1", "values": [["x"]]},
+        {"action": "update", "spreadsheet_id": SID, "range": "Z9", "values": [["y"]]},
+        {"action": "append", "spreadsheet_id": SID, "range": "Log!A:C", "values": [["z"]]},
+        {"action": "batch_update", "spreadsheet_id": SID, "data": [{"range": "B2", "values": [["w"]]}]},
+        {"action": "add_sheet", "spreadsheet_id": SID, "title": "New"},
+    ]
+    keys = {access.approval_request("google_sheets", args)[1] for args in edits}
+    assert keys == {f"google-access:sheets-edit:{SID}"}
+    other = access.approval_request("google_sheets", dict(edits[0], spreadsheet_id=OTHER))[1]
+    assert other == f"google-access:sheets-edit:{OTHER}"
+
+
+def test_clear_and_create_still_ask_per_call():
+    clear = {"action": "clear", "spreadsheet_id": SID, "range": "A1:B9"}
+    key = access.approval_request("google_sheets", clear)[1]
+    assert "sheets-edit" not in key and key.startswith("google-access:google_sheets:")
+    assert access.approval_request("google_sheets", dict(clear, range="C1"))[1] != key
+    create = access.approval_request("google_sheets", {"action": "create", "title": "Budget"})
+    assert create[0] == "Create SpreadSheet: Budget" and "sheets-edit" not in create[1]
+    clear_card = access.approval_request("google_sheets", clear)[0]
+    assert clear_card == f"SpreadSheet: {SID}\nClear: A1:B9"
+
+
+@pytest.mark.parametrize("sid", ["s", "abc", "x/../y", "a" * 300, "1AbC dEfGhIjK"])
+def test_a_malformed_spreadsheet_id_is_blocked(sid):
+    with pytest.raises(access.AccessError, match="spreadsheet id"):
+        access.approval_request("google_sheets", {"action": "update", "spreadsheet_id": sid,
+                                                  "range": "A1", "values": [["x"]]})
 
 
 def test_a_write_without_values_is_blocked_before_asking():
     with pytest.raises(access.AccessError, match="values"):
-        access.approval_request("google_sheets", {"action": "append", "spreadsheet_id": "s", "range": "A1"})
+        access.approval_request("google_sheets", {"action": "append", "spreadsheet_id": SID, "range": "A1"})
+    with pytest.raises(access.AccessError, match="data"):
+        access.approval_request("google_sheets", {"action": "batch_update", "spreadsheet_id": SID})
+    with pytest.raises(access.AccessError, match="at most"):
+        access.approval_request("google_sheets", {"action": "batch_update", "spreadsheet_id": SID, "data": [
+            {"range": f"A{i}", "values": [["x"]]} for i in range(access.BATCH_LIMIT + 1)]})
+
+
+@pytest.mark.parametrize("rng,expected", [
+    ("bp候補!K3257:L3257", ("bp候補", "K3257:L3257")), ("'My ''Tab'''!A1", ("My 'Tab'", "A1")),
+    ("Sheet1", ("Sheet1", "")), ("A1:B2", (None, "A1:B2")), ("C:C", (None, "C:C")), ("3:5", (None, "3:5"))])
+def test_split_range(rng, expected):
+    assert access.split_range(rng) == expected
+
+
+def test_column_letters_round_trip():
+    for index in (0, 25, 26, 51, 701, 702):
+        assert access._column_index(access.column_letters(index)) == index
+    assert access.column_letters(10) == "K" and access.column_letters(27) == "AB"
+
+
+def context(monkeypatch, title="BP候補リスト", headers=None, names=None):
+    calls = []
+
+    def fake(home, sid, tabs):
+        calls.append(tabs)
+        return title, headers or {}, names if names is not None else list((headers or {}).keys())
+
+    monkeypatch.setattr(access, "_sheet_context", fake)
+    return calls
+
+
+def test_card_shows_title_headers_and_cells(monkeypatch):
+    context(monkeypatch, headers={"bp候補": ["id"] + [""] * 9 + ["確認メモ", "判定"]})
+    reason, _ = access.approval_request("google_sheets", {
+        "action": "update", "spreadsheet_id": SID, "range": "bp候補!K3257:L3257",
+        "values": [["2026-10-02確認: 自社サイト sinarfajarempire.com にパッケージ・サービス(トイレ・リビング・寝室・台所)",
+                    "【bp batch23】見送り_既存機能重複。"]]}, home=Path("/nonexistent"))
+    lines = reason.split("\n")
+    assert lines[:3] == ["SpreadSheet: BP候補リスト", "Sheet: bp候補", ""]
+    assert lines[3].startswith("K3257 > 確認メモ: 2026-10-02確認") and lines[3].endswith("…")
+    assert lines[4] == "L3257 > 判定: 【bp batch23】見送り_既存機能重複。"
+    assert SID not in reason
+
+
+def test_card_falls_back_to_ids_and_letters():
+    reason, _ = access.approval_request("google_sheets", {
+        "action": "append", "spreadsheet_id": SID, "range": "Log!B:C", "values": [["a", ""], ["b", None]]})
+    assert SID in reason
+    assert "B(+1) > a" in reason and "C(+1) > (empty)" in reason and "B(+2) > b" in reason
+
+
+@pytest.mark.parametrize("fill", ["x", "&", "<", "😀"])
+def test_card_stays_within_the_escaped_limit_and_counts_the_rest(fill):
+    data = [{"range": f"S!A{i}:C{i}", "values": [[fill * 80, "y" * 80, "z" * 80]]} for i in range(1, 200)]
+    reason, _ = access.approval_request("google_sheets", {"action": "batch_update", "spreadsheet_id": SID,
+                                                         "data": data})
+    assert access._units(reason) <= access.CARD_LIMIT
+    shown = sum(1 for line in reason.split("\n") if line.startswith(("A", "B", "C")))
+    assert f"(+{3 * 199 - shown} more cells)" in reason
+
+
+def test_long_titles_and_many_tabs_keep_the_count(monkeypatch):
+    context(monkeypatch, title="T" * 400, names=[f"tab{i}" for i in range(6)])
+    data = [{"range": f"{'&' * 100}{i}!A1", "values": [["v"] * 40]} for i in range(6)]
+    reason, _ = access.approval_request("google_sheets", {"action": "batch_update", "spreadsheet_id": SID,
+                                                         "data": data}, home=Path("/x"))
+    assert access._units(reason) <= access.CARD_LIMIT
+    assert "more cells)" in reason and "\nSheet: " in reason
+    assert access._tabs_summary(["a", "b", None, "d", "e"], ["First"]) == "a, b, First +2"
+    assert access._tabs_summary([None]) == "(first sheet)"
+
+
+def test_named_ranges_and_unknown_tabs_show_relative_positions(monkeypatch):
+    context(monkeypatch, headers={"Data": ["Name", "Score"]}, names=["Data"])
+    reason, _ = access.approval_request("google_sheets", {"action": "batch_update", "spreadsheet_id": SID, "data": [
+        {"range": "MyRange", "values": [["a", "b"]]}, {"range": "Data", "values": [["c"]]}]}, home=Path("/x"))
+    assert "R1C1 > a" in reason and "R1C2 > b" in reason and "A1 > Name: c" in reason
+    reason, _ = access.approval_request("google_sheets", {"action": "update", "spreadsheet_id": SID,
+                                                         "range": "Sheet1", "values": [["z"]]})
+    assert "R1C1 > z" in reason
+
+
+
+def test_sheet_context_is_cached_and_never_raises(tmp_path, monkeypatch):
+    api = mock.MagicMock()
+    api.spreadsheets().get().execute.return_value = {"properties": {"title": "Book"},
+                                                     "sheets": [{"properties": {"title": "Main"}}]}
+    api.spreadsheets().values().batchGet().execute.return_value = {"valueRanges": [{"values": [["Name"]]}]}
+    calls = services(monkeypatch, sheets=api)
+    assert access._sheet_context(tmp_path, SID, {None}) == ("Book", {"Main": ["Name"], None: ["Name"]}, ["Main"])
+    assert access._sheet_context(tmp_path, SID, {"Main", "NamedRange"})[0] == "Book"
+    assert len(calls) == 1
+    assert api.spreadsheets().values().batchGet.call_args.kwargs["ranges"] == ["'Main'!1:1"]
+
+    failures = []
+
+    def broken(*a, **k):
+        failures.append(1)
+        raise access.AccessError("no token")
+
+    monkeypatch.setattr(access, "_service", broken)
+    assert access._sheet_context(tmp_path, OTHER, {"X"}) == (None, {}, None)
+    assert access._sheet_context(tmp_path, OTHER, {"X"}) == (None, {}, None)
+    assert failures == [1]  # a failure is remembered briefly, not retried on every edit
+    assert access._sheet_context(None, OTHER, {"X"}) == (None, {}, None)
+
+
+def test_a_slow_lookup_does_not_hold_up_the_hook(tmp_path, monkeypatch):
+    import threading
+    import time
+    release = threading.Event()
+
+    def slow(home, sid, tabs):
+        release.wait(5)
+        return "Late", {}, ["S"]
+
+    monkeypatch.setattr(access, "_fetch_context", slow)
+    monkeypatch.setattr(access, "CONTEXT_TIMEOUT", 0.1)
+    started = time.monotonic()
+    assert access._sheet_context(tmp_path, SID, {"S"}) == (None, {}, None)
+    assert time.monotonic() - started < 1
+    release.set()
+    for _ in range(50):
+        if SID in access._CONTEXT:
+            break
+        time.sleep(0.02)
+    assert access._sheet_context(tmp_path, SID, {"S"})[0] == "Late"
 
 
 def test_gmail_send_shows_recipients_and_body():
@@ -412,12 +577,28 @@ def test_sheets_update_types_values_like_the_ui(tmp_path, monkeypatch):
     api = mock.MagicMock()
     api.spreadsheets().values().update().execute.return_value = {"updatedRange": "S!A1:B2", "updatedCells": 4}
     calls = services(monkeypatch, sheets=api)
-    result = access.sheets(tmp_path, {"action": "update", "spreadsheet_id": "abc", "range": "S!A1",
+    result = access.sheets(tmp_path, {"action": "update", "spreadsheet_id": SID, "range": "S!A1",
                                       "values": [["=1+1", 2]]})
-    assert result == {"ok": True, "spreadsheet_id": "abc", "updated_range": "S!A1:B2", "updated_cells": 4}
+    assert result == {"ok": True, "spreadsheet_id": SID, "updated_range": "S!A1:B2", "updated_cells": 4}
     kwargs = api.spreadsheets().values().update.call_args.kwargs
     assert kwargs["valueInputOption"] == "USER_ENTERED" and kwargs["body"] == {"values": [["=1+1", 2]]}
     assert calls == [("sheets", access.SHEETS)]
+
+
+def test_sheets_batch_update_writes_every_range_in_one_call(tmp_path, monkeypatch):
+    api = mock.MagicMock()
+    api.spreadsheets().values().batchUpdate().execute.return_value = {
+        "responses": [{}, {}], "totalUpdatedRows": 2, "totalUpdatedCells": 4}
+    services(monkeypatch, sheets=api)
+    data = [{"range": "S!K1:L1", "values": [["a", "b"]]}, {"range": "S!K9:L9", "values": [["c", "d"]]}]
+    result = access.sheets(tmp_path, {"action": "batch_update", "spreadsheet_id": SID, "data": data, "raw": True})
+    assert result == {"ok": True, "spreadsheet_id": SID, "updated_ranges": 2, "updated_rows": 2,
+                      "updated_cells": 4}
+    kwargs = api.spreadsheets().values().batchUpdate.call_args.kwargs
+    assert kwargs == {"spreadsheetId": SID, "body": {"valueInputOption": "RAW", "data": data}}
+    with pytest.raises(access.AccessError, match="range, values"):
+        access.sheets(tmp_path, {"action": "batch_update", "spreadsheet_id": SID,
+                                 "data": [{"range": "A1", "values": [["x"]], "extra": 1}]})
 
 
 def test_sheets_search_uses_read_only_drive(tmp_path, monkeypatch):
@@ -530,3 +711,4 @@ def test_unknown_actions_are_rejected(tmp_path):
     for engine in (access.sheets, access.gmail, access.drive):
         with pytest.raises(access.AccessError, match="unknown action"):
             engine(tmp_path, {"action": "delete"})
+
