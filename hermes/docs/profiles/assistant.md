@@ -167,6 +167,11 @@ conversation, not a runtime fallback. `delegate_task` covers medium parallel
 lookups the user is actively waiting on, and absorbs per-artifact QA checks on
 large sets. Keep routing in sync with each `profile.yaml` description.
 
+The user's own Google Sheets, Gmail and Drive and the `gcloud` CLI are inline
+tools of the assistant alone (`google_access` toolset); every change waits for
+the user's `/approve`, and the terminal path around them is blocked. Contract:
+[google-access.md](../google-access.md).
+
 ### Kanban catalog
 
 The kanban catalog is closed and per-assignee: its machine-readable surface is
