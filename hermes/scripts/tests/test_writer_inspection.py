@@ -99,11 +99,34 @@ def test_wrong_scope_fails_closed(tmp_path, provisioned, monkeypatch, home, prof
         assert call({"text": "sample"}, role, task_id=task)["error"]["code"] == "wrong_scope"
 
 
-def test_missing_session_context(runtime, provisioned, monkeypatch):
-    # Leave home/profile/session/task valid so only the engaged-context gate fails.
+@pytest.mark.parametrize("profile,session,task,code", [
+    ("", "session", "task", "ok"),            # resident CLI turn: no gateway binding
+    ("writer", "session", "task", "ok"),
+    ("engineer", "session", "task", "wrong_scope"),  # stale foreign identity
+    ("", "", "task", "wrong_scope"),
+    ("", "session", None, "wrong_scope")])
+def test_cli_session_without_gateway_binding(tmp_path, provisioned, monkeypatch,
+                                             profile, session, task, code):
+    monkeypatch.setattr("gateway.session_context.session_context_engaged", lambda: False)
+    monkeypatch.setattr(plugin, "_run", lambda request: json.dumps(
+        report(json.loads(request)["text"])).encode())
+    with scope(tmp_path / "profiles/writer", profile, session):
+        result = call({"text": "sample"}, task_id=task)
+    assert (result["status"] if code == "ok" else result["error"]["code"]) == code
+
+
+def test_gateway_turn_without_writer_binding_is_refused(tmp_path, provisioned, monkeypatch):
+    monkeypatch.setattr("gateway.session_context.session_context_engaged", lambda: True)
+    monkeypatch.setattr(plugin, "_run", lambda _: pytest.fail("child started"))
+    with scope(tmp_path / "profiles/writer", "", "session"):
+        assert call({"text": "sample"}, task_id="task")["error"]["code"] == "wrong_scope"
+
+
+def test_cli_home_must_still_be_writer(tmp_path, provisioned, monkeypatch):
     monkeypatch.setattr("gateway.session_context.session_context_engaged", lambda: False)
     monkeypatch.setattr(plugin, "_run", lambda _: pytest.fail("child started"))
-    assert call({"text": "sample"}, task_id="task")["error"]["code"] == "wrong_scope"
+    with scope(tmp_path / "profiles/engineer", "", "session"):
+        assert call({"text": "sample"}, task_id="task")["error"]["code"] == "wrong_scope"
 
 
 @pytest.mark.parametrize("reason,args,role,code", [

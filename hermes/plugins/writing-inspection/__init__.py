@@ -108,9 +108,13 @@ def _inspect(args, profile, **kwargs):
                                "excerpt_clipped": 0, "term_clipped": 0,
                                "output_budget_dropped": 0}}, indent=2)
 
+    # A gateway (A2A) turn binds its session profile. A resident CLI turn binds
+    # none, so the effective home carries the identity and any profile it does
+    # see must still be Writer's.
+    session_profile = get_session_env("HERMES_SESSION_PROFILE", "")
     if (profile != "writer" or get_hermes_home().name != profile
-            or not session_context_engaged()
-            or get_session_env("HERMES_SESSION_PROFILE", "") != profile
+            or (session_profile != profile
+                and (session_context_engaged() or session_profile))
             or not get_session_env("HERMES_SESSION_ID", "")
             or not isinstance(kwargs.get("task_id"), str) or not kwargs["task_id"]):
         return error("Writer profile, originating session and framework task required", "wrong_scope")
