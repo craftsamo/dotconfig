@@ -41,6 +41,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import time
 from email.message import EmailMessage
 from pathlib import Path
 
@@ -62,8 +63,22 @@ REASON_LIMIT = 1500
 GCLOUD_TIMEOUT = 300
 GCLOUD_TIMEOUT_MAX = 1800
 
-SHEETS_ACTIONS = ("search", "info", "get", "update", "append", "clear", "create", "add_sheet")
-SHEETS_WRITES = {"update", "append", "clear", "create", "add_sheet"}
+SHEETS_ACTIONS = ("search", "info", "get", "update", "batch_update", "append", "clear", "create",
+                  "add_sheet")
+SHEETS_WRITES = {"update", "batch_update", "append", "clear", "create", "add_sheet"}
+# Edits approved once per spreadsheet: "session" / "always" on the first card covers the rest of
+# that spreadsheet's edits (its version history undoes them). clear and create still ask each time.
+SHEETS_EDITS = {"update", "batch_update", "append", "add_sheet"}
+BATCH_LIMIT = 500
+SPREADSHEET_ID = re.compile(r"^[A-Za-z0-9_-]{10,200}$")
+# Approval cards: Telegram shows about 500 characters of the reason, Discord about 300.
+CARD_LIMIT = 480
+CELL_CLIP = 50
+TITLE_CLIP = 60
+TAB_CLIP = 30
+CONTEXT_TTL = 600
+CONTEXT_FAIL_TTL = 60
+CONTEXT_TIMEOUT = 3
 GMAIL_ACTIONS = ("search", "get", "send")
 GMAIL_WRITES = {"send"}
 DRIVE_ACTIONS = ("search", "get", "download", "upload")
@@ -278,6 +293,27 @@ def _values(args: dict) -> list:
     return values
 
 
+def _batch(args: dict) -> list[dict]:
+    data = args.get("data")
+    if not isinstance(data, list) or not data:
+        raise AccessError("data must be a non-empty array of {range, values}")
+    if len(data) > BATCH_LIMIT:
+        raise AccessError(f"data holds {len(data)} ranges; send at most {BATCH_LIMIT} per call")
+    batch = []
+    for item in data:
+        if not isinstance(item, dict) or set(item) - {"range", "values"}:
+            raise AccessError("each data item is {range, values}")
+        batch.append({"range": _str(item, "range"), "values": _values(item)})
+    return batch
+
+
+def _sheet_id(args: dict) -> str:
+    sid = _str(args, "spreadsheet_id")
+    if not SPREADSHEET_ID.match(sid):
+        raise AccessError(f"not a spreadsheet id: {sid!r}")
+    return sid
+
+
 def _addresses(args: dict, key: str, required: bool = False) -> list[str]:
     value = args.get(key)
     if value in (None, "", []):
@@ -331,7 +367,7 @@ def sheets(home, args: dict) -> dict:
         return {"ok": True, "spreadsheet_id": made["spreadsheetId"], "url": made.get("spreadsheetUrl"),
                 "title": made.get("properties", {}).get("title")}
 
-    sid = _str(args, "spreadsheet_id")
+    sid = _sheet_id(args)
     api = _service(home, "sheets", "v4", SHEETS)
     book = api.spreadsheets()
     if action == "info":
@@ -361,11 +397,17 @@ def sheets(home, args: dict) -> dict:
         return {"ok": True, "spreadsheet_id": sid, "ranges": [
             {"range": r.get("range"), "values": r.get("values", [])} for r in got.get("valueRanges", [])]}
 
+    option = "RAW" if args.get("raw") else "USER_ENTERED"
+    if action == "batch_update":
+        data = _batch(args)
+        done = _google(lambda: values.batchUpdate(spreadsheetId=sid, body={
+            "valueInputOption": option, "data": data}).execute())
+        return {"ok": True, "spreadsheet_id": sid, "updated_ranges": len(done.get("responses", [])),
+                "updated_rows": done.get("totalUpdatedRows"), "updated_cells": done.get("totalUpdatedCells")}
     rng = _str(args, "range")
     if action == "clear":
         done = _google(lambda: values.clear(spreadsheetId=sid, range=rng, body={}).execute())
         return {"ok": True, "spreadsheet_id": sid, "cleared_range": done.get("clearedRange")}
-    option = "RAW" if args.get("raw") else "USER_ENTERED"
     body = {"values": _values(args)}
     if action == "update":
         done = _google(lambda: values.update(spreadsheetId=sid, range=rng, valueInputOption=option,
@@ -726,26 +768,224 @@ def _rule_key(tool: str, args: dict) -> str:
     return f"google-access:{tool}:{digest}"
 
 
-def approval_request(tool: str, args: dict) -> tuple[str, str] | None:
+# --- Sheets approval cards ------------------------------------------------------------------------
+
+MORE = "(+{n} more cells)"
+EMPTY = "(empty)"
+_CONTEXT: dict[str, tuple[float, str | None, dict]] = {}
+_CONTEXT_LOCK = threading.Lock()
+
+
+def split_range(rng: str) -> tuple[str | None, str]:
+    """(tab or None, cell reference) of an A1 range; a bare word is a tab name."""
+    if rng.startswith("'"):
+        tab, i = [], 1
+        while i < len(rng):
+            if rng[i] == "'":
+                if rng[i + 1:i + 2] == "'":
+                    tab.append("'")
+                    i += 2
+                    continue
+                break
+            tab.append(rng[i])
+            i += 1
+        rest = rng[i + 1:]
+        return "".join(tab), rest[1:] if rest.startswith("!") else rest
+    if "!" in rng:
+        tab, ref = rng.split("!", 1)
+        return tab, ref
+    if re.fullmatch(r"[A-Za-z]{1,3}\d*(:[A-Za-z]{1,3}\d*)?|\d+(:\d+)?", rng):
+        return None, rng
+    return rng, ""
+
+
+def _column_index(letters: str) -> int:
+    index = 0
+    for ch in letters.upper():
+        index = index * 26 + ord(ch) - 64
+    return index - 1
+
+
+def column_letters(index: int) -> str:
+    letters = ""
+    index += 1
+    while index:
+        index, rest = divmod(index - 1, 26)
+        letters = chr(65 + rest) + letters
+    return letters
+
+
+def _start(ref: str) -> tuple[int, int]:
+    match = re.match(r"([A-Za-z]*)(\d*)", ref.split(":")[0])
+    column = _column_index(match.group(1)) if match.group(1) else 0
+    return column, int(match.group(2)) if match.group(2) else 1
+
+
+def _quoted(tab: str) -> str:
+    return "'" + tab.replace("'", "''") + "'"
+
+
+def _fetch_context(home, sid: str, tabs: set) -> tuple[str | None, dict, list]:
+    book = _service(home, "sheets", "v4", SHEETS).spreadsheets()
+    meta = book.get(spreadsheetId=sid, fields="properties.title,sheets.properties.title").execute()
+    title = meta.get("properties", {}).get("title")
+    names = [s.get("properties", {}).get("title") for s in meta.get("sheets", [])]
+    first = names[0] if names else None
+    wanted = sorted({first if tab is None else tab for tab in tabs if tab is None or tab in names} - {None})
+    headers = {}
+    if wanted:
+        got = book.values().batchGet(spreadsheetId=sid, ranges=[f"{_quoted(t)}!1:1" for t in wanted]).execute()
+        for tab, block in zip(wanted, got.get("valueRanges", [])):
+            headers[tab] = (block.get("values") or [[]])[0]
+    if first is not None:
+        headers[None] = headers.get(first, [])
+    return title, headers, names
+
+
+def _sheet_context(home, sid: str, tabs: set) -> tuple[str | None, dict, list | None]:
+    """(spreadsheet title, {tab: header row}, tab names or None) for a card; never raises.
+
+    Cached for CONTEXT_TTL (a failure for CONTEXT_FAIL_TTL), and bounded by CONTEXT_TIMEOUT: the
+    hook runs before Hermes checks an existing grant, so a slow lookup must not hold up edits
+    that are already approved. A lookup that outlives the wait still fills the cache."""
+    if home is None:
+        return None, {}, None
+    now = time.monotonic()
+    with _CONTEXT_LOCK:
+        cached = _CONTEXT.get(sid)
+    if cached:
+        stamp, title, headers, names = cached
+        if names is None and now - stamp < CONTEXT_FAIL_TTL:
+            return None, {}, None
+        known = names is not None and all(t in headers or t not in names for t in tabs)
+        if known and now - stamp < CONTEXT_TTL:
+            return title, headers, names
+    result = {}
+
+    def lookup():
+        try:
+            value = _fetch_context(home, sid, tabs)
+        except Exception:
+            value = (None, {}, None)
+        with _CONTEXT_LOCK:
+            _CONTEXT[sid] = (time.monotonic(), *value)
+        result["value"] = value
+
+    worker = threading.Thread(target=lookup, name="google-access-card", daemon=True)
+    worker.start()
+    worker.join(CONTEXT_TIMEOUT)
+    return result.get("value", (None, {}, None))
+
+
+def _cell(value, empty: str, limit: int = CELL_CLIP) -> str:
+    text = re.sub(r"\s+", " ", "" if value is None else str(value)).strip()
+    if not text:
+        return empty
+    return text if len(text) <= limit else text[:limit - 1] + "…"
+
+
+def _units(text: str) -> int:
+    """Length as the chat platform counts it: HTML-escaped, in UTF-16 code units."""
+    return len(html.escape(text).encode("utf-16-le")) // 2
+
+
+def _fit(head: list[str], cells: list[str], more: str) -> str:
+    """Header lines, then as many cell lines as CARD_LIMIT allows, then a count of the rest.
+    The first (title) line gives way first, so the count always survives."""
+    lines = list(head)
+    reserve = "\n" + more.format(n=len(cells)) if cells else ""
+    while lines and len(lines[0]) > 12 and _units("\n".join(lines) + reserve) > CARD_LIMIT:
+        lines[0] = lines[0][:-6].rstrip("…") + "…"
+    for i, line in enumerate(cells):
+        after = len(cells) - i - 1
+        tail = "\n" + more.format(n=after) if after else ""
+        if _units("\n".join(lines + [line]) + tail) > CARD_LIMIT:
+            lines.append(more.format(n=len(cells) - i))
+            break
+        lines.append(line)
+    text = "\n".join(lines)
+    while _units(text) > CARD_LIMIT:  # only a pathological header gets here
+        text = text[:-8] + "…"
+    return text
+
+
+def _tabs_summary(tabs: list, names: list | None = None) -> str:
+    def show(tab):
+        if tab is None:
+            return _cell(names[0], "", TAB_CLIP) if names else "(first sheet)"
+        return _cell(tab, "?", TAB_CLIP)
+    return ", ".join(show(t) for t in tabs[:3]) + (f" +{len(tabs) - 3}" if len(tabs) > 3 else "")
+
+
+def _sheets_card(home, action: str, args: dict) -> str:
+    """Plain English, one fact per line, so the card reads at a glance:
+
+        SpreadSheet: <title>
+        Sheet: <tab>
+
+        K3257 > <column header>: <value>
+    """
+    if action == "create":
+        names = args.get("sheet_names") or []
+        head = [f"Create SpreadSheet: {_cell(args.get('title'), '?', TITLE_CLIP)}"]
+        if names:
+            head.append(f"Sheets: {_tabs_summary(names)}")
+        return _fit(head, [], MORE)
+    sid = _sheet_id(args)
+    if action in ("add_sheet", "clear"):
+        title, _, _ = _sheet_context(home, sid, set())
+        head = [f"SpreadSheet: {_cell(title, '', TITLE_CLIP) or sid}"]
+        if action == "add_sheet":
+            head.append(f"Add sheet: {_cell(_str(args, 'title'), '?', TAB_CLIP)}")
+        else:
+            head.append(f"Clear: {_cell(_str(args, 'range'), '?', TAB_CLIP)}")
+        return _fit(head, [], MORE)
+    blocks = _batch(args) if action == "batch_update" else [{"range": _str(args, "range"),
+                                                            "values": _values(args)}]
+    parsed = [(split_range(b["range"]), b["values"]) for b in blocks]
+    title, headers, names = _sheet_context(home, sid, {tab for (tab, _), _ in parsed})
+    cells, tabs = [], []
+    for (tab, ref), rows in parsed:
+        if tab not in tabs:
+            tabs.append(tab)
+        # A bare word is a whole tab or a named range; only a known tab name says where it starts.
+        relative = not ref and tab is not None and (names is None or tab not in names)
+        column, row = _start(ref)
+        header = [] if relative else headers.get(tab, [])
+        for r, values in enumerate(rows):
+            for c, value in enumerate(values):
+                index = column + c
+                if relative:
+                    where = f"R{r + 1}C{c + 1}"
+                elif action == "append":
+                    where = f"{column_letters(index)}(+{r + 1})"
+                else:
+                    where = f"{column_letters(index)}{row + r}"
+                label = _cell(header[index], "", TAB_CLIP) if index < len(header) else ""
+                cells.append(f"{where} > {label + ': ' if label else ''}{_cell(value, EMPTY)}")
+    head = [f"SpreadSheet: {_cell(title, '', TITLE_CLIP) or sid}", f"Sheet: {_tabs_summary(tabs, names)}", ""]
+    return _fit(head, cells, MORE)
+
+
+def approval_request(tool: str, args: dict, home=None) -> tuple[str, str] | None:
     """(reason shown to the human, allowlist rule key) for a call that changes something, else None.
 
     Raises AccessError for a call the tool would reject anyway, so it is blocked without asking.
-    The rule key covers the exact arguments, so an "always" answer never widens to other writes.
+    Spreadsheet edits share one key per spreadsheet, so "session" / "always" on the first card
+    covers the rest of that spreadsheet; every other rule key covers the exact arguments, so an
+    "always" answer never widens to other writes. ``home`` lets the card read the spreadsheet's
+    title and header row; without it the card shows ids and column letters.
     """
     args = args if isinstance(args, dict) else {}
     if tool == "google_sheets":
         action = _action(args, SHEETS_ACTIONS)
         if action not in SHEETS_WRITES:
             return None
-        target = args.get("spreadsheet_id") or "(new spreadsheet)"
-        lines = [f"Google Sheets {action} on {target}"]
-        for key in ("range", "title", "sheet_names"):
-            if args.get(key):
-                lines.append(f"{key}: {_preview(args[key], 200)}")
-        if action in ("update", "append"):
-            values = _values(args)
-            lines.append(f"{len(values)} row(s): {_preview(values)}")
-    elif tool == "google_gmail":
+        reason = _sheets_card(home, action, args)
+        if action in SHEETS_EDITS:
+            return reason, f"google-access:sheets-edit:{_sheet_id(args)}"
+        return reason, _rule_key(tool, args)
+    if tool == "google_gmail":
         if _action(args, GMAIL_ACTIONS) not in GMAIL_WRITES:
             return None
         lines = ["Send an email from the user's Gmail",
