@@ -166,6 +166,15 @@ live under `profiles/creator/skills`. Skill placement (validator-enforced):
 - The assistant's `assistant-pipeline` (kernel + 19 child entries + shared mode
   references) is a private-overlay symlink; its pinned Telegram topics bind no
   skill (their contracts are `channel_prompts` entries).
+- The assistant also has a **private technic shelf** for technics that must not
+  be public: the overlay's `hermes/profiles/assistant/skills/technic/` (same
+  flat leaf shape as `technic/`), read through one `skills.external_dirs` entry
+  in its private `config.yaml` — never a link into the public `technic/` (its
+  names would show in `git status`) and never the overlay's whole `skills/`
+  (that indexes `assistant-pipeline` twice). The runtime index groups such a
+  leaf under its own name rather than `technic`; loading by name is unchanged.
+  The validator checks its shape, its `external_dirs` entry and that each name
+  is unique across every source the assistant reads.
 - `learned/` is never a dispatch or Git ownership surface.
 
 ## Tracked vs ignored
@@ -194,15 +203,21 @@ every worker's `<profile>-pipeline/` and `technic/` are maintainer-owned and
 tracked normally. The assistant's `assistant-pipeline/` is maintainer-owned too
 but lives in the private overlay — a symlink into `~/.config/private`, because
 it encodes the personal messaging operation and this repo is public. Edit it
-through the same path; commit in the overlay repo. Never use `skip-worktree` for
-managed skills: their changes must remain visible in `git status`.
+through the same path; commit in the overlay repo. The assistant's private
+technic shelf is likewise maintainer-owned and committed in the overlay repo.
+Never use `skip-worktree` for managed skills: their changes must remain visible
+in `git status`.
 
 **Promoting a learned skill** is an explicit review step: review it, move the
 complete package from `learned/` into `technic/`, set
 `metadata.hermes.category: technic` and normalize its routing, add it to the
 pipeline's capability registry when applicable, pin an agent-created source
 against curator writes with `hermes -p <profile> curator pin <name>`, then
-commit it normally.
+commit it normally. An assistant skill that must stay private moves to the
+private technic shelf instead and is committed in the overlay repo; no pin is
+needed there, because the curator never touches `external_dirs` skills. Move,
+never copy: the same name in `learned/` and the shelf makes `skill_view`
+refuse it as ambiguous.
 
 ## Profiles
 
@@ -394,7 +409,9 @@ keeps user keys.
 - **writing-inspection** (`standalone`): Writer's bounded `writing_inspect`.
 - **kanban-worker-mutation-guard** (`standalone`): stops dispatcher workers
   from creating, linking or releasing Kanban cards outside the Assistant path.
-- **skill-topology** (`standalone`): the topology guard's home, plus a
+- **skill-topology** (`standalone`): the topology guard's home — it blocks
+  runtime writes into maintainer skill trees here and into the private
+  overlay's `hermes/profiles/*/skills/` (both outside `learned/`) — plus a
   `tool_request` middleware that strips a redundant `category: learned` from
   skill creates; it does not
   intercept dashboard direct-create APIs or arbitrary terminal/file writes — the

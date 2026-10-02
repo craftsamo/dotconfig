@@ -552,6 +552,112 @@ class GitBoundaryOverlayTest(unittest.TestCase):
         self.assertTrue(errors, "dangling overlay symlink must be reported")
 
 
+class AssistantPrivateTechnicTest(unittest.TestCase):
+    """The private technic shelf mirrors technic/ and is read via external_dirs."""
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        root = Path(self._tmp.name).resolve()
+        self.overlay = root / "private"
+        self.technic = self.overlay / "hermes/profiles/assistant/skills/technic"
+        self.pipeline = self.overlay / "hermes/profiles/assistant/skills/assistant-pipeline"
+        self.pipeline.mkdir(parents=True)
+        self.profile = root / "public/profiles/assistant"
+        (self.profile / "skills/learned").mkdir(parents=True)
+        for name, value in (("PRIVATE_OVERLAY", self.overlay), ("ASSISTANT_PIPELINE", self.pipeline)):
+            patcher = mock.patch.object(VALIDATOR, name, value)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+        self.config = self.profile / "config.yaml"
+        self.write_config([str(self.technic)])
+        self.leaf("example")
+
+    def write_config(self, external_dirs: list[str]) -> None:
+        lines = "".join(f"    - {entry}\n" for entry in external_dirs)
+        self.config.write_text(f"skills:\n  external_dirs:\n{lines}", encoding="utf-8")
+
+    def leaf(self, name: str, category: str = "technic", base: Path | None = None) -> Path:
+        path = (base or self.technic) / name / "SKILL.md"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            f"---\nname: {name}\ndescription: x\nmetadata:\n  hermes:\n"
+            f"    category: {category}\n---\n",
+            encoding="utf-8",
+        )
+        return path
+
+    def validate(self) -> tuple[int, list[str]]:
+        errors: list[str] = []
+        count = VALIDATOR.validate_assistant_private_technics(self.technic, self.config, errors)
+        return count, errors
+
+    def assertError(self, fragment: str) -> None:
+        _, errors = self.validate()
+        self.assertTrue(any(fragment in error for error in errors), errors)
+
+    def test_listed_unique_leaf_is_valid(self) -> None:
+        self.assertEqual((1, []), self.validate())
+        self.assertEqual(self.technic, VALIDATOR.assistant_private_technic_dir())
+
+    def test_absent_shelf_is_optional(self) -> None:
+        import shutil
+
+        shutil.rmtree(self.technic)
+        self.write_config([])
+        self.assertEqual((0, []), self.validate())
+
+    def test_listed_but_missing_shelf_fails(self) -> None:
+        import shutil
+
+        shutil.rmtree(self.technic)
+        self.assertError("lists a missing private technic directory")
+
+    def test_unlisted_shelf_fails(self) -> None:
+        self.write_config([])
+        self.assertError("is not in skills.external_dirs")
+
+    def test_leaf_must_be_a_technic(self) -> None:
+        self.leaf("example", category="learned")
+        self.assertError("metadata.hermes.category must be technic")
+
+    def test_names_must_be_unique_across_sources(self) -> None:
+        self.leaf("example", category="anything", base=self.profile / "skills/learned")
+        self.assertError("private technic name example is not unique")
+        self.leaf("chat-assistant")
+        self.assertError("private technic name chat-assistant is not unique")
+
+    def test_names_are_unique_against_other_external_dirs(self) -> None:
+        other = self.overlay / "hermes/skills"
+        self.leaf("example", category="data", base=other / "cluster")
+        self.write_config([str(self.technic), str(other)])
+        self.assertError("private technic name example is not unique")
+
+    def test_shelf_holds_real_flat_leaves_only(self) -> None:
+        self.leaf("nested", base=self.technic / "group")
+        self.assertError("unexpected private technic root")
+
+    def test_symlinks_are_rejected(self) -> None:
+        (self.technic / "linked").symlink_to(self.pipeline, target_is_directory=True)
+        self.assertError("must not contain symlinks")
+
+    def test_names_match_frontmatter_names_too(self) -> None:
+        other = self.leaf("renamed", category="data", base=self.overlay / "hermes/skills")
+        other.write_text(other.read_text(encoding="utf-8").replace("name: renamed", "name: example"),
+                         encoding="utf-8")
+        self.write_config([str(self.technic), str(self.overlay / "hermes/skills")])
+        self.assertError("private technic name example is not unique")
+
+    def test_listing_an_ancestor_of_the_pipeline_fails(self) -> None:
+        self.write_config([str(self.technic), str(self.technic.parent)])
+        self.assertError("also contains assistant-pipeline")
+        import shutil
+
+        shutil.rmtree(self.technic)
+        self.write_config([str(self.technic.parent)])
+        self.assertError("also contains assistant-pipeline")
+
+
 class AssistantDmTopicsTest(unittest.TestCase):
     """Pinned DM topics are skill-less; Inbox keeps its literal name."""
 
