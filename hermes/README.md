@@ -394,7 +394,9 @@ keeps user keys.
 - **writing-inspection** (`standalone`): Writer's bounded `writing_inspect`.
 - **kanban-worker-mutation-guard** (`standalone`): stops dispatcher workers
   from creating, linking or releasing Kanban cards outside the Assistant path.
-- **skill-topology** (`standalone`): the topology guard's home, plus a
+- **skill-topology** (`standalone`): the topology guard's home — it blocks
+  runtime writes into maintainer skill trees here and into the private
+  overlay's `hermes/profiles/*/skills/` (both outside `learned/`) — plus a
   `tool_request` middleware that strips a redundant `category: learned` from
   skill creates; it does not
   intercept dashboard direct-create APIs or arbitrary terminal/file writes — the

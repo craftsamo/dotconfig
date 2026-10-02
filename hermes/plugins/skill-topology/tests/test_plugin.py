@@ -89,6 +89,7 @@ class ManagedSkillWriteGuardTest(unittest.TestCase):
         cls.addClassCleanup(temporary.cleanup)
         cls.fixture_root = Path(temporary.name).resolve()
         cls.plugin.MANAGED_ROOT = cls.fixture_root / "hermes"
+        cls.plugin.PRIVATE_ROOT = cls.fixture_root / "private/hermes"
         cls.managed = str(
             cls.plugin.MANAGED_ROOT
             / "profiles/image-creator/skills/image-creator-pipeline/create/emoji/scripts/text-emoji.sh"
@@ -567,6 +568,63 @@ class ManagedSkillWriteGuardTest(unittest.TestCase):
 
     def test_skill_manage_create_is_left_to_create_dir(self) -> None:
         self.assertIsNone(self.guard("skill_manage", action="create", name="example"))
+
+
+class PrivateOverlaySkillWriteGuardTest(unittest.TestCase):
+    """Private-overlay profile skill trees are maintainer-owned as well."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.plugin = load_plugin()
+        temporary = tempfile.TemporaryDirectory(prefix="skill-topology-private-")
+        cls.addClassCleanup(temporary.cleanup)
+        root = Path(temporary.name).resolve()
+        cls.plugin.MANAGED_ROOT = root / "hermes"
+        cls.plugin.PRIVATE_ROOT = root / "private/hermes"
+        cls.public_skills = cls.plugin.MANAGED_ROOT / "profiles/assistant/skills"
+        cls.private_skills = cls.plugin.PRIVATE_ROOT / "profiles/assistant/skills"
+        for directory in (cls.public_skills, cls.private_skills / "assistant-pipeline",
+                          cls.private_skills / "technic/example",
+                          cls.plugin.PRIVATE_ROOT / "skills/workspaces"):
+            directory.mkdir(parents=True)
+        # The public tree reaches the private pipeline through one overlay link.
+        cls.overlay_link = cls.public_skills / "assistant-pipeline"
+        cls.overlay_link.symlink_to(cls.private_skills / "assistant-pipeline", target_is_directory=True)
+        cls.technic = str(cls.private_skills / "technic/example/SKILL.md")
+
+    def guard(self, tool_name: str, **args: Any) -> Any:
+        return self.plugin._guard_managed_skill_writes(tool_name=tool_name, args=args)
+
+    def test_private_technic_and_pipeline_writes_are_blocked(self) -> None:
+        for path in (self.technic, str(self.private_skills / "assistant-pipeline/SKILL.md"),
+                     str(self.overlay_link / "SKILL.md")):
+            with self.subTest(path=path):
+                self.assertEqual(self.guard("write_file", path=path, content="x")["action"], "block")
+                self.assertEqual(self.guard("patch", path=path, old_string="a", new_string="b")["action"], "block")
+                self.assertEqual(self.guard("skill_manage", action="patch", path=path)["action"], "block")
+                self.assertEqual(self.guard("terminal", command=f"echo x > {path}")["action"], "block")
+
+    def test_private_skill_containers_are_protected(self) -> None:
+        for target in (self.private_skills, self.private_skills / "technic",
+                       self.private_skills.parent, self.plugin.PRIVATE_ROOT):
+            with self.subTest(target=target):
+                self.assertEqual(self.guard("terminal", command=f"rm -rf {target}")["action"], "block")
+
+    def test_private_paths_in_opaque_commands_fail_closed(self) -> None:
+        result = self.guard("terminal", command=f"bash -c 'rm {self.technic}'")
+        self.assertEqual(result["action"], "block")
+
+    def test_default_private_root_follows_the_checkout(self) -> None:
+        fresh = load_plugin()
+        self.assertEqual(fresh.MANAGED_ROOT.parent / "private" / "hermes", fresh.PRIVATE_ROOT)
+
+    def test_private_learned_and_non_skill_paths_stay_writable(self) -> None:
+        for path in (self.private_skills / "learned/x/SKILL.md",
+                     self.plugin.PRIVATE_ROOT / "profiles/assistant/notes.txt",
+                     self.plugin.PRIVATE_ROOT / "skills/workspaces/x/SKILL.md"):
+            with self.subTest(path=path):
+                self.assertIsNone(self.guard("write_file", path=str(path), content="x"))
+                self.assertIsNone(self.guard("terminal", command=f"echo x > {path}"))
 
 
 if __name__ == "__main__":
