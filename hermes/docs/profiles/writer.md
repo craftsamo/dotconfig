@@ -35,8 +35,8 @@ Every Writer execution entry, including consultation, follows the shared
 [entry loading contract](../topology.md#entry-loading-contract): full kernel,
 selected entry body and current required detail references on each inbound turn,
 completion notification and before a midturn operation/subject/scope change.
-Status (v8): user-approved migration implemented in the isolated candidate,
-pending explicit cutover; not deployed, restarted or real-model validated. The
+Status (v8): deployed in the live checkout and exercised with real models
+through Assistant resident `work` calls from both CLI and Telegram. The
 root name `writer-pipeline`, all 18 production leaf names, paths and forms, and
 the canonical shared `references/acceptance/` stay unchanged; `consult-writer`
 is the one new entry. Rollback restores matched producer/caller contracts
