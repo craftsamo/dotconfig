@@ -12,8 +12,18 @@ the look is iterated against the reference and the leaf's Standard.
 | `1:1` | 1080x1080 |
 | `4:5` | 1080x1350 |
 
-Always 30fps, 3..60 seconds. A ratio change is a new storyboard, never a
-crop or scale of an approved layout.
+3..60 seconds. A ratio change is a new storyboard, never a crop or scale of
+an approved layout.
+
+`fps` is 24, 25, 30, 50 or 60; omitted means 30. Take the client's rate when
+the form names one. Otherwise, when reproducing or matching a reference,
+`promotion.py propose --reference <video>` reports `reference_fps` and
+`suggested_fps` (the nearest allowed rate: 59.94 -> 60, 23.976 -> 24);
+write that rate into the storyboard. Without either, keep 30. Drafts render
+at the storyboard rate capped at 30, so the improve loop stays fast; the
+final renders at the storyboard rate. GSAP motion is time-based, so a draft
+and its final show the same motion at different sampling. A rate change is
+a new storyboard, like an aspect change.
 
 ## Storyboard (`storyboard.md`)
 
@@ -65,12 +75,14 @@ One line per pending id: what it is, which producer, the exact spec.
 `promotion.py propose` checks: front matter keys and values, beats rows with
 numeric `start`/`end` that are contiguous from 0 to `duration` (±0.05s),
 and that `pending` ids are listed under `## Pending`. It never judges taste.
+`--reference` adds the measured `reference_fps` and `suggested_fps` to
+`proposal.json` and never rewrites the storyboard.
 
 ## Source Contract
 
 - One `index.html` whose root element is
   `<div id="root" data-composition-id="promotion" data-start="0"
-  data-width="<w>" data-height="<h>" data-duration="<duration>" data-fps="30">`
+  data-width="<w>" data-height="<h>" data-duration="<duration>" data-fps="<fps>">`
   with an opaque background. Sub-compositions are allowed only as local files
   referenced from it.
 - Copy `gsap.min.js`, `GSAP-LICENSE.txt`, `gsap-provenance.json` from
@@ -157,8 +169,9 @@ python3 ${HERMES_SKILL_DIR}/scripts/promotion.py render --approved-plan <storybo
 
 Verifies the storyboard hash and front matter, the root canvas/duration, no
 remote URLs, runs `hyperframes lint` (strict on final), renders with the
-installed `hyperframes` CLI, probes the MP4 (canvas, 30fps, duration ±0.1s,
-audio presence), measures loudness/true peak, writes `sheet.png` and
+installed `hyperframes` CLI (drafts at the storyboard fps capped at 30, the
+final at the storyboard fps), probes the MP4 (canvas, that fps, duration
+±0.1s, audio presence), measures loudness/true peak, writes `sheet.png` and
 `render.json` with a source tree hash. With `--reference` it also writes
 `compare.png`: reference frames above, draft frames below, at the same eight
 relative positions of each film (a reference of another length still fills
