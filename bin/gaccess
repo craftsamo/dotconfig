@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# gaccess — one-time setup of the Hermes google-access plugin (Sheets, Gmail, Drive, gcloud).
+#
+#   gaccess auth ~/Downloads/client_secret.json   authorize Google in the browser, store the token
+#   gaccess gcloud-login                          log Hermes' own gcloud configuration in
+#   gaccess check                                 token, granted scopes, gcloud account
+#   gaccess revoke                                revoke and delete the Google token
+#   gaccess paths                                 where the state lives
+#   gaccess --profile NAME …                      another profile (default assistant)
+#
+# The code lives in the Hermes google-access plugin (hermes/plugins/google-access/
+# access.py) and needs the Google client libraries of Hermes' own Python (hermes-python).
+# The state stays in ~/.hermes/profiles/<profile>/google-access/, outside every repository.
+# Overrides: GACCESS_CLI.
+set -euo pipefail
+
+cli="${GACCESS_CLI:-$HOME/.config/hermes/plugins/google-access/access.py}"
+if [[ ! -f $cli ]]; then
+  echo "gaccess: cannot find $cli (set GACCESS_CLI)" >&2
+  exit 127
+fi
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+exec "$here/hermes-python" "$cli" "$@"
