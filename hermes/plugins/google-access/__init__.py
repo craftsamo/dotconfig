@@ -38,10 +38,15 @@ SHEETS_DESCRIPTION = (
     "The user's own Google Sheets. search (query = part of a file name; lists spreadsheets), "
     "info (spreadsheet_id; title, URL and tabs), get (spreadsheet_id + range or ranges in A1 "
     "notation, e.g. 'Sheet1!A1:D20'; unformatted=true for raw numbers), update (range + values: "
-    "overwrite), append (range + values: add rows after the table), clear (range), create "
-    "(title, optional sheet_names), add_sheet (spreadsheet_id + title: a new tab). values are rows "
-    "of cells; they are typed as in the UI (formulas work) unless raw=true. "
-    + APPROVAL.format("update, append, clear, create, add_sheet"))
+    "overwrite), batch_update (data = [{range, values}, …], up to 500 ranges in one call), append "
+    "(range + values: add rows after the table), clear (range), create (title, optional "
+    "sheet_names), add_sheet (spreadsheet_id + title: a new tab). values are rows of cells; they "
+    "are typed as in the UI (formulas work) unless raw=true. Write many rows or scattered cells "
+    "in one batch_update or one multi-row update, never one call per row. "
+    + APPROVAL.format("update, batch_update, append, clear, create, add_sheet") + " "
+    "Edits to one spreadsheet are approved once: after the user answers \"session\" or \"always\", "
+    "further edits to that spreadsheet run without asking; clear and create are approved per exact "
+    "call.")
 
 GMAIL_DESCRIPTION = (
     "The user's own Gmail. search (query in Gmail search syntax, e.g. 'from:alice newer_than:7d "
@@ -80,6 +85,11 @@ SCHEMAS = {
         "values": {"type": "array", "items": {"type": "array", "items": {
                        "description": "a cell: text, number or boolean"}},
                    "description": "update / append: rows of cell values"},
+        "data": {"type": "array", "description": "batch_update: ranges and their rows", "items": {
+            "type": "object", "required": ["range", "values"], "additionalProperties": False,
+            "properties": {"range": {"type": "string", "description": "A1 range"},
+                           "values": {"type": "array", "items": {"type": "array", "items": {
+                               "description": "a cell: text, number or boolean"}}}}}},
         "raw": {"type": "boolean", "description": "store values as typed text, no parsing"},
         "unformatted": {"type": "boolean", "description": "get: raw values instead of displayed text"},
         "title": {"type": "string", "description": "create: file title; add_sheet: tab title"},
@@ -140,6 +150,14 @@ def _home():
     return get_hermes_home()
 
 
+def _card_home():
+    """The profile home, for the approval card's title and header lookup; None if unavailable."""
+    try:
+        return _home()
+    except Exception:
+        return None
+
+
 def _run(tool, args):
     try:
         if _inbound_peer():
@@ -182,7 +200,7 @@ def gate(**kwargs):
         if _inbound_peer():
             return {"action": "block", "message": f"{tool} is not available to inbound A2A requests"}
         try:
-            request = access.approval_request(tool, args if isinstance(args, dict) else {})
+            request = access.approval_request(tool, args if isinstance(args, dict) else {}, home=_card_home())
         except Exception as exc:
             return {"action": "block", "message": f"{tool}: {exc}"}
         if request:
