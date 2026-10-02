@@ -498,7 +498,8 @@ def test_runner_real_subprocess_scrubs_injected_scope(caller, monkeypatch, tmp_p
                       "print('session_id: child-session', file=sys.stderr)\n"
                       f"sys.exit({exit_code})\n")
     binary.chmod(0o755)
-    env = {**os.environ, "HOME": str(user_home), "PATH": f"{decoy}:/usr/bin:/bin", "HERMES": "/not/a/binary",
+    env = {k: v for k, v in os.environ.items() if k != "PYTHONPATH"}
+    env = {**env, "HOME": str(user_home), "PATH": f"{decoy}:/usr/bin:/bin", "HERMES": "/not/a/binary",
            "HERMES_HOME": "/spoof/profiles/writer", "HERMES_SESSION_PROFILE": "writer",
            "HERMES_SESSION_PLATFORM": "telegram", "HERMES_SESSION_ID": "stale-owner",
            "HERMES_SESSION_SOURCE": "telegram", "HERMES_KANBAN_TASK": "spoofed",
@@ -1167,8 +1168,10 @@ def test_resident_prompt_preamble_is_handoff_text(caller, monkeypatch, tmp_path)
     # test rather than the plugin's own (already-consumed) -f flag.
     commands = background(caller, monkeypatch)
     call(kind="work")
-    bindir = tmp_path / "bin"
-    bindir.mkdir()
+    # The runner runs under Hermes' bootstrap, which puts Hermes' own launcher first on
+    # PATH; resident-session.sh therefore takes the shim path under HOME, so fake that.
+    bindir = tmp_path / "home" / ".config" / "bin"
+    bindir.mkdir(parents=True)
     binary = bindir / "hermes"
     binary.write_text(f"#!{sys.executable}\n" + "import sys\n"
                       "prompt = sys.argv[sys.argv.index('-q') + 1]\n"
@@ -1177,9 +1180,10 @@ def test_resident_prompt_preamble_is_handoff_text(caller, monkeypatch, tmp_path)
     binary.chmod(0o755)
     env = {**os.environ, "HOME": str(tmp_path / "home"), "PATH": f"{bindir}:/usr/bin:/bin"}
     run = subprocess.run(shlex.split(commands[0]["command"]), env=env, capture_output=True, text=True, timeout=15)
+    assert run.stdout, run.stderr
     data = json.loads(run.stdout)
     logged_prompt = data["result"]
-    assert logged_prompt.startswith("Specialist handoff (runtime record)")
+    assert logged_prompt.startswith("Specialist handoff (runtime record)"), (data["status"], data.get("error"))
     assert "Current agent request:\nhello\nEnd current agent request." in logged_prompt
 
 
@@ -1583,6 +1587,8 @@ def real_cli(caller, monkeypatch, tmp_path):
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
     # No version-manager shims: with a fresh HOME they resolve tools over the network.
     monkeypatch.setenv("PATH", "/usr/bin:/bin")
+    # Like the gateway: runners get no PYTHONPATH and must find Hermes by themselves.
+    monkeypatch.delenv("PYTHONPATH", raising=False)
     monkeypatch.setenv("FAKE_ROOT", str(tmp_path))
     monkeypatch.setenv("FAKE_DELAY", "1.5")
     yield home, tmp_path
@@ -1886,3 +1892,31 @@ def test_inbound_inquiry_cannot_detach(caller, monkeypatch):
     monkeypatch.setattr(p, "_scope", lambda: (home, "owner-one", False, True))
     assert "synchronous" in call(wait=False)["error"]
     assert not calls and not list((home / "specialist-sessions").glob("*.json"))
+
+
+
+def test_runner_finds_hermes_without_pythonpath(tmp_path):
+    # The gateway puts its checkout on sys.path inside its own bootstrap, so a bare
+    # `sys.executable script` child could not import hermes_yaml (every runner died).
+    probe = tmp_path / "probe.py"
+    probe.write_text("import json, sys, hermes_yaml, tools.interrupt\n"
+                     "print(json.dumps({'argv': sys.argv, 'name': __name__}))\n")
+    command = p.runner_command(probe, tmp_path / "job.request")
+    assert "-I" in command, "runners must not depend on the caller's environment"
+    env = {k: v for k, v in os.environ.items() if k != "PYTHONPATH"}
+    run = subprocess.run(command, env=env, capture_output=True, text=True, timeout=60)
+    assert run.returncode == 0, run.stderr
+    assert json.loads(run.stdout) == {"argv": [str(probe), str(tmp_path / "job.request")], "name": "__main__"}
+
+
+def test_runner_command_falls_back_outside_a_managed_install(monkeypatch, tmp_path):
+    import builtins
+    real_import = builtins.__import__
+
+    def no_launchers(name, *args, **kwargs):
+        if name == "hermes_cli" and args[2] and "_launchers" in args[2]:
+            raise ImportError("no PM launcher")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", no_launchers)
+    assert p.runner_command(tmp_path / "x.py", "r") == [sys.executable, str(tmp_path / "x.py"), "r"]

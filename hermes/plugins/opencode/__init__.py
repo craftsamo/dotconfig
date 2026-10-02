@@ -534,7 +534,7 @@ def opencode_call(args, **kwargs):
                 dispatch._write(root / (job + ".request"), request)
                 dispatch._write(root / (cid + ".json"), data)
         request_path = root / (job + ".request")
-        command = [sys.executable, str(Path(__file__).resolve()), str(request_path)]
+        command = dispatch.runner_command(Path(__file__).resolve(), request_path)
         if live:
             from tools.terminal_tool import terminal_tool
             try:
