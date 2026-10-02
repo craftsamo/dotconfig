@@ -14,6 +14,8 @@ Intro/outro default ON (title-reveal/result-hold). Offer the three reference
 examples with `other: true`, not an exhaustive menu. Preserve custom directions
 verbatim; unresolved ones need ONE clarification or concrete proposed beat.
 Only explicit none omits, never absence/blank. The whole tour is <=60 seconds.
+Pass `fps` (24/25/30/50/60) only when the client names a rate; omitted stays
+30 and keeps earlier approvals matching.
 URLs are context, not capture permission; sufficient text needs no image.
 Explicit modes first propose proposal-vN.md + SHA-256. A target URL alone is
 not consent: approve target/scope reconnaissance before access, then the

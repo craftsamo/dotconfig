@@ -36,7 +36,8 @@ Its claims are observations of the reference, not the client's usable facts.
 For final create-ad settle product/audience/message/cta, approved assets, supported
 claims and finished audio if needed; defaults are 15 seconds, aspect 9:16,
 office/bold-graphic/claim-led. Aspect selects 9:16 (1080x1920), 16:9
-(1920x1080), 1:1 (1080x1080) or 4:5 (1080x1350), all at 30fps. Author for
+(1920x1080), 1:1 (1080x1080) or 4:5 (1080x1350), at `fps` 24/25/30/50/60
+(default 30; settle it only when the client cares). Author for
 that canvas; do not resize/crop an approved layout from another ratio.
 An explicitly requested diagnostic unit can instead use create-ad's
 `purpose: study`, concrete `question` and 1..10s duration, omitting CTA. It is
