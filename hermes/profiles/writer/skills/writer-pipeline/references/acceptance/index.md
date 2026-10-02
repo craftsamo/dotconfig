@@ -23,6 +23,15 @@ evidence, not a claimed pass count.
 - **Cannot verify ≠ pass**: an unreadable file, missing evidence, or an
   unknown family/operation means NOT verified — obtain what is missing or
   say plainly it cannot be checked; never accept on resemblance.
+- **Named voice**: for text in a named person's or character's own name,
+  read that `characters` writing guide and the examples for the medium
+  yourself; Writer's report that it read them is not evidence. Check each
+  rule the guide states (register, endings, connectors, first person,
+  notation, banned items) with quotes. Every first-person claim must be
+  something the person did, or a dated check their agents did on their
+  behalf that the brief or sources record; an invented experience is a
+  defect. A text that hedges each sentence instead
+  of stating the person's conclusions misses the voice.
 - **Japanese inspection**: a Japanese text reports its `writing_inspect`
   result per mode. A mode reported unverified because of a tool error is
   an open dependency, not a pass.

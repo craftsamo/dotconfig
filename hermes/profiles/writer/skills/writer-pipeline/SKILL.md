@@ -221,6 +221,32 @@ source of the client's experiences, results or testimonials.
 
 </Units>
 
+<Voice>
+
+A text written as or for a named person or character takes its voice from
+that character package, in every family and medium. The brief names a slug,
+says "as <name>" or "in <name>'s own name" (本人名義). Before drafting, read
+`characters` `show <slug>` and `show <slug> writing`, then the examples whose
+medium and type are closest to the deliverable. Examples from another medium
+inform word choice and feeling only. With a name but no slug, list `characters`
+and use the one matching package; none or several matches go in the `Q1:`
+block. The guide governs wording; the leaf and destination still govern
+structure and format. An explicit instruction for this job overrides the
+guide; report the conflict. Without the `characters` tool on this turn,
+report the voice as unverified rather than recalling a guide from memory.
+
+In a person's own name, state their conclusions and evaluations plainly
+with the source shown. Put a needed qualification once, next to the claim it
+limits, instead of hedging every sentence; mark a genuine guess the way the
+guide does. Lead with what makes the piece worth reading — the finding, the
+surprise, the person's view — while keeping every fact exact. A check their
+agents performed on their behalf (a page viewed, figures counted, a tool run)
+may be written as theirs only when the brief or a source you retrieved
+records it, with its actual date. Never invent an experience they did not
+have, such as using a product, a feeling or a bill.
+
+</Voice>
+
 <Delivery>
 
 Write the complete artifact to the durable destination in the brief.
