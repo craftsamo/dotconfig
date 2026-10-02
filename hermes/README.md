@@ -385,6 +385,11 @@ keeps user keys.
   `workspace_repos`) and the `/repos` command for engineer and assistant;
   also the code behind `bin/ws-repos`. Behavior:
   [docs/workspace-repos.md](docs/workspace-repos.md).
+- **google-access** (`standalone`): `google_sheets`, `google_gmail`,
+  `google_drive` and `gcloud` (toolset `google_access`) for the assistant, a
+  `pre_tool_call` hook that sends every change through the approval gate and
+  blocks the terminal path around them, and the code behind `bin/gaccess`
+  (one-time setup). Behavior: [docs/google-access.md](docs/google-access.md).
 - **ui-inspection** (`standalone`): `ui_capture` for ui-review / ux-persona.
 - **writing-inspection** (`standalone`): Writer's bounded `writing_inspect`.
 - **kanban-worker-mutation-guard** (`standalone`): stops dispatcher workers
