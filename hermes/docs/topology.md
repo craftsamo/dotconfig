@@ -215,7 +215,9 @@ Three per-profile layers, kept separate:
   ownership types. A worker has one tracked `<profile>-pipeline/` plus tracked,
   directly selectable `technic/` leaves. The assistant owns `assistant-pipeline/`
   (kernel + 19 child entries), a private-overlay symlink — maintainer-owned but
-  tracked by the private-dotconfig repo; default owns the shared tracked
+  tracked by the private-dotconfig repo — and may add private technics on the
+  overlay's own `technic/` shelf, read through `skills.external_dirs` (see
+  [README "Layout"](../README.md#layout)); default owns the shared tracked
   `default-pipeline/` adapter. Pinned Telegram topics bind no skill (see
   [assistant.md](./profiles/assistant.md) "Pinned Telegram topics").
   Runtime-authored skills (background review, curator, `/learn`, ordinary
