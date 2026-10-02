@@ -712,3 +712,141 @@ def test_unknown_actions_are_rejected(tmp_path):
         with pytest.raises(access.AccessError, match="unknown action"):
             engine(tmp_path, {"action": "delete"})
 
+
+
+# --- row guards (expect) --------------------------------------------------------------------------
+
+def guarded_api(found):
+    """A Sheets client whose guard read returns ``found`` (one displayed value per guard)."""
+    api = mock.MagicMock()
+    values = api.spreadsheets().values()
+    values.batchGet().execute.return_value = {"valueRanges": [
+        {"values": [[v]]} if v is not None else {} for v in found]}
+    values.batchUpdate().execute.return_value = {"responses": [{}], "totalUpdatedRows": 1, "totalUpdatedCells": 3}
+    values.update().execute.return_value = {"updatedRange": "S!F2", "updatedCells": 1}
+    values.clear().execute.return_value = {"clearedRange": "S!F2"}
+    values.batchUpdate.reset_mock()
+    values.update.reset_mock()
+    values.clear.reset_mock()
+    values.batchGet.reset_mock()
+    return api, values
+
+
+GUARDED = {"action": "batch_update", "spreadsheet_id": SID,
+           "expect": [{"range": "bp候補!A2534", "value": "bp-2534"}, {"range": "bp候補!A2535", "value": 2535}],
+           "data": [{"range": "bp候補!F2534", "values": [["自動返信"]]},
+                    {"range": "bp候補!J2535", "values": [["2026-10-02"]]}]}
+
+
+def test_matching_guards_let_the_write_through(tmp_path, monkeypatch):
+    api, values = guarded_api([" bp-2534 ", "2535"])
+    services(monkeypatch, sheets=api)
+    result = access.sheets(tmp_path, GUARDED)
+    assert result["ok"] and values.batchUpdate.call_count == 1
+    kwargs = values.batchGet.call_args.kwargs
+    assert kwargs["ranges"] == ["bp候補!A2534", "bp候補!A2535"]
+    assert kwargs["valueRenderOption"] == "FORMATTED_VALUE"
+
+
+@pytest.mark.parametrize("found", [["bp-2535", "2535"], ["bp-2534", None], ["bp-2534", "2536"]])
+def test_one_mismatch_writes_nothing(tmp_path, monkeypatch, found):
+    api, values = guarded_api(found)
+    services(monkeypatch, sheets=api)
+    with pytest.raises(access.AccessError, match="nothing written") as error:
+        access.sheets(tmp_path, GUARDED)
+    assert values.batchUpdate.call_count == 0
+    assert "expected" in str(error.value) and "found" in str(error.value)
+
+
+@pytest.mark.parametrize("action,extra,call", [
+    ("update", {"range": "S!F2", "values": [["x"]]}, "update"),
+    ("clear", {"range": "S!F2:G2"}, "clear")])
+def test_update_and_clear_are_guarded_too(tmp_path, monkeypatch, action, extra, call):
+    args = {"action": action, "spreadsheet_id": SID, "expect": [{"range": "S!A2", "value": True}], **extra}
+    api, values = guarded_api(["FALSE"])
+    services(monkeypatch, sheets=api)
+    with pytest.raises(access.AccessError, match="expected 'TRUE', found 'FALSE'"):
+        access.sheets(tmp_path, args)
+    assert getattr(values, call).call_count == 0
+    api, values = guarded_api(["TRUE"])
+    services(monkeypatch, sheets=api)
+    assert access.sheets(tmp_path, args)["ok"]
+    assert getattr(values, call).call_count == 1
+
+
+def test_without_expect_nothing_is_read_first(tmp_path, monkeypatch):
+    api, values = guarded_api([])
+    services(monkeypatch, sheets=api)
+    access.sheets(tmp_path, {k: v for k, v in GUARDED.items() if k != "expect"})
+    assert values.batchGet.call_count == 0 and values.batchUpdate.call_count == 1
+
+
+@pytest.mark.parametrize("expect,message", [
+    ("A1", "array"), ([{"range": "S!A1"}], "range, value"), ([{"range": "S!A1", "value": "x", "x": 1}], "range, value"),
+    ([{"range": "S!A1:A2", "value": "x"}], "one cell"), ([{"range": "S!A", "value": "x"}], "one cell"),
+    ([{"range": "S!A1", "value": None}], "text, a number"), ([{"range": "S!A1", "value": ["x"]}], "text, a number"),
+    ([{"range": f"S!A{i}", "value": "x"} for i in range(1, access.EXPECT_LIMIT + 2)], "at most")])
+def test_malformed_guards_are_blocked_before_asking(expect, message, tmp_path):
+    args = dict(GUARDED, expect=expect)
+    with pytest.raises(access.AccessError, match=message):
+        access.approval_request("google_sheets", args)
+    with pytest.raises(access.AccessError, match=message):
+        access.sheets(tmp_path, args)
+
+
+@pytest.mark.parametrize("args", [
+    {"action": "append", "spreadsheet_id": SID, "range": "S!A:B", "values": [["x"]]},
+    {"action": "add_sheet", "spreadsheet_id": SID, "title": "New"},
+    {"action": "create", "title": "Budget"}])
+def test_expect_is_refused_where_it_guards_nothing(args, tmp_path):
+    args = dict(args, expect=[{"range": "S!A1", "value": "x"}])
+    with pytest.raises(access.AccessError, match="expect applies to"):
+        access.approval_request("google_sheets", args)
+    with pytest.raises(access.AccessError, match="expect applies to"):
+        access.sheets(tmp_path, args)
+
+
+def test_the_card_shows_the_checks():
+    reason, key = access.approval_request("google_sheets", GUARDED)
+    lines = reason.split("\n")
+    assert lines[2] == "Check: A2534 = bp-2534, A2535 = 2535" and lines[3] == ""
+    assert key == f"google-access:sheets-edit:{SID}"
+    many = dict(GUARDED, expect=[{"range": f"bp候補!A{i}", "value": f"id{i}"} for i in range(1, 7)])
+    assert "Check: A1 = id1, A2 = id2, A3 = id3 (+3 more)" in access.approval_request("google_sheets", many)[0]
+    clear = {"action": "clear", "spreadsheet_id": SID, "range": "S!F2", "expect": [{"range": "S!A2", "value": "k"}]}
+    assert access.approval_request("google_sheets", clear)[0].endswith("Clear: S!F2\nCheck: A2 = k")
+
+
+def test_checks_name_another_tab_and_the_first_sheet():
+    args = dict(GUARDED, expect=[{"range": "Control!A2", "value": "on"}, {"range": "A9", "value": "k"},
+                                 {"range": "bp候補!A2534", "value": "bp-2534"}])
+    line = access.approval_request("google_sheets", args)[0].split("\n")[2]
+    assert line == "Check: Control!A2 = on, (first sheet)!A9 = k, A2534 = bp-2534"
+    two_tabs = dict(args, data=GUARDED["data"] + [{"range": "Other!B1", "values": [["x"]]}])
+    assert "bp候補!A2534 = bp-2534" in access.approval_request("google_sheets", two_tabs)[0]
+
+
+def test_long_checks_give_way_and_keep_the_count():
+    args = dict(GUARDED, expect=[{"range": f"bp候補!A{i}", "value": "&" * 30} for i in range(1, 4)],
+                data=[{"range": f"bp候補!B{i}", "values": [["v" * 40] * 3]} for i in range(1, 30)])
+    reason = access.approval_request("google_sheets", args)[0]
+    assert access._units(reason) <= access.CARD_LIMIT
+    assert reason.split("\n")[2].startswith("Check: A1 = ") and "more cells)" in reason.split("\n")[-1]
+
+
+@pytest.mark.parametrize("action,extra,call", [
+    ("batch_update", {"data": GUARDED["data"]}, "batchUpdate"),
+    ("update", {"range": "S!F2", "values": [["x"]]}, "update"),
+    ("clear", {"range": "S!F2"}, "clear")])
+@pytest.mark.parametrize("response", ["error", "short"])
+def test_a_failed_guard_read_writes_nothing(tmp_path, monkeypatch, action, extra, call, response):
+    args = {"action": action, "spreadsheet_id": SID, "expect": [{"range": "S!A2", "value": "k"}], **extra}
+    api, values = guarded_api(["k"])
+    if response == "error":
+        values.batchGet().execute.side_effect = access.AccessError("Google API error 503: backend")
+    else:
+        values.batchGet().execute.return_value = {"valueRanges": []}
+    services(monkeypatch, sheets=api)
+    with pytest.raises(access.AccessError):
+        access.sheets(tmp_path, args)
+    assert getattr(values, call).call_count == 0

@@ -70,6 +70,11 @@ SHEETS_WRITES = {"update", "batch_update", "append", "clear", "create", "add_she
 # that spreadsheet's edits (its version history undoes them). clear and create still ask each time.
 SHEETS_EDITS = {"update", "batch_update", "append", "add_sheet"}
 BATCH_LIMIT = 500
+# Row guards: cells that must still hold a known value (a key column) when a write by row number
+# runs, so a sheet another writer shifted is caught before anything is written.
+EXPECT_ACTIONS = {"update", "batch_update", "clear"}
+EXPECT_LIMIT = 200
+SINGLE_CELL = re.compile(r"^[A-Za-z]{1,3}[1-9][0-9]*$")
 SPREADSHEET_ID = re.compile(r"^[A-Za-z0-9_-]{10,200}$")
 # Approval cards: Telegram shows about 500 characters of the reason, Discord about 300.
 CARD_LIMIT = 480
@@ -79,6 +84,7 @@ TAB_CLIP = 30
 CONTEXT_TTL = 600
 CONTEXT_FAIL_TTL = 60
 CONTEXT_TIMEOUT = 3
+CHECKS_SHOWN = 3
 GMAIL_ACTIONS = ("search", "get", "send")
 GMAIL_WRITES = {"send"}
 DRIVE_ACTIONS = ("search", "get", "download", "upload")
@@ -307,6 +313,58 @@ def _batch(args: dict) -> list[dict]:
     return batch
 
 
+def _expect(args: dict, action: str) -> list[dict]:
+    """The validated row guards ([] when none); the gate and the engine share this check."""
+    expect = args.get("expect")
+    if expect in (None, []):
+        return []
+    if action not in EXPECT_ACTIONS:
+        raise AccessError(f"expect applies to {', '.join(sorted(EXPECT_ACTIONS))}, not {action}")
+    if not isinstance(expect, list):
+        raise AccessError("expect must be an array of {range, value}")
+    if len(expect) > EXPECT_LIMIT:
+        raise AccessError(f"expect holds {len(expect)} cells; send at most {EXPECT_LIMIT} per call")
+    guards = []
+    for item in expect:
+        if not isinstance(item, dict) or set(item) != {"range", "value"}:
+            raise AccessError("each expect item is {range, value}")
+        rng = _str(item, "range")
+        if not SINGLE_CELL.match(split_range(rng)[1]):
+            raise AccessError(f"expect range must be one cell, e.g. 'Sheet1!A12': {rng!r}")
+        value = item["value"]
+        if value is None or isinstance(value, (dict, list)):
+            raise AccessError(f"expect value for {rng} must be text, a number or a boolean")
+        guards.append({"range": rng, "value": _plain(value)})
+    return guards
+
+
+def _plain(value) -> str:
+    if isinstance(value, bool):
+        return "TRUE" if value else "FALSE"
+    return str(value).strip()
+
+
+def _check_expect(values, sid: str, guards: list[dict]) -> None:
+    """Read the guard cells as displayed and refuse the write when any differs."""
+    if not guards:
+        return
+    got = _google(lambda: values.batchGet(spreadsheetId=sid, ranges=[g["range"] for g in guards],
+                                          valueRenderOption="FORMATTED_VALUE").execute())
+    blocks = got.get("valueRanges", [])
+    if len(blocks) != len(guards):
+        raise AccessError("expect check failed: Google returned an unexpected number of ranges; nothing written")
+    wrong = []
+    for guard, block in zip(guards, blocks):
+        rows = block.get("values") or [[]]
+        found = _plain(rows[0][0]) if rows and rows[0] else ""
+        if found != guard["value"]:
+            wrong.append(f"{guard['range']}: expected {guard['value']!r}, found {found!r}")
+    if wrong:
+        shown = "; ".join(wrong[:5]) + (f"; +{len(wrong) - 5} more" if len(wrong) > 5 else "")
+        raise AccessError(f"expect check failed, nothing written (the rows may have moved; read them "
+                          f"again): {shown}")
+
+
 def _sheet_id(args: dict) -> str:
     sid = _str(args, "spreadsheet_id")
     if not SPREADSHEET_ID.match(sid):
@@ -342,6 +400,7 @@ def _quote(value: str) -> str:
 
 def sheets(home, args: dict) -> dict:
     action = _action(args, SHEETS_ACTIONS)
+    guards = _expect(args, action)  # also refuses expect on an action it does not guard
     if action == "search":
         query = _str(args, "query", required=False)
         q = f"mimeType='{SPREADSHEET_MIME}' and trashed=false"
@@ -400,16 +459,19 @@ def sheets(home, args: dict) -> dict:
     option = "RAW" if args.get("raw") else "USER_ENTERED"
     if action == "batch_update":
         data = _batch(args)
+        _check_expect(values, sid, guards)
         done = _google(lambda: values.batchUpdate(spreadsheetId=sid, body={
             "valueInputOption": option, "data": data}).execute())
         return {"ok": True, "spreadsheet_id": sid, "updated_ranges": len(done.get("responses", [])),
                 "updated_rows": done.get("totalUpdatedRows"), "updated_cells": done.get("totalUpdatedCells")}
     rng = _str(args, "range")
     if action == "clear":
+        _check_expect(values, sid, guards)
         done = _google(lambda: values.clear(spreadsheetId=sid, range=rng, body={}).execute())
         return {"ok": True, "spreadsheet_id": sid, "cleared_range": done.get("clearedRange")}
     body = {"values": _values(args)}
     if action == "update":
+        _check_expect(values, sid, guards)
         done = _google(lambda: values.update(spreadsheetId=sid, range=rng, valueInputOption=option,
                                              body=body).execute())
         return {"ok": True, "spreadsheet_id": sid, "updated_range": done.get("updatedRange"),
@@ -891,11 +953,15 @@ def _units(text: str) -> int:
 
 def _fit(head: list[str], cells: list[str], more: str) -> str:
     """Header lines, then as many cell lines as CARD_LIMIT allows, then a count of the rest.
-    The first (title) line gives way first, so the count always survives."""
+    Over budget, the longest header line gives way first (the title, a long check line), so the
+    count always survives."""
     lines = list(head)
     reserve = "\n" + more.format(n=len(cells)) if cells else ""
-    while lines and len(lines[0]) > 12 and _units("\n".join(lines) + reserve) > CARD_LIMIT:
-        lines[0] = lines[0][:-6].rstrip("…") + "…"
+    while _units("\n".join(lines) + reserve) > CARD_LIMIT:
+        i = max(range(len(lines)), key=lambda k: _units(lines[k]))
+        if len(lines[i]) <= 12:
+            break
+        lines[i] = lines[i][:-6].rstrip("…") + "…"
     for i, line in enumerate(cells):
         after = len(cells) - i - 1
         tail = "\n" + more.format(n=after) if after else ""
@@ -925,6 +991,7 @@ def _sheets_card(home, action: str, args: dict) -> str:
 
         K3257 > <column header>: <value>
     """
+    _expect(args, action)  # refuses a malformed or misplaced guard before any lookup
     if action == "create":
         names = args.get("sheet_names") or []
         head = [f"Create SpreadSheet: {_cell(args.get('title'), '?', TITLE_CLIP)}"]
@@ -939,7 +1006,8 @@ def _sheets_card(home, action: str, args: dict) -> str:
             head.append(f"Add sheet: {_cell(_str(args, 'title'), '?', TAB_CLIP)}")
         else:
             head.append(f"Clear: {_cell(_str(args, 'range'), '?', TAB_CLIP)}")
-        return _fit(head, [], MORE)
+        clear_tab = split_range(_str(args, "range"))[0] if action == "clear" else ...
+        return _fit(head + _check_lines(_expect(args, action), clear_tab), [], MORE)
     blocks = _batch(args) if action == "batch_update" else [{"range": _str(args, "range"),
                                                             "values": _values(args)}]
     parsed = [(split_range(b["range"]), b["values"]) for b in blocks]
@@ -963,8 +1031,26 @@ def _sheets_card(home, action: str, args: dict) -> str:
                     where = f"{column_letters(index)}{row + r}"
                 label = _cell(header[index], "", TAB_CLIP) if index < len(header) else ""
                 cells.append(f"{where} > {label + ': ' if label else ''}{_cell(value, EMPTY)}")
-    head = [f"SpreadSheet: {_cell(title, '', TITLE_CLIP) or sid}", f"Sheet: {_tabs_summary(tabs, names)}", ""]
+    checks = _check_lines(_expect(args, action), tabs[0] if len(tabs) == 1 else ...)
+    head = [f"SpreadSheet: {_cell(title, '', TITLE_CLIP) or sid}", f"Sheet: {_tabs_summary(tabs, names)}",
+            *checks, ""]
     return _fit(head, cells, MORE)
+
+
+def _check_lines(guards: list[dict], tab=...) -> list[str]:
+    """`Check: A2534 = bp-2534` for the first guards, then a count of the rest. A guard on another
+    tab than the one written (``tab``; ``...`` when several are written) keeps its tab, and an
+    unqualified guard on a qualified write is marked as the first sheet's."""
+    def cell(guard):
+        guard_tab, ref = split_range(guard["range"])
+        if guard_tab != tab:
+            ref = f"{_cell(guard_tab, '', TAB_CLIP) if guard_tab is not None else '(first sheet)'}!{ref}"
+        return f"{ref} = {_cell(guard['value'], EMPTY, TAB_CLIP)}"
+    if not guards:
+        return []
+    shown = ", ".join(cell(g) for g in guards[:CHECKS_SHOWN])
+    rest = len(guards) - CHECKS_SHOWN
+    return [f"Check: {shown}" + (f" (+{rest} more)" if rest > 0 else "")]
 
 
 def approval_request(tool: str, args: dict, home=None) -> tuple[str, str] | None:
