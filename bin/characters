@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # characters — the character library (private overlay plugin).
 #
-#   characters                          list characters and facet statuses
-#   characters show <slug> [facet]      overview, or one facet's document and files
-#   characters check [slug]             report drift (package, declaration, voice engines)
-#   characters init <slug> --name NAME  empty package + draft templates
+#   characters                          list characters
+#   characters show <slug> [guide]      the character card, or one guide and its assets
+#   characters check [slug]             report drift (package, asset index, voice engines)
+#   characters init <slug> --name NAME  new package + profile and guide templates
 #   characters sync [--apply] [--prune] register voices from the declarations
 #
 # The code and its contract (README.md) live in the private overlay's
