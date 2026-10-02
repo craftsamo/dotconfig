@@ -490,8 +490,9 @@ performance. A missing required performance asset is reported as
 
 **Characters and dependencies.** Creator, never VideoCreator, resolves
 characters. A library character is resolved through the `characters` tool
-(`list`, then `show <slug> <facet>` for its approved visual, animation or voice
-files; a private overlay plugin); only its approved package content is canon,
+(`list`, then `show <slug>` for the character card, then `show <slug> <guide>`
+for its approved visual, animation or voice guide and files; a private overlay
+plugin); only its approved package content is canon,
 never a draft or archive. Other material: a direct path or an identity
 Creator already holds first, else a bounded name-only lookup inside the
 caller's own known workspace; an ambiguous match goes back as a question. Never
