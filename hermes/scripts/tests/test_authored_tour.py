@@ -254,3 +254,43 @@ def test_reference_validator_catches_deleted_whole_reference_directory(tmp_path)
     validator.validate_hands_form({"note": {"required": False}, "intro": {"required": False,
         "options": ["title-reveal"], "references": "references/intro/*.md", "other": True}}, tmp_path, tmp_path / "SKILL.md", errors)
     assert any("intro option title-reveal" in e for e in errors)
+
+
+# ── frame rate ───────────────────────────────────────────────────────────
+
+@pytest.mark.parametrize("fps", [24, 25, 30, 50, 60])
+def test_form_accepts_allowed_rates(fps):
+    form = authored.form_model({"what_for": "task", "audience": "novices", "fps": fps})
+    assert form["fps"] == fps and authored.fps_of(form) == fps
+
+
+@pytest.mark.parametrize("fps", ["60", 120, 240, 29, True, 60.0, None])
+def test_form_rejects_other_rates(fps):
+    with pytest.raises(ValueError, match="fps"):
+        authored.form_model({"what_for": "task", "audience": "novices", "fps": fps})
+
+
+def test_omitted_fps_is_never_inserted():
+    """Approved v3 proposals compare the whole defaulted form, so a default
+    fps written into it would break every earlier approval."""
+    form = authored.form_model({"what_for": "task", "audience": "novices"})
+    assert "fps" not in form and authored.fps_of(form) == 30
+
+
+def test_contract_samples_follow_the_form_rate(job):
+    form = authored.form_model({**authored.load(job / "form.json"), "fps": 60})
+    contract = authored.load(job / "contract.json")
+    contract["samples"][-1]["at"] = contract["duration"] - 1 / 60
+    authored.contract_model(contract, form)
+    with pytest.raises(ValueError, match="sample time"):
+        authored.contract_model(contract, authored.form_model(authored.load(job / "form.json")))
+
+
+def test_root_data_fps_follows_the_form_rate(job):
+    form = authored.form_model(authored.load(job / "form.json"))
+    authored.markup_check(job / "source", form)
+    with pytest.raises(ValueError, match="fps"):
+        authored.markup_check(job / "source", {**form, "fps": 60})
+    html = job / "source/index.html"
+    html.write_text(html.read_text(encoding="utf-8").replace('data-fps="30"', 'data-fps="60"'), encoding="utf-8")
+    authored.markup_check(job / "source", {**form, "fps": 60})

@@ -38,7 +38,8 @@ metadata:
       duration: {required: false, type: int, label: "seconds incl. intro/outro, 1..60; default 20"}
       audio_workflow: {required: false, options: [supplied, mix], label: "supplied = existing narration path; mix = Mix master"}
       mix_bundle: {required: false, type: path, label: "mix only: bundle dir; binds staged master/receipt by hash"}
-      destination: {required: false, options: [landscape, portrait], label: "1280x720 (default) or 720x1280; 30 fps"}
+      destination: {required: false, options: [landscape, portrait], label: "1280x720 (default) or 720x1280"}
+      fps: {required: false, options: ["24", "25", "30", "50", "60"], label: "default 30; omitted stays omitted"}
       preview: {required: false, options: ["yes", "no"], label: "yes (default) stops for approval; no renders"}
       note: {required: false, type: text}
       graphics: {required: false, options: [three-webgl2], label: "Three.js/GLSL; v3 and approved preview required"}
@@ -125,7 +126,11 @@ skill_view(name="video-creator-pipeline", file_path="references/three-graphics.m
    approval. Mode omitted retains the shipped recreate/v2 path; explicit mode
    uses v3 and proposal approval. Never upgrade or overwrite frozen projects.
 4. Write UTF-8 `form.json` and your `contract.json` in job scratch; text goes
-   through files, not Japanese argv. Author `index.html`, local assets and
+   through files, not Japanese argv. Copy `fps` into `form.json` as an
+   integer only when the form names one (omitted means 30 and stays
+   omitted, so earlier approvals keep matching); `#root data-fps`, the
+   footage preparation `--fps` and the render follow it. Author
+   `index.html`, local assets and
     QA motion assertions in a fresh task-local source directory. Prepare supplied
     or captured media using its mode reference; do not replace video with stills.
     Keep raw recordings, proposal, hashes and acquisition logs in private job
