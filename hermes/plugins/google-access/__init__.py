@@ -42,7 +42,11 @@ SHEETS_DESCRIPTION = (
     "(range + values: add rows after the table), clear (range), create (title, optional "
     "sheet_names), add_sheet (spreadsheet_id + title: a new tab). values are rows of cells; they "
     "are typed as in the UI (formulas work) unless raw=true. Write many rows or scattered cells "
-    "in one batch_update or one multi-row update, never one call per row. "
+    "in one batch_update or one multi-row update, never one call per row. When writing by row "
+    "number (update, batch_update, clear), pass expect = [{range, value}] with each target row's "
+    "key cell (e.g. the id column) as currently displayed: the write runs only if every expect "
+    "cell still holds that value, so a sheet another writer shifted is refused before anything "
+    "is written (read the rows again, then retry). "
     + APPROVAL.format("update, batch_update, append, clear, create, add_sheet") + " "
     "Edits to one spreadsheet are approved once: after the user answers \"session\" or \"always\", "
     "further edits to that spreadsheet run without asking; clear and create are approved per exact "
@@ -85,6 +89,12 @@ SCHEMAS = {
         "values": {"type": "array", "items": {"type": "array", "items": {
                        "description": "a cell: text, number or boolean"}},
                    "description": "update / append: rows of cell values"},
+        "expect": {"type": "array", "description": (
+            "update / batch_update / clear: row guards checked right before writing; one cell each, "
+            "e.g. {range: 'Leads!A2534', value: 'lead-2534'}"), "items": {
+            "type": "object", "required": ["range", "value"], "additionalProperties": False,
+            "properties": {"range": {"type": "string", "description": "one cell in A1 notation"},
+                           "value": {"description": "the value it must display (text, number or boolean)"}}}},
         "data": {"type": "array", "description": "batch_update: ranges and their rows", "items": {
             "type": "object", "required": ["range", "values"], "additionalProperties": False,
             "properties": {"range": {"type": "string", "description": "A1 range"},
