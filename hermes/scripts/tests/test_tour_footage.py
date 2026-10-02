@@ -543,3 +543,23 @@ def test_live_boundary_and_interruption(scope_job, variant):
             s.server_close()
         for thread in threads:
             thread.join()
+
+
+@pytest.mark.parametrize("fps", [30, 60])
+def test_prepared_footage_follows_the_form_rate(video, fps):
+    manifest = video.parent / "source.json"
+    authored.write(manifest, manifest_for(video))
+    out = video.parent / f"prepared-{fps}"
+    footage.prepare(str(manifest), str(out), fps=fps)
+    rate = authored.command(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries",
+                             "stream=avg_frame_rate", "-of", "csv=p=0", str(out / "demo.mp4")]).strip()
+    assert rate == f"{fps}/1"
+
+
+@pytest.mark.parametrize("fps", [120, 29, True])
+def test_prepare_rejects_other_rates_before_output(video, fps):
+    manifest = video.parent / "source.json"
+    authored.write(manifest, manifest_for(video))
+    with pytest.raises(ValueError, match="fps"):
+        footage.prepare(str(manifest), str(video.parent / "prepared"), fps=fps)
+    assert not (video.parent / "prepared").exists()
