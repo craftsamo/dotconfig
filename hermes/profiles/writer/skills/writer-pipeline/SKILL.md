@@ -92,10 +92,21 @@ forms or the acceptance references do not inherit Writer's execution role.
 Each leaf owns its own checks. There is no additional shared review pipeline,
 statistical naturalness score or automatic humanizer pass. `japanese-writing`
 supplies expression/notation knowledge and read-only inspection candidates,
-not a workflow or a score; each leaf decides for itself whether and how its
-checks apply, and only the article family does so today. Paths in a leaf
-resolve from that leaf; the shared language core is read from its own skill
-root. This grants no general terminal or code-execution tool.
+not a workflow or a score. Every Japanese text you write or edit, in every
+family, loads its body and inspection instructions before drafting, then
+sends the completed raw draft body (never production notes, script IDs or
+speaker fields, or a line-numbered copy) through `writing_inspect` once, with
+the modes that fit the text. An edit sends the edited text; findings outside
+the authorized scope are reported, not fixed. Rerun only affected modes after
+an actual revision; never loop toward zero findings. The leaf judges each
+finding as fix, keep in context or insufficient information; a finding that
+contradicts a voice guide's notation or register is kept in context. A tool
+error, `unverified` entry or truncation leaves that mode unverified in the
+report. This one pass is not the retired legacy inspection workflow that
+family sections and leaves exclude, and it applies even where a leaf calls
+`writing_inspect` optional. Paths in a leaf resolve from that leaf; the shared
+language core is read from its own skill root. This grants no general
+terminal or code-execution tool.
 
 </Selection>
 

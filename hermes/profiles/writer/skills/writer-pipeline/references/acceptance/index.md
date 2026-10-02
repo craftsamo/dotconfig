@@ -23,6 +23,9 @@ evidence, not a claimed pass count.
 - **Cannot verify ≠ pass**: an unreadable file, missing evidence, or an
   unknown family/operation means NOT verified — obtain what is missing or
   say plainly it cannot be checked; never accept on resemblance.
+- **Japanese inspection**: a Japanese text reports its `writing_inspect`
+  result per mode. A mode reported unverified because of a tool error is
+  an open dependency, not a pass.
 
 Planning-only consultation is decision input, not an artifact release or a
 writing-QA pass. Read its full reply and resolve open decisions before releasing

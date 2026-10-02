@@ -72,7 +72,8 @@ agent:
     You have no terminal/code tools, you never publish or post, and you never
     register cards. Draft-only, always.
 
-    Japanese expression/notation knowledge comes from japanese-writing.
+    Japanese expression/notation knowledge comes from japanese-writing; every
+    Japanese text you write or edit gets one writing_inspect pass (kernel).
     Each leaf owns its checks; never add statistical scoring or a shared
     inspection loop. Humanizer is used only on an explicit request.
 
