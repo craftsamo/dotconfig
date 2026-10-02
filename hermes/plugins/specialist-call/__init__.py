@@ -681,8 +681,7 @@ def _request_stop(root, job):
     _write(root / (_id(job) + ".stop"), dict(requested_at=time.time()))
 
 
-_RUNNER = ("import runpy, sys; sys.argv[0] = sys.argv[1]; del sys.argv[1]; "
-           "runpy.run_path(sys.argv[0], run_name='__main__')")
+LAUNCH = Path(__file__).resolve().parent / "launch.py"
 
 
 def _dependency_root():
@@ -702,16 +701,19 @@ def runner_command(script, *args):
     """Command that runs a plugin script's __main__ as its own process on the same Hermes
     runtime as this one. Hermes puts its checkout and dependency generation on the path
     inside its own bootstrap, so a bare `sys.executable script` child cannot even import
-    hermes_yaml; reuse upstream's launcher bootstrap instead. That bootstrap finds the
-    dependencies through HERMES_HOME, so pin it to this process's root rather than trust
-    an inherited value (runners read their home from the request and strip HERMES_* for
-    their own children). Outside a PM-managed install the plain interpreter is all there is."""
+    hermes_yaml. launch.py repeats upstream's launcher bootstrap from a file: the same
+    code passed as `python -c` makes the terminal guard ask for approval on every
+    messaging call. The bootstrap finds the dependencies through HERMES_HOME, so pin it
+    to this process's root rather than trust an inherited value (runners read their home
+    from the request and strip HERMES_* for their own children). Outside a PM-managed
+    install the plain interpreter is all there is."""
     try:
         from hermes_cli import _launchers
     except ImportError:
         return [sys.executable, str(script), *map(str, args)]
     root = Path(_launchers.__file__).resolve().parents[1]
-    command = _launchers.runtime_command(root, [str(script), *map(str, args)], code=_RUNNER)
+    python = _launchers.resolve_store_python(root) or Path(sys.executable)
+    command = [str(python), "-I", str(LAUNCH), str(root), str(script), *map(str, args)]
     return ["/usr/bin/env", f"HERMES_HOME={_DEPENDENCY_ROOT}", *command] if _DEPENDENCY_ROOT else command
 
 
