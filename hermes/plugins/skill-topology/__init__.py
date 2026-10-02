@@ -29,6 +29,12 @@ tree is the maintainer's"); on 2026-09-05 image-creator patched
 ``text-emoji.sh`` in place instead, and the fix it chose was not the one
 the maintainer wanted.
 
+The private overlay (``<repo>/private``, i.e. ``~/.config/private``) owns maintainer skill trees too
+— the Assistant's ``assistant-pipeline`` and its private ``technic/`` — and
+they resolve outside this repo, so its ``hermes/profiles/*/skills/…``
+(outside ``learned/``) is guarded the same way. Its shared
+``hermes/skills/`` cluster is not in scope here.
+
 Terminal checks cover literal redirects and known mutators, not arbitrary
 program behavior or persistent shell state. This is a topology guard, not a
 terminal sandbox. Unsupported evaluation is blocked only with a visible managed
@@ -46,6 +52,9 @@ from typing import Any, NamedTuple
 
 LEARNED_CATEGORY = "learned"
 MANAGED_ROOT = Path(__file__).resolve().parents[2]  # <repo>/hermes
+# Private overlay counterpart (the checkout's `private` link, so a task worktree
+# with its own overlay link guards its own pair); only profiles/*/skills count.
+PRIVATE_ROOT = MANAGED_ROOT.parent / "private" / "hermes"
 _FILE_WRITE_TOOLS = {"write_file", "patch"}
 _MUTATORS = {"cp", "mv", "rm", "chmod", "truncate", "tee", "sed"}
 _SHELL_OPERATOR = re.compile(r"(?:\d*(?:<<<|<<-|<<|>>|>\||>&|<&|<>|>|<)|&>>|&>|&&|\|\||\|&|;;|;&|[;|&\n()])")
@@ -328,16 +337,17 @@ def _terminal_managed_path(token: _ShellToken, cwd: Path | None, destructive: bo
         raise _UnresolvedWrite("unresolvable write target") from exc
     if _is_managed(str(path)):
         return str(path)
-    root = MANAGED_ROOT.resolve()
-    if destructive and root.is_relative_to(path):
-        return str(path)
-    if path.is_relative_to(root):
-        parts = path.relative_to(root).parts
-        if parts and parts[-1] == "skills" and "skills" not in parts[:-1]:
+    for root, profiles_only in _managed_roots():
+        if destructive and root.is_relative_to(path):
             return str(path)
-        if destructive and (not parts or parts == ("profiles",) or
-                            (len(parts) == 2 and parts[0] == "profiles")):
-            return str(path)
+        if path.is_relative_to(root):
+            parts = path.relative_to(root).parts
+            if (parts and parts[-1] == "skills" and "skills" not in parts[:-1]
+                    and (not profiles_only or parts[:1] == ("profiles",))):
+                return str(path)
+            if destructive and (not parts or parts == ("profiles",) or
+                                (len(parts) == 2 and parts[0] == "profiles")):
+                return str(path)
     return None
 
 
@@ -357,7 +367,8 @@ def _has_managed_reference(command: str, cwd: Path | None) -> bool:
             value = os.path.expanduser(value)
             path = ((cwd or Path("/")) / value).resolve()
             # Include managed containers, but not arbitrary ancestors such as /tmp.
-            if _terminal_managed_path(_ShellToken(value), cwd, destructive=path.is_relative_to(MANAGED_ROOT)):
+            destructive = any(path.is_relative_to(root) for root, _ in _managed_roots())
+            if _terminal_managed_path(_ShellToken(value), cwd, destructive=destructive):
                 return True
         except (OSError, RuntimeError, ValueError):
             continue
@@ -414,21 +425,36 @@ def _guard_terminal(command: str, args: Mapping) -> dict[str, str] | None:
         }
 
 
+def _managed_roots() -> list[tuple[Path, bool]]:
+    """``(root, profiles_only)`` for this repo and the private overlay."""
+    roots = [(MANAGED_ROOT.resolve(), False)]
+    try:
+        private = PRIVATE_ROOT.resolve()
+    except (OSError, RuntimeError, ValueError):
+        return roots
+    if all(private != root for root, _ in roots):
+        roots.append((private, True))
+    return roots
+
+
 def _is_managed(path_text: str) -> bool:
-    """True when the path resolves into a tracked skill root (not learned/)."""
+    """True when the path resolves into a maintainer skill root (not learned/)."""
     try:
         resolved = Path(os.path.expanduser(path_text)).resolve()
     except (OSError, RuntimeError, ValueError):
         return False
-    try:
-        rel = resolved.relative_to(MANAGED_ROOT)
-    except ValueError:
-        return False
-    parts = rel.parts
-    if "skills" not in parts:
-        return False
-    after = parts[parts.index("skills") + 1:]
-    return bool(after) and after[0] != LEARNED_CATEGORY
+    for root, profiles_only in _managed_roots():
+        try:
+            parts = resolved.relative_to(root).parts
+        except ValueError:
+            continue
+        if profiles_only and parts[:1] != ("profiles",):
+            return False
+        if "skills" not in parts:
+            return False
+        after = parts[parts.index("skills") + 1:]
+        return bool(after) and after[0] != LEARNED_CATEGORY
+    return False
 
 
 def _block(path_text: str) -> dict[str, str]:
