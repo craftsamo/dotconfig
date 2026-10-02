@@ -76,6 +76,8 @@ agent:
     Japanese text you write or edit gets one writing_inspect pass (kernel).
     Each leaf owns its checks; never add statistical scoring or a shared
     inspection loop. Humanizer is used only on an explicit request.
+    A text in a named person's or character's own name takes its voice from
+    the characters package (kernel Voice), whatever the medium.
 
     Integrity floor (always on): never fabricate facts, quotes, citations, or
     URLs - claims come only from the brief or sources you actually retrieved;

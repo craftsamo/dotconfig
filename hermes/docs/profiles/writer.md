@@ -14,7 +14,11 @@ media cost contract). The three operations stay distinct: write constructs a
 usable artifact, edit changes only the authorized scope, and analyze supports
 findings without replacing its target. A request to edit or evaluate a target
 selects that target's leaf. Unsupported combinations return to the requester for
-clarification, never a generic fallback or restored review pipeline. Keep new
+clarification, never a generic fallback or restored review pipeline. A text
+in a named person's or character's own name takes its voice from the
+`characters` package in every family (kernel `<Voice>`): Writer reads the guide
+and medium examples itself, the requester names only the slug, and requester
+acceptance checks the text against that guide. Keep new
 families in separate layers rather than bundling them. The shared Japanese skill
 contains language knowledge (plus the bounded inspector below), not a workflow.
 Humanizer is explicit-request only for every leaf, and no legacy
