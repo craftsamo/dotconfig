@@ -3,7 +3,7 @@
 
 Stdlib only. Never generates media, installs anything or touches the network.
 
-    promotion.py propose --storyboard DRAFT.md --out NEW_DIR
+    promotion.py propose --storyboard DRAFT.md --out NEW_DIR [--reference VIDEO]
     promotion.py render --approved-plan STORYBOARD.md --approval-sha256 HEX \
         --source DIR --out NEW_DIR --quality draft|final [--reference VIDEO] [--inputs JSON]
 
@@ -23,7 +23,10 @@ import sys
 from fractions import Fraction
 from pathlib import Path
 
-FPS = 30
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "scripts"))
+import frame_rate  # noqa: E402
+
+FPS = frame_rate.DEFAULT
 DIMS = {"16:9": (1920, 1080), "9:16": (1080, 1920), "1:1": (1080, 1080), "4:5": (1080, 1350)}
 AUDIO = {"none", "supplied", "pending"}
 MIN_S, MAX_S = 3, 60
@@ -78,7 +81,8 @@ def parse_storyboard(path: Path) -> dict:
     except ValueError:
         raise Fail("duration must be a number") from None
     require(math.isfinite(duration) and MIN_S <= duration <= MAX_S, f"duration must be {MIN_S}..{MAX_S}s")
-    require(meta.get("fps", str(FPS)) == str(FPS), "fps must be 30")
+    fps = frame_rate.parse_text(meta.get("fps", str(FPS)))
+    require(fps is not None, f"fps must be one of {frame_rate.describe()}")
     audio = meta.get("audio", "")
     require(audio in AUDIO, f"audio must be one of {sorted(AUDIO)}")
     pending = [p.strip() for p in meta.get("pending", "").split(",") if p.strip()]
@@ -100,7 +104,7 @@ def parse_storyboard(path: Path) -> dict:
         for pid in pending:
             require(pid in section.group(1), f"pending id {pid} is not described under ## Pending")
     w, h = DIMS[aspect]
-    return {"aspect": aspect, "width": w, "height": h, "duration": duration, "fps": FPS,
+    return {"aspect": aspect, "width": w, "height": h, "duration": duration, "fps": fps,
             "audio": audio, "pending": pending, "beats": len(beats)}
 
 
@@ -128,6 +132,11 @@ def parse_beats(body: str) -> list[tuple[float, float]]:
 def propose(args) -> dict:
     draft = Path(args.storyboard).expanduser()
     info = parse_storyboard(draft)
+    measured = None
+    if getattr(args, "reference", None):
+        reference = Path(args.reference).expanduser()
+        require(reference.is_file(), f"reference not found: {reference}")
+        measured = probe(reference)["fps"]
     out = fresh(args.out)
     out.mkdir()
     target = out / "storyboard.md"
@@ -135,6 +144,8 @@ def propose(args) -> dict:
     digest = sha(target)
     info.update(storyboard=str(target), sha256=digest,
                 status="pending-inputs" if info["pending"] else "awaiting-approval")
+    if measured is not None:
+        info.update(reference_fps=round(measured, 3), suggested_fps=frame_rate.nearest(measured))
     (out / "proposal.json").write_text(json.dumps(info, indent=2) + "\n", encoding="utf-8")
     return info
 
@@ -171,7 +182,9 @@ def check_source(source: Path, plan: dict) -> None:
         dur = float(attr("data-duration") or "nan")
     except ValueError:
         dur = float("nan")
-    require(abs(dur - plan["duration"]) <= 1 / FPS, f"#root data-duration must be {plan['duration']}")
+    require(abs(dur - plan["duration"]) <= 1 / plan["fps"], f"#root data-duration must be {plan['duration']}")
+    declared = attr("data-fps")
+    require(declared is None or declared == str(plan["fps"]), f"#root data-fps must be {plan['fps']}")
     for p in source.rglob("*"):
         rel = p.relative_to(source)
         if any(part.startswith(".") or part == "node_modules" for part in rel.parts):
@@ -287,7 +300,8 @@ def render(args) -> dict:
     require(lint_data.get("ok") and lint_data.get("errorCount") == 0 and lint_data.get("filesScanned", 1) > 0,
             "hyperframes lint failed; see lint.json")
     movie = out / MOVIE
-    cmd = [binary, "render", "--output", str(movie), "--fps", str(FPS),
+    rate = plan["fps"] if final else frame_rate.draft(plan["fps"])
+    cmd = [binary, "render", "--output", str(movie), "--fps", str(rate),
            "--quality", "delivery" if final else "draft", "--quiet"]
     if final:
         cmd += ["--strict", "--no-best-effort"]
@@ -305,7 +319,7 @@ def render(args) -> dict:
         compare = str(out / "compare.png")
     checks = {
         "canvas": (facts["width"], facts["height"]) == (plan["width"], plan["height"]),
-        "fps": abs(facts["fps"] - FPS) < 0.01,
+        "fps": abs(facts["fps"] - rate) < 0.01,
         "duration": abs(facts["duration"] - plan["duration"]) <= 0.1,
     }
     level = None
@@ -316,7 +330,8 @@ def render(args) -> dict:
         tp = (level or {}).get("true_peak_dbtp")
         checks["true_peak_below_0"] = (not facts["audio"]) or (tp is not None and tp < 0)
     status = "PASS" if all(checks.values()) else "FAIL"
-    result = {"status": status, "quality": args.quality, "movie": str(movie), "sheet": str(out / "sheet.png"), "compare": compare,
+    result = {"status": status, "quality": args.quality, "fps": rate, "approved_fps": plan["fps"],
+              "movie": str(movie), "sheet": str(out / "sheet.png"), "compare": compare,
               "approved_plan": str(plan_path), "approval_sha256": args.approval_sha256,
               "source": str(source), "source_tree_sha256": source_hash, "movie_sha256": sha(movie),
               "probe": facts, "loudness": level, "checks": checks, "inputs": inputs,
@@ -335,6 +350,7 @@ def main(argv=None) -> int:
     p = sub.add_parser("propose")
     p.add_argument("--storyboard", required=True)
     p.add_argument("--out", required=True)
+    p.add_argument("--reference")
     r = sub.add_parser("render")
     r.add_argument("--approved-plan", required=True)
     r.add_argument("--approval-sha256", required=True)

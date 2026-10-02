@@ -4,7 +4,7 @@ description: >-
   Create an authored promotion video (product launch, promo, brand or sizzle
   piece, feature reveal, kinetic type, logo sting, or a PV/showcase reel of
   a store, site, product or event built on supplied photos, page stills or
-  footage, also as the next episode of a series; 3..60s, 30fps) that
+  footage, also as the next episode of a series; 3..60s, 24-60fps) that
   VideoCreator designs and draws itself in HTML/CSS/SVG/GSAP, optionally
   matching a local reference video. A structure storyboard is approved first;
   the look is then iterated freely against the reference and a premium bar,
@@ -24,6 +24,7 @@ metadata:
       what_for: {required: true, type: text, label: "purpose, destination and viewer; what they should feel/remember"}
       aspect: {required: false, options: ["16:9", "9:16", "1:1", "4:5"], label: "default 16:9; fixed dims per ratio, no cross-ratio crop/scale"}
       duration: {required: false, type: int, label: "3..60s; default 15, or the reference's length when reproducing"}
+      fps: {required: false, options: ["24", "25", "30", "50", "60"], label: "default 30, or the reference's nearest rate"}
       reference: {required: false, type: file, label: "local reference video/image; analyzed locally, never uploaded"}
       reference_use: {required: false, options: [inspiration, reproduce], label: "default inspiration; reproduce = same beats/timing/look"}
       copy: {required: false, type: text, label: "exact on-screen lines the client fixed; else proposed in the storyboard"}
@@ -77,7 +78,10 @@ template and not "close enough". Judge every frame against it:
    "Showcase and series".
 2. Reference. Extract frames locally (`ffmpeg` fps=4, or
    `python3 ${HERMES_SKILL_DIR}/../../scripts/clip-media.py --help`) and
-   measure the soundtrack's tempo, drops and hits with `ffmpeg`. Look at
+   measure the soundtrack's tempo, drops and hits with `ffmpeg`. Note its
+   frame rate; the storyboard's `fps` follows
+   [authoring](references/authoring.md) (form value, else the reference's
+   nearest allowed rate, else 30). Look at
    contact sheets, at most three images per step, and write each finding to
    `qa.md` before the next look. Record per beat: timing, copy, palette,
    type feel, scale of the hero element relative to the frame, depth,
@@ -113,7 +117,8 @@ template and not "close enough". Judge every frame against it:
    and what this subject gets on its own. Then run:
 
    ```sh
-   python3 ${HERMES_SKILL_DIR}/scripts/promotion.py propose --storyboard <draft storyboard.md> --out <deliver>/proposal-v<N>
+   python3 ${HERMES_SKILL_DIR}/scripts/promotion.py propose --storyboard <draft storyboard.md> --out <deliver>/proposal-v<N> \
+     [--reference <reference video>]
    ```
 
    Report the path, SHA-256, status and the pending list with what each
@@ -145,9 +150,10 @@ template and not "close enough". Judge every frame against it:
    place them under `source/assets/` and list them in an `inputs` JSON), run
    the same command with `--quality final --inputs <inputs.json>` into a new
    `<deliver>/final/`. It verifies the approval hash, strict lint, canvas,
-   duration, audio presence and true peak. A FAIL is fixed in source and
+   duration, audio presence and true peak. Drafts render at most 30fps; the
+   final renders at the storyboard's `fps`. A FAIL is fixed in source and
    re-rendered into a new directory, never waived. Changed beats, copy,
-   duration or aspect need a new storyboard and approval.
+   duration, aspect or fps need a new storyboard and approval.
 8. Long commands use `background: true` and polling within the tool's
    actual timeout. No network, installs, upgrades or external workflows.
 
@@ -165,7 +171,8 @@ template and not "close enough". Judge every frame against it:
 - Audio: hits land on their times; true peak < 0 dBTP (measured by the
   helper, never a listening claim); silence only when the storyboard says
   `audio: none`.
-- Technical: helper PASS on canvas, fps, duration, audio presence and lint;
+- Technical: helper PASS on canvas, fps (the storyboard's on the final),
+  duration, audio presence and lint;
   source kept with the delivery. Sampled sheets are not whole-video or
   listening evidence: temporal feel and listening stay `unverified`.
 

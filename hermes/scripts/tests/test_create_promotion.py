@@ -212,3 +212,107 @@ def test_pv_and_series_are_promotion_not_a_new_subject():
     assert not (LEAF.parent / "pv").exists()
     row = next(line for line in CAPABILITIES.read_text().splitlines() if "| video-creator: create-promotion |" in line)
     assert "PV/showcase reel" in row and "`series_of`" in row
+
+
+# ── frame rate ─────────────────────────────────────────────────────────
+
+
+def with_fps(tmp_path, value, name="draft.md"):
+    path = tmp_path / name
+    text = STORYBOARD.format(audio="none", pending="", extra="")
+    path.write_text(text.replace("fps: 30\n", "" if value is None else f"fps: {value}\n"))
+    return path
+
+
+@pytest.mark.parametrize("value, expected", [(None, 30), ("24", 24), ("25", 25), ("30", 30),
+                                             ("50", 50), ("60", 60), ('"60"', 60), ("60  # smooth", 60)])
+def test_storyboard_fps_is_one_of_the_allowed_rates(tmp_path, value, expected):
+    assert motion.parse_storyboard(with_fps(tmp_path, value))["fps"] == expected
+
+
+@pytest.mark.parametrize("value", ["29.97", "59.94", "120", "240", "0", "abc", ""])
+def test_storyboard_rejects_other_rates(tmp_path, value):
+    with pytest.raises(motion.Fail, match="fps must be one of 24/25/30/50/60"):
+        motion.parse_storyboard(with_fps(tmp_path, value))
+
+
+def root_html(fps=None, duration="4"):
+    rate = "" if fps is None else f' data-fps="{fps}"'
+    return ('<div id="root" data-composition-id="promotion" data-start="0" data-width="1920" '
+            f'data-height="1080" data-duration="{duration}"{rate}></div>')
+
+
+def test_source_data_fps_must_match_the_storyboard(tmp_path):
+    plan = motion.parse_storyboard(with_fps(tmp_path, "60"))
+    source = tmp_path / "source"
+    source.mkdir()
+    for ok in (60, None):
+        (source / "index.html").write_text(root_html(ok))
+        motion.check_source(source, plan)
+    (source / "index.html").write_text(root_html(30))
+    with pytest.raises(motion.Fail, match="data-fps must be 60"):
+        motion.check_source(source, plan)
+    (source / "index.html").write_text(root_html(60, duration="4.03"))
+    with pytest.raises(motion.Fail, match="data-duration"):
+        motion.check_source(source, plan)
+
+
+@pytest.mark.skipif(not shutil.which("ffmpeg") or not shutil.which("ffprobe"), reason="ffmpeg not installed")
+@pytest.mark.parametrize("rate, suggested", [("60", 60), ("60000/1001", 60), ("24000/1001", 24), ("25", 25)])
+def test_propose_reports_the_reference_rate_without_rewriting(tmp_path, rate, suggested):
+    import subprocess
+    reference = tmp_path / "ref.mp4"
+    subprocess.run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i", f"color=red:size=320x180:rate={rate}",
+                    "-t", "1", str(reference)], check=True)
+    draft = with_fps(tmp_path, None)
+    original = draft.read_bytes()
+    assert motion.main(["propose", "--storyboard", str(draft), "--out", str(tmp_path / "p"),
+                        "--reference", str(reference)]) == 0
+    data = json.loads((tmp_path / "p/proposal.json").read_text())
+    assert data["suggested_fps"] == suggested and abs(data["reference_fps"] - float(eval(rate))) < 0.01
+    assert data["fps"] == 30 and (tmp_path / "p/storyboard.md").read_bytes() == original
+
+
+def test_propose_with_missing_reference_writes_nothing(tmp_path):
+    draft = with_fps(tmp_path, None)
+    assert motion.main(["propose", "--storyboard", str(draft), "--out", str(tmp_path / "p"),
+                        "--reference", str(tmp_path / "missing.mp4")]) == 1
+    assert not (tmp_path / "p").exists()
+
+
+def fake_hyperframes(monkeypatch):
+    import subprocess
+    seen = []
+
+    def run(cmd, cwd=None, timeout=1800):
+        if cmd[1] == "lint":
+            return subprocess.CompletedProcess(cmd, 0, json.dumps({"ok": True, "errorCount": 0, "filesScanned": 1}), "")
+        if cmd[1] == "render":
+            Path(cmd[cmd.index("--output") + 1]).write_bytes(b"fake")
+            seen.append(int(cmd[cmd.index("--fps") + 1]))
+        return subprocess.CompletedProcess(cmd, 0, "", "")
+
+    monkeypatch.setattr(motion, "run", run)
+    monkeypatch.setattr(motion.shutil, "which", lambda name: "/fake/hyperframes")
+    monkeypatch.setattr(motion, "contact_sheet", lambda *args: None)
+    monkeypatch.setattr(motion, "probe", lambda movie: {"width": 1920, "height": 1080, "fps": float(seen[-1]),
+                                                       "duration": 4.0, "audio": False})
+    return seen
+
+
+@pytest.mark.parametrize("value, draft_rate, final_rate", [("60", 30, 60), ("50", 30, 50), ("24", 24, 24), (None, 30, 30)])
+def test_drafts_render_at_most_30fps_and_the_final_at_the_approved_rate(tmp_path, monkeypatch, value, draft_rate, final_rate):
+    draft = with_fps(tmp_path, value)
+    assert motion.main(["propose", "--storyboard", str(draft), "--out", str(tmp_path / "p")]) == 0
+    approved = tmp_path / "p/storyboard.md"
+    digest = hashlib.sha256(approved.read_bytes()).hexdigest()
+    source = tmp_path / "source"
+    source.mkdir()
+    (source / "index.html").write_text(root_html(None if value is None else final_rate))
+    seen = fake_hyperframes(monkeypatch)
+    args = ["render", "--approved-plan", str(approved), "--approval-sha256", digest, "--source", str(source)]
+    for quality, rate in (("draft", draft_rate), ("final", final_rate)):
+        assert motion.main([*args, "--out", str(tmp_path / quality), "--quality", quality]) == 0
+        result = json.loads((tmp_path / quality / "render.json").read_text())
+        assert result["fps"] == rate and result["approved_fps"] == final_rate and result["checks"]["fps"]
+    assert seen == [draft_rate, final_rate]
