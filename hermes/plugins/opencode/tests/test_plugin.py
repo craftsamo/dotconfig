@@ -65,6 +65,8 @@ def fixture(tmp_path, monkeypatch):
     executable.write_text(f"#!{sys.executable}\n" + FAKE)
     executable.chmod(0o700)
     monkeypatch.setenv("PATH", str(binary) + os.pathsep + os.environ["PATH"])
+    # The gateway gives runners no PYTHONPATH; they must find Hermes by themselves.
+    monkeypatch.delenv("PYTHONPATH", raising=False)
     owner = {"profile": "engineer", "session_id": "client-a", "routing_digest": "a"}
     monkeypatch.setattr(plugin, "_scope", lambda: (home, owner, False))
     return home, directory, owner
