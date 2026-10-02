@@ -245,3 +245,15 @@ def test_render_smoke(tmp_path):
     result = json.loads((tmp_path / "final/render.json").read_text())
     assert result["status"] == "PASS" and result["cast_used"] == {"mika": 1, "tobi": 1}
     assert Path(result["movie"]).name == "story.mp4"
+
+
+@pytest.mark.parametrize("value, ok", [("60", True), ("24", True), ("120", False), ("29.97", False)])
+def test_story_frame_rate_follows_the_shared_list(tmp_path, value, ok):
+    draft, cast, script = fixture(tmp_path)
+    draft.write_text(draft.read_text(encoding="utf-8").replace("fps: 30\n", f"fps: {value}\n"), encoding="utf-8")
+    if ok:
+        assert propose(tmp_path, draft, cast, script) == 0
+        assert json.loads((tmp_path / "proposal-v1/proposal.json").read_text())["fps"] == int(value)
+    else:
+        assert propose(tmp_path, draft, cast, script) == 1
+        assert not (tmp_path / "proposal-v1").exists()

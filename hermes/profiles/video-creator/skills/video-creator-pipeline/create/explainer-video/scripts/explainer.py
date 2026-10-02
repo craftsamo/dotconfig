@@ -20,6 +20,7 @@ sys.path.insert(0, str(CREATE / "tour/scripts"))
 sys.path.insert(0, str(HERE.parents[2] / "scripts"))
 from tour import VENDOR, command, digest, fresh as _fresh, hf, identifier, image, load, local as _local, number, require, text, write
 from authored import Markup as _Markup, source_files
+import frame_rate
 import mix_audio
 import three_graphics as graphics
 
@@ -33,7 +34,7 @@ _copy = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_copy)
 
 SIZES = {"16:9": (1280, 720), "9:16": (720, 1280)}
-FPS = 30
+FPS = frame_rate.DEFAULT  # Motion Canvas renders only this rate
 RESERVED = {"plan.json", "proposal.md", "integrity.json", "approved-proposal.md"}
 MOUTH_TRACK = "assets/mouth-track.js"
 VENDOR_FILES = ("gsap.min.js", "GSAP-LICENSE.txt", "gsap-provenance.json")
@@ -71,11 +72,20 @@ def asset_name(value):
     return value
 
 
+def rate(plan):
+    """The plan's frame rate; omitted means 30 and is never inserted, so
+    existing proposal and plan hashes stay unchanged."""
+    return plan.get("fps", FPS)
+
+
 def model(raw):
     required = {"version", "topic", "audience", "learning_goal", "theme", "style", "direction",
                 "renderer", "duration", "aspect", "character", "audio", "units", "copy",
                 "samples", "assets", "pending", "must_keep"}
-    require(isinstance(raw, dict) and required <= set(raw) <= required | {"graphics"}, "spec has missing or unknown fields")
+    require(isinstance(raw, dict) and required <= set(raw) <= required | {"graphics", "fps"}, "spec has missing or unknown fields")
+    if "fps" in raw:
+        require(frame_rate.valid(raw["fps"]), f"fps must be one of {frame_rate.describe()}")
+        require(raw["renderer"] != "motion-canvas" or raw["fps"] == FPS, f"Motion Canvas renders only {FPS}fps")
     graphics.enabled(raw)
     require(type(raw["version"]) is int and raw["version"] in (1, 2), "version must be 1 (HyperFrames) or 2 (Motion Canvas)")
     for name in ("topic", "audience", "learning_goal", "theme", "style", "direction"):
@@ -194,11 +204,11 @@ def model(raw):
     previous = -1
     for sample in samples:
         require(isinstance(sample, dict) and set(sample) == {"at", "expect"}, "invalid proof sample")
-        at = number(sample["at"], 0, duration - 1 / FPS, "sample time")
+        at = number(sample["at"], 0, duration - 1 / rate(raw), "sample time")
         require(at > previous, "samples must be ordered and unique")
         previous = at
         text(sample["expect"], "sample expectation", 2000)
-    require(samples[0]["at"] == 0 and abs(samples[-1]["at"] - (duration - 1 / FPS)) < 1e-8,
+    require(samples[0]["at"] == 0 and abs(samples[-1]["at"] - (duration - 1 / rate(raw))) < 1e-8,
             "first and last visible frame samples required")
     for interval in [*units, *raw["copy"]]:
         require(any(interval["start"] < s["at"] < interval["end"] for s in samples), "sample inside every unit/copy hold")
@@ -227,7 +237,7 @@ def input_check(root, plan):
             wav_duration(path)
     audio, char = plan["audio"], plan["character"]
     if audio["master"]:
-        require(abs(wav_duration(root / audio["master"]) - plan["duration"]) <= 1 / FPS,
+        require(abs(wav_duration(root / audio["master"]) - plan["duration"]) <= 1 / rate(plan),
                 "master duration must match the planned timeline; finish/pad through AudioCreator first")
     if audio["script"]:
         script = local(str(root / audio["script"]), {".txt"}).read_text(encoding="utf-8")
@@ -258,7 +268,7 @@ def input_check(root, plan):
         require(len(videos) == 1 and videos[0]["codec_name"] == "h264", "character video must be H.264 MP4")
         video = videos[0]
         require(32 <= video["width"] <= 4096 and 32 <= video["height"] <= 4096, "character video dimensions")
-        require(float(video.get("duration", 0)) >= plan["duration"] - 1 / FPS, "character video too short")
+        require(float(video.get("duration", 0)) >= plan["duration"] - 1 / rate(plan), "character video too short")
         require(not any(s.get("rotation", 0) for s in video.get("side_data_list", [])), "rotated video must be prepared first")
     if char["sync"] and audio["master"] and char["video"]:
         sync = load(local(str(root / char["sync"]), {".json"}))
@@ -280,7 +290,7 @@ def mouth_track(root, plan):
     require(voice in plan["assets"] and cues["voice_sha256"] == plan["assets"][voice], "mouth cues voice hash mismatch")
     duration = wav_duration(root / voice)
     offset = number(cues["offset"], 0, plan["duration"], "voice offset")
-    require(offset + duration <= plan["duration"] + 1 / FPS, "voice cue outside timeline")
+    require(offset + duration <= plan["duration"] + 1 / rate(plan), "voice cue outside timeline")
     require(isinstance(cues["events"], list) and 1 <= len(cues["events"]) <= 4000, "1..4000 supplied mouth events required")
     # HyperFrames coalesces inline body scripts after external scripts. Loading
     # this asset must only declare a function; the scene supplies its own timeline.
@@ -376,7 +386,7 @@ def markup_check(root, plan):
     attrs = markup.roots[0]
     width, height = SIZES[plan["aspect"]]
     require(all(attrs.get(k) == v for k, v in {"id": "root", "data-composition-id": "explainer", "data-start": "0",
-            "data-width": str(width), "data-height": str(height), "data-fps": str(FPS)}.items()), "root contract mismatch")
+            "data-width": str(width), "data-height": str(height), "data-fps": str(rate(plan))}.items()), "root contract mismatch")
     require(float(attrs.get("data-duration", "nan")) == plan["duration"], "root duration mismatch")
     require("assets/gsap.min.js" in markup.assets and "__timelines" in code, "local GSAP/registered timeline required")
     trusted = graphics.validate_assets(root, plan, markup)
@@ -560,13 +570,13 @@ def render(args):
     else:
         check(root, plan, out)
         graphics.compare_final(plan, preview.parent, out)
-        graphics.run_hf(hf, root, plan, ["render", "--output", str(movie), "--fps", str(FPS), "--workers", "1", "--strict", "--no-best-effort", "--quiet"], out / "render.log")
+        graphics.run_hf(hf, root, plan, ["render", "--output", str(movie), "--fps", str(rate(plan)), "--workers", "1", "--strict", "--no-best-effort", "--quiet"], out / "render.log")
     info = json.loads(command(["ffprobe", "-v", "error", "-show_streams", "-show_format", "-of", "json", str(movie)]))
     videos = [s for s in info["streams"] if s["codec_type"] == "video"]
     require(len(videos) == 1, "one final video stream required")
     video = videos[0]
     require((video["width"], video["height"]) == SIZES[plan["aspect"]] and video["codec_name"] == "h264"
-            and video["pix_fmt"] == "yuv420p" and Fraction(video["avg_frame_rate"]) == FPS, "final video format mismatch")
+            and video["pix_fmt"] == "yuv420p" and Fraction(video["avg_frame_rate"]) == rate(plan), "final video format mismatch")
     require(abs(float(info["format"]["duration"]) - plan["duration"]) <= .1, "final duration mismatch")
     audios = [s for s in info["streams"] if s["codec_type"] == "audio"]
     require(len(audios) == (0 if plan["audio"]["mode"] == "none" else 1), "final audio stream mismatch")
@@ -590,7 +600,7 @@ def render(args):
     require(data["runtime"] == selected_runtime(plan), "runtime changed during render")
     graphics.verify_preview(data, plan, preview.parent)
     result = {"mp4": str(movie), "decoded": True, "duration": float(info["format"]["duration"]),
-              "width": video["width"], "height": video["height"], "fps": FPS, "audio": audio_metrics,
+              "width": video["width"], "height": video["height"], "fps": rate(plan), "audio": audio_metrics,
               "semantic_review": "pending", "lip_sync": "unverified" if plan["character"]["lip_sync"] != "off" else "not-requested",
               "temporal_review": "sampled only", "listening": "unverified", "media_generation": 0}
     result["renderer"] = plan["renderer"]

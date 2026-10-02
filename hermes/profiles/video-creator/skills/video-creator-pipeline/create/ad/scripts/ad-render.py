@@ -31,12 +31,13 @@ sys.path.insert(0, str(PIPELINE_SCRIPTS))
 from tour import (VENDOR, command, digest, fresh, hf, image, load, local,  # noqa: E402
                    number, require, text, write)
 from authored import Markup, source_files  # noqa: E402
+import frame_rate  # noqa: E402
 import mix_audio  # noqa: E402
 import three_graphics as graphics  # noqa: E402
 
 ASPECT_SIZES = {"9:16": (1080, 1920), "16:9": (1920, 1080), "1:1": (1080, 1080), "4:5": (1080, 1350)}
 DEFAULT_ASPECT = "9:16"
-FPS = 30
+FPS = frame_rate.DEFAULT
 COPY_ROLES = ("message", "claim", "cta", "support")
 RESERVED = {"plan.json", "approved-plan.json", "integrity.json"}
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp"}
@@ -74,8 +75,10 @@ def plan_model(raw, *, study=False):
     require(isinstance(aspect, str) and aspect in ASPECT_SIZES,
             "aspect must be a known ratio: " + ", ".join(sorted(ASPECT_SIZES)))
     expected_w, expected_h = ASPECT_SIZES[aspect]
-    for key, expected in (("width", expected_w), ("height", expected_h), ("fps", FPS)):
+    for key, expected in (("width", expected_w), ("height", expected_h)):
         require(type(raw[key]) is int and raw[key] == expected, f"{key} must be exactly {expected}")
+    require(frame_rate.valid(raw["fps"]), f"fps must be one of {frame_rate.describe()}")
+    fps = raw["fps"]
     assets = raw["assets"]
     require(isinstance(assets, dict), "assets must be an object")
     for name, sha in assets.items():
@@ -131,7 +134,7 @@ def plan_model(raw, *, study=False):
     if not study:
         require(has_cta, "copy must include a cta row with the exact approved cta text")
 
-    last_frame = duration - 1 / FPS
+    last_frame = duration - 1 / fps
     samples = raw["samples"]
     require(isinstance(samples, list) and 3 <= len(samples) <= 40, "3..40 proof samples required")
     previous = -1
@@ -257,7 +260,7 @@ def markup_check(root, plan):
     require(attrs.get("data-composition-id") == "ad" and attrs.get("data-start") == "0",
             "root id ad and start 0 required")
     require((attrs.get("data-width"), attrs.get("data-height"), attrs.get("data-fps"))
-            == (str(plan["width"]), str(plan["height"]), str(FPS)), "root dimensions/fps mismatch")
+            == (str(plan["width"]), str(plan["height"]), str(plan["fps"])), "root dimensions/fps mismatch")
     require(float(attrs.get("data-duration", "nan")) == plan["duration"], "root duration mismatch")
     require("assets/gsap.min.js" in markup.assets and "__timelines" in code,
             "local GSAP and registered timeline required")
@@ -613,14 +616,14 @@ def render(args):
     times = check(project, plan, out)
     graphics.compare_final(plan, Path(args.approved_preview), out)
     movie = out / ("study.mp4" if study else "ad.mp4")
-    graphics.run_hf(hf, project, plan, ["render", "--output", str(movie), "--fps", str(FPS), "--workers", "1",
+    graphics.run_hf(hf, project, plan, ["render", "--output", str(movie), "--fps", str(plan["fps"]), "--workers", "1",
                  "--strict", "--no-best-effort", "--quiet"], out / "render.log")
     info = json.loads(command(["ffprobe", "-v", "error", "-show_streams", "-show_format",
                                 "-of", "json", str(movie)]))
     video = next(s for s in info["streams"] if s["codec_type"] == "video")
     require((video["width"], video["height"]) == (plan["width"], plan["height"]), "render dimensions mismatch")
     require(video["codec_name"] == "h264" and video["pix_fmt"] == "yuv420p"
-            and Fraction(video["avg_frame_rate"]) == FPS, "render codec/pixel-format/fps mismatch")
+            and Fraction(video["avg_frame_rate"]) == plan["fps"], "render codec/pixel-format/fps mismatch")
     require(abs(float(info["format"]["duration"]) - plan["duration"]) <= .1, "render duration mismatch")
     expects_audio = any(name.startswith("assets/") and name.endswith(".wav") for name in plan["assets"])
     has_audio = any(s["codec_type"] == "audio" for s in info["streams"])
@@ -652,7 +655,7 @@ def render(args):
     project_model(str(project))
     report = {"project": str(project), "mp4": str(movie), "decoded": True, "bytes": movie.stat().st_size,
               "duration": float(info["format"]["duration"]), "width": video["width"], "height": video["height"],
-              "fps": FPS, "samples": plan["samples"],
+              "fps": plan["fps"], "samples": plan["samples"],
               "semantic_review": "pending visual comparison to the approved plan and sample expectations",
               "temporal_review": "sampled only", "audio_listening": "unverified", "media_generation": 0}
     if audio_measurement is not None:

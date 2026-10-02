@@ -25,7 +25,7 @@ Ordinary v2/v3 DOM tours and persisted v1 projects keep their existing behavior.
 - One standalone `index.html` with a sized 1280x720 or 720x1280 `#root`,
   `data-composition-id="tour" data-start="0" data-width="1280"`
   `data-height="720" data-duration="20" data-fps="30"`. Adjust size/duration
-  to the approved form. Root background is opaque; no template wrapper.
+  to the approved form; `data-fps` is the form's `fps` (30 when omitted). Root background is opaque; no template wrapper.
 - Copy `assets/gsap.min.js`, `assets/GSAP-LICENSE.txt` and
   `assets/gsap-provenance.json` from this leaf's assets into source assets.
   Keep the license with the runtime. Other assets stay local under `assets/`;

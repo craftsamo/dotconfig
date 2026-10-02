@@ -2,14 +2,18 @@
 
 Author HTML/CSS/GSAP for this task, not a generic explainer-template DSL.
 `theme`/`style`/`direction` are concrete recipes to adapt, not a scene graph
-to instantiate. Output canvas is one of two fixed ratios, always 30fps:
+to instantiate. Output canvas is one of two fixed ratios:
 
 | `aspect` | dims        |
 | -------- | ----------- |
 | `16:9`   | 1280x720    |
 | `9:16`   | 720x1280    |
 
-No arbitrary size is accepted. `renderer` is an explicit engine choice made in
+No arbitrary size is accepted. Optional plan `fps` is an integer, one of
+`24`, `25`, `30`, `50`, `60`, for `renderer: hyperframes` only; omitted means
+30 and is never inserted, so existing plans keep their hashes. Motion Canvas
+renders only 30fps and rejects any other `fps`. Below, "one frame" is
+`1/fps`. `renderer` is an explicit engine choice made in
 the proposal and never silently switched afterward: `hyperframes` (plan
 `version: 1`) authors HTML/CSS/GSAP as described below; `motion-canvas` (plan
 `version: 2`) authors a Motion Canvas `scene.tsx` instead — see
@@ -193,7 +197,7 @@ helper enforces are:
   ```
 - At runtime (`input_check`), the master WAV must be 48 kHz mono/stereo
   PCM16 and its decoded duration must match `duration` within one frame
-  (1/30s); the `script` file's normalized (whitespace-collapsed) text must
+  (`1/fps`); the `script` file's normalized (whitespace-collapsed) text must
   equal the concatenation of every unit's `narration`, in order, exactly.
 
 ## Units / Copy / Samples Contract
@@ -217,9 +221,9 @@ helper enforces are:
   `id` is a unique slug; `text` is 1..2000 characters; `start`/`end` are
   seconds in `0..duration` with `end > start`.
 - `samples`: `3..80` ordered, unique `at` times (each `0..duration -
-  1/30`) with a short `expect` string (1..2000 chars) each. The first
+  1/fps`) with a short `expect` string (1..2000 chars) each. The first
   sample must be at exactly `0`; the last must be at exactly `duration -
-  1/30` (the last representable frame at 30fps). Every unit and every copy
+  1/fps` (the last representable frame). Every unit and every copy
   row needs at least one sample strictly inside its `start..end` interval,
   so every declared beat has actual proof evidence, not just structural
   timing. A `version: 2` (Motion Canvas) plan additionally requires every
@@ -296,7 +300,7 @@ unrelated `scene.tsx`/`scene.meta` source contract — see
 - One standalone `index.html` with `#root`:
   `data-composition-id="explainer" data-start="0" data-width="<plan
   width>" data-height="<plan height>" data-duration="<duration>"
-  data-fps="30"`, matching the approved plan's `aspect`. No template
+  data-fps="<plan fps, 30 when omitted>"`, matching the approved plan's `aspect`. No template
   wrapper; root background is opaque. Keep every HTML id unique.
 - Copy every asset — including the vendored `gsap.min.js`,
   `GSAP-LICENSE.txt`, `gsap-provenance.json` and, when present, the
@@ -425,7 +429,7 @@ identity behavior is described in [motion-canvas](motion-canvas.md).
 - `render` requires both `--approved-preview` and its exact
   `--approval-sha256` — no bypass — re-validates every bound frame/check
   hash, re-runs the same engine-specific check/render step as `snapshot`
-  (strictly at 30fps), fully decodes the output with `ffmpeg`, checks
+  (strictly at the plan's fps), fully decodes the output with `ffmpeg`, checks
   codec/pixel-format/dimensions/duration/fps/audio-presence-vs-plan with
   `ffprobe`, and for any audio track measures true peak with
   `mix_audio.measure_audio` (rejecting silent/unmeasured/clipping output)

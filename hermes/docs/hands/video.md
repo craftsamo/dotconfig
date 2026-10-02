@@ -38,7 +38,8 @@ Product categories stay form values, not separate ad skill families.
   audio-stream-to-listening inference. Analyze may keep its report/evidence at
   an explicit deliver path but never produces a new ad. Technical-only
   questions stay `analyze-clip`, even with `what_for: ad`.
-- `create-ad` authors a 6..30-second, 30fps HTML/CSS/GSAP ad from
+- `create-ad` authors a 6..30-second HTML/CSS/GSAP ad (frame rate per
+  "Frame rate" below) from
   approved copy and supplied local assets. Aspect selects 9:16 (1080x1920,
   default), 16:9 (1920x1080), 1:1 (1080x1080) or 4:5 (1080x1350); canonical
   sizes live in `ad-render.py`, and source, preview and output must match.
@@ -235,6 +236,24 @@ uses local authoring for that topic — not a blocker and not a runtime failure 
 while an actual CLI/dependency failure or failed approval/validation check
 still blocks. A config change is picked up by a fresh session; an already-open
 resident session may not see new `external_dirs` entries.
+
+**Frame rate.** create-promotion, create-story, create-ad, create-tour and
+the HyperFrames path of create-explainer-video render at 24, 25, 30, 50 or
+60 fps, from one list in `video-creator-pipeline/scripts/frame_rate.py`.
+Omitted means 30 and is never written into a plan, so existing approved
+plans, proposals and frozen forms keep their bytes and hashes (create-ad's
+plans already carry `fps: 30`). The rate is part of the approved plan, so a
+changed rate needs a new approval, like a changed aspect. Promotion and
+story drafts render at the approved rate capped at 30 to keep the improve
+loop fast; GSAP motion is time-based, so draft and final differ only in
+sampling. Ad, tour and explainer previews are stills at the approved times
+and their finals render at the frozen rate. `promotion.py propose
+--reference` measures a reference video and suggests the nearest allowed
+rate (59.94 -> 60). Nothing above 60: create-master and edit-clip accept at
+most 60, and render time grows with the frame count. Motion Canvas stays
+30-only (its frame-count, timeout and preview-equality checks assume it).
+create-master needs every segment at one shared rate; mixed rates go
+through edit-clip first.
 
 **Motion vocabulary.** Separately from those external pins, the kernel's own
 `references/motion-vocabulary.md` is read by all five authored leaves —
@@ -448,7 +467,8 @@ its own reference `create/explainer-video/references/motion-canvas.md` (source,
 plan, runtime and provisioning contract), with no dependency on the external
 HyperFrames skills. Prefer Motion Canvas for reactive diagrams, algorithms and
 Canvas-based explanation; prefer HyperFrames for HTML/UI or media-oriented
-compositions. Both render 16:9 (1280x720) or 9:16 (720x1280) at 30 fps. An old
+compositions. Both render 16:9 (1280x720) or 9:16 (720x1280); HyperFrames at
+the plan's frame rate ("Frame rate" below), Motion Canvas only at 30 fps. An old
 `version: 1` plan naming `motion-canvas` was discussion-only and stays
 non-executable: it needs a fresh `version: 2` proposal and new approval, never
 a resume of the old hash. An unsupported requested renderer is a capability
@@ -542,7 +562,7 @@ additive: existing music-video, ad, tour and Mix routes are unchanged.
 `video-creator-pipeline/create/promotion/` serves `create-promotion`
 (2026-09-23, renamed from `create-motion` the same day): authored promotion
 video — launch/promo, brand or sizzle pieces, feature reveals, kinetic
-typography, logo stings — 3..60 s at 30fps, 16:9 (default), 9:16, 1:1 or
+typography, logo stings — 3..60 s (frame rate per "Frame rate"), 16:9 (default), 9:16, 1:1 or
 4:5, that VideoCreator designs and draws itself in HTML/CSS/SVG/GSAP,
 optionally matching a local reference video (`reference_use: inspiration |
 reproduce`). Always `kind="work"`; free.
@@ -617,7 +637,7 @@ create-promotion alone may also use cut-the-curve's seam techniques. Tests:
 ## Story family
 
 `video-creator-pipeline/create/story/` serves `create-story`: a short
-character story, 10..120 s at 30fps (9:16 default, 16:9, 1:1, 4:5), in
+character story, 10..120 s (frame rate per "Frame rate"; 9:16 default, 16:9, 1:1, 4:5), in
 which recurring characters from their approved art act out a narrative
 across scenes with dialogue from an approved script and a finished
 soundtrack, staged by VideoCreator as 2.5D HyperFrames animation. Always

@@ -12,12 +12,14 @@ scene recipe.
 | `1:1` | 1080x1080 |
 | `4:5` | 1080x1350 |
 
-Always 30fps, 10..120 seconds. A ratio change is a new storyboard.
+10..120 seconds. `fps` is 24, 25, 30, 50 or 60 (omitted = 30; the form's
+value when given); drafts render at most 30fps, the final at `fps`. A ratio
+or rate change is a new storyboard.
 
 ## Storyboard (`storyboard.md`)
 
 The same front matter and structure rules as create-promotion's storyboard
-(`aspect`, `duration`, `fps: 30`, `audio: none|supplied|pending`,
+(`aspect`, `duration`, `fps`, `audio: none|supplied|pending`,
 `pending`; contiguous `## Beats` from 0 to `duration`; `## Pending`), plus a
 cast and dialogue:
 

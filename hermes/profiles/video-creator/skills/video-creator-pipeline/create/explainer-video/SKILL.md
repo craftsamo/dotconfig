@@ -77,7 +77,8 @@ metadata:
       aspect:
         required: false
         options: ["16:9", "9:16"]
-        label: "default 16:9; 1280x720 or 720x1280, 30fps"
+        label: "default 16:9; 1280x720 or 720x1280"
+      fps: {required: false, options: ["24", "25", "30", "50", "60"], label: "default 30; HyperFrames only"}
       pending:
         required: false
         type: text
