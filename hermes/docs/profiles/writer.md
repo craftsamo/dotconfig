@@ -243,9 +243,12 @@ naturalness score — and Writer never self-scores from it.
 
 Its `writing_inspect` tool (toolset `writing-inspection`) is single-purpose
 transport, not inspection rules: text-only input bounded to 131072 UTF-8 bytes,
-a 20-second deadline, reachable only from a Writer CLI or A2A session. It runs
-the canonical inspector as a `subprocess` with no shell, no source writes and no
-network. Ordinary host conversation-history persistence still applies to
+a 20-second deadline, reachable only from a Writer session. A gateway (A2A)
+turn must be bound to the Writer profile; a resident CLI turn binds no session
+profile, so the Writer home identifies it and any profile it inherits must be
+Writer's. Without the dedicated Python from `agents/README.md` the tool returns
+`unavailable`. It runs the canonical inspector as a `subprocess` with no
+shell, no source writes and no network. Ordinary host conversation-history persistence still applies to
 whatever text is sent. The old Writer routing/review cluster, shared Japanese
 catalogs, detector fixtures and pass counts are retired; do not place an archive
 back under a discovered skill root. Attribution and provisioning live in
