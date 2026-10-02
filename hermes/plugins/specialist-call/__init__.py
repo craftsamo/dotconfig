@@ -681,6 +681,40 @@ def _request_stop(root, job):
     _write(root / (_id(job) + ".stop"), dict(requested_at=time.time()))
 
 
+_RUNNER = ("import runpy, sys; sys.argv[0] = sys.argv[1]; del sys.argv[1]; "
+           "runpy.run_path(sys.argv[0], run_name='__main__')")
+
+
+def _dependency_root():
+    # The Hermes root whose installs/ hold this process's dependency generation, read once
+    # at load, while the environment is the one this process was started with.
+    try:
+        from pm.environments import dependency_home_root
+        return dependency_home_root()
+    except Exception:
+        return None
+
+
+_DEPENDENCY_ROOT = _dependency_root()
+
+
+def runner_command(script, *args):
+    """Command that runs a plugin script's __main__ as its own process on the same Hermes
+    runtime as this one. Hermes puts its checkout and dependency generation on the path
+    inside its own bootstrap, so a bare `sys.executable script` child cannot even import
+    hermes_yaml; reuse upstream's launcher bootstrap instead. That bootstrap finds the
+    dependencies through HERMES_HOME, so pin it to this process's root rather than trust
+    an inherited value (runners read their home from the request and strip HERMES_* for
+    their own children). Outside a PM-managed install the plain interpreter is all there is."""
+    try:
+        from hermes_cli import _launchers
+    except ImportError:
+        return [sys.executable, str(script), *map(str, args)]
+    root = Path(_launchers.__file__).resolve().parents[1]
+    command = _launchers.runtime_command(root, [str(script), *map(str, args)], code=_RUNNER)
+    return ["/usr/bin/env", f"HERMES_HOME={_DEPENDENCY_ROOT}", *command] if _DEPENDENCY_ROOT else command
+
+
 def _reap_later(proc):
     # A detached runner stays this process's child (so it still dies with it); reap it.
     threading.Thread(target=proc.wait, name="specialist-runner-reaper", daemon=True).start()
@@ -696,7 +730,7 @@ def _execute_sync(request_path, detach=False):
     cid, owner = request["conversation_id"], request["owner"]
     try:
         # Output goes to the record; an unread pipe would block a runner with a long reply.
-        proc = subprocess.Popen([sys.executable, str(Path(__file__).resolve()), str(request_path)],
+        proc = subprocess.Popen(runner_command(Path(__file__).resolve(), request_path),
                                 stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                                 start_new_session=True)
     except OSError:
@@ -827,7 +861,7 @@ def specialist_call(args, **kwargs):
 
         try:
             result = json.loads(terminal_tool(
-                command=shlex.join([sys.executable, str(Path(__file__).resolve()), str(request_path)]),
+                command=shlex.join(runner_command(Path(__file__).resolve(), request_path)),
                 background=True, notify_on_complete=True, task_id=kwargs.get("task_id"), _host_local=True))
         except Exception:
             result = {"error": "Launch outcome unknown; inspect conversation status, do not retry", "exit_code": -1}
