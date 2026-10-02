@@ -78,7 +78,7 @@ historical constraints, never a request to repeat its generation or spend.
    (1..180s) topic/audience/learning_goal explanation only, rendering
    through either v1 HyperFrames (HTML/UI or media-oriented compositions)
    or v2 Motion Canvas (reactive diagrams, algorithms, Canvas-based
-   explanation) at 16:9/9:16 30fps — an explicit engine choice made and
+   explanation) at 16:9/9:16 (HyperFrames 24-60fps, Motion Canvas 30fps) — an explicit engine choice made and
    preserved in the proposal, never a silent switch on failure. Motion
    Canvas needs no external HyperFrames skills; it uses its own local
    motion-canvas reference inside that leaf. Old version 1 Motion Canvas

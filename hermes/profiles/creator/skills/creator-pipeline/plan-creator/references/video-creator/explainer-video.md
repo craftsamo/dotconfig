@@ -9,7 +9,8 @@ learning_goal — never a UI task walkthrough ([create-tour](tour.md)), an
 advertisement ([create-ad](ad.md)), or a model-generated music-video-style piece
 ([generate-music-video](music-video.md)). Always `specialist_call(kind="work")` even
 though it is free (local authoring only, no provider fee; 1..180 seconds,
-16:9/1280x720 or 9:16/720x1280 at 30fps). `framing`
+16:9/1280x720 or 9:16/720x1280; HyperFrames at 24/25/30/50/60fps, default
+30; Motion Canvas 30fps only). `framing`
 (none/bust/full) is independent of `performance` (still/puppet/animated)
 and `lip_sync` (off/cues/baked): bust only proposes lip-sync cues, never
 substitutes for an explicit `off`; full supports whatever performance was

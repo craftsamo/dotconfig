@@ -5,7 +5,7 @@ Read [common plan](../../SKILL.md) first.
 `create-promotion` is the served route for authored motion design: a launch or
 promo piece, brand/sizzle video, feature reveal, kinetic typography or logo
 sting that VideoCreator designs and draws itself in HTML/CSS/SVG/GSAP,
-3..60 seconds at 30fps (16:9 default, 9:16, 1:1, 4:5). It is checked before
+3..60 seconds at 24/25/30/50/60fps (16:9 default, 9:16, 1:1, 4:5). It is checked before
 the legacy `creator-html-motion` table row. It is not a UI task walkthrough
 ([create-tour](tour.md)), a CTA/claims advertisement from approved assets
 ([create-ad](ad.md)), a learning explainer
@@ -23,7 +23,9 @@ and ending, opens on its own material, and gets its own storyboard
 approval.
 
 Settle with the client only what changes the piece: `subject`, `what_for`
-(purpose, destination, viewer), aspect/duration if not obvious, any exact
+(purpose, destination, viewer), aspect/duration/fps if not obvious (fps
+defaults to 30; with a reference, VideoCreator proposes the reference's
+nearest allowed rate, e.g. 60 for a 59.94/60fps film), any exact
 copy they fix, supplied assets, and the look/energy in their words. Do not
 ask the client for a storyboard, a shot list or timings: VideoCreator
 proposes them. A reference video is read locally; it never authorizes an

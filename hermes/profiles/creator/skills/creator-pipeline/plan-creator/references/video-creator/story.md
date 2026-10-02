@@ -13,7 +13,8 @@ model-generated MV ([music-video](music-video.md)) or a generated shot
 video drifts from the approved art.
 
 Settle with the client: premise (setup, turn, ending), purpose and viewer,
-aspect and length, the cast, the world and its look. The cast means
+aspect and length (fps only if the client asks: 24/25/30/50/60, default
+30), the cast, the world and its look. The cast means
 approved art that already exists — a mascot anchor and its pose pack, or
 supplied character images. An unspecified cast is not "no cast": clarify
 existing characters vs. new ones. New characters and missing poses are
