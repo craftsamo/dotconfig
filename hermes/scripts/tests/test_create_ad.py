@@ -123,9 +123,10 @@ def fake_hf(project, args, evidence):
         evidence.write_text("snapshot ok", encoding="utf-8")
     elif args[0] == "render":
         movie = Path(args[args.index("--output") + 1])
+        rate = args[args.index("--fps") + 1]
         subprocess.run(["ffmpeg", "-y", "-f", "lavfi",
-                        "-i", f"color=c=black:s={plan['width']}x{plan['height']}:d={plan['duration']}:r=30",
-                        "-c:v", "libx264", "-pix_fmt", "yuv420p", "-r", "30", str(movie)],
+                        "-i", f"color=c=black:s={plan['width']}x{plan['height']}:d={plan['duration']}:r={rate}",
+                        "-c:v", "libx264", "-pix_fmt", "yuv420p", "-r", rate, str(movie)],
                        check=True, capture_output=True)
         evidence.write_text("render ok", encoding="utf-8")
     else:
@@ -141,7 +142,8 @@ def preview_fixture(job, monkeypatch):
 # ── plan validation: range/count, copy, CTA, unknown/duplicate fields ───────
 
 @pytest.mark.parametrize("fault", [
-    "duration-low", "duration-high", "wrong-width", "wrong-fps",
+    "duration-low", "duration-high", "wrong-width", "wrong-fps", "fps-120", "fps-bool", "fps-float",
+    "fps-60-last-sample-at-30fps-frame",
     "missing-message-row", "cta-text-mismatch", "cta-too-short",
     "duplicate-copy-id", "bad-copy-role", "claim-without-claims",
     "unordered-samples", "missing-first-sample", "missing-last-sample",
@@ -160,7 +162,16 @@ def test_invalid_plan_rejected(job, fault):
     elif fault == "wrong-width":
         plan["width"] = 1920
     elif fault == "wrong-fps":
-        plan["fps"] = 24
+        plan["fps"] = 29
+    elif fault == "fps-120":
+        plan["fps"] = 120
+    elif fault == "fps-bool":
+        plan["fps"] = True
+    elif fault == "fps-float":
+        plan["fps"] = 60.0
+    elif fault == "fps-60-last-sample-at-30fps-frame":
+        # duration - 1/30 is earlier than the last 60fps frame (duration - 1/60).
+        plan["fps"] = 60
     elif fault == "missing-message-row":
         plan["copy"] = [r for r in plan["copy"] if r["role"] != "message"]
     elif fault == "cta-text-mismatch":
@@ -1301,3 +1312,40 @@ def test_study_real_render(monkeypatch):
     assert result["decoded"] and result["final_eligible"] is False
     assert Path(result["mp4"]).name == "study.mp4"
     print(f"Fictional local renderer fixture, not client or aesthetic acceptance: {root}")
+
+
+# ── frame rate ───────────────────────────────────────────────────────────────
+
+def set_fps(job, fps):
+    plan = load_plan(job)
+    plan["fps"] = fps
+    plan["samples"][-1]["at"] = plan["duration"] - 1 / fps
+    save_plan(job, plan)
+    html = job / "source/index.html"
+    html.write_text(html.read_text(encoding="utf-8").replace('data-fps="30"', f'data-fps="{fps}"'), encoding="utf-8")
+    return plan
+
+
+@pytest.mark.parametrize("fps", [24, 25, 50, 60])
+def test_plan_model_accepts_each_allowed_rate(job, fps):
+    model = ad.plan_model(set_fps(job, fps))
+    assert model["fps"] == fps
+
+
+def test_markup_requires_the_plan_rate(job):
+    plan = ad.plan_model(set_fps(job, 60))
+    ad.markup_check(job / "source", plan)
+    html = job / "source/index.html"
+    html.write_text(html.read_text(encoding="utf-8").replace('data-fps="60"', 'data-fps="30"'), encoding="utf-8")
+    with pytest.raises(ValueError, match="fps"):
+        ad.markup_check(job / "source", plan)
+
+
+def test_60fps_plan_renders_and_reports_60fps(job, monkeypatch):
+    set_fps(job, 60)
+    freeze(job)
+    monkeypatch.setattr(ad, "hf", fake_hf)
+    result = ad.snapshot(SimpleNamespace(project=str(job / "project"), out=str(job / "preview")))
+    report = ad.render(SimpleNamespace(project=str(job / "project"), approved_preview=str(job / "preview"),
+                                       approval_sha256=result["preview_sha256"], out=str(job / "final")))
+    assert report["fps"] == 60 and abs(report["duration"] - 15) <= .1
