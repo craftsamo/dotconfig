@@ -1903,6 +1903,10 @@ def test_runner_finds_hermes_without_pythonpath(tmp_path):
                      "print(json.dumps({'argv': sys.argv, 'name': __name__}))\n")
     command = p.runner_command(probe, tmp_path / "job.request")
     assert "-I" in command, "runners must not depend on the caller's environment"
+    # Messaging launches go through the terminal tool; an inline `python -c` there asks
+    # the user to approve every specialist call.
+    from tools.approval_detection import detect_dangerous_command
+    assert detect_dangerous_command(shlex.join(command))[0] is False
     env = {k: v for k, v in os.environ.items() if k != "PYTHONPATH"}
     run = subprocess.run(command, env=env, capture_output=True, text=True, timeout=60)
     assert run.returncode == 0, run.stderr
