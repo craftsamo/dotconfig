@@ -237,9 +237,11 @@ unavailable contract blocks acceptance.
 The shared Japanese core (`SKILL.md`, five notation defaults) also carries a
 bounded, read-only `references/inspection.md` plus `scripts/inspect_text.py` and
 `scripts/requirements.txt`. Writer's leaves still own document construction and
-checks; the inspector never edits, decides or scores. It reports checked /
-unverified findings for the Article leaf to judge — never a pass/fail or
-naturalness score — and Writer never self-scores from it.
+checks; the inspector never edits, decides or scores. Every Japanese text
+Writer writes or edits gets one pass over its completed draft, whatever the
+family; it reports checked / unverified findings for the selected leaf to
+judge — never a pass/fail or naturalness score — and Writer never self-scores
+from it.
 
 Its `writing_inspect` tool (toolset `writing-inspection`) is single-purpose
 transport, not inspection rules: text-only input bounded to 131072 UTF-8 bytes,
