@@ -1,7 +1,7 @@
 ---
 name: create-ad
 description: >-
-  Create a short authored ad (default portrait 9:16, or 16:9/1:1/4:5, 30fps)
+  Create a short authored ad (default portrait 9:16, or 16:9/1:1/4:5, 24-60fps)
   from client-approved product, audience, message, CTA and optional supplied
   assets/audio, or an approved Audio Mix master. Returns an unspent content
   plan for approval first; authors/freezes source only after Creator relays
@@ -23,14 +23,15 @@ metadata:
       cta: {required: false, type: text, label: "final: exact CTA held >=2s; study: omit"}
       purpose: {required: false, options: [final, study], label: "default final; study is separately approved, never final media"}
       question: {required: false, type: text, label: "study only: one visual/motion question"}
-      aspect: {required: false, options: ["9:16", "16:9", "1:1", "4:5"], label: "canvas ratio, default 9:16 (fixed dims per ratio, ad-render.py); no arbitrary size or cross-ratio crop/scale"}
+      aspect: {required: false, options: ["9:16", "16:9", "1:1", "4:5"], label: "default 9:16; fixed dims per ratio, no cross-ratio crop/scale"}
+      fps: {required: false, options: ["24", "25", "30", "50", "60"], label: "default 30"}
       assets: {required: true, type: path, label: "local dir of approved product/logo/audio/video assets, always with vendored GSAP (even text-only)"}
-      claims: {required: false, type: text, label: "evidence/restrictions for claim-role copy; not fact-checked, required only if used"}
+      claims: {required: false, type: text, label: "evidence/limits for claim copy; not fact-checked; only if used"}
       theme: {required: false, options: [office], other: true, references: references/themes/*.md, label: "world/setting vocabulary; the listed default is a starting point"}
       theme_detail: {required: false, type: text, label: "motifs/palette/materials/light overriding conflicting theme defaults"}
       style: {required: false, options: [bold-graphic], other: true, references: references/styles/*.md, label: "presentation treatment; a described look is equally valid"}
       direction: {required: false, options: [claim-led], other: true, references: references/direction/*.md, label: "how message/claim/cta stage and pace; free text is first-class"}
-      audio: {required: false, type: file, label: "supplied only: finished WAV or JSON list of <=16 {source, start} cues, pre-edited, played from start; no TTS"}
+      audio: {required: false, type: file, label: "supplied only: finished WAV or JSON list of <=16 {source, start} cues; no TTS"}
       audio_workflow: {required: false, options: [supplied, mix], label: "supplied (default) = audio field; mix = approved Mix master via mix_bundle"}
       mix_bundle: {required: false, type: path, label: "mix only: bundle dir to verify+stage; plan binds staged master/receipt by hash"}
       reference: {required: false, type: file, label: "local reference/report for inspiration/claim evidence; never uploaded"}
@@ -63,7 +64,8 @@ skill_view(name="video-creator-pipeline", file_path="references/three-graphics.m
    follows Round B; it grants none of these actions. Output canvas is one
    of four fixed ratios —
    9:16 (1080x1920, default), 16:9 (1920x1080), 1:1 (1080x1080), 4:5
-   (1080x1350) — always 30fps; do not invent other dimensions, and never
+   (1080x1350) — at the plan's `fps` (24/25/30/50/60, default 30; preview and
+   final share it); do not invent other dimensions, and never
    crop or scale a layout authored for one ratio into another.
    A final ad still requires `cta`; absence never selects study implicitly.
    Only an explicit `purpose: study` selects [diagnostic study](references/study.md).
@@ -121,7 +123,7 @@ skill_view(name="video-creator-pipeline", file_path="references/three-graphics.m
    `index.html` and local assets in a fresh task-local source
    directory: one standalone `#root` with
    `data-composition-id="ad" data-start="0" data-width="<plan width>"
-   data-height="<plan height>" data-duration="<duration>" data-fps="30"`
+   data-height="<plan height>" data-duration="<duration>" data-fps="<plan fps>"`
    matching the approved plan's `aspect` (or 1080x1920 when `aspect` is
    absent), local
     `gsap.min.js`, `GSAP-LICENSE.txt` and `gsap-provenance.json` in the source

@@ -2,8 +2,8 @@
 
 Author HTML/CSS/GSAP for this task, not a generic ad-template DSL. There is
 no fixed layout: theme/style/direction are concrete recipes to adapt, not a
-scene graph to instantiate. Output canvas is one of four fixed ratios, always
-30fps:
+scene graph to instantiate. Output canvas is one of four fixed ratios, at
+the plan's `fps` (24, 25, 30, 50 or 60; 30 unless the client names another):
 
 | `aspect` | dims        |
 | -------- | ----------- |
@@ -68,7 +68,8 @@ client-approved product facts, exact copy and exact claims — nothing invented:
 Illustrative values only. The maintainer's test suite includes an explicitly
 fictional TEST FIXTURE, never a real or client-approved ad.
 
-- `version` must be `1`. `fps` must be exactly `30`. `aspect` is optional and,
+- `version` must be `1`. `fps` is an integer, one of `24`, `25`, `30`, `50`,
+  `60`; existing plans carry `30` and keep their bytes. `aspect` is optional and,
   when present, must be exactly one of `9:16`, `16:9`, `1:1`, `4:5` (a bool,
   list, dict or unlisted string is rejected). `width`/`height` must exactly
   match that ratio's fixed dims (`9:16`=1080x1920, `16:9`=1920x1080,
@@ -132,7 +133,7 @@ fictional TEST FIXTURE, never a real or client-approved ad.
   field (evidence/restrictions); the helper checks presence, never truth. Every
   `cta`-role row must hold for at least 2 seconds (`end - start >= 2`).
 - `samples`: `3..40` ordered, unique `at` times with a short `expect` string
-  each. Must start at `0` and end at or after `duration - 1/30` (the last
+  each. Must start at `0` and end at or after `duration - 1/fps` (the last
   representable frame; a sample can never land exactly at `duration` itself,
   since no frame exists there). Every copy row needs at least one sample
   strictly inside its `start..end` hold, so each declared line has actual
@@ -142,7 +143,7 @@ fictional TEST FIXTURE, never a real or client-approved ad.
 
 - One standalone `index.html` with `#root`:
   `data-composition-id="ad" data-start="0" data-width="<plan width>"
-  data-height="<plan height>" data-duration="<duration>" data-fps="30"`,
+  data-height="<plan height>" data-duration="<duration>" data-fps="<plan fps>"`,
   matching the approved plan's ratio (its CSS-sized canvas is the same
   variable dims, not a fixed 1080x1920). No template wrapper; root background
   is opaque.
@@ -212,7 +213,7 @@ ledger), runs `hyperframes check` (contrast must be enabled and nonzero) and
 check hash into `preview.json`, whose own SHA-256 is the value the client
 approves. `render` requires both `--approved-preview` and its exact
 `--approval-sha256` — no bypass — re-validates every bound frame/check hash,
-re-runs `hyperframes check`, renders strictly at 30fps with one worker, fully
+re-runs `hyperframes check`, renders strictly at the plan's fps with one worker, fully
 decodes the output with `ffmpeg`, and checks codec/pixel-format/dimensions/
 duration/fps/audio-presence-vs-plan with `ffprobe` before writing `qa.json`
 with `semantic_review: pending`, `temporal_review: sampled only`,
