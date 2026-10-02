@@ -48,8 +48,10 @@ VideoCreator never calls those hands/peers directly; a form that needs
 one comes back to you as a dependency request, not a `no skill fits`.
 
 A character from the library resolves through the `characters` tool:
-`list`, then `show <slug> visual` / `animation` / `voice` for its approved
-files and voice ids; drafts and archive are never canon. Any other
+`list`, then `show <slug>` for the character card (profile, primary assets,
+voice ids), then `show <slug> visual` / `animation` / `voice` for that
+medium's guide and approved files. Carry the profile's identity core and
+boundaries into the form; drafts and archive are never canon. Any other
 workspace/asset root and private asset names are
 yours to resolve, never VideoCreator's: prefer a direct path or an
 identity you already hold, else a bounded name-only lookup inside the
