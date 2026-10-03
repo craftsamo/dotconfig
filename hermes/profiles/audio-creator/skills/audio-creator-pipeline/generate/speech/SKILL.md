@@ -94,8 +94,9 @@ metadata:
    at most once when there is a concrete synthesis defect and allowance;
    unresolved reading/acting judgments go to Creator/the client. Revisions
    preserve script/voice and modify only requested controls. Seed replay also
-   needs the same engine, text and style: compare decoded PCM hashes, not Ogg
-   container bytes. A house replay is a new take, not deterministic.
+   needs the same engine checkpoint, text and style: compare decoded PCM
+   hashes, not Ogg container bytes. A house replay is a new take, not
+   deterministic.
 
 </Procedure>
 
