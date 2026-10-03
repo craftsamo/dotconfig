@@ -405,6 +405,13 @@ keeps user keys.
   `pre_tool_call` hook that sends every change through the approval gate and
   blocks the terminal path around them, and the code behind `bin/gaccess`
   (one-time setup). Behavior: [docs/google-access.md](docs/google-access.md).
+- **whatsapp-access** (`standalone`): `whatsapp` (toolset `whatsapp_access`)
+  for the assistant — reads the user's WhatsApp accounts from the local
+  `wacli` mirror and sends text through the approval gate; its hook blocks
+  the terminal path around it. Each account's `wacli sync` runs as a
+  `local.wacli.sync.<account>` LaunchAgent managed by
+  `launchd/wacli-sync-launchctl.sh` (`pair` / `install` / `status`).
+  Behavior: [docs/whatsapp-access.md](docs/whatsapp-access.md).
 - **ui-inspection** (`standalone`): `ui_capture` for ui-review / ux-persona.
 - **writing-inspection** (`standalone`): Writer's bounded `writing_inspect`.
 - **kanban-worker-mutation-guard** (`standalone`): stops dispatcher workers
