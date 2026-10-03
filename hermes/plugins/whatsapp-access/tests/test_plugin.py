@@ -105,6 +105,6 @@ def test_handler_returns_json():
 
 
 def test_oversized_results_are_refused(monkeypatch):
-    monkeypatch.setattr(plugin.wa, "execute", lambda args: {"x": "y" * plugin.LIMIT})
+    monkeypatch.setattr(plugin.wa, "execute", lambda args, home=None: {"x": "y" * plugin.LIMIT})
     result = json.loads(plugin.whatsapp({"action": "chats"}))
     assert result["ok"] is False and "narrow" in result["error"]
