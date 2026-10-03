@@ -6,6 +6,8 @@
 
 tap "anomalyco/tap"
 tap "openclaw/tap"
+tap "steipete/tap"
+tap "xdevplatform/tap"
 
 # --- CLI core ---
 brew "neovim"
@@ -43,6 +45,11 @@ brew "librsvg"     # rsvg-convert: high-quality SVG raster (+ ImageMagick SVG de
 
 # --- Hermes Agent: whatsapp-access plugin (see hermes/docs/whatsapp-access.md) ---
 brew "openclaw/tap/wacli" # WhatsApp linked-device CLI: local mirror + send
+
+# --- Hermes Agent: Assistant tools ---
+cask "gcloud-cli"              # gcloud — google-access plugin + bin/gaccess
+brew "steipete/tap/remindctl"  # apple-reminders skill (hermes-agent skills/apple)
+cask "xdevplatform/tap/xurl"   # xurl skill (hermes-agent skills/social-media)
 
 # --- GUI apps / fonts (casks land in /Applications, shared across users) ---
 cask "font-hack-nerd-font"
