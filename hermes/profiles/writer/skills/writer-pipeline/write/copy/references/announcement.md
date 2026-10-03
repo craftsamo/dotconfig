@@ -46,7 +46,8 @@ Sources: local adaptation of [natural-japanese v1.5.0 writing constitution](http
 and [revision guide](https://github.com/coji/natural-japanese/blob/v1.5.0/skills/natural-japanese/references/revision-guide.md):
 concrete openings, conditional conclusions and no invented author intention.
 These are shared principles, not upstream announcement manuals; the local
-adaptation adds no scoring or review loop. Examples are locally authored.
+adaptation adds no scoring or review loop beyond the shared `japanese-writing`
+workflow. Examples are locally authored.
 
 QA: the announcement matches the approved message and known status; benefits
 are qualified and any action is grounded. No implied launch, public posting,

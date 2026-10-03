@@ -65,10 +65,11 @@ or inherit Writer's role. Read only the detail references selected below.
    Review against supplied goals, not generic marketing templates. Mark
    interpretations as interpretations; tone does not prove how an audience
    reacted. Distinguish inspected media from a caller's description.
-4. For Japanese language observations, use `japanese-writing` as knowledge,
-   not its legacy inspection workflow, lint or scores. Use `humanizer` only
-   on explicit request and only as guidance for findings. Do not diagnose
-   authorship or turn statistical regularity into a naturalness verdict.
+4. For Japanese text, follow `japanese-writing` as the kernel maps it: report
+   findings, and give its naturalness diagnosis only when the requester asks
+   for a score; this leaf adds its form-specific checks. Use `humanizer` only
+   on explicit request and only as guidance for findings. Never diagnose
+   authorship.
 5. Check the report under QA below. Return the analysis, not revised post
    bodies. A small illustrative suggestion may explain a finding, but a
    corrected draft requires a separately requested edit. Never change the
@@ -90,7 +91,9 @@ or inherit Writer's role. Read only the detail references selected below.
 - The source is unchanged. Evaluate this analysis as a report, not as a
   new post requiring attachments, hashtags or a call to action.
 - Report unmet or unverified requested checks rather than filling gaps
-  with a score. A short response is valid when it answers the question.
+  with a score. Never an authorship verdict; a naturalness score only from
+  the shared diagnosis when requested; do not invent measurements. A short
+  response is valid when it answers the question.
 
 </QA>
 

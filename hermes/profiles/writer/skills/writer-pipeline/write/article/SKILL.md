@@ -84,20 +84,19 @@ or inherit Writer's role. Read only the detail references selected below.
    article to start with a conclusion or end with a CTA. Distinguish source
    facts, interpretation and unknowns. Tutorials use supplied/verified
    behavior; writing code snippets does not prove they were executed.
-5. Use `japanese-writing` for Japanese expression and its notation defaults;
-   load its body and referenced inspection instructions before interpreting
-   any candidate finding. For every Japanese article (kernel rule), run
-   its full drafted text (not merely the outline) through `writing_inspect`
-   using the exact available raw source text — never a `read_file`-wrapped
-   or line-numbered copy — selecting only the modes relevant to this draft
-   from `reading-load`, `outline`, `terms` and `structure`. Run it once
-   against the completed draft, then rerun only the affected modes after an
-   actual revision; do not loop calls chasing a zero-findings result. A
+5. For Japanese text, follow `japanese-writing`'s write workflow as the
+   kernel maps it; this leaf adds its form-specific checks. Its inspection
+   step sends the full drafted text (not merely the outline) through
+   `writing_inspect` using the exact available raw source text — never a
+   `read_file`-wrapped or line-numbered copy — selecting the modes relevant
+   to this draft, such as `naturalness`, `expression`, `notation`,
+   `reading-load`, `outline`, `terms` and `structure`. Rerun only the
+   affected modes after an actual revision and stop by the skill's
+   convergence rule; do not loop calls chasing a zero-findings result. A
    tool error, `unverified` entry or truncated result leaves that mode
    unverified: keep reading the text directly for what can still be
    checked, and never report the machine inspection as complete or install
-   or reach for a general terminal to run it another way. Do not load the
-   legacy prose/rhythm/business layers or run their lint. Preserve meaning
+   or reach for a general terminal to run it another way. Preserve meaning
    and natural expressions; use `humanizer` only on explicit request.
 6. If assets or editor-only features are needed, read
    [production notes](references/production/assets.md). Keep supplied media, source

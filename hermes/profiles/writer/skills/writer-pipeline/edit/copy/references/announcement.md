@@ -41,7 +41,8 @@ Sources: local adaptation of [natural-japanese v1.5.0 writing constitution](http
 and [revision guide](https://github.com/coji/natural-japanese/blob/v1.5.0/skills/natural-japanese/references/revision-guide.md):
 bounded conclusions, preservation of intention and selective rewriting.
 These are shared principles, not upstream announcement manuals; the local
-adaptation imports no scoring or review loop. Examples are locally authored.
+adaptation imports no scoring or review loop beyond the shared
+`japanese-writing` workflow. Examples are locally authored.
 
 QA: compare the complete revision against the original and evidence, including
 untouched conditions and action targets. Missing evidence remains explicit;

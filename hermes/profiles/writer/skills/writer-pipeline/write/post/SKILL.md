@@ -68,11 +68,10 @@ or inherit Writer's role. Read only the detail references selected below.
    are not silently converted. Do not select a campaign, schedule or offer.
 3. Draft in the requested voice and language. Follow only the requested
    aspects of a style reference. Natural wording is not changed merely
-   because an alternative exists. For Japanese, use `japanese-writing`
-   as language/notation knowledge, not as a second workflow: this leaf
-   owns review and does not run legacy layers, lint or scoring.
-   Load `humanizer` only for an explicit request, preserve meaning and
-   commitments, and do not report an authorship or naturalness score.
+   because an alternative exists. For Japanese text, follow
+   `japanese-writing`'s write workflow as the kernel maps it; this leaf adds
+   its form-specific checks. Load `humanizer` only for an explicit request,
+   preserve meaning and commitments, and never report an authorship verdict.
 4. For a thread, assign stable post IDs and preserve the intended order.
    Keep each post's exact plain-text body separate from IDs and production
    notes. Use supplied handles; propose hashtags only if requested, without
@@ -106,7 +105,9 @@ or inherit Writer's role. Read only the detail references selected below.
   are unavailable, mark it unverified; no terminal capability is implied.
   Meeting an authoring target is not proof of platform acceptance.
 - Review naturalness and tone without altering facts, scope, uncertainty
-  or approved wording. No mandatory humanizer pass or statistical thresholds.
+  or approved wording. No mandatory humanizer pass. Never an authorship
+  verdict; a naturalness score only from the shared diagnosis when requested;
+  do not invent measurements.
 - Missing required media, unsupported hard constraints or unverified
   required checks prevent a ready-to-publish claim. A text draft may be
   delivered with those gaps explicitly open; it is not an accepted post.

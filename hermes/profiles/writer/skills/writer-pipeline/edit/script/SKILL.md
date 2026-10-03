@@ -77,7 +77,8 @@ or inherit Writer's role. Read only the detail references selected below.
    knowledge or continuity. A shorter line must not change a possibility into
    a promise or remove a required condition. New factual assertions need evidence;
    an authorized fictional change must still fit the agreed story constraints.
-5. Use `japanese-writing` as expression knowledge, not legacy inspection.
+5. For Japanese text, follow `japanese-writing`'s edit workflow (pass the
+   source as `original`); this leaf adds its form-specific checks.
    `humanizer` is explicit-only and cannot override protected text or continuity.
    Wording changes are not authorization to select a voice engine, synthesize
    speech, edit footage or retime an existing subtitle/media file.
@@ -106,8 +107,10 @@ or inherit Writer's role. Read only the detail references selected below.
 - Text counts have a reliable method. Reusing old duration or rendering evidence
   after changing words is not verification of the revision. Unmet or unverified
   required production constraints remain open, not a manufactured completion.
-- Report checked / unmet / unverified evidence; no legacy four-pass floor,
-  automatic humanizer or statistical score. Editing is not production approval.
+- Report checked / unmet / unverified evidence; no legacy four-pass floor or
+  automatic humanizer. Never an authorship verdict; a naturalness score only
+  from the shared diagnosis when requested; do not invent measurements.
+  Editing is not production approval.
 
 </QA>
 

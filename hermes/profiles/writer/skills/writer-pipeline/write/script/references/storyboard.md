@@ -52,4 +52,5 @@ LOCAL adaptation; upstream has no specialized storyboard guide. Selectively use
 [genre-notes.md](https://github.com/coji/natural-japanese/blob/v1.5.0/skills/natural-japanese/references/genre-notes.md) for conditional pacing, and
 [revision-guide.md](https://github.com/coji/natural-japanese/blob/v1.5.0/skills/natural-japanese/references/revision-guide.md) for supplied voice and selective changes.
 [W3C media guidance](https://www.w3.org/WAI/media/av/) supports early description and meaningful-audio planning.
-No source adds mandatory scores, review loops, personal anecdotes or production grants.
+No source adds personal anecdotes or production grants.
+Japanese review follows the shared `japanese-writing` workflow.

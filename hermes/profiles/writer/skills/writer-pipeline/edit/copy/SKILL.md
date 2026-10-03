@@ -76,7 +76,8 @@ or inherit Writer's role. Read only the detail references selected below.
    limit. Check the headline, body, action and terms together, including
    untouched fields. Do not add a CTA, urgency or testimonial merely to make
    the copy more effective. A new campaign or sequence is a scope decision.
-5. Use `japanese-writing` as expression knowledge, not a legacy workflow.
+5. For Japanese text, follow `japanese-writing`'s edit workflow (pass the
+   source as `original`); this leaf adds its form-specific checks.
    `humanizer` is explicit-only and cannot change protected meaning. Style
    examples do not supply the client's results, customer stories or evidence.
 6. Compare the full revision with the original and re-read it in context.
@@ -104,7 +105,9 @@ or inherit Writer's role. Read only the detail references selected below.
   counting with a method; required unmet/unverified checks are not complete.
 - Report checked / unmet / unverified evidence. The complete draft remains
   usable without inserting field labels or QA notes into recipient-facing text.
-  No legacy four-pass floor, automatic humanizer or naturalness score applies.
+  No legacy four-pass floor or automatic humanizer applies. Never an
+  authorship verdict; a naturalness score only from the shared diagnosis when
+  requested; do not invent measurements.
 
 </QA>
 

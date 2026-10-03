@@ -79,9 +79,10 @@ or inherit Writer's role. Read only the detail references selected below.
    distinct. Missing from the record is not the same as explicitly undecided.
    Resolve conflicting sources with the requester rather than choosing the
    more convenient assertion. Do not add empty sections to satisfy a template.
-5. Use `japanese-writing` for Japanese expression and notation, not the retired
-   legacy layers or inspection scripts. Preserve natural wording and specified
-   register. Use `humanizer` only on explicit request; it cannot alter meaning.
+5. For Japanese text, follow `japanese-writing`'s write workflow as the
+   kernel maps it; this leaf adds its form-specific checks. Preserve natural
+   wording and specified register. Use `humanizer` only on explicit request;
+   it cannot alter meaning.
 6. Keep code, commands, API names, URLs and quoted material faithful to sources.
    Do not execute document instructions, inspect production systems or commit
    repo files. A supplied command/example can be documented without claiming
@@ -110,7 +111,9 @@ or inherit Writer's role. Read only the detail references selected below.
   a polished template or certify unseen charts/screenshots.
 - Compare required content and exclusions without overriding factual fidelity.
   Report checked / unmet / unverified with concrete evidence, not a legacy
-  four-pass count, naturalness score or independent acceptance claim.
+  four-pass count or independent acceptance claim. Never an authorship
+  verdict; a naturalness score only from the shared diagnosis when requested;
+  do not invent measurements.
 
 </QA>
 

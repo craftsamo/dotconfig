@@ -65,4 +65,5 @@ LOCAL adaptation; upstream has no specialized X-post guide. Selectively use
 [revision-guide.md](https://github.com/coji/natural-japanese/blob/v1.5.0/skills/natural-japanese/references/revision-guide.md) for supplied voice and selective changes.
 [ONS social media](https://service-manual.ons.gov.uk/content/content-types/social-media) supports standalone posts and main/context thread roles, not current limits or mandatory CTAs/counts.
 [W3C sensory characteristics](https://www.w3.org/WAI/WCAG22/Understanding/sensory-characteristics.html) requires an alternative to graphical-symbol-only instructions; applying this to meaningful emoji is a local adaptation.
-No mandatory scores, review loops, conclusion-first template or personal anecdote is imported.
+No conclusion-first template or personal anecdote is imported.
+Japanese review follows the shared `japanese-writing` workflow.
