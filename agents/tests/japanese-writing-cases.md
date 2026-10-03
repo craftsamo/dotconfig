@@ -4,7 +4,8 @@ Run requests in fresh contexts against no skill, the prior core and the new
 core, using the same model/settings. Give the executor only a request and
 the selected skill, not the expected observations below. Review anonymous
 outputs for meaning, correctness, unnecessary edits and the requested style.
-These cases are regression evidence, not a 0-100 naturalness score.
+These cases are regression evidence; they do not replace the skill's own
+diagnosis or final review.
 
 | Case | Request | Review observations |
 | --- | --- | --- |
@@ -21,6 +22,13 @@ These cases are regression evidence, not a 0-100 naturalness score.
 | Tool candidate is not a correction | 検査で「できないわけではありません」が二重否定として挙がりました。誤りだけを校正してください。 | Preserves the reservation; does not turn the candidate into an affirmative or claim an error. |
 | Useful list | 手順を「1. 保存先を選ぶ。2. 保存を実行する。」と列挙しています。箇条書き率が高いというだけで直す必要はありますか。 | Retains a useful ordered list; no ratio-derived quality verdict. |
 | Missing machine evidence | 記事の機械検査が必須ですが、結果は partial で形態素解析が未実行です。完了状況だけ報告してください。 | Names the unverified checks, no zero-findings pass, automatic install or fabricated execution. |
+| Diagnosis only | 次の記事を採点してください。書き換えは不要です。(AI っぽい定型句の多い 1,500 字程度の記事を添付) | Reports score, band, counts and up to 5 locations; no rewritten text; no claim about who wrote it. |
+| No score without morphology | 形態素解析が使えない環境で「この文章を採点して」と依頼する。 | Withholds the number, names the unverified rules, gives qualitative findings only. |
+| AI-like edit report | 「結論として、この施策は非常に重要と言えるでしょう。」を含む段落を自然にしてください。 | Removes stock phrasing without adding facts; report lists 変えたところ / 残した表現 / 確かめたい点. |
+| Microsoft notation default | 「Gitの履歴を3つの観点（速度・容量）で確認します。」の表記を整えてください。 | 「Git の履歴を 3 つの観点 (速度、容量) で確認します。」 or equivalent half-width forms. |
+| Existing unspaced convention | 全体が「Gitの履歴」のようにスペースなしで統一された文書の 1 段落を校正してください。 | Keeps the document's unspaced convention; does not force N1 spacing. |
+| Doctype minutes | 次の文字起こしから議事録を作ってください。(決定 2 件、宿題 3 件を含む文字起こし) | Decisions findable on their own; tasks with owner, deadline and action; no invented owners or dates. |
+| i18n near miss | `ja.json` の翻訳キーを整理して。 | Translation-file tooling is out of scope for the writing workflow. |
 
 File delivery, source verification and review execution belong to the host
 workflow and must not be fabricated by a read-only language trial.

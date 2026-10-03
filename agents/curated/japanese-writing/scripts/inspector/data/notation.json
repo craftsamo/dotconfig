@@ -1,0 +1,351 @@
+{
+  "source": "Microsoft Japanese Localization Style Guide (2025-07) as house notation default",
+  "classes": {
+    "JA": "[ぁ-ゖァ-ヺー㐀-䶿一-鿿々〆]",
+    "HK": "[ぁ-ゖ㐀-䶿一-鿿々〆]",
+    "KATA": "[ァ-ヺー]"
+  },
+  "rules": [
+    {
+      "id": "space_ja_alnum",
+      "severity": "warn",
+      "anchor": "N1",
+      "reason": "日本語と英数字・コードの間に半角スペースを入れる:「Git の履歴」「第 3 章」"
+    },
+    {
+      "id": "space_between_fullwidth",
+      "severity": "warn",
+      "anchor": "N1",
+      "reason": "ひらがな・漢字の間の空白は詰める",
+      "patterns": ["(?<={HK})[ \u3000]+(?={HK})"]
+    },
+    {
+      "id": "space_around_ja_punct",
+      "severity": "warn",
+      "anchor": "N3",
+      "reason": "「、」「。」の前後に空白を入れない",
+      "patterns": ["(?<=\\S)[ \\t\u3000]+(?=[、。])", "(?<=[、。])[ \\t\u3000]+(?=\\S)"]
+    },
+    {
+      "id": "space_inside_brackets",
+      "severity": "warn",
+      "anchor": "N4",
+      "reason": "括弧や引用符の内側に空白を入れない:「(タイトル)」「[新規]」",
+      "patterns": ["[(\\[「『“（][ \u3000]+", "(?<![ \u3000])[ \u3000]+[)\\]」』”）]"],
+      "empty_pairs": {"(": ")", "[": "]"}
+    },
+    {
+      "id": "space_before_mark",
+      "severity": "warn",
+      "anchor": "N3",
+      "reason": "語末の「?」「!」「:」「...」の前に空白を入れない:「更新しますか?」",
+      "patterns": ["(?<={JA})[ \\t\u3000]+(?=[?!:]|\\.\\.\\.)"]
+    },
+    {
+      "id": "space_after_mark",
+      "severity": "warn",
+      "anchor": "N3",
+      "reason": "「?」「!」の後に文が続くときは半角スペースを入れる:「保存しますか? 次へ」",
+      "patterns": ["(?<={JA})[?!]+(?=[^\\s?!()\\]}）」』”’\"'>*_~\u0000])"]
+    },
+    {
+      "id": "paren_outer_space",
+      "severity": "warn",
+      "anchor": "N4",
+      "reason": "半角括弧と日本語の間に半角スペースを入れる:「列 A (タイトル) を選ぶ」",
+      "patterns": ["(?<={JA})\\(", "\\)(?={JA})"],
+      "access_key": "\\((?:[A-Z0-9]|TM|C)\\)"
+    },
+    {
+      "id": "space_around_slash",
+      "severity": "warn",
+      "anchor": "N5",
+      "reason": "スラッシュの前後に空白を入れない:「オン/オフ」「3/14」"
+    },
+    {
+      "id": "percent_degree_space",
+      "severity": "warn",
+      "anchor": "N2",
+      "reason": "数字と「%」「°」「℃」の間に空白を入れない:「{suggest}」",
+      "patterns": [["(?<![0-9.,])(?P<num>\\d+(?:[.,]\\d+)*)[ \\t\u3000]+(?P<unit>[%°℃])", "\\g<num>\\g<unit>"]]
+    },
+    {
+      "id": "number_unit_space",
+      "severity": "warn",
+      "anchor": "N2",
+      "reason": "数字と単位の間に半角スペースを入れる:「{suggest}」",
+      "units": ["kg", "g", "mg", "km", "m", "cm", "mm", "KB", "MB", "GB", "TB", "PB", "Kbps", "Mbps", "Gbps",
+                "Hz", "kHz", "MHz", "GHz", "ms", "px", "pt", "dpi", "W", "kW", "V", "mAh", "mL", "L"],
+      "patterns": [["(?<![A-Za-z0-9_.\\-])(?P<num>\\d+(?:[.,]\\d+)*)(?P<unit>{UNITS})(?![A-Za-z0-9])",
+                    "\\g<num> \\g<unit>"]],
+      "photo_mm": "\\d{2,3}mm[ \\t]*レンズ"
+    },
+    {
+      "id": "fullwidth_alnum",
+      "severity": "warn",
+      "anchor": "N8",
+      "reason": "全角英数字「{found}」は半角「{suggest}」で書く",
+      "patterns": ["[０-９Ａ-Ｚａ-ｚ]+"],
+      "suggest": "nfkc"
+    },
+    {
+      "id": "halfwidth_katakana",
+      "severity": "critical",
+      "anchor": "N6",
+      "reason": "半角カタカナ「{found}」は全角「{suggest}」で書く",
+      "patterns": ["[\uff61-\uff9f]+"],
+      "suggest": "nfkc"
+    },
+    {
+      "id": "fullwidth_comma_period",
+      "severity": "warn",
+      "anchor": "N3",
+      "reason": "「{found}」ではなく「{suggest}」を使う",
+      "patterns": [["，", "、"], ["．", "。"]]
+    },
+    {
+      "id": "fullwidth_paren",
+      "severity": "warn",
+      "anchor": "N4",
+      "reason": "全角括弧は半角「()」にし、外側に半角スペースを入れる",
+      "patterns": ["（[^（）\\n\u0000\ue000]*）|[（）]"]
+    },
+    {
+      "id": "fullwidth_mark",
+      "severity": "warn",
+      "anchor": "N3",
+      "reason": "全角の「{found}」は半角「{suggest}」で書く",
+      "patterns": ["[？！：]+"],
+      "suggest": "nfkc"
+    },
+    {
+      "id": "fullwidth_symbol",
+      "severity": "warn",
+      "anchor": "N5",
+      "reason": "全角記号「{found}」は半角「{suggest}」で書く",
+      "patterns": ["[％＃＆＊＠＝＋／＜＞［］｛｝＿｜＄＂＇]+"],
+      "suggest": "nfkc"
+    },
+    {
+      "id": "ideographic_space",
+      "severity": "info",
+      "anchor": "N1",
+      "reason": "行頭以外の全角スペースは削るか半角スペースにする",
+      "patterns": ["\u3000+"]
+    },
+    {
+      "id": "wave_dash_range",
+      "severity": "info",
+      "anchor": "N5",
+      "reason": "数値の範囲は「～」ではなく「から」で示す:「{suggest}」",
+      "patterns": [["(?<!\\d)(?P<a>\\d+(?:[ \\t]*[A-Za-z%]+)?)[ \\t]*[～〜~][ \\t]*(?P<b>\\d+)", "\\g<a> から \\g<b>"]],
+      "copyright_line": "©|\\([Cc]\\)|(?i:copyright)"
+    },
+    {
+      "id": "dash",
+      "severity": "warn",
+      "anchor": "N5",
+      "reason": "ダッシュ「{found}」は避け、読点・括弧・文の区切りで言い換える",
+      "patterns": ["(?:(?<={JA})|(?<={JA} ))[—–―─]+|(?<![—–―─])[—–―─]+(?= ?{JA})"]
+    },
+    {
+      "id": "ellipsis_char",
+      "severity": "info",
+      "anchor": "N5",
+      "reason": "「{found}」ではなく半角ピリオド 3 つの「...」を使う",
+      "patterns": ["[…‥]+"]
+    },
+    {
+      "id": "straight_double_quote",
+      "severity": "info",
+      "anchor": "N4",
+      "reason": "日本語を囲む半角「\"」は「」か “” にする"
+    },
+    {
+      "id": "long_vowel",
+      "severity": "warn",
+      "anchor": "N6",
+      "reason": "カタカナ語の長音は「{suggest}」と書く",
+      "missing": ["コンピュータ", "ユーザ", "サーバ", "プリンタ", "フォルダ", "ブラウザ", "パラメータ", "エディタ",
+                  "ドライバ", "スキャナ", "マネージャ", "コンテナ", "ヘッダ", "フッタ", "フィルタ", "アダプタ",
+                  "モニタ", "センサ", "コントローラ", "プロバイダ", "インストーラ", "ビューア", "プレイヤ",
+                  "レンダラ", "パーサ", "ハンドラ", "ルータ", "クラスタ", "バッファ", "カウンタ", "イテレータ",
+                  "ジェネレータ", "コンストラクタ", "ポインタ", "リスナ", "ローダ", "ダウンローダ", "リーダ",
+                  "ライタ", "メンバ", "ナンバ", "オーナ"],
+      "extra": ["メモリー", "カテゴリー", "ディレクトリー", "ライブラリー", "エントリー", "セキュリティー",
+                "プロパティー", "ユーティリティー", "アクセシビリティー", "プロシージャー", "リポジトリー",
+                "クエリー", "バッテリー"],
+      "exceptions": ["プロセッサ", "コネクタ", "コンパイラ", "スケジューラ", "レジスタ", "フォーマッタ", "プログラマ",
+                     "アクセラレータ", "ラジエータ", "ターミネータ", "トランジスタ", "コンベヤ", "ギャラリー",
+                     "ストーリー", "サマリー", "ポリシー", "エネルギー"]
+    },
+    {
+      "id": "katakana_variant",
+      "severity": "info",
+      "anchor": "N6",
+      "reason": "「{found}」は「{suggest}」に表記をそろえる",
+      "patterns": [["インタフェース", "インターフェイス"], ["インターフェース", "インターフェイス"], ["ウイスキー", "ウィスキー"]]
+    },
+    {
+      "id": "katakana_compound_space",
+      "severity": "info",
+      "anchor": "N6",
+      "reason": "英語の複合語に当たるカタカナ語は「{suggest}」と区切る",
+      "patterns": [
+        ["ダイアログボックス", "ダイアログ ボックス"], ["テキストボックス", "テキスト ボックス"],
+        ["チェックボックス", "チェック ボックス"], ["リストボックス", "リスト ボックス"],
+        ["コンボボックス", "コンボ ボックス"], ["メニューバー", "メニュー バー"], ["タスクバー", "タスク バー"],
+        ["ツールバー", "ツール バー"], ["スクロールバー", "スクロール バー"], ["タイトルバー", "タイトル バー"],
+        ["ステータスバー", "ステータス バー"], ["アドレスバー", "アドレス バー"], ["プログレスバー", "プログレス バー"],
+        ["コントロールパネル", "コントロール パネル"], ["コマンドプロンプト", "コマンド プロンプト"]
+      ]
+    },
+    {
+      "id": "ka_counter_katakana",
+      "severity": "warn",
+      "anchor": "N8",
+      "reason": "助数詞「{found}」はカタカナではなく「{suggest}」と書く",
+      "patterns": [
+        ["(?<!\\d)(?P<num>\\d+)[ \\t]*[ケヶカヵ](?=[月所国条])", "\\g<num> か"],
+        ["(?<!\\d)(?P<num>\\d+)[ \\t]*[ケコ](?!{KATA})", "\\g<num> 個"]
+      ]
+    },
+    {
+      "id": "kanji_numeral_idiom",
+      "severity": "warn",
+      "anchor": "N8",
+      "reason": "慣用的な語は漢数字で「{suggest}」と書く",
+      "patterns": [
+        ["もう[ \\t]*[1１][ \\t]*度", "もう一度"],
+        ["(?<![0-9０-９])[1１][ \\t]*時的", "一時的"],
+        ["(?<![0-9０-９])[4４][ \\t]*捨[ \\t]*[5５][ \\t]*入", "四捨五入"],
+        ["(?P<head>画面|全体|その)の[ \\t]*[1１][ \\t]*部(?![0-9０-９])", "\\g<head>の一部"]
+      ]
+    },
+    {
+      "id": "kana_preferred",
+      "severity": "info",
+      "anchor": "N7",
+      "reason": "「{found}」はかなで「{suggest}」と書く",
+      "patterns": [
+        ["(?<=[てで])下さい", "ください"],
+        ["(?<=[てで])頂(?=[かきくけこいっ])", "いただ"],
+        ["出来(?=[るますなたてれず])", "でき"],
+        ["(?<=[るたいな])時(?=[、はにのでも])", "とき"],
+        ["(?<=[るた])事(?=[がはをにもで、。])", "こと"],
+        ["(?<![一-龠])等(?=[、。のをがはでもに])", "など"],
+        ["及び", "および"],
+        ["又は", "または"],
+        ["(?<=[一-龠ァ-ヺー])並びに(?=[一-龠ァ-ヺ])", "ならびに"],
+        ["但し", "ただし"],
+        ["更に", "さらに"],
+        ["既に", "すでに"],
+        ["予め", "あらかじめ"],
+        ["殆ど", "ほとんど"],
+        ["(?<=[るたいの])為(?=[にの、。])", "ため"],
+        ["(?<=[のな])様に", "ように"],
+        ["(?<=[るた])通り", "とおり"],
+        ["(?<=て)見る", "みる"],
+        ["(?<=て)行く", "いく"]
+      ]
+    },
+    {
+      "id": "formal_wording",
+      "severity": "info",
+      "anchor": "N9",
+      "reason": "硬い言い回し「{found}」は「{suggest}」で足りないか確認する",
+      "patterns": [
+        ["が可能です", "できます"],
+        ["が可能となります", "できるようになります"],
+        ["が可能になります", "できるようになります"],
+        ["することにより", "すると"],
+        ["、および", "、"],
+        ["推奨します", "お勧めします"],
+        ["推奨されます", "お勧めします"]
+      ]
+    },
+    {
+      "id": "superlative_claim",
+      "severity": "info",
+      "anchor": "N9",
+      "reason": "断定的な最上級表現「{found}」は事実で裏付けられるか確認する",
+      "patterns": ["完璧な", "世界一(?!周)", "最高の", "理想的な", "永久に", "No\\.1(?!\\d)", "ナンバーワン"]
+    },
+    {
+      "id": "redundant_each",
+      "severity": "warn",
+      "anchor": "N9",
+      "reason": "「各」と「ごと」が重複している。「各ファイル」か「ファイルごと」の一方にする",
+      "patterns": ["各[^\\s、。，．！？!?「」『』()（）\u0000\ue000]{1,12}?ごと"]
+    },
+    {
+      "id": "ambiguous_tekitou",
+      "severity": "info",
+      "anchor": "N9",
+      "reason": "「適当」は「いい加減」とも読める。「適切」などに言い換える",
+      "patterns": ["適当[なに]"]
+    },
+    {
+      "id": "intensifier",
+      "severity": "info",
+      "anchor": "N9",
+      "reason": "主観的な強調語「{found}」は省けないか確認する",
+      "patterns": ["非常に", "とても", "大変(?=[ぁ-ん一-龠])(?![なだでさそ])"]
+    },
+    {
+      "id": "yoroshii_question",
+      "severity": "info",
+      "anchor": "N9",
+      "reason": "「{found}」より「〜しますか?」と簡潔に尋ねる",
+      "patterns": ["て(?:も)?よろしいですか"]
+    },
+    {
+      "id": "excessive_honorific",
+      "severity": "info",
+      "anchor": "N9",
+      "reason": "過剰な敬語「{found}」は簡潔な形にできないか確認する",
+      "patterns": ["なさらない", "ご使用にならない", "ていただきますと", "させていただきます"]
+    },
+    {
+      "id": "wagasha",
+      "severity": "info",
+      "anchor": "N9",
+      "reason": "「{found}」ではなく「当社」か「弊社」を使う",
+      "patterns": ["我社", "わが社", "我が社"]
+    },
+    {
+      "id": "noun_wo_jikkou",
+      "severity": "info",
+      "anchor": "N9",
+      "reason": "「{found}」は「{suggest}」の形で短く書けないか確認する",
+      "patterns": [["(?P<noun>インストール|削除|保存|変更|作成|追加|更新|移動|コピー|ダウンロード|アップロード|起動|終了|検索|表示|設定)を(?:実行|行)(?:し|い|う|っ)",
+                    "\\g<noun>する"]]
+    },
+    {
+      "id": "tachiageru",
+      "severity": "info",
+      "anchor": "N9",
+      "reason": "「立ち上げる」は「起動する」と書く:「{suggest}」",
+      "patterns": [["(?P<target>PC|パソコン|Windows|Mac|アプリ|コンピューター|システム|サーバー)(?P<sep>[ \\t]?)を立ち上げ", "\\g<target>\\g<sep>を起動"]]
+    },
+    {
+      "id": "inclusive_term",
+      "severity": "info",
+      "anchor": "N10",
+      "reason": "「{found}」は「{suggest}」など中立的な語に言い換えられないか確認する",
+      "patterns": [
+        ["看護婦", "看護師"], ["スチュワーデス", "客室乗務員"], ["保母", "保育士"], ["助産婦", "助産師"],
+        ["婦人警官", "警察官"], ["婦警", "警察官"], ["営業マン", "営業担当者"], ["カメラマン", "撮影者"],
+        ["ビジネスマン", "ビジネスパーソン"], ["マスター[/／]スレーブ", "プライマリ/セカンダリ"],
+        ["ブラックリスト", "拒否リスト"], ["ホワイトリスト", "許可リスト"]
+      ]
+    },
+    {
+      "id": "heading_polite_ending",
+      "severity": "info",
+      "anchor": "N9",
+      "reason": "見出しが「{found}」で終わっている。体言止めか、である調にする",
+      "pattern": "(?:です|ます|でした|ました)。?$"
+    }
+  ]
+}

@@ -55,4 +55,5 @@ LOCAL adaptation; upstream has no specialized narration guide. Selectively use
 [revision-guide.md](https://github.com/coji/natural-japanese/blob/v1.5.0/skills/natural-japanese/references/revision-guide.md) for supplied voice and selective changes.
 [W3C media guidance](https://www.w3.org/WAI/media/av/av-content/) supports naming visual referents;
 [BBC radio drama](https://www.bbc.co.uk/writers/resources/tips-and-advice/writing-radio-drama) supports meaningful sound/silence, not a universal preamble ban.
-These are craft sources, not mandatory scores, review loops or personal anecdotes.
+These are craft sources, not personal anecdotes.
+Japanese review follows the shared `japanese-writing` workflow.

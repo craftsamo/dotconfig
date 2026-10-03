@@ -54,4 +54,5 @@ LOCAL adaptation; upstream has no specialized X-post-analysis guide. Use
 [writing-constitution.md](https://github.com/coji/natural-japanese/blob/v1.5.0/skills/natural-japanese/references/writing-constitution.md) for evidential scope, and
 [genre-notes.md](https://github.com/coji/natural-japanese/blob/v1.5.0/skills/natural-japanese/references/genre-notes.md) for conditional pacing.
 [ONS social media](https://service-manual.ons.gov.uk/content/content-types/social-media) supports standalone posts and main/context thread roles, not current limits or mandatory CTAs/counts.
-No mandatory scores, review loops, conclusion-first template or personal anecdote is imported.
+No conclusion-first template or personal anecdote is imported.
+Japanese review follows the shared `japanese-writing` workflow.

@@ -22,7 +22,7 @@ Describe the relationship without replacement copy, invented scarcity or results
 
 ## Worked example
 
-Fictional material: headline 「すべてのプランで1週間の予約をまとめて確認」 and
+Fictional material: headline 「すべてのプランで 1 週間の予約をまとめて確認」 and
 adjacent terms 「Team プラン限定」. The supplied feature sheet confirms weekly
 display only on Team; the audience is comparing plans. Review claim consistency.
 Finding: quote 「すべてのプラン」 against both the adjacent Team-only term and

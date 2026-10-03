@@ -24,7 +24,7 @@ Keep a supported recovery step separate from any unverified explanation.
 Fictional material: source 「予約人数の入力内容に問題があります。」 appears for
 values outside 1 to 6. The supplied rule requires an integer in that range;
 the requester authorizes clarifying this field's range error, and no other edit.
-Revision: 「予約人数は1〜6の整数で入力してください。」
+Revision: 「予約人数は 1 から 6 の整数で入力してください。」
 Why: the revision names the field and its actual condition instead of a vague
 problem. It does not claim that input was empty, diagnose a cause or add retry.
 The supplied rule, not the availability of the input box, authorizes this guidance.

@@ -26,7 +26,7 @@ Apply [Writing QA](index.md#evidence-anchored-scoring) to the released post or
 set, not hypothetical reach or engagement. An information-only post needs no
 CTA or hashtags. Meaningful brevity keeps the subject and its qualifications.
 
-| Platform | Evidence of usable craft (3 or 4) | Defect requiring correction (2 or below when in scope) |
+| Platform | Evidence of usable craft (90 or above) | Defect requiring correction (below 90 when in scope) |
 | --- | --- | --- |
 | X | Each unit carries enough subject/context to be understood independently; thread units have distinct roles and stable order. | A detached post overstates the opening claim because its qualifier exists only in another unit. |
 | Instagram | Caption and supplied visual have complementary roles; essential claims or conditions remain accessible in text. | A caption invents unseen image details or the only essential condition is confined to an image without an accessible equivalent. |
@@ -90,7 +90,7 @@ For outlines inspect the promised argument and supplied tone samples, not
 missing finished prose. For proofreading, score the authorized correction
 and preservation; do not deduct for an unchanged structure or optional style.
 
-| Approach or representation | Evidence of usable craft (3 or 4) | Defect requiring correction (2 or below when in scope) |
+| Approach or representation | Evidence of usable craft (90 or above) | Defect requiring correction (below 90 when in scope) |
 | --- | --- | --- |
 | Explanation | The reader question leads to a mechanism and a relevant example; unfamiliar terms are introduced when needed. | The explanation depends on an undefined concept or the example contradicts the mechanism. |
 | Tutorial | Supplied prerequisites, dependent actions and expected outcomes can be followed in order. | A required prerequisite or consequential warning appears after the affected action. |
@@ -100,7 +100,7 @@ and preservation; do not deduct for an unchanged structure or optional style.
 | Assets and notes | Stable IDs map to supplied media or explicit missing requirements; reader copy and production instructions are separate. | A missing asset is called complete or a marker is removed to disguise incompleteness. |
 
 Fictional calibration: material says "In our two-week trial, response time fell."
-A title "This method always makes responses faster" fails reasoning/fidelity;
+A title "This method always makes responses faster" fails the Fidelity gate;
 "Response times fell in our two-week trial" preserves the evidence. An essay
 may reveal its conclusion late when that is the agreed experience; delayed
 conclusions are not a defect by themselves. Do not make every heading a claim.
@@ -135,12 +135,13 @@ When Writer's report cites a `writing_inspect` result, treat it as candidate
 evidence only: the client still reads the complete actual file and the
 authorized brief, and independently verifies the reported changes. Confirm
 the cited evidence covers the current source — matching input hash/version,
-not a stale or superseded run — before crediting it; a finding count is
-never converted into a score, and Writer's own report is never
-self-approval. The client does not invoke this Writer-only tool directly;
+not a stale or superseded run — before crediting it. `writing_inspect`
+findings and its mechanical naturalness score are evidence for the
+Naturalness axis, never the acceptance score itself, and Writer's own report
+is never self-approval. The client does not invoke this Writer-only tool directly;
 missing or stale machine evidence goes back to Writer as a request, not a
-client workaround. This changes neither the ordinal editorial rubric nor
-its corrective ceilings.
+client workaround. This changes neither the rubric nor its corrective
+ceilings.
 
 ## Document draft (write-document / edit-document)
 
@@ -164,7 +165,7 @@ NOT verified; obtain it or return the gap, never manufacture a pass.
 Use [Writing QA](index.md#evidence-anchored-scoring) for the actual format,
 including scoped edits and outlines. Do not demand every row from one document.
 
-| Format | Evidence of usable craft (3 or 4) | Defect requiring correction (2 or below when in scope) |
+| Format | Evidence of usable craft (90 or above) | Defect requiring correction (below 90 when in scope) |
 | --- | --- | --- |
 | README | The reader can identify purpose, prerequisites and a supplied shortest useful path, then find details. | A necessary setup dependency is absent or an example is presented as a verified run without evidence. |
 | Guide | Dependent actions and supplied observable outcomes align; warnings precede consequential actions. | The reader must act before learning a material condition or consequence. |
@@ -182,19 +183,23 @@ For a released report-format draft/edit, use the rubric in
 population, supplied result and limitations together. A descriptive report
 needs no invented recommendation or full research-method section.
 
-- Purpose/structure: the supported answer is findable and its evidence follows;
-  an important caveat is beside the affected claim, not hidden in an appendix.
-- Reasoning/fidelity: distinguish observation, interpretation and recommendation;
-  retain the denominator, units, period and uncertainty in headings and summaries.
-- Economy/expression: useful definitions and qualifications stay; repeated
-  paraphrases or generic background must not obscure the actual result.
+- Function and navigation: the supported answer is findable and its evidence
+  follows; an important caveat is beside the affected claim, not hidden in an
+  appendix.
+- Logical clarity, Integrity and Demonstration: distinguish observation,
+  interpretation and recommendation; retain the denominator, units, period and
+  uncertainty in headings and summaries.
+- Density and concision, Naturalness: useful definitions and qualifications
+  stay; repeated paraphrases or generic background must not obscure the actual
+  result.
 
 Calibration example (fictional): source material records 30 satisfied respondents
 out of 50, with customer population and response rate unknown. "60% of customers
-are satisfied" earns at most 2 for reasoning and fidelity because it generalizes
-the sample. "30 of 50 respondents (60%) reported satisfaction; response rate is
-unknown" can earn 3 or 4 when the rest of the released scope is met. If the source
-itself is unreadable, the required check is unverified, not a guessed 0 or 4.
+are satisfied" scores at most 89 for Integrity and Demonstration because it
+generalizes the sample. "30 of 50 respondents (60%) reported satisfaction;
+response rate is unknown" can score 90 or above when the rest of the released
+scope is met. If the source itself is unreadable, the required check is
+unverified, not a guessed 0 or 100.
 An accurate existing sentence may pass unchanged in an edit. Do not broaden the
 edit's authorization merely to improve a score.
 
@@ -214,9 +219,9 @@ requirements to write a new target document. A finding identifying the
 respondents/customers mismatch above must cite the
 claim and supplied population evidence and explain the unsupported scope. A
 claim that the percentage is false solely because its source is unavailable
-needs correction (reasoning at most 2). A bounded finding that the source could
-not be checked is valid when it answers the actual request; it does not certify
-the target claim. An accurate "no supported defect" report may pass.
+needs correction (Logical clarity scores at most 89). A bounded finding that
+the source could not be checked is valid when it answers the actual request; it
+does not certify the target claim. An accurate "no supported defect" report may pass.
 
 For both document branches, use served criterion evidence, not the legacy
 four-pass floor or inspection scripts. Humanizer is explicit-request only.
@@ -248,7 +253,7 @@ not sending approval or authority to edit a live interface or translation file.
 Use [Writing QA](index.md#evidence-anchored-scoring) for the supplied recipient,
 state and authorized scope, not an imagined ideal relationship or UI design.
 
-| Channel | Evidence of usable craft (3 or 4) | Defect requiring correction (2 or below when in scope) |
+| Channel | Evidence of usable craft (90 or above) | Defect requiring correction (below 90 when in scope) |
 | --- | --- | --- |
 | Email | Subject and opening reveal the purpose; stance and any requested response are unambiguous. | A polite refusal becomes acceptance or adds an unsupported excuse or future commitment. |
 | Chat | The brief message contains the referent needed to answer or act without rereading an unavailable thread. | "Please handle that" leaves the requested object unresolved although it was supplied. |
@@ -257,8 +262,9 @@ state and authorized scope, not an imagined ideal relationship or UI design.
 | Error | Wording identifies the evidenced condition without blame, invented cause or unsupported recovery. | "Try again; you will not be charged twice" invents retry safety. |
 
 Fictional calibration: source says the sender declines an invitation and supplies
-no reason. A courteous refusal can earn 3 or 4. Adding "I have another meeting"
-or "I will attend next time" fails fidelity, however natural the sentence.
+no reason. A courteous refusal can score 90 or above. Adding "I have another
+meeting" or "I will attend next time" fails the Fidelity gate, however natural
+the sentence.
 "We could not confirm whether the message was sent" preserves an unknown result;
 "The message was not sent" does not. An informative notice may need no action.
 
@@ -309,14 +315,14 @@ exact-candidate publication approval remain separate after writing acceptance.
 Use [Writing QA](index.md#evidence-anchored-scoring) against the approved offer,
 purpose and evidence, not predicted conversion or a mandatory persuasion formula.
 
-| Destination | Evidence of usable craft (3 or 4) | Defect requiring correction (2 or below when in scope) |
+| Destination | Evidence of usable craft (90 or above) | Defect requiring correction (below 90 when in scope) |
 | --- | --- | --- |
 | Landing page | The intended audience can connect the approved benefit to its proof and conditions, then find a requested action. | The headline strengthens the evidence or terms are detached from the promise they limit. |
 | Promotional email | Subject and preview accurately promise the body; necessary benefit and conditions precede the requested decision. | The subject implies a free offer that the body restricts to a paid plan without that essential qualification. |
 | Announcement | What changed, who it affects and supplied availability are findable; action depends on the released purpose. | An awareness notice is padded with an invented offer, urgency or mandatory CTA. |
 
 Fictional calibration: evidence says an export feature is included in the paid
-Team plan. "Free exports for everyone" fails reasoning/fidelity; "Exports are
+Team plan. "Free exports for everyone" fails the Fidelity gate; "Exports are
 included in the Team plan" can pass without inventing a discount or claiming
 conversion lift. A release announcing availability alone need not sell again.
 

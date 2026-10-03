@@ -79,10 +79,11 @@ or inherit Writer's role. Read only the detail references selected below.
    authorized move affects a cross-reference, update the known dependents and
    report the change. Do not imply that unseen inbound links were checked.
    Unknown owners/dates remain unknown, not assigned by the editor.
-5. Use `japanese-writing` for Japanese expression without the retired
-   composition/inspection workflow. Natural compounds and repeated lookup
-   formats are not defects. `humanizer` is explicit-request only and cannot
-   remove a qualifier, quotation or other protected content.
+5. For Japanese text, follow `japanese-writing`'s edit workflow (pass the
+   source as `original`); this leaf adds its form-specific checks. Natural
+   compounds and repeated lookup formats are not defects. `humanizer` is
+   explicit-request only and cannot remove a qualifier, quotation or other
+   protected content.
 6. Compare changes with the original and re-read the complete revised text in
    context. Check changed dependencies and format-specific meaning. Do not
    execute examples, test production behavior or render a deck to resolve a
@@ -108,7 +109,8 @@ or inherit Writer's role. Read only the detail references selected below.
   without reliable measurements stay unverified, not silently satisfied.
 - Use checked / unmet / unverified evidence for the actual edited artifact.
   This is self-review; no independent acceptance, legacy lint or automatic
-  humanizer pass is implied.
+  humanizer pass is implied. Never an authorship verdict; a naturalness score
+  only from the shared diagnosis when requested; do not invent measurements.
 
 </QA>
 

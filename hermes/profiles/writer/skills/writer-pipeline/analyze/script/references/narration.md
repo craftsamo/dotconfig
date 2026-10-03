@@ -51,4 +51,5 @@ LOCAL adaptation; upstream has no specialized narration-analysis guide. Use
 [writing-constitution.md](https://github.com/coji/natural-japanese/blob/v1.5.0/skills/natural-japanese/references/writing-constitution.md) for evidential scope, and
 [genre-notes.md](https://github.com/coji/natural-japanese/blob/v1.5.0/skills/natural-japanese/references/genre-notes.md) for conditional pacing.
 [W3C media guidance](https://www.w3.org/WAI/media/av/av-content/) supports checking visual-dependent referents.
-No mandatory scores, review loops, personal anecdotes or production checks are imported.
+No personal anecdotes or production checks are imported.
+Japanese review follows the shared `japanese-writing` workflow.

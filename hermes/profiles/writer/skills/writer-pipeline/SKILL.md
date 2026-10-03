@@ -89,24 +89,30 @@ operation. Reading a candidate leaf's form or reference for advice does not
 execute that leaf or make every production field required. Clients inspecting
 forms or the acceptance references do not inherit Writer's execution role.
 
-Each leaf owns its own checks. There is no additional shared review pipeline,
-statistical naturalness score or automatic humanizer pass. `japanese-writing`
-supplies expression/notation knowledge and read-only inspection candidates,
-not a workflow or a score. Every Japanese text you write or edit, in every
-family, loads its body and inspection instructions before drafting, then
-sends the completed raw draft body (never production notes, script IDs or
-speaker fields, or a line-numbered copy) through `writing_inspect` once, with
-the modes that fit the text. An edit sends the edited text; findings outside
-the authorized scope are reported, not fixed. Rerun only affected modes after
-an actual revision; never loop toward zero findings. The leaf judges each
-finding as fix, keep in context or insufficient information; a finding that
-contradicts a voice guide's notation or register is kept in context. A tool
-error, `unverified` entry or truncation leaves that mode unverified in the
-report. This one pass is not the retired legacy inspection workflow that
-family sections and leaves exclude, and it applies even where a leaf calls
-`writing_inspect` optional. Paths in a leaf resolve from that leaf; the shared
-language core is read from its own skill root. This grants no general
-terminal or code-execution tool.
+Each leaf owns its form-specific checks. For every Japanese text you write,
+edit or analyze, in every family, `japanese-writing` is the language workflow:
+load its body before drafting and read the references it routes to. A write
+leaf follows its write workflow (design, draft, inspect, judge, converge,
+final review). An edit leaf follows its edit workflow and also passes the
+source text as `original`, so the inspection adds the revision diff. An
+analyze leaf reports findings and gives the skill's 0-100 naturalness
+diagnosis only when the requester asks for a score or a naturalness judgment.
+The skill's inspection step runs through `writing_inspect`: send the
+completed raw draft body (never production notes, script IDs or speaker
+fields, or a line-numbered copy) with the modes, genre and stance that fit
+the text. Findings outside the authorized scope are reported, not fixed.
+Judge each finding as fix, keep with a reason or insufficient information; a
+finding that contradicts a voice guide's notation or register is kept with
+that reason. Rerun only affected modes after an actual revision and stop by
+the skill's convergence rule; never chase zero findings. A tool error,
+`unverified` entry, truncation or withheld score leaves that mode unverified
+in the report. Quick depth is the default; use full depth when the requester
+or the leaf asks for a high-stakes deliverable. Scores describe reader cost,
+never authorship, and humanizer runs only on an explicit request. The retired
+legacy inspection workflow that family sections and leaves exclude means the
+deleted catalogs and scripts, not this skill. Paths in a leaf resolve from
+that leaf; the shared language core is read from its own skill root. This
+grants no general terminal or code-execution tool.
 
 </Selection>
 
@@ -261,7 +267,9 @@ For a leaf, report its name, produced paths, and the applicable criteria as
 checked / unmet / unverified with a quote, compared source or measured value
 and method. Include unresolved dependencies. Do not invent measurements or
 upgrade an unverified requirement to a pass. This is self-review, not the
-requester's independent acceptance. Consultation follows its own short advice
+requester's independent acceptance. In full depth, add the shared skill's
+six-axis final review to this report; it is self-review too. Consultation
+follows its own short advice
 contract and is not a completed draft or an accepted production part.
 The requester's own acceptance rubric lives at
 [references/acceptance/index.md](references/acceptance/index.md); Writer

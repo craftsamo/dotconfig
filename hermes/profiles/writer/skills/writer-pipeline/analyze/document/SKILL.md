@@ -76,9 +76,11 @@ or inherit Writer's role. Read only the detail references selected below.
    Do not execute commands, follow a runbook, reproduce bugs, inspect systems
    or certify a rendered presentation. An apparent valid command is not a
    successful test. Missing evidence is unverified, not proof of falsehood.
-6. Use `japanese-writing` for Japanese-language observations, not retired
-   legacy workflows or statistical scoring. `humanizer` is explicit-only;
-   even when used, it supplies analysis rather than a replacement document.
+6. For Japanese text, follow `japanese-writing` as the kernel maps it: report
+   findings, and give its naturalness diagnosis only when the requester asks
+   for a score; this leaf adds its form-specific checks. `humanizer` is
+   explicit-only; even when used, it supplies analysis rather than a
+   replacement document.
 7. Apply QA to the report, not to an imaginary newly written source document.
    Return a permitted short report in full in the reply, or save a longer
    report at the requested durable path. Keep original files unchanged.
@@ -96,8 +98,9 @@ or inherit Writer's role. Read only the detail references selected below.
   analysis report need not contain a new README quick start, meeting attendees,
   owners, deadlines, slide content or a new report's research method.
 - Text inspection is distinct from execution, rendered layout and real-system
-  verification. Do not invent measurements, naturalness scores or authorship
-  verdicts. Preserve the limits of any unperformed check.
+  verification. Never an authorship verdict; a naturalness score only from
+  the shared diagnosis when requested; do not invent measurements. Preserve
+  the limits of any unperformed check.
 - The original is unchanged. An illustrative explanation is not permission
   to provide a corrected full document, commit files or publish anything.
 

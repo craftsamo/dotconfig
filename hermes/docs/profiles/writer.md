@@ -19,8 +19,11 @@ in a named person's or character's own name takes its voice from the
 `characters` package in every family (kernel `<Voice>`): Writer reads the guide
 and medium examples itself, the requester names only the slug, and requester
 acceptance checks the text against that guide. Keep new
-families in separate layers rather than bundling them. The shared Japanese skill
-contains language knowledge (plus the bounded inspector below), not a workflow.
+families in separate layers rather than bundling them. Japanese text in every
+leaf follows the shared `japanese-writing` workflow, which the kernel maps onto
+write / edit / analyze (skill:
+[agents/README.md "Japanese writing core"](../../../agents/README.md#japanese-writing-core));
+the leaf adds its form-specific checks.
 Humanizer is explicit-request only for every leaf, and no legacy
 four-pass/lint inspection runs in addition to a leaf's checks.
 
@@ -195,22 +198,23 @@ video backend accepts a storyboard.
 
 All existing leaf references across the six families carry conditional craft
 guidance, locally authored examples grounded in their stated material, and
-retain conditions, preserving operation-specific scope. Forms, discovery and the
-shared `japanese-writing` language core are unchanged. `natural-japanese` v1.5.0
-is the current craft reference baseline — a craft source, not an imported
-inspection workflow; source links, local adaptations and provenance are in
-`agents/README.md`. No adopted rule mandates a genre template, personal
-anecdote, fixed sentence count or universal conclusion-first structure.
+retain conditions, preserving operation-specific scope. `natural-japanese`
+v1.5.0 is the craft reference baseline, reconstructed rather than imported;
+source links, local adaptations and provenance are in `agents/README.md`. No
+adopted rule mandates a genre template, personal anecdote, fixed sentence count
+or universal conclusion-first structure.
 
 The requester's shared Writing QA independently scores the actual released unit
-on purpose, structure/usability, reasoning/evidence, information economy,
-expression fit and fidelity/voice, using observable 0-4 anchors. Each applicable
-axis must reach 3 and mandatory evidence must be checked; no average offsets
-a failure. Unverified evidence has no numeric score, and exclusions need a scope
-reason. No-op edits and accurate findings-only reports can pass. The numbers
-are editorial judgments, not naturalness/authorship measurements; Writer never
-self-scores or accepts its own work, and its checked / unmet / unverified report
-stays unchanged.
+from quoted evidence on six 0-100 axes: naturalness, density and concision,
+function and navigation, logical clarity, integrity and demonstration. Purpose
+and fidelity are hard gates that fail the unit regardless of scores; then every
+applicable axis must reach 90 and the scored mean 92, with mandatory evidence
+checked — the mean never offsets a failing axis. Unverified evidence has no
+numeric score, and n/a exclusions need a reason. No-op edits and accurate
+findings-only reports can pass. Scores describe reader cost, never authorship.
+Writer never accepts its own work: its self-review is checked / unmet /
+unverified, plus the shared skill's six-axis final review at full depth, and
+neither replaces the requester's score.
 
 The QA contract is self-contained for QA-mode loading and owns the
 pre-acceptance ceiling of two corrective returns per released unit, with earlier
@@ -238,24 +242,31 @@ unavailable contract blocks acceptance.
 
 ## Japanese inspector
 
-The shared Japanese core (`SKILL.md`, five notation defaults) also carries a
-bounded, read-only `references/inspection.md` plus `scripts/inspect_text.py` and
-`scripts/requirements.txt`. Writer's leaves still own document construction and
-checks; the inspector never edits, decides or scores. Every Japanese text
-Writer writes or edits gets one pass over its completed draft, whatever the
-family; it reports checked / unverified findings for the selected leaf to
-judge — never a pass/fail or naturalness score — and Writer never self-scores
-from it.
+The shared skill's read-only inspector (`scripts/inspect_text.py`, report
+schema 2; modes and report fields in its `references/inspection.md`) is the
+inspection step of the `japanese-writing` workflow. Writer reaches it only
+through `writing_inspect`, as the kernel maps write / edit / analyze. Findings
+are candidates the leaf judges as fix, keep with a reason or insufficient
+information; the inspector never edits or decides acceptance. The naturalness
+mode's mechanical score measures reader cost, never authorship, and is evidence
+for a diagnosis or the requester's reading, not a pass.
 
-Its `writing_inspect` tool (toolset `writing-inspection`) is single-purpose
-transport, not inspection rules: text-only input bounded to 131072 UTF-8 bytes,
-a 20-second deadline, reachable only from a Writer session. A gateway (A2A)
+The `writing_inspect` tool (toolset `writing-inspection`) is transport, not
+inspection rules. It accepts `text` plus optional `modes` (`naturalness`,
+`expression`, `notation`, `reading-load`, `outline`, `terms`, `structure`,
+`revision`), `genre`, `experimental`, `stance` and `original`; `revision` and
+`original` require each other. Default modes are all but `revision`, plus
+`revision` when `original` is given. Each text is bounded to 131072 UTF-8 bytes,
+with a 20-second deadline, reachable only from a Writer session. A gateway (A2A)
 turn must be bound to the Writer profile; a resident CLI turn binds no session
 profile, so the Writer home identifies it and any profile it inherits must be
 Writer's. Without the dedicated Python from `agents/README.md` the tool returns
 `unavailable`. It runs the canonical inspector as a `subprocess` with no
-shell, no source writes and no network. Ordinary host conversation-history persistence still applies to
-whatever text is sent. The old Writer routing/review cluster, shared Japanese
-catalogs, detector fixtures and pass counts are retired; do not place an archive
-back under a discovered skill root. Attribution and provisioning live in
-`agents/README.md` and Git history.
+shell, no source writes and no network, and rejects a report whose schema or
+input hashes do not match. To fit the transport budget it trims revision detail
+lists first, then the longest of findings / outline / terms, counting every
+removal in the report's truncation metadata (status `partial`). Ordinary host
+conversation-history persistence still applies to whatever text is sent. The
+old Writer routing/review cluster and its legacy catalogs, scripts and pass
+receipts are retired; do not place an archive back under a discovered skill
+root. Attribution and provisioning live in `agents/README.md`.

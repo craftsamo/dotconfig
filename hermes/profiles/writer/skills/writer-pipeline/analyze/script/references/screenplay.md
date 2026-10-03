@@ -51,4 +51,5 @@ LOCAL adaptation; upstream has no specialized screenplay-analysis guide. Use
 [writing-constitution.md](https://github.com/coji/natural-japanese/blob/v1.5.0/skills/natural-japanese/references/writing-constitution.md) for evidential scope, and
 [genre-notes.md](https://github.com/coji/natural-japanese/blob/v1.5.0/skills/natural-japanese/references/genre-notes.md) for conditional pacing.
 [BBC radio drama](https://www.bbc.co.uk/writers/resources/tips-and-advice/writing-radio-drama) informs distinct voices and avoiding prose disguised as dialogue; visual subtext is LOCAL.
-No mandatory scores, review loops, conclusion-first opening or personal anecdote follows.
+No conclusion-first opening or personal anecdote is imported.
+Japanese review follows the shared `japanese-writing` workflow.

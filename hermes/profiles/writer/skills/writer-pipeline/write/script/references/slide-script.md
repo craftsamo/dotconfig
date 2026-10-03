@@ -51,4 +51,5 @@ LOCAL adaptation; upstream has no specialized slide-script guide. Selectively us
 [genre-notes.md](https://github.com/coji/natural-japanese/blob/v1.5.0/skills/natural-japanese/references/genre-notes.md) for conditional pacing, and
 [revision-guide.md](https://github.com/coji/natural-japanese/blob/v1.5.0/skills/natural-japanese/references/revision-guide.md) for supplied voice and selective changes.
 [W3C media guidance](https://www.w3.org/WAI/media/av/av-content/) supports integrating essential chart information in speech.
-No mandatory scores, review loops, personal anecdotes or caption production is imported.
+No personal anecdote or caption production is imported.
+Japanese review follows the shared `japanese-writing` workflow.

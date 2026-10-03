@@ -54,4 +54,5 @@ LOCAL adaptation; upstream has no specialized comic guide. Selectively use
 [genre-notes.md](https://github.com/coji/natural-japanese/blob/v1.5.0/skills/natural-japanese/references/genre-notes.md) for conditional pacing, and
 [revision-guide.md](https://github.com/coji/natural-japanese/blob/v1.5.0/skills/natural-japanese/references/revision-guide.md) for supplied voice and selective changes.
 The visible-beat/lettering distinction is LOCAL comic craft, not a renderer rule.
-These sources do not impose scores, review loops, fixed counts or personal anecdotes.
+These sources do not impose fixed counts or personal anecdotes.
+Japanese review follows the shared `japanese-writing` workflow.
