@@ -310,7 +310,7 @@ Three per-profile layers, kept separate:
     document, message, copy and script plus `consult-writer`; see
     [writer.md](./profiles/writer.md)). External skills: the curated
     `profiles/writer/external-skills/` symlink dir (the single `japanese-writing`
-    language core with five notation defaults and a bounded read-only inspector,
+    skill — shared Japanese workflow, references and read-only inspector,
     single-sourced with the shared `agents/curated/` store) and upstream
     `creative/humanizer` (explicit-request only).
   - marketer → `marketer-pipeline` (resident-only for authenticated work, cards
