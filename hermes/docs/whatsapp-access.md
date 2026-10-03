@@ -150,6 +150,14 @@ so the quote resolves.
 - Inbound A2A requests never reach WhatsApp; the toolset is not in the
   Assistant's `a2a` platform toolset either.
 
+## WhatsApp Web is retired
+
+The Assistant does not use WhatsApp Web: the hook blocks any `browser_*`,
+`computer_use` or terminal call whose arguments name `web.whatsapp.com`, so
+a failing tool call cannot turn into a browser session. What the tool cannot
+do — WhatsApp Lists (labels), reactions, files out, expired media — is the
+user's to do on the phone.
+
 ## Ways around the tool
 
 The same hook blocks terminal commands that run `wacli`, and terminal or

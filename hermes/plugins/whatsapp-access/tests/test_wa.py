@@ -615,6 +615,25 @@ def test_media_download_dir_comes_from_config(tmp_path):
     assert wa.download_dir(tmp_path) == Path.home() / "Inbox" / "wa"
 
 
+# --- WhatsApp Web is retired ---------------------------------------------------------------------
+
+@pytest.mark.parametrize("tool,args", [
+    ("browser_navigate", {"url": "https://web.whatsapp.com/"}),
+    ("browser_exec", {"code": "goto('https://WEB.whatsapp.com')"}),
+    ("browser_cdp", {"method": "Target.createTarget", "params": {"url": "https://web.whatsapp.com"}}),
+    ("computer_use", {"action": "type", "text": "web.whatsapp.com"}),
+    ("terminal", {"command": "open https://web.whatsapp.com"}),
+])
+def test_whatsapp_web_is_blocked(tool, args):
+    assert wa.bypass(tool, args) == wa.WEB_MESSAGE
+
+
+def test_other_browsing_is_untouched():
+    assert wa.bypass("browser_navigate", {"url": "https://page.work.com.my/ms/demo/workshop"}) is None
+    assert wa.bypass("browser_exec", {"code": "[...document.querySelectorAll('a[href*=\"wa.me\"]')]"}) is None
+    assert wa.bypass(None, {"url": "https://web.whatsapp.com"}) is None
+
+
 def test_sync_is_resumed_when_the_stop_itself_fails(fake, monkeypatch, tmp_path):
     agent = Agent(monkeypatch, tmp_path, fake)
     original = agent.launchctl
