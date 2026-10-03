@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!-- wacli-sync-launchctl.sh renders the __PLACEHOLDERS__ (one agent per wacli account). -->
+  <key>Label</key>
+  <string>local.wacli.sync.__ACCOUNT__</string>
+
+  <!-- Follow forever: reconnect without a deadline, force a reconnect after 90 s of failed
+       keepalives (sleep/wake), stay quiet so the phone keeps its notifications, and pace sends
+       delegated over the store socket. -->
+  <key>ProgramArguments</key>
+  <array>
+    <string>__WACLI__</string>
+    <string>--account</string>
+    <string>__ACCOUNT__</string>
+    <string>sync</string>
+    <string>--follow</string>
+    <string>--max-reconnect</string>
+    <string>0</string>
+    <string>--stale-threshold</string>
+    <string>90s</string>
+    <string>--presence-mode</string>
+    <string>quiet</string>
+    <string>--send-spacing</string>
+    <string>1s-3s</string>
+    <string>--refresh-contacts</string>
+    <string>--refresh-groups</string>
+  </array>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+  </dict>
+
+  <key>RunAtLoad</key>
+  <true/>
+  <!-- Restart after a crash only: a revoked session ends sync with exit 0 and must stay down
+       until the account is paired again. -->
+  <key>KeepAlive</key>
+  <dict>
+    <key>SuccessfulExit</key>
+    <false/>
+  </dict>
+  <key>ThrottleInterval</key>
+  <integer>60</integer>
+  <key>ProcessType</key>
+  <string>Background</string>
+
+  <key>StandardOutPath</key>
+  <string>__HOME__/Library/Logs/wacli-sync-__ACCOUNT__.log</string>
+  <key>StandardErrorPath</key>
+  <string>__HOME__/Library/Logs/wacli-sync-__ACCOUNT__.log</string>
+</dict>
+</plist>

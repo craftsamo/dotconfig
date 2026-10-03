@@ -5,6 +5,7 @@
 # Project-specific build deps do not belong here.
 
 tap "anomalyco/tap"
+tap "openclaw/tap"
 
 # --- CLI core ---
 brew "neovim"
@@ -39,6 +40,9 @@ brew "opus"      # Discord voice channel codec
 brew "imagemagick" # magick/convert: resize, crop, .ico, composite, format convert
 brew "webp"        # cwebp: WebP encoding for size-capped exports
 brew "librsvg"     # rsvg-convert: high-quality SVG raster (+ ImageMagick SVG delegate)
+
+# --- Hermes Agent: whatsapp-access plugin (see hermes/docs/whatsapp-access.md) ---
+brew "openclaw/tap/wacli" # WhatsApp linked-device CLI: local mirror + send
 
 # --- GUI apps / fonts (casks land in /Applications, shared across users) ---
 cask "font-hack-nerd-font"
