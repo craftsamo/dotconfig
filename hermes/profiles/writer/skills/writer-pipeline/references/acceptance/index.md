@@ -32,6 +32,10 @@ evidence, not a claimed pass count.
   behalf that the brief or sources record; an invented experience is a
   defect. A text that hedges each sentence instead
   of stating the person's conclusions misses the voice.
+- **Purpose and fidelity are hard gates**: the requested answer, action or
+  editorial operation is fulfilled, and the text has no fabrication, material
+  meaning reversal or omitted mandatory condition. Either failure fails the
+  unit regardless of scores; authorized fiction is not fabricated evidence.
 - **Japanese inspection**: a Japanese text reports its `writing_inspect`
   result per mode. A mode reported unverified because of a tool error is
   an open dependency, not a pass.
@@ -190,8 +194,9 @@ The cheap moment to catch the expensive defect:
 
 1. **Evidence check** — the complete file at its durable path and the selected
    operation's applicable criterion evidence, sources and assumptions. Do not
-   require fixed pass names or a statistical score. A missing required check
-   means NOT verified. Permitted short analysis replies use their report gate.
+   require fixed pass names. A Writer-reported naturalness or final-review
+   score is evidence for your reading, never a substitute for it. A missing
+   required check means NOT verified. Permitted short analysis replies use their report gate.
 2. **Read it** — the whole file, against the brief: type, audience
    fit, register stability, length, required facts present.
 3. **Source trace (spot-check)** — load-bearing claims, quotes,
@@ -218,10 +223,12 @@ output name. The score summarizes the operation-specific checks; it does not
 add a second production review or replace the common evidence floor.
 
 The requester scores its own reading of the actual candidate, brief and
-sources; Writer's self-review remains checked / unmet / unverified, not
-self-scoring. This is an ordinal editorial judgment, not a statistical
-naturalness measure, authorship detector, lint score or claim of objective
-measurement. Use the selected branch in [prose.md](prose.md) or
+sources. Writer's self-review — checked / unmet / unverified, plus the shared
+`japanese-writing` six-axis final review at full depth — is separate
+self-review, not this acceptance score. Each axis is scored 0-100 from
+quoted evidence; a score without its passage or location is invalid. Scores
+describe reader cost, never authorship, and are not a lint score or a claim
+of objective measurement. Use the selected branch in [prose.md](prose.md) or
 [script.md](script.md) for concrete acceptance anchors; do not assume
 Writer's profile-local references are loaded.
 
@@ -237,30 +244,34 @@ do not re-score the settled structure or tone as a new taste decision.
 
 | Axis | Inspect |
 | --- | --- |
-| Purpose | The requested answer, action or editorial operation is fulfilled. |
-| Structure and usability | The reader can find and use the relevant information in this format. |
-| Reasoning and evidence | Claims, comparisons, sources and qualifications support one another. |
-| Information economy | Necessary context survives; repetition and generic filler do not bury it. |
-| Expression fit | Wording, register and medium suit the supplied audience and conventions. |
-| Fidelity and voice | Meaning, certainty, attribution and supplied voice survive without fabrication. |
+| Naturalness | Stock phrases, translationese and uniform rhythm do not obstruct reading; wording, register and medium suit the supplied audience and conventions. |
+| Density and concision | Each sentence carries information; preambles, repetition and padding do not bury necessary context. |
+| Function and navigation | The reader reaches the needed information quickly; headings, paragraphs and lists fit the content and format. |
+| Logical clarity | Claims, reasons and evidence connect traceably; connectives match the actual relations. |
+| Integrity | Certainty is stated honestly; facts carry their source and opinions their owner; attribution and supplied voice survive. |
+| Demonstration | Claims are shown with examples, data or sources, and the conclusion stays within that support. |
 
 | Score | Observable anchor |
 | --- | --- |
-| 4 | No material defect found within the inspected scope; the purpose is fully served. |
-| 3 | Usable as delivered; only optional, local improvements remain. |
-| 2 | A specific defect affects the purpose and needs correction. |
-| 1 | A major gap or structural failure needs substantial correction within the agreed scope. |
-| 0 | The assessed requirement is absent or contradicted. |
+| 95-100 | No material defect found within the inspected scope; the purpose is fully served. |
+| 90-94 | Usable as delivered; only optional, local improvements remain and none burdens the reader. |
+| 80-89 | A specific passage the reader stumbles on affects the purpose and needs correction. |
+| below 80 | A major gap, structural failure, or an absent or contradicted requirement needs substantial correction within the agreed scope. |
+| unverified | Required evidence cannot be inspected; no numeric score, and the requirement is not accepted. |
 
-Accept only when every applicable axis is at least 3, every mandatory criterion
-is checked and no critical defect remains. Do not average away a failing axis
-or ask for a rewrite just to turn 3 into 4. Fabrication, material meaning reversal
-and omitted mandatory conditions fail regardless of other scores. Authorized
-fiction is not fabricated evidence. A valid unchanged edit can earn 4.
+The Purpose and Fidelity hard gates in the common floor apply first and fail
+the unit regardless of scores. Then accept only when every applicable axis is
+at least 90, the mean of the scored axes is at least 92, every mandatory
+criterion is checked and no critical defect remains. Never average away an
+axis below 90: the mean is an additional bar, not compensation. An axis marked
+n/a with a reason is excluded from the mean; an unverified axis is unverified
+with no numeric score and blocks acceptance of that requirement. Never demand a
+rewrite only to raise a passing score. A valid unchanged edit can score 95 or
+above.
 
-For each axis record score (or unverified/not applicable), quoted passage or
+For each axis record score (or unverified/n/a), quoted passage or
 section/unit reference, and reason. An omission cites the missing requirement
-and the inspected location where it was needed. For a score below 3, also state
+and the inspected location where it was needed. For a score below 90, also state
 the reader impact and required outcome; "make it more natural" is not actionable
 evidence. For analysis, assess the report's answer, source-anchored observations,
 reasoning and separation of fact/interpretation/unknowns, not the source's quality
@@ -298,8 +309,9 @@ Changed protected decisions still need the relevant approval; a consumer's
 finding itself grants no broader authority or publication permission.
 
 Source: adapted from [natural-japanese v1.5.0 evaluation rubric](https://github.com/coji/natural-japanese/blob/v1.5.0/skills/natural-japanese/references/eval-rubric.md).
-The 0-4 anchors, acceptance floor, correction ceiling and role split are local policy;
-upstream's 90/92 thresholds and mandatory personal warmth are not adopted.
+The 90/92 thresholds match the shared `japanese-writing` final review; the hard
+gates, correction ceiling and role split are local policy, and upstream's
+mandatory personal warmth is not adopted.
 
 ## Contract files
 
@@ -308,8 +320,8 @@ upstream's 90/92 thresholds and mandatory personal warmth are not adopted.
 | Prose (copy, article, document, message, post; including analysis reports) | `prose.md` |
 | Script drafts and script-analysis reports (operation-specific branches) | `script.md` |
 
-Japanese language knowledge belongs to `japanese-writing`; the selected leaf
-owns its application and checks. Inspect the actual output against the brief,
+Japanese language knowledge and workflow belong to `japanese-writing`; the
+selected leaf adds its form-specific checks. Inspect the actual output against the brief,
 sources and applicable conventions, not a retired lint score or pass receipt.
 An unknown family/operation returns for a contract decision, never a generic
 acceptance pass. Humanizer remains explicit-request only and never permits
@@ -329,5 +341,6 @@ marketer — owns its own acceptance of the returned candidate using this
 contract. It needs no other file from this or any other profile: the brief,
 fact ledger or evidence record and revision budget it applies above are the
 caller's own, tracked in whatever form its own workflow already uses. Writer
-does not run this contract as self-QA; its own self-review stays
-checked / unmet / unverified, per [writer-pipeline](../../SKILL.md).
+does not run this contract as self-QA; its own self-review (checked / unmet /
+unverified, plus the shared final review at full depth) stays separate, per
+[writer-pipeline](../../SKILL.md).
