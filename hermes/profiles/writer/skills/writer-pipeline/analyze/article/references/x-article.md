@@ -6,10 +6,12 @@ supported claims; engagement and conversion do not follow from wording alone.
 
 X Articles use a dedicated rich-text editor. A source draft does not prove
 Markdown import, working media embeds or current account eligibility.
-Documented editor features include headings, lists, bold, italic and links,
-plus media and X-post embeds. These do not establish Markdown paste/import
-conversion. Code/table/quote-block support and the alt/caption workflow remain
-unverified in this check; an indentation feature is not proof of a quote block.
+Editor controls observed 2026-10-01 cover bold/italic/strikethrough, quote,
+lists and links on the toolbar, and link preview, table, code, LaTeX,
+divider, media, GIF and post embed in the 挿入 menu; rendering of each was not
+separately tested. A comparison readers must check that sits in prose where a
+table would serve is a fair finding. The alt/caption workflow remains
+unverified.
 Keep text analysis separate from unperformed editor/visual checks. Do not
 publish a test or fetch account analytics under an article-analysis request.
 
