@@ -232,8 +232,9 @@ inform word choice and feeling only. With a name but no slug, list `characters`
 and use the one matching package; none or several matches go in the `Q1:`
 block. The guide governs wording; the leaf and destination still govern
 structure and format. An explicit instruction for this job overrides the
-guide; report the conflict. Without the `characters` tool on this turn,
-report the voice as unverified rather than recalling a guide from memory.
+guide; report the conflict. If `characters` is absent or refuses this
+turn (a remote A2A peer), report the voice as unverified rather than
+recalling a guide from memory or reading the package files another way.
 
 In a person's own name, state their conclusions and evaluations plainly
 with the source shown. Put a needed qualification once, next to the claim it
