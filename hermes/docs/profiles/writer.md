@@ -14,7 +14,11 @@ media cost contract). The three operations stay distinct: write constructs a
 usable artifact, edit changes only the authorized scope, and analyze supports
 findings without replacing its target. A request to edit or evaluate a target
 selects that target's leaf. Unsupported combinations return to the requester for
-clarification, never a generic fallback or restored review pipeline. Keep new
+clarification, never a generic fallback or restored review pipeline. A text
+in a named person's or character's own name takes its voice from the
+`characters` package in every family (kernel `<Voice>`): Writer reads the guide
+and medium examples itself, the requester names only the slug, and requester
+acceptance checks the text against that guide. Keep new
 families in separate layers rather than bundling them. The shared Japanese skill
 contains language knowledge (plus the bounded inspector below), not a workflow.
 Humanizer is explicit-request only for every leaf, and no legacy
@@ -31,8 +35,8 @@ Every Writer execution entry, including consultation, follows the shared
 [entry loading contract](../topology.md#entry-loading-contract): full kernel,
 selected entry body and current required detail references on each inbound turn,
 completion notification and before a midturn operation/subject/scope change.
-Status (v8): user-approved migration implemented in the isolated candidate,
-pending explicit cutover; not deployed, restarted or real-model validated. The
+Status (v8): deployed in the live checkout and exercised with real models
+through Assistant resident `work` calls from both CLI and Telegram. The
 root name `writer-pipeline`, all 18 production leaf names, paths and forms, and
 the canonical shared `references/acceptance/` stay unchanged; `consult-writer`
 is the one new entry. Rollback restores matched producer/caller contracts
@@ -237,15 +241,20 @@ unavailable contract blocks acceptance.
 The shared Japanese core (`SKILL.md`, five notation defaults) also carries a
 bounded, read-only `references/inspection.md` plus `scripts/inspect_text.py` and
 `scripts/requirements.txt`. Writer's leaves still own document construction and
-checks; the inspector never edits, decides or scores. It reports checked /
-unverified findings for the Article leaf to judge — never a pass/fail or
-naturalness score — and Writer never self-scores from it.
+checks; the inspector never edits, decides or scores. Every Japanese text
+Writer writes or edits gets one pass over its completed draft, whatever the
+family; it reports checked / unverified findings for the selected leaf to
+judge — never a pass/fail or naturalness score — and Writer never self-scores
+from it.
 
 Its `writing_inspect` tool (toolset `writing-inspection`) is single-purpose
 transport, not inspection rules: text-only input bounded to 131072 UTF-8 bytes,
-a 20-second deadline, reachable only from a Writer CLI or A2A session. It runs
-the canonical inspector as a `subprocess` with no shell, no source writes and no
-network. Ordinary host conversation-history persistence still applies to
+a 20-second deadline, reachable only from a Writer session. A gateway (A2A)
+turn must be bound to the Writer profile; a resident CLI turn binds no session
+profile, so the Writer home identifies it and any profile it inherits must be
+Writer's. Without the dedicated Python from `agents/README.md` the tool returns
+`unavailable`. It runs the canonical inspector as a `subprocess` with no
+shell, no source writes and no network. Ordinary host conversation-history persistence still applies to
 whatever text is sent. The old Writer routing/review cluster, shared Japanese
 catalogs, detector fixtures and pass counts are retired; do not place an archive
 back under a discovered skill root. Attribution and provisioning live in
