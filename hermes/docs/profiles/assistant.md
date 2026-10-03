@@ -172,6 +172,11 @@ tools of the assistant alone (`google_access` toolset); every change waits for
 the user's `/approve`, and the terminal path around them is blocked. Contract:
 [google-access.md](../google-access.md).
 
+The user's own WhatsApp accounts are likewise the assistant's alone
+(`whatsapp_access` toolset, never on A2A): reads come from a local mirror,
+and every send waits for approval on a card naming the account, the chat and
+the text. Contract: [whatsapp-access.md](../whatsapp-access.md).
+
 ### Kanban catalog
 
 The kanban catalog is closed and per-assignee: its machine-readable surface is
