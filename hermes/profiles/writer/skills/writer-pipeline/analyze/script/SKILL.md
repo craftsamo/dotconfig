@@ -77,10 +77,12 @@ or inherit Writer's role. Read only the detail references selected below.
    Do not infer audio duration, acting, voice likeness, pronunciation, rendered
    legibility or synchronization from a script alone. Do not create media or
    mutate timing files to resolve an unknown.
-6. Use `japanese-writing` for Japanese expression observations without legacy
-   layers or inspection scripts. `humanizer` is explicit-only and cannot turn
-   analysis into rewritten dialogue. No authorship/naturalness score or claim
-   that a real speaker said words merely because they appear in a fictional script.
+6. For Japanese text, follow `japanese-writing` as the kernel maps it: report
+   findings, and give its naturalness diagnosis only when the requester asks
+   for a score; this leaf adds its form-specific checks. `humanizer` is
+   explicit-only and cannot turn analysis into rewritten dialogue. No
+   authorship verdict or claim that a real speaker said words merely because
+   they appear in a fictional script.
 7. Apply QA to the analysis report, not an imaginary replacement script. Return
    a permitted short report in the reply or save it at the requested durable
    path. Original scripts, IDs and exports remain unchanged. Production approval
@@ -100,7 +102,9 @@ or inherit Writer's role. Read only the detail references selected below.
   estimated duration is not measured playback, synchronized subtitles or acting.
 - This report needs no new scenes, dialogue, speaker roster, raw speech file
   or production-ready fields of its own. It must not replace or renumber its
-  target. Use checked / unmet / unverified evidence, not legacy passes or scores.
+  target. Use checked / unmet / unverified evidence, not legacy passes. Never
+  an authorship verdict; a naturalness score only from the shared diagnosis
+  when requested; do not invent measurements.
 
 </QA>
 

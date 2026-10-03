@@ -27,7 +27,7 @@ def test_skill_links_to_acceptance_but_does_not_self_qa():
     assert "never runs it as self-QA" in kernel
     assert "This is self-review, not the" in kernel
     # The kernel links to it; it does not duplicate the rubric table.
-    assert "| Purpose |" not in kernel
+    assert "| Naturalness |" not in kernel
     assert "at most two corrective returns" not in kernel
 
 
@@ -67,12 +67,18 @@ def test_all_six_families_and_three_operations_present():
 
 def test_evidence_anchored_rubric_and_ceiling_are_intact():
     index = text("index.md")
-    for axis in ("Purpose", "Structure and usability", "Reasoning and evidence",
-                 "Information economy", "Expression fit", "Fidelity and voice"):
+    for axis in ("Naturalness", "Density and concision", "Function and navigation",
+                 "Logical clarity", "Integrity", "Demonstration"):
         assert f"| {axis} |" in index
-    for score in range(5):
-        assert f"| {score} |" in index
-    assert "every applicable axis is at least 3" in index
+    for anchor in ("95-100", "90-94", "80-89", "below 80", "unverified"):
+        assert f"| {anchor} |" in index
+    assert "every applicable axis is at least 90" in index
+    assert "the mean of the scored axes is at least 92" in index
+    assert "Never average away an axis below 90" in index
+    assert "Never demand a rewrite only to raise a passing score" in index
+    assert "Purpose and fidelity are hard gates" in index
+    assert "fails the unit regardless of scores" in index
+    assert "excluded from the mean" in index
     assert "unverified with no numeric score" in index
     assert "at most two corrective returns per released unit" in index
     assert "does not reset the budget" in index

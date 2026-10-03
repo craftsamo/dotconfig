@@ -79,8 +79,9 @@ or inherit Writer's role. Read only the detail references selected below.
    displayed text separately from action, camera, pronunciation and delivery
    notes. Do not add an unrequested hook, CTA, cast or fixed beats-per-second
    formula. Cross-unit references must identify the intended unit unambiguously.
-5. Draft within the approved story and factual limits. Use `japanese-writing`
-   as Japanese expression knowledge only, not legacy layers or inspection.
+5. Draft within the approved story and factual limits. For Japanese text,
+   follow `japanese-writing`'s write workflow as the kernel maps it; this leaf
+   adds its form-specific checks.
    `humanizer` is explicit-only and cannot change protected lines, speaker voice
    or source meaning. Keep linguistic voice separate from sound-engine selection.
 6. Check textual limits by a reliable method and state that method. A rough
@@ -113,8 +114,10 @@ or inherit Writer's role. Read only the detail references selected below.
 - Counts cite a method; playback, lip/beat synchronization, pronunciation,
   rendered lettering, acting and production feasibility remain unverified
   without the corresponding evidence. A textual timing target is not a result.
-- Use checked / unmet / unverified criterion evidence, not legacy passes or
-  naturalness scores. Required unmet/unverified criteria are not complete.
+- Use checked / unmet / unverified criterion evidence, not legacy passes.
+  Never an authorship verdict; a naturalness score only from the shared
+  diagnosis when requested; do not invent measurements. Required
+  unmet/unverified criteria are not complete.
   Writing self-review is neither independent acceptance nor production approval.
 
 </QA>

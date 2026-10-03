@@ -85,9 +85,9 @@ or inherit Writer's role. Read only the detail references selected below.
    inconsistent with the rest of the source is flagged, not silently
    corrected by inference. `writing_inspect` may be called on the exact
    source text, never a `read_file`-wrapped copy, restricted to the
-   `reading-load` and `terms` modes; a candidate only becomes an applied
-   change when it also meets the minimal, in-scope correction bar above,
-   and an unconfirmed or merely stylistic candidate is left untouched
+   `notation`, `reading-load` and `terms` modes; a candidate only becomes an
+   applied change when it also meets the minimal, in-scope correction bar
+   above, and an unconfirmed or merely stylistic candidate is left untouched
    rather than auto-rewritten. Finding nothing in scope is a valid no-op.
    An unavailable, errored, unverified or truncated result leaves that
    mode unverified; keep reading the source directly for the rest and
@@ -98,13 +98,15 @@ or inherit Writer's role. Read only the detail references selected below.
    guess its markup support or silently convert the article to a post.
 4. Edit only what the request authorizes. Keep source-backed claims,
    quotations, uncertainty and the author's actual experience. New claims
-   need sources; a style example is not evidence. Use `japanese-writing`
-   for Japanese expression, not the retired workflows or lint.
+   need sources; a style example is not evidence. For Japanese text, follow
+   `japanese-writing`'s edit workflow (pass the source as `original`); this
+   leaf adds its form-specific checks.
     Natural compounds and repeated formats are not errors by themselves.
     `humanizer` is explicit-only and cannot override protected meaning.
     For Japanese technical/explanatory articles, load that skill's inspection
     reference before interpreting `writing_inspect`. Outside `proofread`, select
-    reading-load/outline/terms/structure modes relevant to the authorized edit.
+    the naturalness/expression/notation/reading-load/outline/terms/structure/
+    revision modes relevant to the authorized edit.
     Inspect exact available raw text; do not reconstruct missing text or silently
     truncate the 131072-byte input. Report excerpt offsets and coverage when using
     a portion. After changes, recheck affected modes on the revised text; prior

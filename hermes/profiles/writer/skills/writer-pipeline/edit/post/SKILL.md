@@ -67,8 +67,8 @@ or inherit Writer's role. Read only the detail references selected below.
    a new offer, promise, stronger certainty or a campaign change. If the
    requested edit needs those decisions, stop that part and ask.
 3. Apply the requested changes. Preserve the source language and voice unless
-   specified. In Japanese, use `japanese-writing` as language knowledge only;
-   this leaf owns QA, not its legacy inspection workflow or scoring tools.
+   specified. For Japanese text, follow `japanese-writing`'s edit workflow
+   (pass the source as `original`); this leaf adds its form-specific checks.
    Do not change natural compounds or uniform phrasing just to add variation.
    Load `humanizer` only on explicit request and still respect protected meaning.
 4. Compare the revised draft to the original. Re-read the whole thread or

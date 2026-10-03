@@ -29,7 +29,7 @@ Fictional material: existing members can attend a free online reservation-demo
 session. The approved benefit is seeing how to use the reservation screen.
 Registration is at https://example.com/demo; the copy request includes subject,
 preview, body and CTA. No date, capacity limit or performance result is supplied.
-Draft subject: 「会員向け：予約画面の使い方をオンラインで紹介」
+Draft subject: 「会員向け: 予約画面の使い方をオンラインで紹介」
 Draft preview: 「参加無料。会員向けのデモ説明会です。」
 Draft body: 「予約画面の使い方をご覧いただけます。会員向けの無料オンライン説明会です。」
 Draft CTA: 「説明会に申し込む」, targeting the supplied fictional registration URL.

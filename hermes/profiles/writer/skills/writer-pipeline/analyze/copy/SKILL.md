@@ -73,9 +73,13 @@ or inherit Writer's role. Read only the detail references selected below.
 5. Separate textual clarity from actual conversions, reader response, delivered
    email, rendered layout and legal compliance. These need their own evidence;
    do not browse a live flow, submit forms or run a campaign to settle them.
-   No statistical quality/authorship scores or guessed performance lift.
-6. Use `japanese-writing` for Japanese expression observations, without legacy
-   layers or inspection scripts. `humanizer` is explicit-only and provides
+   Never an authorship verdict or a guessed performance lift; a naturalness
+   score only from the shared diagnosis when requested; do not invent
+   measurements.
+6. For Japanese text, follow `japanese-writing` as the kernel maps it: report
+   findings, and give its naturalness diagnosis only when the requester asks
+   for a score; this leaf adds its form-specific checks. `humanizer` is
+   explicit-only and provides
    observations, never permission to rewrite the source. Quote sensitive
    evidence only as necessary; do not expose raw customer records in reports.
 7. Apply QA to the report. Return a permitted short analysis in the reply or

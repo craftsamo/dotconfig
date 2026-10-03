@@ -26,11 +26,11 @@ not as a condition of a complete message. Politeness must preserve the decision.
 
 ## Worked example
 
-Fictional material: an organizer invited the sender to the 10月8日の勉強会.
+Fictional material: an organizer invited the sender to the 10 月 8 日の勉強会.
 The sender declines, wants a polite concise reply with a subject, and supplies
 no reason, apology, future commitment, name or signature. No reply is requested.
-Draft subject: 「10月8日の勉強会への参加について」
-Draft body: 「10月8日の勉強会への参加は辞退いたします。」
+Draft subject: 「10 月 8 日の勉強会への参加について」
+Draft body: 「10 月 8 日の勉強会への参加は辞退いたします。」
 Why: the subject identifies the invitation and the body gives the decided
 answer. There is no filler context because none is needed to interpret it.
 The restrained ending neither reopens the decision nor creates a follow-up.

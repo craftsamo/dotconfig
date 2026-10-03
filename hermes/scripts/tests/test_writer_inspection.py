@@ -59,14 +59,18 @@ def provisioned(monkeypatch):
     monkeypatch.setattr(plugin, "SCRIPT", Path(__file__))
 
 
+DEFAULT_MODES = [mode for mode in plugin.MODES if mode != "revision"]
+
+
 def report(text="sample", status="ok"):
-    return {"schema_version": 1, "status": status,
-            "input_sha256": hashlib.sha256(text.encode()).hexdigest(),
-            "inspector_version": "test-1", "executed": ["outline"],
+    return {"schema_version": 2, "status": status,
+            "input_sha256": hashlib.sha256(text.encode()).hexdigest(), "original_sha256": None,
+            "inspector_version": "test-1", "request": {}, "executed": ["outline"],
             "unverified": [{"check": "proper_noun_inventory", "reason": "missing_dependency"}]
             if status == "partial" else [],
             "error": {"code": "runtime_failure", "message": "Failed"} if status == "error" else None,
-            "findings": [], "outline": [], "terms": [], "structure": {},
+            "findings": [], "score": None, "outline": [], "heading_stats": {}, "terms": [],
+            "structure": {}, "revision": {}, "stats": {},
             "truncation": {"applied": False, "counts": {
                 key: {"total": 0, "returned": 0, "omitted": 0}
                 for key in ("findings", "outline", "terms")},
@@ -80,6 +84,9 @@ def report(text="sample", status="ok"):
     {"text": "x", "modes": [True]}, {"text": "x", "modes": [[]]},
     {"text": "x", "modes": ["outline", "outline"]},
     {"text": "x", "modes": ["score"]}, {"text": "\ud800"},
+    {"text": "x", "modes": ["revision"]}, {"text": "x", "original": "y", "modes": ["terms"]},
+    {"text": "x", "original": 3}, {"text": "x", "genre": "novel"}, {"text": "x", "experimental": "yes"},
+    {"text": "x", "stance": "勧め"}, {"text": "x", "original": "\u3042" * 43691},
     {"text": "x" * 131073}, {"text": "\u3042" * 43691}])
 def test_invalid_requests_never_start_child(runtime, provisioned, monkeypatch, args):
     monkeypatch.setattr(plugin, "_run", lambda _: pytest.fail("child started"))
@@ -130,8 +137,12 @@ def test_cli_home_must_still_be_writer(tmp_path, provisioned, monkeypatch):
 
 
 @pytest.mark.parametrize("reason,args,role,code", [
-    ("Only text and modes are accepted", {"text": "sample", "command": "id"}, "writer", "invalid_request"),
-    ("text exceeds 131072 UTF-8 bytes", {"text": "\u3042" * 43691}, "writer", "invalid_request"),
+    ("Only text, modes, genre, experimental, stance and original are accepted",
+     {"text": "sample", "command": "id"}, "writer", "invalid_request"),
+    ("modes must be a unique list of supported modes", {"text": "sample", "modes": ["x"]},
+     "writer", "invalid_request"),
+    ("original is required by, and only allowed with, the revision mode",
+     {"text": "sample", "modes": ["revision"]}, "writer", "invalid_request"),
     ("Writer profile, originating session and framework task required", {"text": "sample"}, "engineer", "wrong_scope"),
 ])
 def test_gate_mutation_reaches_execution_tripwire(runtime, provisioned, monkeypatch, reason, args, role, code):
@@ -158,7 +169,7 @@ def test_missing_interpreter(runtime, tmp_path, monkeypatch):
     monkeypatch.setattr(plugin, "PYTHON", tmp_path / "missing")
     result = call({"text": "sample"}, task_id="task")
     assert result["error"]["code"] == "unavailable"
-    assert [item["check"] for item in result["unverified"]] == list(plugin.MODES)
+    assert [item["check"] for item in result["unverified"]] == DEFAULT_MODES
     assert all(item["reason"] == result["error"]["message"] for item in result["unverified"])
     assert result["executed"] == []
 
@@ -168,14 +179,56 @@ def test_missing_interpreter(runtime, tmp_path, monkeypatch):
 def test_report_passthrough_and_default_modes(tmp_path, provisioned, monkeypatch, status, platform):
     expected = report(status=status)
     def run(request):
-        assert json.loads(request) == {"text": "sample", "modes": list(plugin.MODES)}
+        assert json.loads(request) == {"text": "sample", "modes": DEFAULT_MODES}
         return json.dumps(expected).encode()
     monkeypatch.setattr(plugin, "_run", run)
     with scope(tmp_path / "writer", platform=platform):
         assert call({"text": "sample"}, task_id="task") == expected
 
 
-@pytest.mark.parametrize("key,value", [("schema_version", True), ("schema_version", 2),
+def test_original_enables_revision_and_options_pass_through(runtime, provisioned, monkeypatch):
+    expected = report()
+    expected["original_sha256"] = hashlib.sha256("before".encode()).hexdigest()
+    def run(request):
+        assert json.loads(request) == {"text": "sample", "original": "before", "genre": "tech",
+                                       "stance": "advice", "experimental": True,
+                                       "modes": DEFAULT_MODES + ["revision"]}
+        return json.dumps(expected).encode()
+    monkeypatch.setattr(plugin, "_run", run)
+    args = {"text": "sample", "original": "before", "genre": "tech", "stance": "advice", "experimental": True}
+    assert call(args, task_id="task") == expected
+
+
+def test_revision_details_are_trimmed_before_findings(runtime, provisioned, monkeypatch):
+    original = report()
+    original["findings"] = [{"line": 1, "excerpt": "x"}]
+    original["truncation"]["counts"]["findings"] = {"total": 1, "returned": 1, "omitted": 0}
+    original["revision"] = {"spans": [{"added": "\u3042" * 200} for _ in range(150)], "omitted": {}}
+    monkeypatch.setattr(plugin, "_run", lambda _: json.dumps(original, ensure_ascii=False).encode())
+    result = assert_framework_safe(plugin._inspect({"text": "sample"}, "writer", task_id="task"))
+    assert result["findings"] == original["findings"]
+    dropped = 150 - len(result["revision"]["spans"])
+    assert dropped > 0 and result["revision"]["omitted"] == {"spans": dropped}
+    assert result["truncation"]["output_budget_dropped"] == dropped
+    assert result["status"] == "partial"
+
+
+def test_nested_revision_details_are_trimmed(runtime, provisioned, monkeypatch):
+    original = report()
+    sentence = "\u3042" * 150
+    original["revision"] = {"endings": {"changes": [
+        {"original": sentence + "ください。", "rewrite": sentence + "ます。"} for _ in range(80)],
+        "flags": []}, "omitted": {}}
+    monkeypatch.setattr(plugin, "_run", lambda _: json.dumps(original, ensure_ascii=False).encode())
+    result = assert_framework_safe(plugin._inspect({"text": "sample"}, "writer", task_id="task"))
+    dropped = 80 - len(result["revision"]["endings"]["changes"])
+    assert dropped > 0 and result["revision"]["omitted"] == {"endings.changes": dropped}
+    assert result["status"] == "partial"
+
+
+@pytest.mark.parametrize("key,value", [("schema_version", True), ("schema_version", 1),
+    ("original_sha256", "wrong"), ("score", []), ("revision", []), ("stats", None),
+    ("heading_stats", []),
     ("status", "success"), ("input_sha256", "wrong"), ("inspector_version", None),
     ("findings", {}), ("executed", {}), ("unverified", None), ("outline", {}),
     ("terms", {}), ("structure", []), ("truncation", False)])
@@ -302,7 +355,7 @@ def test_opt_in_sudachi_maximum_japanese_adapter(runtime, monkeypatch):
     assert result["dependencies"]["available"] is True
     assert all(item["actual"] == item["required"]
                for item in result["dependencies"]["packages"].values())
-    assert {"no_particle_chain", "double_negative", "proper_noun_inventory"} <= set(result["executed"])
+    assert {"no_chain", "double_negative", "proper_noun_inventory"} <= set(result["executed"])
     assert not result["unverified"]
     assert result["input_sha256"] == hashlib.sha256(text.encode()).hexdigest()
     assert result["truncation"]["applied"] is True
@@ -316,7 +369,7 @@ def test_opt_in_sudachi_maximum_japanese_adapter(runtime, monkeypatch):
 
 
 @pytest.mark.parametrize("text,modes", [
-    ("# Heading\n\nA short paragraph.", list(plugin.MODES)),
+    ("# Heading\n\nA short paragraph.", DEFAULT_MODES),
     ("# Heading\n\nA short paragraph.", ["outline", "structure"]),
     ("", []), ("\x00" * 131072, [])])
 def test_real_shared_protocol_with_test_interpreter(runtime, monkeypatch, text, modes):
@@ -401,7 +454,7 @@ def test_maximum_request_real_inspector_survives_configured_output_limits(runtim
     text = "".join(f"# Heading {i}\n\nAPI{i} " + "word " * 30 + ".\n\n" for i in range(600))
     text += " " * (131072 - len(text.encode()))
     assert len(text.encode()) == plugin.INPUT_LIMIT
-    original_bytes = plugin._run(json.dumps({"text": text, "modes": list(plugin.MODES)}).encode())
+    original_bytes = plugin._run(json.dumps({"text": text, "modes": DEFAULT_MODES}).encode())
     assert len(original_bytes) <= plugin.OUTPUT_LIMIT == 256 * 1024
     original = json.loads(original_bytes)
     assert all(len(original[key]) >= 100 for key in ("findings", "outline", "terms"))

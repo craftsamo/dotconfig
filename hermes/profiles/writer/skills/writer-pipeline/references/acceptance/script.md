@@ -41,7 +41,7 @@ Apply [Writing QA](index.md#evidence-anchored-scoring) to the released text
 scope. Use the actual producer's contract, not genre-wide counts or invented
 timing limits. An outline needs a coherent sequence, not finished dialogue.
 
-| Format | Evidence of usable craft (3 or 4) | Defect requiring correction (2 or below when in scope) |
+| Format | Evidence of usable craft (90 or above) | Defect requiring correction (below 90 when in scope) |
 | --- | --- | --- |
 | Narration | Spoken order establishes referents before depending on them and preserves essential qualifications without dense nesting. | "Choose this" depends on an unseen selector or a simplification drops a critical condition. |
 | Comic | Supplied panels, speakers, visible beats and words have complementary roles; stable IDs remain usable. | An essential story beat disappears between panels or dialogue is assigned to the wrong speaker. |

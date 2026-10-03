@@ -20,7 +20,7 @@ that fit without a defect; analysis must not supply a replacement response.
 
 ## Worked example
 
-Fictional material: prior turn 「会場は第2会議室、開始は15時でよいですか。」;
+Fictional material: prior turn 「会場は第 2 会議室、開始は 15 時でよいですか。」;
 reply 「それで決まりました。」 The supplied intent confirms only the room, not
 the time. The requester asks whether the reply communicates that limited decision.
 Finding: quote 「それで決まりました」 against the two topics in the prior turn.

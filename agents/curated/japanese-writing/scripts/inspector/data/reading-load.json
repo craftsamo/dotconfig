@@ -1,0 +1,16 @@
+{
+  "sentence_max_chars": {"default": 90, "tech": 90, "business": 90, "essay": 110},
+  "kanji_run": "[一-鿿々]{7,}",
+  "kanji_run_guide": 6,
+  "buried_list_min_chars": {"three_or_fewer": 80, "four_or_more": 50},
+  "bracket_pairs": {"）": "（", ")": "(", "」": "「", "』": "『", "】": "【", "］": "［", "]": "["},
+  "negation_forms": ["ない", "無い", "ぬ", "ず"],
+  "negation_max_gap": 6,
+  "obligation_substrings": [
+    "といけ", "とだめ", "とダメ", "ばならな", "ばなりま", "ばいけな",
+    "てはならな", "てはなりま", "てはいけな", "ざるを得", "ざるをえ"
+  ],
+  "conditional_negation": "^(?:ない|なけれ|なく)(?:と(?!は)|ば|ければ)",
+  "no_chain_length": 3,
+  "no_chain_max_gap": 3
+}

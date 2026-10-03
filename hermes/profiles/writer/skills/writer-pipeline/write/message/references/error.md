@@ -31,7 +31,7 @@ Fictional material: a form's validator reports that the required 「予約人数
 field is empty. The supplied rule is a whole number from 1 to 6; the requester
 wants separate wording for empty input and a value outside that range.
 Draft, empty input: 「予約人数を入力してください。」
-Draft, outside range: 「予約人数は1〜6の整数で入力してください。」
+Draft, outside range: 「予約人数は 1 から 6 の整数で入力してください。」
 Why: each message names the same field but responds to a different known
 condition. Neither attributes carelessness or promises that submission succeeded.
 This validation example establishes no facts about any transaction outcome.

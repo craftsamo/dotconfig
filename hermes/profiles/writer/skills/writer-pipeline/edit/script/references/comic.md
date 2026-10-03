@@ -49,4 +49,5 @@ LOCAL adaptation; upstream has no specialized comic-edit guide. Use
 [writing-constitution.md](https://github.com/coji/natural-japanese/blob/v1.5.0/skills/natural-japanese/references/writing-constitution.md) for evidential scope, and
 [genre-notes.md](https://github.com/coji/natural-japanese/blob/v1.5.0/skills/natural-japanese/references/genre-notes.md) for conditional pacing.
 Visual beat versus lettering is LOCAL craft, not permission to modify artwork.
-No mandatory scores, review loops, fixed counts or personal anecdotes are imported.
+No fixed counts or personal anecdotes are imported.
+Japanese review follows the shared `japanese-writing` workflow.

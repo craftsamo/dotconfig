@@ -51,4 +51,5 @@ LOCAL adaptation; upstream has no specialized narration-edit guide. Use
 [genre-notes.md](https://github.com/coji/natural-japanese/blob/v1.5.0/skills/natural-japanese/references/genre-notes.md) for conditional pacing.
 [W3C media guidance](https://www.w3.org/WAI/media/av/av-content/) supports naming visual referents;
 [BBC radio drama](https://www.bbc.co.uk/writers/resources/tips-and-advice/writing-radio-drama) supports meaningful pauses, not blanket preamble removal.
-No mandatory scores, review loops or personal anecdotes are imported.
+No personal anecdotes are imported.
+Japanese review follows the shared `japanese-writing` workflow.

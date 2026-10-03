@@ -90,7 +90,8 @@ def test_analysis_is_not_new_copy_or_a_performance_verdict():
     assert "Description need not find defects" in text
     assert "it needs no new headline" in text
     assert "Do not produce replacement copy" in text
-    assert "No statistical quality/authorship scores" in text
+    assert "Never an authorship verdict or a guessed performance lift" in text
+    assert "a naturalness score only from the shared diagnosis when requested" in text
 
 
 def test_marketer_consumes_copy_without_bypassing_acceptance():

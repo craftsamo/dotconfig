@@ -37,7 +37,8 @@ QA evidence: attach the quote, relevant reader criterion and inference to
 each substantive finding. Distinguish a textual omission from missing external
 evidence, and note what would change the assessment. Keep article and notes
 unchanged; report no replacement article. A source reading establishes neither
-CMS support nor live readability, and does not need a numeric quality verdict.
+CMS support nor live readability, and needs no numeric score unless the
+requester asks for the shared `japanese-writing` naturalness diagnosis.
 
 Local adaptation of [natural-japanese v1.5.0 readability principles](https://github.com/coji/natural-japanese/blob/v1.5.0/skills/natural-japanese/references/readability-principles.md)
 (reader knowledge) and [revision guide](https://github.com/coji/natural-japanese/blob/v1.5.0/skills/natural-japanese/references/revision-guide.md)

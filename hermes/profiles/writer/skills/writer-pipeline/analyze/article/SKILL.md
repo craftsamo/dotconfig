@@ -90,12 +90,14 @@ or inherit Writer's role. Read only the detail references selected below.
    unresolved insertion marker shows planned content, not an image that can
    be analyzed. A source file does not prove successful rendering or working
    embeds. Attribute supplied descriptions and report unavailable evidence.
-6. Use `japanese-writing` for Japanese-language observations without loading
-    legacy workflows or statistical detectors. `humanizer` is explicit-only
-    and supplies observations, never a rewritten article or authorship score.
-    For technical/explanatory articles, read that skill's inspection reference
-    and use `writing_inspect` modes relevant to the requested question, not only
-    proofreading. Preserve raw text and record current input hash/version and
+6. For Japanese text, follow `japanese-writing` as the kernel maps it: report
+    findings, and give its naturalness diagnosis only when the requester asks
+    for a score; this leaf adds its form-specific checks. `humanizer` is
+    explicit-only and supplies observations, never a rewritten article or
+    authorship verdict. For technical/explanatory articles, read that skill's
+    inspection reference and use `writing_inspect` modes relevant to the
+    requested question (such as `outline`, `structure` or `naturalness`), not
+    only proofreading. Preserve raw text and record current input hash/version and
     actual coverage. Respect the 131072-byte input bound without silent truncation;
     report original ranges/offsets for excerpts, never whole-document ratios from
     them. Unavailable required evidence stays unverified, with no installation or
@@ -120,7 +122,8 @@ or inherit Writer's role. Read only the detail references selected below.
   a visual/platform check by resemblance or a file extension.
 - Original text and production notes are unchanged. QA evaluates this report,
   not a new article that would need its own introduction, CTA or media assets.
-  No naturalness score, author detector or fake runtime measurement is used.
+  Never an authorship verdict; a naturalness score only from the shared
+  diagnosis when requested; do not invent measurements.
 
 </QA>
 
@@ -130,6 +133,8 @@ Name `analyze-article`, source, scope and requested mode. Provide anchored
 observations and requested recommendations, with applicable checks marked
 checked / unmet / unverified. Preserve missing-source and rendering limits.
 Do not deliver a replacement article, pretend to have inspected absent media,
-or convert a qualitative reading into a numeric quality/authorship verdict.
+or convert a qualitative reading into a numeric quality score or an
+authorship verdict; a requested naturalness diagnosis comes from the shared
+skill's measurement.
 
 </Report>
