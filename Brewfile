@@ -51,6 +51,10 @@ cask "gcloud-cli"              # gcloud — google-access plugin + bin/gaccess
 brew "steipete/tap/remindctl"  # apple-reminders skill (hermes-agent skills/apple)
 cask "xdevplatform/tap/xurl"   # xurl skill (hermes-agent skills/social-media)
 
+# --- Hermes Agent: video-creator tour (OCR text anchors) ---
+brew "tesseract"      # tour.py locates targets by OCR
+brew "tesseract-lang" # jpn traineddata for jpn / eng+jpn anchors
+
 # --- GUI apps / fonts (casks land in /Applications, shared across users) ---
 cask "font-hack-nerd-font"
 cask "font-geist"      # brand font for contextual-image-gen text/OG overlays
