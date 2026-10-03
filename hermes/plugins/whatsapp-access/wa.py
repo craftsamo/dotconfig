@@ -101,12 +101,6 @@ _PATHS = re.compile(r"\.wacli(?![\w-])|wacli\.db|wacli-sync|local\.wacli|WACLI_"
 # In a terminal call, the plugin's own code is a way around its hook too (importing the engine).
 _ENGINE = re.compile(r"whatsapp-access|whatsapp_access")
 FILE_TOOLS = {"read_file", "write_file", "patch", "search_files"}
-# WhatsApp Web is retired for the profile: the browser, the desktop and the terminal never open it.
-_WEB = re.compile(r"web\.whatsapp\.com", re.IGNORECASE)
-WEB_TOOLS = {"computer_use", "terminal"}
-WEB_MESSAGE = (
-    "WhatsApp Web is retired here: read and send through the whatsapp tool (check, backfill and media "
-    "included). Something the tool cannot do is the user's to do on the phone.")
 BYPASS_MESSAGE = (
     "WhatsApp runs only through the whatsapp tool, never through the terminal or file tools, and "
     "its store (~/.wacli) is never read directly. Use the whatsapp tool; pairing an account and "
@@ -995,9 +989,6 @@ def bypass(tool: str, args) -> str | None:
 
     A pattern match on the call's text, not a sandbox."""
     args = args if isinstance(args, dict) else {}
-    tool = tool if isinstance(tool, str) else ""
-    if (tool.startswith("browser_") or tool in WEB_TOOLS) and any(_WEB.search(t) for t in _strings(args)):
-        return WEB_MESSAGE
     if tool == "terminal":
         command = args.get("command")
         if isinstance(command, str) and _CLI.search(command):
