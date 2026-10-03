@@ -1,8 +1,10 @@
 # Homebrew dependencies for this dotconfig repo.
 # Apply with: ./install.sh --deps   (or: brew bundle --file="$HOME/.config/Brewfile")
 #
-# Curated on purpose: only tools the configs in this repo actually reference.
-# Project-specific build deps do not belong here.
+# Curated on purpose: only tools the configs in this repo actually reference,
+# plus system binaries required by the skills those configs load (Hermes
+# external skill dirs, shared ~/.agents/skills). Project-specific build deps
+# do not belong here.
 
 tap "anomalyco/tap"
 tap "openclaw/tap"
@@ -54,6 +56,10 @@ cask "xdevplatform/tap/xurl"   # xurl skill (hermes-agent skills/social-media)
 # --- Hermes Agent: video-creator tour (OCR text anchors) ---
 brew "tesseract"      # tour.py locates targets by OCR
 brew "tesseract-lang" # jpn traineddata for jpn / eng+jpn anchors
+
+# --- Shared skills (~/.agents/skills: hyperframes, media-use, business-video-maker) ---
+brew "whisper.cpp" # whisper-cli — transcription / captions
+brew "espeak-ng"   # Kokoro TTS phonemizer for non-English + fallback narration
 
 # --- GUI apps / fonts (casks land in /Applications, shared across users) ---
 cask "font-hack-nerd-font"
