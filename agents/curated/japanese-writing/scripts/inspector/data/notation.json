@@ -10,7 +10,7 @@
       "id": "space_ja_alnum",
       "severity": "warn",
       "anchor": "N1",
-      "reason": "日本語と英数字・コードの間に半角スペースを入れる:「Git の履歴」「第 3 章」"
+      "reason": "日本語と英字・数字・コードの間に半角スペースを入れる (数字も対象):「Git の履歴」「10 月 8 日」「第 2 会議室」。残すなら先に例外を確認する"
     },
     {
       "id": "space_between_fullwidth",
