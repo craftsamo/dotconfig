@@ -102,8 +102,10 @@ lists all three controls; Qwen3 lists none.
 - **`seed`**: Irodori draws a fresh seed per request when left alone, so the
   tool always pins one (generating it when the caller does not) and returns it.
   Re-rendering that script with that seed rebuilds the same take,
-  post-processing included. Qwen3 exposes no seed because its server fixes one
-  per voice, so identical requests already reproduce. A seed rebuilds *that
+  post-processing included, as long as the engine's checkpoint is unchanged —
+  a checkpoint change in `engines/` invalidates every earlier seed. Qwen3
+  exposes no seed because its server fixes one per voice, so identical
+  requests already reproduce. A seed rebuilds *that
   take*; making a different line match an approved one is continuity work it
   does not buy. Verify reproduction on decoded SAMPLES, not container bytes —
   the delivered Ogg carries a random bitstream serial.
