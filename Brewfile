@@ -71,6 +71,10 @@ cask "codex"              # Codex CLI
 cask "codex-app"          # Codex desktop app
 cask "copilot-cli"        # GitHub Copilot CLI
 cask "github-copilot-app" # GitHub Copilot desktop app
+cask "brave-browser"  # Hermes real-profile browsing clones it — see hermes/scripts/brave-agent-sync.sh
+cask "google-chrome"  # creator brand-asset-sourcing scripts hardcode its path
+cask "docker-desktop" # docker CLI (~/.docker/bin) wrapped by bin/secret-shim
+cask "tailscale-app"  # `tailscale serve` exposes the OpenCode web server — see tmux/README.md
 # NOTE: Grok Build CLI (xAI) is NOT installed via the grok-build cask: binaries under
 # /opt/homebrew/Caskroom hang in dyld on this machine. Installed via the official
 # installer instead (see grok/README.md), like Claude Code CLI.
