@@ -409,7 +409,7 @@ keeps user keys.
   for the assistant — reads the user's WhatsApp accounts from the local
   `wacli` mirror (plus number checks, history backfill and media downloads)
   and sends text through the approval gate; its hook blocks the terminal
-  path around it and WhatsApp Web. Each account's `wacli sync` runs as a
+  path around it. Each account's `wacli sync` runs as a
   `local.wacli.sync.<account>` LaunchAgent managed by
   `launchd/wacli-sync-launchctl.sh` (`pair` / `install` / `status`).
   Behavior: [docs/whatsapp-access.md](docs/whatsapp-access.md).
@@ -918,14 +918,13 @@ agent behavior — never try to fix it with prompt-side rules. Rising `pages=` /
 
 **IndexedDB-backed logins.** The snapshot excludes `IndexedDB` (it wedges a
 fresh renderer and costs hundreds of MB) and only auth DBs re-sync per launch,
-so a site that keeps its session there arrives signed out even when the
-everyday Brave is signed in. Such a site needs its own login **in the clone**;
-that state persists across relaunches but not across a snapshot rebuild or
-`use_real_profile` going off. **Never copy IndexedDB across profiles** — for a
-linked-device site that shares one identity between two clients, the same
-failure as a shared Google session. WhatsApp Web was the known case; the
-Assistant now reaches WhatsApp only through `whatsapp-access`, whose hook
-blocks `web.whatsapp.com`.
+so a site that keeps its session there (WhatsApp Web) arrives signed out even
+when the everyday Brave is signed in. Such a site needs its own login **in the
+clone** (WhatsApp: pair it as a separate linked device from the QR page); that
+state persists across relaunches but not across a snapshot rebuild or
+`use_real_profile` going off. **Never copy IndexedDB across profiles** — for
+WhatsApp that shares one linked-device identity between two clients, the same
+failure as a shared Google session.
 
 The worker-facing rule (spawn your own browser with port 0, never attach to
 Hermes' instance) lives in `~/Workspaces/AGENTS.md` (private overlay).

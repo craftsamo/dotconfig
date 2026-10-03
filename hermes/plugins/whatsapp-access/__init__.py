@@ -110,8 +110,7 @@ def whatsapp(args, **kwargs):
 
 
 def gate(**kwargs):
-    """pre_tool_call: approval for sends, a block for invalid sends, for ways around the tool and for
-    WhatsApp Web."""
+    """pre_tool_call: approval for sends, a block for invalid sends and for ways around the tool."""
     tool = kwargs.get("tool_name")
     args = kwargs.get("args")
     if tool == TOOL:
