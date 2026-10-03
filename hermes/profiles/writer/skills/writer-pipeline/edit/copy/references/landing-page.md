@@ -22,10 +22,10 @@ do not turn an informational page into a sales flow while polishing it.
 ## Worked example
 
 Fictional material: the feature sheet confirms one-screen weekly reservation
-display only on Team. Source heading 「1週間の予約の確認をひとつの画面で行うことができます」
+display only on Team. Source heading 「1 週間の予約の確認をひとつの画面で行うことができます」
 may be shortened. Adjacent body 「Team プランのみで利用できます。」 is protected.
 The page addresses teams comparing weekly reservations; its purpose is awareness.
-Revision heading: 「1週間の予約をひとつの画面で確認」
+Revision heading: 「1 週間の予約をひとつの画面で確認」
 Why: the edit puts the supported benefit in a direct phrase without broadening
 the capability. The complete revision retains the adjacent Team-only condition.
 No price, quantified result, testimonial or CTA is needed to complete this edit.

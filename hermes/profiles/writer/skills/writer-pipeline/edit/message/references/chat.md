@@ -23,15 +23,15 @@ standardizing every message into a formal request or cheerful acknowledgement.
 
 Fictional material: the prior exchange discusses both a room and a meeting time.
 The source is 「それで決まりました。」 The sender confirms that only the venue
-is decided, 第2会議室, and authorizes replacing the unclear referent. No action
+is decided, 第 2 会議室, and authorizes replacing the unclear referent. No action
 is requested, and the time is not decided. All other meaning must remain intact.
-Revision: 「会場は第2会議室に決まりました。」
+Revision: 「会場は第 2 会議室に決まりました。」
 Why: the named topic and supplied room remove ambiguity without claiming that
 the time is settled or asking the colleague to reserve anything.
 The edit fixes one reading problem rather than expanding the conversation.
 
 Retain: when the prior turn has only one clear referent, 「それで決まりました。」
-can be a no-op. Counterexample: 「第2会議室を予約しておきます。」 changes a venue
+can be a no-op. Counterexample: 「第 2 会議室を予約しておきます。」 changes a venue
 decision into the sender's commitment to act, not just a clearer reference.
 
 QA evidence: compare the replaced referent against the supplied turn and the

@@ -29,7 +29,7 @@ Fictional material: the requester announces that the reservation calendar now
 has a weekly view for Team members, who can see a week's reservations together.
 The approved purpose is awareness. No release date or next step is supplied.
 Draft heading: 「予約カレンダーに週表示が加わりました」
-Draft body: 「Team プランの方は、1週間の予約をまとめて確認できます。」
+Draft body: 「Team プランの方は、1 週間の予約をまとめて確認できます。」
 Why: the heading states the change, and the body identifies who benefits and
 how. Current availability comes from the material, not from a planned date.
 The announcement ends with the news rather than an invented signup request.
