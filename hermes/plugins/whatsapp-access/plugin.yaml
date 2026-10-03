@@ -1,0 +1,4 @@
+name: whatsapp-access
+version: 1.0.0
+description: The user's own WhatsApp accounts for the Assistant through the wacli CLI — read chats and messages from a local mirror, send text held for human approval.
+kind: standalone
