@@ -99,19 +99,20 @@ guides. Assessment alone never authorizes edits.
 
 <JapaneseWritingSkills>
 
-Load `japanese-writing` for Japanese deliverable wording: writing, editing,
-or examining the language. Its SKILL.md supplies meaning-preserving language
-knowledge, five notation defaults and advisory read-only article inspection,
-not a document-design or acceptance workflow. Respect the user's instructions
-and the project's conventions.
+Load `japanese-writing` to write, rewrite, proofread or diagnose Japanese
+deliverable text (articles, business documents, messages, essays). Its
+SKILL.md supplies the design, draft, inspect and converge workflow,
+readability and expression catalogs, Microsoft-style notation defaults,
+document-type guides, a 0-100 naturalness diagnosis and a read-only
+inspector. The user's instructions and the project's conventions outrank its
+defaults.
 
-Composition, verification and delivery remain with the active task/agent.
-Use the current bounded inspector when the skill and task call for it; never
-restore the retired catalogs or lint, or assign naturalness scores merely
-because text is Japanese. Explicit repository checks still apply through the
-host workflow; this does not force delegation
-to Hermes Writer. Ordinary conversation and i18n tooling remain outside
-the skill's scope (LanguagePolicy governs conversation).
+Use quick depth unless the deliverable is high-stakes or the user asks for
+thoroughness. Give a naturalness score only when diagnosis is requested or
+the full workflow calls for its final review; scores describe reader cost,
+never authorship. This does not force delegation to Hermes Writer.
+Ordinary conversation and i18n tooling remain outside the skill's scope
+(LanguagePolicy governs conversation).
 
 </JapaneseWritingSkills>
 </SkillRouting>
