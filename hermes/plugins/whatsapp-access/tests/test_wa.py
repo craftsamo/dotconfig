@@ -453,3 +453,253 @@ def test_file_tools_and_others():
     assert wa.bypass("terminal", {"command": "ls", "workdir": "/Users/x/.wacli"}) == wa.BYPASS_MESSAGE
     assert wa.bypass("read_file", {"path": "hermes/plugins/whatsapp-access/wa.py"}) is None
     assert wa.bypass("web_search", {"query": "wacli"}) is None
+
+
+# --- check, backfill, media ----------------------------------------------------------------------
+
+class Agent:
+    """A fake launchd sync agent and store lock, for the pause around check and backfill."""
+
+    PID = 4242
+
+    def __init__(self, monkeypatch, tmp_path, fake, loaded=True):
+        self.loaded = loaded
+        self.calls = []
+        self.fake = fake
+        plist = tmp_path / "agent.plist"
+        if loaded:
+            plist.write_text("x")
+        state = tmp_path / "state"
+        state.mkdir()
+        monkeypatch.setattr(wa, "_plist", lambda account: plist)
+        monkeypatch.setattr(wa, "_state_dir", lambda: state)
+        monkeypatch.setattr(wa, "_launchctl", self.launchctl)
+        monkeypatch.setattr(wa, "_start_watchdog", lambda account: None)
+        monkeypatch.setattr(wa, "PAUSE_RESUME_WAIT", 1)
+        monkeypatch.setattr(wa, "PAUSE_STOP_WAIT", 1)
+        fake.overrides["doctor"] = lambda args: {"lock_held": self.loaded, "authenticated": True,
+                                                 "lock_owner_pid": self.PID if self.loaded else None}
+
+    def launchctl(self, *args):
+        self.calls.append(args[0])
+        if args[0] == "print":
+            return Proc(0 if self.loaded else 113, f"\tstate = running\n\tpid = {self.PID}\n" if self.loaded else "")
+        if args[0] == "bootout":
+            self.loaded = False
+        if args[0] == "bootstrap":
+            self.loaded = True
+        return Proc(0)
+
+
+def test_check_pauses_sync_and_reports_each_number(fake, monkeypatch, tmp_path):
+    agent = Agent(monkeypatch, tmp_path, fake)
+    seen = {}
+
+    def check(args):
+        seen["running"] = agent.loaded
+        return [{"query": "+60123456789", "phone": "60123456789", "jid": "60123456789@s.whatsapp.net",
+                 "registered": True, "responded": True},
+                {"query": "+60198765432", "phone": "60198765432", "registered": False, "responded": True},
+                {"query": "+60111111111", "phone": "60111111111", "registered": False, "responded": False}]
+    fake.overrides["contacts check"] = check
+    result = wa.read({"action": "check", "numbers": ["+60 12-345 6789", "60198765432@s.whatsapp.net",
+                                                      "+60111111111"]})
+    assert seen["running"] is False and agent.loaded is True  # stopped for the call, started after
+    assert agent.calls.count("bootout") == 1 and agent.calls.count("bootstrap") == 1
+    call = fake.args_of(["contacts", "check"])[-1]
+    assert call["args"][2:] == ["+60123456789", "+60198765432", "+60111111111"] and call["write"] is True
+    assert result["numbers"] == [
+        {"number": "+60123456789", "on_whatsapp": True, "jid": "60123456789@s.whatsapp.net"},
+        {"number": "+60198765432", "on_whatsapp": False},
+        {"number": "+60111111111", "on_whatsapp": None}]
+    assert result["sync"] == "paused and resumed"
+
+
+def test_sync_is_resumed_even_when_the_call_fails(fake, monkeypatch, tmp_path):
+    agent = Agent(monkeypatch, tmp_path, fake)
+    fake.overrides["contacts check"] = wa.WhatsAppError("connection refused")
+    with pytest.raises(wa.WhatsAppError, match="connection refused.*sync: paused and resumed"):
+        wa.read({"action": "check", "numbers": ["+60123456789"]})
+    assert agent.loaded is True
+
+
+def test_no_agent_means_nothing_to_pause(fake, monkeypatch, tmp_path):
+    agent = Agent(monkeypatch, tmp_path, fake, loaded=False)
+    fake.overrides["contacts check"] = []
+    result = wa.read({"action": "check", "numbers": ["+60123456789"]})
+    assert "bootout" not in agent.calls and "bootstrap" not in agent.calls
+    assert result["sync"] == "no sync agent was running"
+
+
+def test_a_lock_held_by_something_else_runs_nothing(fake, monkeypatch, tmp_path):
+    Agent(monkeypatch, tmp_path, fake, loaded=False)
+    fake.overrides["doctor"] = {"lock_held": True}
+    with pytest.raises(wa.WhatsAppError, match="another wacli process"):
+        wa.read({"action": "check", "numbers": ["+60123456789"]})
+    assert not fake.args_of(["contacts", "check"])
+
+
+def test_a_failed_restart_is_reported(fake, monkeypatch, tmp_path):
+    agent = Agent(monkeypatch, tmp_path, fake)
+    original = agent.launchctl
+
+    def broken(*args):
+        if args[0] == "bootstrap":
+            agent.calls.append("bootstrap")
+            return Proc(5)
+        return original(*args)
+    monkeypatch.setattr(wa, "_launchctl", broken)
+    monkeypatch.setattr(wa.time, "sleep", lambda s: None)
+    fake.overrides["contacts check"] = []
+    result = wa.read({"action": "check", "numbers": ["+60123456789"]})
+    assert result["sync"].startswith("FAILED to restart") and "install work" in result["sync"]
+
+
+@pytest.mark.parametrize("numbers", [[], "0123456789", ["0123456789"], ["hello"], ["+60"] * 21, [123]])
+def test_check_refuses_bad_numbers(fake, numbers):
+    with pytest.raises(wa.WhatsAppError):
+        wa.read({"action": "check", "numbers": numbers})
+    assert not fake.args_of(["contacts", "check"])
+
+
+def test_backfill_pauses_and_bounds_requests(fake, monkeypatch, tmp_path):
+    Agent(monkeypatch, tmp_path, fake)
+    fake.overrides["history backfill"] = {"chat": DM, "requests_sent": 5, "responses_seen": 2,
+                                          "messages_added": 37, "messages_synced": 37}
+    result = wa.read({"action": "backfill", "chat": DM, "requests": 99})
+    argv = fake.args_of(["history", "backfill"])[-1]["args"]
+    assert argv[argv.index("--requests") + 1] == "5" and argv[argv.index("--chat") + 1] == DM
+    assert result["messages_added"] == 37 and result["sync"] == "paused and resumed"
+    with pytest.raises(wa.WhatsAppError, match="chat"):
+        wa.read({"action": "backfill"})
+
+
+def test_media_downloads_read_only_into_its_own_folder(fake, tmp_path, monkeypatch):
+    monkeypatch.setattr(wa, "download_dir", lambda home: tmp_path / "inbox")
+    fake.overrides["messages show"] = message("PHOTO1", text="", MediaType="image", MediaCaption="shopfront",
+                                              Filename="", MimeType="image/jpeg")
+    fake.overrides["media download"] = lambda args: {"path": args[args.index("--output") + 1] + "/a.jpg",
+                                                     "bytes": 1234, "mime_type": "image/jpeg"}
+    result = wa.execute({"action": "media", "chat": DM, "id": "PHOTO1"}, home=tmp_path)
+    folder = tmp_path / "inbox" / "819012345678-PHOTO1"
+    assert folder.is_dir() and result["path"] == f"{folder}/a.jpg" and result["caption"] == "shopfront"
+    call = fake.args_of(["media", "download"])[-1]
+    assert call["write"] is False  # --read-only: no store lock, sync keeps running
+
+
+def test_media_refuses_archives_and_messages_without_files(fake, tmp_path):
+    fake.overrides["messages show"] = message("ZIP1", MediaType="document", Filename="PDF_invoice.ZIP")
+    with pytest.raises(wa.WhatsAppError, match="never download"):
+        wa.execute({"action": "media", "chat": DM, "id": "ZIP1"}, home=tmp_path)
+    fake.overrides["messages show"] = message("TXT1")
+    with pytest.raises(wa.WhatsAppError, match="no file"):
+        wa.execute({"action": "media", "chat": DM, "id": "TXT1"}, home=tmp_path)
+    assert not fake.args_of(["media", "download"])
+
+
+def test_expired_media_says_so(fake, tmp_path, monkeypatch):
+    monkeypatch.setattr(wa, "download_dir", lambda home: tmp_path)
+    fake.overrides["messages show"] = message("OLD1", MediaType="image")
+    fake.overrides["media download"] = wa.WhatsAppError("download failed with status code 410")
+    with pytest.raises(wa.WhatsAppError, match="expired.*phone"):
+        wa.execute({"action": "media", "chat": DM, "id": "OLD1"}, home=tmp_path)
+
+
+def test_media_download_dir_defaults_to_the_profile(tmp_path):
+    assert wa.download_dir(tmp_path) == tmp_path / "whatsapp-downloads"
+
+
+def test_media_download_dir_comes_from_config(tmp_path):
+    pytest.importorskip("yaml")  # the gateway's interpreter has it; the test interpreter may not
+    (tmp_path / "config.yaml").write_text("whatsapp_access:\n  download_dir: ~/Inbox/wa\n")
+    assert wa.download_dir(tmp_path) == Path.home() / "Inbox" / "wa"
+
+
+def test_sync_is_resumed_when_the_stop_itself_fails(fake, monkeypatch, tmp_path):
+    agent = Agent(monkeypatch, tmp_path, fake)
+    original = agent.launchctl
+
+    def bootout_times_out(*args):
+        if args[0] == "bootout":
+            agent.loaded = False  # it took effect, then the call timed out
+            raise wa.subprocess.TimeoutExpired("launchctl", 20)
+        return original(*args)
+    monkeypatch.setattr(wa, "_launchctl", bootout_times_out)
+    fake.overrides["contacts check"] = []
+    with pytest.raises(wa.WhatsAppError, match="sync: paused and resumed"):
+        wa.read({"action": "check", "numbers": ["+60123456789"]})
+    assert agent.loaded is True and not list((tmp_path / "state").glob("*.paused"))
+
+
+def test_resume_needs_the_agent_to_own_the_lock(fake, monkeypatch, tmp_path):
+    agent = Agent(monkeypatch, tmp_path, fake)
+    fake.overrides["contacts check"] = []
+    fake.overrides["doctor"] = lambda args: {"lock_held": True, "lock_owner_pid": 999, "authenticated": True} \
+        if agent.loaded and agent.calls.count("bootstrap") else {"lock_held": agent.loaded,
+                                                                   "lock_owner_pid": Agent.PID if agent.loaded else None}
+    result = wa.read({"action": "check", "numbers": ["+60123456789"]})
+    assert result["sync"].startswith("restarted; the sync agent has not taken the store")
+
+
+def test_resume_reports_a_revoked_session(fake, monkeypatch, tmp_path):
+    agent = Agent(monkeypatch, tmp_path, fake)
+    fake.overrides["contacts check"] = []
+    fake.overrides["doctor"] = lambda args: {"lock_held": False, "session_revoked": True} \
+        if agent.calls.count("bootstrap") else {"lock_held": agent.loaded, "lock_owner_pid": Agent.PID}
+    result = wa.read({"action": "check", "numbers": ["+60123456789"]})
+    assert "no longer paired" in result["sync"]
+
+
+def test_a_send_waits_for_no_pause_and_never_cuts_one(fake, monkeypatch, tmp_path):
+    Agent(monkeypatch, tmp_path, fake)
+    monkeypatch.setattr(wa, "SEND_LOCK_WAIT", 0)
+    args = {"action": "send", "account": "work", "chat": DM, "text": "hi"}
+    with open(wa._guard("work"), "a") as held:
+        wa.fcntl.flock(held, wa.fcntl.LOCK_EX)  # a pause in progress
+        result = wa.execute(args)
+    assert result["ok"] is False and result["error"].startswith("not sent: a check or backfill")
+    assert not fake.args_of(["send", "text"])
+    assert wa.execute(args)["ok"] is True
+
+
+def test_an_abandoned_pause_is_recovered(fake, monkeypatch, tmp_path):
+    agent = Agent(monkeypatch, tmp_path, fake, loaded=False)
+    (tmp_path / "agent.plist").write_text("x")
+    (tmp_path / "state" / "work.paused").write_text("999999999 0\n")  # a pid that is gone
+    wa.recover_abandoned_pauses()
+    assert agent.loaded is True and not (tmp_path / "state" / "work.paused").exists()
+
+
+def test_a_live_pause_is_left_alone(fake, monkeypatch, tmp_path):
+    agent = Agent(monkeypatch, tmp_path, fake, loaded=False)
+    (tmp_path / "agent.plist").write_text("x")
+    marker = tmp_path / "state" / "work.paused"
+    marker.write_text(f"{wa.os.getppid()} 0\n")  # another live process is pausing
+    wa.recover_abandoned_pauses()
+    assert agent.loaded is False and marker.exists()
+
+
+@pytest.mark.parametrize("name,mime", [("invoice.pdf", "application/zip"), ("", "application/pdf"),
+                                       ("setup.pdf", "application/octet-stream")])
+def test_documents_that_may_be_archives_are_refused(fake, tmp_path, name, mime):
+    fake.overrides["messages show"] = message("DOC1", MediaType="document", Filename=name, MimeType=mime)
+    with pytest.raises(wa.WhatsAppError, match="refused"):
+        wa.execute({"action": "media", "chat": DM, "id": "DOC1"}, home=tmp_path)
+    assert not fake.args_of(["media", "download"])
+
+
+def test_chats_page_until_complete(fake):
+    rows = [{"jid": f"6012345{i:04d}@s.whatsapp.net", "kind": "dm", "name": f"Shop {i}",
+             "last_message_ts": STAMP} for i in range(5)]
+    fake.overrides["chats list"] = lambda args: rows[:int(args[args.index("--limit") + 1])]
+    first = wa.read({"action": "chats", "limit": 2})
+    assert [c["name"] for c in first["chats"]] == ["Shop 0", "Shop 1"] and first["next_offset"] == 2
+    assert "complete" not in first
+    last = wa.read({"action": "chats", "limit": 2, "offset": 4})
+    assert [c["name"] for c in last["chats"]] == ["Shop 4"] and last["complete"] is True
+
+
+def test_chats_can_carry_the_last_message(fake):
+    chats = wa.read({"action": "chats", "last": True})["chats"]
+    assert chats[0]["last"]["from"] == "Yamada Taro" and chats[0]["last"]["id"] == "NEW"
+    assert chats[0]["last"]["text"] == "newest"
