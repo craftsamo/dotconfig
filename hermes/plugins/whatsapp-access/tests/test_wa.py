@@ -703,3 +703,46 @@ def test_chats_can_carry_the_last_message(fake):
     chats = wa.read({"action": "chats", "last": True})["chats"]
     assert chats[0]["last"]["from"] == "Yamada Taro" and chats[0]["last"]["id"] == "NEW"
     assert chats[0]["last"]["text"] == "newest"
+
+
+# --- placeholder rows ----------------------------------------------------------------------------
+
+def placeholder(msg_id, *, from_me=False, stamp="2026-10-03T11:03:11Z"):
+    return message(msg_id, from_me=from_me, text="", stamp=stamp, DisplayText="(message)")
+
+
+def test_placeholders_are_hidden_from_reads_and_counted(fake):
+    fake.messages = [placeholder("P1"), placeholder("P2", from_me=True),
+                     message("REAL", text="ok thanks", stamp="2026-10-03T10:00:00Z")]
+    for args in ({"action": "messages", "chat": DM}, {"action": "search", "query": "x"},
+                 {"action": "context", "chat": DM, "id": "REAL"}):
+        result = wa.read(args)
+        assert [m["id"] for m in result["messages"]] == ["REAL"], args
+        assert result["hidden"].startswith("2 empty placeholder row(s) hidden")
+
+
+def test_real_empty_looking_messages_are_kept(fake):
+    fake.messages = [message("IMG", text="", DisplayText="(message)", MediaType="image"),
+                     message("RE", text="", DisplayText="(message)", ReactionEmoji="👍", ReactionToID="X"),
+                     message("Q", text="", DisplayText="> hi\n(message)", quoted_msg_id="X")]
+    result = wa.read({"action": "messages", "chat": DM})
+    assert {m["id"] for m in result["messages"]} == {"IMG", "RE", "Q"} and "hidden" not in result
+
+
+def test_paging_uses_the_oldest_raw_row(fake):
+    fake.messages = [message("NEW", stamp="2026-10-03T12:00:00Z"), placeholder("P1", stamp="2026-10-03T11:03:11Z")]
+    result = wa.read({"action": "messages", "chat": DM, "limit": 2})
+    assert [m["id"] for m in result["messages"]] == ["NEW"]
+    assert result["more"].endswith("before = 2026-10-03T11:03:11Z")
+    assert wa.WHEN.match("2026-10-03T11:03:11.123456789Z")
+
+
+def test_last_skips_placeholders(fake):
+    fake.messages = [placeholder("P1"), placeholder("P2", from_me=True),
+                     message("REAL", from_me=True, text="our pitch", stamp="2026-10-03T09:00:00Z")]
+    last = wa.read({"action": "chats", "last": True})["chats"][0]["last"]
+    assert last["id"] == "REAL" and last["from"] == "me" and last["text"] == "our pitch"
+    argv = fake.args_of(["messages", "list"])[-1]["args"]
+    assert argv[argv.index("--limit") + 1] == str(wa.LAST_LOOKBACK)
+    fake.messages = [placeholder("P1")]
+    assert wa.read({"action": "chats", "last": True})["chats"][0]["last"] is None
