@@ -4,13 +4,19 @@ Keep the source as an article, not a thread or long post. Preserve the title,
 section structure and media/embed relationships unless changes are requested.
 Text edits do not alter a live X Article or carry publication approval forward.
 
-The dedicated editor supports rich-text features, not a documented Markdown
-import workflow. Preserve intended headings, emphasis and links in the source
-and record required editor steps outside the body. Code/table/alt workflows
-and account eligibility need current evidence; do not infer them from a draft.
+The dedicated editor is rich text; do not promise raw Markdown import. Editor
+controls observed 2026-10-01 (rendering of each not separately tested): the
+toolbar has bold/italic/strikethrough, quote, bulleted and numbered lists and
+links; the 挿入 menu has link preview, table, code, LaTeX, divider, media, GIF
+and post embed. In the source, keep headings, emphasis and links on the words
+they belong to, a Markdown pipe table for a native table, a fenced block for
+code, and `[[image:id]]` / `[[embed:id]]` markers; record editor steps outside
+the body. When the edit scope covers structure or formatting, numbers or
+conditions readers compare belong in a table; never drop a supported element
+because the voice is casual. Alt text and account eligibility stay unverified.
 
-Documentary source (checked 2026-09-08; no editor test):
-https://help.x.com/en/using-x/articles
+Documentary source: https://help.x.com/en/using-x/articles (checked 2026-09-08)
+plus the editor observation above.
 
 ## Tighten Context Without Expanding the Promise
 
