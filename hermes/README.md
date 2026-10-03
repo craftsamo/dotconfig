@@ -649,11 +649,23 @@ the library's declarations; use them directly only for non-character voices.
 lexicon are private data: both are copied into the ignored runtime directory,
 and neither source path may reach tracked config.
 
+A voice may take several clips of the same speaker, which the checkpoint
+uses as one longer reference (it was trained on concatenated short clips, and
+about 30 s of them clones more steadily than one short clip). Repeat `--voice`
+in the order the clips should be read: they are copied to
+`voices/<id>/01.wav`, `02.wav`, … and grouped under `<id>` in
+`voices/voices.json`, which the launcher owns: it regenerates the file from
+those directories on every `register` and `unregister`, so a hand-written
+alias there is overwritten. A group costs synthesis time, because the server
+re-encodes every clip on each request.
+
 ```sh
 hermes/launchd/irodori-tts-launchctl.sh install \
   --voice /absolute/path/to/reference.wav --id <voice-id>
 hermes/launchd/irodori-tts-launchctl.sh register \
   --voice /absolute/path/to/another.wav --id <voice-id> --default
+hermes/launchd/irodori-tts-launchctl.sh register \
+  --voice /abs/clip-1.wav --voice /abs/clip-2.wav --id <voice-id>
 hermes/launchd/irodori-tts-launchctl.sh unregister --id <voice-id>
 hermes/launchd/irodori-tts-launchctl.sh restart
 hermes/launchd/irodori-tts-launchctl.sh register-lexicon \
