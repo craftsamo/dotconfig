@@ -30,8 +30,8 @@ Fictional material: an informational page addresses teams comparing a week's
 reservations. Approved product facts: the Team plan displays one week's
 reservations on one screen; the supplied feature sheet substantiates that
 capability. It is available only on Team. The purpose requires no CTA or price.
-Draft heading: 「1週間の予約をひとつの画面で確認」
-Draft body: 「Team プランでは、1週間の予約をまとめて表示できます。」
+Draft heading: 「1 週間の予約をひとつの画面で確認」
+Draft body: 「Team プランでは、1 週間の予約をまとめて表示できます。」
 Why: the heading answers the audience need with the approved capability;
 the adjacent body keeps plan eligibility attached. The feature sheet supports
 this display benefit, not a promise of time saved or increased revenue.

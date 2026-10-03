@@ -26,9 +26,9 @@ do not scatter a condition and its action across disconnected messages.
 ## Worked example
 
 Fictional material: colleagues discussed both a venue and a meeting time.
-The sender has decided on the venue only: 第2会議室. The purpose is to tell
+The sender has decided on the venue only: 第 2 会議室. The purpose is to tell
 the colleague that decision in one sentence; no action or time is supplied.
-Draft: 「会場は第2会議室に決まりました。」
+Draft: 「会場は第 2 会議室に決まりました。」
 Why: naming the venue resolves which topic was decided, while the short
 sentence conveys the complete update without inventing a meeting time.
 The decision is informative; a command would add work the sender never asked for.
