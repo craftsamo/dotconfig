@@ -103,4 +103,5 @@ Routing quality depends on `profile.yaml` descriptions — create workers with
 | Per-profile secret scopes | deployed | [`models-auth.md`](./models-auth.md) "Secrets layering" |
 | Model chains | deployed; probed per provider/model, per-profile behavior unevaluated | [`models-auth.md`](./models-auth.md) "Models and fallback chains" |
 | Creator hands (v3) | in progress, family by family | [`hands/overview.md`](./hands/overview.md) "Migration" |
-| Role-entry candidates (Engineer v9, Researcher/Searcher entries, Writer v8, Creative early delivery) | candidates, not deployed; cutover needs explicit approval, a controlled gateway restart and fresh sessions | [`profiles/`](./profiles/) per role |
+| Writer v8 | deployed; resident `work` from the Assistant exercised through CLI and Telegram | [`profiles/writer.md`](./profiles/writer.md) |
+| Role-entry candidates (Engineer v9, Researcher/Searcher entries, Creative early delivery) | candidates, not deployed; cutover needs explicit approval, a controlled gateway restart and fresh sessions | [`profiles/`](./profiles/) per role |

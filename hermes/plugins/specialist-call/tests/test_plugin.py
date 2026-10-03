@@ -693,8 +693,8 @@ def test_profile_configuration_and_plugin_api():
         if path.parent.name == "creator":
             assert platforms["telegram"] == platforms["cli"]
             assert platforms["discord"] == []
-            # clarify needs a human; characters reads the private library, never for an A2A peer
-            assert platforms["a2a"] == [tool for tool in platforms["cli"] if tool not in ("clarify", "characters")]
+            # clarify needs a human; characters guards remote A2A peers itself
+            assert platforms["a2a"] == [tool for tool in platforms["cli"] if tool != "clarify"]
         else:
             assert platforms["a2a"] == platforms["cli"]
         for tools in [config["toolsets"], *platforms.values()]:

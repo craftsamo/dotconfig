@@ -1094,6 +1094,7 @@ platform_toolsets:
     - vision
   discord: []
   a2a:
+    - characters
     - connections
     - delegation
     - file

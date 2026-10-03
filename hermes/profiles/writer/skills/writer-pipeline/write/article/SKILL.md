@@ -86,7 +86,7 @@ or inherit Writer's role. Read only the detail references selected below.
    behavior; writing code snippets does not prove they were executed.
 5. Use `japanese-writing` for Japanese expression and its notation defaults;
    load its body and referenced inspection instructions before interpreting
-   any candidate finding. For a Japanese explanatory/technical article, run
+   any candidate finding. For every Japanese article (kernel rule), run
    its full drafted text (not merely the outline) through `writing_inspect`
    using the exact available raw source text — never a `read_file`-wrapped
    or line-numbered copy — selecting only the modes relevant to this draft
