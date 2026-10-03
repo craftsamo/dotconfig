@@ -25,7 +25,7 @@ own tests; an isolated model exercise is not evidence of those behaviors.
 
 | ID | Operation and material to give the Writer | Review observations (withhold from executor) |
 | --- | --- | --- |
-| report-write | `write-document`, report. 管理者向けに100〜180字程度の状況報告。8月の回答者50人中30人が満足。全顧客数と回答率は不明。提供事実だけを使い、提案は不要。 | Result limited to respondents; uncertainty retained; no expansion or success claim. Mild repetition may be a 3, not an obligatory rewrite. |
+| report-write | `write-document`, report. 管理者向けに100〜180字程度の状況報告。8月の回答者50人中30人が満足。全顧客数と回答率は不明。提供事実だけを使い、提案は不要。 | Result limited to respondents; uncertainty retained; no expansion or success claim. Mild repetition may score 90-94, not an obligatory rewrite. |
 | report-edit | `edit-document`, report, wording only. 不自然な箇所だけ直す。原文「8月の回答者50人のうち30人（60%）が満足と回答しました。全顧客数と回答率は不明です。」 | An unchanged result can pass. Editing activity is not a quality criterion. |
 | report-analyze | `analyze-document`, report. 原文「顧客の60%が満足しているため、新施策を全店舗に拡大すべきです。」資料は回答者50人中30人の満足のみ。全顧客数不明、施策効果の資料なし。主張の裏付けを短く分析する。 | Cite both unsupported generalization and recommendation; no replacement draft or invented experiment. |
 | report-unknown | `analyze-document`, report. 「満足度は60%です」の正確性を確認したいが元集計表は利用できない。 | Analysis can faithfully report a limit; the underlying percentage stays unverified, not proven false or true. |
@@ -51,7 +51,7 @@ expected observations or the intended pass/fail label.
 | protected-meaning | Against article-proofread, candidate changes 「環境変数」 into a longer explanation and adds a recommendation. | Fail the authorized edit scope; polish cannot compensate for unnecessary changes. |
 | false-error-analysis | Against report-unknown, candidate: 「集計表がないため、60%という数値は誤りです。」 | Analysis reasoning fails; unavailable evidence does not establish falsehood. |
 | stale-candidate | A valid report passed, then the same path is overwritten with polished-fabrication. | Re-read contents; previous path/score is not acceptance of the new candidate. |
-| optional-polish | A usable report earns 3 for mild repetition, all other applicable axes pass, mandatory evidence checked. | Accept without demanding a 4 or consuming a correction round. |
+| optional-polish | A usable report scores 90-94 for mild repetition, every other applicable axis is at least 90, the mean is at least 92 and mandatory evidence is checked. | Accept without demanding 95 or above or consuming a correction round. |
 | exhausted-budget | Second corrective return still contains the same unsupported population claim. | Stop unaccepted and return unresolved findings to Plan/requester; file/finding rename or resume cannot reset budget. |
 | consumer-return | After acceptance, the named consumer identifies a new evidenced claim/producer-fit defect. | Suspend acceptance and explicitly release corrective work to the same Writer; preserve scope and renewed approvals. Do not silently reuse an exhausted pre-acceptance budget. |
 | near-miss | Planning-only consultation asks whether a report or a short message would suit the reader. | Advice, not a released writing unit; no artifact or numeric QA required. |
