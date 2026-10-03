@@ -687,6 +687,7 @@ platform_toolsets:
   telegram: []
   discord: []
   a2a:
+    - characters
     - connections
     - delegation
     - file
