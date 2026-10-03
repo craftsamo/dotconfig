@@ -63,6 +63,7 @@ WHEN = re.compile(r"^\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:
 
 LIMITS = {"chats": (30, 200), "messages": (50, 300), "search": (30, 200), "contacts": (20, 100)}
 CONTEXT_MAX = 50
+LAST_LOOKBACK = 20      # rows read to find a chat's last real message past placeholders
 OFFSET_MAX = 100000
 TEXT_LIMIT = 4000       # one send; WhatsApp allows more, a chat message this long is a document
 MESSAGE_CLIP = 2000     # one message's text in a read result
@@ -311,6 +312,26 @@ def chat_entry(c: dict) -> dict:
     return out
 
 
+PLACEHOLDER = "(message)"
+HIDDEN_NOTE = ("{n} empty placeholder row(s) hidden: wacli stores protocol traffic it could not read "
+               "(key exchange and history sync around pairing, among others) as '(message)' with no "
+               "text or media; they are not messages anyone wrote.")
+
+
+def is_placeholder(m: dict) -> bool:
+    """A row wacli stored for a payload it could not read: '(message)', no text, media or reaction."""
+    return ((m.get("DisplayText") or "").strip() == PLACEHOLDER and not (m.get("Text") or "").strip()
+            and not m.get("MediaType") and not m.get("ReactionEmoji") and not m.get("quoted_msg_id"))
+
+
+def real_messages(found: list, result: dict) -> list:
+    """``found`` without placeholder rows; the count of what was hidden goes into ``result``."""
+    kept = [m for m in found if not is_placeholder(m)]
+    if len(kept) != len(found):
+        result["hidden"] = HIDDEN_NOTE.format(n=len(found) - len(kept))
+    return kept
+
+
 def message_entry(m: dict, *, with_chat: bool = False) -> dict:
     out = {"id": m.get("MsgID"), "time": _local(m.get("Timestamp"))}
     if with_chat:
@@ -423,9 +444,9 @@ def _read(action: str, account: str, args: dict, home: Path | None = None) -> di
                 argv += [f"--{key}", _when(args, key)]
         found = (run(argv, account=account) or {}).get("messages") or []
         result["chat"] = chat
-        result["messages"] = [message_entry(m) for m in reversed(found)]  # oldest first
+        result["messages"] = [message_entry(m) for m in reversed(real_messages(found, result))]  # oldest first
         if len(found) == limit:
-            result["more"] = "older messages exist: pass before = the first message's time"
+            result["more"] = f"older messages exist: pass before = {found[-1].get('Timestamp')}"
     elif action == "search":
         query = _str(args, "query", required=True)
         limit = _limit(args, "search")
@@ -437,14 +458,14 @@ def _read(action: str, account: str, args: dict, home: Path | None = None) -> di
                 argv += [f"--{key}", _when(args, key)]
         argv += ["--", query]  # a query starting with "-" is text, not a flag
         found = (run(argv, account=account) or {}).get("messages") or []
-        result["messages"] = [message_entry(m, with_chat=True) for m in found]
+        result["messages"] = [message_entry(m, with_chat=True) for m in real_messages(found, result)]
     elif action == "context":
         chat = _chat(args, required=True)
         argv = ["messages", "context", "--chat", chat, "--id", _message_id(args, "id", required=True),
                 "--before", str(_count(args, "before_count", 5)),
                 "--after", str(_count(args, "after_count", 5))]
         result["chat"] = chat
-        result["messages"] = [message_entry(m) for m in run(argv, account=account) or []]
+        result["messages"] = [message_entry(m) for m in real_messages(run(argv, account=account) or [], result)]
     elif action == "contacts":
         query = _str(args, "query", required=True)
         argv = ["contacts", "search", "--limit", str(_limit(args, "contacts")), "--", query]
@@ -489,11 +510,13 @@ def _offset(args: dict) -> int:
 
 
 def _last_message(account: str, jid: str) -> dict:
-    """Who spoke last in a chat and when, for reply checks."""
+    """Who spoke last in a chat and when, for reply checks; placeholder rows are skipped."""
     try:
-        found = (run(["messages", "list", "--chat", jid, "--limit", "1"], account=account) or {}).get("messages") or []
+        found = (run(["messages", "list", "--chat", jid, "--limit", str(LAST_LOOKBACK)], account=account)
+                 or {}).get("messages") or []
     except Exception:  # noqa: BLE001
         return {"last": None}
+    found = [m for m in found if not is_placeholder(m)]
     if not found:
         return {"last": None}
     m = found[0]
