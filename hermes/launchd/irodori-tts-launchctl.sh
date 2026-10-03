@@ -10,8 +10,15 @@
 # Voice audio is private, so it is copied in by `register` and its source path
 # never enters tracked config.
 #
+# One --voice registers voices/<id>.wav. Several register one voice made of
+# all of them: the clips are copied to voices/<id>/01.wav, 02.wav, ... in the
+# given order and grouped under <id> in voices/voices.json, because the server
+# lists every top-level file as its own voice and only an alias groups clips.
+# Re-registering an id in either shape replaces the other shape.
+#
 #   install  [--voice PATH --id NAME [--default]]   build/refresh and load
-#   register --voice PATH --id NAME [--default]     add a reference voice
+#   register --voice PATH [--voice PATH ...] --id NAME [--default]
+#                                                   add or replace a reference voice
 #   unregister --id NAME                            remove a voice (never the default)
 #   restart                                         reload the voice catalog
 #   (register/unregister take --no-restart so a batch restarts once)
@@ -50,14 +57,17 @@ STARTUP_SLEEP="${IRODORI_TTS_STARTUP_SLEEP_SECONDS:-5}"
 ACTION="${1:-install}"
 shift || true
 
-VOICE_SRC=""
+# Bash 3.2 (macOS /bin/bash) treats "${a[@]}" of an empty array as unbound
+# under set -u, so every expansion of VOICE_SRCS checks VOICE_COUNT first.
+VOICE_SRCS=()
+VOICE_COUNT=0
 VOICE_ID=""
 LEXICON_SRC=""
 SET_DEFAULT=0
 RESTART=1
 while [ $# -gt 0 ]; do
   case "$1" in
-    --voice) VOICE_SRC="${2:-}"; shift 2 ;;
+    --voice) VOICE_SRCS+=("${2:-}"); VOICE_COUNT=$((VOICE_COUNT + 1)); shift 2 ;;
     --id) VOICE_ID="${2:-}"; shift 2 ;;
     --file) LEXICON_SRC="${2:-}"; shift 2 ;;
     --default) SET_DEFAULT=1; shift ;;
@@ -84,22 +94,95 @@ need() { command -v "$1" >/dev/null 2>&1 || die "$1 is required but not on PATH"
 
 # ---------------------------------------------------------------- voices ----
 
-register_voice() {
-  [ -n "$VOICE_SRC" ] || die "register needs --voice PATH"
+check_voice_id() {
   # An empty id passes the character-class test below (the pattern cannot match
   # an empty string), which would register a hidden ".wav" and leave the default
   # voice blank while still reporting success.
-  [ -n "${VOICE_ID:-}" ] || die "register needs a non-empty --id NAME"
+  [ -n "${VOICE_ID:-}" ] || die "$1 needs a non-empty --id NAME"
   case "$VOICE_ID" in
     *[!A-Za-z0-9_-]*) die "voice id must be [A-Za-z0-9_-]: $VOICE_ID" ;;
   esac
-  [ -f "$VOICE_SRC" ] || die "voice file not found: $VOICE_SRC"
+}
+
+# voices.json is derived, never edited: one alias per voices/<id>/ directory,
+# listing its clips in name order. Ids are [A-Za-z0-9_-] and clips NN.wav, so
+# nothing needs JSON escaping, and no interpreter is needed (python3 on PATH
+# may be a Keychain shim). With no group left the file is removed, so a
+# single-clip install keeps the plain one-file-per-voice layout.
+is_group() {
+  # A group is a voices/<id>/ directory with a valid id and at least one clip;
+  # anything else is ignored rather than turned into a broken alias.
+  local dir="$1" clip
+  [ -d "$dir" ] || return 1
+  case "$(basename "$dir")" in
+    ""|*[!A-Za-z0-9_-]*) return 1 ;;
+  esac
+  for clip in "$dir"*.wav; do
+    [ -f "$clip" ] && return 0
+  done
+  return 1
+}
+
+write_aliases() {
+  local dir clip voice_id sep_voice sep_clip tmp
+  tmp="$VOICES_DIR/.voices.json.partial"
+  sep_voice=""
+  {
+    printf '{'
+    for dir in "$VOICES_DIR"/*/; do
+      is_group "$dir" || continue
+      voice_id="$(basename "$dir")"
+      printf '%s\n  "%s": {"ref_wavs": [' "$sep_voice" "$voice_id"
+      sep_clip=""
+      for clip in "$dir"*.wav; do
+        [ -f "$clip" ] || continue
+        printf '%s"%s/%s"' "$sep_clip" "$voice_id" "$(basename "$clip")"
+        sep_clip=", "
+      done
+      printf ']}'
+      sep_voice=","
+    done
+    printf '\n}\n'
+  } > "$tmp"
+  if [ -n "$sep_voice" ]; then
+    mv "$tmp" "$VOICES_DIR/voices.json"
+  else
+    rm -f "$tmp" "$VOICES_DIR/voices.json"
+  fi
+}
+
+register_voice() {
+  [ "$VOICE_COUNT" -gt 0 ] || die "register needs --voice PATH"
+  check_voice_id register
+  local src i staging
+  for src in "${VOICE_SRCS[@]}"; do
+    [ -f "$src" ] || die "voice file not found: $src"
+  done
 
   mkdir -p "$VOICES_DIR"
   # Copied, not linked: the source lives in a private tree and the engine must
   # keep working if that tree moves.
-  cp "$VOICE_SRC" "$VOICES_DIR/$VOICE_ID.wav"
-  echo "registered voice '$VOICE_ID'"
+  if [ "$VOICE_COUNT" -eq 1 ]; then
+    cp "${VOICE_SRCS[0]}" "$VOICES_DIR/$VOICE_ID.wav"
+    rm -rf "${VOICES_DIR:?}/$VOICE_ID"
+    echo "registered voice '$VOICE_ID'"
+  else
+    # Staged beside the target (ids cannot contain a dot, so no collision) and
+    # swapped in whole, so a failed copy never leaves a half-replaced voice.
+    staging="$VOICES_DIR/.$VOICE_ID.partial"
+    rm -rf "$staging"
+    mkdir -p "$staging"
+    i=0
+    for src in "${VOICE_SRCS[@]}"; do
+      i=$((i + 1))
+      cp "$src" "$staging/$(printf '%02d.wav' "$i")"
+    done
+    rm -rf "${VOICES_DIR:?}/$VOICE_ID"
+    mv "$staging" "$VOICES_DIR/$VOICE_ID"
+    rm -f "$VOICES_DIR/$VOICE_ID.wav"
+    echo "registered voice '$VOICE_ID' ($VOICE_COUNT clips)"
+  fi
+  write_aliases
 
   if [ "$SET_DEFAULT" -eq 1 ]; then
     printf '%s\n' "$VOICE_ID" > "$RUNTIME_DIR/default-voice"
@@ -108,17 +191,29 @@ register_voice() {
 }
 
 unregister_voice() {
-  [ -n "${VOICE_ID:-}" ] || die "unregister needs --id NAME"
-  case "$VOICE_ID" in
-    *[!A-Za-z0-9_-]*) die "voice id must be [A-Za-z0-9_-]: $VOICE_ID" ;;
-  esac
-  [ -f "$VOICES_DIR/$VOICE_ID.wav" ] || die "voice '$VOICE_ID' is not registered"
+  check_voice_id unregister
+  [ -f "$VOICES_DIR/$VOICE_ID.wav" ] || [ -d "$VOICES_DIR/$VOICE_ID" ] \
+    || die "voice '$VOICE_ID' is not registered"
   # Removing the default would silently move every unnamed request to whichever
   # voice sorts first; make the change explicit by registering a new default.
   [ "$(default_voice || true)" != "$VOICE_ID" ] \
     || die "'$VOICE_ID' is the default voice; register another voice with --default first"
+  rm -rf "${VOICES_DIR:?}/$VOICE_ID"
   rm -f "$VOICES_DIR/$VOICE_ID.wav"
+  write_aliases
   echo "unregistered voice '$VOICE_ID'"
+}
+
+# Every registered voice id: single-file voices plus multi-clip groups.
+registered_ids() {
+  local f
+  for f in "$VOICES_DIR"/*.wav; do
+    [ -f "$f" ] && basename "$f" .wav
+  done
+  for f in "$VOICES_DIR"/*/; do
+    if is_group "$f"; then basename "$f"; fi
+  done
+  return 0
 }
 
 restart_agent() {
@@ -167,7 +262,7 @@ default_voice() {
     head -n 1 "$RUNTIME_DIR/default-voice"
   else
     # First registered voice, so a single-voice install needs no extra step.
-    ls -1 "$VOICES_DIR"/*.wav 2>/dev/null | head -n 1 | xargs -I{} basename {} .wav
+    registered_ids | LC_ALL=C sort -u | head -n 1
   fi
 }
 
@@ -294,7 +389,7 @@ wait_healthy() {
 
 case "$ACTION" in
   install)
-    [ -n "$VOICE_SRC" ] && register_voice
+    if [ "$VOICE_COUNT" -gt 0 ]; then register_voice; fi
     sync_server
     write_env
     render_plist
@@ -325,8 +420,8 @@ case "$ACTION" in
     if curl -fsS -m 5 "http://127.0.0.1:$IRODORI_PORT/v1/audio/voices" 2>/dev/null; then
       echo
     else
-      echo "engine not reachable; registered files:"
-      ls -1 "$VOICES_DIR" 2>/dev/null || echo "  (none)"
+      echo "engine not reachable; registered voices:"
+      registered_ids | LC_ALL=C sort -u | sed "s/^/  /" | grep . || echo "  (none)"
     fi
     ;;
 
