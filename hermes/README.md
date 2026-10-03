@@ -543,9 +543,13 @@ voice (`voice:`) key under `tts.*` and do not name a lexicon or manifest path in
 `config.yaml` — both are tracked.
 
 **Irodori** runs fp32 on MPS (bf16 is CUDA/XPU-only upstream) from a git
-checkout pinned in `engines/irodori-tts/pinned.conf`. It rewrites Latin proper
-nouns to katakana through the private lexicon, then repairs its own WAV before
-delivery: the in-pause codec rustle is gated, leading dead air and trailing
+checkout pinned in `engines/irodori-tts/pinned.conf`, which also records the
+checkpoint's memory, speed and licence. The checkpoint renders slower than
+real time, so a long reply can spend the whole
+`tts.irodori_tts.synthesis_timeout` on Irodori before the chain falls through
+to Qwen3. The provider rewrites Latin proper nouns to katakana through the
+private lexicon, then repairs its own WAV before delivery: the in-pause codec
+rustle is gated, leading dead air and trailing
 hallucinated fragments are trimmed, the onset click is faded and the level is
 normalised. That repair uses numpy and the stdlib only, because Hermes'
 dependency generation carries no soundfile or scipy.
