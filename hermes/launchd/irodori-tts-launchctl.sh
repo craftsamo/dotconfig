@@ -41,7 +41,10 @@ VOICES_DIR="$RUNTIME_DIR/voices"
 PINNED="$CONFIG_DIR/engines/irodori-tts/pinned.conf"
 LOG="$HOME/Library/Logs/irodori-tts-engine.log"
 
-STARTUP_ATTEMPTS="${IRODORI_TTS_STARTUP_ATTEMPTS:-90}"
+# 120 x 5 s matches IRODORI_MODEL_LOAD_TIMEOUT below: a first install downloads
+# the 12 GB checkpoint inside that window, and a shorter wait reports failure
+# while the engine is still loading.
+STARTUP_ATTEMPTS="${IRODORI_TTS_STARTUP_ATTEMPTS:-120}"
 STARTUP_SLEEP="${IRODORI_TTS_STARTUP_SLEEP_SECONDS:-5}"
 
 ACTION="${1:-install}"

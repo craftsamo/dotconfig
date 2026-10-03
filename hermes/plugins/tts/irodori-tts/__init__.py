@@ -4,27 +4,28 @@ Irodori-TTS-Server speaks the same OpenAI-compatible ``POST /v1/audio/speech``
 contract as the qwen3-tts engine, so the client half mirrors that plugin. What
 is specific to this backend is everything around the call.
 
-**Japanese only.** The model has no English pronunciation dictionary. Measured
-against qwen3-tts on English-only text it scores 27.0% word error rate versus
-8.3%, mangling ``finished`` into "finito" and ``schema`` into "sesame". So this
-provider *declines* English-dominant text by raising, which lets the ordinary
-``tts-fallback`` chain advance to qwen3-tts. Routing is therefore a property of
-this provider rather than a new mechanism, and because the hand-off happens at
-message granularity it never splices two engines inside one utterance -- the
-same reference voice renders 309 cents apart on the two engines (against 20-40
-cents of seed-to-seed variation), so a mid-sentence switch is audible.
+**Japanese only.** The model has no English pronunciation dictionary. On
+English-only text (measured on v4.1-Small) it scores 27.0% word error rate
+against qwen3-tts's 8.3%, mangling ``finished`` into "finito" and ``schema``
+into "sesame". So this provider *declines* English-dominant text by raising,
+which lets the ordinary ``tts-fallback`` chain advance to qwen3-tts. Routing is
+therefore a property of this provider rather than a new mechanism, and because
+the hand-off happens at message granularity it never splices two engines
+inside one utterance -- the same reference voice renders 309 cents apart on
+the two engines (against 20-40 cents of seed-to-seed variation), so a
+mid-sentence switch is audible.
 
 **Latin proper nouns** get a katakana substitution pass from ``lexicon.json``.
 
 **Style control is real and measured.** The checkpoint performs an emoji as a
 non-verbal vocalisation instead of reading it out, and takes a free-text
-``caption`` describing delivery. Both were verified against this server: the
+``caption`` describing delivery. Both are verified against this server: the
 render is byte-identical for a pinned seed, and the predicted duration is
-seed-invariant (5.24 s across three seeds) yet moves to 6.92 s when a single
+seed-invariant (3.32 s across three seeds) yet moves to 4.80 s when a single
 ``U+1F92D`` is spliced into the same sentence, while the transcript stays the
-same words -- so the extra 1.68 s is added vocalisation, not a re-roll and not
+same words -- so the extra 1.48 s is added vocalisation, not a re-roll and not
 the emoji being spoken. A caption moves it the way its wording implies
-("ゆっくり" +0.56 s, "早口で" -0.32 s). None of that is reachable from
+("ゆっくり" +0.28 s, "早口で" -0.20 s). None of that is reachable from
 ``tts.fallback.chain``, which passes no style arguments; it exists for the
 explicit character-voice contract, which asks via ``style_features``.
 
