@@ -27,9 +27,9 @@ def test_only_current_inspection_resources_are_packaged():
     assert sorted(path.relative_to(SKILL).as_posix() for path in SKILL.rglob("*.md")) == [
         "SKILL.md", "references/inspection.md"
     ]
-    assert sorted(path.relative_to(SKILL).as_posix() for path in SKILL.rglob("*.py")) == [
-        "scripts/inspect_text.py"
-    ]
+    scripts = {path.relative_to(SKILL).as_posix() for path in SKILL.rglob("*.py") if "__pycache__" not in path.parts}
+    assert "scripts/inspect_text.py" in scripts
+    assert all(path == "scripts/inspect_text.py" or path.startswith("scripts/inspector/") for path in scripts)
     assert (SKILL / "scripts/requirements.txt").is_file()
 
 

@@ -1,0 +1,120 @@
+{
+  "genres": {
+    "default": {
+      "nominal_min_chars": 2000,
+      "lead_repeat_threshold": 6,
+      "antithesis_rate_critical_above": 0.03,
+      "disabled_rules": []
+    },
+    "essay": {
+      "nominal_min_chars": 1500,
+      "lead_repeat_threshold": 5
+    },
+    "tech": {
+      "nominal_min_chars": 3000,
+      "lead_repeat_threshold": 7,
+      "antithesis_rate_critical_above": 0.045
+    },
+    "business": {
+      "nominal_min_chars": 3000,
+      "lead_repeat_threshold": 7,
+      "disabled_rules": ["high_bullet_ratio", "high_bold_density", "boilerplate_heading", "numbered_phase_structure"]
+    }
+  },
+  "forbidden_phrases": [
+    {"phrase": "と言えるでしょう", "anchor": "X1", "weak": false},
+    {"phrase": "と言えるだろう", "anchor": "X1", "weak": false},
+    {"phrase": "と言えます", "anchor": "X1", "weak": false},
+    {"phrase": "ということになるでしょう", "anchor": "X1", "weak": false},
+    {"phrase": "のではないでしょうか", "anchor": "X1", "weak": false},
+    {"phrase": "重要なのは", "anchor": "X1", "weak": true},
+    {"phrase": "大切なのは", "anchor": "X1", "weak": false},
+    {"phrase": "ポイントは", "anchor": "X1", "weak": true},
+    {"phrase": "結論から言うと", "anchor": "X1", "weak": false},
+    {"phrase": "結論として", "anchor": "X1", "weak": false},
+    {"phrase": "いかがでしたか", "anchor": "X1", "weak": false},
+    {"phrase": "いかがでしょうか", "anchor": "X1", "weak": false},
+    {"phrase": "まとめると", "anchor": "X1", "weak": false},
+    {"phrase": "総じて", "anchor": "X1", "weak": false},
+    {"phrase": "非常に重要", "anchor": "X2", "weak": false},
+    {"phrase": "極めて重要", "anchor": "X2", "weak": false},
+    {"phrase": "言うまでもなく", "anchor": "X1", "weak": false},
+    {"phrase": "言うまでもありません", "anchor": "X1", "weak": false},
+    {"phrase": "まさしく", "anchor": "X2", "weak": false},
+    {"phrase": "さて、", "anchor": "X1", "weak": true},
+    {"phrase": "それでは、", "anchor": "X1", "weak": false},
+    {"phrase": "このように", "anchor": "X1", "weak": true},
+    {"phrase": "このような中", "anchor": "X1", "weak": false},
+    {"phrase": "ここで注目したいのは", "anchor": "X1", "weak": false},
+    {"phrase": "見ていきましょう", "anchor": "X1", "weak": false},
+    {"phrase": "紹介していきます", "anchor": "X1", "weak": false},
+    {"phrase": "解説していきます", "anchor": "X1", "weak": false},
+    {"phrase": "深掘りしていきます", "anchor": "X5", "weak": false},
+    {"phrase": "一概には言えません", "anchor": "X1", "weak": false},
+    {"phrase": "個人差がありますが", "anchor": "X1", "weak": false},
+    {"phrase": "あくまで一例ですが", "anchor": "X1", "weak": false},
+    {"phrase": "正面から扱う", "anchor": "X5", "weak": false},
+    {"phrase": "正面から見る", "anchor": "X5", "weak": false},
+    {"phrase": "正面から書く", "anchor": "X5", "weak": false},
+    {"phrase": "正面から立てる", "anchor": "X5", "weak": false},
+    {"phrase": "正面から回収する", "anchor": "X5", "weak": false},
+    {"phrase": "不可欠", "anchor": "X2", "weak": true},
+    {"phrase": "核心的", "anchor": "X2", "weak": false},
+    {"phrase": "鍵となる", "anchor": "X2", "weak": false},
+    {"phrase": "根本的な", "anchor": "X2", "weak": false},
+    {"phrase": "多角的", "anchor": "X2", "weak": false},
+    {"phrase": "包括的", "anchor": "X2", "weak": false},
+    {"phrase": "総合的", "anchor": "X2", "weak": false},
+    {"phrase": "掘り下げる", "anchor": "X5", "weak": false},
+    {"phrase": "深掘りする", "anchor": "X5", "weak": false},
+    {"phrase": "言語化する", "anchor": "X5", "weak": false},
+    {"phrase": "について見ていく", "anchor": "X1", "weak": false},
+    {"phrase": "を探求する", "anchor": "X5", "weak": false}
+  ],
+  "translationese_patterns": [
+    "することができ(る|ます|た)",
+    "することが可能(です|だ|になる)",
+    "と言えるだろう",
+    "という点で",
+    "という観点(から|で)",
+    "にとって(重要|不可欠)",
+    "を持つ(こと|存在)",
+    "することによって",
+    "であることは間違いない",
+    "に他ならない"
+  ],
+  "antithesis_patterns": ["ではなく、?.{0,30}", "だけでなく.{0,10}も"],
+  "antithesis_min_hits": 3,
+  "antithesis_info_below": 0.02,
+  "inanimate_subject_patterns": [
+    "(これ|それ|この事実|そのこと)(は|が).{0,40}(もたらす|示す|意味する|証明する|生み出す|反映する)",
+    ".{0,20}(こと|事実)(は|が).{0,40}(もたらす|示す|意味する|証明する|生み出す|反映する)"
+  ],
+  "cleft_head": "^(それ|これ|この)は.{0,60}(である|だ)$",
+  "cleft_follow": "^(なぜなら|というのも)",
+  "paragraph_conjunctions": [
+    "このように", "そのため", "なぜなら", "したがって", "一方で",
+    "しかし", "そして", "さらに", "つまり", "ただし", "また", "一方"
+  ],
+  "abstract_pronouns": ["これ", "それ", "あれ", "それら"],
+  "abstract_subject_nouns": ["こと", "事実", "の"],
+  "abstract_subject_pairs": ["この事実", "そのこと"],
+  "transitive_smell_verbs": [
+    "もたらす", "示す", "意味する", "証明する", "生み出す",
+    "反映する", "示唆する", "物語る", "浮き彫りにする", "後押しする"
+  ],
+  "small_kana": "ァィゥェォャュョヮ",
+  "abstract_nouns": [
+    "側面", "観点", "重要性", "可能性", "あり方", "存在", "意味", "本質", "価値", "意義", "課題", "問題",
+    "要素", "要因", "背景", "傾向", "姿勢", "視点", "概念", "特徴", "性質", "状況", "状態", "変化"
+  ],
+  "example_markers": [
+    "たとえば", "例えば", "実際に", "実際には", "具体的には", "具体例として", "一例として",
+    "先日", "昨日", "現に", "実例として"
+  ],
+  "numeric_quantity": "[0-9０-９]+(年代|年間|世紀|年|月|日|時間|時|分|秒|人|円|%|％|kg|km|cm|mm|g|m|回|件|個|つ|割|倍|台|社|名|冊|本|杯|軒)?",
+  "bold_span": "\\*\\*[^*\\n]+\\*\\*",
+  "boilerplate_heading_words": ["まとめ", "おわりに", "終わりに", "さいごに", "最後に", "結論", "総括", "conclusion"],
+  "numbered_phase": "(フェーズ|ステップ|段階|ステージ)\\s*[0-9０-９]",
+  "emoji_symbol": "[\\U0001F300-\\U0001FAFF\\u2600-\\u27BF\\u2B50]"
+}

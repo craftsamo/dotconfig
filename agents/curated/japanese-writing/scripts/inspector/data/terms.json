@@ -1,0 +1,10 @@
+{
+  "acronym": "(?<![A-Za-z0-9_])[A-Z]{2,}[0-9]*(?![A-Za-z0-9_])",
+  "katakana_fallback": "[ァ-ヺー]{3,}",
+  "katakana_surface": "[ァ-ヶー]+",
+  "latin_name_surface": "[A-Z][a-zA-Z0-9]*",
+  "katakana_min_length": 3,
+  "gloss_markers": ["とは", "と呼ぶ", "という", "、つまり"],
+  "gloss_window": 80,
+  "context_window": 80
+}
