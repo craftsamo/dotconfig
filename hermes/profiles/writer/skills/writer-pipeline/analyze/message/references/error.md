@@ -45,7 +45,7 @@ and [revision guide](https://github.com/coji/natural-japanese/blob/v1.5.0/skills
 for evidence and bounded conclusions; [GOV.UK error message](https://design-system.service.gov.uk/components/error-message/)
 for field/condition distinctions, and [Microsoft writing style](https://learn.microsoft.com/en-us/windows/apps/design/style/writing-style)
 for no blame. Examples are local; no upstream Writer error manual, implementation
-instructions, validation execution or review loop is imported.
+instructions, validation execution or source review loop is imported.
 
 QA: observed wording and inferred risk remain distinguishable. The report does
 not verify transactions, promise recovery, repair the application or replace

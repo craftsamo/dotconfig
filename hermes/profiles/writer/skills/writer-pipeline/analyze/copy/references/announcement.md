@@ -44,7 +44,8 @@ Sources: local adaptation of [natural-japanese v1.5.0 writing constitution](http
 and [revision guide](https://github.com/coji/natural-japanese/blob/v1.5.0/skills/natural-japanese/references/revision-guide.md):
 concrete evidence, bounded conclusions and selective rather than blanket criticism.
 These are shared principles, not upstream announcement manuals; examples are local.
-The adaptation adds no scoring, review loop or publication verdict.
+The adaptation adds no publication verdict; any score comes only from the
+shared `japanese-writing` diagnosis when requested.
 
 QA: observations answer the question and point to the relevant words. A
 comparison reads both announcements. Recommendations stay recommendations;

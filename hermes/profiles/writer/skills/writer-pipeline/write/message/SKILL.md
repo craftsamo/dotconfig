@@ -83,10 +83,11 @@ or inherit Writer's role. Read only the detail references selected below.
    Ground claims in the brief/sources, not a style example. Preserve names,
    quotes, placeholders and conditions exactly when required. Do not insert
    a name, signature or personal experience merely to make the text complete.
-6. For Japanese, use `japanese-writing` as expression/notation knowledge only,
-   not the retired workflows or lint. `humanizer` is explicit-only
-   and cannot override stance, facts or protected content. Keep sensitive
-   details and unnecessary private context out of both the body and report.
+6. For Japanese text, follow `japanese-writing`'s write workflow as the
+   kernel maps it; this leaf adds its form-specific checks. `humanizer` is
+   explicit-only and cannot override stance, facts or protected content. Keep
+   sensitive details and unnecessary private context out of both the body and
+   report.
 7. Apply QA and save the complete draft at the requested durable path. Separate
    the actual subject/body or named UI fields from instructions and review
    notes, so a consumer cannot send them as message text. Do not invent HTML
@@ -109,8 +110,10 @@ or inherit Writer's role. Read only the detail references selected below.
   Known channel constraints are honored, but render/interaction fit and hard
   bounds remain unverified without appropriate evidence and counting method.
 - A required check that is unmet or unverified prevents claiming that scope
-  complete. Use criterion evidence, not legacy pass counts or a naturalness
-  score. This is self-review, never independent acceptance or sending approval.
+  complete. Use criterion evidence, not legacy pass counts. Never an
+  authorship verdict; a naturalness score only from the shared diagnosis when
+  requested; do not invent measurements. This is self-review, never
+  independent acceptance or sending approval.
 
 </QA>
 

@@ -54,4 +54,5 @@ LOCAL adaptation; upstream has no specialized Instagram-analysis guide. Use
 [genre-notes.md](https://github.com/coji/natural-japanese/blob/v1.5.0/skills/natural-japanese/references/genre-notes.md) for conditional pacing.
 [ONS social media](https://service-manual.ons.gov.uk/content/content-types/social-media#alt-text-and-accessibility) supports informative alt text and independently understandable posts.
 [W3C informative images](https://www.w3.org/WAI/tutorials/images/informative/) grounds alternatives in the image's purpose, context and content; the no-invented-details boundary is local.
-No mandatory scores, review loops, conclusion-first template or personal anecdote is imported.
+No conclusion-first template or personal anecdote is imported.
+Japanese review follows the shared `japanese-writing` workflow.

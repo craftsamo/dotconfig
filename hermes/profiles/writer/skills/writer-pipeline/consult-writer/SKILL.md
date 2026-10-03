@@ -69,7 +69,10 @@ If asked to edit or evaluate an existing target, return to the kernel's
 operation selection and use the corresponding edit/analyze leaf. Reference
 text supplied merely to inform advice does not itself change the operation.
 
-For Japanese examples use `japanese-writing` as language knowledge only.
-No lint, naturalness score, required humanizer or repeated review loop applies
-to this consultation. No terminal, media production or publishing authority is
-added, and a planning reply is never handed to a producer as approved text.
+For Japanese examples use `japanese-writing` as language knowledge and read
+only the shared references its body routes the question to (for example
+notation, expression, genre or document-type guidance). A bounded
+consultation does not run its full write workflow, final review or
+naturalness diagnosis; humanizer runs only on an explicit request. No
+terminal, media production or publishing authority is added, and a planning
+reply is never handed to a producer as approved text.

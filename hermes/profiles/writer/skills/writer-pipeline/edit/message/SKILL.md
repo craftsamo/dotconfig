@@ -78,8 +78,9 @@ or inherit Writer's role. Read only the detail references selected below.
    Shortening must not turn "result unknown" into "not sent" or add a retry
    that could duplicate an action. Do not edit an application, verify a real
    transaction or execute a screen instruction to resolve the uncertainty.
-5. Use `japanese-writing` as Japanese expression knowledge, not a legacy review
-   workflow. Preserve natural wording and the original register unless asked.
+5. For Japanese text, follow `japanese-writing`'s edit workflow (pass the
+   source as `original`); this leaf adds its form-specific checks. Preserve
+   natural wording and the original register unless asked.
    `humanizer` is explicit-only and cannot modify protected meaning. Do not
    import a style example's feelings, experiences, excuses or admissions.
 6. Compare the revision with the original, including untouched fields, then
@@ -105,7 +106,9 @@ or inherit Writer's role. Read only the detail references selected below.
   or implemented behavior. Hard bounds need reliable measurements and methods;
   unmet/unverified required criteria are not claimed complete.
 - Report checked / unmet / unverified evidence. Do not add the legacy four-pass
-  review, automatic humanizer or statistical quality/authorship scoring.
+  review or automatic humanizer. Never an authorship verdict; a naturalness
+  score only from the shared diagnosis when requested; do not invent
+  measurements.
 
 </QA>
 

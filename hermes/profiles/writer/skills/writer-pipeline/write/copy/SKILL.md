@@ -79,9 +79,10 @@ or inherit Writer's role. Read only the detail references selected below.
    the claim they qualify. Do not invent urgency, scarcity, discounts, guarantees
    or endorsements. Preserve qualifications even when they reduce intensity.
    A required action must have a real destination, not a fabricated URL/control.
-6. Use `japanese-writing` as Japanese expression/notation knowledge only, not
-   retired layers or inspection scripts. `humanizer` is explicit-only
-   and cannot change commercial terms, evidence or protected content. Requested
+6. For Japanese text, follow `japanese-writing`'s write workflow as the
+   kernel maps it; this leaf adds its form-specific checks. `humanizer` is
+   explicit-only and cannot change commercial terms, evidence or protected
+   content. Requested
    warmth, brevity or confidence does not authorize a stronger factual claim.
 7. Apply QA and save the complete draft at the requested durable path. Clearly
    separate publishable headings/body/action text from field labels, source
@@ -106,8 +107,10 @@ or inherit Writer's role. Read only the detail references selected below.
   render fit, inbox delivery, legal clearance and conversion performance require
   separate evidence; text quality does not establish them. Hard bounds require
   a reliable count and method rather than an estimate.
-- Report checked / unmet / unverified criterion evidence, not a four-pass receipt
-  or naturalness score. Unmet or unverified required checks are not complete.
+- Report checked / unmet / unverified criterion evidence, not a four-pass
+  receipt. Never an authorship verdict; a naturalness score only from the
+  shared diagnosis when requested; do not invent measurements. Unmet or
+  unverified required checks are not complete.
   Self-review is not the requester's acceptance or publication approval.
 
 </QA>

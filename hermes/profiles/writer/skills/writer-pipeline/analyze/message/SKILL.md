@@ -72,10 +72,12 @@ or inherit Writer's role. Read only the detail references selected below.
    retry safety. Do not test an action, inspect a real system or manufacture
    a missing screenshot. An unseen interface limits layout/interaction claims,
    not every textual observation.
-5. Use `japanese-writing` for Japanese wording observations, without retired
-   legacy workflows or statistical scoring. `humanizer` is explicit-only and
-   gives observations, not a rewritten message. Do not quote private details
-   beyond what the analysis actually needs or leak secrets into its report.
+5. For Japanese text, follow `japanese-writing` as the kernel maps it: report
+   findings, and give its naturalness diagnosis only when the requester asks
+   for a score; this leaf adds its form-specific checks. `humanizer` is
+   explicit-only and gives observations, not a rewritten message. Do not quote
+   private details beyond what the analysis actually needs or leak secrets
+   into its report.
 6. Apply QA to the analysis report, then return a permitted short report in
    the reply or save it at the requested durable path. Keep the source unchanged.
    Do not compose an unsolicited reply, change a system or send anything.
@@ -95,7 +97,8 @@ or inherit Writer's role. Read only the detail references selected below.
   apology, requested action, button label or replacement reply. The original
   and supplied context remain unchanged; analysis grants no sending authority.
 - Use checked / unmet / unverified evidence and minimum necessary quotations.
-  Do not emit naturalness scores, author detectors or a legacy pass receipt.
+  Never an authorship verdict or a legacy pass receipt; a naturalness score
+  only from the shared diagnosis when requested; do not invent measurements.
 
 </QA>
 
