@@ -37,10 +37,12 @@ APPROVAL = ("Calls that change something ({}) wait for the user's approval in ch
 SHEETS_DESCRIPTION = (
     "The user's own Google Sheets. search (query = part of a file name; lists spreadsheets), "
     "info (spreadsheet_id; title, URL and tabs, each with its frozen rows/columns, merges, "
-    "tables (id, range, column types) and numbered conditional rules), get (spreadsheet_id + "
-    "range or ranges in A1 "
+    "tables (id, range, column types), numbered conditional rules, row/column groups, filter and "
+    "filter views, tab colour and hidden state), get (spreadsheet_id + range or ranges in A1 "
     "notation, e.g. 'Sheet1!A1:D20'; unformatted=true for raw numbers), update (range + values: "
-    "overwrite), batch_update (data = [{range, values}, …], up to 500 ranges in one call), append "
+    "overwrite), get_format (range or ranges, closed blocks of up to 2000 cells: formatting "
+    "grouped by look in layout's format words, notes, links, input rules, rich text, hidden "
+    "rows/columns and sizes; read it before matching an existing look), batch_update (data = [{range, values}, …], up to 500 ranges in one call), append "
     "(range + values: add rows after the table), clear (range), create (title, optional "
     "sheet_names), add_sheet (spreadsheet_id + title: a new tab), layout (ops: formatting, "
     "sizes, rows/columns, merges, freezing, tables, conditional formatting and input rules; see "
@@ -179,7 +181,7 @@ SCHEMAS = {
         "spreadsheet_id": {"type": "string", "description": "the id in the sheet URL (/d/<id>/)"},
         "query": {"type": "string", "description": "search: part of the file name"},
         "range": {"type": "string", "description": "A1 range, e.g. 'Sheet1!A1:C10' or 'Sheet1'"},
-        "ranges": {"type": "array", "items": {"type": "string"}, "description": "get: several ranges"},
+        "ranges": {"type": "array", "items": {"type": "string"}, "description": "get / get_format: several ranges"},
         "ops": {"type": "array", "description": LAYOUT_OPS_DESCRIPTION, "items": LAYOUT_OP_SCHEMA},
         "values": {"type": "array", "items": {"type": "array", "items": {
                        "description": "a cell: text, number or boolean"}},

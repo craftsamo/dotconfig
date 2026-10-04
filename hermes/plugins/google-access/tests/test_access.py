@@ -1295,3 +1295,76 @@ def test_layout_is_guarded_by_expect(tmp_path, monkeypatch):
     api, book = layout_api(["k4"])
     services(monkeypatch, sheets=api)
     assert access.sheets(tmp_path, args)["ok"] and book.batchUpdate.call_count == 1
+
+
+# --- get_format -----------------------------------------------------------------------------------
+
+def rgb(r, g, b):
+    return {"rgbColor": {"red": r / 255, "green": g / 255, "blue": b / 255}}
+
+
+HEADER = {"textFormat": {"bold": True, "foregroundColorStyle": rgb(255, 255, 255)},
+          "backgroundColorStyle": rgb(26, 115, 232), "horizontalAlignment": "CENTER"}
+
+
+def test_get_format_groups_cells_by_look_in_the_ops_words(tmp_path, monkeypatch):
+    api = mock.MagicMock()
+    api.spreadsheets().get().execute.return_value = {"sheets": [{"properties": {"title": "Tasks"}, "data": [{
+        "startRow": 0, "startColumn": 1,
+        "columnMetadata": [{"pixelSize": 100}, {"pixelSize": 180, "hiddenByUser": True}, {"pixelSize": 100}],
+        "rowMetadata": [{"pixelSize": 21}, {"pixelSize": 40}, {"pixelSize": 21}],
+        "rowData": [
+            {"values": [{"userEnteredFormat": HEADER}, {"userEnteredFormat": HEADER}, {"userEnteredFormat": HEADER}]},
+            {"values": [{"note": "check", "userEnteredFormat": {"numberFormat": {"type": "CURRENCY",
+                                                                                "pattern": "¥#,##0"}}},
+                        {"hyperlink": "https://example.com", "formattedValue": "see doc", "textFormatRuns": [
+                            {"format": {}}, {"startIndex": 4, "format": {"link": {"uri": "https://example.com"}}}]},
+                        {"dataValidation": {"condition": {"type": "BOOLEAN"}, "strict": True}}]},
+            {"values": [{"userEnteredFormat": {"numberFormat": {"type": "CURRENCY", "pattern": "¥#,##0"}}}, {},
+                        {"dataValidation": {"condition": {"type": "BOOLEAN"}, "strict": True}}]}]}]}]}
+    services(monkeypatch, sheets=api)
+    result = access.sheets(tmp_path, {"action": "get_format", "spreadsheet_id": SID, "range": "Tasks!B1:D3"})
+    kwargs = api.spreadsheets().get.call_args.kwargs
+    assert kwargs["ranges"] == ["Tasks!B1:D3"] and kwargs["fields"] == access.FORMAT_FIELDS
+    (block,) = result["ranges"]
+    assert block["range"] == "Tasks!B1:D3"
+    assert block["styles"] == [
+        {"bold": True, "color": "#FFFFFF", "background": "#1A73E8", "align": "CENTER", "ranges": ["B1:D1"]},
+        {"number_format": "CURRENCY", "pattern": "¥#,##0", "ranges": ["B2:B3"]}]
+    assert block["input_rules"] == [{"when": "BOOLEAN", "values": [], "strict": True, "dropdown": False,
+                                     "ranges": ["D2:D3"]}]
+    assert block["notes"] == {"B2": "check"} and block["links"] == {"C2": "https://example.com"}
+    assert block["rich_text"] == {"C2": [{"text": "see "}, {"text": "doc", "link": "https://example.com"}]}
+    assert block["hidden_columns"] == ["C"] and block["row_heights"] == {"2": 40}
+    assert block["column_widths"] == {"B": 100, "C": 180, "D": 100}
+
+
+@pytest.mark.parametrize("rng,message", [("Tasks!A:C", "closed blocks"), ("Tasks", "closed blocks"),
+                                         ("Tasks!A1:Z100", "at most 2000")])
+def test_get_format_reads_bounded_blocks_only(rng, message, tmp_path):
+    with pytest.raises(access.AccessError, match=message):
+        access.sheets(tmp_path, {"action": "get_format", "spreadsheet_id": SID, "range": rng})
+
+
+def test_get_format_needs_no_approval():
+    assert access.approval_request("google_sheets", {"action": "get_format", "spreadsheet_id": SID,
+                                                     "range": "A1:B2"}) is None
+
+
+def test_info_lists_groups_filters_views_and_tab_colours(tmp_path, monkeypatch):
+    api = mock.MagicMock()
+    api.spreadsheets().get().execute.return_value = {"sheets": [{
+        "properties": {"sheetId": 7, "title": "Tasks", "hidden": True, "tabColorStyle": rgb(255, 0, 0),
+                       "gridProperties": {"rowCount": 100, "columnCount": 8}},
+        "rowGroups": [{"range": {"dimension": "ROWS", "startIndex": 2, "endIndex": 5}, "depth": 1, "collapsed": True}],
+        "columnGroups": [{"range": {"dimension": "COLUMNS", "startIndex": 1, "endIndex": 3}, "depth": 1}],
+        "basicFilter": {"range": {"sheetId": 7, "endRowIndex": 20, "endColumnIndex": 4}},
+        "filterViews": [{"filterViewId": 55, "title": "Open only", "range": {"sheetId": 7, "endRowIndex": 20,
+                                                                           "endColumnIndex": 4}}]}]}
+    services(monkeypatch, sheets=api)
+    sheet = access.sheets(tmp_path, {"action": "info", "spreadsheet_id": SID})["sheets"][0]
+    assert sheet["hidden"] is True and sheet["tab_color"] == "#FF0000" and "tabColorStyle" not in sheet
+    assert sheet["row_groups"] == [{"range": "3:5", "depth": 1, "collapsed": True}]
+    assert sheet["column_groups"] == [{"range": "B:C", "depth": 1, "collapsed": False}]
+    assert sheet["filter"] == {"range": "A1:D20"}
+    assert sheet["filter_views"] == [{"view_id": 55, "name": "Open only", "range": "A1:D20"}]

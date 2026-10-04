@@ -63,8 +63,8 @@ REASON_LIMIT = 1500
 GCLOUD_TIMEOUT = 300
 GCLOUD_TIMEOUT_MAX = 1800
 
-SHEETS_ACTIONS = ("search", "info", "get", "update", "batch_update", "append", "clear", "create",
-                  "add_sheet", "layout")
+SHEETS_ACTIONS = ("search", "info", "get", "get_format", "update", "batch_update", "append", "clear",
+                  "create", "add_sheet", "layout")
 SHEETS_WRITES = {"update", "batch_update", "append", "clear", "create", "add_sheet", "layout"}
 # Edits approved once per spreadsheet: "session" / "always" on the first card covers the rest of
 # that spreadsheet's edits (its version history undoes them). clear and create still ask each time,
@@ -404,6 +404,7 @@ def sheets(home, args: dict) -> dict:
     action = _action(args, SHEETS_ACTIONS)
     guards = _expect(args, action)  # also refuses expect on an action it does not guard
     ops = _layout_ops(args) if action == "layout" else []  # refused before any Google call
+    blocks = _format_ranges(args) if action == "get_format" else []
     if action == "search":
         query = _str(args, "query", required=False)
         q = f"mimeType='{SPREADSHEET_MIME}' and trashed=false"
@@ -443,6 +444,9 @@ def sheets(home, args: dict) -> dict:
             "requests": [{"addSheet": {"properties": {"title": title}}}]}).execute())
         added = done["replies"][0]["addSheet"]["properties"]
         return {"ok": True, "spreadsheet_id": sid, "sheet": added}
+
+    if action == "get_format":
+        return _get_format(book, sid, blocks)
 
     values = book.values()
     if action == "get":
@@ -511,10 +515,217 @@ def sheets(home, args: dict) -> dict:
 # --- Sheets tab details ---------------------------------------------------------------------------
 
 INFO_FIELDS = ("spreadsheetId,spreadsheetUrl,properties(title,locale,timeZone),"
-               "sheets(properties(sheetId,title,index,gridProperties(rowCount,columnCount,"
-               "frozenRowCount,frozenColumnCount)),merges,"
-               "tables(tableId,name,range,columnProperties),conditionalFormats)")
+               "sheets(properties(sheetId,title,index,hidden,tabColorStyle,gridProperties(rowCount,"
+               "columnCount,frozenRowCount,frozenColumnCount)),merges,"
+               "tables(tableId,name,range,columnProperties),conditionalFormats,"
+               "rowGroups(range,depth,collapsed),columnGroups(range,depth,collapsed),basicFilter(range),"
+               "filterViews(filterViewId,title,range))")
 INFO_LIST_LIMIT = 50
+FORMAT_CELL_LIMIT = 2000
+FORMAT_FIELDS = ("sheets(properties(sheetId,title),data(startRow,startColumn,"
+                 "rowMetadata(pixelSize,hiddenByUser),columnMetadata(pixelSize,hiddenByUser),"
+                 "rowData(values(formattedValue,userEnteredFormat,note,hyperlink,dataValidation,"
+                 "textFormatRuns))))")
+DEFAULT_ROW_HEIGHT = 21
+
+
+def _hex_of(style) -> str | None:
+    """'#RRGGBB' (or 'theme:ACCENT1') of a ColorStyle or legacy Color; None when unset."""
+    if not isinstance(style, dict) or not style:
+        return None
+    if style.get("themeColor"):
+        return f"theme:{style['themeColor']}"
+    rgb = style.get("rgbColor", style)
+    if not any(k in rgb for k in ("red", "green", "blue")):
+        return "#000000" if "rgbColor" in style else None
+    return "#" + "".join(f"{round(rgb.get(k, 0) * 255):02X}" for k in ("red", "green", "blue"))
+
+
+def _dim_a1(rng: dict) -> str:
+    start = rng.get("startIndex", 0)
+    end = rng.get("endIndex", start + 1)
+    if rng.get("dimension") == "COLUMNS":
+        return f"{column_letters(start)}:{column_letters(end - 1)}"
+    return f"{start + 1}:{end}"
+
+
+def _text_words(text: dict) -> dict:
+    out = {}
+    for key in ("bold", "italic", "underline", "strikethrough"):
+        if key in text:  # an explicit false matters in a rich-text run over a bold cell
+            out[key] = bool(text[key])
+    if text.get("fontSize"):
+        out["font_size"] = text["fontSize"]
+    if text.get("fontFamily"):
+        out["font"] = text["fontFamily"]
+    color = _hex_of(text.get("foregroundColorStyle")) or _hex_of(text.get("foregroundColor"))
+    if color:
+        out["color"] = color
+    if (text.get("link") or {}).get("uri"):
+        out["link"] = text["link"]["uri"]
+    return out
+
+
+def _format_words(fmt: dict) -> dict:
+    """A CellFormat in the format op's own words, so it can be read back and reapplied."""
+    out = _text_words(fmt.get("textFormat") or {})
+    background = _hex_of(fmt.get("backgroundColorStyle")) or _hex_of(fmt.get("backgroundColor"))
+    if background:
+        out["background"] = background
+    for key, target in (("horizontalAlignment", "align"), ("verticalAlignment", "valign")):
+        if fmt.get(key):
+            out[target] = fmt[key]
+    if fmt.get("wrapStrategy"):
+        out["wrap"] = "OVERFLOW" if fmt["wrapStrategy"] == "OVERFLOW_CELL" else fmt["wrapStrategy"]
+    number = fmt.get("numberFormat") or {}
+    if number.get("type"):
+        out["number_format"] = number["type"]
+        if number.get("pattern"):
+            out["pattern"] = number["pattern"]
+    rotation = fmt.get("textRotation") or {}
+    if rotation.get("vertical"):
+        out["rotation"] = "vertical"
+    elif "angle" in rotation:
+        out["rotation"] = rotation["angle"]
+    padding = fmt.get("padding") or {}
+    if padding:
+        sides = {padding.get(k, 0) for k in ("top", "right", "bottom", "left")}
+        out["padding"] = sides.pop() if len(sides) == 1 else padding
+    borders = {}
+    for side, border in (fmt.get("borders") or {}).items():
+        if border.get("style") and border["style"] != "NONE":
+            color = _hex_of(border.get("colorStyle")) or _hex_of(border.get("color")) or "#000000"
+            borders[side] = f"{border['style']} {color}"
+    if borders:
+        out["borders"] = borders
+    return out
+
+
+def _blocks(cells: dict, top: int, left: int) -> dict:
+    """{key: [A1 ranges]} for cells {(row, column): key}: row runs, then identical runs stacked."""
+    runs = {}  # (key, first column, last column) -> [[first row, last row], …]
+    by_row = {}
+    for (row, column), key in cells.items():
+        by_row.setdefault(row, {})[column] = key
+    for row in sorted(by_row):
+        columns = sorted(by_row[row])
+        i = 0
+        while i < len(columns):
+            j = i
+            while j + 1 < len(columns) and columns[j + 1] == columns[j] + 1 and \
+                    by_row[row][columns[j + 1]] == by_row[row][columns[i]]:
+                j += 1
+            span = (by_row[row][columns[i]], columns[i], columns[j])
+            stacks = runs.setdefault(span, [])
+            if stacks and stacks[-1][1] == row - 1:
+                stacks[-1][1] = row
+            else:
+                stacks.append([row, row])
+            i = j + 1
+    out = {}
+    for (key, c1, c2), stacks in runs.items():
+        for r1, r2 in stacks:
+            start = f"{column_letters(left + c1)}{top + r1 + 1}"
+            end = f"{column_letters(left + c2)}{top + r2 + 1}"
+            out.setdefault(key, []).append(start if start == end else f"{start}:{end}")
+    return out
+
+
+def _format_ranges(args: dict) -> list[str]:
+    """The validated get_format ranges: closed blocks, FORMAT_CELL_LIMIT cells in all."""
+    ranges = args.get("ranges")
+    if ranges is None:
+        ranges = [_str(args, "range")]
+    if not isinstance(ranges, list) or not ranges or not all(isinstance(r, str) and r.strip() for r in ranges):
+        raise AccessError("ranges must be a non-empty array of A1 ranges")
+    total = 0
+    for rng in ranges:
+        grid = _grid_ref(split_range(rng.strip())[1])
+        if not {"startRowIndex", "endRowIndex", "startColumnIndex", "endColumnIndex"} <= set(grid):
+            raise AccessError(f"get_format takes closed blocks like 'Sheet1!A1:F40', not {rng!r}")
+        total += (grid["endRowIndex"] - grid["startRowIndex"]) * (grid["endColumnIndex"] - grid["startColumnIndex"])
+    if total > FORMAT_CELL_LIMIT:
+        raise AccessError(f"the ranges hold {total} cells; read at most {FORMAT_CELL_LIMIT} per call")
+    return [r.strip() for r in ranges]
+
+
+def _get_format(book, sid: str, ranges: list[str]) -> dict:
+    """The formatting, notes, links, input rules and rich text of closed ranges, grouped by look and
+    worded like the layout ops; plus the hidden rows/columns and sizes in them."""
+    meta = _google(lambda: book.get(spreadsheetId=sid, ranges=ranges, fields=FORMAT_FIELDS).execute())
+    out = []
+    for sheet in meta.get("sheets", []):
+        tab = sheet.get("properties", {}).get("title")
+        for data in sheet.get("data", []) or []:
+            out.append(_format_block(tab, data))
+    return {"ok": True, "spreadsheet_id": sid, "ranges": out}
+
+
+def _format_block(tab: str, data: dict) -> dict:
+    top, left = data.get("startRow", 0), data.get("startColumn", 0)
+    rows = data.get("rowData", []) or []
+    width = max([len(r.get("values", []) or []) for r in rows] + [len(data.get("columnMetadata", []) or [])])
+    height = max(len(rows), len(data.get("rowMetadata", []) or []))
+    looks, keys, rules, rule_keys = {}, {}, {}, {}
+    notes, links, rich = {}, {}, {}
+    for r, row in enumerate(rows):
+        for c, value in enumerate(row.get("values", []) or []):
+            where = f"{column_letters(left + c)}{top + r + 1}"
+            words = _format_words(value.get("userEnteredFormat") or {})
+            if words:
+                key = json.dumps(words, sort_keys=True)
+                keys[key] = words
+                looks[(r, c)] = key
+            if value.get("note"):
+                notes[where] = value["note"]
+            if value.get("hyperlink"):
+                links[where] = value["hyperlink"]
+            rule = value.get("dataValidation")
+            if rule:
+                condition = rule.get("condition", {})
+                said = {"when": condition.get("type"),
+                        "values": [v.get("userEnteredValue") for v in condition.get("values", []) or []],
+                        "strict": bool(rule.get("strict")), "dropdown": bool(rule.get("showCustomUi"))}
+                if rule.get("inputMessage"):
+                    said["help"] = rule["inputMessage"]
+                key = json.dumps(said, sort_keys=True)
+                rule_keys[key] = said
+                rules[(r, c)] = key
+            if value.get("textFormatRuns"):
+                text = value.get("formattedValue") or ""
+                units = text.encode("utf-16-le")
+                starts = [run.get("startIndex", 0) for run in value["textFormatRuns"]] + [len(units) // 2]
+                parts = [{"text": units[:starts[0] * 2].decode("utf-16-le", "replace")}] if starts[0] else []
+                for run, start, end in zip(value["textFormatRuns"], starts, starts[1:]):
+                    piece = units[start * 2:end * 2].decode("utf-16-le", "replace")
+                    parts.append({"text": piece, **_text_words(run.get("format") or {})})
+                rich[where] = parts
+    block = {"range": f"{tab}!{column_letters(left)}{top + 1}:{column_letters(left + max(width, 1) - 1)}"
+                      f"{top + max(height, 1)}"}
+    styles = [dict(keys[key], ranges=found) for key, found in _blocks(looks, top, left).items()]
+    if styles:
+        block["styles"] = sorted(styles, key=lambda s: -len(s["ranges"]))
+    validations = [dict(rule_keys[key], ranges=found) for key, found in _blocks(rules, top, left).items()]
+    if validations:
+        block["input_rules"] = validations
+    for name, found in (("notes", notes), ("links", links), ("rich_text", rich)):
+        if found:
+            block[name] = found
+    hidden_rows = [str(top + i + 1) for i, m in enumerate(data.get("rowMetadata", []) or []) if m.get("hiddenByUser")]
+    hidden_cols = [column_letters(left + i) for i, m in enumerate(data.get("columnMetadata", []) or [])
+                   if m.get("hiddenByUser")]
+    if hidden_rows:
+        block["hidden_rows"] = hidden_rows
+    if hidden_cols:
+        block["hidden_columns"] = hidden_cols
+    widths = {column_letters(left + i): m.get("pixelSize") for i, m in enumerate(data.get("columnMetadata", []) or [])}
+    if widths:
+        block["column_widths"] = widths
+    heights = {str(top + i + 1): m.get("pixelSize") for i, m in enumerate(data.get("rowMetadata", []) or [])
+               if m.get("pixelSize") not in (None, DEFAULT_ROW_HEIGHT)}
+    if heights:
+        block["row_heights"] = heights
+    return block
 
 
 def _a1(grid: dict, rows: int | None = None, columns: int | None = None) -> str:
@@ -537,6 +748,14 @@ def _sheet_info(sheet: dict) -> dict:
     """A tab's properties plus its merges, tables and conditional rules, in A1 terms, with the
     ids and rule numbers that name them."""
     props = dict(sheet.get("properties", {}))
+    tab_color = _hex_of(props.pop("tabColorStyle", None))
+    if tab_color:
+        props["tab_color"] = tab_color
+    for key, label in (("rowGroups", "row_groups"), ("columnGroups", "column_groups")):
+        found = [{"range": _dim_a1(g.get("range", {})), "depth": g.get("depth", 1),
+                  "collapsed": bool(g.get("collapsed"))} for g in sheet.get(key, []) or []]
+        if found:
+            props[label] = found[:INFO_LIST_LIMIT]
     size = props.get("gridProperties", {})
     rows, cols = size.get("rowCount"), size.get("columnCount")
     merges = [_a1(m, rows, cols) for m in sheet.get("merges", []) or []]
@@ -575,6 +794,12 @@ def _sheet_info(sheet: dict) -> dict:
                       "rule": what})
     if rules:
         props["conditional_rules"] = rules
+    if sheet.get("basicFilter"):
+        props["filter"] = {"range": _a1(sheet["basicFilter"].get("range", {}), rows, cols)}
+    views = [{"view_id": v.get("filterViewId"), "name": v.get("title"), "range": _a1(v.get("range", {}), rows, cols)}
+             for v in sheet.get("filterViews", []) or []]
+    if views:
+        props["filter_views"] = views[:INFO_LIST_LIMIT]
     return props
 
 
