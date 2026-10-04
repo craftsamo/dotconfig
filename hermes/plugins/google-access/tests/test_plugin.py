@@ -63,6 +63,27 @@ def test_action_enums_match_the_engine():
     assert props["google_drive"]["action"]["enum"] == list(plugin.access.DRIVE_ACTIONS)
 
 
+def test_the_layout_op_schema_matches_the_engine():
+    ctx = Ctx("assistant")
+    plugin.register(ctx)
+    op = ctx.tools["google_sheets"]["schema"]["parameters"]["properties"]["ops"]["items"]
+    assert op["properties"]["op"]["enum"] == list(plugin.access.LAYOUT_OPS)
+    fields = {key for required, optional in plugin.access.LAYOUT_OPS.values() for key in required + optional}
+    assert set(op["properties"]) == fields | {"op"}
+    assert op["additionalProperties"] is False
+
+
+def test_gate_asks_per_call_for_a_layout_that_deletes():
+    sid = "1AbCdEfGhIjKlMnOpQrStUvWxYz0123456789_-abcd"
+    safe = plugin.gate(tool_name="google_sheets", args={"action": "layout", "spreadsheet_id": sid, "ops": [
+        {"op": "format", "range": "A1:C1", "bold": True}]})
+    assert safe["rule_key"] == f"google-access:sheets-edit:{sid}" and "Format A1:C1: bold" in safe["message"]
+    drop = plugin.gate(tool_name="google_sheets", args={"action": "layout", "spreadsheet_id": sid, "ops": [
+        {"op": "delete", "range": "Sheet1!3:4"}]})
+    assert drop["action"] == "approve" and "sheets-edit" not in drop["rule_key"]
+    assert "Delete rows 3-4" in drop["message"]
+
+
 def test_gate_asks_for_writes_only():
     sid = "1AbCdEfGhIjKlMnOpQrStUvWxYz0123456789_-abcd"
     assert plugin.gate(tool_name="google_sheets", args={"action": "get", "spreadsheet_id": sid}) is None
