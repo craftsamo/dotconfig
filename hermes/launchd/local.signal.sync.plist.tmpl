@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!-- signal-sync-launchctl.sh renders the __PLACEHOLDERS__. -->
+  <key>Label</key>
+  <string>local.signal.sync</string>
+
+  <!-- The sync agent owns one signal-cli daemon (manual receive mode) and writes every received
+       envelope into the mirror; sends from the signal tool go to that daemon's socket. -->
+  <key>ProgramArguments</key>
+  <array>
+    <string>__PYTHON__</string>
+    <string>__SYNC__</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>__STATE__</string>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    <key>HERMES_SIGNAL_STATE</key>
+    <string>__STATE__</string>
+  </dict>
+
+  <key>RunAtLoad</key>
+  <true/>
+  <!-- Restart after a failure only: with no linked account, or once Signal unlinked this device,
+       the agent exits 0 and stays down until the account is linked again. -->
+  <key>KeepAlive</key>
+  <dict>
+    <key>SuccessfulExit</key>
+    <false/>
+  </dict>
+  <key>ThrottleInterval</key>
+  <integer>60</integer>
+  <key>ProcessType</key>
+  <string>Background</string>
+
+  <key>StandardOutPath</key>
+  <string>__LOG__</string>
+  <key>StandardErrorPath</key>
+  <string>__LOG__</string>
+</dict>
+</plist>
