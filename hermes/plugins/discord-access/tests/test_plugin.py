@@ -58,7 +58,7 @@ def test_only_the_assistant_gets_the_tool():
     params = tool["schema"]["parameters"]
     assert params["additionalProperties"] is False and params["required"] == ["action"]
     assert params["properties"]["action"]["enum"] == list(plugin.access.ACTIONS)
-    assert ctx.hooks == [("pre_tool_call", plugin.gate)]
+    assert ctx.hooks == [("pre_tool_call", plugin.gate), ("pre_tool_call", plugin.bind)]
 
 
 def test_gate_asks_for_sends_only():
@@ -106,6 +106,26 @@ def test_handler_returns_json():
 
 
 def test_oversized_results_are_refused(monkeypatch):
-    monkeypatch.setattr(plugin.access, "execute", lambda args: {"x": "y" * plugin.LIMIT})
+    monkeypatch.setattr(plugin.access, "execute", lambda args, home=None: {"x": "y" * plugin.LIMIT})
     result = json.loads(plugin.discord_account({"action": "dms"}))
     assert result["ok"] is False and "narrow" in result["error"]
+
+
+def test_file_sends_are_staged_and_bound_to_the_call(tmp_path, monkeypatch):
+    ws = tmp_path / "ws"
+    ws.mkdir()
+    (ws / "a.txt").write_text("hello")
+    monkeypatch.setattr(plugin.access, "DEFAULT_ATTACH_ROOT", ws)
+    monkeypatch.setattr(plugin, "_home", lambda: None)
+    args = {"action": "send", "channel": DM, "files": [str(ws / "a.txt")]}
+    payload = {"tool_name": "discord_account", "args": args, "tool_call_id": "call-1", "session_id": "s"}
+    directive = plugin.gate(**payload)
+    assert directive["action"] == "approve" and "Files (1): a.txt (5 B)" in directive["message"]
+    modify = plugin.bind(**payload)
+    assert modify["action"] == "modify" and len(modify["args"]["_outbox"]) == 32
+    assert (plugin.access._outbox() / modify["args"]["_outbox"]).is_dir()
+    assert plugin.gate(tool_name="discord_account", args=args)["action"] == "block"          # no call id
+    forged = {**args, "_outbox": modify["args"]["_outbox"]}
+    assert plugin.gate(tool_name="discord_account", args=forged, tool_call_id="call-2")["action"] == "block"
+    assert plugin.bind(tool_name="discord_account", args={"action": "dms"}, tool_call_id="c") is None
+    assert plugin.bind(tool_name="terminal", args=args, tool_call_id="c") is None

@@ -421,3 +421,77 @@ def test_a_channel_deferred_before_its_first_page_is_not_current(monkeypatch):
     summary = engine.sync(client(FakeHttp(routes), conn))
     assert summary["deferred"] == 1
     assert conn.execute("SELECT synced_at FROM cursors WHERE channel_id = ?", (int(DM1),)).fetchone()[0] is None
+
+
+# --- attachments --------------------------------------------------------------------------------
+
+UPLOAD_URL = "https://discord-attachments-uploads-prd.storage.googleapis.com/abc?upload_id=1"
+
+
+def outbox_file(name="a.txt", data=b"file-bytes"):
+    folder = store.state_dir() / "outbox" / ("0" * 32)
+    folder.mkdir(parents=True, exist_ok=True)
+    path = folder / "00"
+    path.write_bytes(data)
+    return [{"path": str(path), "name": name}]
+
+
+def upload_routes(post_result, put_status=200, url=UPLOAD_URL):
+    def put(params, body):
+        return put_status, {}, ""
+    return {
+        ("POST", f"/channels/{DM1}/attachments"): (200, {}, {"attachments": [
+            {"id": 0, "upload_url": url, "upload_filename": "up-0/a.txt"}]}),
+        ("PUT", "__upload__"): put,
+        ("POST", f"/channels/{DM1}/messages"): post_result,
+    }
+
+
+class UploadHttp(FakeHttp):
+    def request(self, method, url, *, headers=None, params=None, body=None, data=None, timeout=None):
+        if method == "PUT":
+            self.calls.append({"method": method, "url": url, "headers": headers, "data": data, "body": None,
+                               "params": None})
+            return self.routes[("PUT", "__upload__")](None, None)
+        return super().request(method, url, headers=headers, params=params, body=body, timeout=timeout)
+
+
+def test_files_are_uploaded_then_sent_in_one_post():
+    conn = store.connect(write=True)
+    seeded_dm(conn)
+    sent = flake(0)
+    http = UploadHttp(upload_routes((200, {}, msg(sent, DM1, author=ME, content="see file"))))
+    plan = {"nonce": "n1", "channel": DM1, "text": "see file", "reply_to": None, "files": outbox_file()}
+    result = engine.send(conn, plan, lambda: client(http, conn))
+    assert result["outcome"] == "sent"
+    reserve = [c for c in http.calls if c["url"].endswith("/attachments")][0]
+    assert reserve["body"] == {"files": [{"id": "0", "filename": "a.txt", "file_size": 10}]}
+    put = [c for c in http.calls if c["method"] == "PUT"][0]
+    assert put["url"] == UPLOAD_URL and put["data"] == b"file-bytes" and "Authorization" not in put["headers"]
+    posts = [c for c in http.calls if c["method"] == "POST" and c["url"].endswith("/messages")]
+    assert len(posts) == 1
+    assert posts[0]["body"]["attachments"] == [{"id": "0", "filename": "a.txt", "uploaded_filename": "up-0/a.txt"}]
+
+
+@pytest.mark.parametrize("routes", [
+    upload_routes(None, put_status=403),
+    upload_routes(None, url="https://evil.example.com/upload"),
+])
+def test_upload_failures_are_not_sent_and_post_nothing(routes):
+    conn = store.connect(write=True)
+    seeded_dm(conn)
+    routes[("POST", f"/channels/{DM1}/messages")] = lambda p, b: pytest.fail("message posted")
+    http = UploadHttp(routes)
+    plan = {"nonce": "n1", "channel": DM1, "text": "x", "reply_to": None, "files": outbox_file()}
+    result = engine.send(conn, plan, lambda: client(http, conn))
+    assert result["outcome"] == "not_sent" and engine.ledger_status(conn, "n1")["status"] == "not_sent"
+    assert not [c for c in http.calls if c["method"] == "PUT" and "evil" in c["url"]]
+
+
+def test_attachments_are_read_only_from_the_outbox(tmp_path):
+    elsewhere = tmp_path / "secret.txt"
+    elsewhere.write_text("x")
+    with pytest.raises(engine.EngineError, match="outbox"):
+        engine.outbox_files([{"path": str(elsewhere), "name": "secret.txt"}])
+    with pytest.raises(engine.EngineError, match="outbox"):
+        engine.outbox_files([{"path": str(store.state_dir() / "outbox" / ".." / "mirror.db"), "name": "m"}])

@@ -113,10 +113,45 @@ counting as 10. A change applies on the next run, with no restart.
 
 ## Send
 
-`send` is the only write to Discord: text only (at most 2000 characters), to a
-channel the mirror knows — an existing DM or group DM, or a server channel
-listed before. New DMs cannot be opened, names are refused, and a `reply_to`
-must be a message of that channel already in the mirror.
+`send` is the only write to Discord: text (at most 2000 characters) and up to
+10 files, to a channel the mirror knows — an existing DM or group DM, or a
+server channel listed before. New DMs cannot be opened, names are refused, and
+a `reply_to` must be a message of that channel already in the mirror.
+
+- **Files come from the attach roots only**: `discord_access.attach_roots` in
+  the profile's `config.yaml`, default `~/Workspaces`, with a relative path
+  taken from the first root. Each must resolve (symlinks followed) to a regular
+  file inside a root and outside the state directory, be non-empty and at most
+  10 MB (the limit without Nitro). Credentials, keys and local databases are
+  refused whatever the root: `.env*`, `*.pem`, `*.key`, `id_*` keys, `*.db`,
+  `*.sqlite`, `*.keychain*` and anything with `.git`, `.ssh`, `.gnupg`,
+  `.aws`, `.config` or `Keychains` anywhere in its real path, compared without
+  case. A message may be files alone.
+- **The approved bytes are the sent bytes.** For each call, the approval hook
+  and a second `pre_tool_call` hook (`bind`) share one snapshot, made by
+  whichever runs first and keyed by the session, task and tool-call ids; the
+  second hook gets it only for the same request as written (channel, text,
+  reply and the paths as given, never re-resolved), else nothing. The
+  files are copied into a fresh `outbox/<random token>/` in the state
+  directory and hashed into the card's rule key. Each file is copied through
+  its opened descriptor, and the path that descriptor really points to is
+  checked against the roots and the refusal list again, so a file swapped for
+  a symlink after validation is refused. `bind` returns a `modify` that hands
+  the handler the token. The handler takes the snapshot once (an atomic
+  rename), checks that the text, reply and requested paths match the approved
+  request and that the hashes still hold, sends only those copies, and
+  deletes them. The originals may change or disappear after approval without
+  affecting the send. A caller-supplied token is blocked, a call without an
+  id cannot attach files, a token never names another snapshot, and copies
+  left by a denied card expire after a day. Hard links cannot be told apart
+  from ordinary files; the roots, not the names, are the boundary.
+- **Uploads come first.** The engine reserves upload URLs
+  (`POST /channels/{id}/attachments`) and PUTs each copy to the signed Google
+  Cloud Storage URL Discord returns, without the token, as the web client does;
+  a URL on any other host is refused. Uploads share a 10-minute budget; the
+  plugin waits 14 minutes for any send with files. Nothing here creates a message, so
+  a failed or slow upload reads `not sent`. The message POST then carries the uploaded
+  names.
 
 - **Every send asks first.** The hook sends it through Hermes' approval gate,
   as whatsapp-access does. The card, built from the mirror without a request:
@@ -126,6 +161,7 @@ must be a message of that channel already in the mirror.
   To: DM with <name> (@<handle>)  |  group DM … | #<channel> in <server>
   Channel id: <id>
   Reply to: <sender>: <quoted text>
+  Files (2): docs/report.pdf (1.2 MB), photo.png (340.0 KB)
   Pings: @everyone
 
   <message text>
@@ -134,8 +170,10 @@ must be a message of that channel already in the mirror.
   `Pings` appears only when the text holds `@everyone`, `@here` or a role
   mention. Names and quotes are collapsed to one line and hidden characters
   are spelled out; the text is cut on the card past about 350 characters and
-  the rest counted. The allowlist key hashes the channel, text and reply, so
-  "session" or "always" only ever repeats that identical message.
+  the rest counted. `Files` names each file by its path under its root, clipped
+  to about 160 characters with the rest counted. The allowlist key hashes the
+  channel, text, reply and file contents, so "session" or "always" only ever
+  repeats that identical message.
 - **One POST, idempotent.** The plugin draws a fresh nonce per send; the
   engine records it in the `sends` ledger as `pending`, then `dispatching`,
   and POSTs once with `enforce_nonce`, so Discord returns the original message
@@ -148,8 +186,8 @@ must be a message of that channel already in the mirror.
   `UNCERTAIN: …`, always. Discord's history does not carry the nonce, so a
   message with the same text could be one the user typed. The engine reads
   the channel's newest 10 messages once and adds what it saw to the detail:
-  the ids of the user's messages with this exact text and reply target,
-  created after the POST began (2 s clock allowance). That is a hint for the
+  the ids of the user's messages with this exact text, reply target and number
+  of attachments, created after the POST began (2 s clock allowance). That is a hint for the
   Assistant to check with the user, never a conclusion. If the engine dies or
   hangs, the
   plugin judges by the ledger: never dispatched is not sent, anything past
@@ -160,8 +198,8 @@ must be a message of that channel already in the mirror.
 ## Ways around the tool
 
 The same hook blocks terminal calls that name the state directory
-(`hermes-discord`), the token or its Keychain scope (`DISCORD_USER_TOKEN`,
-`discord-user`), the plugin (`discord-access`) or the raw API
+(`hermes-discord`, the outbox included), the token or its Keychain scope
+(`DISCORD_USER_TOKEN`, `discord-user`), the plugin (`discord-access`) or the raw API
 (`discord.com/api`), and file-tool calls on the state directory, the token
 name or the engine venv; the plugin's source stays readable. It is a pattern
 match on the call's text, not a sandbox: the approval gate is a guarantee for

@@ -10,9 +10,10 @@ or logged.
 
 Commands: whoami, guilds, channels, channel, messages, backfill, sync, send. Requests carry the
 Discord web client's headers on a Chrome/macOS identity, are paced, and wait out short rate
-limits only for reads. ``send`` makes exactly one POST with ``nonce`` + ``enforce_nonce`` and
-never retries; its outcome is sent / not_sent / uncertain, recorded in the ``sends`` ledger
-before and after dispatch. Contract: docs/discord-access.md.
+limits only for reads. ``send`` makes exactly one message POST with ``nonce`` + ``enforce_nonce``
+and never retries it; attachments are uploaded first (Discord's cloud upload, as the web client
+does), which creates no message. Its outcome is sent / not_sent / uncertain, recorded in the
+``sends`` ledger before and after dispatch. Contract: docs/discord-access.md.
 """
 
 from __future__ import annotations
@@ -59,6 +60,12 @@ SEED_COUNT = 50              # newest messages taken when a channel is first fol
 SEED_PER_RUN = 15
 SEED_DAYS = 30               # older-looking DMs are followed from now on; history via backfill
 BACKFILL_PAGES = (2, 5)
+
+# Attachments: Discord's cloud upload. The upload URL is a signed Google Cloud Storage URL; the
+# token never goes there, and files are only ever read from the plugin's approved outbox.
+UPLOAD_TIMEOUT = 120
+UPLOAD_BUDGET = 600          # all uploads of one send; the plugin waits 840 s for the whole send
+UPLOAD_HOST = re.compile(r"^[a-z0-9-]+\.storage\.googleapis\.com$")
 
 # curl error codes raised before a request can have left the machine.
 NOT_DISPATCHED_CURL = {5, 6, 7, 35, 58, 60, 77, 83}
@@ -142,12 +149,15 @@ class Http:
         self.user_agent = (f"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
                            f"(KHTML, like Gecko) Chrome/{version}.0.0.0 Safari/537.36")
 
-    def request(self, method: str, url: str, *, headers=None, params=None, body=None, timeout=REQUEST_TIMEOUT):
-        """(status, headers, parsed JSON or text). Raises TransportError below HTTP."""
+    def request(self, method: str, url: str, *, headers=None, params=None, body=None, data=None,
+                timeout=REQUEST_TIMEOUT):
+        """(status, headers, parsed JSON or text). ``body`` is sent as JSON, ``data`` as raw bytes.
+        Raises TransportError below HTTP."""
         from curl_cffi import CurlError
+        if body is not None:
+            data = json.dumps(body, separators=(",", ":"))
         try:
-            resp = self.session.request(method, url, headers=headers, params=params,
-                                        data=None if body is None else json.dumps(body, separators=(",", ":")),
+            resp = self.session.request(method, url, headers=headers, params=params, data=data,
                                         timeout=timeout, allow_redirects=False)
         except CurlError as exc:
             code = getattr(exc, "code", None)
@@ -603,9 +613,71 @@ def _ledger(conn, nonce: str, status: str, message_id=None, detail=None) -> None
     conn.commit()
 
 
+def outbox_files(files) -> list[dict]:
+    """The approved snapshots to attach: regular files inside the state's outbox, nothing else."""
+    if not files:
+        return []
+    if not isinstance(files, list) or len(files) > 10:
+        raise EngineError("usage", "files must be a list of at most 10 outbox files")
+    outbox = (store.state_dir() / "outbox").resolve()
+    out = []
+    for f in files:
+        if not isinstance(f, dict) or not isinstance(f.get("path"), str) or not isinstance(f.get("name"), str):
+            raise EngineError("usage", "each file needs path and name")
+        path = Path(f["path"]).resolve()
+        if outbox not in path.parents or not path.is_file():
+            raise EngineError("usage", "attachments are read only from the approved outbox")
+        out.append({"path": path, "name": f["name"], "size": path.stat().st_size})
+    return out
+
+
+def _upload(conn, client: Client, cid: int, files: list[dict]) -> list[dict]:
+    """Reserve upload URLs and PUT each file there; the attachments entry for the message.
+    Nothing here creates a message, so any failure means not sent."""
+    referer = _referer(conn, cid)
+    client._pace()
+    client.requests += 1
+    status, headers, payload = client.http.request(
+        "POST", f"{API}/channels/{cid}/attachments", timeout=REQUEST_TIMEOUT,
+        headers=client.headers(referer=referer, json_body=True),
+        body={"files": [{"id": str(i), "filename": f["name"], "file_size": f["size"]} for i, f in enumerate(files)]})
+    if not (200 <= status < 300 and isinstance(payload, dict) and isinstance(payload.get("attachments"), list)):
+        raise client._http_error(status, headers, payload)
+    slots = {str(a.get("id")): a for a in payload["attachments"] if isinstance(a, dict)}
+    deadline = time.monotonic() + UPLOAD_BUDGET
+    attachments = []
+    for i, f in enumerate(files):
+        slot = slots.get(str(i)) or {}
+        url, uploaded = slot.get("upload_url"), slot.get("upload_filename")
+        host = re.match(r"^https://([^/]+)/", url or "")
+        if not uploaded or not host or not UPLOAD_HOST.match(host.group(1)):
+            raise EngineError("http", "Discord returned no usable upload URL")
+        data = f["path"].read_bytes()
+        if len(data) != f["size"]:
+            raise EngineError("usage", f"{f['name']} changed while it was being sent")
+        put_headers = {"Accept": "*/*", "Content-Type": "", "Origin": WEB, "Referer": f"{WEB}{referer}",
+                       "User-Agent": client.http.user_agent, "Sec-Fetch-Dest": "empty", "Sec-Fetch-Mode": "cors",
+                       "Sec-Fetch-Site": "cross-site"}
+        remaining = deadline - time.monotonic()
+        if remaining < 10:
+            raise EngineError("upload", "the uploads took too long; nothing was sent")
+        client._pace()
+        client.requests += 1
+        try:
+            status, _, answer = client.http.request("PUT", url, data=data, headers=put_headers,
+                                                    timeout=min(UPLOAD_TIMEOUT, remaining))
+        except TransportError as exc:
+            raise EngineError("network", f"uploading {f['name']} failed: {client._scrub(str(exc))}") from exc
+        if not 200 <= status < 300:
+            raise EngineError("http", f"uploading {f['name']} failed: storage answered {status}")
+        attachments.append({"id": str(i), "filename": f["name"], "uploaded_filename": uploaded})
+    return attachments
+
+
 def send(conn, plan: dict, client_factory) -> dict:
-    """Exactly one POST. Outcome: sent (with the message id), not_sent (Discord or the network
-    refused before anything was created), or uncertain (it may exist; a read-back looks once)."""
+    """Exactly one message POST. Outcome: sent (with the message id), not_sent (Discord or the
+    network refused before anything was created), or uncertain (it may exist; a read-back looks
+    once)."""
     nonce, cid, text = plan["nonce"], int(plan["channel"]), plan["text"]
     reply_to = int(plan["reply_to"]) if plan.get("reply_to") else None
     if ledger_status(conn, nonce):
@@ -614,6 +686,7 @@ def send(conn, plan: dict, client_factory) -> dict:
                  (nonce, cid, text_hash(text), reply_to, _now(), "pending"))
     conn.commit()
     try:
+        files = outbox_files(plan.get("files"))
         client = client_factory()
     except EngineError as exc:
         _ledger(conn, nonce, "not_sent", detail=str(exc))
@@ -628,6 +701,13 @@ def send(conn, plan: dict, client_factory) -> dict:
             ref["guild_id"] = str(guild_id)
         body["message_reference"] = ref
         body["allowed_mentions"] = {"parse": ["users", "roles", "everyone"], "replied_user": False}
+    if files:
+        try:
+            body["attachments"] = _upload(conn, client, cid, files)
+        except (EngineError, TransportError, OSError) as exc:
+            detail = client._scrub(str(exc))
+            _ledger(conn, nonce, "not_sent", detail=detail)
+            return {"outcome": "not_sent", "detail": detail, "kind": getattr(exc, "kind", "upload")}
     _ledger(conn, nonce, "dispatching")
     client._pace()
     client.requests += 1
@@ -663,6 +743,8 @@ def _looks_like(m: dict, plan: dict, me_id, floor: int) -> bool:
     if str((m.get("author") or {}).get("id")) != str(me_id) or m.get("content") != plan["text"]:
         return False
     if int(m["id"]) < floor:
+        return False
+    if len(m.get("attachments") or []) != len(plan.get("files") or []):
         return False
     ref = (m.get("message_reference") or {}).get("message_id")
     if plan.get("reply_to"):
@@ -713,9 +795,10 @@ def run(command: str, args: dict, *, http=None, token=None) -> dict:
 
         if command == "send":
             plan = {"nonce": _arg(args, "nonce", snowflake=False), "channel": _arg(args, "channel"),
-                    "text": args.get("text"), "reply_to": _arg(args, "reply_to", required=False)}
-            if not isinstance(plan["text"], str) or not plan["text"].strip():
-                raise EngineError("usage", "text is required")
+                    "text": args.get("text") or "", "reply_to": _arg(args, "reply_to", required=False),
+                    "files": args.get("files") or []}
+            if not isinstance(plan["text"], str) or not (plan["text"].strip() or plan["files"]):
+                raise EngineError("usage", "text or files are required")
             return send(conn, plan, make_client)
         if command == "sync":
             lock = open(store.state_dir() / "sync.lock", "a")

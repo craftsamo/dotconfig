@@ -286,3 +286,185 @@ def test_removed_or_stale_channels_are_not_labelled_synced(monkeypatch):
     conn.commit()
     conn.close()
     assert "synced" not in access.execute({"action": "channels", "guild": G})["channels"][0]
+
+
+# --- attachments --------------------------------------------------------------------------------
+
+@pytest.fixture
+def ws(tmp_path, monkeypatch):
+    root = tmp_path / "Workspaces"
+    (root / "docs").mkdir(parents=True)
+    (root / "docs" / "report.txt").write_text("v1 report")
+    monkeypatch.setattr(access, "DEFAULT_ATTACH_ROOT", root)
+    access._PENDING.clear()
+    return root
+
+
+def ids(call="c1", session="s1"):
+    return {"session_id": session, "task_id": "t1", "tool_call_id": call}
+
+
+def _file_send(ws, **extra):
+    return {"action": "send", "channel": DM1, "text": "資料です", "files": [str(ws / "docs" / "report.txt")], **extra}
+
+
+def approve_and_bind(args, call="c1", session="s1"):
+    """What Hermes does for one call: both hooks, then the handler with the modified args."""
+    card, key = access.approval_request(args, ids=ids(call, session))
+    binding = access.outbox_binding(args, ids=ids(call, session))
+    return card, key, {**args, **(binding or {})}
+
+
+def test_attach_roots_come_from_the_profile_config(tmp_path):
+    pytest.importorskip("yaml")  # the runtime has it; the test interpreter may not
+    home = tmp_path / "home"
+    home.mkdir()
+    (home / "config.yaml").write_text("discord_access:\n  attach_roots: [~/Inbox, /tmp/x]\n")
+    assert access.attach_roots(home) == [(Path.home() / "Inbox").resolve(), Path("/tmp/x").resolve()]
+    assert access.attach_roots(None) == [access.DEFAULT_ATTACH_ROOT.resolve()]
+
+
+def test_files_are_checked(ws, tmp_path, monkeypatch):
+    ok = access.attachment_files({"files": ["docs/report.txt"]}, None)
+    assert ok[0]["name"] == "report.txt" and ok[0]["shown"] == "docs/report.txt" and ok[0]["size"] == 9
+    outside = tmp_path / "outside.txt"
+    outside.write_text("x")
+    (ws / "link.txt").symlink_to(outside)
+    for name in (".env", "id_ed25519", "budget.db", "cert.pem"):
+        (ws / name).write_text("secret")
+    for folder in (".git", ".GIT2", ".SSH"):
+        (ws / folder).mkdir()
+        (ws / folder / "config").write_text("x")
+    (ws / "empty.txt").write_text("")
+    cases = {str(outside): "outside", "link.txt": "outside", ".env": "credential", "id_ed25519": "credential",
+             "budget.db": "database", "cert.pem": "credential", ".git/config": "credential",
+             ".SSH/config": "credential", "empty.txt": "empty", "missing.txt": "no such file",
+             "docs": "regular file"}
+    for given, phrase in cases.items():
+        with pytest.raises(access.DiscordError, match=phrase):
+            access.attachment_files({"files": [given]}, None)
+    assert access.attachment_files({"files": [".GIT2/config"]}, None)  # only the real names are refused
+    with pytest.raises(access.DiscordError, match="at most 10"):
+        access.attachment_files({"files": ["docs/report.txt"] * 11}, None)
+    monkeypatch.setattr(access, "FILE_LIMIT", 4)
+    with pytest.raises(access.DiscordError, match="at most"):
+        access.attachment_files({"files": ["docs/report.txt"]}, None)
+
+
+def test_the_card_lists_files_and_the_key_binds_their_contents(ws):
+    card, key, _ = approve_and_bind(_file_send(ws), call="c1")
+    assert "Files (1): docs/report.txt (9 B)" in card and card.endswith("資料です")
+    (ws / "docs" / "report.txt").write_text("v2 report")
+    assert approve_and_bind(_file_send(ws), call="c2")[1] != key
+    files_only = approve_and_bind(_file_send(ws, text=""), call="c3")[0]
+    assert files_only.endswith("(no text: files only)")
+
+
+def test_a_card_with_ten_long_names_still_fits(ws):
+    names = []
+    for i in range(10):
+        name = f"とても長いファイル名の資料_{i}_" + "x" * 60 + ".pdf"
+        (ws / name).write_text("data")
+        names.append(str(ws / name))
+    card = approve_and_bind({"action": "send", "channel": DM1, "text": "本文", "files": names})[0]
+    assert "Files (10):" in card and "more)" in card and access._units(card) <= access.CARD_LIMIT
+
+
+def _recording_engine(monkeypatch):
+    sent = []
+
+    def engine(command, args, timeout=None):
+        sent.append({**args, "contents": [Path(f["path"]).read_text() for f in args["files"]]})
+        return {"outcome": "sent", "message_id": "1"}
+    monkeypatch.setattr(access, "call_engine", engine)
+    return sent
+
+
+def test_exactly_the_approved_bytes_are_sent_even_if_the_original_goes(ws, monkeypatch):
+    sent = _recording_engine(monkeypatch)
+    _, _, call = approve_and_bind(_file_send(ws))
+    (ws / "docs" / "report.txt").unlink()
+    result = access.execute(call)
+    assert result["ok"] is True and result["files"] == ["report.txt"]
+    assert sent[0]["contents"] == ["v1 report"] and sent[0]["files"][0]["name"] == "report.txt"
+    assert list(access._outbox().iterdir()) == []
+    again = access.execute(call)                                   # single use
+    assert again["ok"] is False and "already sent" in again["error"] and len(sent) == 1
+
+
+def test_both_hooks_share_one_snapshot_in_either_order(ws):
+    args = _file_send(ws)
+    binding = access.outbox_binding(args, ids=ids())
+    (ws / "docs" / "report.txt").write_text("changed between the hooks")
+    card, _ = access.approval_request(args, ids=ids())
+    assert "(9 B)" in card and len(list(access._outbox().iterdir())) == 1
+    assert access._PENDING == {}
+    assert binding["_outbox"] == next(access._outbox().iterdir()).name
+
+
+def test_a_reused_call_id_never_replaces_an_approved_snapshot(ws, monkeypatch):
+    sent = _recording_engine(monkeypatch)
+    _, _, first = approve_and_bind(_file_send(ws), call="same", session="a")
+    (ws / "docs" / "report.txt").write_text("v2 report")
+    _, _, second = approve_and_bind(_file_send(ws), call="same", session="a")
+    assert first["_outbox"] != second["_outbox"]
+    access.execute(first)
+    access.execute(second)
+    assert [s["contents"] for s in sent] == [["v1 report"], ["v2 report"]]
+
+
+def test_a_file_swapped_for_a_symlink_before_the_copy_is_refused(ws, tmp_path, monkeypatch):
+    secret = tmp_path / "id_secret.txt"
+    secret.write_text("credential")
+    report = ws / "docs" / "report.txt"
+    real_files = access.attachment_files
+
+    def swap(args, home):
+        found = real_files(args, home)
+        report.unlink()
+        report.symlink_to(secret)
+        return found
+    monkeypatch.setattr(access, "attachment_files", swap)
+    with pytest.raises((access.DiscordError, OSError)):
+        access.approval_request(_file_send(ws), ids=ids())
+    assert list(access._outbox().iterdir()) == []
+
+
+@pytest.mark.parametrize("change", ["text", "forged", "unapproved", "no-call-id"])
+def test_file_sends_fail_closed(ws, monkeypatch, change):
+    monkeypatch.setattr(access, "call_engine", lambda *a, **k: pytest.fail("engine called"))
+    args = _file_send(ws)
+    if change == "no-call-id":
+        with pytest.raises(access.DiscordError, match="tool call id"):
+            access.approval_request(args, ids={})
+        assert access.outbox_binding(args, ids={}) is None
+        return
+    call = {**args, "_outbox": "0" * 32} if change in ("forged", "unapproved") else approve_and_bind(args)[2]
+    if change == "text":
+        call = {**call, "text": "別の本文"}
+    result = access.execute(call)
+    assert result["ok"] is False and result["error"].startswith("not sent:")
+    with pytest.raises(access.DiscordError, match="_outbox"):
+        access.approval_request({**args, "_outbox": "0" * 32}, ids=ids())
+
+
+def test_a_link_retargeted_between_the_hooks_still_sends_the_approved_file(ws, monkeypatch):
+    sent = _recording_engine(monkeypatch)
+    (ws / "other.txt").write_text("other file")
+    link = ws / "current.txt"
+    link.symlink_to(ws / "docs" / "report.txt")
+    args = {"action": "send", "channel": DM1, "text": "x", "files": ["current.txt"]}
+    card, _ = access.approval_request(args, ids=ids())
+    link.unlink()
+    link.symlink_to(ws / "other.txt")
+    binding = access.outbox_binding(args, ids=ids())
+    assert binding and len(list(access._outbox().iterdir())) == 1
+    link.unlink()                                                    # gone after approval, too
+    assert access.execute({**args, **binding})["ok"] is True
+    assert sent[0]["contents"] == ["v1 report"] and "(9 B)" in card
+
+
+def test_a_changed_request_between_the_hooks_gets_nothing(ws):
+    args = _file_send(ws)
+    access.approval_request(args, ids=ids())
+    assert access.outbox_binding({**args, "text": "別の本文"}, ids=ids()) is None
