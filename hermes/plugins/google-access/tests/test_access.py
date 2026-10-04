@@ -850,3 +850,42 @@ def test_a_failed_guard_read_writes_nothing(tmp_path, monkeypatch, action, extra
     with pytest.raises(access.AccessError):
         access.sheets(tmp_path, args)
     assert getattr(values, call).call_count == 0
+
+
+# --- info: tab details ----------------------------------------------------------------------------
+
+@pytest.mark.parametrize("grid,text", [
+    ({}, ""), ({"startColumnIndex": 1, "endColumnIndex": 4}, "B:D"), ({"startRowIndex": 2, "endRowIndex": 5}, "3:5"),
+    ({"endRowIndex": 1, "endColumnIndex": 3}, "A1:C1"),
+    ({"startRowIndex": 1, "startColumnIndex": 0, "endColumnIndex": 3}, "A2:C")])
+def test_grid_ranges_read_back_as_a1(grid, text):
+    assert access._a1(grid) == text
+
+
+def test_info_lists_merges_tables_and_rules(tmp_path, monkeypatch):
+    api = mock.MagicMock()
+    api.spreadsheets().get().execute.return_value = {"properties": {"title": "Plan"}, "sheets": [dict(
+        properties={"sheetId": 7, "title": "Tasks", "gridProperties": {
+            "rowCount": 100, "columnCount": 8, "frozenRowCount": 1}},
+        tables=[{"tableId": "t1", "name": "Todo", "range": {"sheetId": 7, "startRowIndex": 0, "endRowIndex": 5,
+                                                            "startColumnIndex": 1, "endColumnIndex": 4},
+                 "columnProperties": [
+                     {"columnName": "Task"},
+                     {"columnIndex": 1, "columnName": "State", "columnType": "DROPDOWN", "dataValidationRule": {
+                         "condition": {"type": "ONE_OF_LIST", "values": [{"userEnteredValue": "Open"}]}}},
+                     {"columnIndex": 2, "columnName": "Due", "columnType": "DATE"}]}],
+        merges=[{"sheetId": 7, "endRowIndex": 1, "endColumnIndex": 2}],
+        conditionalFormats=[
+            {"ranges": [{"sheetId": 7, "startRowIndex": 1, "startColumnIndex": 3, "endColumnIndex": 4}],
+             "booleanRule": {"condition": {"type": "NUMBER_GREATER", "values": [{"userEnteredValue": "10"}]}}},
+            {"ranges": [{"sheetId": 7, "startColumnIndex": 1, "endColumnIndex": 2}], "gradientRule": {}}])]}
+    services(monkeypatch, sheets=api)
+    sheet = access.sheets(tmp_path, {"action": "info", "spreadsheet_id": SID})["sheets"][0]
+    assert api.spreadsheets().get.call_args.kwargs["fields"] == access.INFO_FIELDS
+    assert sheet["gridProperties"]["frozenRowCount"] == 1 and sheet["merges"] == ["A1:B1"]
+    assert sheet["tables"] == [{"table_id": "t1", "name": "Todo", "range": "B1:D5", "columns": [
+        {"column": "B", "name": "Task", "type": "TEXT"},
+        {"column": "C", "name": "State", "type": "DROPDOWN", "options": ["Open"]},
+        {"column": "D", "name": "Due", "type": "DATE"}]}]
+    assert sheet["conditional_rules"] == [{"index": 0, "ranges": ["D2:D"], "rule": "NUMBER_GREATER 10"},
+                                          {"index": 1, "ranges": ["B:B"], "rule": "colour scale"}]
