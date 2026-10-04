@@ -28,10 +28,14 @@
     <string>--refresh-groups</string>
   </array>
 
+  <!-- Delegated file sends are read by this agent: only the whatsapp-access outbox, where the
+       plugin freezes the files a user approved, may be uploaded. -->
   <key>EnvironmentVariables</key>
   <dict>
     <key>PATH</key>
     <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    <key>WACLI_MEDIA_ROOTS</key>
+    <string>__OUTBOX__</string>
   </dict>
 
   <key>RunAtLoad</key>
