@@ -2028,3 +2028,115 @@ def test_type_and_header_changes_keep_the_chart_sources():
     assert basic["chartType"] == "BAR" and basic["headerCount"] == 0
     assert [s["series"]["sourceRange"]["sources"][0]["startColumnIndex"] for s in basic["series"]] == [3]
     assert basic["series"][0]["targetAxis"] == "BOTTOM_AXIS"
+
+
+# --- protected ranges -----------------------------------------------------------------------------
+
+PROTECTED = {"sheets": [
+    {"properties": {"title": "Main"}},
+    {"properties": {"sheetId": 7, "title": "Tasks"}, "protectedRanges": [
+        {"protectedRangeId": 41, "description": "Header",
+         "range": {"sheetId": 7, "startRowIndex": 0, "endRowIndex": 1, "startColumnIndex": 0, "endColumnIndex": 4}}]}]}
+
+
+def protect(*ops):
+    return {"action": "protect", "spreadsheet_id": SID, "ops": list(ops)}
+
+
+def protect_requests(*ops):
+    return access._protect_requests(access._ops(protect(*ops), "protect"), PROTECTED)
+
+
+def test_protections_become_requests():
+    cells, tab, warn = protect_requests(
+        {"op": "protect", "range": "Tasks!A1:D1", "label": "Header"},
+        {"op": "protect", "range": "Tasks", "except": ["B2:B20"], "editors": ["ann@example.com", "ANN@example.com"]},
+        {"op": "protect", "range": "Main!C:C", "warning_only": True})
+    assert cells == {"addProtectedRange": {"protectedRange": {
+        "range": {"sheetId": 7, "startColumnIndex": 0, "endColumnIndex": 4, "startRowIndex": 0, "endRowIndex": 1},
+        "description": "Header", "warningOnly": False}}}
+    whole = tab["addProtectedRange"]["protectedRange"]
+    assert whole["range"] == {"sheetId": 7} and whole["editors"] == {"users": ["ann@example.com"]}
+    assert whole["unprotectedRanges"] == [{"sheetId": 7, "startColumnIndex": 1, "endColumnIndex": 2,
+                                           "startRowIndex": 1, "endRowIndex": 20}]
+    assert warn["addProtectedRange"]["protectedRange"]["warningOnly"] is True
+
+
+def test_protection_changes_and_removal():
+    moved, warned, gone = protect_requests(
+        {"op": "protect_update", "protection": "header", "range": "A1:E1", "editors": []},
+        {"op": "protect_update", "protection": "41", "warning_only": True},
+        {"op": "protect_delete", "protection": "Header"})
+    update = moved["updateProtectedRange"]
+    assert update["fields"] == "range,warningOnly,editors" and update["protectedRange"]["protectedRangeId"] == 41
+    assert update["protectedRange"]["range"]["sheetId"] == 7  # a range without a tab stays on its tab
+    assert update["protectedRange"]["editors"] == {"users": []}
+    assert warned["updateProtectedRange"]["fields"] == "warningOnly"
+    assert gone == {"deleteProtectedRange": {"protectedRangeId": 41}}
+    with pytest.raises(access.AccessError, match="no single protection"):
+        protect_requests({"op": "protect_delete", "protection": "Header"}, {"op": "protect_delete", "protection": "41"})
+    with pytest.raises(access.AccessError, match="whole tab"):
+        protect_requests({"op": "protect_update", "protection": "Header", "except": ["B2"]})
+
+
+def test_every_protect_call_asks_and_names_every_editor(monkeypatch):
+    context(monkeypatch, title="Plan", names=["Main", "Tasks"])
+    editors = [f"person{i}@example.com" for i in range(1, 6)]
+    reason, key = access.approval_request("google_sheets", protect(
+        {"op": "protect", "range": "Tasks", "except": ["B2:B9"], "editors": editors}), home=Path("/x"))
+    assert "sheets-edit" not in key
+    assert reason.split("\n") == ["SpreadSheet: Plan", "Sheet: Tasks", "",
+                                  f"Protect whole tab: editable only by you, the file's owner, {', '.join(editors)}; except B2:B9"]
+    lines = access.approval_request("google_sheets", protect(
+        {"op": "protect_update", "protection": "Header", "range": "A1:E1", "warning_only": True},
+        {"op": "protect_delete", "protection": "Old"}), home=Path("/x"))[0].split("\n")
+    assert lines[2:] == ['Change protection "Header": anyone who can edit the file may edit after a warning; '
+                         "range A1:E1 on its tab",
+                         'Remove protection "Old" (any other protection over those cells still applies)']
+    long = [f"someone.with.a.long.name{i}@example-company.com" for i in range(10)]
+    with pytest.raises(access.AccessError, match="every editor"):
+        access.approval_request("google_sheets", protect({"op": "protect", "range": "Tasks!A1", "editors": long}))
+
+
+@pytest.mark.parametrize("op,message", [
+    ({"op": "protect", "range": "A1:B2", "editors": ["not an address"]}, "not an email"),
+    ({"op": "protect", "range": "A1:B2", "editors": [f"p{i}@x.com" for i in range(11)]}, "up to 10"),
+    ({"op": "protect", "range": "A1:B2", "warning_only": True, "editors": ["a@x.com"]}, "no editors"),
+    ({"op": "protect", "range": "Tasks!A1:B2", "except": ["A1"]}, "whole tab"),
+    ({"op": "protect", "range": "Tasks", "except": ["Main!A1"]}, "on the protected tab"),
+    ({"op": "protect_update", "protection": "Header"}, "give range"),
+    ({"op": "protect_update", "protection": "Header", "warning_only": False}, "needs editors"),
+    ({"op": "protect", "range": "A1", "description": "x"}, "unknown field")])
+def test_malformed_protect_ops_are_refused(op, message):
+    with pytest.raises(access.AccessError, match=message):
+        access.approval_request("google_sheets", protect(op))
+
+
+def test_info_lists_protections():
+    sheet = access._sheet_info({"properties": {"sheetId": 7, "title": "Tasks"}, "protectedRanges": [
+        {"protectedRangeId": 41, "range": {"sheetId": 7}, "description": "All", "editors": {"users": ["me@x.com"]},
+         "unprotectedRanges": [{"sheetId": 7, "startRowIndex": 1, "endRowIndex": 9, "startColumnIndex": 1,
+                                "endColumnIndex": 2}]}]})
+    assert sheet["protections"] == [{"protection_id": 41, "range": "whole tab", "label": "All", "warning_only": False,
+                                     "editors": ["me@x.com"], "except": ["B2:B9"]}]
+
+
+def test_protection_updates_resolve_exceptions_and_editors():
+    tab = {"sheets": [{"properties": {"title": "Main"}}, {"properties": {"sheetId": 7, "title": "Tasks"},
+                       "protectedRanges": [{"protectedRangeId": 42, "description": "All", "range": {"sheetId": 7}}]}]}
+    qualified, editors = access._protect_requests(access._ops(protect(
+        {"op": "protect_update", "protection": "All", "except": ["Tasks!B2:B20"]},
+        {"op": "protect_update", "protection": "All", "editors": ["ann@example.com"]}), "protect"), tab)
+    assert qualified["updateProtectedRange"]["protectedRange"]["unprotectedRanges"][0]["sheetId"] == 7
+    # Editors only count on a blocking protection, so naming them ends a warning-only one.
+    assert editors["updateProtectedRange"]["fields"] == "warningOnly,editors"
+    with pytest.raises(access.AccessError, match="on the protected tab"):
+        access._protect_requests(access._ops(protect(
+            {"op": "protect_update", "protection": "All", "except": ["Main!B2"]}), "protect"), tab)
+
+
+def test_a_card_hermes_would_mask_is_refused(monkeypatch):
+    monkeypatch.setattr(access, "_redacted", lambda text: text.replace("sk-alex", "***"))
+    with pytest.raises(access.AccessError, match="looks like a secret"):
+        access.approval_request("google_sheets", protect(
+            {"op": "protect", "range": "A1", "editors": ["sk-alex123@example.com"]}))
