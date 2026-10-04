@@ -42,17 +42,109 @@ SHEETS_DESCRIPTION = (
     "notation, e.g. 'Sheet1!A1:D20'; unformatted=true for raw numbers), update (range + values: "
     "overwrite), batch_update (data = [{range, values}, …], up to 500 ranges in one call), append "
     "(range + values: add rows after the table), clear (range), create (title, optional "
-    "sheet_names), add_sheet (spreadsheet_id + title: a new tab). values are rows of cells; they "
+    "sheet_names), add_sheet (spreadsheet_id + title: a new tab), layout (ops: formatting, "
+    "sizes, rows/columns, merges, freezing, tables, conditional formatting and input rules; see "
+    "ops). values are rows of cells; they "
     "are typed as in the UI (formulas work) unless raw=true. Write many rows or scattered cells "
-    "in one batch_update or one multi-row update, never one call per row. When writing by row "
-    "number (update, batch_update, clear), pass expect = [{range, value}] with each target row's "
+    "in one batch_update or one multi-row update, never one call per row; likewise put every "
+    "change of one layout task in one layout call (all apply or none). When writing by row "
+    "number (update, batch_update, clear, and a layout that inserts, deletes or moves rows), "
+    "pass expect = [{range, value}] with each target row's "
     "key cell (e.g. the id column) as currently displayed: the write runs only if every expect "
     "cell still holds that value, so a sheet another writer shifted is refused before anything "
     "is written (read the rows again, then retry). "
-    + APPROVAL.format("update, batch_update, append, clear, create, add_sheet") + " "
+    + APPROVAL.format("update, batch_update, append, clear, create, add_sheet, layout") + " "
     "Edits to one spreadsheet are approved once: after the user answers \"session\" or \"always\", "
-    "further edits to that spreadsheet run without asking; clear and create are approved per exact "
-    "call.")
+    "further edits to that spreadsheet run without asking; clear, create and a layout call that "
+    "deletes or moves data (delete, move, merge, table_delete, conditional_delete) are approved "
+    "per exact call, so keep those in their own call.")
+
+LAYOUT_OPS_DESCRIPTION = (
+    "layout: changes applied in order in one batch. Every op names a range in A1 notation "
+    "('Tab!B2:D9', 'Tab!B:D' columns, 'Tab!3:5' rows, 'Tab' whole tab; no tab = first tab), "
+    "except freeze / conditional_delete (sheet = tab name) and table_update / table_delete "
+    "(table = name or id). The same change on scattered places is ONE op with ranges = [...] "
+    "instead of range (format, borders, size, delete, merge, unmerge, conditional, validate, "
+    "validate_clear; up to 500 ranges per call), never one op per cell; size and delete ranges "
+    "are all rows or all columns of one tab, and deletions are applied bottom-up so the row "
+    "numbers you give are the ones read before the call. Colours are '#RRGGBB'. "
+    "format: bold, italic, underline, strikethrough, font_size, font, color (text), background "
+    "('none' clears a colour), align LEFT|CENTER|RIGHT, valign TOP|MIDDLE|BOTTOM, wrap "
+    "OVERFLOW|CLIP|WRAP, number_format TEXT|NUMBER|PERCENT|CURRENCY|DATE|TIME|DATE_TIME|SCIENTIFIC|"
+    "AUTOMATIC with optional pattern (e.g. '¥#,##0', 'yyyy/mm/dd'), reset=true clears all "
+    "formatting first. borders: sides (top, bottom, left, right, inner_horizontal, "
+    "inner_vertical, outer, inner, all; default all), style SOLID|SOLID_MEDIUM|SOLID_THICK|DASHED|"
+    "DOTTED|DOUBLE|NONE, color. size: whole rows or columns, pixels or auto=true (fit to "
+    "contents). insert: empty rows/columns at that position (existing ones shift; inherit=false "
+    "to skip copying the formatting before). delete: rows/columns with their contents. move: "
+    "rows/columns, to = row number or column letter to move in front of, counted before the "
+    "move. merge: merge ALL|ROWS|COLUMNS (only the top-left value stays). unmerge. freeze: rows, "
+    "columns (0 unfreezes). table: a native table over a block whose first row is the header; "
+    "optional name, table_columns [{column: 'C', type TEXT|DOUBLE|CURRENCY|PERCENT|DATE|TIME|"
+    "DATE_TIME|BOOLEAN|DROPDOWN|…_CHIP, name, values = dropdown options}], header_color, band_colors "
+    "[two colours], footer_color. table_update: the same fields plus range (resize); unlisted "
+    "columns keep their settings. table_delete: removes the table AND its contents. "
+    "conditional: when = a condition (NUMBER_GREATER, NUMBER_BETWEEN, TEXT_CONTAINS, TEXT_EQ, "
+    "DATE_BEFORE, BLANK, NOT_BLANK, CUSTOM_FORMULA, …) with values and a style (bold, italic, "
+    "strikethrough, color, background), or scale = 2-3 colours (lowest first) for a "
+    "colour scale; new rules go first. conditional_delete: index from info's conditional_rules. "
+    "validate (the cells' input type): when = BOOLEAN (checkbox), ONE_OF_LIST (dropdown; values "
+    "= options), ONE_OF_RANGE (dropdown; values = ['Tab!A1:A9']), DATE_IS_VALID, NUMBER_BETWEEN, "
+    "TEXT_IS_EMAIL, TEXT_IS_URL, CUSTOM_FORMULA, …; strict (default true) rejects other input, "
+    "help = a hint shown on the cell. validate_clear removes input rules. Date conditions of a "
+    "conditional rule (not an input rule) take TODAY, TOMORROW, YESTERDAY, PAST_WEEK, PAST_MONTH "
+    "or PAST_YEAR as a value. A table_update range without a tab stays on the table's tab; later "
+    "ops in a call see earlier ones (a renamed table goes by its new name).")
+
+_COLOUR = {"type": "string", "description": "'#RRGGBB'"}
+LAYOUT_OP_SCHEMA = {
+    "type": "object", "required": ["op"], "additionalProperties": False,
+    "properties": {
+        "op": {"type": "string", "enum": list(access.LAYOUT_OPS)},
+        "range": {"type": "string", "description": "A1 range: 'Tab!B2:D9', 'Tab!B:D', 'Tab!3:5' or 'Tab'"},
+        "ranges": {"type": "array", "items": {"type": "string"},
+                   "description": "instead of range: several A1 ranges getting the same change"},
+        "sheet": {"type": "string", "description": "freeze / conditional_delete: tab name (default first tab)"},
+        "table": {"type": "string", "description": "table_update / table_delete: table name or id"},
+        "bold": {"type": "boolean"}, "italic": {"type": "boolean"}, "underline": {"type": "boolean"},
+        "strikethrough": {"type": "boolean"},
+        "font_size": {"type": "integer"}, "font": {"type": "string", "description": "font family"},
+        "color": {"type": "string", "description": "text colour (format, conditional) or border colour; "
+                                                    "'none' clears in format"},
+        "background": {"type": "string", "description": "'#RRGGBB'; 'none' clears in format"},
+        "align": {"type": "string", "enum": ["LEFT", "CENTER", "RIGHT"]},
+        "valign": {"type": "string", "enum": ["TOP", "MIDDLE", "BOTTOM"]},
+        "wrap": {"type": "string", "enum": ["OVERFLOW", "CLIP", "WRAP"]},
+        "number_format": {"type": "string", "enum": sorted(access.NUMBER_FORMATS)},
+        "pattern": {"type": "string", "description": "number format pattern, e.g. '#,##0.00' or 'yyyy/mm/dd'"},
+        "reset": {"type": "boolean", "description": "format: clear all formatting first"},
+        "sides": {"type": "array", "items": {"type": "string", "enum": list(access.BORDER_SIDES)}},
+        "style": {"type": "string", "enum": sorted(access.BORDER_STYLES)},
+        "pixels": {"type": "integer", "description": "size: width or height in pixels"},
+        "auto": {"type": "boolean", "description": "size: fit to contents"},
+        "inherit": {"type": "boolean", "description": "insert: copy formatting from before (default true)"},
+        "to": {"type": "string", "description": "move: row number or column letter to move in front of"},
+        "merge": {"type": "string", "enum": ["ALL", "ROWS", "COLUMNS"]},
+        "rows": {"type": "integer", "description": "freeze: rows to freeze (0 = none)"},
+        "columns": {"type": "integer", "description": "freeze: columns to freeze (0 = none)"},
+        "table_columns": {"type": "array", "description": "table / table_update: column settings", "items": {
+            "type": "object", "required": ["column"], "additionalProperties": False, "properties": {
+                "column": {"type": "string", "description": "sheet column letter, e.g. 'C'"},
+                "type": {"type": "string", "enum": sorted(access.COLUMN_TYPES)},
+                "name": {"type": "string", "description": "header text"},
+                "values": {"type": "array", "items": {"type": "string"}, "description": "DROPDOWN options"}}}},
+        "name": {"type": "string", "description": "table name"},
+        "header_color": _COLOUR, "footer_color": _COLOUR,
+        "band_colors": {"type": "array", "items": {"type": "string"}, "description": "two alternating row colours"},
+        "when": {"type": "string", "enum": sorted(access.CONDITIONS)},
+        "values": {"type": "array", "items": {"description": "text or number"},
+                   "description": "condition values, dropdown options or one source range"},
+        "scale": {"type": "array", "items": {"type": "string"}, "description": "conditional: 2-3 colours, lowest first"},
+        "index": {"type": "integer", "description": "conditional_delete: rule number from info"},
+        "strict": {"type": "boolean", "description": "validate: reject other input (default true)"},
+        "dropdown": {"type": "boolean", "description": "validate: show the dropdown arrow (default true)"},
+        "help": {"type": "string", "description": "validate: hint shown on the cell"},
+    }}
 
 GMAIL_DESCRIPTION = (
     "The user's own Gmail. search (query in Gmail search syntax, e.g. 'from:alice newer_than:7d "
@@ -88,11 +180,12 @@ SCHEMAS = {
         "query": {"type": "string", "description": "search: part of the file name"},
         "range": {"type": "string", "description": "A1 range, e.g. 'Sheet1!A1:C10' or 'Sheet1'"},
         "ranges": {"type": "array", "items": {"type": "string"}, "description": "get: several ranges"},
+        "ops": {"type": "array", "description": LAYOUT_OPS_DESCRIPTION, "items": LAYOUT_OP_SCHEMA},
         "values": {"type": "array", "items": {"type": "array", "items": {
                        "description": "a cell: text, number or boolean"}},
                    "description": "update / append: rows of cell values"},
         "expect": {"type": "array", "description": (
-            "update / batch_update / clear: row guards checked right before writing; one cell each, "
+            "update / batch_update / clear / layout: row guards checked right before writing; one cell each, "
             "e.g. {range: 'bp候補!A2534', value: 'bp-2534'}"), "items": {
             "type": "object", "required": ["range", "value"], "additionalProperties": False,
             "properties": {"range": {"type": "string", "description": "one cell in A1 notation"},
