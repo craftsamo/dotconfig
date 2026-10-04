@@ -149,7 +149,7 @@ def test_roles_run_on_hidden_hermes_primaries(fixture, role, installed, auto):
     invocation = json.loads((directory / "invocation.json").read_text())
     assert invocation["args"][invocation["args"].index("--agent") + 1] == installed
     assert ("--auto" in invocation["args"]) is auto
-    assert list(invocation["config"]["agent"]) == [installed]
+    assert list(invocation["config"]["agent"]) == [installed] + (["worker"] if role == "build" else [])
     assert invocation["config"]["agent"][installed]["permission"] == invocation["permission"]
     assert set(plugin.OPENCODE_AGENTS) == plugin.AGENTS
 
@@ -435,6 +435,27 @@ def test_build_denies_what_auto_would_otherwise_approve():
     assert permission["bash"]["git push* main"] == "deny"
     assert permission["bash"]["gh issue create*"] == "deny"
     assert "gh issue create*" not in plugin._permissions("build", "granted", {"main"})["bash"]
+
+
+def test_build_recloses_worker_external_directory(fixture):
+    """worker.md opens worktree homes and asks elsewhere; under --auto that ask
+    is an approval, so build re-denies every outside pattern worker.md names.
+    The injected map wins per key but unions with worker.md's, so a pattern
+    missing from WORKER_EXTERNAL_KEYS would silently stay open."""
+    frontmatter = (AGENT_DIR / "worker.md").read_text().split("---", 2)[1]
+    declared = plugin.yaml.safe_load(frontmatter)["permission"]["external_directory"]
+    assert set(declared) == set(plugin.WORKER_EXTERNAL_KEYS)
+
+    _, directory, _ = fixture
+    assert call(directory, agent="build", approval="Implement")["status"] == "completed"
+    injected = json.loads((directory / "invocation.json").read_text())["config"]["agent"]["worker"]
+    assert list(injected) == ["permission"]
+    rules = injected["permission"]["external_directory"]
+    merged = {**declared, **rules}
+    assert list(merged)[0] == "*"
+    assert {key: merged[key] for key in declared} == dict.fromkeys(declared, "deny")
+    assert external_only_opencode_scratch({"external_directory": {
+        key: action for key, action in merged.items() if key not in declared or key == "*"}})
 
 
 @pytest.mark.parametrize("profile", ["writer", "creator", "marketer", "researcher", "default"])
