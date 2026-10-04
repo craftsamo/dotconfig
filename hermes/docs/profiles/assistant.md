@@ -193,6 +193,16 @@ files — waits for approval on a card naming the chat, every file and the
 text. Contract:
 [discord-access.md](../discord-access.md).
 
+The user's own Telegram account (not the Assistant's Telegram bot, whose
+chats it never shows) is the assistant's alone too (`telegram_access`
+toolset, never on A2A): private chats, bots, basic groups and the supergroups
+and channels on its sync list come from a local mirror that keeps
+disappearing messages (marked expired, files included) and drops messages
+deleted for everyone, other chats are read live through a sync agent that
+alone holds the session, and every send — text and `~/Workspaces` files —
+waits for approval on a card naming the chat, every file and the text.
+Contract: [telegram-access.md](../telegram-access.md).
+
 X is read-only and the assistant's alone (`x_access` toolset, never on A2A):
 it reads as a separate sub-account through twscrape, paced and capped, and
 downloads a post's media; nothing posts or sends. Contract:
