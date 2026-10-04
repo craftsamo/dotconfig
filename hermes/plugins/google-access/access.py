@@ -466,7 +466,8 @@ def sheets(home, args: dict) -> dict:
             {"range": r.get("range"), "values": r.get("values", [])} for r in got.get("valueRanges", [])]}
 
     if action in OP_ACTIONS:
-        meta = _google(lambda: book.get(spreadsheetId=sid, fields=LAYOUT_FIELDS).execute())
+        vocabulary, _, build, fields = OP_SETS[action]
+        meta = _google(lambda: book.get(spreadsheetId=sid, fields=fields).execute())
         titles = {s.get("properties", {}).get("sheetId", 0): s.get("properties", {}).get("title")
                   for s in meta.get("sheets", [])}
 
@@ -488,7 +489,7 @@ def sheets(home, args: dict) -> dict:
             return rows[0][0] if rows and rows[0] else None
 
         # Resolves tabs, tables and views (and reads cells it builds on) before anything is written.
-        requests = OP_SETS[action][2](ops, meta, header, cell)
+        requests = build(ops, meta, header=header, cell=cell)
         _check_expect(values, sid, guards)
         done = _google(lambda: book.batchUpdate(spreadsheetId=sid, body={"requests": requests}).execute())
         replies = [r or {} for r in done.get("replies", [])]
@@ -1621,7 +1622,7 @@ class _Tabs:
         return sheet_id
 
 
-def _layout_requests(ops: list[dict], meta: dict, header=None, cell=None) -> list[dict]:
+def _layout_requests(ops: list[dict], meta: dict, header=None, cell=None, **_) -> list[dict]:
     """batchUpdate requests for validated ops, resolving tab names to sheetIds and table and filter
     view names or ids. A bare word is a tab (named ranges are not resolved); "the first tab" is the
     first one before the call. ``header(grid)`` reads a table range's first row, for the names of
@@ -2170,7 +2171,7 @@ def _normalize_data(name: str, raw: dict, here: bool = False) -> dict:
     return op
 
 
-def _data_requests(ops: list[dict], meta: dict, header=None, cell=None) -> list[dict]:
+def _data_requests(ops: list[dict], meta: dict, header=None, cell=None, **_) -> list[dict]:
     """batchUpdate requests for validated data ops."""
     tabs = _Tabs(meta)
     requests = []
@@ -2239,8 +2240,10 @@ def _data_results(replies: list[dict]) -> list[dict]:
     return out
 
 
-# Op actions: the vocabulary, its normalizer and its request builder.
-OP_SETS = {"layout": (LAYOUT_OPS, _normalize, _layout_requests), "data": (DATA_OPS, _normalize_data, _data_requests)}
+# Op actions: the vocabulary, its normalizer, its request builder (given the metadata and the
+# engine's readers) and the metadata fields it builds from.
+OP_SETS = {"layout": (LAYOUT_OPS, _normalize, _layout_requests, LAYOUT_FIELDS),
+           "data": (DATA_OPS, _normalize_data, _data_requests, LAYOUT_FIELDS)}
 
 
 # --- Gmail ----------------------------------------------------------------------------------------
