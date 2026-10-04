@@ -1092,7 +1092,11 @@ class LaunchctlScriptTest(unittest.TestCase):
                 plistlib.dump(
                     {
                         "ProgramArguments": [
-                            str(previous_release / "venv" / "bin" / "python")
+                            str(
+                                home / ".config" / "hermes" / "launchd" / "bin"
+                                / "hermes-qwen3-tts-engine"
+                            ),
+                            str(previous_release / "venv" / "bin" / "python"),
                         ]
                     },
                     handle,
@@ -1134,6 +1138,10 @@ class LaunchctlScriptTest(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertFalse(legacy.exists())
             new_plist = home / "Library" / "LaunchAgents" / "local.hermes.qwen3-tts.engine.plist"
+            with new_plist.open("rb") as handle:
+                arguments = plistlib.load(handle)["ProgramArguments"]
+            self.assertTrue(arguments[0].endswith("/launchd/bin/hermes-qwen3-tts-engine"))
+            self.assertTrue(arguments[1].endswith("/venv/bin/python"))
             calls = (home / "launchctl.log").read_text(encoding="utf-8").splitlines()
             self.assertLess(calls.index(f"unload {legacy}"), calls.index(f"load -w {new_plist}"))
             self.assertTrue(previous_release.is_dir())

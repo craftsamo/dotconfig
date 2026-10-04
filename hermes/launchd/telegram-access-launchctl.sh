@@ -121,7 +121,7 @@ install_agent() {
   local tmp
   tmp="$(mktemp)"
   sed -e "s|__PYTHON__|$VENV/bin/python|g" -e "s|__SYNC__|$SYNC|g" -e "s|__STATE__|$STATE|g" \
-      -e "s|__LOG__|$LOG|g" "$TMPL" > "$tmp"
+      -e "s|__HOME__|$HOME|g" -e "s|__LOG__|$LOG|g" "$TMPL" > "$tmp"
   plutil -lint "$tmp" >/dev/null || { rm -f "$tmp"; die "rendered plist is invalid"; }
   mkdir -p "$(dirname "$DEST")"
   mv "$tmp" "$DEST"

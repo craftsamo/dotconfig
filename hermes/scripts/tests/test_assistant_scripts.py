@@ -21,7 +21,7 @@ class AssistantScriptTest(unittest.TestCase):
         messaging tokens must NOT reach the process env (each profile's
         secret scope fetches its own bot token via secrets.command), or the
         default profile would poll the assistant's bot and collide with it."""
-        launcher = HERMES_ROOT / "launchd" / "hermes-gateway-multiplex"
+        launcher = HERMES_ROOT / "launchd" / "bin" / "hermes-gateway-multiplex"
         text = launcher.read_text(encoding="utf-8")
         self.assertIn("grep -v -E '^export (TELEGRAM_|DISCORD_)'", text)
         # launchd owns respawns: the supervised child never re-arms a takeover.

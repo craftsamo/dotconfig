@@ -9,6 +9,7 @@ DEST="$HOME/Library/LaunchAgents/$LABEL.plist"
 # (rollback reloads it); uninstall removes it too.
 LEGACY_LABEL=local.qwen3-tts.engine
 LEGACY_DEST="$HOME/Library/LaunchAgents/$LEGACY_LABEL.plist"
+LAUNCHER="$HOME/.config/hermes/launchd/bin/hermes-qwen3-tts-engine"
 RUNTIME_DIR="$HOME/.config/hermes/local/qwen3-tts"
 MUTATION_LOCK="$RUNTIME_DIR/.mutation.lock"
 SERVER="$HOME/.config/hermes/scripts/qwen3_tts_server.py"
@@ -200,7 +201,11 @@ deploy_catalog() {
   if [ -f "$OLD_PLIST_TARGET" ]; then
     HAD_OLD_PLIST=1
     cp "$OLD_PLIST_TARGET" "$OLD_PLIST"
+    # The venv python is argument 0 in plists from before the launcher, 1 after.
     OLD_PYTHON=$(plutil -extract ProgramArguments.0 raw -o - "$OLD_PLIST" 2>/dev/null || true)
+    if [ "$OLD_PYTHON" = "$LAUNCHER" ]; then
+      OLD_PYTHON=$(plutil -extract ProgramArguments.1 raw -o - "$OLD_PLIST" 2>/dev/null || true)
+    fi
     case "$OLD_PYTHON" in
       "$RUNTIME_DIR/releases/"*/venv/bin/python)
         OLD_RELEASE_PATH=${OLD_PYTHON#"$RUNTIME_DIR/releases/"}
