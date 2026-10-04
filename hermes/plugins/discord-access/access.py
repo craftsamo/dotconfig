@@ -18,9 +18,14 @@ import json
 import os
 from pathlib import Path
 import random
+import fcntl
 import re
+import secrets
+import shutil
+import stat
 import subprocess
 import sys
+import threading
 
 HERE = Path(__file__).resolve().parent
 
@@ -46,6 +51,7 @@ ENGINE_PATH = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
 READ_TIMEOUT = 90           # token + build number + a few paced requests
 SYNC_TIMEOUT = 300
 SEND_TIMEOUT = 150          # token + build number + one POST + one read-back
+SEND_FILES_TIMEOUT = 840    # with uploads; under the Assistant's tool deadline (960)
 TOKEN_SET = "secret set DISCORD_USER_TOKEN -p hermes --scope discord-user"
 AGENT_LABEL = "local.discord-user.sync"
 
@@ -57,6 +63,7 @@ TEXT_LIMIT = 2000           # Discord's limit for one message without Nitro
 MESSAGE_CLIP = 2000
 NAME_CLIP = 40
 QUOTE_CLIP = 40
+FILES_CLIP = 160
 CARD_LIMIT = 480            # as whatsapp-access: Telegram shows about 500 escaped characters
 MORE = "(+{n} more characters)"
 SUSPICIOUS = re.compile("[\u0000-\u0008\u000b-\u001f\u007f-\u009f\u061c\u200b\u200c\u200e\u200f"
@@ -590,19 +597,242 @@ def sync_remove(args: dict) -> dict:
     return result
 
 
+# --- attachments --------------------------------------------------------------------------------
+#
+# Files are attached from the attach roots only (``discord_access.attach_roots`` in the profile's
+# config.yaml, default ~/Workspaces). For each send call, the approval hook and the bind hook share
+# one snapshot: the files are copied (through the opened descriptor, whose real path is checked)
+# into a fresh, never-reused outbox folder, hashed into the card's rule key, and the bind hook hands
+# that folder's token to the handler, which consumes it once. Exactly the bytes the user approved
+# are sent, whatever happens to the originals afterwards.
+
+DEFAULT_ATTACH_ROOT = Path.home() / "Workspaces"
+MAX_FILES = 10
+FILE_LIMIT = 10 * 1024 * 1024    # Discord's upload limit for an account without Nitro
+OUTBOX_TTL = 24 * 3600
+PENDING_TTL = 120                # one hook pass shares a snapshot for this long at most
+OUTBOX_TOKEN = re.compile(r"^[0-9a-f]{32}$")
+# Never attached, wherever they sit: credentials, keys and local databases.
+SENSITIVE = re.compile(r"^\.env|\.(?:pem|key|p12|pfx|keychain(?:-db)?|kdbx|sqlite3?|db)$|^id_(?:rsa|dsa|ecdsa|ed25519)"
+                       r"|^\.netrc$|^\.npmrc$|^credentials", re.IGNORECASE)
+SENSITIVE_DIRS = {".git", ".ssh", ".gnupg", ".aws", ".config", "keychains"}
+
+
+def attach_roots(home: Path | None) -> list[Path]:
+    configured = None
+    if home:
+        try:
+            import yaml
+            config = yaml.safe_load((Path(home) / "config.yaml").read_text(encoding="utf-8")) or {}
+            configured = (config.get("discord_access") or {}).get("attach_roots")
+        except Exception:  # noqa: BLE001 - an unreadable config means the default
+            configured = None
+    if isinstance(configured, str):
+        configured = [configured]
+    roots = [Path(r.strip()).expanduser() for r in configured or [] if isinstance(r, str) and r.strip()]
+    return [r.resolve() for r in roots or [DEFAULT_ATTACH_ROOT]]
+
+
+def _human(size: int) -> str:
+    for unit, scale in (("MB", 1024 * 1024), ("KB", 1024)):
+        if size >= scale:
+            return f"{size / scale:.1f} {unit}"
+    return f"{size} B"
+
+
+def _requested(args: dict, home: Path | None) -> tuple[list[Path], list[Path]]:
+    """(attach roots, the requested paths made absolute); no file is touched."""
+    raw = args.get("files")
+    if raw in (None, "", []):
+        return attach_roots(home), []
+    if isinstance(raw, str):
+        raw = [raw]
+    if not isinstance(raw, list) or not all(isinstance(f, str) and f.strip() for f in raw):
+        raise DiscordError("files must be a list of local file paths")
+    if len(raw) > MAX_FILES:
+        raise DiscordError(f"at most {MAX_FILES} files per message")
+    roots = attach_roots(home)
+    paths = []
+    for given in raw:
+        path = Path(given.strip()).expanduser()
+        paths.append(path if path.is_absolute() else roots[0] / path)
+    return roots, paths
+
+
+def _placed(path: Path, roots: list[Path]) -> str:
+    """Where a real path sits: its path under its attach root. Raises when it may not be sent."""
+    state = store.state_dir(create=False).resolve()
+    root = next((r for r in roots if r in path.parents), None)
+    if root is None or state == path or state in path.parents:
+        raise DiscordError(f"{path.name} is outside the folders files may be attached from "
+                           f"({', '.join(str(r) for r in roots)})")
+    if any(part.casefold() in SENSITIVE_DIRS for part in path.parts[:-1]) or SENSITIVE.search(path.name):
+        raise DiscordError(f"{path.name} looks like a credential, key or database; it is never attached")
+    return "/".join(path.relative_to(root).parts)
+
+
+def attachment_files(args: dict, home: Path | None) -> list[dict]:
+    """The files to attach, checked: regular files inside an attach root, not credentials, at
+    most MAX_FILES of at most FILE_LIMIT each. A relative path is taken from the first root."""
+    roots, paths = _requested(args, home)
+    out = []
+    for path in paths:
+        try:
+            real = path.resolve(strict=True)
+        except (OSError, RuntimeError):
+            raise DiscordError(f"no such file: {path}") from None
+        shown = _placed(real, roots)
+        if not real.is_file():
+            raise DiscordError(f"{path} is not a regular file")
+        size = real.stat().st_size
+        if size == 0:
+            raise DiscordError(f"{real.name} is empty")
+        if size > FILE_LIMIT:
+            raise DiscordError(f"{real.name} is {_human(size)}; Discord takes at most {_human(FILE_LIMIT)} per file")
+        out.append({"path": str(real), "name": real.name, "size": size, "shown": shown})
+    return out
+
+
+def _outbox() -> Path:
+    path = store.state_dir() / "outbox"
+    path.mkdir(mode=0o700, exist_ok=True)
+    return path
+
+
+def request_digest(plan: dict, requested: list[Path]) -> str:
+    """The request as written: channel, text, reply and the paths as given (made absolute, never
+    resolved), so it reads the same before and after the files or their links change."""
+    return hashlib.sha256(json.dumps([plan["channel"], plan["text"], plan["reply_to"],
+                                      [str(p) for p in requested]], ensure_ascii=False)
+                          .encode("utf-8")).hexdigest()
+
+
+def _prune_outbox() -> None:
+    now = datetime.now().timestamp()
+    for entry in _outbox().iterdir():
+        try:
+            if now - entry.stat().st_mtime > OUTBOX_TTL:
+                shutil.rmtree(entry, ignore_errors=True)
+        except OSError:
+            continue
+
+
+def _copy_checked(f: dict, roots: list[Path], dest: Path) -> tuple[str, int]:
+    """Copy one file through its opened descriptor, after checking where that descriptor really
+    points (a path swapped for a symlink after validation is caught here)."""
+    fd = os.open(f["path"], os.O_RDONLY | os.O_NOFOLLOW)
+    with os.fdopen(fd, "rb") as src:
+        real = fcntl.fcntl(fd, fcntl.F_GETPATH, bytes(1024)).split(b"\0", 1)[0].decode()
+        if os.path.realpath(real) != f["path"] or not stat.S_ISREG(os.fstat(fd).st_mode):
+            raise DiscordError(f"{f['name']} changed before it could be copied")
+        _placed(Path(real), roots)
+        digest, size = hashlib.sha256(), 0
+        with open(dest, "xb") as out:
+            os.fchmod(out.fileno(), 0o600)
+            while chunk := src.read(1 << 20):
+                size += len(chunk)
+                if size > FILE_LIMIT:
+                    raise DiscordError(f"{f['name']} grew past {_human(FILE_LIMIT)} while it was copied")
+                digest.update(chunk)
+                out.write(chunk)
+    if size == 0:
+        raise DiscordError(f"{f['name']} is empty")
+    return digest.hexdigest(), size
+
+
+def stage(plan: dict, roots: list[Path], request: str) -> tuple[str, list[dict]]:
+    """Freeze the files into a fresh outbox folder: (its token, the copies with their hashes)."""
+    _prune_outbox()
+    token = secrets.token_hex(16)
+    folder = _outbox() / token
+    folder.mkdir(mode=0o700)
+    staged = []
+    try:
+        for i, f in enumerate(plan["files"]):
+            dest = folder / f"{i:02d}"
+            sha, size = _copy_checked(f, roots, dest)
+            staged.append({"path": str(dest), "name": f["name"], "shown": f["shown"], "size": size, "sha256": sha})
+        (folder / "manifest.json").write_text(json.dumps({"request": request, "files": staged},
+                                                         ensure_ascii=False), encoding="utf-8")
+    except BaseException:
+        shutil.rmtree(folder, ignore_errors=True)
+        raise
+    return token, staged
+
+
+# The approval and bind hooks of one call share one snapshot, whichever runs first. The entry is
+# keyed by the call alone; the second hook must present the same request, or it gets nothing.
+_PENDING: dict = {}
+_PENDING_LOCK = threading.Lock()
+
+
+def snapshot_for_call(plan: dict, roots: list[Path], request: str, ids: dict, hook: str) -> tuple[str, list[dict]]:
+    """The snapshot of this call's files, made by the first of its two hooks, forgotten once the
+    second has taken it. A call without an id cannot attach files."""
+    if not ids.get("tool_call_id"):
+        raise DiscordError("attachments need a tool call id; they cannot be sent from here")
+    key = (ids.get("session_id") or "", ids.get("task_id") or "", ids["tool_call_id"])
+    now = datetime.now().timestamp()
+    with _PENDING_LOCK:
+        for k in [k for k, v in _PENDING.items() if now - v["at"] > PENDING_TTL]:
+            _PENDING.pop(k)
+        entry = _PENDING.get(key)
+        if entry is None:
+            token, staged = stage(plan, roots, request)
+            entry = _PENDING[key] = {"token": token, "staged": staged, "request": request, "at": now,
+                                     "hooks": set()}
+        elif entry["request"] != request:
+            raise DiscordError("the request changed while it was being prepared; nothing was sent")
+        entry["hooks"].add(hook)
+        if entry["hooks"] >= {"gate", "bind"}:
+            _PENDING.pop(key, None)
+        return entry["token"], entry["staged"]
+
+
+def consume(request: str, token) -> tuple[Path, list[dict]]:
+    """Take the approved snapshot for this exact request, once: (its folder, the copies)."""
+    if not isinstance(token, str) or not OUTBOX_TOKEN.match(token):
+        raise DiscordError("the files were not prepared on an approval card")
+    taken = _outbox() / f"{token}.sending"
+    try:
+        os.rename(_outbox() / token, taken)
+    except OSError:
+        raise DiscordError("the approved copies of the files are gone or already sent") from None
+    try:
+        manifest = json.loads((taken / "manifest.json").read_text(encoding="utf-8"))
+        if manifest.get("request") != request:
+            raise DiscordError("the files or text differ from what was approved")
+        for f in manifest["files"]:
+            if Path(f["path"]).parent != _outbox() / token:
+                raise DiscordError("the approved copies are not where they were made")
+            f["path"] = str(taken / Path(f["path"]).name)
+            digest = hashlib.sha256()
+            with open(f["path"], "rb") as handle:
+                while chunk := handle.read(1 << 20):
+                    digest.update(chunk)
+            if digest.hexdigest() != f["sha256"]:
+                raise DiscordError("an approved copy changed after approval")
+    except BaseException:
+        shutil.rmtree(taken, ignore_errors=True)
+        raise
+    return taken, manifest["files"]
+
+
 # --- send ---------------------------------------------------------------------------------------
 
 UNCERTAIN = ("UNCERTAIN: {detail}. The message may have been sent. Read the channel with action=messages "
              "(live=true) before doing anything else, and never resend without asking the user.")
 
 
-def send_plan(args: dict, conn=None) -> dict:
+def send_plan(args: dict, conn=None, home: Path | None = None, files: list | None = None) -> dict:
     """The checked send. Raises for a call that cannot go out, so the hook blocks it without
     asking: the chat must be one the mirror knows (an existing DM or a server channel read
-    before; no new DMs), the quoted message must be in the mirror, and the text fits."""
+    before; no new DMs), the quoted message must be in the mirror, the text fits, and every file
+    may be attached. Text may be empty when files are attached."""
     cid = _id(args, "channel", required=True, what="a channel id")
-    text = _str(args, "text", required=True)
-    if not text:
+    files = attachment_files(args, home) if files is None else files
+    text = _str(args, "text", required=not files)
+    if not text and not files:
         raise DiscordError("text is empty")
     if len(text) > TEXT_LIMIT:
         raise DiscordError(f"text is {len(text)} characters; Discord allows {TEXT_LIMIT}")
@@ -632,7 +862,7 @@ def send_plan(args: dict, conn=None) -> dict:
         if own:
             conn.close()
     return {"channel": cid, "text": text, "reply_to": reply_to, "label": channel_label(row, guild),
-            "quoted": dict(quoted) if quoted else None, "me": me}
+            "quoted": dict(quoted) if quoted else None, "me": me, "files": files}
 
 
 def new_nonce() -> str:
@@ -648,12 +878,24 @@ def _ledger(nonce: str) -> dict | None:
         return None
 
 
-def send(args: dict) -> dict:
-    plan = send_plan(args)
+def send(args: dict, home: Path | None = None) -> dict:
+    """The approved send. With files, the request is matched against the snapshot by its paths
+    alone (the originals may since have changed or gone), and the snapshot is consumed once."""
+    _, requested = _requested(args, home)
+    plan = send_plan(args, home=home, files=[{"path": str(p)} for p in requested])
+    folder, files = None, []
+    if requested:
+        try:
+            folder, files = consume(request_digest(plan, requested), args.get("_outbox"))
+        except (DiscordError, OSError) as exc:
+            return {"ok": False, "error": f"not sent: {exc}; send it again to get a new approval card"}
     nonce = new_nonce()
+    timeout = SEND_FILES_TIMEOUT if files else SEND_TIMEOUT
     try:
         data = call_engine("send", {"nonce": nonce, "channel": plan["channel"], "text": plan["text"],
-                                    "reply_to": plan["reply_to"]}, timeout=SEND_TIMEOUT)
+                                    "reply_to": plan["reply_to"],
+                                    "files": [{"path": f["path"], "name": f["name"]} for f in files]},
+                           timeout=timeout)
     except (DiscordError, TimeoutError) as exc:
         # The engine died or hung: its ledger says how far the send got.
         row = _ledger(nonce)
@@ -663,12 +905,15 @@ def send(args: dict) -> dict:
             return {"ok": True, "channel": plan["channel"], "id": str(row["message_id"]),
                     "note": "accepted by Discord"}
         return {"ok": False, "error": UNCERTAIN.format(detail=str(exc))}
+    finally:
+        if folder is not None:
+            shutil.rmtree(folder, ignore_errors=True)
     outcome = data.get("outcome")
     if outcome == "sent":
         out = {"ok": True, "channel": plan["channel"], "id": data.get("message_id"),
                "note": "accepted by Discord; delivery and reading are not confirmed"}
-        if data.get("note"):
-            out["note"] = data["note"]
+        if files:
+            out["files"] = [f["name"] for f in files]
         return out
     if outcome == "not_sent":
         return {"ok": False, "error": f"not sent: {data.get('detail')}"}
@@ -689,13 +934,28 @@ def _one_line(value, limit: int) -> str:
     return visible(_clip(re.sub(r"\s+", " ", "" if value is None else str(value)).strip(), limit))
 
 
-def card(plan: dict) -> str:
+def _files_line(staged: list[dict]) -> str:
+    """Every file by its path under the attach root and size, clipped to FILES_CLIP with the rest
+    counted, so a card with ten files still leaves room for the text."""
+    shown, used = [], 0
+    for i, f in enumerate(staged):
+        item = f"{_one_line(f['shown'], NAME_CLIP * 2)} ({_human(f['size'])})"
+        if shown and used + len(item) > FILES_CLIP:
+            shown.append(f"(+{len(staged) - i} more)")
+            break
+        shown.append(item)
+        used += len(item) + 2
+    return f"Files ({len(staged)}): " + ", ".join(shown)
+
+
+def card(plan: dict, staged: list[dict] | None = None) -> str:
     """Plain English, one fact per line, as the WhatsApp and Sheets cards:
 
         Discord: <my name> (@me)
         To: DM with <name> (@handle)  |  #channel in <server>  |  group DM ...
         Channel id: <id>
         Reply to: <sender>: <quoted text>
+        Files (2): Projects/x/report.pdf (1.2 MB), photo.png (340.0 KB)
         Pings: @everyone
 
         <message text>
@@ -709,12 +969,14 @@ def card(plan: dict) -> str:
         sender = "me" if q["from_me"] else (q["author_name"] or "")
         quoted = _one_line(q["content"] or "(attachment)", QUOTE_CLIP)
         head.append(f"Reply to: {_one_line(sender, NAME_CLIP)}: {quoted}" if sender else f"Reply to: {quoted}")
+    if staged:
+        head.append(_files_line(staged))
     pings = sorted(set(PINGS.findall(plan["text"])))
     if pings:
         head.append("Pings: " + ", ".join(pings))
     head.append("")
     prefix = "\n".join(head) + "\n"
-    text = plan["text"]
+    text = plan["text"] or "(no text: files only)"
     if _units(prefix + visible(text)) <= CARD_LIMIT:
         return prefix + visible(text)
     lo, hi = 0, len(text)
@@ -727,20 +989,42 @@ def card(plan: dict) -> str:
     return prefix + visible(text[:lo].rstrip()) + "…\n" + MORE.format(n=len(text) - lo)
 
 
-def rule_key(plan: dict) -> str:
-    digest = hashlib.sha256(json.dumps([plan["channel"], plan["text"], plan["reply_to"]],
+def rule_key(plan: dict, staged: list[dict] | None = None) -> str:
+    files = [[f["name"], f["sha256"]] for f in staged or []]
+    digest = hashlib.sha256(json.dumps([plan["channel"], plan["text"], plan["reply_to"], files],
                                        ensure_ascii=False).encode("utf-8")).hexdigest()[:16]
     return f"discord-access:send:{digest}"
 
 
-def approval_request(args: dict) -> tuple[str, str] | None:
+def approval_request(args: dict, home: Path | None = None, ids: dict | None = None) -> tuple[str, str] | None:
     """(card, allowlist rule key) for a send, None for anything else; raises for a send that
-    would fail anyway. The key binds the exact channel, text and reply."""
+    would fail anyway. Files are frozen into this call's snapshot here. The key binds the exact
+    channel, text, reply and file contents."""
     args = args if isinstance(args, dict) else {}
+    if "_outbox" in args:
+        raise DiscordError("_outbox is set by the plugin, never by a caller")
     if action_of(args) not in WRITES:
         return None
-    plan = send_plan(args)
-    return card(plan), rule_key(plan)
+    plan = send_plan(args, home=home)
+    staged = None
+    if plan["files"]:
+        roots, requested = _requested(args, home)
+        _, staged = snapshot_for_call(plan, roots, request_digest(plan, requested), ids or {}, "gate")
+    return card(plan, staged), rule_key(plan, staged)
+
+
+def outbox_binding(args: dict, home: Path | None = None, ids: dict | None = None) -> dict | None:
+    """The handler's pointer to this call's snapshot (the ``modify`` hook); None when there is
+    nothing to bind or the send is invalid (the approval hook blocks it then)."""
+    if not isinstance(args, dict) or args.get("action") != "send" or not args.get("files") or "_outbox" in args:
+        return None
+    try:
+        plan = send_plan(args, home=home)
+        roots, requested = _requested(args, home)
+        token, _ = snapshot_for_call(plan, roots, request_digest(plan, requested), ids or {}, "bind")
+    except (DiscordError, OSError, store.StoreError):
+        return None
+    return {"_outbox": token}
 
 
 # --- dispatch and guard -------------------------------------------------------------------------
@@ -750,11 +1034,11 @@ READS = {"status": status, "guilds": guilds, "channels": channels, "dms": dms, "
          "sync_add": sync_add, "sync_remove": sync_remove}
 
 
-def execute(args: dict) -> dict:
+def execute(args: dict, home: Path | None = None) -> dict:
     args = args if isinstance(args, dict) else {}
     action = action_of(args)
     if action in WRITES:
-        return send(args)
+        return send(args, home=home)
     try:
         return READS[action](args)
     except store.StoreError as exc:
