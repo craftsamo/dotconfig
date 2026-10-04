@@ -111,8 +111,11 @@ lists all three controls; Qwen3 lists none.
   the delivered Ogg carries a random bitstream serial.
 
 The fallback chain passes no style arguments and must not start doing so;
-ordinary chat speech sends the request it always did (on Irodori, an unpinned
-take per call). Language routing of that chain, engine installation and voice
+ordinary chat speech carries no style (on Irodori, an unpinned take per call).
+Irodori's pacing — sentence-aligned chunks, each with a duration cap so a
+short line is not padded with invented speech — is engine plumbing and applies
+on both paths; a `style` lifts the cap because direction may slow the take on
+purpose, and each emoji is given time for its performance. Language routing of that chain, engine installation and voice
 data handling are mechanics: see `README.md`.
 
 Character tools resolve on AudioCreator only because the toolset resolver memo
