@@ -576,7 +576,9 @@ came out as さんが・ついつか, with a pause inside the number).
 `tts.irodori_tts.numerals` picks `digits` (default), `kanji` (三月五日) or
 `kana`; `reading_frontend: false` switches the rewriting off and keeps the
 lexicon.
-The shared cleaner itself stays untouched (see `AGENTS.md`).
+The shared cleaner itself stays untouched (see `AGENTS.md`); a line the
+cleaner closes with an extra `.` after `？`/`！`/`。` loses that stop here, since
+the model reads it as a second, falling sentence end.
 
 The lexicon is `{"terms": {surface: reading}}`. Keys may be Latin
 (`GitHub`) or kanji (`生物` → `なまもの` if that is what you always mean); a
