@@ -1,0 +1,4 @@
+name: x-access
+version: 1.0.0
+description: Read-only X (Twitter) for the Assistant through twscrape and a separate sub-account — the user's main account's posts and mentions, search, threads, profiles, and a post's photos, videos and GIFs.
+kind: standalone
