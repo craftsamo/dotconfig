@@ -177,6 +177,13 @@ The user's own WhatsApp accounts are likewise the assistant's alone
 and every send waits for approval on a card naming the account, the chat and
 the text. Contract: [whatsapp-access.md](../whatsapp-access.md).
 
+The user's own Signal account is the assistant's alone in the same way
+(`signal_access` toolset, never on A2A): reads come from a local mirror
+that keeps disappearing messages (marked expired) and drops messages
+deleted for everyone, and every send — text and `~/Workspaces` files —
+waits for approval on a card naming the chat, every file and the text.
+Contract: [signal-access.md](../signal-access.md).
+
 ### Kanban catalog
 
 The kanban catalog is closed and per-assignee: its machine-readable surface is
