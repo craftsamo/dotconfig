@@ -4,8 +4,10 @@ description: >-
   Irodori-TTS provider for the loopback server on 127.0.0.1:10103 (no API key).
   Japanese only: English-dominant text is declined so the tts-fallback chain
   advances to the next tier, which keeps one voice per utterance instead of
-  splicing engines mid-sentence. Latin proper nouns are rewritten to katakana
-  from lexicon.json, and the returned WAV is repaired before delivery -- the
+  splicing engines mid-sentence. Readings are made deterministic before the
+  request: lexicon.json pins names and stubborn kanji, the shared cleaner's
+  English is mapped back to Japanese, symbols are spelled out and the number
+  forms the model misreads (grouping, % and Latin units) are rewritten. The returned WAV is repaired before delivery -- the
   in-pause codec rustle is gated, leading dead air and trailing hallucinated
   fragments are trimmed, the onset click is faded out and the level is
   normalised. Select with tts.provider: irodori-tts, or place irodori-tts ahead
