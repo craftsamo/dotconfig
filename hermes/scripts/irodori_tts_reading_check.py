@@ -36,6 +36,9 @@ preferred.
 
 Audio is scored after the provider's own WAV repair (``polish``), because
 that is what a listener gets; ``--no-polish`` scores the raw server output.
+Requests are paced the way the provider paces them (sentence-aligned chunks,
+each with a duration cap); ``--no-pacing`` sends the text whole and leaves
+length to the server's predictor, as the provider did before.
 
 Findings are CANDIDATES: ASR can still mishear. Confirm by ear
 (``--keep-audio DIR``) before acting on one; ``--from-audio DIR`` re-scores
@@ -196,10 +199,10 @@ def load_corpus(path: Path) -> list[Case]:
     return cases
 
 
-def load_polish():
-    """The provider's own WAV repair, so trailing junk it would trim is not
-    scored as a misreading. The plugin package imports Hermes' TTSProvider base
-    class; a stand-in keeps this script independent of a Hermes runtime."""
+def load_plugin():
+    """The provider package itself, for its WAV repair and chunk joining. It
+    imports Hermes' TTSProvider base class; a stand-in keeps this script
+    independent of a Hermes runtime."""
     import types
 
     if "agent.tts_provider" not in sys.modules:
@@ -216,6 +219,12 @@ def load_polish():
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
+    return module
+
+
+def load_polish(module):
+    """The provider's own WAV repair, so trailing junk it would trim is not
+    scored as a misreading."""
 
     def polish(wav: bytes) -> bytes:
         samples, rate = module._decode_wav(wav)
@@ -378,6 +387,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="lexicon JSON; default is the plugin's runtime lexicon if present",
     )
     parser.add_argument(
+        "--no-pacing", action="store_true",
+        help="send each sentence whole without the provider's chunking and "
+        "duration cap (the server chunks and the predictor alone sets length)",
+    )
+    parser.add_argument(
         "--no-polish", action="store_true",
         help="score the raw server audio instead of the provider's repaired WAV",
     )
@@ -461,7 +475,28 @@ def main() -> int:
 
     kks = pykakasi.kakasi()
     transcribe = load_asr(args.asr_model, args.asr_device)
-    polish = None if args.no_polish else load_polish()
+    plugin = load_plugin()
+    polish = None if args.no_polish else load_polish(plugin)
+    paced = args.pipeline == "chain" and not args.no_pacing
+
+    def render(text: str, seed: int) -> bytes:
+        """What the provider would request: its chunks, caps and join."""
+        if not paced:
+            return synthesize(args.server, text, args.voice, {**options, "seed": seed})
+        parts = [
+            synthesize(
+                args.server, chunk, args.voice,
+                {
+                    **plugin.request_options(chunk, caption="caption" in options),
+                    **options,
+                    "seed": seed,
+                },
+            )
+            for chunk in plugin.split_for_speech(text)
+        ]
+        if len(parts) == 1:
+            return parts[0]
+        return plugin.IrodoriTTSProvider._join(parts, trim=not args.no_polish)
     if args.keep_audio:
         args.keep_audio.mkdir(parents=True, exist_ok=True)
 
@@ -485,7 +520,7 @@ def main() -> int:
             if args.from_audio:
                 audio = (args.from_audio / name).read_bytes()
             else:
-                audio = synthesize(args.server, sent, args.voice, {**options, "seed": seed})
+                audio = render(sent, seed)
             if args.keep_audio:
                 (args.keep_audio / name).write_bytes(audio)
             heard_text = transcribe(polish(audio) if polish else audio)
@@ -528,6 +563,7 @@ def main() -> int:
         "lexicon_terms": len(terms),
         "legacy_lexicon": args.legacy_lexicon,
         "polish": not args.no_polish,
+        "pacing": paced,
         "options": options,
         "seeds": seeds,
         "from_audio": str(args.from_audio) if args.from_audio else None,

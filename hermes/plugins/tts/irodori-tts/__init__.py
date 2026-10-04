@@ -48,7 +48,10 @@ measured on this machine, and none can be fixed by changing the reference:
                     -- when the duration predictor over-allocates -- voiced
                     fragments hallucinated into the slack (1.63 s of them in
                     one measured case). These sit at -33..-48 dB, above any
-                    silence gate.
+                    silence gate. Loud ones (the sentence said twice) are
+                    prevented rather than repaired: ``pacing`` splits the text
+                    at sentence ends and caps each request's duration
+                    (``tts.irodori_tts.pacing: false`` turns that off).
 
   in-pause rustle   The codec emits a burst of aperiodic high-frequency energy
                     as a vowel decays: ~50 ms at -37 dB against a -77 dB pause,
@@ -72,6 +75,7 @@ import shutil
 import struct
 import subprocess
 import tempfile
+import time
 import urllib.error
 import urllib.request
 import wave
@@ -81,6 +85,7 @@ import numpy as np
 
 from agent.tts_provider import TTSProvider
 
+from .pacing import max_seconds, request_options, split_for_speech  # noqa: F401 - max_seconds re-exported
 from .reading import NUMERAL_STYLES, apply_lexicon, prepare_text  # noqa: F401 - apply_lexicon re-exported
 
 logger = logging.getLogger(__name__)
@@ -396,6 +401,8 @@ def _highpass(samples: np.ndarray, rate: int, cutoff: float = 55.0) -> np.ndarra
 
 _HEAD_PAD = 0.030
 _TAIL_PAD = 0.120
+# Silence between two separately rendered chunks: a sentence pause.
+_CHUNK_GAP = 0.300
 _FADE_IN = 0.012      # below the ear's integration window
 _FADE_OUT = 0.030
 _TARGET_PEAK_DB = -3.0
@@ -528,6 +535,69 @@ class IrodoriTTSProvider(TTSProvider):
             return float(self._config().get("min_japanese_ratio", _JA_MIN_RATIO))
         except (TypeError, ValueError):
             return _JA_MIN_RATIO
+
+    def _pacing(self) -> bool:
+        return bool(self._config().get("pacing", True))
+
+    def _request(
+        self, payload: Dict[str, Any], text: str, style: Dict[str, Any], deadline: float
+    ) -> bytes:
+        """Render one chunk. Pacing options ride with the style ones."""
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise RuntimeError(
+                f"Irodori-TTS synthesis exceeded {self._timeout()}s before the last chunk"
+            )
+        options = dict(style)
+        if self._pacing():
+            options.update(request_options(text, caption="caption" in style))
+        body = {**payload, "input": text}
+        if options:
+            body["irodori"] = options
+        req = urllib.request.Request(
+            self._base_url() + "/v1/audio/speech",
+            data=json.dumps(body).encode("utf-8"),
+            method="POST",
+            headers={"Content-Type": "application/json", "Accept": "audio/wav"},
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=max(1.0, remaining)) as resp:
+                audio = resp.read()
+        except urllib.error.HTTPError as exc:
+            detail = exc.read().decode("utf-8", "replace")[:300]
+            raise RuntimeError(
+                f"Irodori-TTS synthesis failed: HTTP {exc.code} {exc.reason}. {detail}"
+            ) from exc
+        except urllib.error.URLError as exc:
+            raise RuntimeError(
+                f"Irodori-TTS server not reachable at {self._base_url()}: {exc.reason}"
+            ) from exc
+        if not audio:
+            raise RuntimeError("Irodori-TTS server returned empty audio")
+        return audio
+
+    @staticmethod
+    def _join(parts: List[bytes], trim: bool) -> bytes:
+        """One WAV from per-chunk renders, a sentence pause between them.
+
+        With ``trim`` each chunk is cut to its speech first, so junk at a chunk
+        edge cannot land mid-utterance where the final polish never looks.
+        """
+        decoded = [_decode_wav(part) for part in parts]
+        rate = decoded[0][1]
+        if any(r != rate for _, r in decoded):
+            raise RuntimeError("Irodori-TTS returned chunks at different sample rates")
+        gap = np.zeros(int(rate * _CHUNK_GAP))
+        pieces: List[np.ndarray] = []
+        for samples, _ in decoded:
+            if trim:
+                samples, _gated = _degate(samples, rate)
+                start, end = _speech_bounds(samples, rate)
+                samples = samples[start:end]
+            if pieces:
+                pieces.append(gap)
+            pieces.append(samples)
+        return _encode_wav(np.concatenate(pieces), rate)
 
     def is_available(self) -> bool:
         try:
@@ -717,49 +787,33 @@ class IrodoriTTSProvider(TTSProvider):
             logger.warning("irodori-tts: reading frontend skipped (%s)", exc)
             spoken = prepare_text(text, use_lexicon=self._use_lexicon(), frontend=False)
 
-        request_payload: Dict[str, Any] = {"input": spoken, "model": _MODEL_ID}
+        request_payload: Dict[str, Any] = {"model": _MODEL_ID}
         if isinstance(model, str) and model.strip():
             request_payload["model"] = model.strip()
         chosen_voice = voice if isinstance(voice, str) and voice.strip() else self._default_voice()
         if chosen_voice:
             request_payload["voice"] = chosen_voice.strip()
 
-        # Style controls travel in the server's own options object. Omitted
-        # entirely when unused, so the ordinary chain sends exactly what it sent
-        # before and the server keeps its configured defaults.
-        options: Dict[str, Any] = {}
+        # Style controls travel in the server's own options object, beside the
+        # pacing options below; the ordinary chain sends no style.
+        style: Dict[str, Any] = {}
         if caption is not None:
             if not isinstance(caption, str) or not caption.strip():
                 raise ValueError("Irodori-TTS caption must be a non-empty string")
-            options["caption"] = caption.strip()
+            style["caption"] = caption.strip()
         if seed is not None:
             try:
-                options["seed"] = int(seed)
+                style["seed"] = int(seed)
             except (TypeError, ValueError) as exc:
                 raise ValueError(f"Irodori-TTS seed must be an integer, got {seed!r}") from exc
-        if options:
-            request_payload["irodori"] = options
 
-        req = urllib.request.Request(
-            self._base_url() + "/v1/audio/speech",
-            data=json.dumps(request_payload).encode("utf-8"),
-            method="POST",
-            headers={"Content-Type": "application/json", "Accept": "audio/wav"},
-        )
-        try:
-            with urllib.request.urlopen(req, timeout=self._timeout()) as resp:
-                audio = resp.read()
-        except urllib.error.HTTPError as exc:
-            detail = exc.read().decode("utf-8", "replace")[:300]
-            raise RuntimeError(
-                f"Irodori-TTS synthesis failed: HTTP {exc.code} {exc.reason}. {detail}"
-            ) from exc
-        except urllib.error.URLError as exc:
-            raise RuntimeError(
-                f"Irodori-TTS server not reachable at {self._base_url()}: {exc.reason}"
-            ) from exc
-        if not audio:
-            raise RuntimeError("Irodori-TTS server returned empty audio")
+        chunks = split_for_speech(spoken) if self._pacing() else [spoken]
+        # synthesis_timeout bounds the whole utterance, as it did when the
+        # server chunked inside one request; the chain must still fall through
+        # in time.
+        deadline = time.monotonic() + self._timeout()
+        parts = [self._request(request_payload, c, style, deadline) for c in chunks]
+        audio = parts[0] if len(parts) == 1 else self._join(parts, trim=self._post_process())
 
         if self._post_process():
             cleaned: Optional[bytes] = None
