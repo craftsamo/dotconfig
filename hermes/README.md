@@ -413,6 +413,14 @@ keeps user keys.
   `local.wacli.sync.<account>` LaunchAgent managed by
   `launchd/wacli-sync-launchctl.sh` (`pair` / `install` / `status`).
   Behavior: [docs/whatsapp-access.md](docs/whatsapp-access.md).
+- **signal-access** (`standalone`): `signal` (toolset `signal_access`) for
+  the assistant — reads the user's Signal account from a local mirror (plus
+  number checks and saving received files) and sends text and
+  `~/Workspaces` files through the approval gate; its hook blocks the
+  terminal path around it. The mirror is written by `sync.py`, which owns a
+  `signal-cli daemon`, as the `local.signal.sync` LaunchAgent managed by
+  `launchd/signal-sync-launchctl.sh` (`link` / `install` / `status`).
+  Behavior: [docs/signal-access.md](docs/signal-access.md).
 - **ui-inspection** (`standalone`): `ui_capture` for ui-review / ux-persona.
 - **writing-inspection** (`standalone`): Writer's bounded `writing_inspect`.
 - **kanban-worker-mutation-guard** (`standalone`): stops dispatcher workers
