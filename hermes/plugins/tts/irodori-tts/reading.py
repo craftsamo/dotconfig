@@ -5,8 +5,9 @@ a few symbol deletions), then a subword tokenizer hands raw kanji, digits and
 Latin letters to the model, which guesses the reading. Everything that makes a
 reading deterministic therefore has to happen here, before the request.
 
-Kept free of numpy and of Hermes imports on purpose, so it can be loaded and
-tested on its own.
+Kept free of numpy and of Hermes imports on purpose, so the reading checker
+(``scripts/irodori_tts_reading_check.py``) can load this file on its own and
+measure exactly the text the provider would send.
 """
 
 from __future__ import annotations
