@@ -2,9 +2,13 @@
 # Manage the local multi-voice Qwen3-TTS catalog and LaunchAgent.
 set -e
 
-LABEL=local.qwen3-tts.engine
+LABEL=local.hermes.qwen3-tts.engine
 TMPL="$HOME/.config/hermes/launchd/$LABEL.plist.tmpl"
 DEST="$HOME/Library/LaunchAgents/$LABEL.plist"
+# The label before the launchd naming cleanup. An install replaces it transactionally
+# (rollback reloads it); uninstall removes it too.
+LEGACY_LABEL=local.qwen3-tts.engine
+LEGACY_DEST="$HOME/Library/LaunchAgents/$LEGACY_LABEL.plist"
 RUNTIME_DIR="$HOME/.config/hermes/local/qwen3-tts"
 MUTATION_LOCK="$RUNTIME_DIR/.mutation.lock"
 SERVER="$HOME/.config/hermes/scripts/qwen3_tts_server.py"
@@ -187,11 +191,15 @@ deploy_catalog() {
     cp "$CATALOG" "$OLD_CATALOG"
   fi
   HAD_OLD_PLIST=0
+  OLD_PLIST_TARGET="$DEST"
   OLD_RELEASE_ID=""
   OLD_RELEASE_ID_VALID=1
-  if [ -f "$DEST" ]; then
+  if [ ! -f "$DEST" ] && [ -f "$LEGACY_DEST" ]; then
+    OLD_PLIST_TARGET="$LEGACY_DEST"
+  fi
+  if [ -f "$OLD_PLIST_TARGET" ]; then
     HAD_OLD_PLIST=1
-    cp "$DEST" "$OLD_PLIST"
+    cp "$OLD_PLIST_TARGET" "$OLD_PLIST"
     OLD_PYTHON=$(plutil -extract ProgramArguments.0 raw -o - "$OLD_PLIST" 2>/dev/null || true)
     case "$OLD_PYTHON" in
       "$RUNTIME_DIR/releases/"*/venv/bin/python)
@@ -215,8 +223,9 @@ deploy_catalog() {
       rm -f "$CATALOG"
     fi
     if [ "$HAD_OLD_PLIST" -eq 1 ]; then
-      cp "$OLD_PLIST" "$DEST"
-      if ! launchctl load -w "$DEST"; then
+      [ "$OLD_PLIST_TARGET" = "$DEST" ] || rm -f "$DEST"
+      cp "$OLD_PLIST" "$OLD_PLIST_TARGET"
+      if ! launchctl load -w "$OLD_PLIST_TARGET"; then
         echo "failed to reload previous $LABEL" >&2
         ROLLBACK_STATUS=1
       fi
@@ -244,6 +253,9 @@ deploy_catalog() {
   TRANSACTION_ACTIVE=1
   mv -f "$CANDIDATE_CATALOG" "$CATALOG"
   mv -f "$TMP_PLIST" "$DEST"
+  if [ "$OLD_PLIST_TARGET" = "$LEGACY_DEST" ]; then
+    launchctl unload "$LEGACY_DEST" 2>/dev/null || true
+  fi
   launchctl unload "$DEST" 2>/dev/null || true
   if ! launchctl load -w "$DEST"; then
     if ! rollback_install; then
@@ -281,6 +293,9 @@ deploy_catalog() {
   trap finish_mutation 0
   trap 'exit 130' 1 2 15
   rm -f "$CANDIDATE_CATALOG" "$TMP_PLIST" "$OLD_CATALOG" "$OLD_PLIST"
+  if [ "$OLD_PLIST_TARGET" = "$LEGACY_DEST" ]; then
+    rm -f "$LEGACY_DEST"
+  fi
   if [ -L "$LEGACY_VOICE_MANIFEST" ]; then
     rm -f "$LEGACY_VOICE_MANIFEST"
   fi
@@ -360,6 +375,8 @@ case "$ACTION" in
     trap 'exit 130' 1 2 15
     launchctl unload -w "$DEST" 2>/dev/null || true
     rm -f "$DEST"
+    launchctl unload -w "$LEGACY_DEST" 2>/dev/null || true
+    rm -f "$LEGACY_DEST"
     trap - 0 1 2 15
     release_mutation_lock
     echo "unloaded + removed $LABEL (catalog, model cache, and venv retained)"

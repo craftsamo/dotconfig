@@ -25,7 +25,8 @@ SERVER_PATH = HERMES_DIR / "scripts" / "qwen3_tts_server.py"
 READING_CHECK_PATH = HERMES_DIR / "scripts" / "qwen3_tts_reading_check.py"
 PLUGIN_PATH = HERMES_DIR / "plugins" / "tts" / "qwen3-tts" / "__init__.py"
 LAUNCHCTL_PATH = HERMES_DIR / "launchd" / "qwen3-tts-launchctl.sh"
-PLIST_PATH = HERMES_DIR / "launchd" / "local.qwen3-tts.engine.plist.tmpl"
+PLIST_PATH = HERMES_DIR / "launchd" / "local.hermes.qwen3-tts.engine.plist.tmpl"
+LEGACY_PLIST_NAME = "local.qwen3-tts.engine.plist"
 
 
 def load_module(name: str, path: Path):
@@ -924,7 +925,7 @@ class LaunchctlScriptTest(unittest.TestCase):
         mv.write_text(
             "#!/bin/sh\n"
             "for arg in \"$@\"; do last=$arg; done\n"
-            "if [ \"${FAIL_PLIST_MOVE:-0}\" = 1 ] && [ \"$last\" = \"$HOME/Library/LaunchAgents/local.qwen3-tts.engine.plist\" ]; then exit 1; fi\n"
+            "if [ \"${FAIL_PLIST_MOVE:-0}\" = 1 ] && [ \"$last\" = \"$HOME/Library/LaunchAgents/local.hermes.qwen3-tts.engine.plist\" ]; then exit 1; fi\n"
             "exec /bin/mv \"$@\"\n",
             encoding="utf-8",
         )
@@ -998,7 +999,7 @@ class LaunchctlScriptTest(unittest.TestCase):
             new_manifest = write_voice_manifest(root / "new", "new-voice")
             catalog = self.seed_catalog(home, [old_manifest], "old-voice")
             original_catalog = catalog.read_bytes()
-            old_plist = home / "Library" / "LaunchAgents" / "local.qwen3-tts.engine.plist"
+            old_plist = home / "Library" / "LaunchAgents" / "local.hermes.qwen3-tts.engine.plist"
             old_plist.write_text("old plist", encoding="utf-8")
             env["FAIL_LAUNCHCTL_LOAD"] = "1"
 
@@ -1019,7 +1020,7 @@ class LaunchctlScriptTest(unittest.TestCase):
             new_manifest = write_voice_manifest(root / "new", "new-voice")
             catalog = self.seed_catalog(home, [old_manifest], "old-voice")
             original_catalog = catalog.read_bytes()
-            old_plist = home / "Library" / "LaunchAgents" / "local.qwen3-tts.engine.plist"
+            old_plist = home / "Library" / "LaunchAgents" / "local.hermes.qwen3-tts.engine.plist"
             old_plist.write_text("old plist", encoding="utf-8")
             env["FAIL_HEALTH"] = "1"
 
@@ -1039,7 +1040,7 @@ class LaunchctlScriptTest(unittest.TestCase):
             new_manifest = write_voice_manifest(root / "new", "new-voice")
             catalog = self.seed_catalog(home, [old_manifest], "old-voice")
             original_catalog = catalog.read_bytes()
-            old_plist = home / "Library" / "LaunchAgents" / "local.qwen3-tts.engine.plist"
+            old_plist = home / "Library" / "LaunchAgents" / "local.hermes.qwen3-tts.engine.plist"
             old_plist.write_text("old plist", encoding="utf-8")
             env["FAIL_PLIST_MOVE"] = "1"
 
@@ -1086,7 +1087,7 @@ class LaunchctlScriptTest(unittest.TestCase):
             stale_release = releases / stale_id
             previous_release.mkdir()
             stale_release.mkdir()
-            plist = home / "Library" / "LaunchAgents" / "local.qwen3-tts.engine.plist"
+            plist = home / "Library" / "LaunchAgents" / "local.hermes.qwen3-tts.engine.plist"
             with plist.open("wb") as handle:
                 plistlib.dump(
                     {
@@ -1105,6 +1106,57 @@ class LaunchctlScriptTest(unittest.TestCase):
             self.assertTrue(active_release.is_dir())
             self.assertTrue(previous_release.is_dir())
             self.assertFalse(stale_release.exists())
+
+    def seed_legacy_plist(self, home: Path) -> tuple[Path, Path, Path]:
+        """A pre-rename agent: old label, venv python as argument 0."""
+        releases = home / ".config" / "hermes" / "local" / "qwen3-tts" / "releases"
+        previous_release = releases / ("b" * 64)
+        stale_release = releases / ("c" * 64)
+        previous_release.mkdir(parents=True)
+        stale_release.mkdir()
+        legacy = home / "Library" / "LaunchAgents" / LEGACY_PLIST_NAME
+        with legacy.open("wb") as handle:
+            plistlib.dump(
+                {"ProgramArguments": [str(previous_release / "venv" / "bin" / "python")]},
+                handle,
+            )
+        return legacy, previous_release, stale_release
+
+    def test_install_replaces_legacy_label(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            home, env = self.make_home(root)
+            manifest = write_voice_manifest(root / "voice")
+            legacy, previous_release, stale_release = self.seed_legacy_plist(home)
+
+            result = self.run_action(env, "install", "--voice-manifest", str(manifest))
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertFalse(legacy.exists())
+            new_plist = home / "Library" / "LaunchAgents" / "local.hermes.qwen3-tts.engine.plist"
+            calls = (home / "launchctl.log").read_text(encoding="utf-8").splitlines()
+            self.assertLess(calls.index(f"unload {legacy}"), calls.index(f"load -w {new_plist}"))
+            self.assertTrue(previous_release.is_dir())
+            self.assertFalse(stale_release.exists())
+
+    def test_failed_install_restores_legacy_label(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            home, env = self.make_home(root)
+            manifest = write_voice_manifest(root / "voice")
+            legacy, _, stale_release = self.seed_legacy_plist(home)
+            original = legacy.read_bytes()
+            env["FAIL_HEALTH"] = "1"
+
+            result = self.run_action(env, "install", "--voice-manifest", str(manifest))
+
+            self.assertNotEqual(result.returncode, 0)
+            self.assertEqual(legacy.read_bytes(), original)
+            new_plist = home / "Library" / "LaunchAgents" / "local.hermes.qwen3-tts.engine.plist"
+            self.assertFalse(new_plist.exists())
+            calls = (home / "launchctl.log").read_text(encoding="utf-8").splitlines()
+            self.assertEqual(calls[-1], f"load -w {legacy}")
+            self.assertTrue(stale_release.is_dir())
 
     def test_register_adds_voice_without_changing_default(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -1185,7 +1237,7 @@ class LaunchctlScriptTest(unittest.TestCase):
             new_manifest = write_voice_manifest(root / "new", "new-voice")
             catalog = self.seed_catalog(home, [old_manifest], "old-voice")
             original_catalog = catalog.read_bytes()
-            old_plist = home / "Library" / "LaunchAgents" / "local.qwen3-tts.engine.plist"
+            old_plist = home / "Library" / "LaunchAgents" / "local.hermes.qwen3-tts.engine.plist"
             old_plist.write_text("old plist", encoding="utf-8")
             env["SLOW_LOAD_SECONDS"] = "2"
             process = subprocess.Popen(

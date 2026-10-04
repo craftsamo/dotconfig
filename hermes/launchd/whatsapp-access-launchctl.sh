@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# LaunchAgent manager for wacli sync, one agent per named wacli account.
+# LaunchAgent manager for whatsapp-access: one wacli sync agent per named wacli account.
 #
 # The whatsapp-access plugin reads each account's local mirror (~/.wacli/accounts/<name>)
 # and sends through the running sync's store socket; this keeps that sync alive.
@@ -21,7 +21,7 @@
 set -euo pipefail
 
 CONFIG_DIR="$HOME/.config/hermes"
-TMPL="$CONFIG_DIR/launchd/local.wacli.sync.plist.tmpl"
+TMPL="$CONFIG_DIR/launchd/local.hermes.whatsapp-access.sync.plist.tmpl"
 OUTBOX="${HERMES_WHATSAPP_STATE:-$HOME/.local/state/hermes-whatsapp}/outbox"
 
 die() { echo "error: $*" >&2; exit 1; }
@@ -44,8 +44,22 @@ check_account() {
   esac
 }
 
-label() { echo "local.wacli.sync.$1"; }
+label() { echo "local.hermes.whatsapp-access.sync.$1"; }
 dest() { echo "$HOME/Library/LaunchAgents/$(label "$1").plist"; }
+log_path() { echo "$HOME/Library/Logs/whatsapp-access-sync-$1.log"; }
+
+# The label and log an account's agent had before the launchd naming cleanup: stop and drop
+# that agent so two syncs never share a store, and carry its log over once.
+retire_legacy() {
+  local legacy="local.wacli.sync.$1" old_log="$HOME/Library/Logs/wacli-sync-$1.log" i
+  launchctl bootout "gui/$UID/$legacy" 2>/dev/null || true
+  for i in $(seq 1 50); do
+    launchctl print "gui/$UID/$legacy" >/dev/null 2>&1 || break
+    sleep 0.2
+  done
+  rm -f "$HOME/Library/LaunchAgents/$legacy.plist"
+  if [ -f "$old_log" ] && [ ! -e "$(log_path "$1")" ]; then mv "$old_log" "$(log_path "$1")"; fi
+}
 
 known_accounts() {
   "$WACLI" --read-only --json accounts list 2>/dev/null \
@@ -123,22 +137,23 @@ install_agent() {
   has_account "$1" || die "no wacli account '$1' (pair it first: $0 pair $1 +NUMBER)"
   paired "$1" || die "account '$1' is not paired (run: $0 pair $1 +NUMBER)"
   render_plist "$1"
+  retire_legacy "$1"
   unload_agent "$1"
   load_agent "$1"
-  echo "loaded $(label "$1"); log: $HOME/Library/Logs/wacli-sync-$1.log"
+  echo "loaded $(label "$1"); log: $(log_path "$1")"
 }
 
 show_status() {
   local name="$1"
   echo "== $name"
   echo "plist   : $(dest "$name") $([ -f "$(dest "$name")" ] && echo '(installed)' || echo '(absent)')"
-  if launchctl print "gui/$UID/$(label "$name")" >"/tmp/.wacli-print.$$" 2>/dev/null; then
-    grep -E '^[[:space:]]+(state|pid|last exit code) = ' "/tmp/.wacli-print.$$" \
+  if launchctl print "gui/$UID/$(label "$name")" >"/tmp/.whatsapp-access-print.$$" 2>/dev/null; then
+    grep -E '^[[:space:]]+(state|pid|last exit code) = ' "/tmp/.whatsapp-access-print.$$" \
       | head -3 | sed 's/^[[:space:]]*/  /'
   else
     echo "  not loaded"
   fi
-  rm -f "/tmp/.wacli-print.$$"
+  rm -f "/tmp/.whatsapp-access-print.$$"
   "$WACLI" --account "$name" --read-only doctor 2>&1 | sed 's/^/  /'
 }
 
@@ -152,12 +167,14 @@ case "$ACTION" in
     if has_account "$ACCOUNT"; then
       if revoked "$ACCOUNT"; then
         unload_agent "$ACCOUNT"
+        retire_legacy "$ACCOUNT"
         reset_revoked_session "$ACCOUNT"
       elif paired "$ACCOUNT"; then
         die "'$ACCOUNT' is already paired; to link it again, run uninstall, then
        wacli --account $ACCOUNT auth logout, then pair"
       fi
       unload_agent "$ACCOUNT"
+      retire_legacy "$ACCOUNT"
       "$WACLI" --account "$ACCOUNT" auth --phone "$PHONE"
     else
       "$WACLI" accounts add "$ACCOUNT" --phone "$PHONE"
@@ -171,6 +188,7 @@ case "$ACTION" in
   uninstall)
     check_account
     unload_agent "$ACCOUNT"
+    retire_legacy "$ACCOUNT"
     rm -f "$(dest "$ACCOUNT")"
     echo "unloaded and removed $(dest "$ACCOUNT")"
     ;;
