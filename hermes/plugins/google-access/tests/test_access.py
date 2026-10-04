@@ -910,7 +910,7 @@ def layout(*ops, **extra):
 
 
 def requests(*ops):
-    return access._layout_requests(access._layout_ops(layout(*ops)), META)
+    return access._layout_requests(access._ops(layout(*ops), "layout"), META)
 
 
 @pytest.mark.parametrize("ref,grid", [
@@ -1037,7 +1037,7 @@ def test_typed_columns_keep_their_header_text(tmp_path, monkeypatch):
 
 
 def test_one_op_covers_scattered_ranges():
-    bold, widths, rule, check = (access._layout_requests(access._layout_ops(layout(op)), META) for op in (
+    bold, widths, rule, check = (access._layout_requests(access._ops(layout(op), "layout"), META) for op in (
         {"op": "format", "ranges": ["Tasks!A1", "Tasks!C5:D6", "Main!F9"], "bold": True},
         {"op": "size", "ranges": ["Tasks!B:B", "Tasks!E:F"], "pixels": 90},
         {"op": "conditional", "ranges": ["Tasks!D2:D9", "Tasks!G2:G9"], "when": "NOT_BLANK", "italic": True},
@@ -1309,7 +1309,7 @@ TABS = {"sheets": [
 
 
 def tab_requests(*ops, cell=None):
-    return access._layout_requests(access._layout_ops(layout(*ops)), TABS, cell=cell)
+    return access._layout_requests(access._ops(layout(*ops), "layout"), TABS, cell=cell)
 
 
 def test_hiding_and_grouping_become_requests():
@@ -1591,11 +1591,11 @@ def test_info_lists_groups_filters_views_and_tab_colours(tmp_path, monkeypatch):
 def test_tab_positions_are_where_the_tab_ends_up():
     meta = {"sheets": [{"properties": {"sheetId": i, "title": name, "index": i}}
                        for i, name in enumerate(["A", "B", "C", "D"])]}
-    got = access._layout_requests(access._layout_ops(layout(
+    got = access._layout_requests(access._ops(layout(
         {"op": "sheet", "sheet": "A", "position": 3},          # B C A D: API index 3 (before the move)
         {"op": "sheet", "sheet": "D", "position": 1},          # D B C A: API index 0
         {"op": "sheet_duplicate", "sheet": "B", "title": "B2"},  # D B B2 C A: right after B
-        {"op": "sheet_duplicate", "sheet": "C", "position": 9})), meta)  # clamped to the end
+        {"op": "sheet_duplicate", "sheet": "C", "position": 9}), "layout"), meta)  # clamped to the end
     assert [r["updateSheetProperties"]["properties"]["index"] for r in got[:2]] == [3, 0]
     assert got[2]["duplicateSheet"]["insertSheetIndex"] == 2 and got[3]["duplicateSheet"]["insertSheetIndex"] == 5
 

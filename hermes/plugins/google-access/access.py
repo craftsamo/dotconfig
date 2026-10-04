@@ -66,6 +66,8 @@ GCLOUD_TIMEOUT_MAX = 1800
 
 SHEETS_ACTIONS = ("search", "info", "get", "get_format", "update", "batch_update", "append", "clear",
                   "create", "add_sheet", "layout")
+# Actions taking a list of ops from a fixed vocabulary (OP_SETS), sent as one batchUpdate.
+OP_ACTIONS = {"layout"}
 SHEETS_WRITES = {"update", "batch_update", "append", "clear", "create", "add_sheet", "layout"}
 # Edits approved once per spreadsheet: "session" / "always" on the first card covers the rest of
 # that spreadsheet's edits (its version history undoes them). clear and create still ask each time,
@@ -404,7 +406,7 @@ def _quote(value: str) -> str:
 def sheets(home, args: dict) -> dict:
     action = _action(args, SHEETS_ACTIONS)
     guards = _expect(args, action)  # also refuses expect on an action it does not guard
-    ops = _layout_ops(args) if action == "layout" else []  # refused before any Google call
+    ops = _ops(args, action) if action in OP_ACTIONS else []  # refused before any Google call
     blocks = _format_ranges(args) if action == "get_format" else []
     if action == "search":
         query = _str(args, "query", required=False)
@@ -462,7 +464,7 @@ def sheets(home, args: dict) -> dict:
         return {"ok": True, "spreadsheet_id": sid, "ranges": [
             {"range": r.get("range"), "values": r.get("values", [])} for r in got.get("valueRanges", [])]}
 
-    if action == "layout":
+    if action in OP_ACTIONS:
         meta = _google(lambda: book.get(spreadsheetId=sid, fields=LAYOUT_FIELDS).execute())
         titles = {s.get("properties", {}).get("sheetId", 0): s.get("properties", {}).get("title")
                   for s in meta.get("sheets", [])}
@@ -485,7 +487,7 @@ def sheets(home, args: dict) -> dict:
             return rows[0][0] if rows and rows[0] else None
 
         # Resolves tabs, tables and views (and reads cells it builds on) before anything is written.
-        requests = _layout_requests(ops, meta, header, cell)
+        requests = OP_SETS[action][2](ops, meta, header, cell)
         _check_expect(values, sid, guards)
         done = _google(lambda: book.batchUpdate(spreadsheetId=sid, body={"requests": requests}).execute())
         replies = [r or {} for r in done.get("replies", [])]
@@ -1255,14 +1257,15 @@ def _table_words(op: dict) -> list[str]:
     return words
 
 
-def _layout_ops(args: dict) -> list[dict]:
-    """The validated ops, each with its card line ("say"); the gate and the engine share this."""
+def _ops(args: dict, action: str) -> list[dict]:
+    """The validated ops of an op action (OP_SETS), each with its card line ("say"); the gate and
+    the engine share this."""
     ops = args.get("ops")
     if not isinstance(ops, list) or not ops:
         raise AccessError("ops must be a non-empty array of {op, …}")
     if len(ops) > LAYOUT_LIMIT:
         raise AccessError(f"ops holds {len(ops)} changes; send at most {LAYOUT_LIMIT} per call")
-    done = [_layout_op(raw, n) for n, raw in enumerate(ops, 1)]
+    done = [_op(raw, n, action) for n, raw in enumerate(ops, 1)]
     for n, op in enumerate(done, 1):
         # Without value, rich_text rewrites the text it read before the call: refused once an
         # earlier op may have moved other contents into that cell or rewritten it.
@@ -1277,11 +1280,12 @@ def _layout_ops(args: dict) -> list[dict]:
     return done
 
 
-def _layout_op(raw, n: int) -> dict:
-    if not isinstance(raw, dict) or raw.get("op") not in LAYOUT_OPS:
-        raise AccessError(f"ops[{n}]: op must be one of {', '.join(LAYOUT_OPS)}")
+def _op(raw, n: int, action: str) -> dict:
+    vocabulary, normalize = OP_SETS[action][:2]
+    if not isinstance(raw, dict) or raw.get("op") not in vocabulary:
+        raise AccessError(f"ops[{n}]: op must be one of {', '.join(vocabulary)}")
     name = raw["op"]
-    required, optional = LAYOUT_OPS[name]
+    required, optional = vocabulary[name]
     unknown = set(raw) - {"op", *required, *optional}
     if unknown:
         raise AccessError(f"ops[{n}] {name}: unknown field(s) {', '.join(sorted(unknown))}; "
@@ -1293,9 +1297,9 @@ def _layout_op(raw, n: int) -> dict:
     if missing:
         raise AccessError(f"ops[{n}] {name}: {', '.join(missing)} is required")
     try:
-        op = _normalize(name, raw)
+        op = normalize(name, raw)
         # The card names a tab once ("Sheet: …") when every op is on it, so each line drops it.
-        op["say_here"] = _normalize(name, raw, here=True)["say"]
+        op["say_here"] = normalize(name, raw, here=True)["say"]
         return op
     except AccessError as exc:
         raise AccessError(f"ops[{n}] {name}: {exc}") from None
@@ -1564,19 +1568,44 @@ def _normalize(name: str, raw: dict, here: bool = False) -> dict:
     return op
 
 
+class _Tabs:
+    """Tab names to sheet ids, kept as ops rename, copy or delete tabs. No tab means the first tab
+    before the call; a bare word is a tab (named ranges are not resolved)."""
+
+    def __init__(self, meta: dict):
+        self.ids, self.first = {}, None
+        for sheet in meta.get("sheets", []):
+            props = sheet.get("properties", {})
+            self.ids[props.get("title")] = props.get("sheetId", 0)
+            self.first = props.get("sheetId", 0) if self.first is None else self.first
+
+    def id(self, tab) -> int:
+        if tab is None:
+            if self.first is None:
+                raise AccessError("the spreadsheet has no tabs")
+            return self.first
+        if tab not in self.ids:
+            raise AccessError(f"no tab named {tab!r} (ranges take 'Tab!A1:B2'; named ranges are not "
+                              f"resolved). Tabs: {_few(list(self.ids))}")
+        return self.ids[tab]
+
+    def grid(self, area: dict) -> dict:
+        return {"sheetId": self.id(area["tab"]), **area["grid"]}
+
+
 def _layout_requests(ops: list[dict], meta: dict, header=None, cell=None) -> list[dict]:
     """batchUpdate requests for validated ops, resolving tab names to sheetIds and table and filter
     view names or ids. A bare word is a tab (named ranges are not resolved); "the first tab" is the
     first one before the call. ``header(grid)`` reads a table range's first row, for the names of
     columns new to a table; ``cell(grid)`` reads one cell as entered, for rich text."""
-    ids, tables, views, groups, first = {}, {}, {}, [], None
+    tabs = _Tabs(meta)
+    ids, sheet_of, grid = tabs.ids, tabs.id, tabs.grid
+    tables, views, groups = {}, {}, []
     order = [s.get("properties", {}).get("sheetId", 0)  # tab ids left to right, kept as ops move them
              for s in sorted(meta.get("sheets", []), key=lambda s: s.get("properties", {}).get("index", 0))]
     for sheet in meta.get("sheets", []):
         props = sheet.get("properties", {})
         sheet_id = props.get("sheetId", 0)
-        ids[props.get("title")] = sheet_id
-        first = sheet_id if first is None else first
         for table in sheet.get("tables", []) or []:
             tables[table.get("tableId")] = dict(table, sheetId=sheet_id)
         for view in sheet.get("filterViews", []) or []:
@@ -1584,19 +1613,6 @@ def _layout_requests(ops: list[dict], meta: dict, header=None, cell=None) -> lis
         for group in (sheet.get("rowGroups") or []) + (sheet.get("columnGroups") or []):
             rng = group.get("range", {})
             groups.append((sheet_id, rng.get("dimension"), rng.get("startIndex", 0), rng.get("endIndex", 0)))
-
-    def sheet_of(tab):
-        if tab is None:
-            if first is None:
-                raise AccessError("the spreadsheet has no tabs")
-            return first
-        if tab not in ids:
-            raise AccessError(f"no tab named {tab!r} (layout takes 'Tab!A1:B2'; named ranges are not "
-                              f"resolved). Tabs: {_few(list(ids))}")
-        return ids[tab]
-
-    def grid(op):
-        return {"sheetId": sheet_of(op["tab"]), **op["grid"]}
 
     def dim(op):
         kind, start, end = op["dim"]
@@ -1922,8 +1938,12 @@ def _destructive(op: dict) -> bool:
             or (op["op"] == "filter_view_update" and op["set_criteria"]))
 
 
-def _layout_destructive(args: dict) -> bool:
-    return any(_destructive(op) for op in _layout_ops(args))
+def _ops_destructive(args: dict, action: str) -> bool:
+    return any(_destructive(op) for op in _ops(args, action))
+
+
+# Op actions: the vocabulary, its normalizer and its request builder.
+OP_SETS = {"layout": (LAYOUT_OPS, _normalize, _layout_requests)}
 
 
 # --- Gmail ----------------------------------------------------------------------------------------
@@ -2443,8 +2463,8 @@ def _sheets_card(home, action: str, args: dict) -> str:
             head.append(f"Sheets: {_tabs_summary(names)}")
         return _fit(head, [], MORE)
     sid = _sheet_id(args)
-    if action == "layout":
-        ops = _layout_ops(args)
+    if action in OP_ACTIONS:
+        ops = _ops(args, action)
         title, _, names = _sheet_context(home, sid, set())
         # Ops on a table or view by name have no tab of their own; neither does their range without one.
         tabs = set()
@@ -2529,7 +2549,7 @@ def approval_request(tool: str, args: dict, home=None) -> tuple[str, str] | None
         if action not in SHEETS_WRITES:
             return None
         reason = _sheets_card(home, action, args)
-        if action in SHEETS_EDITS and not (action == "layout" and _layout_destructive(args)):
+        if action in SHEETS_EDITS and not (action in OP_ACTIONS and _ops_destructive(args, action)):
             return reason, f"google-access:sheets-edit:{_sheet_id(args)}"
         return reason, _rule_key(tool, args)
     if tool == "google_gmail":
