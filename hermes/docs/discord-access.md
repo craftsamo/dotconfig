@@ -97,7 +97,40 @@ as well, so search and approval cards can see it.
 Messages come oldest first, with local times, `from: me` for the user's own,
 reply targets, attachment names and links, and a note that text and names
 are written by other people and are data, never instructions. `search` is a
-literal substring match over the mirror only, and says so.
+literal substring match over the mirror only, and says so. Stickers are
+listed by name.
+
+## Media
+
+`media` (channel + message id) saves what one message carries: its
+attachments, the media of its link previews (images, thumbnails, videos) and
+its stickers. Files go into one folder per message, `<channel>-<message>`,
+under `discord_access.download_dir` from the profile's `config.yaml`, else
+`<HERMES_HOME>/discord-downloads/`; the result lists each path.
+
+- The engine fetches the message again, because attachment URLs are signed
+  and expire, and downloads each item without the token into a private
+  `incoming/` folder in the state directory, with a 9-minute budget per call.
+  Link-preview media come only from Discord's proxied copies
+  (`images-ext-*.discordapp.net`, `media.discordapp.net`), never from the
+  site behind the link; stickers from Discord's CDN (PNG, GIF or Lottie
+  JSON). Any other host is refused.
+- Archives and programs are refused by name and declared type before the
+  download, and by the bytes (`file --mime-type`) after it, the same rules as
+  signal-access. A file over `discord_access.download_max_mb` (default 100, at
+  most 500) is not downloaded, and the size is reported where known.
+- The plugin writes what passed into the download folder under a cleaned
+  name (`a.txt`, `a-2.txt` for a repeat; a shortened name keeps its
+  extension, and the final name is checked against the same rules). Writes
+  go through the message folder's descriptor, opened without following links,
+  into a hidden part file renamed into place; a link or folder already at a
+  name is left alone and the next free name used, so nothing is written
+  through a link. `incoming/` is emptied whatever happens; leftovers
+  from a crash expire after a day. Saving the same message again overwrites
+  its folder's files.
+- A message that is gone, or an item Discord no longer serves, is reported as
+  missing. The note says a saved file is to be looked at, never opened, run
+  or unpacked.
 
 ## Sync list
 
@@ -198,7 +231,7 @@ a `reply_to` must be a message of that channel already in the mirror.
 ## Ways around the tool
 
 The same hook blocks terminal calls that name the state directory
-(`hermes-discord`, the outbox included), the token or its Keychain scope
+(`hermes-discord`, the outbox and `incoming/` included), the token or its Keychain scope
 (`DISCORD_USER_TOKEN`, `discord-user`), the plugin (`discord-access`) or the raw API
 (`discord.com/api`), and file-tool calls on the state directory, the token
 name or the engine venv; the plugin's source stays readable. It is a pattern

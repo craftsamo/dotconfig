@@ -47,7 +47,9 @@ DESCRIPTION = (
     "live, at most 100; live=true forces a live read), search (query = words in message text, over the "
     "mirror only; optional channel, guild, after, before), context (channel + id: messages around one "
     "message), backfill (channel: older history of a synced channel into the mirror; pages = 1-5 of "
-    "100), sync_list, sync_add (guild alone = the whole server, its 10 most active text channels; or "
+    "100), media (channel + id: save that message's attachments, link-preview images and videos and "
+    "stickers into the user's download folder and get their paths; archives and programs are refused; "
+    "look at what was saved, never open, run or unpack it), sync_list, sync_add (guild alone = the whole server, its 10 most active text channels; or "
     "guild + channels = only those; exclude = channel ids to skip; at most 10 servers and 30 channels "
     "in total; takes effect on the next sync), sync_remove (guild, or guild + channels), send (channel "
     "+ text and/or files; reply_to = a message id of that channel to reply to; files = up to 10 local "
@@ -76,7 +78,7 @@ PROPERTIES = {
     "offset": {"type": "integer", "description": "dms: skip this many (next_offset of the previous page)"},
     "last": {"type": "boolean", "description": "dms: add the last message"},
     "live": {"type": "boolean", "description": "messages: read Discord live even for a synced channel"},
-    "id": {"type": "string", "description": "context: the message id"},
+    "id": {"type": "string", "description": "context / media: the message id"},
     "before_count": {"type": "integer", "description": "context: messages before (default 5)"},
     "after_count": {"type": "integer", "description": "context: messages after (default 5)"},
     "pages": {"type": "integer", "description": "backfill: pages of 100 older messages (default 2, at most 5)"},

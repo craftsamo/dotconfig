@@ -33,6 +33,6 @@ pointer such as `PROFILES.md "Broker shape"` resolves through this table.
 | [Google access](./docs/google-access.md) | Shape; Account, scopes and state; Approval; Ways around the tools; Setup |
 | [WhatsApp access](./docs/whatsapp-access.md) | Shape; Accounts and state; Reads; Check, backfill and media; Send; Ways around the tool; Setup |
 | [Signal access](./docs/signal-access.md) | Shape; Account and state; The mirror; Reads; Check and media; Send; Ways around the tool; Setup |
-| [Discord access](./docs/discord-access.md) | Shape; Account, token and engine; Mirror and sync; Reads; Sync list; Send; Ways around the tool; Setup |
+| [Discord access](./docs/discord-access.md) | Shape; Account, token and engine; Mirror and sync; Reads; Media; Sync list; Send; Ways around the tool; Setup |
 | [Models, authentication and secrets](./docs/models-auth.md) | Models and fallback chains (Fable and the Claude weekly pool, `agent.*` does not inherit from the root profile); Authentication inheritance; Secrets layering |
 | [Gateway, tracking and status](./docs/operations.md) | Gateway as a persistent service; Tracking; Current state |

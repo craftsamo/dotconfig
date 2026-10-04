@@ -8,7 +8,7 @@ or logged.
 
     engine.py COMMAND  < JSON arguments  > {"ok": true, "data": ...} | {"ok": false, "kind", "error"}
 
-Commands: whoami, guilds, channels, channel, messages, backfill, sync, send. Requests carry the
+Commands: whoami, guilds, channels, channel, messages, backfill, sync, send, media. Requests carry the
 Discord web client's headers on a Chrome/macOS identity, are paced, and wait out short rate
 limits only for reads. ``send`` makes exactly one message POST with ``nonce`` + ``enforce_nonce``
 and never retries it; attachments are uploaded first (Discord's cloud upload, as the web client
@@ -30,6 +30,7 @@ import re
 import subprocess
 import sys
 import time
+import urllib.parse
 import uuid
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -65,6 +66,12 @@ BACKFILL_PAGES = (2, 5)
 # token never goes there, and files are only ever read from the plugin's approved outbox.
 UPLOAD_TIMEOUT = 120
 UPLOAD_BUDGET = 600          # all uploads of one send; the plugin waits 840 s for the whole send
+# Media: one message's attachments, proxied link-preview media and stickers, fetched from Discord's
+# media hosts without the token into a private incoming folder that the plugin then sorts.
+MEDIA_BUDGET = 540           # all downloads of one call; the plugin waits 660 s for the whole call
+MEDIA_TIMEOUT = 180          # one download
+MEDIA_LIMIT_MAX = 500 * 1024 * 1024
+INCOMING_TOKEN = re.compile(r"^[0-9a-f]{32}$")
 UPLOAD_HOST = re.compile(r"^[a-z0-9-]+\.storage\.googleapis\.com$")
 
 # curl error codes raised before a request can have left the machine.
@@ -169,6 +176,40 @@ class Http:
         except Exception:  # noqa: BLE001
             payload = resp.text
         return resp.status_code, {k.lower(): v for k, v in resp.headers.items()}, payload
+
+
+    def download(self, url: str, dest: Path, *, headers: dict, limit: int, timeout: float) -> dict:
+        """Stream one file into ``dest`` (created exclusively), stopping past ``limit`` bytes.
+        ``{"status", "type", "size", "too_large"}``; raises TransportError below HTTP."""
+        from curl_cffi import CurlError
+        try:
+            resp = self.session.get(url, headers=headers, timeout=timeout, stream=True, allow_redirects=False)
+        except CurlError as exc:
+            raise TransportError(f"network error (curl {getattr(exc, 'code', None)})", dispatched=True) from exc
+        try:
+            kind = (resp.headers.get("content-type") or "").split(";", 1)[0].strip()
+            out = {"status": resp.status_code, "type": kind, "size": 0, "too_large": False}
+            if not 200 <= resp.status_code < 300:
+                return out
+            declared = resp.headers.get("content-length")
+            if declared and declared.isdigit() and int(declared) > limit:
+                return {**out, "size": int(declared), "too_large": True}
+            with open(dest, "xb") as handle:
+                os.fchmod(handle.fileno(), 0o600)
+                for chunk in resp.iter_content():
+                    out["size"] += len(chunk)
+                    if out["size"] > limit:
+                        out["too_large"] = True
+                        break
+                    handle.write(chunk)
+            if out["too_large"]:
+                dest.unlink(missing_ok=True)
+            return out
+        except CurlError as exc:
+            dest.unlink(missing_ok=True)
+            raise TransportError(f"network error (curl {getattr(exc, 'code', None)})", dispatched=True) from exc
+        finally:
+            resp.close()
 
 
 # --- client -------------------------------------------------------------------------------------
@@ -592,6 +633,95 @@ def sync(client: Client) -> dict:
     return summary
 
 
+# --- media --------------------------------------------------------------------------------------
+
+def _url_name(url: str) -> str:
+    return Path(urllib.parse.urlparse(url).path).name
+
+
+def media_items(m: dict) -> list[dict]:
+    """Everything savable in one message, in order: attachments, link-preview media (Discord's
+    proxied copies only) and stickers, without duplicates."""
+    items, seen = [], set()
+
+    def add(item):
+        if item["url"] and item["url"] not in seen:
+            seen.add(item["url"])
+            items.append(item)
+
+    for i, a in enumerate(m.get("attachments") or []):
+        if isinstance(a, dict):
+            add({"kind": "attachment", "name": a.get("filename") or f"file-{i + 1}",
+                 "type": a.get("content_type") or "", "size": a.get("size"), "url": a.get("url")})
+    for e in m.get("embeds") or []:
+        if not isinstance(e, dict):
+            continue
+        for part in ("image", "thumbnail", "video"):
+            proxy = (e.get(part) or {}).get("proxy_url")
+            if proxy:
+                add({"kind": "preview", "name": f"preview-{_url_name(proxy) or part}", "type": "", "size": None,
+                     "url": proxy, "source": e.get("url")})
+    for st in m.get("sticker_items") or []:
+        if not isinstance(st, dict) or not store.is_snowflake(str(st.get("id"))):
+            continue
+        ext = store.STICKER_FORMATS.get(st.get("format_type"), "png")
+        host = "media.discordapp.net" if ext == "gif" else "cdn.discordapp.com"
+        add({"kind": "sticker", "name": f"{st.get('name') or st['id']}.{ext}", "type": "", "size": None,
+             "url": f"https://{host}/stickers/{st['id']}.{ext}"})
+    return items
+
+
+def media(client: Client, channel_id: str, message_id: str, folder: Path, limit: int) -> dict:
+    """Fetch the message again (attachment URLs are signed and expire), then download each item
+    into ``folder``. Each item reports saved / refused / too_large / missing / failed."""
+    cid = int(channel_id)
+    found = client.get(f"/channels/{cid}/messages", params={"around": message_id, "limit": "5"},
+                       referer=_referer(client.conn, cid))
+    m = next((x for x in found if isinstance(x, dict) and str(x.get("id")) == str(message_id)), None)
+    if m is None:
+        raise EngineError("not_found", "that message is gone or not visible to this account")
+    _store_batch(client, cid, [m])
+    client.conn.commit()
+    deadline = time.monotonic() + MEDIA_BUDGET
+    out = []
+    for i, item in enumerate(media_items(m)):
+        entry = {k: v for k, v in item.items() if k != "url"}
+        url = urllib.parse.urlparse(item["url"] or "")
+        if url.scheme != "https" or not store.MEDIA_HOST.match(url.hostname or ""):
+            out.append({**entry, "status": "refused", "why": "not on Discord's media hosts"})
+            continue
+        if store.risky(item["name"], item["type"]):
+            out.append({**entry, "status": "refused", "why": "an archive or program"})
+            continue
+        if isinstance(item["size"], int) and item["size"] > limit:
+            out.append({**entry, "status": "too_large"})
+            continue
+        remaining = deadline - time.monotonic()
+        if remaining < 5:
+            out.append({**entry, "status": "failed", "why": "out of time for this call"})
+            continue
+        dest = folder / f"{i:02d}"
+        client._pace()
+        client.requests += 1
+        headers = {"Accept": "*/*", "Accept-Language": client._accept_language(), "Referer": f"{WEB}/",
+                   "User-Agent": client.http.user_agent, "Sec-Fetch-Dest": "image", "Sec-Fetch-Mode": "no-cors",
+                   "Sec-Fetch-Site": "cross-site"}
+        try:
+            got = client.http.download(item["url"], dest, headers=headers, limit=limit,
+                                       timeout=min(MEDIA_TIMEOUT, remaining))
+        except TransportError as exc:
+            out.append({**entry, "status": "failed", "why": client._scrub(str(exc))})
+            continue
+        if got["too_large"]:
+            out.append({**entry, "status": "too_large", "size": got["size"]})
+        elif 200 <= got["status"] < 300:
+            out.append({**entry, "status": "saved", "file": dest.name, "size": got["size"],
+                        "type": item["type"] or got["type"]})
+        else:
+            out.append({**entry, "status": "missing", "why": f"Discord's media host answered {got['status']}"})
+    return {"items": out}
+
+
 # --- send ---------------------------------------------------------------------------------------
 
 def text_hash(text: str) -> str:
@@ -839,6 +969,18 @@ def run(command: str, args: dict, *, http=None, token=None) -> dict:
                                          after=_arg(args, "after", required=False),
                                          around=_arg(args, "around", required=False),
                                          limit=int(args.get("limit") or 50))}
+        if command == "media":
+            token = args.get("token")
+            if not isinstance(token, str) or not INCOMING_TOKEN.match(token):
+                raise EngineError("usage", "token must be 32 hex characters")
+            limit = args.get("limit")
+            if isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= MEDIA_LIMIT_MAX:
+                raise EngineError("usage", f"limit must be 1 to {MEDIA_LIMIT_MAX} bytes")
+            folder = store.state_dir() / "incoming"
+            folder.mkdir(mode=0o700, exist_ok=True)
+            folder = folder / token
+            folder.mkdir(mode=0o700)
+            return media(client, _arg(args, "channel"), _arg(args, "id"), folder, limit)
         if command == "backfill":
             pages = max(1, min(int(args.get("pages") or BACKFILL_PAGES[0]), BACKFILL_PAGES[1]))
             if not client.me.get("id"):

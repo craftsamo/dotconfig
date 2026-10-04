@@ -425,7 +425,8 @@ keeps user keys.
   `discord_access`) for the assistant — the user's own Discord account (not
   the Assistant's bot): DMs and the servers on its sync list read from a local
   mirror, other channels read live, text and files sent through the approval
-  gate (files frozen at the card, from `~/Workspaces` by default); its
+  gate (files frozen at the card, from `~/Workspaces` by default), and a
+  message's attachments, link-preview media and stickers saved on request; its
   hook blocks the terminal path around it. `engine.py` alone talks to Discord
   and holds the token, on its own hash-locked venv
   (`engines/discord-user`); the `local.discord-user.sync` LaunchAgent runs one
