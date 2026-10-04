@@ -1779,3 +1779,19 @@ def test_data_reports_counts_and_honours_expect(tmp_path, monkeypatch):
         {"op": "dedupe", "rows_removed": 2}, {"op": "trim", "cells_changed": 5}]
     assert [list(r) for r in book.batchUpdate.call_args.kwargs["body"]["requests"]] == [
         ["findReplace"], ["deleteDuplicates"], ["trimWhitespace"]]
+
+
+def test_deleting_a_tab_asks_every_time_and_later_ops_cannot_use_it():
+    args = layout({"op": "format", "range": "Tasks!A1", "bold": True}, {"op": "sheet_delete", "sheet": "Main"})
+    reason, key = access.approval_request("google_sheets", args)
+    assert "sheets-edit" not in key and reason.endswith("Delete tab Main with all its contents")
+    renamed, dropped = tab_requests({"op": "sheet", "sheet": "Main", "title": "Old"},
+                                    {"op": "sheet_delete", "sheet": "Old"})
+    assert dropped == {"deleteSheet": {"sheetId": 0}}
+    for later in ({"op": "hide", "range": "Old!A:A"}, {"op": "hide", "range": "A:A"}):
+        with pytest.raises(access.AccessError, match="no tab named|deleted earlier"):
+            tab_requests({"op": "sheet_delete", "sheet": "Main"}, later)
+    with pytest.raises(access.AccessError, match="at least one tab"):
+        tab_requests({"op": "sheet_delete", "sheet": "Main"}, {"op": "sheet_delete", "sheet": "Tasks"})
+    with pytest.raises(access.AccessError, match="no single filter view"):
+        tab_requests({"op": "sheet_delete", "sheet": "Tasks"}, {"op": "filter_view_delete", "view": "Open only"})
