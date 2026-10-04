@@ -1795,3 +1795,14 @@ def test_deleting_a_tab_asks_every_time_and_later_ops_cannot_use_it():
         tab_requests({"op": "sheet_delete", "sheet": "Main"}, {"op": "sheet_delete", "sheet": "Tasks"})
     with pytest.raises(access.AccessError, match="no single filter view"):
         tab_requests({"op": "sheet_delete", "sheet": "Tasks"}, {"op": "filter_view_delete", "view": "Open only"})
+
+
+def test_card_literals_keep_whitespace_and_overlapping_moves_say_so(monkeypatch):
+    context(monkeypatch, title="Plan", names=["Main", "Tasks"])
+    lines = access.approval_request("google_sheets", data(
+        {"op": "find_replace", "find": "a  b\t", "replacement": "\n", "sheet": "Tasks"},
+        {"op": "split_text", "range": "Tasks!E2:E9", "delimiter": " / "},
+        {"op": "cut", "range": "Tasks!A1:A3", "to": "A2"}), home=Path("/x"))[0].split("\n")
+    assert lines[3:] == ['Replace "a  b\\t" with "\\n" in whole tab',
+                         'Split E2:E9 on " / " into the columns to its right, overwriting them',
+                         "Move A1:A3 to A2:A4, overwriting it; source cells outside it are left empty"]
