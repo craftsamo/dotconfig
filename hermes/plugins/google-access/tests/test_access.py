@@ -1797,6 +1797,19 @@ def test_deleting_a_tab_asks_every_time_and_later_ops_cannot_use_it():
         tab_requests({"op": "sheet_delete", "sheet": "Tasks"}, {"op": "filter_view_delete", "view": "Open only"})
 
 
+def test_a_copy_without_a_title_keeps_the_last_tab_guard_honest():
+    one = {"sheets": [{"properties": {"sheetId": 3, "title": "Main", "index": 0}}]}
+    copy, gone = access._layout_requests(access._ops(layout(
+        {"op": "sheet_duplicate", "sheet": "Main"}, {"op": "sheet_delete", "sheet": "Main"}), "layout"), one)
+    assert gone == {"deleteSheet": {"sheetId": 3}} and copy["duplicateSheet"]["sourceSheetId"] == 3
+
+
+def test_a_view_moved_to_another_tab_survives_deleting_its_old_tab():
+    *_, kept = tab_requests({"op": "filter_view_update", "view": "Open only", "range": "Main!A1:C9"},
+                            {"op": "sheet_delete", "sheet": "Tasks"}, {"op": "filter_view_delete", "view": "Open only"})
+    assert kept == {"deleteFilterView": {"filterId": 55}}
+
+
 def test_card_literals_keep_whitespace_and_overlapping_moves_say_so(monkeypatch):
     context(monkeypatch, title="Plan", names=["Main", "Tasks"])
     lines = access.approval_request("google_sheets", data(
