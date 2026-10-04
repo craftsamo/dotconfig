@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta, timezone
+import json
 import importlib.util
 from pathlib import Path
 
@@ -468,3 +469,117 @@ def test_a_changed_request_between_the_hooks_gets_nothing(ws):
     args = _file_send(ws)
     access.approval_request(args, ids=ids())
     assert access.outbox_binding({**args, "text": "別の本文"}, ids=ids()) is None
+
+
+# --- media --------------------------------------------------------------------------------------
+
+def _media_engine(monkeypatch, items, contents):
+    def engine(command, args, timeout=None):
+        assert command == "media" and args["limit"] == 100 * 1024 * 1024
+        folder = store.state_dir() / "incoming" / args["token"]
+        folder.mkdir(parents=True)
+        for item in items:
+            if item.get("file"):
+                (folder / item["file"]).write_bytes(contents[item["file"]])
+        return {"items": items}
+    monkeypatch.setattr(access, "call_engine", engine)
+
+
+def test_media_saves_into_a_folder_per_message(tmp_path, monkeypatch):
+    target = tmp_path / "inbox"
+    monkeypatch.setattr(access, "download_dir", lambda home: target)
+    items = [{"kind": "attachment", "name": "a.txt", "status": "saved", "file": "00", "type": "text/plain"},
+             {"kind": "attachment", "name": "a.txt", "status": "saved", "file": "01", "type": "text/plain"},
+             {"kind": "preview", "name": "preview-t.jpg", "status": "saved", "file": "02", "type": "",
+              "source": "https://example.com/post"},
+             {"kind": "attachment", "name": "evil.txt", "status": "saved", "file": "03", "type": "text/plain"},
+             {"kind": "attachment", "name": "tool.zip", "status": "refused", "why": "an archive or program"},
+             {"kind": "attachment", "name": "huge.mov", "status": "too_large", "size": 600 * 1024 * 1024},
+             {"kind": "sticker", "name": "dance.gif", "status": "missing", "why": "Discord's media host answered 404"}]
+    shell = b"#!/bin/sh\nrm -rf ~\n"
+    _media_engine(monkeypatch, items, {"00": b"one", "01": b"two", "02": b"jpeg-bytes", "03": shell})
+    result = access.execute({"action": "media", "channel": DM1, "id": str(M1)})
+    folder = target / f"{DM1}-{M1}"
+    assert result["folder"] == str(folder)
+    assert [Path(f["path"]).name for f in result["files"]] == ["a.txt", "a-2.txt", "preview-t.jpg"]
+    assert (folder / "a-2.txt").read_bytes() == b"two" and not (folder / "evil.txt").exists()
+    assert result["files"][2]["preview_of"] == "https://example.com/post"
+    assert any("evil.txt" in r for r in result["refused"]) and any("tool.zip" in r for r in result["refused"])
+    assert "600.0 MB" in result["too_large"][0] and "download_max_mb" in result["too_large_note"]
+    assert "dance.gif" in result["missing"][0] and "never open" in result["note"]
+    assert list((store.state_dir() / "incoming").iterdir()) == []
+
+
+def test_media_needs_ids_and_something_to_save(monkeypatch):
+    with pytest.raises(access.DiscordError, match="not a name"):
+        access.execute({"action": "media", "channel": "taro", "id": str(M1)})
+    _media_engine(monkeypatch, [], {})
+    with pytest.raises(access.DiscordError, match="no attachments"):
+        access.execute({"action": "media", "channel": DM1, "id": str(M1)})
+
+
+def test_download_settings_come_from_the_profile_config(tmp_path):
+    pytest.importorskip("yaml")
+    home = tmp_path / "home"
+    home.mkdir()
+    assert access.download_dir(home) == home / "discord-downloads"
+    assert access.download_limit(home) == 100 * 1024 * 1024
+    (home / "config.yaml").write_text("discord_access:\n  download_dir: ~/Inbox/d\n  download_max_mb: 900\n")
+    assert access.download_dir(home) == Path.home() / "Inbox" / "d"
+    assert access.download_limit(home) == 500 * 1024 * 1024
+
+
+def test_stickers_show_in_read_results():
+    conn = store.connect(write=True)
+    conn.execute("UPDATE messages SET stickers = ? WHERE id = ?", (json.dumps(["wave"]), M1))
+    conn.commit()
+    conn.close()
+    first = access.execute({"action": "messages", "channel": DM1})["messages"][0]
+    assert first["stickers"] == ["wave"]
+
+
+def test_media_never_writes_through_links(tmp_path, monkeypatch):
+    target = tmp_path / "inbox"
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    monkeypatch.setattr(access, "download_dir", lambda home: target)
+    folder = target / f"{DM1}-{M1}"
+    folder.mkdir(parents=True)
+    (folder / "a.txt").symlink_to(outside / "victim.txt")
+    (folder / "b.txt").mkdir()
+    items = [{"kind": "attachment", "name": "a.txt", "status": "saved", "file": "00", "type": "text/plain"},
+             {"kind": "attachment", "name": "b.txt", "status": "saved", "file": "01", "type": "text/plain"}]
+    _media_engine(monkeypatch, items, {"00": b"one", "01": b"two"})
+    result = access.execute({"action": "media", "channel": DM1, "id": str(M1)})
+    assert not (outside / "victim.txt").exists() and (folder / "a.txt").is_symlink()   # left alone
+    assert (folder / "a-2.txt").read_bytes() == b"one"
+    assert [Path(f["path"]).name for f in result["files"]] == ["a-2.txt", "b-2.txt"]
+    assert list((folder / "b.txt").iterdir()) == []
+
+
+def test_a_linked_message_folder_is_refused(tmp_path, monkeypatch):
+    target = tmp_path / "inbox"
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    target.mkdir()
+    (target / f"{DM1}-{M1}").symlink_to(outside, target_is_directory=True)
+    monkeypatch.setattr(access, "download_dir", lambda home: target)
+    _media_engine(monkeypatch, [{"kind": "attachment", "name": "a.txt", "status": "saved", "file": "00",
+                                 "type": "text/plain"}], {"00": b"one"})
+    with pytest.raises(access.DiscordError, match="not a plain folder"):
+        access.execute({"action": "media", "channel": DM1, "id": str(M1)})
+    assert list(outside.iterdir()) == [] and list((store.state_dir() / "incoming").iterdir()) == []
+
+
+def test_shortened_names_keep_and_recheck_their_extension(tmp_path, monkeypatch):
+    target = tmp_path / "inbox"
+    monkeypatch.setattr(access, "download_dir", lambda home: target)
+    long_doc = "a" * 150 + ".pdf"
+    sneaky = "a" * 111 + ".terminal.txt"
+    assert access._safe_name(long_doc, "f").endswith(".pdf") and len(access._safe_name(long_doc, "f")) == 120
+    assert access._safe_name(sneaky, "f").endswith(".txt")
+    assert access._safe_name("run.command. . ", "f") == "run.command"
+    items = [{"kind": "attachment", "name": "run.command. . ", "status": "saved", "file": "00", "type": "text/plain"}]
+    _media_engine(monkeypatch, items, {"00": b"echo hi"})
+    result = access.execute({"action": "media", "channel": DM1, "id": str(M1)})
+    assert result["files"] == [] and "archive or program" in result["refused"][0]

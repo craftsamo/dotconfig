@@ -39,6 +39,26 @@ MAX_GUILDS = 10
 MAX_CHANNELS = 30          # explicit channels plus WHOLE_GUILD_CHANNELS per whole-server entry
 WHOLE_GUILD_CHANNELS = 10  # a whole server follows its most recently active text channels
 
+# Media: the hosts Discord serves attachments, proxied link-preview media and stickers from. Files
+# are only ever fetched from these, never from the original sites behind a link preview.
+MEDIA_HOST = re.compile(r"^(?:cdn\.discordapp\.com|media\.discordapp\.net|images-ext-\d+\.discordapp\.net)$")
+STICKER_FORMATS = {1: "png", 2: "png", 3: "json", 4: "gif"}   # PNG, APNG, Lottie, GIF
+# Archives and programs: never saved from a chat (the same rules as signal-access).
+RISKY_MIME = re.compile(r"zip|rar|7z|tar|gzip|bzip|x-xz|compressed|archive|java-archive|android\.package"
+                        r"|msdownload|msdos|x-executable|x-mach|x-sh\b|x-shellscript|javascript|vbscript"
+                        r"|x-apple-diskimage|x-iso|x-elf|x-sharedlib|x-object|x-python|x-ruby|x-perl|x-php"
+                        r"|x-script|x-tcl|x-lua|x-applescript|x-msi|x-bat", re.IGNORECASE)
+RISKY_FILES = re.compile(r"\.(?:zip|rar|7z|tar|gz|tgz|bz2|xz|zst|lz|lzma|cab|apk|aab|ipa|exe|msi|msp|dmg|pkg|mpkg"
+                         r"|iso|img|jar|war|class|scr|bat|cmd|com|cpl|hta|lnk|reg|inf|msc|wsf|wsh|js|jse|mjs|cjs"
+                         r"|vbs|vbe|ps1|psm1|sh|bash|zsh|fish|ksh|csh|command|tool|app|workflow|terminal"
+                         r"|applescript|scpt|scptd|py|pyc|pyw|rb|pl|php|lua|tcl|dylib|so|dll|bin|run|deb|rpm"
+                         r"|appimage|kext|plugin|prefpane|xpi|crx)$", re.IGNORECASE)
+
+
+def risky(name: str, kind: str) -> bool:
+    return bool(RISKY_FILES.search(name or "") or RISKY_MIME.search(kind or ""))
+
+
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS guilds (
     id INTEGER PRIMARY KEY, name TEXT, updated INTEGER);
@@ -48,7 +68,7 @@ CREATE TABLE IF NOT EXISTS channels (
 CREATE TABLE IF NOT EXISTS messages (
     id INTEGER PRIMARY KEY, channel_id INTEGER NOT NULL, guild_id INTEGER, author_id INTEGER,
     author_name TEXT, from_me INTEGER NOT NULL DEFAULT 0, content TEXT, reply_to INTEGER,
-    attachments TEXT, embeds INTEGER NOT NULL DEFAULT 0, type INTEGER, edited TEXT);
+    attachments TEXT, embeds INTEGER NOT NULL DEFAULT 0, type INTEGER, edited TEXT, stickers TEXT);
 CREATE INDEX IF NOT EXISTS messages_channel ON messages (channel_id, id);
 CREATE TABLE IF NOT EXISTS cursors (
     channel_id INTEGER PRIMARY KEY, newest INTEGER, oldest INTEGER, complete INTEGER NOT NULL DEFAULT 0,
@@ -122,6 +142,10 @@ def connect(write: bool = False) -> sqlite3.Connection:
         os.chmod(path, 0o600)
         conn.execute("PRAGMA journal_mode=WAL")
         conn.executescript(SCHEMA)
+        columns = {r[1] for r in conn.execute("PRAGMA table_info(messages)")}
+        if "stickers" not in columns:  # mirrors made before stickers were recorded
+            conn.execute("ALTER TABLE messages ADD COLUMN stickers TEXT")
+            conn.commit()
     else:
         if not path.exists():
             raise StoreError("the Discord mirror does not exist yet: the sync has never run")
@@ -186,6 +210,7 @@ def message_row(m: dict, me_id, guild_id=None) -> dict:
     attachments = [{"name": a.get("filename"), "type": a.get("content_type"), "size": a.get("size"),
                     "url": a.get("url")} for a in m.get("attachments") or [] if isinstance(a, dict)]
     ref = m.get("message_reference") or {}
+    stickers = [s.get("name") or str(s.get("id")) for s in m.get("sticker_items") or [] if isinstance(s, dict)]
     gid = m.get("guild_id") or guild_id
     return {"id": int(m["id"]), "channel_id": int(m["channel_id"]), "guild_id": int(gid) if gid else None,
             "author_id": int(author["id"]) if author.get("id") else None,
@@ -195,16 +220,18 @@ def message_row(m: dict, me_id, guild_id=None) -> dict:
             "reply_to": int(ref["message_id"]) if ref.get("message_id") and m.get("type") == 19 else None,
             "attachments": json.dumps(attachments, ensure_ascii=False) if attachments else None,
             "embeds": len(m.get("embeds") or []), "type": m.get("type"),
-            "edited": m.get("edited_timestamp") or None}
+            "edited": m.get("edited_timestamp") or None,
+            "stickers": json.dumps(stickers, ensure_ascii=False) if stickers else None}
 
 
 def upsert_messages(conn: sqlite3.Connection, rows: list[dict]) -> None:
     conn.executemany(
         "INSERT INTO messages (id, channel_id, guild_id, author_id, author_name, from_me, content, reply_to, "
-        "attachments, embeds, type, edited) VALUES (:id, :channel_id, :guild_id, :author_id, :author_name, "
-        ":from_me, :content, :reply_to, :attachments, :embeds, :type, :edited) ON CONFLICT(id) DO UPDATE SET "
-        "author_name = excluded.author_name, content = excluded.content, attachments = excluded.attachments, "
-        "embeds = excluded.embeds, edited = excluded.edited", rows)
+        "attachments, embeds, type, edited, stickers) VALUES (:id, :channel_id, :guild_id, :author_id, "
+        ":author_name, :from_me, :content, :reply_to, :attachments, :embeds, :type, :edited, :stickers) "
+        "ON CONFLICT(id) DO UPDATE SET author_name = excluded.author_name, content = excluded.content, "
+        "attachments = excluded.attachments, embeds = excluded.embeds, edited = excluded.edited, "
+        "stickers = excluded.stickers", rows)
 
 
 # --- sync list ----------------------------------------------------------------------------------

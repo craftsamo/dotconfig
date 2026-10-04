@@ -495,3 +495,88 @@ def test_attachments_are_read_only_from_the_outbox(tmp_path):
         engine.outbox_files([{"path": str(elsewhere), "name": "secret.txt"}])
     with pytest.raises(engine.EngineError, match="outbox"):
         engine.outbox_files([{"path": str(store.state_dir() / "outbox" / ".." / "mirror.db"), "name": "m"}])
+
+
+# --- media --------------------------------------------------------------------------------------
+
+def media_message(mid):
+    return {**msg(mid, DM1), "attachments": [
+                {"filename": "photo.png", "content_type": "image/png", "size": 4,
+                 "url": "https://cdn.discordapp.com/attachments/1/2/photo.png?ex=1"},
+                {"filename": "tool.zip", "content_type": "application/zip", "size": 4,
+                 "url": "https://cdn.discordapp.com/attachments/1/3/tool.zip"},
+                {"filename": "huge.mov", "content_type": "video/quicktime", "size": 10 ** 9,
+                 "url": "https://cdn.discordapp.com/attachments/1/4/huge.mov"}],
+            "embeds": [{"url": "https://example.com/post",
+                        "thumbnail": {"url": "https://example.com/t.jpg",
+                                      "proxy_url": "https://images-ext-1.discordapp.net/external/abc/t.jpg"}},
+                       {"image": {"url": "https://evil.example/x.png", "proxy_url": "https://evil.example/x.png"}}],
+            "sticker_items": [{"id": "700000000000000001", "name": "wave", "format_type": 1},
+                              {"id": "700000000000000002", "name": "dance", "format_type": 4}]}
+
+
+class MediaHttp(FakeHttp):
+    def __init__(self, routes, files):
+        super().__init__(routes)
+        self.files = files
+
+    def download(self, url, dest, *, headers, limit, timeout):
+        self.calls.append({"method": "DOWNLOAD", "url": url, "headers": headers})
+        body = self.files.get(url)
+        if body is None:
+            return {"status": 404, "type": "", "size": 0, "too_large": False}
+        if len(body) > limit:
+            return {"status": 200, "type": "", "size": len(body), "too_large": True}
+        dest.write_bytes(body)
+        return {"status": 200, "type": "image/png", "size": len(body), "too_large": False}
+
+
+def test_media_items_cover_attachments_previews_and_stickers():
+    items = engine.media_items(media_message(flake(1)))
+    assert [(i["kind"], i["name"]) for i in items] == [
+        ("attachment", "photo.png"), ("attachment", "tool.zip"), ("attachment", "huge.mov"),
+        ("preview", "preview-t.jpg"), ("preview", "preview-x.png"), ("sticker", "wave.png"), ("sticker", "dance.gif")]
+    assert items[-1]["url"] == "https://media.discordapp.net/stickers/700000000000000002.gif"
+    assert items[3]["source"] == "https://example.com/post"
+
+
+def test_media_downloads_only_from_discord_and_within_limits(tmp_path):
+    conn = store.connect(write=True)
+    seeded_dm(conn)
+    mid = flake(1)
+    files = {"https://cdn.discordapp.com/attachments/1/2/photo.png?ex=1": b"\x89PNG",
+             "https://images-ext-1.discordapp.net/external/abc/t.jpg": b"jpeg",
+             "https://cdn.discordapp.com/stickers/700000000000000001.png": b"x" * 50}
+    http = MediaHttp({("GET", f"/channels/{DM1}/messages"): (200, {}, [media_message(mid)])}, files)
+    folder = tmp_path / "in"
+    folder.mkdir()
+    out = engine.media(client(http, conn), DM1, mid, folder, limit=20)["items"]
+    status = {i["name"]: i["status"] for i in out}
+    assert status == {"photo.png": "saved", "tool.zip": "refused", "huge.mov": "too_large",
+                      "preview-t.jpg": "saved", "preview-x.png": "refused", "wave.png": "too_large",
+                      "dance.gif": "missing"}
+    downloads = [c for c in http.calls if c["method"] == "DOWNLOAD"]
+    assert all("Authorization" not in c["headers"] for c in downloads)
+    assert not any("evil" in c["url"] or "zip" in c["url"] for c in downloads)
+    assert (folder / out[0]["file"]).read_bytes() == b"\x89PNG"
+
+
+def test_media_of_a_missing_message_is_not_found(tmp_path):
+    conn = store.connect(write=True)
+    seeded_dm(conn)
+    http = MediaHttp({("GET", f"/channels/{DM1}/messages"): (200, {}, [msg(flake(2), DM1)])}, {})
+    with pytest.raises(engine.EngineError) as exc:
+        engine.media(client(http, conn), DM1, flake(1), tmp_path, limit=10)
+    assert exc.value.kind == "not_found"
+
+
+def test_stickers_are_recorded_and_old_mirrors_migrate():
+    import sqlite3
+    path = store.state_dir() / "mirror.db"
+    old = sqlite3.connect(path)
+    old.executescript(store.SCHEMA.replace(", stickers TEXT", ""))
+    old.close()
+    conn = store.connect(write=True)
+    row = store.message_row(media_message(flake(1)), ME)
+    store.upsert_messages(conn, [row])
+    assert json.loads(conn.execute("SELECT stickers FROM messages").fetchone()[0]) == ["wave", "dance"]

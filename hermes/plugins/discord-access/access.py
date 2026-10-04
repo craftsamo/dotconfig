@@ -41,7 +41,7 @@ def _load(name, path):
 
 store = _load("hermes_discord_access_store", HERE / "store.py")
 
-ACTIONS = ("status", "guilds", "channels", "dms", "messages", "search", "context", "backfill",
+ACTIONS = ("status", "guilds", "channels", "dms", "messages", "search", "context", "backfill", "media",
            "sync_list", "sync_add", "sync_remove", "send")
 WRITES = {"send"}
 
@@ -51,6 +51,7 @@ ENGINE_PATH = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
 READ_TIMEOUT = 90           # token + build number + a few paced requests
 SYNC_TIMEOUT = 300
 SEND_TIMEOUT = 150          # token + build number + one POST + one read-back
+MEDIA_TIMEOUT = 660         # the engine's 600 s download budget + fetch; under the tool deadline (960)
 SEND_FILES_TIMEOUT = 840    # with uploads; under the Assistant's tool deadline (960)
 TOKEN_SET = "secret set DISCORD_USER_TOKEN -p hermes --scope discord-user"
 AGENT_LABEL = "local.discord-user.sync"
@@ -250,6 +251,11 @@ def message_entry(row, *, with_channel: bool = False) -> dict:
             pass
     if row["embeds"]:
         out["embeds"] = row["embeds"]
+    if "stickers" in row.keys() and row["stickers"]:
+        try:
+            out["stickers"] = json.loads(row["stickers"])
+        except ValueError:
+            pass
     if row["edited"]:
         out["edited"] = True
     return out
@@ -526,6 +532,178 @@ def backfill(args: dict) -> dict:
             "note": "Read the channel again with messages (before = the oldest id you have)."}
 
 
+# --- media --------------------------------------------------------------------------------------
+
+DOWNLOAD_MB = (100, 500)    # default and ceiling (Discord's largest upload) for one file
+MEDIA_NOTE = "A file someone sent: look at it, never open, run or unpack it. "
+
+
+def download_dir(home: Path | None) -> Path:
+    """``discord_access.download_dir``, else <home>/discord-downloads."""
+    configured = profile_config(home).get("download_dir")
+    if isinstance(configured, str) and configured.strip():
+        return Path(configured.strip()).expanduser()
+    return (Path(home) if home else Path.home() / ".hermes") / "discord-downloads"
+
+
+def download_limit(home: Path | None) -> int:
+    """``discord_access.download_max_mb`` (1 to 500), else 100, in bytes."""
+    value = profile_config(home).get("download_max_mb")
+    default, ceiling = DOWNLOAD_MB
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or value <= 0:
+        value = default
+    return int(min(value, ceiling) * 1024 * 1024)
+
+
+def _sniff(path: Path) -> str:
+    try:
+        proc = subprocess.run(["/usr/bin/file", "-b", "--mime-type", str(path)], stdin=subprocess.DEVNULL,
+                              capture_output=True, text=True, timeout=10)
+        return proc.stdout.strip() or "application/octet-stream"
+    except (OSError, subprocess.TimeoutExpired):
+        return "application/octet-stream"
+
+
+def _safe_name(name: str, fallback: str) -> str:
+    """A plain file name, at most 120 characters, its extension kept when it is shortened."""
+    cleaned = re.sub(r"[^\w.\- ]+", "_", Path(name or "").name).strip(" .")
+    stem, dot, ext = cleaned.rpartition(".")
+    if len(cleaned) > 120:
+        cleaned = (stem[:120 - len(ext) - 1].rstrip(" .") + "." + ext) if dot and len(ext) <= 16 else cleaned[:120]
+    return cleaned.strip(" .") or fallback
+
+
+def _open_dir(parent_fd: int | None, name: str, create: bool) -> int:
+    """A directory descriptor that never follows a symlink at ``name``."""
+    if create:
+        try:
+            os.mkdir(name, 0o755, dir_fd=parent_fd)
+        except FileExistsError:
+            pass
+    return os.open(name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=parent_fd)
+
+
+def _publish(source: Path, folder_fd: int, name: str) -> None:
+    """Copy into a fresh hidden file in the message folder, then rename it over ``name``. Both
+    happen relative to the folder's descriptor and a rename never follows a link at ``name``."""
+    part = f".part-{secrets.token_hex(8)}"
+    fd = os.open(part, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o644, dir_fd=folder_fd)
+    try:
+        with open(source, "rb") as src, os.fdopen(fd, "wb") as out:
+            shutil.copyfileobj(src, out, 1 << 20)
+        os.replace(part, name, src_dir_fd=folder_fd, dst_dir_fd=folder_fd)
+    except BaseException:
+        try:
+            os.unlink(part, dir_fd=folder_fd)
+        except OSError:
+            pass
+        raise
+
+
+def _prune_incoming() -> Path:
+    folder = store.state_dir() / "incoming"
+    folder.mkdir(mode=0o700, exist_ok=True)
+    now = datetime.now().timestamp()
+    for entry in folder.iterdir():
+        try:
+            if now - entry.stat().st_mtime > OUTBOX_TTL:
+                shutil.rmtree(entry, ignore_errors=True)
+        except OSError:
+            continue
+    return folder
+
+
+def media(args: dict, home: Path | None = None) -> dict:
+    """Save one message's attachments, link-preview media and stickers into the download folder
+    (one subfolder per message). Archives and programs are refused, by name and type before the
+    download and by the bytes after it."""
+    cid = _id(args, "channel", required=True, what="a channel id")
+    mid = _id(args, "id", required=True, what="a message id")
+    limit = download_limit(home)
+    token = secrets.token_hex(16)
+    staged = _prune_incoming() / token
+    root = download_dir(home)
+    target = root / f"{cid}-{mid}"
+    folder_fd = None
+    try:
+        items = call_engine("media", {"channel": cid, "id": mid, "token": token, "limit": limit},
+                            timeout=MEDIA_TIMEOUT)["items"]
+        files, refused, too_large, missing = [], [], [], []
+        used: set[str] = set()
+        for index, item in enumerate(items):
+            label = f"{item['name']} ({item['kind']})"
+            status = item.get("status")
+            if status == "saved":
+                source = staged / Path(item.get("file") or "").name
+                if not source.is_file():
+                    missing.append(f"{label}: the download was lost")
+                    continue
+                sniffed = _sniff(source)
+                name = _safe_name(item["name"], f"file-{index + 1}")
+                if store.risky(item["name"], sniffed) or store.risky(name, ""):
+                    refused.append(f"{label}: an archive or program (really {sniffed})")
+                    continue
+                if folder_fd is None:
+                    root.mkdir(parents=True, exist_ok=True)
+                    root_fd = os.open(root, os.O_RDONLY | os.O_DIRECTORY)
+                    try:
+                        folder_fd = _open_dir(root_fd, target.name, create=True)
+                    except OSError:
+                        raise DiscordError(f"{target} is not a plain folder (a link or a file); nothing was "
+                                           "saved") from None
+                    finally:
+                        os.close(root_fd)
+                stem, dot, ext = name.rpartition(".")
+                n = 2
+                while True:
+                    taken = name.lower() in used
+                    if not taken:
+                        try:  # a directory or link already there is never written through
+                            st = os.stat(name, dir_fd=folder_fd, follow_symlinks=False)
+                            taken = not stat.S_ISREG(st.st_mode)
+                        except FileNotFoundError:
+                            pass
+                    if not taken:
+                        break
+                    name = f"{stem}-{n}.{ext}" if dot else f"{ext}-{n}"
+                    n += 1
+                used.add(name.lower())
+                _publish(source, folder_fd, name)
+                dest = target / name
+                entry = {"path": str(dest), "kind": item["kind"], "type": item.get("type") or sniffed,
+                         "size": source.stat().st_size}
+                if item.get("source"):
+                    entry["preview_of"] = item["source"]
+                files.append(entry)
+            elif status == "refused":
+                refused.append(f"{label}: {item.get('why')}")
+            elif status == "too_large":
+                size = item.get("size")
+                too_large.append(f"{label}" + (f": {_human(size)}" if isinstance(size, int) else ""))
+            else:
+                missing.append(f"{label}: {item.get('why') or status}")
+    finally:
+        if folder_fd is not None:
+            os.close(folder_fd)
+        shutil.rmtree(staged, ignore_errors=True)
+    if not items:
+        raise DiscordError("that message has no attachments, link previews or stickers")
+    out = {"ok": bool(files), "channel": cid, "id": mid, "files": files}
+    if files:
+        out["folder"] = str(target)
+    if refused:
+        out["refused"] = refused
+        out["refused_note"] = "archives and programs sent in a chat are never saved or opened; warn the user instead"
+    if too_large:
+        out["too_large"] = too_large
+        out["too_large_note"] = (f"over the {limit // (1024 * 1024)} MB limit (discord_access.download_max_mb); "
+                                 "the user can open them in the app")
+    if missing:
+        out["missing"] = missing
+    out["note"] = MEDIA_NOTE + UNTRUSTED
+    return out
+
+
 # --- sync list ----------------------------------------------------------------------------------
 
 def sync_list(args: dict) -> dict:
@@ -618,15 +796,21 @@ SENSITIVE = re.compile(r"^\.env|\.(?:pem|key|p12|pfx|keychain(?:-db)?|kdbx|sqlit
 SENSITIVE_DIRS = {".git", ".ssh", ".gnupg", ".aws", ".config", "keychains"}
 
 
+def profile_config(home: Path | None) -> dict:
+    """``discord_access`` from the profile's config.yaml; empty when absent or unreadable."""
+    if not home:
+        return {}
+    try:
+        import yaml
+        config = yaml.safe_load((Path(home) / "config.yaml").read_text(encoding="utf-8")) or {}
+        section = config.get("discord_access")
+    except Exception:  # noqa: BLE001 - an unreadable config means the defaults
+        return {}
+    return section if isinstance(section, dict) else {}
+
+
 def attach_roots(home: Path | None) -> list[Path]:
-    configured = None
-    if home:
-        try:
-            import yaml
-            config = yaml.safe_load((Path(home) / "config.yaml").read_text(encoding="utf-8")) or {}
-            configured = (config.get("discord_access") or {}).get("attach_roots")
-        except Exception:  # noqa: BLE001 - an unreadable config means the default
-            configured = None
+    configured = profile_config(home).get("attach_roots")
     if isinstance(configured, str):
         configured = [configured]
     roots = [Path(r.strip()).expanduser() for r in configured or [] if isinstance(r, str) and r.strip()]
@@ -1039,6 +1223,8 @@ def execute(args: dict, home: Path | None = None) -> dict:
     action = action_of(args)
     if action in WRITES:
         return send(args, home=home)
+    if action == "media":
+        return media(args, home=home)
     try:
         return READS[action](args)
     except store.StoreError as exc:
