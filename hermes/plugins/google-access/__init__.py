@@ -36,7 +36,9 @@ APPROVAL = ("Calls that change something ({}) wait for the user's approval in ch
 
 SHEETS_DESCRIPTION = (
     "The user's own Google Sheets. search (query = part of a file name; lists spreadsheets), "
-    "info (spreadsheet_id; title, URL and tabs), get (spreadsheet_id + range or ranges in A1 "
+    "info (spreadsheet_id; title, URL and tabs, each with its frozen rows/columns, merges, "
+    "tables (id, range, column types) and numbered conditional rules), get (spreadsheet_id + "
+    "range or ranges in A1 "
     "notation, e.g. 'Sheet1!A1:D20'; unformatted=true for raw numbers), update (range + values: "
     "overwrite), batch_update (data = [{range, values}, …], up to 500 ranges in one call), append "
     "(range + values: add rows after the table), clear (range), create (title, optional "

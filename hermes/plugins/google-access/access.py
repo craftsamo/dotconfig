@@ -430,12 +430,10 @@ def sheets(home, args: dict) -> dict:
     api = _service(home, "sheets", "v4", SHEETS)
     book = api.spreadsheets()
     if action == "info":
-        meta = _google(lambda: book.get(spreadsheetId=sid, fields=(
-            "spreadsheetId,spreadsheetUrl,properties(title,locale,timeZone),"
-            "sheets.properties(sheetId,title,index,gridProperties(rowCount,columnCount))")).execute())
+        meta = _google(lambda: book.get(spreadsheetId=sid, fields=INFO_FIELDS).execute())
         return {"ok": True, "spreadsheet_id": sid, "title": meta.get("properties", {}).get("title"),
                 "url": meta.get("spreadsheetUrl"),
-                "sheets": [s.get("properties", {}) for s in meta.get("sheets", [])]}
+                "sheets": [_sheet_info(s) for s in meta.get("sheets", [])]}
     if action == "add_sheet":
         title = _str(args, "title")
         done = _google(lambda: book.batchUpdate(spreadsheetId=sid, body={
@@ -481,6 +479,76 @@ def sheets(home, args: dict) -> dict:
     updates = done.get("updates", {})
     return {"ok": True, "spreadsheet_id": sid, "updated_range": updates.get("updatedRange"),
             "updated_cells": updates.get("updatedCells")}
+
+
+# --- Sheets tab details ---------------------------------------------------------------------------
+
+INFO_FIELDS = ("spreadsheetId,spreadsheetUrl,properties(title,locale,timeZone),"
+               "sheets(properties(sheetId,title,index,gridProperties(rowCount,columnCount,"
+               "frozenRowCount,frozenColumnCount)),merges,"
+               "tables(tableId,name,range,columnProperties),conditionalFormats)")
+INFO_LIST_LIMIT = 50
+
+
+def _a1(grid: dict, rows: int | None = None, columns: int | None = None) -> str:
+    """A1 text of a GridRange from the API, where a missing start is 0 and a missing end is open;
+    '' is the whole tab. ``rows`` / ``columns`` close an open end that A1 cannot express."""
+    sc, sr = grid.get("startColumnIndex", 0), grid.get("startRowIndex", 0)
+    ec, er = grid.get("endColumnIndex"), grid.get("endRowIndex")
+    if ec is None and er is None and not sc and not sr:
+        return ""
+    if er is None and ec is not None:
+        return f"{column_letters(sc)}{sr + 1 if sr else ''}:{column_letters(ec - 1)}"
+    if ec is None and not sc:
+        return f"{sr + 1}:{er if er is not None else rows or sr + 1}"
+    ec = ec if ec is not None else columns or sc + 1
+    er = er if er is not None else rows or sr + 1
+    return f"{column_letters(sc)}{sr + 1}:{column_letters(ec - 1)}{er}"
+
+
+def _sheet_info(sheet: dict) -> dict:
+    """A tab's properties plus its merges, tables and conditional rules, in A1 terms, with the
+    ids and rule numbers that name them."""
+    props = dict(sheet.get("properties", {}))
+    size = props.get("gridProperties", {})
+    rows, cols = size.get("rowCount"), size.get("columnCount")
+    merges = [_a1(m, rows, cols) for m in sheet.get("merges", []) or []]
+    if merges:
+        props["merges"] = merges[:INFO_LIST_LIMIT] + ([f"+{len(merges) - INFO_LIST_LIMIT} more"]
+                                                      if len(merges) > INFO_LIST_LIMIT else [])
+    tables = []
+    for table in sheet.get("tables", []) or []:
+        rng = table.get("range", {})
+        start = rng.get("startColumnIndex", 0)
+        columns = []
+        for col in table.get("columnProperties", []) or []:
+            entry = {"column": column_letters(start + col.get("columnIndex", 0)),
+                     "name": col.get("columnName"), "type": col.get("columnType", "TEXT")}
+            options = (col.get("dataValidationRule", {}).get("condition", {}).get("values")) or []
+            if options:
+                entry["options"] = [v.get("userEnteredValue") for v in options]
+            columns.append(entry)
+        tables.append({"table_id": table.get("tableId"), "name": table.get("name"),
+                       "range": _a1(rng, rows, cols), "columns": columns})
+    if tables:
+        props["tables"] = tables
+    rules = []
+    for index, rule in enumerate(sheet.get("conditionalFormats", []) or []):
+        if index >= INFO_LIST_LIMIT:
+            rules.append({"more": len(sheet["conditionalFormats"]) - INFO_LIST_LIMIT})
+            break
+        boolean = rule.get("booleanRule")
+        if boolean:
+            condition = boolean.get("condition", {})
+            values = [v.get("userEnteredValue") or v.get("relativeDate") or "" for v in condition.get("values", [])]
+            what = (condition.get("type", "") + " " + ", ".join(values)).strip()
+        else:
+            what = "colour scale"
+        rules.append({"index": index, "ranges": [_a1(r, rows, cols) for r in rule.get("ranges", [])],
+                      "rule": what})
+    if rules:
+        props["conditional_rules"] = rules
+    return props
 
 
 # --- Gmail ----------------------------------------------------------------------------------------
