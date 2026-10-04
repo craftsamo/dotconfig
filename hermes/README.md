@@ -409,8 +409,9 @@ keeps user keys.
 - **whatsapp-access** (`standalone`): `whatsapp` (toolset `whatsapp_access`)
   for the assistant — reads the user's WhatsApp accounts from the local
   `wacli` mirror (plus number checks, history backfill and media downloads)
-  and sends text through the approval gate; its hook blocks the terminal
-  path around it. Each account's `wacli sync` runs as a
+  and sends text and `~/Workspaces` files through the approval gate (files
+  frozen into a private outbox when the card is made); its hook blocks the
+  terminal path around it. Each account's `wacli sync` runs as a
   `local.wacli.sync.<account>` LaunchAgent managed by
   `launchd/wacli-sync-launchctl.sh` (`pair` / `install` / `status`).
   Behavior: [docs/whatsapp-access.md](docs/whatsapp-access.md).

@@ -1,7 +1,8 @@
 # WhatsApp access
 
 The Assistant's access to the user's own WhatsApp accounts — reading chats
-and messages, and sending text that the user approves first. It is not the
+and messages, and sending text and workspace files that the user approves
+first. It is not the
 WhatsApp messaging platform (`plugins/platforms/whatsapp`, which makes
 WhatsApp a channel *to* Hermes); nothing here lets people talk to Hermes over
 WhatsApp. Part of the Hermes design docs — index: [`PROFILES.md`](../PROFILES.md).
@@ -10,8 +11,8 @@ WhatsApp. Part of the Hermes design docs — index: [`PROFILES.md`](../PROFILES.
 
 | Piece | Home | Reader |
 |---|---|---|
-| Engine: wacli calls, result shapes, approval card, bypass guard | `plugins/whatsapp-access/wa.py` | all |
-| `whatsapp` tool and the `pre_tool_call` hook (toolset `whatsapp_access`) | `plugins/whatsapp-access/__init__.py` | Assistant |
+| Engine: wacli calls, result shapes, file checks and snapshots, approval card, bypass guard | `plugins/whatsapp-access/wa.py` | all |
+| `whatsapp` tool and the `pre_tool_call` hooks (toolset `whatsapp_access`) | `plugins/whatsapp-access/__init__.py` | Assistant |
 | Pairing and the per-account sync agent | `launchd/wacli-sync-launchctl.sh`, `launchd/local.wacli.sync.plist.tmpl` | people |
 | When and how the Assistant uses it | the Assistant's private Chat reference `whatsapp.md` | Assistant |
 
@@ -69,8 +70,9 @@ WhatsApp synced to the linked device: history before pairing is best-effort.
 - **`media`** downloads one message's photo, video, voice note or document
   with `--read-only` (no store lock, so sync keeps running) into its own
   folder under `whatsapp_access.download_dir` from the profile's
-  `config.yaml`, else `<HERMES_HOME>/whatsapp-downloads/`, and returns the
-  path. Archives and programs (`.zip`, `.apk`, `.exe`, …) are refused before
+  `config.yaml` (the Assistant uses `~/Workspaces/.inbox/whatsapp`, so a
+  received file can be sent on), else `<HERMES_HOME>/whatsapp-downloads/`,
+  and returns the path. Archives and programs (`.zip`, `.apk`, `.exe`, …) are refused before
   any download — a file sent unprompted with "open it on your computer" is
   the known malware pattern. Expired media (HTTP 410) is reported as such:
   only the phone still has it.
@@ -102,9 +104,9 @@ WhatsApp synced to the linked device: history before pairing is best-effort.
 
 ## Send
 
-`send` is the only write: text only, to a person or group JID taken from a
-read — names and phone numbers are refused, so wacli's fuzzy recipient
-matching never picks the chat. Surrounding blank lines and spaces are
+`send` is the only write: text, files from `~/Workspaces`, or both, to a
+person or group JID taken from a read — names and phone numbers are refused,
+so wacli's fuzzy recipient matching never picks the chat. Surrounding blank lines and spaces are
 trimmed before the card is built, so the card and the message carry the same
 text. `reply_to` quotes a message; in a group the quoted sender is looked up
 so the quote resolves.
@@ -120,6 +122,10 @@ so the quote resolves.
   Account: work
   Chat: Yamada Taro (+819012345678)
   Reply to: Yamada Taro: 明日の打ち合わせは…
+
+  Files: 2 (3.4 MB), one message each; the text is the first one's caption
+  - photo.jpg (image/jpeg, 1.2 MB) in Personal/trip, sha256 1a2b3c4d5e6f
+  - menu.pdf (application/pdf, 2.2 MB) in ~/Workspaces, sha256 9f8e7d6c5b4a
 
   <message text, line breaks kept>
   ```
@@ -139,10 +145,40 @@ so the quote resolves.
   chat beforehand (the Assistant's reference), and the approval key still
   binds that exact text, so a changed text asks again.
 - **The approval covers the exact message.** The allowlist key hashes the
-  account, chat, text and reply, so "session" or "always" only ever repeats
-  that identical message to that chat; any other send asks again.
+  account, chat, text and reply (and, with files, each file's place and
+  SHA-256), so "session" or "always" only ever repeats that identical message
+  to that chat; any other send asks again.
+- **Files** come only from `~/Workspaces`, judged by real path, so a link
+  that leads out counts as outside; relative paths are taken from there.
+  Refused always: paths through key or settings folders (`.ssh`, `.gnupg`,
+  `.aws`, `.config`, `.git`, `.registry`, `.backups`, …), key- and
+  secret-like names (`.env*`, `*.pem`, `*.key`, `id_*`, anything naming a
+  credential, secret or password, …), archives, installers and programs,
+  scripts included (by name and by sniffed type), anything with a private key
+  block anywhere in it, empty files. At most 10 files and 100 MB per send.
+  WhatsApp carries one file per message, so each file is its own message, in
+  order; the text becomes the first file's caption (1024 characters at most;
+  a longer text is sent on its own first) and `reply_to` quotes from the
+  first. WhatsApp drops the caption of an audio message, so a send whose
+  first file is audio and which has text is refused before the card.
+- **Only the approved bytes go out.** wacli passes a file's path to the sync
+  agent, which reads it at upload time, so the originals are never sent. When
+  the card is made, the files are copied — through the opened descriptor,
+  whose real path is checked again — into a fresh folder of a private outbox
+  (`~/.local/state/hermes-whatsapp/outbox/`, mode 700), hashed, sniffed and
+  scanned there, and the card shows those copies. The approval hook and a
+  second `pre_tool_call` hook (a `modify`) share that one snapshot by tool
+  call id; the second points the handler at it (`_outbox`, which a caller can
+  never set). The handler takes the folder once, refuses it if the request
+  differs from the one approved or a copy's hash changed, sends the copies and
+  deletes them. If the second hook comes more than two minutes after the
+  first, the call is refused rather than copied again (the card would show
+  the older copies). Unapproved snapshots are pruned after six hours, on the
+  next file send or plugin load. The plugin's
+  wacli calls and every sync agent run with `WACLI_MEDIA_ROOTS` set to the
+  outbox, so wacli itself refuses any other file.
 - Calls wacli would refuse anyway (unknown or missing account, a name as
-  chat, empty text) are blocked without asking.
+  chat, empty text, a file that may not be sent) are blocked without asking.
 - **Outcomes are never guessed.** `ok: true` means WhatsApp accepted the
   message, not that it was delivered. Only wacli refusals known to happen
   before anything reaches WhatsApp (`NOT_DISPATCHED` in `wa.py`: the store
@@ -151,7 +187,15 @@ so the quote resolves.
   `not sent: …`. Every other failure — wacli's own send timeout, a lost
   socket, an abnormal exit, unparseable output — reads `UNCERTAIN: …` and
   tells the Assistant to check the chat and ask before any resend. The plugin
-  never retries a send.
+  never retries a send. Files go one at a time under the account's send lock
+  (each with 180 s, the whole send within 840 s, under the Assistant's tool
+  deadline); the first file that is not sent, or may have been, stops the
+  rest, and the result lists each file as `sent`, `not sent` or `uncertain`.
+  Some sent and then a clean refusal reads `partly sent: …`. For files, a
+  refusal counts only when wacli itself put it in its JSON error envelope
+  (a missing file, too large, outside `WACLI_MEDIA_ROOTS`, bad image data, the
+  store lock, …); raw output from an abnormal exit is always uncertain, since
+  it may carry a file's name or a success envelope.
 - Inbound A2A requests never reach WhatsApp; the toolset is not in the
   Assistant's `a2a` platform toolset either.
 
@@ -160,7 +204,7 @@ so the quote resolves.
 The same hook blocks terminal commands that run `wacli`, and terminal or
 file-tool calls whose command, working directory or path names the store
 (`.wacli`, `wacli.db`), the sync launcher or agent (`wacli-sync`,
-`local.wacli`) or a `WACLI_` variable. Terminal calls naming the plugin
+`local.wacli`), a `WACLI_` variable or the outbox (`hermes-whatsapp`). Terminal calls naming the plugin
 itself (`whatsapp-access`) are blocked too, since importing the engine would
 skip the hook; file tools may still read its source. It is a pattern match on
 the call's text, not a sandbox: it stops ordinary use, not a determined
@@ -192,3 +236,6 @@ logout` cannot connect to clear it, so `pair` moves that account's
 before pairing. `pair` refuses an account that is still paired. To unpair for
 good: `uninstall <account>`, then `wacli --account <account> auth logout`.
 After a wacli upgrade, `restart <account>` so the agent runs the new binary.
+After a change to the agent template (such as its `WACLI_MEDIA_ROOTS`), run
+`install <account>` for each account: `restart` reloads the rendered plist
+without rendering it again.

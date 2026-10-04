@@ -60,7 +60,7 @@ def test_only_the_assistant_gets_the_tool():
     params = tool["schema"]["parameters"]
     assert params["additionalProperties"] is False and params["required"] == ["action"]
     assert params["properties"]["action"]["enum"] == list(plugin.wa.ACTIONS)
-    assert ctx.hooks == [("pre_tool_call", plugin.gate)]
+    assert ctx.hooks == [("pre_tool_call", plugin.gate), ("pre_tool_call", plugin.bind)]
 
 
 def test_gate_asks_for_sends_only():
@@ -80,6 +80,19 @@ def test_gate_asks_for_sends_only():
 ])
 def test_gate_blocks_invalid_calls_without_asking(args):
     assert plugin.gate(tool_name="whatsapp", args=args)["action"] == "block"
+
+
+def test_bind_only_touches_sends_with_files():
+    assert plugin.bind(tool_name="whatsapp", args={"action": "chats"}) is None
+    assert plugin.bind(tool_name="whatsapp", args={"action": "send", "account": "work", "chat": DM,
+                                                  "text": "hi"}) is None
+    assert plugin.bind(tool_name="terminal", args={"command": "ls"}) is None
+
+
+def test_gate_blocks_a_caller_supplied_outbox():
+    directive = plugin.gate(tool_name="whatsapp", args={"action": "send", "account": "work", "chat": DM,
+                                                       "text": "hi", "_outbox": "0" * 32})
+    assert directive["action"] == "block" and "_outbox" in directive["message"]
 
 
 def test_gate_blocks_ways_around_the_tool():

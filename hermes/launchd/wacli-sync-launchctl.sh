@@ -4,7 +4,8 @@
 # The whatsapp-access plugin reads each account's local mirror (~/.wacli/accounts/<name>)
 # and sends through the running sync's store socket; this keeps that sync alive.
 # Phone numbers never enter tracked files: pairing takes the number on the command
-# line and wacli keeps the session in its own store.
+# line and wacli keeps the session in its own store. The agent may upload files only from the
+# plugin's outbox (WACLI_MEDIA_ROOTS); after changing that, run install again for each account.
 #
 #   pair      ACCOUNT +NUMBER   pair by phone code (adds the account if needed; the code
 #                               is entered on the phone under Linked devices > Link with
@@ -13,7 +14,7 @@
 #                               aside first (the message mirror stays)
 #   install   ACCOUNT           render, load and start the agent (account must be paired)
 #   uninstall ACCOUNT           stop and remove the agent (the pairing stays)
-#   restart   ACCOUNT           reload the agent (after a wacli upgrade)
+#   restart   ACCOUNT           reload the agent (after a wacli upgrade; install re-renders it)
 #   status    [ACCOUNT]         agent state and wacli doctor, for one or every account
 #
 # Unpairing is `wacli --account ACCOUNT auth logout` after `uninstall`.
@@ -21,6 +22,7 @@ set -euo pipefail
 
 CONFIG_DIR="$HOME/.config/hermes"
 TMPL="$CONFIG_DIR/launchd/local.wacli.sync.plist.tmpl"
+OUTBOX="${HERMES_WHATSAPP_STATE:-$HOME/.local/state/hermes-whatsapp}/outbox"
 
 die() { echo "error: $*" >&2; exit 1; }
 
@@ -105,9 +107,13 @@ load_agent() {
 
 render_plist() {
   [ -f "$TMPL" ] || die "missing template: $TMPL"
-  local tmp
+  # wacli resolves the media root when it reads a file: it must exist (and stay private).
+  mkdir -p "$OUTBOX" && chmod 700 "$(dirname "$OUTBOX")" "$OUTBOX"
+  local tmp outbox
+  outbox="$(cd "$OUTBOX" && pwd -P)"
   tmp="$(mktemp)"
-  sed -e "s|__WACLI__|$WACLI|g" -e "s|__ACCOUNT__|$1|g" -e "s|__HOME__|$HOME|g" "$TMPL" > "$tmp"
+  sed -e "s|__WACLI__|$WACLI|g" -e "s|__ACCOUNT__|$1|g" -e "s|__HOME__|$HOME|g" -e "s|__OUTBOX__|$outbox|g" \
+    "$TMPL" > "$tmp"
   plutil -lint "$tmp" >/dev/null || { rm -f "$tmp"; die "rendered plist is invalid"; }
   mkdir -p "$(dirname "$(dest "$1")")"
   mv "$tmp" "$(dest "$1")"
