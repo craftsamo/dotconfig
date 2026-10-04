@@ -35,7 +35,7 @@ only.
 | Engine: reads, card, file checks, media, send, bypass guard | `plugins/telegram-access/tg.py` | Assistant |
 | `telegram_account` tool and the `pre_tool_call` hook (toolset `telegram_access`) | `plugins/telegram-access/__init__.py` | Assistant |
 | Engine venv (Telethon, hash-locked) | `engines/telegram-access/requirements.lock` → ignored `local/telegram-access/venv` | people |
-| Login and the agent | `launchd/telegram-access-launchctl.sh`, `launchd/local.telegram-access.sync.plist.tmpl` | people |
+| Login and the agent | `launchd/telegram-access-launchctl.sh`, `launchd/local.hermes.telegram-access.sync.plist.tmpl` | people |
 | When and how the Assistant uses it | the Assistant's private Chat reference `telegram.md` | Assistant |
 
 [Telethon](https://codeberg.org/Lonami/Telethon) 1.x logs in as a new device
@@ -61,7 +61,7 @@ its only writer, the plugin opens it `query_only`), `sync.json`,
 `telegram.sock` (0600), `kept/` (the files of disappearing messages) and the
 short-lived `outbox/` and `incoming/`.
 
-The `local.telegram-access.sync` LaunchAgent keeps `sync.py` running: one
+The `local.hermes.telegram-access.sync` LaunchAgent keeps `sync.py` running: one
 connection, because an auth key used from two places at once can be revoked.
 Updates are pushed by Telegram; Telethon catches up what was missed while the
 agent was down from the stored update state (saved at each clean stop), and
@@ -279,7 +279,7 @@ apps' data (`ru.keepcoder.Telegram`, `org.telegram`, `Application
 Support/Telegram Desktop`), Telegram client libraries (Telethon, Pyrogram and
 its forks, TDLib, GramJS, mtcute, tdl) and my.telegram.org. File-tool calls
 are blocked on the state directory, the Keychain names, the apps' data, the
-LaunchAgent (`local.telegram-access`), its log (`telegram-access-sync`) and
+LaunchAgent (`local.telegram-access`, `telegram-access.sync`), its log (`telegram-access-sync`) and
 the engine venv (`local/telegram-access/`), while the plugin's source stays
 readable. It is a pattern match on the call's text, not a sandbox: the
 approval gate is a guarantee for the tool and a policy for everything else.

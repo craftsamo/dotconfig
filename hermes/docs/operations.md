@@ -16,7 +16,7 @@ without platforms (searcher, ui-review, ux-persona) are served as well and
 carry `secrets.command` → `profile-secrets.sh`. Secondary profiles never run
 their own gateway. Three tracked, machine-agnostic files in `hermes/launchd/`:
 
-- **`hermes-gateway-multiplex`** — the launcher. Sets its own `PATH` (a
+- **`bin/hermes-gateway-multiplex`** — the launcher. Sets its own `PATH` (a
   LaunchAgent can start with a stripped one), `cd`s to `~/Workspaces`, logs to
   `~/.hermes/logs/gateway-multiplex.log`, `eval`s the `global` + `hermes`
   Keychain layers (minus messaging keys) into the process env for raw-env
@@ -30,7 +30,7 @@ their own gateway. Three tracked, machine-agnostic files in `hermes/launchd/`:
   Every path is `$HOME`-relative; no `.env`. (`secret env` has **no `-- <cmd>`
   form**, hence the `eval`.) It exports no `HERMES_PROFILE`: one process serves
   many profiles.
-- **`ai.hermes.keychain-multiplex.plist.tmpl`** — LaunchAgent template with a
+- **`ai.hermes.multiplex.plist.tmpl`** — LaunchAgent template with a
   `__HOME__` placeholder (launchd can't expand `~`). Runs the launcher as
   `ProgramArguments[0]`, so the login item reads `hermes-gateway-multiplex`, not
   `sh`. The `ai.hermes` label prefix gives Hermes its launchd identity (drain
@@ -41,8 +41,8 @@ their own gateway. Three tracked, machine-agnostic files in `hermes/launchd/`:
   `ExitTimeOut` 60.
 - **`gateway-launchctl.sh`** — renders the template (`__HOME__` → `$HOME`) into
   `~/Library/LaunchAgents/` (host-local, never committed) and loads it; on
-  install it also unloads and removes the legacy `local.hermes.gateway.multiplex`
-  and `local.hermes.gateway.assistant` agents so two pollers never race one bot
+  install it also unloads and removes the legacy `ai.hermes.keychain-multiplex`,
+  `local.hermes.gateway.multiplex` and `local.hermes.gateway.assistant` agents so two pollers never race one bot
   token.
 
 **Telegram + Discord.** Gateway DB calls run off the asyncio loop
