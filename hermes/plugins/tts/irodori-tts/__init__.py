@@ -15,8 +15,14 @@ inside one utterance -- the same reference voice renders 309 cents apart on
 the two engines (against 20-40 cents of seed-to-seed variation), so a
 mid-sentence switch is audible.
 
-**Latin proper nouns** get a katakana substitution pass from ``lexicon.json``
-(see ``reading.py``).
+**Readings are decided here, not by the model.** Irodori has no reading
+frontend: digits, symbols and Latin reach a subword tokenizer raw, and the
+shared Hermes cleaner has already turned 25°C into "25 degrees Celsius". The
+``reading`` module applies the private ``lexicon.json`` (Latin names and
+stubborn kanji), undoes that English, spells out symbols and rewrites only the
+number forms the model misreads (``tts.irodori_tts.numerals``: digits, kanji
+or kana). ``tts.irodori_tts.reading_frontend: false`` turns the rewriting
+off and leaves the lexicon.
 
 **Style control is real and measured.** The checkpoint performs an emoji as a
 non-verbal vocalisation instead of reading it out, and takes a free-text
@@ -74,7 +80,7 @@ import numpy as np
 
 from agent.tts_provider import TTSProvider
 
-from .reading import apply_lexicon
+from .reading import NUMERAL_STYLES, apply_lexicon, prepare_text  # noqa: F401 - apply_lexicon re-exported
 
 logger = logging.getLogger(__name__)
 
@@ -505,6 +511,17 @@ class IrodoriTTSProvider(TTSProvider):
     def _use_lexicon(self) -> bool:
         return bool(self._config().get("lexicon", True))
 
+    def _use_reading_frontend(self) -> bool:
+        return bool(self._config().get("reading_frontend", True))
+
+    def _numerals(self) -> str:
+        value = self._config().get("numerals")
+        if value in NUMERAL_STYLES:
+            return value
+        if value is not None:
+            logger.warning("irodori-tts: unknown numerals style %r; using digits", value)
+        return "digits"
+
     def _min_japanese_ratio(self) -> float:
         try:
             return float(self._config().get("min_japanese_ratio", _JA_MIN_RATIO))
@@ -685,7 +702,19 @@ class IrodoriTTSProvider(TTSProvider):
                 "- deferring to the next TTS tier"
             )
 
-        spoken = apply_lexicon(text) if self._use_lexicon() else text
+        try:
+            spoken = prepare_text(
+                text,
+                use_lexicon=self._use_lexicon(),
+                frontend=self._use_reading_frontend(),
+                numerals=self._numerals(),
+            )
+        except Exception as exc:  # noqa: BLE001 - a reading bug must not lose the utterance
+            # Raising here would hand the reply to the next tier (or fail an
+            # explicit character render) over an optimisation; the model can
+            # still read the original, lexicon-only text.
+            logger.warning("irodori-tts: reading frontend skipped (%s)", exc)
+            spoken = prepare_text(text, use_lexicon=self._use_lexicon(), frontend=False)
 
         request_payload: Dict[str, Any] = {"input": spoken, "model": _MODEL_ID}
         if isinstance(model, str) and model.strip():
