@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!-- discord-user-launchctl.sh renders the __PLACEHOLDERS__. -->
+  <key>Label</key>
+  <string>local.discord-user.sync</string>
+
+  <!-- One bounded sync run (the DMs and the sync list's channels whose last message moved), then
+       exit; launchd starts the next one. The engine reads the token from the Keychain itself. -->
+  <key>ProgramArguments</key>
+  <array>
+    <string>__PYTHON__</string>
+    <string>__ENGINE__</string>
+    <string>sync</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>__STATE__</string>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    <key>HERMES_DISCORD_STATE</key>
+    <string>__STATE__</string>
+  </dict>
+
+  <key>RunAtLoad</key>
+  <true/>
+  <key>StartInterval</key>
+  <integer>300</integer>
+  <key>ProcessType</key>
+  <string>Background</string>
+  <key>LowPriorityIO</key>
+  <true/>
+
+  <key>StandardOutPath</key>
+  <string>__LOG__</string>
+  <key>StandardErrorPath</key>
+  <string>__LOG__</string>
+</dict>
+</plist>
