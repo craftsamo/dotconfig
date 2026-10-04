@@ -121,7 +121,12 @@ only the two scratch dirs are re-allowed under `external_directory`; and a plain
 `ask` on this transport is never a question — `opencode run` rejects it without
 `--auto` and approves it with `--auto` — so build's `external_directory` is
 `deny`. Subagents (`verifier`, `explore-*`, `reviewer*`, `worker`) keep their
-own frontmatter permissions and are not governed by the injected policy.
+own frontmatter permissions and are not governed by the injected policy, with
+one exception: `worker.md` opens worktree homes outside the session directory
+and asks elsewhere (for the human TUI), which `--auto` would approve, so a role
+that may spawn `worker` also injects `agent.worker.permission.external_directory`
+re-denying every pattern `worker.md` names (`WORKER_EXTERNAL_KEYS`; a test keeps
+the two in sync).
 
 **Plan → Build on the same conversation.** The next `opencode_call` on a plan
 conversation may name `agent="build"` plus `approval`; OpenCode resumes the

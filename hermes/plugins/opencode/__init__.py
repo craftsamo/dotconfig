@@ -111,6 +111,20 @@ def _external_directory():
             str(Path(os.environ.get("TMPDIR") or "/tmp") / "opencode/*"): "allow"}
 
 
+# ~/.config/opencode/agent/worker.md opens worktree homes outside the session
+# directory (allow) and asks for any other outside path, for interactive use.
+# Under `run --auto` that ask is an approval, so a role that may spawn worker
+# re-closes it here. Nested maps union on merge and the injected value wins per
+# key, so every pattern worker.md names must be re-stated as a deny: an omitted
+# key would keep its allow. Literal keys, not expanded — they must match
+# worker.md's spelling to override it. A test keeps this list in sync.
+WORKER_EXTERNAL_KEYS = ("*", "~/.local/share/opencode/worktree/*", "*/.worktrees/*")
+
+
+def _worker_external_directory():
+    return {**{key: "deny" for key in WORKER_EXTERNAL_KEYS}, **_external_directory()}
+
+
 def _root(home):
     root = home / "opencode-sessions"
     root.mkdir(mode=0o700, exist_ok=True)
@@ -286,9 +300,10 @@ def _env(data, protected):
            and key not in {"OPENCODE_PERMISSION", "OPENCODE_CONFIG_CONTENT"}}
     permission = _permissions(data["agent"], data.get("issue_approval"), protected)
     env["OPENCODE_PERMISSION"] = json.dumps(permission)
-    env["OPENCODE_CONFIG_CONTENT"] = json.dumps({
-        "share": "disabled", "agent": {OPENCODE_AGENTS[data["agent"]]: {"permission": permission}},
-    })
+    agents = {OPENCODE_AGENTS[data["agent"]]: {"permission": permission}}
+    if "worker" in ROLE_TASKS[data["agent"]]:
+        agents["worker"] = {"permission": {"external_directory": _worker_external_directory()}}
+    env["OPENCODE_CONFIG_CONTENT"] = json.dumps({"share": "disabled", "agent": agents})
     return env
 
 
