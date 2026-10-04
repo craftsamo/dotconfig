@@ -18,14 +18,16 @@
 set -euo pipefail
 
 CONFIG_DIR="${HERMES_CONFIG_DIR:-$HOME/.config/hermes}"
-LABEL="local.discord-user.sync"
+LABEL="local.hermes.discord-access.sync"
+LEGACY_LABEL="local.discord-user.sync"
 TMPL="$CONFIG_DIR/launchd/$LABEL.plist.tmpl"
 DEST="$HOME/Library/LaunchAgents/$LABEL.plist"
 LOCK="$CONFIG_DIR/engines/discord-user/requirements.lock"
 VENV="$CONFIG_DIR/local/discord-user/venv"
 ENGINE="$CONFIG_DIR/plugins/discord-access/engine.py"
 STATE="${HERMES_DISCORD_STATE:-$HOME/.local/state/hermes-discord}"
-LOG="$HOME/Library/Logs/discord-user-sync.log"
+LOG="$HOME/Library/Logs/discord-access-sync.log"
+LEGACY_LOG="$HOME/Library/Logs/discord-user-sync.log"
 SECRET="$HOME/.config/bin/secret"
 PYTHON_VERSION="3.12.11"
 
@@ -58,6 +60,19 @@ unload_agent() {
   echo "warning: $LABEL still present after bootout" >&2
 }
 
+# The label this agent had before the launchd naming cleanup: stop and drop it so
+# two copies never run, and carry its log over once.
+retire_legacy() {
+  launchctl bootout "gui/$UID/$LEGACY_LABEL" 2>/dev/null || true
+  local i
+  for i in $(seq 1 50); do
+    launchctl print "gui/$UID/$LEGACY_LABEL" >/dev/null 2>&1 || break
+    sleep 0.2
+  done
+  rm -f "$HOME/Library/LaunchAgents/$LEGACY_LABEL.plist"
+  if [ -f "$LEGACY_LOG" ] && [ ! -e "$LOG" ]; then mv "$LEGACY_LOG" "$LOG"; fi
+}
+
 install_agent() {
   [ "$CONFIG_DIR" = "$HOME/.config/hermes" ] || die "install targets the live checkout only; unset HERMES_CONFIG_DIR"
   has_token || die "no token yet: secret set DISCORD_USER_TOKEN -p hermes --scope discord-user"
@@ -71,6 +86,7 @@ install_agent() {
   plutil -lint "$tmp" >/dev/null || { rm -f "$tmp"; die "rendered plist is invalid"; }
   mkdir -p "$(dirname "$DEST")"
   mv "$tmp" "$DEST"
+  retire_legacy
   unload_agent
   launchctl bootstrap "gui/$UID" "$DEST" || die "launchctl bootstrap failed for $DEST"
   launchctl enable "gui/$UID/$LABEL" 2>/dev/null || true
@@ -95,6 +111,7 @@ case "${1:-}" in
     ;;
   uninstall)
     unload_agent
+    retire_legacy
     rm -f "$DEST"
     echo "unloaded and removed $DEST (venv, mirror and sync list kept)"
     ;;
@@ -107,13 +124,13 @@ case "${1:-}" in
     echo "venv    : $VENV $([ -x "$VENV/bin/python" ] && echo '(ready)' || echo '(missing: setup)')"
     echo "token   : $(has_token && echo 'in Keychain' || echo 'missing: secret set DISCORD_USER_TOKEN -p hermes --scope discord-user')"
     echo "plist   : $DEST $([ -f "$DEST" ] && echo '(installed)' || echo '(absent)')"
-    if launchctl print "gui/$UID/$LABEL" >"/tmp/.discord-user-print.$$" 2>/dev/null; then
-      grep -E '^[[:space:]]+(state|pid|last exit code|run interval) = ' "/tmp/.discord-user-print.$$" \
+    if launchctl print "gui/$UID/$LABEL" >"/tmp/.discord-access-print.$$" 2>/dev/null; then
+      grep -E '^[[:space:]]+(state|pid|last exit code|run interval) = ' "/tmp/.discord-access-print.$$" \
         | sed 's/^[[:space:]]*/  /'
     else
       echo "  agent not loaded"
     fi
-    rm -f "/tmp/.discord-user-print.$$"
+    rm -f "/tmp/.discord-access-print.$$"
     last_sync
     ;;
   *)

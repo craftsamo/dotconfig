@@ -1,6 +1,6 @@
 """telegram-access sync agent: the only process that talks to Telegram as the user.
 
-Run by launchd (``local.telegram-access.sync``, ``launchd/telegram-access-launchctl.sh``) on the
+Run by launchd (``local.hermes.telegram-access.sync``, ``launchd/telegram-access-launchctl.sh``) on the
 engine venv (``engines/telegram-access``: Telethon), never inside the Hermes gateway:
 
     sync.py            run the agent (launchd)

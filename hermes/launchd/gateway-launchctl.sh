@@ -8,13 +8,14 @@
 # can't expand ~) into ~/Library/LaunchAgents/ and loads it. The rendered plist
 # is host-local and never committed; only the template lives in git.
 #
-# Older agents (local.hermes.gateway.multiplex, local.hermes.gateway.assistant)
+# Older agents (ai.hermes.keychain-multiplex, local.hermes.gateway.multiplex,
+# local.hermes.gateway.assistant)
 # are unloaded and removed on install so two pollers never run at once
 # (Telegram getUpdates 409).
 set -e
 
-LABEL=ai.hermes.keychain-multiplex
-LEGACY_LABELS="local.hermes.gateway.multiplex local.hermes.gateway.assistant"
+LABEL=ai.hermes.multiplex
+LEGACY_LABELS="ai.hermes.keychain-multiplex local.hermes.gateway.multiplex local.hermes.gateway.assistant"
 TMPL="$HOME/.config/hermes/launchd/$LABEL.plist.tmpl"
 DEST="$HOME/Library/LaunchAgents/$LABEL.plist"
 
@@ -46,7 +47,7 @@ case "${1:-install}" in
     echo "unloaded + removed $LABEL"
     ;;
   status)
-    launchctl list | grep -e "$LABEL" -e local.hermes.gateway || echo "$LABEL not loaded"
+    launchctl list | grep -e "$LABEL" -e ai.hermes.keychain-multiplex -e local.hermes.gateway || echo "$LABEL not loaded"
     ;;
   *)
     echo "usage: $0 [install|uninstall|status]" >&2

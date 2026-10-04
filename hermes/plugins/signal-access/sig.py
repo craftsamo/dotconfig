@@ -97,7 +97,7 @@ EXPIRED_NOTE = ("Messages marked expired have disappeared from the user's device
                 "to disappear. Use them only for the user; never quote, forward or pass them to anyone "
                 "else unless the user explicitly asks.")
 NOT_SET_UP = ("Signal is not set up: no linked account. The user links one in a terminal "
-              "(`hermes/launchd/signal-sync-launchctl.sh link`); see docs/signal-access.md.")
+              "(`hermes/launchd/signal-access-launchctl.sh link`); see docs/signal-access.md.")
 UNCERTAIN = ("UNCERTAIN: {detail}. The message may have been sent. The mirror cannot show it (this device's "
              "own sends are recorded only once confirmed), so ask the user to look at the chat on the phone "
              "before anything else, and never resend without asking the user.")
@@ -113,6 +113,7 @@ FAILURE_NOT_SENT = {"UNREGISTERED_FAILURE": "not on Signal any more",
 # and Signal Desktop's own database.
 _CLI = re.compile(r"(?:^|[\s;&|()`'\"=])(?:[^\s;&|()`'\"]*/)?signal-cli(?=$|[\s;&|()`'\"])")
 _PATHS = re.compile(r"hermes-signal|signal-cli\.sock|share/signal-cli|signal-sync|local\.signal\.sync"
+                    r"|signal-access-sync|signal-access\.sync|signal-access-launchctl"
                     r"|HERMES_SIGNAL_|Application(?:\\? |%20)Support/Signal", re.IGNORECASE)
 _ENGINE = re.compile(r"signal-access|signal_access")
 FILE_TOOLS = {"read_file", "write_file", "patch", "search_files"}
@@ -299,7 +300,7 @@ def _notes(result: dict, entries: list) -> None:
 
 def _agent_running() -> bool | None:
     try:
-        proc = subprocess.run(["/bin/launchctl", "print", f"gui/{os.getuid()}/local.signal.sync"],
+        proc = subprocess.run(["/bin/launchctl", "print", f"gui/{os.getuid()}/local.hermes.signal-access.sync"],
                               stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=10)
     except (OSError, subprocess.TimeoutExpired):
         return None
@@ -328,10 +329,10 @@ def status() -> dict:
     if account.get("registered") is False or meta.get("status") == "unlinked":
         out["linked"] = False
         out["action_needed"] = ("Signal unlinked this device (unlinked on the phone, or unused for 45 days); the "
-                                "user links it again with signal-sync-launchctl.sh link")
+                                "user links it again with signal-access-launchctl.sh link")
     elif not out["sync_running"]:
         out["action_needed"] = ("sync is not running, so reads are stale and check/send fail; the user runs "
-                                "signal-sync-launchctl.sh install")
+                                "signal-access-launchctl.sh install")
     return out
 
 

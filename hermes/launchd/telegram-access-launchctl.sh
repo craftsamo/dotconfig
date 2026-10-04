@@ -27,7 +27,8 @@
 set -euo pipefail
 
 CONFIG_DIR="${HERMES_CONFIG_DIR:-$HOME/.config/hermes}"
-LABEL="local.telegram-access.sync"
+LABEL="local.hermes.telegram-access.sync"
+LEGACY_LABEL="local.telegram-access.sync"
 TMPL="$CONFIG_DIR/launchd/$LABEL.plist.tmpl"
 DEST="$HOME/Library/LaunchAgents/$LABEL.plist"
 LOCK="$CONFIG_DIR/engines/telegram-access/requirements.lock"
@@ -35,6 +36,7 @@ VENV="$CONFIG_DIR/local/telegram-access/venv"
 SYNC="$CONFIG_DIR/plugins/telegram-access/sync.py"
 STATE="${HERMES_TELEGRAM_STATE:-$HOME/.local/state/hermes-telegram}"
 LOG="$HOME/Library/Logs/telegram-access-sync.log"
+LEGACY_LOG="$LOG"
 SECRET="$HOME/.config/bin/secret"
 PYTHON_VERSION="3.12.11"
 
@@ -97,6 +99,19 @@ load_agent() {
   die "launchctl bootstrap failed for $DEST"
 }
 
+# The label this agent had before the launchd naming cleanup: stop and drop it so
+# two copies never run, and carry its log over once.
+retire_legacy() {
+  launchctl bootout "gui/$UID/$LEGACY_LABEL" 2>/dev/null || true
+  local i
+  for i in $(seq 1 50); do
+    launchctl print "gui/$UID/$LEGACY_LABEL" >/dev/null 2>&1 || break
+    sleep 0.2
+  done
+  rm -f "$HOME/Library/LaunchAgents/$LEGACY_LABEL.plist"
+  if [ -f "$LEGACY_LOG" ] && [ ! -e "$LOG" ]; then mv "$LEGACY_LOG" "$LOG"; fi
+}
+
 install_agent() {
   need_api
   has TELEGRAM_USER_SESSION || die "not logged in yet: $0 login"
@@ -110,6 +125,7 @@ install_agent() {
   plutil -lint "$tmp" >/dev/null || { rm -f "$tmp"; die "rendered plist is invalid"; }
   mkdir -p "$(dirname "$DEST")"
   mv "$tmp" "$DEST"
+  retire_legacy
   unload_agent
   load_agent
   echo "loaded $LABEL; log: $LOG"
@@ -129,6 +145,7 @@ case "${1:-}" in
     prepare_state
     # One connection per session: the agent must not run while a login or check connects.
     unload_agent
+    retire_legacy
     run_sync login
     install_agent
     ;;
@@ -136,6 +153,7 @@ case "${1:-}" in
     [ -x "$VENV/bin/python" ] || setup
     prepare_state
     unload_agent
+    retire_legacy
     run_sync logout
     rm -f "$DEST"
     echo "removed $DEST"
@@ -145,6 +163,7 @@ case "${1:-}" in
     ;;
   uninstall)
     unload_agent
+    retire_legacy
     rm -f "$DEST"
     echo "unloaded and removed $DEST (session, mirror and sync list kept)"
     ;;
