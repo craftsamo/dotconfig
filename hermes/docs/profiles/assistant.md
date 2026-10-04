@@ -193,6 +193,11 @@ files — waits for approval on a card naming the chat, every file and the
 text. Contract:
 [discord-access.md](../discord-access.md).
 
+X is read-only and the assistant's alone (`x_access` toolset, never on A2A):
+it reads as a separate sub-account through twscrape, paced and capped, and
+downloads a post's media; nothing posts or sends. Contract:
+[x-access.md](../x-access.md).
+
 ### Kanban catalog
 
 The kanban catalog is closed and per-assignee: its machine-readable surface is
