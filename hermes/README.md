@@ -117,7 +117,7 @@ launchd/               # multiplex gateway launcher + plist template, local
                        #   TTS engine launchers + plist templates
 engines/               # tracked pins/locks: irodori-tts, qwen3-tts,
                        #   stable-audio-3, motion-canvas, three-webgl,
-                       #   twscrape
+                       #   twscrape, telegram-access
 scripts/               # profile-secrets.sh (secrets.command helper),
                        #   brave-agent-sync.sh, validate-profile-skills.py,
                        #   check-local-patches.sh, x-access.sh,
@@ -436,6 +436,18 @@ keeps user keys.
   bounded sync every 5 minutes, managed by
   `launchd/discord-user-launchctl.sh` (`setup` / `install` / `run` /
   `status`). Behavior: [docs/discord-access.md](docs/discord-access.md).
+- **telegram-access** (`standalone`): `telegram_account` (toolset
+  `telegram_access`) for the assistant — the user's own Telegram account (not
+  the Assistant's bot, whose chats it hides): private chats, bots, basic
+  groups and the supergroups and channels on its sync list read from a local
+  mirror, other chats read live, text and `~/Workspaces` files sent through
+  the approval gate, and a message's file saved on request; its hook blocks
+  the terminal path around it. `sync.py` is the only Telegram connection
+  (Telethon on its own hash-locked venv, `engines/telegram-access`; the session
+  stays in the Keychain, scope `telegram-access`), run as the
+  `local.telegram-access.sync` LaunchAgent managed by
+  `launchd/telegram-access-launchctl.sh` (`login` / `install` / `status`).
+  Behavior: [docs/telegram-access.md](docs/telegram-access.md).
 - **x-access** (`standalone`): `x` (toolset `x_access`) for the assistant —
   read-only X as a separate sub-account through twscrape (`bridge.py` in the
   ignored `local/twscrape/venv`, pinned in `engines/twscrape/`): the main
