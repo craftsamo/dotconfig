@@ -116,10 +116,11 @@ plugins/               # backend chains, tool overrides, specialist/OpenCode
 launchd/               # multiplex gateway launcher + plist template, local
                        #   TTS engine launchers + plist templates
 engines/               # tracked pins/locks: irodori-tts, qwen3-tts,
-                       #   stable-audio-3, motion-canvas, three-webgl
+                       #   stable-audio-3, motion-canvas, three-webgl,
+                       #   twscrape
 scripts/               # profile-secrets.sh (secrets.command helper),
                        #   brave-agent-sync.sh, validate-profile-skills.py,
-                       #   check-local-patches.sh,
+                       #   check-local-patches.sh, x-access.sh,
                        #   verify-work-continuity.py, audit-hands-references.py,
                        #   qwen3_tts_server.py, qwen3_tts_reading_check.py,
                        #   stable_audio3.py, tests/ (pytest suites + fixtures)
@@ -435,6 +436,14 @@ keeps user keys.
   bounded sync every 5 minutes, managed by
   `launchd/discord-user-launchctl.sh` (`setup` / `install` / `run` /
   `status`). Behavior: [docs/discord-access.md](docs/discord-access.md).
+- **x-access** (`standalone`): `x` (toolset `x_access`) for the assistant —
+  read-only X as a separate sub-account through twscrape (`bridge.py` in the
+  ignored `local/twscrape/venv`, pinned in `engines/twscrape/`): the main
+  account's posts and mentions, search, threads, profiles and a post's media;
+  the sub-account's cookies stay in the Keychain (`X_READER_COOKIES`, scope
+  `x-reader`) and only in the bridge's memory; its hook blocks the terminal
+  path around it. Engine: `scripts/x-access.sh` (`install` / `status`).
+  Behavior: [docs/x-access.md](docs/x-access.md).
 - **ui-inspection** (`standalone`): `ui_capture` for ui-review / ux-persona.
 - **writing-inspection** (`standalone`): Writer's bounded `writing_inspect`.
 - **kanban-worker-mutation-guard** (`standalone`): stops dispatcher workers
@@ -1125,6 +1134,8 @@ tool returns `status: "blocked"`.
   — Qwen3-TTS on `:10102`; see [Qwen3-TTS voice catalog](#qwen3-tts-voice-catalog).
 - `launchd/irodori-tts-launchctl.sh {install,register,register-lexicon,voices,status,uninstall,purge}`
   — Irodori-TTS on `:10103`; see [Irodori voice registration](#irodori-voice-registration).
+- `scripts/x-access.sh {install,status}` — the x-access engine venv and the
+  state of the sub-account's cookies; see [docs/x-access.md](docs/x-access.md).
 - `scripts/brave-agent-sync.sh {sync,check,path,remove}` — the real-profile
   Brave clone ([Browser](#browser)). `sync` (default) re-clones when
   `/Applications/Brave Browser.app` changed version or the clone is missing,
