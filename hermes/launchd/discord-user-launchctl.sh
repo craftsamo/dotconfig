@@ -3,8 +3,8 @@
 #
 # The plugin reads the local mirror (~/.local/state/hermes-discord) that this agent keeps current,
 # and runs plugins/discord-access/engine.py on the venv built here for anything that talks to
-# Discord. The user token lives only in the Keychain (secret project discord-user); nothing
-# here prints or stores it.
+# Discord. The user token lives only in the Keychain (project hermes, scope discord-user, which no
+# Hermes profile receives); nothing here prints or stores it.
 #
 #   setup       build the engine venv from engines/discord-user/requirements.lock (hash-locked)
 #   install     setup if needed, render and load the agent: one sync run every 5 minutes
@@ -12,7 +12,8 @@
 #   run         one sync run now, in this terminal (prints the run summary)
 #   status      agent state, token presence (no value) and the last sync summary
 #
-# The token: `secret set DISCORD_USER_TOKEN -p discord-user` (paste it; never on the command line).
+# The token: `secret set DISCORD_USER_TOKEN -p hermes --scope discord-user` (paste it; never on
+# the command line).
 # HERMES_CONFIG_DIR overrides the checkout (a task worktree); install always targets the live one.
 set -euo pipefail
 
@@ -31,7 +32,7 @@ PYTHON_VERSION="3.12.11"
 die() { echo "error: $*" >&2; exit 1; }
 
 has_token() {
-  "$SECRET" show DISCORD_USER_TOKEN -p discord-user --shared >/dev/null 2>&1
+  "$SECRET" show DISCORD_USER_TOKEN -p hermes --scope discord-user >/dev/null 2>&1
 }
 
 setup() {
@@ -59,7 +60,7 @@ unload_agent() {
 
 install_agent() {
   [ "$CONFIG_DIR" = "$HOME/.config/hermes" ] || die "install targets the live checkout only; unset HERMES_CONFIG_DIR"
-  has_token || die "no token yet: secret set DISCORD_USER_TOKEN -p discord-user"
+  has_token || die "no token yet: secret set DISCORD_USER_TOKEN -p hermes --scope discord-user"
   [ -x "$VENV/bin/python" ] || setup
   [ -f "$TMPL" ] || die "missing template: $TMPL"
   mkdir -p "$STATE" && chmod 700 "$STATE"
@@ -104,7 +105,7 @@ case "${1:-}" in
     ;;
   status)
     echo "venv    : $VENV $([ -x "$VENV/bin/python" ] && echo '(ready)' || echo '(missing: setup)')"
-    echo "token   : $(has_token && echo 'in Keychain' || echo 'missing: secret set DISCORD_USER_TOKEN -p discord-user')"
+    echo "token   : $(has_token && echo 'in Keychain' || echo 'missing: secret set DISCORD_USER_TOKEN -p hermes --scope discord-user')"
     echo "plist   : $DEST $([ -f "$DEST" ] && echo '(installed)' || echo '(absent)')"
     if launchctl print "gui/$UID/$LABEL" >"/tmp/.discord-user-print.$$" 2>/dev/null; then
       grep -E '^[[:space:]]+(state|pid|last exit code|run interval) = ' "/tmp/.discord-user-print.$$" \
