@@ -1587,9 +1587,11 @@ class _Tabs:
 
     def __init__(self, meta: dict):
         self.ids, self.first, self.gone = {}, None, set()
+        self.alive = set()  # every tab id, copies without a title included
         for sheet in meta.get("sheets", []):
             props = sheet.get("properties", {})
             self.ids[props.get("title")] = props.get("sheetId", 0)
+            self.alive.add(props.get("sheetId", 0))
             self.first = props.get("sheetId", 0) if self.first is None else self.first
 
     def id(self, tab) -> int:
@@ -1613,7 +1615,8 @@ class _Tabs:
         for name in [name for name, i in self.ids.items() if i == sheet_id]:
             del self.ids[name]  # in place: the layout builder holds this dict
         self.gone.add(sheet_id)
-        if not self.ids:
+        self.alive.discard(sheet_id)
+        if not self.alive:
             raise AccessError("a spreadsheet keeps at least one tab")
         return sheet_id
 
@@ -1894,6 +1897,7 @@ def _layout_requests(ops: list[dict], meta: dict, header=None, cell=None) -> lis
             at = min(op["position"], len(order) + 1) - 1 if op["position"] else order.index(source) + 1
             request["insertSheetIndex"] = at
             order.insert(at, new_id)
+            tabs.alive.add(new_id)
             requests.append({"duplicateSheet": request})
         elif name == "sheet_delete":
             sheet_id = tabs.drop(op["tab"])
@@ -1945,7 +1949,7 @@ def _layout_requests(ops: list[dict], meta: dict, header=None, cell=None) -> lis
             if op["set_criteria"]:
                 view["filterSpecs"] = specs(op, rng)
                 fields.append("filterSpecs")
-            current["range"] = rng
+            current["range"], current["sheetId"] = rng, rng.get("sheetId", current["sheetId"])
             requests.append({"updateFilterView": {"filter": view, "fields": ",".join(fields)}})
         elif name == "filter_view_delete":
             gone = view_of(op["view"])
