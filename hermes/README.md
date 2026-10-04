@@ -555,12 +555,33 @@ checkout pinned in `engines/irodori-tts/pinned.conf`, which also records the
 checkpoint's memory, speed and licence. The checkpoint renders slower than
 real time, so a long reply can spend the whole
 `tts.irodori_tts.synthesis_timeout` on Irodori before the chain falls through
-to Qwen3. The provider rewrites Latin proper nouns to katakana through the
-private lexicon, then repairs its own WAV before delivery: the in-pause codec
-rustle is gated, leading dead air and trailing
-hallucinated fragments are trimmed, the onset click is faded and the level is
-normalised. That repair uses numpy and the stdlib only, because Hermes'
+to Qwen3. The provider then repairs its own WAV before delivery: the in-pause
+codec rustle is gated, leading dead air and trailing hallucinated fragments
+are trimmed, the onset click is faded and the level is normalised. That repair uses numpy and the stdlib only, because Hermes'
 dependency generation carries no soundfile or scipy.
+
+**Irodori readings are fixed in the provider, not left to the model.** The
+checkpoint has no reading frontend (the server only applies NFKC and deletes
+some symbols, including every hyphen, so `-5` arrives as `5`), and the shared
+Hermes cleaner, written for English voices, has already turned `25°C` into
+`25 degrees Celsius` and `10~20` into `10 about 20`. The plugin's
+`reading.py` therefore applies the private lexicon to the text as written,
+maps that English back to Japanese, spells out symbols (ranges, minus signs,
+`14:30`, `2026/10/03`, `¥`, `→`) and rewrites only the number forms the model
+misreads: grouping (`1,234,567人` → `123万4567人`), `%` and Latin units
+(`1.5GB` → `1.5ギガバイト`); phone numbers and versions are read digit by digit
+in kana, and `3月5日` stays as written. Not kana throughout: a long kana run
+loses its word boundaries and the model phrases it wrongly (`さんがついつか`
+came out as さんが・ついつか, with a pause inside the number).
+`tts.irodori_tts.numerals` picks `digits` (default), `kanji` (三月五日) or
+`kana`; `reading_frontend: false` switches the rewriting off and keeps the
+lexicon.
+The shared cleaner itself stays untouched (see `AGENTS.md`).
+
+The lexicon is `{"terms": {surface: reading}}`. Keys may be Latin
+(`GitHub`) or kanji (`生物` → `なまもの` if that is what you always mean); a
+Latin key is matched only where no ASCII letter or digit touches it, so it
+fires in `GitHubに` but not inside `GitHubActions`.
 
 ### Qwen3-TTS voice catalog
 
