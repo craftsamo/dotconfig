@@ -184,6 +184,14 @@ deleted for everyone, and every send — text and `~/Workspaces` files —
 waits for approval on a card naming the chat, every file and the text.
 Contract: [signal-access.md](../signal-access.md).
 
+The user's own Discord account (not the Assistant's Discord bot) is the
+assistant's alone too (`discord_access` toolset, never on A2A): DMs and the
+servers on its sync list come from a local mirror, other channels are read
+live through an engine that alone holds the token, the sync list is edited by
+request within code-enforced limits, and every send waits for approval on a
+card naming the chat and the text. Contract:
+[discord-access.md](../discord-access.md).
+
 ### Kanban catalog
 
 The kanban catalog is closed and per-assignee: its machine-readable surface is

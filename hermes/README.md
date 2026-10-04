@@ -421,6 +421,16 @@ keeps user keys.
   `signal-cli daemon`, as the `local.signal.sync` LaunchAgent managed by
   `launchd/signal-sync-launchctl.sh` (`link` / `install` / `status`).
   Behavior: [docs/signal-access.md](docs/signal-access.md).
+- **discord-access** (`standalone`): `discord_account` (toolset
+  `discord_access`) for the assistant — the user's own Discord account (not
+  the Assistant's bot): DMs and the servers on its sync list read from a local
+  mirror, other channels read live, text sent through the approval gate; its
+  hook blocks the terminal path around it. `engine.py` alone talks to Discord
+  and holds the token, on its own hash-locked venv
+  (`engines/discord-user`); the `local.discord-user.sync` LaunchAgent runs one
+  bounded sync every 5 minutes, managed by
+  `launchd/discord-user-launchctl.sh` (`setup` / `install` / `run` /
+  `status`). Behavior: [docs/discord-access.md](docs/discord-access.md).
 - **ui-inspection** (`standalone`): `ui_capture` for ui-review / ux-persona.
 - **writing-inspection** (`standalone`): Writer's bounded `writing_inspect`.
 - **kanban-worker-mutation-guard** (`standalone`): stops dispatcher workers
