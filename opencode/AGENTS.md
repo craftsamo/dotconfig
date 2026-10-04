@@ -163,8 +163,10 @@ When a change is well-specified and mechanical — bulk edits, boilerplate,
 rote refactors, applying an already-decided design — run it through the built-in
 `task` tool with subagent_type `worker` and an exact spec instead of
 doing it in the primary session. Keep design decisions, ambiguous work, and
-difficult code in the primary. Before commits of non-trivial changes, consider a
-read-only pass through `task` with subagent_type `reviewer`.
+difficult code in the primary. When the work belongs in a git worktree outside
+the session directory, give `worker` the worktree root as an absolute path.
+Before commits of non-trivial changes, consider a read-only pass through `task`
+with subagent_type `reviewer`.
 
 </ImplementationDelegation>
 
