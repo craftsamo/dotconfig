@@ -583,6 +583,23 @@ The lexicon is `{"terms": {surface: reading}}`. Keys may be Latin
 Latin key is matched only where no ASCII letter or digit touches it, so it
 fires in `GitHubに` but not inside `GitHubActions`.
 
+To measure readings, run `hermes/scripts/irodori_tts_reading_check.py
+--file hermes/scripts/irodori_tts_reading_corpus.tsv --seeds 1,2,3 --json-out
+run.json` against the live server. It sends each sentence through the real
+cleaner and `reading.py`, transcribes the provider-repaired audio with
+`sbintuitions/kana-whisper` (which writes what it hears in katakana, so a
+misread kanji cannot hide behind the right spelling) and reports a kana
+character error rate per category; `--compare a.json b.json` sets runs side
+by side, `--no-frontend` measures the provider without `reading.py`,
+`--numerals` tries another numeral style and `--option cfg_scale_text=4`
+passes a server sampling option. The score sees readings, not phrasing: a
+reading can be right while the pauses fall inside a word, so listen to a
+sample before changing how text is spelled. Findings are
+candidates: confirm by ear (`--keep-audio DIR`, re-score with `--from-audio
+DIR`) before adding a lexicon entry. A corpus of private names belongs in the
+private overlay, not in the tracked corpus. On v4-Large a three-seed run of
+the tracked corpus takes about 90 minutes and shares the server with Hermes.
+
 ### Qwen3-TTS voice catalog
 
 The `tts/qwen3-tts` plugin sends JSON speech requests to its loopback server;

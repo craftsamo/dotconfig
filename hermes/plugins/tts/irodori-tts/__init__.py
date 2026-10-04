@@ -21,8 +21,9 @@ shared Hermes cleaner has already turned 25°C into "25 degrees Celsius". The
 ``reading`` module applies the private ``lexicon.json`` (Latin names and
 stubborn kanji), undoes that English, spells out symbols and rewrites only the
 number forms the model misreads (``tts.irodori_tts.numerals``: digits, kanji
-or kana). ``tts.irodori_tts.reading_frontend: false`` turns the rewriting
-off and leaves the lexicon.
+or kana), measured round trip with ``scripts/irodori_tts_reading_check.py``.
+``tts.irodori_tts.reading_frontend: false`` turns the rewriting off and
+leaves the lexicon.
 
 **Style control is real and measured.** The checkpoint performs an emoji as a
 non-verbal vocalisation instead of reading it out, and takes a free-text
