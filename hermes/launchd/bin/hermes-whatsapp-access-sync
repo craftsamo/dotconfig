@@ -1,0 +1,4 @@
+#!/bin/sh
+# launchd entry point: exists only so Login Items / Background Items show this
+# file's name instead of the interpreter's. The plist passes the real command.
+exec "$@"
