@@ -46,7 +46,7 @@ The hook decides before a tool runs; the rule is `approval_request` in
 `access.py`.
 
 - **Changes ask first**: Sheets `update` / `batch_update` / `append` /
-  `clear` / `create` / `add_sheet` / `layout` / `data` / `chart` / `pivot`, Gmail `send`, Drive `upload`, and every
+  `clear` / `create` / `add_sheet` / `layout` / `data` / `chart` / `pivot` / `protect`, Gmail `send`, Drive `upload`, and every
   gcloud command that is not a read. The action must be spelled exactly; the
   gate and the engine share one check, so no variant is read differently by
   each.
@@ -69,7 +69,7 @@ The hook decides before a tool runs; the rule is `approval_request` in
   spreadsheet asks again. The spreadsheet's version history undoes them.
   `clear` and `create` keep a key per exact call, like every other change:
   "always" there only repeats that identical call. So does every `data`
-  call, and a `layout` call
+  and `protect` call, and a `layout` call
   holding any op that deletes, moves or replaces data, or picks a rule or
   view by its number or name to replace or drop it (`delete`, `move`,
   `merge`, `table_delete`, `sheet_delete`, `conditional_update`,
@@ -141,6 +141,17 @@ The hook decides before a tool runs; the rule is `approval_request` in
   tab. Pivot tables have no id in the API, so `pivot_delete` names the
   anchor cell and the engine checks a pivot table starts there before
   writing; `get_format` reports anchors and `info` lists charts.
+- **Protected ranges** are the `protect` op action. Every call asks, and
+  its card names each editor in full, never clipped: a call whose card
+  would exceed the budget, or whose address Hermes' approval prompt would
+  mask as a secret (`redact_sensitive_text`), is refused rather than shown
+  partly. Google adds the requesting user as an editor and the file's owner
+  always keeps access, so the card says "editable only by you, the file's
+  owner, …". Turning a warning-only protection into a blocking one needs an
+  editor list, since without one Google opens it to every file editor, and
+  naming editors ends warning-only. Google refuses the whole call for an
+  address it does not accept. Protections are found by id or label (the
+  API's description); `info` lists them with their editors.
 - **Row guards.** Writes by row number can land on the wrong row when another
   writer inserts, deletes or sorts rows. `update`, `batch_update`, `clear`,
   `layout` and `data` take `expect` — up to 200 single cells with the value each must display
