@@ -79,6 +79,11 @@ class CleanerEnglishTest(unittest.TestCase):
         "設定 to 保存の順": "設定、保存の順",
         "研究 and 開発": "研究アンド開発",
         "今日の予定, 10時：定例会議. 15時：資料作成.": "今日の予定、じゅうじ、定例会議。じゅうごじ、資料作成。",
+        # A line that already ended in Japanese punctuation gets no second stop.
+        "晴れますか？. 傘はいりますか？.": "晴れますか？傘はいりますか？",
+        "これでいい？. うん、大丈夫！.": "これでいい？うん、大丈夫！",
+        "晴れです。. 雨ですか？.": "晴れです。雨ですか？",
+        "そうか…. ": "そうか…",
     }
 
     def test_inserted_english_becomes_japanese(self) -> None:
@@ -102,6 +107,9 @@ class CleanerEnglishTest(unittest.TestCase):
             "価格は$20です。": "価格はにじゅうドルです。",
             "10~20人です。": "じゅうからにじゅうにんです。",
             "設定→保存": "設定、保存",
+            "明日は晴れますか？\n傘はいりますか？": "明日は晴れますか？傘はいりますか？",
+            "晴れです。\n雨ですか？": "晴れです。雨ですか？",
+            "「行くの？」\nうん。": "「行くの？」。うん。",
         }.items():
             with self.subTest(raw=raw):
                 self.assertEqual(expected, prepare(prepare_spoken_text(raw, max_chars=None)))

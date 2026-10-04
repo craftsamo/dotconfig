@@ -2,6 +2,8 @@
 # /// script
 # requires-python = ">=3.11,<3.14"
 # dependencies = [
+#   "librosa>=0.10",
+#   "matplotlib>=3.8",
 #   "numpy",
 #   "pykakasi>=2.3",
 #   "torch>=2.4",
@@ -36,10 +38,22 @@ preferred.
 
 Audio is scored after the provider's own WAV repair (``polish``), because
 that is what a listener gets; ``--no-polish`` scores the raw server output.
+Requests are paced the way the provider paces them (sentence-aligned chunks,
+each with a duration cap); ``--no-pacing`` sends the text whole and leaves
+length to the server's predictor, as the provider did before.
 
 Findings are CANDIDATES: ASR can still mishear. Confirm by ear
 (``--keep-audio DIR``) before acting on one; ``--from-audio DIR`` re-scores
 kept renders without synthesizing again.
+
+``--f0`` adds a pitch track (pYIN) to every render. For text that ends in a
+question mark (statements are measured as the contrast but not summarised)
+it reports the final rise: the top of the last 150 ms of voiced
+speech against the median of the 350 ms before it, in semitones. A rise of
+about +2 st or more is heard as a question. With ``--keep-audio`` (or
+``--from-audio``) each render also gets a contour plot beside its WAV. The
+number only covers the end of the utterance; an accent inside a word (AI read
+エー↗アイ) still needs the plot or an ear.
 
     hermes/scripts/irodori_tts_reading_check.py \\
         --file hermes/scripts/irodori_tts_reading_corpus.tsv --seeds 1,2,3 \\
@@ -196,10 +210,10 @@ def load_corpus(path: Path) -> list[Case]:
     return cases
 
 
-def load_polish():
-    """The provider's own WAV repair, so trailing junk it would trim is not
-    scored as a misreading. The plugin package imports Hermes' TTSProvider base
-    class; a stand-in keeps this script independent of a Hermes runtime."""
+def load_plugin():
+    """The provider package itself, for its WAV repair and chunk joining. It
+    imports Hermes' TTSProvider base class; a stand-in keeps this script
+    independent of a Hermes runtime."""
     import types
 
     if "agent.tts_provider" not in sys.modules:
@@ -216,6 +230,12 @@ def load_polish():
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
+    return module
+
+
+def load_polish(module):
+    """The provider's own WAV repair, so trailing junk it would trim is not
+    scored as a misreading."""
 
     def polish(wav: bytes) -> bytes:
         samples, rate = module._decode_wav(wav)
@@ -324,6 +344,68 @@ def load_asr(model_id: str, device: str):
 
 
 # --------------------------------------------------------------------------
+# Pitch
+# --------------------------------------------------------------------------
+
+_F0_HOP = 160  # 10 ms at 16 kHz
+_RISE_TAIL_S = 0.15
+_RISE_BODY_S = 0.35
+_QUESTION_END = re.compile(r"[?？][」』）)]*\s*$")
+
+
+def ends_in_question(text: str) -> bool:
+    return bool(_QUESTION_END.search(text))
+
+
+def pitch_track(pcm):
+    """(times, f0 Hz with NaN where unvoiced) for 16 kHz mono float32."""
+    import librosa
+    import numpy as np
+
+    f0, voiced, _ = librosa.pyin(
+        pcm, fmin=65.0, fmax=700.0, sr=16000, frame_length=1024, hop_length=_F0_HOP
+    )
+    f0 = np.where(voiced, f0, np.nan)
+    times = librosa.times_like(f0, sr=16000, hop_length=_F0_HOP)
+    return times, f0
+
+
+def final_rise(times, f0) -> float | None:
+    """Semitones from the body before the last voiced stretch to its top."""
+    import numpy as np
+
+    voiced = ~np.isnan(f0)
+    if voiced.sum() < 10:
+        return None
+    end = times[voiced][-1]
+    tail = f0[voiced & (times > end - _RISE_TAIL_S)]
+    body = f0[voiced & (times <= end - _RISE_TAIL_S) & (times > end - _RISE_TAIL_S - _RISE_BODY_S)]
+    if len(tail) < 3 or len(body) < 3:
+        return None
+    return float(12 * np.log2(np.percentile(tail, 90) / np.median(body)))
+
+
+def plot_pitch(path: Path, times, f0, title: str, rise: float | None) -> None:
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    import numpy as np
+
+    plt.rcParams["font.family"] = ["Hiragino Sans", "Arial Unicode MS", "sans-serif"]
+    fig, ax = plt.subplots(figsize=(10, 3))
+    ax.plot(times, 12 * np.log2(f0 / 100.0), ".", markersize=2)
+    ax.set_xlabel("s")
+    ax.set_ylabel("st re 100 Hz")
+    suffix = "" if rise is None else f"  (final rise {rise:+.1f} st)"
+    ax.set_title(title.replace("\n", " / ") + suffix, fontsize=9)
+    ax.grid(alpha=0.3)
+    fig.tight_layout()
+    fig.savefig(path, dpi=90)
+    plt.close(fig)
+
+
+# --------------------------------------------------------------------------
 # CLI
 # --------------------------------------------------------------------------
 
@@ -378,12 +460,21 @@ def build_parser() -> argparse.ArgumentParser:
         help="lexicon JSON; default is the plugin's runtime lexicon if present",
     )
     parser.add_argument(
+        "--no-pacing", action="store_true",
+        help="send each sentence whole without the provider's chunking and "
+        "duration cap (the server chunks and the predictor alone sets length)",
+    )
+    parser.add_argument(
         "--no-polish", action="store_true",
         help="score the raw server audio instead of the provider's repaired WAV",
     )
     parser.add_argument("--category", action="append", help="only run these categories")
     parser.add_argument("--asr-model", default=_ASR_MODEL)
     parser.add_argument("--asr-device", default="cpu", help="cpu, mps or auto")
+    parser.add_argument(
+        "--f0", action="store_true",
+        help="track pitch: final rise on questions, contour plots beside kept wavs",
+    )
     parser.add_argument("--json-out", type=Path, help="write the full report here")
     parser.add_argument("--keep-audio", type=Path, help="directory to keep the wavs")
     parser.add_argument(
@@ -397,11 +488,17 @@ def summarise(results: list[dict]) -> dict:
     def stats(rows: list[dict]) -> dict:
         edits = sum(r["edits"] for r in rows)
         length = sum(r["expected_len"] for r in rows)
-        return {
+        out = {
             "cer": edits / length if length else 0.0,
             "bad": sum(1 for r in rows if r["edits"]),
             "n": len(rows),
         }
+        rises = [r["final_rise_st"] for r in rows if r.get("question") and r.get("final_rise_st") is not None]
+        if rises:
+            out["questions"] = len(rises)
+            out["rising"] = sum(1 for rise in rises if rise >= 2.0)
+            out["mean_rise_st"] = sum(rises) / len(rises)
+        return out
 
     by_category: dict[str, list[dict]] = {}
     for row in results:
@@ -430,6 +527,20 @@ def compare(paths: list[Path]) -> int:
             )
         print(row)
     print("\ncell = Kana-CER, then renders with any error / renders")
+    if any("questions" in run["summary"]["overall"] for run in runs):
+        print("\nquestion endings: rising (>= +2 st) / measured, mean final rise")
+        for category in categories + ["ALL"]:
+            row = category.ljust(width)
+            for run in runs:
+                stats = (
+                    run["summary"]["overall"]
+                    if category == "ALL"
+                    else run["summary"]["categories"].get(category)
+                )
+                row += f"  {'-':>18}" if not stats or "questions" not in stats else (
+                    f"  {stats['rising']:>3}/{stats['questions']:<3} {stats['mean_rise_st']:+5.1f} st   "
+                )
+            print(row)
     return 0
 
 
@@ -461,7 +572,28 @@ def main() -> int:
 
     kks = pykakasi.kakasi()
     transcribe = load_asr(args.asr_model, args.asr_device)
-    polish = None if args.no_polish else load_polish()
+    plugin = load_plugin()
+    polish = None if args.no_polish else load_polish(plugin)
+    paced = args.pipeline == "chain" and not args.no_pacing
+
+    def render(text: str, seed: int) -> bytes:
+        """What the provider would request: its chunks, caps and join."""
+        if not paced:
+            return synthesize(args.server, text, args.voice, {**options, "seed": seed})
+        parts = [
+            synthesize(
+                args.server, chunk, args.voice,
+                {
+                    **plugin.request_options(chunk, caption="caption" in options),
+                    **options,
+                    "seed": seed,
+                },
+            )
+            for chunk in plugin.split_for_speech(text)
+        ]
+        if len(parts) == 1:
+            return parts[0]
+        return plugin.IrodoriTTSProvider._join(parts, trim=not args.no_polish)
     if args.keep_audio:
         args.keep_audio.mkdir(parents=True, exist_ok=True)
 
@@ -485,10 +617,22 @@ def main() -> int:
             if args.from_audio:
                 audio = (args.from_audio / name).read_bytes()
             else:
-                audio = synthesize(args.server, sent, args.voice, {**options, "seed": seed})
+                audio = render(sent, seed)
             if args.keep_audio:
                 (args.keep_audio / name).write_bytes(audio)
-            heard_text = transcribe(polish(audio) if polish else audio)
+            heard_audio = polish(audio) if polish else audio
+            heard_text = transcribe(heard_audio)
+            pitch: dict[str, object] = {}
+            if args.f0:
+                times, f0 = pitch_track(pcm16k(heard_audio))
+                question = ends_in_question(case.text)
+                # Measured on statements too, as the contrast; only question
+                # endings count toward the summary.
+                rise = final_rise(times, f0)
+                pitch = {"question": question, "final_rise_st": rise}
+                plot_dir = args.keep_audio or args.from_audio
+                if plot_dir:
+                    plot_pitch(plot_dir / name.replace(".wav", ".png"), times, f0, sent, rise)
             heard = pronunciation_key(heard_text)
             edits, expected = min(
                 (edit_distance(alt, heard), alt) for alt in alternatives
@@ -505,11 +649,14 @@ def main() -> int:
                 "edits": edits,
                 "expected_len": len(expected),
                 "spans": diff_spans(expected, heard) if edits else [],
+                **pitch,
             }
             results.append(row)
+            rise = pitch.get("final_rise_st")
             print(
                 f"{'OK' if not edits else '??'} [{index:03d} {case.category} s{seed}] "
-                f"{case.text!r}  cer {edits / max(1, len(expected)):.1%}",
+                f"{case.text!r}  cer {edits / max(1, len(expected)):.1%}"
+                + (f"  rise {rise:+.1f} st" if isinstance(rise, float) else ""),
                 flush=True,
             )
             if edits:
@@ -528,7 +675,9 @@ def main() -> int:
         "lexicon_terms": len(terms),
         "legacy_lexicon": args.legacy_lexicon,
         "polish": not args.no_polish,
+        "pacing": paced,
         "options": options,
+        "f0": args.f0,
         "seeds": seeds,
         "from_audio": str(args.from_audio) if args.from_audio else None,
         "elapsed_s": round(time.monotonic() - started, 1),
@@ -542,7 +691,13 @@ def main() -> int:
     overall = summary["overall"]
     print(f"\nKana-CER {overall['cer']:.2%}  ({overall['bad']}/{overall['n']} renders with errors)")
     for name, stats in summary["categories"].items():
-        print(f"  {name:<10} {stats['cer']:6.2%}  {stats['bad']}/{stats['n']}")
+        print(
+            f"  {name:<10} {stats['cer']:6.2%}  {stats['bad']}/{stats['n']}"
+            + (
+                f"  rising {stats['rising']}/{stats['questions']} mean {stats['mean_rise_st']:+.1f} st"
+                if "questions" in stats else ""
+            )
+        )
     return 0
 
 

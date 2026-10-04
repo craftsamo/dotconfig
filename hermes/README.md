@@ -576,7 +576,25 @@ came out as さんが・ついつか, with a pause inside the number).
 `tts.irodori_tts.numerals` picks `digits` (default), `kanji` (三月五日) or
 `kana`; `reading_frontend: false` switches the rewriting off and keeps the
 lexicon.
-The shared cleaner itself stays untouched (see `AGENTS.md`).
+The shared cleaner itself stays untouched (see `AGENTS.md`); a line the
+cleaner closes with an extra `.` after `？`/`！`/`。` loses that stop here, since
+the model reads it as a second, falling sentence end.
+
+**Irodori pacing is set in the provider too.** The duration predictor is
+speaker-conditioned, and with some references (the default `lethe` among
+them) it allots about 3.5 s to any short line; the model fills the slack with
+speech nobody wrote — the line again, or fragments before or after it — loud
+enough to survive the WAV repair. On a 25-sentence prosody corpus, 43 of 75
+short renders carried it. The plugin's `pacing.py` therefore splits the text
+at sentence ends itself (chunks of 80+ characters, a short last sentence
+merged into the chunk before it, a run-on sentence cut at commas), sends each
+chunk with server chunking off and a `max_seconds` cap estimated from the text
+(7.5 morae/s plus pauses), and joins the renders with a 0.3 s pause. The cap
+is a ceiling: longer text is predicted correctly and keeps its own length.
+That took the invented speech to 1 of 75 with no reading regression on the
+corpus. A `caption` lifts the cap (direction may slow the take on purpose);
+an emoji adds 1.5 s for its performance. `tts.irodori_tts.pacing: false`
+restores the old single request with the server's own chunking.
 
 The lexicon is `{"terms": {surface: reading}}`. Keys may be Latin
 (`GitHub`) or kanji (`生物` → `なまもの` if that is what you always mean); a
@@ -591,8 +609,12 @@ cleaner and `reading.py`, transcribes the provider-repaired audio with
 misread kanji cannot hide behind the right spelling) and reports a kana
 character error rate per category; `--compare a.json b.json` sets runs side
 by side, `--no-frontend` measures the provider without `reading.py`,
-`--numerals` tries another numeral style and `--option cfg_scale_text=4`
-passes a server sampling option. The score sees readings, not phrasing: a
+`--numerals` tries another numeral style, `--option cfg_scale_text=4`
+passes a server sampling option and `--no-pacing` sends each sentence whole.
+`--f0` adds a pitch track: for text ending in `？` it reports the final rise
+in semitones (+2 st or more is heard as a question) and, with
+`--keep-audio`, plots each contour beside its WAV; the `acronym`, `question`
+and `statement` categories exist for it. The score sees readings, not phrasing: a
 reading can be right while the pauses fall inside a word, so listen to a
 sample before changing how text is spelled. Findings are
 candidates: confirm by ear (`--keep-audio DIR`, re-score with `--from-audio
