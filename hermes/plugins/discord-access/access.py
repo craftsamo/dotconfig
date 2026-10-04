@@ -46,6 +46,7 @@ ENGINE_PATH = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
 READ_TIMEOUT = 90           # token + build number + a few paced requests
 SYNC_TIMEOUT = 300
 SEND_TIMEOUT = 150          # token + build number + one POST + one read-back
+TOKEN_SET = "secret set DISCORD_USER_TOKEN -p hermes --scope discord-user"
 AGENT_LABEL = "local.discord-user.sync"
 
 LIMITS = {"dms": (30, 200), "messages": (50, 200), "search": (30, 200)}
@@ -326,7 +327,7 @@ def status(args: dict) -> dict:
     out["synced_servers"] = len(sync)
     if auth.get("state") == "rejected":
         out["action_needed"] = ("Discord rejected the token: the user stores a fresh one with "
-                                "`secret set DISCORD_USER_TOKEN -p discord-user`")
+                                f"`{TOKEN_SET}`")
     elif out["sync_agent_loaded"] is False:
         out["action_needed"] = "the sync agent is not running, so reads are stale: discord-user-launchctl.sh install"
     if args.get("verify") is True:

@@ -2,8 +2,9 @@
 
 Runs on its own hash-locked venv (``engines/discord-user``; ``curl_cffi`` for a Chrome TLS and
 HTTP/2 fingerprint), never inside the Hermes gateway, so the user token only ever exists in this
-short-lived process: it is read from the Keychain (``secret get DISCORD_USER_TOKEN -p
-discord-user``) at start and never written, printed or logged.
+short-lived process: it is read from the Keychain (``secret get DISCORD_USER_TOKEN -p hermes
+--scope discord-user``, a scope no Hermes profile receives) at start and never written, printed
+or logged.
 
     engine.py COMMAND  < JSON arguments  > {"ok": true, "data": ...} | {"ok": false, "kind", "error"}
 
@@ -36,7 +37,8 @@ import store  # noqa: E402
 API = "https://discord.com/api/v9"
 WEB = "https://discord.com"
 SECRET = Path.home() / ".config" / "bin" / "secret"
-TOKEN_NAME, TOKEN_PROJECT = "DISCORD_USER_TOKEN", "discord-user"
+TOKEN_NAME, TOKEN_PROJECT, TOKEN_SCOPE = "DISCORD_USER_TOKEN", "hermes", "discord-user"
+TOKEN_SET = "secret set DISCORD_USER_TOKEN -p hermes --scope discord-user"
 IMPERSONATE = "chrome"
 
 REQUEST_TIMEOUT = 20
@@ -86,15 +88,15 @@ def read_token() -> str:
     if not os.access(SECRET, os.X_OK):
         raise EngineError("setup", f"the secret CLI is missing at {SECRET}")
     try:
-        proc = subprocess.run([str(SECRET), "get", TOKEN_NAME, "-p", TOKEN_PROJECT, "--shared"],
+        proc = subprocess.run([str(SECRET), "get", TOKEN_NAME, "-p", TOKEN_PROJECT, "--scope", TOKEN_SCOPE],
                               stdin=subprocess.DEVNULL, capture_output=True, text=True,
                               timeout=TOKEN_TIMEOUT, cwd=store.state_dir())
     except subprocess.TimeoutExpired as exc:
         raise EngineError("setup", "reading the token from the Keychain timed out") from exc
     token = proc.stdout.strip()
     if proc.returncode != 0 or not token:
-        raise EngineError("setup", f"no Discord token in the Keychain ({TOKEN_NAME} in project {TOKEN_PROJECT}); "
-                                   "the user stores it with `secret set DISCORD_USER_TOKEN -p discord-user`")
+        raise EngineError("setup", f"no Discord token in the Keychain ({TOKEN_NAME}, project {TOKEN_PROJECT}, "
+                                   f"scope {TOKEN_SCOPE}); the user stores it with `{TOKEN_SET}`")
     if any(ch.isspace() for ch in token) or token.lower().startswith("bot "):
         raise EngineError("setup", f"{TOKEN_NAME} does not look like a user token")
     return token
@@ -294,8 +296,7 @@ class Client:
         if status == 401:
             store.set_meta(self.conn, "auth", {"state": "rejected", "at": self.clock()})
             self.conn.commit()
-            return EngineError("auth", "Discord rejected the token (401): the user stores a fresh one with "
-                                       "`secret set DISCORD_USER_TOKEN -p discord-user`")
+            return EngineError("auth", f"Discord rejected the token (401): the user stores a fresh one with `{TOKEN_SET}`")
         if isinstance(payload, dict) and payload.get("captcha_key"):
             return EngineError("captcha", "Discord asked for a captcha; the user does this one in the Discord app")
         if status == 429:

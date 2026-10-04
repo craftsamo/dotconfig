@@ -30,10 +30,14 @@ a nonce (duplicate sends), which a send path cannot allow.
 ## Account, token and engine
 
 One account. The token lives only in the Keychain, as `DISCORD_USER_TOKEN` in
-its own `secret` project `discord-user` — deliberately not in a `hermes*`
-layer, so it never enters any profile's secret scope or the gateway process,
-and replacing it needs no gateway restart. The engine reads it at start
-(`secret get … --shared`), and never writes, prints or logs it; errors are
+the `hermes` project under the scope `discord-user`. Hermes only ever receives
+shared layers: `profile-secrets.sh` and the tool-mode `secret-shim` (which
+launches `hermes`) both pin `--scope <project>`, so a repository scope never
+follows the working directory in. The token therefore never enters any
+profile's secret scope, the gateway process or a CLI session, and replacing it
+needs no gateway restart. The engine reads it at start
+(`secret get … -p hermes --scope discord-user`), and never writes, prints or
+logs it; errors are
 scrubbed of it, and anything token-shaped is masked in every error the engine
 prints. The plugin runs the engine as a child process with
 a minimal environment (none of the gateway's keys).
@@ -156,7 +160,7 @@ must be a message of that channel already in the mirror.
 ## Ways around the tool
 
 The same hook blocks terminal calls that name the state directory
-(`hermes-discord`), the token or its Keychain project (`DISCORD_USER_TOKEN`,
+(`hermes-discord`), the token or its Keychain scope (`DISCORD_USER_TOKEN`,
 `discord-user`), the plugin (`discord-access`) or the raw API
 (`discord.com/api`), and file-tool calls on the state directory, the token
 name or the engine venv; the plugin's source stays readable. It is a pattern
@@ -167,7 +171,7 @@ the tool and a policy for everything else.
 
 Once, in a terminal:
 
-1. `secret set DISCORD_USER_TOKEN -p discord-user -D TOKEN`, pasting the
+1. `secret set DISCORD_USER_TOKEN -p hermes --scope discord-user -D TOKEN`, pasting the
    `authorization` header of any `discord.com/api` request from the logged-in
    web client (DevTools → Network). Logging that browser session out or
    changing the password invalidates it; store the new one the same way.
