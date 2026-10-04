@@ -86,6 +86,8 @@ print -r -- 'base-1' | secret set TB_BASE -p $PB --stdin >/dev/null 2>&1
 print -r -- 'base-both' | secret set TB_BOTH -p $PB --stdin >/dev/null 2>&1
 print -r -- 'tool-1' | secret set TT_TOOL -p $PTOOL --stdin >/dev/null 2>&1
 print -r -- 'tool-both' | secret set TB_BOTH -p $PTOOL --stdin >/dev/null 2>&1
+print -r -- 'tool-scoped' | secret set TS_SCOPED -p $PTOOL --scope shimscope --stdin >/dev/null 2>&1
+git -C "$TD" init -q shimscope    # a repository whose name is that scope
 
 tool_run() {                   # tool mode: run the fake tool, args -> printenv
   ( path=("$TD/bin" "$TD/real" $path)
@@ -112,6 +114,8 @@ penv() {                       # project mode: $1 dir, $2.. -> printenv args
   && ok "tool: tool layer overrides base" || bad "tool: tool layer overrides base"
 [[ "$(TB_BOTH=external tool_run TB_BOTH)" == 'external' ]] \
   && ok "tool: inherited environment wins" || bad "tool: inherited environment wins"
+[[ -z "$(cd "$TD/shimscope" && tool_run TS_SCOPED)" && "$(cd "$TD/shimscope" && tool_run TT_TOOL)" == 'tool-1' ]] \
+  && ok "tool: a repository scope never reaches a tool" || bad "tool: a repository scope never reaches a tool"
 [[ -z "$(_SECRET_SHIM_TOOL=$PTOOL tool_run TB_BASE)" ]] \
   && ok "tool: sentinel skips re-injection" || bad "tool: sentinel skips re-injection"
 [[ "$(tool_run _SECRET_SHIM_TOOL)" == "$PTOOL" ]] \
