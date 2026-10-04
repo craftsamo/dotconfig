@@ -91,6 +91,12 @@ repository upkeep (Engineer through OpenCode, the Assistant's Admin topic).
 - **Never put `BU_CDP_URL` / `BU_CDP_WS` in a layer the gateway launcher
   evals** — under multiplex one process-env value pre-empts real-profile
   browsing for every profile, silently ([README "Browser"](README.md#browser)).
+- **Hermes gets shared secret layers only.** `profile-secrets.sh` and the
+  tool-mode `bin/secret-shim` pin `--scope <project>`; without it `secret env`
+  adds the scope named after the working directory's repository. The Discord
+  user token sits in the `hermes` keychain under the scope `discord-user` and
+  relies on that pin to stay out of every profile
+  ([docs/discord-access.md](docs/discord-access.md)).
 - **Rotating an API key needs a gateway restart** — resident sessions keep the
   environment injected at gateway launch.
 - **OAuth logins from `default` only** (`hermes model`, no `-p`). Running it in

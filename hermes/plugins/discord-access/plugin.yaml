@@ -1,0 +1,4 @@
+name: discord-access
+version: 1.0.0
+description: The user's own Discord account for the Assistant — DMs and synced servers read from a local mirror, live reads and text sends held for human approval, through an engine that alone holds the user token.
+kind: standalone
