@@ -49,7 +49,7 @@ SHEETS_DESCRIPTION = (
     "conditional formatting, input rules, filters and filter views; see ops), data (ops that "
     "move or rewrite contents: sort, find_replace, copy, cut, dedupe, trim, split_text, "
     "autofill; see ops), chart (ops: add, change, move or delete charts; see ops), pivot (ops: "
-    "pivot tables; see ops). values are rows of cells; they "
+    "pivot tables; see ops), protect (ops: protected ranges and who may edit them; see ops). values are rows of cells; they "
     "are typed as in the UI (formulas work) unless raw=true. Write many rows or scattered cells "
     "in one batch_update or one multi-row update, never one call per row; likewise put every "
     "change of one layout task in one layout call (all apply or none). When writing by row "
@@ -59,9 +59,9 @@ SHEETS_DESCRIPTION = (
     "key cell (e.g. the id column) as currently displayed: the write runs only if every expect "
     "cell still holds that value, so a sheet another writer shifted is refused before anything "
     "is written (read the rows again, then retry). "
-    + APPROVAL.format("update, batch_update, append, clear, create, add_sheet, layout, data, chart, pivot") + " "
+    + APPROVAL.format("update, batch_update, append, clear, create, add_sheet, layout, data, chart, pivot, protect") + " "
     "Edits to one spreadsheet are approved once: after the user answers \"session\" or \"always\", "
-    "further edits to that spreadsheet run without asking; clear, create, every data call and a "
+    "further edits to that spreadsheet run without asking; clear, create, every data and protect call and a "
     "layout call that "
     "deletes, moves or replaces data (delete, move, merge, table_delete, sheet_delete, conditional_update, "
     "conditional_delete, filter_view_delete, a note with text '', a filter_view_update with "
@@ -149,6 +149,15 @@ OBJECT_OPS_DESCRIPTION = (
     "pivot_filters = [{column, show: [values]}]; goes on a new tab (title, default 'Pivot table "
     "N') unless at = a cell, which overwrites what it fills and asks each time); pivot_delete: at = "
     "the anchor cell (get_format over an area reports pivot_tables).")
+
+PROTECT_OPS_DESCRIPTION = (
+    "protect: every call asks on its own and its card lists every editor in full. protect: range "
+    "(cells, or a tab name for the whole tab; except = cell ranges left editable on a whole tab), "
+    "label, warning_only=true (anyone may edit after a warning) or editors = up to 10 email "
+    "addresses who may edit besides you (default: only you; the file's owner always can). "
+    "protect_update: protection (id or label from info) plus any of range, except, "
+    "label, warning_only, editors (replaces the list). protect_delete: protection. info "
+    "lists each tab's protections with their ids and editors.")
 
 _COLOUR = {"type": "string", "description": "'#RRGGBB'"}
 LAYOUT_OP_SCHEMA = {
@@ -239,6 +248,14 @@ LAYOUT_OP_SCHEMA = {
             "type": "object", "required": ["column"], "additionalProperties": False, "properties": {
                 "column": {"type": "string", "description": "sheet column letter"},
                 "summarize": {"type": "string", "enum": sorted(access.SUMMARIES)}}}},
+        "protection": {"type": "string", "description": "protect_update / protect_delete: protection id or "
+                                                        "label, from info"},
+        "except": {"type": "array", "items": {"type": "string"},
+                   "description": "protect: cell ranges left editable on a protected whole tab"},
+        "label": {"type": "string", "description": "protect: a name for the protection"},
+        "warning_only": {"type": "boolean", "description": "protect: only warn before editing instead of blocking"},
+        "editors": {"type": "array", "items": {"type": "string"},
+                    "description": "protect: up to 10 email addresses who may edit besides you ([] = only you)"},
         "pivot_filters": {"type": "array", "description": "pivot: keep only these values", "items": {
             "type": "object", "required": ["column", "show"], "additionalProperties": False, "properties": {
                 "column": {"type": "string"}, "show": {"type": "array", "items": {"type": "string"}}}}},
@@ -299,7 +316,7 @@ SCHEMAS = {
         "range": {"type": "string", "description": "A1 range, e.g. 'Sheet1!A1:C10' or 'Sheet1'"},
         "ranges": {"type": "array", "items": {"type": "string"}, "description": "get / get_format: several ranges"},
         "ops": {"type": "array", "description": " ".join((LAYOUT_OPS_DESCRIPTION, DATA_OPS_DESCRIPTION,
-                                                          OBJECT_OPS_DESCRIPTION)),
+                                                          OBJECT_OPS_DESCRIPTION, PROTECT_OPS_DESCRIPTION)),
                 "items": LAYOUT_OP_SCHEMA},
         "values": {"type": "array", "items": {"type": "array", "items": {
                        "description": "a cell: text, number or boolean"}},
