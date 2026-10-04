@@ -413,16 +413,16 @@ keeps user keys.
   and sends text and `~/Workspaces` files through the approval gate (files
   frozen into a private outbox when the card is made); its hook blocks the
   terminal path around it. Each account's `wacli sync` runs as a
-  `local.wacli.sync.<account>` LaunchAgent managed by
-  `launchd/wacli-sync-launchctl.sh` (`pair` / `install` / `status`).
+  `local.hermes.whatsapp-access.sync.<account>` LaunchAgent managed by
+  `launchd/whatsapp-access-launchctl.sh` (`pair` / `install` / `status`).
   Behavior: [docs/whatsapp-access.md](docs/whatsapp-access.md).
 - **signal-access** (`standalone`): `signal` (toolset `signal_access`) for
   the assistant — reads the user's Signal account from a local mirror (plus
   number checks and saving received files) and sends text and
   `~/Workspaces` files through the approval gate; its hook blocks the
   terminal path around it. The mirror is written by `sync.py`, which owns a
-  `signal-cli daemon`, as the `local.signal.sync` LaunchAgent managed by
-  `launchd/signal-sync-launchctl.sh` (`link` / `install` / `status`).
+  `signal-cli daemon`, as the `local.hermes.signal-access.sync` LaunchAgent managed by
+  `launchd/signal-access-launchctl.sh` (`link` / `install` / `status`).
   Behavior: [docs/signal-access.md](docs/signal-access.md).
 - **discord-access** (`standalone`): `discord_account` (toolset
   `discord_access`) for the assistant — the user's own Discord account (not
@@ -432,9 +432,9 @@ keeps user keys.
   message's attachments, link-preview media and stickers saved on request; its
   hook blocks the terminal path around it. `engine.py` alone talks to Discord
   and holds the token, on its own hash-locked venv
-  (`engines/discord-user`); the `local.discord-user.sync` LaunchAgent runs one
+  (`engines/discord-user`); the `local.hermes.discord-access.sync` LaunchAgent runs one
   bounded sync every 5 minutes, managed by
-  `launchd/discord-user-launchctl.sh` (`setup` / `install` / `run` /
+  `launchd/discord-access-launchctl.sh` (`setup` / `install` / `run` /
   `status`). Behavior: [docs/discord-access.md](docs/discord-access.md).
 - **telegram-access** (`standalone`): `telegram_account` (toolset
   `telegram_access`) for the assistant — the user's own Telegram account (not
@@ -445,7 +445,7 @@ keeps user keys.
   the terminal path around it. `sync.py` is the only Telegram connection
   (Telethon on its own hash-locked venv, `engines/telegram-access`; the session
   stays in the Keychain, scope `telegram-access`), run as the
-  `local.telegram-access.sync` LaunchAgent managed by
+  `local.hermes.telegram-access.sync` LaunchAgent managed by
   `launchd/telegram-access-launchctl.sh` (`login` / `install` / `status`).
   Behavior: [docs/telegram-access.md](docs/telegram-access.md).
 - **x-access** (`standalone`): `x` (toolset `x_access`) for the assistant —
@@ -1123,8 +1123,18 @@ tool returns `status: "blocked"`.
 **Services** (LaunchAgents; host-rendered plists land in
 `~/Library/LaunchAgents/`, never committed)
 
+Naming: the gateway is `ai.hermes.multiplex` — it must start with `ai.hermes`
+(Hermes reads its launchd identity from that prefix) and must not be
+`ai.hermes.gateway*` (`hermes gateway install` would overwrite it). Every other
+agent is `local.hermes.<plugin-or-engine>.<role>`, managed by the matching
+`launchd/<plugin-or-engine>-launchctl.sh`, so it never looks like the gateway
+to Hermes. Each plist's `ProgramArguments[0]` is a `launchd/bin/hermes-<name>`
+launcher that only `exec "$@"`, so Login Items and Background Items show that
+name instead of "Python". Each script's install and uninstall retire the
+agent's pre-rename label and carry its old log over once.
+
 - `launchd/gateway-launchctl.sh {install,status,uninstall}` — the multiplex
-  gateway LaunchAgent (`ai.hermes.keychain-multiplex`), **one host only** (one
+  gateway LaunchAgent (`ai.hermes.multiplex`), **one host only** (one
   bot token = one live connection; four bots in this one process). The
   default-hosted process serves every profile directory: assistant Telegram +
   Discord, the engineer / creator / marketer bots, the A2A endpoints
@@ -1134,7 +1144,8 @@ tool returns `status: "blocked"`.
   the `ai.hermes` label prefix gives Hermes its launchd identity (drain budget,
   restart route) while not being `ai.hermes.gateway*`, so Hermes never
   regenerates the plist. `install` also unloads and removes the legacy
-  `local.hermes.gateway.{multiplex,assistant}` agents. `install` re-renders +
+  `ai.hermes.keychain-multiplex` and `local.hermes.gateway.{multiplex,assistant}`
+  agents. `install` re-renders +
   reloads = **restart**; `/restart` in chat also applies config (drain →
   `KeepAlive` respawns one). **Stop = `uninstall`** (`KeepAlive` relaunches
   crashes and exit 75, throttled to 30 s; `ExitTimeOut` 60 s is the drain

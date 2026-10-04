@@ -117,7 +117,7 @@ repository upkeep (Engineer through OpenCode, the Assistant's Admin topic).
 
 ## Gateway and A2A
 
-- **One multiplex gateway process** (LaunchAgent `ai.hermes.keychain-multiplex`)
+- **One multiplex gateway process** (LaunchAgent `ai.hermes.multiplex`)
   hosts every bot and A2A endpoint and serves every profile directory under
   `profiles/` — there is no allowlist. A new bot = a `hermes-<name>` Keychain
   layer + `platforms` / `a2a_agents` / toolset entries — never a second gateway
