@@ -48,6 +48,9 @@ brew "librsvg"     # rsvg-convert: high-quality SVG raster (+ ImageMagick SVG de
 # --- Hermes Agent: whatsapp-access plugin (see hermes/docs/whatsapp-access.md) ---
 brew "openclaw/tap/wacli" # WhatsApp linked-device CLI: local mirror + send
 
+# --- Hermes Agent: signal-access plugin (see hermes/docs/signal-access.md) ---
+brew "signal-cli"  # Signal linked-device CLI (native build): sync agent + send
+
 # --- Hermes Agent: Assistant tools ---
 cask "gcloud-cli"              # gcloud — google-access plugin + bin/gaccess
 brew "steipete/tap/remindctl"  # apple-reminders skill (hermes-agent skills/apple)
