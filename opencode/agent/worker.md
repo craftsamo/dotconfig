@@ -17,6 +17,14 @@ permission:
     "**/.env.sample": allow
   list: allow
   edit: allow
+  # Worktrees live outside the session directory. Known worktree homes are
+  # free; any other outside path asks. Last match wins. The Hermes opencode
+  # plugin re-denies these keys under `opencode run --auto` (where ask means
+  # approve) — keep its WORKER_EXTERNAL_KEYS in sync with this block.
+  external_directory:
+    "*": ask
+    "~/.local/share/opencode/worktree/*": allow
+    "*/.worktrees/*": allow
   task: deny
   bash:
     "*": ask
@@ -102,6 +110,9 @@ Rules:
   STOP and report the ambiguity back instead of guessing.
 - Keep the change minimal: touch only what the task requires. No drive-by
   refactors, no extra comments, no unrelated formatting changes.
+- When the caller names a worktree root, work only inside it: edit files by
+  absolute path under that root and run every bash command with `workdir`
+  set to it. Never touch the main checkout or any other path.
 - Never create commits, never push, never modify git state.
 - Verify your work when a cheap check exists (typecheck, build, targeted
   tests, linter) and the caller did not say otherwise.
