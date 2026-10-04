@@ -1819,3 +1819,212 @@ def test_card_literals_keep_whitespace_and_overlapping_moves_say_so(monkeypatch)
     assert lines[3:] == ['Replace "a  b\\t" with "\\n" in whole tab',
                          'Split E2:E9 on " / " into the columns to its right, overwriting them',
                          "Move A1:A3 to A2:A4, overwriting it; source cells outside it are left empty"]
+
+
+# --- charts and pivot tables ----------------------------------------------------------------------
+
+CHARTS = {"sheets": [
+    {"properties": {"title": "Main"}},
+    {"properties": {"sheetId": 7, "title": "Tasks"}, "charts": [{
+        "chartId": 31, "spec": {"title": "Sales", "basicChart": {
+            "chartType": "COLUMN", "legendPosition": "BOTTOM_LEGEND", "headerCount": 1,
+            "domains": [{"domain": {"sourceRange": {"sources": [{"sheetId": 7, "startColumnIndex": 0,
+                                                                 "endColumnIndex": 1, "endRowIndex": 7}]}}}],
+            "series": [{"series": {"sourceRange": {"sources": [{"sheetId": 7, "startColumnIndex": 1,
+                                                                "endColumnIndex": 2, "endRowIndex": 7}]}},
+                        "targetAxis": "LEFT_AXIS"}]}},
+        "position": {"overlayPosition": {"anchorCell": {"sheetId": 7, "rowIndex": 0, "columnIndex": 5},
+                                         "widthPixels": 480, "heightPixels": 300}}}]}]}
+
+
+def objects(action, *ops, **extra):
+    return {"action": action, "spreadsheet_id": SID, "ops": list(ops), **extra}
+
+
+def object_requests(action, *ops, pivot=None):
+    return access._object_requests(access._ops(objects(action, *ops), action), CHARTS, pivot=pivot)
+
+
+def test_charts_take_labels_then_one_series_per_column():
+    column, pie, combo = object_requests(
+        "chart", {"op": "chart", "range": "Tasks!A1:C7", "title": "Sales"},
+        {"op": "chart", "range": "Tasks!A1:B7", "chart_type": "pie", "at": "Main!H2", "width": 400, "legend": "none"},
+        {"op": "chart", "range": "Tasks!A:D", "chart_type": "COMBO", "stacked": True, "new_sheet": True})
+    chart = column["addChart"]["chart"]
+    basic = chart["spec"]["basicChart"]
+    assert chart["spec"]["title"] == "Sales" and basic["chartType"] == "COLUMN" and basic["headerCount"] == 1
+    assert basic["domains"][0]["domain"]["sourceRange"]["sources"][0]["endColumnIndex"] == 1
+    assert [s["series"]["sourceRange"]["sources"][0]["startColumnIndex"] for s in basic["series"]] == [1, 2]
+    # Next to the data: the column after it, level with its top row, at Sheets' default size.
+    assert chart["position"] == {"overlayPosition": {"anchorCell": {"sheetId": 7, "rowIndex": 0, "columnIndex": 3},
+                                                     "widthPixels": 600, "heightPixels": 371}}
+    pie_chart = pie["addChart"]["chart"]
+    assert pie_chart["spec"]["pieChart"]["legendPosition"] == "NO_LEGEND"
+    assert pie_chart["spec"]["pieChart"]["domain"]["sourceRange"]["sources"][0]["startRowIndex"] == 1  # header out
+    assert pie_chart["position"]["overlayPosition"]["anchorCell"] == {"sheetId": 0, "rowIndex": 1, "columnIndex": 7}
+    assert pie_chart["position"]["overlayPosition"]["widthPixels"] == 400
+    spec = combo["addChart"]["chart"]["spec"]["basicChart"]
+    assert [s["type"] for s in spec["series"]] == ["COLUMN", "LINE", "LINE"] and spec["stackedType"] == "STACKED"
+    assert combo["addChart"]["chart"]["position"] == {"newSheet": True}
+
+
+def test_chart_changes_keep_what_they_do_not_name():
+    look, data = object_requests(
+        "chart", {"op": "chart_update", "chart": "sales", "chart_type": "LINE", "legend": "RIGHT", "title": ""},
+        {"op": "chart_update", "chart": "31", "range": "A1:D7"})
+    spec = look["updateChartSpec"]["spec"]
+    assert look["updateChartSpec"]["chartId"] == 31 and "title" not in spec
+    assert spec["basicChart"]["chartType"] == "LINE" and spec["basicChart"]["legendPosition"] == "RIGHT_LEGEND"
+    assert len(spec["basicChart"]["series"]) == 1  # a type change keeps the series
+    rebuilt = data["updateChartSpec"]["spec"]["basicChart"]
+    # A range without a tab stays on the chart's data tab; the later op sees the earlier one's type.
+    assert rebuilt["chartType"] == "LINE" and len(rebuilt["series"]) == 3
+    assert rebuilt["series"][0]["series"]["sourceRange"]["sources"][0]["sheetId"] == 7
+
+
+def test_moving_a_chart_keeps_its_size_unless_given():
+    to_cell, resized, own_tab = object_requests(
+        "chart", {"op": "chart_move", "chart": "Sales", "at": "Main!B2", "height": 200},
+        {"op": "chart_move", "chart": "Sales", "width": 640}, {"op": "chart_move", "chart": "Sales", "new_sheet": True})
+    move = to_cell["updateEmbeddedObjectPosition"]
+    assert move["newPosition"]["overlayPosition"] == {
+        "anchorCell": {"sheetId": 0, "rowIndex": 1, "columnIndex": 1}, "widthPixels": 480, "heightPixels": 200,
+        "offsetXPixels": 0, "offsetYPixels": 0}
+    assert move["fields"] == "anchorCell,offsetXPixels,offsetYPixels,widthPixels,heightPixels"
+    assert resized["updateEmbeddedObjectPosition"]["fields"] == "widthPixels"
+    assert own_tab["updateEmbeddedObjectPosition"]["newPosition"] == {"newSheet": True}
+    assert "fields" not in own_tab["updateEmbeddedObjectPosition"]
+
+
+def test_pivot_tables_on_a_new_tab_or_at_a_cell():
+    tab, table = object_requests("pivot", {"op": "pivot", "range": "Tasks!B1:E50", "pivot_rows": ["D"],
+                                           "pivot_values": [{"column": "E"}, {"column": "B", "summarize": "COUNTA"}],
+                                           "pivot_filters": [{"column": "D", "show": ["A", "B"]}]})
+    assert tab["addSheet"]["properties"]["title"] == "Pivot table 1"
+    cells = table["updateCells"]
+    assert cells["start"] == {"sheetId": tab["addSheet"]["properties"]["sheetId"], "rowIndex": 0, "columnIndex": 0}
+    pivot = cells["rows"][0]["values"][0]["pivotTable"]
+    assert pivot["rows"] == [{"sourceColumnOffset": 2, "showTotals": True, "sortOrder": "ASCENDING"}]
+    assert pivot["values"] == [{"sourceColumnOffset": 3, "summarizeFunction": "SUM"},
+                               {"sourceColumnOffset": 0, "summarizeFunction": "COUNTA"}]
+    assert pivot["filterSpecs"] == [{"columnOffsetIndex": 2, "filterCriteria": {"visibleValues": ["A", "B"]}}]
+    (at,) = object_requests("pivot", {"op": "pivot", "range": "Tasks!A1:C9", "pivot_columns": ["B"], "at": "Main!K1"})
+    assert at["updateCells"]["start"] == {"sheetId": 0, "rowIndex": 0, "columnIndex": 10}
+
+
+def test_deleting_a_pivot_table_checks_its_anchor():
+    seen = []
+
+    def anchored(grid):
+        seen.append(grid)
+        return grid["startRowIndex"] == 19
+
+    (gone,) = object_requests("pivot", {"op": "pivot_delete", "at": "Tasks!L20"}, pivot=anchored)
+    assert gone == {"updateCells": {"range": seen[0], "fields": "pivotTable", "rows": [{"values": [{}]}]}}
+    with pytest.raises(access.AccessError, match="no pivot table is anchored at L21"):
+        object_requests("pivot", {"op": "pivot_delete", "at": "Tasks!L21"}, pivot=anchored)
+
+
+@pytest.mark.parametrize("action,op,message", [
+    ("chart", {"op": "chart", "range": "A1:A9"}, "label column"),
+    ("chart", {"op": "chart", "range": "A1:C9", "chart_type": "PIE"}, "two columns"),
+    ("chart", {"op": "chart", "range": "3:9"}, "block or whole columns"),
+    ("chart", {"op": "chart", "range": "A1:C9", "chart_type": "LINE", "stacked": True}, "cannot be stacked"),
+    ("chart", {"op": "chart", "range": "A1:C9", "at": "B2", "new_sheet": True}, "not both"),
+    ("chart", {"op": "chart", "range": "A1:C9", "new_sheet": True, "width": 300}, "no width"),
+    ("chart", {"op": "chart", "range": "A1:C9", "at": "B2:C3"}, "one cell"),
+    ("chart", {"op": "chart_update", "chart": "Sales"}, "give range"),
+    ("chart", {"op": "chart_move", "chart": "Sales"}, "give at"),
+    ("chart", {"op": "trim", "range": "A1"}, "op must be one of"),
+    ("pivot", {"op": "pivot", "range": "A1:C9"}, "give pivot_rows"),
+    ("pivot", {"op": "pivot", "range": "A1:C9", "pivot_rows": ["F"]}, "outside the range"),
+    ("pivot", {"op": "pivot", "range": "A1:C9", "pivot_values": [{"column": "B", "summarize": "TOTAL"}]},
+     "summarize must be one of"),
+    ("pivot", {"op": "pivot", "range": "A1:C9", "pivot_rows": ["A"], "at": "Z1", "title": "x"}, "takes no title")])
+def test_malformed_chart_and_pivot_ops_are_refused(action, op, message):
+    with pytest.raises(access.AccessError, match=message):
+        access.approval_request("google_sheets", objects(action, op))
+
+
+@pytest.mark.parametrize("op,message", [
+    ({"op": "chart_update", "chart": "Nope", "title": "x"}, "no single chart titled"),
+    ({"op": "chart_update", "chart": "Sales", "chart_type": "PIE"}, "into or out of a pie")])
+def test_unknown_or_impossible_chart_changes_are_refused(op, message):
+    with pytest.raises(access.AccessError, match=message):
+        object_requests("chart", op)
+
+
+def test_chart_and_pivot_approval(monkeypatch):
+    shared = f"google-access:sheets-edit:{SID}"
+    assert access.approval_request("google_sheets", objects(
+        "chart", {"op": "chart", "range": "A1:B9"}, {"op": "chart_update", "chart": "S", "title": "T"},
+        {"op": "chart_move", "chart": "S", "width": 300}))[1] == shared
+    assert access.approval_request("google_sheets", objects(
+        "pivot", {"op": "pivot", "range": "A1:C9", "pivot_rows": ["A"]}))[1] == shared
+    for action, op in (("chart", {"op": "chart_delete", "chart": "S"}), ("pivot", {"op": "pivot_delete", "at": "A1"}),
+                       ("pivot", {"op": "pivot", "range": "A1:C9", "pivot_rows": ["A"], "at": "Z1"})):
+        assert "sheets-edit" not in access.approval_request("google_sheets", objects(action, op))[1]
+    context(monkeypatch, title="Plan", names=["Main", "Tasks"])
+    lines = access.approval_request("google_sheets", objects(
+        "chart", {"op": "chart", "range": "Tasks!A1:C7", "title": "Sales", "at": "Main!H2"},
+        {"op": "chart_move", "chart": "Sales", "width": 640}), home=Path("/x"))[0].split("\n")
+    assert lines == ["SpreadSheet: Plan", "",
+                     'Add column chart of Tasks!A1:C7 at Main!H2: title "Sales"',
+                     'Move chart "Sales": size 640x…px']
+    lines = access.approval_request("google_sheets", objects(
+        "pivot", {"op": "pivot", "range": "Tasks!A1:D9", "pivot_rows": ["C"], "pivot_values": [{"column": "D"}],
+                  "at": "Tasks!K1"}), home=Path("/x"))[0].split("\n")
+    assert lines[1:] == ["Sheet: Tasks", "",
+                         "Pivot table of A1:D9 at K1, overwriting the cells it fills: rows C; values SUM of D"]
+
+
+def test_chart_and_pivot_results_report_ids_and_tabs(tmp_path, monkeypatch):
+    api, book = layout_api()
+    book.get().execute.return_value = CHARTS
+    book.batchUpdate().execute.return_value = {"replies": [
+        {"addChart": {"chart": {"chartId": 77, "spec": {"title": "Sales"}}}},
+        {"addSheet": {"properties": {"sheetId": 88, "title": "Pivot table 1"}}}, {}]}
+    services(monkeypatch, sheets=api)
+    result = access.sheets(tmp_path, objects("chart", {"op": "chart", "range": "Tasks!A1:B9"}))
+    assert result["charts"] == [{"chart_id": 77, "title": "Sales"}]
+    assert result["sheets"] == [{"sheet_id": 88, "title": "Pivot table 1"}]
+    assert book.get.call_args.kwargs["fields"] == access.CHART_FIELDS
+
+
+def test_info_lists_charts_and_get_format_pivot_anchors():
+    sheet = access._sheet_info(CHARTS["sheets"][1])
+    assert sheet["charts"] == [{"chart_id": 31, "title": "Sales", "type": "COLUMN", "at": "F1", "size": "480x300"}]
+    block = access._format_block("Report", {"startRow": 19, "startColumn": 11, "rowData": [{"values": [
+        {"pivotTable": {"source": {"sheetId": 7, "endRowIndex": 7, "startColumnIndex": 11, "endColumnIndex": 15}}}]}]})
+    assert block["pivot_tables"] == {"L20": {"source": "L1:O7", "source_sheet_id": 7}}
+
+
+def test_review_fixes_for_chart_and_pivot_addressing():
+    # No tab on a pivot's or chart's "at": the data's tab, on the card and in the request.
+    (pivot,) = object_requests("pivot", {"op": "pivot", "range": "Tasks!A1:D9", "pivot_rows": ["C"], "at": "K1"})
+    assert pivot["updateCells"]["start"]["sheetId"] == 7
+    assert access.approval_request("google_sheets", objects(
+        "pivot", {"op": "pivot", "range": "Tasks!A1:D9", "pivot_rows": ["C"], "at": "K1"}))[0].endswith(
+        "Sheet: Tasks\n\nPivot table of A1:D9 at K1, overwriting the cells it fills: rows C")
+    (chart,) = object_requests("chart", {"op": "chart", "range": "Tasks!A1:C7", "at": "H2"})
+    assert chart["addChart"]["chart"]["position"]["overlayPosition"]["anchorCell"]["sheetId"] == 7
+    # chart_move's "at" without a tab stays on the chart's tab.
+    (moved,) = object_requests("chart", {"op": "chart_move", "chart": "Sales", "at": "B2"})
+    assert moved["updateEmbeddedObjectPosition"]["newPosition"]["overlayPosition"]["anchorCell"]["sheetId"] == 7
+    # A resize before a move in the same call is kept.
+    resized, moved = object_requests("chart", {"op": "chart_move", "chart": "Sales", "width": 640},
+                                     {"op": "chart_move", "chart": "Sales", "at": "Main!B2"})
+    assert moved["updateEmbeddedObjectPosition"]["newPosition"]["overlayPosition"]["widthPixels"] == 640
+    assert resized["updateEmbeddedObjectPosition"]["newPosition"]["overlayPosition"] == {"widthPixels": 640}
+
+
+def test_type_and_header_changes_keep_the_chart_sources():
+    gapped = json.loads(json.dumps(CHARTS))
+    series = gapped["sheets"][1]["charts"][0]["spec"]["basicChart"]["series"][0]
+    series["series"]["sourceRange"]["sources"][0].update(startColumnIndex=3, endColumnIndex=4)
+    (got,) = access._object_requests(access._ops(objects(
+        "chart", {"op": "chart_update", "chart": "Sales", "chart_type": "BAR", "header": False}), "chart"), gapped)
+    basic = got["updateChartSpec"]["spec"]["basicChart"]
+    assert basic["chartType"] == "BAR" and basic["headerCount"] == 0
+    assert [s["series"]["sourceRange"]["sources"][0]["startColumnIndex"] for s in basic["series"]] == [3]
+    assert basic["series"][0]["targetAxis"] == "BOTTOM_AXIS"

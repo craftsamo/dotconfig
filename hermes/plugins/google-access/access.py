@@ -65,15 +65,16 @@ GCLOUD_TIMEOUT = 300
 GCLOUD_TIMEOUT_MAX = 1800
 
 SHEETS_ACTIONS = ("search", "info", "get", "get_format", "update", "batch_update", "append", "clear",
-                  "create", "add_sheet", "layout", "data")
+                  "create", "add_sheet", "layout", "data", "chart", "pivot")
 # Actions taking a list of ops from a fixed vocabulary (OP_SETS), sent as one batchUpdate.
-OP_ACTIONS = {"layout", "data"}
-SHEETS_WRITES = {"update", "batch_update", "append", "clear", "create", "add_sheet", "layout", "data"}
+OP_ACTIONS = {"layout", "data", "chart", "pivot"}
+SHEETS_WRITES = {"update", "batch_update", "append", "clear", "create", "add_sheet", "layout", "data", "chart",
+                 "pivot"}
 # Edits approved once per spreadsheet: "session" / "always" on the first card covers the rest of
 # that spreadsheet's edits (its version history undoes them). clear and create still ask each time,
 # and so does a layout call holding an op that deletes or moves data (LAYOUT_DESTRUCTIVE) and every
 # data call.
-SHEETS_EDITS = {"update", "batch_update", "append", "add_sheet", "layout"}
+SHEETS_EDITS = {"update", "batch_update", "append", "add_sheet", "layout", "chart", "pivot"}
 BATCH_LIMIT = 500
 # Row guards: cells that must still hold a known value (a key column) when a write by row number
 # runs, so a sheet another writer shifted is caught before anything is written.
@@ -488,8 +489,16 @@ def sheets(home, args: dict) -> dict:
             rows = got.get("values") or [[]]
             return rows[0][0] if rows and rows[0] else None
 
+        def pivot(grid):
+            if grid["sheetId"] not in titles:
+                raise AccessError("a pivot table made in this call is deleted in a later call")
+            ref = f"{column_letters(grid['startColumnIndex'])}{grid['startRowIndex'] + 1}"
+            got = _google(lambda: book.get(spreadsheetId=sid, ranges=[f"{_quoted(titles[grid['sheetId']])}!{ref}"],
+                                           fields="sheets.data.rowData.values.pivotTable.source").execute())
+            return "pivotTable" in json.dumps(got)
+
         # Resolves tabs, tables and views (and reads cells it builds on) before anything is written.
-        requests = build(ops, meta, header=header, cell=cell)
+        requests = build(ops, meta, header=header, cell=cell, pivot=pivot)
         _check_expect(values, sid, guards)
         done = _google(lambda: book.batchUpdate(spreadsheetId=sid, body={"requests": requests}).execute())
         replies = [r or {} for r in done.get("replies", [])]
@@ -504,6 +513,14 @@ def sheets(home, args: dict) -> dict:
         made = [r["addFilterView"]["filter"] for r in replies if "addFilterView" in r]
         if made:
             result["filter_views"] = [{"view_id": f.get("filterViewId"), "name": f.get("title")} for f in made]
+        charts = [r["addChart"]["chart"] for r in replies if "addChart" in r]
+        if charts:
+            result["charts"] = [{"chart_id": c.get("chartId"), "title": (c.get("spec") or {}).get("title")}
+                                for c in charts]
+        tabs_added = [r["addSheet"]["properties"] for r in replies if "addSheet" in r]
+        if tabs_added:
+            result.setdefault("sheets", []).extend({"sheet_id": p.get("sheetId"), "title": p.get("title")}
+                                                   for p in tabs_added)
         counted = _data_results(replies)
         if counted:
             result["results"] = counted
@@ -543,13 +560,14 @@ INFO_FIELDS = ("spreadsheetId,spreadsheetUrl,properties(title,locale,timeZone),"
                "columnCount,frozenRowCount,frozenColumnCount)),merges,"
                "tables(tableId,name,range,columnProperties),conditionalFormats,"
                "rowGroups(range,depth,collapsed),columnGroups(range,depth,collapsed),basicFilter(range),"
-               "filterViews(filterViewId,title,range))")
+               "filterViews(filterViewId,title,range),"
+               "charts(chartId,spec(title,basicChart(chartType),pieChart(legendPosition)),position))")
 INFO_LIST_LIMIT = 50
 FORMAT_CELL_LIMIT = 2000
 FORMAT_FIELDS = ("sheets(properties(sheetId,title),data(startRow,startColumn,"
                  "rowMetadata(pixelSize,hiddenByUser),columnMetadata(pixelSize,hiddenByUser),"
                  "rowData(values(formattedValue,userEnteredFormat,note,hyperlink,dataValidation,"
-                 "textFormatRuns))))")
+                 "textFormatRuns,pivotTable(source)))))")
 DEFAULT_ROW_HEIGHT = 21
 
 
@@ -691,7 +709,7 @@ def _format_block(tab: str, data: dict) -> dict:
     width = max([len(r.get("values", []) or []) for r in rows] + [len(data.get("columnMetadata", []) or [])])
     height = max(len(rows), len(data.get("rowMetadata", []) or []))
     looks, keys, rules, rule_keys = {}, {}, {}, {}
-    notes, links, rich = {}, {}, {}
+    notes, links, rich, pivots = {}, {}, {}, {}
     for r, row in enumerate(rows):
         for c, value in enumerate(row.get("values", []) or []):
             where = f"{column_letters(left + c)}{top + r + 1}"
@@ -702,6 +720,9 @@ def _format_block(tab: str, data: dict) -> dict:
                 looks[(r, c)] = key
             if value.get("note"):
                 notes[where] = value["note"]
+            if value.get("pivotTable"):
+                source = value["pivotTable"].get("source") or {}
+                pivots[where] = {"source": _a1(source), "source_sheet_id": source.get("sheetId", 0)}
             if value.get("hyperlink"):
                 links[where] = value["hyperlink"]
             rule = value.get("dataValidation")
@@ -732,7 +753,7 @@ def _format_block(tab: str, data: dict) -> dict:
     validations = [dict(rule_keys[key], ranges=found) for key, found in _blocks(rules, top, left).items()]
     if validations:
         block["input_rules"] = validations
-    for name, found in (("notes", notes), ("links", links), ("rich_text", rich)):
+    for name, found in (("notes", notes), ("links", links), ("rich_text", rich), ("pivot_tables", pivots)):
         if found:
             block[name] = found
     hidden_rows = [str(top + i + 1) for i, m in enumerate(data.get("rowMetadata", []) or []) if m.get("hiddenByUser")]
@@ -824,6 +845,21 @@ def _sheet_info(sheet: dict) -> dict:
              for v in sheet.get("filterViews", []) or []]
     if views:
         props["filter_views"] = views[:INFO_LIST_LIMIT]
+    charts = []
+    for chart in sheet.get("charts", []) or []:
+        spec, where = chart.get("spec") or {}, chart.get("position") or {}
+        overlay = where.get("overlayPosition") or {}
+        anchor = overlay.get("anchorCell") or {}
+        entry = {"chart_id": chart.get("chartId"), "title": spec.get("title"),
+                 "type": "PIE" if "pieChart" in spec else (spec.get("basicChart") or {}).get("chartType")}
+        if overlay:
+            entry["at"] = f"{column_letters(anchor.get('columnIndex', 0))}{anchor.get('rowIndex', 0) + 1}"
+            entry["size"] = f"{overlay.get('widthPixels')}x{overlay.get('heightPixels')}"
+        else:
+            entry["at"] = "its own tab"
+        charts.append(entry)
+    if charts:
+        props["charts"] = charts[:INFO_LIST_LIMIT]
     return props
 
 
@@ -885,7 +921,7 @@ RANGES_SHOWN = 4
 DIMENSION_OPS = {"size", "insert", "delete", "move", "hide", "unhide", "group", "ungroup"}
 SHIFTING_OPS = {"insert", "delete", "move"}
 # Ops whose range without a tab stays on the tab of the object they change.
-OWN_TAB_OPS = {"table_update", "filter_view_update"}
+OWN_TAB_OPS = {"table_update", "filter_view_update", "chart_update", "chart_move", "chart_delete"}
 RUNS_LIMIT = 50
 LINK = re.compile(r"^(https?://|mailto:)\S+$")
 NUMBER_FORMATS = {"TEXT", "NUMBER", "PERCENT", "CURRENCY", "DATE", "TIME", "DATE_TIME", "SCIENTIFIC",
@@ -1972,7 +2008,8 @@ def _layout_requests(ops: list[dict], meta: dict, header=None, cell=None, **_) -
 def _destructive(op: dict) -> bool:
     """Whether an op deletes, moves or replaces data: the fixed set, plus removing notes and
     replacing a filter view's criteria."""
-    return (op["op"] in LAYOUT_DESTRUCTIVE or op["op"] in DATA_OPS or (op["op"] == "note" and not op["text"])
+    return (op["op"] in LAYOUT_DESTRUCTIVE or op["op"] in DATA_OPS or op["op"] in OBJECT_DESTRUCTIVE
+            or (op["op"] == "pivot" and op["at"] is not None) or (op["op"] == "note" and not op["text"])
             or (op["op"] == "filter_view_update" and op["set_criteria"]))
 
 
@@ -2240,10 +2277,413 @@ def _data_results(replies: list[dict]) -> list[dict]:
     return out
 
 
+# --- Sheets charts and pivot tables -----------------------------------------------------------------
+# Embedded objects built from a data range. Adding, changing and moving a chart, and a pivot table on
+# a new tab, are ordinary edits; deleting either, and a pivot table written over existing cells, ask
+# per call.
+
+CHART_OPS = {  # op: (required fields, optional fields)
+    "chart": (("range",), ("chart_type", "title", "legend", "stacked", "header", "at", "new_sheet", "width",
+                           "height")),
+    "chart_update": (("chart",), ("range", "chart_type", "title", "legend", "stacked", "header")),
+    "chart_move": (("chart",), ("at", "new_sheet", "width", "height")),
+    "chart_delete": (("chart",), ()),
+}
+PIVOT_OPS = {
+    "pivot": (("range",), ("pivot_rows", "pivot_columns", "pivot_values", "pivot_filters", "at", "title")),
+    "pivot_delete": (("at",), ()),
+}
+OBJECT_DESTRUCTIVE = {"chart_delete", "pivot_delete"}
+CHART_TYPES = {"BAR", "COLUMN", "LINE", "AREA", "SCATTER", "COMBO", "PIE"}
+STACKABLE = {"BAR", "COLUMN", "AREA", "COMBO"}
+LEGENDS = {"BOTTOM": "BOTTOM_LEGEND", "TOP": "TOP_LEGEND", "LEFT": "LEFT_LEGEND", "RIGHT": "RIGHT_LEGEND",
+           "NONE": "NO_LEGEND"}
+SUMMARIES = {"SUM", "COUNTA", "COUNT", "COUNTUNIQUE", "AVERAGE", "MAX", "MIN", "MEDIAN", "PRODUCT", "STDEV",
+             "VAR"}
+CHART_SIZE = (600, 371)  # Sheets' own default
+CHART_FIELDS = ("sheets(properties(sheetId,title,index),charts(chartId,spec,position))")
+PIVOT_FIELDS = "sheets(properties(sheetId,title,index))"
+
+
+def _cell_ref(raw: dict, key: str) -> tuple:
+    """(tab or None, {rowIndex, columnIndex}, A1) of a one-cell field like 'Report!B2'."""
+    tab, ref = split_range(_str(raw, key))
+    if not SINGLE_CELL.match(ref or ""):
+        raise AccessError(f"{key} is one cell, like 'Report!A1'")
+    column, row = _start(ref)
+    return tab, {"rowIndex": row - 1, "columnIndex": column}, ref.upper()
+
+
+def _letters(raw: dict, key: str, grid: dict) -> list[int]:
+    items = raw.get(key, [])
+    if not isinstance(items, list) or len(items) > 20:
+        raise AccessError(f"{key} is an array of up to 20 column letters")
+    indices = [_letter(item, key) for item in items]
+    for index in indices:
+        _inside(index, grid, key)
+    return indices
+
+
+def _chart_look(op: dict, raw: dict) -> list[str]:
+    """Validates the look fields of chart / chart_update into op; the card's words for them."""
+    words = []
+    if "chart_type" in raw:
+        op["chart_type"] = _choice(raw, "chart_type", CHART_TYPES)
+        words.append(f"type {op['chart_type'].lower()}")
+    if "title" in raw:
+        op["title"] = raw["title"].strip() if isinstance(raw["title"], str) else None
+        if op["title"] is None:
+            raise AccessError("title must be text ('' removes it)")
+        words.append(f"title \"{_cell(op['title'], '', TAB_CLIP)}\"" if op["title"] else "no title")
+    if "legend" in raw:
+        op["legend"] = LEGENDS[_choice(raw, "legend", set(LEGENDS))]
+        words.append(f"legend {raw['legend'].strip().lower()}")
+    if "stacked" in raw:
+        op["stacked"] = _flag(raw, "stacked")
+        words.append("stacked" if op["stacked"] else "not stacked")
+    op["header"] = _flag(raw, "header") if "header" in raw else True
+    if op.get("stacked") and op.get("chart_type") and op["chart_type"] not in STACKABLE:
+        raise AccessError(f"a {op['chart_type'].lower()} chart cannot be stacked")
+    return words
+
+
+def _chart_source(op: dict) -> None:
+    grid = op["grid"]
+    if "startColumnIndex" not in grid:
+        raise AccessError("a chart range is a block or whole columns, like 'Sales!A1:C13' or 'Sales!A:C'")
+    if grid["endColumnIndex"] - grid["startColumnIndex"] < 2:
+        raise AccessError("a chart range needs a label column and at least one value column")
+    if op.get("chart_type") == "PIE" and grid["endColumnIndex"] - grid["startColumnIndex"] != 2:
+        raise AccessError("a pie chart takes two columns: labels, then values")
+
+
+def _placement(op: dict, raw: dict, here: bool, base_tab) -> str:
+    """Validates at / new_sheet / width / height into op; the card's words for where it goes."""
+    if "new_sheet" in raw and "at" in raw:
+        raise AccessError("give at or new_sheet, not both")
+    op["new_sheet"] = _flag(raw, "new_sheet") if "new_sheet" in raw else False
+    op["at"], op["size"] = None, (None, None)
+    if op["new_sheet"]:
+        if "width" in raw or "height" in raw:
+            raise AccessError("a chart on its own tab takes no width or height")
+        return "on a new tab of its own"
+    op["at"] = _cell_ref(raw, "at") if "at" in raw else None
+    sized = "width" in raw or "height" in raw
+    op["size"] = (_whole(raw, "width", 50, 4000) if "width" in raw else None,
+                  _whole(raw, "height", 50, 4000) if "height" in raw else None)
+    size = f", {op['size'][0] or '…'}x{op['size'][1] or '…'}px" if sized else ""
+    if op["at"] is None:
+        return size.lstrip(", ") and f"sized {size.lstrip(', ')}"
+    tab, cell, ref = op["at"]
+    if tab is None and op["op"] == "chart":  # no tab: the data's tab
+        tab = base_tab
+        op["at"] = (tab, cell, ref)
+    if tab is None:  # chart_move: the tab the chart is on
+        return f"at {ref} on its tab{size}"
+    shown = ref if here and tab == base_tab else f"{_tab_label(tab)}!{ref}"
+    return f"at {shown}{size}"
+
+
+def _normalize_objects(name: str, raw: dict, here: bool = False) -> dict:
+    """The validated chart or pivot op; ``here`` words its card line without the tab."""
+    op, where = {"op": name}, ""
+    if "range" in raw:
+        op["areas"] = _areas(raw)
+        op["tab"], op["ref"], op["grid"] = (op["areas"][0][k] for k in ("tab", "ref", "grid"))
+        where = _where_all(op["areas"], here)
+    if name in ("chart_update", "chart_move", "chart_delete"):
+        op["chart"] = _plain(raw["chart"])
+        label = f"chart \"{_cell(op['chart'], '', TAB_CLIP)}\""
+    if name == "chart":
+        words = _chart_look(op, raw)
+        op.setdefault("chart_type", "COLUMN")
+        if not any(w.startswith("type") for w in words):
+            words.insert(0, "type column")
+        _chart_source(op)
+        if op.get("stacked") and op["chart_type"] not in STACKABLE:
+            raise AccessError(f"a {op['chart_type'].lower()} chart cannot be stacked")
+        place = _placement(op, raw, here, op["tab"])
+        if op.get("at") is None and not op["new_sheet"]:
+            place = "next to the data" + (f", {place[6:]}" if place else "")
+        kind = words.pop(0)[5:]
+        op["say"] = f"Add {kind} chart of {where} {place}" + (f": {', '.join(words)}" if words else "")
+    elif name == "chart_update":
+        words = _chart_look(op, raw)
+        op["set_header"] = "header" in raw
+        if "grid" in op:
+            _chart_source(op)
+            words.insert(0, f"data {where}" if op["tab"] is not None else f"data {op['ref']} on its data tab")
+        if not words and not op["set_header"]:
+            raise AccessError("give range, chart_type, title, legend, stacked or header to change")
+        if op["set_header"]:
+            words.append("first row is the header" if op["header"] else "no header row")
+        op["say"] = f"Change {label}: {', '.join(words)}"
+    elif name == "chart_move":
+        if not {"at", "new_sheet", "width", "height"} & set(raw):
+            raise AccessError("give at, new_sheet, width or height")
+        op["say"] = f"Move {label} {_placement(op, raw, here, None)}".replace(f"{label} sized", f"{label}: size")
+    elif name == "chart_delete":
+        op["say"] = f"Delete {label}"
+    elif name == "pivot":
+        grid = op["grid"]
+        if "startColumnIndex" not in grid:
+            raise AccessError("a pivot table's source is a block or whole columns with its header row")
+        op["rows"] = _letters(raw, "pivot_rows", grid)
+        op["columns"] = _letters(raw, "pivot_columns", grid)
+        values = raw.get("pivot_values", [])
+        if not isinstance(values, list) or len(values) > 20:
+            raise AccessError("pivot_values is up to 20 {column, summarize}")
+        op["values"] = []
+        for item in values:
+            if not isinstance(item, dict) or "column" not in item or set(item) - {"column", "summarize"}:
+                raise AccessError("each pivot value is {column: 'D', summarize: SUM|COUNTA|AVERAGE|…}")
+            index = _letter(item["column"], "pivot_values")
+            _inside(index, grid, "pivot_values")
+            op["values"].append((index, _choice(item, "summarize", SUMMARIES, "SUM")))
+        filters = raw.get("pivot_filters", [])
+        if not isinstance(filters, list) or len(filters) > 20:
+            raise AccessError("pivot_filters is up to 20 {column, show}")
+        op["filters"] = []
+        for item in filters:
+            if not isinstance(item, dict) or set(item) != {"column", "show"}:
+                raise AccessError("each pivot filter is {column: 'C', show: [values to keep]}")
+            index = _letter(item["column"], "pivot_filters")
+            _inside(index, grid, "pivot_filters")
+            op["filters"].append((index, _list(item, "show")))
+        if not (op["rows"] or op["columns"] or op["values"]):
+            raise AccessError("give pivot_rows, pivot_columns or pivot_values")
+        if "at" in raw and "title" in raw:
+            raise AccessError("title names the new tab; a pivot table written at a cell takes no title")
+        op["at"] = _cell_ref(raw, "at") if "at" in raw else None
+        if op["at"] and op["at"][0] is None:  # no tab: the source's tab
+            op["at"] = (op["tab"], *op["at"][1:])
+        op["title"] = _str(raw, "title", required=False)
+        words = []
+        for key, label in (("rows", "rows"), ("columns", "columns")):
+            if op[key]:
+                words.append(f"{label} {', '.join(column_letters(i) for i in op[key])}")
+        if op["values"]:
+            words.append("values " + ", ".join(f"{how} of {column_letters(i)}" for i, how in op["values"]))
+        for index, show in op["filters"]:
+            words.append(f"only {column_letters(index)} in ({_few(show)})")
+        if op["at"]:
+            tab, _, ref = op["at"]
+            shown = ref if here and tab == op["tab"] else f"{_tab_label(tab)}!{ref}"
+            place = f"at {shown}, overwriting the cells it fills"
+        else:
+            place = "on a new tab" + (f" \"{_cell(op['title'], '', TAB_CLIP)}\"" if op["title"] else "")
+        op["say"] = f"Pivot table of {where} {place}: {'; '.join(words)}"
+    elif name == "pivot_delete":
+        op["at"] = _cell_ref(raw, "at")
+        op["tab"] = op["at"][0]
+        ref = op["at"][2] if here else f"{_tab_label(op['tab'])}!{op['at'][2]}"
+        op["say"] = f"Delete the pivot table anchored at {ref} with its output"
+    return op
+
+
+def _chart_series(spec_type: str, source: dict, header: bool) -> dict:
+    """The basicChart or pieChart part of a ChartSpec for a source GridRange: first column labels,
+    the rest one series each."""
+    first, end = source["startColumnIndex"], source["endColumnIndex"]
+
+    def column(index, skip_header=False):
+        grid = dict(source, startColumnIndex=index, endColumnIndex=index + 1)
+        if skip_header:
+            grid["startRowIndex"] = grid.get("startRowIndex", 0) + 1
+        return {"sourceRange": {"sources": [grid]}}
+
+    if spec_type == "PIE":  # a pie has no header count: its header row stays out of the data
+        return {"pieChart": {"domain": column(first, header), "series": column(first + 1, header)}}
+    axis = "BOTTOM_AXIS" if spec_type == "BAR" else "LEFT_AXIS"
+    series = []
+    for n, index in enumerate(range(first + 1, end)):
+        entry = {"series": column(index), "targetAxis": axis}
+        if spec_type == "COMBO":
+            entry["type"] = "COLUMN" if n == 0 else "LINE"
+        series.append(entry)
+    return {"basicChart": {"chartType": spec_type, "headerCount": 1 if header else 0,
+                           "domains": [{"domain": column(first)}], "series": series}}
+
+
+def _object_requests(ops: list[dict], meta: dict, pivot=None, **_) -> list[dict]:
+    """batchUpdate requests for validated chart and pivot ops. ``pivot(grid)`` says whether a pivot
+    table is anchored at a cell."""
+    tabs = _Tabs(meta)
+    charts = {}
+    for sheet in meta.get("sheets", []):
+        for chart in sheet.get("charts", []) or []:
+            charts[str(chart.get("chartId"))] = json.loads(json.dumps(chart))  # changed as ops build on it
+
+    def chart_of(key):
+        if key in charts:
+            return charts[key]
+        found = [c for c in charts.values() if (c.get("spec") or {}).get("title") == key] or [
+            c for c in charts.values() if ((c.get("spec") or {}).get("title") or "").casefold() == key.casefold()]
+        if len(found) != 1:
+            titles = [(c.get("spec") or {}).get("title") or f"#{c.get('chartId')}" for c in charts.values()]
+            raise AccessError(f"no single chart titled {key!r}. Charts: {_few(titles) if titles else 'none'}")
+        return found[0]
+
+    def position(op, sheet_id, source=None, current=None):
+        if op["new_sheet"]:
+            return {"newSheet": True}
+        if op["at"] is not None:
+            tab, cell, _ = op["at"]
+            here = ((current or {}).get("position") or {}).get("overlayPosition", {}).get("anchorCell", {})
+            sheet = here.get("sheetId", tabs.id(None)) if tab is None and current else tabs.id(tab)
+            anchor = {"sheetId": sheet, **cell}
+        else:  # next to the data: the column after it, level with its top row
+            anchor = {"sheetId": sheet_id, "rowIndex": source.get("startRowIndex", 0),
+                      "columnIndex": source["endColumnIndex"]}
+        width, height = op["size"]
+        return {"overlayPosition": {"anchorCell": anchor, "widthPixels": width or CHART_SIZE[0],
+                                    "heightPixels": height or CHART_SIZE[1]}}
+
+    requests = []
+    for op in ops:
+        name = op["op"]
+        if name == "chart":
+            source = tabs.grid(op)
+            spec = _chart_series(op["chart_type"], source, op["header"])
+            body = spec.get("basicChart") or spec["pieChart"]
+            body["legendPosition"] = op.get("legend", "BOTTOM_LEGEND")
+            if op.get("stacked"):
+                body["stackedType"] = "STACKED"
+            if op.get("title"):
+                spec["title"] = op["title"]
+            requests.append({"addChart": {"chart": {"spec": spec, "position": position(op, source["sheetId"], source)}}})
+        elif name == "chart_update":
+            current = chart_of(op["chart"])
+            spec = json.loads(json.dumps(current.get("spec") or {}))
+            kind = "PIE" if "pieChart" in spec else (spec.get("basicChart") or {}).get("chartType")
+            target = op.get("chart_type", kind)
+            if kind is None:
+                raise AccessError(f"chart {op['chart']!r} is not a basic or pie chart; delete and add it again")
+            if (target == "PIE") != (kind == "PIE"):
+                raise AccessError("a chart cannot turn into or out of a pie chart; delete and add it again")
+            if kind == "PIE" and op["set_header"] and "grid" not in op:
+                raise AccessError("a pie chart's header setting goes with range, which it is rebuilt from")
+            body = spec.get("basicChart") or spec.get("pieChart")
+            if "grid" in op:  # rebuilt from the range; a range without a tab stays on the data tab
+                old = ((body["domains"][0]["domain"] if body.get("domains") else body.get("domain"))
+                       or {}).get("sourceRange", {}).get("sources", [{}])[0]
+                source = {"sheetId": old.get("sheetId", tabs.id(None)) if op["tab"] is None else tabs.id(op["tab"]),
+                          **op["grid"]}
+                if target == "PIE" and source["endColumnIndex"] - source["startColumnIndex"] != 2:
+                    raise AccessError("a pie chart takes two columns: labels, then values")
+                header = op["header"] if op["set_header"] or target == "PIE" else body.get("headerCount", 1) > 0
+                rebuilt = _chart_series(target, source, header)
+                fresh = rebuilt.get("basicChart") or rebuilt["pieChart"]
+                for key in ("legendPosition", "stackedType", "axis"):
+                    if key in body:
+                        fresh[key] = body[key]
+                spec.pop("basicChart", None)
+                spec.pop("pieChart", None)
+                spec.update(rebuilt)
+                body = fresh
+            else:  # the sources stay; only the type and header change
+                if op["set_header"]:
+                    body["headerCount"] = 1 if op["header"] else 0
+                if target != kind:
+                    body["chartType"] = target
+                    axis = "BOTTOM_AXIS" if target == "BAR" else "LEFT_AXIS"
+                    for n, series in enumerate(body.get("series", [])):
+                        if target == "BAR" or series.get("targetAxis") == "BOTTOM_AXIS":
+                            series["targetAxis"] = axis
+                        if target == "COMBO":
+                            series["type"] = "COLUMN" if n == 0 else "LINE"
+                        else:
+                            series.pop("type", None)
+            if "legend" in op:
+                body["legendPosition"] = op["legend"]
+            if "stacked" in op:
+                body["stackedType"] = "STACKED" if op["stacked"] else "NOT_STACKED"
+            elif target not in STACKABLE:
+                body.pop("stackedType", None)
+            if "title" in op:
+                if op["title"]:
+                    spec["title"] = op["title"]
+                else:
+                    spec.pop("title", None)
+            current["spec"] = spec
+            requests.append({"updateChartSpec": {"chartId": current["chartId"], "spec": spec}})
+        elif name == "chart_move":
+            current = chart_of(op["chart"])
+            overlay = (current.get("position") or {}).get("overlayPosition") or {}
+            if not op["new_sheet"] and op["at"] is None:
+                if not overlay:
+                    raise AccessError(f"chart {op['chart']!r} is on its own tab; give at to place it on a tab")
+                width, height = op["size"]
+                fields = ",".join(f for f, v in (("widthPixels", width), ("heightPixels", height)) if v)
+                requests.append({"updateEmbeddedObjectPosition": {
+                    "objectId": current["chartId"], "fields": fields, "newPosition": {"overlayPosition": {
+                        **({"widthPixels": width} if width else {}), **({"heightPixels": height} if height else {})}}}})
+                overlay.update({k: v for k, v in (("widthPixels", width), ("heightPixels", height)) if v})
+                continue
+            if op["at"] is not None and overlay:  # a size not given stays as it is
+                width, height = op["size"]
+                op = dict(op, size=(width or overlay.get("widthPixels"), height or overlay.get("heightPixels")))
+            moved = position(op, None, current=current)
+            request = {"objectId": current["chartId"], "newPosition": moved}
+            if not op["new_sheet"]:  # the mask is relative to overlayPosition; offsets go back to 0
+                moved["overlayPosition"].update(offsetXPixels=0, offsetYPixels=0)
+                request["fields"] = "anchorCell,offsetXPixels,offsetYPixels,widthPixels,heightPixels"
+            requests.append({"updateEmbeddedObjectPosition": request})
+            current["position"] = json.loads(json.dumps(moved))  # not the request already built
+        elif name == "chart_delete":
+            gone = chart_of(op["chart"])
+            charts.pop(str(gone["chartId"]), None)
+            requests.append({"deleteEmbeddedObject": {"objectId": gone["chartId"]}})
+        elif name == "pivot":
+            source = tabs.grid(op)
+            first = source["startColumnIndex"]
+            table = {"source": source, "valueLayout": "HORIZONTAL"}
+            for key, field in (("rows", "rows"), ("columns", "columns")):
+                if op[key]:
+                    table[field] = [{"sourceColumnOffset": i - first, "showTotals": True, "sortOrder": "ASCENDING"}
+                                    for i in op[key]]
+            if op["values"]:
+                table["values"] = [{"sourceColumnOffset": i - first, "summarizeFunction": how} for i, how in op["values"]]
+            if op["filters"]:
+                table["filterSpecs"] = [{"columnOffsetIndex": i - first, "filterCriteria": {"visibleValues": show}}
+                                        for i, show in op["filters"]]
+            if op["at"] is not None:
+                tab, cell, _ = op["at"]
+                start = {"sheetId": tabs.id(tab), **cell}
+            else:
+                title = op["title"]
+                if not title:
+                    number = 1
+                    while f"Pivot table {number}" in tabs.ids:
+                        number += 1
+                    title = f"Pivot table {number}"
+                elif title in tabs.ids:
+                    raise AccessError(f"a tab named {title!r} already exists")
+                new_id = random.randrange(1, 2 ** 31 - 1)
+                while new_id in tabs.alive:
+                    new_id = random.randrange(1, 2 ** 31 - 1)
+                tabs.ids[title] = new_id
+                tabs.alive.add(new_id)
+                requests.append({"addSheet": {"properties": {"sheetId": new_id, "title": title}}})
+                start = {"sheetId": new_id, "rowIndex": 0, "columnIndex": 0}
+            requests.append({"updateCells": {"start": start, "fields": "pivotTable",
+                                             "rows": [{"values": [{"pivotTable": table}]}]}})
+        elif name == "pivot_delete":
+            tab, cell, ref = op["at"]
+            anchor = {"sheetId": tabs.id(tab), "startRowIndex": cell["rowIndex"], "endRowIndex": cell["rowIndex"] + 1,
+                      "startColumnIndex": cell["columnIndex"], "endColumnIndex": cell["columnIndex"] + 1}
+            if pivot is not None and not pivot(anchor):
+                raise AccessError(f"no pivot table is anchored at {ref}; get_format over its area shows where one starts")
+            requests.append({"updateCells": {"range": anchor, "fields": "pivotTable", "rows": [{"values": [{}]}]}})
+    return requests
+
+
 # Op actions: the vocabulary, its normalizer, its request builder (given the metadata and the
 # engine's readers) and the metadata fields it builds from.
 OP_SETS = {"layout": (LAYOUT_OPS, _normalize, _layout_requests, LAYOUT_FIELDS),
-           "data": (DATA_OPS, _normalize_data, _data_requests, LAYOUT_FIELDS)}
+           "data": (DATA_OPS, _normalize_data, _data_requests, LAYOUT_FIELDS),
+           "chart": (CHART_OPS, _normalize_objects, _object_requests, CHART_FIELDS),
+           "pivot": (PIVOT_OPS, _normalize_objects, _object_requests, PIVOT_FIELDS)}
 
 
 # --- Gmail ----------------------------------------------------------------------------------------
