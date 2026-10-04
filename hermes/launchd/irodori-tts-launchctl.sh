@@ -38,7 +38,8 @@
 # Longest key wins, and ASCII keys match on word boundaries.
 set -euo pipefail
 
-LABEL=local.irodori-tts.engine
+LABEL=local.hermes.irodori-tts.engine
+LEGACY_LABEL=local.irodori-tts.engine
 CONFIG_DIR="$HOME/.config/hermes"
 TMPL="$CONFIG_DIR/launchd/$LABEL.plist.tmpl"
 DEST="$HOME/Library/LaunchAgents/$LABEL.plist"
@@ -47,6 +48,7 @@ SERVER_DIR="$RUNTIME_DIR/server"
 VOICES_DIR="$RUNTIME_DIR/voices"
 PINNED="$CONFIG_DIR/engines/irodori-tts/pinned.conf"
 LOG="$HOME/Library/Logs/irodori-tts-engine.log"
+LEGACY_LOG="$LOG"
 
 # 120 x 5 s matches IRODORI_MODEL_LOAD_TIMEOUT below: a first install downloads
 # the 12 GB checkpoint inside that window, and a shorter wait reports failure
@@ -346,6 +348,19 @@ render_plist() {
   mv "$tmp" "$DEST"
 }
 
+# The label this agent had before the launchd naming cleanup: stop and drop it so
+# two copies never run, and carry its log over once.
+retire_legacy() {
+  launchctl bootout "gui/$UID/$LEGACY_LABEL" 2>/dev/null || true
+  local i
+  for i in $(seq 1 50); do
+    launchctl print "gui/$UID/$LEGACY_LABEL" >/dev/null 2>&1 || break
+    sleep 0.2
+  done
+  rm -f "$HOME/Library/LaunchAgents/$LEGACY_LABEL.plist"
+  if [ -f "$LEGACY_LOG" ] && [ ! -e "$LOG" ]; then mv "$LEGACY_LOG" "$LOG"; fi
+}
+
 unload_agent() {
   launchctl bootout "gui/$UID/$LABEL" 2>/dev/null || true
   # bootout returns before the job is actually gone. Bootstrapping into that
@@ -393,6 +408,7 @@ case "$ACTION" in
     sync_server
     write_env
     render_plist
+    retire_legacy
     unload_agent
     load_agent
     wait_healthy || true
@@ -447,12 +463,14 @@ case "$ACTION" in
 
   uninstall)
     unload_agent
+    retire_legacy
     rm -f "$DEST"
     echo "unloaded and removed $DEST"
     ;;
 
   purge)
     unload_agent
+    retire_legacy
     rm -f "$DEST"
     rm -rf "$RUNTIME_DIR"
     echo "unloaded and deleted $RUNTIME_DIR"

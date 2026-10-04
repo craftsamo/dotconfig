@@ -20,14 +20,16 @@
 set -euo pipefail
 
 CONFIG_DIR="${HERMES_CONFIG_DIR:-$HOME/.config/hermes}"
-LABEL="local.signal.sync"
+LABEL="local.hermes.signal-access.sync"
+LEGACY_LABEL="local.signal.sync"
 TMPL="$CONFIG_DIR/launchd/$LABEL.plist.tmpl"
 DEST="$HOME/Library/LaunchAgents/$LABEL.plist"
 VENV="$CONFIG_DIR/local/signal-sync/venv"
 SYNC="$CONFIG_DIR/plugins/signal-access/sync.py"
 STATE="${HERMES_SIGNAL_STATE:-$HOME/.local/state/hermes-signal}"
 DATA="$STATE/signal-cli"
-LOG="$HOME/Library/Logs/signal-sync.log"
+LOG="$HOME/Library/Logs/signal-access-sync.log"
+LEGACY_LOG="$HOME/Library/Logs/signal-sync.log"
 PYTHON_VERSION="3.12.11"
 
 die() { echo "error: $*" >&2; exit 1; }
@@ -93,6 +95,19 @@ load_agent() {
   die "launchctl bootstrap failed for $DEST"
 }
 
+# The label this agent had before the launchd naming cleanup: stop and drop it so
+# two copies never run, and carry its log over once.
+retire_legacy() {
+  launchctl bootout "gui/$UID/$LEGACY_LABEL" 2>/dev/null || true
+  local i
+  for i in $(seq 1 50); do
+    launchctl print "gui/$UID/$LEGACY_LABEL" >/dev/null 2>&1 || break
+    sleep 0.2
+  done
+  rm -f "$HOME/Library/LaunchAgents/$LEGACY_LABEL.plist"
+  if [ -f "$LEGACY_LOG" ] && [ ! -e "$LOG" ]; then mv "$LEGACY_LOG" "$LOG"; fi
+}
+
 install_agent() {
   [ -x "$VENV/bin/python" ] || setup
   prepare_state
@@ -104,10 +119,11 @@ install_agent() {
   local tmp
   tmp="$(mktemp)"
   sed -e "s|__PYTHON__|$VENV/bin/python|g" -e "s|__SYNC__|$SYNC|g" -e "s|__STATE__|$STATE|g" \
-      -e "s|__LOG__|$LOG|g" "$TMPL" > "$tmp"
+      -e "s|__HOME__|$HOME|g" -e "s|__LOG__|$LOG|g" "$TMPL" > "$tmp"
   plutil -lint "$tmp" >/dev/null || { rm -f "$tmp"; die "rendered plist is invalid"; }
   mkdir -p "$(dirname "$DEST")"
   mv "$tmp" "$DEST"
+  retire_legacy
   unload_agent
   load_agent
   echo "loaded $LABEL; log: $LOG"
@@ -123,11 +139,13 @@ case "${1:-}" in
       [ "${acct#* }" = "no" ] || die "a Signal account is still linked here; to link again: $0 uninstall,
        remove this device on the phone (Settings > Linked devices), wait for $0 status to say unlinked, then link"
       unload_agent
+      retire_legacy
       stamp="$(date +%Y%m%d%H%M%S)"
       mv "$DATA/data" "$DATA/data.unlinked-$stamp"
       echo "moved the unlinked device's keys aside ($DATA/data.unlinked-$stamp)"
     fi
     unload_agent
+    retire_legacy
     echo "On the phone: Signal > Settings > Linked devices > Link new device, and scan this code."
     (umask 077 && "$CLI" --data-dir "$DATA" link -n "$NAME")
     install_agent
@@ -140,6 +158,7 @@ case "${1:-}" in
     ;;
   uninstall)
     unload_agent
+    retire_legacy
     rm -f "$DEST"
     echo "unloaded and removed $DEST (keys and mirror kept in $STATE)"
     ;;
@@ -151,13 +170,13 @@ case "${1:-}" in
     ;;
   status)
     echo "plist   : $DEST $([ -f "$DEST" ] && echo '(installed)' || echo '(absent)')"
-    if launchctl print "gui/$UID/$LABEL" >"/tmp/.signal-sync-print.$$" 2>/dev/null; then
-      grep -E '^[[:space:]]+(state|pid|last exit code) = ' "/tmp/.signal-sync-print.$$" \
+    if launchctl print "gui/$UID/$LABEL" >"/tmp/.signal-access-print.$$" 2>/dev/null; then
+      grep -E '^[[:space:]]+(state|pid|last exit code) = ' "/tmp/.signal-access-print.$$" \
         | head -3 | sed 's/^[[:space:]]*/  /'
     else
       echo "  agent not loaded"
     fi
-    rm -f "/tmp/.signal-sync-print.$$"
+    rm -f "/tmp/.signal-access-print.$$"
     acct="$(account_state || true)"
     if [ -n "$acct" ]; then
       echo "account : ${acct% *} ($([ "${acct#* }" = yes ] && echo linked || echo 'unlinked by Signal'))"

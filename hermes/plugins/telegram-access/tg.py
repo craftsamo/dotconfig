@@ -111,7 +111,7 @@ EXCLUDED = "that chat is not available to this tool"
 # Keychain names, Telegram's own apps' data, and Telegram client libraries or the credential page.
 # The plugin's own name (also the launcher's and the Keychain scope's) is blocked in terminal calls
 # only, so file tools can still read the plugin's source.
-_PATHS = re.compile(r"hermes-telegram|telegram\.sock|local\.telegram-access|telegram-access-sync|local/telegram-access/"
+_PATHS = re.compile(r"hermes-telegram|telegram\.sock|local\.telegram-access|telegram-access\.sync|telegram-access-sync|local/telegram-access/"
                     r"|HERMES_TELEGRAM_|TELEGRAM_USER_SESSION"
                     r"|TELEGRAM_API_(?:ID|HASH)|ru\.keepcoder\.Telegram|org\.telegram"
                     r"|Application(?:\\? |%20)Support/Telegram(?:\\? |%20)Desktop", re.IGNORECASE)
@@ -445,7 +445,7 @@ def _duration(seconds) -> str:
 
 def _agent_running() -> bool | None:
     try:
-        proc = subprocess.run(["/bin/launchctl", "print", f"gui/{os.getuid()}/local.telegram-access.sync"],
+        proc = subprocess.run(["/bin/launchctl", "print", f"gui/{os.getuid()}/local.hermes.telegram-access.sync"],
                               stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=10)
     except (OSError, subprocess.TimeoutExpired):
         return None

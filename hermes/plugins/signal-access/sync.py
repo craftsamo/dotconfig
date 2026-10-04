@@ -1,5 +1,5 @@
 """signal-access sync agent: keeps the local Signal mirror current. Run by launchd
-(``local.signal.sync``, ``launchd/signal-sync-launchctl.sh``), never by Hermes.
+(``local.hermes.signal-access.sync``, ``launchd/signal-access-launchctl.sh``), never by Hermes.
 
 It owns one ``signal-cli daemon`` child for the linked account, with a JSON-RPC socket in the
 state directory and ``--receive-mode manual``: nothing is fetched from Signal until this agent
@@ -250,11 +250,11 @@ def run() -> int:
     conn = store.connect(store.db_path(state), write=True)
     if not account:
         store.set_meta(conn, status="not linked", error=None)
-        log("no linked Signal account; link one with signal-sync-launchctl.sh link")
+        log("no linked Signal account; link one with signal-access-launchctl.sh link")
         return 0
     if account.get("registered") is False:
         store.set_meta(conn, status="unlinked", error="Signal unlinked this device; link it again")
-        log("this device is no longer linked; run signal-sync-launchctl.sh link")
+        log("this device is no longer linked; run signal-access-launchctl.sh link")
         return 0
     me = account.get("uuid") or ""
     if shutil.disk_usage(state).free < MIN_FREE:

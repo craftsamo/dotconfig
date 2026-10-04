@@ -13,7 +13,7 @@ WhatsApp. Part of the Hermes design docs — index: [`PROFILES.md`](../PROFILES.
 |---|---|---|
 | Engine: wacli calls, result shapes, file checks and snapshots, approval card, bypass guard | `plugins/whatsapp-access/wa.py` | all |
 | `whatsapp` tool and the `pre_tool_call` hooks (toolset `whatsapp_access`) | `plugins/whatsapp-access/__init__.py` | Assistant |
-| Pairing and the per-account sync agent | `launchd/wacli-sync-launchctl.sh`, `launchd/local.wacli.sync.plist.tmpl` | people |
+| Pairing and the per-account sync agent | `launchd/whatsapp-access-launchctl.sh`, `launchd/local.hermes.whatsapp-access.sync.plist.tmpl` | people |
 | When and how the Assistant uses it | the Assistant's private Chat reference `whatsapp.md` | Assistant |
 
 The engine shells out to [`wacli`](https://github.com/openclaw/wacli)
@@ -35,7 +35,7 @@ a newly paired account is usable at once, with no code or config change.
 account exists; a send always names it and never falls back to wacli's
 default account, so a second account cannot become the sender by accident.
 
-One `local.wacli.sync.<account>` LaunchAgent per account runs
+One `local.hermes.whatsapp-access.sync.<account>` LaunchAgent per account runs
 `wacli sync --follow` forever: it keeps the mirror current, and while it runs
 it holds the store lock and wacli delegates every send to it over the store's
 socket (sends are paced 1–3 s apart). It reconnects without a deadline,
@@ -203,7 +203,8 @@ so the quote resolves.
 
 The same hook blocks terminal commands that run `wacli`, and terminal or
 file-tool calls whose command, working directory or path names the store
-(`.wacli`, `wacli.db`), the sync launcher or agent (`wacli-sync`,
+(`.wacli`, `wacli.db`), the sync launcher, agent or log (`whatsapp-access-launchctl`,
+`whatsapp-access.sync`, `whatsapp-access-sync`, and the pre-rename `wacli-sync`,
 `local.wacli`), a `WACLI_` variable or the outbox (`hermes-whatsapp`). Terminal calls naming the plugin
 itself (`whatsapp-access`) are blocked too, since importing the engine would
 skip the hook; file tools may still read its source. It is a pattern match on
@@ -217,13 +218,13 @@ Once per account, in a terminal:
 
 1. `brew install openclaw/tap/wacli` (macOS 15 or later).
 2. Check that the phone has a free linked-device slot (four at most).
-3. `~/.config/hermes/launchd/wacli-sync-launchctl.sh pair <account> +<number>`
+3. `~/.config/hermes/launchd/whatsapp-access-launchctl.sh pair <account> +<number>`
    — stops that account's agent, adds the account if needed, prints a pairing
    code, and waits; on the phone, *Linked devices → Link a device → Link with
    phone number instead*, enter the code. When pairing finishes it installs
    and starts the sync agent. Without `--phone`, `wacli --account <account>
    auth` pairs by QR instead.
-4. `wacli-sync-launchctl.sh status` — agent state and `wacli doctor` for
+4. `whatsapp-access-launchctl.sh status` — agent state and `wacli doctor` for
    every account; the tool's `status` action shows the same.
 
 Enabling the plugin or changing its code needs a gateway restart; pairing
