@@ -67,8 +67,10 @@ def test_the_layout_op_schema_matches_the_engine():
     ctx = Ctx("assistant")
     plugin.register(ctx)
     op = ctx.tools["google_sheets"]["schema"]["parameters"]["properties"]["ops"]["items"]
-    assert op["properties"]["op"]["enum"] == list(plugin.access.LAYOUT_OPS)
-    fields = {key for required, optional in plugin.access.LAYOUT_OPS.values() for key in required + optional}
+    vocabularies = [vocabulary for vocabulary, *_ in plugin.access.OP_SETS.values()]
+    assert op["properties"]["op"]["enum"] == [name for vocabulary in vocabularies for name in vocabulary]
+    fields = {key for vocabulary in vocabularies for required, optional in vocabulary.values()
+              for key in required + optional}
     assert set(op["properties"]) == fields | {"op"}
     assert op["additionalProperties"] is False
 
