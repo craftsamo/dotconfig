@@ -15,7 +15,7 @@ over Signal. Part of the Hermes design docs — index: [`PROFILES.md`](../PROFIL
 | Sync agent: owns signal-cli, writes the mirror | `plugins/signal-access/sync.py` | launchd |
 | Engine: reads, check, media, send, approval card, file checks, bypass guard | `plugins/signal-access/sig.py` | Assistant |
 | `signal` tool and the `pre_tool_call` hook (toolset `signal_access`) | `plugins/signal-access/__init__.py` | Assistant |
-| Linking and the sync agent | `launchd/signal-sync-launchctl.sh`, `launchd/local.signal.sync.plist.tmpl` | people |
+| Linking and the sync agent | `launchd/signal-access-launchctl.sh`, `launchd/local.hermes.signal-access.sync.plist.tmpl` | people |
 | When and how the Assistant uses it | the Assistant's private Chat reference `signal.md` | Assistant |
 
 [signal-cli](https://github.com/AsamK/signal-cli) (Homebrew `signal-cli`, a
@@ -34,7 +34,7 @@ launcher): `signal-cli/` (signal-cli's keys and the files it downloaded),
 `outbox/` (short-lived copies of files being sent). The phone number appears
 only there and on the approval card, never in tracked files.
 
-The `local.signal.sync` LaunchAgent runs `sync.py`, which starts
+The `local.hermes.signal-access.sync` LaunchAgent runs `sync.py`, which starts
 `signal-cli daemon --socket … --receive-mode manual` as its child and
 subscribes on the socket: nothing is fetched from Signal until it subscribes,
 so while it is down messages wait on Signal's server. Each envelope is written
@@ -181,8 +181,9 @@ text.
 
 The same hook blocks terminal commands that run `signal-cli`, and terminal or
 file-tool calls whose command, working directory or path names the state
-(`hermes-signal`, `signal-cli.sock`, `share/signal-cli`), the agent
-(`signal-sync`, `local.signal.sync`), a `HERMES_SIGNAL_` variable or Signal
+(`hermes-signal`, `signal-cli.sock`, `share/signal-cli`), the agent, its launcher
+or log (`signal-access.sync`, `signal-access-sync`, `signal-access-launchctl`,
+and the pre-rename `signal-sync`, `local.signal.sync`), a `HERMES_SIGNAL_` variable or Signal
 Desktop's data (`Application Support/Signal`, also shell-escaped). Terminal calls naming the plugin
 itself (`signal-access`) are blocked too, since importing the engine would skip
 the hook; file tools may still read its source. It is a pattern match on the
@@ -196,17 +197,17 @@ Once, in a terminal:
 1. `brew install signal-cli` (in the Brewfile) and `uv`.
 2. Check that the phone has a free linked-device slot (five at most; Signal
    Desktop counts).
-3. `~/.config/hermes/launchd/signal-sync-launchctl.sh link` — prepares the
+3. `~/.config/hermes/launchd/signal-access-launchctl.sh link` — prepares the
    state directory, prints a QR code and waits; on the phone, *Settings →
    Linked devices → Link new device*, scan it. When linking finishes it
    installs and starts the sync agent.
-4. `signal-sync-launchctl.sh status` — agent state, account and mirror status;
+4. `signal-access-launchctl.sh status` — agent state, account and mirror status;
    the tool's `status` action shows the same.
 
 Every launcher command but `status` refuses to run from a task worktree
 (`HERMES_CONFIG_DIR`), before it touches the agent or the keys. Enabling the
 plugin or changing its code needs a gateway restart; changing `sync.py`,
-`store.py` or `rpc.py` needs `signal-sync-launchctl.sh restart` too.
+`store.py` or `rpc.py` needs `signal-access-launchctl.sh restart` too.
 
 When Signal unlinks the device (removed on the phone, or 45 days unused), run
 `link` again: it moves the old keys aside (`signal-cli/data.unlinked-<time>`;

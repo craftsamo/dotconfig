@@ -2,15 +2,16 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-  <!-- wacli-sync-launchctl.sh renders the __PLACEHOLDERS__ (one agent per wacli account). -->
+  <!-- whatsapp-access-launchctl.sh renders the __PLACEHOLDERS__ (one agent per wacli account). -->
   <key>Label</key>
-  <string>local.wacli.sync.__ACCOUNT__</string>
+  <string>local.hermes.whatsapp-access.sync.__ACCOUNT__</string>
 
   <!-- Follow forever: reconnect without a deadline, force a reconnect after 90 s of failed
        keepalives (sleep/wake), stay quiet so the phone keeps its notifications, and pace sends
        delegated over the store socket. -->
   <key>ProgramArguments</key>
   <array>
+    <string>__HOME__/.config/hermes/launchd/bin/hermes-whatsapp-access-sync</string>
     <string>__WACLI__</string>
     <string>--account</string>
     <string>__ACCOUNT__</string>
@@ -53,8 +54,8 @@
   <string>Background</string>
 
   <key>StandardOutPath</key>
-  <string>__HOME__/Library/Logs/wacli-sync-__ACCOUNT__.log</string>
+  <string>__HOME__/Library/Logs/whatsapp-access-sync-__ACCOUNT__.log</string>
   <key>StandardErrorPath</key>
-  <string>__HOME__/Library/Logs/wacli-sync-__ACCOUNT__.log</string>
+  <string>__HOME__/Library/Logs/whatsapp-access-sync-__ACCOUNT__.log</string>
 </dict>
 </plist>

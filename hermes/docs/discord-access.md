@@ -20,7 +20,7 @@ the risk away.
 | Engine: the only code that talks to Discord and holds the token | `plugins/discord-access/engine.py` | its venv |
 | `discord_account` tool, reads, card, the `pre_tool_call` hook (toolset `discord_access`) | `plugins/discord-access/access.py`, `__init__.py` | Assistant |
 | Engine venv (`curl_cffi`, hash-locked) | `engines/discord-user/requirements.lock` → ignored `local/discord-user/venv` | people |
-| Sync agent | `launchd/discord-user-launchctl.sh`, `launchd/local.discord-user.sync.plist.tmpl` | people |
+| Sync agent | `launchd/discord-access-launchctl.sh`, `launchd/local.hermes.discord-access.sync.plist.tmpl` | people |
 | When and how the Assistant uses it | the Assistant's private Chat reference `discord.md` | Assistant |
 
 No MCP server, browser or Hermes core change is involved, and no third-party
@@ -59,7 +59,7 @@ State lives outside every repository in `~/.local/state/hermes-discord/`
 (0700): `mirror.db` (SQLite, WAL; 0600) and `sync.json`. The plugin opens the
 mirror read-only and never creates it; the engine is its only writer.
 
-The `local.discord-user.sync` LaunchAgent starts one bounded run every 5
+The `local.hermes.discord-access.sync` LaunchAgent starts one bounded run every 5
 minutes (`StartInterval`), which exits when done; a lock keeps runs from
 overlapping. A run asks for the account, the DM list and, for each server on
 the sync list, its channel list. Those lists carry each channel's last
@@ -246,7 +246,7 @@ Once, in a terminal:
    `authorization` header of any `discord.com/api` request from the logged-in
    web client (DevTools → Network). Logging that browser session out or
    changing the password invalidates it; store the new one the same way.
-2. `hermes/launchd/discord-user-launchctl.sh install` — builds the venv from
+2. `hermes/launchd/discord-access-launchctl.sh install` — builds the venv from
    the lock if needed (`setup` does only that), renders and loads the agent.
    `run` does one sync in the terminal; `status` shows the venv, whether the
    token is present (never its value), the agent and the last run.

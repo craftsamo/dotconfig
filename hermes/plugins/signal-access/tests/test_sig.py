@@ -402,6 +402,9 @@ def test_too_many_files_for_one_card(env):
     ("terminal", {"command": "cp ~/Library/Application\\ Support/Signal/config.json ."}),
     ("read_file", {"path": "~/.local/state/hermes-signal/signal-cli/data/123"}),
     ("search_files", {"path": "/Users/x/Library/Application Support/Signal"}),
+    ("read_file", {"path": "~/Library/LaunchAgents/local.hermes.signal-access.sync.plist"}),
+    ("read_file", {"path": "~/Library/Logs/signal-access-sync.log"}),
+    ("read_file", {"path": "~/Library/Logs/signal-sync.log"}),
 ])
 def test_bypass_is_blocked(tool, args):
     assert sig.bypass(tool, args) == sig.BYPASS_MESSAGE
