@@ -46,7 +46,7 @@ The hook decides before a tool runs; the rule is `approval_request` in
 `access.py`.
 
 - **Changes ask first**: Sheets `update` / `batch_update` / `append` /
-  `clear` / `create` / `add_sheet`, Gmail `send`, Drive `upload`, and every
+  `clear` / `create` / `add_sheet` / `layout`, Gmail `send`, Drive `upload`, and every
   gcloud command that is not a read. The action must be spelled exactly; the
   gate and the engine share one check, so no variant is read differently by
   each.
@@ -63,12 +63,15 @@ The hook decides before a tool runs; the rule is `approval_request` in
   and contexts without a human all block. The card shows recipients and body,
   the upload, or the full gcloud command.
 - **Spreadsheet edits are approved per spreadsheet.** `update`,
-  `batch_update`, `append` and `add_sheet` share one allowlist key per
+  `batch_update`, `append`, `add_sheet` and `layout` share one allowlist key per
   spreadsheet id, so "session" on the first card lets the rest of that
   spreadsheet's edits run for the session and "always" for good; another
   spreadsheet asks again. The spreadsheet's version history undoes them.
   `clear` and `create` keep a key per exact call, like every other change:
-  "always" there only repeats that identical call.
+  "always" there only repeats that identical call. So does a `layout` call
+  holding any op that deletes or moves data (`delete`, `move`, `merge`,
+  `table_delete`, `conditional_delete`; `LAYOUT_DESTRUCTIVE`), so a grant
+  for formatting never covers dropping rows.
 - **Spreadsheet cards** are plain English, one fact per line —
   `SpreadSheet: <title>`, `Sheet: <tab>`, a blank line, then each cell as
   `K3257 > <column header>: <value>`, row 1 being the header. A whole tab whose
@@ -81,9 +84,27 @@ The hook decides before a tool runs; the rule is `approval_request` in
   falls back to ids and column letters. Telegram has no tables, and Hermes
   owns the rest of the card. Many rows go in one `batch_update` (up to 500
   ranges) so one card covers them.
+- **Layout** is one `spreadsheets.batchUpdate` per call, so its ops land
+  together or not at all. Ops come from a fixed vocabulary (`LAYOUT_OPS`:
+  formatting, borders, sizes, inserting/deleting/moving rows and columns,
+  merges, freezing, native tables, conditional formatting, input rules), never
+  raw API requests, so the gate can word and classify every one. As
+  `batch_update` takes scattered cells in one call, an op that applies the
+  same change to scattered places takes `ranges` instead of `range` (at most
+  `BATCH_LIMIT` ranges per call); `insert` and `move` keep one range, since
+  each shifts what the next position would mean, and a multi-range `delete`
+  runs bottom-up so its row numbers are the ones read before the call. Its card
+  reads `SpreadSheet:`, `Sheet:` when every op is on one tab, the checks,
+  then one line per op (`Width of columns B-D: 140px`, `Delete rows 4-5 with
+  their contents`), counting the rest as `(+N more changes)`. Tabs resolve
+  to sheet ids by name (a bare word is a tab, never a named range); tables by
+  name or id. `table_update` keeps the columns it does not name, and
+  `table_delete` removes the table with its contents (the API has no
+  unconvert). `info` lists each tab's frozen counts, merges, tables and
+  numbered conditional rules, which the update and delete ops refer to.
 - **Row guards.** Writes by row number can land on the wrong row when another
-  writer inserts, deletes or sorts rows. `update`, `batch_update` and `clear`
-  take `expect` — up to 200 single cells with the value each must display
+  writer inserts, deletes or sorts rows. `update`, `batch_update`, `clear` and
+  `layout` take `expect` — up to 200 single cells with the value each must display
   (typically the row's id column). Right before writing, after the approval,
   the engine reads them in one call and writes nothing unless every one still
   matches as displayed text (surrounding whitespace ignored, booleans as
