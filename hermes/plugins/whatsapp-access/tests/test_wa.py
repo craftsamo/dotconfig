@@ -44,8 +44,8 @@ class Fake:
         self.messages = [message("NEW", text="newest", stamp="2026-10-02T00:00:00Z"),
                          message("OLD", from_me=True, text="older")]
 
-    def __call__(self, args, *, account=None, write=False, timeout=None):
-        self.calls.append({"args": list(args), "account": account, "write": write})
+    def __call__(self, args, *, account=None, write=False, timeout=None, media_roots=None):
+        self.calls.append({"args": list(args), "account": account, "write": write, "media_roots": media_roots})
         key = " ".join(args[:2])
         if key in self.overrides:
             value = self.overrides[key]
@@ -76,6 +76,11 @@ class Fake:
                     "store": {"messages": 10, "chats": 2, "last_activity_at": "2026-10-03T00:00:05Z"}}
         if key == "send text":
             return {"sent": True, "to": args[args.index("--to") + 1], "id": "3EB0XYZ"}
+        if key == "send file":
+            path = Path(args[args.index("--file") + 1])
+            self.calls[-1]["bytes"] = path.read_bytes()       # what wacli would upload, read at send time
+            return {"sent": True, "to": args[args.index("--to") + 1], "id": f"3EBF{len(self.calls)}",
+                    "file": {"name": args[args.index("--filename") + 1], "media": "image"}}
         raise AssertionError(f"unexpected wacli call {args}")
 
     def args_of(self, prefix):
