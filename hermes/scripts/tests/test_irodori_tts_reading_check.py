@@ -69,6 +69,21 @@ class ScoringTest(unittest.TestCase):
         self.assertAlmostEqual(1 / 25, summary["overall"]["cer"])
         self.assertEqual({"cer": 0.05, "bad": 1, "n": 2}, summary["categories"]["number"])
 
+    def test_question_endings_are_summarised(self) -> None:
+        rows = [
+            {"category": "question", "edits": 0, "expected_len": 5, "question": True, "final_rise_st": 4.0},
+            {"category": "question", "edits": 0, "expected_len": 5, "question": True, "final_rise_st": 0.0},
+            {"category": "question", "edits": 0, "expected_len": 5, "question": False, "final_rise_st": 9.0},
+        ]
+        stats = CHECK.summarise(rows)["categories"]["question"]
+        self.assertEqual((2, 1, 2.0), (stats["questions"], stats["rising"], stats["mean_rise_st"]))
+
+    def test_question_ending_detection(self) -> None:
+        for text in ("晴れますか？", "本当に?", "「行くの？」", "雨ですか？ "):
+            self.assertTrue(CHECK.ends_in_question(text), text)
+        for text in ("「行くの？」と聞かれた。", "晴れます。", "資料は届きましたか？確認をお願いします。"):
+            self.assertFalse(CHECK.ends_in_question(text), text)
+
     def test_option_values_are_json(self) -> None:
         self.assertEqual(("cfg_scale_text", 4.0), CHECK.parse_option("cfg_scale_text=4.0"))
         self.assertEqual(("decode_mode", "x"), CHECK.parse_option("decode_mode=x"))
@@ -79,7 +94,8 @@ class CorpusTest(unittest.TestCase):
         cases = CHECK.load_corpus(CORPUS_PATH)
         self.assertGreaterEqual(len(cases), 50)
         self.assertEqual(
-            {"kanji", "number", "latin", "symbol", "mixed"}, {c.category for c in cases}
+            {"kanji", "number", "latin", "symbol", "mixed", "acronym", "question", "statement"},
+            {c.category for c in cases},
         )
         for case in cases:
             with self.subTest(text=case.text):

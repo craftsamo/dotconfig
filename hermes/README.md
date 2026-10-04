@@ -611,7 +611,10 @@ character error rate per category; `--compare a.json b.json` sets runs side
 by side, `--no-frontend` measures the provider without `reading.py`,
 `--numerals` tries another numeral style, `--option cfg_scale_text=4`
 passes a server sampling option and `--no-pacing` sends each sentence whole.
-The score sees readings, not phrasing: a
+`--f0` adds a pitch track: for text ending in `？` it reports the final rise
+in semitones (+2 st or more is heard as a question) and, with
+`--keep-audio`, plots each contour beside its WAV; the `acronym`, `question`
+and `statement` categories exist for it. The score sees readings, not phrasing: a
 reading can be right while the pauses fall inside a word, so listen to a
 sample before changing how text is spelled. Findings are
 candidates: confirm by ear (`--keep-audio DIR`, re-score with `--from-audio
