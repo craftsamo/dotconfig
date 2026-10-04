@@ -393,8 +393,9 @@ keeps user keys.
   engines. Writer and Creator enable it by name; without the overlay the
   toolset is simply absent.
 - **workspace-drafts** (`standalone`): read-only `workspace_drafts` (toolset
-  `workspace_drafts`) and the `/drafts` command for engineer and assistant;
-  also the code behind `bin/ws-drafts`. Behavior:
+  `workspace_drafts`) and the `/drafts` command for engineer and assistant —
+  drafts under `.agent/`, and the inbox apart (`/drafts inbox`); also the code
+  behind `bin/ws-drafts`. Behavior:
   [docs/workspace-drafts.md](docs/workspace-drafts.md).
 - **workspace-repos** (`standalone`): read-only `workspace_repos` (toolset
   `workspace_repos`) and the `/repos` command for engineer and assistant;
