@@ -62,7 +62,7 @@ SHEETS_DESCRIPTION = (
     "Edits to one spreadsheet are approved once: after the user answers \"session\" or \"always\", "
     "further edits to that spreadsheet run without asking; clear, create, every data call and a "
     "layout call that "
-    "deletes, moves or replaces data (delete, move, merge, table_delete, conditional_update, "
+    "deletes, moves or replaces data (delete, move, merge, table_delete, sheet_delete, conditional_update, "
     "conditional_delete, filter_view_delete, a note with text '', a filter_view_update with "
     "filter_columns) are approved per exact call, so keep those in their own call.")
 
@@ -93,7 +93,8 @@ LAYOUT_OPS_DESCRIPTION = (
     "move. merge: merge ALL|ROWS|COLUMNS (only the top-left value stays). unmerge. freeze: rows, "
     "columns (0 unfreezes). sheet: change a tab: title (rename), tab_color ('none' clears), "
     "hidden, position (where it ends up: 1 = first). sheet_duplicate: copy a tab, optional "
-    "title and position (default: right after the source). rename_spreadsheet: title. note: text on each cell's note "
+    "title and position (default: right after the source). sheet_delete: removes a tab with "
+    "all its contents (later ops in the call cannot name it). rename_spreadsheet: title. note: text on each cell's note "
     "('' removes notes). rich_text: one cell; runs = [{text, bold, italic, underline, "
     "strikethrough, font_size, font, color, link}] styles each text's first occurrence in the "
     "cell (replacing its earlier partial styling); value = new text for the cell, needed unless "

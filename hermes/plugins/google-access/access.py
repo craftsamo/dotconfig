@@ -836,7 +836,7 @@ LIST_LIMIT = 500
 # values a merge drops, a conditional rule or filter view picked by position or name (replaced or
 # deleted). A call holding one is approved per exact call, like clear.
 LAYOUT_DESTRUCTIVE = {"delete", "move", "merge", "table_delete", "conditional_delete", "conditional_update",
-                      "filter_view_delete"}
+                      "filter_view_delete", "sheet_delete"}
 _FORMAT = ("bold", "italic", "underline", "strikethrough", "font_size", "font", "color", "background",
            "align", "valign", "wrap", "number_format", "pattern", "link", "rotation", "padding", "reset")
 _STYLE = ("bold", "italic", "strikethrough", "color", "background")  # all a conditional rule can set
@@ -858,6 +858,7 @@ LAYOUT_OPS = {  # op: (required fields, optional fields); "ranges" stands in for
     "freeze": ((), ("sheet", "rows", "columns")),
     "sheet": (("sheet",), ("title", "tab_color", "hidden", "position")),
     "sheet_duplicate": (("sheet",), ("title", "position")),
+    "sheet_delete": (("sheet",), ()),
     "rename_spreadsheet": (("title",), ()),
     "note": (("range",), ("ranges", "text")),
     "rich_text": (("range", "runs"), ("value",)),
@@ -1332,7 +1333,7 @@ def _normalize(name: str, raw: dict, here: bool = False) -> dict:
         # Single-range ops (table, insert, move, …) read these from the one area.
         op["tab"], op["ref"], op["grid"] = (op["areas"][0][k] for k in ("tab", "ref", "grid"))
         where = _where_all(op["areas"], here)
-    if name in ("freeze", "conditional_delete", "filter_clear", "sheet", "sheet_duplicate"):
+    if name in ("freeze", "conditional_delete", "filter_clear", "sheet", "sheet_duplicate", "sheet_delete"):
         op["tab"] = _str(raw, "sheet", required=False) or None
     if name in ONE_RULE_OPS and len({a["tab"] for a in op["areas"]}) > 1:
         raise AccessError("the ranges of one conditional rule must be on one tab")
@@ -1502,6 +1503,8 @@ def _normalize(name: str, raw: dict, here: bool = False) -> dict:
         named = f" as \"{_cell(op['title'], '', TAB_CLIP)}\"" if op["title"] else ""
         at = f" at position {op['position']}" if op["position"] else " next to it"
         op["say"] = f"Duplicate tab {_tab_label(op['tab'])}{named}{at}"
+    elif name == "sheet_delete":
+        op["say"] = f"Delete tab {_tab_label(op['tab'])} with all its contents"
     elif name == "rename_spreadsheet":
         op["title"] = _str(raw, "title")
         op["say"] = f"Rename spreadsheet to \"{_cell(op['title'], '', TITLE_CLIP)}\""
@@ -1583,7 +1586,7 @@ class _Tabs:
     before the call; a bare word is a tab (named ranges are not resolved)."""
 
     def __init__(self, meta: dict):
-        self.ids, self.first = {}, None
+        self.ids, self.first, self.gone = {}, None, set()
         for sheet in meta.get("sheets", []):
             props = sheet.get("properties", {})
             self.ids[props.get("title")] = props.get("sheetId", 0)
@@ -1593,6 +1596,8 @@ class _Tabs:
         if tab is None:
             if self.first is None:
                 raise AccessError("the spreadsheet has no tabs")
+            if self.first in self.gone:
+                raise AccessError("the first tab is deleted earlier in this call; name the tab")
             return self.first
         if tab not in self.ids:
             raise AccessError(f"no tab named {tab!r} (ranges take 'Tab!A1:B2'; named ranges are not "
@@ -1601,6 +1606,16 @@ class _Tabs:
 
     def grid(self, area: dict) -> dict:
         return {"sheetId": self.id(area["tab"]), **area["grid"]}
+
+    def drop(self, tab: str) -> int:
+        """Forget a deleted tab, so a later op naming it is refused before anything is written."""
+        sheet_id = self.id(tab)
+        for name in [name for name, i in self.ids.items() if i == sheet_id]:
+            del self.ids[name]  # in place: the layout builder holds this dict
+        self.gone.add(sheet_id)
+        if not self.ids:
+            raise AccessError("a spreadsheet keeps at least one tab")
+        return sheet_id
 
 
 def _layout_requests(ops: list[dict], meta: dict, header=None, cell=None) -> list[dict]:
@@ -1880,6 +1895,14 @@ def _layout_requests(ops: list[dict], meta: dict, header=None, cell=None) -> lis
             request["insertSheetIndex"] = at
             order.insert(at, new_id)
             requests.append({"duplicateSheet": request})
+        elif name == "sheet_delete":
+            sheet_id = tabs.drop(op["tab"])
+            order.remove(sheet_id)
+            for key in [k for k, table in tables.items() if table["sheetId"] == sheet_id]:
+                names.discard(tables.pop(key).get("name"))
+            for key in [k for k, view in views.items() if view["sheetId"] == sheet_id]:
+                views.pop(key)
+            requests.append({"deleteSheet": {"sheetId": sheet_id}})
         elif name == "rename_spreadsheet":
             requests.append({"updateSpreadsheetProperties": {"properties": {"title": op["title"]},
                                                              "fields": "title"}})
