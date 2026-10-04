@@ -94,9 +94,10 @@ repository upkeep (Engineer through OpenCode, the Assistant's Admin topic).
 - **Hermes gets shared secret layers only.** `profile-secrets.sh` and the
   tool-mode `bin/secret-shim` pin `--scope <project>`; without it `secret env`
   adds the scope named after the working directory's repository. The Discord
-  user token sits in the `hermes` keychain under the scope `discord-user` and
-  relies on that pin to stay out of every profile
-  ([docs/discord-access.md](docs/discord-access.md)).
+  user token and the Telegram session sit in the `hermes` keychain under the
+  scopes `discord-user` and `telegram-access` and rely on that pin to stay out
+  of every profile ([docs/discord-access.md](docs/discord-access.md),
+  [docs/telegram-access.md](docs/telegram-access.md)).
 - **Rotating an API key needs a gateway restart** — resident sessions keep the
   environment injected at gateway launch.
 - **OAuth logins from `default` only** (`hermes model`, no `-p`). Running it in
