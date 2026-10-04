@@ -221,6 +221,188 @@ def test_unknown_group_offers_copyable_commands(ws, monkeypatch):
     assert "`/drafts Acme`" in plugin.drafts_text("")
 
 
+# --------------------------------------------------------------------------
+# Inbox
+
+
+@pytest.fixture
+def inbox(ws, tmp_path):
+    box = ws / ".inbox"
+    touch(box / "AGENTS.md")                                                  # guide, not an item
+    touch(box / ".DS_Store")
+    touch(box / "signal" / "abc-1791" / "photo.jpg", b"jpg", day=date(2026, 9, 26))
+    touch(box / "signal" / "abc-1790" / "old.pdf", b"pdf!", day=date(2026, 9, 10))
+    # deep nesting: one item, summed at every depth; a new file never hides the old one
+    touch(box / "google" / "Reports" / "2026" / "09" / "a.pdf", b"a" * 10, day=date(2026, 9, 1))
+    touch(box / "google" / "Reports" / "2026" / "10" / "b.pdf", b"b" * 20, day=TODAY)
+    touch(box / "google" / "slides.pdf", b"s", day=TODAY)
+    target = touch(tmp_path / "outside" / "huge.bin", b"z" * 5000)
+    link = box / "google" / "Reports" / "link"
+    link.symlink_to(target.parent)
+    stamp = datetime.combine(date(2026, 9, 20), datetime.min.time()).timestamp()
+    os.utime(link, (stamp, stamp), follow_symlinks=False)
+    return ws
+
+
+def inbox_run(ws, **args):
+    return drafts.run({"action": "inbox", "sort": "name", **args}, root=ws, today=TODAY)
+
+
+def by_item(result):
+    return {i["relative"]: i for i in result["items"]}
+
+
+def test_scan_never_counts_the_inbox(inbox):
+    rows, _diag = drafts.scan(inbox, today=TODAY)
+    assert not any(".inbox" in d["relative"] for d in rows)
+    assert listed(inbox)["totals"]["drafts"] == 9
+
+
+def test_inbox_items_by_source_and_loose(inbox):
+    items = by_item(inbox_run(inbox))
+    assert set(items) == {".inbox/incoming.pdf", ".inbox/signal/abc-1790", ".inbox/signal/abc-1791",
+                          ".inbox/google/Reports", ".inbox/google/slides.pdf"}
+    assert items[".inbox/incoming.pdf"]["source"] == "(loose)"
+    assert items[".inbox/signal/abc-1791"]["source"] == "signal"
+    assert items[".inbox/google/slides.pdf"]["kind"] == "file"
+
+
+def test_nested_item_is_summed_and_stale_from_its_oldest_file(inbox):
+    reports = by_item(inbox_run(inbox))[".inbox/google/Reports"]
+    assert reports["files"] == 3 and reports["bytes"] < 1000           # the link is one entry, not followed
+    assert reports["oldest"] == "2026-09-01" and reports["age_days"] == 27
+    assert reports["last_modified"] == "2026-09-28" and reports["idle_days"] == 0
+    assert reports["flags"] == ["stale"]
+
+
+def test_inbox_stale_days_default_and_override(inbox):
+    items = by_item(inbox_run(inbox))
+    assert items[".inbox/signal/abc-1790"]["flags"] == ["stale"]      # 18 days
+    assert items[".inbox/signal/abc-1791"]["flags"] == []             # 2 days
+    assert inbox_run(inbox)["totals"]["stale"] == 2
+    assert inbox_run(inbox, inbox_stale_days=30)["totals"]["stale"] == 0
+    assert {i["relative"] for i in inbox_run(inbox, flags=["stale"])["items"]} == {
+        ".inbox/google/Reports", ".inbox/signal/abc-1790"}
+
+
+def test_inbox_sorts_oldest_first_and_limits(inbox):
+    result = drafts.run({"action": "inbox", "limit": 2}, root=inbox, today=TODAY)
+    assert [i["relative"] for i in result["items"]] == [".inbox/google/Reports", ".inbox/signal/abc-1790"]
+    assert result["truncated"] is True and result["totals"]["items"] == 5
+
+
+def test_summary_carries_the_inbox_apart_from_drafts(inbox):
+    result = drafts.run({"action": "summary"}, root=inbox, today=TODAY)
+    assert result["totals"]["drafts"] == 9
+    box = result["inbox"]
+    assert box["items"] == 5 and box["stale"] == 2 and box["oldest_days"] == 27 and box["stale_days"] == 7
+    assert {s["source"] for s in box["sources"]} == {"google", "signal", "(loose)"}
+    assert "inbox" not in drafts.run({"action": "summary", "group": "Acme"}, root=inbox, today=TODAY)
+
+
+def test_missing_or_linked_inbox_is_empty(ws, tmp_path):
+    (ws / ".inbox" / "incoming.pdf").unlink()
+    (ws / ".inbox").rmdir()
+    assert inbox_run(ws)["items"] == [] and drafts.run({"action": "summary"}, root=ws)["inbox"]["items"] == 0
+    elsewhere = tmp_path / "other-inbox"
+    touch(elsewhere / "x.pdf")
+    (ws / ".inbox").symlink_to(elsewhere)
+    assert inbox_run(ws)["items"] == []
+
+
+@pytest.mark.parametrize("args", [{"group": "Acme"}, {"layout": "legacy"}, {"flags": ["misnamed"]},
+                                  {"sort": "started"}, {"inbox_stale_days": 0}])
+def test_inbox_rejects_what_does_not_apply(inbox, args):
+    with pytest.raises(ValueError):
+        drafts.run({"action": "inbox", **args}, root=inbox, today=TODAY)
+
+
+def test_inbox_reads_no_file_contents(inbox, monkeypatch):
+    def refuse(*a, **k):
+        raise AssertionError("file contents were opened")
+    monkeypatch.setattr(Path, "read_bytes", refuse)
+    monkeypatch.setattr(Path, "read_text", refuse)
+    monkeypatch.setattr(Path, "open", refuse)
+    drafts.run({"action": "inbox"}, root=inbox, today=TODAY)
+    drafts.run({"action": "summary"}, root=inbox, today=TODAY)
+
+
+def test_inbox_text_rich_and_cli(inbox, capsys):
+    text = drafts.render(inbox_run(inbox))
+    assert "5 items" in text and ".inbox/google/Reports" in text and "27d" in text
+    summary = drafts.render(drafts.run({"action": "summary"}, root=inbox, today=TODAY))
+    assert "inbox: 5 items" in summary and "ws-drafts inbox" in summary
+    rich = drafts.render_rich(inbox_run(inbox), title="Inbox")
+    assert "| Source | Items | Size | Stale |" in rich and "<summary>`signal` · 2 · " in rich
+    assert "| `Reports` | 27d |" in rich
+    rich_summary = drafts.render_rich(drafts.run({"action": "summary"}, root=inbox, today=TODAY))
+    assert "**Inbox**: 5 items" in rich_summary and "`/drafts inbox`" in rich_summary
+    assert rich_summary.count("<details>") == 2
+    assert drafts.main(["inbox", "--root", str(inbox), "--stale", "--inbox-stale-days", "3650", "--json"]) == 0
+    assert json.loads(capsys.readouterr().out)["totals"]["items"] == 0          # the CLI runs on today's date
+    assert drafts.main(["inbox", "--root", str(inbox), "--json"]) == 0
+    assert json.loads(capsys.readouterr().out)["totals"]["items"] == 5
+    assert drafts.main(["inbox", "--root", str(inbox), "--legacy"]) == 2
+
+
+def test_empty_inbox_renders_plainly(ws):
+    (ws / ".inbox" / "incoming.pdf").unlink()
+    assert "nothing waiting" in drafts.render(inbox_run(ws))
+    assert "Nothing waiting." in drafts.render_rich(inbox_run(ws), title="Inbox")
+    assert "**Inbox**: empty" in drafts.render_rich(drafts.run({"action": "summary"}, root=ws, today=TODAY))
+
+
+def test_odd_inbox_entries(inbox, tmp_path):
+    box = inbox / ".inbox"
+    (box / "signal" / "empty-message").mkdir()
+    target = touch(tmp_path / "far" / "big.bin", b"q" * 4000)
+    (box / "pointer").symlink_to(target)
+    items = by_item(inbox_run(inbox))
+    assert items[".inbox/signal/empty-message"]["files"] == 0
+    assert items[".inbox/signal/empty-message"]["kind"] == "directory"
+    pointer = items[".inbox/pointer"]
+    assert pointer["source"] == "(loose)" and pointer["kind"] == "file" and pointer["bytes"] < 4000
+
+
+@pytest.mark.skipif(os.geteuid() == 0, reason="root reads everything")
+def test_unreadable_source_is_partial_and_others_still_list(inbox):
+    locked = inbox / ".inbox" / "signal"
+    locked.chmod(0)
+    try:
+        result = inbox_run(inbox)
+        assert result["status"] == "partial"
+        assert {i["source"] for i in result["items"]} == {"google", "(loose)"}
+        assert drafts.run({"action": "summary"}, root=inbox, today=TODAY)["status"] == "partial"
+    finally:
+        locked.chmod(0o755)
+
+
+def test_rich_inbox_source_table_counts_everything_and_fits(inbox, monkeypatch):
+    result = drafts.run({"action": "inbox", "limit": 1}, root=inbox, today=TODAY)
+    rich = drafts.render_rich(result, title="Inbox")
+    assert "| `signal` | 2 |" in rich and "| `google` | 2 |" in rich       # beyond the one shown item
+    many = inbox_run(inbox)
+    many["items"] = [{**many["items"][0], "name": f"item-{n:04d}", "source": f"src-{n % 40}"} for n in range(400)]
+    monkeypatch.setattr(drafts, "RICH_LIMIT", 4000)
+    text = drafts.render_rich(many, title="Inbox")
+    assert len(text) <= 4000 and "`ws-drafts inbox`" in text
+
+
+def test_group_summary_has_no_inbox_legend(inbox):
+    text = drafts.render_rich(drafts.run({"action": "summary", "group": "Acme"}, root=inbox, today=TODAY))
+    assert "inbox stale" not in text and "**Inbox**" not in text
+
+
+def test_drafts_inbox_command(inbox, monkeypatch):
+    monkeypatch.setenv("WORKSPACES_ROOT", str(inbox))
+    text = plugin.drafts_text("inbox")
+    assert text.startswith("## Inbox") and "`signal`" in text
+    assert plugin.drafts_text("INBOX").startswith("## Inbox")
+    result = json.loads(plugin.workspace_drafts({"action": "inbox"}))
+    assert result["totals"]["items"] == 5
+    assert json.loads(plugin.workspace_drafts({"action": "inbox", "group": "Acme"}))["error"]
+
+
 class Ctx:
     def __init__(self, profile):
         self.profile_name, self.tools, self.commands = profile, [], []
