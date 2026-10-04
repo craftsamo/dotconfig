@@ -42,8 +42,11 @@ PROFILE="${1:-}"
 [ -x "$SECRET" ] || exit 1
 [ -n "$PROFILE" ] || exit 1
 
+# `--scope <project>` pins the shared layer: without it `secret env` also adds the scope named
+# after the cwd's repository, and the Discord user token (hermes, scope discord-user) must never
+# reach a profile.
 emit_layer() { # $1 = project layer; missing layer is not an error
-  "$SECRET" env -p "$1" 2>/dev/null | sed -n 's/^export //p' || true
+  "$SECRET" env -p "$1" --scope "$1" 2>/dev/null | sed -n 's/^export //p' || true
 }
 
 # Exactly ONE `secret env` per layer. Each call unlocks and dumps a
