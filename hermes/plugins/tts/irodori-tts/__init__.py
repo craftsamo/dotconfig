@@ -15,7 +15,8 @@ inside one utterance -- the same reference voice renders 309 cents apart on
 the two engines (against 20-40 cents of seed-to-seed variation), so a
 mid-sentence switch is audible.
 
-**Latin proper nouns** get a katakana substitution pass from ``lexicon.json``.
+**Latin proper nouns** get a katakana substitution pass from ``lexicon.json``
+(see ``reading.py``).
 
 **Style control is real and measured.** The checkpoint performs an emoji as a
 non-verbal vocalisation instead of reading it out, and takes a free-text
@@ -67,12 +68,13 @@ import tempfile
 import urllib.error
 import urllib.request
 import wave
-from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 
 from agent.tts_provider import TTSProvider
+
+from .reading import apply_lexicon
 
 logger = logging.getLogger(__name__)
 
@@ -99,91 +101,6 @@ _JA_MIN_CHARS = 2
 
 _JA_CHARS = re.compile(r"[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF\u3005\u30FC]")
 _SCRIPT_CHARS = re.compile(r"[^\s\d\W]|[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF]")
-
-
-# --------------------------------------------------------------------------
-# Pronunciation lexicon
-# --------------------------------------------------------------------------
-
-# The lexicon is DATA, not code, and a pronunciation dictionary tends to
-# accumulate names the owner would rather not publish. This repo is public, so
-# the file is read from the gitignored runtime directory instead of shipping
-# beside the plugin -- the same split qwen3-tts uses for its voice catalog.
-# Install it with `launchd/irodori-tts-launchctl.sh register-lexicon --file PATH`.
-# No path is read from config.yaml on purpose: config.yaml is tracked, and a
-# path into a private tree must not land there.
-_LEXICON_ENV = "IRODORI_TTS_LEXICON"
-_lexicon_cache: Optional[Tuple[Dict[str, str], Optional[re.Pattern]]] = None
-
-
-def _runtime_dir() -> Path:
-    """Locate hermes/local/irodori-tts/ from wherever this plugin was loaded.
-
-    Hermes reads plugins through ~/.hermes/plugins, which is a symlink into the
-    config repo, so the path is resolved before walking up. The walk looks for
-    the directory that owns config.yaml rather than counting parents, which
-    survives the plugin being nested differently.
-    """
-    here = Path(__file__).resolve()
-    for parent in here.parents:
-        if (parent / "config.yaml").exists() and (parent / "plugins").is_dir():
-            return parent / "local" / "irodori-tts"
-    return here.parents[3] / "local" / "irodori-tts"
-
-
-def _lexicon_path() -> Path:
-    override = os.environ.get(_LEXICON_ENV)
-    if override:
-        return Path(override).expanduser()
-    return _runtime_dir() / "lexicon.json"
-
-
-def _load_lexicon() -> Tuple[Dict[str, str], Optional[re.Pattern]]:
-    global _lexicon_cache
-    if _lexicon_cache is not None:
-        return _lexicon_cache
-    terms: Dict[str, str] = {}
-    path = _lexicon_path()
-    try:
-        raw = json.loads(path.read_text(encoding="utf-8"))
-        candidate = raw.get("terms") if isinstance(raw, dict) else None
-        if isinstance(candidate, dict):
-            terms = {
-                str(k): str(v)
-                for k, v in candidate.items()
-                if isinstance(k, str) and isinstance(v, str) and k
-            }
-        logger.debug("irodori-tts: loaded %d lexicon term(s)", len(terms))
-    except FileNotFoundError:
-        # Optional: without it, Latin proper nouns are simply read as the model
-        # sees them.
-        logger.debug("irodori-tts: no lexicon at %s; skipping substitution", path)
-    except Exception as exc:  # noqa: BLE001 - the lexicon is an optimisation
-        logger.warning("irodori-tts: lexicon at %s unreadable (%s); skipping", path, exc)
-
-    pattern: Optional[re.Pattern] = None
-    if terms:
-        parts = []
-        # Longest first so "Claude Code" beats "Claude". ASCII keys get word
-        # boundaries so "Gemini" does not fire inside "GeminiFooBar".
-        for key in sorted(terms, key=len, reverse=True):
-            esc = re.escape(key)
-            if key[0].isascii() and key[0].isalnum():
-                esc = r"\b" + esc
-            if key[-1].isascii() and key[-1].isalnum():
-                esc = esc + r"\b"
-            parts.append(esc)
-        pattern = re.compile("|".join(parts))
-    _lexicon_cache = (terms, pattern)
-    return _lexicon_cache
-
-
-def apply_lexicon(text: str) -> str:
-    """Rewrite known Latin proper nouns as katakana."""
-    terms, pattern = _load_lexicon()
-    if not pattern:
-        return text
-    return pattern.sub(lambda m: terms.get(m.group(0), m.group(0)), text)
 
 
 def japanese_ratio(text: str) -> float:

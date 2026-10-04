@@ -2,16 +2,22 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import sys
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
 
-PLUGIN = Path(__file__).resolve().parents[1] / "__init__.py"
-SPEC = importlib.util.spec_from_file_location("irodori_tts", PLUGIN)
+PLUGIN_DIR = Path(__file__).resolve().parents[1]
+# Loaded as a package, the way Hermes' plugin loader does it, so the provider's
+# relative import of its reading module resolves.
+SPEC = importlib.util.spec_from_file_location(
+    "irodori_tts", PLUGIN_DIR / "__init__.py", submodule_search_locations=[str(PLUGIN_DIR)]
+)
 assert SPEC and SPEC.loader
 MODULE = importlib.util.module_from_spec(SPEC)
+sys.modules[SPEC.name] = MODULE
 SPEC.loader.exec_module(MODULE)
 
 JA = "えっ、本当にそれ言ってるの。"
