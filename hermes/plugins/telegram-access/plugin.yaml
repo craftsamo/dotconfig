@@ -1,0 +1,4 @@
+name: telegram-access
+version: 1.0.0
+description: The user's own Telegram account for the Assistant through a Telethon sync agent — read chats from a local mirror or live, send text and workspace files held for human approval.
+kind: standalone
