@@ -2001,6 +2001,12 @@ SORT_KEYS_LIMIT = 10
 _CLOSED = {"startRowIndex", "endRowIndex", "startColumnIndex", "endColumnIndex"}
 
 
+def _literal(text: str, limit: int = 40) -> str:
+    """Quoted with tabs, newlines and repeated spaces kept visible, since they change what matches."""
+    shown = json.dumps(text, ensure_ascii=False)[1:-1]
+    return f"\"{shown if len(shown) <= limit else shown[:limit - 1] + '…'}\""
+
+
 def _letter(value, key: str) -> int:
     text = value.strip() if isinstance(value, str) else ""
     if not re.fullmatch(r"[A-Za-z]{1,3}", text):
@@ -2085,9 +2091,9 @@ def _normalize_data(name: str, raw: dict, here: bool = False) -> dict:
             op[key] = _flag(raw, key) if key in raw else False
             if op[key]:
                 flags.append(label)
-        what = (f"with \"{_cell(replacement, '', 40)}\"" if replacement else "with nothing (removes it)")
+        what = f"with {_literal(replacement)}" if replacement else "with nothing (removes it)"
         extra = f" ({', '.join(flags)})" if flags else ""
-        op["say"] = f"Replace \"{_cell(op['find'], '', 40)}\" {what} in {where}{extra}"
+        op["say"] = f"Replace {_literal(op['find'])} {what} in {where}{extra}"
     elif name in ("copy", "cut"):
         rows, columns = _block(op["grid"], "range")
         to_tab, to_ref = split_range(_str(raw, "to"))
@@ -2109,7 +2115,12 @@ def _normalize_data(name: str, raw: dict, here: bool = False) -> dict:
         if name == "copy":
             op["say"] = f"Copy {where}{turn} to {target}{how}, overwriting it"
         else:
-            op["say"] = f"Move {where} to {target}{how}, overwriting it; the source is left empty"
+            top, left = op["to"]["startRowIndex"], op["to"]["startColumnIndex"]
+            grid = op["grid"]
+            overlap = op["to_tab"] == op["tab"] and top < grid["endRowIndex"] and grid["startRowIndex"] < top + rows \
+                and left < grid["endColumnIndex"] and grid["startColumnIndex"] < left + columns
+            rest = "source cells outside it are left empty" if overlap else "the source is left empty"
+            op["say"] = f"Move {where} to {target}{how}, overwriting it; {rest}"
     elif name == "dedupe":
         op["compare"] = []
         for value in raw.get("compare", []) if isinstance(raw.get("compare", []), list) else [None]:
@@ -2130,7 +2141,7 @@ def _normalize_data(name: str, raw: dict, here: bool = False) -> dict:
             raise AccessError("delimiter is comma, semicolon, period, space, auto or the text to split on")
         kind = DELIMITERS.get(delimiter.lower() if delimiter.strip() else delimiter)
         op["delimiter"] = (kind, None) if kind else ("CUSTOM", delimiter)
-        shown = (kind or "").lower() if kind else f"\"{_cell(delimiter, '', 10)}\""
+        shown = (kind or "").lower() if kind else _literal(delimiter, 12)
         shown = "the detected separator" if kind == "AUTODETECT" else shown
         op["say"] = f"Split {where} on {shown} into the columns to its right, overwriting them"
     elif name == "autofill":
@@ -2761,7 +2772,11 @@ def _sheets_card(home, action: str, args: dict) -> str:
             head.append(f"Sheet: {_tabs_summary([tab], names)}")
         head += [*_check_lines(_expect(args, action), tab), ""]
         say = "say" if tab is ... else "say_here"
-        return _fit(head, [_cell(op[say], "", SAY_CLIP) for op in ops], LAYOUT_MORE)
+        # Lines are already clipped per field; only the length is bounded here, so the repeated
+        # spaces a literal shows survive.
+        lines = [" ".join(op[say].splitlines()) for op in ops]
+        return _fit(head, [line if len(line) <= SAY_CLIP else line[:SAY_CLIP - 1] + "…" for line in lines],
+                    LAYOUT_MORE)
     if action in ("add_sheet", "clear"):
         title, _, _ = _sheet_context(home, sid, set())
         head = [f"SpreadSheet: {_cell(title, '', TITLE_CLIP) or sid}"]
