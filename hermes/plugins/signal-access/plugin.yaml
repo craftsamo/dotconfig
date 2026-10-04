@@ -1,0 +1,4 @@
+name: signal-access
+version: 1.0.0
+description: The user's own Signal account for the Assistant through signal-cli — read chats and messages from a local mirror, send text and workspace files held for human approval.
+kind: standalone
