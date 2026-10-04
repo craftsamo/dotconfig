@@ -1,4 +1,5 @@
-"""Drafts under ~/Workspaces for Engineer and Assistant: the workspace_drafts tool and /drafts.
+"""Drafts and the inbox under ~/Workspaces for Engineer and Assistant: the workspace_drafts
+tool and /drafts.
 
 The lister is the stdlib module ``drafts.py`` beside this file, so cron and the
 ``ws-drafts`` launcher run the same code. This file only registers it; it
@@ -35,7 +36,11 @@ DESCRIPTION = (
     "layout legacy: a job finishing in place or a stray write. summary: counts and size "
     "per Group; list: one row per draft (sort idle|size|name|started). Flags: stale = no file changed for "
     "stale_days (default 14), misnamed = not <YYYYMMDD>-<kebab-slug>, legacy = earlier layout. Filter by "
-    "group (Acme, Projects/Acme or (unassigned)), layout and flags (all must match). It never "
+    "group (Acme, Projects/Acme or (unassigned)), layout and flags (all must match). The inbox "
+    "(~/Workspaces/.inbox: incoming material to triage, never a draft) is reported apart: summary adds its "
+    "totals per source; inbox lists one row per item (an entry of .inbox/<source>/, or a loose entry in "
+    ".inbox/), oldest first, with stale = its oldest file waited inbox_stale_days (default 7); only "
+    "sort idle|size|name, limit and the stale flag apply. It never "
     "reads file contents and never moves or deletes; promotion and deletion follow ~/Workspaces/AGENTS.md "
     "\"Drafts\" and need the user's approval.")
 
@@ -44,9 +49,12 @@ PROPERTIES = {
     "group": {"type": "string", "description": "Group name (case-insensitive; a unique prefix or substring also matches), Area/Group, or root"},
     "layout": {"type": "string", "enum": list(drafts.LAYOUTS)},
     "flags": {"type": "array", "items": {"type": "string", "enum": list(drafts.FLAGS)}},
-    "stale_days": {"type": "integer", "description": "Idle days that count as stale (default 14)"},
-    "sort": {"type": "string", "enum": list(drafts.SORTS), "description": "list only"},
-    "limit": {"type": "integer", "description": f"list only: 1..{drafts.MAX_LIMIT}"},
+    "stale_days": {"type": "integer", "description": "Idle days that count a draft as stale (default 14)"},
+    "inbox_stale_days": {"type": "integer",
+                         "description": "Days an inbox item's oldest file may wait before it is stale (default 7)"},
+    "sort": {"type": "string", "enum": list(drafts.SORTS),
+             "description": "list and inbox; inbox takes idle|size|name, where idle = oldest file waiting longest"},
+    "limit": {"type": "integer", "description": f"list and inbox: 1..{drafts.MAX_LIMIT}"},
 }
 
 
@@ -69,10 +77,13 @@ def workspace_drafts(args, **kwargs):
 
 
 def drafts_text(raw):
-    """/drafts [stale|misnamed|legacy|<group>]: summary, or a list narrowed by flag or Group."""
+    """/drafts [inbox|stale|misnamed|legacy|<group>]: summary, the inbox, or a list narrowed
+    by flag or Group. ``inbox`` wins over a Group of that name."""
     word = (raw or "").strip()
     if not word:
         args, title = {"action": "summary"}, "Drafts"
+    elif word.lower() == "inbox":
+        args, title = {"action": "inbox"}, "Inbox"
     elif word.lower() in drafts.FLAGS:
         args, title = {"action": "list", "flags": [word.lower()]}, f"Drafts · {word.lower()}"
     else:
@@ -105,5 +116,5 @@ def register(ctx):
                           "type": "object", "properties": PROPERTIES, "required": ["action"],
                           "additionalProperties": False}})
     ctx.register_command("drafts", drafts_command,
-                         description="Drafts under ~/Workspaces: summary, or stale|misnamed|legacy|<group>",
-                         args_hint="[stale|misnamed|legacy|<group>]")
+                         description="Drafts under ~/Workspaces: summary, or inbox|stale|misnamed|legacy|<group>",
+                         args_hint="[inbox|stale|misnamed|legacy|<group>]")
