@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
-# ws-drafts — the drafts under ~/Workspaces (every job directory below an .agent/).
+# ws-drafts — the drafts under ~/Workspaces (every job directory below an .agent/),
+# and what waits in ~/Workspaces/.inbox.
 #
-#   ws-drafts                      per-Group summary (counts, size, stale/misnamed/legacy)
+#   ws-drafts                      per-Group summary (counts, size, stale/misnamed/legacy) + inbox
 #   ws-drafts list --stale         drafts nobody touched for 14+ days
 #   ws-drafts list --group Acme
 #   ws-drafts list --legacy        anything written to the retired layout
+#   ws-drafts inbox [--stale]      inbox items, oldest first (stale = waiting 7+ days)
 #   ws-drafts --help
 #
 # The code lives in the Hermes workspace-drafts plugin (hermes/plugins/
