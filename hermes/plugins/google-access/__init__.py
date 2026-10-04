@@ -46,18 +46,22 @@ SHEETS_DESCRIPTION = (
     "(range + values: add rows after the table), clear (range), create (title, optional "
     "sheet_names), add_sheet (spreadsheet_id + title: a new tab), layout (ops: formatting, "
     "sizes, hiding, grouping, rows/columns, merges, freezing, tabs, notes, rich text, tables, "
-    "conditional formatting, input rules, filters and filter views; see ops). values are rows of cells; they "
+    "conditional formatting, input rules, filters and filter views; see ops), data (ops that "
+    "move or rewrite contents: sort, find_replace, copy, cut, dedupe, trim, split_text, "
+    "autofill; see ops). values are rows of cells; they "
     "are typed as in the UI (formulas work) unless raw=true. Write many rows or scattered cells "
     "in one batch_update or one multi-row update, never one call per row; likewise put every "
     "change of one layout task in one layout call (all apply or none). When writing by row "
-    "number (update, batch_update, clear, and a layout that inserts, deletes or moves rows), "
+    "number (update, batch_update, clear, a layout that inserts, deletes or moves rows, and "
+    "data), "
     "pass expect = [{range, value}] with each target row's "
     "key cell (e.g. the id column) as currently displayed: the write runs only if every expect "
     "cell still holds that value, so a sheet another writer shifted is refused before anything "
     "is written (read the rows again, then retry). "
-    + APPROVAL.format("update, batch_update, append, clear, create, add_sheet, layout") + " "
+    + APPROVAL.format("update, batch_update, append, clear, create, add_sheet, layout, data") + " "
     "Edits to one spreadsheet are approved once: after the user answers \"session\" or \"always\", "
-    "further edits to that spreadsheet run without asking; clear, create and a layout call that "
+    "further edits to that spreadsheet run without asking; clear, create, every data call and a "
+    "layout call that "
     "deletes, moves or replaces data (delete, move, merge, table_delete, conditional_update, "
     "conditional_delete, filter_view_delete, a note with text '', a filter_view_update with "
     "filter_columns) are approved per exact call, so keep those in their own call.")
@@ -116,11 +120,25 @@ LAYOUT_OPS_DESCRIPTION = (
     "filter_view_update range without a tab stays on its own tab; later ops in a call see "
     "earlier ones (a renamed tab, table or view goes by its new name).")
 
+DATA_OPS_DESCRIPTION = (
+    "data: ops that move or rewrite contents, applied in order in one batch, every call approved "
+    "on its own. sort: range (a block; header=true keeps its first row in place), by = [{column: "
+    "'C', order ASC|DESC}]. find_replace: find, replacement ('' removes), and exactly one of "
+    "range, sheet or all_sheets=true; match_case, whole_cell, regex, formulas (also search "
+    "inside formulas). copy: range (a closed block) to = top-left cell (no tab: the source's "
+    "tab), paste ALL|VALUES|FORMAT|NO_BORDERS|FORMULAS|INPUT_RULES|CONDITIONAL, transpose. cut: "
+    "the same without transpose; the source is emptied. dedupe: range (header=true by default), "
+    "compare = column letters (default all): deletes later duplicate rows. trim: range or "
+    "ranges; removes surrounding and repeated spaces. split_text: one column, delimiter (comma, "
+    "semicolon, period, space, auto or any text); fills the columns to its right. autofill: "
+    "range (the pattern), fill = how many rows or columns, direction DOWN|UP|RIGHT|LEFT. The "
+    "result reports how many matches were replaced, duplicates removed and cells trimmed.")
+
 _COLOUR = {"type": "string", "description": "'#RRGGBB'"}
 LAYOUT_OP_SCHEMA = {
     "type": "object", "required": ["op"], "additionalProperties": False,
     "properties": {
-        "op": {"type": "string", "enum": list(access.LAYOUT_OPS)},
+        "op": {"type": "string", "enum": list(access.LAYOUT_OPS) + list(access.DATA_OPS)},
         "range": {"type": "string", "description": "A1 range: 'Tab!B2:D9', 'Tab!B:D', 'Tab!3:5' or 'Tab'"},
         "ranges": {"type": "array", "items": {"type": "string"},
                    "description": "instead of range: several A1 ranges getting the same change"},
@@ -167,7 +185,27 @@ LAYOUT_OP_SCHEMA = {
         "pixels": {"type": "integer", "description": "size: width or height in pixels"},
         "auto": {"type": "boolean", "description": "size: fit to contents"},
         "inherit": {"type": "boolean", "description": "insert: copy formatting from before (default true)"},
-        "to": {"type": "string", "description": "move: row number or column letter to move in front of"},
+        "to": {"type": "string", "description": "move: row number or column letter to move in front of; "
+                                                 "copy / cut: top-left destination cell, e.g. 'Archive!A1'"},
+        "by": {"type": "array", "description": "sort: keys in priority order", "items": {
+            "type": "object", "required": ["column"], "additionalProperties": False, "properties": {
+                "column": {"type": "string", "description": "sheet column letter"},
+                "order": {"type": "string", "enum": ["ASC", "DESC"]}}}},
+        "header": {"type": "boolean", "description": "sort / dedupe: the range's first row is a header "
+                                                     "and stays put (default true)"},
+        "find": {"type": "string", "description": "find_replace: the text (or regex) to find"},
+        "replacement": {"type": "string", "description": "find_replace: the new text ('' removes matches)"},
+        "all_sheets": {"type": "boolean", "description": "find_replace: search every tab"},
+        "match_case": {"type": "boolean"}, "whole_cell": {"type": "boolean"}, "regex": {"type": "boolean"},
+        "formulas": {"type": "boolean", "description": "find_replace: also inside formulas"},
+        "paste": {"type": "string", "enum": list(access.PASTE_TYPES)},
+        "transpose": {"type": "boolean", "description": "copy: rows become columns"},
+        "compare": {"type": "array", "items": {"type": "string"},
+                    "description": "dedupe: column letters that make a row a duplicate (default all)"},
+        "delimiter": {"type": "string", "description": "split_text: comma, semicolon, period, space, auto "
+                                                       "(default) or the text to split on"},
+        "fill": {"type": "integer", "description": "autofill: rows or columns to fill"},
+        "direction": {"type": "string", "enum": list(access.FILL_DIRECTIONS)},
         "merge": {"type": "string", "enum": ["ALL", "ROWS", "COLUMNS"]},
         "rows": {"type": "integer", "description": "freeze: rows to freeze (0 = none)"},
         "columns": {"type": "integer", "description": "freeze: columns to freeze (0 = none)"},
@@ -224,7 +262,8 @@ SCHEMAS = {
         "query": {"type": "string", "description": "search: part of the file name"},
         "range": {"type": "string", "description": "A1 range, e.g. 'Sheet1!A1:C10' or 'Sheet1'"},
         "ranges": {"type": "array", "items": {"type": "string"}, "description": "get / get_format: several ranges"},
-        "ops": {"type": "array", "description": LAYOUT_OPS_DESCRIPTION, "items": LAYOUT_OP_SCHEMA},
+        "ops": {"type": "array", "description": LAYOUT_OPS_DESCRIPTION + " " + DATA_OPS_DESCRIPTION,
+                "items": LAYOUT_OP_SCHEMA},
         "values": {"type": "array", "items": {"type": "array", "items": {
                        "description": "a cell: text, number or boolean"}},
                    "description": "update / append: rows of cell values"},

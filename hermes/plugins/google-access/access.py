@@ -65,18 +65,19 @@ GCLOUD_TIMEOUT = 300
 GCLOUD_TIMEOUT_MAX = 1800
 
 SHEETS_ACTIONS = ("search", "info", "get", "get_format", "update", "batch_update", "append", "clear",
-                  "create", "add_sheet", "layout")
+                  "create", "add_sheet", "layout", "data")
 # Actions taking a list of ops from a fixed vocabulary (OP_SETS), sent as one batchUpdate.
-OP_ACTIONS = {"layout"}
-SHEETS_WRITES = {"update", "batch_update", "append", "clear", "create", "add_sheet", "layout"}
+OP_ACTIONS = {"layout", "data"}
+SHEETS_WRITES = {"update", "batch_update", "append", "clear", "create", "add_sheet", "layout", "data"}
 # Edits approved once per spreadsheet: "session" / "always" on the first card covers the rest of
 # that spreadsheet's edits (its version history undoes them). clear and create still ask each time,
-# and so does a layout call holding an op that deletes or moves data (LAYOUT_DESTRUCTIVE).
+# and so does a layout call holding an op that deletes or moves data (LAYOUT_DESTRUCTIVE) and every
+# data call.
 SHEETS_EDITS = {"update", "batch_update", "append", "add_sheet", "layout"}
 BATCH_LIMIT = 500
 # Row guards: cells that must still hold a known value (a key column) when a write by row number
 # runs, so a sheet another writer shifted is caught before anything is written.
-EXPECT_ACTIONS = {"update", "batch_update", "clear", "layout"}
+EXPECT_ACTIONS = {"update", "batch_update", "clear", "layout", "data"}
 EXPECT_LIMIT = 200
 SINGLE_CELL = re.compile(r"^[A-Za-z]{1,3}[1-9][0-9]*$")
 SPREADSHEET_ID = re.compile(r"^[A-Za-z0-9_-]{10,200}$")
@@ -502,6 +503,9 @@ def sheets(home, args: dict) -> dict:
         made = [r["addFilterView"]["filter"] for r in replies if "addFilterView" in r]
         if made:
             result["filter_views"] = [{"view_id": f.get("filterViewId"), "name": f.get("title")} for f in made]
+        counted = _data_results(replies)
+        if counted:
+            result["results"] = counted
         return result
 
     option = "RAW" if args.get("raw") else "USER_ENTERED"
@@ -1305,20 +1309,26 @@ def _op(raw, n: int, action: str) -> dict:
         raise AccessError(f"ops[{n}] {name}: {exc}") from None
 
 
+def _areas(raw: dict) -> list[dict]:
+    """The op's range or ranges as [{tab, ref, grid}]."""
+    texts = raw["ranges"] if "ranges" in raw else [raw["range"]]
+    if not isinstance(texts, list) or not texts or not all(isinstance(t, str) and t.strip() for t in texts):
+        raise AccessError("ranges must be a non-empty array of A1 ranges")
+    if len(texts) > BATCH_LIMIT:
+        raise AccessError(f"ranges holds {len(texts)}; send at most {BATCH_LIMIT}")
+    areas = []
+    for text in texts:
+        tab, ref = split_range(text.strip())
+        areas.append({"tab": tab, "ref": ref, "grid": _grid_ref(ref)})
+    return areas
+
+
 def _normalize(name: str, raw: dict, here: bool = False) -> dict:
     """The validated op; ``here`` words its card line without the tab."""
     op = {"op": name}
     where = ""
     if "range" in raw or "ranges" in raw:
-        texts = raw["ranges"] if "ranges" in raw else [raw["range"]]
-        if not isinstance(texts, list) or not texts or not all(isinstance(t, str) and t.strip() for t in texts):
-            raise AccessError("ranges must be a non-empty array of A1 ranges")
-        if len(texts) > BATCH_LIMIT:
-            raise AccessError(f"ranges holds {len(texts)}; send at most {BATCH_LIMIT}")
-        op["areas"] = []
-        for text in texts:
-            tab, ref = split_range(text.strip())
-            op["areas"].append({"tab": tab, "ref": ref, "grid": _grid_ref(ref)})
+        op["areas"] = _areas(raw)
         # Single-range ops (table, insert, move, …) read these from the one area.
         op["tab"], op["ref"], op["grid"] = (op["areas"][0][k] for k in ("tab", "ref", "grid"))
         where = _where_all(op["areas"], here)
@@ -1934,7 +1944,7 @@ def _layout_requests(ops: list[dict], meta: dict, header=None, cell=None) -> lis
 def _destructive(op: dict) -> bool:
     """Whether an op deletes, moves or replaces data: the fixed set, plus removing notes and
     replacing a filter view's criteria."""
-    return (op["op"] in LAYOUT_DESTRUCTIVE or (op["op"] == "note" and not op["text"])
+    return (op["op"] in LAYOUT_DESTRUCTIVE or op["op"] in DATA_OPS or (op["op"] == "note" and not op["text"])
             or (op["op"] == "filter_view_update" and op["set_criteria"]))
 
 
@@ -1942,8 +1952,257 @@ def _ops_destructive(args: dict, action: str) -> bool:
     return any(_destructive(op) for op in _ops(args, action))
 
 
+# --- Sheets data ----------------------------------------------------------------------------------
+# A `data` call moves or rewrites cell contents: every op in it is approved per exact call, takes
+# expect row guards, and is a fixed vocabulary like layout's.
+
+DATA_OPS = {  # op: (required fields, optional fields)
+    "sort": (("range", "by"), ("header",)),
+    "find_replace": (("find",), ("replacement", "range", "sheet", "all_sheets", "match_case", "whole_cell",
+                                 "regex", "formulas")),
+    "copy": (("range", "to"), ("paste", "transpose")),
+    "cut": (("range", "to"), ("paste",)),
+    "dedupe": (("range",), ("compare", "header")),
+    "trim": (("range",), ("ranges",)),
+    "split_text": (("range",), ("delimiter",)),
+    "autofill": (("range", "fill"), ("direction",)),
+}
+PASTE_TYPES = {"ALL": "PASTE_NORMAL", "VALUES": "PASTE_VALUES", "FORMAT": "PASTE_FORMAT",
+               "NO_BORDERS": "PASTE_NO_BORDERS", "FORMULAS": "PASTE_FORMULA",
+               "INPUT_RULES": "PASTE_DATA_VALIDATION", "CONDITIONAL": "PASTE_CONDITIONAL_FORMATTING"}
+DELIMITERS = {"comma": "COMMA", ",": "COMMA", "semicolon": "SEMICOLON", ";": "SEMICOLON", "period": "PERIOD",
+              ".": "PERIOD", "space": "SPACE", " ": "SPACE", "auto": "AUTODETECT"}
+SORT_ORDERS = {"ASC": "ASCENDING", "ASCENDING": "ASCENDING", "DESC": "DESCENDING", "DESCENDING": "DESCENDING"}
+FILL_DIRECTIONS = {"DOWN": ("ROWS", 1), "UP": ("ROWS", -1), "RIGHT": ("COLUMNS", 1), "LEFT": ("COLUMNS", -1)}
+SORT_KEYS_LIMIT = 10
+_CLOSED = {"startRowIndex", "endRowIndex", "startColumnIndex", "endColumnIndex"}
+
+
+def _letter(value, key: str) -> int:
+    text = value.strip() if isinstance(value, str) else ""
+    if not re.fullmatch(r"[A-Za-z]{1,3}", text):
+        raise AccessError(f"{key} must be a sheet column letter like 'C': {value!r}")
+    return _column_index(text)
+
+
+def _inside(index: int, grid: dict, key: str) -> None:
+    start, end = grid.get("startColumnIndex"), grid.get("endColumnIndex")
+    if start is not None and not start <= index < end:
+        raise AccessError(f"{key} column {column_letters(index)} is outside the range")
+
+
+def _block(grid: dict, what: str) -> tuple[int, int]:
+    """(rows, columns) of a closed block."""
+    if not _CLOSED <= set(grid):
+        raise AccessError(f"{what} must be a closed block like 'Sheet1!A1:D20'")
+    return grid["endRowIndex"] - grid["startRowIndex"], grid["endColumnIndex"] - grid["startColumnIndex"]
+
+
+def _span_a1(top: int, left: int, rows: int, columns: int) -> str:
+    start, end = f"{column_letters(left)}{top + 1}", f"{column_letters(left + columns - 1)}{top + rows}"
+    return start if start == end else f"{start}:{end}"
+
+
+def _header_row(op: dict, raw: dict) -> str:
+    """Keeps the range's first row out when ``header`` (default true); the card's note on it."""
+    op["header"] = _flag(raw, "header") if "header" in raw else True
+    if not op["header"]:
+        return ""
+    first = op["grid"].get("startRowIndex", 0)
+    if "endRowIndex" in op["grid"] and op["grid"]["endRowIndex"] <= first + 1:
+        raise AccessError("the range holds only its header row; give header: false to include it")
+    op["grid"] = dict(op["grid"], startRowIndex=first + 1)
+    return f", keeping row {first + 1} as the header"
+
+
+def _normalize_data(name: str, raw: dict, here: bool = False) -> dict:
+    """The validated data op; ``here`` words its card line without the tab."""
+    op, where = {"op": name}, ""
+    if "range" in raw or "ranges" in raw:
+        op["areas"] = _areas(raw)
+        op["tab"], op["ref"], op["grid"] = (op["areas"][0][k] for k in ("tab", "ref", "grid"))
+        where = _where_all(op["areas"], here)
+    if name == "sort":
+        by = raw["by"]
+        if not isinstance(by, list) or not 1 <= len(by) <= SORT_KEYS_LIMIT:
+            raise AccessError(f"by is 1 to {SORT_KEYS_LIMIT} {{column, order}}")
+        op["by"], words = [], []
+        for item in by:
+            if not isinstance(item, dict) or "column" not in item or set(item) - {"column", "order"}:
+                raise AccessError("each by item is {column: 'C', order: ASC|DESC}")
+            index = _letter(item["column"], "by")
+            _inside(index, op["grid"], "by")
+            order = SORT_ORDERS.get(str(item.get("order", "ASC")).strip().upper())
+            if order is None:
+                raise AccessError("order is ASC or DESC")
+            op["by"].append((index, order))
+            words.append(f"{column_letters(index)} {order.lower()}")
+        note = _header_row(op, raw)
+        op["say"] = f"Sort {where} by {', '.join(words)}{note}"
+    elif name == "find_replace":
+        if not isinstance(raw["find"], str) or not raw["find"]:
+            raise AccessError("find is the text to look for")
+        op["find"] = raw["find"]
+        replacement = raw.get("replacement", "")
+        if not isinstance(replacement, str):
+            raise AccessError("replacement must be text ('' removes the matches)")
+        op["replacement"] = replacement
+        scopes = [key for key in ("range", "sheet", "all_sheets") if key in raw]
+        if len(scopes) != 1 or ("all_sheets" in raw and raw["all_sheets"] is not True):
+            raise AccessError("give exactly one of range, sheet or all_sheets: true")
+        if "sheet" in raw:
+            op["tab"] = _str(raw, "sheet")
+            where = "whole tab" if here else f"tab {_tab_label(op['tab'])}"
+        elif "all_sheets" in raw:
+            op["all_sheets"] = True
+            where = "every tab"
+        flags = []
+        for key, label in (("match_case", "match case"), ("whole_cell", "whole cell"), ("regex", "regex"),
+                           ("formulas", "in formulas too")):
+            op[key] = _flag(raw, key) if key in raw else False
+            if op[key]:
+                flags.append(label)
+        what = (f"with \"{_cell(replacement, '', 40)}\"" if replacement else "with nothing (removes it)")
+        extra = f" ({', '.join(flags)})" if flags else ""
+        op["say"] = f"Replace \"{_cell(op['find'], '', 40)}\" {what} in {where}{extra}"
+    elif name in ("copy", "cut"):
+        rows, columns = _block(op["grid"], "range")
+        to_tab, to_ref = split_range(_str(raw, "to"))
+        if not SINGLE_CELL.match(to_ref or ""):
+            raise AccessError("to is the top-left cell of the destination, like 'Archive!A1'")
+        op["to_tab"] = to_tab if to_tab is not None else op["tab"]  # no tab: the source's tab
+        op["to"] = {"startColumnIndex": _start(to_ref)[0], "startRowIndex": _start(to_ref)[1] - 1}
+        op["transpose"] = (_flag(raw, "transpose") if "transpose" in raw else False) and name == "copy"
+        if op["transpose"]:
+            rows, columns = columns, rows
+        op["size"] = (rows, columns)
+        paste = _choice(raw, "paste", set(PASTE_TYPES), "ALL")
+        op["paste"] = PASTE_TYPES[paste]
+        target = _span_a1(op["to"]["startRowIndex"], op["to"]["startColumnIndex"], rows, columns)
+        if not here or to_tab not in (None, op["tab"]):
+            target = f"{_tab_label(op['to_tab'])}!{target}"
+        how = "" if paste == "ALL" else f" ({paste.lower().replace('_', ' ')} only)"
+        turn = " transposed" if op["transpose"] else ""
+        if name == "copy":
+            op["say"] = f"Copy {where}{turn} to {target}{how}, overwriting it"
+        else:
+            op["say"] = f"Move {where} to {target}{how}, overwriting it; the source is left empty"
+    elif name == "dedupe":
+        op["compare"] = []
+        for value in raw.get("compare", []) if isinstance(raw.get("compare", []), list) else [None]:
+            index = _letter(value, "compare")
+            _inside(index, op["grid"], "compare")
+            op["compare"].append(index)
+        by = f" by {', '.join(column_letters(i) for i in op['compare'])}" if op["compare"] else ""
+        note = _header_row(op, raw)
+        op["say"] = f"Delete duplicate rows in {where}{by} (the first of each stays){note}"
+    elif name == "trim":
+        op["say"] = f"Trim surrounding and repeated spaces in {where}"
+    elif name == "split_text":
+        grid = op["grid"]
+        if grid.get("endColumnIndex", 0) - grid.get("startColumnIndex", 0) != 1:
+            raise AccessError("split_text takes one column, like 'Sheet1!A2:A50'")
+        delimiter = raw.get("delimiter", "auto")
+        if not isinstance(delimiter, str) or not delimiter:
+            raise AccessError("delimiter is comma, semicolon, period, space, auto or the text to split on")
+        kind = DELIMITERS.get(delimiter.lower() if delimiter.strip() else delimiter)
+        op["delimiter"] = (kind, None) if kind else ("CUSTOM", delimiter)
+        shown = (kind or "").lower() if kind else f"\"{_cell(delimiter, '', 10)}\""
+        shown = "the detected separator" if kind == "AUTODETECT" else shown
+        op["say"] = f"Split {where} on {shown} into the columns to its right, overwriting them"
+    elif name == "autofill":
+        rows, columns = _block(op["grid"], "range")
+        op["fill"] = _whole(raw, "fill", 1, 10000)
+        direction = _choice(raw, "direction", set(FILL_DIRECTIONS), "DOWN")
+        op["dimension"], sign = FILL_DIRECTIONS[direction]
+        op["length"] = sign * op["fill"]
+        top, left = op["grid"]["startRowIndex"], op["grid"]["startColumnIndex"]
+        if direction == "DOWN":
+            span = (top + rows, left, op["fill"], columns)
+        elif direction == "UP":
+            span = (top - op["fill"], left, op["fill"], columns)
+        elif direction == "RIGHT":
+            span = (top, left + columns, rows, op["fill"])
+        else:
+            span = (top, left - op["fill"], rows, op["fill"])
+        if span[0] < 0 or span[1] < 0:
+            raise AccessError("the fill runs past the first row or column")
+        target = _span_a1(*span)
+        op["say"] = f"Fill {direction.lower()} from {where} into {target if here else _where(op['tab'], target)}, overwriting it"
+    return op
+
+
+def _data_requests(ops: list[dict], meta: dict, header=None, cell=None) -> list[dict]:
+    """batchUpdate requests for validated data ops."""
+    tabs = _Tabs(meta)
+    requests = []
+    for op in ops:
+        name = op["op"]
+        if name == "sort":
+            requests.append({"sortRange": {"range": tabs.grid(op), "sortSpecs": [
+                {"dimensionIndex": index, "sortOrder": order} for index, order in op["by"]]}})
+        elif name == "find_replace":
+            request = {"find": op["find"], "replacement": op["replacement"], "matchCase": op["match_case"],
+                       "matchEntireCell": op["whole_cell"], "searchByRegex": op["regex"],
+                       "includeFormulas": op["formulas"]}
+            if op.get("all_sheets"):
+                request["allSheets"] = True
+            elif "areas" in op:
+                request["range"] = tabs.grid(op)
+            else:
+                request["sheetId"] = tabs.id(op["tab"])
+            requests.append({"findReplace": request})
+        elif name in ("copy", "cut"):
+            sheet = tabs.id(op["to_tab"])
+            if name == "copy":
+                rows, columns = op["size"]
+                top, left = op["to"]["startRowIndex"], op["to"]["startColumnIndex"]
+                destination = {"sheetId": sheet, "startRowIndex": top, "endRowIndex": top + rows,
+                               "startColumnIndex": left, "endColumnIndex": left + columns}
+                requests.append({"copyPaste": {
+                    "source": tabs.grid(op), "destination": destination, "pasteType": op["paste"],
+                    "pasteOrientation": "TRANSPOSE" if op["transpose"] else "NORMAL"}})
+            else:
+                requests.append({"cutPaste": {"source": tabs.grid(op), "pasteType": op["paste"], "destination": {
+                    "sheetId": sheet, "rowIndex": op["to"]["startRowIndex"],
+                    "columnIndex": op["to"]["startColumnIndex"]}}})
+        elif name == "dedupe":
+            sheet = tabs.id(op["tab"])
+            requests.append({"deleteDuplicates": {"range": tabs.grid(op), "comparisonColumns": [
+                {"sheetId": sheet, "dimension": "COLUMNS", "startIndex": i, "endIndex": i + 1}
+                for i in op["compare"]]}})
+        elif name == "trim":
+            requests += [{"trimWhitespace": {"range": tabs.grid(area)}} for area in op["areas"]]
+        elif name == "split_text":
+            kind, delimiter = op["delimiter"]
+            request = {"source": tabs.grid(op), "delimiterType": kind}
+            if delimiter is not None:
+                request["delimiter"] = delimiter
+            requests.append({"textToColumns": request})
+        elif name == "autofill":
+            requests.append({"autoFill": {"useAlternateSeries": False, "sourceAndDestination": {
+                "source": tabs.grid(op), "dimension": op["dimension"], "fillLength": op["length"]}}})
+    return requests
+
+
+def _data_results(replies: list[dict]) -> list[dict]:
+    """What the counting data ops report back, in call order."""
+    out = []
+    for reply in replies:
+        if "findReplace" in reply:
+            found = reply["findReplace"]
+            out.append({"op": "find_replace", "occurrences": found.get("occurrencesChanged", 0),
+                        "cells": found.get("valuesChanged", 0), "formulas": found.get("formulasChanged", 0),
+                        "rows": found.get("rowsChanged", 0), "tabs": found.get("sheetsChanged", 0)})
+        elif "deleteDuplicates" in reply:
+            out.append({"op": "dedupe", "rows_removed": reply["deleteDuplicates"].get("duplicatesRemovedCount", 0)})
+        elif "trimWhitespace" in reply:
+            out.append({"op": "trim", "cells_changed": reply["trimWhitespace"].get("cellsChangedCount", 0)})
+    return out
+
+
 # Op actions: the vocabulary, its normalizer and its request builder.
-OP_SETS = {"layout": (LAYOUT_OPS, _normalize, _layout_requests)}
+OP_SETS = {"layout": (LAYOUT_OPS, _normalize, _layout_requests), "data": (DATA_OPS, _normalize_data, _data_requests)}
 
 
 # --- Gmail ----------------------------------------------------------------------------------------
