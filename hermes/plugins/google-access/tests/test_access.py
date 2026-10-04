@@ -850,3 +850,448 @@ def test_a_failed_guard_read_writes_nothing(tmp_path, monkeypatch, action, extra
     with pytest.raises(access.AccessError):
         access.sheets(tmp_path, args)
     assert getattr(values, call).call_count == 0
+
+
+# --- info: tab details ----------------------------------------------------------------------------
+
+@pytest.mark.parametrize("grid,text", [
+    ({}, ""), ({"startColumnIndex": 1, "endColumnIndex": 4}, "B:D"), ({"startRowIndex": 2, "endRowIndex": 5}, "3:5"),
+    ({"endRowIndex": 1, "endColumnIndex": 3}, "A1:C1"),
+    ({"startRowIndex": 1, "startColumnIndex": 0, "endColumnIndex": 3}, "A2:C")])
+def test_grid_ranges_read_back_as_a1(grid, text):
+    assert access._a1(grid) == text
+
+
+def test_info_lists_merges_tables_and_rules(tmp_path, monkeypatch):
+    api = mock.MagicMock()
+    api.spreadsheets().get().execute.return_value = {"properties": {"title": "Plan"}, "sheets": [dict(
+        properties={"sheetId": 7, "title": "Tasks", "gridProperties": {
+            "rowCount": 100, "columnCount": 8, "frozenRowCount": 1}},
+        tables=[{"tableId": "t1", "name": "Todo", "range": {"sheetId": 7, "startRowIndex": 0, "endRowIndex": 5,
+                                                            "startColumnIndex": 1, "endColumnIndex": 4},
+                 "columnProperties": [
+                     {"columnName": "Task"},
+                     {"columnIndex": 1, "columnName": "State", "columnType": "DROPDOWN", "dataValidationRule": {
+                         "condition": {"type": "ONE_OF_LIST", "values": [{"userEnteredValue": "Open"}]}}},
+                     {"columnIndex": 2, "columnName": "Due", "columnType": "DATE"}]}],
+        merges=[{"sheetId": 7, "endRowIndex": 1, "endColumnIndex": 2}],
+        conditionalFormats=[
+            {"ranges": [{"sheetId": 7, "startRowIndex": 1, "startColumnIndex": 3, "endColumnIndex": 4}],
+             "booleanRule": {"condition": {"type": "NUMBER_GREATER", "values": [{"userEnteredValue": "10"}]}}},
+            {"ranges": [{"sheetId": 7, "startColumnIndex": 1, "endColumnIndex": 2}], "gradientRule": {}}])]}
+    services(monkeypatch, sheets=api)
+    sheet = access.sheets(tmp_path, {"action": "info", "spreadsheet_id": SID})["sheets"][0]
+    assert api.spreadsheets().get.call_args.kwargs["fields"] == access.INFO_FIELDS
+    assert sheet["gridProperties"]["frozenRowCount"] == 1 and sheet["merges"] == ["A1:B1"]
+    assert sheet["tables"] == [{"table_id": "t1", "name": "Todo", "range": "B1:D5", "columns": [
+        {"column": "B", "name": "Task", "type": "TEXT"},
+        {"column": "C", "name": "State", "type": "DROPDOWN", "options": ["Open"]},
+        {"column": "D", "name": "Due", "type": "DATE"}]}]
+    assert sheet["conditional_rules"] == [{"index": 0, "ranges": ["D2:D"], "rule": "NUMBER_GREATER 10"},
+                                          {"index": 1, "ranges": ["B:B"], "rule": "colour scale"}]
+
+
+# --- layout (spreadsheets.batchUpdate) ------------------------------------------------------------
+
+META = {"sheets": [
+    {"properties": {"title": "Main"}},  # sheetId 0 is omitted by the API
+    {"properties": {"sheetId": 7, "title": "Tasks"}, "tables": [{
+        "tableId": "t1", "name": "Todo", "range": {"sheetId": 7, "startRowIndex": 0, "endRowIndex": 5,
+                                                   "startColumnIndex": 1, "endColumnIndex": 4},
+        "columnProperties": [{"columnName": "Task"},
+                             {"columnIndex": 1, "columnName": "State", "columnType": "DROPDOWN",
+                              "dataValidationRule": {"condition": {"type": "ONE_OF_LIST", "values": [
+                                  {"userEnteredValue": "Open"}]}}},
+                             {"columnIndex": 2, "columnName": "Due", "columnType": "DATE"}]}]}]}
+
+
+def layout(*ops, **extra):
+    return {"action": "layout", "spreadsheet_id": SID, "ops": list(ops), **extra}
+
+
+def requests(*ops):
+    return access._layout_requests(access._layout_ops(layout(*ops)), META)
+
+
+@pytest.mark.parametrize("ref,grid", [
+    ("", {}),
+    ("B2", {"startColumnIndex": 1, "endColumnIndex": 2, "startRowIndex": 1, "endRowIndex": 2}),
+    ("b2:d9", {"startColumnIndex": 1, "endColumnIndex": 4, "startRowIndex": 1, "endRowIndex": 9}),
+    ("D9:B2", {"startColumnIndex": 1, "endColumnIndex": 4, "startRowIndex": 1, "endRowIndex": 9}),
+    ("B:D", {"startColumnIndex": 1, "endColumnIndex": 4}),
+    ("C", {"startColumnIndex": 2, "endColumnIndex": 3}),
+    ("3:5", {"startRowIndex": 2, "endRowIndex": 5}),
+    ("4", {"startRowIndex": 3, "endRowIndex": 4}),
+    ("A2:C", {"startColumnIndex": 0, "endColumnIndex": 3, "startRowIndex": 1}),
+    ("AA1:AB2", {"startColumnIndex": 26, "endColumnIndex": 28, "startRowIndex": 0, "endRowIndex": 2})])
+def test_a1_references_become_grid_ranges(ref, grid):
+    assert access._grid_ref(ref) == grid
+
+
+@pytest.mark.parametrize("ref", ["A0", "A1:5", "1:B", "A1:", ":B2", "A1B", "ABCD1", "A1:B2:C3", "03:5"])
+def test_malformed_a1_references_are_refused(ref):
+    with pytest.raises(access.AccessError, match="not an A1 range"):
+        access._grid_ref(ref)
+
+
+def test_format_borders_and_sizes_become_requests():
+    got = requests(
+        {"op": "format", "range": "Tasks!A1:E1", "bold": True, "background": "#eee", "align": "center",
+         "number_format": "currency", "pattern": "¥#,##0"},
+        {"op": "format", "range": "D2:D", "reset": True, "color": "none"},
+        {"op": "borders", "range": "Tasks!A1:B2", "sides": ["outer"], "style": "dashed", "color": "#f00"},
+        {"op": "size", "range": "Tasks!B:D", "pixels": 140},
+        {"op": "size", "range": "Tasks!2:3", "auto": True})
+    first = got[0]["repeatCell"]
+    assert first["range"] == {"sheetId": 7, "startColumnIndex": 0, "endColumnIndex": 5, "startRowIndex": 0,
+                              "endRowIndex": 1}
+    fmt = first["cell"]["userEnteredFormat"]
+    assert fmt["textFormat"] == {"bold": True} and fmt["horizontalAlignment"] == "CENTER"
+    assert fmt["backgroundColorStyle"] == {"rgbColor": {"red": 238 / 255, "green": 238 / 255, "blue": 238 / 255}}
+    assert fmt["numberFormat"] == {"type": "CURRENCY", "pattern": "¥#,##0"}
+    assert first["fields"].split(",") == [
+        "userEnteredFormat.textFormat.bold", "userEnteredFormat.backgroundColor",
+        "userEnteredFormat.backgroundColorStyle", "userEnteredFormat.horizontalAlignment",
+        "userEnteredFormat.numberFormat"]
+    # reset clears everything first; "none" clears the colour (both the legacy and the style field)
+    assert got[1]["repeatCell"] == {"range": {"sheetId": 0, "startColumnIndex": 3, "endColumnIndex": 4,
+                                              "startRowIndex": 1}, "cell": {}, "fields": "userEnteredFormat"}
+    assert got[2]["repeatCell"]["cell"] == {"userEnteredFormat": {}}
+    assert got[2]["repeatCell"]["fields"] == ("userEnteredFormat.textFormat.foregroundColor,"
+                                              "userEnteredFormat.textFormat.foregroundColorStyle")
+    borders = got[3]["updateBorders"]
+    assert set(borders) == {"range", "top", "bottom", "left", "right"}
+    assert borders["top"] == {"style": "DASHED", "colorStyle": {"rgbColor": {"red": 1.0, "green": 0.0, "blue": 0.0}}}
+    assert got[4] == {"updateDimensionProperties": {"range": {"sheetId": 7, "dimension": "COLUMNS", "startIndex": 1,
+                                                              "endIndex": 4},
+                                                    "properties": {"pixelSize": 140}, "fields": "pixelSize"}}
+    assert got[5] == {"autoResizeDimensions": {"dimensions": {"sheetId": 7, "dimension": "ROWS", "startIndex": 1,
+                                                              "endIndex": 3}}}
+
+
+def test_shape_ops_become_requests():
+    got = requests(
+        {"op": "insert", "range": "Tasks!5:6"}, {"op": "insert", "range": "A:A"},
+        {"op": "delete", "range": "Tasks!C"}, {"op": "move", "range": "Tasks!2:3", "to": 10},
+        {"op": "move", "range": "B:C", "to": "f"}, {"op": "merge", "range": "A1:C1", "merge": "rows"},
+        {"op": "unmerge", "range": "A1:C1"}, {"op": "freeze", "sheet": "Tasks", "rows": 1, "columns": 0})
+    assert got[0] == {"insertDimension": {"range": {"sheetId": 7, "dimension": "ROWS", "startIndex": 4, "endIndex": 6},
+                                          "inheritFromBefore": True}}
+    assert got[1]["insertDimension"]["inheritFromBefore"] is False  # nothing before column A
+    assert got[2] == {"deleteDimension": {"range": {"sheetId": 7, "dimension": "COLUMNS", "startIndex": 2,
+                                                    "endIndex": 3}}}
+    assert got[3]["moveDimension"]["destinationIndex"] == 9 and got[4]["moveDimension"]["destinationIndex"] == 5
+    assert got[5]["mergeCells"]["mergeType"] == "MERGE_ROWS" and got[6]["unmergeCells"]["range"]["sheetId"] == 0
+    assert got[7] == {"updateSheetProperties": {
+        "properties": {"sheetId": 7, "gridProperties": {"frozenRowCount": 1, "frozenColumnCount": 0}},
+        "fields": "gridProperties.frozenRowCount,gridProperties.frozenColumnCount"}}
+
+
+def test_tables_are_made_changed_and_deleted():
+    made, changed, renamed, gone = requests(
+        {"op": "table", "range": "Tasks!E1:G9", "table_columns": [
+            {"column": "F", "type": "DROPDOWN", "values": ["Todo", "Done"]}, {"column": "G", "type": "date"}],
+         "header_color": "#1A73E8", "band_colors": ["#FFFFFF", "#F1F3F4"]},
+        {"op": "table_update", "table": "todo", "table_columns": [{"column": "C", "type": "TEXT"},
+                                                             {"column": "D", "name": "Deadline"}]},
+        {"op": "table_update", "table": "t1", "range": "B1:D20", "name": "Backlog"},
+        {"op": "table_delete", "table": "t1"})
+    table = made["addTable"]["table"]
+    assert table["name"] == "Table2" and table["range"]["sheetId"] == 7  # unique default name
+    assert table["columnProperties"] == [
+        {"columnIndex": 1, "columnType": "DROPDOWN", "dataValidationRule": {"condition": {
+            "type": "ONE_OF_LIST", "values": [{"userEnteredValue": "Todo"}, {"userEnteredValue": "Done"}]}}},
+        {"columnIndex": 2, "columnType": "DATE"}]
+    assert set(table["rowsProperties"]) == {"headerColorStyle", "firstBandColorStyle", "secondBandColorStyle"}
+    # A change keeps every other column as it is and drops a dropdown's rule with the type.
+    update = changed["updateTable"]
+    assert update["fields"] == "columnProperties"
+    assert update["table"]["columnProperties"] == [
+        {"columnIndex": 0, "columnName": "Task"}, {"columnIndex": 1, "columnName": "State", "columnType": "TEXT"},
+        {"columnIndex": 2, "columnName": "Deadline", "columnType": "DATE"}]
+    assert renamed["updateTable"]["fields"] == "range,name"
+    assert renamed["updateTable"]["table"]["range"]["sheetId"] == 7  # a range without a tab stays on the table's tab
+    assert gone == {"deleteTable": {"tableId": "t1"}}
+
+
+def test_typed_columns_keep_their_header_text(tmp_path, monkeypatch):
+    """Sheets renames a typed column without a name to "Column 1", overwriting the header cell."""
+    api, book = layout_api()
+    book.values().get().execute.side_effect = [{"values": [["Task", "State", "Due"]]},
+                                               {"values": [["Task", "State", "Due", "Due"]]}]
+    book.values().get.reset_mock()
+    services(monkeypatch, sheets=api)
+    access.sheets(tmp_path, layout(
+        {"op": "table", "range": "Tasks!E1:G9", "table_columns": [
+            {"column": "F", "type": "DROPDOWN", "values": ["Open"]}, {"column": "G", "type": "DATE", "name": "When"}]},
+        {"op": "table_update", "table": "Todo", "range": "B1:E5", "table_columns": [{"column": "E", "type": "TEXT"}]}))
+    made, changed = book.batchUpdate.call_args.kwargs["body"]["requests"]
+    assert made["addTable"]["table"]["columnProperties"] == [
+        {"columnIndex": 1, "columnName": "State", "columnType": "DROPDOWN", "dataValidationRule": {
+            "condition": {"type": "ONE_OF_LIST", "values": [{"userEnteredValue": "Open"}]}}},
+        {"columnIndex": 2, "columnType": "DATE", "columnName": "When"}]
+    assert changed["updateTable"]["table"]["columnProperties"][3] == {
+        "columnIndex": 3, "columnName": "Due", "columnType": "TEXT"}  # the header of the column added to Todo
+    reads = [c.kwargs["range"] for c in book.values().get.call_args_list]
+    assert reads == ["'Tasks'!E1:G1", "'Tasks'!B1:E1"]
+
+
+def test_one_op_covers_scattered_ranges():
+    bold, widths, rule, check = (access._layout_requests(access._layout_ops(layout(op)), META) for op in (
+        {"op": "format", "ranges": ["Tasks!A1", "Tasks!C5:D6", "Main!F9"], "bold": True},
+        {"op": "size", "ranges": ["Tasks!B:B", "Tasks!E:F"], "pixels": 90},
+        {"op": "conditional", "ranges": ["Tasks!D2:D9", "Tasks!G2:G9"], "when": "NOT_BLANK", "italic": True},
+        {"op": "validate", "ranges": ["B2:B9", "Tasks!C2:C9"], "when": "BOOLEAN"}))
+    assert [r["repeatCell"]["range"]["sheetId"] for r in bold] == [7, 7, 0]
+    assert bold[1]["repeatCell"]["range"] == {"sheetId": 7, "startColumnIndex": 2, "endColumnIndex": 4,
+                                              "startRowIndex": 4, "endRowIndex": 6}
+    assert [r["updateDimensionProperties"]["range"]["startIndex"] for r in widths] == [1, 4]
+    assert len(rule) == 1 and [g["startColumnIndex"] for g in rule[0]["addConditionalFormatRule"]["rule"]["ranges"]] == [3, 6]
+    assert [r["setDataValidation"]["range"]["sheetId"] for r in check] == [0, 7]
+
+
+def test_scattered_deletions_run_bottom_up():
+    got = requests({"op": "delete", "ranges": ["Tasks!5:5", "Tasks!12:13", "Tasks!2:2"]})
+    assert [r["deleteDimension"]["range"]["startIndex"] for r in got] == [11, 4, 1]
+    reason = access.approval_request("google_sheets", layout(
+        {"op": "delete", "ranges": ["Tasks!5:5", "Tasks!12:13", "Tasks!2:2"]}))[0]
+    assert reason.split("\n")[-1] == "Delete row 2, row 5, rows 12-13 with their contents"
+    assert "sheets-edit" not in access.approval_request("google_sheets", layout(
+        {"op": "delete", "ranges": ["Tasks!5:5"]}))[1]
+
+
+@pytest.mark.parametrize("op,message", [
+    ({"op": "delete", "ranges": ["3:5", "5:6"]}, "overlap"),
+    ({"op": "delete", "ranges": ["3:3", "B:B"]}, "all rows or all columns"),
+    ({"op": "size", "ranges": ["Tasks!B:B", "Main!C:C"], "pixels": 50}, "of one tab"),
+    ({"op": "format", "range": "A1", "ranges": ["B2"], "bold": True}, "not both"),
+    ({"op": "format", "ranges": [], "bold": True}, "range is required"),
+    ({"op": "format", "ranges": ["A1", 3], "bold": True}, "array of A1 ranges"),
+    ({"op": "insert", "ranges": ["3:3", "5:5"]}, "unknown field"),
+    ({"op": "move", "ranges": ["3:3"], "to": 9}, "unknown field"),
+    ({"op": "table", "ranges": ["A1:C9"]}, "unknown field")])
+def test_malformed_multi_range_ops_are_blocked(op, message):
+    with pytest.raises(access.AccessError, match=message):
+        access.approval_request("google_sheets", layout(op))
+
+
+def test_ranges_are_counted_against_the_batch_limit():
+    many = [f"A{i}" for i in range(1, 301)]
+    with pytest.raises(access.AccessError, match="at most 500 per call"):
+        access.approval_request("google_sheets", layout({"op": "format", "ranges": many, "bold": True},
+                                                        {"op": "format", "ranges": many, "italic": True}))
+
+
+def test_the_card_names_a_shared_tab_once_and_counts_the_rest(monkeypatch):
+    context(monkeypatch, title="Plan", names=["Main", "Tasks"])
+    lines = access.approval_request("google_sheets", layout(
+        {"op": "format", "ranges": [f"Tasks!A{i}" for i in range(1, 8)], "bold": True}), home=Path("/x"))[0].split("\n")
+    assert lines == ["SpreadSheet: Plan", "Sheet: Tasks", "", "Format A1, A2, A3, A4 +3: bold"]
+    lines = access.approval_request("google_sheets", layout(
+        {"op": "format", "ranges": ["Tasks!A1", "Tasks!B2", "Main!C3"], "bold": True}), home=Path("/x"))[0].split("\n")
+    assert lines == ["SpreadSheet: Plan", "", "Format Tasks!A1, Tasks!B2, Main!C3: bold"]
+    assert access._where_all([{"tab": "T", "ref": "A1"}, {"tab": "T", "ref": "B2"}]) == "T!A1, B2"
+
+
+def test_later_table_ops_in_a_batch_build_on_earlier_ones():
+    first, second, moved, renamed, gone = requests(
+        {"op": "table_update", "table": "Todo", "table_columns": [{"column": "C", "type": "TEXT"}]},
+        {"op": "table_update", "table": "Todo", "table_columns": [{"column": "D", "name": "Deadline"}]},
+        {"op": "table_update", "table": "Todo", "range": "C1:D9", "table_columns": [{"column": "D", "type": "TIME"}]},
+        {"op": "table_update", "table": "Todo", "name": "Backlog"},
+        {"op": "table_delete", "table": "Backlog"})
+    assert second["updateTable"]["table"]["columnProperties"][1] == {
+        "columnIndex": 1, "columnName": "State", "columnType": "TEXT"}  # the first change survives
+    # The table now starts at C: B's column drops out and the rest shift left.
+    assert moved["updateTable"]["table"]["columnProperties"] == [
+        {"columnIndex": 0, "columnName": "State", "columnType": "TEXT"},
+        {"columnIndex": 1, "columnName": "Deadline", "columnType": "TIME"}]
+    assert renamed["updateTable"]["table"] == {"tableId": "t1", "name": "Backlog"}
+    assert gone == {"deleteTable": {"tableId": "t1"}}
+    with pytest.raises(access.AccessError, match="no single table named 'Todo'"):
+        requests({"op": "table_delete", "table": "Todo"}, {"op": "table_update", "table": "Todo", "name": "X"})
+
+
+def test_conditional_rules_and_input_rules_become_requests():
+    rule, scale, drop, check, menu, ranged, cleared = requests(
+        {"op": "conditional", "range": "Tasks!D2:D20", "when": "number_greater", "values": [10000],
+         "background": "#F4CCCC", "bold": True},
+        {"op": "conditional", "range": "B2:B9", "scale": ["#F00", "#FF0", "#0F0"]},
+        {"op": "conditional_delete", "sheet": "Tasks", "index": 2},
+        {"op": "validate", "range": "F2:F9", "when": "BOOLEAN"},
+        {"op": "validate", "range": "C2:C9", "when": "ONE_OF_LIST", "values": ["Yes", "No"], "help": "Pick one"},
+        {"op": "validate", "range": "E2:E9", "when": "ONE_OF_RANGE", "values": ["Lists!A1:A5"], "strict": False},
+        {"op": "validate_clear", "range": "G2:G9"})
+    added = rule["addConditionalFormatRule"]
+    assert added["index"] == 0 and added["rule"]["ranges"][0]["sheetId"] == 7
+    assert added["rule"]["booleanRule"] == {
+        "condition": {"type": "NUMBER_GREATER", "values": [{"userEnteredValue": "10000"}]},
+        "format": {"textFormat": {"bold": True}, "backgroundColorStyle": {"rgbColor": {
+            "red": 244 / 255, "green": 204 / 255, "blue": 204 / 255}}}}
+    gradient = scale["addConditionalFormatRule"]["rule"]["gradientRule"]
+    assert [gradient[k]["type"] for k in ("minpoint", "midpoint", "maxpoint")] == ["MIN", "PERCENTILE", "MAX"]
+    assert drop == {"deleteConditionalFormatRule": {"sheetId": 7, "index": 2}}
+    assert check["setDataValidation"]["rule"] == {"condition": {"type": "BOOLEAN"}, "strict": True,
+                                                  "showCustomUi": False}
+    assert menu["setDataValidation"]["rule"]["showCustomUi"] is True
+    assert menu["setDataValidation"]["rule"]["inputMessage"] == "Pick one"
+    assert ranged["setDataValidation"]["rule"]["condition"]["values"] == [{"userEnteredValue": "=Lists!A1:A5"}]
+    assert ranged["setDataValidation"]["rule"]["strict"] is False
+    assert cleared == {"setDataValidation": {"range": {"sheetId": 0, "startColumnIndex": 6, "endColumnIndex": 7,
+                                                       "startRowIndex": 1, "endRowIndex": 9}}}
+
+
+def test_relative_dates_and_formulas_are_written_as_the_api_wants():
+    assert access._condition("DATE_BEFORE", ["today", "2026-10-01"])["values"] == [
+        {"relativeDate": "TODAY"}, {"userEnteredValue": "2026-10-01"}]
+    assert access._condition("CUSTOM_FORMULA", ["$A2>3"])["values"] == [{"userEnteredValue": "=$A2>3"}]
+    # Input rules have no relative dates: refused before asking rather than failing the batch.
+    with pytest.raises(access.AccessError, match="only in conditional rules"):
+        access.approval_request("google_sheets", layout(
+            {"op": "validate", "range": "D2:D9", "when": "DATE_AFTER", "values": ["TODAY"]}))
+
+
+def test_a_table_range_without_a_tab_is_shown_on_the_tables_own_tab(monkeypatch):
+    context(monkeypatch, title="Plan", names=["Main", "Tasks"])
+    reason = access.approval_request("google_sheets", layout(
+        {"op": "table_update", "table": "Todo", "range": "B1:D20"}), home=Path("/x"))[0]
+    assert reason.split("\n") == ["SpreadSheet: Plan", "", 'Change table "Todo": range B1:D20 on its tab']
+    reason = access.approval_request("google_sheets", layout(
+        {"op": "table_update", "table": "Todo", "range": "Tasks!B1:D20"},
+        {"op": "format", "range": "Main!A1", "bold": True}), home=Path("/x"))[0]
+    assert 'Change table "Todo": range Tasks!B1:D20' in reason
+
+
+@pytest.mark.parametrize("op,message", [
+    ({"op": "paint", "range": "A1"}, "op must be one of"),
+    ({"op": "format", "range": "A1", "colour": "#fff"}, "unknown field"),
+    ({"op": "format", "range": "A1"}, "at least one format field"),
+    ({"op": "format"}, "range is required"),
+    ({"op": "format", "range": "A1", "background": "red"}, "colour like"),
+    ({"op": "format", "range": "A1", "bold": "yes"}, "true or false"),
+    ({"op": "format", "range": "A1", "pattern": "0.0"}, "pattern needs number_format"),
+    ({"op": "format", "range": "A1", "number_format": "MONEY"}, "number_format must be one of"),
+    ({"op": "size", "range": "B2:C3", "pixels": 100}, "whole rows"),
+    ({"op": "size", "range": "B:C"}, "pixels or auto"),
+    ({"op": "size", "range": "B:C", "pixels": 100, "auto": True}, "pixels or auto"),
+    ({"op": "delete", "range": "Tasks"}, "whole rows"),
+    ({"op": "move", "range": "2:3", "to": "B"}, "row number"),
+    ({"op": "move", "range": "B:C", "to": 3}, "column letter"),
+    ({"op": "freeze", "sheet": "Tasks"}, "rows and/or columns"),
+    ({"op": "table", "range": "A:C"}, "closed block"),
+    ({"op": "table", "range": "A1:C9", "table_columns": [{"column": "D", "type": "TEXT"}]}, "outside the table"),
+    ({"op": "table", "range": "A1:C9", "table_columns": [{"column": "B", "type": "NUMBER"}]}, "type must be one of"),
+    ({"op": "table", "range": "A1:C9", "table_columns": [{"column": "B", "values": ["x"]}]}, "need type DROPDOWN"),
+    ({"op": "table", "range": "A1:C9", "table_columns": [{"column": "B"}]}, "needs a type or a name"),
+    ({"op": "table_update", "table": "Todo"}, "give range, name"),
+    ({"op": "conditional", "range": "A1:A9", "when": "NUMBER_GREATER", "values": [1]}, "style to apply"),
+    ({"op": "conditional", "range": "A1:A9", "scale": ["#fff"]}, "two or three"),
+    ({"op": "conditional", "range": "A1:A9", "scale": ["#fff", "#000"], "bold": True}, "takes no when"),
+    ({"op": "conditional", "range": "A1:A9", "when": "NUMBER_GREATER", "background": "none"}, "colour like"),
+    ({"op": "conditional", "range": "A1:A9", "when": "NOT_BLANK", "underline": True}, "unknown field"),
+    ({"op": "conditional_delete", "index": -1}, "whole number"),
+    ({"op": "validate", "range": "A1:A9", "when": "ONE_OF_LIST"}, "needs values"),
+    ({"op": "validate", "range": "A1:A9", "when": "IS_ANYTHING"}, "when must be one of"),
+    ({"op": "validate", "range": "A1:A9", "when": "TEXT_EQ", "values": [{"x": 1}]}, "array of at most")])
+def test_malformed_ops_are_blocked_before_asking(op, message, tmp_path):
+    with pytest.raises(access.AccessError, match=message):
+        access.approval_request("google_sheets", layout(op))
+    with pytest.raises(access.AccessError, match=message):
+        access.sheets(tmp_path, layout(op))
+
+
+def test_ops_must_be_a_bounded_list():
+    for ops in (None, [], "format", [{"op": "unmerge", "range": "A1"}] * (access.LAYOUT_LIMIT + 1)):
+        with pytest.raises(access.AccessError, match="ops"):
+            access.approval_request("google_sheets", {"action": "layout", "spreadsheet_id": SID, "ops": ops})
+
+
+@pytest.mark.parametrize("op,message", [
+    ({"op": "format", "range": "Nope!A1", "bold": True}, "no tab named 'Nope'"),
+    ({"op": "table_delete", "table": "Missing"}, "no single table named"),
+    ({"op": "table_update", "table": "Todo", "table_columns": [{"column": "F", "type": "TEXT"}]}, "outside table")])
+def test_unknown_tabs_and_tables_are_refused_before_writing(op, message):
+    with pytest.raises(access.AccessError, match=message):
+        requests(op)
+
+
+def test_non_destructive_layout_shares_the_spreadsheet_edit_approval():
+    safe = layout({"op": "format", "range": "A1:C1", "bold": True}, {"op": "insert", "range": "3:4"},
+                  {"op": "table", "range": "A1:C9"}, {"op": "unmerge", "range": "A1:C1"},
+                  {"op": "validate", "range": "B2:B9", "when": "BOOLEAN"}, {"op": "freeze", "rows": 1})
+    assert access.approval_request("google_sheets", safe)[1] == f"google-access:sheets-edit:{SID}"
+
+
+@pytest.mark.parametrize("op", [
+    {"op": "delete", "range": "3:4"}, {"op": "move", "range": "3:4", "to": 9}, {"op": "merge", "range": "A1:B1"},
+    {"op": "table_delete", "table": "Todo"}, {"op": "conditional_delete", "index": 0}])
+def test_a_call_that_deletes_or_moves_data_asks_every_time(op):
+    args = layout({"op": "format", "range": "A1", "bold": True}, op)
+    key = access.approval_request("google_sheets", args)[1]
+    assert "sheets-edit" not in key and key.startswith("google-access:google_sheets:")
+    assert access.approval_request("google_sheets", dict(args, ops=args["ops"][::-1]))[1] != key
+
+
+def test_the_layout_card_lists_each_change(monkeypatch):
+    context(monkeypatch, title="Plan", names=["Main", "Tasks"])
+    args = layout({"op": "format", "range": "Tasks!A1:C1", "bold": True, "background": "#eee"},
+                  {"op": "size", "range": "Tasks!B:C", "pixels": 120},
+                  {"op": "delete", "range": "Tasks!4:5"},
+                  {"op": "validate", "range": "Tasks!C2:C9", "when": "ONE_OF_LIST", "values": ["a", "b", "c", "d"]},
+                  expect=[{"range": "Tasks!A4", "value": "k4"}])
+    assert access.approval_request("google_sheets", args, home=Path("/x"))[0].split("\n") == [
+        "SpreadSheet: Plan", "Sheet: Tasks", "Check: A4 = k4", "",
+        "Format A1:C1: bold, background #EEEEEE",
+        "Width of columns B-C: 120px",
+        "Delete rows 4-5 with their contents",
+        "Input rule on C2:C9: dropdown (a, b, c +1), reject other input"]
+    mixed = layout({"op": "merge", "range": "A1:B1"}, {"op": "freeze", "sheet": "Tasks", "columns": 1},
+                   {"op": "table_delete", "table": "Todo"})
+    assert access.approval_request("google_sheets", mixed, home=Path("/x"))[0].split("\n") == [
+        "SpreadSheet: Plan", "",
+        "Merge (first sheet)!A1:B1 (only each block's top-left value stays)",
+        "Freeze on Tasks: 1 column",
+        "Delete table \"Todo\" with its contents"]
+
+
+def test_the_layout_card_stays_within_the_limit():
+    ops = [{"op": "format", "range": f"{'&' * 40}!A{i}", "bold": True, "font": "😀" * 30} for i in range(1, 80)]
+    reason = access.approval_request("google_sheets", layout(*ops))[0]
+    assert access._units(reason) <= access.CARD_LIMIT and "more changes)" in reason
+
+
+def layout_api(found=()):
+    api = mock.MagicMock()
+    book = api.spreadsheets()
+    book.get().execute.return_value = META
+    book.batchUpdate().execute.return_value = {"replies": [{"addTable": {"table": {
+        "tableId": "t9", "name": "Table2", "range": {"sheetId": 7, "endRowIndex": 9, "endColumnIndex": 3}}}}, {}]}
+    book.values().batchGet().execute.return_value = {"valueRanges": [{"values": [[v]]} for v in found]}
+    for call in (book.get, book.batchUpdate, book.values().batchGet):
+        call.reset_mock()
+    return api, book
+
+
+def test_layout_runs_every_op_in_one_batch_update(tmp_path, monkeypatch):
+    api, book = layout_api()
+    calls = services(monkeypatch, sheets=api)
+    result = access.sheets(tmp_path, layout({"op": "table", "range": "Tasks!A1:C9"},
+                                            {"op": "format", "range": "Tasks!A1:C1", "bold": True}))
+    assert result == {"ok": True, "spreadsheet_id": SID, "applied": 2,
+                      "tables": [{"table_id": "t9", "name": "Table2", "range": "A1:C9"}]}
+    assert book.get.call_args.kwargs == {"spreadsheetId": SID, "fields": access.LAYOUT_FIELDS}
+    body = book.batchUpdate.call_args.kwargs["body"]
+    assert [list(r) for r in body["requests"]] == [["addTable"], ["repeatCell"]]
+    assert book.batchUpdate.call_count == 1 and calls == [("sheets", access.SHEETS)]
+
+
+def test_layout_is_guarded_by_expect(tmp_path, monkeypatch):
+    args = layout({"op": "delete", "range": "Tasks!4:4"}, expect=[{"range": "Tasks!A4", "value": "k4"}])
+    api, book = layout_api(["k5"])
+    services(monkeypatch, sheets=api)
+    with pytest.raises(access.AccessError, match="nothing written"):
+        access.sheets(tmp_path, args)
+    assert book.batchUpdate.call_count == 0
+    api, book = layout_api(["k4"])
+    services(monkeypatch, sheets=api)
+    assert access.sheets(tmp_path, args)["ok"] and book.batchUpdate.call_count == 1

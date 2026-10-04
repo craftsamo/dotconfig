@@ -64,15 +64,16 @@ GCLOUD_TIMEOUT = 300
 GCLOUD_TIMEOUT_MAX = 1800
 
 SHEETS_ACTIONS = ("search", "info", "get", "update", "batch_update", "append", "clear", "create",
-                  "add_sheet")
-SHEETS_WRITES = {"update", "batch_update", "append", "clear", "create", "add_sheet"}
+                  "add_sheet", "layout")
+SHEETS_WRITES = {"update", "batch_update", "append", "clear", "create", "add_sheet", "layout"}
 # Edits approved once per spreadsheet: "session" / "always" on the first card covers the rest of
-# that spreadsheet's edits (its version history undoes them). clear and create still ask each time.
-SHEETS_EDITS = {"update", "batch_update", "append", "add_sheet"}
+# that spreadsheet's edits (its version history undoes them). clear and create still ask each time,
+# and so does a layout call holding an op that deletes or moves data (LAYOUT_DESTRUCTIVE).
+SHEETS_EDITS = {"update", "batch_update", "append", "add_sheet", "layout"}
 BATCH_LIMIT = 500
 # Row guards: cells that must still hold a known value (a key column) when a write by row number
 # runs, so a sheet another writer shifted is caught before anything is written.
-EXPECT_ACTIONS = {"update", "batch_update", "clear"}
+EXPECT_ACTIONS = {"update", "batch_update", "clear", "layout"}
 EXPECT_LIMIT = 200
 SINGLE_CELL = re.compile(r"^[A-Za-z]{1,3}[1-9][0-9]*$")
 SPREADSHEET_ID = re.compile(r"^[A-Za-z0-9_-]{10,200}$")
@@ -81,6 +82,7 @@ CARD_LIMIT = 480
 CELL_CLIP = 50
 TITLE_CLIP = 60
 TAB_CLIP = 30
+SAY_CLIP = 160
 CONTEXT_TTL = 600
 CONTEXT_FAIL_TTL = 60
 CONTEXT_TIMEOUT = 3
@@ -401,6 +403,7 @@ def _quote(value: str) -> str:
 def sheets(home, args: dict) -> dict:
     action = _action(args, SHEETS_ACTIONS)
     guards = _expect(args, action)  # also refuses expect on an action it does not guard
+    ops = _layout_ops(args) if action == "layout" else []  # refused before any Google call
     if action == "search":
         query = _str(args, "query", required=False)
         q = f"mimeType='{SPREADSHEET_MIME}' and trashed=false"
@@ -430,12 +433,10 @@ def sheets(home, args: dict) -> dict:
     api = _service(home, "sheets", "v4", SHEETS)
     book = api.spreadsheets()
     if action == "info":
-        meta = _google(lambda: book.get(spreadsheetId=sid, fields=(
-            "spreadsheetId,spreadsheetUrl,properties(title,locale,timeZone),"
-            "sheets.properties(sheetId,title,index,gridProperties(rowCount,columnCount))")).execute())
+        meta = _google(lambda: book.get(spreadsheetId=sid, fields=INFO_FIELDS).execute())
         return {"ok": True, "spreadsheet_id": sid, "title": meta.get("properties", {}).get("title"),
                 "url": meta.get("spreadsheetUrl"),
-                "sheets": [s.get("properties", {}) for s in meta.get("sheets", [])]}
+                "sheets": [_sheet_info(s) for s in meta.get("sheets", [])]}
     if action == "add_sheet":
         title = _str(args, "title")
         done = _google(lambda: book.batchUpdate(spreadsheetId=sid, body={
@@ -455,6 +456,30 @@ def sheets(home, args: dict) -> dict:
                                               valueRenderOption=render).execute())
         return {"ok": True, "spreadsheet_id": sid, "ranges": [
             {"range": r.get("range"), "values": r.get("values", [])} for r in got.get("valueRanges", [])]}
+
+    if action == "layout":
+        meta = _google(lambda: book.get(spreadsheetId=sid, fields=LAYOUT_FIELDS).execute())
+        titles = {s.get("properties", {}).get("sheetId", 0): s.get("properties", {}).get("title")
+                  for s in meta.get("sheets", [])}
+
+        def header(grid):
+            row = grid.get("startRowIndex", 0) + 1
+            cells = f"{column_letters(grid.get('startColumnIndex', 0))}{row}:" + (
+                f"{column_letters(grid['endColumnIndex'] - 1)}{row}" if "endColumnIndex" in grid else f"{row}")
+            got = _google(lambda: values.get(spreadsheetId=sid, range=f"{_quoted(titles[grid['sheetId']])}!{cells}",
+                                             valueRenderOption="FORMATTED_VALUE").execute())
+            return (got.get("values") or [[]])[0]
+
+        # Resolves tabs and tables (and reads header rows) before anything is written.
+        requests = _layout_requests(ops, meta, header)
+        _check_expect(values, sid, guards)
+        done = _google(lambda: book.batchUpdate(spreadsheetId=sid, body={"requests": requests}).execute())
+        added = [r["addTable"]["table"] for r in done.get("replies", []) if "addTable" in (r or {})]
+        result = {"ok": True, "spreadsheet_id": sid, "applied": len(ops)}
+        if added:
+            result["tables"] = [{"table_id": t.get("tableId"), "name": t.get("name"),
+                                 "range": _a1(t.get("range", {}))} for t in added]
+        return result
 
     option = "RAW" if args.get("raw") else "USER_ENTERED"
     if action == "batch_update":
@@ -481,6 +506,785 @@ def sheets(home, args: dict) -> dict:
     updates = done.get("updates", {})
     return {"ok": True, "spreadsheet_id": sid, "updated_range": updates.get("updatedRange"),
             "updated_cells": updates.get("updatedCells")}
+
+
+# --- Sheets tab details ---------------------------------------------------------------------------
+
+INFO_FIELDS = ("spreadsheetId,spreadsheetUrl,properties(title,locale,timeZone),"
+               "sheets(properties(sheetId,title,index,gridProperties(rowCount,columnCount,"
+               "frozenRowCount,frozenColumnCount)),merges,"
+               "tables(tableId,name,range,columnProperties),conditionalFormats)")
+INFO_LIST_LIMIT = 50
+
+
+def _a1(grid: dict, rows: int | None = None, columns: int | None = None) -> str:
+    """A1 text of a GridRange from the API, where a missing start is 0 and a missing end is open;
+    '' is the whole tab. ``rows`` / ``columns`` close an open end that A1 cannot express."""
+    sc, sr = grid.get("startColumnIndex", 0), grid.get("startRowIndex", 0)
+    ec, er = grid.get("endColumnIndex"), grid.get("endRowIndex")
+    if ec is None and er is None and not sc and not sr:
+        return ""
+    if er is None and ec is not None:
+        return f"{column_letters(sc)}{sr + 1 if sr else ''}:{column_letters(ec - 1)}"
+    if ec is None and not sc:
+        return f"{sr + 1}:{er if er is not None else rows or sr + 1}"
+    ec = ec if ec is not None else columns or sc + 1
+    er = er if er is not None else rows or sr + 1
+    return f"{column_letters(sc)}{sr + 1}:{column_letters(ec - 1)}{er}"
+
+
+def _sheet_info(sheet: dict) -> dict:
+    """A tab's properties plus its merges, tables and conditional rules, in A1 terms, with the
+    ids and rule numbers that name them."""
+    props = dict(sheet.get("properties", {}))
+    size = props.get("gridProperties", {})
+    rows, cols = size.get("rowCount"), size.get("columnCount")
+    merges = [_a1(m, rows, cols) for m in sheet.get("merges", []) or []]
+    if merges:
+        props["merges"] = merges[:INFO_LIST_LIMIT] + ([f"+{len(merges) - INFO_LIST_LIMIT} more"]
+                                                      if len(merges) > INFO_LIST_LIMIT else [])
+    tables = []
+    for table in sheet.get("tables", []) or []:
+        rng = table.get("range", {})
+        start = rng.get("startColumnIndex", 0)
+        columns = []
+        for col in table.get("columnProperties", []) or []:
+            entry = {"column": column_letters(start + col.get("columnIndex", 0)),
+                     "name": col.get("columnName"), "type": col.get("columnType", "TEXT")}
+            options = (col.get("dataValidationRule", {}).get("condition", {}).get("values")) or []
+            if options:
+                entry["options"] = [v.get("userEnteredValue") for v in options]
+            columns.append(entry)
+        tables.append({"table_id": table.get("tableId"), "name": table.get("name"),
+                       "range": _a1(rng, rows, cols), "columns": columns})
+    if tables:
+        props["tables"] = tables
+    rules = []
+    for index, rule in enumerate(sheet.get("conditionalFormats", []) or []):
+        if index >= INFO_LIST_LIMIT:
+            rules.append({"more": len(sheet["conditionalFormats"]) - INFO_LIST_LIMIT})
+            break
+        boolean = rule.get("booleanRule")
+        if boolean:
+            condition = boolean.get("condition", {})
+            values = [v.get("userEnteredValue") or v.get("relativeDate") or "" for v in condition.get("values", [])]
+            what = (condition.get("type", "") + " " + ", ".join(values)).strip()
+        else:
+            what = "colour scale"
+        rules.append({"index": index, "ranges": [_a1(r, rows, cols) for r in rule.get("ranges", [])],
+                      "rule": what})
+    if rules:
+        props["conditional_rules"] = rules
+    return props
+
+
+# --- Sheets layout --------------------------------------------------------------------------------
+# One `layout` call is one spreadsheets.batchUpdate: every op lands or none does. Ops are a fixed
+# vocabulary validated here (never raw API requests), so the gate can describe and classify them.
+
+LAYOUT_LIMIT = 100
+LIST_LIMIT = 500
+# Ops that delete or move data: rows/columns with their contents, a table with its contents, the
+# values a merge drops, a conditional rule picked by position. A call holding one is approved per
+# exact call, like clear.
+LAYOUT_DESTRUCTIVE = {"delete", "move", "merge", "table_delete", "conditional_delete"}
+_FORMAT = ("bold", "italic", "underline", "strikethrough", "font_size", "font", "color", "background",
+           "align", "valign", "wrap", "number_format", "pattern", "reset")
+_STYLE = ("bold", "italic", "strikethrough", "color", "background")  # all a conditional rule can set
+_TABLE = ("name", "table_columns", "header_color", "band_colors", "footer_color")
+LAYOUT_OPS = {  # op: (required fields, optional fields); "ranges" stands in for a required "range"
+    "format": (("range",), ("ranges",) + _FORMAT),
+    "borders": (("range",), ("ranges", "sides", "style", "color")),
+    "size": (("range",), ("ranges", "pixels", "auto")),
+    "insert": (("range",), ("inherit",)),
+    "delete": (("range",), ("ranges",)),
+    "move": (("range", "to"), ()),
+    "merge": (("range",), ("ranges", "merge")),
+    "unmerge": (("range",), ("ranges",)),
+    "freeze": ((), ("sheet", "rows", "columns")),
+    "table": (("range",), _TABLE),
+    "table_update": (("table",), ("range",) + _TABLE),
+    "table_delete": (("table",), ()),
+    "conditional": (("range",), ("ranges", "when", "values", "scale") + _STYLE),
+    "conditional_delete": (("index",), ("sheet",)),
+    "validate": (("range", "when"), ("ranges", "values", "strict", "dropdown", "help")),
+    "validate_clear": (("range",), ("ranges",)),
+}
+# Like batch_update's data: one op may name scattered ranges ("ranges"), and a call holds at most
+# BATCH_LIMIT ranges in all. insert and move keep one range (each shifts what the next would mean).
+MULTI_RANGE_OPS = {name for name, (_, optional) in LAYOUT_OPS.items() if "ranges" in optional}
+RANGES_SHOWN = 4
+DIMENSION_OPS = {"size", "insert", "delete", "move"}
+NUMBER_FORMATS = {"TEXT", "NUMBER", "PERCENT", "CURRENCY", "DATE", "TIME", "DATE_TIME", "SCIENTIFIC",
+                  "AUTOMATIC"}
+COLUMN_TYPES = {"TEXT", "DOUBLE", "CURRENCY", "PERCENT", "DATE", "TIME", "DATE_TIME", "BOOLEAN",
+                "DROPDOWN", "FILES_CHIP", "PEOPLE_CHIP", "FINANCE_CHIP", "PLACE_CHIP", "RATINGS_CHIP"}
+BORDER_STYLES = {"SOLID", "SOLID_MEDIUM", "SOLID_THICK", "DASHED", "DOTTED", "DOUBLE", "NONE"}
+BORDER_SIDES = {"top": ("top",), "bottom": ("bottom",), "left": ("left",), "right": ("right",),
+                "inner_horizontal": ("innerHorizontal",), "inner_vertical": ("innerVertical",),
+                "outer": ("top", "bottom", "left", "right"),
+                "inner": ("innerHorizontal", "innerVertical"),
+                "all": ("top", "bottom", "left", "right", "innerHorizontal", "innerVertical")}
+CONDITIONS = {
+    "NUMBER_GREATER", "NUMBER_GREATER_THAN_EQ", "NUMBER_LESS", "NUMBER_LESS_THAN_EQ", "NUMBER_EQ",
+    "NUMBER_NOT_EQ", "NUMBER_BETWEEN", "NUMBER_NOT_BETWEEN", "TEXT_CONTAINS", "TEXT_NOT_CONTAINS",
+    "TEXT_STARTS_WITH", "TEXT_ENDS_WITH", "TEXT_EQ", "TEXT_NOT_EQ", "TEXT_IS_EMAIL", "TEXT_IS_URL",
+    "DATE_EQ", "DATE_NOT_EQ", "DATE_BEFORE", "DATE_AFTER", "DATE_ON_OR_BEFORE", "DATE_ON_OR_AFTER",
+    "DATE_BETWEEN", "DATE_NOT_BETWEEN", "DATE_IS_VALID", "ONE_OF_RANGE", "ONE_OF_LIST", "BLANK",
+    "NOT_BLANK", "CUSTOM_FORMULA", "BOOLEAN"}
+RELATIVE_DATES = {"PAST_YEAR", "PAST_MONTH", "PAST_WEEK", "YESTERDAY", "TODAY", "TOMORROW"}
+LAYOUT_FIELDS = "sheets(properties(sheetId,title),tables(tableId,name,range,columnProperties))"
+_A1_REF = re.compile(r"([A-Za-z]{0,3})(\d*)(?::([A-Za-z]{0,3})(\d*))?")
+
+
+def _grid_ref(ref: str) -> dict:
+    """Zero-based, end-exclusive GridRange indices (without sheetId) of an A1 reference: 'B2:D9',
+    'B:D' (columns), '3:5' (rows), 'A2:C' (open end), one cell, column or row; '' = the whole tab."""
+    if not ref:
+        return {}
+    match = _A1_REF.fullmatch(ref)
+    c1, r1, c2, r2 = match.groups() if match else ("", "", "", "")
+    if match and c2 is None:
+        c2, r2 = c1, r1
+    if not match or not (c1 or r1) or not (c2 or r2) or bool(c1) != bool(c2) or "0" in (r1[:1], r2[:1]):
+        raise AccessError(f"not an A1 range: {ref!r}")
+    grid = {}
+    if c1:
+        low, high = sorted((_column_index(c1), _column_index(c2)))
+        grid.update(startColumnIndex=low, endColumnIndex=high + 1)
+    if r1 and r2:
+        low, high = sorted((int(r1), int(r2)))
+        grid.update(startRowIndex=low - 1, endRowIndex=high)
+    elif r1:
+        grid["startRowIndex"] = int(r1) - 1
+    elif r2:
+        grid.update(startRowIndex=0, endRowIndex=int(r2))
+    return grid
+
+
+def _dimension(grid: dict, ref: str) -> tuple[str, int, int]:
+    if "startRowIndex" in grid and "startColumnIndex" not in grid:
+        return "ROWS", grid["startRowIndex"], grid["endRowIndex"]
+    if "startColumnIndex" in grid and "startRowIndex" not in grid:
+        return "COLUMNS", grid["startColumnIndex"], grid["endColumnIndex"]
+    raise AccessError(f"range must be whole rows like 'Sheet1!3:5' or whole columns like 'Sheet1!B:D', "
+                      f"not {ref!r}")
+
+
+def _span(dim: tuple[str, int, int]) -> str:
+    kind, start, end = dim
+    if kind == "ROWS":
+        return f"row {start + 1}" if end - start == 1 else f"rows {start + 1}-{end}"
+    first, last = column_letters(start), column_letters(end - 1)
+    return f"column {first}" if end - start == 1 else f"columns {first}-{last}"
+
+
+def _tab_label(tab) -> str:
+    return _cell(tab, "", TAB_CLIP) or "?" if tab is not None else "(first sheet)"
+
+
+def _where(tab, ref: str, here: bool = False) -> str:
+    if here:
+        return ref or "whole sheet"
+    return f"{_tab_label(tab)}!{ref}" if ref else f"{_tab_label(tab)} (whole sheet)"
+
+
+def _where_all(areas: list[dict], here: bool = False) -> str:
+    """'A1:C1' / 'Tasks!A1, C5, F9 +2': the tab once when all ranges share it."""
+    shared = len({area["tab"] for area in areas}) == 1
+    first = areas[:RANGES_SHOWN]
+    if here or not shared:
+        shown = [_where(a["tab"], a["ref"], here) for a in first]
+    else:  # the tab once, on the first range
+        shown = [_where(first[0]["tab"], first[0]["ref"])] + [_where(None, a["ref"], True) for a in first[1:]]
+    more = len(areas) - RANGES_SHOWN
+    return ", ".join(shown) + (f" +{more}" if more > 0 else "")
+
+
+def _flag(raw: dict, key: str) -> bool:
+    if not isinstance(raw.get(key), bool):
+        raise AccessError(f"{key} must be true or false")
+    return raw[key]
+
+
+def _whole(raw: dict, key: str, low: int, high: int) -> int:
+    value = raw.get(key)
+    if not isinstance(value, int) or isinstance(value, bool) or not low <= value <= high:
+        raise AccessError(f"{key} must be a whole number from {low} to {high}")
+    return value
+
+
+def _choice(raw: dict, key: str, allowed, default=None) -> str:
+    if key not in raw and default is not None:
+        return default
+    value = raw.get(key)
+    text = value.strip().upper() if isinstance(value, str) else ""
+    if text not in allowed:
+        raise AccessError(f"{key} must be one of {', '.join(sorted(allowed))}")
+    return text
+
+
+def _hex(value, key: str) -> tuple[dict, str]:
+    """({"rgbColor": …}, '#RRGGBB') of '#RGB' / '#RRGGBB'."""
+    match = re.fullmatch(r"#?([0-9A-Fa-f]{6}|[0-9A-Fa-f]{3})", value.strip()) if isinstance(value, str) else None
+    if not match:
+        raise AccessError(f"{key} must be a colour like '#1A73E8'")
+    digits = match.group(1).upper()
+    if len(digits) == 3:
+        digits = "".join(ch * 2 for ch in digits)
+    rgb = {name: int(digits[i:i + 2], 16) / 255 for name, i in (("red", 0), ("green", 2), ("blue", 4))}
+    return {"rgbColor": rgb}, "#" + digits
+
+
+def _list(raw: dict, key: str) -> list[str]:
+    items = raw.get(key, [])
+    if not isinstance(items, list) or len(items) > LIST_LIMIT or any(
+            item is None or isinstance(item, (dict, list)) for item in items):
+        raise AccessError(f"{key} must be an array of at most {LIST_LIMIT} texts or numbers")
+    return [_plain(item) for item in items]
+
+
+def _few(items: list[str]) -> str:
+    shown = ", ".join(_cell(item, EMPTY, 20) for item in items[:3])
+    return shown + (f" +{len(items) - 3}" if len(items) > 3 else "")
+
+
+def _cell_format(raw: dict, keys, clearable: bool) -> tuple[dict, list[str], list[str]]:
+    """(CellFormat, field paths under it, words for the card) of the format fields in ``keys``.
+    A colour of 'none' clears it where ``clearable``; number_format AUTOMATIC clears the format."""
+    fmt, text, fields, words = {}, {}, [], []
+    given = [key for key in keys if key in raw]
+    for key in ("bold", "italic", "underline", "strikethrough"):
+        if key in given:
+            text[key] = _flag(raw, key)
+            fields.append(f"textFormat.{key}")
+            words.append(key if text[key] else f"no {key}")
+    if "font_size" in given:
+        text["fontSize"] = _whole(raw, "font_size", 1, 400)
+        fields.append("textFormat.fontSize")
+        words.append(f"size {text['fontSize']}")
+    if "font" in given:
+        text["fontFamily"] = _str(raw, "font")
+        fields.append("textFormat.fontFamily")
+        words.append(f"font {_cell(text['fontFamily'], '', 20)}")
+    for key, holder, path, label in (("color", text, "textFormat.foreground", "text"),
+                                     ("background", fmt, "background", "background")):
+        if key not in given:
+            continue
+        name = path.rsplit(".", 1)[-1]
+        fields += [f"{path}Color", f"{path}ColorStyle"]  # the legacy colour goes too, or it shows through
+        if clearable and isinstance(raw[key], str) and raw[key].strip().lower() == "none":
+            words.append(f"no {label} colour")
+            continue
+        holder[f"{name}ColorStyle"], shown = _hex(raw[key], key)
+        words.append(f"{label} {shown}")
+    if text:
+        fmt["textFormat"] = text
+    for key, target, allowed in (("align", "horizontalAlignment", {"LEFT", "CENTER", "RIGHT"}),
+                                 ("valign", "verticalAlignment", {"TOP", "MIDDLE", "BOTTOM"})):
+        if key in given:
+            fmt[target] = _choice(raw, key, allowed)
+            fields.append(target)
+            words.append(f"{key} {fmt[target].lower()}")
+    if "wrap" in given:
+        wrap = _choice(raw, "wrap", {"OVERFLOW", "CLIP", "WRAP"})
+        fmt["wrapStrategy"] = "OVERFLOW_CELL" if wrap == "OVERFLOW" else wrap
+        fields.append("wrapStrategy")
+        words.append(f"wrap {wrap.lower()}")
+    if "pattern" in given and "number_format" not in given:
+        raise AccessError("pattern needs number_format")
+    if "number_format" in given:
+        kind = _choice(raw, "number_format", NUMBER_FORMATS)
+        fields.append("numberFormat")
+        if kind == "AUTOMATIC":
+            words.append("number automatic")
+        else:
+            fmt["numberFormat"] = {"type": kind}
+            if "pattern" in given:
+                fmt["numberFormat"]["pattern"] = _str(raw, "pattern")
+            words.append(f"number {kind.lower()}" + (f" {_cell(raw['pattern'], '', 20)}" if "pattern" in given else ""))
+    return fmt, fields, words
+
+
+def _condition(when: str, values: list[str], relative: bool = True) -> dict:
+    """A BooleanCondition. Relative dates exist only for conditional formatting (``relative``)."""
+    out = []
+    for text in values:
+        if when.startswith("DATE_") and text.upper() in RELATIVE_DATES:
+            if not relative:
+                raise AccessError(f"{text} works only in conditional rules; for an input rule use "
+                                  f"CUSTOM_FORMULA, e.g. '=C2>=TODAY()'")
+            out.append({"relativeDate": text.upper()})
+            continue
+        if when in ("CUSTOM_FORMULA", "ONE_OF_RANGE") and not text.startswith("="):
+            text = "=" + text
+        out.append({"userEnteredValue": text})
+    return {"type": when, "values": out} if out else {"type": when}
+
+
+def _condition_words(when: str, values: list[str]) -> str:
+    if when == "BOOLEAN":
+        return "checkbox" + (f" ({_few(values)})" if values else "")
+    if when == "ONE_OF_LIST":
+        return f"dropdown ({_few(values)})"
+    if when == "ONE_OF_RANGE":
+        return f"dropdown from {_few(values)}"
+    return when.lower() + (f" {_few(values)}" if values else "")
+
+
+def _table_columns(raw: dict) -> list[dict]:
+    columns = raw.get("table_columns", [])
+    if not isinstance(columns, list):
+        raise AccessError("table_columns must be an array of {column, type, name, values}")
+    out = []
+    for item in columns:
+        if not isinstance(item, dict) or "column" not in item or set(item) - {"column", "type", "name", "values"}:
+            raise AccessError("each column is {column: 'C', type, name, values}")
+        letters = _str(item, "column")
+        if not re.fullmatch(r"[A-Za-z]{1,3}", letters):
+            raise AccessError(f"column must be a sheet column letter like 'C': {letters!r}")
+        column = {"index": _column_index(letters), "letter": letters.upper()}
+        if "type" in item:
+            column["type"] = _choice(item, "type", COLUMN_TYPES)
+        if "name" in item:
+            column["name"] = _str(item, "name")
+        if "values" in item:
+            if column.get("type") != "DROPDOWN":
+                raise AccessError("column values (dropdown options) need type DROPDOWN")
+            column["values"] = _list(item, "values")
+        if len(column) == 2:
+            raise AccessError(f"column {column['letter']} needs a type or a name")
+        out.append(column)
+    return out
+
+
+def _table_words(op: dict) -> list[str]:
+    words = []
+    for column in op.get("columns", []):
+        kind = column.get("type", "")
+        label = f"dropdown ({_few(column['values'])})" if column.get("values") else kind.lower()
+        name = f" \"{_cell(column['name'], '', 20)}\"" if "name" in column else ""
+        words.append(f"{column['letter']}{name} {label}".rstrip())
+    for key, label in (("header_color", "header"), ("footer_color", "footer")):
+        if key in op:
+            words.append(f"{label} {op[key][1]}")
+    if "band_colors" in op:
+        words.append("bands " + "/".join(shown for _, shown in op["band_colors"]))
+    return words
+
+
+def _layout_ops(args: dict) -> list[dict]:
+    """The validated ops, each with its card line ("say"); the gate and the engine share this."""
+    ops = args.get("ops")
+    if not isinstance(ops, list) or not ops:
+        raise AccessError("ops must be a non-empty array of {op, …}")
+    if len(ops) > LAYOUT_LIMIT:
+        raise AccessError(f"ops holds {len(ops)} changes; send at most {LAYOUT_LIMIT} per call")
+    done = [_layout_op(raw, n) for n, raw in enumerate(ops, 1)]
+    total = sum(len(op.get("areas", ())) for op in done)
+    if total > BATCH_LIMIT:
+        raise AccessError(f"ops name {total} ranges; send at most {BATCH_LIMIT} per call")
+    return done
+
+
+def _layout_op(raw, n: int) -> dict:
+    if not isinstance(raw, dict) or raw.get("op") not in LAYOUT_OPS:
+        raise AccessError(f"ops[{n}]: op must be one of {', '.join(LAYOUT_OPS)}")
+    name = raw["op"]
+    required, optional = LAYOUT_OPS[name]
+    unknown = set(raw) - {"op", *required, *optional}
+    if unknown:
+        raise AccessError(f"ops[{n}] {name}: unknown field(s) {', '.join(sorted(unknown))}; "
+                          f"it takes {', '.join(required + optional)}")
+    if "ranges" in raw and "range" in raw:
+        raise AccessError(f"ops[{n}] {name}: give range or ranges, not both")
+    given = dict(raw, range=raw["ranges"]) if "ranges" in raw else raw
+    missing = [key for key in required if given.get(key) in (None, "", [])]
+    if missing:
+        raise AccessError(f"ops[{n}] {name}: {', '.join(missing)} is required")
+    try:
+        op = _normalize(name, raw)
+        # The card names a tab once ("Sheet: …") when every op is on it, so each line drops it.
+        op["say_here"] = _normalize(name, raw, here=True)["say"]
+        return op
+    except AccessError as exc:
+        raise AccessError(f"ops[{n}] {name}: {exc}") from None
+
+
+def _normalize(name: str, raw: dict, here: bool = False) -> dict:
+    """The validated op; ``here`` words its card line without the tab."""
+    op = {"op": name}
+    where = ""
+    if "range" in raw or "ranges" in raw:
+        texts = raw["ranges"] if "ranges" in raw else [raw["range"]]
+        if not isinstance(texts, list) or not texts or not all(isinstance(t, str) and t.strip() for t in texts):
+            raise AccessError("ranges must be a non-empty array of A1 ranges")
+        if len(texts) > BATCH_LIMIT:
+            raise AccessError(f"ranges holds {len(texts)}; send at most {BATCH_LIMIT}")
+        op["areas"] = []
+        for text in texts:
+            tab, ref = split_range(text.strip())
+            op["areas"].append({"tab": tab, "ref": ref, "grid": _grid_ref(ref)})
+        # Single-range ops (table, insert, move, …) read these from the one area.
+        op["tab"], op["ref"], op["grid"] = (op["areas"][0][k] for k in ("tab", "ref", "grid"))
+        where = _where_all(op["areas"], here)
+    if name in ("freeze", "conditional_delete"):
+        op["tab"] = _str(raw, "sheet", required=False) or None
+    on = "" if here else f" on {_tab_label(op.get('tab'))}"
+    if name in DIMENSION_OPS:
+        for area in op["areas"]:
+            area["dim"] = _dimension(area["grid"], area["ref"])
+        if len({a["tab"] for a in op["areas"]}) > 1 or len({a["dim"][0] for a in op["areas"]}) > 1:
+            raise AccessError("ranges of one op must be all rows or all columns of one tab")
+        if name == "delete":  # bottom-up, so each deletion leaves the next one's position alone
+            op["areas"].sort(key=lambda a: a["dim"][1], reverse=True)
+            for lower, upper in zip(op["areas"], op["areas"][1:]):
+                if upper["dim"][2] > lower["dim"][1]:
+                    raise AccessError(f"ranges {upper['ref']} and {lower['ref']} overlap")
+            op["areas"].reverse()  # shown top-down; built bottom-up in _layout_requests
+        op["dim"] = op["areas"][0]["dim"]
+        dims = [_span(a["dim"]) for a in op["areas"][:RANGES_SHOWN]]
+        more = len(op["areas"]) - RANGES_SHOWN
+        span = ", ".join(dims) + (f" +{more}" if more > 0 else "") + on
+
+    if name == "format":
+        op["reset"] = _flag(raw, "reset") if "reset" in raw else False
+        op["format"], op["fields"], words = _cell_format(raw, _FORMAT, clearable=True)
+        if not op["fields"] and not op["reset"]:
+            raise AccessError("give at least one format field")
+        op["say"] = f"Format {where}: " + ", ".join((["clear formatting"] if op["reset"] else []) + words)
+    elif name == "borders":
+        sides = raw.get("sides", ["all"])
+        sides = [sides] if isinstance(sides, str) else sides
+        if not isinstance(sides, list) or not sides or any(s not in BORDER_SIDES for s in sides):
+            raise AccessError(f"sides are some of {', '.join(BORDER_SIDES)}")
+        op["sides"] = sorted({side for s in sides for side in BORDER_SIDES[s]})
+        op["style"] = _choice(raw, "style", BORDER_STYLES, "SOLID")
+        op["color"] = _hex(raw["color"], "color") if "color" in raw else _hex("#000000", "color")
+        look = "none" if op["style"] == "NONE" else f"{op['style'].lower()} {op['color'][1]}"
+        op["say"] = f"Borders {where}: {', '.join(sides)} {look}"
+    elif name == "size":
+        auto = _flag(raw, "auto") if "auto" in raw else False
+        if ("pixels" in raw) == auto:
+            raise AccessError("give pixels or auto: true")
+        op["pixels"] = None if auto else _whole(raw, "pixels", 2, 2000)
+        label = "Width of" if op["dim"][0] == "COLUMNS" else "Height of"
+        op["say"] = f"{label} {span}: " + ("fit to contents" if auto else f"{op['pixels']}px")
+    elif name == "insert":
+        start = op["dim"][1]
+        op["inherit"] = (_flag(raw, "inherit") if "inherit" in raw else True) and start > 0
+        op["say"] = f"Insert empty {span}"
+    elif name == "delete":
+        op["say"] = f"Delete {span} with their contents"
+    elif name == "move":
+        to = raw["to"]
+        kind = op["dim"][0]
+        text = str(to).strip() if isinstance(to, (str, int)) and not isinstance(to, bool) else ""
+        if kind == "ROWS" and re.fullmatch(r"[1-9]\d*", text):
+            op["to"], target = int(text) - 1, f"row {text}"
+        elif kind == "COLUMNS" and re.fullmatch(r"[A-Za-z]{1,3}", text):
+            op["to"], target = _column_index(text), f"column {text.upper()}"
+        else:
+            raise AccessError("to is the row number (for rows) or column letter (for columns) to move "
+                              "in front of, counted before the move")
+        op["say"] = f"Move {span} in front of {target}"
+    elif name == "merge":
+        mode = _choice(raw, "merge", {"ALL", "ROWS", "COLUMNS"}, "ALL")
+        op["merge"] = f"MERGE_{mode}"
+        how = "" if mode == "ALL" else f" by {mode.lower()}"
+        op["say"] = f"Merge {where}{how} (only each block's top-left value stays)"
+    elif name == "unmerge":
+        op["say"] = f"Unmerge {where}"
+    elif name == "freeze":
+        counts = []
+        for key in ("rows", "columns"):
+            if key in raw:
+                op[key] = _whole(raw, key, 0, 10000)
+                counts.append(f"{op[key]} {key if op[key] != 1 else key[:-1]}")
+        if not counts:
+            raise AccessError("give rows and/or columns (0 unfreezes)")
+        op["say"] = f"Freeze{on}: {', '.join(counts)}"
+    elif name in ("table", "table_update"):
+        if "grid" in op and not {"startRowIndex", "endRowIndex", "startColumnIndex", "endColumnIndex"} <= set(op["grid"]):
+            raise AccessError("a table range is a closed block with its header row, like 'Sheet1!A1:E20'")
+        if name == "table_update":
+            op["table"] = _str(raw, "table")
+        if "name" in raw:
+            op["name"] = _str(raw, "name")
+        op["columns"] = _table_columns(raw)
+        if name == "table":
+            first, end = op["grid"]["startColumnIndex"], op["grid"]["endColumnIndex"]
+            outside = [c["letter"] for c in op["columns"] if not first <= c["index"] < end]
+            if outside:
+                raise AccessError(f"column {', '.join(outside)} is outside the table range")
+        for key in ("header_color", "footer_color"):
+            if key in raw:
+                op[key] = _hex(raw[key], key)
+        if "band_colors" in raw:
+            bands = raw["band_colors"]
+            if not isinstance(bands, list) or not 1 <= len(bands) <= 2:
+                raise AccessError("band_colors is one or two colours")
+            op["band_colors"] = [_hex(c, "band_colors") for c in bands]
+        words = _table_words(op)
+        if name == "table":
+            title = f" \"{_cell(op['name'], '', TAB_CLIP)}\"" if "name" in op else ""
+            op["say"] = f"Make table{title} on {where}" + (f": {', '.join(words)}" if words else "")
+        else:
+            if "grid" in op:  # a range without a tab stays on the table's own tab
+                words.insert(0, f"range {where}" if op["tab"] is not None else f"range {op['ref']} on its tab")
+            if "name" in op:
+                words.insert(0, f"rename to \"{_cell(op['name'], '', TAB_CLIP)}\"")
+            if not words:
+                raise AccessError("give range, name, columns or colours to change")
+            op["say"] = f"Change table \"{_cell(op['table'], '', TAB_CLIP)}\": {', '.join(words)}"
+    elif name == "table_delete":
+        op["table"] = _str(raw, "table")
+        op["say"] = f"Delete table \"{_cell(op['table'], '', TAB_CLIP)}\" with its contents"
+    elif name == "conditional":
+        if "scale" in raw:
+            if set(raw) & {"when", "values", *_STYLE}:
+                raise AccessError("scale (a colour scale) takes no when, values or style")
+            scale = raw["scale"]
+            if not isinstance(scale, list) or not 2 <= len(scale) <= 3:
+                raise AccessError("scale is two or three colours, lowest value first")
+            op["scale"] = [_hex(c, "scale") for c in scale]
+            op["say"] = f"Colour scale on {where}: " + " > ".join(shown for _, shown in op["scale"])
+        else:
+            if "when" not in raw:
+                raise AccessError("give when (a condition) with a style, or scale")
+            op["when"] = _choice(raw, "when", CONDITIONS)
+            op["values"] = _list(raw, "values")
+            op["format"], _, words = _cell_format(raw, _STYLE, clearable=False)
+            if not words:
+                raise AccessError("give the style to apply: bold, italic, strikethrough, color, background")
+            op["say"] = f"Highlight {where} when {_condition_words(op['when'], op['values'])}: {', '.join(words)}"
+    elif name == "conditional_delete":
+        op["index"] = _whole(raw, "index", 0, 10000)
+        op["say"] = f"Delete conditional rule #{op['index']}{on}"
+    elif name == "validate":
+        op["when"] = _choice(raw, "when", CONDITIONS)
+        op["values"] = _list(raw, "values")
+        op["strict"] = _flag(raw, "strict") if "strict" in raw else True
+        lists = op["when"] in ("ONE_OF_LIST", "ONE_OF_RANGE")
+        op["dropdown"] = (_flag(raw, "dropdown") if "dropdown" in raw else True) and lists
+        op["help"] = _str(raw, "help", required=False)
+        _condition(op["when"], op["values"], relative=False)  # refuses relative dates before asking
+        if lists and not op["values"]:
+            raise AccessError("a dropdown needs values (the options, or one range for ONE_OF_RANGE)")
+        mode = "reject other input" if op["strict"] else "warn on other input"
+        op["say"] = f"Input rule on {where}: {_condition_words(op['when'], op['values'])}, {mode}"
+    elif name == "validate_clear":
+        op["say"] = f"Remove input rules on {where}"
+    return op
+
+
+def _layout_requests(ops: list[dict], meta: dict, header=None) -> list[dict]:
+    """batchUpdate requests for validated ops, resolving tab names to sheetIds and table names or
+    ids to tables. A bare word is a tab (named ranges are not resolved). ``header(grid)`` reads a
+    table range's first row, for the names of columns new to a table."""
+    ids, tables, first = {}, {}, None
+    for sheet in meta.get("sheets", []):
+        props = sheet.get("properties", {})
+        sheet_id = props.get("sheetId", 0)
+        ids[props.get("title")] = sheet_id
+        first = sheet_id if first is None else first
+        for table in sheet.get("tables", []) or []:
+            tables[table.get("tableId")] = dict(table, sheetId=sheet_id)
+
+    def sheet_of(tab):
+        if tab is None:
+            if first is None:
+                raise AccessError("the spreadsheet has no tabs")
+            return first
+        if tab not in ids:
+            raise AccessError(f"no tab named {tab!r} (layout takes 'Tab!A1:B2'; named ranges are not "
+                              f"resolved). Tabs: {_few(list(ids))}")
+        return ids[tab]
+
+    def grid(op):
+        return {"sheetId": sheet_of(op["tab"]), **op["grid"]}
+
+    def dim(op):
+        kind, start, end = op["dim"]
+        return {"sheetId": sheet_of(op["tab"]), "dimension": kind, "startIndex": start, "endIndex": end}
+
+    def table_of(key):
+        if key in tables:
+            return tables[key]
+        found = [t for t in tables.values() if t.get("name") == key] or [
+            t for t in tables.values() if (t.get("name") or "").casefold() == key.casefold()]
+        if len(found) != 1:
+            names = [t.get("name") for t in tables.values()]
+            raise AccessError(f"no single table named {key!r}. Tables: {_few(names) if names else 'none'}")
+        return found[0]
+
+    def columns(op, rng, existing=(), old_first=None):
+        """Column properties relative to the table range ``rng``: the existing ones (relative to
+        ``old_first``) re-based and trimmed to the range, then the op's changes on top. A column
+        new to the table keeps its header cell's text as its name: Sheets would otherwise
+        overwrite that cell with a default name ("Column 1")."""
+        first_column, end = rng.get("startColumnIndex", 0), rng.get("endColumnIndex")
+        width = None if end is None else end - first_column
+        shift = 0 if old_first is None else old_first - first_column
+        props = {}
+        for prop in existing:
+            index = prop.get("columnIndex", 0) + shift
+            if index >= 0 and (width is None or index < width):
+                props[index] = dict(prop, columnIndex=index)
+        head = None
+        for column in op.get("columns", []):
+            index = column["index"] - first_column
+            if index not in props and "name" not in column:
+                if head is None:
+                    head = header(rng) if header else []
+                if index < len(head) and str(head[index]).strip():
+                    props[index] = {"columnIndex": index, "columnName": str(head[index]).strip()}
+            prop = props.setdefault(index, {"columnIndex": index})
+            if "type" in column:
+                prop["columnType"] = column["type"]
+                if column["type"] != "DROPDOWN":
+                    prop.pop("dataValidationRule", None)
+            if "name" in column:
+                prop["columnName"] = column["name"]
+            if "values" in column:
+                prop["dataValidationRule"] = {"condition": _condition("ONE_OF_LIST", column["values"])}
+        return [props[i] for i in sorted(props)]
+
+    def rows_props(op):
+        props = {}
+        for key, field in (("header_color", "headerColorStyle"), ("footer_color", "footerColorStyle")):
+            if key in op:
+                props[field] = op[key][0]
+        for field, band in zip(("firstBandColorStyle", "secondBandColorStyle"), op.get("band_colors", [])):
+            props[field] = band[0]
+        return props
+
+    def parts():
+        """Each op once per range; a conditional rule stays one rule over all its ranges, and
+        deletions run bottom-up so earlier ones never shift later ones."""
+        for whole in ops:
+            if whole["op"] not in MULTI_RANGE_OPS or whole["op"] == "conditional":
+                yield whole
+                continue
+            areas = whole["areas"][::-1] if whole["op"] == "delete" else whole["areas"]
+            for area in areas:
+                yield dict(whole, **area)
+
+    names = {t.get("name") for t in tables.values()}
+    requests = []
+    for op in parts():
+        name = op["op"]
+        if name == "format":
+            if op["reset"]:
+                requests.append({"repeatCell": {"range": grid(op), "cell": {}, "fields": "userEnteredFormat"}})
+            if op["fields"]:
+                requests.append({"repeatCell": {
+                    "range": grid(op), "cell": {"userEnteredFormat": op["format"]},
+                    "fields": ",".join(f"userEnteredFormat.{f}" for f in op["fields"])}})
+        elif name == "borders":
+            border = {"style": op["style"]} if op["style"] == "NONE" else {
+                "style": op["style"], "colorStyle": op["color"][0]}
+            requests.append({"updateBorders": {"range": grid(op), **{side: border for side in op["sides"]}}})
+        elif name == "size":
+            if op["pixels"] is None:
+                requests.append({"autoResizeDimensions": {"dimensions": dim(op)}})
+            else:
+                requests.append({"updateDimensionProperties": {
+                    "range": dim(op), "properties": {"pixelSize": op["pixels"]}, "fields": "pixelSize"}})
+        elif name == "insert":
+            requests.append({"insertDimension": {"range": dim(op), "inheritFromBefore": op["inherit"]}})
+        elif name == "delete":
+            requests.append({"deleteDimension": {"range": dim(op)}})
+        elif name == "move":
+            requests.append({"moveDimension": {"source": dim(op), "destinationIndex": op["to"]}})
+        elif name == "merge":
+            requests.append({"mergeCells": {"range": grid(op), "mergeType": op["merge"]}})
+        elif name == "unmerge":
+            requests.append({"unmergeCells": {"range": grid(op)}})
+        elif name == "freeze":
+            counts = {f"frozen{key.title()[:-1]}Count": op[key] for key in ("rows", "columns") if key in op}
+            requests.append({"updateSheetProperties": {
+                "properties": {"sheetId": sheet_of(op["tab"]), "gridProperties": counts},
+                "fields": ",".join(f"gridProperties.{key}" for key in counts)}})
+        elif name == "table":
+            title = op.get("name")
+            if title is None:
+                number = len(names) + 1
+                while f"Table{number}" in names:
+                    number += 1
+                title = f"Table{number}"
+            names.add(title)
+            table = {"name": title, "range": grid(op)}
+            props = columns(op, table["range"])
+            if props:
+                table["columnProperties"] = props
+            if rows_props(op):
+                table["rowsProperties"] = rows_props(op)
+            requests.append({"addTable": {"table": table}})
+        elif name == "table_update":
+            # ``current`` is updated as requests are built, so a later op on the same table in this
+            # batch starts from this one's result instead of resending (undoing) the old state.
+            current = table_of(op["table"])
+            table, fields = {"tableId": current["tableId"]}, []
+            old = current.get("range", {})
+            rng = old
+            if "grid" in op:
+                # A range without a tab stays on the table's own tab.
+                rng = table["range"] = {"sheetId": current["sheetId"] if op["tab"] is None else sheet_of(op["tab"]),
+                                        **op["grid"]}
+                fields.append("range")
+            if "name" in op:
+                names.discard(current.get("name"))
+                names.add(op["name"])
+                current["name"] = table["name"] = op["name"]
+                fields.append("name")
+            start, end = rng.get("startColumnIndex", 0), rng.get("endColumnIndex")
+            outside = [c["letter"] for c in op["columns"] if c["index"] < start or (end is not None and c["index"] >= end)]
+            if outside:
+                raise AccessError(f"column {', '.join(outside)} is outside table {op['table']!r}")
+            props = columns(op, rng, current.get("columnProperties", []), old.get("startColumnIndex", 0))
+            if op["columns"]:
+                table["columnProperties"] = props
+                fields.append("columnProperties")
+            current["range"], current["columnProperties"] = rng, props
+            current["sheetId"] = rng.get("sheetId", current["sheetId"])
+            for field, value in rows_props(op).items():
+                table.setdefault("rowsProperties", {})[field] = value
+                fields.append(f"rowsProperties.{field}")
+            requests.append({"updateTable": {"table": table, "fields": ",".join(fields)}})
+        elif name == "table_delete":
+            gone = table_of(op["table"])
+            tables.pop(gone["tableId"], None)
+            names.discard(gone.get("name"))
+            requests.append({"deleteTable": {"tableId": gone["tableId"]}})
+        elif name == "conditional":
+            if "scale" in op:
+                points = [{"colorStyle": c, "type": "MIN"} for c, _ in op["scale"][:1]]
+                if len(op["scale"]) == 3:
+                    points.append({"colorStyle": op["scale"][1][0], "type": "PERCENTILE", "value": "50"})
+                points.append({"colorStyle": op["scale"][-1][0], "type": "MAX"})
+                gradient = dict(zip(("minpoint", "midpoint", "maxpoint") if len(points) == 3
+                                    else ("minpoint", "maxpoint"), points))
+                rule = {"ranges": [grid(a) for a in op["areas"]], "gradientRule": gradient}
+            else:
+                rule = {"ranges": [grid(a) for a in op["areas"]], "booleanRule": {
+                    "condition": _condition(op["when"], op["values"]), "format": op["format"]}}
+            requests.append({"addConditionalFormatRule": {"rule": rule, "index": 0}})
+        elif name == "conditional_delete":
+            requests.append({"deleteConditionalFormatRule": {"sheetId": sheet_of(op["tab"]), "index": op["index"]}})
+        elif name == "validate":
+            rule = {"condition": _condition(op["when"], op["values"], relative=False), "strict": op["strict"],
+                    "showCustomUi": op["dropdown"]}
+            if op["help"]:
+                rule["inputMessage"] = op["help"]
+            requests.append({"setDataValidation": {"range": grid(op), "rule": rule}})
+        elif name == "validate_clear":
+            requests.append({"setDataValidation": {"range": grid(op)}})
+    return requests
+
+
+def _layout_destructive(args: dict) -> bool:
+    return any(op["op"] in LAYOUT_DESTRUCTIVE for op in _layout_ops(args))
 
 
 # --- Gmail ----------------------------------------------------------------------------------------
@@ -833,6 +1637,7 @@ def _rule_key(tool: str, args: dict) -> str:
 # --- Sheets approval cards ------------------------------------------------------------------------
 
 MORE = "(+{n} more cells)"
+LAYOUT_MORE = "(+{n} more changes)"
 EMPTY = "(empty)"
 _CONTEXT: dict[str, tuple[float, str | None, dict]] = {}
 _CONTEXT_LOCK = threading.Lock()
@@ -999,6 +1804,23 @@ def _sheets_card(home, action: str, args: dict) -> str:
             head.append(f"Sheets: {_tabs_summary(names)}")
         return _fit(head, [], MORE)
     sid = _sheet_id(args)
+    if action == "layout":
+        ops = _layout_ops(args)
+        title, _, names = _sheet_context(home, sid, set())
+        # Ops on a table by name have no tab of their own; neither does a table range without one.
+        tabs = set()
+        for op in ops:
+            if op["op"].startswith("table_") and op.get("tab") is None:
+                tabs.add(...)
+            else:
+                tabs.update([a["tab"] for a in op["areas"]] if "areas" in op else [op.get("tab", ...)])
+        tab = next(iter(tabs)) if len(tabs) == 1 else ...
+        head = [f"SpreadSheet: {_cell(title, '', TITLE_CLIP) or sid}"]
+        if tab is not ...:
+            head.append(f"Sheet: {_tabs_summary([tab], names)}")
+        head += [*_check_lines(_expect(args, action), tab), ""]
+        say = "say" if tab is ... else "say_here"
+        return _fit(head, [_cell(op[say], "", SAY_CLIP) for op in ops], LAYOUT_MORE)
     if action in ("add_sheet", "clear"):
         title, _, _ = _sheet_context(home, sid, set())
         head = [f"SpreadSheet: {_cell(title, '', TITLE_CLIP) or sid}"]
@@ -1068,7 +1890,7 @@ def approval_request(tool: str, args: dict, home=None) -> tuple[str, str] | None
         if action not in SHEETS_WRITES:
             return None
         reason = _sheets_card(home, action, args)
-        if action in SHEETS_EDITS:
+        if action in SHEETS_EDITS and not (action == "layout" and _layout_destructive(args)):
             return reason, f"google-access:sheets-edit:{_sheet_id(args)}"
         return reason, _rule_key(tool, args)
     if tool == "google_gmail":
