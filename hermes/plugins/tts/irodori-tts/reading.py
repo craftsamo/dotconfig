@@ -184,7 +184,11 @@ def undo_cleaner_english(text: str) -> str:
     text = re.sub(rf"(?<=[0-9]) to (?={_NUM})", "から", text)
     text = re.sub(rf"(?<={_JA_OR_DIGIT}) to (?={_JA_OR_DIGIT})", "、", text)
     text = re.sub(rf"(?<={_JA_CHAR}) and |(?<=\S) and (?={_JA_CHAR})", "アンド", text)
-    # Line breaks became ". ", headings ", " and table pipes "; ".
+    # Line breaks became ". ", headings ", " and table pipes "; ". The cleaner
+    # only knows ASCII stops, so a line already ending in ？！。… gets one more
+    # (晴れますか？. 傘は), and the model reads the extra stop as a second,
+    # falling sentence end right after the question. Drop it.
+    text = re.sub(r"(?<=[。！？!?…])\.(?:\s+|$)", "", text)
     text = re.sub(rf"(?<=[{_JA}）」』】])\.(?:\s+|$)", "。", text)
     text = re.sub(rf"(?<=[{_JA}）」』】])[,;]\s+", "、", text)
     return text
