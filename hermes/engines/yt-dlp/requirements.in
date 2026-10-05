@@ -1,0 +1,5 @@
+# youtube-access engine (plugins/youtube-access/bridge.py). The default extra brings yt-dlp-ejs,
+# the YouTube challenge solver run by Deno (Brewfile). Recompile the hashed lock after a bump:
+#   uv pip compile requirements.in --python ../../local/yt-dlp/venv/bin/python \
+#     --generate-hashes --no-annotate -o requirements.lock
+yt-dlp[default]==2026.8.19

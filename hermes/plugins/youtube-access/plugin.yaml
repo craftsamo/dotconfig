@@ -1,0 +1,4 @@
+name: youtube-access
+version: 1.0.0
+description: The user's YouTube channels for the Assistant (read and approved writes) and Marketer (read) — Data and Analytics APIs with Keychain-held tokens, plus yt-dlp transcripts and downloads of public videos.
+kind: standalone
