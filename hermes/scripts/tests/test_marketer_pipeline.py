@@ -106,8 +106,8 @@ def test_five_roots_and_four_entries_returned(candidate):
         assert entries[name] == candidate / name / "SKILL.md"
 
 
-def test_sixteen_reference_files_all_present(candidate):
-    assert len(VALIDATOR.MARKETER_REFERENCE_FILES) == 16
+def test_seventeen_reference_files_all_present(candidate):
+    assert len(VALIDATOR.MARKETER_REFERENCE_FILES) == 17
     for relative in VALIDATOR.MARKETER_REFERENCE_FILES:
         assert (candidate / relative).is_file(), relative
     assert errors(candidate) == []

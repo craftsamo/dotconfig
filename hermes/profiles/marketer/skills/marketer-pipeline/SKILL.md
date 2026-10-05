@@ -89,6 +89,8 @@ does not authorize navigation or waive the browser lease.
 For a named service, read its one shared reference:
 [X](references/platforms/x.md), [Substack](references/platforms/substack.md),
 [note](references/platforms/note.md), [Zenn](references/platforms/zenn.md).
+X content review, X result analysis and X conversation discovery also read
+[X ranking](references/x-ranking.md); it is knowledge, not a procedure.
 Use [state](references/state.md) for durable records, approvals and resumes.
 
 </Modes>

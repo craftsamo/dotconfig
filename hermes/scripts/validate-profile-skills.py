@@ -1264,7 +1264,7 @@ MARKETER_ENTRY_REFERENCES = {
 }
 MARKETER_SHARED_REFERENCES = {
     "platforms/x.md", "platforms/substack.md", "platforms/note.md",
-    "platforms/zenn.md", "state.md",
+    "platforms/zenn.md", "state.md", "x-ranking.md",
 }
 MARKETER_REFERENCE_FILES = {
     f"references/{name}" for name in MARKETER_SHARED_REFERENCES

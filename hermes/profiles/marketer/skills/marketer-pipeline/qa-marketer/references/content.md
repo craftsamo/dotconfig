@@ -25,7 +25,9 @@ Before remote-save approval, inspect the complete intended draft package:
    Read [platforms](../../plan-marketer/references/channels.md); writer support is not editor support.
 2. Expression/purpose: shared writing acceptance plus actual fit to this message
    and the client's voice. Do not impose a new prohibition list, universal CTA,
-   personal anecdote, paragraph length or conclusion-first template.
+   personal anecdote, paragraph length or conclusion-first template. For X,
+   add the advisory lenses of [X ranking](../../references/x-ranking.md) as
+   findings for Writer; they never block acceptance on their own.
 3. Factual: trace commercial claims, numbers, quotes, comparisons and conditions
    to [state's evidence](../../references/state.md). A bounded proofreading pass did not verify
    every claim; saving the full package needs its relevant evidence accounted for.
