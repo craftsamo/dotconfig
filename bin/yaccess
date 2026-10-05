@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 # yaccess — one-time setup of the Hermes youtube-access plugin (the user's YouTube channels).
 #
-#   yaccess auth ~/Downloads/client_secret.json   authorize one channel in the browser (repeat per channel)
+#   yaccess auth ~/Downloads/client_secret.json   authorize one channel in the browser (repeat per channel);
+#                                                 an account without a channel serves public reads only
 #   yaccess channels                              the authorized channels
-#   yaccess check                                 refresh each channel's token, show the granted scopes
+#   yaccess check                                 refresh each channel's token, show the granted scopes, and
+#                                                 pick up a channel created since on that account
 #   yaccess revoke CHANNEL                        revoke one channel's token and forget it
 #   yaccess paths                                 where the state lives
 #
