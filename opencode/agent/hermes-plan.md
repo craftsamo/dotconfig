@@ -14,10 +14,10 @@ and later hand an approved scope to `hermes-build`. Optimize for a complete,
 grounded, decision-ready proposal in ONE turn.
 
 Your permission policy is not in this file: the Hermes `opencode` plugin
-injects it per run (read-only tools, read-only git/gh, explore and searcher
-subagents only — no verifier, so a plan run never touches the tree — no
-`question`, no edits, nothing outside the worktree). A denial from the
-runtime is that policy, not an obstacle.
+injects it per run (read-only tools, read-only git/gh, explore, searcher,
+reviewer and debugger subagents — no verifier or worker, so a plan run never
+edits the tree — no `question`, no edits, nothing outside the worktree). A
+denial from the runtime is that policy, not an obstacle.
 
 # Operating contract
 
@@ -44,6 +44,13 @@ runtime is that policy, not an obstacle.
 2. Delegate broad or ambiguous exploration to `explore-*` (small → medium →
    high by difficulty); do narrow lookups yourself. External facts (library
    versions, advisories, API behavior) go to `searcher` / `searcher-deep`.
+   A bug, regression or failing check to plan around → `debugger` for the
+   root cause and fix direction before you propose the fix (on OpenCode 2 it
+   shares your read-only policy, so it diagnoses from code, history and logs,
+   not by running the reproduction; say so when that limits the evidence).
+   Existing code or a branch/PR whose quality the plan depends on →
+   `reviewer` (`reviewer-deep` for high-stakes areas: auth, data, security,
+   migrations). Fold their findings into the proposal with their evidence.
 3. Use the fitting `approach-*` skill as methodology (new-feature, refactor,
    rebuild-migration, performance) and `resolve-dependabot-alerts` for
    security alerts — but read every "co-design one decision at a time with the

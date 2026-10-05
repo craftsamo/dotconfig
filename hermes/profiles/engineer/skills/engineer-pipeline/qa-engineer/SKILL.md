@@ -47,10 +47,11 @@ without creating a fix or a PR.
    unrelated edits, unapproved dependencies, protected text changes or scope creep.
 2. Tests: read relevant tests and actual outcomes, not just a suite total. Check
    that assertions express the requirement and were not weakened to match a bug.
-   For sensitive changes request an independent OpenCode review/debug run with
-   the requirement and current diff, not the implementation conversation's claims.
-   A review run settles high-risk areas in depth only when the message asks
-   ("deep review <area>"); otherwise it lists them under Notes for you to decide.
+   For sensitive changes request an independent read-only OpenCode run — review
+   (or debug) on OpenCode 1, a fresh plan conversation on OpenCode 2, which calls
+   reviewer/debugger itself — with the requirement and current diff, not the
+   implementation conversation's claims. Ask for depth on high-risk areas
+   ("deep review <area>"); otherwise they may come back as Notes for you to decide.
 3. Runtime: exercise the important behavior safely. CLI/API checks use real entry
    points against permitted test inputs. UI checks use Engineer's browser with
    explicit URL, worktree/build identity, target viewports and screenshot evidence.

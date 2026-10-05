@@ -41,17 +41,20 @@ global instructions or whole Skill bodies.
   between plan and build themselves, and answer with fixed report headings.
   Plan returns Client decisions as `Q<n>:` lines with a recommended default
   already taken; answer them with `DECISION(Q<n>): …` on the same
-  conversation. Build delegates every check to a verifier subagent and runs
-  a reviewer pass ONLY when the message asks for one ("run a review pass" /
-  "deep review <area>"); Review likewise runs reviewer-deep only on request.
-  Say so in the message when the increment warrants it; otherwise it is
-  skipped on purpose. debug is the ordinary primary.
+  conversation. Build delegates every check to a verifier subagent. Plan and
+  build call reviewer and debugger subagents on their own judgment, as the
+  human agents do: build runs debugger on a failure whose cause is not
+  obvious and a reviewer pass before committing a non-trivial change
+  (reviewer-deep for high-stakes areas); plan consults them for a root cause
+  or for code its proposal depends on. No special wording is needed; write
+  "deep review <area>" to force depth or "no review" for a mechanical change.
+  Review (on OpenCode 1) runs reviewer-deep only on request. debug is the
+  ordinary primary.
 - On OpenCode 2 only plan and build exist; review and debug are refused
   before launch (subagents inherit their parent's policy, so a read-only
-  primary could not run a single check). Ask build instead, on the same
-  conversation or a fresh one with the approval quoted: "run a review pass"
-  / "deep review <area>" for review, "diagnose <symptom> with the debugger
-  subagent, do not fix" for debug. Build's report carries the findings.
+  primary could not run a single check). An independent read-only look is a
+  fresh plan conversation; plan's debugger shares its read-only policy and
+  cannot run the reproduction.
 - Models normally follow OpenCode's configured agent defaults (plan and
   review on Opus 5.5, build on GPT-6.1 Sol, independent of the model this
   profile runs on, so your challenge and QA stay cross-family). Maintainer

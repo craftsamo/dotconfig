@@ -61,10 +61,10 @@ continuation. Read [Web UI](references/web-ui.md) for UI implementation handoffs
    increment that fits the turn budget; OpenCode owns detailed
    coding/subagent choreography. The call blocks until the run ends: do not
    poll it. No rigid one-call-per-phase requirement or duplicate
-   approach-skill content. OpenCode never reviews its own increment unless
-   asked: for a risky increment (auth, data shape, concurrency, public API)
-   write "run a review pass" or "deep review <area>" into the message; a
-   small mechanical change needs none. Pass a Client-requested model/variant
+   approach-skill content. OpenCode runs a reviewer pass itself before
+   committing a non-trivial increment and debugger on unclear failures; for a
+   risky increment (auth, data shape, concurrency, public API) write "deep
+   review <area>" to force depth, and "no review" for a small mechanical one. Pass a Client-requested model/variant
    through the call's own arguments when the allowlist permits it; otherwise
    report and ask.
 3. Read progress/results for questions, blocked actions and assumptions. Answer

@@ -97,15 +97,16 @@ READ_ONLY_BASH = (
     "gh issue view*", "gh issue list*", "gh pr view*", "gh pr diff*", "gh pr checks*",
     "gh pr status*", "gh pr list*", "gh repo view*",
 )
-# Subagents per Hermes role. Plan only explores and researches; review fans
-# out to reviewer* and verifier; debug isolates through debugger and verifies.
+# Subagents per Hermes role, as the human plan/build use them under the global
+# rules: plan explores, researches, and may consult reviewer* and debugger
+# (both edit-denied in their own frontmatter); build adds verifier and worker.
 # verifier is not read-only in effect (it may apply a formatter), so plan
-# does not get it: a plan run leaves the tree exactly as it found it.
+# does not get it and never edits the tree.
 ROLE_TASKS = {
-    "plan": ("explore*", "searcher*"),
+    "plan": ("explore*", "searcher*", "reviewer*", "debugger"),
     "review": ("explore*", "searcher*", "reviewer*", "verifier"),
     "debug": ("explore*", "searcher*", "debugger", "verifier"),
-    "build": ("explore*", "searcher*", "verifier", "worker", "reviewer", "reviewer-deep"),
+    "build": ("explore*", "searcher*", "verifier", "worker", "reviewer*", "debugger"),
 }
 GIT_READ_TOOLS = ("git_provenance", "git_history_digest", "git_related_scan")
 READ_RULES = {"*": "allow", "**/.env": "deny", "**/.env.*": "deny", "**/*.env": "deny",
@@ -153,11 +154,10 @@ def _worker_external_directory():
 # The shell scanner splits compound commands (`;`, `&&`, `|`, `$(…)`) and checks
 # each part, so an allowed prefix cannot carry another command (measured on 2.0.23).
 #
-# Only plan and build run on OpenCode 2. Review and debug are build's subagents
-# there (reviewer*, debugger, verifier), under build's ruleset; a read-only
-# primary whose subagents inherit a read-only policy could not run a single check.
+# Only plan and build run on OpenCode 2; both call reviewer* and debugger
+# themselves. A read-only review/debug primary would pass its read-only policy
+# to its verifier, which then could not run a single check.
 V2_AGENTS = {"plan", "build"}
-V2_TASKS = {"plan": ROLE_TASKS["plan"], "build": ROLE_TASKS["build"] + ("debugger",)}
 SECRET_READS = ("*.env", "*.env.*", "*.envrc", "*.pem", "*.key", "*.npmrc", "*.netrc", "*.ssh/*")
 SAMPLE_READS = ("*.env.example", "*.env.sample")
 READ_ONLY_SHELL = (
@@ -213,7 +213,7 @@ def _rules(role, issue_approval, protected, denies=()):
               + (("execute",) if role == "build" else ())]
     rules.append(_rule("question", "*", "deny"))
     rules += [_rule("external_directory", key, effect) for key, effect in _external_directory().items()]
-    rules += [_rule("subagent", "*", "deny"), *(_rule("subagent", name, "allow") for name in V2_TASKS[role])]
+    rules += [_rule("subagent", "*", "deny"), *(_rule("subagent", name, "allow") for name in ROLE_TASKS[role])]
     if role == "plan":
         rules.append(_rule("edit", "*", "deny"))
         rules += [_rule("shell", pattern, "allow") for pattern in READ_ONLY_SHELL]
@@ -499,8 +499,8 @@ def _run(request_path):
             # before launch, and the probe itself can take seconds.
             major = inventory.opencode_major()
             if major == 2 and data["agent"] not in V2_AGENTS:
-                raise ValueError(f"{data['agent']} is not an OpenCode 2 role: ask build to run its "
-                                 "reviewer/debugger/verifier subagents and report their findings")
+                raise ValueError(f"{data['agent']} is not an OpenCode 2 role: use plan (read-only) or build; "
+                                 "both call their reviewer/debugger subagents themselves")
             if time.time() >= request["deadline"] or stop_path.exists():
                 raise ValueError("Stopped or expired before dispatch")
             data.update(status="running", result="", error="")
@@ -1283,7 +1283,7 @@ def register(ctx):
         }, ["agent", "message"],
          "Drive OpenCode in an owned Git worktree; blocks until the run finishes or pauses with status waiting "
          "on pending permission requests (answer them with opencode_session answer, then wait). On OpenCode 2 "
-         "only plan and build run; ask build for review/diagnosis through its subagents. Build needs "
+         "only plan and build run; both call reviewer/debugger subagents themselves. Build needs "
          "explicit Client implementation approval; Issue writes need separate explicit issue_approval. "
          "Completion is not acceptance; changes lists the files the turn touched. Never retry uncertain work. "
          "If the call returns a timeout error, use opencode_session wait, never a status loop."),

@@ -92,9 +92,12 @@ reminder is keyed on the literal agent name `plan`, so `hermes-plan`'s read-only
 posture is prompt + permission, not plan mode. The primaries replace the
 provider default prompt with a non-interactive contract: no `question` tool, no
 plan→build handoff or PlanHandoff todos, Client decisions returned as `Q<n>:`
-with a default already taken, every check delegated to `verifier`, and
-reviewer / reviewer-deep passes ONLY when the message asks (overriding the
-human-facing "consider a reviewer pass before commits" rule).
+with a default already taken, and every check delegated to `verifier`. Like
+the human plan/build under the global rules, they call `reviewer*` and
+`debugger` on their own judgment: plan for a root cause or for code its
+proposal depends on; build for a failure whose cause is not obvious and for a
+reviewer pass before committing a non-trivial change (`reviewer-deep` for
+high-stakes areas or on request; a message may say no review).
 
 **Models.** Models are pinned per role in the agent frontmatter (plan + review
 Opus 5.5, build GPT-6.1 Sol) so Engineer's own model (Fable 5.1, see
@@ -138,9 +141,9 @@ whole paths and `*` crosses `/`), and `--auto` approves every ask unseen.
 
 - Only plan and build are OpenCode 2 roles; review and debug fail before
   launch. Subagents copy their parent session's ruleset, so a read-only
-  primary's verifier could not run one check; on V2 review and diagnosis are
-  build's subagents (`reviewer*`, `debugger`, `verifier`), asked for in the
-  build message.
+  primary's verifier could not run one check; on V2 plan and build call
+  `reviewer*` and `debugger` themselves (plan's share its read-only ruleset, so
+  its debugger diagnoses without running the reproduction).
 - One private `opencode serve` per job: loopback, a random password, stopped
   when the job ends (about 0.5 GB while a run is active, nothing between runs).
   Never the shared background service: a person's restart, update or config

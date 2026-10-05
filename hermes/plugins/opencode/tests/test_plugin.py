@@ -426,10 +426,10 @@ def test_readonly_roles_share_one_posture_and_list_every_tool_they_need():
 
 
 def test_subagents_are_granted_per_role():
-    """verifier may apply a formatter, reviewer* includes the expensive deep
-    pass and debugger is diagnosis: each read-only role gets only its own."""
+    """Plan consults reviewer*/debugger as the human plan does, but never gets
+    verifier (it may apply a formatter) or worker: a plan run never edits."""
     tasks = {role: plugin._permissions(role, None, {"main"})["task"] for role in ("plan", "review", "debug")}
-    assert set(tasks["plan"]) == {"*", "explore*", "searcher*"}
+    assert set(tasks["plan"]) == {"*", "explore*", "searcher*", "reviewer*", "debugger"}
     assert set(tasks["review"]) == {"*", "explore*", "searcher*", "reviewer*", "verifier"}
     assert set(tasks["debug"]) == {"*", "explore*", "searcher*", "debugger", "verifier"}
 
@@ -446,9 +446,8 @@ def test_build_denies_what_auto_would_otherwise_approve():
         return [v for x in node.values() for v in (values(x) if isinstance(x, dict) else [x])]
     assert "ask" not in values(permission)
     assert permission["task"]["*"] == "deny"
-    for name in ("explore*", "searcher*", "verifier", "worker", "reviewer", "reviewer-deep"):
+    for name in ("explore*", "searcher*", "verifier", "worker", "reviewer*", "debugger"):
         assert permission["task"][name] == "allow", name
-    assert "debugger" not in permission["task"]
     assert permission["read"]["**/.env"] == "deny"
     assert "*" not in permission["bash"], "build keeps the user's own bash rules"
     assert permission["bash"]["git push* main"] == "deny"
@@ -865,6 +864,8 @@ def test_v2_plan_shell_is_read_only(command, effect):
     assert decide(rules("plan"), "edit", "src/app.py") == "deny"
     assert decide(rules("plan"), "execute", "*") == "deny"
     assert decide(rules("plan"), "subagent", "verifier") == "deny"
+    assert decide(rules("plan"), "subagent", "worker") == "deny"
+    assert decide(rules("plan"), "subagent", "reviewer-deep") == decide(rules("plan"), "subagent", "debugger") == "allow"
     assert decide(rules("plan"), "subagent", "explore-small") == "allow"
 
 
