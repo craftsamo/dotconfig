@@ -48,7 +48,7 @@ are reconciled, never silently replayed by migration.
 
 ### OpenCode runtime
 
-`plugins/opencode` owns CLI execution (`opencode_call`, `opencode_session`) and
+`plugins/opencode` owns OpenCode execution (`opencode_call`, `opencode_session`) and
 the private `opencode-sessions/` records (state, prompts, bounded logs — never
 Git). The CLI resolves through PATH, preserving the normal secret shim. Each
 conversation binds its originating Hermes session, Git worktree and branch; there
@@ -111,6 +111,7 @@ an explicit selection binds the rest of that conversation.
 
 **Permissions.** The plugin is the ONLY owner of the primaries' permissions; the
 agent files carry no `permission:` block (a plugin test fails if one reappears).
+The rest of this paragraph is the OpenCode 1 mechanism; OpenCode 2 is below.
 OpenCode deep-merges frontmatter with the injected `OPENCODE_CONFIG_CONTENT`
 (nested maps union, injected value wins per key, last matching rule wins at
 evaluation), so two sources meant neither was the truth. The policy rests on
@@ -129,24 +130,68 @@ re-denying every pattern `worker.md` names (`WORKER_EXTERNAL_KEYS`; a test keeps
 the two in sync).
 
 **OpenCode 1 and 2.** The runner reads `opencode --version` before each launch
-and fails closed on any other major. OpenCode 2 differs in four ways the plugin
-absorbs:
+and fails closed on any other major. OpenCode 1 runs as above (`opencode run`,
+policy in the environment, completion from JSON events). OpenCode 2 runs over
+its HTTP API instead — never `opencode run` — because the V1-shaped injection
+does not hold there: `**/.env` and `**/*.pem` miss root-level files (V2 matches
+whole paths and `*` crosses `/`), and `--auto` approves every ask unseen.
 
-- `run --standalone`: the shared background service was started by someone
-  else and never sees this run's `OPENCODE_CONFIG_CONTENT`; a private server
-  does. `OPENCODE_PERMISSION` is ignored there, so the injected config is the
-  only carrier of the policy (V2 appends it after the agent file's rules, and
-  the last matching rule wins).
-- No `--dir`: the worktree is the child's cwd and `$PWD`.
-- `run --agent` does not apply the agent's model, so the pin is read from the
-  agent frontmatter and passed as `--model provider/model#variant` (no
-  separate `--variant`); with no pin and no configured model the run is refused.
-- The final step emits no `step_finish`, and every error exits non-zero, so
-  completion is a clean exit with an owned session and no error event; the
-  reply is the last assistant message that produced text.
-
-V2 also adds a `shell/` output dir to OpenCode's own scratch dirs, which the
-injected `external_directory` re-allows with the others.
+- Only plan and build are OpenCode 2 roles; review and debug fail before
+  launch. Subagents copy their parent session's ruleset, so a read-only
+  primary's verifier could not run one check; on V2 review and diagnosis are
+  build's subagents (`reviewer*`, `debugger`, `verifier`), asked for in the
+  build message.
+- One private `opencode serve` per job: loopback, a random password, stopped
+  when the job ends (about 0.5 GB while a run is active, nothing between runs).
+  Never the shared background service: a person's restart, update or config
+  reload would land in Hermes' run, and the two would share a process. A
+  watchdog process stops the server if the runner dies without cleaning up
+  (`serve` never exits by itself and would hold the worktree).
+- The server loads agents shortly after it listens; the runner waits for
+  `GET /api/agent/<agent>` at the worktree's location, which also gives the
+  agent's resolved model (an agent's model is not applied to its sessions on
+  2.0.23, so it is passed explicitly) and its resolved ruleset.
+- The policy is the session's own ordered ruleset (`_rules`), set at creation
+  and re-applied with the agent and model on every resume or fork (so plan →
+  build swaps it). It survives on any later server, and every subagent session
+  copies it, so `WORKER_EXTERNAL_KEYS` has no V2 counterpart. Every `deny` the
+  server resolved for the agent (global and project config) is appended last,
+  so a session allow never reopens a person's hard deny (`sudo`, `secret get`,
+  …); `external_directory` denies are skipped, as they would shadow the
+  re-allowed scratch dirs. A resolved ruleset the runner cannot read stops the
+  run before launch rather than dropping those denies. Secrets are `*.env`, `*.env.*`, `*.envrc`, `*.pem`,
+  `*.npmrc`, `*.netrc`, `*.ssh/*`. The shell scanner splits compound commands
+  (`;`, `&&`, `|`, `$(…)`) and checks each part. The runner refuses to prompt
+  unless the server reports back exactly that ruleset, agent and model.
+- Build allows routine edits and commands, asks for history rewrites, pushes,
+  branch moves, `git -C`/`-c` and package installers (`BUILD_ASK_SHELL`; read-only
+  `git -C <dir> status/diff/log/…` stays allowed), and denies force, mirror,
+  delete and protected-branch pushes — also behind `-C`/`-c` — hard resets,
+  forced cleans, merges, Issue writes without the grant and the rest of
+  `BUILD_DENY_SHELL` (last match wins). An ask
+  pauses the run, from the session or any of its subagents (their requests are
+  listed per location only, so the runner reads that list and keeps the
+  requests from its own session tree): the record turns `waiting` with the
+  pending requests, a blocking `opencode_call` returns, and Engineer answers
+  `once` or `reject` through `opencode_session answer`; the runner replies to
+  the requesting session and the run resumes, within its own deadline.
+  `always` is refused: it saves a project-wide approval that people's sessions
+  would inherit. A live (gateway, notify-on-complete) caller cannot answer
+  before the notification, so the runner rejects its requests itself. Saved
+  approvals a person already gave still skip the ask; denies always hold.
+- Completion is `wait` returning plus this turn's own `idle` message (created
+  after the prompt) and its `outcome`: `succeeded` → completed, `failed` →
+  failed, no idle message for the turn, anything else, or a stop → unknown. A
+  session-level outcome would still show the previous turn's result. Any exit
+  short of an idle turn (stop, deadline, lost parent, an API error, a dead
+  server) first `interrupt`s the session, which ends its tool processes, then
+  the server is stopped.
+- The record adds `progress` while running (newest step time, current tool,
+  tokens), and on finish `changes` (files from the turn's diff; the patch is
+  the private `<job>.diff`; null with `changes_error` when the diff could not
+  be read), `denied` (the primary's tool calls the policy refused) and
+  `replies` (permission answers) — reconciliation evidence, not acceptance.
+  The `.events` log holds the turn's assistant messages.
 
 **Plan → Build on the same conversation.** The next `opencode_call` on a plan
 conversation may name `agent="build"` plus `approval`; OpenCode resumes the

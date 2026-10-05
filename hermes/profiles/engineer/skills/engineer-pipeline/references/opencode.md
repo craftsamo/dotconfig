@@ -46,6 +46,12 @@ global instructions or whole Skill bodies.
   "deep review <area>"); Review likewise runs reviewer-deep only on request.
   Say so in the message when the increment warrants it; otherwise it is
   skipped on purpose. debug is the ordinary primary.
+- On OpenCode 2 only plan and build exist; review and debug are refused
+  before launch (subagents inherit their parent's policy, so a read-only
+  primary could not run a single check). Ask build instead, on the same
+  conversation or a fresh one with the approval quoted: "run a review pass"
+  / "deep review <area>" for review, "diagnose <symptom> with the debugger
+  subagent, do not fix" for debug. Build's report carries the findings.
 - Models normally follow OpenCode's configured agent defaults (plan and
   review on Opus 5.5, build on GPT-6.1 Sol, independent of the model this
   profile runs on, so your challenge and QA stay cross-family). Maintainer
@@ -59,14 +65,22 @@ global instructions or whole Skill bodies.
   permission JSON. No automatic fallback or retry after uncertain effects.
   Private logs are not public deliverables.
 
-`opencode_session(action, conversation_id?, evidence?, timeout?)`
+`opencode_session(action, conversation_id?, evidence?, timeout?, permission_id?, decision?, message?)`
 
 - status reads one owned conversation; list returns this originating session's
   conversations. It is not a cross-session discovery or ownership-transfer API.
-- wait blocks until the run leaves accepted/running (bounded by timeout,
-  opencode_cli.wait_timeout and the turn deadline) and returns the record with
-  waited_seconds and timed_out. It spends no model turns; a timed_out reply
-  means wait again, inspect, or stop, never a status/sleep loop.
+  On OpenCode 2 a running record carries progress (last_activity, the current
+  tool, tokens): use it to tell a long step from a stalled one before stopping.
+- wait blocks until the run finishes or pauses on a permission request (bounded
+  by timeout, opencode_cli.wait_timeout and the turn deadline) and returns the
+  record with waited_seconds and timed_out. It spends no model turns; a
+  timed_out reply means wait again, inspect, or stop, never a status/sleep loop.
+- answer (OpenCode 2) decides one entry of a `waiting` record's pending list:
+  decision once or reject, optional message shown to OpenCode as the reason or
+  instruction. There is no "always". Approve only what the approved scope
+  covers; a push, history rewrite or install outside it is the Client's call,
+  so reject with the reason (or ask the Client first if the run can wait).
+  Then wait.
 - stop records a stop request for the live runner. The reply does not prove the
   process stopped. Inspect status afterward. Stopping never rolls back Git,
   application data, provider requests, pushes or PRs already created.
@@ -93,7 +107,14 @@ accepted/running mean execution is outstanding. Live messaging uses Hermes'
 completion notification. In a CLI/resident session opencode_call BLOCKS until
 the run finishes (the Engineer tool deadline is set above opencode_cli.timeout
 for this); a resident CLI has no completion wakeup, so blocking is the cheap
-path. Never poll: no status/terminal/sleep loops, no ps checks while a call is
+path. On OpenCode 2 it also returns early with status `waiting` when a build
+or one of its subagents (`from: subagent`) hits a command a person would be
+asked about (push, rebase, reset, checkout, merge, amend, `git -C`/`-c` other
+than read-only git, package installers): answer every pending entry, then wait. The run's own deadline
+keeps running while it waits. A live (messaging) call has no turn to answer
+in, so those requests are rejected for it automatically.
+
+Never poll: no status/terminal/sleep loops, no ps checks while a call is
 outstanding. If a call does return a tool-timeout error, issue ONE
 opencode_session wait for the conversation and read its result. Unknown
 results hold the worktree until inspection and reconciliation, even when
@@ -117,10 +138,16 @@ A `Warning: Unknown toolsets: opencode, specialist` line at the start of a
 resident turn is a plugin-discovery-order artifact, not a missing capability:
 the tools load right after it. Do not report it or work around it.
 
-completed means the CLI ended with a matching JSON stop event, not that the task
+completed means OpenCode reported the turn finished (OpenCode 1: a matching JSON
+stop event; OpenCode 2: this turn's own idle outcome `succeeded`), not that the task
 passed. Read result for open questions, assumptions and unverified claims. A
 question can arrive in an otherwise completed run. Engineer answers in-scope
 technical questions and relays material Client decisions, then continues.
+On OpenCode 2 the record also lists changes (files this turn touched, with the
+patch in the private `.diff` beside the log; null with changes_error when it
+could not be read — then Git is the only evidence), denied (tool calls the
+policy refused) and replies (permission answers): use them as QA and
+reconciliation evidence, then confirm against Git — they are not acceptance.
 
 failed can still have partial changes. unknown includes interrupted, malformed
 or unconfirmed completion. Neither permits blind replay. An error event is an
@@ -128,7 +155,8 @@ error even when the CLI exits zero. Use the private log only for necessary
 diagnosis; never paste credentials, tool inputs or raw private traces into PRs.
 
 The wrapper applies read-only policies to plan/review/debug and grants build's
-permitted branch/PR surface. It rejects default-branch builds and denies Issue
+permitted branch/PR surface. On OpenCode 2 a person's own hard denies (sudo,
+secret reads, …) hold for build too. It rejects default-branch builds and denies Issue
 writes without the separate grant. Command rules are defence in depth, not an
 arbitrary-shell/website sandbox. Preserve narrower Client restrictions in the
 prompt and verify actual effects; if a restriction cannot be safely honored,

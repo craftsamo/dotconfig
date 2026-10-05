@@ -234,11 +234,17 @@ When editing `plugins/opencode` or `~/.config/opencode/agent/hermes-*.md`:
 - **The plugin is the only owner of the hidden primaries' permissions.** The
   agent files carry no `permission:` block (a plugin test fails if one
   reappears) — OpenCode deep-merges both, so two owners means neither is the
-  truth. On `opencode run`, `ask` is never a question (rejected without
-  `--auto`, approved with it); write `allow` or `deny`.
-- **OpenCode 2 runs stay `--standalone`.** The shared background service never
-  sees the run's `OPENCODE_CONFIG_CONTENT`, so attaching to it silently drops
-  the whole permission policy (V2 ignores `OPENCODE_PERMISSION`). Details:
+  truth. On OpenCode 1's `opencode run`, `ask` is never a question (rejected
+  without `--auto`, approved with it); write `allow` or `deny` in `_permissions`.
+- **OpenCode 2 runs go over a private API server, never `opencode run` or the
+  shared service.** The V1-shaped injection misses root-level `.env`/`.pem` on
+  V2 and `--auto` approves asks unseen; the session ruleset (`_rules`) is the
+  policy, and subagents inherit it — which is why only plan and build are V2
+  roles. Keep the resolved global/project denies appended last (a session
+  allow would otherwise reopen `sudo`, `secret get`, …). For a blocking caller
+  an `ask` is a real pause that Engineer answers (live callers are
+  auto-rejected), so add one only for a command Engineer can judge, and never
+  answer `always` (a saved approval reaches people's own sessions). Details:
   [docs/profiles/engineer.md "OpenCode 1 and 2"](docs/profiles/engineer.md).
 - Role → agent mapping lives only in `OPENCODE_AGENTS`; renaming an installed
   agent touches that map and nothing else.

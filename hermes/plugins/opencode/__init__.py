@@ -1,4 +1,5 @@
-"""OpenCode CLI transport, not a planner, approval authority, or process sandbox."""
+"""OpenCode transport (`opencode run` on 1, a private API server on 2), not a planner,
+approval authority, or process sandbox."""
 
 from __future__ import annotations
 
@@ -14,7 +15,11 @@ import shlex
 import signal
 import subprocess
 import sys
+import threading
 import time
+import urllib.error
+import urllib.parse
+import urllib.request
 import uuid
 
 import hermes_yaml as yaml
@@ -52,10 +57,22 @@ OPENCODE_AGENTS = {"plan": "hermes-plan", "build": "hermes-build", "review": "he
 # for its own admin-scope work (this config repo, Hermes upkeep), never on a
 # worktree an Engineer job owns. Registries stay per profile home.
 PROFILES = {"engineer", "assistant"}
-BUSY = {"accepted", "running", "unknown"}
+# `waiting`: an OpenCode 2 run is paused on a permission request the caller answers.
+BUSY = {"accepted", "running", "waiting", "unknown"}
 MAX_LOG = 8 * 1024 * 1024
 MAX_LINE = 1024 * 1024
 SESSION_ID = re.compile(r"ses_[A-Za-z0-9_-]+\Z")
+PERMISSION_ID = re.compile(r"per_[A-Za-z0-9_-]{1,64}\Z")
+DECISIONS = ("once", "reject")
+# Per-job fields a new turn must not inherit from the previous one.
+TURN_FIELDS = ("exit_code", "reconciliation", "pending", "progress", "changes", "changes_error", "denied",
+               "replies")
+PROGRESS_EVERY = 5.0
+NO_APPROVER = ("No approver is attached to this run. Continue without this action, or stop and report "
+               "what you needed and why.")
+REJECTED = "Rejected by Hermes Engineer: outside the approved scope. Do not retry it another way."
+WAITING_NOTE = ("OpenCode is paused on the pending permission request(s). Decide each one (ask the Client "
+                "when it is theirs to decide), answer with opencode_session answer, then wait.")
 MODEL_NAME = re.compile(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.:-]+\Z")
 VARIANT_NAME = re.compile(r"[A-Za-z0-9_-]{1,32}\Z")
 DEFAULT_WAIT_TIMEOUT = 3300
@@ -125,6 +142,104 @@ WORKER_EXTERNAL_KEYS = ("*", "~/.local/share/opencode/worktree/*", "*/.worktrees
 
 def _worker_external_directory():
     return {**{key: "deny" for key in WORKER_EXTERNAL_KEYS}, **_external_directory()}
+
+
+# OpenCode 2 policy: one ordered ruleset set on the session itself. The session's
+# rules are evaluated after the global and agent rules (last match wins), they
+# survive a resume or fork on any server, and every subagent session copies them,
+# so a subagent can do nothing its parent session denies. V2 matches whole values:
+# `*` also crosses `/`, and a shell pattern ending in " *" also matches the bare
+# command, so `*.env` covers `.env` at the root and below (V1's `**/.env` did not).
+# The shell scanner splits compound commands (`;`, `&&`, `|`, `$(…)`) and checks
+# each part, so an allowed prefix cannot carry another command (measured on 2.0.23).
+#
+# Only plan and build run on OpenCode 2. Review and debug are build's subagents
+# there (reviewer*, debugger, verifier), under build's ruleset; a read-only
+# primary whose subagents inherit a read-only policy could not run a single check.
+V2_AGENTS = {"plan", "build"}
+V2_TASKS = {"plan": ROLE_TASKS["plan"], "build": ROLE_TASKS["build"] + ("debugger",)}
+SECRET_READS = ("*.env", "*.env.*", "*.envrc", "*.pem", "*.key", "*.npmrc", "*.netrc", "*.ssh/*")
+SAMPLE_READS = ("*.env.example", "*.env.sample")
+READ_ONLY_SHELL = (
+    "git status *", "git diff *", "git log *", "git show *", "git blame *", "git ls-files *",
+    "git rev-parse *", "git merge-base *", "git branch --show-current", "git remote -v",
+    "git remote get-url *",
+    "gh issue view *", "gh issue list *", "gh pr view *", "gh pr diff *", "gh pr checks *",
+    "gh pr status *", "gh pr list *", "gh repo view *",
+)
+# `git diff/log/show --output=<file>` writes a file.
+READ_ONLY_DENY_SHELL = ("git * --output*",)
+# Build runs without a person, so these come back to the caller as permission
+# requests: history rewrites, pushes, branch moves and package installers. `git
+# -C`/`-c` put options before the subcommand, so no `git push *` pattern sees them.
+BUILD_ASK_SHELL = (
+    "git push *", "git rebase *", "git reset *", "git checkout *", "git switch *", "git restore *",
+    "git clean *", "git merge *", "git revert *", "git cherry-pick *",
+    "git commit *--amend*", "git commit *--no-verify*", "git -C *", "git -c *",
+    "npm exec *", "npm create *", "pnpm dlx *", "pnpm exec *", "pnpm create *", "yarn dlx *",
+    "yarn create *", "bun x *", "cargo install *", "go install *",
+)
+# Read-only git with `-C <dir>` would otherwise pause on the `git -C *` ask.
+BUILD_ALLOW_AFTER_ASK = tuple(f"git -C * {verb} *" for verb in ("status", "diff", "log", "show", "rev-parse",
+                                                               "ls-files", "blame", "merge-base"))
+BUILD_DENY_SHELL = (
+    "gh pr merge *", "gh repo create *", "gh repo delete *", "gh repo edit *", "gh api *",
+    "gh project *", "gh issue delete *", "gh issue close *", "gh auth *", "gh secret *",
+    "npm publish *", "pnpm publish *", "git config *",
+    "git push *--force*", "git push -f*", "git push * -f*", "git push * +*", "git push *--mirror*",
+    "git push *--all*", "git push *--delete*", "git push * :*",
+    "git reset *--hard*", "git clean *-*f*",
+)
+
+
+def _rule(action, resource, effect):
+    return {"action": action, "resource": resource, "effect": effect}
+
+
+def _rules(role, issue_approval, protected, denies=()):
+    """The V2 session ruleset for plan or build, ordered broad to narrow.
+
+    Plan starts from a full deny and lists what it may do. Build allows routine
+    edits and commands, returns the person-gated commands as requests, and
+    denies what it must never do. `denies` — every deny OpenCode resolved for
+    the agent from the global and project config — goes last, so a session
+    allow never reopens a person's own hard deny.
+    """
+    rules = [] if role == "build" else [_rule("*", "*", "deny")]
+    rules += [_rule("read", "*", "allow"), *(_rule("read", r, "deny") for r in SECRET_READS),
+              *(_rule("read", r, "allow") for r in SAMPLE_READS)]
+    # Code Mode (`execute`) is build's only: its nested tools are not plan's surface.
+    rules += [_rule(action, "*", "allow") for action in ("glob", "grep", "skill", "webfetch", "websearch", "todo*")
+              + (("execute",) if role == "build" else ())]
+    rules.append(_rule("question", "*", "deny"))
+    rules += [_rule("external_directory", key, effect) for key, effect in _external_directory().items()]
+    rules += [_rule("subagent", "*", "deny"), *(_rule("subagent", name, "allow") for name in V2_TASKS[role])]
+    if role == "plan":
+        rules.append(_rule("edit", "*", "deny"))
+        rules += [_rule("shell", pattern, "allow") for pattern in READ_ONLY_SHELL]
+        rules += [_rule("shell", pattern, "deny") for pattern in READ_ONLY_DENY_SHELL]
+        rules += [_rule(name, "*", "allow") for name in GIT_READ_TOOLS]
+    else:
+        rules += [_rule("edit", "*", "allow"), _rule("shell", "*", "allow")]
+        rules += [_rule("shell", pattern, "ask") for pattern in BUILD_ASK_SHELL]
+        rules += [_rule("shell", pattern, "allow") for pattern in BUILD_ALLOW_AFTER_ASK]
+        deny = list(BUILD_DENY_SHELL)
+        for branch in sorted(protected):
+            deny += [f"git push * {branch}", f"git push * {branch} *", f"git push *:{branch}*",
+                     f"git push *:refs/heads/{branch}*", f"git push * refs/heads/{branch}",
+                     f"git push * refs/heads/{branch} *"]
+        # The same denies when `-C <dir>` / `-c <k=v>` precede the subcommand. Not a
+        # bare `git * push`: that would also match a commit message saying "push".
+        deny += [f"git {option} * " + pattern[len("git "):] for option in ("-C", "-c") for pattern in deny
+                 if pattern.startswith(("git push ", "git reset ", "git clean ", "git config "))]
+        if not issue_approval:
+            deny += [f"gh issue {verb} *" for verb in ("create", "edit", "comment", "reopen")]
+        rules += [_rule("shell", pattern, "deny") for pattern in deny]
+        rules += [_rule(name, "*", "deny") for name in PROJECT_WRITES]
+    # A person's denies are re-stated verbatim, except `external_directory`:
+    # its deny would shadow the re-allowed OpenCode scratch dirs above it.
+    return rules + [_rule(d["action"], d["resource"], "deny") for d in denies
+                    if d.get("action") != "external_directory"]
 
 
 def _root(home):
@@ -267,41 +382,8 @@ def _permissions(agent, issue_approval, protected):
     }
 
 
-def _agent_pin(name):
-    """(model, variant) pinned in an installed agent's frontmatter, or (None, None).
-
-    OpenCode 2's `run --agent` switches the agent but keeps the session on the
-    default model (measured on 2.0.23), so V2 runs pass the pin explicitly.
-    """
-    base = Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config") / "opencode"
-    for folder in ("agent", "agents"):
-        path = base / folder / f"{name}.md"
-        if not path.is_file():
-            continue
-        match = re.match(r"---\n(.*?)\n---\n", path.read_text(encoding="utf-8"), re.S)
-        meta = (yaml.safe_load(match.group(1)) if match else None) or {}
-        if not isinstance(meta, dict):
-            raise ValueError(f"Unreadable frontmatter in OpenCode agent {name}")
-        model, variant = meta.get("model"), meta.get("variant")
-        if model is not None and (not isinstance(model, str) or not MODEL_NAME.fullmatch(model)):
-            raise ValueError(f"OpenCode agent {name} pins an invalid model")
-        if variant is not None and (not isinstance(variant, str) or not VARIANT_NAME.fullmatch(variant)):
-            raise ValueError(f"OpenCode agent {name} pins an invalid variant")
-        return model, (variant if model else None)
-    return None, None
-
-
-def _command(data, config, major):
-    agent = OPENCODE_AGENTS[data["agent"]]
-    if major == 1:
-        command = ["opencode", "run", "--format", "json", "--agent", agent, "--dir", data["directory"]]
-    else:
-        # --standalone: a private server that inherits OPENCODE_CONFIG_CONTENT.
-        # The shared background service was started by someone else and would
-        # never see this run's permissions. The worktree comes from cwd/PWD.
-        command = ["opencode", "run", "--standalone", "--format", "json", "--agent", agent]
-    if data["agent"] == "build":
-        command.append("--auto")
+def _model(data, config):
+    """(model, variant) bound by the conversation, else configured for the role."""
     model = data.get("model") or (config.get("models") or {}).get(data["agent"])
     if model:
         if not isinstance(model, str) or not re.fullmatch(r"[A-Za-z0-9_.:/-]+", model):
@@ -314,15 +396,18 @@ def _command(data, config, major):
             # Re-checked at dispatch: the configured per-agent model may have been
             # removed since the conversation bound its variant.
             raise ValueError("Recorded variant has no model to bind to; pass model explicitly")
-    if major == 1:
-        command += ["--model", model] if model else []
-        command += ["--variant", variant] if variant else []
-    else:
-        if not model:
-            model, variant = _agent_pin(agent)
-        if not model:
-            raise ValueError(f"OpenCode 2 needs a model: agent {agent} pins none and none is configured")
-        command += ["--model", model + (f"#{variant}" if variant else "")]
+    return model, variant
+
+
+def _command(data, config):
+    """OpenCode 1 only; OpenCode 2 runs through `_run_api`."""
+    command = ["opencode", "run", "--format", "json", "--agent", OPENCODE_AGENTS[data["agent"]],
+               "--dir", data["directory"]]
+    if data["agent"] == "build":
+        command.append("--auto")
+    model, variant = _model(data, config)
+    command += ["--model", model] if model else []
+    command += ["--variant", variant] if variant else []
     if data.get("session_id"):
         if not SESSION_ID.fullmatch(data["session_id"]):
             raise ValueError("Invalid saved OpenCode session identity")
@@ -334,11 +419,9 @@ def _command(data, config, major):
 
 
 def _env(data, protected):
-    # PWD too: OpenCode 2 resolves the run's directory from $PWD before cwd.
-    env = inventory.child_env({"PWD": data["directory"]})
+    """OpenCode 1 only: the policy rides the environment of the run process."""
+    env = inventory.child_env()
     permission = _permissions(data["agent"], data.get("issue_approval"), protected)
-    # OpenCode 1 reads both variables; OpenCode 2 ignores OPENCODE_PERMISSION
-    # and takes the per-agent rules from OPENCODE_CONFIG_CONTENT alone.
     env["OPENCODE_PERMISSION"] = json.dumps(permission)
     agents = {OPENCODE_AGENTS[data["agent"]]: {"permission": permission}}
     if "worker" in ROLE_TASKS[data["agent"]]:
@@ -349,7 +432,8 @@ def _env(data, protected):
 
 def _public(data):
     keys = ("conversation_id", "job_id", "directory", "branch", "agent", "model", "variant", "status",
-            "session_id", "result", "error", "exit_code", "log", "updated_at", "reconciliation")
+            "session_id", "result", "error", "exit_code", "log", "updated_at", "reconciliation",
+            "pending", "progress", "changes", "changes_error", "denied", "replies")
     return {key: data[key] for key in keys if key in data}
 
 
@@ -363,6 +447,15 @@ def _group_alive(pgid):
         return False
     except PermissionError:
         return True
+
+
+def _prompt(request, data):
+    text = request["message"]
+    if data["agent"] == "build":
+        text += "\n\nClient implementation scope: " + data["approval"]
+        text += "\nIssue management: " + (data.get("issue_approval") or "not granted")
+    return text + ("\n\nIf anything material is undecided or blocked, stop and state "
+                   "the open question and options in your final reply. Never guess client approval.\n")
 
 
 def _run(request_path):
@@ -379,8 +472,8 @@ def _run(request_path):
         digest = hashlib.sha256(json.dumps(request, sort_keys=True).encode()).hexdigest()
         if data["job_id"] != job or data["status"] != "accepted" or data["request_digest"] != digest:
             raise ValueError("Stale, altered, or already dispatched request")
-        proc = None
-        original_sid = data.get("session_id")
+        # `launched`: from here on effects are possible, so a failure is `unknown`.
+        state = {"proc": None, "launched": False}
         stop_path = root / (job + ".stop")
         old_handlers = {}
         interrupted = False
@@ -388,6 +481,10 @@ def _run(request_path):
         def interrupt(signum, frame):
             nonlocal interrupted
             interrupted = True
+
+        def should_stop():
+            return (interrupted or stop_path.exists() or time.time() >= request["deadline"]
+                    or bool(request.get("parent_pid") and os.getppid() != request["parent_pid"]))
 
         try:
             for sig in (signal.SIGTERM, signal.SIGINT):
@@ -401,124 +498,26 @@ def _run(request_path):
             # Probe first: the stop/deadline gate below must be the last check
             # before launch, and the probe itself can take seconds.
             major = inventory.opencode_major()
+            if major == 2 and data["agent"] not in V2_AGENTS:
+                raise ValueError(f"{data['agent']} is not an OpenCode 2 role: ask build to run its "
+                                 "reviewer/debugger/verifier subagents and report their findings")
             if time.time() >= request["deadline"] or stop_path.exists():
                 raise ValueError("Stopped or expired before dispatch")
-            command = _command(data, config, major)
             data.update(status="running", result="", error="")
             dispatch._write(root / (cid + ".json"), data)
-            with open(root / (job + ".prompt"), "x", encoding="utf-8") as prompt:
-                os.chmod(prompt.name, 0o600)
-                prompt.write(request["message"])
-                if data["agent"] == "build":
-                    prompt.write("\n\nClient implementation scope: " + data["approval"])
-                    prompt.write("\nIssue management: " + (data.get("issue_approval") or "not granted"))
-                prompt.write("\n\nIf anything material is undecided or blocked, stop and state "
-                             "the open question and options in your final reply. Never guess client approval.\n")
-                prompt.flush()
-            with open(root / (job + ".prompt")) as prompt:
-                proc = subprocess.Popen(command, cwd=data["directory"], env=_env(data, protected), stdin=prompt,
-                                        stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True)
-            data["pgid"] = proc.pid
-            dispatch._write(root / (cid + ".json"), data)
-            buffers = {"stdout": b"", "stderr": b""}
-            texts = {}
-            last_finish = None
-            seen_sid = None
-            protocol_error = False
-            event_error = False
-            total = 0
-            stopped = False
-            with selectors.DefaultSelector() as selector, open(root / (job + ".events"), "xb") as log:
-                os.chmod(log.name, 0o600)
-                for name in buffers:
-                    stream = getattr(proc, name)
-                    os.set_blocking(stream.fileno(), False)
-                    selector.register(stream, selectors.EVENT_READ, name)
-
-                def event(line):
-                    nonlocal seen_sid, last_finish, protocol_error, event_error
-                    try:
-                        item = json.loads(line)
-                        sid = item.get("sessionID")
-                        if sid:
-                            if not isinstance(sid, str) or not SESSION_ID.fullmatch(sid):
-                                raise ValueError("Invalid event session ID")
-                            if seen_sid and sid != seen_sid:
-                                raise ValueError("Event session changed")
-                            if original_sid and ((data.get("fork") and sid == original_sid)
-                                                 or (not data.get("fork") and sid != original_sid)):
-                                raise ValueError("Unexpected resumed/forked session")
-                            seen_sid = sid
-                            data["session_id"] = sid
-                            dispatch._write(root / (cid + ".json"), data)
-                        part = item.get("part") or {}
-                        if item.get("type") == "error":
-                            event_error = True
-                        elif item.get("type") == "text" and isinstance(part.get("text"), str):
-                            texts.setdefault(part.get("messageID"), []).append(part["text"])
-                        elif item.get("type") == "step_finish":
-                            last_finish = part
-                    except (ValueError, TypeError, AttributeError):
-                        protocol_error = True
-
-                while selector.get_map():
-                    if (interrupted or stop_path.exists() or time.time() >= request["deadline"]
-                            or (request.get("parent_pid") and os.getppid() != request["parent_pid"])):
-                        stopped = True
-                        break
-                    if total > MAX_LOG or any(len(buf) > MAX_LINE for buf in buffers.values()):
-                        protocol_error = True
-                        break
-                    for key, _ in selector.select(0.2):
-                        chunk = os.read(key.fileobj.fileno(), 65536)
-                        if not chunk:
-                            selector.unregister(key.fileobj)
-                            if buffers[key.data] and key.data == "stdout":
-                                event(buffers[key.data])
-                            buffers[key.data] = b""
-                            continue
-                        total += len(chunk)
-                        log.write(chunk)
-                        buffers[key.data] += chunk
-                        while b"\n" in buffers[key.data]:
-                            line, buffers[key.data] = buffers[key.data].split(b"\n", 1)
-                            if key.data == "stdout" and line.strip():
-                                event(line)
-                log.flush()
-            if stopped or protocol_error:
-                with contextlib.suppress(ProcessLookupError):
-                    os.killpg(proc.pid, signal.SIGTERM)
-            try:
-                code = proc.wait(timeout=3)
-            except subprocess.TimeoutExpired:
-                with contextlib.suppress(ProcessLookupError):
-                    os.killpg(proc.pid, signal.SIGKILL)
-                code = proc.wait(timeout=5)
-                stopped = True
+            prompt = _prompt(request, data)
+            with open(root / (job + ".prompt"), "x", encoding="utf-8") as stream:
+                os.chmod(stream.name, 0o600)
+                stream.write(prompt)
             if major == 1:
-                finished = bool(last_finish and last_finish.get("reason") == "stop" and seen_sid)
-                message_id = last_finish.get("messageID") if last_finish else None
+                _run_cli(root, cid, job, data, config, protected, should_stop, state)
             else:
-                # OpenCode 2 emits no step_finish for the final step; it exits
-                # non-zero after any error, so a clean exit with an owned session
-                # and no error event is completion. The reply is the last
-                # assistant message that produced text.
-                finished = bool(seen_sid) and code == 0 and not event_error
-                message_id = list(texts)[-1] if texts else None
-            data["result"] = "\n".join(texts.get(message_id) or [t for group in texts.values() for t in group])
-            data["exit_code"] = code
-            if stopped or protocol_error or code < 0:
-                data.update(status="unknown", error="Completion not confirmed; inspect effects before reconciliation")
-            elif event_error or code:
-                data.update(status="failed", error="OpenCode reported an error; partial effects may exist")
-            elif not finished:
-                data.update(status="unknown", error="Completion not confirmed; inspect effects before reconciliation")
-            else:
-                data.update(status="completed", error="")
+                _run_api(root, cid, job, data, config, protected, prompt, request, should_stop, state)
         except Exception as exc:
-            data.update(status="unknown" if proc else "failed",
-                        error=f"{type(exc).__name__}: execution not confirmed" if proc else str(exc))
+            data.update(status="unknown" if state["launched"] else "failed",
+                        error=f"{type(exc).__name__}: {exc}: execution not confirmed" if state["launched"] else str(exc))
         finally:
+            proc = state["proc"]
             if proc is not None:
                 # Only this live runner signals its own child group, never a stored PID.
                 with contextlib.suppress(ProcessLookupError):
@@ -528,9 +527,464 @@ def _run(request_path):
                 proc.stderr.close()
             for sig, handler in old_handlers.items():
                 signal.signal(sig, handler)
+            data.pop("pending", None)
             data["updated_at"] = time.time()
             dispatch._write(root / (cid + ".json"), data)
     return _public(data)
+
+
+def _run_cli(root, cid, job, data, config, protected, should_stop, state):
+    """OpenCode 1: one `opencode run` process, completion read from its JSON events."""
+    command = _command(data, config)
+    original_sid = data.get("session_id")
+    with open(root / (job + ".prompt")) as prompt:
+        proc = state["proc"] = subprocess.Popen(
+            command, cwd=data["directory"], env=_env(data, protected), stdin=prompt,
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True)
+    state["launched"] = True
+    data["pgid"] = proc.pid
+    dispatch._write(root / (cid + ".json"), data)
+    buffers = {"stdout": b"", "stderr": b""}
+    texts = {}
+    last_finish = None
+    seen_sid = None
+    protocol_error = False
+    event_error = False
+    total = 0
+    stopped = False
+    with selectors.DefaultSelector() as selector, open(root / (job + ".events"), "xb") as log:
+        os.chmod(log.name, 0o600)
+        for name in buffers:
+            stream = getattr(proc, name)
+            os.set_blocking(stream.fileno(), False)
+            selector.register(stream, selectors.EVENT_READ, name)
+
+        def event(line):
+            nonlocal seen_sid, last_finish, protocol_error, event_error
+            try:
+                item = json.loads(line)
+                sid = item.get("sessionID")
+                if sid:
+                    if not isinstance(sid, str) or not SESSION_ID.fullmatch(sid):
+                        raise ValueError("Invalid event session ID")
+                    if seen_sid and sid != seen_sid:
+                        raise ValueError("Event session changed")
+                    if original_sid and ((data.get("fork") and sid == original_sid)
+                                         or (not data.get("fork") and sid != original_sid)):
+                        raise ValueError("Unexpected resumed/forked session")
+                    seen_sid = sid
+                    data["session_id"] = sid
+                    dispatch._write(root / (cid + ".json"), data)
+                part = item.get("part") or {}
+                if item.get("type") == "error":
+                    event_error = True
+                elif item.get("type") == "text" and isinstance(part.get("text"), str):
+                    texts.setdefault(part.get("messageID"), []).append(part["text"])
+                elif item.get("type") == "step_finish":
+                    last_finish = part
+            except (ValueError, TypeError, AttributeError):
+                protocol_error = True
+
+        while selector.get_map():
+            if should_stop():
+                stopped = True
+                break
+            if total > MAX_LOG or any(len(buf) > MAX_LINE for buf in buffers.values()):
+                protocol_error = True
+                break
+            for key, _ in selector.select(0.2):
+                chunk = os.read(key.fileobj.fileno(), 65536)
+                if not chunk:
+                    selector.unregister(key.fileobj)
+                    if buffers[key.data] and key.data == "stdout":
+                        event(buffers[key.data])
+                    buffers[key.data] = b""
+                    continue
+                total += len(chunk)
+                log.write(chunk)
+                buffers[key.data] += chunk
+                while b"\n" in buffers[key.data]:
+                    line, buffers[key.data] = buffers[key.data].split(b"\n", 1)
+                    if key.data == "stdout" and line.strip():
+                        event(line)
+        log.flush()
+    if stopped or protocol_error:
+        with contextlib.suppress(ProcessLookupError):
+            os.killpg(proc.pid, signal.SIGTERM)
+    try:
+        code = proc.wait(timeout=3)
+    except subprocess.TimeoutExpired:
+        with contextlib.suppress(ProcessLookupError):
+            os.killpg(proc.pid, signal.SIGKILL)
+        code = proc.wait(timeout=5)
+        stopped = True
+    finished = bool(last_finish and last_finish.get("reason") == "stop" and seen_sid)
+    message_id = last_finish.get("messageID") if last_finish else None
+    data["result"] = "\n".join(texts.get(message_id) or [t for group in texts.values() for t in group])
+    data["exit_code"] = code
+    if stopped or protocol_error or code < 0:
+        data.update(status="unknown", error="Completion not confirmed; inspect effects before reconciliation")
+    elif event_error or code:
+        data.update(status="failed", error="OpenCode reported an error; partial effects may exist")
+    elif not finished:
+        data.update(status="unknown", error="Completion not confirmed; inspect effects before reconciliation")
+    else:
+        data.update(status="completed", error="")
+
+
+class _NotFound(ValueError):
+    pass
+
+
+class _Api(inventory.ApiServer):
+    """The history module's private loopback server, plus JSON writes."""
+
+    def call(self, method, path, body=None, timeout=inventory.REQUEST_TIMEOUT):
+        payload = None if body is None else json.dumps(body).encode()
+        request = urllib.request.Request(self.base + path, data=payload, method=method, headers={
+            "Authorization": self.auth, "Accept": "application/json",
+            **({"Content-Type": "application/json"} if payload is not None else {})})
+        # Name the route, not the identities in it.
+        route = re.sub(r"/(ses|msg|per)_[A-Za-z0-9_-]+", r"/{\1}", path.split("?", 1)[0])
+        try:
+            with urllib.request.urlopen(request, timeout=timeout) as response:
+                raw = response.read()
+        except urllib.error.HTTPError as exc:
+            kind = _NotFound if exc.code == 404 else ValueError
+            raise kind(f"OpenCode API {method} {route} returned HTTP {exc.code}") from None
+        except (urllib.error.URLError, OSError) as exc:
+            raise ValueError(f"OpenCode API {method} {route} failed: {type(exc).__name__}") from None
+        data = json.loads(raw) if raw else None
+        return data["data"] if isinstance(data, dict) and "data" in data else data
+
+
+# Stops the job's server if its runner dies without cleaning up (SIGKILL, OOM):
+# `opencode serve` never exits by itself and would hold the worktree forever.
+WATCHDOG = """
+import os, signal, sys, time
+runner, server = int(sys.argv[1]), int(sys.argv[2])
+def alive(pid):
+    try:
+        os.kill(pid, 0)
+        return True
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+# Reparented the moment the runner exits, reaped or not.
+while os.getppid() == runner and alive(server):
+    time.sleep(1)
+for sig in (signal.SIGTERM, signal.SIGKILL):
+    if not alive(server):
+        break
+    try:
+        os.killpg(server, sig)
+    except ProcessLookupError:
+        break
+    time.sleep(5)
+"""
+POLL_TIMEOUT = 10
+SETUP_TIMEOUT = 30
+# After a stop or the deadline, each remaining call gets this long, so the
+# runner settles within the caller's grace (opencode_call allows 15 s).
+TAIL_TIMEOUT = 3
+AGENT_READY = 20
+
+
+def _watch(server_pid):
+    return subprocess.Popen([sys.executable, "-I", "-c", WATCHDOG, str(os.getpid()), str(server_pid)],
+                     stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                     start_new_session=True)
+
+
+def _text(message):
+    return "\n".join(c["text"] for c in message.get("content") or []
+                     if isinstance(c, dict) and c.get("type") == "text" and isinstance(c.get("text"), str))
+
+
+def _iso_ms(value):
+    return time.strftime("%Y-%m-%dT%H:%M:%S%z", time.localtime(value / 1000)) if isinstance(value, (int, float)) else None
+
+
+def _progress(api, sid):
+    """Where the run is now: the newest step's time and its last tool, cumulative tokens."""
+    info = api.call("GET", f"/api/session/{sid}", timeout=POLL_TIMEOUT) or {}
+    newest = (api.call("GET", f"/api/session/{sid}/message?type=assistant&order=desc&limit=1",
+                       timeout=POLL_TIMEOUT) or [None])[0]
+    tool = None
+    if isinstance(newest, dict):
+        tools = [c for c in newest.get("content") or [] if isinstance(c, dict) and c.get("type") == "tool"]
+        if tools:
+            tool = {"name": tools[-1].get("name"), "status": (tools[-1].get("state") or {}).get("status")}
+    times = (newest or {}).get("time") or {}
+    last = max((v for v in times.values() if isinstance(v, (int, float))), default=None)
+    return {"last_activity": _iso_ms(last), "tool": tool, "tokens": info.get("tokens")}
+
+
+def _in_tree(api, root_sid, sid, cache):
+    """Whether `sid` is the run's session or one of its subagent sessions."""
+    walked, current, found = [], sid, False
+    for _ in range(8):
+        if current == root_sid:
+            found = True
+            break
+        if current in cache:
+            found = cache[current]
+            break
+        walked.append(current)
+        parent = (api.call("GET", f"/api/session/{current}", timeout=POLL_TIMEOUT) or {}).get("parentID")
+        if not isinstance(parent, str) or not SESSION_ID.fullmatch(parent):
+            break
+        current = parent
+    for item in walked:
+        cache[item] = found
+    return found
+
+
+def _agent(api, agent, where, should_stop):
+    """The agent as this server resolved it for the worktree: model and full ruleset.
+
+    The server loads agents a moment after it starts listening (404 until then).
+    """
+    limit = time.time() + AGENT_READY
+    while True:
+        if should_stop():
+            raise ValueError("Stopped or expired before the prompt")
+        try:
+            resolved = api.call("GET", f"/api/agent/{agent}?{where}", timeout=POLL_TIMEOUT)
+            if isinstance(resolved, dict):
+                return resolved
+        except _NotFound:
+            pass
+        if time.time() >= limit:
+            raise ValueError(f"OpenCode agent {agent} is not available for this worktree")
+        time.sleep(0.25)
+
+
+def _run_api(root, cid, job, data, config, protected, prompt, request, should_stop, state):
+    """OpenCode 2: one private loopback server per job, the session driven over its API.
+
+    The session carries the role's ruleset, so a resume or fork on a later
+    server keeps it and every subagent inherits it. A rule that resolves to
+    `ask` — in the session or any of its subagents — reaches the caller as a
+    pending request: the record turns `waiting` and the caller answers once or
+    reject (never always: that would save an approval for every later session
+    of the project). A live caller has no turn to answer in, so its requests
+    are rejected on the spot. Completion is this turn's own idle outcome.
+    """
+    agent = OPENCODE_AGENTS[data["agent"]]
+    record = root / (cid + ".json")
+    answer_mode = request.get("answer_mode", "reject")
+    where = "location%5Bdirectory%5D=" + urllib.parse.quote(data["directory"], safe="")
+
+    def save(**fields):
+        data.update(fields)
+        dispatch._write(record, data)
+
+    def bounded(cap=POLL_TIMEOUT):
+        return max(1.0, min(cap, request["deadline"] - time.time()))
+
+    def tail():
+        return POLL_TIMEOUT if time.time() < request["deadline"] else TAIL_TIMEOUT
+
+    with _Api(major=2) as api, contextlib.ExitStack() as cleanup:
+        save(pgid=api.proc.pid)
+        watchdog = _watch(api.proc.pid)
+        # Stopped before the server is, so it can never signal a reused PID.
+        cleanup.callback(lambda: (watchdog.kill(), watchdog.wait()))
+        resolved = _agent(api, agent, where, should_stop)
+        model, variant = _model(data, config)
+        if not model:
+            # An agent's own model is not applied to a session it runs (2.0.23).
+            pin = resolved.get("model") or {}
+            if isinstance(pin.get("providerID"), str) and isinstance(pin.get("id"), str):
+                model = pin["providerID"] + "/" + pin["id"]
+                variant = pin.get("variant") if pin.get("variant") not in (None, "", "default") else None
+        if not model or not MODEL_NAME.fullmatch(model) or (variant and not VARIANT_NAME.fullmatch(variant)):
+            raise ValueError(f"OpenCode 2 needs a model: agent {agent} pins none and none is configured")
+        provider, _, model_id = model.partition("/")
+        ref = {"providerID": provider, "id": model_id, **({"variant": variant} if variant else {})}
+        resolved_rules = resolved.get("permissions")
+        # A person's hard denies must be restated; a ruleset we cannot read would
+        # silently drop them under build's `shell *` allow, so it stops the run.
+        if not isinstance(resolved_rules, list) or not resolved_rules or not all(
+                isinstance(r, dict) and all(isinstance(r.get(k), str) for k in ("action", "resource", "effect"))
+                for r in resolved_rules):
+            raise ValueError(f"OpenCode returned no readable ruleset for agent {agent}; no run launched")
+        denies = [r for r in resolved_rules if r["effect"] == "deny"]
+        rules = _rules(data["agent"], data.get("issue_approval"), protected, denies)
+        sid = data.get("session_id")
+        resumed = bool(sid)
+        if sid:
+            if not SESSION_ID.fullmatch(sid):
+                raise ValueError("Invalid saved OpenCode session identity")
+            if data.get("fork"):
+                forked = (api.call("POST", f"/api/session/{sid}/fork", {}, timeout=bounded(SETUP_TIMEOUT)) or {}).get("id")
+                if forked == sid:
+                    raise ValueError("OpenCode fork returned the source session")
+                sid = forked
+        else:
+            sid = (api.call("POST", "/api/session", {
+                "agent": agent, "model": ref, "permissions": rules,
+                "location": {"directory": data["directory"]}}, timeout=bounded(SETUP_TIMEOUT)) or {}).get("id")
+        if not isinstance(sid, str) or not SESSION_ID.fullmatch(sid):
+            raise ValueError("OpenCode returned no valid session identity")
+        info = api.call("GET", f"/api/session/{sid}", timeout=bounded(SETUP_TIMEOUT)) or {}
+        where_session = (info.get("location") or {}).get("directory")
+        if not where_session or Path(where_session).resolve() != Path(data["directory"]):
+            raise ValueError("OpenCode session belongs to another directory")
+        save(session_id=sid)
+        if resumed:
+            # Reapplied every turn: the role, the grants, the engine or the policy
+            # may have changed since the session's last turn (plan -> build).
+            api.call("PATCH", f"/api/session/{sid}", {"permissions": rules}, timeout=bounded(SETUP_TIMEOUT))
+            api.call("POST", f"/api/session/{sid}/agent", {"agent": agent}, timeout=bounded(SETUP_TIMEOUT))
+            api.call("POST", f"/api/session/{sid}/model", {"model": ref}, timeout=bounded(SETUP_TIMEOUT))
+            info = api.call("GET", f"/api/session/{sid}", timeout=bounded(SETUP_TIMEOUT)) or {}
+        current = info.get("model") or {}
+        if info.get("permissions") != rules or info.get("agent") != agent or (
+                current.get("providerID"), current.get("id")) != (provider, model_id) or (
+                variant and current.get("variant") != variant):
+            raise ValueError("OpenCode session did not take the role's agent, model and permissions")
+        if should_stop():
+            raise ValueError("Stopped or expired before the prompt")
+        state["launched"] = True
+        turn = api.call("POST", f"/api/session/{sid}/prompt", {"text": prompt}, timeout=bounded(SETUP_TIMEOUT)) or {}
+        started = (turn.get("time") or {}).get("created")
+        bound = isinstance(turn.get("id"), str) and turn["id"].startswith("msg_") and isinstance(started, (int, float))
+        outcome = {}
+
+        def wait():
+            try:
+                api.call("POST", f"/api/experimental/session/{sid}/wait", {},
+                         timeout=max(1.0, request["deadline"] - time.time() + 30))
+                outcome["idle"] = True
+            except Exception as exc:  # reported through the status below
+                outcome["error"] = exc
+
+        waiter = threading.Thread(target=wait, daemon=True)
+        waiter.start()
+        pending, owners, handled, replies, tree = {}, {}, set(), [], {sid: True}
+        stopped = False
+        next_progress = 0.0
+        try:
+            while waiter.is_alive():
+                if should_stop():
+                    stopped = True
+                    break
+                if api.proc.poll() is not None:
+                    break
+                live = {}
+                # Subagents' requests are listed per location, not on the parent session.
+                listing = api.call("GET", f"/api/permission/request?{where}", timeout=bounded()) or []
+                for item in listing:
+                    if not isinstance(item, dict) or not PERMISSION_ID.fullmatch(str(item.get("id"))):
+                        continue
+                    owner_sid = item.get("sessionID")
+                    if isinstance(owner_sid, str) and SESSION_ID.fullmatch(owner_sid) \
+                            and _in_tree(api, sid, owner_sid, tree):
+                        live[item["id"]] = item
+                for pid, item in live.items():
+                    if pid in handled or pid in pending:
+                        continue
+                    owners[pid] = item["sessionID"]
+                    view = {"id": pid, "action": str(item.get("action"))[:64],
+                            "resources": [str(r)[:500] for r in (item.get("resources") or [])][:20],
+                            **({"from": "subagent"} if item["sessionID"] != sid else {})}
+                    if answer_mode == "caller":
+                        pending[pid] = view
+                        continue
+                    api.call("POST", f"/api/session/{owners[pid]}/permission/{pid}/reply",
+                             {"decision": "reject", "message": NO_APPROVER}, timeout=bounded())
+                    handled.add(pid)
+                    replies.append({**view, "decision": "reject", "by": "runner"})
+                consumed = []
+                for path in root.glob(job + ".per_*.answer"):
+                    pid = path.name[len(job) + 1:-len(".answer")]
+                    answer = dispatch._read(path)
+                    # Removed only after the record shows the answer, so a caller's
+                    # wait never sees an answered request as still pending.
+                    consumed.append(path)
+                    if pid not in pending or pid not in live or answer.get("decision") not in DECISIONS:
+                        continue
+                    message = answer.get("message") or (REJECTED if answer["decision"] == "reject" else None)
+                    api.call("POST", f"/api/session/{owners[pid]}/permission/{pid}/reply",
+                             {"decision": answer["decision"], **({"message": message} if message else {})},
+                             timeout=bounded())
+                    handled.add(pid)
+                    replies.append({**pending.pop(pid), "decision": answer["decision"], "by": "caller"})
+                for pid in [pid for pid in pending if pid not in live]:
+                    # Answered elsewhere, e.g. by a person who opened the session.
+                    handled.add(pid)
+                    replies.append({**pending.pop(pid), "decision": "answered elsewhere", "by": "other"})
+                status = "waiting" if pending else "running"
+                now = time.time()
+                if (status != data["status"] or list(pending.values()) != data.get("pending", [])
+                        or replies != data.get("replies", []) or now >= next_progress):
+                    fields = {"status": status, "pending": list(pending.values()), "replies": list(replies)}
+                    if now >= next_progress:
+                        with contextlib.suppress(Exception):
+                            fields["progress"] = _progress(api, sid)
+                        next_progress = now + PROGRESS_EVERY
+                    save(**fields)
+                for path in consumed:
+                    path.unlink(missing_ok=True)
+                waiter.join(1.0)
+        finally:
+            if not outcome.get("idle"):
+                # Any exit short of an idle turn ends the turn's tools first.
+                with contextlib.suppress(Exception):
+                    api.call("POST", f"/api/session/{sid}/interrupt", {}, timeout=tail())
+                waiter.join(tail())
+            for path in root.glob(job + ".per_*.answer"):
+                path.unlink(missing_ok=True)
+        messages = api.call("GET", f"/api/session/{sid}/message?order=desc&limit=200", timeout=tail()) or []
+        turn_messages = [m for m in messages if isinstance(m, dict) and bound
+                         and ((m.get("time") or {}).get("created") or 0) >= started]
+        idle = next((m for m in turn_messages if m.get("type") == "idle"), None)
+        if idle is None and outcome.get("idle"):
+            # `wait` returned, yet this turn never went idle: it may still be running.
+            with contextlib.suppress(Exception):
+                api.call("POST", f"/api/session/{sid}/interrupt", {}, timeout=tail())
+        steps = [m for m in turn_messages if m.get("type") == "assistant"]
+        reply = next((text for m in steps if (text := _text(m))), "")
+        denied = []
+        for message in reversed(steps):
+            for c in message.get("content") or []:
+                error = (c.get("state") or {}).get("error") if isinstance(c, dict) else None
+                if isinstance(error, dict) and error.get("type") == "permission.rejected":
+                    denied.append({"tool": c.get("name"),
+                                   "input": json.dumps((c.get("state") or {}).get("input"))[:300]})
+        changes, changes_error = None, None
+        if bound:
+            try:
+                files = api.call("GET", f"/api/session/{sid}/diff?from={turn['id']}&context=3",
+                                 timeout=tail()) or []
+                with open(root / (job + ".diff"), "x", encoding="utf-8") as stream:
+                    os.chmod(stream.name, 0o600)
+                    stream.write("".join(str(f.get("patch") or "") for f in files)[:MAX_LOG])
+                changes = [{k: f.get(k) for k in ("file", "status", "additions", "deletions")} for f in files[:200]]
+            except Exception as exc:
+                changes_error = f"{type(exc).__name__}: changes unknown; inspect Git"
+        with open(root / (job + ".events"), "x", encoding="utf-8") as log:
+            os.chmod(log.name, 0o600)
+            log.write("\n".join(json.dumps(m) for m in reversed(turn_messages))[:MAX_LOG])
+        info = {}
+        with contextlib.suppress(Exception):
+            info = api.call("GET", f"/api/session/{sid}", timeout=tail()) or {}
+    data.update(result=reply, denied=denied[:50], changes=changes, replies=replies,
+                progress={**(data.get("progress") or {}), "tokens": info.get("tokens")})
+    if changes_error:
+        data["changes_error"] = changes_error
+    result = (idle or {}).get("outcome")
+    if stopped or not bound or "error" in outcome or not outcome.get("idle") or result == "interrupted":
+        data.update(status="unknown", error="Completion not confirmed; inspect effects (see changes) before reconciliation")
+    elif result == "failed":
+        data.update(status="failed", error="OpenCode reported a failed turn; partial effects may exist")
+    elif result == "succeeded":
+        data.update(status="completed", error="")
+    else:
+        data.update(status="unknown", error="OpenCode reported no outcome for this turn; inspect effects before reconciliation")
 
 
 def opencode_call(args, **kwargs):
@@ -572,7 +1026,7 @@ def opencode_call(args, **kwargs):
                     raise ValueError("Worktree has active or uncertain OpenCode work")
             with dispatch._locked(root, cid):
                 data = dict(source or {})
-                for key in ("exit_code", "reconciliation"):
+                for key in TURN_FIELDS:
                     data.pop(key, None)
                 data.update(conversation_id=cid, directory=directory, owner=owner, agent=agent,
                             fork=bool(args.get("fork")))
@@ -592,8 +1046,11 @@ def opencode_call(args, **kwargs):
                                float(os.environ.get("RESIDENT_DEADLINE", "inf")))
                 if deadline <= time.time():
                     raise ValueError("Inherited execution deadline expired")
+                # A blocking caller answers permission requests between its own tool
+                # calls; a live (background, notify-on-complete) caller cannot.
                 request = dict(home=str(home), owner=owner, conversation_id=cid, job_id=job,
-                               message=message, deadline=deadline, parent_pid=None if live else os.getpid())
+                               message=message, deadline=deadline, parent_pid=None if live else os.getpid(),
+                               answer_mode="reject" if live else "caller")
                 data.update(job_id=job, branch=branch, status="accepted", result="", error="", pgid=None,
                             log=str(root / (job + ".events")), updated_at=time.time(),
                             request_digest=hashlib.sha256(json.dumps(request, sort_keys=True).encode()).hexdigest())
@@ -631,8 +1088,17 @@ def opencode_call(args, **kwargs):
                 data.update(status="failed", error="Runner could not be launched; no OpenCode process started")
                 dispatch._write(root / (cid + ".json"), data)
             return json.dumps(_public(data))
+        limit = time.time() + config.get("timeout", 3600) + 15
         try:
-            proc.wait(timeout=config.get("timeout", 3600) + 15)
+            while proc.poll() is None:
+                if time.time() >= limit:
+                    raise subprocess.TimeoutExpired(command, config.get("timeout", 3600) + 15)
+                data = dispatch._owned(root, cid, owner)
+                if data["job_id"] == job and data["status"] == "waiting":
+                    # The runner keeps the run paused, within its deadline, for this caller.
+                    dispatch._reap_later(proc)
+                    return json.dumps({**_public(data), "note": WAITING_NOTE})
+                time.sleep(0.25)
         except subprocess.TimeoutExpired:
             dispatch._write(root / (job + ".stop"), {"requested_at": time.time()})
             try:
@@ -641,7 +1107,7 @@ def opencode_call(args, **kwargs):
                 return json.dumps({**_public(dispatch._owned(root, cid, owner)), "stop_requested": True,
                                    "error": "Runner has not confirmed termination; do not retry"})
         data = dispatch._owned(root, cid, owner)
-        if data["status"] in {"accepted", "running"}:
+        if data["status"] in {"accepted", "running", "waiting"}:
             with dispatch._locked(root, cid):
                 data.update(status="unknown", error="Runner exited without confirming completion")
                 dispatch._write(root / (cid + ".json"), data)
@@ -672,9 +1138,11 @@ def _wait(root, cid, owner, data, requested, home):
     while True:
         data = dispatch._owned(root, cid, owner)
         # `unknown` is the runner's own verdict once its group is gone; only an
-        # unfinalized record (or a still-live group) is worth waiting on.
+        # unfinalized record (or a still-live group) is worth waiting on. A
+        # `waiting` record whose requests are all answered is about to resume.
         if data["status"] not in {"accepted", "running"} and not (
-                data["status"] == "unknown" and data.get("pgid") and _group_alive(data["pgid"])):
+                data["status"] == "unknown" and data.get("pgid") and _group_alive(data["pgid"])) and not (
+                data["status"] == "waiting" and not _unanswered(root, data)):
             timed_out = False
             break
         now = time.time()
@@ -691,17 +1159,26 @@ def _wait(root, cid, owner, data, requested, home):
         else:
             dead_since = None
         time.sleep(min(WAIT_POLL, max(0.0, limit - now)))
+    runner_gone = data.get("pgid") and not _group_alive(data["pgid"])
+    note = (WAITING_NOTE if data["status"] == "waiting" and not runner_gone else
+            "Still active or uncertain; inspect, wait again, stop, or reconcile. Never retry.")
     return {**_public(data), "waited_seconds": round(time.time() - started, 1), "timed_out": timed_out,
-            **({"note": "Still active or uncertain; inspect, wait again, stop, or reconcile. Never retry."}
-               if data["status"] in BUSY else {})}
+            **({"note": note} if data["status"] in BUSY else {})}
+
+
+def _unanswered(root, data):
+    return [p for p in data.get("pending") or []
+            if not (root / f"{data['job_id']}.{p['id']}.answer").exists()]
 
 
 def opencode_session(args, **kwargs):
     try:
-        if set(args) - {"action", "conversation_id", "evidence", "timeout"}:
+        if set(args) - {"action", "conversation_id", "evidence", "timeout", "permission_id", "decision", "message"}:
             raise ValueError("Unexpected arguments")
         if "timeout" in args and args.get("action") != "wait":
             raise ValueError("timeout is only accepted for wait")
+        if {"permission_id", "decision", "message"} & set(args) and args.get("action") != "answer":
+            raise ValueError("permission_id, decision and message are only accepted for answer")
         home, owner, _ = _scope()
         # Disabling new execution must not remove the owner's ability to inspect
         # or stop a run already in flight.
@@ -722,8 +1199,23 @@ def opencode_session(args, **kwargs):
             dispatch._write(root / (data["job_id"] + ".stop"), {"requested_at": time.time()})
             return json.dumps({**_public(data), "stop_requested": True,
                                "note": "Request recorded; not proof of termination or rollback"})
+        if action == "answer":
+            pid, decision, message = args.get("permission_id"), args.get("decision"), args.get("message")
+            if decision not in DECISIONS:
+                # `always` would save an approval that every later session of the
+                # project inherits, including people's own.
+                raise ValueError("decision must be once or reject; a saved approval is never given")
+            if message is not None and (not isinstance(message, str) or len(message) > 2000):
+                raise ValueError("message must be text of at most 2000 characters")
+            if data["status"] != "waiting" or not any(p["id"] == pid for p in _unanswered(root, data)):
+                raise ValueError("No such unanswered permission request on this run")
+            dispatch._write(root / f"{data['job_id']}.{pid}.answer",
+                            {"decision": decision, **({"message": message} if message else {})})
+            return json.dumps({**_public(data), "answer_recorded": True,
+                               "note": "Recorded for the runner, not yet applied: wait, then check replies "
+                                       "(an answer the run no longer needed is not listed there)."})
         if action != "reconcile" or not isinstance(args.get("evidence"), str) or not args["evidence"].strip():
-            raise ValueError("Use status/list/stop, or reconcile with observed process/Git/remote-effect evidence")
+            raise ValueError("Use status/list/wait/stop/answer, or reconcile with observed process/Git/remote-effect evidence")
         with dispatch._locked(root, cid):
             data = dispatch._owned(root, cid, owner)
             if data["status"] not in BUSY or _group_alive(data.get("pgid")):
@@ -789,15 +1281,23 @@ def register(ctx):
             "model": {"type": "string", "description": "Optional provider/model from opencode_cli.allowed_models"},
             "variant": {"type": "string", "description": "Optional reasoning-effort variant from opencode_cli.allowed_variants"},
         }, ["agent", "message"],
-         "Drive OpenCode in an owned Git worktree; blocks until the run finishes. Build needs explicit Client "
-         "implementation approval; Issue writes need separate explicit issue_approval. Completion is not acceptance. "
-         "Never retry uncertain work. If the call returns a timeout error, use opencode_session wait, never a status loop."),
+         "Drive OpenCode in an owned Git worktree; blocks until the run finishes or pauses with status waiting "
+         "on pending permission requests (answer them with opencode_session answer, then wait). On OpenCode 2 "
+         "only plan and build run; ask build for review/diagnosis through its subagents. Build needs "
+         "explicit Client implementation approval; Issue writes need separate explicit issue_approval. "
+         "Completion is not acceptance; changes lists the files the turn touched. Never retry uncertain work. "
+         "If the call returns a timeout error, use opencode_session wait, never a status loop."),
         ("opencode_session", opencode_session, {
-            "action": {"type": "string", "enum": ["status", "list", "wait", "stop", "reconcile"]},
+            "action": {"type": "string", "enum": ["status", "list", "wait", "stop", "answer", "reconcile"]},
             "conversation_id": {"type": "string"}, "evidence": {"type": "string"},
             "timeout": {"type": "integer", "description": "wait only: seconds to block (bounded by config and turn deadline)"},
-        }, ["action"], "Inspect, wait for, or request stopping your OpenCode run. wait blocks until the run leaves "
-         "active/uncertain state, spending no turns. Stop never rolls back effects. "
+            "permission_id": {"type": "string", "description": "answer only: a pending request id (per_...)"},
+            "decision": {"type": "string", "enum": list(DECISIONS), "description": "answer only"},
+            "message": {"type": "string", "description": "answer only: reason or instruction shown to OpenCode"},
+        }, ["action"], "Inspect, wait for, answer, or request stopping your OpenCode run. status shows progress "
+         "(last activity, current tool, tokens) while it runs. wait blocks until the run finishes or pauses on a "
+         "permission request, spending no turns. answer gives once or reject to a pending request; decide what "
+         "is the Client's to decide with the Client. Stop never rolls back effects. "
          "Reconcile inactive uncertain work only after observing its process, Git and remote effects."),
         ("opencode_history", opencode_history, {
             "action": {"type": "string", "enum": list(inventory.ACTIONS)},

@@ -1,7 +1,11 @@
+import ast
+import fnmatch
 import importlib.util
 import json
 import os
 from pathlib import Path
+import shlex
+import signal
 import subprocess
 import sys
 import threading
@@ -25,14 +29,14 @@ if args == ["--version"]:
         request.with_suffix(".stop").write_text("{}")
     print(version)
     sys.exit(0)
-v2 = "v2." in version
-if v2:
-    # OpenCode 2 has no --dir: the run's directory is $PWD, then cwd.
-    assert "--dir" not in args and "--variant" not in args and "--standalone" in args
-    directory = pathlib.Path(os.environ["PWD"])
-    assert directory.resolve() == pathlib.Path.cwd().resolve()
-else:
-    directory = pathlib.Path(args[args.index("--dir") + 1])
+if args[:1] == ["serve"]:
+    # OpenCode 2 runs go through a private API server, never `run`.
+    assert "v2." in version and args[1:] == ["--hostname", "127.0.0.1", "--port", "0"], args
+    path = os.environ["ENGINEER_FAKE_SERVER"]
+    exec(compile(open(path).read(), path, "exec"))
+    sys.exit(0)
+assert "v2." not in version, "OpenCode 2 must not be driven through `opencode run`"
+directory = pathlib.Path(args[args.index("--dir") + 1])
 prompt = sys.stdin.read()
 behavior = os.environ.get("ENGINEER_FAKE", "ok")
 (directory / "invocation.json").write_text(json.dumps({"args": args, "prompt": prompt,
@@ -52,7 +56,7 @@ elif behavior in {"error", "error-signal"}:
     emit("error", error={"name": "UnknownError", "data": {"message": "probe"}})
     if behavior == "error-signal":
         os.kill(os.getpid(), signal.SIGTERM)
-    sys.exit(1 if v2 else 0)
+    sys.exit(0)
 elif behavior == "malformed":
     print("not-json", flush=True)
 elif behavior == "incomplete":
@@ -60,15 +64,8 @@ elif behavior == "incomplete":
 elif behavior == "wrong-session":
     sid = "ses_foreign"
 text = "ASK_CLIENT: choose A or B" if behavior == "question" else "RESULT_OK"
-if v2:
-    # A tool step, then the final reply in a second message with no step_finish.
-    emit("text", part={"messageID": "msg_a", "text": "working"})
-    emit("step_finish", part={"messageID": "msg_a", "reason": "tool-calls"})
-    emit("step_start", part={"messageID": "msg_b"})
-    emit("text", part={"messageID": "msg_b", "text": text})
-else:
-    emit("text", part={"messageID": "msg_a", "text": text})
-    emit("step_finish", part={"messageID": "msg_a", "reason": "stop"})
+emit("text", part={"messageID": "msg_a", "text": text})
+emit("step_finish", part={"messageID": "msg_a", "reason": "stop"})
 '''
 
 
@@ -556,37 +553,94 @@ def test_reconcile_only_turn_refuses_execution(fixture, monkeypatch):
 
 # ---------------------------------------------------------------- OpenCode 2
 
-REPO_ROOT = Path(__file__).resolve().parents[4]
+FAKE_SERVER = Path(__file__).resolve().parent / "fake_opencode2.py"
+# The fake's agent pins and global denies, read as literals (it is a script).
+fake = {node.targets[0].id: ast.literal_eval(node.value) for node in ast.parse(FAKE_SERVER.read_text()).body
+        if isinstance(node, ast.Assign) and getattr(node.targets[0], "id", None) in ("PINS", "GLOBAL_DENIES")}
+GLOBAL_DENIES = fake["GLOBAL_DENIES"]
+PROTECTED = {"main", "master"}
 
 
 @pytest.fixture
-def v2(fixture, monkeypatch):
+def v2(fixture, monkeypatch, tmp_path):
     monkeypatch.setenv("ENGINEER_FAKE_VERSION", "opencode v2.0.23")
-    # The hidden primaries' frontmatter supplies the model pin.
-    monkeypatch.setenv("XDG_CONFIG_HOME", str(REPO_ROOT))
-    monkeypatch.setenv("PWD", "/somewhere/else")
+    monkeypatch.setenv("ENGINEER_FAKE_SERVER", str(FAKE_SERVER))
+    monkeypatch.setenv("ENGINEER_FAKE_STATE", str(tmp_path / "fake-opencode-db.json"))
+    # A run's policy must ride the session, never the environment.
+    monkeypatch.setenv("OPENCODE_CONFIG_CONTENT", "{}")
     return fixture
 
 
-def pinned(installed):
-    return plugin._agent_pin(installed)
+def seen(directory):
+    return json.loads((directory / "invocation.json").read_text())
 
 
-def test_v2_runs_standalone_in_the_worktree_with_the_agent_pin(v2):
-    _, directory, _ = v2
+def rules(role, issue=None):
+    return plugin._rules(role, issue, PROTECTED, GLOBAL_DENIES)
+
+
+def record(home, cid):
+    return plugin.dispatch._read(home / "opencode-sessions" / (cid + ".json"))
+
+
+def first_cid(home):
+    for _ in range(400):
+        for path in (home / "opencode-sessions").glob("*.json"):
+            return plugin.dispatch._read(path)["conversation_id"]
+        time.sleep(0.025)
+    raise AssertionError("no conversation was recorded")
+
+
+def wait_for(home, cid, status, limit=15):
+    end = time.time() + limit
+    while time.time() < end:
+        data = record(home, cid)
+        if data["status"] == status:
+            return data
+        time.sleep(0.05)
+    raise AssertionError(f"{cid} never reached {status}")
+
+
+def test_v2_runs_over_a_private_api_server_with_the_role_rules_and_pin(v2):
+    home, directory, _ = v2
     first = call(directory)
     assert first["status"] == "completed", first
     assert first["result"] == "RESULT_OK"
-    invocation = json.loads((directory / "invocation.json").read_text())
-    args = invocation["args"]
-    assert args[:4] == ["run", "--standalone", "--format", "json"]
-    model, variant = pinned("hermes-plan")
-    assert model and args[args.index("--model") + 1] == f"{model}#{variant}" if variant else model
-    assert invocation["config"]["agent"]["hermes-plan"]["permission"] == invocation["permission"]
-    resumed = call(conversation_id=first["conversation_id"])
-    assert resumed["status"] == "completed" and resumed["session_id"] == "ses_first"
-    forked = call(conversation_id=first["conversation_id"], fork=True)
-    assert forked["status"] == "completed" and forked["session_id"] == "ses_fork"
+    assert first["changes"] == [{"file": "a.txt", "status": "added", "additions": 1, "deletions": 0}]
+    created = seen(directory)["created"]
+    assert created["agent"] == "hermes-plan"
+    assert created["model"] == fake["PINS"]["hermes-plan"]
+    assert created["location"] == {"directory": str(directory)}
+    assert created["permissions"] == rules("plan")
+    assert "$(not a shell)" in seen(directory)["prompts"][0]
+    assert seen(directory)["server_env_has_policy"] is False
+    assert not plugin._group_alive(record(home, first["conversation_id"])["pgid"])
+    assert oct(Path(first["log"]).stat().st_mode & 0o777) == "0o600"
+    diff = Path(first["log"]).with_suffix(".diff")
+    assert "+x" in diff.read_text() and oct(diff.stat().st_mode & 0o777) == "0o600"
+
+
+def test_v2_resume_and_fork_reapply_agent_model_and_rules(v2):
+    _, directory, _ = v2
+    first = call(directory)
+    built = call(conversation_id=first["conversation_id"], agent="build", approval="Implement the plan")
+    assert built["status"] == "completed", built
+    assert built["session_id"] == first["session_id"]
+    session = seen(directory)["session"]
+    assert session["agent"] == "hermes-build" and session["model"] == fake["PINS"]["hermes-build"]
+    assert session["permissions"] == rules("build")
+    forked = call(conversation_id=first["conversation_id"], fork=True, agent="plan")
+    assert forked["status"] == "completed" and forked["session_id"] == "ses_fork", forked
+    assert forked["conversation_id"] != first["conversation_id"]
+    assert seen(directory)["session"]["permissions"] == rules("plan")
+
+
+@pytest.mark.parametrize("role", ["review", "debug"])
+def test_v2_review_and_debug_are_builds_subagents_not_roles(v2, role):
+    _, directory, _ = v2
+    result = call(directory, agent=role)
+    assert result["status"] == "failed" and "not an OpenCode 2 role" in result["error"], result
+    assert not (directory / "invocation.json").exists()
 
 
 def test_v2_explicit_model_and_variant_replace_the_pin(v2):
@@ -594,30 +648,253 @@ def test_v2_explicit_model_and_variant_replace_the_pin(v2):
     (home / "config.yaml").write_text(
         "opencode_cli:\n  enabled: true\n  timeout: 10\n"
         "  allowed_models: [openai/gpt-6-sol]\n  allowed_variants: [high]\n")
-    result = call(directory, model="openai/gpt-6-sol", variant="high")
-    assert result["status"] == "completed", result
-    args = json.loads((directory / "invocation.json").read_text())["args"]
-    assert args[args.index("--model") + 1] == "openai/gpt-6-sol#high"
-    plain = call(directory, model="openai/gpt-6-sol")
-    args = json.loads((directory / "invocation.json").read_text())["args"]
-    assert plain["status"] == "completed" and args[args.index("--model") + 1] == "openai/gpt-6-sol"
+    assert call(directory, model="openai/gpt-6-sol", variant="high")["status"] == "completed"
+    assert seen(directory)["created"]["model"] == {"providerID": "openai", "id": "gpt-6-sol", "variant": "high"}
 
 
-def test_v2_without_any_model_fails_before_launch(v2, tmp_path, monkeypatch):
+def test_v2_without_any_model_fails_before_launch(v2, monkeypatch):
     _, directory, _ = v2
-    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "empty-config"))
+    monkeypatch.setenv("ENGINEER_FAKE_NO_PIN", "1")
     result = call(directory)
     assert result["status"] == "failed" and "needs a model" in result["error"], result
     assert not (directory / "invocation.json").exists()
 
 
-@pytest.mark.parametrize("behavior, status", [("error", "failed"), ("malformed", "unknown"),
-                                              ("wrong-session", "unknown")])
-def test_v2_errors_and_protocol_breaks_are_not_success(v2, monkeypatch, behavior, status):
+@pytest.mark.parametrize("behavior", ["bad-rules", "bad-model"])
+def test_v2_session_must_take_the_role_before_any_prompt(v2, monkeypatch, behavior):
+    _, directory, _ = v2
+    monkeypatch.setenv("ENGINEER_FAKE", behavior)
+    result = call(directory)
+    assert result["status"] == "failed" and "did not take" in result["error"], result
+    assert seen(directory)["prompts"] == []
+
+
+def test_v2_an_unreadable_resolved_ruleset_stops_the_run(v2, monkeypatch):
+    """Without the person's resolved denies, build's `shell *` allow would reopen them."""
+    _, directory, _ = v2
+    monkeypatch.setenv("ENGINEER_FAKE", "no-rules")
+    result = call(directory, agent="build", approval="Implement")
+    assert result["status"] == "failed" and "no readable ruleset" in result["error"], result
+    assert not (directory / "invocation.json").exists()
+
+
+@pytest.mark.parametrize("behavior, status", [("error", "failed"), ("none", "unknown"), ("question", "completed"),
+                                              ("crash", "unknown")])
+def test_v2_this_turns_outcome_decides_the_status(v2, monkeypatch, behavior, status):
     _, directory, _ = v2
     monkeypatch.setenv("ENGINEER_FAKE", behavior)
     result = call(directory)
     assert result["status"] == status, result
+    if behavior == "question":
+        assert "ASK_CLIENT" in result["result"]
+
+
+def test_v2_an_earlier_turns_outcome_is_not_this_turns(v2, monkeypatch):
+    _, directory, _ = v2
+    first = call(directory)
+    assert first["status"] == "completed"
+    monkeypatch.setenv("ENGINEER_FAKE", "stale")
+    again = call(conversation_id=first["conversation_id"])
+    assert again["status"] == "unknown", again
+    assert again["result"] == "" and again["changes"] == []
+
+
+def test_v2_deadline_interrupts_the_session_and_blocks_replay(v2, monkeypatch):
+    home, directory, _ = v2
+    (home / "config.yaml").write_text("opencode_cli:\n  enabled: true\n  timeout: 3\n")
+    monkeypatch.setenv("ENGINEER_FAKE", "sleep")
+    started = time.monotonic()
+    result = call(directory)
+    assert time.monotonic() - started < 30
+    assert result["status"] == "unknown", result
+    assert ["POST", "interrupt"] in seen(directory)["calls"]
+    child = int((directory / "child-pid").read_text())
+    for _ in range(40):
+        try:
+            os.kill(child, 0)
+        except ProcessLookupError:
+            break
+        time.sleep(0.1)
+    else:
+        raise AssertionError("the turn's child process outlived the interrupt")
+    assert "uncertain" in call(directory)["error"]
+
+
+def test_v2_a_killed_runner_does_not_leave_its_server_running(v2, monkeypatch):
+    home, directory, _ = v2
+    (home / "config.yaml").write_text("opencode_cli:\n  enabled: true\n  timeout: 60\n")
+    monkeypatch.setenv("ENGINEER_FAKE", "sleep")
+    thread = threading.Thread(target=call, args=(directory,), daemon=True)
+    thread.start()
+    cid = first_cid(home)
+    data = wait_for(home, cid, "running")
+    for _ in range(100):
+        data = record(home, cid)
+        if data.get("pgid") and (directory / "child-pid").exists():
+            break
+        time.sleep(0.05)
+    runner = subprocess.run(["pgrep", "-f", data["job_id"] + ".request"], capture_output=True, text=True).stdout.split()
+    assert runner, "runner process not found"
+    for pid in runner:
+        os.kill(int(pid), signal.SIGKILL)
+    for _ in range(200):
+        if not plugin._group_alive(data["pgid"]):
+            break
+        time.sleep(0.1)
+    else:
+        raise AssertionError("the private server outlived its killed runner")
+    thread.join(timeout=30)
+
+
+@pytest.mark.parametrize("decision, expected", [("once", "PUSHED"), ("reject", "SKIPPED: not in scope")])
+def test_v2_permission_request_pauses_for_the_caller(v2, monkeypatch, decision, expected):
+    home, directory, _ = v2
+    monkeypatch.setenv("ENGINEER_FAKE", "ask")
+    paused = call(directory, agent="build", approval="Implement")
+    assert paused["status"] == "waiting", paused
+    assert paused["pending"] == [{"id": "per_1", "action": "shell", "resources": ["git push origin topic"]}]
+    assert "answer" in paused["note"]
+    cid = paused["conversation_id"]
+    assert "uncertain" in call(directory)["error"]
+    still = session(cid, "wait", timeout=1)
+    assert still["status"] == "waiting" and still["timed_out"] is False and "answer" in still["note"]
+    assert "once or reject" in session(cid, "answer", permission_id="per_1", decision="always")["error"]
+    assert "No such" in session(cid, "answer", permission_id="per_9", decision="once")["error"]
+    assert "only accepted for answer" in session(cid, "status", decision="once")["error"]
+    answered = session(cid, "answer", permission_id="per_1", decision=decision,
+                       **({"message": "not in scope"} if decision == "reject" else {}))
+    assert answered["answer_recorded"] is True
+    assert "No such" in session(cid, "answer", permission_id="per_1", decision="once")["error"]
+    done = session(cid, "wait", timeout=20)
+    assert done["status"] == "completed", done
+    assert done["result"] == expected
+    assert done["replies"] == [{"id": "per_1", "action": "shell", "resources": ["git push origin topic"],
+                                "decision": decision, "by": "caller"}]
+    assert seen(directory)["replies"][0]["decision"] == decision
+    if decision == "reject":
+        assert seen(directory)["replies"][0]["message"] == "not in scope"
+        assert done["denied"] and done["denied"][0]["tool"] == "shell"
+    assert "pending" not in done
+    assert not list((home / "opencode-sessions").glob("*.answer"))
+
+
+def test_v2_subagent_requests_reach_the_caller_and_the_reply_reaches_the_subagent(v2, monkeypatch):
+    home, directory, _ = v2
+    monkeypatch.setenv("ENGINEER_FAKE", "ask-subagent")
+    paused = call(directory, agent="build", approval="Implement")
+    assert paused["status"] == "waiting", paused
+    assert paused["pending"] == [{"id": "per_1", "action": "shell", "resources": ["git push origin topic"],
+                                  "from": "subagent"}]
+    session(paused["conversation_id"], "answer", permission_id="per_1", decision="reject")
+    done = session(paused["conversation_id"], "wait", timeout=20)
+    assert done["status"] == "completed", done
+    reply = seen(directory)["replies"][0]
+    assert reply["session"] == "ses_child" and reply["message"] == plugin.REJECTED
+
+
+def test_v2_live_caller_requests_are_rejected_by_the_runner(v2, monkeypatch):
+    home, directory, owner = v2
+    monkeypatch.setenv("ENGINEER_FAKE", "ask")
+    monkeypatch.setattr(plugin, "_scope", lambda: (home, owner, True))
+    launched = {}
+
+    def terminal_tool(command, **kwargs):
+        launched["run"] = subprocess.Popen(shlex.split(command))
+        return json.dumps({"session_id": "proc_1"})
+
+    module = type(sys)("tools.terminal_tool")
+    module.terminal_tool = terminal_tool
+    monkeypatch.setitem(sys.modules, "tools.terminal_tool", module)
+    monkeypatch.setitem(sys.modules, "tools", type(sys)("tools"))
+    started = call(directory, agent="build", approval="Implement")
+    launched["run"].wait(timeout=30)
+    done = session(started["conversation_id"])
+    assert done["status"] == "completed", done
+    assert done["replies"][0]["decision"] == "reject" and done["replies"][0]["by"] == "runner"
+    assert seen(directory)["replies"][0]["message"] == plugin.NO_APPROVER
+
+
+def test_v2_status_reports_progress_while_running(v2, monkeypatch):
+    home, directory, _ = v2
+    (home / "config.yaml").write_text("opencode_cli:\n  enabled: true\n  timeout: 4\n")
+    monkeypatch.setenv("ENGINEER_FAKE", "sleep")
+    thread = threading.Thread(target=call, args=(directory,))
+    thread.start()
+    cid = first_cid(home)
+    wait_for(home, cid, "running")
+    for _ in range(100):
+        running = session(cid)
+        if "progress" in running:
+            break
+        time.sleep(0.05)
+    assert set(running["progress"]) == {"last_activity", "tool", "tokens"}
+    thread.join(timeout=30)
+
+
+# A model of V2 evaluation: whole-value wildcards (`*` crosses `/`, `?` is one
+# character), a pattern ending in " *" also matches the bare command, the last
+# matching rule wins, no match means ask.
+def decide(ruleset, action, resource):
+    def matches(pattern, value):
+        return fnmatch.fnmatchcase(value, pattern) or (
+            pattern.endswith(" *") and fnmatch.fnmatchcase(value, pattern[:-2]))
+    effect = "ask"
+    for rule in ruleset:
+        if matches(rule["action"], action) and matches(rule["resource"], resource):
+            effect = rule["effect"]
+    return effect
+
+
+@pytest.mark.parametrize("path, effect", [
+    (".env", "deny"), ("sub/.env", "deny"), (".env.local", "deny"), (".env.example", "allow"),
+    ("key.pem", "deny"), ("certs/server.key", "deny"), ("/home/u/.ssh/id_ed25519", "deny"),
+    (".envrc", "deny"), (".npmrc", "deny"),
+    ("src/app.py", "allow"),
+])
+def test_v2_secret_reads_are_closed_at_every_depth(path, effect):
+    for role in ("plan", "build"):
+        assert decide(rules(role), "read", path) == effect, (role, path)
+
+
+@pytest.mark.parametrize("command, effect", [
+    ("git status", "allow"), ("git log --oneline -5", "allow"), ("git diff --output=x.patch", "deny"),
+    ("rm -rf x", "deny"), ("npm test", "deny"), ("sudo ls", "deny"), ("secret get KEY", "deny"),
+])
+def test_v2_plan_shell_is_read_only(command, effect):
+    assert decide(rules("plan"), "shell", command) == effect
+    assert decide(rules("plan"), "edit", "src/app.py") == "deny"
+    assert decide(rules("plan"), "execute", "*") == "deny"
+    assert decide(rules("plan"), "subagent", "verifier") == "deny"
+    assert decide(rules("plan"), "subagent", "explore-small") == "allow"
+
+
+@pytest.mark.parametrize("command, effect", [
+    ("npm test", "allow"), ("git commit -m x", "allow"), ("git push origin topic", "ask"),
+    ("git rebase main", "ask"), ("git -C . push origin topic", "ask"), ("npm exec foo", "ask"),
+    ("git -C . status", "allow"), ("git -C sub diff --stat", "allow"), ("git -C . commit -m x", "ask"),
+    ("git -C . push --force origin topic", "deny"), ("git -C . push origin main", "deny"),
+    ("git -c core.x=y push origin +topic", "deny"), ("git -C . reset --hard", "deny"),
+    ("git commit -m 'push --force and reset config'", "allow"),
+    ("git push origin main", "deny"), ("git push origin HEAD:main", "deny"),
+    ("git push origin refs/heads/main", "deny"), ("git push origin HEAD:refs/heads/master", "deny"),
+    ("git push --force origin topic", "deny"), ("git push -f origin topic", "deny"),
+    ("git push origin +topic", "deny"), ("git push origin :topic", "deny"), ("git push --delete origin topic", "deny"),
+    ("git reset --hard", "deny"), ("git reset HEAD~1 --hard", "deny"), ("git clean -xdf", "deny"),
+    ("gh pr merge 1", "deny"), ("gh issue create -t x", "deny"), ("gh api repos/x", "deny"),
+    ("sudo ls", "deny"), ("secret get KEY", "deny"),
+])
+def test_v2_build_shell_asks_for_person_gated_commands_and_denies_the_rest(command, effect):
+    assert decide(rules("build"), "shell", command) == effect
+
+
+def test_v2_build_keeps_scratch_dirs_and_issue_grant_opens_issue_writes():
+    build = rules("build")
+    assert decide(build, "external_directory", "/elsewhere/*") == "deny"
+    scratch = [r["resource"] for r in build if r["action"] == "external_directory" and r["effect"] == "allow"]
+    assert scratch and all(decide(build, "external_directory", s) == "allow" for s in scratch)
+    assert decide(build, "subagent", "debugger") == decide(build, "subagent", "reviewer-deep") == "allow"
+    assert decide(build, "github_project_item_add", "*") == "deny"
+    assert decide(rules("build", "granted"), "shell", "gh issue create -t x") == "allow"
 
 
 def test_unknown_opencode_version_fails_before_launch(fixture, monkeypatch):

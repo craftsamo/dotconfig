@@ -19,8 +19,8 @@ permission:
   edit: allow
   # Worktrees live outside the session directory. Known worktree homes are
   # free; any other outside path asks. Last match wins. The Hermes opencode
-  # plugin re-denies these keys under `opencode run --auto` (where ask means
-  # approve) — keep its WORKER_EXTERNAL_KEYS in sync with this block.
+  # plugin re-denies these keys under OpenCode 1's `opencode run --auto` (where
+  # ask means approve) — keep its WORKER_EXTERNAL_KEYS in sync with this block.
   external_directory:
     "*": ask
     "~/.local/share/opencode/worktree/*": allow
