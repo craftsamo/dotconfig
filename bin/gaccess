@@ -4,13 +4,14 @@
 #   gaccess auth ~/Downloads/client_secret.json   authorize Google in the browser, store the token
 #   gaccess gcloud-login                          log Hermes' own gcloud configuration in
 #   gaccess check                                 token, granted scopes, gcloud account
-#   gaccess revoke                                revoke and delete the Google token
+#   gaccess revoke                                revoke the Google token, remove it from the Keychain
 #   gaccess paths                                 where the state lives
 #   gaccess --profile NAME …                      another profile (default assistant)
 #
 # The code lives in the Hermes google-access plugin (hermes/plugins/google-access/
 # access.py) and needs the Google client libraries of Hermes' own Python (hermes-python).
-# The state stays in ~/.hermes/profiles/<profile>/google-access/, outside every repository.
+# The token lives in the Keychain (GOOGLE_OAUTH_<PROFILE>, project hermes, scope google-access);
+# gcloud's own login in ~/.hermes/profiles/<profile>/google-access/gcloud/.
 # Overrides: GACCESS_CLI.
 set -euo pipefail
 

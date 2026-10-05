@@ -411,7 +411,8 @@ keeps user keys.
   `google_drive` and `gcloud` (toolset `google_access`) for the assistant, a
   `pre_tool_call` hook that sends every change through the approval gate and
   blocks the terminal path around them, and the code behind `bin/gaccess`
-  (one-time setup). Behavior: [docs/google-access.md](docs/google-access.md).
+  (one-time setup). The token stays in the Keychain (`GOOGLE_OAUTH_<PROFILE>`,
+  scope `google-access`). Behavior: [docs/google-access.md](docs/google-access.md).
 - **whatsapp-access** (`standalone`): `whatsapp` (toolset `whatsapp_access`)
   for the assistant — reads the user's WhatsApp accounts from the local
   `wacli` mirror (plus number checks, history backfill and media downloads)

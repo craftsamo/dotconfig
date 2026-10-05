@@ -23,10 +23,36 @@ def _load(name, path):
 access = _load("google_access_engine_test", ROOT / "access.py")
 
 
+TOKEN = {"client_id": "c", "client_secret": "s", "refresh_token": "r"}
+
+
+@pytest.fixture(autouse=True)
+def keychain(tmp_path_factory, monkeypatch):
+    """A fake ``secret`` CLI: one file per item, every call logged; never the real Keychain."""
+    root = tmp_path_factory.mktemp("keychain")
+    items, log = root / "items", root / "log"
+    items.mkdir()
+    script = root / "secret"
+    script.write_text(f"""#!/bin/sh
+echo "$*" >> {log}
+item="{items}/$2"
+case "$1" in
+  get) [ -f "$item" ] && cat "$item" || exit 1 ;;
+  show) [ -f "$item" ] || exit 1 ;;
+  set|update) cat > "$item" ;;
+  rm) rm -f "$item" ;;
+esac
+""")
+    script.chmod(0o755)
+    monkeypatch.setattr(access, "SECRET", script)
+    access._CREDS.clear()
+    yield SimpleNamespace(items=items, log=log, script=script)
+    access._CREDS.clear()
+
+
 def token(home, scopes=access.SCOPES):
-    access._write_private(access.token_path(home), json.dumps({
-        "type": "authorized_user", "client_id": "c", "client_secret": "s", "refresh_token": "r",
-        "token": "t", "scopes": list(scopes)}))
+    """Store a token for the profile home in the (fake) Keychain."""
+    access._vault_write(home, dict(TOKEN, scopes=list(scopes)))
 
 
 def tree(spec):
@@ -403,9 +429,11 @@ def test_drive_upload_asks_and_refuses_credentials(tmp_path):
     assert str(report) in reason and "4 bytes" in reason and "My Drive" in reason
     with pytest.raises(access.AccessError, match="not a file"):
         access.approval_request("google_drive", {"action": "upload", "path": str(tmp_path / "missing")})
-    token(tmp_path)
+    state = access.gcloud_config_dir(tmp_path) / "credentials.db"
+    state.parent.mkdir(parents=True)
+    state.write_text("x")
     with pytest.raises(access.AccessError, match="credential"):
-        access.approval_request("google_drive", {"action": "upload", "path": str(access.token_path(tmp_path))})
+        access.approval_request("google_drive", {"action": "upload", "path": str(state)})
 
 
 @pytest.mark.parametrize("tool,args", [
@@ -436,7 +464,11 @@ def test_long_reasons_are_capped():
     "cat ~/.config/gcloud/credentials.db", "CLOUDSDK_CONFIG=/tmp/x foo",
     "python3 ~/ghq/x/skills/productivity/google-workspace/scripts/google_api.py sheets get",
     "cat ~/.hermes/profiles/assistant/google-access/token.json",
-    "ls ~/.hermes/profiles/assistant/google-access/gcloud"])
+    "ls ~/.hermes/profiles/assistant/google-access/gcloud",
+    "secret get GOOGLE_OAUTH_ASSISTANT -p hermes --scope google-access",
+    "security find-generic-password -s secret.hermes/google-access -w",
+    "security dump-keychain -d ~/Library/Keychains/login.keychain-db",
+    "secret export -p hermes --format json"])
 def test_terminal_bypass_is_blocked(command):
     assert access.bypass("terminal", {"command": command}) == access.BYPASS_MESSAGE
 
@@ -471,35 +503,53 @@ def test_file_tools_cannot_read_credentials():
 
 # --- state and credentials ------------------------------------------------------------------------
 
-def test_token_is_private(tmp_path):
+def test_the_token_lives_in_the_keychain_and_never_on_argv(tmp_path, keychain):
     token(tmp_path)
-    path = access.token_path(tmp_path)
-    assert oct(path.stat().st_mode & 0o777) == "0o600"
-    assert oct(path.parent.stat().st_mode & 0o777) == "0o700"
+    name = access.vault_name(tmp_path)
+    assert name.startswith("GOOGLE_OAUTH_")
+    assert json.loads((keychain.items / name).read_text()) == dict(TOKEN, scopes=sorted(access.SCOPES))
+    calls = keychain.log.read_text()
+    assert f"set {name} -p hermes --scope google-access -D token" in calls and "--stdin" in calls
+    assert '"r"' not in calls and " r " not in calls
+    assert not access.legacy_token_path(tmp_path).exists()
 
 
-def test_concurrent_writes_never_share_a_temporary_file(tmp_path):
-    import threading
-    path = access.token_path(tmp_path)
-    barrier = threading.Barrier(8)
-    errors = []
+def test_vault_names_follow_the_profile(tmp_path):
+    assert access.vault_name(Path.home() / ".hermes" / "profiles" / "assistant") == "GOOGLE_OAUTH_ASSISTANT"
+    assert access.vault_name(Path.home() / ".hermes") == "GOOGLE_OAUTH_DEFAULT"
+    assert access.vault_name("~/.hermes/profiles/image-creator") == "GOOGLE_OAUTH_IMAGE_CREATOR"
 
-    def write(n):
-        try:
-            barrier.wait()
-            access._write_private(path, json.dumps({"n": n, "pad": "x" * 50000}))
-        except Exception as exc:  # pragma: no cover - the assertion reports it
-            errors.append(exc)
 
-    threads = [threading.Thread(target=write, args=(n,)) for n in range(8)]
-    for thread in threads:
-        thread.start()
-    for thread in threads:
-        thread.join()
-    assert errors == []
-    assert json.loads(path.read_text())["n"] in range(8)
-    assert oct(path.stat().st_mode & 0o777) == "0o600"
-    assert [p.name for p in path.parent.iterdir() if p.suffix == ".tmp"] == []
+def test_an_old_token_file_moves_into_the_keychain(tmp_path, keychain):
+    legacy = access.legacy_token_path(tmp_path)
+    legacy.parent.mkdir(parents=True)
+    legacy.write_text(json.dumps(dict(TOKEN, type="authorized_user", token="access", expiry="2026-01-01T00:00:00Z",
+                                      scopes=list(access.SCOPES))))
+    entry = access._stored_token(tmp_path)
+    assert entry == dict(TOKEN, scopes=sorted(access.SCOPES))  # never the short-lived access token
+    assert not legacy.exists()
+    assert json.loads((keychain.items / access.vault_name(tmp_path)).read_text()) == entry
+
+
+def test_an_old_token_file_stays_when_the_keychain_fails(tmp_path, keychain):
+    legacy = access.legacy_token_path(tmp_path)
+    legacy.parent.mkdir(parents=True)
+    legacy.write_text(json.dumps(dict(TOKEN, scopes=list(access.SCOPES))))
+    keychain.script.write_text(keychain.script.read_text().replace('set|update) cat > "$item" ;;',
+                                                                   'set|update) exit 3 ;;'))
+    with pytest.raises(access.AccessError, match="could not store"):
+        access._stored_token(tmp_path)
+    assert legacy.exists()
+
+
+def test_an_unreadable_token_is_never_overwritten(tmp_path, keychain):
+    token(tmp_path)
+    legacy = access.legacy_token_path(tmp_path)
+    legacy.write_text(json.dumps(dict(TOKEN, refresh_token="older", scopes=list(access.SCOPES))))
+    keychain.script.write_text(keychain.script.read_text().replace('get) [', 'get) exit 1; ['))
+    with pytest.raises(access.AccessError, match="could not be read"):
+        access._stored_token(tmp_path)
+    assert json.loads((keychain.items / access.vault_name(tmp_path)).read_text())["refresh_token"] == "r"
 
 
 def test_concurrent_refreshes_are_serialized(tmp_path, monkeypatch):
@@ -509,33 +559,146 @@ def test_concurrent_refreshes_are_serialized(tmp_path, monkeypatch):
     token(tmp_path)
     refreshed = []
 
-    class Fake:
-        def __init__(self, info):
-            self.info = info
-            self.valid = info.get("token") == "fresh"
-            self.refresh_token = info.get("refresh_token")
+    def refresh(self, request):
+        time.sleep(0.05)
+        refreshed.append(1)
+        self.token = "fresh"
+        self.expiry = None
 
-        @classmethod
-        def from_authorized_user_info(cls, info, scopes=None):
-            return cls(info)
-
-        def refresh(self, request):
-            time.sleep(0.05)
-            refreshed.append(1)
-            self.info = dict(self.info, token="fresh")
-
-        def to_json(self):
-            return json.dumps(self.info)
-
-    monkeypatch.setattr(credentials_module, "Credentials", Fake)
+    monkeypatch.setattr(credentials_module.Credentials, "refresh", refresh)
     threads = [threading.Thread(target=access.credentials, args=(tmp_path, access.SHEETS)) for _ in range(6)]
     for thread in threads:
         thread.start()
     for thread in threads:
         thread.join()
     assert refreshed == [1]
-    stored = json.loads(access.token_path(tmp_path).read_text())
-    assert stored["token"] == "fresh" and stored["scopes"] == list(access.SCOPES)
+    assert access.credentials(tmp_path, access.GMAIL_READ).token == "fresh"  # the same token, from memory
+
+
+def test_every_refresh_stores_a_rotated_refresh_token(tmp_path, monkeypatch, keychain):
+    """The transport refreshes on its own (expiry, a 401); that path keeps a rotation too."""
+    credentials_module = pytest.importorskip("google.oauth2.credentials")
+    token(tmp_path)
+
+    def refresh(self, request):
+        self._refresh_token = "rotated"
+        self.token = "fresh"
+    monkeypatch.setattr(credentials_module.Credentials, "refresh", refresh)
+    creds = access._build(tmp_path, access._stored_token(tmp_path))
+    creds.refresh(object())  # as google_auth_httplib2 would, outside credentials()
+    name = keychain.items / access.vault_name(tmp_path)
+    assert json.loads(name.read_text())["refresh_token"] == "rotated"
+    access._vault_write(tmp_path, dict(TOKEN, refresh_token="newer", scopes=list(access.SCOPES)))
+    stale = access._build(tmp_path, dict(TOKEN, scopes=list(access.SCOPES)))  # refreshed from "r"
+    stale.refresh(object())
+    assert json.loads(name.read_text())["refresh_token"] == "newer"
+
+
+def test_a_refused_cached_token_is_read_again(tmp_path, monkeypatch):
+    credentials_module = pytest.importorskip("google.oauth2.credentials")
+    from google.auth.exceptions import RefreshError
+    token(tmp_path)
+
+    def refresh(self, request):
+        if self.refresh_token == "r":
+            raise RefreshError("invalid_grant")
+        self.token = "fresh"
+    monkeypatch.setattr(credentials_module.Credentials, "refresh", refresh)
+    stale = access._build(tmp_path, dict(TOKEN, scopes=list(access.SCOPES)))
+    access._CREDS[str(tmp_path)] = (dict(TOKEN, scopes=sorted(access.SCOPES)), stale, access._generation(tmp_path))
+    access._vault_write(tmp_path, dict(TOKEN, refresh_token="reauthorized", scopes=list(access.SCOPES)))
+    assert access.credentials(tmp_path, access.SHEETS).refresh_token == "reauthorized"
+    with pytest.raises(access.AccessError, match="refused"):
+        access._CREDS.clear()
+        access._vault_write(tmp_path, dict(TOKEN, scopes=list(access.SCOPES)))
+        access.credentials(tmp_path, access.SHEETS)
+
+
+def test_auth_stores_in_the_keychain_and_drops_an_old_file(tmp_path, monkeypatch, keychain, capsys):
+    flow_module = pytest.importorskip("google_auth_oauthlib.flow")
+    secret_file = tmp_path / "client.json"
+    secret_file.write_text(json.dumps({"installed": {}}))
+    legacy = access.legacy_token_path(tmp_path)
+    legacy.parent.mkdir(parents=True)
+    legacy.write_text("{}")
+
+    class Creds:
+        granted_scopes = list(access.SCOPES)
+
+        def to_json(self):
+            return json.dumps(dict(TOKEN, token="access", scopes=list(access.SCOPES)))
+
+    class Flow:
+        @classmethod
+        def from_client_secrets_file(cls, path, scopes):
+            return cls()
+
+        def run_local_server(self, **kwargs):
+            return Creds()
+
+    monkeypatch.setattr(flow_module, "InstalledAppFlow", Flow)
+    assert access.main(["--home", str(tmp_path), "auth", str(secret_file)]) == 0
+    assert json.loads((keychain.items / access.vault_name(tmp_path)).read_text()) == \
+        dict(TOKEN, scopes=sorted(access.SCOPES))
+    assert not legacy.exists() and "Keychain" in capsys.readouterr().out
+
+
+def test_another_process_storing_a_token_reaches_cached_credentials(tmp_path, monkeypatch):
+    credentials_module = pytest.importorskip("google.oauth2.credentials")
+
+    def refresh(self, request):
+        self.token = "fresh-" + self.refresh_token
+        self.expiry = None
+    monkeypatch.setattr(credentials_module.Credentials, "refresh", refresh)
+    with access._token_lock(tmp_path):
+        access._store(tmp_path, dict(TOKEN, scopes=list(access.SCOPES)))
+    assert access.credentials(tmp_path, access.SHEETS).token == "fresh-r"
+    with access._token_lock(tmp_path):  # as `gaccess auth` would, for another account
+        access._store(tmp_path, dict(TOKEN, refresh_token="other", scopes=list(access.SCOPES)))
+    assert access.credentials(tmp_path, access.SHEETS).token == "fresh-other"
+
+
+def test_an_old_file_is_never_imported_once_the_keychain_was_used(tmp_path, keychain):
+    with access._token_lock(tmp_path):
+        access._store(tmp_path, dict(TOKEN, scopes=list(access.SCOPES)))
+    (keychain.items / access.vault_name(tmp_path)).unlink()  # unreadable or gone, not "never stored"
+    legacy = access.legacy_token_path(tmp_path)
+    legacy.write_text(json.dumps(dict(TOKEN, refresh_token="old", scopes=list(access.SCOPES))))
+    with pytest.raises(access.AccessError, match="cannot be read now"):
+        access._stored_token(tmp_path)
+    assert legacy.exists() and not (keychain.items / access.vault_name(tmp_path)).exists()
+
+
+def test_an_old_file_stays_when_the_write_does_not_read_back(tmp_path, keychain):
+    legacy = access.legacy_token_path(tmp_path)
+    legacy.parent.mkdir(parents=True)
+    legacy.write_text(json.dumps(dict(TOKEN, scopes=list(access.SCOPES))))
+    keychain.script.write_text(keychain.script.read_text().replace('set|update) cat > "$item" ;;',
+                                                                   'set|update) echo "{}" > "$item" ;;'))
+    with pytest.raises(access.AccessError):
+        access._stored_token(tmp_path)
+    assert legacy.exists() and not access.generation_path(tmp_path).exists()
+
+
+def test_revoke_fails_when_the_token_stays(tmp_path, monkeypatch, keychain):
+    import urllib.request
+    token(tmp_path)
+    monkeypatch.setattr(urllib.request, "urlopen", lambda request, timeout: None)
+    keychain.script.write_text(keychain.script.read_text().replace('rm) rm -f "$item" ;;', 'rm) exit 0 ;;'))
+    assert access.main(["--home", str(tmp_path), "revoke"]) == 1
+    assert (keychain.items / access.vault_name(tmp_path)).exists()
+
+
+def test_revoke_removes_the_token(tmp_path, monkeypatch, keychain, capsys):
+    import urllib.request
+    token(tmp_path)
+    sent = []
+    monkeypatch.setattr(urllib.request, "urlopen", lambda request, timeout: sent.append(request.data))
+    assert access.main(["--home", str(tmp_path), "revoke"]) == 0
+    assert sent == [b"token=r"]
+    assert not (keychain.items / access.vault_name(tmp_path)).exists()
+    assert access.main(["--home", str(tmp_path), "revoke"]) == 0
+    assert "no token" in capsys.readouterr().out
 
 
 def test_missing_token_explains_setup(tmp_path):
