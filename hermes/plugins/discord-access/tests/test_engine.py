@@ -660,6 +660,120 @@ def test_recheck_skips_quiet_and_unreadable_channels():
     engine.sync(client(FakeHttp(sync_routes(old, lambda p, b: pytest.fail("a quiet DM was rechecked"), old)), conn))
 
 
+# --- searches, threads, pins, mentions, friends ---------------------------------------------------
+
+def test_search_waits_out_one_index_build():
+    conn = store.connect(write=True)
+    mirrored(conn)
+    hits = []
+
+    def index(params, body):
+        hits.append(params)
+        if len(hits) == 1:
+            return 202, {}, {"message": "Index not yet available", "code": 110000, "retry_after": 0}
+        return 200, {}, {"total_results": 1, "messages": [[{**msg(flake(5), DM1, content="found"), "hit": True}]]}
+    http = FakeHttp({**me_route(), ("GET", f"/channels/{DM1}/messages/search"): index})
+    result = engine.search(client(http, conn), query="found", channel=DM1)
+    assert result["total"] == 1 and result["messages"][0]["content"] == "found" and len(hits) == 2
+    assert hits[0]["content"] == "found" and hits[0]["sort_by"] == "timestamp"
+    http = FakeHttp({("GET", f"/channels/{DM1}/messages/search"): (202, {}, {"code": 110000, "retry_after": 1})})
+    with pytest.raises(engine.EngineError) as exc:
+        engine.search(client(http, conn), query="x", channel=DM1)
+    assert exc.value.kind == "indexing"
+
+
+def test_search_of_every_dm_posts_the_tabs_query_and_keeps_reactions():
+    conn = store.connect(write=True)
+    mid = flake(5)
+    store.upsert_messages(conn, [store.message_row(msg(mid, DM1, reactions=[{"emoji": {"name": "a"}, "count": 1}]), ME)])
+    found = {**msg(mid, DM1, content="hello"), "hit": True}
+    http = FakeHttp({("POST", "/users/@me/messages/search/tabs"): (200, {}, {"tabs": {"messages": {
+        "total_results": 1, "messages": [[found]]}}})})
+    result = engine.search(client(http, conn), query="hello", min_id="1" * 18)
+    body = http.api_calls("POST")[0]["body"]
+    assert body["tabs"]["messages"]["content"] == "hello" and body["tabs"]["messages"]["min_id"] == "1" * 18
+    assert result["messages"][0]["id"] == int(mid)
+    assert conn.execute("SELECT reactions FROM messages WHERE id = ?", (int(mid),)).fetchone()[0]
+
+
+def test_guild_search_filters_a_channel_and_takes_hits_only():
+    conn = store.connect(write=True)
+    hit, context = {**msg(flake(5), TEXT), "hit": True}, msg(flake(6), TEXT)
+    http = FakeHttp({("GET", f"/guilds/{G}/messages/search"): (200, {}, {"total_results": 1,
+                                                                          "messages": [[context, hit]]})})
+    result = engine.search(client(http, conn), query="q", guild=G, channel=TEXT)
+    assert http.api_calls()[0]["params"]["channel_id"] == TEXT
+    assert [r["id"] for r in result["messages"]] == [int(hit["id"])]
+
+
+def test_threads_are_stored_as_channels():
+    conn = store.connect(write=True)
+    thread = {"id": "450000000000000001", "type": 11, "name": "help", "parent_id": TEXT, "guild_id": G,
+              "message_count": 3, "thread_metadata": {"archived": False, "locked": True}}
+    first = msg(flake(5), "450000000000000001", content="first post")
+    http = FakeHttp({("GET", f"/channels/{TEXT}/threads/search"): (200, {}, {
+        "threads": [thread], "has_more": True, "total_results": 9, "first_messages": [first]})})
+    result = engine.threads(client(http, conn), TEXT, archived=False, offset=25)
+    params = http.api_calls()[0]["params"]
+    assert params["archived"] == "false" and params["offset"] == "25" and params["sort_by"] == "last_message_time"
+    assert result["has_more"] and result["first"]["450000000000000001"] == "first post"
+    row = conn.execute("SELECT * FROM channels WHERE id = 450000000000000001").fetchone()
+    assert row["parent_id"] == int(TEXT) and json.loads(row["thread"])["locked"] is True
+
+
+def test_pins_mentions_and_friends():
+    conn = store.connect(write=True)
+    mirrored(conn)
+    p = msg(flake(9), DM1, content="pinned")
+    http = FakeHttp({**me_route(),
+                     ("GET", f"/channels/{DM1}/messages/pins"): (200, {}, {"items": [
+                         {"pinned_at": "2026-10-01T00:00:00+00:00", "message": p}], "has_more": False}),
+                     ("GET", "/users/@me/mentions"): (200, {}, [{**msg(flake(3), TEXT), "guild_id": G}]),
+                     ("GET", "/users/@me/relationships"): (200, {}, [
+                         {"id": FRIEND, "type": 1, "user": {"id": FRIEND, "username": "taro", "global_name": "Taro"}},
+                         {"id": "100000000000000009", "type": 3, "user": {"id": "100000000000000009"}},
+                         {"id": "100000000000000008", "type": 2, "user": {"id": "100000000000000008"}}])})
+    c = client(http, conn)
+    assert engine.pins(c, DM1)["messages"][0]["pinned_at"].startswith("2026-10-01")
+    found = engine.mentions(c, guild=G)
+    assert found["messages"][0]["guild_id"] == int(G)
+    assert [k for k in http.api_calls() if "mentions" in k["url"]][0]["params"]["guild_id"] == G
+    out = engine.friends(c)
+    assert out == {"friends": [{"id": FRIEND, "name": "Taro", "username": "taro", "nickname": None}],
+                   "incoming": 1, "outgoing": 0}
+    assert store.get_meta(conn, "friends")["fetched"]
+
+
+# --- roles ------------------------------------------------------------------------------------------
+
+ROLE, MOD = "600000000000000001", "600000000000000002"
+
+
+def role_routes(extra=None):
+    return {**me_route(),
+            ("GET", f"/guilds/{G}/roles"): (200, {}, [
+                {"id": G, "name": "@everyone", "position": 0, "permissions": "1024"},
+                {"id": ROLE, "name": "Member", "position": 1, "permissions": "2048"},
+                {"id": MOD, "name": "Mod", "position": 3, "permissions": str(1 << 28)}]),
+            ("GET", f"/guilds/{G}/roles/member-counts"): (200, {}, {ROLE: 12, MOD: 2}),
+            ("GET", f"/users/@me/guilds/{G}/member"): (200, {}, {"roles": [MOD], "nick": None}),
+            ("GET", "/users/@me/guilds"): (200, {}, [{"id": G, "name": "Guild", "owner": False}]),
+            **(extra or {})}
+
+
+def test_roles_store_the_list_counts_and_my_member():
+    conn = store.connect(write=True)
+    http = FakeHttp(role_routes())
+    assert engine.roles(client(http, conn), G) == {"roles": 3}
+    rows = {r["id"]: dict(r) for r in conn.execute("SELECT * FROM roles")}
+    assert rows[int(ROLE)]["members"] == 12 and rows[int(MOD)]["position"] == 3
+    me = conn.execute("SELECT roles FROM members WHERE user_id = ?", (int(ME),)).fetchone()
+    assert json.loads(me[0]) == [MOD]
+    assert conn.execute("SELECT owner, roles_at FROM guilds").fetchone()[0] == 0
+    engine.roles(client(FakeHttp(role_routes({("GET", "/users/@me/guilds"): lambda p, b: pytest.fail("again")})),
+                        conn), G)
+
+
 def test_a_message_mirrored_during_a_newest_page_read_is_kept():
     conn = store.connect(write=True)
     a = flake(30)

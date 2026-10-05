@@ -585,7 +585,7 @@ def test_shortened_names_keep_and_recheck_their_extension(tmp_path, monkeypatch)
     assert result["files"] == [] and "archive or program" in result["refused"][0]
 
 
-# --- reactions and embeds -----------------------------------------------------------------------
+# --- reactions, embeds, live search ---------------------------------------------------------------
 
 THUMB = "\U0001F44D"
 
@@ -604,3 +604,117 @@ def test_reactions_and_embeds_show_with_a_note():
     first = result["messages"][0]
     assert first["reactions"] == [{"emoji": THUMB, "count": 2, "me": True}] and first["embeds"] == [{"title": "News"}]
     assert "as of the last time" in result["note"] and "recheck" in result["note"]
+
+
+def test_live_search_scopes(monkeypatch):
+    calls = []
+
+    def engine(command, args, timeout=None):
+        calls.append((command, args))
+        return {"messages": [store.message_row({"id": str(M1), "channel_id": GENERAL, "type": 0, "content": "x",
+                                                "author": {"id": TARO}}, ME, G)], "total": 40}
+    monkeypatch.setattr(access, "call_engine", engine)
+    result = access.execute({"action": "search", "live": True, "query": "x", "channel": GENERAL, "after": str(M1)})
+    assert calls[0] == ("search", {"query": "x", "guild": G, "channel": GENERAL, "offset": 0, "limit": 25,
+                                   "min_id": str(M1)})
+    assert result["source"] == "live" and result["total"] == 40
+    access.execute({"action": "search", "live": True, "query": "x"})
+    assert calls[1][1]["guild"] is None and calls[1][1]["channel"] is None
+    assert "every DM" in access.execute({"action": "search", "live": True, "query": "x"})["scope"]
+    with pytest.raises(access.DiscordError, match="without guild"):
+        access.execute({"action": "search", "live": True, "query": "x", "channel": DM1, "guild": G})
+
+
+# --- threads, pins, mentions, friends ---------------------------------------------------------------
+
+THREAD = "450000000000000001"
+
+
+def test_threads_list_needs_a_parent_channel(monkeypatch):
+    with pytest.raises(access.DiscordError, match="forum"):
+        access.execute({"action": "threads", "channel": DM1})
+    row = store.channel_row({"id": THREAD, "type": 11, "name": "help", "parent_id": GENERAL, "guild_id": G,
+                             "thread_metadata": {"archived": True, "locked": False}, "message_count": 2})
+    monkeypatch.setattr(access, "call_engine", lambda c, a, timeout=None: {
+        "threads": [row], "first": {THREAD: "最初の投稿"}, "has_more": True})
+    result = access.execute({"action": "threads", "channel": GENERAL})
+    assert result["threads"][0] == {"id": THREAD, "name": "help", "last_message": None, "archived": True,
+                                    "locked": False, "messages": 2, "first_post": "最初の投稿"}
+    assert result["next_offset"] == 25
+
+
+def test_mentions_are_labelled_and_friends_point_at_their_dm(monkeypatch):
+    def engine(command, args, timeout=None):
+        if command == "mentions":
+            return {"messages": [store.message_row({"id": str(M2), "channel_id": GENERAL, "type": 0, "content": "@me",
+                                                    "author": {"id": TARO}, "guild_id": G}, ME)]}
+        return {"friends": [{"id": TARO, "name": "Taro", "username": "taro"},
+                            {"id": "100000000000000005", "name": "Hana", "username": "hana"}],
+                "incoming": 1, "outgoing": 0, "fetched": int(datetime.now().timestamp())}
+    monkeypatch.setattr(access, "call_engine", engine)
+    found = access.execute({"action": "mentions"})["messages"][0]
+    assert found["where"] == "#general in Guild"
+    result = access.execute({"action": "friends"})
+    assert result["friends"][0] == {"id": TARO, "name": "Taro", "username": "taro", "dm": DM1}
+    assert "dm" not in result["friends"][1] and result["incoming_requests"] == 1
+    assert [f["id"] for f in access.execute({"action": "friends", "query": "han"})["friends"]] == ["100000000000000005"]
+
+
+def test_pins_take_a_pin_time():
+    with pytest.raises(access.DiscordError, match="pinned_at"):
+        access.execute({"action": "pins", "channel": DM1, "before": str(M1)})
+
+
+def _engine_says(monkeypatch, result):
+    calls = []
+
+    def engine(command, args, timeout=None):
+        calls.append((command, args))
+        return result
+    monkeypatch.setattr(access, "call_engine", engine)
+    return calls
+
+
+# --- roles ------------------------------------------------------------------------------------------
+
+EVERYONE_BITS = (1 << 10) | (1 << 11) | (1 << 14)   # view_channel, send_messages, embed_links
+MEMBER, MOD, ADMIN, TOP, BOT = (str(600000000000000001 + i) for i in range(5))
+
+
+def seed_roles(my_roles=(MOD,), owner=False, age=0, mod_bits=(1 << 28) | (1 << 13)):
+    conn = store.connect(write=True)
+    store.upsert_guild(conn, G, "Guild", 0, owner=owner)
+    store.replace_roles(conn, G, [
+        {"id": G, "name": "@everyone", "position": 0, "permissions": str(EVERYONE_BITS)},
+        {"id": MEMBER, "name": "Member", "position": 1, "permissions": str(1 << 11)},
+        {"id": MOD, "name": "Mod", "position": 3, "permissions": str(mod_bits)},
+        {"id": ADMIN, "name": "Admin", "position": 2, "permissions": str(1 << 3)},
+        {"id": TOP, "name": "Top", "position": 5, "permissions": "0"},
+        {"id": BOT, "name": "Bot", "position": 1, "permissions": "0", "managed": True}],
+        {MEMBER: 12}, int(datetime.now().timestamp()) - age)
+    store.upsert_member(conn, store.member_row({"user": {"id": ME, "username": "me"}, "roles": list(my_roles)}, G), 0)
+    store.upsert_member(conn, store.member_row({"user": {"id": TARO, "username": "taro", "global_name": "Taro"},
+                                                "roles": []}, G), 0)
+    conn.commit()
+    conn.close()
+
+
+def test_roles_list_what_the_user_can_manage():
+    seed_roles()
+    result = access.execute({"action": "roles", "guild": G})
+    by_name = {r["name"]: r for r in result["roles"]}
+    assert [r["name"] for r in result["roles"]][:2] == ["Top", "Mod"]
+    assert by_name["Member"]["manageable"] is True and by_name["Member"]["members"] == 12
+    assert by_name["Top"]["manageable"] is False and by_name["Bot"]["manageable"] is False
+    assert by_name["Mod"]["manageable"] is False and by_name["Admin"]["strong"] == ["administrator"]
+    assert result["you"]["can_manage_roles"] is True and "manage_roles" in result["you"]["permissions"]
+    one = access.execute({"action": "roles", "guild": G, "role": MEMBER})["roles"]
+    assert one == [{**by_name["Member"], "permissions": ["send_messages"]}]
+
+
+def test_stale_roles_are_read_again(monkeypatch):
+    seed_roles(age=3600)
+    calls = _engine_says(monkeypatch, {"roles": 6})
+    with pytest.raises(access.DiscordError, match="older than 15 minutes"):      # the stub did not refresh
+        access.execute({"action": "roles", "guild": G})
+    assert calls == [("roles", {"guild": G})]
