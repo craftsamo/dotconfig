@@ -5,6 +5,11 @@ Read [state](../../references/state.md), [content QA](../../qa-marketer/referenc
 selected [platform reference](../../plan-marketer/references/channels.md). A local file is an input,
 not the requested final draft. Do not substitute xurl/API publishing.
 
+note is the exception: its drafts are saved with the `note` tool, never in a
+browser editor, following [note](../../references/platforms/note.md). Its
+approval, record and reconciliation rules below still apply; the browser lease
+and browser steps do not.
+
 ## Before writing to an editor
 
 Resolve the actual Marketer profile home and stable originating session/job

@@ -61,6 +61,18 @@ not a browser sandbox or authentication; broad terminal/browser tools remain a
 residual authority risk. Marketer's inbound A2A has no browser, terminal or
 delegation toolset, so authenticated work needs a resident session.
 
+### note through the tool
+
+For note, the `note` tool (`note_access` toolset, CLI and Telegram, never A2A)
+replaces the browser: drafts, reads and counts, with no browser lease.
+Marketer saves a note draft itself only where a person can answer the approval
+card — its own Telegram bot or an interactive CLI. In a resident session the
+tool refuses saves, and Marketer returns the exact save package to its caller;
+the Assistant saves it unchanged with its own card and passes the result back
+for Marketer's re-read and record. The approval and reconciliation rules of
+draft-only saving below still apply. `approvals.timeout` is 600 s so a card
+outlasts a Telegram tap. Contract: [note-access.md](../note-access.md).
+
 ### Draft-only saving
 
 There is no publish path. Before typing or upload — i.e. before editor entry —
@@ -79,12 +91,11 @@ unfinished old work before a new draft-only release. The user publishes.
 
 The four platform procedures are authored; each service/content type requires
 approved, nonpublishing live validation, since static tests never establish
-service-side persistence. Verified so far: a note text-only new-draft save with
-unpublished-view reopening, plus constrained fresh-candidate-agent runs (a
-read-only recheck and a no-typing resave of an existing note fixture) with
-allowlisted browser programs. Free-form interaction, gateway deployment, other
-platforms, attachments, arbitrary updates/new content and existing-user-draft
-updates remain unverified.
+service-side persistence. note moved to the tool, whose reads, create and
+update with images were verified live through the Assistant's code path;
+Marketer's own card in a live gateway session and the resident handoff remain
+unverified. The browser procedures for X, Substack and Zenn remain unverified
+for free-form interaction, gateway deployment, attachments and updates.
 
 The candidate checks `test_marketer_pipeline.py`, `test_marketer_entry_runtime.py`
 and `test_marketer_browser_lease.py` are registered in `verify-work-continuity.py`.

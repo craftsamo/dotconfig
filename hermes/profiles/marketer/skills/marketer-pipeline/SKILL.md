@@ -116,6 +116,10 @@ Use [state](references/state.md) for durable records, approvals and resumes.
   relaunch only your own pair (`--profile marketer`) while holding the lease:
   once per incident, then report. Page-level failures, "update your browser"
   pages and QR/pairing screens are not relaunch cases.
+- note drafts, reads and counts go through the `note` tool, never the browser.
+  Its approval card is the remote-save gate; a resident session cannot answer
+  it, so there the exact save package goes back to the caller, who saves it
+  ([note](references/platforms/note.md)).
 - A draft means a service-side unpublished object that has been reopened and
   checked, not just a local file. Obtain exact target/content/upload approval
   BEFORE typing: editors can autosave immediately. No Publish grant, including
