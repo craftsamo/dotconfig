@@ -333,6 +333,10 @@ share one file, so tracking `jobs.json` meant constant churn.
   commands in the private overlay's README. Hermes' scheduler only runs a script
   resolving inside `<HERMES_HOME>/scripts`, so the overlay's `install.sh`
   generates the ignored `profiles/*/scripts/local-*.sh` wrappers.
+- Throwaway scripts a profile writes for its own jobs go in the ignored
+  `profiles/*/scripts/adhoc/` and are referenced as `adhoc/<name>`; only
+  scripts meant to be maintained sit directly in `scripts/` and get tracked.
+  Deleting a job does not delete its `adhoc/` script — prune by hand.
 
 ## Plugins
 
