@@ -53,6 +53,7 @@ brew "signal-cli"  # Signal linked-device CLI (native build): sync agent + send
 
 # --- Hermes Agent: Assistant tools ---
 cask "gcloud-cli"              # gcloud — google-access plugin + bin/gaccess
+brew "deno"                    # youtube-access plugin: yt-dlp's YouTube challenge solver
 brew "steipete/tap/remindctl"  # apple-reminders skill (hermes-agent skills/apple)
 cask "xdevplatform/tap/xurl"   # xurl skill (hermes-agent skills/social-media)
 
