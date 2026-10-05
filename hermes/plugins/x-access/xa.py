@@ -1,4 +1,4 @@
-"""x-access engine: read-only X (Twitter) for the Assistant through twscrape and a sub-account.
+"""x-access engine: read-only X (Twitter) for the Assistant and Marketer through twscrape and a sub-account.
 
 ``bridge.py`` runs one twscrape read per call with the interpreter of an isolated venv
 (``hermes/local/twscrape/venv``, built by ``scripts/x-access.sh install`` from the hash-locked
