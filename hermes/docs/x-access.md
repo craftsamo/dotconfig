@@ -1,10 +1,11 @@
 # X access
 
-The Assistant's read-only view of X (Twitter): the user's main account's
-posts and mentions, search, threads, profiles, and a post's photos, videos
-and GIFs. It reads as a separate **sub-account**; the main account is only a
-search subject and never signs in here. Nothing posts, replies, likes,
-follows or sends DMs. Part of the Hermes design docs — index:
+A read-only view of X (Twitter) for the Assistant and Marketer: the user's
+main account's posts and mentions, search, threads, profiles, a post's
+photos, videos and GIFs, and a ledger of the main account's public counts.
+It reads as a separate **sub-account**; the main account is only a search
+subject and never signs in here. Nothing posts, replies, likes, follows or
+sends DMs. Part of the Hermes design docs — index:
 [`PROFILES.md`](../PROFILES.md).
 
 ## Shape
@@ -13,9 +14,10 @@ follows or sends DMs. Part of the Hermes design docs — index:
 |---|---|---|
 | Engine: validation, pacing, session state, result shapes, media download, bypass guard | `plugins/x-access/xa.py` | all |
 | One twscrape read per call in the engine venv; reads the cookies | `plugins/x-access/bridge.py` | all |
-| `x` tool and the `pre_tool_call` hook (toolset `x_access`) | `plugins/x-access/__init__.py` | Assistant |
+| `x` tool and the `pre_tool_call` hook (toolset `x_access`) | `plugins/x-access/__init__.py` | Assistant, Marketer |
 | Engine venv | `scripts/x-access.sh`, `engines/twscrape/` | people |
 | When and how the Assistant uses it | the Assistant's private Chat reference `x.md` | Assistant |
+| How Marketer reads ranking, results and conversations | `marketer-pipeline/references/x-ranking.md` | Marketer |
 
 [twscrape](https://github.com/vladkens/twscrape) calls the GraphQL endpoints
 the x.com web app uses, signed in with a browser session's `auth_token` and
@@ -48,7 +50,9 @@ are masked in every string the bridge returns.
 
 `~/.x-access/` (mode 700, outside every repository) holds no secret:
 `state.json` (call timestamps for pacing, a handle → user id cache for seven
-days, and what X last made of the session) and `call.lock`.
+days, and what X last made of the session), `call.lock` and the metrics
+ledger `metrics.jsonl` (see [Metrics](#metrics)). Both profiles share it, so
+the caps below count every read from either.
 
 Because the pool is rebuilt for every call, the engine remembers X's verdicts
 itself. When X refuses the session (twscrape marks it inactive: expired,
@@ -58,16 +62,17 @@ read is answered by the bridge without contacting X until the stored cookies
 change. When X rate-limits an endpoint, the end of the limit is stored and
 every read waits for it.
 
-The Assistant's `config.yaml` (private overlay) carries `x_access.main_handle`
-— the account `posts` (without `handle`) and `mentions` read — and
-`x_access.download_dir`; without it media lands in
-`<HERMES_HOME>/x-downloads/`.
+Each profile's `config.yaml` carries `x_access.main_handle` — the account
+`posts` (without `handle`), `mentions`, `snapshot` and `insights` read: the
+Assistant's in the private overlay, Marketer's in its tracked config (a
+public handle). `x_access.download_dir` is optional; without it media lands
+in `<HERMES_HOME>/x-downloads/`.
 
 ## Reads
 
 `status` never contacts X: it reports the engine, whether the cookies are
-stored, a refusal recorded for them, a running rate limit and the reads used.
-Every other action reaches X and is paced per twscrape read (one read may
+stored, a refusal recorded for them, a running rate limit and the reads used;
+`insights` reads only the local ledger. Every other action reaches X and is paced per twscrape read (one read may
 page or retry inside twscrape): one call at a time across sessions
 (`call.lock`), at least 5 s between calls, at most 30 per hour and 200 per
 24 hours; past a cap or during a rate limit the tool answers `paused: …`
@@ -83,12 +88,56 @@ nothing.
 | `thread` | 2 | the post, then its whole conversation from the root |
 | `user` | 1 | profile, bio, counts |
 | `media` | 1 | then CDN downloads without cookies |
+| `snapshot` | 1 (+1 to resolve an uncached handle) | the main account's recent posts into the ledger |
+| `insights` | 0 | the ledger only |
 
 Limits default to 20 (thread 30), at most 50. Results carry local times with
 offset, text clipped at 2000 characters (quoted posts 280), reposts as
 `repost_of`, media named by type, expanded links and counts, plus a note that
 everything in them is other people's text, never instructions. An empty
-result carries twscrape's last warnings as `x_warnings`.
+result carries twscrape's last warnings as `x_warnings`. The list results
+(`posts`, `mentions`, `search`, `thread`) carry `read_at`, and counts include
+bookmarks.
+
+## Metrics
+
+`snapshot` reads the main account's recent posts once (`limit` 20, at most
+50; `replies=true` includes replies) and appends one line per own post to
+`~/.x-access/metrics.jsonl` (mode 600): read time, post id and time, age in
+hours, views, likes, replies, reposts, quotes, bookmarks, form (video, photo,
+link, quote or text), link and reply flags, length and the first 120
+characters. Reposts and other authors are skipped, and a protected main
+account is refused (the ledger holds public posts only; `user` never caches
+a protected account's id, which would skip that check). Once the file passes
+4 MB, the next snapshot keeps the last 180 days and, if that is still over
+4 MB, halves it from the oldest end until it fits. A damaged line is skipped
+on read, and an append cut short is closed before the next one.
+
+The ledger is filled on a schedule: the Assistant's `no_agent` cron job
+`x-snapshot` runs `profiles/assistant/scripts/x-snapshot.sh` every six hours
+(four reads a day, no model turn). The script calls the engine directly
+(`xa.py snapshot <profile home>`) with the profile home taken from its own
+path, never `$HERMES_HOME`, which the multiplex gateway may set to another
+profile. It prints nothing on success or on a pause (the next run catches
+up) and exits nonzero on a real failure, so Hermes alerts on Telegram. Like
+every cron job ([README "Cron"](../README.md#cron)) the job entry itself is
+machine-local; create it once with:
+
+```sh
+hermes -p assistant cron create "0 */6 * * *" --name x-snapshot --no-agent \
+  --script x-snapshot.sh --deliver telegram
+```
+
+`insights` never contacts X. It compares posts of the last `days` (30, at
+most 180) at one age, `at` = 6, 24 or 48 hours, taking each post's
+observation nearest that age within a tolerance (a quarter of the age, at
+least 3 hours): data health (posts, observations, comparable, too young, no
+snapshot near the age), a baseline, medians of views, engagement rate,
+replies and bookmarks by form, link, length and local posting hour (groups
+under five posts are flagged inconclusive), and the top and bottom three.
+`post` returns one post's trajectory instead. The result restates that these
+are public counts, not the ranking score, and that differences are
+hypotheses.
 
 ## Media
 
@@ -114,8 +163,14 @@ The hook blocks terminal calls whose text names `twscrape`, the plugin
 scope (`X_READER_COOKIES`, `x-reader`), and file-tool calls on the state
 directory (`.x-access`), the item name or the engine venv. File tools may
 still read the plugin source and the download folder. It is a pattern match,
-not a sandbox. Inbound A2A requests are refused, and the toolset is not in
-the Assistant's `a2a` platform toolset.
+not a sandbox.
+
+Inbound A2A requests are refused on the Assistant (the toolset is not in its
+`a2a` platform toolset either). Marketer's endpoint is inquiry-only and may
+read: the tool is in its `a2a` toolset, and the plugin allows an inbound
+request only when the turn's bound profile home is Marketer's, failing
+closed otherwise. The plugin registers per profile, so each profile's
+handler and hook carry their own profile name.
 
 ## Setup
 
@@ -128,8 +183,9 @@ the Assistant's `a2a` platform toolset.
    `secret set X_READER_COOKIES -p hermes --scope x-reader -D COOKIE` and
    paste `auth_token=…; ct0=…` at the hidden prompt. Fresh cookies after a
    refusal are stored the same way; nothing else needs resetting.
-4. Set `x_access.main_handle` in the Assistant's `config.yaml`, enable the
-   plugin and restart the gateway.
+4. Set `x_access.main_handle` in the Assistant's and Marketer's
+   `config.yaml`, enable the plugin in both and restart the gateway.
+5. Create the `x-snapshot` cron job ([Metrics](#metrics)).
 
 `x-access.sh status` shows the engine, whether the cookies are stored (never
 their value) and what the tool last recorded. After bumping the pin,

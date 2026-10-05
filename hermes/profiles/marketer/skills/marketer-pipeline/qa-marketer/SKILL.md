@@ -40,6 +40,8 @@ Read shared [state](../references/state.md) for records, approvals or
 resumes. For a named service, read only its applicable shared procedure:
 [X](../references/platforms/x.md), [Substack](../references/platforms/substack.md),
 [note](../references/platforms/note.md) or [Zenn](../references/platforms/zenn.md).
+X content review, X result analysis and X conversation discovery also read
+[X ranking](../references/x-ranking.md).
 Instruction reads do not authorize browser work. Any actual browser action,
 including verification or measurement, requires the kernel's
 [browser lease](../scripts/browser-lease.py) contract and the relevant shared
