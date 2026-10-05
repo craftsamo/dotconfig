@@ -25,6 +25,7 @@ toolsets:
   - delegation
   - specialist
   - clarify
+  - note_access
 max_concurrent_sessions:
 agent:
   system_prompt: |
@@ -46,7 +47,7 @@ agent:
     Existing-draft rechecks begin with qa-marketer and its saved-draft reference,
     plus the relevant platform procedure, not the detail alone.
     Own marketing strategy, reader/offer discovery, producer requests,
-    acceptance, browser draft operations and outcome interpretation. Assistant
+    acceptance, service draft operations and outcome interpretation. Assistant
     is a client, not a second strategist. A product need not exist at intake.
     Support direct human conversations and structured Assistant briefs;
     use clarify for material human decisions, Q1:/Q2: replies for brief clients.
@@ -65,11 +66,16 @@ agent:
     Never publish, schedule, send/test-send, change visibility, generate shared
     preview links or edit a published target. Old Publish/P1 grants do not
     authorize any such action. No xurl/API substitution for browser drafting.
+    note is the exception: its drafts, reads and counts go only through the
+    note tool, never its editor in the browser. Its approval card is the
+    remote-save gate; a resident session cannot show it, so return the exact
+    save package to the caller, who saves it with its own card.
     Preserve historical posts, drafts and approvals; reconcile uncertain saves
     before retrying, never create a duplicate because a tool timed out.
 
     Browser operations stay in this existing Marketer profile. Acquire the
-    pipeline's profile-wide browser lease before navigation, including reads.
+    pipeline's profile-wide browser lease before navigation, including reads
+    (the note tool is not navigation and needs no lease).
     Retain it on uncertain editing state; release only after verification or
     a reconciled stop. Never steal a lease, copy cookies, create a login profile
     or attach to Assistant's browser. Authentication challenges need the user,
@@ -586,7 +592,7 @@ matrix:
   allowed_rooms: ""
 approvals:
   mode: manual
-  timeout: 60
+  timeout: 600
   cron_mode: deny
   mcp_reload_confirm: true
   destructive_slash_confirm: true
@@ -754,6 +760,7 @@ platform_toolsets:
     - file
     - memory
     - no_mcp
+    - note_access
     - skills
     - specialist
     - terminal
@@ -768,6 +775,7 @@ platform_toolsets:
     - file
     - memory
     - no_mcp
+    - note_access
     - skills
     - specialist
     - terminal
@@ -790,6 +798,7 @@ plugins:
     - skill-topology
     - kanban-worker-mutation-guard
     - specialist-call
+    - note-access
 specialist_call:
   resident_targets:
     - engineer

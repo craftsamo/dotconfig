@@ -2,6 +2,9 @@
 
 Keep the browser lease from [Build](../../build-marketer/references/draft.md) until verification or a
 reconciled stop. Read the selected platform's identity/persistence limitations.
+A platform whose reference names a service tool (note) is reopened and checked
+through that tool's read of the same object; its reference states which
+evidence the read gives and what stays uninspected. No lease applies there.
 
 Reopen the same object through the service's draft management surface or a
 confirmed private editor locator. Confirm the correct account/publication and
