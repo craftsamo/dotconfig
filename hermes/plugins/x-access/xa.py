@@ -156,7 +156,10 @@ def _since(args: dict) -> str | None:
 def _config(home: Path | None) -> dict:
     base = Path(home) if home else Path.home() / ".hermes"
     try:
-        import yaml
+        try:
+            import hermes_yaml as yaml  # Hermes' own loader: its runtime has no PyYAML
+        except ImportError:
+            import yaml
         config = yaml.safe_load((base / "config.yaml").read_text(encoding="utf-8")) or {}
         section = config.get("x_access") or {}
         return section if isinstance(section, dict) else {}
