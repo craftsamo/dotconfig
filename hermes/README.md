@@ -460,6 +460,15 @@ keeps user keys.
   `x-reader`) and only in the bridge's memory; its hook blocks the terminal
   path around it. Engine: `scripts/x-access.sh` (`install` / `status`).
   Behavior: [docs/x-access.md](docs/x-access.md).
+- **note-access** (`standalone`): `note` (toolset `note_access`) for the
+  assistant and marketer — read, and save unpublished drafts from Markdown
+  with images through the approval gate (a run without a person, such as a
+  resident session, hands the save back to its caller) — search, articles,
+  creators, comments, hashtags and the user's own drafts and stats on
+  note.com. Standard library only: `bridge.py` alone reads the session
+  cookie from the Keychain (`NOTE_SESSION`, scope `note-session`); public
+  reads and image uploads carry no cookie; its hook blocks the terminal path
+  around it. Behavior: [docs/note-access.md](docs/note-access.md).
 - **ui-inspection** (`standalone`): `ui_capture` for ui-review / ux-persona.
 - **writing-inspection** (`standalone`): Writer's bounded `writing_inspect`.
 - **kanban-worker-mutation-guard** (`standalone`): stops dispatcher workers
