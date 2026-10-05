@@ -1064,14 +1064,9 @@ def _images_line(staged: list[dict], clip: int = NAME_CLIP) -> str:
 BODY_ROOM = 60              # a card with a body keeps this much for its start and the "(+N more)" line
 
 
-def _fit(head: list[str], body: str | None) -> str | None:
-    """The card within CARD_LIMIT, the body clipped; None when the facts alone do not fit."""
-    prefix = "\n".join(head)
-    if not body:
-        return prefix if _units(prefix) <= CARD_LIMIT else None
-    prefix += "\n\n"
-    if _units(prefix) + BODY_ROOM > CARD_LIMIT:
-        return None
+def _cut(prefix: str, body: str) -> str:
+    """The longest start of the body that fits after the prefix, with the rest counted; at least
+    the count, never a silently dropped tail."""
     if _units(prefix + visible(body)) <= CARD_LIMIT:
         return prefix + visible(body)
     lo, hi = 0, len(body)
@@ -1082,6 +1077,18 @@ def _fit(head: list[str], body: str | None) -> str | None:
         else:
             hi = mid - 1
     return prefix + visible(body[:lo].rstrip()) + "…\n" + MORE.format(n=len(body) - lo)
+
+
+def _fit(head: list[str], body: str | None, *, last: bool = False) -> str | None:
+    """The card within CARD_LIMIT, the body cut and counted; None when the facts leave the body no
+    room and shorter names and titles may still make some (``last``: take it as it is)."""
+    prefix = "\n".join(head)
+    if not body:
+        return prefix if last or _units(prefix) <= CARD_LIMIT else None
+    prefix += "\n\n"
+    if not last and _units(prefix) + BODY_ROOM > CARD_LIMIT:
+        return None
+    return _cut(prefix, body)
 
 
 def _where(prepared: dict, clip: int = NAME_CLIP) -> str:
@@ -1154,15 +1161,16 @@ def _card_parts(plan: dict, prepared: dict, staged: list[dict], clip: int) -> tu
 
 
 def card(plan: dict, prepared: dict, staged: list[dict]) -> str:
-    """Plain English, one fact per line, the body (if any) last and clipped: the whole card stays
-    within what Telegram shows, names and titles shrinking first; a write whose facts cannot fit
-    is refused rather than shown in part."""
+    """Plain English, one fact per line, the body (if any) last, as the WhatsApp card: names and
+    titles shrink first so the facts and the start of the body fit what Telegram shows; a longer
+    body is cut on the card and what is not shown is counted, never refused. Its full wording is
+    agreed with the user in chat beforehand (the Assistant's reference), and the approval key
+    still binds the exact text."""
     for clip in CARD_CLIPS:
-        text = _fit(*_card_parts(plan, prepared, staged, clip))
+        text = _fit(*_card_parts(plan, prepared, staged, clip), last=clip == CARD_CLIPS[-1])
         if text is not None:
             return text
-    raise SubstackError("this write has too many changes to show on one approval card; split it (for example "
-                        "the title in one update_draft, the body in another)")
+    raise AssertionError("unreachable: the last clip always gives a card")
 
 
 def identity(prepared: dict) -> dict:
