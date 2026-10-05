@@ -1,12 +1,17 @@
 #!/usr/bin/env python3
 """google-access: Google Sheets, Gmail, Drive and gcloud for one Hermes profile.
 
-The engine behind the plugin's tools and the setup CLI (``bin/gaccess``). All state lives
-under ``<HERMES_HOME>/google-access/`` and never in the repository:
+The engine behind the plugin's tools and the setup CLI (``bin/gaccess``). Nothing lives in the
+repository:
 
-  token.json   OAuth token for the narrow SCOPES below (mode 0600)
-  gcloud/      the profile's own gcloud configuration (``CLOUDSDK_CONFIG``), so Hermes never
+  Keychain     the OAuth refresh token for the narrow SCOPES below, one item per profile
+               (``GOOGLE_OAUTH_<PROFILE>``, project hermes, scope google-access, a scope no
+               Hermes profile receives); access tokens stay in memory
+  <HERMES_HOME>/google-access/gcloud/
+               the profile's own gcloud configuration (``CLOUDSDK_CONFIG``), so Hermes never
                reads or changes the user's ``~/.config/gcloud``
+A ``token.json`` an earlier version left in ``<HERMES_HOME>/google-access/`` is moved into the
+Keychain on first use and deleted.
 Drive downloads go to ``google_access.download_dir`` (config.yaml), else
 ``<HERMES_HOME>/google-downloads/`` — outside the state directory the guard protects.
 
@@ -14,9 +19,9 @@ Which calls change something, and therefore need a human approval, is decided he
 (``approval_request``) so the plugin hook and the tests share one rule.
 
   gaccess auth CLIENT_SECRET.json   authorize in the browser (loopback) and store the token
-  gaccess check                     token, granted scopes and the gcloud login
+  gaccess check                     token (moving an old token.json in), scopes, gcloud login
   gaccess gcloud-login              `gcloud auth login` into the profile's own configuration
-  gaccess revoke                    revoke and delete the token
+  gaccess revoke                    revoke the token and remove it from the Keychain
   gaccess paths                     where the state lives
 Options: --profile NAME (default assistant) or --home HERMES_HOME.
 """
@@ -40,7 +45,6 @@ import shlex
 import shutil
 import subprocess
 import sys
-import tempfile
 import threading
 import time
 from email.message import EmailMessage
@@ -132,7 +136,8 @@ _CLI = re.compile(r"(?:^|[\s;&|()`'\"=])(?:[^\s;&|()`'\"]*/)?(?:gcloud|gsutil|bq
 # counts), with no exception inside it; only the plugin's own source under plugins/ stays readable.
 # Downloads therefore live outside it.
 _PATHS = re.compile(r"(?<!plugins/)google-access|google-workspace/scripts|google_api\.py"
-                    r"|CLOUDSDK_|\.config/gcloud|google_token\.json|google_client_secret\.json")
+                    r"|CLOUDSDK_|\.config/gcloud|google_token\.json|google_client_secret\.json"
+                    r"|GOOGLE_OAUTH|dump-keychain|\bsecret\s+export\b")
 FILE_TOOLS = {"read_file", "write_file", "patch", "search_files"}
 BYPASS_MESSAGE = (
     "Google (Sheets, Gmail, Drive) and gcloud run only through the google_sheets, google_gmail, "
@@ -153,8 +158,16 @@ def state_dir(home) -> Path:
     return Path(home) / STATE_DIR
 
 
-def token_path(home) -> Path:
+def legacy_token_path(home) -> Path:
+    """Where an earlier version kept the token; read once, moved into the Keychain, deleted."""
     return state_dir(home) / "token.json"
+
+
+def generation_path(home) -> Path:
+    """No secret: a random mark rewritten whenever the Keychain token is stored. While it exists the
+    Keychain is the only source (an old token.json is never imported over it), and a process
+    holding credentials from another mark reads the Keychain again."""
+    return state_dir(home) / "token.generation"
 
 
 def gcloud_config_dir(home) -> Path:
@@ -180,21 +193,10 @@ def download_dir(home) -> Path:
     return Path(home) / "google-downloads"  # never inside the guarded state directory
 
 
-def _write_private(path: Path, text: str) -> None:
-    path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-    fd, tmp = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=path.parent)  # 0600, unique
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as handle:
-            handle.write(text)
-        os.replace(tmp, path)
-    except BaseException:
-        Path(tmp).unlink(missing_ok=True)
-        raise
-
-
 @contextlib.contextmanager
 def _token_lock(home):
-    """Serialize token read-refresh-write across threads and processes (gateway, gaccess)."""
+    """Serialize Keychain read-modify-writes of the token across threads and processes (gateway,
+    gaccess)."""
     folder = state_dir(home)
     folder.mkdir(mode=0o700, parents=True, exist_ok=True)
     with _THREAD_LOCK, open(folder / ".token.lock", "a") as handle:
@@ -206,43 +208,217 @@ def _token_lock(home):
 
 
 # --- credentials ----------------------------------------------------------------------------------
+#
+# The refresh token (with the client id and secret it belongs to and the granted scopes) lives only
+# in the Keychain, one JSON item per profile; values reach the ``secret`` CLI through stdin, never
+# argv. Access tokens are kept in memory per profile home. Every refresh, the HTTP transport's own
+# on expiry or a 401 included, runs one at a time and stores a refresh token Google rotates.
 
-def _token_data(home) -> dict:
-    path = token_path(home)
-    if not path.is_file():
-        raise AccessError(NOT_SET_UP)
+SECRET = Path.home() / ".config" / "bin" / "secret"
+VAULT_PROJECT, VAULT_SCOPE = "hermes", "google-access"
+SECRET_TIMEOUT = 20
+TOKEN_URI = "https://oauth2.googleapis.com/token"
+_CREDS: dict = {}
+_CREDS_LOCK = threading.RLock()
+_REFRESH_LOCK = threading.RLock()
+_STORED: dict = {}
+
+
+def vault_name(home) -> str:
+    """``GOOGLE_OAUTH_<PROFILE>``: the profile home's name (``default`` for ~/.hermes itself)."""
+    home = Path(os.path.expanduser(str(home)))
+    name = "default" if home == Path.home() / ".hermes" else home.name
+    return "GOOGLE_OAUTH_" + (re.sub(r"[^A-Z0-9]+", "_", name.upper()).strip("_") or "DEFAULT")
+
+
+def _secret(home, command: str, extra: tuple = (), value: str | None = None) -> subprocess.CompletedProcess:
+    if not os.access(SECRET, os.X_OK):
+        raise AccessError(f"the secret CLI is missing at {SECRET}")
+    folder = state_dir(home)
+    folder.mkdir(mode=0o700, parents=True, exist_ok=True)
+    argv = [str(SECRET), command, vault_name(home), "-p", VAULT_PROJECT, "--scope", VAULT_SCOPE, *extra]
+    feed = {"input": value + "\n"} if value is not None else {"stdin": subprocess.DEVNULL}
+    if value is not None:
+        argv.append("--stdin")
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except Exception as exc:
-        raise AccessError(f"cannot read {path}: {exc}; run `gaccess auth` again") from exc
+        return subprocess.run(argv, capture_output=True, text=True, timeout=SECRET_TIMEOUT, cwd=str(folder),
+                              **feed)
+    except subprocess.TimeoutExpired as exc:
+        raise AccessError("the Keychain did not answer in time") from exc
+
+
+def _entry(data) -> dict:
+    """The part of an authorized-user token worth keeping: never the short-lived access token."""
+    if not isinstance(data, dict) or not all(isinstance(data.get(k), str) and data[k]
+                                             for k in ("refresh_token", "client_id", "client_secret")):
+        raise AccessError("the stored Google token is incomplete; the user re-runs `gaccess auth`")
+    scopes = data.get("scopes") or []
+    if isinstance(scopes, str):
+        scopes = scopes.split()
+    return {"refresh_token": data["refresh_token"], "client_id": data["client_id"],
+            "client_secret": data["client_secret"], "scopes": sorted(str(s) for s in scopes)}
+
+
+def _vault_read(home) -> dict | None:
+    """The profile's token from the Keychain; None only when the item does not exist. An item that
+    exists but cannot be read raises, so nothing is ever written over it."""
+    proc = _secret(home, "get")
+    value = proc.stdout.strip()
+    if proc.returncode != 0 or not value:
+        if _secret(home, "show").returncode == 0:
+            raise AccessError(f"{vault_name(home)} is in the Keychain but could not be read "
+                              "(is the keychain locked?)")
+        return None
+    try:
+        return _entry(json.loads(value))
+    except ValueError as exc:
+        raise AccessError(f"{vault_name(home)} in the Keychain is not JSON; the user re-runs `gaccess auth`") \
+            from exc
+
+
+def _vault_write(home, entry: dict) -> None:
+    text = json.dumps(_entry(entry), separators=(",", ":"))
+    exists = _secret(home, "show").returncode == 0
+    proc = _secret(home, "update", value=text) if exists else \
+        _secret(home, "set", ("-D", "token", "-j", "google-access OAuth token (gaccess)"), value=text)
+    if proc.returncode != 0:
+        raise AccessError(f"could not store {vault_name(home)} in the Keychain: {proc.stderr.strip()[:200]}")
+
+
+def _vault_remove(home) -> None:
+    """Remove the item; raises unless it is confirmed gone."""
+    proc = _secret(home, "rm", ("-f",))
+    if proc.returncode != 0 or _secret(home, "show").returncode == 0:
+        raise AccessError(f"could not remove {vault_name(home)} from the Keychain: {proc.stderr.strip()[:200]}")
+
+
+def _generation(home) -> str:
+    try:
+        return generation_path(home).read_text(encoding="utf-8").strip()
+    except OSError:
+        return ""
+
+
+def _bump_generation(home) -> None:
+    path = generation_path(home)
+    path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    tmp = path.with_name(f".{path.name}.{os.getpid()}.{threading.get_ident()}.tmp")
+    tmp.write_text(os.urandom(8).hex(), encoding="utf-8")
+    os.replace(tmp, path)
+
+
+def _store(home, entry: dict) -> dict:
+    """Write the token (lock held), confirm it reads back as written, and mark a new generation."""
+    entry = _entry(entry)
+    _vault_write(home, entry)
+    if _vault_read(home) != entry:
+        raise AccessError(f"{vault_name(home)} did not read back as written")
+    _bump_generation(home)
+    return entry
+
+
+def _stored_token(home) -> dict:
+    """The profile's token. A token.json an earlier version left is moved into the Keychain once:
+    stored, read back, then deleted."""
+    with _token_lock(home):
+        entry = _vault_read(home)
+        if entry is not None:
+            return entry
+        if generation_path(home).exists():  # stored before: missing now means unreadable, not absent
+            raise AccessError(f"{vault_name(home)} was stored in the Keychain but cannot be read now (is the "
+                              "keychain locked?); the user runs `gaccess check`, or `gaccess auth` again")
+        path = legacy_token_path(home)
+        if not path.is_file():
+            raise AccessError(NOT_SET_UP)
+        try:
+            entry = _entry(json.loads(path.read_text(encoding="utf-8")))
+        except ValueError as exc:
+            raise AccessError(f"cannot read {path}: {exc}; run `gaccess auth` again") from exc
+        try:
+            entry = _store(home, entry)
+        except AccessError as exc:
+            raise AccessError(f"{exc}; {path} was kept") from exc
+        path.unlink()
+        return entry
+
+
+def _persist_rotation(home, old: str, new: str) -> None:
+    """Store a refresh token Google handed back, only over the one it was refreshed from."""
+    with _token_lock(home):
+        entry = _vault_read(home)
+        if entry and entry["refresh_token"] == old:
+            _store(home, dict(entry, refresh_token=new))
+
+
+def _stored_class():
+    """google-auth Credentials whose every refresh runs one at a time and keeps a rotated token."""
+    if "class" not in _STORED:
+        from google.oauth2.credentials import Credentials
+
+        class StoredCredentials(Credentials):
+            hermes_home = None
+
+            def refresh(self, request):
+                with _REFRESH_LOCK:
+                    old = self.refresh_token
+                    super().refresh(request)
+                    if self.hermes_home is not None and self.refresh_token and self.refresh_token != old:
+                        _persist_rotation(self.hermes_home, old, self.refresh_token)
+
+        _STORED["class"] = StoredCredentials
+    return _STORED["class"]
+
+
+def _build(home, entry: dict):
+    creds = _stored_class()(token=None, refresh_token=entry["refresh_token"], token_uri=TOKEN_URI,
+                            client_id=entry["client_id"], client_secret=entry["client_secret"],
+                            scopes=entry["scopes"])
+    creds.hermes_home = Path(home)
+    return creds
+
+
+def forget(home) -> None:
+    """Drop the profile's credentials from memory (after auth or revoke)."""
+    with _CREDS_LOCK:
+        _CREDS.pop(str(Path(home)), None)
 
 
 def credentials(home, scope: str):
-    if not token_path(home).is_file():
-        raise AccessError(NOT_SET_UP)
+    """Valid credentials for the profile that hold ``scope``. A cached token Google refuses, or one
+    missing the scope, is read again from the Keychain once (the user may have re-authorized)."""
     try:
         from google.auth.exceptions import RefreshError
         from google.auth.transport.requests import Request
-        from google.oauth2.credentials import Credentials
     except ImportError as exc:
         raise AccessError(f"Google client libraries are missing from Hermes' runtime: {exc}") from exc
-    with _token_lock(home):
-        data = _token_data(home)
-        granted = data.get("scopes") or []
-        if scope not in granted:
-            raise AccessError(f"the stored token lacks {scope}; the user re-runs `gaccess auth`")
-        creds = Credentials.from_authorized_user_info(data)
-        if not creds.valid:
-            if not creds.refresh_token:
-                raise AccessError("the stored token cannot refresh; the user re-runs `gaccess auth`")
-            try:
-                creds.refresh(Request())
-            except RefreshError as exc:
-                raise AccessError(f"Google refused the token ({exc}); the user re-runs `gaccess auth`") from exc
-            refreshed = json.loads(creds.to_json())
-            refreshed["scopes"] = granted
-            _write_private(token_path(home), json.dumps(refreshed, indent=2))
-    return creds
+    key = str(Path(home))
+    with _CREDS_LOCK:
+        cached = _CREDS.get(key)
+        if cached is not None and cached[2] != _generation(home):  # stored again elsewhere (auth, revoke)
+            cached = None
+        fresh = cached is None
+        while True:
+            if cached is None:
+                entry = _stored_token(home)
+                cached = (entry, _build(home, entry), _generation(home))
+            entry, creds, _ = cached
+            if scope not in entry["scopes"]:
+                if not fresh:
+                    cached, fresh = None, True
+                    continue
+                raise AccessError(f"the stored token lacks {scope}; the user re-runs `gaccess auth`")
+            if not creds.valid:
+                try:
+                    creds.refresh(Request())
+                except RefreshError as exc:
+                    _CREDS.pop(key, None)
+                    if not fresh:
+                        cached, fresh = None, True
+                        continue
+                    raise AccessError(f"Google refused the token ({exc}); the user re-runs `gaccess auth`") \
+                        from exc
+            _CREDS[key] = cached
+            return creds
 
 
 def _service(home, name: str, version: str, scope: str):
@@ -3563,13 +3739,14 @@ def _cmd_auth(home: Path, client_secret: str) -> int:
     creds = flow.run_local_server(port=0, open_browser=True, access_type="offline", prompt="consent",
                                   authorization_prompt_message="Opening the browser for Google consent:\n{url}\n")
     payload = json.loads(creds.to_json())
-    payload["type"] = "authorized_user"
     granted = sorted(creds.granted_scopes or payload.get("scopes") or [])
     payload["scopes"] = granted
     with _token_lock(home):
-        _write_private(token_path(home), json.dumps(payload, indent=2))
+        _store(home, payload)
+        legacy_token_path(home).unlink(missing_ok=True)
+    forget(home)
     missing = [s for s in SCOPES if s not in granted]
-    print(f"stored {token_path(home)}")
+    print(f"stored in the Keychain ({vault_name(home)}, project {VAULT_PROJECT}, scope {VAULT_SCOPE})")
     if missing:
         print("missing scopes (unchecked on the consent screen): " + ", ".join(missing))
         return 1
@@ -3579,10 +3756,13 @@ def _cmd_auth(home: Path, client_secret: str) -> int:
 def _cmd_check(home: Path) -> int:
     status = 0
     try:
-        data = _token_data(home)
+        moving = legacy_token_path(home).is_file()
+        data = _stored_token(home)
+        if moving:
+            print(f"google: moved {legacy_token_path(home)} into the Keychain")
         credentials(home, (data.get("scopes") or [SHEETS])[0])
         missing = [s for s in SCOPES if s not in (data.get("scopes") or [])]
-        print(f"google: OK ({token_path(home)})")
+        print(f"google: OK (Keychain {vault_name(home)})")
         if missing:
             print("google: missing scopes: " + ", ".join(missing))
             status = 1
@@ -3617,22 +3797,29 @@ def _cmd_gcloud_login(home: Path) -> int:
 def _cmd_revoke(home: Path) -> int:
     import urllib.parse
     import urllib.request
-    path = token_path(home)
-    if not path.is_file():
-        print("no token")
-        return 0
-    with _token_lock(home):  # the token revoked is the token deleted
+    path = legacy_token_path(home)
+    with _token_lock(home):  # the token revoked is the token removed
+        entry = _vault_read(home)
+        if entry is None and path.is_file():
+            entry = _entry(json.loads(path.read_text(encoding="utf-8")))
+        if entry is None:
+            generation_path(home).unlink(missing_ok=True)
+            print("no token")
+            return 0
         try:
-            token = json.loads(path.read_text(encoding="utf-8")).get("refresh_token", "")
             request = urllib.request.Request("https://oauth2.googleapis.com/revoke",
-                                             data=urllib.parse.urlencode({"token": token}).encode(),
+                                             data=urllib.parse.urlencode({"token": entry["refresh_token"]}).encode(),
                                              method="POST")
             urllib.request.urlopen(request, timeout=15)
             print("revoked with Google")
         except Exception as exc:
-            print(f"remote revocation failed ({exc}); deleting the local token anyway")
+            print(f"remote revocation failed ({exc}); removing the stored token anyway")
+        if _secret(home, "show").returncode == 0:
+            _vault_remove(home)
         path.unlink(missing_ok=True)
-    print(f"deleted {path}")
+        generation_path(home).unlink(missing_ok=True)
+    forget(home)
+    print(f"removed {vault_name(home)} from the Keychain")
     return 0
 
 
@@ -3645,7 +3832,7 @@ def main(argv=None) -> int:
     auth.add_argument("client_secret", help="Desktop app OAuth client JSON from Google Cloud")
     sub.add_parser("check", help="token, granted scopes and the gcloud login")
     sub.add_parser("gcloud-login", help="gcloud auth login into the profile's own configuration")
-    sub.add_parser("revoke", help="revoke and delete the token")
+    sub.add_parser("revoke", help="revoke the token and remove it from the Keychain")
     sub.add_parser("paths", help="where the state and downloads live")
     ns = parser.parse_args(argv)
     home = _home_from(ns)
@@ -3661,7 +3848,8 @@ def main(argv=None) -> int:
             return _cmd_gcloud_login(home)
         if ns.command == "revoke":
             return _cmd_revoke(home)
-        print(json.dumps({"token": str(token_path(home)), "gcloud_config": str(gcloud_config_dir(home)),
+        print(json.dumps({"token": f"Keychain {vault_name(home)} (project {VAULT_PROJECT}, scope {VAULT_SCOPE})",
+                          "gcloud_config": str(gcloud_config_dir(home)),
                           "downloads": str(download_dir(home))}, indent=2))
         return 0
     except AccessError as exc:
