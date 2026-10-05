@@ -65,15 +65,15 @@ GCLOUD_TIMEOUT = 300
 GCLOUD_TIMEOUT_MAX = 1800
 
 SHEETS_ACTIONS = ("search", "info", "get", "get_format", "update", "batch_update", "append", "clear",
-                  "create", "add_sheet", "layout", "data", "chart", "pivot")
+                  "create", "add_sheet", "layout", "data", "chart", "pivot", "protect")
 # Actions taking a list of ops from a fixed vocabulary (OP_SETS), sent as one batchUpdate.
-OP_ACTIONS = {"layout", "data", "chart", "pivot"}
+OP_ACTIONS = {"layout", "data", "chart", "pivot", "protect"}
 SHEETS_WRITES = {"update", "batch_update", "append", "clear", "create", "add_sheet", "layout", "data", "chart",
-                 "pivot"}
+                 "pivot", "protect"}
 # Edits approved once per spreadsheet: "session" / "always" on the first card covers the rest of
 # that spreadsheet's edits (its version history undoes them). clear and create still ask each time,
 # and so does a layout call holding an op that deletes or moves data (LAYOUT_DESTRUCTIVE) and every
-# data call.
+# data and protect call.
 SHEETS_EDITS = {"update", "batch_update", "append", "add_sheet", "layout", "chart", "pivot"}
 BATCH_LIMIT = 500
 # Row guards: cells that must still hold a known value (a key column) when a write by row number
@@ -561,7 +561,8 @@ INFO_FIELDS = ("spreadsheetId,spreadsheetUrl,properties(title,locale,timeZone),"
                "tables(tableId,name,range,columnProperties),conditionalFormats,"
                "rowGroups(range,depth,collapsed),columnGroups(range,depth,collapsed),basicFilter(range),"
                "filterViews(filterViewId,title,range),"
-               "charts(chartId,spec(title,basicChart(chartType),pieChart(legendPosition)),position))")
+               "charts(chartId,spec(title,basicChart(chartType),pieChart(legendPosition)),position),"
+               "protectedRanges(protectedRangeId,range,description,warningOnly,editors(users),unprotectedRanges))")
 INFO_LIST_LIMIT = 50
 FORMAT_CELL_LIMIT = 2000
 FORMAT_FIELDS = ("sheets(properties(sheetId,title),data(startRow,startColumn,"
@@ -860,6 +861,18 @@ def _sheet_info(sheet: dict) -> dict:
         charts.append(entry)
     if charts:
         props["charts"] = charts[:INFO_LIST_LIMIT]
+    protections = []
+    for item in sheet.get("protectedRanges", []) or []:
+        entry = {"protection_id": item.get("protectedRangeId"), "range": _a1(item.get("range") or {}, rows, cols)
+                 or "whole tab", "label": item.get("description") or None,
+                 "warning_only": bool(item.get("warningOnly"))}
+        if (item.get("editors") or {}).get("users"):
+            entry["editors"] = item["editors"]["users"]
+        if item.get("unprotectedRanges"):
+            entry["except"] = [_a1(r, rows, cols) for r in item["unprotectedRanges"]]
+        protections.append(entry)
+    if protections:
+        props["protections"] = protections[:INFO_LIST_LIMIT]
     return props
 
 
@@ -921,7 +934,8 @@ RANGES_SHOWN = 4
 DIMENSION_OPS = {"size", "insert", "delete", "move", "hide", "unhide", "group", "ungroup"}
 SHIFTING_OPS = {"insert", "delete", "move"}
 # Ops whose range without a tab stays on the tab of the object they change.
-OWN_TAB_OPS = {"table_update", "filter_view_update", "chart_update", "chart_move", "chart_delete"}
+OWN_TAB_OPS = {"table_update", "filter_view_update", "chart_update", "chart_move", "chart_delete",
+               "protect_update", "protect_delete"}
 RUNS_LIMIT = 50
 LINK = re.compile(r"^(https?://|mailto:)\S+$")
 NUMBER_FORMATS = {"TEXT", "NUMBER", "PERCENT", "CURRENCY", "DATE", "TIME", "DATE_TIME", "SCIENTIFIC",
@@ -2678,12 +2692,178 @@ def _object_requests(ops: list[dict], meta: dict, pivot=None, **_) -> list[dict]
     return requests
 
 
+# --- Sheets protected ranges -----------------------------------------------------------------------
+# Who may edit a range or a whole tab. Every protect call asks per exact call, and its card names
+# every editor in full: a call whose card cannot show them all is refused.
+
+PROTECT_OPS = {  # op: (required fields, optional fields)
+    "protect": (("range",), ("except", "label", "warning_only", "editors")),
+    "protect_update": (("protection",), ("range", "except", "label", "warning_only", "editors")),
+    "protect_delete": (("protection",), ()),
+}
+EDITORS_LIMIT = 10
+EMAIL = re.compile(r"^[^@\s,;<>\"']{1,64}@[^@\s,;<>\"']+\.[^@\s,;<>\"']{2,}$")
+PROTECT_FIELDS = ("sheets(properties(sheetId,title,index),"
+                  "protectedRanges(protectedRangeId,description,range,unprotectedRanges))")
+
+
+def _editors(raw: dict) -> list[str]:
+    items = raw.get("editors")
+    if not isinstance(items, list) or len(items) > EDITORS_LIMIT:
+        raise AccessError(f"editors is a list of up to {EDITORS_LIMIT} email addresses ([] = only you)")
+    out = []
+    for item in items:
+        address = item.strip() if isinstance(item, str) else ""
+        if len(address) > 100 or not EMAIL.match(address):
+            raise AccessError(f"editors: not an email address: {item!r}")
+        if address.lower() not in (a.lower() for a in out):
+            out.append(address)
+    return out
+
+
+def _normalize_protect(name: str, raw: dict, here: bool = False) -> dict:
+    """The validated protect op; ``here`` words its card line without the tab."""
+    op, where = {"op": name}, ""
+    if "range" in raw:
+        op["areas"] = _areas(raw)
+        op["tab"], op["ref"], op["grid"] = (op["areas"][0][k] for k in ("tab", "ref", "grid"))
+        where = (("whole tab" if here else f"tab {_tab_label(op['tab'])}") if not op["ref"]
+                 else _where(op["tab"], op["ref"], here))
+    if name != "protect":
+        op["protection"] = _plain(raw["protection"])
+        label = f"protection \"{_cell(op['protection'], '', TAB_CLIP)}\""
+    if name == "protect_delete":
+        op["say"] = f"Remove {label} (any other protection over those cells still applies)"
+        return op
+    words = []
+    if "except" in raw:
+        if "grid" in op and op["ref"]:
+            raise AccessError("except goes with a whole tab (range = the tab name)")
+        excepted = _areas({"ranges": raw["except"]}) if raw["except"] else []
+        if any(not a["ref"] for a in excepted) or (
+                "grid" in op and any(a["tab"] not in (None, op["tab"]) for a in excepted)):
+            raise AccessError("except is cell ranges on the protected tab, like 'B2:B20'")
+        op["except"] = [(a["tab"], a["grid"]) for a in excepted]  # checked against the tab once resolved
+        words.append(f"except {', '.join(a['ref'] for a in excepted)}" if excepted else "no exceptions")
+    if "label" in raw:
+        if not isinstance(raw["label"], str):
+            raise AccessError("label must be text")
+        op["description"] = raw["label"].strip()
+        words.append(f"labelled \"{_cell(op['description'], '', TAB_CLIP)}\"" if op["description"]
+                     else "no label")
+    op["warning_only"] = _flag(raw, "warning_only") if "warning_only" in raw else None
+    if "editors" in raw:
+        if op["warning_only"]:
+            raise AccessError("a warning-only protection has no editors: anyone may edit after the warning")
+        op["editors"] = _editors(raw)
+    if name == "protect" and op["warning_only"] is None:
+        op["warning_only"] = False
+    if name == "protect_update":
+        if op["warning_only"] is False and "editors" not in op:
+            raise AccessError("turning the warning off needs editors ([] = only you): without them Google lets "
+                              "everyone who can edit the file edit there")
+        if "editors" in op:
+            op["warning_only"] = False  # editors only count on a blocking protection
+    if op["warning_only"]:
+        who = "anyone who can edit the file may edit after a warning"
+    elif "editors" in op or name == "protect":  # every address, never clipped
+        who = "editable only by you, the file's owner" + "".join(f", {a}" for a in op.get("editors", []))
+    else:
+        who = ""
+    if name == "protect":
+        op["say"] = f"Protect {where}: {who}" + (f"; {', '.join(words)}" if words else "")
+    else:
+        if "grid" in op:  # a range without a tab stays on the protection's own tab
+            words.insert(0, f"range {where}" if op["tab"] is not None else
+                         f"range {op['ref'] or 'whole tab'} on its tab")
+        if who:
+            words.insert(0, who)
+        if not words:
+            raise AccessError("give range, except, label, warning_only or editors to change")
+        op["say"] = f"Change {label}: {'; '.join(words)}"
+    return op
+
+
+def _redacted(text: str) -> str:
+    """The card as Hermes shows it: its approval prompt masks anything that looks like a secret."""
+    try:
+        from agent.redact import redact_sensitive_text
+    except ImportError:  # outside Hermes (tests, gaccess): nothing masks the card
+        return text
+    return redact_sensitive_text(text)
+
+
+def _protect_requests(ops: list[dict], meta: dict, **_) -> list[dict]:
+    """batchUpdate requests for validated protect ops; protections are found by id or label (the
+    API's description)."""
+    tabs = _Tabs(meta)
+    found = {}
+    for sheet in meta.get("sheets", []):
+        for item in sheet.get("protectedRanges", []) or []:
+            found[str(item.get("protectedRangeId"))] = dict(item)
+
+    def protection_of(key):
+        if key in found:
+            return found[key]
+        named = [p for p in found.values() if p.get("description") == key] or [
+            p for p in found.values() if (p.get("description") or "").casefold() == key.casefold()]
+        if len(named) != 1:
+            shown = [p.get("description") or f"#{p.get('protectedRangeId')}" for p in found.values()]
+            raise AccessError(f"no single protection {key!r}. Protections: {_few(shown) if shown else 'none'}")
+        return named[0]
+
+    def body(op, sheet_id):
+        rng = {"sheetId": sheet_id, **op["grid"]} if "grid" in op else None
+        out, fields = {}, []
+        if rng is not None:
+            out["range"] = rng
+            fields.append("range")
+        if "except" in op:
+            if any(tab is not None and tabs.id(tab) != sheet_id for tab, _ in op["except"]):
+                raise AccessError("except is cell ranges on the protected tab")
+            out["unprotectedRanges"] = [{"sheetId": sheet_id, **grid} for _, grid in op["except"]]
+            fields.append("unprotectedRanges")
+        if "description" in op:
+            out["description"] = op["description"]
+            fields.append("description")
+        if op["warning_only"] is not None:
+            out["warningOnly"] = op["warning_only"]
+            fields.append("warningOnly")
+        if "editors" in op:
+            out["editors"] = {"users": op["editors"]}
+            fields.append("editors")
+        return out, fields
+
+    requests = []
+    for op in ops:
+        name = op["op"]
+        if name == "protect":
+            protected, _ = body(op, tabs.id(op["tab"]))
+            requests.append({"addProtectedRange": {"protectedRange": protected}})
+        elif name == "protect_update":
+            current = protection_of(op["protection"])
+            sheet_id = (tabs.id(op["tab"]) if op.get("tab") is not None
+                        else (current.get("range") or {}).get("sheetId", tabs.id(None)))
+            if "except" in op and "grid" not in op and _a1(current.get("range") or {}):
+                raise AccessError("except goes with a protection over a whole tab")
+            protected, fields = body(op, sheet_id)
+            protected["protectedRangeId"] = current["protectedRangeId"]
+            requests.append({"updateProtectedRange": {"protectedRange": protected, "fields": ",".join(fields)}})
+            current.update({k: v for k, v in protected.items() if k in ("range", "description")})
+        elif name == "protect_delete":
+            gone = protection_of(op["protection"])
+            found.pop(str(gone["protectedRangeId"]), None)
+            requests.append({"deleteProtectedRange": {"protectedRangeId": gone["protectedRangeId"]}})
+    return requests
+
+
 # Op actions: the vocabulary, its normalizer, its request builder (given the metadata and the
 # engine's readers) and the metadata fields it builds from.
 OP_SETS = {"layout": (LAYOUT_OPS, _normalize, _layout_requests, LAYOUT_FIELDS),
            "data": (DATA_OPS, _normalize_data, _data_requests, LAYOUT_FIELDS),
            "chart": (CHART_OPS, _normalize_objects, _object_requests, CHART_FIELDS),
-           "pivot": (PIVOT_OPS, _normalize_objects, _object_requests, PIVOT_FIELDS)}
+           "pivot": (PIVOT_OPS, _normalize_objects, _object_requests, PIVOT_FIELDS),
+           "protect": (PROTECT_OPS, _normalize_protect, _protect_requests, PROTECT_FIELDS)}
 
 
 # --- Gmail ----------------------------------------------------------------------------------------
@@ -3222,6 +3402,15 @@ def _sheets_card(home, action: str, args: dict) -> str:
         # Lines are already clipped per field; only the length is bounded here, so the repeated
         # spaces a literal shows survive.
         lines = [" ".join(op[say].splitlines()) for op in ops]
+        if action == "protect":  # every editor's address in full, or no card at all
+            text = "\n".join(head + lines)
+            if _redacted(text) != text:
+                raise AccessError("an editor address looks like a secret, so the approval card would mask it; "
+                                  "the user adds that editor in Sheets")
+            if _units(text) > CARD_LIMIT:
+                raise AccessError("the approval card cannot show every editor of these protections in full; "
+                                  "send fewer ops or editors per call")
+            return text
         return _fit(head, [line if len(line) <= SAY_CLIP else line[:SAY_CLIP - 1] + "…" for line in lines],
                     LAYOUT_MORE)
     if action in ("add_sheet", "clear"):
