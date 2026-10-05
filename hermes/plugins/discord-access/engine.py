@@ -9,12 +9,13 @@ or logged.
     engine.py COMMAND  < JSON arguments  > {"ok": true, "data": ...} | {"ok": false, "kind", "error"}
 
 Commands: whoami, guilds, channels, channel, messages, backfill, sync, send, media, threads, pins,
-mentions, friends, search, roles, member, role_members, members. Requests carry the Discord web
-client's headers on a Chrome/macOS identity, are paced, and wait out short
+mentions, friends, search, roles, member, role_members, members, and the writes react, unreact,
+edit and delete. Requests carry the Discord web client's headers on a Chrome/macOS identity, are paced, and wait out short
 rate limits only for reads. ``send`` makes exactly one message POST with ``nonce`` +
 ``enforce_nonce`` and never retries it; attachments are uploaded first (Discord's cloud upload, as
 the web client does), which creates no message. Its outcome is sent / not_sent / uncertain,
-recorded in the ``sends`` ledger before and after dispatch.
+recorded in the ``sends`` ledger before and after dispatch. Every other write is one request too,
+never retried, with the outcome done / not_done / uncertain; an ambiguous one is read back once.
 Contract: docs/discord-access.md.
 """
 
@@ -71,6 +72,8 @@ RECHECK_COUNT = 50
 
 # Discord JSON error codes the engine tells apart.
 INDEXING = 110000            # search: the index is not ready (HTTP 202)
+UNKNOWN_MESSAGE = 10008
+NO_ROUTE = 0                 # a 404 with code 0: the path itself does not exist
 
 # Attachments: Discord's cloud upload. The upload URL is a signed Google Cloud Storage URL; the
 # token never goes there, and files are only ever read from the plugin's approved outbox.
@@ -361,6 +364,13 @@ class Client:
                 return payload
             raise self._http_error(status, headers, payload)
         raise EngineError("rate_limited", "Discord rate-limited the request twice")
+
+    def write(self, method: str, path: str, *, params=None, body=None, referer: str = "/channels/@me"):
+        """One write request, never retried: (status, headers, payload). Raises TransportError."""
+        self._spend()
+        self._pace()
+        return self.http.request(method, f"{API}{path}", params=params, body=body, timeout=SEND_TIMEOUT,
+                                 headers=self.headers(referer=referer, json_body=body is not None))
 
     def _http_error(self, status, headers, payload) -> EngineError:
         message = payload.get("message") if isinstance(payload, dict) else None
@@ -1179,6 +1189,123 @@ def members(client: Client, guild_id: str, query: str, limit: int = 25) -> dict:
     return {"members": rows, "total": found.get("total_result_count")}
 
 
+# --- writes other than send ---------------------------------------------------------------------
+#
+# One request each, never retried. done: Discord accepted it (or the read-back shows the requested
+# state). not_done: Discord refused it, or it cannot have left the machine. uncertain: a 5xx or a
+# failure after dispatch; one read-back adds what it saw. Each sets a state, so repeating it is
+# harmless.
+
+def _outcome(client: Client, request, *, confirm=None, already=()) -> dict:
+    try:
+        status, headers, payload = request()
+    except TransportError as exc:
+        detail = client._scrub(str(exc))
+        if not exc.dispatched:
+            return {"outcome": "not_done", "detail": detail}
+        return _confirm(client, confirm, detail)
+    if 200 <= status < 300:
+        return {"outcome": "done", "payload": payload}
+    code = payload.get("code") if isinstance(payload, dict) else None
+    if status == 404 and code in already:
+        return {"outcome": "done", "already": True, "payload": None}
+    if status >= 500:
+        return _confirm(client, confirm, client._scrub(f"Discord answered {status}"))
+    error = client._http_error(status, headers, payload)
+    return {"outcome": "not_done", "detail": str(error), "kind": error.kind, "status": status, "code": code}
+
+
+def _confirm(client: Client, confirm, detail: str) -> dict:
+    if confirm is None:
+        return {"outcome": "uncertain", "detail": detail}
+    try:
+        reached, seen = confirm()
+    except EngineError as exc:
+        return {"outcome": "uncertain", "detail": f"{detail}; read-back failed: {exc}"}
+    if reached:
+        return {"outcome": "done", "confirmed": True, "detail": f"{detail}; {seen}"}
+    return {"outcome": "uncertain", "detail": f"{detail}; {seen}"}
+
+
+def _done(result: dict) -> bool:
+    return result["outcome"] == "done"
+
+
+def react(client: Client, channel_id: str, message_id: str, emoji: str, add: bool) -> dict:
+    conn, referer = client.conn, _referer(client.conn, channel_id)
+    path = f"/channels/{channel_id}/messages/{message_id}/reactions/{urllib.parse.quote(emoji, safe='')}"
+
+    def confirm():
+        m = fetch_message(client, channel_id, message_id)
+        if m is None:
+            return False, "the message is gone"
+        mine = any(store.emoji_key((r or {}).get("emoji")) == emoji and r.get("me") for r in m.get("reactions") or [])
+        return mine == add, "your reaction is there" if mine else "your reaction is not there"
+
+    if add:
+        result = _outcome(client, lambda: client.write("PUT", f"{path}/@me", params={"type": "0"}, referer=referer),
+                          confirm=confirm)
+    else:
+        result = _outcome(client, lambda: client.write("DELETE", f"{path}/0/@me", referer=referer), confirm=confirm)
+        if result["outcome"] == "not_done" and result.get("status") == 404 and result.get("code") == NO_ROUTE:
+            # The typed route is unknown to this API version: the legacy one sets the same state.
+            result = _outcome(client, lambda: client.write("DELETE", f"{path}/@me", referer=referer), confirm=confirm)
+    if _done(result) and not result.get("confirmed"):
+        store.adjust_reaction(conn, message_id, emoji, add)
+        conn.commit()
+    return result
+
+
+def edit(client: Client, channel_id: str, message_id: str, text: str) -> dict:
+    body = {"content": text, "allowed_mentions": {"parse": ["users", "roles", "everyone"], "replied_user": False}}
+
+    def confirm():
+        m = fetch_message(client, channel_id, message_id)
+        if m is None:
+            return False, "the message is gone"
+        same = m.get("content") == text
+        return same, "the message shows the new text" if same else "the message still shows other text"
+
+    result = _outcome(client, lambda: client.write("PATCH", f"/channels/{channel_id}/messages/{message_id}", body=body,
+                                                   referer=_referer(client.conn, channel_id)), confirm=confirm)
+    if _done(result) and isinstance(result.get("payload"), dict) and result["payload"].get("id"):
+        _store_batch(client, channel_id, [result["payload"]], reactions=False)
+        client.conn.commit()
+    return result
+
+
+def delete(client: Client, channel_id: str, message_id: str) -> dict:
+    def confirm():
+        gone = fetch_message(client, channel_id, message_id) is None
+        return gone, "the message is gone" if gone else "the message is still there"
+
+    result = _outcome(client, lambda: client.write("DELETE", f"/channels/{channel_id}/messages/{message_id}",
+                                                   referer=_referer(client.conn, channel_id)),
+                      confirm=confirm, already=(UNKNOWN_MESSAGE,))
+    if _done(result):
+        store.delete_message(client.conn, message_id)
+        client.conn.commit()
+    return result
+
+
+WRITE_COMMANDS = {"react", "unreact", "edit", "delete"}
+
+
+def _write(command: str, args: dict, client: Client) -> dict:
+    channel = lambda: _arg(args, "channel")  # noqa: E731
+    if command in ("react", "unreact"):
+        emoji = args.get("emoji")
+        if not isinstance(emoji, str) or not emoji:
+            raise EngineError("usage", "emoji is required")
+        return react(client, channel(), _arg(args, "id"), emoji, command == "react")
+    if command == "edit":
+        text = args.get("text")
+        if not isinstance(text, str) or not text.strip():
+            raise EngineError("usage", "text is required")
+        return edit(client, channel(), _arg(args, "id"), text)
+    return delete(client, channel(), _arg(args, "id"))
+
+
 # --- entry --------------------------------------------------------------------------------------
 
 def _int(args: dict, key: str, default: int, top: int) -> int:
@@ -1235,6 +1362,13 @@ def run(command: str, args: dict, *, http=None, token=None) -> dict:
                 return summary
             finally:
                 lock.close()
+        if command in WRITE_COMMANDS:
+            # Every failure before the request means nothing was done; after it, _outcome decides.
+            try:
+                result = _write(command, args, make_client())
+            except EngineError as exc:
+                return {"outcome": "not_done", "detail": str(exc), "kind": exc.kind}
+            return {k: v for k, v in result.items() if k not in ("payload", "status", "code")}
         client = make_client()
         if command == "whoami":
             return whoami(client)

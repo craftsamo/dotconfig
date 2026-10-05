@@ -165,6 +165,20 @@ def test_reactions_and_embeds_are_stored_and_kept_by_partial_payloads():
     assert conn.execute("SELECT reactions FROM messages").fetchone()[0] is None
 
 
+def test_adjust_reaction_counts_only_the_users_own():
+    conn = store.connect(write=True)
+    mid = 1 << 40
+    store.upsert_messages(conn, [store.message_row(_msg(mid, reactions=[
+        {"emoji": {"name": "a"}, "count": 2, "me": False}]), ME)])
+    store.adjust_reaction(conn, mid, "a", True)
+    store.adjust_reaction(conn, mid, "a", True)          # already mine: no double count
+    store.adjust_reaction(conn, mid, "b", True)
+    items = {r["emoji"]: r for r in json.loads(conn.execute("SELECT reactions FROM messages").fetchone()[0])}
+    assert items["a"] == {"emoji": "a", "count": 3, "me": True} and items["b"]["count"] == 1
+    store.adjust_reaction(conn, mid, "b", False)
+    assert "b" not in {r["emoji"] for r in json.loads(conn.execute("SELECT reactions FROM messages").fetchone()[0])}
+
+
 def test_drop_missing_deletes_only_inside_the_range():
     conn = store.connect(write=True)
     ids = [(1 << 40) + i for i in range(5)]

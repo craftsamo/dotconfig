@@ -630,6 +630,15 @@ def test_live_search_scopes(monkeypatch):
 THREAD = "450000000000000001"
 
 
+def _thread(locked=False, archived=False):
+    conn = store.connect(write=True)
+    store.upsert_channel(conn, store.channel_row({
+        "id": THREAD, "type": 11, "name": "help", "parent_id": GENERAL, "guild_id": G, "message_count": 2,
+        "thread_metadata": {"archived": archived, "locked": locked}}), 0)
+    conn.commit()
+    conn.close()
+
+
 def test_threads_list_needs_a_parent_channel(monkeypatch):
     with pytest.raises(access.DiscordError, match="forum"):
         access.execute({"action": "threads", "channel": DM1})
@@ -665,6 +674,18 @@ def test_pins_take_a_pin_time():
         access.execute({"action": "pins", "channel": DM1, "before": str(M1)})
 
 
+# --- message writes ---------------------------------------------------------------------------------
+
+_CALLS = iter(range(10 ** 6))
+
+
+def approve(args):
+    """What Hermes does for one call: the approval card, the bind hook's key, then the handler."""
+    call = ids(call=f"w{next(_CALLS)}")
+    card, key = access.approval_request(args, ids=call)
+    return card, key, {**args, **(access.binding(args, ids=call) or {})}
+
+
 def _engine_says(monkeypatch, result):
     calls = []
 
@@ -673,6 +694,94 @@ def _engine_says(monkeypatch, result):
         return result
     monkeypatch.setattr(access, "call_engine", engine)
     return calls
+
+
+def test_react_card_and_run(monkeypatch):
+    card, key, call = approve({"action": "react", "channel": DM1, "id": str(M1), "emoji": THUMB})
+    assert card == (f"Discord: Me (@me)\nIn: DM with Taro (@taro)\nChannel id: {DM1}\n"
+                    f"Message: Taro: 明日の打ち合わせは10時で\nReact with: {THUMB}")
+    assert key.startswith("discord-access:react:") and call["_approved"] == key
+    calls = _engine_says(monkeypatch, {"outcome": "done"})
+    assert access.execute(call) == {"ok": True, "action": "react", "note": "reaction added"}
+    assert calls == [("react", {"channel": DM1, "id": str(M1), "emoji": THUMB})]
+
+
+@pytest.mark.parametrize("emoji,error", [("ok", "Unicode emoji"), ("<:party:700000000000000001>", "already on"),
+                                         (THUMB + " " + THUMB, "Unicode emoji")])
+def test_react_refuses_what_is_not_one_emoji(emoji, error):
+    with pytest.raises(access.DiscordError, match=error):
+        access.approval_request({"action": "react", "channel": DM1, "id": str(M1), "emoji": emoji})
+
+
+def test_custom_emoji_already_on_the_message_and_unreact_precheck():
+    _set("UPDATE messages SET reactions = ? WHERE id = ?",
+         json.dumps([{"emoji": "party:700000000000000001", "count": 1, "me": False}]), M1)
+    card, _ = access.approval_request({"action": "react", "channel": DM1, "id": str(M1),
+                                       "emoji": "<:party:700000000000000001>"})
+    assert card.endswith("React with: party:700000000000000001")
+    with pytest.raises(access.DiscordError, match="have not reacted"):
+        access.approval_request({"action": "unreact", "channel": DM1, "id": str(M1), "emoji": "party:700000000000000001"})
+
+
+def test_edit_and_delete_only_the_users_own_messages():
+    with pytest.raises(access.DiscordError, match="own messages"):
+        access.approval_request({"action": "edit", "channel": DM1, "id": str(M1), "text": "x"})
+    with pytest.raises(access.DiscordError, match="same as"):
+        access.approval_request({"action": "edit", "channel": DM1, "id": str(M2), "text": "了解です"})
+    card, _ = access.approval_request({"action": "edit", "channel": DM1, "id": str(M2), "text": "@everyone 了解しました"})
+    assert "Edit my message\nBefore: 了解です\nPings: @everyone\n\n@everyone 了解しました" in card
+    card, _ = access.approval_request({"action": "delete", "channel": DM1, "id": str(M2)})
+    assert card.endswith("Delete my message: 了解です\nThis cannot be undone.")
+    with pytest.raises(access.DiscordError, match="read before"):
+        access.approval_request({"action": "delete", "channel": DM1, "id": "500000000000000001"})
+
+
+def test_a_write_runs_only_as_approved(monkeypatch):
+    args = {"action": "delete", "channel": DM1, "id": str(M2)}
+    calls = _engine_says(monkeypatch, {"outcome": "done"})
+    assert "not the one approved" in access.execute(args)["error"]                  # no card at all
+    assert "not the one approved" in access.execute({**args, "_approved": "discord-access:delete:x"})["error"]
+    with pytest.raises(access.DiscordError, match="set by the plugin"):
+        access.approval_request({**args, "_approved": "x"})
+    _, _, call = approve(args)
+    assert access.execute({**call, "id": str(M3)})["ok"] is False                     # changed after approval
+    assert calls == [] and access.execute(call)["ok"] is True
+
+
+@pytest.mark.parametrize("engine_result,phrase", [
+    ({"outcome": "not_done", "detail": "Discord 403"}, "not done: Discord 403"),
+    ({"outcome": "uncertain", "detail": "timeout"}, "UNCERTAIN: timeout"),
+    ({"outcome": "done", "already": True}, None)])
+def test_write_outcomes(monkeypatch, engine_result, phrase):
+    _, _, call = approve({"action": "delete", "channel": DM1, "id": str(M2)})
+    _engine_says(monkeypatch, engine_result)
+    result = access.execute(call)
+    if phrase:
+        assert result["ok"] is False and result["error"].startswith(phrase)
+        if "UNCERTAIN" in phrase:
+            assert "harmless" in result["error"] and "live=true" in result["error"]
+    else:
+        assert result == {"ok": True, "action": "delete", "note": "deleted (it already was)"}
+
+
+def test_a_dead_engine_makes_a_write_uncertain(monkeypatch):
+    _, _, call = approve({"action": "react", "channel": DM1, "id": str(M1), "emoji": THUMB})
+
+    def dead(*a, **k):
+        raise TimeoutError("the Discord engine did not answer within 150s")
+    monkeypatch.setattr(access, "call_engine", dead)
+    assert access.execute(call)["error"].startswith("UNCERTAIN")
+
+
+# --- threads as send targets ------------------------------------------------------------------------
+
+def test_send_into_threads():
+    _thread(archived=True)
+    card, _ = access.approval_request({"action": "send", "channel": THREAD, "text": "hi"})
+    assert "To: thread 'help' in #general in Guild" in card and "Note: the thread is archived" in card
+    _thread(locked=True)
+    with pytest.raises(access.DiscordError, match="locked"):
+        access.approval_request({"action": "send", "channel": THREAD, "text": "hi"})
 
 
 # --- roles ------------------------------------------------------------------------------------------
@@ -718,3 +827,40 @@ def test_stale_roles_are_read_again(monkeypatch):
     with pytest.raises(access.DiscordError, match="older than 15 minutes"):      # the stub did not refresh
         access.execute({"action": "roles", "guild": G})
     assert calls == [("roles", {"guild": G})]
+
+
+def test_an_edited_message_voids_a_delete_card(monkeypatch):
+    _, _, call = approve({"action": "delete", "channel": DM1, "id": str(M2)})
+    _set("UPDATE messages SET content = ?, edited = ? WHERE id = ?", "別の本文", "2026-10-05T00:00:00", M2)
+    calls = _engine_says(monkeypatch, {"outcome": "done"})
+    assert "not the one approved" in access.execute(call)["error"] and calls == []
+
+
+def test_cards_fit_or_are_refused():
+    _set("UPDATE messages SET content = ? WHERE id = ?", "&" * 300, M2)
+    card, _ = access.approval_request({"action": "edit", "channel": DM1, "id": str(M2), "text": "新しい本文"})
+    assert access._units(card) <= access.CARD_LIMIT and card.endswith("新しい本文")
+    card, _ = access.approval_request({"action": "delete", "channel": DM1, "id": str(M2)})
+    assert access._units(card) <= access.CARD_LIMIT and card.endswith("This cannot be undone.")
+
+
+def test_a_plan_that_expires_between_the_hooks_fails_the_call(monkeypatch):
+    args = {"action": "delete", "channel": DM1, "id": str(M2)}
+    call = ids(call="slow")
+    clock = [1000.0]
+    monkeypatch.setattr(access.time, "monotonic", lambda: clock[0])
+    access.approval_request(args, ids=call)
+    clock[0] += access.PENDING_TTL + 1
+    assert access.binding(args, ids=call) is None
+    with pytest.raises(access.DiscordError, match="expired"):
+        access.approval_request(args, ids=call)
+
+
+def test_a_re_signed_attachment_url_keeps_a_delete_card_valid(monkeypatch):
+    _set("UPDATE messages SET attachments = ? WHERE id = ?",
+         json.dumps([{"name": "a.png", "size": 3, "type": "image/png", "url": "https://cdn/a.png?ex=1"}]), M2)
+    _, _, call = approve({"action": "delete", "channel": DM1, "id": str(M2)})
+    _set("UPDATE messages SET attachments = ? WHERE id = ?",
+         json.dumps([{"name": "a.png", "size": 3, "type": "image/png", "url": "https://cdn/a.png?ex=2"}]), M2)
+    _engine_says(monkeypatch, {"outcome": "done"})
+    assert access.execute(call)["ok"] is True
