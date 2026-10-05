@@ -15,7 +15,14 @@ positioning, offer, channels and campaign decisions; Build commissions parts,
 operates service drafts and collects measurements; QA separately checks strategy,
 content and saved objects; Analyze interprets results. One shared
 `references/platforms/{x,substack,note,zenn}.md` owns each platform's constraints,
-browser procedure and verification. `references/state.md` defines records;
+browser procedure and verification. `references/x-ranking.md` is the dated
+knowledge of X's published For You ranking (source commit, weights and how not
+to read them, review lenses, measurement limits, conversation discovery) read
+by every entry for X work; it advises and never blocks acceptance on its own.
+X results come from the read-only `x` tool ([x-access.md](../x-access.md)):
+`snapshot` / `insights` for the client's own posts and `search` / `thread` for
+discovery, on resident sessions and inbound A2A inquiries alike, sharing the
+Assistant's caps and needing no browser lease. `references/state.md` defines records;
 actual project/account/evidence/approval data remains private and outside config.
 Detailed references remain references, not a hands taxonomy or generated registry.
 Shared state/platform paths and `scripts/browser-lease.py` stay at the parent;
