@@ -68,6 +68,13 @@ not a browser sandbox or authentication; broad terminal/browser tools remain a
 residual authority risk. Marketer's inbound A2A has no browser, terminal or
 delegation toolset, so authenticated work needs a resident session.
 
+The `substack` tool ([substack-access.md](../substack-access.md)) reads
+Substack without the browser: Marketer may read posts, the inbox and the
+user's drafts, published posts, stats and pre-publish checks with it, without
+the lease and on inbound A2A too. Its Marketer schema has no write action, so
+the draft-only rules below are unchanged; a draft read supplements, never
+replaces, reopening the saved draft in the browser.
+
 ### note through the tool
 
 For note, the `note` tool (`note_access` toolset, CLI and Telegram, never A2A)
