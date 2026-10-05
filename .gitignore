@@ -91,6 +91,11 @@ hermes/profiles/*/skills/learned/
 # a real wrapper here; private/install.sh generates it and it stays machine-local.
 hermes/profiles/*/scripts/local-*.sh
 
+# Throwaway cron scripts a profile writes for itself (one-off monitors, ad-hoc
+# schedules). They must sit under <HERMES_HOME>/scripts to run, but are not
+# managed config; a job references them as `adhoc/<name>`.
+hermes/profiles/*/scripts/adhoc/
+
 # Runtime-only coordination, even if a caller mistakenly selects the config home.
 hermes/profiles/*/marketing-browser-lease.json
 hermes/profiles/*/marketing-browser-lease.guard
