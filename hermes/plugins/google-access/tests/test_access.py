@@ -910,7 +910,7 @@ def layout(*ops, **extra):
 
 
 def requests(*ops):
-    return access._layout_requests(access._layout_ops(layout(*ops)), META)
+    return access._layout_requests(access._ops(layout(*ops), "layout"), META)
 
 
 @pytest.mark.parametrize("ref,grid", [
@@ -1037,7 +1037,7 @@ def test_typed_columns_keep_their_header_text(tmp_path, monkeypatch):
 
 
 def test_one_op_covers_scattered_ranges():
-    bold, widths, rule, check = (access._layout_requests(access._layout_ops(layout(op)), META) for op in (
+    bold, widths, rule, check = (access._layout_requests(access._ops(layout(op), "layout"), META) for op in (
         {"op": "format", "ranges": ["Tasks!A1", "Tasks!C5:D6", "Main!F9"], "bold": True},
         {"op": "size", "ranges": ["Tasks!B:B", "Tasks!E:F"], "pixels": 90},
         {"op": "conditional", "ranges": ["Tasks!D2:D9", "Tasks!G2:G9"], "when": "NOT_BLANK", "italic": True},
@@ -1309,7 +1309,7 @@ TABS = {"sheets": [
 
 
 def tab_requests(*ops, cell=None):
-    return access._layout_requests(access._layout_ops(layout(*ops)), TABS, cell=cell)
+    return access._layout_requests(access._ops(layout(*ops), "layout"), TABS, cell=cell)
 
 
 def test_hiding_and_grouping_become_requests():
@@ -1591,11 +1591,11 @@ def test_info_lists_groups_filters_views_and_tab_colours(tmp_path, monkeypatch):
 def test_tab_positions_are_where_the_tab_ends_up():
     meta = {"sheets": [{"properties": {"sheetId": i, "title": name, "index": i}}
                        for i, name in enumerate(["A", "B", "C", "D"])]}
-    got = access._layout_requests(access._layout_ops(layout(
+    got = access._layout_requests(access._ops(layout(
         {"op": "sheet", "sheet": "A", "position": 3},          # B C A D: API index 3 (before the move)
         {"op": "sheet", "sheet": "D", "position": 1},          # D B C A: API index 0
         {"op": "sheet_duplicate", "sheet": "B", "title": "B2"},  # D B B2 C A: right after B
-        {"op": "sheet_duplicate", "sheet": "C", "position": 9})), meta)  # clamped to the end
+        {"op": "sheet_duplicate", "sheet": "C", "position": 9}), "layout"), meta)  # clamped to the end
     assert [r["updateSheetProperties"]["properties"]["index"] for r in got[:2]] == [3, 0]
     assert got[2]["duplicateSheet"]["insertSheetIndex"] == 2 and got[3]["duplicateSheet"]["insertSheetIndex"] == 5
 
@@ -1626,3 +1626,196 @@ def test_theme_colours_and_side_padding_round_trip():
                                                                     "rotation": 0}
     with pytest.raises(access.AccessError, match="colour like"):
         tab_requests({"op": "format", "range": "A1", "color": "theme:PURPLE"})
+
+
+# --- data (contents that move or change) ----------------------------------------------------------
+
+def data(*ops, **extra):
+    return {"action": "data", "spreadsheet_id": SID, "ops": list(ops), **extra}
+
+
+def data_requests(*ops):
+    return access._data_requests(access._ops(data(*ops), "data"), META)
+
+
+def test_sort_keeps_the_header_row_and_uses_sheet_columns():
+    (got,) = data_requests({"op": "sort", "range": "Tasks!A1:D20", "by": [{"column": "C"},
+                                                                         {"column": "d", "order": "desc"}]})
+    assert got == {"sortRange": {"range": {"sheetId": 7, "startColumnIndex": 0, "endColumnIndex": 4,
+                                           "startRowIndex": 1, "endRowIndex": 20},
+                                 "sortSpecs": [{"dimensionIndex": 2, "sortOrder": "ASCENDING"},
+                                               {"dimensionIndex": 3, "sortOrder": "DESCENDING"}]}}
+    (whole,) = data_requests({"op": "sort", "range": "A2:C", "by": [{"column": "B"}], "header": False})
+    assert whole["sortRange"]["range"]["startRowIndex"] == 1
+
+
+def test_find_replace_scopes():
+    ranged, tab, everywhere = data_requests(
+        {"op": "find_replace", "find": "Todo", "replacement": "Open", "range": "Tasks!C:C", "whole_cell": True},
+        {"op": "find_replace", "find": "a+", "replacement": "", "sheet": "Tasks", "regex": True},
+        {"op": "find_replace", "find": "2025", "replacement": "2026", "all_sheets": True, "formulas": True})
+    assert ranged["findReplace"] == {"find": "Todo", "replacement": "Open", "matchCase": False,
+                                     "matchEntireCell": True, "searchByRegex": False, "includeFormulas": False,
+                                     "range": {"sheetId": 7, "startColumnIndex": 2, "endColumnIndex": 3}}
+    assert tab["findReplace"]["sheetId"] == 7 and tab["findReplace"]["searchByRegex"] is True
+    assert everywhere["findReplace"]["allSheets"] is True and everywhere["findReplace"]["includeFormulas"] is True
+
+
+def test_copy_and_cut_cover_exactly_the_source_size():
+    copied, flipped, moved = data_requests(
+        {"op": "copy", "range": "Tasks!A1:D5", "to": "Main!F2", "paste": "values"},
+        {"op": "copy", "range": "Tasks!A1:D5", "to": "H1", "transpose": True},
+        {"op": "cut", "range": "Tasks!A1:B2", "to": "Tasks!J10"})
+    assert copied["copyPaste"]["destination"] == {"sheetId": 0, "startRowIndex": 1, "endRowIndex": 6,
+                                                  "startColumnIndex": 5, "endColumnIndex": 9}
+    assert copied["copyPaste"]["pasteType"] == "PASTE_VALUES"
+    # No tab on "to": the source's tab; transposed, 5x4 becomes 4x5.
+    assert flipped["copyPaste"]["destination"] == {"sheetId": 7, "startRowIndex": 0, "endRowIndex": 4,
+                                                   "startColumnIndex": 7, "endColumnIndex": 12}
+    assert flipped["copyPaste"]["pasteOrientation"] == "TRANSPOSE"
+    assert moved["cutPaste"]["destination"] == {"sheetId": 7, "rowIndex": 9, "columnIndex": 9}
+
+
+def test_dedupe_trim_split_and_fill():
+    dedupe, trim_a, trim_b, split, custom, fill, up = data_requests(
+        {"op": "dedupe", "range": "Tasks!A1:D50", "compare": ["B", "C"]},
+        {"op": "trim", "ranges": ["Tasks!A:A", "Main!B2:B9"]},
+        {"op": "split_text", "range": "Tasks!E2:E50", "delimiter": "comma"},
+        {"op": "split_text", "range": "Tasks!F2:F50", "delimiter": " / "},
+        {"op": "autofill", "range": "Tasks!A2:B3", "fill": 10},
+        {"op": "autofill", "range": "Tasks!A20:A21", "fill": 5, "direction": "up"})
+    assert dedupe["deleteDuplicates"]["range"]["startRowIndex"] == 1  # the header row is never compared
+    assert [c["startIndex"] for c in dedupe["deleteDuplicates"]["comparisonColumns"]] == [1, 2]
+    assert [r["trimWhitespace"]["range"]["sheetId"] for r in (trim_a, trim_b)] == [7, 0]
+    assert split["textToColumns"] == {"source": {"sheetId": 7, "startColumnIndex": 4, "endColumnIndex": 5,
+                                                 "startRowIndex": 1, "endRowIndex": 50}, "delimiterType": "COMMA"}
+    assert custom["textToColumns"]["delimiterType"] == "CUSTOM" and custom["textToColumns"]["delimiter"] == " / "
+    assert fill["autoFill"]["sourceAndDestination"]["fillLength"] == 10
+    assert up["autoFill"]["sourceAndDestination"] == {
+        "source": {"sheetId": 7, "startColumnIndex": 0, "endColumnIndex": 1, "startRowIndex": 19, "endRowIndex": 21},
+        "dimension": "ROWS", "fillLength": -5}
+
+
+def test_every_data_call_asks_every_time(monkeypatch):
+    context(monkeypatch, title="Plan", names=["Main", "Tasks"])
+    args = data({"op": "trim", "range": "Tasks!A1:A9"}, expect=[{"range": "Tasks!A2", "value": "t1"}])
+    reason, key = access.approval_request("google_sheets", args, home=Path("/x"))
+    assert "sheets-edit" not in key and key.startswith("google-access:google_sheets:")
+    assert reason.split("\n") == ["SpreadSheet: Plan", "Sheet: Tasks", "Check: A2 = t1", "",
+                                  "Trim surrounding and repeated spaces in A1:A9"]
+
+
+def test_the_data_card_says_what_is_overwritten(monkeypatch):
+    context(monkeypatch, title="Plan", names=["Main", "Tasks"])
+    ops = [{"op": "sort", "range": "Tasks!A1:D20", "by": [{"column": "C", "order": "DESC"}]},
+           {"op": "find_replace", "find": "Todo", "range": "Tasks!C2:C20", "match_case": True},
+           {"op": "copy", "range": "Tasks!A1:D5", "to": "Main!F2", "paste": "VALUES"},
+           {"op": "cut", "range": "Tasks!A1:B2", "to": "J10"}]
+    lines = access.approval_request("google_sheets", data(*ops), home=Path("/x"))[0].split("\n")
+    assert lines == [
+        "SpreadSheet: Plan", "Sheet: Tasks", "",
+        "Sort A1:D20 by C descending, keeping row 1 as the header",
+        'Replace "Todo" with nothing (removes it) in C2:C20 (match case)',
+        "Copy A1:D5 to Main!F2:I6 (values only), overwriting it",
+        "Move A1:B2 to J10:K11, overwriting it; the source is left empty"]
+    lines = access.approval_request("google_sheets", data(
+        {"op": "dedupe", "range": "Tasks!A1:D50", "compare": ["B"]},
+        {"op": "split_text", "range": "Tasks!E2:E9"},
+        {"op": "autofill", "range": "Tasks!A2:B3", "fill": 3, "direction": "RIGHT"},
+        {"op": "find_replace", "find": "x", "replacement": "y", "all_sheets": True}), home=Path("/x"))[0].split("\n")
+    assert lines == [
+        "SpreadSheet: Plan", "",
+        "Delete duplicate rows in Tasks!A1:D50 by B (the first of each stays), keeping row 1 as the header",
+        "Split Tasks!E2:E9 on the detected separator into the columns to its right, overwriting them",
+        "Fill right from Tasks!A2:B3 into Tasks!C2:E3, overwriting it",
+        'Replace "x" with "y" in every tab']
+
+
+@pytest.mark.parametrize("op,message", [
+    ({"op": "sort", "range": "A1:D9", "by": [{"column": "F"}]}, "outside the range"),
+    ({"op": "sort", "range": "A1:D1", "by": [{"column": "A"}]}, "only its header row"),
+    ({"op": "sort", "range": "A1:D9", "by": [{"column": "A", "order": "up"}]}, "ASC or DESC"),
+    ({"op": "sort", "range": "A1:D9", "by": []}, "by is required"),
+    ({"op": "find_replace", "find": "x"}, "exactly one of"),
+    ({"op": "find_replace", "find": "x", "range": "A1:B2", "sheet": "Tasks"}, "exactly one of"),
+    ({"op": "find_replace", "find": "x", "all_sheets": False}, "exactly one of"),
+    ({"op": "find_replace", "find": "", "sheet": "Tasks"}, "find is required"),
+    ({"op": "copy", "range": "A:D", "to": "F1"}, "closed block"),
+    ({"op": "copy", "range": "A1:D5", "to": "F1:G2"}, "top-left cell"),
+    ({"op": "cut", "range": "A1:D5", "to": "F1", "transpose": True}, "unknown field"),
+    ({"op": "dedupe", "range": "A1:D9", "compare": ["Z"]}, "outside the range"),
+    ({"op": "split_text", "range": "A2:B9"}, "one column"),
+    ({"op": "autofill", "range": "A2:A3", "fill": 5, "direction": "UP"}, "past the first row"),
+    ({"op": "autofill", "range": "A:A", "fill": 5}, "closed block"),
+    ({"op": "format", "range": "A1", "bold": True}, "op must be one of")])
+def test_malformed_data_ops_are_refused_before_asking(op, message):
+    with pytest.raises(access.AccessError, match=message):
+        access.approval_request("google_sheets", data(op))
+
+
+def test_data_ops_are_not_layout_ops():
+    with pytest.raises(access.AccessError, match="op must be one of"):
+        access.approval_request("google_sheets", layout({"op": "trim", "range": "A1:A9"}))
+
+
+def test_data_reports_counts_and_honours_expect(tmp_path, monkeypatch):
+    args = data({"op": "find_replace", "find": "a", "replacement": "b", "sheet": "Tasks"},
+                {"op": "dedupe", "range": "Tasks!A1:D9"}, {"op": "trim", "range": "Tasks!A1:A9"},
+                expect=[{"range": "Tasks!A2", "value": "t1"}])
+    api, book = layout_api(["t9"])
+    services(monkeypatch, sheets=api)
+    with pytest.raises(access.AccessError, match="nothing written"):
+        access.sheets(tmp_path, args)
+    assert book.batchUpdate.call_count == 0
+    api, book = layout_api(["t1"])
+    book.batchUpdate().execute.return_value = {"replies": [
+        {"findReplace": {"occurrencesChanged": 4, "valuesChanged": 3, "rowsChanged": 3, "sheetsChanged": 1}},
+        {"deleteDuplicates": {"duplicatesRemovedCount": 2}}, {"trimWhitespace": {"cellsChangedCount": 5}}]}
+    book.batchUpdate.reset_mock()
+    services(monkeypatch, sheets=api)
+    result = access.sheets(tmp_path, args)
+    assert result["results"] == [
+        {"op": "find_replace", "occurrences": 4, "cells": 3, "formulas": 0, "rows": 3, "tabs": 1},
+        {"op": "dedupe", "rows_removed": 2}, {"op": "trim", "cells_changed": 5}]
+    assert [list(r) for r in book.batchUpdate.call_args.kwargs["body"]["requests"]] == [
+        ["findReplace"], ["deleteDuplicates"], ["trimWhitespace"]]
+
+
+def test_deleting_a_tab_asks_every_time_and_later_ops_cannot_use_it():
+    args = layout({"op": "format", "range": "Tasks!A1", "bold": True}, {"op": "sheet_delete", "sheet": "Main"})
+    reason, key = access.approval_request("google_sheets", args)
+    assert "sheets-edit" not in key and reason.endswith("Delete tab Main with all its contents")
+    renamed, dropped = tab_requests({"op": "sheet", "sheet": "Main", "title": "Old"},
+                                    {"op": "sheet_delete", "sheet": "Old"})
+    assert dropped == {"deleteSheet": {"sheetId": 0}}
+    for later in ({"op": "hide", "range": "Old!A:A"}, {"op": "hide", "range": "A:A"}):
+        with pytest.raises(access.AccessError, match="no tab named|deleted earlier"):
+            tab_requests({"op": "sheet_delete", "sheet": "Main"}, later)
+    with pytest.raises(access.AccessError, match="at least one tab"):
+        tab_requests({"op": "sheet_delete", "sheet": "Main"}, {"op": "sheet_delete", "sheet": "Tasks"})
+    with pytest.raises(access.AccessError, match="no single filter view"):
+        tab_requests({"op": "sheet_delete", "sheet": "Tasks"}, {"op": "filter_view_delete", "view": "Open only"})
+
+
+def test_a_copy_without_a_title_keeps_the_last_tab_guard_honest():
+    one = {"sheets": [{"properties": {"sheetId": 3, "title": "Main", "index": 0}}]}
+    copy, gone = access._layout_requests(access._ops(layout(
+        {"op": "sheet_duplicate", "sheet": "Main"}, {"op": "sheet_delete", "sheet": "Main"}), "layout"), one)
+    assert gone == {"deleteSheet": {"sheetId": 3}} and copy["duplicateSheet"]["sourceSheetId"] == 3
+
+
+def test_a_view_moved_to_another_tab_survives_deleting_its_old_tab():
+    *_, kept = tab_requests({"op": "filter_view_update", "view": "Open only", "range": "Main!A1:C9"},
+                            {"op": "sheet_delete", "sheet": "Tasks"}, {"op": "filter_view_delete", "view": "Open only"})
+    assert kept == {"deleteFilterView": {"filterId": 55}}
+
+
+def test_card_literals_keep_whitespace_and_overlapping_moves_say_so(monkeypatch):
+    context(monkeypatch, title="Plan", names=["Main", "Tasks"])
+    lines = access.approval_request("google_sheets", data(
+        {"op": "find_replace", "find": "a  b\t", "replacement": "\n", "sheet": "Tasks"},
+        {"op": "split_text", "range": "Tasks!E2:E9", "delimiter": " / "},
+        {"op": "cut", "range": "Tasks!A1:A3", "to": "A2"}), home=Path("/x"))[0].split("\n")
+    assert lines[3:] == ['Replace "a  b\\t" with "\\n" in whole tab',
+                         'Split E2:E9 on " / " into the columns to its right, overwriting them',
+                         "Move A1:A3 to A2:A4, overwriting it; source cells outside it are left empty"]
