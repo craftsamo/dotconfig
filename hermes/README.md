@@ -117,10 +117,11 @@ launchd/               # multiplex gateway launcher + plist template, local
                        #   TTS engine launchers + plist templates
 engines/               # tracked pins/locks: irodori-tts, qwen3-tts,
                        #   stable-audio-3, motion-canvas, three-webgl,
-                       #   twscrape, telegram-access, python-substack
+                       #   twscrape, telegram-access, python-substack, yt-dlp
 scripts/               # profile-secrets.sh (secrets.command helper),
                        #   brave-agent-sync.sh, validate-profile-skills.py,
                        #   check-local-patches.sh, x-access.sh, substack-access.sh,
+                       #   youtube-access.sh,
                        #   verify-work-continuity.py, audit-hands-references.py,
                        #   qwen3_tts_server.py, qwen3_tts_reading_check.py,
                        #   stable_audio3.py, tests/ (pytest suites + fixtures)
@@ -486,6 +487,18 @@ keeps user keys.
   memory; its hook blocks the terminal path around it. Engine:
   `scripts/substack-access.sh` (`install` / `status`). Behavior:
   [docs/substack-access.md](docs/substack-access.md).
+- **youtube-access** (`standalone`): `youtube` (toolset `youtube_access`)
+  for the assistant and marketer — the user's own YouTube channels through
+  the Data and Analytics APIs (search, videos, channels, playlists, comments,
+  each channel's own uploads and analytics) plus transcripts and downloads of
+  public videos through yt-dlp (`bridge.py` in the ignored
+  `local/yt-dlp/venv`, pinned in `engines/yt-dlp/`); the assistant alone also
+  edits videos, sets thumbnails, replies to comments, uploads and manages
+  playlists, each write through the approval gate. Every channel's refresh
+  token stays in the Keychain (`YOUTUBE_OAUTH`, scope `youtube-access`),
+  authorized once per channel with `bin/yaccess`; its hook blocks the
+  terminal path around it. Engine: `scripts/youtube-access.sh` (`install` /
+  `status`). Behavior: [docs/youtube-access.md](docs/youtube-access.md).
 - **ui-inspection** (`standalone`): `ui_capture` for ui-review / ux-persona.
 - **writing-inspection** (`standalone`): Writer's bounded `writing_inspect`.
 - **kanban-worker-mutation-guard** (`standalone`): stops dispatcher workers
@@ -1192,6 +1205,9 @@ agent's pre-rename label and carry its old log over once.
 - `scripts/substack-access.sh {install,status}` — the substack-access engine
   venv and the state of the account's cookies; see
   [docs/substack-access.md](docs/substack-access.md).
+- `scripts/youtube-access.sh {install,status}` — the youtube-access yt-dlp
+  venv, Deno/ffmpeg and the authorized channels; channels themselves are
+  authorized with `yaccess auth`; see [docs/youtube-access.md](docs/youtube-access.md).
 - `scripts/brave-agent-sync.sh {sync,check,path,remove}` — the real-profile
   Brave clone ([Browser](#browser)). `sync` (default) re-clones when
   `/Applications/Brave Browser.app` changed version or the clone is missing,
