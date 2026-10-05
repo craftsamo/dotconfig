@@ -155,6 +155,185 @@ def test_slim_drops_bodies_and_keeps_byline_names():
     assert ns["slim"](item, keep_body=True)["body_html"] == "<p>"
 
 
+def test_note_body_marks_links_and_keeps_lines():
+    doc = namespace()["note_body"]("First line, see https://example.com/a.\n\n  \nSecond")
+    assert doc["attrs"] == {"schemaVersion": "v1"} and len(doc["content"]) == 2
+    first = doc["content"][0]["content"]
+    assert first[0] == {"type": "text", "text": "First line, see "}
+    assert first[1]["text"] == "https://example.com/a" and first[1]["marks"][0]["attrs"]["href"] == "https://example.com/a"
+    assert first[2] == {"type": "text", "text": "."}
+
+
+def test_draft_digest_follows_what_a_card_shows():
+    ns = namespace()
+    d = {"draft_title": "T", "draft_subtitle": "", "draft_body": "{\"type\":\"doc\"}", "audience": "everyone",
+         "draft_updated_at": "1"}
+    same = ns["draft_digest"]({**d, "draft_updated_at": "2"})
+    assert ns["draft_digest"](d) == same
+    for change in ({"draft_title": "U"}, {"draft_body": "{}"}, {"audience": "only_paid"}, {"should_send_email": True},
+                   {"postSchedules": [{"trigger_at": "2026-10-07T00:00:00Z"}]}, {"is_published": True}):
+        assert ns["draft_digest"]({**d, **change}) != same
+
+
+def test_draft_brief_reads_schedules_and_words():
+    body = json.dumps({"type": "doc", "content": [{"type": "paragraph", "content": [{"type": "text", "text": "a b c"}]}]})
+    brief = namespace()["draft_brief"]({"id": 5, "draft_title": "T", "draft_body": body, "is_published": False,
+                                        "postSchedules": [{"trigger_at": "2026-10-06T00:00:00Z"}]})
+    assert brief["words"] == 3 and brief["scheduled"] == ["2026-10-06T00:00:00Z"] and brief["published"] is False
+
+
+def test_the_cookie_session_talks_only_to_substack():
+    ns = namespace()
+    c = object.__new__(ns["Client"])
+    c.ends, c.contacted = float("inf"), False
+    sent = []
+
+    class Auth:
+        def request(self, method, url, **kwargs):
+            sent.append((method, url, kwargs))
+            return "response"
+
+    c.auth = Auth()
+    c._guard_auth()
+    assert c.auth.request("POST", "https://pub.substack.com/api/v1/drafts", json={}) == "response"
+    assert sent[0][2]["allow_redirects"] is False and sent[0][2]["timeout"] > 0
+    for url in ("https://evil.example/api", "http://pub.substack.com/api/v1/drafts"):
+        with pytest.raises(ns["Failure"], match="only talks to Substack"):
+            c.auth.request("GET", url)
+    assert len(sent) == 1
+
+
+VENV_CHECKS = r"""
+import json, sys, tempfile
+from pathlib import Path
+sys.path.insert(0, ROOT)
+import bridge
+from substack import Api
+from substack.exceptions import SubstackAPIException
+
+tmp = Path(tempfile.mkdtemp())
+img = tmp / "a b.png"
+img.write_bytes(b"png")
+found = bridge.scan_images(f"# T\n\n![x](<{img}>)\n\n![r](https://cdn.example/r.png)\n\n![x again](<{img}>)\n")
+assert found == [str(img)], found
+try:
+    bridge.scan_images("![x](/no/such/file.png)")
+    raise AssertionError("missing image accepted")
+except bridge.Failure as exc:
+    assert exc.kind == "invalid" and "absolute paths" in exc.error
+
+ledger = bridge.Ledger(str(tmp / "ledger.json"))
+class Requests:
+    class RequestException(Exception): pass
+class C: requests = Requests
+def outcome(call):
+    try:
+        return bridge.dispatch(C, ledger, "step", call)
+    except bridge.Failure as exc:
+        return exc.kind
+    except bridge.Uncertain:
+        return "uncertain"
+def raises(exc):
+    def call():
+        raise exc
+    return call
+assert outcome(lambda: {"id": 1}) == {"id": 1} and json.loads((tmp / "ledger.json").read_text())["status"] == "done"
+assert outcome(raises(SubstackAPIException(400, '{"error": "bad"}'))) == "rejected"
+assert json.loads((tmp / "ledger.json").read_text())["status"] == "rejected"
+assert outcome(raises(SubstackAPIException(429, "{}"))) == "limited"
+assert outcome(raises(SubstackAPIException(502, "<html>"))) == "uncertain"
+assert json.loads((tmp / "ledger.json").read_text())["status"] == "dispatching"
+assert outcome(raises(bridge.Failure("timeout", "late"))) == "timeout"  # the guarded session stopped before sending
+assert outcome(raises(Requests.RequestException())) == "uncertain"
+assert outcome(raises(AttributeError("'list' object has no attribute 'get'"))) == "uncertain"
+
+uploads = []
+Api.get_image = lambda self, path: uploads.append(path) or {"url": "https://substackcdn.com/x.png"}
+api = object.__new__(Api)
+bridge._guard_uploads(C, api, {str(img): str(tmp / "00.png")}, ledger)
+assert api.get_image(str(img))["url"].startswith("https://") and uploads == [str(tmp / "00.png")]
+assert ledger.done[-1] == "upload image a b.png"
+try:
+    api.get_image(str(tmp / "other.png"))
+    raise AssertionError("unapproved image uploaded")
+except bridge.Failure as exc:
+    assert "not on the approval card" in exc.error
+
+class Fake:
+    requests = Requests
+    def __init__(self, draft): self.draft, self.auth = draft, None
+    def get(self, url, params=None):
+        if url.endswith("/user/profile/self"):
+            return {"id": 1, "primaryPublication": {"id": 7}, "publicationUsers": [
+                {"role": "admin", "publication": {"id": 7, "name": "P", "subdomain": "pub"}}]}
+        return self.draft
+body = json.dumps({"type": "doc", "content": [{"type": "paragraph", "content": [{"type": "text", "text": "hi"}]}]})
+draft = {"id": 5, "draft_title": "T", "draft_body": body, "audience": "everyone", "is_published": False}
+WHO = {"expect_publication": 7, "expect_user": 1}
+for who in ({"expect_publication": 8, "expect_user": 1}, {"expect_publication": 7, "expect_user": 2}):
+    try:
+        bridge.op_write(Fake(draft), {"action": "publish", "expect": bridge.draft_digest(draft), **who,
+                        "plan": {"action": "publish", "draft": "5", "send_email": False}})
+        raise AssertionError("another publication or account written")
+    except bridge.Failure as exc:
+        assert exc.kind == "changed" and "approval card named" in exc.error
+try:
+    bridge.op_write(Fake(draft), {"action": "note", "expect_user": 2, "plan": {"action": "note", "text": "x"}})
+    raise AssertionError("note from another account")
+except bridge.Failure as exc:
+    assert exc.kind == "changed"
+try:
+    bridge.op_write(Fake(draft), {"action": "publish", "plan": {"action": "publish", "draft": "5", "send_email": False},
+                                  "expect": "stale", **WHO})
+    raise AssertionError("changed draft published")
+except bridge.Failure as exc:
+    assert exc.kind == "changed", exc.kind
+try:
+    published = {**draft, "is_published": True}
+    bridge.op_write(Fake(published), {"action": "publish", "expect": bridge.draft_digest(published), **WHO,
+                    "plan": {"action": "publish", "draft": "5", "send_email": False}})
+    raise AssertionError("published twice")
+except bridge.Failure as exc:
+    assert exc.kind == "invalid" and "already published" in exc.error
+class Lost(Exception):
+    pass
+Requests.RequestException = Lost
+def lost(self, path):
+    raise Lost("connection reset")
+Api.get_image = lost
+posts = []
+Api.post_draft = lambda self, body: posts.append(body) or {"id": 1}
+upload_ledger = tmp / "upload-ledger.json"
+try:
+    bridge.op_write(Fake(draft), {"action": "create_draft", **WHO, "ledger": str(upload_ledger),
+                                  "images": {str(img): str(tmp / "00.png")},
+                                  "plan": {"action": "create_draft", "title": "T", "subtitle": "", "audience": "everyone",
+                                           "markdown": f"![x](<{img}>)"}})
+    raise AssertionError("a lost upload went on to save a draft")
+except bridge.Failure as exc:
+    assert exc.kind == "invalid", exc.kind
+state = json.loads(upload_ledger.read_text())
+assert state["status"] == "dispatching" and state["step"] == "upload image a b.png" and posts == [], (state, posts)
+empty = {**draft, "draft_title": ""}
+try:
+    bridge.op_write(Fake(empty), {"action": "publish", "expect": bridge.draft_digest(empty), **WHO,
+                    "plan": {"action": "publish", "draft": "5", "send_email": False}})
+    raise AssertionError("untitled draft published")
+except bridge.Failure as exc:
+    assert exc.kind == "invalid" and "no title" in exc.error
+print("ok")
+"""
+
+
+@needs_venv
+def test_write_steps_under_the_engine(tmp_path):
+    script = tmp_path / "checks.py"
+    script.write_text(f"ROOT = {str(ROOT)!r}\n" + VENV_CHECKS)
+    proc = subprocess.run([str(PYTHON), str(script)], capture_output=True, text=True,
+                          env={"HOME": str(tmp_path), "PATH": "/usr/bin:/bin"}, cwd=tmp_path, timeout=60)
+    assert proc.stdout.strip().splitlines()[-1:] == ["ok"], proc.stdout + proc.stderr
+
+
 # --- the process ----------------------------------------------------------------------------------
 
 @pytest.fixture
