@@ -228,6 +228,15 @@ Notes, each waiting for approval on a card naming the publication, the draft,
 whether email goes out and the text; nothing is written where nobody can
 approve. Contract: [substack-access.md](../substack-access.md).
 
+The user's YouTube channels are shared with Marketer, which only reads
+(`youtube_access` toolset; the Assistant's never on A2A): search, videos,
+channels, playlists and comments, each authorized channel's own uploads and
+analytics, and transcripts and downloads of public videos into
+`~/Workspaces/.inbox/youtube`; on the Assistant's side video edits,
+thumbnails, comment replies, uploads (kept private by YouTube) and playlists,
+each waiting for approval on a card naming the channel and the change.
+Contract: [youtube-access.md](../youtube-access.md).
+
 ### Kanban catalog
 
 The kanban catalog is closed and per-assignee: its machine-readable surface is

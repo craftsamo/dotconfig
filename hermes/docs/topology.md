@@ -95,7 +95,7 @@ needed. Gateway up adds the board for fire-and-forget work; gateway down,
 | **video-creator** | Creator's video hands: clip, tour, ad, explainer-video and music-video leaves from approved forms; answers only Creator | — (A2A receive-only) | `.` (launch / task ws) | `terminal,file,vision,video_gen,video,skills,memory` | served (a2a :9908) | yes |
 | **audio-creator** | Creator's audio hands: speech, sfx, music (instrumental BGM/melodic pieces only) and mix (placing already-finished sources, never synthesis) from approved forms; measured/readback QA, no claims of listening; no full songs or voice registration | — (A2A receive-only) | `.` (launch / task ws) | `terminal,file,tts,sfx_gen,music_gen,skills,memory` | served (a2a :9909) | yes |
 | **writer** | reader-facing prose and producer-facing scripts from released units (outline / piece / whole job); draft-only, never publishes; serves all four primaries | — (A2A receive-only) | `.` (launch / task ws) | `writing-inspection,characters,file,web,skills,memory,delegation` | served (a2a :9905) | yes |
-| **marketer** | primary: strategy, offer discovery, producer coordination, existing-browser service drafts and outcome analysis; no publishing | Telegram (own bot) | `.` (launch / task ws) | `terminal,file,web,browser,x_search,x_access,vision,skills,memory,delegation,specialist,clarify` | served (bot + a2a :9904) | yes |
+| **marketer** | primary: strategy, offer discovery, producer coordination, existing-browser service drafts and outcome analysis; no publishing | Telegram (own bot) | `.` (launch / task ws) | `terminal,file,web,browser,x_search,x_access,youtube_access,vision,skills,memory,delegation,specialist,clarify` | served (bot + a2a :9904) | yes |
 
 ### Toolsets
 

@@ -13,7 +13,16 @@ account's dashboard, an already-authorized integration, or a user-supplied
 export. Read the selected platform reference. For the client's X posts, the
 `x` tool's `snapshot` / `insights` are the authorized public-count source and
 need no browser lease; [X ranking](../../references/x-ranking.md) lists what
-they cannot show. If a dashboard or metric is
+they cannot show. For the user's YouTube channels, the `youtube` tool's
+`analytics` (YouTube Analytics: views, watch time, average view duration,
+subscribers gained/lost, by day, video, country, traffic source…) and
+`my_videos` are the authorized source, read without the browser or the lease;
+name the channel when several are authorized, record the period, and note that
+the newest two or three days are not final and impressions/click-through rate
+are not exposed there. Other channels' public counts come from its `videos` /
+`channels` reads and their captions from `transcript`; its searches share a
+small daily budget, so search only for a stated question. It never changes a
+channel for Marketer. If a dashboard or metric is
 unavailable, report that; do not silently install a tool, buy access or fabricate
 clicks, unique readers, retention or attribution from visible reactions.
 

@@ -38,5 +38,6 @@ pointer such as `PROFILES.md "Broker shape"` resolves through this table.
 | [X access](./docs/x-access.md) | Shape; Account and state; Reads; Media; Ways around the tool; Setup |
 | [note access](./docs/note-access.md) | Shape; Session and state; Reads; Markdown; Writes; Ways around the tool; Setup |
 | [Substack access](./docs/substack-access.md) | Shape; Account, cookies and state; Profiles; Reads; Writes; Ways around the tool; Setup |
+| [YouTube access](./docs/youtube-access.md) | Shape; Channels, tokens and state; Profiles; Reads; Writes; Ways around the tool; Setup |
 | [Models, authentication and secrets](./docs/models-auth.md) | Models and fallback chains (Fable and the Claude weekly pool, `agent.*` does not inherit from the root profile); Authentication inheritance; Secrets layering |
 | [Gateway, tracking and status](./docs/operations.md) | Gateway as a persistent service; Tracking; Current state |
