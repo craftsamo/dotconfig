@@ -366,6 +366,7 @@ def test_comments_flatten_threads(api):
     out = ya.execute({"action": "comments", "video": VID, "order": "time"}, profile="marketer")
     assert out["threads"][0]["reply_count"] == 3 and out["threads"][0]["replies"][0]["text"] == "hi"
     assert api.calls[0][1]["order"] == "time"
+    assert api.read_only == [False]  # Google wants youtube.force-ssl even to read comments
 
 
 def test_analytics_defaults(api, monkeypatch):
