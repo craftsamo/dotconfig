@@ -46,7 +46,7 @@ The hook decides before a tool runs; the rule is `approval_request` in
 `access.py`.
 
 - **Changes ask first**: Sheets `update` / `batch_update` / `append` /
-  `clear` / `create` / `add_sheet` / `layout`, Gmail `send`, Drive `upload`, and every
+  `clear` / `create` / `add_sheet` / `layout` / `data`, Gmail `send`, Drive `upload`, and every
   gcloud command that is not a read. The action must be spelled exactly; the
   gate and the engine share one check, so no variant is read differently by
   each.
@@ -68,11 +68,12 @@ The hook decides before a tool runs; the rule is `approval_request` in
   spreadsheet's edits run for the session and "always" for good; another
   spreadsheet asks again. The spreadsheet's version history undoes them.
   `clear` and `create` keep a key per exact call, like every other change:
-  "always" there only repeats that identical call. So does a `layout` call
+  "always" there only repeats that identical call. So does every `data`
+  call, and a `layout` call
   holding any op that deletes, moves or replaces data, or picks a rule or
   view by its number or name to replace or drop it (`delete`, `move`,
-  `merge`, `table_delete`, `conditional_update`, `conditional_delete`,
-  `filter_view_delete`; `LAYOUT_DESTRUCTIVE`), removes notes or replaces a
+  `merge`, `table_delete`, `sheet_delete`, `conditional_update`,
+  `conditional_delete`, `filter_view_delete`; `LAYOUT_DESTRUCTIVE`), removes notes or replaces a
   filter view's criteria (`_destructive`), so a grant for formatting never
   covers dropping rows.
 - **Spreadsheet cards** are plain English, one fact per line —
@@ -117,9 +118,21 @@ The hook decides before a tool runs; the rule is `approval_request` in
   filter and filter views, which the update and delete ops refer to;
   `get_format` reads closed blocks of up to `FORMAT_CELL_LIMIT` cells back in
   the format op's own words, without approval.
+- **Data** is the op action for changes that move or rewrite contents
+  (`DATA_OPS`: sort, find and replace, copy, cut, removing duplicate rows,
+  trimming spaces, splitting text into columns, autofill). It shares
+  layout's machinery (`OP_SETS`: a vocabulary, a normalizer, a request
+  builder; `_Tabs` for tab names) but every call asks. Its card names the
+  area each op overwrites, sized from the source (a copy's destination is
+  the source's size, transposed when asked; no tab on `to` means the
+  source's tab), keeps `header` rows of sort and dedupe out of the range,
+  and shows find, replacement and delimiter text with tabs, newlines and
+  repeated spaces visible. `split_text` cannot know how many columns it
+  fills, so its card says the columns to the right are overwritten. The
+  result counts replaced matches, removed duplicates and trimmed cells.
 - **Row guards.** Writes by row number can land on the wrong row when another
-  writer inserts, deletes or sorts rows. `update`, `batch_update`, `clear` and
-  `layout` take `expect` — up to 200 single cells with the value each must display
+  writer inserts, deletes or sorts rows. `update`, `batch_update`, `clear`,
+  `layout` and `data` take `expect` — up to 200 single cells with the value each must display
   (typically the row's id column). Right before writing, after the approval,
   the engine reads them in one call and writes nothing unless every one still
   matches as displayed text (surrounding whitespace ignored, booleans as

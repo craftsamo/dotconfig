@@ -65,16 +65,19 @@ GCLOUD_TIMEOUT = 300
 GCLOUD_TIMEOUT_MAX = 1800
 
 SHEETS_ACTIONS = ("search", "info", "get", "get_format", "update", "batch_update", "append", "clear",
-                  "create", "add_sheet", "layout")
-SHEETS_WRITES = {"update", "batch_update", "append", "clear", "create", "add_sheet", "layout"}
+                  "create", "add_sheet", "layout", "data")
+# Actions taking a list of ops from a fixed vocabulary (OP_SETS), sent as one batchUpdate.
+OP_ACTIONS = {"layout", "data"}
+SHEETS_WRITES = {"update", "batch_update", "append", "clear", "create", "add_sheet", "layout", "data"}
 # Edits approved once per spreadsheet: "session" / "always" on the first card covers the rest of
 # that spreadsheet's edits (its version history undoes them). clear and create still ask each time,
-# and so does a layout call holding an op that deletes or moves data (LAYOUT_DESTRUCTIVE).
+# and so does a layout call holding an op that deletes or moves data (LAYOUT_DESTRUCTIVE) and every
+# data call.
 SHEETS_EDITS = {"update", "batch_update", "append", "add_sheet", "layout"}
 BATCH_LIMIT = 500
 # Row guards: cells that must still hold a known value (a key column) when a write by row number
 # runs, so a sheet another writer shifted is caught before anything is written.
-EXPECT_ACTIONS = {"update", "batch_update", "clear", "layout"}
+EXPECT_ACTIONS = {"update", "batch_update", "clear", "layout", "data"}
 EXPECT_LIMIT = 200
 SINGLE_CELL = re.compile(r"^[A-Za-z]{1,3}[1-9][0-9]*$")
 SPREADSHEET_ID = re.compile(r"^[A-Za-z0-9_-]{10,200}$")
@@ -404,7 +407,7 @@ def _quote(value: str) -> str:
 def sheets(home, args: dict) -> dict:
     action = _action(args, SHEETS_ACTIONS)
     guards = _expect(args, action)  # also refuses expect on an action it does not guard
-    ops = _layout_ops(args) if action == "layout" else []  # refused before any Google call
+    ops = _ops(args, action) if action in OP_ACTIONS else []  # refused before any Google call
     blocks = _format_ranges(args) if action == "get_format" else []
     if action == "search":
         query = _str(args, "query", required=False)
@@ -462,7 +465,7 @@ def sheets(home, args: dict) -> dict:
         return {"ok": True, "spreadsheet_id": sid, "ranges": [
             {"range": r.get("range"), "values": r.get("values", [])} for r in got.get("valueRanges", [])]}
 
-    if action == "layout":
+    if action in OP_ACTIONS:
         meta = _google(lambda: book.get(spreadsheetId=sid, fields=LAYOUT_FIELDS).execute())
         titles = {s.get("properties", {}).get("sheetId", 0): s.get("properties", {}).get("title")
                   for s in meta.get("sheets", [])}
@@ -485,7 +488,7 @@ def sheets(home, args: dict) -> dict:
             return rows[0][0] if rows and rows[0] else None
 
         # Resolves tabs, tables and views (and reads cells it builds on) before anything is written.
-        requests = _layout_requests(ops, meta, header, cell)
+        requests = OP_SETS[action][2](ops, meta, header, cell)
         _check_expect(values, sid, guards)
         done = _google(lambda: book.batchUpdate(spreadsheetId=sid, body={"requests": requests}).execute())
         replies = [r or {} for r in done.get("replies", [])]
@@ -500,6 +503,9 @@ def sheets(home, args: dict) -> dict:
         made = [r["addFilterView"]["filter"] for r in replies if "addFilterView" in r]
         if made:
             result["filter_views"] = [{"view_id": f.get("filterViewId"), "name": f.get("title")} for f in made]
+        counted = _data_results(replies)
+        if counted:
+            result["results"] = counted
         return result
 
     option = "RAW" if args.get("raw") else "USER_ENTERED"
@@ -830,7 +836,7 @@ LIST_LIMIT = 500
 # values a merge drops, a conditional rule or filter view picked by position or name (replaced or
 # deleted). A call holding one is approved per exact call, like clear.
 LAYOUT_DESTRUCTIVE = {"delete", "move", "merge", "table_delete", "conditional_delete", "conditional_update",
-                      "filter_view_delete"}
+                      "filter_view_delete", "sheet_delete"}
 _FORMAT = ("bold", "italic", "underline", "strikethrough", "font_size", "font", "color", "background",
            "align", "valign", "wrap", "number_format", "pattern", "link", "rotation", "padding", "reset")
 _STYLE = ("bold", "italic", "strikethrough", "color", "background")  # all a conditional rule can set
@@ -852,6 +858,7 @@ LAYOUT_OPS = {  # op: (required fields, optional fields); "ranges" stands in for
     "freeze": ((), ("sheet", "rows", "columns")),
     "sheet": (("sheet",), ("title", "tab_color", "hidden", "position")),
     "sheet_duplicate": (("sheet",), ("title", "position")),
+    "sheet_delete": (("sheet",), ()),
     "rename_spreadsheet": (("title",), ()),
     "note": (("range",), ("ranges", "text")),
     "rich_text": (("range", "runs"), ("value",)),
@@ -1255,14 +1262,15 @@ def _table_words(op: dict) -> list[str]:
     return words
 
 
-def _layout_ops(args: dict) -> list[dict]:
-    """The validated ops, each with its card line ("say"); the gate and the engine share this."""
+def _ops(args: dict, action: str) -> list[dict]:
+    """The validated ops of an op action (OP_SETS), each with its card line ("say"); the gate and
+    the engine share this."""
     ops = args.get("ops")
     if not isinstance(ops, list) or not ops:
         raise AccessError("ops must be a non-empty array of {op, …}")
     if len(ops) > LAYOUT_LIMIT:
         raise AccessError(f"ops holds {len(ops)} changes; send at most {LAYOUT_LIMIT} per call")
-    done = [_layout_op(raw, n) for n, raw in enumerate(ops, 1)]
+    done = [_op(raw, n, action) for n, raw in enumerate(ops, 1)]
     for n, op in enumerate(done, 1):
         # Without value, rich_text rewrites the text it read before the call: refused once an
         # earlier op may have moved other contents into that cell or rewritten it.
@@ -1277,11 +1285,12 @@ def _layout_ops(args: dict) -> list[dict]:
     return done
 
 
-def _layout_op(raw, n: int) -> dict:
-    if not isinstance(raw, dict) or raw.get("op") not in LAYOUT_OPS:
-        raise AccessError(f"ops[{n}]: op must be one of {', '.join(LAYOUT_OPS)}")
+def _op(raw, n: int, action: str) -> dict:
+    vocabulary, normalize = OP_SETS[action][:2]
+    if not isinstance(raw, dict) or raw.get("op") not in vocabulary:
+        raise AccessError(f"ops[{n}]: op must be one of {', '.join(vocabulary)}")
     name = raw["op"]
-    required, optional = LAYOUT_OPS[name]
+    required, optional = vocabulary[name]
     unknown = set(raw) - {"op", *required, *optional}
     if unknown:
         raise AccessError(f"ops[{n}] {name}: unknown field(s) {', '.join(sorted(unknown))}; "
@@ -1293,12 +1302,26 @@ def _layout_op(raw, n: int) -> dict:
     if missing:
         raise AccessError(f"ops[{n}] {name}: {', '.join(missing)} is required")
     try:
-        op = _normalize(name, raw)
+        op = normalize(name, raw)
         # The card names a tab once ("Sheet: …") when every op is on it, so each line drops it.
-        op["say_here"] = _normalize(name, raw, here=True)["say"]
+        op["say_here"] = normalize(name, raw, here=True)["say"]
         return op
     except AccessError as exc:
         raise AccessError(f"ops[{n}] {name}: {exc}") from None
+
+
+def _areas(raw: dict) -> list[dict]:
+    """The op's range or ranges as [{tab, ref, grid}]."""
+    texts = raw["ranges"] if "ranges" in raw else [raw["range"]]
+    if not isinstance(texts, list) or not texts or not all(isinstance(t, str) and t.strip() for t in texts):
+        raise AccessError("ranges must be a non-empty array of A1 ranges")
+    if len(texts) > BATCH_LIMIT:
+        raise AccessError(f"ranges holds {len(texts)}; send at most {BATCH_LIMIT}")
+    areas = []
+    for text in texts:
+        tab, ref = split_range(text.strip())
+        areas.append({"tab": tab, "ref": ref, "grid": _grid_ref(ref)})
+    return areas
 
 
 def _normalize(name: str, raw: dict, here: bool = False) -> dict:
@@ -1306,19 +1329,11 @@ def _normalize(name: str, raw: dict, here: bool = False) -> dict:
     op = {"op": name}
     where = ""
     if "range" in raw or "ranges" in raw:
-        texts = raw["ranges"] if "ranges" in raw else [raw["range"]]
-        if not isinstance(texts, list) or not texts or not all(isinstance(t, str) and t.strip() for t in texts):
-            raise AccessError("ranges must be a non-empty array of A1 ranges")
-        if len(texts) > BATCH_LIMIT:
-            raise AccessError(f"ranges holds {len(texts)}; send at most {BATCH_LIMIT}")
-        op["areas"] = []
-        for text in texts:
-            tab, ref = split_range(text.strip())
-            op["areas"].append({"tab": tab, "ref": ref, "grid": _grid_ref(ref)})
+        op["areas"] = _areas(raw)
         # Single-range ops (table, insert, move, …) read these from the one area.
         op["tab"], op["ref"], op["grid"] = (op["areas"][0][k] for k in ("tab", "ref", "grid"))
         where = _where_all(op["areas"], here)
-    if name in ("freeze", "conditional_delete", "filter_clear", "sheet", "sheet_duplicate"):
+    if name in ("freeze", "conditional_delete", "filter_clear", "sheet", "sheet_duplicate", "sheet_delete"):
         op["tab"] = _str(raw, "sheet", required=False) or None
     if name in ONE_RULE_OPS and len({a["tab"] for a in op["areas"]}) > 1:
         raise AccessError("the ranges of one conditional rule must be on one tab")
@@ -1488,6 +1503,8 @@ def _normalize(name: str, raw: dict, here: bool = False) -> dict:
         named = f" as \"{_cell(op['title'], '', TAB_CLIP)}\"" if op["title"] else ""
         at = f" at position {op['position']}" if op["position"] else " next to it"
         op["say"] = f"Duplicate tab {_tab_label(op['tab'])}{named}{at}"
+    elif name == "sheet_delete":
+        op["say"] = f"Delete tab {_tab_label(op['tab'])} with all its contents"
     elif name == "rename_spreadsheet":
         op["title"] = _str(raw, "title")
         op["say"] = f"Rename spreadsheet to \"{_cell(op['title'], '', TITLE_CLIP)}\""
@@ -1564,19 +1581,59 @@ def _normalize(name: str, raw: dict, here: bool = False) -> dict:
     return op
 
 
+class _Tabs:
+    """Tab names to sheet ids, kept as ops rename, copy or delete tabs. No tab means the first tab
+    before the call; a bare word is a tab (named ranges are not resolved)."""
+
+    def __init__(self, meta: dict):
+        self.ids, self.first, self.gone = {}, None, set()
+        self.alive = set()  # every tab id, copies without a title included
+        for sheet in meta.get("sheets", []):
+            props = sheet.get("properties", {})
+            self.ids[props.get("title")] = props.get("sheetId", 0)
+            self.alive.add(props.get("sheetId", 0))
+            self.first = props.get("sheetId", 0) if self.first is None else self.first
+
+    def id(self, tab) -> int:
+        if tab is None:
+            if self.first is None:
+                raise AccessError("the spreadsheet has no tabs")
+            if self.first in self.gone:
+                raise AccessError("the first tab is deleted earlier in this call; name the tab")
+            return self.first
+        if tab not in self.ids:
+            raise AccessError(f"no tab named {tab!r} (ranges take 'Tab!A1:B2'; named ranges are not "
+                              f"resolved). Tabs: {_few(list(self.ids))}")
+        return self.ids[tab]
+
+    def grid(self, area: dict) -> dict:
+        return {"sheetId": self.id(area["tab"]), **area["grid"]}
+
+    def drop(self, tab: str) -> int:
+        """Forget a deleted tab, so a later op naming it is refused before anything is written."""
+        sheet_id = self.id(tab)
+        for name in [name for name, i in self.ids.items() if i == sheet_id]:
+            del self.ids[name]  # in place: the layout builder holds this dict
+        self.gone.add(sheet_id)
+        self.alive.discard(sheet_id)
+        if not self.alive:
+            raise AccessError("a spreadsheet keeps at least one tab")
+        return sheet_id
+
+
 def _layout_requests(ops: list[dict], meta: dict, header=None, cell=None) -> list[dict]:
     """batchUpdate requests for validated ops, resolving tab names to sheetIds and table and filter
     view names or ids. A bare word is a tab (named ranges are not resolved); "the first tab" is the
     first one before the call. ``header(grid)`` reads a table range's first row, for the names of
     columns new to a table; ``cell(grid)`` reads one cell as entered, for rich text."""
-    ids, tables, views, groups, first = {}, {}, {}, [], None
+    tabs = _Tabs(meta)
+    ids, sheet_of, grid = tabs.ids, tabs.id, tabs.grid
+    tables, views, groups = {}, {}, []
     order = [s.get("properties", {}).get("sheetId", 0)  # tab ids left to right, kept as ops move them
              for s in sorted(meta.get("sheets", []), key=lambda s: s.get("properties", {}).get("index", 0))]
     for sheet in meta.get("sheets", []):
         props = sheet.get("properties", {})
         sheet_id = props.get("sheetId", 0)
-        ids[props.get("title")] = sheet_id
-        first = sheet_id if first is None else first
         for table in sheet.get("tables", []) or []:
             tables[table.get("tableId")] = dict(table, sheetId=sheet_id)
         for view in sheet.get("filterViews", []) or []:
@@ -1584,19 +1641,6 @@ def _layout_requests(ops: list[dict], meta: dict, header=None, cell=None) -> lis
         for group in (sheet.get("rowGroups") or []) + (sheet.get("columnGroups") or []):
             rng = group.get("range", {})
             groups.append((sheet_id, rng.get("dimension"), rng.get("startIndex", 0), rng.get("endIndex", 0)))
-
-    def sheet_of(tab):
-        if tab is None:
-            if first is None:
-                raise AccessError("the spreadsheet has no tabs")
-            return first
-        if tab not in ids:
-            raise AccessError(f"no tab named {tab!r} (layout takes 'Tab!A1:B2'; named ranges are not "
-                              f"resolved). Tabs: {_few(list(ids))}")
-        return ids[tab]
-
-    def grid(op):
-        return {"sheetId": sheet_of(op["tab"]), **op["grid"]}
 
     def dim(op):
         kind, start, end = op["dim"]
@@ -1853,7 +1897,16 @@ def _layout_requests(ops: list[dict], meta: dict, header=None, cell=None) -> lis
             at = min(op["position"], len(order) + 1) - 1 if op["position"] else order.index(source) + 1
             request["insertSheetIndex"] = at
             order.insert(at, new_id)
+            tabs.alive.add(new_id)
             requests.append({"duplicateSheet": request})
+        elif name == "sheet_delete":
+            sheet_id = tabs.drop(op["tab"])
+            order.remove(sheet_id)
+            for key in [k for k, table in tables.items() if table["sheetId"] == sheet_id]:
+                names.discard(tables.pop(key).get("name"))
+            for key in [k for k, view in views.items() if view["sheetId"] == sheet_id]:
+                views.pop(key)
+            requests.append({"deleteSheet": {"sheetId": sheet_id}})
         elif name == "rename_spreadsheet":
             requests.append({"updateSpreadsheetProperties": {"properties": {"title": op["title"]},
                                                              "fields": "title"}})
@@ -1896,7 +1949,7 @@ def _layout_requests(ops: list[dict], meta: dict, header=None, cell=None) -> lis
             if op["set_criteria"]:
                 view["filterSpecs"] = specs(op, rng)
                 fields.append("filterSpecs")
-            current["range"] = rng
+            current["range"], current["sheetId"] = rng, rng.get("sheetId", current["sheetId"])
             requests.append({"updateFilterView": {"filter": view, "fields": ",".join(fields)}})
         elif name == "filter_view_delete":
             gone = view_of(op["view"])
@@ -1918,12 +1971,276 @@ def _layout_requests(ops: list[dict], meta: dict, header=None, cell=None) -> lis
 def _destructive(op: dict) -> bool:
     """Whether an op deletes, moves or replaces data: the fixed set, plus removing notes and
     replacing a filter view's criteria."""
-    return (op["op"] in LAYOUT_DESTRUCTIVE or (op["op"] == "note" and not op["text"])
+    return (op["op"] in LAYOUT_DESTRUCTIVE or op["op"] in DATA_OPS or (op["op"] == "note" and not op["text"])
             or (op["op"] == "filter_view_update" and op["set_criteria"]))
 
 
-def _layout_destructive(args: dict) -> bool:
-    return any(_destructive(op) for op in _layout_ops(args))
+def _ops_destructive(args: dict, action: str) -> bool:
+    return any(_destructive(op) for op in _ops(args, action))
+
+
+# --- Sheets data ----------------------------------------------------------------------------------
+# A `data` call moves or rewrites cell contents: every op in it is approved per exact call, takes
+# expect row guards, and is a fixed vocabulary like layout's.
+
+DATA_OPS = {  # op: (required fields, optional fields)
+    "sort": (("range", "by"), ("header",)),
+    "find_replace": (("find",), ("replacement", "range", "sheet", "all_sheets", "match_case", "whole_cell",
+                                 "regex", "formulas")),
+    "copy": (("range", "to"), ("paste", "transpose")),
+    "cut": (("range", "to"), ("paste",)),
+    "dedupe": (("range",), ("compare", "header")),
+    "trim": (("range",), ("ranges",)),
+    "split_text": (("range",), ("delimiter",)),
+    "autofill": (("range", "fill"), ("direction",)),
+}
+PASTE_TYPES = {"ALL": "PASTE_NORMAL", "VALUES": "PASTE_VALUES", "FORMAT": "PASTE_FORMAT",
+               "NO_BORDERS": "PASTE_NO_BORDERS", "FORMULAS": "PASTE_FORMULA",
+               "INPUT_RULES": "PASTE_DATA_VALIDATION", "CONDITIONAL": "PASTE_CONDITIONAL_FORMATTING"}
+DELIMITERS = {"comma": "COMMA", ",": "COMMA", "semicolon": "SEMICOLON", ";": "SEMICOLON", "period": "PERIOD",
+              ".": "PERIOD", "space": "SPACE", " ": "SPACE", "auto": "AUTODETECT"}
+SORT_ORDERS = {"ASC": "ASCENDING", "ASCENDING": "ASCENDING", "DESC": "DESCENDING", "DESCENDING": "DESCENDING"}
+FILL_DIRECTIONS = {"DOWN": ("ROWS", 1), "UP": ("ROWS", -1), "RIGHT": ("COLUMNS", 1), "LEFT": ("COLUMNS", -1)}
+SORT_KEYS_LIMIT = 10
+_CLOSED = {"startRowIndex", "endRowIndex", "startColumnIndex", "endColumnIndex"}
+
+
+def _literal(text: str, limit: int = 40) -> str:
+    """Quoted with tabs, newlines and repeated spaces kept visible, since they change what matches."""
+    shown = json.dumps(text, ensure_ascii=False)[1:-1]
+    return f"\"{shown if len(shown) <= limit else shown[:limit - 1] + '…'}\""
+
+
+def _letter(value, key: str) -> int:
+    text = value.strip() if isinstance(value, str) else ""
+    if not re.fullmatch(r"[A-Za-z]{1,3}", text):
+        raise AccessError(f"{key} must be a sheet column letter like 'C': {value!r}")
+    return _column_index(text)
+
+
+def _inside(index: int, grid: dict, key: str) -> None:
+    start, end = grid.get("startColumnIndex"), grid.get("endColumnIndex")
+    if start is not None and not start <= index < end:
+        raise AccessError(f"{key} column {column_letters(index)} is outside the range")
+
+
+def _block(grid: dict, what: str) -> tuple[int, int]:
+    """(rows, columns) of a closed block."""
+    if not _CLOSED <= set(grid):
+        raise AccessError(f"{what} must be a closed block like 'Sheet1!A1:D20'")
+    return grid["endRowIndex"] - grid["startRowIndex"], grid["endColumnIndex"] - grid["startColumnIndex"]
+
+
+def _span_a1(top: int, left: int, rows: int, columns: int) -> str:
+    start, end = f"{column_letters(left)}{top + 1}", f"{column_letters(left + columns - 1)}{top + rows}"
+    return start if start == end else f"{start}:{end}"
+
+
+def _header_row(op: dict, raw: dict) -> str:
+    """Keeps the range's first row out when ``header`` (default true); the card's note on it."""
+    op["header"] = _flag(raw, "header") if "header" in raw else True
+    if not op["header"]:
+        return ""
+    first = op["grid"].get("startRowIndex", 0)
+    if "endRowIndex" in op["grid"] and op["grid"]["endRowIndex"] <= first + 1:
+        raise AccessError("the range holds only its header row; give header: false to include it")
+    op["grid"] = dict(op["grid"], startRowIndex=first + 1)
+    return f", keeping row {first + 1} as the header"
+
+
+def _normalize_data(name: str, raw: dict, here: bool = False) -> dict:
+    """The validated data op; ``here`` words its card line without the tab."""
+    op, where = {"op": name}, ""
+    if "range" in raw or "ranges" in raw:
+        op["areas"] = _areas(raw)
+        op["tab"], op["ref"], op["grid"] = (op["areas"][0][k] for k in ("tab", "ref", "grid"))
+        where = _where_all(op["areas"], here)
+    if name == "sort":
+        by = raw["by"]
+        if not isinstance(by, list) or not 1 <= len(by) <= SORT_KEYS_LIMIT:
+            raise AccessError(f"by is 1 to {SORT_KEYS_LIMIT} {{column, order}}")
+        op["by"], words = [], []
+        for item in by:
+            if not isinstance(item, dict) or "column" not in item or set(item) - {"column", "order"}:
+                raise AccessError("each by item is {column: 'C', order: ASC|DESC}")
+            index = _letter(item["column"], "by")
+            _inside(index, op["grid"], "by")
+            order = SORT_ORDERS.get(str(item.get("order", "ASC")).strip().upper())
+            if order is None:
+                raise AccessError("order is ASC or DESC")
+            op["by"].append((index, order))
+            words.append(f"{column_letters(index)} {order.lower()}")
+        note = _header_row(op, raw)
+        op["say"] = f"Sort {where} by {', '.join(words)}{note}"
+    elif name == "find_replace":
+        if not isinstance(raw["find"], str) or not raw["find"]:
+            raise AccessError("find is the text to look for")
+        op["find"] = raw["find"]
+        replacement = raw.get("replacement", "")
+        if not isinstance(replacement, str):
+            raise AccessError("replacement must be text ('' removes the matches)")
+        op["replacement"] = replacement
+        scopes = [key for key in ("range", "sheet", "all_sheets") if key in raw]
+        if len(scopes) != 1 or ("all_sheets" in raw and raw["all_sheets"] is not True):
+            raise AccessError("give exactly one of range, sheet or all_sheets: true")
+        if "sheet" in raw:
+            op["tab"] = _str(raw, "sheet")
+            where = "whole tab" if here else f"tab {_tab_label(op['tab'])}"
+        elif "all_sheets" in raw:
+            op["all_sheets"] = True
+            where = "every tab"
+        flags = []
+        for key, label in (("match_case", "match case"), ("whole_cell", "whole cell"), ("regex", "regex"),
+                           ("formulas", "in formulas too")):
+            op[key] = _flag(raw, key) if key in raw else False
+            if op[key]:
+                flags.append(label)
+        what = f"with {_literal(replacement)}" if replacement else "with nothing (removes it)"
+        extra = f" ({', '.join(flags)})" if flags else ""
+        op["say"] = f"Replace {_literal(op['find'])} {what} in {where}{extra}"
+    elif name in ("copy", "cut"):
+        rows, columns = _block(op["grid"], "range")
+        to_tab, to_ref = split_range(_str(raw, "to"))
+        if not SINGLE_CELL.match(to_ref or ""):
+            raise AccessError("to is the top-left cell of the destination, like 'Archive!A1'")
+        op["to_tab"] = to_tab if to_tab is not None else op["tab"]  # no tab: the source's tab
+        op["to"] = {"startColumnIndex": _start(to_ref)[0], "startRowIndex": _start(to_ref)[1] - 1}
+        op["transpose"] = (_flag(raw, "transpose") if "transpose" in raw else False) and name == "copy"
+        if op["transpose"]:
+            rows, columns = columns, rows
+        op["size"] = (rows, columns)
+        paste = _choice(raw, "paste", set(PASTE_TYPES), "ALL")
+        op["paste"] = PASTE_TYPES[paste]
+        target = _span_a1(op["to"]["startRowIndex"], op["to"]["startColumnIndex"], rows, columns)
+        if not here or to_tab not in (None, op["tab"]):
+            target = f"{_tab_label(op['to_tab'])}!{target}"
+        how = "" if paste == "ALL" else f" ({paste.lower().replace('_', ' ')} only)"
+        turn = " transposed" if op["transpose"] else ""
+        if name == "copy":
+            op["say"] = f"Copy {where}{turn} to {target}{how}, overwriting it"
+        else:
+            top, left = op["to"]["startRowIndex"], op["to"]["startColumnIndex"]
+            grid = op["grid"]
+            overlap = op["to_tab"] == op["tab"] and top < grid["endRowIndex"] and grid["startRowIndex"] < top + rows \
+                and left < grid["endColumnIndex"] and grid["startColumnIndex"] < left + columns
+            rest = "source cells outside it are left empty" if overlap else "the source is left empty"
+            op["say"] = f"Move {where} to {target}{how}, overwriting it; {rest}"
+    elif name == "dedupe":
+        op["compare"] = []
+        for value in raw.get("compare", []) if isinstance(raw.get("compare", []), list) else [None]:
+            index = _letter(value, "compare")
+            _inside(index, op["grid"], "compare")
+            op["compare"].append(index)
+        by = f" by {', '.join(column_letters(i) for i in op['compare'])}" if op["compare"] else ""
+        note = _header_row(op, raw)
+        op["say"] = f"Delete duplicate rows in {where}{by} (the first of each stays){note}"
+    elif name == "trim":
+        op["say"] = f"Trim surrounding and repeated spaces in {where}"
+    elif name == "split_text":
+        grid = op["grid"]
+        if grid.get("endColumnIndex", 0) - grid.get("startColumnIndex", 0) != 1:
+            raise AccessError("split_text takes one column, like 'Sheet1!A2:A50'")
+        delimiter = raw.get("delimiter", "auto")
+        if not isinstance(delimiter, str) or not delimiter:
+            raise AccessError("delimiter is comma, semicolon, period, space, auto or the text to split on")
+        kind = DELIMITERS.get(delimiter.lower() if delimiter.strip() else delimiter)
+        op["delimiter"] = (kind, None) if kind else ("CUSTOM", delimiter)
+        shown = (kind or "").lower() if kind else _literal(delimiter, 12)
+        shown = "the detected separator" if kind == "AUTODETECT" else shown
+        op["say"] = f"Split {where} on {shown} into the columns to its right, overwriting them"
+    elif name == "autofill":
+        rows, columns = _block(op["grid"], "range")
+        op["fill"] = _whole(raw, "fill", 1, 10000)
+        direction = _choice(raw, "direction", set(FILL_DIRECTIONS), "DOWN")
+        op["dimension"], sign = FILL_DIRECTIONS[direction]
+        op["length"] = sign * op["fill"]
+        top, left = op["grid"]["startRowIndex"], op["grid"]["startColumnIndex"]
+        if direction == "DOWN":
+            span = (top + rows, left, op["fill"], columns)
+        elif direction == "UP":
+            span = (top - op["fill"], left, op["fill"], columns)
+        elif direction == "RIGHT":
+            span = (top, left + columns, rows, op["fill"])
+        else:
+            span = (top, left - op["fill"], rows, op["fill"])
+        if span[0] < 0 or span[1] < 0:
+            raise AccessError("the fill runs past the first row or column")
+        target = _span_a1(*span)
+        op["say"] = f"Fill {direction.lower()} from {where} into {target if here else _where(op['tab'], target)}, overwriting it"
+    return op
+
+
+def _data_requests(ops: list[dict], meta: dict, header=None, cell=None) -> list[dict]:
+    """batchUpdate requests for validated data ops."""
+    tabs = _Tabs(meta)
+    requests = []
+    for op in ops:
+        name = op["op"]
+        if name == "sort":
+            requests.append({"sortRange": {"range": tabs.grid(op), "sortSpecs": [
+                {"dimensionIndex": index, "sortOrder": order} for index, order in op["by"]]}})
+        elif name == "find_replace":
+            request = {"find": op["find"], "replacement": op["replacement"], "matchCase": op["match_case"],
+                       "matchEntireCell": op["whole_cell"], "searchByRegex": op["regex"],
+                       "includeFormulas": op["formulas"]}
+            if op.get("all_sheets"):
+                request["allSheets"] = True
+            elif "areas" in op:
+                request["range"] = tabs.grid(op)
+            else:
+                request["sheetId"] = tabs.id(op["tab"])
+            requests.append({"findReplace": request})
+        elif name in ("copy", "cut"):
+            sheet = tabs.id(op["to_tab"])
+            if name == "copy":
+                rows, columns = op["size"]
+                top, left = op["to"]["startRowIndex"], op["to"]["startColumnIndex"]
+                destination = {"sheetId": sheet, "startRowIndex": top, "endRowIndex": top + rows,
+                               "startColumnIndex": left, "endColumnIndex": left + columns}
+                requests.append({"copyPaste": {
+                    "source": tabs.grid(op), "destination": destination, "pasteType": op["paste"],
+                    "pasteOrientation": "TRANSPOSE" if op["transpose"] else "NORMAL"}})
+            else:
+                requests.append({"cutPaste": {"source": tabs.grid(op), "pasteType": op["paste"], "destination": {
+                    "sheetId": sheet, "rowIndex": op["to"]["startRowIndex"],
+                    "columnIndex": op["to"]["startColumnIndex"]}}})
+        elif name == "dedupe":
+            sheet = tabs.id(op["tab"])
+            requests.append({"deleteDuplicates": {"range": tabs.grid(op), "comparisonColumns": [
+                {"sheetId": sheet, "dimension": "COLUMNS", "startIndex": i, "endIndex": i + 1}
+                for i in op["compare"]]}})
+        elif name == "trim":
+            requests += [{"trimWhitespace": {"range": tabs.grid(area)}} for area in op["areas"]]
+        elif name == "split_text":
+            kind, delimiter = op["delimiter"]
+            request = {"source": tabs.grid(op), "delimiterType": kind}
+            if delimiter is not None:
+                request["delimiter"] = delimiter
+            requests.append({"textToColumns": request})
+        elif name == "autofill":
+            requests.append({"autoFill": {"useAlternateSeries": False, "sourceAndDestination": {
+                "source": tabs.grid(op), "dimension": op["dimension"], "fillLength": op["length"]}}})
+    return requests
+
+
+def _data_results(replies: list[dict]) -> list[dict]:
+    """What the counting data ops report back, in call order."""
+    out = []
+    for reply in replies:
+        if "findReplace" in reply:
+            found = reply["findReplace"]
+            out.append({"op": "find_replace", "occurrences": found.get("occurrencesChanged", 0),
+                        "cells": found.get("valuesChanged", 0), "formulas": found.get("formulasChanged", 0),
+                        "rows": found.get("rowsChanged", 0), "tabs": found.get("sheetsChanged", 0)})
+        elif "deleteDuplicates" in reply:
+            out.append({"op": "dedupe", "rows_removed": reply["deleteDuplicates"].get("duplicatesRemovedCount", 0)})
+        elif "trimWhitespace" in reply:
+            out.append({"op": "trim", "cells_changed": reply["trimWhitespace"].get("cellsChangedCount", 0)})
+    return out
+
+
+# Op actions: the vocabulary, its normalizer and its request builder.
+OP_SETS = {"layout": (LAYOUT_OPS, _normalize, _layout_requests), "data": (DATA_OPS, _normalize_data, _data_requests)}
 
 
 # --- Gmail ----------------------------------------------------------------------------------------
@@ -2443,8 +2760,8 @@ def _sheets_card(home, action: str, args: dict) -> str:
             head.append(f"Sheets: {_tabs_summary(names)}")
         return _fit(head, [], MORE)
     sid = _sheet_id(args)
-    if action == "layout":
-        ops = _layout_ops(args)
+    if action in OP_ACTIONS:
+        ops = _ops(args, action)
         title, _, names = _sheet_context(home, sid, set())
         # Ops on a table or view by name have no tab of their own; neither does their range without one.
         tabs = set()
@@ -2459,7 +2776,11 @@ def _sheets_card(home, action: str, args: dict) -> str:
             head.append(f"Sheet: {_tabs_summary([tab], names)}")
         head += [*_check_lines(_expect(args, action), tab), ""]
         say = "say" if tab is ... else "say_here"
-        return _fit(head, [_cell(op[say], "", SAY_CLIP) for op in ops], LAYOUT_MORE)
+        # Lines are already clipped per field; only the length is bounded here, so the repeated
+        # spaces a literal shows survive.
+        lines = [" ".join(op[say].splitlines()) for op in ops]
+        return _fit(head, [line if len(line) <= SAY_CLIP else line[:SAY_CLIP - 1] + "…" for line in lines],
+                    LAYOUT_MORE)
     if action in ("add_sheet", "clear"):
         title, _, _ = _sheet_context(home, sid, set())
         head = [f"SpreadSheet: {_cell(title, '', TITLE_CLIP) or sid}"]
@@ -2529,7 +2850,7 @@ def approval_request(tool: str, args: dict, home=None) -> tuple[str, str] | None
         if action not in SHEETS_WRITES:
             return None
         reason = _sheets_card(home, action, args)
-        if action in SHEETS_EDITS and not (action == "layout" and _layout_destructive(args)):
+        if action in SHEETS_EDITS and not (action in OP_ACTIONS and _ops_destructive(args, action)):
             return reason, f"google-access:sheets-edit:{_sheet_id(args)}"
         return reason, _rule_key(tool, args)
     if tool == "google_gmail":
