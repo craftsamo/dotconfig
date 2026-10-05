@@ -113,7 +113,7 @@ def test_corrupt_sync_list_is_reported(state):
         store.load_sync()
 
 
-# --- reactions, embeds, deletions --------------------------------------------------------------
+# --- reactions, embeds, deletions, roles ----------------------------------------------------------
 
 ME = "100000000000000001"
 
@@ -141,6 +141,7 @@ def test_an_old_mirror_gains_every_new_column():
     for table, columns in store.MIGRATIONS.items():
         have = {r[1] for r in conn.execute(f"PRAGMA table_info({table})")}
         assert set(columns) <= have
+    assert conn.execute("SELECT COUNT(*) FROM roles").fetchone()[0] == 0
 
 
 def test_reactions_and_embeds_are_stored_and_kept_by_partial_payloads():
@@ -171,3 +172,47 @@ def test_drop_missing_deletes_only_inside_the_range():
     assert store.drop_missing(conn, C[0], [ids[1], ids[3]], ids[1], ids[3]) == 1   # ids[2] gone
     left = [r[0] for r in conn.execute("SELECT id FROM messages ORDER BY id")]
     assert left == [ids[0], ids[1], ids[3], ids[4]]
+
+
+def test_threads_keep_their_metadata():
+    conn = store.connect(write=True)
+    row = store.channel_row({"id": C[5], "type": 11, "name": "help", "parent_id": C[0], "guild_id": G1,
+                             "message_count": 4, "thread_metadata": {"archived": True, "locked": False}})
+    store.upsert_channel(conn, row, 0)
+    store.upsert_channel(conn, store.channel_row({"id": C[5], "type": 11, "name": "help", "guild_id": G1}), 1)
+    meta = json.loads(conn.execute("SELECT thread FROM channels").fetchone()[0])
+    assert meta["archived"] is True and meta["messages"] == 4
+
+
+def test_roles_and_members():
+    conn = store.connect(write=True)
+    store.upsert_guild(conn, G1, "One", 0, owner=False)
+    store.upsert_guild(conn, G1, "One", 1)                      # owner unknown: kept
+    assert conn.execute("SELECT owner FROM guilds").fetchone()[0] == 0
+    roles = [{"id": G1, "name": "@everyone", "position": 0, "permissions": "1024"},
+             {"id": "600000000000000001", "name": "Mod", "position": 2, "permissions": "8192",
+              "colors": {"primary_color": 255}}]
+    store.replace_roles(conn, G1, roles, {"600000000000000001": 3}, 100)
+    rows = {r["id"]: dict(r) for r in conn.execute("SELECT * FROM roles")}
+    assert rows[600000000000000001]["members"] == 3 and rows[600000000000000001]["color"] == 255
+    assert conn.execute("SELECT roles_at FROM guilds").fetchone()[0] == 100
+    member = store.member_row({"user": {"id": ME, "username": "me"}, "roles": ["600000000000000001"]}, G1)
+    store.upsert_member(conn, member, 1)
+    assert json.loads(conn.execute("SELECT roles FROM members").fetchone()[0]) == ["600000000000000001"]
+
+
+perms = _load("discord_access_perms_test", ROOT / "perms.py")
+
+
+def test_permission_names_round_trip_and_strong_ones():
+    bits = perms.parse(["Send Messages", "manage-messages", "bit47"])
+    assert perms.names(bits) == ["send_messages", "manage_messages", "bit47"]
+    assert perms.strong(bits) == ["manage_messages"]
+    with pytest.raises(perms.UnknownPermission, match="fly"):
+        perms.parse(["fly"])
+
+
+def test_base_permissions():
+    assert perms.base(True, 0, []) == perms.ALL
+    assert perms.base(False, 1 << 10, [1 << 3]) == perms.ALL
+    assert perms.base(False, 1 << 10, [1 << 11, 1 << 13]) == (1 << 10) | (1 << 11) | (1 << 13)

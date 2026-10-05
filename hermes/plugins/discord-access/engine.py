@@ -8,12 +8,14 @@ or logged.
 
     engine.py COMMAND  < JSON arguments  > {"ok": true, "data": ...} | {"ok": false, "kind", "error"}
 
-Commands: whoami, guilds, channels, channel, messages, backfill, sync, send, media. Requests carry the
-Discord web client's headers on a Chrome/macOS identity, are paced, and wait out short rate
-limits only for reads. ``send`` makes exactly one message POST with ``nonce`` + ``enforce_nonce``
-and never retries it; attachments are uploaded first (Discord's cloud upload, as the web client
-does), which creates no message. Its outcome is sent / not_sent / uncertain, recorded in the
-``sends`` ledger before and after dispatch. Contract: docs/discord-access.md.
+Commands: whoami, guilds, channels, channel, messages, backfill, sync, send, media, threads, pins,
+mentions, friends, search, roles, member, role_members, members. Requests carry the Discord web
+client's headers on a Chrome/macOS identity, are paced, and wait out short
+rate limits only for reads. ``send`` makes exactly one message POST with ``nonce`` +
+``enforce_nonce`` and never retries it; attachments are uploaded first (Discord's cloud upload, as
+the web client does), which creates no message. Its outcome is sent / not_sent / uncertain,
+recorded in the ``sends`` ledger before and after dispatch.
+Contract: docs/discord-access.md.
 """
 
 from __future__ import annotations
@@ -66,6 +68,9 @@ RECHECK_PER_RUN = 2
 RECHECK_DAYS = 7
 RECHECK_INTERVAL = 30 * 60   # a channel is read again at most this often
 RECHECK_COUNT = 50
+
+# Discord JSON error codes the engine tells apart.
+INDEXING = 110000            # search: the index is not ready (HTTP 202)
 
 # Attachments: Discord's cloud upload. The upload URL is a signed Google Cloud Storage URL; the
 # token never goes there, and files are only ever read from the plugin's approved outbox.
@@ -327,12 +332,18 @@ class Client:
 
     def get(self, path: str, params=None, referer: str = "/channels/@me"):
         """A read: paced; a short rate limit is waited out once; errors become EngineError."""
+        return self.read("GET", path, params=params, referer=referer)
+
+    def read(self, method: str, path: str, *, params=None, body=None, referer: str = "/channels/@me"):
+        """A read (searches POST a body): a short rate limit or a search index still being built
+        (HTTP 202) is waited out once; errors become EngineError."""
         for attempt in (0, 1):
             self._spend()
             self._pace()
             try:
-                status, headers, payload = self.http.request("GET", f"{API}{path}", params=params,
-                                                             headers=self.headers(referer=referer))
+                status, headers, payload = self.http.request(
+                    method, f"{API}{path}", params=params, body=body,
+                    headers=self.headers(referer=referer, json_body=body is not None))
             except TransportError as exc:
                 raise EngineError("network", self._scrub(str(exc))) from exc
             if status == 429 and attempt == 0:
@@ -340,6 +351,12 @@ class Client:
                 if wait <= MAX_WAIT:
                     self.sleep(wait + random.uniform(0.2, 0.8))
                     continue
+            if status == 202 and isinstance(payload, dict) and payload.get("code") == INDEXING:
+                wait = retry_after(headers, payload) or 5.0
+                if attempt == 0 and wait <= MAX_WAIT:
+                    self.sleep(wait + random.uniform(0.2, 0.8))
+                    continue
+                raise EngineError("indexing", "Discord is still indexing this search; try again in a minute")
             if 200 <= status < 300:
                 return payload
             raise self._http_error(status, headers, payload)
@@ -404,7 +421,7 @@ def guilds(client: Client) -> list[dict]:
     found = client.get("/users/@me/guilds", params={"with_counts": "false"})
     now = _now()
     for g in found:
-        store.upsert_guild(client.conn, g["id"], g.get("name"), now)
+        store.upsert_guild(client.conn, g["id"], g.get("name"), now, owner=g.get("owner"))
     store.set_meta(client.conn, "guilds_fetched", now)
     client.conn.commit()
     return [{"id": str(g["id"]), "name": g.get("name")} for g in found]
@@ -440,6 +457,15 @@ def _store_batch(client: Client, channel_id, batch: list, reactions: bool = True
     rows = [store.message_row(m, me_id, guild_id, reactions=reactions)
             for m in batch if isinstance(m, dict) and m.get("id")]
     store.upsert_messages(client.conn, rows)
+    return rows
+
+
+def _store_found(client: Client, found: list) -> list[dict]:
+    """Messages from several channels (search, mentions), none authoritative for reactions."""
+    rows = []
+    for m in found:
+        if isinstance(m, dict) and m.get("id") and m.get("channel_id"):
+            rows += _store_batch(client, m["channel_id"], [m], reactions=False)
     return rows
 
 
@@ -983,7 +1009,186 @@ def _read_back(conn, client: Client, plan: dict, detail: str) -> dict:
     return {"outcome": "uncertain", "detail": f"{detail}; {seen}"}
 
 
+# --- threads, pins, mentions, friends, server-side search ----------------------------------------
+
+def threads(client: Client, channel_id: str, *, archived=None, offset: int = 0, limit: int = 25) -> dict:
+    """Threads (or forum posts) under one parent channel, newest activity first. Each thread is
+    stored as a channel, so it can be read and sent to afterwards."""
+    conn = client.conn
+    params = {"sort_by": "last_message_time", "sort_order": "desc", "limit": str(limit), "offset": str(offset)}
+    if archived is not None:
+        params["archived"] = "true" if archived else "false"
+    found = client.get(f"/channels/{channel_id}/threads/search", params=params, referer=_referer(conn, channel_id))
+    now, rows = _now(), []
+    for t in found.get("threads") or []:
+        if isinstance(t, dict) and t.get("id"):
+            row = store.channel_row(t)
+            store.upsert_channel(conn, row, now)
+            rows.append(row)
+    first = {}
+    for m in found.get("first_messages") or []:
+        if isinstance(m, dict) and m.get("id") and m.get("channel_id"):
+            _store_batch(client, m["channel_id"], [m], reactions=False)
+            first[str(m["channel_id"])] = (m.get("content") or "")[:300]
+    conn.commit()
+    return {"threads": rows, "first": first, "has_more": bool(found.get("has_more")),
+            "total": found.get("total_results")}
+
+
+def pins(client: Client, channel_id: str, *, before=None, limit: int = 50) -> dict:
+    params = {"limit": str(limit)}
+    if before:
+        params["before"] = before
+    found = client.get(f"/channels/{channel_id}/messages/pins", params=params,
+                       referer=_referer(client.conn, channel_id))
+    items = [i for i in found.get("items") or [] if isinstance(i, dict) and isinstance(i.get("message"), dict)]
+    rows = _store_batch(client, channel_id, [i["message"] for i in items], reactions=False)
+    pinned = {str(i["message"].get("id")): i.get("pinned_at") for i in items}
+    client.conn.commit()
+    return {"messages": [{**r, "pinned_at": pinned.get(str(r["id"]))} for r in rows],
+            "has_more": bool(found.get("has_more"))}
+
+
+def mentions(client: Client, *, guild=None, before=None, limit: int = 25) -> dict:
+    params = {"limit": str(limit), "roles": "true", "everyone": "true"}
+    if guild:
+        params["guild_id"] = guild
+    if before:
+        params["before"] = before
+    found = client.get("/users/@me/mentions", params=params)
+    rows = _store_found(client, found if isinstance(found, list) else [])
+    client.conn.commit()
+    return {"messages": rows}
+
+
+def friends(client: Client) -> dict:
+    """Friends (pending requests and blocks only counted), cached in the mirror's meta."""
+    found = client.get("/users/@me/relationships")
+    out = {"friends": [], "incoming": 0, "outgoing": 0}
+    for r in found if isinstance(found, list) else []:
+        if not isinstance(r, dict):
+            continue
+        user = r.get("user") or {}
+        if r.get("type") == 1:
+            out["friends"].append({"id": str(r.get("id") or user.get("id")), "name": store.display_name(user),
+                                   "username": user.get("username"), "nickname": r.get("nickname")})
+        elif r.get("type") == 3:
+            out["incoming"] += 1
+        elif r.get("type") == 4:
+            out["outgoing"] += 1
+    store.set_meta(client.conn, "friends", {**out, "fetched": _now()})
+    client.conn.commit()
+    return out
+
+
+def _hits(groups) -> list[dict]:
+    """Search results come as groups of messages; the hits are flagged when context rides along."""
+    out = []
+    for group in groups or []:
+        group = group if isinstance(group, list) else [group]
+        group = [m for m in group if isinstance(m, dict) and m.get("id")]
+        flagged = [m for m in group if m.get("hit")]
+        out += flagged or group
+    return out
+
+
+def search(client: Client, *, query: str, guild=None, channel=None, offset: int = 0, limit: int = 25,
+           min_id=None, max_id=None) -> dict:
+    """Discord's own search: one server (optionally one of its channels), one DM or group DM, or
+    every DM at once (no guild or channel)."""
+    terms = {"content": query, "offset": offset, "limit": limit, "sort_by": "timestamp", "sort_order": "desc"}
+    if min_id:
+        terms["min_id"] = str(min_id)
+    if max_id:
+        terms["max_id"] = str(max_id)
+    params = {k: str(v) for k, v in terms.items()}
+    if guild:
+        if channel:
+            params["channel_id"] = str(channel)
+        found = client.get(f"/guilds/{guild}/messages/search", params=params, referer=f"/channels/{guild}")
+        groups, total = found.get("messages"), found.get("total_results")
+        now = _now()
+        for t in found.get("threads") or []:
+            if isinstance(t, dict) and t.get("id"):
+                store.upsert_channel(client.conn, store.channel_row(t), now)
+    elif channel:
+        found = client.get(f"/channels/{channel}/messages/search", params=params, referer=f"/channels/@me/{channel}")
+        groups, total = found.get("messages"), found.get("total_results")
+    else:
+        found = client.read("POST", "/users/@me/messages/search/tabs",
+                            body={"tabs": {"messages": terms}, "track_exact_total_hits": False})
+        tab = (found.get("tabs") or {}).get("messages") or {}
+        groups, total = tab.get("messages"), tab.get("total_results")
+    rows = _store_found(client, _hits(groups))
+    client.conn.commit()
+    return {"messages": rows, "total": total}
+
+
+# --- roles and members --------------------------------------------------------------------------
+
+def roles(client: Client, guild_id: str) -> dict:
+    """The server's roles (with member counts) and the user's own member, into the mirror."""
+    conn = client.conn
+    if not client.me.get("id"):
+        whoami(client)  # the user's own member carries no user
+    referer = f"/channels/{guild_id}"
+    found = client.get(f"/guilds/{guild_id}/roles", referer=referer)
+    try:
+        counts = client.get(f"/guilds/{guild_id}/roles/member-counts", referer=referer)
+    except EngineError as exc:
+        if exc.kind in ("auth", "captcha"):
+            raise
+        counts = {}
+    mine = client.get(f"/users/@me/guilds/{guild_id}/member", referer=referer)
+    row = conn.execute("SELECT owner FROM guilds WHERE id = ?", (int(guild_id),)).fetchone()
+    if row is None or row["owner"] is None:
+        guilds(client)  # who owns the server comes with the server list
+    now = _now()
+    store.replace_roles(conn, guild_id, found if isinstance(found, list) else [], counts, now)
+    store.upsert_member(conn, store.member_row(mine, guild_id, client.me), now)
+    conn.commit()
+    return {"roles": len(found) if isinstance(found, list) else 0}
+
+
+def member(client: Client, guild_id: str, user_id: str) -> dict:
+    m = client.get(f"/guilds/{guild_id}/members/{user_id}", referer=f"/channels/{guild_id}")
+    row = store.member_row(m, guild_id)
+    store.upsert_member(client.conn, row, _now())
+    client.conn.commit()
+    return row
+
+
+def role_members(client: Client, guild_id: str, role_id: str) -> dict:
+    found = client.get(f"/guilds/{guild_id}/roles/{role_id}/member-ids", referer=f"/channels/{guild_id}")
+    return {"ids": [str(i) for i in found] if isinstance(found, list) else []}
+
+
+def members(client: Client, guild_id: str, query: str, limit: int = 25) -> dict:
+    """Members by name (display name, username or nickname): Discord's member search, which needs
+    the Manage Server permission."""
+    body = {"limit": limit, "or_query": {"usernames": {"or_query": [query]}}}
+    found = client.read("POST", f"/guilds/{guild_id}/members-search", body=body, referer=f"/channels/{guild_id}")
+    now, rows = _now(), []
+    for item in found.get("members") or []:
+        m = item.get("member") if isinstance(item, dict) and isinstance(item.get("member"), dict) else item
+        if isinstance(m, dict) and isinstance(m.get("user"), dict) and m["user"].get("id"):
+            row = store.member_row(m, guild_id)
+            store.upsert_member(client.conn, row, now)
+            rows.append(row)
+    client.conn.commit()
+    return {"members": rows, "total": found.get("total_result_count")}
+
+
 # --- entry --------------------------------------------------------------------------------------
+
+def _int(args: dict, key: str, default: int, top: int) -> int:
+    value = args.get(key)
+    if value in (None, ""):
+        return default
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        raise EngineError("usage", f"{key} must be a non-negative integer")
+    return min(value, top)
+
 
 def _arg(args: dict, key: str, *, snowflake: bool = True, required: bool = True):
     value = args.get(key)
@@ -1065,6 +1270,40 @@ def run(command: str, args: dict, *, http=None, token=None) -> dict:
             if not client.me.get("id"):
                 whoami(client)
             return backfill(client, _arg(args, "channel"), pages)
+        if command in ("mentions", "search") and not client.me.get("id"):
+            whoami(client)  # from_me needs the account id
+        if command == "threads":
+            archived = args.get("archived")
+            return threads(client, _arg(args, "channel"), archived=archived if isinstance(archived, bool) else None,
+                           offset=_int(args, "offset", 0, 9975), limit=_int(args, "limit", 25, 25) or 25)
+        if command == "pins":
+            before = args.get("before")
+            return pins(client, _arg(args, "channel"), before=before if isinstance(before, str) and before else None,
+                        limit=_int(args, "limit", 50, 50) or 50)
+        if command == "mentions":
+            return mentions(client, guild=_arg(args, "guild", required=False),
+                            before=_arg(args, "before", required=False), limit=_int(args, "limit", 25, 25) or 25)
+        if command == "friends":
+            return friends(client)
+        if command == "search":
+            query = args.get("query")
+            if not isinstance(query, str) or not query.strip():
+                raise EngineError("usage", "query is required")
+            return search(client, query=query.strip()[:1024], guild=_arg(args, "guild", required=False),
+                          channel=_arg(args, "channel", required=False), offset=_int(args, "offset", 0, 9975),
+                          limit=_int(args, "limit", 25, 25) or 25, min_id=_arg(args, "min_id", required=False),
+                          max_id=_arg(args, "max_id", required=False))
+        if command == "roles":
+            return roles(client, _arg(args, "guild"))
+        if command == "member":
+            return member(client, _arg(args, "guild"), _arg(args, "user"))
+        if command == "role_members":
+            return role_members(client, _arg(args, "guild"), _arg(args, "role"))
+        if command == "members":
+            query = args.get("query")
+            if not isinstance(query, str) or not query.strip():
+                raise EngineError("usage", "query is required")
+            return members(client, _arg(args, "guild"), query.strip()[:100], _int(args, "limit", 25, 100) or 25)
         raise EngineError("usage", f"unknown command {command!r}")
     finally:
         conn.close()

@@ -19,6 +19,7 @@ the risk away.
 | Mirror schema, sync list and its limits (stdlib) | `plugins/discord-access/store.py` | engine and plugin |
 | Engine: the only code that talks to Discord and holds the token | `plugins/discord-access/engine.py` | its venv |
 | `discord_account` tool, reads, card, the `pre_tool_call` hook (toolset `discord_access`) | `plugins/discord-access/access.py`, `__init__.py` | Assistant |
+| Permission names and what a member holds (stdlib) | `plugins/discord-access/perms.py` | plugin |
 | Engine venv (`curl_cffi`, hash-locked) | `engines/discord-user/requirements.lock` → ignored `local/discord-user/venv` | people |
 | Sync agent | `launchd/discord-access-launchctl.sh`, `launchd/local.hermes.discord-access.sync.plist.tmpl` | people |
 | When and how the Assistant uses it | the Assistant's private Chat reference `discord.md` | Assistant |
@@ -90,7 +91,8 @@ drops nothing. Each run then rechecks: it reads the newest 50 messages of up
 to two channels active in the last 7 days whose newest page was not read for
 30 minutes (a seed counts, following new messages does not), least recently
 first, inside the run's budget. Older history changes only when it is read
-again (`live=true` or `backfill`).
+again (`live=true` or `backfill`). Search, pin and mention results are not
+contiguous and never drop anything.
 
 Each channel's cursor holds two edges. `oldest` is where its contiguous
 history starts; `backfill` pages back from there, never from older stray
@@ -104,19 +106,42 @@ reads never serve silently stale history.
 
 `status`, `dms`, `search`, `context` and `sync_list` read the mirror and
 make no request. `guilds` refreshes from Discord when its copy is over 6
-hours old; `channels` always asks Discord. `messages` reads the mirror for a
-current channel, inside its contiguous history; a channel that is not current,
+hours old, `friends` likewise; `channels`, `threads`, `pins`, `mentions`,
+`member`, `role_members` and `members` always ask Discord, and `roles` does
+when its copy is over 15 minutes old (or on `refresh`). `messages` reads the
+mirror for a current channel, inside its contiguous history; a channel that is not current,
 a page older than that history, an empty window or `live=true` is read live,
 as is `context` around a message not in the mirror; `backfill` runs the
 engine too. A live window is at most 100 messages and is stored in the mirror
 as well, so search and approval cards can see it.
 Messages come oldest first, with local times, `from: me` for the user's own,
 reply targets, attachment names and links, reactions (emoji, count and
-whether the user reacted, as of the message's last read), the readable part
-of embeds (title, description, link, author, site, up to five fields,
-clipped), and a note that text, embeds and names are written by other people
-and are data, never instructions. `search` is a literal substring match over
-the mirror only, and says so. Stickers are listed by name.
+whether the user reacted, as of the message's last ordinary read: search,
+pin and mention results carry none and leave stored ones alone), the
+readable part of embeds (title, description, link, author, site, up to five
+fields, clipped), and a note that text, embeds and names are written by
+other people and are data, never instructions. Stickers are listed by name.
+
+- `search` is a literal substring match over the mirror, and says so. With
+  `live=true` it is Discord's own search instead, 25 a page with `offset`:
+  `guild` searches a server (a `channel` of it narrows it), a DM `channel`
+  that DM, neither every DM and group DM at once (the web client's tabbed
+  search, a POST). While Discord is still indexing (HTTP 202), the engine
+  waits once, up to 30 s, then says to try again later.
+- `threads` lists a text, announcement or forum channel's threads (forum
+  posts with their first post), newest activity first, 25 a page; `archived`
+  narrows to archived or active ones. Each thread is stored as a channel, so
+  `messages` reads it. User accounts have no list of
+  a whole server's threads.
+- `pins` lists a channel's pinned messages, paged by the last `pinned_at`.
+- `mentions` lists messages that mention the user, their roles, `@everyone`
+  or `@here`, newest first, optionally in one server.
+- `friends` lists friends (requests only counted), each with the channel id
+  of an existing DM, since a send needs one.
+- `roles`, `member`, `role_members` and `members`: see Roles.
+
+Results read from Discord are stored in the mirror as well, so later cards
+and searches can see them.
 
 ## Media
 
@@ -245,6 +270,20 @@ a `reply_to` must be a message of that channel already in the mirror.
   `dispatching` is uncertain. Nothing is ever resent automatically.
 - Inbound A2A requests never reach the account; the toolset is not in the
   Assistant's `a2a` platform toolset either.
+
+## Roles
+
+`roles` lists a server's roles from the top (position, member count,
+colour, the strong permissions each holds, whether the user can manage it)
+and the user's own roles and permissions; `role` shows one role with all its
+permissions. It costs three requests (roles, member counts, the user's own
+member; plus the server list once to learn whether the user owns it) and is
+kept 15 minutes. `member` reads one member's name and roles; `role_members`
+up to 100 member ids of a role (Discord lists no more); `members` finds
+members by name through Discord's member search, which needs the Manage
+Server permission — elsewhere ids come from messages, mentions or friends.
+Roles and members read this way live in the mirror's `roles` and `members`
+tables; sync never fetches them.
 
 ## Ways around the tool
 

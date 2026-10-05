@@ -61,10 +61,10 @@ def risky(name: str, kind: str) -> bool:
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS guilds (
-    id INTEGER PRIMARY KEY, name TEXT, updated INTEGER);
+    id INTEGER PRIMARY KEY, name TEXT, updated INTEGER, owner INTEGER, roles_at INTEGER);
 CREATE TABLE IF NOT EXISTS channels (
     id INTEGER PRIMARY KEY, guild_id INTEGER, type INTEGER, name TEXT, parent_id INTEGER,
-    recipients TEXT, last_message_id INTEGER, state TEXT, updated INTEGER);
+    recipients TEXT, last_message_id INTEGER, state TEXT, updated INTEGER, thread TEXT);
 CREATE TABLE IF NOT EXISTS messages (
     id INTEGER PRIMARY KEY, channel_id INTEGER NOT NULL, guild_id INTEGER, author_id INTEGER,
     author_name TEXT, from_me INTEGER NOT NULL DEFAULT 0, content TEXT, reply_to INTEGER,
@@ -78,11 +78,20 @@ CREATE TABLE IF NOT EXISTS sends (
     nonce TEXT PRIMARY KEY, channel_id INTEGER NOT NULL, text_hash TEXT NOT NULL, reply_to INTEGER,
     created INTEGER NOT NULL, status TEXT NOT NULL, message_id INTEGER, detail TEXT);
 CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT);
+CREATE TABLE IF NOT EXISTS roles (
+    id INTEGER PRIMARY KEY, guild_id INTEGER NOT NULL, name TEXT, position INTEGER, permissions TEXT,
+    color INTEGER, hoist INTEGER, mentionable INTEGER, managed INTEGER, members INTEGER);
+CREATE INDEX IF NOT EXISTS roles_guild ON roles (guild_id);
+CREATE TABLE IF NOT EXISTS members (
+    guild_id INTEGER NOT NULL, user_id INTEGER NOT NULL, name TEXT, username TEXT, nick TEXT, roles TEXT,
+    joined TEXT, updated INTEGER, PRIMARY KEY (guild_id, user_id));
 """
 
 # Columns added after a mirror was first made; connect(write=True) adds whatever is missing.
 MIGRATIONS = {"messages": {"stickers": "TEXT", "reactions": "TEXT", "embed_data": "TEXT"},
-              "cursors": {"rechecked_at": "INTEGER"}}
+              "channels": {"thread": "TEXT"},
+              "cursors": {"rechecked_at": "INTEGER"},
+              "guilds": {"owner": "INTEGER", "roles_at": "INTEGER"}}
 
 
 class StoreError(Exception):
@@ -170,6 +179,11 @@ def migrate(conn: sqlite3.Connection) -> None:
         conn.commit()
 
 
+def has_column(row, name: str) -> bool:
+    """A mirror row may predate a column (a reader never migrates)."""
+    return name in row.keys()
+
+
 def get_meta(conn: sqlite3.Connection, key: str, default=None):
     row = conn.execute("SELECT value FROM meta WHERE key = ?", (key,)).fetchone()
     if row is None:
@@ -194,6 +208,14 @@ def display_name(user: dict | None, member: dict | None = None) -> str | None:
     return user.get("global_name") or user.get("username") or None
 
 
+def _thread(c: dict) -> str | None:
+    meta = c.get("thread_metadata")
+    if c.get("type") not in THREADS or not isinstance(meta, dict):
+        return None
+    return json.dumps({"archived": bool(meta.get("archived")), "locked": bool(meta.get("locked")),
+                       "messages": c.get("message_count"), "archived_at": meta.get("archive_timestamp")})
+
+
 def channel_row(c: dict, guild_id=None) -> dict:
     recipients = [{"id": str(u.get("id")), "name": display_name(u), "username": u.get("username")}
                   for u in c.get("recipients") or [] if isinstance(u, dict)]
@@ -201,23 +223,26 @@ def channel_row(c: dict, guild_id=None) -> dict:
     return {"id": int(c["id"]), "guild_id": int(gid) if gid else None, "type": c.get("type"),
             "name": c.get("name") or None, "parent_id": int(c["parent_id"]) if c.get("parent_id") else None,
             "recipients": json.dumps(recipients, ensure_ascii=False) if recipients else None,
-            "last_message_id": int(c["last_message_id"]) if c.get("last_message_id") else None}
+            "last_message_id": int(c["last_message_id"]) if c.get("last_message_id") else None,
+            "thread": _thread(c)}
 
 
 def upsert_channel(conn: sqlite3.Connection, row: dict, now: int) -> None:
     conn.execute(
-        "INSERT INTO channels (id, guild_id, type, name, parent_id, recipients, last_message_id, updated) "
-        "VALUES (:id, :guild_id, :type, :name, :parent_id, :recipients, :last_message_id, :updated) "
+        "INSERT INTO channels (id, guild_id, type, name, parent_id, recipients, last_message_id, updated, thread) "
+        "VALUES (:id, :guild_id, :type, :name, :parent_id, :recipients, :last_message_id, :updated, :thread) "
         "ON CONFLICT(id) DO UPDATE SET guild_id = excluded.guild_id, type = excluded.type, "
         "name = excluded.name, parent_id = excluded.parent_id, "
         "recipients = COALESCE(excluded.recipients, channels.recipients), "
         "last_message_id = COALESCE(excluded.last_message_id, channels.last_message_id), "
-        "updated = excluded.updated", {**row, "updated": now})
+        "thread = COALESCE(excluded.thread, channels.thread), "
+        "updated = excluded.updated", {"thread": None, **row, "updated": now})
 
 
-def upsert_guild(conn: sqlite3.Connection, gid, name, now: int) -> None:
-    conn.execute("INSERT INTO guilds (id, name, updated) VALUES (?, ?, ?) ON CONFLICT(id) DO UPDATE SET "
-                 "name = excluded.name, updated = excluded.updated", (int(gid), name, now))
+def upsert_guild(conn: sqlite3.Connection, gid, name, now: int, owner=None) -> None:
+    conn.execute("INSERT INTO guilds (id, name, updated, owner) VALUES (?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET "
+                 "name = excluded.name, updated = excluded.updated, owner = COALESCE(excluded.owner, guilds.owner)",
+                 (int(gid), name, now, None if owner is None else int(bool(owner))))
 
 
 def emoji_key(emoji: dict) -> str | None:
@@ -311,6 +336,53 @@ def drop_missing(conn: sqlite3.Connection, channel_id, seen, lo: int, hi: int) -
 
 def delete_message(conn: sqlite3.Connection, message_id) -> None:
     conn.execute("DELETE FROM messages WHERE id = ?", (int(message_id),))
+
+
+# --- roles and members ----------------------------------------------------------------------------
+
+def role_row(r: dict, guild_id) -> dict:
+    colors = r.get("colors") if isinstance(r.get("colors"), dict) else {}
+    return {"id": int(r["id"]), "guild_id": int(guild_id), "name": r.get("name"),
+            "position": int(r.get("position") or 0), "permissions": str(r.get("permissions") or "0"),
+            "color": int(colors.get("primary_color") or r.get("color") or 0), "hoist": int(bool(r.get("hoist"))),
+            "mentionable": int(bool(r.get("mentionable"))), "managed": int(bool(r.get("managed")))}
+
+
+def upsert_role(conn: sqlite3.Connection, r: dict, guild_id, members=None) -> None:
+    conn.execute(
+        "INSERT INTO roles (id, guild_id, name, position, permissions, color, hoist, mentionable, managed, members) "
+        "VALUES (:id, :guild_id, :name, :position, :permissions, :color, :hoist, :mentionable, :managed, :members) "
+        "ON CONFLICT(id) DO UPDATE SET name = excluded.name, position = excluded.position, "
+        "permissions = excluded.permissions, color = excluded.color, hoist = excluded.hoist, "
+        "mentionable = excluded.mentionable, managed = excluded.managed, "
+        "members = COALESCE(excluded.members, roles.members)", {**role_row(r, guild_id), "members": members})
+
+
+def replace_roles(conn: sqlite3.Connection, guild_id, roles: list, counts: dict, now: int) -> None:
+    """A server's whole role list as Discord returned it; roles it no longer has are dropped."""
+    conn.execute("DELETE FROM roles WHERE guild_id = ?", (int(guild_id),))
+    for r in roles:
+        if isinstance(r, dict) and r.get("id"):
+            count = counts.get(str(r["id"])) if isinstance(counts, dict) else None
+            upsert_role(conn, r, guild_id, count if isinstance(count, int) else None)
+    conn.execute("UPDATE guilds SET roles_at = ? WHERE id = ?", (now, int(guild_id)))
+
+
+def member_row(m: dict, guild_id, user: dict | None = None) -> dict:
+    """A guild member; ``user`` stands in when the payload carries none (the user's own member)."""
+    u = m.get("user") if isinstance(m.get("user"), dict) else (user or {})
+    return {"guild_id": int(guild_id), "user_id": int(u["id"]), "name": display_name(u),
+            "username": u.get("username"), "nick": m.get("nick") or None,
+            "roles": json.dumps([str(r) for r in m.get("roles") or []]), "joined": m.get("joined_at")}
+
+
+def upsert_member(conn: sqlite3.Connection, row: dict, now: int) -> None:
+    conn.execute(
+        "INSERT INTO members (guild_id, user_id, name, username, nick, roles, joined, updated) "
+        "VALUES (:guild_id, :user_id, :name, :username, :nick, :roles, :joined, :updated) "
+        "ON CONFLICT(guild_id, user_id) DO UPDATE SET name = COALESCE(excluded.name, members.name), "
+        "username = COALESCE(excluded.username, members.username), nick = excluded.nick, roles = excluded.roles, "
+        "joined = COALESCE(excluded.joined, members.joined), updated = excluded.updated", {**row, "updated": now})
 
 
 # --- sync list ----------------------------------------------------------------------------------
