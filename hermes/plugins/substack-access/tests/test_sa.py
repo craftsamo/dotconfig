@@ -294,7 +294,7 @@ def test_a_rate_limit_pauses_until_it_ends(isolated):
 
 
 @pytest.mark.parametrize("kind,match", [("blocked", "Cloudflare"), ("no_publication", "no publication"),
-                                        ("not_found", "not found"), ("forbidden", "refused this read"),
+                                        ("not_found", "not found"), ("forbidden", "refused this call"),
                                         ("timeout", "deadline")])
 def test_failures_read_plainly(isolated, kind, match):
     error = {"no_publication": "the account has no publication of its own yet",
@@ -327,6 +327,316 @@ def test_real_bridge_passes_a_minimal_environment(monkeypatch, tmp_path):
     Proc.stdout = "Traceback"
     with pytest.raises(engine.SubstackError, match="without a result"):
         engine.bridge("check")
+
+
+# --- writes: arguments --------------------------------------------------------------------------
+
+def test_write_plans_are_checked_and_normalized():
+    assert sa.write_plan({"title": " T ", "markdown": "# x"}, "create_draft") == {
+        "action": "create_draft", "title": "T", "subtitle": "", "markdown": "# x", "audience": "everyone"}
+    for bad in ({"markdown": "x"}, {"title": "T"}, {"title": "T", "markdown": "x", "audience": "friends"},
+                {"title": " ", "markdown": "x"}, {"title": "T" * 300, "markdown": "x"}):
+        with pytest.raises(sa.SubstackError):
+            sa.write_plan(bad, "create_draft")
+    plan = sa.write_plan({"draft": 5, "subtitle": ""}, "update_draft")
+    assert plan["subtitle"] == "" and plan["title"] is None and plan["replace_unsupported"] is False
+    with pytest.raises(sa.SubstackError, match="at least one"):
+        sa.write_plan({"draft": "5"}, "update_draft")
+    with pytest.raises(sa.SubstackError, match="send_email"):
+        sa.write_plan({"draft": "5"}, "publish")
+    with pytest.raises(sa.SubstackError, match="send_email"):
+        sa.write_plan({"draft": "5", "send_email": "yes"}, "publish")
+    assert sa.write_plan({"draft": "5", "send_email": False}, "publish") == {"action": "publish", "draft": "5",
+                                                                          "send_email": False}
+    assert sa.write_plan({"text": " hi "}, "note") == {"action": "note", "text": "hi"}
+    with pytest.raises(sa.SubstackError):
+        sa.write_plan({"text": "x" * (sa.NOTE_MAX + 1)}, "note")
+
+
+def test_schedule_times():
+    from datetime import datetime, timedelta, timezone
+    soon = datetime.now(timezone(timedelta(hours=9))) + timedelta(hours=2)
+    plan = sa.write_plan({"draft": "5", "at": soon.isoformat(), "send_email": True}, "schedule")
+    assert plan["at"].endswith("+00:00") and datetime.fromisoformat(plan["at"]) == soon.replace(microsecond=0)
+    for at, match in ((soon.replace(tzinfo=None).isoformat(), "UTC offset"), ("tomorrow", "ISO 8601"),
+                      ((soon - timedelta(hours=3)).isoformat(), "5 minutes"),
+                      ((soon + timedelta(days=400)).isoformat(), "within a year")):
+        with pytest.raises(sa.SubstackError, match=match):
+            sa.write_plan({"draft": "5", "at": at, "send_email": True}, "schedule")
+
+
+# --- writes: images, outbox and snapshot --------------------------------------------------------
+
+@pytest.fixture
+def images(tmp_path, monkeypatch):
+    root = tmp_path / "Workspaces"
+    (root / "pics").mkdir(parents=True)
+    (root / "pics" / "a.png").write_bytes(b"\x89PNG one")
+    (root / "pics" / "b.jpg").write_bytes(b"jpeg two")
+    monkeypatch.setattr(sa, "_config", lambda home: {"attach_roots": str(root)})
+    return root
+
+
+def test_image_files_stay_inside_the_attach_roots(images, tmp_path):
+    roots = sa.attach_roots(None)
+    files = sa.image_files([str(images / "pics" / "a.png")], roots)
+    assert files[0]["shown"] == "pics/a.png" and files[0]["size"] == 8
+    outside = tmp_path / "outside.png"
+    outside.write_bytes(b"x")
+    (images / "pics" / "notes.txt").write_text("x")
+    (images / ".ssh").mkdir()
+    (images / ".ssh" / "k.png").write_bytes(b"x")
+    (images / "pics" / "empty.png").write_bytes(b"")
+    (images / "pics" / "link.png").symlink_to(outside)
+    for path, match in ((outside, "outside"), (images / "pics" / "notes.txt", "not a JPEG"),
+                        (images / ".ssh" / "k.png", "credential"), (images / "pics" / "empty.png", "empty"),
+                        (images / "pics" / "link.png", "outside"), (images / "nope.png", "no such image")):
+        with pytest.raises(sa.SubstackError, match=match):
+            sa.image_files([str(path)], roots)
+    with pytest.raises(sa.SubstackError, match="at most"):
+        sa.image_files([str(images / "pics" / "a.png")] * (sa.MAX_IMAGES + 1), roots)
+
+
+def draft_prepared(**extra):
+    return {"publication": PUB, "draft": {"id": 5, "title": "Old title", "audience": "everyone", "words": 300,
+                                          "scheduled": [], "published": False}, "digest": "d1",
+            "email_subscribers": 12, **extra}
+
+
+def test_snapshot_is_shared_by_both_hooks_and_consumed_once(isolated, images):
+    src = str(images / "pics" / "a.png")
+    isolated.replies["prepare"] = {"publication": PUB, "images": [src]}
+    args = {"action": "create_draft", "title": "Hello", "markdown": f"![a]({src})"}
+    ids = {"tool_call_id": "c1"}
+    card, key = sa.approval_request(args, ids=ids, profile="assistant")
+    assert "Images (1): pics/a.png (8 B)" in card and "Nothing is published or emailed." in card
+    token = sa.binding(args, ids=ids, profile="assistant")["_prepared"]
+    assert [c["op"] for c in isolated.calls] == ["prepare"]
+    (images / "pics" / "a.png").write_bytes(b"changed after approval")  # the copy is what goes out
+    folder, manifest = sa.consume(sa.request_digest(sa.write_plan(args, "create_draft"), None), token)
+    copy = Path(manifest["images"][0]["path"])
+    assert copy.parent == folder and copy.read_bytes() == b"\x89PNG one" and manifest["images"][0]["src"] == src
+    with pytest.raises(sa.SubstackError, match="already carried out"):
+        sa.consume(manifest["request"], token)
+
+
+def test_a_tampered_copy_or_another_request_is_refused(isolated, images):
+    src = str(images / "pics" / "a.png")
+    isolated.replies["prepare"] = {"publication": PUB, "images": [src]}
+    args = {"action": "create_draft", "title": "Hello", "markdown": f"![a]({src})"}
+    sa.approval_request(args, ids={"tool_call_id": "c2"}, profile="assistant")
+    token = sa.binding(args, ids={"tool_call_id": "c2"}, profile="assistant")["_prepared"]
+    next(p for p in (sa.STORE / "outbox" / token).iterdir() if p.suffix == ".png").write_bytes(b"evil")
+    with pytest.raises(sa.SubstackError, match="changed after approval"):
+        sa.consume(sa.request_digest(sa.write_plan(args, "create_draft"), None), token)
+    assert not (sa.STORE / "outbox" / token).exists()
+    sa.approval_request(args, ids={"tool_call_id": "c3"}, profile="assistant")
+    token = sa.binding(args, ids={"tool_call_id": "c3"}, profile="assistant")["_prepared"]
+    other = sa.write_plan({**args, "title": "Other"}, "create_draft")
+    with pytest.raises(sa.SubstackError, match="differs"):
+        sa.consume(sa.request_digest(other, None), token)
+    for bad in (None, "../x", "0" * 31):
+        with pytest.raises(sa.SubstackError, match="not prepared"):
+            sa.consume("r", bad)
+
+
+def test_a_failed_prepare_is_shared_not_repeated(isolated):
+    isolated.replies["prepare"] = {"ok": False, "kind": "invalid", "error": "draft 5 is already published",
+                                   "fingerprint": FP, "contacted": True}
+    args = {"action": "publish", "draft": "5", "send_email": True}
+    with pytest.raises(sa.SubstackError, match="already published"):
+        sa.approval_request(args, ids={"tool_call_id": "c4"}, profile="assistant")
+    assert sa.binding(args, ids={"tool_call_id": "c4"}, profile="assistant") is None
+    assert [c["op"] for c in isolated.calls] == ["prepare"]
+
+
+def test_an_expired_snapshot_is_not_rebuilt_by_bind(isolated, monkeypatch):
+    isolated.replies["prepare"] = draft_prepared()
+    args = {"action": "publish", "draft": "5", "send_email": True}
+    sa.approval_request(args, ids={"tool_call_id": "t1"}, profile="assistant")
+    later = time.time() + sa.PENDING_TTL + 1
+    monkeypatch.setattr(sa.time, "time", lambda: later)
+    assert sa.binding(args, ids={"tool_call_id": "t1"}, profile="assistant") is None
+    assert [c["op"] for c in isolated.calls] == ["prepare"]
+
+
+def test_rule_keys_bind_the_draft_and_the_image_bytes():
+    plan = sa.write_plan({"draft": "5", "send_email": True}, "publish")
+    one = sa.rule_key(plan, draft_prepared(), [], "r")
+    assert one.startswith("substack-access:publish:") and one == sa.rule_key(plan, draft_prepared(), [], "r")
+    assert one != sa.rule_key(plan, draft_prepared(digest="d2"), [], "r")
+    assert one != sa.rule_key(plan, draft_prepared(), [], "r2")
+    staged = [{"name": "a.png", "sha256": "x"}]
+    assert sa.rule_key(plan, draft_prepared(), staged, "r") != sa.rule_key(
+        plan, draft_prepared(), [{"name": "a.png", "sha256": "y"}], "r")
+    other_pub = draft_prepared(publication={**PUB, "id": 8})
+    other_user = draft_prepared(publication={**PUB, "user_id": 2})
+    assert len({one, sa.rule_key(plan, other_pub, [], "r"), sa.rule_key(plan, other_user, [], "r")}) == 3
+    note = sa.write_plan({"text": "hi"}, "note")
+    assert sa.rule_key(note, {"account": {"id": 1}}, [], "r") != sa.rule_key(note, {"account": {"id": 2}}, [], "r")
+
+
+# --- writes: cards ------------------------------------------------------------------------------
+
+def test_cards_say_what_happens():
+    publish = sa.card(sa.write_plan({"draft": "5", "send_email": True}, "publish"), draft_prepared(), [])
+    assert publish.splitlines() == [
+        "Substack: PUBLISH draft 5 in CraftSamo (craftsamo.substack.com) now; this cannot be undone",
+        "Title: Old title", "Audience: everyone", "Email: sent to 12 email subscribers", "Words: 300"]
+    web = sa.card(sa.write_plan({"draft": "5", "send_email": False}, "publish"), draft_prepared(), [])
+    assert "Email: none (web only)" in web
+    from datetime import datetime, timedelta, timezone
+    at = (datetime.now(timezone.utc) + timedelta(days=1)).isoformat()
+    sched = sa.card(sa.write_plan({"draft": "5", "at": at, "send_email": True}, "schedule"), draft_prepared(), [])
+    assert "SCHEDULE draft 5" in sched and "Email: sent at release to 12" in sched
+    update = sa.card(sa.write_plan({"draft": "5", "title": "New", "markdown": "body",
+                                    "replace_unsupported": True}, "update_draft"),
+                     draft_prepared(unsupported=2), [])
+    assert "Draft now: Old title" in update and "New title: New" in update and "Drops 2 block(s)" in update
+    unschedule = sa.card(sa.write_plan({"draft": "5"}, "unschedule"),
+                         draft_prepared(draft={"title": "", "scheduled": ["2026-10-06T00:00:00Z"]}), [])
+    assert "Title: (untitled)" in unschedule and "stays an unpublished draft" in unschedule
+
+
+def test_long_bodies_are_clipped_to_what_telegram_shows_and_hidden_characters_shown():
+    plan = sa.write_plan({"title": "T", "markdown": "word " * 500}, "create_draft")
+    text = sa.card(plan, {"publication": PUB}, [])
+    assert sa._units(text) <= sa.CARD_LIMIT and "more characters)" in text
+    note = sa.card(sa.write_plan({"text": "pay here\u202e"}, "note"), {"account": {"handle": "me"}}, [])
+    assert "⟨U+202E⟩" in note
+
+
+def test_every_fact_fits_or_the_card_is_refused():
+    long = "ä" * 200
+    plan = sa.write_plan({"draft": "5", "title": long, "subtitle": long, "audience": "only_paid", "markdown": "b",
+                          "replace_unsupported": True}, "update_draft")
+    text = sa.card(plan, draft_prepared(unsupported=1), [])
+    assert sa._units(text) <= sa.CARD_LIMIT
+    for fact in ("New audience: only_paid", "Drops 1 block(s)", "Nothing is published or emailed."):
+        assert fact in text
+    staged = [{"shown": f"very/long/folder/name/image-{i}.png", "size": 10, "name": "x", "sha256": "s"}
+              for i in range(20)]
+    with pytest.raises(sa.SubstackError, match="split it"):
+        sa.card(plan, draft_prepared(unsupported=1, publication={**PUB, "name": "<&>" * 40}),
+                staged * 3 + [{"shown": "<" * 200, "size": 1, "name": "y", "sha256": "t"}])
+
+
+def test_a_card_that_cannot_be_shown_leaves_nothing_to_bind(isolated, monkeypatch):
+    isolated.replies["prepare"] = draft_prepared()
+    monkeypatch.setattr(sa, "card", lambda *a: (_ for _ in ()).throw(sa.SubstackError("too many changes")))
+    args = {"action": "publish", "draft": "5", "send_email": True}
+    with pytest.raises(sa.SubstackError, match="too many changes"):
+        sa.approval_request(args, ids={"tool_call_id": "k1"}, profile="assistant")
+    assert sa.binding(args, ids={"tool_call_id": "k1"}, profile="assistant") is None
+    assert not list((sa.STORE / "outbox").iterdir())
+
+
+# --- writes: carrying out -----------------------------------------------------------------------
+
+def approved(isolated, args, prepared=None, call="c9"):
+    isolated.replies["prepare"] = prepared or draft_prepared()
+    sa.approval_request(args, ids={"tool_call_id": call}, profile="assistant")
+    return {**args, **sa.binding(args, ids={"tool_call_id": call}, profile="assistant")}
+
+
+def test_an_approved_publish_runs_with_the_card_draft(isolated):
+    isolated.replies["write"] = {"post": {"id": 5, "url": "https://craftsamo.substack.com/p/x"}, "emailed": True}
+    args = approved(isolated, {"action": "publish", "draft": "5", "send_email": True})
+    result = run(args)
+    call = isolated.calls[-1]
+    assert call["op"] == "write" and call["expect"] == "d1" and call["deadline"] == sa.WRITE_DEADLINE
+    assert (call["publication"], call["expect_publication"], call["expect_user"]) == ("craftsamo.substack.com", 7, 1)
+    assert call["plan"] == {"action": "publish", "draft": "5", "send_email": True} and call["images"] == {}
+    assert result["ok"] is True and result["post"]["url"].endswith("/p/x") and result["emailed"] is True
+    state = json.loads(sa.STORE.joinpath("state.json").read_text())
+    assert len(state["writes"]) == 1 and state["log"][-1]["outcome"] == "done"
+    assert not list((sa.STORE / "outbox").iterdir())
+
+
+def test_images_reach_the_bridge_as_frozen_copies(isolated, images):
+    src = str(images / "pics" / "a.png")
+    isolated.replies["write"] = {"draft": {"id": 77, "title": "Hello"}, "images": 1}
+    args = approved(isolated, {"action": "create_draft", "title": "Hello", "markdown": f"![a]({src})"},
+                    {"publication": PUB, "images": [src]})
+    result = run(args)
+    sent = isolated.calls[-1]["images"]
+    assert list(sent) == [src] and Path(sent[src]).name.endswith(".png") and sa.STORE / "outbox" in Path(sent[src]).parents
+    assert result["draft"]["edit_url"] == "https://craftsamo.substack.com/publish/post/77" and result["images"] == 1
+
+
+@pytest.mark.parametrize("reply,match", [
+    ({"ok": False, "kind": "changed", "error": "draft 5 changed after the approval card was shown"}, "not done: draft 5 changed"),
+    ({"ok": False, "kind": "rejected", "error": "Substack refused to publish the draft (400: no)"}, "not done: Substack refused"),
+    ({"ok": False, "kind": "limited", "error": "x", "retry_after": 900}, "not done: paused"),
+])
+def test_refused_writes_say_not_done(isolated, reply, match):
+    isolated.replies["write"] = {"fingerprint": FP, "contacted": True, **reply}
+    result = run(approved(isolated, {"action": "publish", "draft": "5", "send_email": False}))
+    assert result["ok"] is False and result["error"].startswith(match)
+
+
+@pytest.mark.parametrize("ledger,expected", [
+    ({"status": "dispatching", "step": "publish the draft", "done": []}, "UNCERTAIN"),
+    ({"status": "done", "step": "schedule the release", "done": ["schedule the release"]}, "accepted"),
+    ({"status": "rejected", "step": "schedule the release", "done": ["set whether the release is emailed"]},
+     "not done: x (already done: set whether"),
+])
+def test_an_error_reply_is_judged_by_the_ledger_too(isolated, monkeypatch, ledger, expected):
+    from datetime import datetime, timedelta, timezone
+    at = (datetime.now(timezone.utc) + timedelta(days=1)).isoformat()
+    args = approved(isolated, {"action": "schedule", "draft": "5", "at": at, "send_email": True})
+
+    def fails(op, **fields):
+        Path(fields["ledger"]).write_text(json.dumps(ledger))
+        return {"ok": False, "kind": "error", "error": "x", "contacted": True}
+
+    monkeypatch.setattr(sa, "bridge", fails)
+    result = run(args)
+    assert expected in (result.get("error") or result.get("note"))
+    assert result["ok"] is (expected == "accepted")
+
+
+def test_uncertain_writes_are_never_retried(isolated):
+    isolated.replies["write"] = {"uncertain": "Substack answered 502 to 'publish the draft'",
+                                 "hint": "the draft now shows as published", "done": []}
+    result = run(approved(isolated, {"action": "publish", "draft": "5", "send_email": False}))
+    assert result["ok"] is False and result["error"].startswith("UNCERTAIN: Substack answered 502")
+    assert "the draft now shows as published" in result["error"] and "action=published" in result["error"]
+    assert sum(1 for c in isolated.calls if c["op"] == "write") == 1
+    assert json.loads(sa.STORE.joinpath("state.json").read_text())["log"][-1]["outcome"] == "uncertain"
+
+
+@pytest.mark.parametrize("ledger,expected", [
+    (None, "not done"), ({"status": "dispatching", "step": "publish the draft", "done": []}, "UNCERTAIN"),
+    ({"status": "rejected", "step": "schedule the release", "done": ["set whether the release is emailed"]},
+     "already done: set whether"),
+    ({"status": "done", "step": "publish the draft", "done": ["publish the draft"]}, "accepted"),
+    ({"status": "dispatching", "step": "upload image a.png", "done": []}, "image may have reached"),
+])
+def test_a_dead_engine_is_judged_by_its_ledger(isolated, monkeypatch, ledger, expected):
+    args = approved(isolated, {"action": "publish", "draft": "5", "send_email": False})
+
+    def dies(op, **fields):
+        if ledger is not None:
+            Path(fields["ledger"]).write_text(json.dumps(ledger))
+        raise sa.SubstackError("Substack did not answer within 180s")
+
+    monkeypatch.setattr(sa, "bridge", dies)
+    result = run(args)
+    assert expected in (result.get("error") or result.get("note"))
+    assert json.loads(sa.STORE.joinpath("state.json").read_text())["writes"]  # it may have reached Substack
+
+
+def test_the_daily_write_cap(isolated, monkeypatch):
+    monkeypatch.setattr(sa, "WRITE_DAILY", 1)
+    isolated.replies["write"] = {"note": {"id": 1}}
+    first = approved(isolated, {"action": "note", "text": "one"}, {"account": {"handle": "me"}}, "n1")
+    second = approved(isolated, {"action": "note", "text": "two"}, {"account": {"handle": "me"}}, "n2")
+    assert run(first)["ok"] is True
+    result = run(second)
+    assert result["ok"] is False and result["error"].startswith("not done: paused") and "24 hours" in result["error"]
+    with pytest.raises(sa.SubstackError, match="24 hours"):  # and no card is shown for a third
+        sa.approval_request({"action": "note", "text": "three"}, ids={"tool_call_id": "n3"}, profile="assistant")
 
 
 # --- text -------------------------------------------------------------------------------------
