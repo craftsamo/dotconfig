@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# yaccess — one-time setup of the Hermes youtube-access plugin (the user's YouTube channels).
+#
+#   yaccess auth ~/Downloads/client_secret.json   authorize one channel in the browser (repeat per channel)
+#   yaccess channels                              the authorized channels
+#   yaccess check                                 refresh each channel's token, show the granted scopes
+#   yaccess revoke CHANNEL                        revoke one channel's token and forget it
+#   yaccess paths                                 where the state lives
+#
+# The code lives in the Hermes youtube-access plugin (hermes/plugins/youtube-access/ya.py) and
+# needs the Google client libraries of Hermes' own Python (hermes-python). The refresh tokens live
+# only in the Keychain (YOUTUBE_OAUTH, project hermes, scope youtube-access), shared by every
+# profile that has the tool; ~/.youtube-access holds no secret. Overrides: YACCESS_CLI.
+set -euo pipefail
+
+cli="${YACCESS_CLI:-$HOME/.config/hermes/plugins/youtube-access/ya.py}"
+if [[ ! -f $cli ]]; then
+  echo "yaccess: cannot find $cli (set YACCESS_CLI)" >&2
+  exit 127
+fi
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+exec "$here/hermes-python" "$cli" "$@"
