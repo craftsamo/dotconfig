@@ -48,7 +48,8 @@ SHEETS_DESCRIPTION = (
     "sizes, hiding, grouping, rows/columns, merges, freezing, tabs, notes, rich text, tables, "
     "conditional formatting, input rules, filters and filter views; see ops), data (ops that "
     "move or rewrite contents: sort, find_replace, copy, cut, dedupe, trim, split_text, "
-    "autofill; see ops). values are rows of cells; they "
+    "autofill; see ops), chart (ops: add, change, move or delete charts; see ops), pivot (ops: "
+    "pivot tables; see ops). values are rows of cells; they "
     "are typed as in the UI (formulas work) unless raw=true. Write many rows or scattered cells "
     "in one batch_update or one multi-row update, never one call per row; likewise put every "
     "change of one layout task in one layout call (all apply or none). When writing by row "
@@ -58,13 +59,13 @@ SHEETS_DESCRIPTION = (
     "key cell (e.g. the id column) as currently displayed: the write runs only if every expect "
     "cell still holds that value, so a sheet another writer shifted is refused before anything "
     "is written (read the rows again, then retry). "
-    + APPROVAL.format("update, batch_update, append, clear, create, add_sheet, layout, data") + " "
+    + APPROVAL.format("update, batch_update, append, clear, create, add_sheet, layout, data, chart, pivot") + " "
     "Edits to one spreadsheet are approved once: after the user answers \"session\" or \"always\", "
     "further edits to that spreadsheet run without asking; clear, create, every data call and a "
     "layout call that "
     "deletes, moves or replaces data (delete, move, merge, table_delete, sheet_delete, conditional_update, "
     "conditional_delete, filter_view_delete, a note with text '', a filter_view_update with "
-    "filter_columns) are approved per exact call, so keep those in their own call.")
+    "filter_columns, chart_delete, pivot_delete, a pivot written at a cell) are approved per exact call, so keep those in their own call.")
 
 LAYOUT_OPS_DESCRIPTION = (
     "layout: changes applied in order in one batch. Every op names a range in A1 notation "
@@ -135,18 +136,33 @@ DATA_OPS_DESCRIPTION = (
     "range (the pattern), fill = how many rows or columns, direction DOWN|UP|RIGHT|LEFT. The "
     "result reports how many matches were replaced, duplicates removed and cells trimmed.")
 
+OBJECT_OPS_DESCRIPTION = (
+    "chart: chart (range = labels column then one column per series, a block or whole columns; "
+    "chart_type COLUMN (default)|BAR|LINE|AREA|SCATTER|COMBO (first series columns, the rest "
+    "lines)|PIE (two columns), title, legend BOTTOM|TOP|LEFT|RIGHT|NONE, stacked, header (default "
+    "true: the first row names the series), at = top-left cell (default: right of the data) or "
+    "new_sheet=true, width, height); chart_update: chart (title or id) plus any of range (series "
+    "rebuilt from it), chart_type (not to or from PIE), title ('' removes), legend, stacked, "
+    "header; chart_move: chart plus at, new_sheet, width, height; chart_delete. info lists charts. "
+    "pivot: pivot (range = source with its header row; pivot_rows / pivot_columns = column "
+    "letters, pivot_values = [{column, summarize SUM|COUNTA|COUNT|AVERAGE|MAX|MIN|…}], "
+    "pivot_filters = [{column, show: [values]}]; goes on a new tab (title, default 'Pivot table "
+    "N') unless at = a cell, which overwrites what it fills and asks each time); pivot_delete: at = "
+    "the anchor cell (get_format over an area reports pivot_tables).")
+
 _COLOUR = {"type": "string", "description": "'#RRGGBB'"}
 LAYOUT_OP_SCHEMA = {
     "type": "object", "required": ["op"], "additionalProperties": False,
     "properties": {
-        "op": {"type": "string", "enum": list(access.LAYOUT_OPS) + list(access.DATA_OPS)},
+        "op": {"type": "string", "enum": [op for vocabulary, *_ in access.OP_SETS.values() for op in vocabulary]},
         "range": {"type": "string", "description": "A1 range: 'Tab!B2:D9', 'Tab!B:D', 'Tab!3:5' or 'Tab'"},
         "ranges": {"type": "array", "items": {"type": "string"},
                    "description": "instead of range: several A1 ranges getting the same change"},
         "sheet": {"type": "string", "description": "tab name for the tab ops (freeze: default first tab)"},
         "table": {"type": "string", "description": "table_update / table_delete: table name or id"},
         "view": {"type": "string", "description": "filter_view_update / filter_view_delete: view name or id"},
-        "title": {"type": "string", "description": "sheet / sheet_duplicate: tab name; rename_spreadsheet: file name"},
+        "title": {"type": "string", "description": "sheet / sheet_duplicate / pivot: tab name; rename_spreadsheet: "
+                                                    "file name; chart / chart_update: chart title"},
         "tab_color": {"type": "string", "description": "sheet: '#RRGGBB' or 'none'"},
         "hidden": {"type": "boolean", "description": "sheet: hide or show the tab"},
         "position": {"type": "integer", "description": "sheet / sheet_duplicate: 1 = first tab"},
@@ -192,8 +208,8 @@ LAYOUT_OP_SCHEMA = {
             "type": "object", "required": ["column"], "additionalProperties": False, "properties": {
                 "column": {"type": "string", "description": "sheet column letter"},
                 "order": {"type": "string", "enum": ["ASC", "DESC"]}}}},
-        "header": {"type": "boolean", "description": "sort / dedupe: the range's first row is a header "
-                                                     "and stays put (default true)"},
+        "header": {"type": "boolean", "description": "sort / dedupe / chart: the range's first row is a "
+                                                     "header (default true)"},
         "find": {"type": "string", "description": "find_replace: the text (or regex) to find"},
         "replacement": {"type": "string", "description": "find_replace: the new text ('' removes matches)"},
         "all_sheets": {"type": "boolean", "description": "find_replace: search every tab"},
@@ -207,6 +223,25 @@ LAYOUT_OP_SCHEMA = {
                                                        "(default) or the text to split on"},
         "fill": {"type": "integer", "description": "autofill: rows or columns to fill"},
         "direction": {"type": "string", "enum": list(access.FILL_DIRECTIONS)},
+        "chart": {"type": "string", "description": "chart_update / chart_move / chart_delete: chart title or id"},
+        "chart_type": {"type": "string", "enum": sorted(access.CHART_TYPES)},
+        "legend": {"type": "string", "enum": list(access.LEGENDS)},
+        "stacked": {"type": "boolean", "description": "chart: stack the series (bar, column, area, combo)"},
+        "at": {"type": "string", "description": "chart / chart_move: top-left cell of the chart; pivot: cell to "
+                                                "write the pivot table at (overwrites); pivot_delete: its anchor cell"},
+        "new_sheet": {"type": "boolean", "description": "chart / chart_move: put the chart on a tab of its own"},
+        "width": {"type": "integer", "description": "chart / chart_move: pixels"},
+        "height": {"type": "integer", "description": "chart / chart_move: pixels"},
+        "pivot_rows": {"type": "array", "items": {"type": "string"}, "description": "pivot: column letters to group rows by"},
+        "pivot_columns": {"type": "array", "items": {"type": "string"},
+                          "description": "pivot: column letters to spread across columns"},
+        "pivot_values": {"type": "array", "description": "pivot: what to total", "items": {
+            "type": "object", "required": ["column"], "additionalProperties": False, "properties": {
+                "column": {"type": "string", "description": "sheet column letter"},
+                "summarize": {"type": "string", "enum": sorted(access.SUMMARIES)}}}},
+        "pivot_filters": {"type": "array", "description": "pivot: keep only these values", "items": {
+            "type": "object", "required": ["column", "show"], "additionalProperties": False, "properties": {
+                "column": {"type": "string"}, "show": {"type": "array", "items": {"type": "string"}}}}},
         "merge": {"type": "string", "enum": ["ALL", "ROWS", "COLUMNS"]},
         "rows": {"type": "integer", "description": "freeze: rows to freeze (0 = none)"},
         "columns": {"type": "integer", "description": "freeze: columns to freeze (0 = none)"},
@@ -263,7 +298,8 @@ SCHEMAS = {
         "query": {"type": "string", "description": "search: part of the file name"},
         "range": {"type": "string", "description": "A1 range, e.g. 'Sheet1!A1:C10' or 'Sheet1'"},
         "ranges": {"type": "array", "items": {"type": "string"}, "description": "get / get_format: several ranges"},
-        "ops": {"type": "array", "description": LAYOUT_OPS_DESCRIPTION + " " + DATA_OPS_DESCRIPTION,
+        "ops": {"type": "array", "description": " ".join((LAYOUT_OPS_DESCRIPTION, DATA_OPS_DESCRIPTION,
+                                                          OBJECT_OPS_DESCRIPTION)),
                 "items": LAYOUT_OP_SCHEMA},
         "values": {"type": "array", "items": {"type": "array", "items": {
                        "description": "a cell: text, number or boolean"}},
