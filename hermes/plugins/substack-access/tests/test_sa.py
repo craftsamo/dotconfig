@@ -516,9 +516,14 @@ def test_every_fact_fits_or_the_card_is_refused():
         assert fact in text
     staged = [{"shown": f"very/long/folder/name/image-{i}.png", "size": 10, "name": "x", "sha256": "s"}
               for i in range(20)]
-    with pytest.raises(sa.SubstackError, match="split it"):
-        sa.card(plan, draft_prepared(unsupported=1, publication={**PUB, "name": "<&>" * 40}),
-                staged * 3 + [{"shown": "<" * 200, "size": 1, "name": "y", "sha256": "t"}])
+    crowded = sa.card(sa.write_plan({"draft": "5", "title": long, "subtitle": long, "audience": "only_paid",
+                                     "markdown": "word " * 400, "replace_unsupported": True}, "update_draft"),
+                      draft_prepared(unsupported=1, publication={**PUB, "name": "<&>" * 40}),
+                      staged * 3 + [{"shown": "<" * 200, "size": 1, "name": "y", "sha256": "t"}])
+    # never refused: the facts stay, the body is cut and its rest counted
+    assert sa._units(crowded) <= sa.CARD_LIMIT and "Images (61)" in crowded and "more characters)" in crowded
+    for fact in ("New audience: only_paid", "Drops 1 block(s)", "Nothing is published or emailed."):
+        assert fact in crowded
 
 
 def test_a_card_that_cannot_be_shown_leaves_nothing_to_bind(isolated, monkeypatch):
