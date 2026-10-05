@@ -75,6 +75,15 @@ the lease and on inbound A2A too. Its Marketer schema has no write action, so
 the draft-only rules below are unchanged; a draft read supplements, never
 replaces, reopening the saved draft in the browser.
 
+The `youtube` tool ([youtube-access.md](../youtube-access.md)) reads YouTube
+as the user's own channels: search, videos, channels, playlists, comments,
+the channels' own uploads and YouTube Analytics, and transcripts of public
+videos, without the lease and on inbound A2A too. Its Marketer schema has no
+write action; changes to the user's channels go through the Assistant.
+YouTube is a measurement source, not a drafting platform, so its guidance
+lives in `build-marketer/references/measurement.md`, not a platform
+reference.
+
 ### note through the tool
 
 For note, the `note` tool (`note_access` toolset, CLI and Telegram, never A2A)
