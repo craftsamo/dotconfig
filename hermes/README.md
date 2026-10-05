@@ -117,10 +117,10 @@ launchd/               # multiplex gateway launcher + plist template, local
                        #   TTS engine launchers + plist templates
 engines/               # tracked pins/locks: irodori-tts, qwen3-tts,
                        #   stable-audio-3, motion-canvas, three-webgl,
-                       #   twscrape, telegram-access
+                       #   twscrape, telegram-access, python-substack
 scripts/               # profile-secrets.sh (secrets.command helper),
                        #   brave-agent-sync.sh, validate-profile-skills.py,
-                       #   check-local-patches.sh, x-access.sh,
+                       #   check-local-patches.sh, x-access.sh, substack-access.sh,
                        #   verify-work-continuity.py, audit-hands-references.py,
                        #   qwen3_tts_server.py, qwen3_tts_reading_check.py,
                        #   stable_audio3.py, tests/ (pytest suites + fixtures)
@@ -470,6 +470,18 @@ keeps user keys.
   cookie from the Keychain (`NOTE_SESSION`, scope `note-session`); public
   reads and image uploads carry no cookie; its hook blocks the terminal path
   around it. Behavior: [docs/note-access.md](docs/note-access.md).
+- **substack-access** (`standalone`): `substack` (toolset `substack_access`)
+  for the assistant and marketer — the user's own Substack account through
+  python-substack (`bridge.py` in the ignored `local/python-substack/venv`,
+  pinned in `engines/python-substack/`): any publication's posts and search,
+  the inbox, and the user's published posts, drafts, pre-publish checks and
+  stats; the assistant alone also creates and edits drafts (`~/Workspaces`
+  images frozen at the card), publishes, schedules and posts Notes, each
+  write through the approval gate. The cookies stay in the Keychain
+  (`SUBSTACK_COOKIES`, scope `substack-session`) and only in the bridge's
+  memory; its hook blocks the terminal path around it. Engine:
+  `scripts/substack-access.sh` (`install` / `status`). Behavior:
+  [docs/substack-access.md](docs/substack-access.md).
 - **ui-inspection** (`standalone`): `ui_capture` for ui-review / ux-persona.
 - **writing-inspection** (`standalone`): Writer's bounded `writing_inspect`.
 - **kanban-worker-mutation-guard** (`standalone`): stops dispatcher workers
@@ -1173,6 +1185,9 @@ agent's pre-rename label and carry its old log over once.
   — Irodori-TTS on `:10103`; see [Irodori voice registration](#irodori-voice-registration).
 - `scripts/x-access.sh {install,status}` — the x-access engine venv and the
   state of the sub-account's cookies; see [docs/x-access.md](docs/x-access.md).
+- `scripts/substack-access.sh {install,status}` — the substack-access engine
+  venv and the state of the account's cookies; see
+  [docs/substack-access.md](docs/substack-access.md).
 - `scripts/brave-agent-sync.sh {sync,check,path,remove}` — the real-profile
   Brave clone ([Browser](#browser)). `sync` (default) re-clones when
   `/Applications/Brave Browser.app` changed version or the clone is missing,
