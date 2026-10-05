@@ -583,3 +583,24 @@ def test_shortened_names_keep_and_recheck_their_extension(tmp_path, monkeypatch)
     _media_engine(monkeypatch, items, {"00": b"echo hi"})
     result = access.execute({"action": "media", "channel": DM1, "id": str(M1)})
     assert result["files"] == [] and "archive or program" in result["refused"][0]
+
+
+# --- reactions and embeds -----------------------------------------------------------------------
+
+THUMB = "\U0001F44D"
+
+
+def _set(sql, *params):
+    conn = store.connect(write=True)
+    conn.execute(sql, params)
+    conn.commit()
+    conn.close()
+
+
+def test_reactions_and_embeds_show_with_a_note():
+    _set("UPDATE messages SET reactions = ?, embeds = 1, embed_data = ? WHERE id = ?",
+         json.dumps([{"emoji": THUMB, "count": 2, "me": True}]), json.dumps([{"title": "News"}]), M1)
+    result = access.execute({"action": "messages", "channel": DM1})
+    first = result["messages"][0]
+    assert first["reactions"] == [{"emoji": THUMB, "count": 2, "me": True}] and first["embeds"] == [{"title": "News"}]
+    assert "as of the last time" in result["note"] and "recheck" in result["note"]

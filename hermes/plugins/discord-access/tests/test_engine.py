@@ -580,3 +580,114 @@ def test_stickers_are_recorded_and_old_mirrors_migrate():
     row = store.message_row(media_message(flake(1)), ME)
     store.upsert_messages(conn, [row])
     assert json.loads(conn.execute("SELECT stickers FROM messages").fetchone()[0]) == ["wave", "dance"]
+
+
+# --- edits and deletions --------------------------------------------------------------------------
+
+def mirrored(conn, *mids, channel=DM1):
+    seeded_dm(conn)
+    store.upsert_messages(conn, [store.message_row(msg(m, channel), ME) for m in mids])
+    conn.commit()
+
+
+def ids_in(conn, channel=DM1):
+    return [str(r[0]) for r in conn.execute("SELECT id FROM messages WHERE channel_id = ? ORDER BY id", (int(channel),))]
+
+
+def test_a_live_window_applies_edits_and_deletions_inside_it():
+    conn = store.connect(write=True)
+    a, b, c, d = flake(40), flake(30), flake(20), flake(10)
+    mirrored(conn, a, b, c, d)
+    page = [msg(c, DM1, content="edited"), msg(a, DM1)]          # b was deleted; d lies outside the page
+    engine.messages(client(FakeHttp({**me_route(), ("GET", f"/channels/{DM1}/messages"): (200, {}, page)}), conn),
+                    DM1, before=d, limit=2)
+    assert ids_in(conn) == [a, c, d]
+    assert conn.execute("SELECT content FROM messages WHERE id = ?", (int(c),)).fetchone()[0] == "edited"
+
+
+def test_a_short_newest_page_vouches_up_to_the_request():
+    conn = store.connect(write=True)
+    a, gone = flake(30), flake(1)
+    mirrored(conn, a, gone)
+    engine.messages(client(FakeHttp({("GET", f"/channels/{DM1}/messages"): (200, {}, [msg(a, DM1)])}), conn), DM1)
+    assert ids_in(conn) == [a]
+
+
+def test_a_short_page_before_an_id_vouches_back_to_the_start():
+    conn = store.connect(write=True)
+    oldest, a, b = flake(90), flake(30), flake(20)
+    mirrored(conn, oldest, a, b)
+    engine.messages(client(FakeHttp({("GET", f"/channels/{DM1}/messages"): (200, {}, [msg(a, DM1)])}), conn),
+                    DM1, before=b, limit=50)
+    assert ids_in(conn) == [a, b]
+
+
+def test_an_empty_page_deletes_nothing():
+    conn = store.connect(write=True)
+    a = flake(30)
+    mirrored(conn, a)
+    engine.messages(client(FakeHttp({("GET", f"/channels/{DM1}/messages"): (200, {}, [])}), conn), DM1)
+    assert ids_in(conn) == [a]
+
+
+def test_sync_rechecks_recent_channels_within_its_budget():
+    conn = store.connect(write=True)
+    old = flake(100 * 24 * 60)
+    m1, m2 = flake(60), flake(50)
+    engine.sync(client(FakeHttp(sync_routes(m2, (200, {}, [msg(m2, DM1), msg(m1, DM1)]), old)), conn))
+    conn.execute("UPDATE cursors SET rechecked_at = 0")
+    conn.commit()
+    seen = []
+
+    def newest(params, body):
+        seen.append(params)
+        return 200, {}, [msg(m2, DM1, content="edited")]           # m1 was deleted
+    http = FakeHttp(sync_routes(m2, newest, old))
+    summary = engine.sync(client(http, conn))
+    assert seen == [{"limit": "50"}] and summary["rechecked"] == 1
+    assert len(http.api_calls()) == 3          # whoami, the DM list and one recheck (servers are cached)
+    assert ids_in(conn) == [m2]
+    # Rechecked just now: the next quiet run makes no message request at all.
+    engine.sync(client(FakeHttp(sync_routes(m2, lambda p, b: pytest.fail("rechecked again"), old)), conn))
+
+
+def test_recheck_skips_quiet_and_unreadable_channels():
+    conn = store.connect(write=True)
+    old = flake(100 * 24 * 60)
+    engine.sync(client(FakeHttp(sync_routes(old, None, old)), conn))
+    conn.execute("UPDATE cursors SET rechecked_at = 0")
+    conn.commit()
+    engine.sync(client(FakeHttp(sync_routes(old, lambda p, b: pytest.fail("a quiet DM was rechecked"), old)), conn))
+
+
+def test_a_message_mirrored_during_a_newest_page_read_is_kept():
+    conn = store.connect(write=True)
+    a = flake(30)
+    mirrored(conn, a)
+    meanwhile = flake(-0.2)      # stored by another process while the read was in flight
+
+    def page(params, body):
+        other = store.connect(write=True)
+        store.upsert_messages(other, [store.message_row(msg(meanwhile, DM1), ME)])
+        other.commit()
+        other.close()
+        return 200, {}, [msg(a, DM1)]
+    engine.messages(client(FakeHttp({("GET", f"/channels/{DM1}/messages"): page}), conn), DM1)
+    assert ids_in(conn) == [a, meanwhile]
+
+
+def test_a_busy_channel_is_still_rechecked_when_due():
+    conn = store.connect(write=True)
+    old = flake(100 * 24 * 60)
+    m1, m2, m3 = flake(60), flake(50), flake(1)
+    engine.sync(client(FakeHttp(sync_routes(m2, (200, {}, [msg(m2, DM1), msg(m1, DM1)]), old)), conn))
+    conn.execute("UPDATE cursors SET rechecked_at = 0")
+    conn.commit()
+    seen = []
+
+    def page(params, body):
+        seen.append(params)
+        return 200, {}, [msg(m3, DM1)] if "after" in params else [msg(m3, DM1), msg(m2, DM1)]
+    summary = engine.sync(client(FakeHttp(sync_routes(m3, page, old)), conn))
+    assert seen == [{"after": m2, "limit": "100"}, {"limit": "50"}] and summary["rechecked"] == 1
+    assert ids_in(conn) == [m2, m3]

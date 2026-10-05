@@ -19,7 +19,7 @@ does), which creates no message. Its outcome is sent / not_sent / uncertain, rec
 from __future__ import annotations
 
 import base64
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import fcntl
 import hashlib
 import json
@@ -61,6 +61,11 @@ SEED_COUNT = 50              # newest messages taken when a channel is first fol
 SEED_PER_RUN = 15
 SEED_DAYS = 30               # older-looking DMs are followed from now on; history via backfill
 BACKFILL_PAGES = (2, 5)
+# Edits and deletions: each run reads the newest page of a few recently active channels again.
+RECHECK_PER_RUN = 2
+RECHECK_DAYS = 7
+RECHECK_INTERVAL = 30 * 60   # a channel is read again at most this often
+RECHECK_COUNT = 50
 
 # Attachments: Discord's cloud upload. The upload URL is a signed Google Cloud Storage URL; the
 # token never goes there, and files are only ever read from the plugin's approved outbox.
@@ -426,24 +431,64 @@ def _referer(conn, channel_id) -> str:
     return f"/channels/{row['guild_id'] or '@me'}/{channel_id}" if row else f"/channels/@me/{channel_id}"
 
 
-def _store_batch(client: Client, channel_id, batch: list) -> list[dict]:
+def _store_batch(client: Client, channel_id, batch: list, reactions: bool = True) -> list[dict]:
+    """Store messages of one channel. ``reactions=False`` for search, pin and mention results,
+    which leave reactions out (stored ones are kept)."""
     me_id = (client.me or {}).get("id")
     row = client.conn.execute("SELECT guild_id FROM channels WHERE id = ?", (int(channel_id),)).fetchone()
     guild_id = row["guild_id"] if row else None
-    rows = [store.message_row(m, me_id, guild_id) for m in batch if isinstance(m, dict) and m.get("id")]
+    rows = [store.message_row(m, me_id, guild_id, reactions=reactions)
+            for m in batch if isinstance(m, dict) and m.get("id")]
     store.upsert_messages(client.conn, rows)
     return rows
 
 
+def _fetch(client: Client, channel_id, params: dict) -> tuple[list, list[dict]]:
+    """One page of a channel's history (raw messages, mirror rows). A page is contiguous, so a
+    mirrored message inside the range it covers that it did not return was deleted on Discord:
+    the mirror drops it. The range is the page itself; a short page also vouches for its open ends:
+    back to the channel's start unless ``after`` bounded it (anything older than its oldest message
+    existed when it was read), and past its newest message unless ``before`` bounded it — there
+    only for messages already mirrored before the request began, since one stored meanwhile (by a
+    sync or a send in another process) may be newer than what Discord answered."""
+    cid = int(channel_id)
+    open_top = "before" not in params and "around" not in params
+    recent = store.snowflake_at(datetime.now(timezone.utc) - timedelta(days=RECHECK_DAYS))
+    known = {r[0] for r in client.conn.execute("SELECT id FROM messages WHERE channel_id = ? AND id >= ?",
+                                               (cid, recent))} if open_top else set()
+    batch = client.get(f"/channels/{cid}/messages", params=params, referer=_referer(client.conn, cid))
+    batch = [m for m in batch if isinstance(m, dict) and m.get("id")]
+    rows = _store_batch(client, cid, batch)
+    if rows:
+        ids = [r["id"] for r in rows]
+        lo, hi = min(ids), max(ids)
+        short = len(batch) < int(params.get("limit") or 50)
+        if short and "around" not in params and "after" not in params:
+            lo = 0
+        store.drop_missing(client.conn, cid, ids, lo, hi)
+        if short and open_top:
+            gone = [i for i in known if i > hi and i not in set(ids)]
+            for i in gone:
+                store.delete_message(client.conn, i)
+    return batch, rows
+
+
+def fetch_message(client: Client, channel_id, message_id) -> dict | None:
+    """One message as Discord has it now, or None when it is gone (the mirror follows)."""
+    batch, _ = _fetch(client, channel_id, {"around": str(message_id), "limit": "5"})
+    client.conn.commit()
+    return next((m for m in batch if str(m.get("id")) == str(message_id)), None)
+
+
 def messages(client: Client, channel_id: str, *, before=None, after=None, around=None, limit=50) -> list[dict]:
-    """A live window, stored in the mirror too (search and approval cards read it there). It
-    never moves a cursor: the mirror's contiguous history is only what sync and backfill made."""
+    """A live window, stored in the mirror too (search and approval cards read it there), with
+    edits and deletions inside it applied. It never moves a cursor: the mirror's contiguous
+    history is only what sync and backfill made."""
     params = {"limit": str(max(1, min(int(limit), PAGE)))}
     for key, value in (("before", before), ("after", after), ("around", around)):
         if value:
             params[key] = str(value)
-    batch = client.get(f"/channels/{channel_id}/messages", params=params, referer=_referer(client.conn, channel_id))
-    rows = _store_batch(client, channel_id, batch)
+    _, rows = _fetch(client, channel_id, params)
     # Readable again: a channel once marked forbidden or gone rejoins the sync.
     client.conn.execute("UPDATE channels SET state = NULL WHERE id = ? AND state IS NOT NULL", (int(channel_id),))
     client.conn.commit()
@@ -465,8 +510,7 @@ def backfill(client: Client, channel_id: str, pages: int) -> dict:
         params = {"limit": str(PAGE)}
         if before:
             params["before"] = str(before)
-        batch = client.get(f"/channels/{channel_id}/messages", params=params, referer=_referer(conn, channel_id))
-        rows = _store_batch(client, channel_id, batch)
+        batch, rows = _fetch(client, channel_id, params)
         added += len(rows)
         if rows:
             before = min(r["id"] for r in rows)
@@ -529,19 +573,17 @@ def _follow(conn, client: Client, summary: dict, cid: int, last: int, cursor, se
         if seeded >= SEED_PER_RUN:
             summary["deferred"] += 1
             return 0
-        batch = client.get(f"/channels/{cid}/messages", params={"limit": str(SEED_COUNT)}, referer=_referer(conn, cid))
-        rows = _store_batch(client, cid, batch)
+        batch, rows = _fetch(client, cid, {"limit": str(SEED_COUNT)})
         summary["fetched"] += len(rows)
         _set_cursor(conn, cid, max([r["id"] for r in rows] + [last]),
                     min(r["id"] for r in rows) if rows else last + 1, complete=len(batch) < SEED_COUNT)
+        conn.execute("UPDATE cursors SET rechecked_at = ? WHERE channel_id = ?", (_now(), cid))  # a fresh newest page
         conn.commit()
         summary["channels_updated"] += 1
         return 1
     after = cursor["newest"]
     for _ in range(PAGE_CAP):
-        batch = client.get(f"/channels/{cid}/messages", params={"after": str(after), "limit": str(PAGE)},
-                           referer=_referer(conn, cid))
-        rows = _store_batch(client, cid, batch)
+        batch, rows = _fetch(client, cid, {"after": str(after), "limit": str(PAGE)})
         summary["fetched"] += len(rows)
         if rows:
             after = max(r["id"] for r in rows)
@@ -607,30 +649,71 @@ def sync(client: Client) -> dict:
                 conn.execute("UPDATE cursors SET synced_at = NULL WHERE channel_id = ?", (cid,))
             changed.append((cid, last, cursor))
     conn.commit()  # nothing uncommitted while a request is in flight
-    seeded = 0
+    seeded, stopped = 0, False
     for cid, last, cursor in changed:
         try:
             seeded += _follow(conn, client, summary, cid, last, cursor, seeded)
         except EngineError as exc:
-            conn.commit()
-            if exc.kind in ("auth", "captcha"):
-                raise
-            if exc.kind == "budget":
-                summary["deferred"] += 1
-                continue
-            if exc.kind == "forbidden":
-                _mark(conn, cid, "forbidden")
-            elif exc.kind == "not_found":
-                _mark(conn, cid, "gone")
-            conn.commit()
-            if exc.kind in ("rate_limited", "network"):
-                summary["errors"].append(f"channel {cid}: {exc}; stopped this run")
+            if _channel_failed(conn, summary, cid, exc):
+                stopped = True
                 break
-            summary["errors"].append(f"channel {cid}: {exc}")
+    if not stopped:
+        _recheck(conn, client, summary, plan)
     conn.commit()
     summary["requests"] = client.requests
     summary["ok"] = True
     return summary
+
+
+def _channel_failed(conn, summary: dict, cid: int, exc: EngineError) -> bool:
+    """Record one channel's failure in a sync run; True when the run should stop here."""
+    conn.commit()
+    if exc.kind in ("auth", "captcha"):
+        raise exc
+    if exc.kind == "budget":
+        summary["deferred"] += 1
+        return False
+    if exc.kind == "forbidden":
+        _mark(conn, cid, "forbidden")
+    elif exc.kind == "not_found":
+        _mark(conn, cid, "gone")
+    conn.commit()
+    if exc.kind in ("rate_limited", "network"):
+        summary["errors"].append(f"channel {cid}: {exc}; stopped this run")
+        return True
+    summary["errors"].append(f"channel {cid}: {exc}")
+    return False
+
+
+def _recheck(conn, client: Client, summary: dict, plan: list) -> None:
+    """Edits and deletions: read the newest page of up to RECHECK_PER_RUN channels again — those
+    active in the last RECHECK_DAYS whose newest page was not read for RECHECK_INTERVAL (a seed
+    counts; following new messages does not), least recently first. What is left of the run's
+    budget bounds it all."""
+    since = store.snowflake_at(datetime.now(timezone.utc) - timedelta(days=RECHECK_DAYS))
+    ids = [int(r["id"]) for r in plan if (r.get("last_message_id") or 0) >= since]
+    if not ids:
+        return
+    due = _now() - RECHECK_INTERVAL
+    rows = conn.execute(
+        f"SELECT c.channel_id FROM cursors c JOIN channels ch ON ch.id = c.channel_id "
+        f"WHERE c.channel_id IN ({','.join('?' * len(ids))}) AND c.newest IS NOT NULL "
+        f"AND COALESCE(c.rechecked_at, 0) <= ? AND (ch.state IS NULL OR ch.state NOT IN ('forbidden', 'gone')) "
+        f"ORDER BY COALESCE(c.rechecked_at, 0) ASC LIMIT ?", ids + [due, RECHECK_PER_RUN]).fetchall()
+    summary.setdefault("rechecked", 0)
+    for (cid,) in rows:
+        try:
+            _fetch(client, cid, {"limit": str(RECHECK_COUNT)})
+        except EngineError as exc:
+            if exc.kind == "budget":
+                conn.commit()
+                return
+            if _channel_failed(conn, summary, cid, exc):
+                return
+            continue
+        conn.execute("UPDATE cursors SET rechecked_at = ? WHERE channel_id = ?", (_now(), cid))
+        conn.commit()
+        summary["rechecked"] += 1
 
 
 # --- media --------------------------------------------------------------------------------------
@@ -675,13 +758,9 @@ def media(client: Client, channel_id: str, message_id: str, folder: Path, limit:
     """Fetch the message again (attachment URLs are signed and expire), then download each item
     into ``folder``. Each item reports saved / refused / too_large / missing / failed."""
     cid = int(channel_id)
-    found = client.get(f"/channels/{cid}/messages", params={"around": message_id, "limit": "5"},
-                       referer=_referer(client.conn, cid))
-    m = next((x for x in found if isinstance(x, dict) and str(x.get("id")) == str(message_id)), None)
+    m = fetch_message(client, cid, message_id)
     if m is None:
         raise EngineError("not_found", "that message is gone or not visible to this account")
-    _store_batch(client, cid, [m])
-    client.conn.commit()
     deadline = time.monotonic() + MEDIA_BUDGET
     out = []
     for i, item in enumerate(media_items(m)):

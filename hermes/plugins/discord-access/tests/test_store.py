@@ -111,3 +111,63 @@ def test_corrupt_sync_list_is_reported(state):
     (state / "sync.json").write_text("{nope")
     with pytest.raises(store.StoreError, match="not valid JSON"):
         store.load_sync()
+
+
+# --- reactions, embeds, deletions --------------------------------------------------------------
+
+ME = "100000000000000001"
+
+
+def _msg(mid, **extra):
+    return {"id": str(mid), "channel_id": C[0], "type": 0, "content": "x",
+            "author": {"id": "100000000000000002", "username": "taro"}, **extra}
+
+
+def test_an_old_mirror_gains_every_new_column():
+    import sqlite3
+    path = store.state_dir() / "mirror.db"
+    old = sqlite3.connect(path)
+    old.executescript("""
+        CREATE TABLE guilds (id INTEGER PRIMARY KEY, name TEXT, updated INTEGER);
+        CREATE TABLE channels (id INTEGER PRIMARY KEY, guild_id INTEGER, type INTEGER, name TEXT, parent_id INTEGER,
+            recipients TEXT, last_message_id INTEGER, state TEXT, updated INTEGER);
+        CREATE TABLE messages (id INTEGER PRIMARY KEY, channel_id INTEGER NOT NULL, guild_id INTEGER,
+            author_id INTEGER, author_name TEXT, from_me INTEGER NOT NULL DEFAULT 0, content TEXT, reply_to INTEGER,
+            attachments TEXT, embeds INTEGER NOT NULL DEFAULT 0, type INTEGER, edited TEXT);
+        CREATE TABLE cursors (channel_id INTEGER PRIMARY KEY, newest INTEGER, oldest INTEGER,
+            complete INTEGER NOT NULL DEFAULT 0, synced_at INTEGER);""")
+    old.close()
+    conn = store.connect(write=True)
+    for table, columns in store.MIGRATIONS.items():
+        have = {r[1] for r in conn.execute(f"PRAGMA table_info({table})")}
+        assert set(columns) <= have
+
+
+def test_reactions_and_embeds_are_stored_and_kept_by_partial_payloads():
+    conn = store.connect(write=True)
+    full = _msg(1 << 40, reactions=[{"emoji": {"name": "\U0001F44D"}, "count": 2, "me": True},
+                                    {"emoji": {"name": "party", "id": "700000000000000001"}, "count": 1}],
+                embeds=[{"title": "News", "description": "d" * 900, "provider": {"name": "Site"},
+                         "fields": [{"name": "k", "value": "v"}] * 7}, {"type": "image"}])
+    store.upsert_messages(conn, [store.message_row(full, ME)])
+    stored = conn.execute("SELECT reactions, embed_data FROM messages").fetchone()
+    assert json.loads(stored[0]) == [{"emoji": "\U0001F44D", "count": 2, "me": True},
+                                     {"emoji": "party:700000000000000001", "count": 1, "me": False}]
+    embed = json.loads(stored[1])
+    assert len(embed) == 1 and embed[0]["site"] == "Site" and len(embed[0]["description"]) == 500
+    assert len(embed[0]["fields"]) == 5
+    # A search result omits reactions: the stored ones stay.
+    store.upsert_messages(conn, [store.message_row({**full, "reactions": None}, ME, reactions=False)])
+    assert json.loads(conn.execute("SELECT reactions FROM messages").fetchone()[0])[0]["count"] == 2
+    # An ordinary read without reactions means there are none now.
+    store.upsert_messages(conn, [store.message_row({**full, "reactions": None}, ME)])
+    assert conn.execute("SELECT reactions FROM messages").fetchone()[0] is None
+
+
+def test_drop_missing_deletes_only_inside_the_range():
+    conn = store.connect(write=True)
+    ids = [(1 << 40) + i for i in range(5)]
+    store.upsert_messages(conn, [store.message_row(_msg(i), ME) for i in ids])
+    assert store.drop_missing(conn, C[0], [ids[1], ids[3]], ids[1], ids[3]) == 1   # ids[2] gone
+    left = [r[0] for r in conn.execute("SELECT id FROM messages ORDER BY id")]
+    assert left == [ids[0], ids[1], ids[3], ids[4]]
