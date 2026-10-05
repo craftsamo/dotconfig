@@ -2,10 +2,10 @@
 
 Reads come from the local mirror (``store``) that the sync agent keeps current; anything that
 needs Discord (server, channel, role and member lists, threads, pins, mentions, friends, live
-windows and searches, backfill, send) runs ``engine.py`` on its own venv as a child
-process, which alone holds the token. The sync list is edited here. ``send`` is held for the
-user's approval by the plugin's ``pre_tool_call`` hook (``approval_request``). Contract:
-docs/discord-access.md.
+windows and searches, backfill, and every write) runs ``engine.py`` on its own venv as a child
+process, which alone holds the token. The sync list is edited here. Every write (send, reactions,
+edits, deletions) is held for the user's approval by the plugin's ``pre_tool_call`` hook
+(``approval_request``). Contract: docs/discord-access.md.
 """
 
 from __future__ import annotations
@@ -28,6 +28,7 @@ import stat
 import subprocess
 import sys
 import threading
+import time
 
 HERE = Path(__file__).resolve().parent
 
@@ -46,8 +47,9 @@ perms = _load("hermes_discord_access_perms", HERE / "perms.py")
 
 ACTIONS = ("status", "guilds", "channels", "dms", "messages", "search", "context", "backfill", "media",
            "threads", "pins", "mentions", "friends", "roles", "member", "role_members", "members",
-           "sync_list", "sync_add", "sync_remove", "send")
-WRITES = {"send"}
+           "sync_list", "sync_add", "sync_remove", "send", "react", "unreact", "edit", "delete")
+MESSAGE_WRITES = {"react", "unreact", "edit", "delete"}
+WRITES = {"send"} | MESSAGE_WRITES
 
 ENGINE = HERE / "engine.py"
 ENGINE_PYTHON = HERE.parents[1] / "local" / "discord-user" / "venv" / "bin" / "python"
@@ -57,6 +59,7 @@ SYNC_TIMEOUT = 300
 SEND_TIMEOUT = 150          # token + build number + one POST + one read-back
 MEDIA_TIMEOUT = 660         # the engine's 600 s download budget + fetch; under the tool deadline (960)
 SEND_FILES_TIMEOUT = 840    # with uploads; under the Assistant's tool deadline (960)
+WRITE_TIMEOUT = 150         # one write + one read-back
 TOKEN_SET = "secret set DISCORD_USER_TOKEN -p hermes --scope discord-user"
 AGENT_LABEL = "local.hermes.discord-access.sync"
 
@@ -1397,6 +1400,16 @@ def send_plan(args: dict, conn=None, home: Path | None = None, files: list | Non
             raise DiscordError("that channel does not take text messages")
         if row["state"] in ("forbidden", "gone"):
             raise DiscordError("that channel is not readable with this account")
+        note, parent = None, None
+        if row["type"] in store.THREADS:
+            meta = _json(row, "thread") or {}
+            if meta.get("locked"):
+                raise DiscordError("that thread is locked: only its moderators can post in it")
+            if meta.get("archived"):
+                note = "the thread is archived; sending reopens it"
+            if row["parent_id"]:
+                p = _channel(conn, row["parent_id"])
+                parent = p["name"] if p else None
         quoted = None
         if reply_to:
             quoted = conn.execute("SELECT * FROM messages WHERE id = ? AND channel_id = ?",
@@ -1411,8 +1424,8 @@ def send_plan(args: dict, conn=None, home: Path | None = None, files: list | Non
     finally:
         if own:
             conn.close()
-    return {"channel": cid, "text": text, "reply_to": reply_to, "label": channel_label(row, guild),
-            "quoted": dict(quoted) if quoted else None, "me": me, "files": files}
+    return {"channel": cid, "text": text, "reply_to": reply_to, "label": channel_label(row, guild, parent),
+            "quoted": dict(quoted) if quoted else None, "me": me, "files": files, "note": note}
 
 
 def new_nonce() -> str:
@@ -1524,9 +1537,14 @@ def card(plan: dict, staged: list[dict] | None = None) -> str:
     pings = sorted(set(PINGS.findall(plan["text"])))
     if pings:
         head.append("Pings: " + ", ".join(pings))
+    if plan.get("note"):
+        head.append(f"Note: {plan['note']}")
     head.append("")
-    prefix = "\n".join(head) + "\n"
-    text = plan["text"] or "(no text: files only)"
+    return _fit("\n".join(head) + "\n", plan["text"] or "(no text: files only)")
+
+
+def _fit(prefix: str, text: str) -> str:
+    """The card's head plus as much of ``text`` as fits CARD_LIMIT, the rest counted."""
     if _units(prefix + visible(text)) <= CARD_LIMIT:
         return prefix + visible(text)
     lo, hi = 0, len(text)
@@ -1546,15 +1564,232 @@ def rule_key(plan: dict, staged: list[dict] | None = None) -> str:
     return f"discord-access:send:{digest}"
 
 
-def approval_request(args: dict, home: Path | None = None, ids: dict | None = None) -> tuple[str, str] | None:
-    """(card, allowlist rule key) for a send, None for anything else; raises for a send that
-    would fail anyway. Files are frozen into this call's snapshot here. The key binds the exact
-    channel, text, reply and file contents."""
-    args = args if isinstance(args, dict) else {}
-    if "_outbox" in args:
-        raise DiscordError("_outbox is set by the plugin, never by a caller")
-    if action_of(args) not in WRITES:
+# --- writes other than send: reactions, edits, deletions -----------------------------------
+#
+# Each is checked against the mirror before a card is shown (a request that cannot or may not
+# happen is blocked without asking). The approval hook and the bind hook compute the same plan at
+# once; bind hands the handler its key (``_approved``), and the handler, after approval, computes
+# the plan again and runs it only when the key still matches: exactly what the card showed.
+
+CUSTOM_EMOJI = re.compile(r"^(?:<a?:)?([A-Za-z0-9_~]{1,32}):(\d{15,21})>?$")
+KEYCAP = re.compile("^[0-9#*]\ufe0f?\u20e3$")
+
+
+def _account(me: dict) -> str:
+    who = me.get("name") or me.get("username") or "(account)"
+    return f"Discord: {_one_line(who, NAME_CLIP)}" + (f" (@{me['username']})" if me.get("username") else "")
+
+
+def _message_target(conn, args: dict, *, own: bool) -> tuple[str, str, dict, str]:
+    """(channel id, message id, the mirrored message, the chat's label) for a message write."""
+    cid = _id(args, "channel", required=True, what="a channel id")
+    mid = _id(args, "id", required=True, what="a message id")
+    row = _channel(conn, cid)
+    if row is None:
+        raise DiscordError("unknown channel: find it with dms, channels or threads first")
+    if row["state"] in ("forbidden", "gone"):
+        raise DiscordError("that channel is not readable with this account")
+    m = conn.execute("SELECT * FROM messages WHERE id = ? AND channel_id = ?", (int(mid), int(cid))).fetchone()
+    if m is None:
+        raise DiscordError("id must be a message of that channel read before (messages, search, pins or mentions)")
+    if own and not m["from_me"]:
+        raise DiscordError("only your own messages can be edited or deleted here")
+    rows, guilds = {row["id"]: row}, _guild_names(conn)
+    if row["parent_id"]:
+        parent = _channel(conn, row["parent_id"])
+        if parent:
+            rows[parent["id"]] = parent
+    return cid, mid, dict(m), _label_of(cid, rows, guilds)
+
+
+def _emoji(args: dict, message: dict) -> str:
+    raw = _str(args, "emoji", required=True)
+    custom = CUSTOM_EMOJI.match(raw)
+    if custom:
+        present = [r["emoji"] for r in _json(message, "reactions") or [] if r.get("emoji", "").endswith(":" + custom.group(2))]
+        if not present:
+            raise DiscordError("a custom emoji can only be used when it is already on that message (read the message "
+                               "again with messages live=true to see its reactions)")
+        return present[0]
+    if KEYCAP.match(raw):
+        return raw
+    if len(raw) > 16 or SUSPICIOUS.search(raw) or any(ord(ch) < 128 or ch.isspace() for ch in raw):
+        raise DiscordError("emoji must be one Unicode emoji character, or a custom emoji already on that message")
+    return raw
+
+
+def _message_plan(conn, args: dict, action: str) -> dict:
+    own = action in ("edit", "delete")
+    cid, mid, m, label = _message_target(conn, args, own=own)
+    for clip in (QUOTE_CLIP * 3 if own else QUOTE_CLIP, QUOTE_CLIP, QUOTE_CLIP // 2, 8):
+        plan = _message_card(conn, args, action, cid, mid, m, label, clip)
+        if plan["card"] is not None and _units(plan["card"]) <= CARD_LIMIT:
+            return plan
+    raise DiscordError("the card for this request does not fit; nothing was asked")
+
+
+def _message_card(conn, args: dict, action: str, cid: str, mid: str, m: dict, label: str, clip: int) -> dict:
+    own = action in ("edit", "delete")
+    sender = "me" if m["from_me"] else (m["author_name"] or "")
+    quoted = _one_line(m["content"] or "(attachment)", clip)
+    head = [_account(store.get_meta(conn, "me") or {}), f"In: {_one_line(label, NAME_CLIP * 2)}",
+            f"Channel id: {cid}"]
+    engine = {"channel": cid, "id": mid}
+    check = "read the message with messages live=true"
+    if action in ("react", "unreact"):
+        emoji = _emoji(args, m)
+        if action == "unreact":
+            known = _json(m, "reactions")
+            if known is not None and not any(r.get("emoji") == emoji and r.get("me") for r in known):
+                raise DiscordError("you have not reacted with that emoji on that message (as last read)")
+        engine["emoji"] = emoji
+        head += [f"Message: {_one_line(sender, NAME_CLIP)}: {quoted}" if sender else f"Message: {quoted}",
+                 f"React with: {visible(emoji)}" if action == "react" else f"Remove my reaction: {visible(emoji)}"]
+        card, done = "\n".join(head), "reaction added" if action == "react" else "reaction removed"
+    elif action == "edit":
+        text = _str(args, "text", required=True)
+        if len(text) > TEXT_LIMIT:
+            raise DiscordError(f"text is {len(text)} characters; Discord allows {TEXT_LIMIT}")
+        if text == m["content"]:
+            raise DiscordError("the new text is the same as the message's current text")
+        engine["text"] = text
+        head += ["Edit my message", f"Before: {quoted}"]
+        pings = sorted(set(PINGS.findall(text)))
+        if pings:
+            head.append("Pings: " + ", ".join(pings))
+        prefix = "\n".join(head + ["", ""])
+        # The new text needs room on the card: a head this long does not fit.
+        card = _fit(prefix, text) if _units(prefix) <= CARD_LIMIT - 80 else None
+        done = "edited"
+    else:
+        head += [f"Delete my message: {quoted}", "This cannot be undone."]
+        card, done = "\n".join(head), "deleted"
+    # An edit or deletion acts on the message as the card quoted it: a change meanwhile voids the card.
+    bound = [m["content"], m["edited"], _attachment_identity(m)] if own else None
+    return {"action": action, "command": action, "engine": engine, "card": card, "done": done, "check": check,
+            "bound": bound}
+
+
+def _attachment_identity(m: dict) -> list:
+    """The message's attachments without their URLs, which Discord re-signs on every read."""
+    return [[a.get("name"), a.get("size"), a.get("type")] for a in _json(m, "attachments") or []]
+
+
+def write_plan(conn, args: dict) -> dict:
+    """A checked write other than send: its engine request, card and rule key. Raises for a
+    request that cannot or may not happen."""
+    action = action_of(args)
+    plan = _message_plan(conn, args, action)
+    digest = hashlib.sha256(json.dumps([action, plan["engine"], plan["bound"]], ensure_ascii=False, sort_keys=True)
+                            .encode("utf-8")).hexdigest()[:16]
+    plan["key"] = f"discord-access:{action}:{digest}"
+    return plan
+
+
+UNCERTAIN_SET = ("UNCERTAIN: {detail}. It may or may not have taken effect. Check first ({check}); repeating the "
+                 "same request is harmless, but ask the user before doing it.")
+
+
+def write(args: dict) -> dict:
+    """The approved write: the plan computed again must carry the key approved on the card."""
+    try:
+        with _mirror() as conn:
+            plan = write_plan(conn, args)
+    except (DiscordError, store.StoreError) as exc:
+        return {"ok": False, "error": f"not done: {exc}"}
+    if not args.get("_approved") or args.get("_approved") != plan["key"]:
+        return {"ok": False, "error": "not done: this request is not the one approved on the card (or what it acts on "
+                                      "changed since); make the request again to get a new card"}
+    uncertain = UNCERTAIN_SET
+    try:
+        data = call_engine(plan["command"], plan["engine"], timeout=WRITE_TIMEOUT)
+    except (DiscordError, TimeoutError) as exc:
+        if str(exc) == NOT_SET_UP:
+            return {"ok": False, "error": f"not done: {exc}"}
+        return {"ok": False, "error": uncertain.format(detail=str(exc), check=plan["check"])}
+    outcome = data.get("outcome")
+    if outcome == "not_done":
+        return {"ok": False, "error": f"not done: {data.get('detail')}"}
+    if outcome != "done":
+        return {"ok": False, "error": uncertain.format(detail=data.get("detail") or "no confirmation",
+                                                       check=plan["check"])}
+    out = {"ok": True, "action": plan["action"], "note": plan["done"] + (" (it already was)" if data.get("already") else "")}
+    if data.get("confirmed"):
+        out["note"] += "; confirmed by reading it back after an unclear answer"
+    return out
+
+
+# The approval and bind hooks of one call share one plan, whichever runs first, so the key handed
+# to the handler is the card's own (a mirror update between the two hooks cannot slip in). A plan
+# that expires before its second hook leaves a marker, so that hook fails instead of making a new
+# plan; elapsed time is monotonic.
+_PLANS: dict = {}
+_EXPIRED: dict = {}
+EXPIRED_TTL = 3600
+
+
+def _request_digest(args: dict) -> str:
+    public = {k: v for k, v in args.items() if not k.startswith("_")}
+    return hashlib.sha256(json.dumps(public, ensure_ascii=False, sort_keys=True, default=str)
+                          .encode("utf-8")).hexdigest()
+
+
+def plan_for_call(args: dict, ids: dict, hook: str) -> dict:
+    key = (ids.get("session_id") or "", ids.get("task_id") or "", ids["tool_call_id"])
+    request, now = _request_digest(args), time.monotonic()
+    with _PENDING_LOCK:
+        for k in [k for k, v in _PLANS.items() if now - v["at"] > PENDING_TTL]:
+            _PLANS.pop(k)
+            _EXPIRED[k] = now
+        for k in [k for k, at in _EXPIRED.items() if now - at > EXPIRED_TTL]:
+            _EXPIRED.pop(k)
+        if key in _EXPIRED:
+            raise DiscordError("this call's card expired before it was bound; nothing was done, make the request again")
+        entry = _PLANS.get(key)
+        if entry is None:
+            with _mirror() as conn:
+                entry = _PLANS[key] = {"plan": write_plan(conn, args), "request": request, "at": now,
+                                       "hooks": set()}
+        elif entry["request"] != request:
+            raise DiscordError("the request changed while it was being prepared; nothing was done")
+        entry["hooks"].add(hook)
+        if entry["hooks"] >= {"gate", "bind"}:
+            _PLANS.pop(key, None)
+        return entry["plan"]
+
+
+def write_binding(args: dict, ids: dict | None = None) -> dict | None:
+    """The card's key for the handler (the ``modify`` hook). A call without an id gets none, so
+    it can never run."""
+    if not isinstance(args, dict) or args.get("action") not in WRITES - {"send"} or "_approved" in args:
         return None
+    if not (ids or {}).get("tool_call_id"):
+        return None
+    try:
+        return {"_approved": plan_for_call(args, ids, "bind")["key"]}
+    except (DiscordError, store.StoreError, sqlite3.Error):
+        return None
+
+
+def approval_request(args: dict, home: Path | None = None, ids: dict | None = None) -> tuple[str, str] | None:
+    """(card, allowlist rule key) for a write, None for anything else; raises for a write that
+    would fail anyway. For a send, files are frozen into this call's snapshot here and the key
+    binds the exact channel, text, reply and file contents; for other writes the key binds the
+    exact request."""
+    args = args if isinstance(args, dict) else {}
+    for private in ("_outbox", "_approved"):
+        if private in args:
+            raise DiscordError(f"{private} is set by the plugin, never by a caller")
+    action = action_of(args)
+    if action not in WRITES:
+        return None
+    if action != "send":
+        if (ids or {}).get("tool_call_id"):
+            plan = plan_for_call(args, ids, "gate")
+        else:
+            with _mirror() as conn:      # a card alone: without a call id nothing can be bound or run
+                plan = write_plan(conn, args)
+        return plan["card"], plan["key"]
     plan = send_plan(args, home=home)
     staged = None
     if plan["files"]:
@@ -1585,11 +1820,18 @@ READS = {"status": status, "guilds": guilds, "channels": channels, "dms": dms, "
          "members": members, "sync_list": sync_list, "sync_add": sync_add, "sync_remove": sync_remove}
 
 
+def binding(args: dict, home: Path | None = None, ids: dict | None = None) -> dict | None:
+    """Everything the bind hook hands the handler: a send's outbox token, another write's key."""
+    return outbox_binding(args, home=home, ids=ids) or write_binding(args, ids)
+
+
 def execute(args: dict, home: Path | None = None) -> dict:
     args = args if isinstance(args, dict) else {}
     action = action_of(args)
-    if action in WRITES:
+    if action == "send":
         return send(args, home=home)
+    if action in WRITES:
+        return write(args)
     if action == "media":
         return media(args, home=home)
     try:

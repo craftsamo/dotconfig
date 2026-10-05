@@ -338,6 +338,28 @@ def delete_message(conn: sqlite3.Connection, message_id) -> None:
     conn.execute("DELETE FROM messages WHERE id = ?", (int(message_id),))
 
 
+def adjust_reaction(conn: sqlite3.Connection, message_id, emoji: str, mine: bool) -> None:
+    """The user's own reaction added or removed, without reading the message again."""
+    row = conn.execute("SELECT reactions FROM messages WHERE id = ?", (int(message_id),)).fetchone()
+    if row is None:
+        return
+    try:
+        items = json.loads(row[0] or "[]")
+    except ValueError:
+        items = []
+    found = next((r for r in items if r.get("emoji") == emoji), None)
+    if mine and found is None:
+        items.append({"emoji": emoji, "count": 1, "me": True})
+    elif mine and not found.get("me"):
+        found.update(count=int(found.get("count") or 0) + 1, me=True)
+    elif not mine and found and found.get("me"):
+        found.update(count=int(found.get("count") or 0) - 1, me=False)
+        if found["count"] <= 0:
+            items.remove(found)
+    conn.execute("UPDATE messages SET reactions = ? WHERE id = ?",
+                 (json.dumps(items, ensure_ascii=False) if items else None, int(message_id)))
+
+
 # --- roles and members ----------------------------------------------------------------------------
 
 def role_row(r: dict, guild_id) -> dict:

@@ -774,6 +774,79 @@ def test_roles_store_the_list_counts_and_my_member():
                         conn), G)
 
 
+# --- writes -----------------------------------------------------------------------------------------
+
+THUMB = "\U0001F44D"
+
+
+def test_react_puts_the_encoded_emoji_and_counts_it():
+    conn = store.connect(write=True)
+    mid = flake(5)
+    mirrored(conn, mid)
+    path = f"/channels/{DM1}/messages/{mid}/reactions/%F0%9F%91%8D"
+    http = FakeHttp({("PUT", f"{path}/@me"): (204, {}, "")})
+    assert engine.react(client(http, conn), DM1, mid, THUMB, True)["outcome"] == "done"
+    assert http.api_calls()[0]["params"] == {"type": "0"}
+    assert json.loads(conn.execute("SELECT reactions FROM messages").fetchone()[0]) == [
+        {"emoji": THUMB, "count": 1, "me": True}]
+
+
+def test_unreact_falls_back_to_the_legacy_route_only_when_the_route_is_unknown():
+    conn = store.connect(write=True)
+    mid = flake(5)
+    mirrored(conn, mid)
+    path = f"/channels/{DM1}/messages/{mid}/reactions/x"
+    http = FakeHttp({("DELETE", f"{path}/0/@me"): (404, {}, {"message": "404: Not Found", "code": 0}),
+                     ("DELETE", f"{path}/@me"): (204, {}, "")})
+    assert engine.react(client(http, conn), DM1, mid, "x", False)["outcome"] == "done"
+    http = FakeHttp({("DELETE", f"{path}/0/@me"): (404, {}, {"message": "Unknown Message", "code": 10008})})
+    assert engine.react(client(http, conn), DM1, mid, "x", False)["outcome"] == "not_done"
+    assert len(http.api_calls()) == 1
+
+
+def test_edit_patches_once_and_stores_the_new_text():
+    conn = store.connect(write=True)
+    mid = flake(5)
+    mirrored(conn, mid)
+    http = FakeHttp({("PATCH", f"/channels/{DM1}/messages/{mid}"): (200, {}, msg(mid, DM1, author=ME, content="new"))})
+    assert engine.edit(client(http, conn), DM1, mid, "new")["outcome"] == "done"
+    body = http.api_calls()[0]["body"]
+    assert body["content"] == "new" and body["allowed_mentions"]["replied_user"] is False
+    assert conn.execute("SELECT content FROM messages").fetchone()[0] == "new"
+
+
+def test_an_ambiguous_edit_is_confirmed_by_one_read_back():
+    conn = store.connect(write=True)
+    mid = flake(5)
+    mirrored(conn, mid)
+    routes = {("PATCH", f"/channels/{DM1}/messages/{mid}"): (502, {}, "bad gateway"),
+              ("GET", f"/channels/{DM1}/messages"): (200, {}, [msg(mid, DM1, author=ME, content="new")])}
+    result = engine.edit(client(FakeHttp(routes), conn), DM1, mid, "new")
+    assert result["outcome"] == "done" and result["confirmed"]
+    routes[("GET", f"/channels/{DM1}/messages")] = (200, {}, [msg(mid, DM1, author=ME, content="old")])
+    http = FakeHttp(routes)
+    assert engine.edit(client(http, conn), DM1, mid, "new")["outcome"] == "uncertain"
+    assert len(http.api_calls("PATCH")) == 1
+
+
+def test_delete_of_a_message_already_gone_is_done():
+    conn = store.connect(write=True)
+    mid = flake(5)
+    mirrored(conn, mid)
+    http = FakeHttp({("DELETE", f"/channels/{DM1}/messages/{mid}"): (404, {}, {"message": "Unknown Message",
+                                                                              "code": 10008})})
+    result = engine.delete(client(http, conn), DM1, mid)
+    assert result["outcome"] == "done" and result["already"] and ids_in(conn) == []
+
+
+def test_a_write_that_cannot_start_is_not_done(monkeypatch):
+    def no_token():
+        raise engine.EngineError("setup", "no Discord token in the Keychain")
+    monkeypatch.setattr(engine, "read_token", no_token)
+    result = engine.run("react", {"channel": DM1, "id": flake(1), "emoji": "x"}, http=FakeHttp())
+    assert result == {"outcome": "not_done", "detail": "no Discord token in the Keychain", "kind": "setup"}
+
+
 def test_a_message_mirrored_during_a_newest_page_read_is_kept():
     conn = store.connect(write=True)
     a = flake(30)

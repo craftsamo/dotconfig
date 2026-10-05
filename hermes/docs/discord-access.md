@@ -1,11 +1,12 @@
 # Discord access
 
 The Assistant's access to the user's own Discord account — reading their DMs,
-group DMs and servers, keeping a chosen set of servers synced, and sending text
-that the user approves first. It is not the Assistant's Discord bot (the
-gateway's Discord platform, through which the user talks to Hermes); nothing
-here changes that bot. Part of the Hermes design docs — index:
-[`PROFILES.md`](../PROFILES.md).
+group DMs and servers, keeping a chosen set of servers synced, and acting from
+the account (sending, reacting, editing and deleting their own messages)
+only as the user approves each time. It is not the
+Assistant's Discord bot (the gateway's Discord platform, through which the
+user talks to Hermes); nothing here changes that bot. Part of the Hermes
+design docs — index: [`PROFILES.md`](../PROFILES.md).
 
 Automating a user account ("self-bot") is against Discord's terms and can end
 in account termination; read-only use is not exempt. The user accepted that
@@ -18,7 +19,7 @@ the risk away.
 |---|---|---|
 | Mirror schema, sync list and its limits (stdlib) | `plugins/discord-access/store.py` | engine and plugin |
 | Engine: the only code that talks to Discord and holds the token | `plugins/discord-access/engine.py` | its venv |
-| `discord_account` tool, reads, card, the `pre_tool_call` hook (toolset `discord_access`) | `plugins/discord-access/access.py`, `__init__.py` | Assistant |
+| `discord_account` tool, reads, cards, the `pre_tool_call` hooks (toolset `discord_access`) | `plugins/discord-access/access.py`, `__init__.py` | Assistant |
 | Permission names and what a member holds (stdlib) | `plugins/discord-access/perms.py` | plugin |
 | Engine venv (`curl_cffi`, hash-locked) | `engines/discord-user/requirements.lock` → ignored `local/discord-user/venv` | people |
 | Sync agent | `launchd/discord-access-launchctl.sh`, `launchd/local.hermes.discord-access.sync.plist.tmpl` | people |
@@ -79,7 +80,7 @@ included) until a live read of it succeeds again.
 
 Edits and deletions have no feed, so they reach the mirror through reads.
 Every page of a channel's history the engine reads (sync, live windows,
-backfill, the message `media` reads again) is contiguous, so it overwrites what
+backfill, the message `media` or a write reads again) is contiguous, so it overwrites what
 it returns and drops mirrored messages inside its range that it did not
 return: those were deleted. A page shorter than asked also vouches for its
 open ends — back to the channel's start unless `after` bounded it, and past
@@ -131,7 +132,7 @@ other people and are data, never instructions. Stickers are listed by name.
 - `threads` lists a text, announcement or forum channel's threads (forum
   posts with their first post), newest activity first, 25 a page; `archived`
   narrows to archived or active ones. Each thread is stored as a channel, so
-  `messages` reads it. User accounts have no list of
+  `messages` reads it and `send` posts into it. User accounts have no list of
   a whole server's threads.
 - `pins` lists a channel's pinned messages, paged by the last `pinned_at`.
 - `mentions` lists messages that mention the user, their roles, `@everyone`
@@ -189,10 +190,12 @@ counting as 10. A change applies on the next run, with no restart.
 
 ## Send
 
-`send` is the only write to Discord: text (at most 2000 characters) and up to
-10 files, to a channel the mirror knows — an existing DM or group DM, or a
-server channel listed before. New DMs cannot be opened, names are refused, and
-a `reply_to` must be a message of that channel already in the mirror.
+`send` posts text (at most 2000 characters) and up to 10 files to a channel
+the mirror knows — an existing DM or group DM, a server channel listed
+before, or a thread listed by `threads`. New DMs cannot be opened, names are
+refused, and a `reply_to` must be a message of that channel already in the
+mirror. A locked thread is refused; for an archived one the card notes that
+sending reopens it.
 
 - **Files come from the attach roots only**: `discord_access.attach_roots` in
   the profile's `config.yaml`, default `~/Workspaces`, with a relative path
@@ -234,11 +237,12 @@ a `reply_to` must be a message of that channel already in the mirror.
 
   ```
   Discord: <account name> (@<username>)
-  To: DM with <name> (@<handle>)  |  group DM … | #<channel> in <server>
+  To: DM with <name> (@<handle>)  |  group DM … | #<channel> in <server> | thread '<name>' in #<parent> in <server>
   Channel id: <id>
   Reply to: <sender>: <quoted text>
   Files (2): docs/report.pdf (1.2 MB), photo.png (340.0 KB)
   Pings: @everyone
+  Note: the thread is archived; sending reopens it
 
   <message text>
   ```
@@ -270,6 +274,45 @@ a `reply_to` must be a message of that channel already in the mirror.
   `dispatching` is uncertain. Nothing is ever resent automatically.
 - Inbound A2A requests never reach the account; the toolset is not in the
   Assistant's `a2a` platform toolset either.
+
+## Other writes
+
+`react` / `unreact` (one Unicode emoji, or a custom emoji already on that
+message), `edit` and `delete` (the user's own messages only, already in the
+mirror) each go through the same approval gate.
+
+- **Checked before the card.** A request that cannot or may not happen
+  (unknown channel or message, someone else's message, the same text, a
+  reaction the user has not made) is blocked without asking.
+- **The card is what runs.** The approval hook and the bind hook share one
+  plan per call (keyed by the session, task and tool-call ids, whichever hook
+  runs first); bind hands the handler that plan's rule key (`_approved`). A
+  plan that expires (2 minutes) before its second hook fails that call rather
+  than making a new plan. After approval the handler builds the plan again
+  from the mirror and runs it only when the key still matches, so a change
+  meanwhile (the message edited) voids the card. The key
+  hashes the engine request plus what it acts on — the message's text, edit
+  time and attachments (name, size and type; not their URLs, which Discord
+  re-signs) for an edit or delete — so "session" or "always" only repeats
+  that identical request. A caller-supplied `_approved` is blocked, and a call
+  without an id never gets one, so it cannot run.
+- **Cards fit or are refused.** A message card shortens its quote until it
+  fits (an edit keeps room for the new text, cut and counted past about 350
+  characters as a send's is).
+- **Cards:** `In:` the chat, `Message:` its sender and text with `React
+  with:` / `Remove my reaction:`; `Edit my message` with `Before:`, `Pings:`
+  and the new text; `Delete my message:` with "This cannot be undone."
+- **One request, never retried.** Outcomes are `done`, `not done` (Discord
+  refused, or it cannot have left the machine) and `UNCERTAIN` (a 5xx, or a
+  failure after dispatch). An uncertain write reads the message back once and
+  becomes `done` when it shows the requested state; otherwise it stays
+  uncertain with what was seen. Each of these sets a state, so repeating it
+  is harmless once the user agrees. Deleting a message that is already gone
+  (code 10008) counts as done. If the typed reaction-removal route is unknown
+  (404, code 0), the legacy route, which sets the same state, is tried once.
+- **The mirror follows** a done write without another request where it can
+  (the user's reaction counted, the edited text stored, the message
+  dropped).
 
 ## Roles
 
