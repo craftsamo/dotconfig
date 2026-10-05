@@ -1,4 +1,4 @@
-import { tool } from "@opencode-ai/plugin"
+import { tool } from "./define"
 
 /**
  * Generic GitHub Projects (v2) toolset, plus the issue-lifecycle operations

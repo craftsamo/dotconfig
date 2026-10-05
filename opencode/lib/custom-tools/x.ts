@@ -1,6 +1,4 @@
-import { tool } from "@opencode-ai/plugin"
-import { readFileSync } from "fs"
-import { homedir } from "os"
+import { tool, type ToolContext } from "./define"
 
 /**
  * X (Twitter) live search via xAI's server-side x_search agent tool.
@@ -11,26 +9,25 @@ import { homedir } from "os"
  * this is the current mechanism.
  *
  * Auth: XAI_API_KEY env when present (official, metered: ~$5/1k calls),
- * otherwise the xAI OAuth access token from opencode's auth store
+ * otherwise the xAI OAuth access token from opencode's credential store
  * (subscription tier — UNOFFICIAL path; may start returning 403 at any
- * time). The token is read fresh per call and never included in output or
+ * time), supplied by the plugin adapter (V1: auth.json, V2: integration
+ * store). The token is read fresh per call and never included in output or
  * error messages.
  */
 
-const AUTH_PATH = `${homedir()}/.local/share/opencode/auth.json`
 const API_URL = "https://api.x.ai/v1/responses"
 
-function resolveAuth(): { token: string; source: "api-key" | "oauth" } {
+async function resolveAuth(context: ToolContext): Promise<{ token: string; source: "api-key" | "oauth" }> {
   const key = process.env["XAI_API_KEY"]
   if (key) return { token: key, source: "api-key" }
-  let auth: any
+  let xai
   try {
-    auth = JSON.parse(readFileSync(AUTH_PATH, "utf8"))
+    xai = await context.oauthAccess("xai")
   } catch {
-    throw new Error("No XAI_API_KEY set and opencode auth store is unreadable.")
+    throw new Error("No XAI_API_KEY set and opencode credential store is unreadable.")
   }
-  const xai = auth?.xai
-  if (xai?.type !== "oauth" || !xai.access) {
+  if (!xai?.access) {
     throw new Error("No XAI_API_KEY set and no xAI OAuth credential found. Run `opencode auth login` for xAI, or set XAI_API_KEY.")
   }
   if (typeof xai.expires === "number" && xai.expires < Date.now()) {
@@ -60,11 +57,11 @@ export const search = tool({
       .optional()
       .describe("Model that drives the search loop. Default grok-4.3 (fast); use grok-4.5 for hard synthesis."),
   },
-  async execute(args) {
+  async execute(args, context) {
     if (args.allowedHandles?.length && args.excludedHandles?.length) {
       throw new Error("allowedHandles and excludedHandles are mutually exclusive.")
     }
-    const { token, source } = resolveAuth()
+    const { token, source } = await resolveAuth(context)
 
     const xSearch: Record<string, unknown> = { type: "x_search" }
     if (args.allowedHandles?.length) xSearch["allowed_x_handles"] = args.allowedHandles.map((h) => h.replace(/^@/, ""))
