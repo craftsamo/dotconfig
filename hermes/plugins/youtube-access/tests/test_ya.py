@@ -635,3 +635,103 @@ def test_one_ytdlp_call_at_a_time(monkeypatch):
     with ya._lock("ytdlp.lock"):
         with pytest.raises(ya.YouTubeError, match="another transcript or download"):
             ya.execute({"action": "transcript", "video": VID}, profile="marketer")
+
+
+# --- a Google account without a channel ------------------------------------------------------------
+
+def authorize_account_only():
+    ya._save_channels({ya.ACCOUNT: {"title": ya.ACCOUNT_TITLE, "handle": None}})
+
+
+def test_an_account_without_a_channel_serves_public_reads(api):
+    authorize_account_only()
+    assert ya.resolve_channel(None, None)[0] == ya.ACCOUNT
+    api.answers = {"videos.list": {"items": [video_item(channel=CID2)]}}
+    out = ya.execute({"action": "videos", "video": VID}, profile="marketer")
+    assert out["videos"][0]["id"] == VID
+    for action in ("my_videos", "analytics"):
+        with pytest.raises(ya.YouTubeError, match="needs a channel"):
+            ya.execute({"action": action}, profile="marketer")
+    with pytest.raises(ya.YouTubeError, match="not an authorized channel"):
+        ya.resolve_channel("@someone", None)
+
+
+def test_an_account_without_a_channel_never_writes(api, tmp_path):
+    authorize_account_only()
+    args = {"action": "update", "video": VID, "title": "x"}
+    with pytest.raises(ya.YouTubeError, match="needs a channel"):
+        ya.approval_request(args, profile="assistant", lookup=False)
+    assert ya.binding(args, profile="assistant") == {"_bound": None}
+    with pytest.raises(ya.YouTubeError, match="not bound"):
+        ya.execute({**args, "_bound": None}, profile="assistant", bound=True)
+    with pytest.raises(ya.YouTubeError, match="no longer authorized"):
+        ya.execute({**args, "_bound": {"channel": ya.ACCOUNT}}, profile="assistant", bound=True)
+    assert api.calls == []
+
+
+def test_a_real_channel_wins_over_the_account(api):
+    ya._save_channels({ya.ACCOUNT: {"title": ya.ACCOUNT_TITLE}, CID: {"title": "Mine", "handle": "@mine"}})
+    assert ya.resolve_channel(None, None)[0] == CID
+    assert ya.resolve_channel(None, None, own=True)[0] == CID
+
+
+def test_status_explains_the_account_without_a_channel():
+    authorize_account_only()
+    out = ya.execute({"action": "status"}, profile="marketer")
+    assert out["authorized"] and out["channel_less_account"] and out["channels"] == []
+    assert "need a channel" in out["note"]
+
+
+def test_check_files_a_new_channel_under_the_account(tmp_path, monkeypatch, api):
+    fake_secret(tmp_path, monkeypatch)
+    authorize_account_only()
+    token = {"refresh_token": "rt", "client_id": "c", "client_secret": "s", "scopes": list(ya.SCOPES)}
+    ya._vault_update(lambda d: d["channels"].__setitem__(ya.ACCOUNT, dict(token)))
+    api.answers = {"channels.list": {"items": []}}
+    assert "still no channel" in ya._adopt_account()
+    assert set(ya.channels()) == {ya.ACCOUNT}
+    api.answers = {"channels.list": {"items": [{"id": CID, "snippet": {"title": "New", "customUrl": "@new"}}]}}
+    assert "now has the channel New" in ya._adopt_account()
+    assert set(ya.channels()) == {CID} and ya.channels()[CID]["handle"] == "@new"
+    assert ya.vault()["channels"] == {CID: token}
+    assert ya._adopt_account() is None
+
+
+def test_adopting_never_replaces_a_channel_already_authorized(tmp_path, monkeypatch, api):
+    fake_secret(tmp_path, monkeypatch)
+    ya._save_channels({ya.ACCOUNT: {"title": ya.ACCOUNT_TITLE}, CID: {"title": "Mine"}})
+    ya._vault_update(lambda d: d["channels"].update({ya.ACCOUNT: {"refresh_token": "old"},
+                                                     CID: {"refresh_token": "fresh"}}))
+    api.answers = {"channels.list": {"items": [{"id": CID, "snippet": {"title": "Mine"}}]}}
+    ya._adopt_account()
+    assert ya.vault()["channels"] == {CID: {"refresh_token": "fresh"}}
+    assert set(ya.channels()) == {CID}
+
+
+def test_auth_keeps_an_account_without_a_channel(tmp_path, monkeypatch, capsys):
+    pytest.importorskip("google_auth_oauthlib")
+    import google_auth_oauthlib.flow as flow_module
+    import googleapiclient.discovery as discovery
+    fake_secret(tmp_path, monkeypatch)
+    secret_file = tmp_path / "client.json"
+    secret_file.write_text(json.dumps({"installed": {}}))
+    creds = type("Creds", (), {"refresh_token": "rt", "client_id": "c", "client_secret": "s",
+                               "granted_scopes": list(ya.SCOPES)})()
+
+    class Flow:
+        @classmethod
+        def from_client_secrets_file(cls, path, scopes):
+            return cls()
+
+        def run_local_server(self, **kwargs):
+            return creds
+
+    items = []
+    monkeypatch.setattr(flow_module, "InstalledAppFlow", Flow)
+    monkeypatch.setattr(discovery, "build", lambda *a, **k: FakeAPI({"channels.list": lambda kw: {"items": items}}))
+    assert ya.main(["auth", str(secret_file)]) == 0
+    assert set(ya.channels()) == {ya.ACCOUNT} and "without a channel" in capsys.readouterr().out
+    items.append({"id": CID, "snippet": {"title": "Mine", "customUrl": "@mine"}})
+    monkeypatch.setattr(ya, "_service", lambda cid, read_only, *a: FakeAPI({"channels.list": {"items": items}}))
+    assert ya.main(["auth", str(secret_file)]) == 0  # the same account, now with a channel
+    assert set(ya.channels()) == {CID} and set(ya.vault()["channels"]) == {CID}

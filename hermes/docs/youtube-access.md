@@ -43,6 +43,19 @@ one consent covers one channel, so `auth` is repeated per channel. Scopes:
 playlists) and `yt-analytics.readonly`. The OAuth app must be published "In
 production": a "Testing" app's refresh tokens expire after seven days.
 
+A Google account without a YouTube channel can be authorized too. Its token
+is kept under the id `account` and serves the public reads (search, videos,
+channels, playlists, comments, plus transcripts and downloads, which need no
+token at all) only while no real channel is authorized; `my_videos`,
+`analytics` and every write refuse with a message that a channel is needed,
+and `status` says the authorization has no channel. When the user later
+creates a channel on that account, `yaccess check` (or the next `yaccess
+auth`) asks Google again and files the same token under the new channel, with
+no new consent. A brand-account channel is a different identity, so it needs
+`yaccess auth` with that channel picked. Moving or dropping the `account`
+entry never revokes its token: Google revokes a whole grant with one token,
+and that grant may be the one a channel entry uses.
+
 Every channel's refresh token (with the client id and secret it belongs to)
 lives only in the Keychain, as one JSON item `YOUTUBE_OAUTH` in the `hermes`
 project under the scope `youtube-access` — the arrangement the X cookies
@@ -203,7 +216,8 @@ a sandbox.
    production".
 3. `yaccess auth ~/Downloads/client_secret.json` once per channel, picking
    the channel on Google's chooser (unverified-app warning: Advanced →
-   continue). `yaccess channels` lists them, `yaccess check` refreshes each
+   continue). An account without a channel yet works for public reads; run
+   `yaccess check` after creating its channel. `yaccess channels` lists them, `yaccess check` refreshes each
    token and shows whether reads get a read-only token, `yaccess revoke
    CHANNEL` revokes one.
 4. In the Assistant's and Marketer's `config.yaml`: the `youtube_access`
