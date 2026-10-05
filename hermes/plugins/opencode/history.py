@@ -485,8 +485,12 @@ class Snapshot:
         self.path = path
         self.version_factory = version_factory
 
+    def _columns(self, table):
+        return {row[1] for row in self.conn.execute(f"PRAGMA table_info({table})")}
+
     def _schema(self):
         tables = {row[0] for row in self.conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
+        self.tables = tables
         v1, v2 = "session" in tables, "session_v2" in tables
         if v1 and v2:
             if self.version_factory is None:
@@ -515,6 +519,13 @@ class Snapshot:
             if self.schema == 2:
                 # V2 keeps tool calls inside the assistant message, so waits are always readable.
                 self.has_parts = True
+                # OpenCode 2 imports V1 messages with time.completed set to the V1
+                # row's last update (a later revert, fork or compaction), and their
+                # tool times likewise, so a V1 message's own record wins while the
+                # V1 tables remain (measured on 2.0.23: ~11% of imported steps).
+                self.legacy = ("message" in self.tables and "part" in self.tables
+                               and MESSAGE_COLUMNS <= self._columns("message")
+                               and PART_COLUMNS <= self._columns("part"))
             else:
                 have = {row[1] for row in self.conn.execute("PRAGMA table_info(part)")}
                 self.has_parts = PART_COLUMNS <= have
@@ -560,15 +571,19 @@ class Snapshot:
             chunk = ids[start:start + 500]
             marks = ",".join("?" * len(chunk))
             if self.schema == 2:
+                completed = ("coalesce(json_extract(o.data, '$.time.completed'), "
+                             "json_extract(m.data, '$.time.completed'))" if self.legacy
+                             else "json_extract(m.data, '$.time.completed')")
+                join = "LEFT JOIN message AS o ON o.id = m.id " if self.legacy else ""
                 out.extend(self.conn.execute(
-                    "SELECT session_id, json_extract(data, '$.model.providerID'), "
-                    "json_extract(data, '$.model.id'), json_extract(data, '$.agent'), "
-                    "json_extract(data, '$.time.created'), json_extract(data, '$.time.completed'), "
-                    "json_extract(data, '$.tokens.input'), json_extract(data, '$.tokens.output'), "
-                    "json_extract(data, '$.tokens.reasoning'), json_extract(data, '$.tokens.cache.read'), "
-                    "json_extract(data, '$.tokens.cache.write'), json_extract(data, '$.cost') "
-                    f"FROM session_message WHERE session_id IN ({marks}) AND time_created < ? "
-                    "AND type = 'assistant'", (*chunk, to_ms)))
+                    "SELECT m.session_id, json_extract(m.data, '$.model.providerID'), "
+                    "json_extract(m.data, '$.model.id'), json_extract(m.data, '$.agent'), "
+                    f"json_extract(m.data, '$.time.created'), {completed}, "
+                    "json_extract(m.data, '$.tokens.input'), json_extract(m.data, '$.tokens.output'), "
+                    "json_extract(m.data, '$.tokens.reasoning'), json_extract(m.data, '$.tokens.cache.read'), "
+                    "json_extract(m.data, '$.tokens.cache.write'), json_extract(m.data, '$.cost') "
+                    f"FROM session_message AS m {join}WHERE m.session_id IN ({marks}) AND m.time_created < ? "
+                    "AND m.type = 'assistant'", (*chunk, to_ms)))
                 continue
             out.extend(self.conn.execute(
                 "SELECT session_id, json_extract(data, '$.providerID'), json_extract(data, '$.modelID'), "
@@ -586,27 +601,33 @@ class Snapshot:
         out = {}
         ids = list(session_ids)
         tools = ",".join("?" * len(WAIT_TOOLS))
+        v1_parts = ("SELECT session_id, json_extract(data, '$.state.time.start'), "
+                    "json_extract(data, '$.state.time.end') FROM part "
+                    "WHERE session_id IN ({marks}) AND time_created < ? "
+                    "AND json_extract(data, '$.type') = 'tool' "
+                    f"AND json_extract(data, '$.tool') IN ({tools})")
+        queries = [v1_parts]
         if self.schema == 2:
             # Tool calls are entries of the assistant message's content array;
-            # only their type, name and times are extracted.
-            query = ("SELECT m.session_id, coalesce(json_extract(c.value, '$.time.ran'), "
-                     "json_extract(c.value, '$.time.created')), json_extract(c.value, '$.time.completed') "
-                     "FROM session_message AS m, json_each(m.data, '$.content') AS c "
-                     "WHERE m.session_id IN ({marks}) AND m.time_created < ? AND m.type = 'assistant' "
-                     "AND json_extract(c.value, '$.type') = 'tool' "
-                     f"AND json_extract(c.value, '$.name') IN ({tools})")
-        else:
-            query = ("SELECT session_id, json_extract(data, '$.state.time.start'), "
-                     "json_extract(data, '$.state.time.end') FROM part "
-                     "WHERE session_id IN ({marks}) AND time_created < ? "
-                     "AND json_extract(data, '$.type') = 'tool' "
-                     f"AND json_extract(data, '$.tool') IN ({tools})")
+            # only their type, name and times are extracted. Imported V1
+            # messages take their waits from the V1 parts instead.
+            queries = [("SELECT m.session_id, coalesce(json_extract(c.value, '$.time.ran'), "
+                        "json_extract(c.value, '$.time.created')), json_extract(c.value, '$.time.completed') "
+                        "FROM session_message AS m, json_each(m.data, '$.content') AS c "
+                        "WHERE m.session_id IN ({marks}) AND m.time_created < ? AND m.type = 'assistant' "
+                        "AND json_extract(c.value, '$.type') = 'tool' "
+                        f"AND json_extract(c.value, '$.name') IN ({tools})"
+                        + (" AND NOT EXISTS (SELECT 1 FROM message AS o WHERE o.id = m.id)"
+                           if self.legacy else ""))]
+            if self.legacy:
+                queries.append(v1_parts)
         for start in range(0, len(ids), 500):
             chunk = ids[start:start + 500]
             marks = ",".join("?" * len(chunk))
-            for sid, begin, end in self.conn.execute(query.format(marks=marks), (*chunk, to_ms, *WAIT_TOOLS)):
-                if type(begin) is int and type(end) is int and end > begin:
-                    out.setdefault(sid, []).append((begin, end))
+            for query in queries:
+                for sid, begin, end in self.conn.execute(query.format(marks=marks), (*chunk, to_ms, *WAIT_TOOLS)):
+                    if type(begin) is int and type(end) is int and end > begin:
+                        out.setdefault(sid, []).append((begin, end))
         for spans in out.values():
             spans.sort()
         return out

@@ -592,3 +592,32 @@ def test_database_with_both_schemas_follows_the_installed_version(tmp_path):
     with pytest.raises(history.Unavailable, match="1 and 2"):
         with history.Snapshot(str(path)):
             pass
+
+
+def test_v2_usage_prefers_the_v1_record_of_imported_messages(tmp_path):
+    """OpenCode 2 imports V1 steps with time.completed (and tool times) set to the
+    V1 row's last update; while the V1 tables remain, their own times win."""
+    path = tmp_path / "imported.db"
+    conn = sqlite3.connect(path)
+    _schema(conn)
+    _v2_schema(conn)
+    _session(conn, "ses_root", FROM + H, FROM + 10 * H)
+    _v2_session(conn, "ses_root", FROM + H, FROM + 10 * H)
+    # Imported step: V1 says 60 min with a 45 min question wait inside.
+    _step(conn, "m1", "ses_root", FROM + H, FROM + 2 * H)
+    _wait(conn, "p1", "ses_root", FROM + H + 10 * 60000, FROM + H + 55 * 60000)
+    # Its V2 copy claims it ran until hour 9, with the wait stretched as well.
+    _v2_step(conn, "m1", "ses_root", FROM + H, FROM + 9 * H,
+             waits=[(FROM + H + 10 * 60000, FROM + 9 * H, "question")])
+    # A step written natively by OpenCode 2 keeps its own times.
+    _v2_step(conn, "m2", "ses_root", FROM + 3 * H, FROM + 3 * H + 30 * 60000,
+             waits=[(FROM + 3 * H + 5 * 60000, FROM + 3 * H + 10 * 60000, "question")])
+    conn.commit()
+    conn.close()
+    result = history.run({"action": "usage", "source": "db", "from": history._iso(FROM),
+                          "to": history._iso(TO)}, path_factory=lambda: str(path),
+                         version_factory=lambda: 2)
+    totals = result["totals"]
+    assert totals["messages"] == 2
+    assert totals["question_wait_seconds"] == (45 + 5) * 60
+    assert totals["active_seconds"] == (60 - 45 + 30 - 5) * 60
