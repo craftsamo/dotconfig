@@ -1,9 +1,11 @@
-"""x-access: the Assistant's read-only view of X (Twitter), signed in as a separate sub-account.
+"""x-access: a read-only view of X (Twitter) for the Assistant and Marketer, signed in as a separate sub-account.
 
 One tool, ``x`` (toolset ``x_access``), run by ``xa.py`` beside this file, which calls twscrape
 through ``bridge.py`` in an isolated venv. There is no write path at all: no posting, replying,
 liking, following or DMs. A ``pre_tool_call`` hook blocks terminal and file calls that would go
-around the tool. Contract: docs/x-access.md.
+around the tool. Both profiles share the sub-account's pacing and caps (``~/.x-access``). Inbound
+A2A requests may read only on Marketer (an inquiry-only endpoint); the Assistant refuses them.
+Contract: docs/x-access.md.
 """
 
 from __future__ import annotations
@@ -13,7 +15,8 @@ import json
 from pathlib import Path
 import sys
 
-PROFILES = {"assistant"}
+PROFILES = {"assistant", "marketer"}
+A2A_PROFILES = {"marketer"}
 TOOLSET = "x_access"
 TOOL = "x"
 LIMIT = 60000
@@ -69,7 +72,7 @@ PROPERTIES = {
 
 
 def _inbound_peer():
-    """A peer agent's A2A request never reads X as the user's sub-account."""
+    """Whether this turn is a peer agent's inbound A2A request."""
     try:
         from gateway.session_context import get_session_env
     except Exception:
@@ -86,10 +89,21 @@ def _home():
         return None
 
 
-def x(args, **kwargs):
+def _refused(profile):
+    """An inbound A2A request reads only on an A2A profile whose own home is bound to this turn."""
+    if not _inbound_peer():
+        return None
+    home = _home()
+    if profile in A2A_PROFILES and home is not None and Path(home).name == profile:
+        return None
+    return f"{TOOL} is not available to inbound A2A requests here"
+
+
+def run(args, profile):
     try:
-        if _inbound_peer():
-            raise xa.XError(f"{TOOL} is not available to inbound A2A requests")
+        refusal = _refused(profile)
+        if refusal:
+            raise xa.XError(refusal)
         text = json.dumps(xa.execute(args if isinstance(args, dict) else {}, home=_home()), ensure_ascii=False)
         if len(text) > LIMIT:
             return json.dumps({"ok": False, "error": f"result is {len(text)} characters; narrow it with a "
@@ -99,24 +113,36 @@ def x(args, **kwargs):
         return json.dumps({"ok": False, "error": str(exc)}, ensure_ascii=False)
 
 
-def gate(**kwargs):
-    """pre_tool_call: no inbound A2A use, and a block for ways around the tool."""
+def check(profile, **kwargs):
+    """pre_tool_call: the A2A rule for the tool, and a block for ways around it."""
     tool = kwargs.get("tool_name")
     if tool == TOOL:
-        if _inbound_peer():
-            return {"action": "block", "message": f"{TOOL} is not available to inbound A2A requests"}
-        return None
+        refusal = _refused(profile)
+        return {"action": "block", "message": refusal} if refusal else None
     message = xa.bypass(tool, kwargs.get("args"))
     if message:
         return {"action": "block", "message": message}
     return None
 
 
+def handler_for(profile):
+    def x(args, **kwargs):
+        return run(args, profile)
+    return x
+
+
+def gate_for(profile):
+    def gate(**kwargs):
+        return check(profile, **kwargs)
+    return gate
+
+
 def register(ctx):
-    if ctx.profile_name not in PROFILES:
+    profile = ctx.profile_name
+    if profile not in PROFILES:
         return
-    ctx.register_tool(name=TOOL, toolset=TOOLSET, handler=x, description=DESCRIPTION,
+    ctx.register_tool(name=TOOL, toolset=TOOLSET, handler=handler_for(profile), description=DESCRIPTION,
                       schema={"name": TOOL, "description": DESCRIPTION, "parameters": {
                           "type": "object", "properties": PROPERTIES, "required": ["action"],
                           "additionalProperties": False}})
-    ctx.register_hook("pre_tool_call", gate)
+    ctx.register_hook("pre_tool_call", gate_for(profile))
