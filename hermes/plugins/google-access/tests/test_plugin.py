@@ -25,6 +25,15 @@ def fake_tree(monkeypatch):
     monkeypatch.setattr(plugin.access, "_command_tree", lambda: TREE)
     monkeypatch.setattr(plugin, "_card_home", lambda: None)  # cards never reach a real account
 
+@pytest.fixture(autouse=True)
+def empty_keychain(tmp_path_factory, monkeypatch):
+    """A ``secret`` CLI that holds nothing, so no test reaches the real Keychain."""
+    script = tmp_path_factory.mktemp("keychain") / "secret"
+    script.write_text("#!/bin/sh\nexit 1\n")
+    script.chmod(0o755)
+    monkeypatch.setattr(plugin.access, "SECRET", script)
+    plugin.access._CREDS.clear()
+
 
 class Ctx:
     def __init__(self, profile):

@@ -19,13 +19,25 @@ every Workspace scope at once and keeps one unscoped token.
 
 ## Account, scopes and state
 
-One Google account per profile. State lives in
-`~/.hermes/profiles/<profile>/google-access/`, outside every repository:
+One Google account per profile, kept outside every repository:
 
-| State | Content |
-|---|---|
-| `token.json` (0600) | OAuth token for `spreadsheets`, `gmail.readonly`, `gmail.send`, `drive.readonly`, `drive.file` |
-| `gcloud/` | Hermes' own gcloud configuration (`CLOUDSDK_CONFIG`) |
+| State | Home | Content |
+|---|---|---|
+| OAuth token | Keychain item `GOOGLE_OAUTH_<PROFILE>` (project `hermes`, scope `google-access`) | refresh token, client id and secret, granted scopes: `spreadsheets`, `gmail.readonly`, `gmail.send`, `drive.readonly`, `drive.file` |
+| `gcloud/` | `~/.hermes/profiles/<profile>/google-access/` | Hermes' own gcloud configuration (`CLOUDSDK_CONFIG`) |
+| `token.generation` | the same directory | no secret: a random mark rewritten each time the token is stored |
+
+The token sits in a Keychain scope no Hermes profile receives (the
+arrangement the YouTube and X credentials use), so it never enters a
+profile's secret layer, the gateway's environment or a CLI session; the
+engine reads it with the `secret` CLI when a profile's first call needs it
+and keeps access tokens only in memory. Values reach the CLI through stdin,
+never argv. A `token.json` an earlier version left in the state directory is
+moved into the Keychain on first use (stored, read back, then deleted; kept
+if the Keychain refuses), but only while no generation mark exists: once the
+Keychain has held the token, an item that reads as missing is reported as
+unreadable instead of being replaced by an old file. gcloud's own login
+stays a file: `credentials.db` belongs to gcloud.
 
 Drive downloads go to `google_access.download_dir` from the profile's
 `config.yaml` (the Assistant uses `~/Workspaces/.inbox/google`), else
@@ -180,12 +192,22 @@ The hook decides before a tool runs; the rule is `approval_request` in
 The same hook blocks terminal commands that run `gcloud`, `gsutil`, `bq` or
 `gaccess`, and terminal or file-tool calls whose command, working directory
 or path names the upstream Workspace scripts, `CLOUDSDK_*`,
-`~/.config/gcloud` or this plugin's state directory (only the plugin source
-under `plugins/` excepted). It is a pattern match on the call's text, not a
+`~/.config/gcloud`, this plugin's state directory (only the plugin source
+under `plugins/` excepted), its Keychain item or scope, or a whole-Keychain
+read (`dump-keychain`, `secret export`). It is a pattern match on the call's text, not a
 sandbox: it stops ordinary use, not a determined script.
 
-Token refreshes are serialized by a lock file beside the token and written
-through a unique temporary file; downloads create their file name
+Token refreshes run one at a time, the HTTP transport's own (on expiry or a
+401) included, and a refresh token Google rotates is stored only over the one
+it was refreshed from. Keychain read-modify-writes are serialized by a lock
+file in the state directory, and an item that exists but cannot be read
+(a locked keychain) stops them instead of being replaced. Every store is
+read back before it counts. A process holding credentials from an older
+generation mark, or a cached token Google refuses or that lacks a scope,
+reads the Keychain again, so a new `gaccess auth` or `revoke` reaches the
+running gateway without a restart. `revoke` fails unless the item is
+confirmed gone.
+Downloads create their file name
 exclusively, never overwriting and never writing through a symlink at that
 name.
 
@@ -199,13 +221,14 @@ Once per account, in a terminal:
    is expected for personal use); a **Desktop app** OAuth client, downloaded
    as JSON.
 2. `gaccess auth ~/Downloads/client_secret_….json` — consent in the browser;
-   reports scopes left unchecked. The client JSON is not kept (the token
-   carries the client id).
+   reports scopes left unchecked and stores the token in the Keychain. The
+   client JSON is not kept (the stored token carries the client id and
+   secret).
 3. `gaccess gcloud-login` — `gcloud auth login` into the profile's
    configuration.
 4. `gaccess check`. Enabling the plugin or changing its code needs a gateway
    restart.
 
-`gaccess revoke` revokes and deletes the Google token. `--profile NAME` sets
+`gaccess revoke` revokes the Google token and removes it from the Keychain. `--profile NAME` sets
 up another profile, which also needs the plugin's `PROFILES` and its own
 `plugins.enabled` and `platform_toolsets` entries.
