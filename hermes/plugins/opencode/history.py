@@ -5,7 +5,12 @@ bound to loopback with a one-shot password and stops it before returning. The
 guarded read-only SQLite route is used only where the API has no equivalent —
 message-level usage and activity, whose API form carries message content — or
 as a disclosed fallback when the API is unavailable. Message content is never
-read. Titles and costs are withheld unless the caller asks for them.
+returned. Titles and costs are withheld unless the caller asks for them.
+
+OpenCode 1 and 2 are both supported. The installed major version picks the
+server command and API routes; the database schema is detected from its tables
+(V1: session/message/part, V2: session_v2/session_message), and the installed
+version only breaks the tie when a database carries both.
 
 Stdlib only: cron scripts run this file as a CLI, the Hermes tool imports it.
 """
@@ -70,6 +75,12 @@ SESSION_COLUMNS = {"id", "project_id", "parent_id", "directory", "title", "versi
                    "tokens_output", "tokens_reasoning", "tokens_cache_read", "tokens_cache_write"}
 MESSAGE_COLUMNS = {"id", "session_id", "time_created", "data"}
 PART_COLUMNS = {"session_id", "time_created", "data"}
+V2_MESSAGE_COLUMNS = {"id", "session_id", "type", "time_created", "data"}
+VERSION = re.compile(r"(\d+)\.(\d+)\.(\d+)")
+# V2 lists sessions newest-updated first in cursor pages; stop well before any
+# real store could loop forever on a broken cursor.
+API_PAGE = 200
+API_MAX_PAGES = 1000
 # Tools whose run time is the model waiting on a person, not working. A step
 # (assistant message) spans its tool calls, so without this a question left
 # unanswered overnight would count as hours of activity.
@@ -79,6 +90,31 @@ WAIT_TOOLS = ("question",)
 class ApiNotFound(Unavailable):
     """The API has no such session. Auto mode confirms against the database, which
     also covers a server that scopes lookups to its own project."""
+
+
+def child_env(extra=None):
+    """The caller's environment without Hermes' own turn state or OpenCode run policy."""
+    env = {k: v for k, v in os.environ.items()
+           if not k.startswith(("HERMES_", "RESIDENT_"))
+           and k not in {"OPENCODE_PERMISSION", "OPENCODE_CONFIG_CONTENT"}}
+    env.update(extra or {})
+    return env
+
+
+def opencode_major(executable="opencode"):
+    """Major version of the OpenCode CLI on PATH (`1.18.34` or `opencode v2.0.23`)."""
+    try:
+        proc = subprocess.run([executable, "--version"], capture_output=True, text=True, timeout=30,
+                              stdin=subprocess.DEVNULL, env=child_env())
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise Unavailable(f"opencode --version failed: {exc.__class__.__name__}") from None
+    match = VERSION.search(proc.stdout)
+    if proc.returncode or not match:
+        raise Unavailable("opencode --version did not report a version")
+    major = int(match.group(1))
+    if major not in (1, 2):
+        raise Unavailable(f"unsupported OpenCode major version {major}")
+    return major
 
 
 # --------------------------------------------------------------------------
@@ -177,7 +213,10 @@ def _from_api(item):
     summary = item.get("summary")
     changes = ({k: _num(summary.get(k)) for k in ("additions", "deletions", "files")}
                if isinstance(summary, dict) else None)
-    return _record(item.get("id"), item.get("parentID"), item.get("projectID"), item.get("directory"),
+    # V1 carries `directory`; V2 nests it in `location` and has no version or summary.
+    location = item.get("location") if isinstance(item.get("location"), dict) else {}
+    directory = item.get("directory") or location.get("directory")
+    return _record(item.get("id"), item.get("parentID"), item.get("projectID"), directory,
                    item.get("title"), item.get("version"), t.get("created"), t.get("updated"),
                    t.get("archived"), item.get("agent"), item.get("model"), item.get("cost"),
                    {"input": tokens.get("input"), "output": tokens.get("output"),
@@ -241,33 +280,40 @@ def _select(records, q):
 
 
 def _child_env(password):
-    env = {k: v for k, v in os.environ.items()
-           if not k.startswith(("HERMES_", "RESIDENT_"))
-           and k not in {"OPENCODE_PERMISSION", "OPENCODE_CONFIG_CONTENT"}}
-    env.update(OPENCODE_SERVER_USERNAME="opencode", OPENCODE_SERVER_PASSWORD=password)
-    return env
+    # V1 reads OPENCODE_SERVER_*; V2 keeps that password as a legacy alias of
+    # OPENCODE_PASSWORD and fixes the username to "opencode".
+    return child_env({"OPENCODE_SERVER_USERNAME": "opencode", "OPENCODE_SERVER_PASSWORD": password,
+                      "OPENCODE_PASSWORD": password})
 
 
 class ApiServer:
-    """`opencode serve --pure` on 127.0.0.1 with a random password; always stopped."""
+    """A private `opencode serve` on 127.0.0.1 with a random password; always stopped.
 
-    def __init__(self, executable="opencode"):
+    V1 runs `--pure` (no external plugins). V2 has no such flag: its foreground
+    server is already separate from the shared background service, but it does
+    load the configured plugins."""
+
+    def __init__(self, executable="opencode", major=None):
         self.executable = executable
+        self.major = major
         self.proc = None
         self.workdir = None
         self.base = None
         self.version = None
 
     def __enter__(self):
+        if self.major is None:
+            self.major = opencode_major(self.executable)
         password = secrets.token_urlsafe(32)
         self.auth = "Basic " + base64.b64encode(f"opencode:{password}".encode()).decode()
         self.workdir = tempfile.mkdtemp(prefix="opencode-history-")
         log = Path(self.workdir) / "serve.log"
+        command = [self.executable, "serve", *(["--pure"] if self.major == 1 else []),
+                   "--hostname", "127.0.0.1", "--port", "0"]
         try:
             with open(log, "wb") as out:
                 self.proc = subprocess.Popen(
-                    [self.executable, "serve", "--pure", "--hostname", "127.0.0.1", "--port", "0"],
-                    cwd=self.workdir, env=_child_env(password), stdin=subprocess.DEVNULL,
+                    command, cwd=self.workdir, env=_child_env(password), stdin=subprocess.DEVNULL,
                     stdout=out, stderr=subprocess.STDOUT, start_new_session=True)
         except OSError as exc:
             self._cleanup()
@@ -284,12 +330,20 @@ class ApiServer:
                 time.sleep(0.05)
             else:
                 raise Unavailable("opencode serve did not start in time")
-            try:
-                health = self.get("/global/health")
-            except LookupError:
-                raise Unavailable("opencode serve has no health endpoint") from None
-            if not isinstance(health, dict) or health.get("healthy") is not True:
-                raise Unavailable("opencode serve reported unhealthy")
+            if self.major == 1:
+                try:
+                    health = self.get("/global/health")
+                except LookupError:
+                    raise Unavailable("opencode serve has no health endpoint") from None
+                if not isinstance(health, dict) or health.get("healthy") is not True:
+                    raise Unavailable("opencode serve reported unhealthy")
+            else:
+                try:
+                    health = self.get("/api/info")
+                except LookupError:
+                    raise Unavailable("opencode serve has no info endpoint") from None
+                if not isinstance(health, dict):
+                    raise Unavailable("opencode serve returned no server info")
             self.version = health.get("version") if isinstance(health.get("version"), str) else None
         except BaseException:
             self._cleanup()
@@ -331,7 +385,35 @@ class ApiServer:
         return False
 
 
+def _api_pages(server, params, stop_before=None):
+    """V2 `/api/session` pages, newest-updated first, until the cursor ends or a
+    session was last updated before `stop_before` (later pages only get older)."""
+    out, cursor = [], None
+    for _ in range(API_MAX_PAGES):
+        page = server.get("/api/session", {**params, "limit": API_PAGE, "order": "desc",
+                                           **({"cursor": cursor} if cursor else {})})
+        if not isinstance(page, dict) or not isinstance(page.get("data"), list) \
+                or not isinstance(page.get("cursor"), dict):
+            raise Unavailable("unexpected API list shape")
+        for item in page["data"]:
+            rec = _from_api(item)
+            if stop_before is not None and rec["updated_ms"] < stop_before:
+                return out
+            out.append(rec)
+        cursor = page["cursor"].get("next")
+        if not cursor or not page["data"]:
+            return out
+    raise Unavailable("API list did not end; it may be truncated")
+
+
 def _api_list(server, q):
+    if server.major != 1:
+        try:
+            return _api_pages(server, {**({"parentID": "null"} if q["kind"] == "root" else {}),
+                                       **({"search": q["search"]} if q.get("search") else {})},
+                              stop_before=q["from"])
+        except LookupError:
+            raise Unavailable("API has no all-project session list") from None
     params = {"roots": "true" if q["kind"] == "root" else "false", "limit": API_LIST_LIMIT,
               "archived": "true" if q["archived"] else "false"}
     if q["from"] is not None:
@@ -351,6 +433,9 @@ def _api_list(server, q):
 
 def _api_get(server, sid):
     try:
+        if server.major != 1:
+            body = server.get(f"/api/session/{sid}")
+            return _from_api(body.get("data") if isinstance(body, dict) else None)
         return _from_api(server.get(f"/session/{sid}"))
     except LookupError:
         raise ApiNotFound(f"session {sid} not found via API") from None
@@ -358,6 +443,11 @@ def _api_get(server, sid):
 
 def _api_children(server, sid):
     _api_get(server, sid)
+    if server.major != 1:
+        try:
+            return _api_pages(server, {"parentID": sid})
+        except LookupError:
+            raise Unavailable("API has no session list") from None
     try:
         items = server.get(f"/session/{sid}/children")
     except LookupError:
@@ -372,20 +462,37 @@ def _api_children(server, sid):
 
 
 def db_path():
+    # V1: `opencode db path`; V2 moved it to `opencode debug paths db`.
+    command = ["opencode", "db", "path"] if opencode_major() == 1 else ["opencode", "debug", "paths", "db"]
+    label = " ".join(command)
     try:
-        proc = subprocess.run(["opencode", "db", "path"], capture_output=True, text=True, timeout=30,
-                              stdin=subprocess.DEVNULL)
+        proc = subprocess.run(command, capture_output=True, text=True, timeout=30,
+                              stdin=subprocess.DEVNULL, env=child_env())
     except (OSError, subprocess.TimeoutExpired) as exc:
-        raise Unavailable(f"opencode db path failed: {exc.__class__.__name__}") from None
+        raise Unavailable(f"{label} failed: {exc.__class__.__name__}") from None
     lines = [line.strip() for line in proc.stdout.splitlines() if line.strip()]
     if proc.returncode or not lines or not os.path.isabs(lines[-1]) or not os.path.isfile(lines[-1]):
-        raise Unavailable("opencode db path did not name an existing database")
+        raise Unavailable(f"{label} did not name an existing database")
     return lines[-1]
 
 
 class Snapshot:
-    def __init__(self, path):
+    """One read-only snapshot. `version_factory` (the installed OpenCode major)
+    is consulted only when the file carries both the V1 and the V2 tables, as
+    after a V2 trial on the same data directory."""
+
+    def __init__(self, path, version_factory=None):
         self.path = path
+        self.version_factory = version_factory
+
+    def _schema(self):
+        tables = {row[0] for row in self.conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
+        v1, v2 = "session" in tables, "session_v2" in tables
+        if v1 and v2:
+            if self.version_factory is None:
+                raise Unavailable("database carries OpenCode 1 and 2 tables; installed version unknown")
+            return 2 if self.version_factory() == 2 else 1
+        return 2 if v2 else 1
 
     def __enter__(self):
         try:
@@ -393,13 +500,24 @@ class Snapshot:
             self.conn = sqlite3.connect(uri, uri=True, timeout=5, isolation_level=None)
             self.conn.execute("PRAGMA query_only = ON")
             self.conn.execute("BEGIN")
-            for table, required in (("session", SESSION_COLUMNS), ("message", MESSAGE_COLUMNS)):
+            self.schema = self._schema()
+            if self.schema == 2:
+                self.session_table = "session_v2"
+                required_tables = (("session_v2", SESSION_COLUMNS), ("session_message", V2_MESSAGE_COLUMNS))
+            else:
+                self.session_table = "session"
+                required_tables = (("session", SESSION_COLUMNS), ("message", MESSAGE_COLUMNS))
+            for table, required in required_tables:
                 have = {row[1] for row in self.conn.execute(f"PRAGMA table_info({table})")}
                 missing = sorted(required - have)
                 if missing:
                     raise Unavailable(f"unsupported database schema: {table} lacks {', '.join(missing)}")
-            have = {row[1] for row in self.conn.execute("PRAGMA table_info(part)")}
-            self.has_parts = PART_COLUMNS <= have
+            if self.schema == 2:
+                # V2 keeps tool calls inside the assistant message, so waits are always readable.
+                self.has_parts = True
+            else:
+                have = {row[1] for row in self.conn.execute("PRAGMA table_info(part)")}
+                self.has_parts = PART_COLUMNS <= have
         except sqlite3.Error as exc:
             self.__exit__()
             raise Unavailable(f"database not readable: {exc.__class__.__name__}") from None
@@ -423,7 +541,7 @@ class Snapshot:
         rows = self.conn.execute(
             "SELECT id, parent_id, project_id, directory, title, version, time_created, time_updated, "
             "time_archived, agent, model, cost, tokens_input, tokens_output, tokens_reasoning, "
-            f"tokens_cache_read, tokens_cache_write FROM session WHERE {where}", params)
+            f"tokens_cache_read, tokens_cache_write FROM {self.session_table} WHERE {where}", params)
         out = []
         for row in rows:
             try:
@@ -441,6 +559,17 @@ class Snapshot:
         for start in range(0, len(ids), 500):
             chunk = ids[start:start + 500]
             marks = ",".join("?" * len(chunk))
+            if self.schema == 2:
+                out.extend(self.conn.execute(
+                    "SELECT session_id, json_extract(data, '$.model.providerID'), "
+                    "json_extract(data, '$.model.id'), json_extract(data, '$.agent'), "
+                    "json_extract(data, '$.time.created'), json_extract(data, '$.time.completed'), "
+                    "json_extract(data, '$.tokens.input'), json_extract(data, '$.tokens.output'), "
+                    "json_extract(data, '$.tokens.reasoning'), json_extract(data, '$.tokens.cache.read'), "
+                    "json_extract(data, '$.tokens.cache.write'), json_extract(data, '$.cost') "
+                    f"FROM session_message WHERE session_id IN ({marks}) AND time_created < ? "
+                    "AND type = 'assistant'", (*chunk, to_ms)))
+                continue
             out.extend(self.conn.execute(
                 "SELECT session_id, json_extract(data, '$.providerID'), json_extract(data, '$.modelID'), "
                 "json_extract(data, '$.agent'), json_extract(data, '$.time.created'), "
@@ -457,15 +586,25 @@ class Snapshot:
         out = {}
         ids = list(session_ids)
         tools = ",".join("?" * len(WAIT_TOOLS))
+        if self.schema == 2:
+            # Tool calls are entries of the assistant message's content array;
+            # only their type, name and times are extracted.
+            query = ("SELECT m.session_id, coalesce(json_extract(c.value, '$.time.ran'), "
+                     "json_extract(c.value, '$.time.created')), json_extract(c.value, '$.time.completed') "
+                     "FROM session_message AS m, json_each(m.data, '$.content') AS c "
+                     "WHERE m.session_id IN ({marks}) AND m.time_created < ? AND m.type = 'assistant' "
+                     "AND json_extract(c.value, '$.type') = 'tool' "
+                     f"AND json_extract(c.value, '$.name') IN ({tools})")
+        else:
+            query = ("SELECT session_id, json_extract(data, '$.state.time.start'), "
+                     "json_extract(data, '$.state.time.end') FROM part "
+                     "WHERE session_id IN ({marks}) AND time_created < ? "
+                     "AND json_extract(data, '$.type') = 'tool' "
+                     f"AND json_extract(data, '$.tool') IN ({tools})")
         for start in range(0, len(ids), 500):
             chunk = ids[start:start + 500]
             marks = ",".join("?" * len(chunk))
-            for sid, begin, end in self.conn.execute(
-                    "SELECT session_id, json_extract(data, '$.state.time.start'), "
-                    "json_extract(data, '$.state.time.end') FROM part "
-                    f"WHERE session_id IN ({marks}) AND time_created < ? "
-                    "AND json_extract(data, '$.type') = 'tool' "
-                    f"AND json_extract(data, '$.tool') IN ({tools})", (*chunk, to_ms, *WAIT_TOOLS)):
+            for sid, begin, end in self.conn.execute(query.format(marks=marks), (*chunk, to_ms, *WAIT_TOOLS)):
                 if type(begin) is int and type(end) is int and end > begin:
                     out.setdefault(sid, []).append((begin, end))
         for spans in out.values():
@@ -603,15 +742,15 @@ def _via_api(q, server_factory):
         return body, server.version
 
 
-def _via_db(q, path_factory):
+def _via_db(q, path_factory, version_factory):
     try:
-        return _read_db(q, path_factory)
+        return _read_db(q, path_factory, version_factory)
     except sqlite3.Error as exc:
         raise Unavailable(f"database read failed: {exc.__class__.__name__}") from None
 
 
-def _read_db(q, path_factory):
-    with Snapshot(path_factory()) as snap:
+def _read_db(q, path_factory, version_factory):
+    with Snapshot(path_factory(), version_factory) as snap:
         if q["action"] == "usage":
             return _usage(snap, q)
         if q["action"] == "list":
@@ -626,7 +765,8 @@ def _read_db(q, path_factory):
         return {"sessions": [_present(r, q) for r in children]}, []
 
 
-def run(args, *, server_factory=ApiServer, path_factory=db_path, keep_intervals=False):
+def run(args, *, server_factory=ApiServer, path_factory=db_path, keep_intervals=False,
+        version_factory=opencode_major):
     """Answer one request. Raises ValueError for caller mistakes, Unavailable for sources.
 
     keep_intervals (callers in code only) adds the merged activity intervals to
@@ -646,7 +786,7 @@ def run(args, *, server_factory=ApiServer, path_factory=db_path, keep_intervals=
                 raise
             diagnostics.append({"code": "api-unavailable", "detail": str(exc),
                                 "effect": "answered from the local database"})
-    body, notes = _via_db(q, path_factory)
+    body, notes = _via_db(q, path_factory, version_factory)
     diagnostics.extend(notes)
     return common.envelope(q["action"], window, "db", diagnostics, body, opencode_version=None)
 

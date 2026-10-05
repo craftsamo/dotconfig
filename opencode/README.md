@@ -12,10 +12,21 @@ needed.
 | `AGENTS.md`      | global instructions, loaded into every session           |
 | `agent/`         | custom agents / subagents (`*.md`)                       |
 | `command/`       | custom slash commands (`*.md`)                           |
-| `instructions/`  | extra instruction files referenced from `opencode.jsonc` |
-| `plugins/`       | plugins (`*.ts`)                                         |
+| `plugins/`       | plugins (`*.ts`), loaded by both V1 and V2               |
+| `lib/`           | code imported by plugins (not scanned by OpenCode)       |
 | `skills/`        | opencode-only skills (`<name>/SKILL.md`)                 |
-| `tool/`          | custom tools (`*.ts`)                                    |
+
+Custom tools live in `lib/custom-tools/<file>.ts` and are registered by
+`plugins/custom-tools.ts`, which exports both a V1 `server()` and a V2
+`setup()`. Tool IDs keep the `<file>_<export>` form (`git_secret_scan`,
+`x_search`, ...), matching the permission keys in `opencode.jsonc`. Do not
+add a `tools/` directory: V1 would register the same IDs twice and V2 does
+not load it. Keep subdirectories out of `plugins/`; V2 loads each one as a
+plugin package.
+
+All global instructions live in `AGENTS.md`. Do not reintroduce an
+`instructions` array: OpenCode V2 accepts the key but does not load its files
+(anomalyco/opencode#51341).
 
 Empty directories carry a `.gitkeep` so the skeleton survives a fresh clone.
 

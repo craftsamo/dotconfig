@@ -1,4 +1,4 @@
-import { tool } from "@opencode-ai/plugin"
+import { tool } from "./define"
 
 /**
  * Git workflow toolset.

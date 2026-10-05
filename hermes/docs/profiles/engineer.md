@@ -117,7 +117,7 @@ evaluation), so two sources meant neither was the truth. The policy rests on
 two facts: an agent-level `"*": deny` shadows the user's global tool allows AND
 OpenCode's own auto-allows (skill dirs, the `tool-output/` overflow dir, its
 temp dir), so every tool a read-only role needs is listed in `_permissions` and
-only the two scratch dirs are re-allowed under `external_directory`; and a plain
+only OpenCode's own scratch dirs are re-allowed under `external_directory`; and a plain
 `ask` on this transport is never a question — `opencode run` rejects it without
 `--auto` and approves it with `--auto` — so build's `external_directory` is
 `deny`. Subagents (`verifier`, `explore-*`, `reviewer*`, `worker`) keep their
@@ -127,6 +127,26 @@ and asks elsewhere (for the human TUI), which `--auto` would approve, so a role
 that may spawn `worker` also injects `agent.worker.permission.external_directory`
 re-denying every pattern `worker.md` names (`WORKER_EXTERNAL_KEYS`; a test keeps
 the two in sync).
+
+**OpenCode 1 and 2.** The runner reads `opencode --version` before each launch
+and fails closed on any other major. OpenCode 2 differs in four ways the plugin
+absorbs:
+
+- `run --standalone`: the shared background service was started by someone
+  else and never sees this run's `OPENCODE_CONFIG_CONTENT`; a private server
+  does. `OPENCODE_PERMISSION` is ignored there, so the injected config is the
+  only carrier of the policy (V2 appends it after the agent file's rules, and
+  the last matching rule wins).
+- No `--dir`: the worktree is the child's cwd and `$PWD`.
+- `run --agent` does not apply the agent's model, so the pin is read from the
+  agent frontmatter and passed as `--model provider/model#variant` (no
+  separate `--variant`); with no pin and no configured model the run is refused.
+- The final step emits no `step_finish`, and every error exits non-zero, so
+  completion is a clean exit with an owned session and no error event; the
+  reply is the last assistant message that produced text.
+
+V2 also adds a `shell/` output dir to OpenCode's own scratch dirs, which the
+injected `external_directory` re-allows with the others.
 
 **Plan → Build on the same conversation.** The next `opencode_call` on a plan
 conversation may name `agent="build"` plus `approval`; OpenCode resumes the

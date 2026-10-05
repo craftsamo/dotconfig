@@ -59,12 +59,9 @@
     // and would display Hermes' usage). Re-apply the patch after a version bump.
     "@slkiser/opencode-quota@3.11.1"
   ],
-  "instructions": [
-    "instructions/*.txt",
-    "instructions/*.md",
-    // Private-overlay instructions (silently empty on machines without ~/.config/private).
-    "../private/opencode/instructions/*.md"
-  ],
+  // No "instructions" array: OpenCode V2 accepts it but never loads the files
+  // (anomalyco/opencode#51341). All global rules live in AGENTS.md, which both
+  // V1 and V2 read.
   "small_model": "openai/gpt-6-luna",
   "agent": {
     "plan": {
@@ -415,7 +412,7 @@
       "git-*": "allow",
       "japanese-*": "allow",
     },
-    // Custom GitHub Project tools (tools/github_project.ts) — board + issue-lifecycle ops, no delete
+    // Custom GitHub Project tools (lib/custom-tools/github_project.ts) — board + issue-lifecycle ops, no delete
     "github_project_create": "allow",
     "github_project_field_ensure": "allow",
     "github_project_item_add": "allow",
@@ -426,7 +423,7 @@
     "github_project_view_ensure": "allow",
     "github_project_issue_link": "allow",
     "github_project_issue_develop": "allow",
-    // Custom git workflow tools (tools/git.ts) — read/index only, no commit/push/merge
+    // Custom git workflow tools (lib/custom-tools/git.ts) — read/index only, no commit/push/merge
     "git_secret_scan": "allow",
     "git_stage_hunks": "allow",
     "git_provenance": "allow",
@@ -434,7 +431,7 @@
     "git_history_digest": "allow",
     "git_amend_check": "allow",
     "git_commit_lint": "allow",
-    // Custom X search tool (tools/x.ts) — xAI server-side x_search, read-only external query
+    // Custom X search tool (lib/custom-tools/x.ts) — xAI server-side x_search, read-only external query
     "x_search": "allow",
   },
   "mcp": {
