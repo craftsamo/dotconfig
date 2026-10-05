@@ -212,7 +212,12 @@ def test_roles_and_members():
     assert conn.execute("SELECT roles_at FROM guilds").fetchone()[0] == 100
     member = store.member_row({"user": {"id": ME, "username": "me"}, "roles": ["600000000000000001"]}, G1)
     store.upsert_member(conn, member, 1)
-    assert json.loads(conn.execute("SELECT roles FROM members").fetchone()[0]) == ["600000000000000001"]
+    store.member_role(conn, G1, ME, "600000000000000002", True, 2)
+    assert json.loads(conn.execute("SELECT roles FROM members").fetchone()[0]) == [
+        "600000000000000001", "600000000000000002"]
+    store.delete_role(conn, G1, "600000000000000001")
+    assert json.loads(conn.execute("SELECT roles FROM members").fetchone()[0]) == ["600000000000000002"]
+    assert 600000000000000001 not in {r[0] for r in conn.execute("SELECT id FROM roles")}
 
 
 perms = _load("discord_access_perms_test", ROOT / "perms.py")

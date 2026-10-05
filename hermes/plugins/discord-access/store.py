@@ -390,6 +390,16 @@ def replace_roles(conn: sqlite3.Connection, guild_id, roles: list, counts: dict,
     conn.execute("UPDATE guilds SET roles_at = ? WHERE id = ?", (now, int(guild_id)))
 
 
+def delete_role(conn: sqlite3.Connection, guild_id, role_id) -> None:
+    conn.execute("DELETE FROM roles WHERE id = ?", (int(role_id),))
+    for row in list(conn.execute("SELECT user_id, roles FROM members WHERE guild_id = ?", (int(guild_id),))):
+        held = json.loads(row[1] or "[]")
+        if str(role_id) in held:
+            held.remove(str(role_id))
+            conn.execute("UPDATE members SET roles = ? WHERE guild_id = ? AND user_id = ?",
+                         (json.dumps(held), int(guild_id), row[0]))
+
+
 def member_row(m: dict, guild_id, user: dict | None = None) -> dict:
     """A guild member; ``user`` stands in when the payload carries none (the user's own member)."""
     u = m.get("user") if isinstance(m.get("user"), dict) else (user or {})
@@ -405,6 +415,17 @@ def upsert_member(conn: sqlite3.Connection, row: dict, now: int) -> None:
         "ON CONFLICT(guild_id, user_id) DO UPDATE SET name = COALESCE(excluded.name, members.name), "
         "username = COALESCE(excluded.username, members.username), nick = excluded.nick, roles = excluded.roles, "
         "joined = COALESCE(excluded.joined, members.joined), updated = excluded.updated", {**row, "updated": now})
+
+
+def member_role(conn: sqlite3.Connection, guild_id, user_id, role_id, held: bool, now: int) -> None:
+    """One role added to or removed from a mirrored member (a member never read stays unknown)."""
+    row = conn.execute("SELECT roles FROM members WHERE guild_id = ? AND user_id = ?",
+                       (int(guild_id), int(user_id))).fetchone()
+    if row is None:
+        return
+    roles = [r for r in json.loads(row[0] or "[]") if r != str(role_id)] + ([str(role_id)] if held else [])
+    conn.execute("UPDATE members SET roles = ?, updated = ? WHERE guild_id = ? AND user_id = ?",
+                 (json.dumps(roles), now, int(guild_id), int(user_id)))
 
 
 # --- sync list ----------------------------------------------------------------------------------

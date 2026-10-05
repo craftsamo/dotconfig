@@ -839,6 +839,59 @@ def test_delete_of_a_message_already_gone_is_done():
     assert result["outcome"] == "done" and result["already"] and ids_in(conn) == []
 
 
+def test_a_two_factor_request_is_not_a_rejected_token():
+    conn = store.connect(write=True)
+    http = FakeHttp({("PUT", f"/guilds/{G}/members/{FRIEND}/roles/{ROLE}"): (401, {}, {
+        "message": "Two factor is required for this operation", "code": 60003, "mfa": {"ticket": "t"}})})
+    result = engine.role_member(client(http, conn), G, FRIEND, ROLE, True)
+    assert result["outcome"] == "not_done" and result["kind"] == "mfa"
+    assert store.get_meta(conn, "auth") is None
+
+
+def test_role_writes_carry_the_audit_reason():
+    conn = store.connect(write=True)
+    http = FakeHttp({("PUT", f"/guilds/{G}/members/{FRIEND}/roles/{ROLE}"): (204, {}, "")})
+    engine.role_member(client(http, conn), G, FRIEND, ROLE, True, reason="新人 / welcome")
+    assert http.api_calls()[0]["headers"]["X-Audit-Log-Reason"] == "%E6%96%B0%E4%BA%BA / welcome"
+
+
+def test_bulk_add_reports_who_got_the_role():
+    conn = store.connect(write=True)
+    other = "100000000000000003"
+    http = FakeHttp({("PATCH", f"/guilds/{G}/roles/{ROLE}/members"): (200, {}, {
+        FRIEND: {"user": {"id": FRIEND, "username": "taro"}, "roles": [ROLE]}})})
+    result = engine.role_bulk_add(client(http, conn), G, ROLE, [FRIEND, other])
+    assert result["added"] == [FRIEND] and result["not_added"] == [other]
+    assert http.api_calls()[0]["body"] == {"member_ids": [FRIEND, other]}
+
+
+def test_an_ambiguous_role_create_stays_uncertain_with_a_hint():
+    conn = store.connect(write=True)
+    new = flake(-0.01)
+    routes = {("POST", f"/guilds/{G}/roles"): engine.TransportError("curl 28 operation timed out", dispatched=True),
+              ("GET", f"/guilds/{G}/roles"): (200, {}, [{"id": new, "name": "Helpers", "position": 1}])}
+    result = engine.role_create(client(FakeHttp(routes), conn), G, {"name": "Helpers", "permissions": "0"})
+    assert result["outcome"] == "uncertain" and new in result["detail"] and "not proven" in result["detail"]
+
+
+def test_role_delete_of_a_gone_role_is_done():
+    conn = store.connect(write=True)
+    store.upsert_role(conn, {"id": ROLE, "name": "Member"}, G)
+    http = FakeHttp({("DELETE", f"/guilds/{G}/roles/{ROLE}"): (404, {}, {"message": "Unknown Role", "code": 10011})})
+    assert engine.role_delete(client(http, conn), G, ROLE)["outcome"] == "done"
+    assert conn.execute("SELECT COUNT(*) FROM roles").fetchone()[0] == 0
+
+
+def test_role_edit_read_back_compares_the_requested_fields():
+    conn = store.connect(write=True)
+    routes = {("PATCH", f"/guilds/{G}/roles/{ROLE}"): (500, {}, "x"),
+              ("GET", f"/guilds/{G}/roles"): (200, {}, [{"id": ROLE, "name": "New", "permissions": "3072",
+                                                         "colors": {"primary_color": 255}}])}
+    spec = {"name": "New", "permissions": "3072", "color": 255}
+    assert engine.role_edit(client(FakeHttp(routes), conn), G, ROLE, spec)["outcome"] == "done"
+    assert engine.role_edit(client(FakeHttp(routes), conn), G, ROLE, {**spec, "hoist": True})["outcome"] == "uncertain"
+
+
 def test_a_write_that_cannot_start_is_not_done(monkeypatch):
     def no_token():
         raise engine.EngineError("setup", "no Discord token in the Keychain")

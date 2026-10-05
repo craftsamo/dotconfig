@@ -10,7 +10,8 @@ or logged.
 
 Commands: whoami, guilds, channels, channel, messages, backfill, sync, send, media, threads, pins,
 mentions, friends, search, roles, member, role_members, members, and the writes react, unreact,
-edit and delete. Requests carry the Discord web client's headers on a Chrome/macOS identity, are paced, and wait out short
+edit, delete, role_add, role_remove, role_bulk_add, role_create, role_edit, role_delete. Requests
+carry the Discord web client's headers on a Chrome/macOS identity, are paced, and wait out short
 rate limits only for reads. ``send`` makes exactly one message POST with ``nonce`` +
 ``enforce_nonce`` and never retries it; attachments are uploaded first (Discord's cloud upload, as
 the web client does), which creates no message. Its outcome is sent / not_sent / uncertain,
@@ -72,7 +73,9 @@ RECHECK_COUNT = 50
 
 # Discord JSON error codes the engine tells apart.
 INDEXING = 110000            # search: the index is not ready (HTTP 202)
+MFA_REQUIRED = 60003         # the action needs a fresh two-factor check
 UNKNOWN_MESSAGE = 10008
+UNKNOWN_ROLE = 10011
 NO_ROUTE = 0                 # a 404 with code 0: the path itself does not exist
 
 # Attachments: Discord's cloud upload. The upload URL is a signed Google Cloud Storage URL; the
@@ -301,7 +304,7 @@ class Client:
             "client_heartbeat_session_id": self.launch["heartbeat"], "client_app_state": "focused"}
         return base64.b64encode(json.dumps(props, separators=(",", ":")).encode()).decode()
 
-    def headers(self, *, referer: str = "/channels/@me", json_body: bool = False) -> dict:
+    def headers(self, *, referer: str = "/channels/@me", json_body: bool = False, reason: str | None = None) -> dict:
         h = {"Accept": "*/*", "Accept-Language": self._accept_language(), "Authorization": self.token,
              "Origin": WEB, "Referer": f"{WEB}{referer}", "Sec-Fetch-Dest": "empty", "Sec-Fetch-Mode": "cors",
              "Sec-Fetch-Site": "same-origin", "User-Agent": self.http.user_agent,
@@ -312,6 +315,8 @@ class Client:
             h["X-Discord-Timezone"] = tz
         if json_body:
             h["Content-Type"] = "application/json"
+        if reason:
+            h["X-Audit-Log-Reason"] = urllib.parse.quote(reason, safe="/ ")
         return h
 
     # requests
@@ -365,17 +370,22 @@ class Client:
             raise self._http_error(status, headers, payload)
         raise EngineError("rate_limited", "Discord rate-limited the request twice")
 
-    def write(self, method: str, path: str, *, params=None, body=None, referer: str = "/channels/@me"):
+    def write(self, method: str, path: str, *, params=None, body=None, referer: str = "/channels/@me",
+              reason: str | None = None):
         """One write request, never retried: (status, headers, payload). Raises TransportError."""
         self._spend()
         self._pace()
         return self.http.request(method, f"{API}{path}", params=params, body=body, timeout=SEND_TIMEOUT,
-                                 headers=self.headers(referer=referer, json_body=body is not None))
+                                 headers=self.headers(referer=referer, json_body=body is not None, reason=reason))
 
     def _http_error(self, status, headers, payload) -> EngineError:
         message = payload.get("message") if isinstance(payload, dict) else None
         code = payload.get("code") if isinstance(payload, dict) else None
         detail = self._scrub(f"Discord {status}" + (f" (code {code}): {message}" if message else ""))
+        if status == 401 and code == MFA_REQUIRED:
+            # Not a rejected token: Discord wants a fresh two-factor check, which only the app can give.
+            return EngineError("mfa", "Discord asked for two-factor verification for this action; nothing was "
+                                      "done. The user does it in the Discord app")
         if status == 401:
             store.set_meta(self.conn, "auth", {"state": "rejected", "at": self.clock()})
             self.conn.commit()
@@ -1193,8 +1203,8 @@ def members(client: Client, guild_id: str, query: str, limit: int = 25) -> dict:
 #
 # One request each, never retried. done: Discord accepted it (or the read-back shows the requested
 # state). not_done: Discord refused it, or it cannot have left the machine. uncertain: a 5xx or a
-# failure after dispatch; one read-back adds what it saw. Each sets a state, so repeating it is
-# harmless.
+# failure after dispatch; one read-back adds what it saw. All but role_create set a state, so
+# repeating them is harmless; role_create's read-back only ever gives a hint.
 
 def _outcome(client: Client, request, *, confirm=None, already=()) -> dict:
     try:
@@ -1288,11 +1298,133 @@ def delete(client: Client, channel_id: str, message_id: str) -> dict:
     return result
 
 
-WRITE_COMMANDS = {"react", "unreact", "edit", "delete"}
+def role_member(client: Client, guild_id: str, user_id: str, role_id: str, add: bool, reason=None) -> dict:
+    def confirm():
+        held = role_id in json.loads(member(client, guild_id, user_id)["roles"])
+        return held == add, "the member has the role" if held else "the member does not have the role"
+
+    result = _outcome(client, lambda: client.write("PUT" if add else "DELETE",
+                                                   f"/guilds/{guild_id}/members/{user_id}/roles/{role_id}",
+                                                   referer=f"/channels/{guild_id}", reason=reason), confirm=confirm)
+    if _done(result) and not result.get("confirmed"):
+        store.member_role(client.conn, guild_id, user_id, role_id, add, _now())
+        client.conn.commit()
+    return result
+
+
+def role_bulk_add(client: Client, guild_id: str, role_id: str, users: list, reason=None) -> dict:
+    def confirm():
+        holders = set(role_members(client, guild_id, role_id)["ids"])
+        missing = [u for u in users if u not in holders]
+        if not missing:
+            return True, "every member listed has the role"
+        return False, ("not seen with the role (the list shows at most 100 members): " + ", ".join(missing))
+
+    result = _outcome(client, lambda: client.write("PATCH", f"/guilds/{guild_id}/roles/{role_id}/members",
+                                                   body={"member_ids": users}, referer=f"/channels/{guild_id}",
+                                                   reason=reason), confirm=confirm)
+    payload = result.get("payload")
+    if _done(result) and isinstance(payload, dict):
+        now, added = _now(), []
+        for uid, m in payload.items():
+            if isinstance(m, dict):
+                if not isinstance(m.get("user"), dict):
+                    m = {**m, "user": {"id": uid}}
+                row = store.member_row(m, guild_id)
+                store.upsert_member(client.conn, row, now)
+                if role_id in json.loads(row["roles"]):
+                    added.append(str(uid))
+        client.conn.commit()
+        result["added"] = added
+        result["not_added"] = [u for u in users if u not in added]
+    return result
+
+
+def _roles_now(client: Client, guild_id: str) -> list[dict]:
+    found = client.get(f"/guilds/{guild_id}/roles", referer=f"/channels/{guild_id}")
+    found = [r for r in found if isinstance(r, dict) and r.get("id")] if isinstance(found, list) else []
+    for r in found:
+        store.upsert_role(client.conn, r, guild_id)
+    client.conn.commit()
+    return found
+
+
+def role_create(client: Client, guild_id: str, spec: dict, reason=None) -> dict:
+    started = client.clock()
+
+    def confirm():
+        floor = store.snowflake_at(datetime.fromtimestamp(started - CLOCK_SKEW, tz=timezone.utc))
+        hits = [r for r in _roles_now(client, guild_id) if r.get("name") == spec.get("name") and int(r["id"]) >= floor]
+        if hits:
+            return False, ("a role with this name was created after the request began (id "
+                           + ", ".join(str(r["id"]) for r in hits) + "): probably this one, but not proven")
+        return False, "no new role with this name yet"
+
+    result = _outcome(client, lambda: client.write("POST", f"/guilds/{guild_id}/roles", body=spec,
+                                                   referer=f"/channels/{guild_id}", reason=reason), confirm=confirm)
+    payload = result.get("payload")
+    if _done(result) and isinstance(payload, dict) and payload.get("id"):
+        store.upsert_role(client.conn, payload, guild_id, 0)
+        client.conn.commit()
+        result["role"] = str(payload["id"])
+    return result
+
+
+def _matches(role: dict, changes: dict) -> bool:
+    """Whether a role as Discord returned it shows every requested change."""
+    row = store.role_row(role, 0)
+    for key, want in changes.items():
+        if key == "permissions":
+            same = row["permissions"] == str(want)
+        elif key == "color":
+            same = row["color"] == int(want or 0)
+        elif key in ("hoist", "mentionable"):
+            same = row[key] == int(bool(want))
+        else:
+            same = row.get(key) == want
+        if not same:
+            return False
+    return True
+
+
+def role_edit(client: Client, guild_id: str, role_id: str, changes: dict, reason=None) -> dict:
+    def confirm():
+        role = next((r for r in _roles_now(client, guild_id) if str(r["id"]) == role_id), None)
+        if role is None:
+            return False, "the role is gone"
+        ok = _matches(role, changes)
+        return ok, "the role shows the new settings" if ok else "the role does not show the new settings"
+
+    result = _outcome(client, lambda: client.write("PATCH", f"/guilds/{guild_id}/roles/{role_id}", body=changes,
+                                                   referer=f"/channels/{guild_id}", reason=reason), confirm=confirm)
+    payload = result.get("payload")
+    if _done(result) and isinstance(payload, dict) and payload.get("id"):
+        store.upsert_role(client.conn, payload, guild_id)
+        client.conn.commit()
+    return result
+
+
+def role_delete(client: Client, guild_id: str, role_id: str, reason=None) -> dict:
+    def confirm():
+        gone = all(str(r["id"]) != role_id for r in _roles_now(client, guild_id))
+        return gone, "the role is gone" if gone else "the role is still there"
+
+    result = _outcome(client, lambda: client.write("DELETE", f"/guilds/{guild_id}/roles/{role_id}",
+                                                   referer=f"/channels/{guild_id}", reason=reason),
+                      confirm=confirm, already=(UNKNOWN_ROLE,))
+    if _done(result):
+        store.delete_role(client.conn, guild_id, role_id)
+        client.conn.commit()
+    return result
+
+
+WRITE_COMMANDS = {"react", "unreact", "edit", "delete", "role_add", "role_remove", "role_bulk_add", "role_create",
+                  "role_edit", "role_delete"}
 
 
 def _write(command: str, args: dict, client: Client) -> dict:
     channel = lambda: _arg(args, "channel")  # noqa: E731
+    reason = args.get("reason") if isinstance(args.get("reason"), str) and args.get("reason") else None
     if command in ("react", "unreact"):
         emoji = args.get("emoji")
         if not isinstance(emoji, str) or not emoji:
@@ -1303,7 +1435,24 @@ def _write(command: str, args: dict, client: Client) -> dict:
         if not isinstance(text, str) or not text.strip():
             raise EngineError("usage", "text is required")
         return edit(client, channel(), _arg(args, "id"), text)
-    return delete(client, channel(), _arg(args, "id"))
+    if command == "delete":
+        return delete(client, channel(), _arg(args, "id"))
+    guild = _arg(args, "guild")
+    if command in ("role_add", "role_remove"):
+        return role_member(client, guild, _arg(args, "user"), _arg(args, "role"), command == "role_add", reason)
+    if command == "role_bulk_add":
+        users = args.get("users")
+        if not isinstance(users, list) or not 1 <= len(users) <= 30 or not all(store.is_snowflake(u) for u in users):
+            raise EngineError("usage", "users must be 1 to 30 user ids")
+        return role_bulk_add(client, guild, _arg(args, "role"), users, reason)
+    spec = args.get("spec")
+    if command in ("role_create", "role_edit") and (not isinstance(spec, dict) or not spec):
+        raise EngineError("usage", "spec is required")
+    if command == "role_create":
+        return role_create(client, guild, spec, reason)
+    if command == "role_edit":
+        return role_edit(client, guild, _arg(args, "role"), spec, reason)
+    return role_delete(client, guild, _arg(args, "role"), reason)
 
 
 # --- entry --------------------------------------------------------------------------------------
