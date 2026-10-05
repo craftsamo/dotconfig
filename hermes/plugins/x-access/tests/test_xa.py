@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta, timezone
 import importlib.util
 import io
 import json
@@ -181,7 +182,8 @@ def test_search_shapes_posts(isolated):
     assert shaped["reply_to"] == {"id": "2", "author": "@bob"}
     assert shaped["quoted"]["id"] == "7" and len(shaped["quoted"]["text"]) < 330 and "counts" not in shaped["quoted"]
     assert shaped["media"] == ["photo", "video 1:05", "gif"] and shaped["links"] == ["https://example.com/a"]
-    assert shaped["counts"] == {"replies": 1, "reposts": 2, "likes": 3, "quotes": 0, "views": 50}
+    assert shaped["counts"] == {"replies": 1, "reposts": 2, "likes": 3, "quotes": 0, "bookmarks": 0, "views": 50}
+    assert result["read_at"][:4].isdigit()
     assert shaped["sensitive"] is True and shaped["time"].startswith("2026-10-01") and result["more"] is True
 
 
@@ -261,6 +263,143 @@ def test_a_rate_limit_pauses_reads_without_contacting_x(isolated):
     with pytest.raises(xa.XError, match="rate-limiting"):
         xa.execute({"action": "user", "handle": "alice"})
     assert len(isolated.calls) == 1 and xa.usage()["last_day"] == 1
+
+
+# --- snapshot and insights ----------------------------------------------------------------------
+
+def ago(hours):
+    return (datetime.now(timezone.utc) - timedelta(hours=hours)).isoformat()
+
+
+def own(pid, hours, **extra):
+    return post(pid, **{"user": user("MainAcct"), "date": ago(hours), **extra})
+
+
+def test_snapshot_records_the_main_accounts_own_posts(isolated, home):
+    isolated.replies["posts"] = [
+        own("1", 5, viewCount=100, likeCount=5, bookmarkedCount=2,
+            media={"photos": [{"url": "https://pbs.twimg.com/media/A.jpg"}], "videos": [], "animated": []}),
+        own("2", 30, links=[{"url": "https://example.com", "text": "", "tcourl": ""}], rawContent="x" * 300),
+        own("3", 1, retweetedTweet=post("9")),          # a repost: not the account's own post
+        post("4"),                                      # another author
+    ]
+    result = xa.execute({"action": "snapshot"}, home=home)
+    assert [c["op"] for c in isolated.calls] == ["user", "posts"] and isolated.calls[1]["replies"] is False
+    assert result["recorded"] == 2 and result["skipped"] == 2 and result["handle"] == "@MainAcct"
+    assert result["posts"][0] == {"id": "1", "age_h": result["posts"][0]["age_h"], "views": 100, "likes": 5,
+                                  "replies": 1, "reposts": 2, "quotes": 0, "bookmarks": 2}
+    ledger = xa._ledger_path()
+    assert ledger.stat().st_mode & 0o777 == 0o600
+    first, second = [json.loads(line) for line in ledger.read_text().splitlines()]
+    assert first["handle"] == "mainacct" and first["format"] == "photo" and 4.9 < first["age_h"] < 5.1
+    assert second["format"] == "link" and second["link"] is True and second["chars"] == 300
+    assert second["text"].endswith("characters)")
+    xa.execute({"action": "snapshot", "replies": True, "limit": 5}, home=home)
+    assert [c["op"] for c in isolated.calls[2:]] == ["posts"] and isolated.calls[-1]["limit"] == 5
+    assert len(ledger.read_text().splitlines()) == 4
+
+
+def test_snapshot_and_insights_need_the_main_handle(tmp_path):
+    for action in ("snapshot", "insights"):
+        with pytest.raises(xa.XError, match="main_handle"):
+            xa.execute({"action": action}, home=tmp_path)
+
+
+def rec(pid, posted_ago, age_h, views, **extra):
+    posted = datetime.now(timezone.utc) - timedelta(hours=posted_ago)
+    r = {"v": 1, "at": (posted + timedelta(hours=age_h)).isoformat(timespec="seconds"), "handle": "mainacct",
+         "id": pid, "posted": posted.isoformat(timespec="seconds"), "age_h": age_h, "views": views,
+         "likes": views // 10, "replies": 1, "reposts": 0, "quotes": 0, "bookmarks": 0, "format": "text",
+         "link": False, "reply": False, "chars": 100, "text": f"post {pid}"}
+    r.update(extra)
+    return r
+
+
+def seed():
+    records = []
+    for n in range(6):
+        fmt = "photo" if n < 2 else "text"
+        records += [rec(str(n), 72 + n, 5.5, 10 * (n + 1), format=fmt),
+                    rec(str(n), 72 + n, 24.5, 100 * (n + 1), format=fmt, chars=200 if n == 5 else 100)]
+    records += [rec("young", 2, 2, 7), rec("missed", 100, 70, 900), rec("old", 24 * 60, 24, 5),
+                {**rec("other", 50, 24, 5), "handle": "someone"}]
+    xa._append(records)
+
+
+def test_insights_compare_at_equal_age_without_contacting_x(isolated, home):
+    seed()
+    result = xa.execute({"action": "insights"}, home=home)
+    assert isolated.calls == []
+    assert result["at_age_h"] == 24 and result["days"] == 30
+    assert result["health"]["posts"] == 8
+    assert (result["health"]["comparable"], result["health"]["too_young"],
+            result["health"]["no_snapshot_near_age"]) == (6, 1, 1)
+    assert result["baseline"]["n"] == 6 and result["baseline"]["median_views"] == 350
+    assert set(result["by_format"]) == {"photo", "text"} and result["by_format"]["photo"]["inconclusive"] is True
+    assert result["by_format"]["text"]["n"] == 4 and result["by_length"]["141–280"]["n"] == 1
+    assert [p["id"] for p in result["top"]] == ["5", "4", "3"] and [p["id"] for p in result["bottom"]] == ["2", "1", "0"]
+    assert result["top"][0]["url"] == "https://x.com/MainAcct/status/5" and "by_reply" not in result
+    early = xa.execute({"action": "insights", "at": 6, "days": 365}, home=home)
+    assert early["days"] == 180 and early["baseline"]["median_views"] == 35
+    assert early["health"]["posts"] == 9  # the 60-day-old post is inside 180 days
+
+
+def test_insights_trajectory_of_one_post(isolated, home):
+    seed()
+    result = xa.execute({"action": "insights", "post": "https://x.com/MainAcct/status/3"}, home=home)
+    assert [o["age_h"] for o in result["observations"]] == [5.5, 24.5]
+    assert result["observations"][1]["views"] == 400 and result["observations"][1]["engagement_rate"] == 0.1025
+    with pytest.raises(xa.XError, match="no snapshot"):
+        xa.execute({"action": "insights", "post": "123"}, home=home)
+    assert isolated.calls == []
+
+
+def test_insights_arguments_and_an_empty_ledger(home):
+    for bad in ({"at": 12}, {"at": True}, {"days": 0}, {"days": "7"}):
+        with pytest.raises(xa.XError):
+            xa.execute({"action": "insights", **bad}, home=home)
+    result = xa.execute({"action": "insights"}, home=home)
+    assert result["ok"] and result["health"]["posts"] == 0 and "problem" in result
+
+
+def test_protected_posts_never_enter_the_ledger(isolated, home):
+    isolated.replies["user"] = user("MainAcct", protected=True)
+    xa.execute({"action": "user", "handle": "MainAcct"})        # not cached: it would skip the check
+    with pytest.raises(xa.XError, match="protected"):
+        xa.execute({"action": "snapshot"}, home=home)
+    isolated.replies["user"] = user("MainAcct")
+    isolated.replies["posts"] = [own("1", 5, user=user("MainAcct", protected=True))]  # became protected
+    with pytest.raises(xa.XError, match="protected"):
+        xa.execute({"action": "snapshot"}, home=home)
+    assert not xa._ledger_path().exists()
+
+
+def test_a_quote_attachment_is_not_a_link():
+    quoted = post("7")
+    attach = {"url": "https://x.com/alice/status/7", "text": "", "tcourl": ""}
+    other = {"url": "https://example.com/a", "text": "", "tcourl": ""}
+    assert xa.post_format(post("1", quotedTweet=quoted, links=[attach])) == "quote"
+    assert xa.own_links(post("1", quotedTweet=quoted, links=[attach])) == []
+    assert xa.post_format(post("1", quotedTweet=quoted, links=[attach, other])) == "link"
+    assert xa.post_format(post("1", links=[attach])) == "link"   # a pasted post URL without a quote
+
+
+def test_a_damaged_line_is_skipped_and_the_next_append_stays_whole(home):
+    xa._append([rec("1", 30, 24, 10)])
+    with open(xa._ledger_path(), "ab") as out:
+        out.write('{"id": "日本'.encode("utf-8")[:-1])        # an append cut mid-character
+    xa._append([rec("2", 30, 24, 20)])
+    assert [r["id"] for r in xa._ledger("MainAcct")] == ["1", "2"]
+    assert xa.execute({"action": "insights"}, home=home)["health"]["posts"] == 2
+
+
+def test_the_ledger_is_pruned_once_large(monkeypatch):
+    monkeypatch.setattr(xa, "LEDGER_MAX_BYTES", 600)
+    xa._append([rec("old", 24 * 200, 24, 1, at=ago(24 * 200))])
+    xa._append([rec(str(n), 30, 24, n) for n in range(3)])
+    xa._append([rec("new", 30, 24, 9)])
+    ids = [json.loads(line)["id"] for line in xa._ledger_path().read_text().splitlines()]
+    assert "old" not in ids and ids[-1] == "new"
 
 
 # --- pacing -------------------------------------------------------------------------------------

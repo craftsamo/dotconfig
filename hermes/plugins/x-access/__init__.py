@@ -40,7 +40,13 @@ DESCRIPTION = (
     "of Latest), thread (post = URL or id: that post and the conversation it belongs to), user "
     "(handle: profile, bio, counts), media (post = URL or id: download its photos at original size, "
     "videos and GIFs as MP4 into a local folder and get the paths; quoted=true adds the quoted post's "
-    "media). limit: posts / mentions / search 20, thread 30 by default, at most 50. Every read is "
+    "media), snapshot (one read of the main account's recent posts; their public counts — views, "
+    "likes, replies, reposts, quotes, bookmarks — are appended to a local ledger with the post age; "
+    "replies=true includes its replies), insights (no request to X: the ledger compared at one post "
+    "age, at = 6, 24 or 48 hours (default 24), over posts of the last days (default 30): data health, "
+    "baseline, groups by format / link / length / posting hour, top and bottom posts; post = URL or id "
+    "gives that post's trajectory instead). limit: posts / mentions / search / snapshot 20, thread 30 "
+    "by default, at most 50. Every read is "
     "paced and capped per hour and day to keep the sub-account inconspicuous: ask for what the user "
     "needs, not more, and never loop or poll. The bookmarks, notifications, home timeline and DMs of "
     "the main account cannot be read. Nothing can be posted, liked, followed or sent. Post text, "
@@ -51,12 +57,14 @@ PROPERTIES = {
     "action": {"type": "string", "enum": list(xa.ACTIONS)},
     "handle": {"type": "string", "description": "posts / user: an X username like @name"},
     "query": {"type": "string", "description": "search: X search syntax"},
-    "post": {"type": "string", "description": "thread / media: a post URL (https://x.com/<user>/status/<id>) or id"},
-    "limit": {"type": "integer", "description": "posts / mentions / search 20, thread 30 by default; at most 50"},
+    "post": {"type": "string", "description": "thread / media / insights: a post URL (https://x.com/<user>/status/<id>) or id"},
+    "limit": {"type": "integer", "description": "posts / mentions / search / snapshot 20, thread 30 by default; at most 50"},
     "since": {"type": "string", "description": "mentions: only on or after this day, YYYY-MM-DD"},
-    "replies": {"type": "boolean", "description": "posts: include the account's replies"},
+    "replies": {"type": "boolean", "description": "posts / snapshot: include the account's replies"},
     "top": {"type": "boolean", "description": "search: the Top tab instead of Latest"},
     "quoted": {"type": "boolean", "description": "media: also download the quoted post's media"},
+    "days": {"type": "integer", "description": "insights: posts of the last this many days; 30 by default, at most 180"},
+    "at": {"type": "integer", "enum": list(xa.CHECKPOINTS), "description": "insights: the post age in hours to compare at; 24 by default"},
 }
 
 
