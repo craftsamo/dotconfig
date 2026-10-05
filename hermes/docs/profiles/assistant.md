@@ -220,6 +220,14 @@ publishes. A resident Marketer cannot answer a card, so it hands its note
 save to the Assistant, which saves it unchanged with its own card. Contract:
 [note-access.md](../note-access.md).
 
+The user's own Substack account is shared with Marketer, which only reads
+(`substack_access` toolset; the Assistant's never on A2A): any publication's
+posts, the inbox and the user's drafts, published posts and stats, and on the
+Assistant's side drafts with `~/Workspaces` images, publishing, scheduling and
+Notes, each waiting for approval on a card naming the publication, the draft,
+whether email goes out and the text; nothing is written where nobody can
+approve. Contract: [substack-access.md](../substack-access.md).
+
 ### Kanban catalog
 
 The kanban catalog is closed and per-assignee: its machine-readable surface is

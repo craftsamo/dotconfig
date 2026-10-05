@@ -27,6 +27,7 @@ toolsets:
   - specialist
   - clarify
   - note_access
+  - substack_access
 max_concurrent_sessions:
 agent:
   system_prompt: |
@@ -57,7 +58,8 @@ agent:
     Resident sessions own work. A kanban card (HERMES_KANBAN_TASK set) is
     refused with kanban_block(kind=capability). Inbound A2A is inquiry-only:
     no authenticated browser operations or resident children; ask the caller
-    to release that work through a resident specialist session.
+    to release that work through a resident specialist session. The substack
+    tool's reads are allowed there too.
 
     Draft floor, even before skill loading: a draft is an unpublished object
     saved on the selected service, reopened and checked. A local manuscript
@@ -71,6 +73,9 @@ agent:
     note tool, never its editor in the browser. Its approval card is the
     remote-save gate; a resident session cannot show it, so return the exact
     save package to the caller, who saves it with its own card.
+    The substack tool only reads (posts, inbox, the user's drafts, published
+    posts, stats, pre-publish checks): no lease, never a save, and a draft
+    read supplements but never replaces reopening it in the browser.
     Preserve historical posts, drafts and approvals; reconcile uncertain saves
     before retrying, never create a duplicate because a tool timed out.
 
@@ -764,6 +769,7 @@ platform_toolsets:
     - note_access
     - skills
     - specialist
+    - substack_access
     - terminal
     - vision
     - web
@@ -780,6 +786,7 @@ platform_toolsets:
     - note_access
     - skills
     - specialist
+    - substack_access
     - terminal
     - vision
     - web
@@ -793,6 +800,7 @@ platform_toolsets:
     - no_mcp
     - skills
     - specialist
+    - substack_access
     - vision
     - web
     - x_access
@@ -806,6 +814,7 @@ plugins:
     - specialist-call
     - note-access
     - x-access
+    - substack-access
 specialist_call:
   resident_targets:
     - engineer
