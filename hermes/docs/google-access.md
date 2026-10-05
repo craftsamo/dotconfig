@@ -46,7 +46,7 @@ The hook decides before a tool runs; the rule is `approval_request` in
 `access.py`.
 
 - **Changes ask first**: Sheets `update` / `batch_update` / `append` /
-  `clear` / `create` / `add_sheet` / `layout` / `data`, Gmail `send`, Drive `upload`, and every
+  `clear` / `create` / `add_sheet` / `layout` / `data` / `chart` / `pivot`, Gmail `send`, Drive `upload`, and every
   gcloud command that is not a read. The action must be spelled exactly; the
   gate and the engine share one check, so no variant is read differently by
   each.
@@ -63,7 +63,7 @@ The hook decides before a tool runs; the rule is `approval_request` in
   and contexts without a human all block. The card shows recipients and body,
   the upload, or the full gcloud command.
 - **Spreadsheet edits are approved per spreadsheet.** `update`,
-  `batch_update`, `append`, `add_sheet` and `layout` share one allowlist key per
+  `batch_update`, `append`, `add_sheet`, `layout`, `chart` and `pivot` share one allowlist key per
   spreadsheet id, so "session" on the first card lets the rest of that
   spreadsheet's edits run for the session and "always" for good; another
   spreadsheet asks again. The spreadsheet's version history undoes them.
@@ -74,8 +74,10 @@ The hook decides before a tool runs; the rule is `approval_request` in
   view by its number or name to replace or drop it (`delete`, `move`,
   `merge`, `table_delete`, `sheet_delete`, `conditional_update`,
   `conditional_delete`, `filter_view_delete`; `LAYOUT_DESTRUCTIVE`), removes notes or replaces a
-  filter view's criteria (`_destructive`), so a grant for formatting never
-  covers dropping rows.
+  filter view's criteria (`_destructive`), and a `chart` or `pivot` call that
+  deletes one (`OBJECT_DESTRUCTIVE`) or writes a pivot table at a cell, which
+  overwrites what it fills, so a grant for formatting never covers dropping
+  rows.
 - **Spreadsheet cards** are plain English, one fact per line —
   `SpreadSheet: <title>`, `Sheet: <tab>`, a blank line, then each cell as
   `K3257 > <column header>: <value>`, row 1 being the header. A whole tab whose
@@ -130,6 +132,15 @@ The hook decides before a tool runs; the rule is `approval_request` in
   repeated spaces visible. `split_text` cannot know how many columns it
   fills, so its card says the columns to the right are overwritten. The
   result counts replaced matches, removed duplicates and trimmed cells.
+- **Charts and pivot tables** are the `chart` and `pivot` op actions. A
+  chart is drawn from one range (labels column, then one series per
+  column), floats over the tab rather than writing cells, and is found by
+  title or id; `chart_update` keeps a chart's sources unless given a new
+  range, and later ops see earlier moves and resizes. A pivot table goes on
+  a new tab unless `at` names a cell; an unqualified `at` means the data's
+  tab. Pivot tables have no id in the API, so `pivot_delete` names the
+  anchor cell and the engine checks a pivot table starts there before
+  writing; `get_format` reports anchors and `info` lists charts.
 - **Row guards.** Writes by row number can land on the wrong row when another
   writer inserts, deletes or sorts rows. `update`, `batch_update`, `clear`,
   `layout` and `data` take `expect` — up to 200 single cells with the value each must display
