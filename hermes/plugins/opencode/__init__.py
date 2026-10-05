@@ -103,12 +103,14 @@ def _external_directory():
     for every agent, but an agent-level "*" deny is evaluated last and shadows
     them (measured 2026-09-16), so they are re-allowed here. A plain `ask` is
     no alternative: `opencode run` without --auto rejects it, and with --auto
-    approves it, so it never means "ask" on this transport.
+    approves it, so it never means "ask" on this transport. OpenCode 2 adds its
+    shell-output dir and spells the temp dir by its resolved path (/private/var
+    on macOS), so both spellings are listed.
     """
     data = Path(os.environ.get("XDG_DATA_HOME") or Path.home() / ".local/share")
-    return {"*": "deny",
-            str(data / "opencode/tool-output/*"): "allow",
-            str(Path(os.environ.get("TMPDIR") or "/tmp") / "opencode/*"): "allow"}
+    tmp = Path(os.environ.get("TMPDIR") or "/tmp") / "opencode"
+    scratch = [data / "opencode/tool-output/*", data / "opencode/shell/*/*", tmp / "*", tmp.resolve() / "*"]
+    return {"*": "deny", **{str(path): "allow" for path in scratch}}
 
 
 # ~/.config/opencode/agent/worker.md opens worktree homes outside the session
@@ -265,16 +267,45 @@ def _permissions(agent, issue_approval, protected):
     }
 
 
-def _command(data, config):
-    command = ["opencode", "run", "--format", "json", "--agent", OPENCODE_AGENTS[data["agent"]],
-               "--dir", data["directory"]]
+def _agent_pin(name):
+    """(model, variant) pinned in an installed agent's frontmatter, or (None, None).
+
+    OpenCode 2's `run --agent` switches the agent but keeps the session on the
+    default model (measured on 2.0.23), so V2 runs pass the pin explicitly.
+    """
+    base = Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config") / "opencode"
+    for folder in ("agent", "agents"):
+        path = base / folder / f"{name}.md"
+        if not path.is_file():
+            continue
+        match = re.match(r"---\n(.*?)\n---\n", path.read_text(encoding="utf-8"), re.S)
+        meta = (yaml.safe_load(match.group(1)) if match else None) or {}
+        if not isinstance(meta, dict):
+            raise ValueError(f"Unreadable frontmatter in OpenCode agent {name}")
+        model, variant = meta.get("model"), meta.get("variant")
+        if model is not None and (not isinstance(model, str) or not MODEL_NAME.fullmatch(model)):
+            raise ValueError(f"OpenCode agent {name} pins an invalid model")
+        if variant is not None and (not isinstance(variant, str) or not VARIANT_NAME.fullmatch(variant)):
+            raise ValueError(f"OpenCode agent {name} pins an invalid variant")
+        return model, (variant if model else None)
+    return None, None
+
+
+def _command(data, config, major):
+    agent = OPENCODE_AGENTS[data["agent"]]
+    if major == 1:
+        command = ["opencode", "run", "--format", "json", "--agent", agent, "--dir", data["directory"]]
+    else:
+        # --standalone: a private server that inherits OPENCODE_CONFIG_CONTENT.
+        # The shared background service was started by someone else and would
+        # never see this run's permissions. The worktree comes from cwd/PWD.
+        command = ["opencode", "run", "--standalone", "--format", "json", "--agent", agent]
     if data["agent"] == "build":
         command.append("--auto")
     model = data.get("model") or (config.get("models") or {}).get(data["agent"])
     if model:
         if not isinstance(model, str) or not re.fullmatch(r"[A-Za-z0-9_.:/-]+", model):
             raise ValueError("Invalid configured OpenCode model")
-        command += ["--model", model]
     variant = data.get("variant")
     if variant:
         if not isinstance(variant, str) or not VARIANT_NAME.fullmatch(variant):
@@ -283,7 +314,15 @@ def _command(data, config):
             # Re-checked at dispatch: the configured per-agent model may have been
             # removed since the conversation bound its variant.
             raise ValueError("Recorded variant has no model to bind to; pass model explicitly")
-        command += ["--variant", variant]
+    if major == 1:
+        command += ["--model", model] if model else []
+        command += ["--variant", variant] if variant else []
+    else:
+        if not model:
+            model, variant = _agent_pin(agent)
+        if not model:
+            raise ValueError(f"OpenCode 2 needs a model: agent {agent} pins none and none is configured")
+        command += ["--model", model + (f"#{variant}" if variant else "")]
     if data.get("session_id"):
         if not SESSION_ID.fullmatch(data["session_id"]):
             raise ValueError("Invalid saved OpenCode session identity")
@@ -295,10 +334,11 @@ def _command(data, config):
 
 
 def _env(data, protected):
-    env = {key: value for key, value in os.environ.items()
-           if not key.startswith(("HERMES_", "RESIDENT_"))
-           and key not in {"OPENCODE_PERMISSION", "OPENCODE_CONFIG_CONTENT"}}
+    # PWD too: OpenCode 2 resolves the run's directory from $PWD before cwd.
+    env = inventory.child_env({"PWD": data["directory"]})
     permission = _permissions(data["agent"], data.get("issue_approval"), protected)
+    # OpenCode 1 reads both variables; OpenCode 2 ignores OPENCODE_PERMISSION
+    # and takes the per-agent rules from OPENCODE_CONFIG_CONTENT alone.
     env["OPENCODE_PERMISSION"] = json.dumps(permission)
     agents = {OPENCODE_AGENTS[data["agent"]]: {"permission": permission}}
     if "worker" in ROLE_TASKS[data["agent"]]:
@@ -358,9 +398,12 @@ def _run(request_path):
             branch, protected = _branch(data["directory"], data["agent"] == "build")
             if branch != data["branch"]:
                 raise ValueError("Worktree branch changed since dispatch")
+            # Probe first: the stop/deadline gate below must be the last check
+            # before launch, and the probe itself can take seconds.
+            major = inventory.opencode_major()
             if time.time() >= request["deadline"] or stop_path.exists():
                 raise ValueError("Stopped or expired before dispatch")
-            command = _command(data, config)
+            command = _command(data, config, major)
             data.update(status="running", result="", error="")
             dispatch._write(root / (cid + ".json"), data)
             with open(root / (job + ".prompt"), "x", encoding="utf-8") as prompt:
@@ -452,8 +495,16 @@ def _run(request_path):
                     os.killpg(proc.pid, signal.SIGKILL)
                 code = proc.wait(timeout=5)
                 stopped = True
-            finished = bool(last_finish and last_finish.get("reason") == "stop" and seen_sid)
-            message_id = last_finish.get("messageID") if last_finish else None
+            if major == 1:
+                finished = bool(last_finish and last_finish.get("reason") == "stop" and seen_sid)
+                message_id = last_finish.get("messageID") if last_finish else None
+            else:
+                # OpenCode 2 emits no step_finish for the final step; it exits
+                # non-zero after any error, so a clean exit with an owned session
+                # and no error event is completion. The reply is the last
+                # assistant message that produced text.
+                finished = bool(seen_sid) and code == 0 and not event_error
+                message_id = list(texts)[-1] if texts else None
             data["result"] = "\n".join(texts.get(message_id) or [t for group in texts.values() for t in group])
             data["exit_code"] = code
             if stopped or protocol_error or code < 0:

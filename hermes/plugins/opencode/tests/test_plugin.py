@@ -18,7 +18,21 @@ spec.loader.exec_module(plugin)
 FAKE = r'''
 import json, os, pathlib, signal, subprocess, sys, time
 args = sys.argv[1:]
-directory = pathlib.Path(args[args.index("--dir") + 1])
+version = os.environ.get("ENGINEER_FAKE_VERSION", "1.18.34")
+if args == ["--version"]:
+    # A stop request that lands while the version probe runs.
+    for request in pathlib.Path(os.environ.get("ENGINEER_FAKE_STOP_DIR", "/nonexistent")).glob("*.request"):
+        request.with_suffix(".stop").write_text("{}")
+    print(version)
+    sys.exit(0)
+v2 = "v2." in version
+if v2:
+    # OpenCode 2 has no --dir: the run's directory is $PWD, then cwd.
+    assert "--dir" not in args and "--variant" not in args and "--standalone" in args
+    directory = pathlib.Path(os.environ["PWD"])
+    assert directory.resolve() == pathlib.Path.cwd().resolve()
+else:
+    directory = pathlib.Path(args[args.index("--dir") + 1])
 prompt = sys.stdin.read()
 behavior = os.environ.get("ENGINEER_FAKE", "ok")
 (directory / "invocation.json").write_text(json.dumps({"args": args, "prompt": prompt,
@@ -38,7 +52,7 @@ elif behavior in {"error", "error-signal"}:
     emit("error", error={"name": "UnknownError", "data": {"message": "probe"}})
     if behavior == "error-signal":
         os.kill(os.getpid(), signal.SIGTERM)
-    sys.exit(0)
+    sys.exit(1 if v2 else 0)
 elif behavior == "malformed":
     print("not-json", flush=True)
 elif behavior == "incomplete":
@@ -46,8 +60,15 @@ elif behavior == "incomplete":
 elif behavior == "wrong-session":
     sid = "ses_foreign"
 text = "ASK_CLIENT: choose A or B" if behavior == "question" else "RESULT_OK"
-emit("text", part={"messageID": "msg_a", "text": text})
-emit("step_finish", part={"messageID": "msg_a", "reason": "stop"})
+if v2:
+    # A tool step, then the final reply in a second message with no step_finish.
+    emit("text", part={"messageID": "msg_a", "text": "working"})
+    emit("step_finish", part={"messageID": "msg_a", "reason": "tool-calls"})
+    emit("step_start", part={"messageID": "msg_b"})
+    emit("text", part={"messageID": "msg_b", "text": text})
+else:
+    emit("text", part={"messageID": "msg_a", "text": text})
+    emit("step_finish", part={"messageID": "msg_a", "reason": "stop"})
 '''
 
 
@@ -368,7 +389,8 @@ def external_only_opencode_scratch(permission):
     rules = list(permission["external_directory"].items())
     assert rules[0] == ("*", "deny")
     assert {action for _, action in rules[1:]} == {"allow"}
-    assert all(pattern.endswith(("/opencode/tool-output/*", "/opencode/*")) for pattern, _ in rules[1:])
+    assert all(pattern.endswith(("/opencode/tool-output/*", "/opencode/shell/*/*", "/opencode/*"))
+               for pattern, _ in rules[1:])
     return True
 
 
@@ -530,3 +552,96 @@ def test_reconcile_only_turn_refuses_execution(fixture, monkeypatch):
     assert "reconcile-only" in call(directory)["error"]
     assert "reconcile-only" in call(conversation_id=first["conversation_id"])["error"]
     assert session(first["conversation_id"])["status"] == "completed"
+
+
+# ---------------------------------------------------------------- OpenCode 2
+
+REPO_ROOT = Path(__file__).resolve().parents[4]
+
+
+@pytest.fixture
+def v2(fixture, monkeypatch):
+    monkeypatch.setenv("ENGINEER_FAKE_VERSION", "opencode v2.0.23")
+    # The hidden primaries' frontmatter supplies the model pin.
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(REPO_ROOT))
+    monkeypatch.setenv("PWD", "/somewhere/else")
+    return fixture
+
+
+def pinned(installed):
+    return plugin._agent_pin(installed)
+
+
+def test_v2_runs_standalone_in_the_worktree_with_the_agent_pin(v2):
+    _, directory, _ = v2
+    first = call(directory)
+    assert first["status"] == "completed", first
+    assert first["result"] == "RESULT_OK"
+    invocation = json.loads((directory / "invocation.json").read_text())
+    args = invocation["args"]
+    assert args[:4] == ["run", "--standalone", "--format", "json"]
+    model, variant = pinned("hermes-plan")
+    assert model and args[args.index("--model") + 1] == f"{model}#{variant}" if variant else model
+    assert invocation["config"]["agent"]["hermes-plan"]["permission"] == invocation["permission"]
+    resumed = call(conversation_id=first["conversation_id"])
+    assert resumed["status"] == "completed" and resumed["session_id"] == "ses_first"
+    forked = call(conversation_id=first["conversation_id"], fork=True)
+    assert forked["status"] == "completed" and forked["session_id"] == "ses_fork"
+
+
+def test_v2_explicit_model_and_variant_replace_the_pin(v2):
+    home, directory, _ = v2
+    (home / "config.yaml").write_text(
+        "opencode_cli:\n  enabled: true\n  timeout: 10\n"
+        "  allowed_models: [openai/gpt-6-sol]\n  allowed_variants: [high]\n")
+    result = call(directory, model="openai/gpt-6-sol", variant="high")
+    assert result["status"] == "completed", result
+    args = json.loads((directory / "invocation.json").read_text())["args"]
+    assert args[args.index("--model") + 1] == "openai/gpt-6-sol#high"
+    plain = call(directory, model="openai/gpt-6-sol")
+    args = json.loads((directory / "invocation.json").read_text())["args"]
+    assert plain["status"] == "completed" and args[args.index("--model") + 1] == "openai/gpt-6-sol"
+
+
+def test_v2_without_any_model_fails_before_launch(v2, tmp_path, monkeypatch):
+    _, directory, _ = v2
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "empty-config"))
+    result = call(directory)
+    assert result["status"] == "failed" and "needs a model" in result["error"], result
+    assert not (directory / "invocation.json").exists()
+
+
+@pytest.mark.parametrize("behavior, status", [("error", "failed"), ("malformed", "unknown"),
+                                              ("wrong-session", "unknown")])
+def test_v2_errors_and_protocol_breaks_are_not_success(v2, monkeypatch, behavior, status):
+    _, directory, _ = v2
+    monkeypatch.setenv("ENGINEER_FAKE", behavior)
+    result = call(directory)
+    assert result["status"] == status, result
+
+
+def test_unknown_opencode_version_fails_before_launch(fixture, monkeypatch):
+    _, directory, _ = fixture
+    monkeypatch.setenv("ENGINEER_FAKE_VERSION", "3.1.0")
+    result = call(directory)
+    assert result["status"] == "failed" and "major version 3" in result["error"], result
+    assert not (directory / "invocation.json").exists()
+
+
+def test_v1_still_passes_dir_and_variant(fixture):
+    home, directory, _ = fixture
+    (home / "config.yaml").write_text(
+        "opencode_cli:\n  enabled: true\n  timeout: 10\n"
+        "  allowed_models: [openai/gpt-6-sol]\n  allowed_variants: [high]\n")
+    assert call(directory, model="openai/gpt-6-sol", variant="high")["status"] == "completed"
+    args = json.loads((directory / "invocation.json").read_text())["args"]
+    assert "--standalone" not in args and args[args.index("--dir") + 1] == str(directory)
+    assert args[args.index("--variant") + 1] == "high"
+
+
+def test_stop_during_version_probe_launches_nothing(fixture, monkeypatch):
+    home, directory, _ = fixture
+    monkeypatch.setenv("ENGINEER_FAKE_STOP_DIR", str(home / "opencode-sessions"))
+    result = call(directory)
+    assert result["status"] == "failed" and "Stopped or expired" in result["error"], result
+    assert not (directory / "invocation.json").exists()

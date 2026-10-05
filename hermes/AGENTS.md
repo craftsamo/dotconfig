@@ -235,6 +235,10 @@ When editing `plugins/opencode` or `~/.config/opencode/agent/hermes-*.md`:
   reappears) — OpenCode deep-merges both, so two owners means neither is the
   truth. On `opencode run`, `ask` is never a question (rejected without
   `--auto`, approved with it); write `allow` or `deny`.
+- **OpenCode 2 runs stay `--standalone`.** The shared background service never
+  sees the run's `OPENCODE_CONFIG_CONTENT`, so attaching to it silently drops
+  the whole permission policy (V2 ignores `OPENCODE_PERMISSION`). Details:
+  [docs/profiles/engineer.md "OpenCode 1 and 2"](docs/profiles/engineer.md).
 - Role → agent mapping lives only in `OPENCODE_AGENTS`; renaming an installed
   agent touches that map and nothing else.
 - Keep caller/worktree/branch binding, JSON error handling (exit zero is not
