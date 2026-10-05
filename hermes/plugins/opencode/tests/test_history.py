@@ -246,6 +246,11 @@ FAKE_SERVE = r'''#!{python}
 import base64, json, os, sys
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib.parse import urlparse, parse_qs
+version = os.environ.get("FAKE_VERSION", "1.18.34")
+if sys.argv[1:] == ["--version"]:
+    print(version)
+    sys.exit(0)
+v2 = "v2." in version
 record = os.environ["FAKE_RECORD"]
 mode = os.environ.get("FAKE_MODE", "ok")
 json.dump({{"argv": sys.argv[1:], "cwd": os.getcwd(), "pid": os.getpid(),
@@ -263,6 +268,35 @@ def session(sid, parent=None, created=FROM + H, updated=FROM + 2 * H):
             "tokens": {{"input": 1, "output": 2, "reasoning": 0, "cache": {{"read": 0, "write": 0}}}},
             "summary": {{"additions": 1, "deletions": 0, "files": 1}},
             "time": {{"created": created, "updated": updated}}}}
+def session_v2(sid, parent=None, created=FROM + H, updated=FROM + 2 * H):
+    item = session(sid, parent, created, updated)
+    for key in ("directory", "version", "summary", "slug"):
+        item.pop(key)
+    return {{**item, "location": {{"directory": "/w/a"}}}}
+def v2_get(url, query):
+    if url.path == "/api/info":
+        return {{"version": "2.0.23", "pid": os.getpid()}}
+    if url.path == "/api/session/ses_new":
+        return {{"data": session_v2("ses_new")}}
+    if url.path != "/api/session" or mode == "noroute":
+        return None
+    if mode == "badshape":
+        return {{"not": "a page"}}
+    seen = json.load(open(record))
+    json.dump({{**seen, "query": query, "cursors": seen.get("cursors", []) + query.get("cursor", ["0"])}},
+              open(record, "w"))
+    rows = [session_v2("ses_new", updated=FROM + 3 * H), session_v2("ses_kid", parent="ses_new"),
+            session_v2("ses_old", created=FROM - 5 * H, updated=FROM - 4 * H),
+            session_v2("ses_older", created=FROM - 9 * H, updated=FROM - 8 * H)]
+    parent = query.get("parentID", [None])[0]
+    if parent == "null":
+        rows = [r for r in rows if not r["parentID"]]
+    elif parent:
+        rows = [r for r in rows if r["parentID"] == parent]
+    start = int(query.get("cursor", ["0"])[0])
+    # One session per page, so callers must follow the cursor.
+    page = rows[start:start + 1]
+    return {{"data": page, "cursor": {{"next": str(start + 1) if start + 1 < len(rows) else None}}}}
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, *a):
         pass
@@ -270,7 +304,11 @@ class Handler(BaseHTTPRequestHandler):
         if self.headers.get("Authorization") != expected:
             self.send_response(401); self.end_headers(); return
         url = urlparse(self.path); query = parse_qs(url.query)
-        if url.path == "/global/health":
+        if v2:
+            body = v2_get(url, query)
+            if body is None:
+                self.send_response(404); self.end_headers(); return
+        elif url.path == "/global/health":
             body = {{"healthy": True, "version": "9.9"}}
         elif url.path == "/experimental/session":
             if mode == "noroute":
@@ -416,3 +454,141 @@ def test_tool_is_registered_strict_and_gated(db, monkeypatch):
                                                                   "path_factory": lambda: str(db)})
     result = json.loads(plugin.opencode_history({"action": "list", "source": "db"}))
     assert result["source"] == "db" and "ses_root" in ids(result)
+
+
+# ---------------------------------------------------------------- OpenCode 2
+
+def test_v2_api_routes_follow_the_cursor_without_pure(fake, monkeypatch):
+    factory, record = fake
+    monkeypatch.setenv("FAKE_VERSION", "opencode v2.0.23")
+    result = history.run({"action": "list", "from": history._iso(FROM), "to": history._iso(TO),
+                          "include_title": True}, server_factory=factory,
+                         path_factory=lambda: pytest.fail("database used"))
+    assert result["source"] == "api" and result["opencode_version"] == "2.0.23"
+    # Roots only, newest first; ses_old (updated before the window) ends the paging.
+    assert ids(result) == ["ses_new"]
+    session = result["sessions"][0]
+    assert session["directory"] == "/w/a" and session["version"] is None and session["changes"] is None
+    seen = json.loads(record.read_text())
+    assert seen["argv"] == ["serve", "--hostname", "127.0.0.1", "--port", "0"]
+    assert seen["query"]["parentID"] == ["null"] and seen["query"]["order"] == ["desc"]
+    windowed = history.run({"action": "list", "kind": "all", "from": history._iso(FROM),
+                            "to": history._iso(TO)}, server_factory=factory)
+    assert ids(windowed) == ["ses_new", "ses_kid"]
+    # Paging stops at the first session updated before the window.
+    assert json.loads(record.read_text())["cursors"] == ["0", "1", "2"]
+    everything = history.run({"action": "list", "kind": "all"}, server_factory=factory)
+    assert ids(everything) == ["ses_new", "ses_kid", "ses_old", "ses_older"]
+    got = history.run({"action": "get", "session_id": "ses_new"}, server_factory=factory)
+    assert got["session"]["id"] == "ses_new"
+    kids = history.run({"action": "children", "session_id": "ses_new"}, server_factory=factory)
+    assert ids(kids) == ["ses_kid"]
+    with pytest.raises(ValueError, match="not found"):
+        history.run({"action": "get", "session_id": "ses_gone", "source": "api"}, server_factory=factory)
+
+
+@pytest.mark.parametrize("mode", ["badshape", "noroute"])
+def test_v2_api_failures_fall_back_to_the_database(fake, db, monkeypatch, mode):
+    factory, _ = fake
+    monkeypatch.setenv("FAKE_VERSION", "opencode v2.0.23")
+    monkeypatch.setenv("FAKE_MODE", mode)
+    result = history.run({"action": "list", "from": history._iso(FROM), "to": history._iso(TO)},
+                         server_factory=factory, path_factory=lambda: str(db),
+                         version_factory=lambda: pytest.fail("single-schema database needs no version"))
+    assert result["source"] == "db" and result["diagnostics"][0]["code"] == "api-unavailable"
+
+
+def test_unknown_major_version_is_unavailable(fake, monkeypatch):
+    factory, _ = fake
+    monkeypatch.setenv("FAKE_VERSION", "3.0.0")
+    with pytest.raises(history.Unavailable, match="major version 3"):
+        history.run({"action": "list", "source": "api"}, server_factory=factory)
+
+
+def _v2_schema(conn):
+    conn.execute("create table session_v2 (id text primary key, project_id text, workspace_id text, "
+                 "parent_id text, directory text, path text, title text, version text, cost real, "
+                 "tokens_input integer, tokens_output integer, tokens_reasoning integer, "
+                 "tokens_cache_read integer, tokens_cache_write integer, agent text, model text, "
+                 "time_created integer, time_updated integer, time_archived integer)")
+    conn.execute("create table session_message (id text primary key, session_id text, type text, "
+                 "seq integer, time_created integer, time_updated integer, data text)")
+
+
+def _v2_session(conn, sid, created, updated, *, parent=None, archived=None, agent="build",
+                model=("anthropic", "opus")):
+    conn.execute("insert into session_v2 (id, project_id, parent_id, directory, title, version, cost, "
+                 "tokens_input, tokens_output, tokens_reasoning, tokens_cache_read, tokens_cache_write, "
+                 "agent, model, time_created, time_updated, time_archived) "
+                 "values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                 (sid, "proj", parent, "/w/a", f"TITLE {sid} {SECRET}", "2.0.23", 1.5, 1, 2, 3, 4, 5,
+                  agent, json.dumps({"id": model[1], "providerID": model[0]}), created, updated, archived))
+
+
+def _v2_step(conn, mid, sid, created, completed, *, waits=(), model=("anthropic", "opus"), agent="build"):
+    content = [{"type": "text", "text": SECRET}]
+    for start, end, name in waits:
+        content.append({"type": "tool", "name": name, "input": SECRET, "state": {"status": "completed"},
+                        "time": {"created": start - 1, "ran": start, "completed": end}})
+    data = {"agent": agent, "model": {"id": model[1], "providerID": model[0]},
+            "time": {"created": created, **({"completed": completed} if completed is not None else {})},
+            "tokens": {"input": 1, "output": 10, "reasoning": 2, "cache": {"read": 3, "write": 4}},
+            "cost": 0.25, "content": content}
+    conn.execute("insert into session_message values (?,?,?,?,?,?,?)",
+                 (mid, sid, "assistant", 0, created, completed or created, json.dumps(data)))
+
+
+@pytest.fixture
+def db_v2(tmp_path):
+    path = tmp_path / "opencode-v2.db"
+    conn = sqlite3.connect(path)
+    _v2_schema(conn)
+    _v2_session(conn, "ses_root", FROM + H, FROM + 10 * H)
+    _v2_session(conn, "ses_child", FROM + H, FROM + 2 * H, parent="ses_root", agent="explore",
+                model=("openai", "gpt"))
+    _v2_step(conn, "m1", "ses_root", FROM + H, FROM + 2 * H,
+             waits=[(FROM + H + 10 * 60000, FROM + H + 55 * 60000, "question"),
+                    (FROM + H + 5 * 60000, FROM + H + 6 * 60000, "shell")])
+    _v2_step(conn, "m2", "ses_root", FROM + 3 * H, FROM + 3 * H + 30 * 60000)
+    _v2_step(conn, "c1", "ses_child", FROM + H, FROM + H + 20 * 60000, model=("openai", "gpt"),
+             agent="explore")
+    conn.execute("insert into session_message values ('u1','ses_root','user',0,?,?,?)",
+                 (FROM + H, FROM + H, json.dumps({"text": SECRET})))
+    conn.commit()
+    conn.close()
+    return path
+
+
+def test_v2_database_lists_and_measures_usage(db_v2):
+    listed = run_db(db_v2, action="list", kind="all")
+    assert ids(listed) == ["ses_root", "ses_child"]
+    assert listed["sessions"][0]["version"] == "2.0.23"
+    kids = run_db(db_v2, action="children", session_id="ses_root")
+    assert ids(kids) == ["ses_child"]
+    result = run_db(db_v2, action="usage", group_by=["model"],
+                    **{"from": history._iso(FROM), "to": history._iso(TO)})
+    totals = result["totals"]
+    # Root: 60 min step - 45 min question wait (shell is work) + 30 min step; child 20 min.
+    assert totals["active_seconds"] == (45 + 20) * 60
+    assert totals["question_wait_seconds"] == 45 * 60
+    assert totals["messages"] == 3 and totals["tokens"]["output"] == 30
+    assert {g["key"]["model"] for g in result["groups"]} == {"anthropic/opus", "openai/gpt"}
+    assert result["status"] == "complete" and SECRET not in json.dumps(result)
+
+
+def test_database_with_both_schemas_follows_the_installed_version(tmp_path):
+    path = tmp_path / "both.db"
+    conn = sqlite3.connect(path)
+    _schema(conn)
+    _v2_schema(conn)
+    _session(conn, "ses_v1", FROM + H, FROM + 2 * H)
+    _v2_session(conn, "ses_v2", FROM + H, FROM + 2 * H)
+    conn.commit()
+    conn.close()
+    for major, expected in ((1, "ses_v1"), (2, "ses_v2")):
+        result = history.run({"action": "list", "source": "db"}, path_factory=lambda: str(path),
+                             version_factory=lambda major=major: major)
+        assert ids(result) == [expected]
+    with pytest.raises(history.Unavailable, match="1 and 2"):
+        with history.Snapshot(str(path)):
+            pass
