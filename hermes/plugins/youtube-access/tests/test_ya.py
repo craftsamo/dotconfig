@@ -72,9 +72,12 @@ def isolated(monkeypatch, tmp_path):
     store = tmp_path / "store"
     monkeypatch.setattr(ya, "STORE", store)
     monkeypatch.setattr(ya, "MIN_GAP", 0)
+    monkeypatch.setattr(ya, "DEFAULT_ATTACH_ROOT", tmp_path / "Workspaces")
     monkeypatch.setattr(ya, "VENV_PYTHON", tmp_path / "python")
     (tmp_path / "python").write_text("")
+    (tmp_path / "Workspaces").mkdir()
     ya._CREDS.clear()
+    ya._CONTEXT.clear()
     ya._NARROW["ok"] = True
     return tmp_path
 
@@ -436,6 +439,129 @@ def test_engine_missing(tmp_path, monkeypatch):
     assert ya.usage()["ytdlp"]["last_day"] == 0  # not counted
 
 
+# --- writes ---------------------------------------------------------------------------------------
+
+def test_update_merges_and_keeps_other_fields(api):
+    authorize(CID)
+    api.answers = {"videos.list": {"items": [video_item()]}, "videos.update": lambda kw: {**video_item(), **kw["body"]}}
+    ya.execute({"action": "update", "video": VID, "title": "New", "privacy": "unlisted"}, profile="assistant")
+    name, kwargs = api.calls[-1]
+    assert name == "videos.update" and kwargs["part"] == "snippet,status"
+    body = kwargs["body"]
+    assert body["snippet"] == {"title": "New", "description": "desc", "tags": ["a"], "categoryId": "22"}
+    assert body["status"]["privacyStatus"] == "unlisted" and body["status"]["embeddable"] is True
+    assert "uploadStatus" not in body["status"] and "madeForKids" not in body["status"]
+    assert api.read_only[-1] is False
+    assert ya.usage()["api"]["units"] == 51
+
+
+def test_update_refuses_another_channels_video(api):
+    authorize(CID)
+    api.answers = {"videos.list": {"items": [video_item(channel=CID2)]}}
+    with pytest.raises(ya.YouTubeError, match="another channel"):
+        ya.execute({"action": "update", "video": VID, "title": "x"}, profile="assistant")
+    assert [c[0] for c in api.calls] == ["videos.list"]
+
+
+def test_schedule_keeps_the_video_private(api):
+    authorize(CID)
+    snippet, status = ya._edits({"publish_at": "2099-01-01T09:00+09:00"})
+    assert status == {"publishAt": "2099-01-01T00:00:00Z", "privacyStatus": "private"}
+    with pytest.raises(ya.YouTubeError, match="future"):
+        ya._edits({"publish_at": "2001-01-01T00:00+00:00"})
+    with pytest.raises(ya.YouTubeError, match="private"):
+        ya._edits({"publish_at": "2099-01-01T00:00+00:00", "privacy": "public"})
+
+
+def test_marketer_cannot_write():
+    authorize(CID)
+    with pytest.raises(ya.YouTubeError, match="action must be one of"):
+        ya.execute({"action": "update", "video": VID, "title": "x"}, profile="marketer")
+    with pytest.raises(ya.YouTubeError, match="action must be one of"):
+        ya.approval_request({"action": "upload"}, profile="marketer")
+
+
+# --- approval -------------------------------------------------------------------------------------
+
+def test_reads_need_no_approval():
+    authorize(CID)
+    for action in ya.READS:
+        assert ya.approval_request({"action": action}, profile="assistant") is None
+
+
+def test_video_edits_share_one_key_per_video(tmp_path):
+    authorize(CID)
+    image = tmp_path / "Workspaces" / "thumb.png"
+    image.write_bytes(b"x" * 10)
+    one = ya.approval_request({"action": "update", "video": VID, "title": "A"}, profile="assistant", lookup=False)
+    two = ya.approval_request({"action": "update", "video": f"https://youtu.be/{VID}", "description": "B"},
+                              profile="assistant", lookup=False)
+    thumb = ya.approval_request({"action": "thumbnail", "video": VID, "path": str(image)}, profile="assistant",
+                                lookup=False)
+    assert one[1] == two[1] == thumb[1] == f"youtube-access:edit:{CID}:{VID}"
+    assert "title → A" in one[0] and "YouTube: Chan 0" in one[0]
+    public = ya.approval_request({"action": "update", "video": VID, "privacy": "public"}, profile="assistant",
+                                 lookup=False)
+    assert public[1].startswith("youtube-access:update:") and "privacy → PUBLIC" in public[0]
+
+
+def test_other_writes_key_the_exact_call(tmp_path):
+    authorize(CID)
+    movie = tmp_path / "Workspaces" / "clip.mp4"
+    movie.write_bytes(b"x" * 100)
+    calls = [{"action": "reply", "comment": "Ugx" + "c" * 20, "text": "thanks!"},
+             {"action": "upload", "path": str(movie), "title": "Clip"},
+             {"action": "playlist_create", "title": "List"},
+             {"action": "playlist_add", "playlist": "PL1234567890abc", "video": VID},
+             {"action": "playlist_remove", "item": "UExabcdefghijklmn"}]
+    keys = set()
+    for args in calls:
+        reason, key = ya.approval_request(args, profile="assistant", lookup=False)
+        assert key.startswith(f"youtube-access:{args['action']}:") and ya._units(reason) <= ya.CARD_LIMIT
+        keys.add(key)
+    assert len(keys) == len(calls)
+    first = ya.approval_request(calls[1], profile="assistant", lookup=False)
+    movie.write_bytes(b"y" * 200)
+    second = ya.approval_request(calls[1], profile="assistant", lookup=False)
+    assert first[1] != second[1] and "PRIVATE" in second[0]
+
+
+def test_cards_stay_short():
+    authorize(CID)
+    reason, _ = ya.approval_request({"action": "update", "video": VID, "title": "T" * 100, "description": "D" * 5000,
+                                     "tags": ["tag"] * 50}, profile="assistant", lookup=False)
+    assert ya._units(reason) <= ya.CARD_LIMIT
+
+
+def test_files_only_from_the_attach_roots(tmp_path):
+    authorize(CID)
+    outside = tmp_path / "clip.mp4"
+    outside.write_bytes(b"x")
+    with pytest.raises(ya.YouTubeError, match="must be under"):
+        ya.approval_request({"action": "upload", "path": str(outside), "title": "x"}, profile="assistant")
+    hidden = tmp_path / "Workspaces" / ".ssh"
+    hidden.mkdir()
+    (hidden / "clip.mp4").write_bytes(b"x")
+    with pytest.raises(ya.YouTubeError, match="never uploaded"):
+        ya.approval_request({"action": "upload", "path": str(hidden / "clip.mp4"), "title": "x"}, profile="assistant")
+    big = tmp_path / "Workspaces" / "big.png"
+    big.write_bytes(b"x" * (ya.THUMB_MAX + 1))
+    with pytest.raises(ya.YouTubeError, match="at most"):
+        ya.approval_request({"action": "thumbnail", "video": VID, "path": str(big)}, profile="assistant")
+    text = tmp_path / "Workspaces" / "notes.txt"
+    text.write_text("x")
+    with pytest.raises(ya.YouTubeError, match="one of"):
+        ya.approval_request({"action": "upload", "path": str(text), "title": "x"}, profile="assistant")
+
+
+def test_invalid_writes_are_refused_before_a_card():
+    authorize(CID)
+    for args in ({"action": "update", "video": VID}, {"action": "reply", "comment": "x", "text": "hi"},
+                 {"action": "update", "video": VID, "title": "<b>"}, {"action": "playlist_remove", "item": "!"}):
+        with pytest.raises(ya.YouTubeError):
+            ya.approval_request(args, profile="assistant", lookup=False)
+
+
 # --- guard ----------------------------------------------------------------------------------------
 
 @pytest.mark.parametrize("tool,args", [
@@ -471,7 +597,37 @@ def test_cli_paths(capsys):
     assert json.loads(capsys.readouterr().out)["keychain"].startswith("YOUTUBE_OAUTH")
 
 
-# --- pacing ---------------------------------------------------------------------------------------
+# --- binding --------------------------------------------------------------------------------------
+
+def test_a_write_runs_only_as_its_card_bound_it(tmp_path, api):
+    authorize(CID, CID2)
+    home = home_with(tmp_path, "youtube_access:\n  default_channel: '@chan0'\n")
+    args = {"action": "update", "video": VID, "title": "New"}
+    with pytest.raises(ya.YouTubeError, match="not bound"):
+        ya.execute(args, home=home, profile="assistant", bound=True)
+    pinned = {**args, **ya.binding(args, home=home, profile="assistant")}
+    assert pinned["_bound"] == {"channel": CID}
+    home_with(tmp_path, "youtube_access:\n  default_channel: '@chan1'\n")  # the default moves meanwhile
+    api.answers = {"videos.list": {"items": [video_item(channel=CID)]},
+                   "videos.update": lambda kw: {**video_item(), **kw["body"]}}
+    ya.execute(pinned, home=home, profile="assistant", bound=True)
+    assert api.calls[-1][0] == "videos.update"
+    assert ya.binding({"action": "update", "video": VID, "channel": "@nobody"}, home=home,
+                      profile="assistant") == {"_bound": None}
+    assert ya.binding({"action": "videos"}, home=home, profile="assistant") is None
+
+
+def test_an_upload_file_changed_after_its_card_is_refused(tmp_path, api):
+    authorize(CID)
+    movie = tmp_path / "Workspaces" / "clip.mp4"
+    movie.write_bytes(b"x" * 100)
+    args = {"action": "upload", "path": str(movie), "title": "Clip"}
+    pinned = {**args, **ya.binding(args, profile="assistant")}
+    movie.write_bytes(b"y" * 300)
+    with pytest.raises(ya.YouTubeError, match="file changed"):
+        ya.execute(pinned, profile="assistant", bound=True)
+    assert api.calls == []
+
 
 def test_one_ytdlp_call_at_a_time(monkeypatch):
     monkeypatch.setattr(ya, "LOCK_WAIT", 0.2)
