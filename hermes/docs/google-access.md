@@ -69,9 +69,12 @@ The hook decides before a tool runs; the rule is `approval_request` in
   spreadsheet asks again. The spreadsheet's version history undoes them.
   `clear` and `create` keep a key per exact call, like every other change:
   "always" there only repeats that identical call. So does a `layout` call
-  holding any op that deletes or moves data (`delete`, `move`, `merge`,
-  `table_delete`, `conditional_delete`; `LAYOUT_DESTRUCTIVE`), so a grant
-  for formatting never covers dropping rows.
+  holding any op that deletes, moves or replaces data, or picks a rule or
+  view by its number or name to replace or drop it (`delete`, `move`,
+  `merge`, `table_delete`, `conditional_update`, `conditional_delete`,
+  `filter_view_delete`; `LAYOUT_DESTRUCTIVE`), removes notes or replaces a
+  filter view's criteria (`_destructive`), so a grant for formatting never
+  covers dropping rows.
 - **Spreadsheet cards** are plain English, one fact per line —
   `SpreadSheet: <title>`, `Sheet: <tab>`, a blank line, then each cell as
   `K3257 > <column header>: <value>`, row 1 being the header. A whole tab whose
@@ -86,8 +89,10 @@ The hook decides before a tool runs; the rule is `approval_request` in
   ranges) so one card covers them.
 - **Layout** is one `spreadsheets.batchUpdate` per call, so its ops land
   together or not at all. Ops come from a fixed vocabulary (`LAYOUT_OPS`:
-  formatting, borders, sizes, inserting/deleting/moving rows and columns,
-  merges, freezing, native tables, conditional formatting, input rules), never
+  formatting, borders, sizes, hiding and grouping, inserting/deleting/moving
+  rows and columns, merges, freezing, tab properties and copies, notes, rich
+  text, native tables, conditional formatting, input rules, filters and filter
+  views), never
   raw API requests, so the gate can word and classify every one. As
   `batch_update` takes scattered cells in one call, an op that applies the
   same change to scattered places takes `ranges` instead of `range` (at most
@@ -100,8 +105,18 @@ The hook decides before a tool runs; the rule is `approval_request` in
   to sheet ids by name (a bare word is a tab, never a named range); tables by
   name or id. `table_update` keeps the columns it does not name, and
   `table_delete` removes the table with its contents (the API has no
-  unconvert). `info` lists each tab's frozen counts, merges, tables and
-  numbered conditional rules, which the update and delete ops refer to.
+  unconvert). Later ops in a call see earlier ones: a renamed tab, table or
+  view goes by its new name, a copied tab by its title (the engine picks the
+  copy's sheet id), and tab positions are where a tab ends up, translated to
+  the API's before-the-move index. `rich_text` rewrites one cell's text with
+  its partial styling, so without `value` it refuses a cell that holds a
+  formula, number or date rather than turn it into text, and after an
+  insert, delete or move (or another `rich_text` on that cell) in the same
+  call, whose text read before the call may no longer be the cell's. `info` lists each
+  tab's frozen counts, merges, tables, numbered conditional rules, groups,
+  filter and filter views, which the update and delete ops refer to;
+  `get_format` reads closed blocks of up to `FORMAT_CELL_LIMIT` cells back in
+  the format op's own words, without approval.
 - **Row guards.** Writes by row number can land on the wrong row when another
   writer inserts, deletes or sorts rows. `update`, `batch_update`, `clear` and
   `layout` take `expect` — up to 200 single cells with the value each must display

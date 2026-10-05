@@ -1295,3 +1295,334 @@ def test_layout_is_guarded_by_expect(tmp_path, monkeypatch):
     api, book = layout_api(["k4"])
     services(monkeypatch, sheets=api)
     assert access.sheets(tmp_path, args)["ok"] and book.batchUpdate.call_count == 1
+
+
+# --- layout: tabs, visibility, notes, rich text, filters ------------------------------------------
+
+TABS = {"sheets": [
+    {"properties": {"title": "Main"}, "rowGroups": [
+        {"range": {"dimension": "ROWS", "startIndex": 1, "endIndex": 10}, "depth": 1}]},
+    {"properties": {"sheetId": 7, "title": "Tasks"},
+     "filterViews": [{"filterViewId": 55, "title": "Open only",
+                      "range": {"sheetId": 7, "startRowIndex": 0, "endRowIndex": 20,
+                                "startColumnIndex": 0, "endColumnIndex": 4}}]}]}
+
+
+def tab_requests(*ops, cell=None):
+    return access._layout_requests(access._layout_ops(layout(*ops)), TABS, cell=cell)
+
+
+def test_hiding_and_grouping_become_requests():
+    hide, show, group, fold_req, ungroup = (
+        tab_requests({"op": "hide", "ranges": ["Tasks!C:C", "Tasks!E:F"]})[1],
+        tab_requests({"op": "unhide", "range": "4:5"})[0],
+        *tab_requests({"op": "group", "range": "Main!3:5", "collapsed": True}),
+        tab_requests({"op": "ungroup", "range": "Main!3:5"})[0])
+    assert hide == {"updateDimensionProperties": {
+        "range": {"sheetId": 7, "dimension": "COLUMNS", "startIndex": 4, "endIndex": 6},
+        "properties": {"hiddenByUser": True}, "fields": "hiddenByUser"}}
+    assert show["updateDimensionProperties"]["properties"] == {"hiddenByUser": False}
+    assert group == {"addDimensionGroup": {"range": {"sheetId": 0, "dimension": "ROWS", "startIndex": 2,
+                                                     "endIndex": 5}}}
+    # Rows 2-10 are already a group, so the new one is one level deeper.
+    assert fold_req["updateDimensionGroup"]["dimensionGroup"]["depth"] == 2
+    assert fold_req["updateDimensionGroup"]["fields"] == "collapsed"
+    assert ungroup == {"deleteDimensionGroup": {"range": group["addDimensionGroup"]["range"]}}
+    assert tab_requests({"op": "group", "range": "Tasks!B:C", "collapsed": True})[1][
+        "updateDimensionGroup"]["dimensionGroup"]["depth"] == 1
+
+
+def test_tab_ops_rename_colour_move_and_copy():
+    renamed, moved, copied, formatted, titled = tab_requests(
+        {"op": "sheet", "sheet": "Tasks", "title": "Done", "tab_color": "#0F0", "hidden": False},
+        {"op": "sheet", "sheet": "Main", "position": 2, "tab_color": "none"},
+        {"op": "sheet_duplicate", "sheet": "Done", "title": "Done copy", "position": 1},
+        {"op": "format", "range": "'Done copy'!A1", "bold": True},
+        {"op": "rename_spreadsheet", "title": "Plan 2026"})
+    assert renamed["updateSheetProperties"]["properties"] == {
+        "sheetId": 7, "title": "Done", "tabColorStyle": {"rgbColor": {"red": 0.0, "green": 1.0, "blue": 0.0}},
+        "hidden": False}
+    assert renamed["updateSheetProperties"]["fields"] == "title,tabColor,tabColorStyle,hidden"
+    # Main moves from first to second: the API counts the target before the move.
+    assert moved["updateSheetProperties"] == {"properties": {"sheetId": 0, "index": 2},
+                                              "fields": "tabColor,tabColorStyle,index"}
+    copy = copied["duplicateSheet"]
+    assert copy["sourceSheetId"] == 7 and copy["newSheetName"] == "Done copy" and copy["insertSheetIndex"] == 0
+    assert formatted["repeatCell"]["range"]["sheetId"] == copy["newSheetId"] not in (0, 7)
+    assert titled == {"updateSpreadsheetProperties": {"properties": {"title": "Plan 2026"}, "fields": "title"}}
+    with pytest.raises(access.AccessError, match="no tab named 'Tasks'"):
+        tab_requests({"op": "sheet", "sheet": "Tasks", "title": "Done"}, {"op": "hide", "range": "Tasks!A:A"})
+    with pytest.raises(access.AccessError, match="already exists"):
+        tab_requests({"op": "sheet", "sheet": "Tasks", "title": "Main"})
+
+
+def test_notes_and_cell_links():
+    note, gone, link = tab_requests(
+        {"op": "note", "ranges": ["Tasks!A1"], "text": "Owner: Ann"},
+        {"op": "note", "range": "Tasks!B2:C3", "text": ""},
+        {"op": "format", "range": "Tasks!D2", "link": "https://example.com/x", "rotation": "vertical",
+         "padding": 4})
+    assert note["repeatCell"]["cell"] == {"note": "Owner: Ann"} and note["repeatCell"]["fields"] == "note"
+    assert gone["repeatCell"]["cell"] == {} and gone["repeatCell"]["fields"] == "note"
+    fmt = link["repeatCell"]["cell"]["userEnteredFormat"]
+    assert fmt["textFormat"] == {"link": {"uri": "https://example.com/x"}}
+    assert fmt["textRotation"] == {"vertical": True} and fmt["padding"]["left"] == 4
+    assert "userEnteredFormat.textFormat.link" in link["repeatCell"]["fields"]
+    with pytest.raises(access.AccessError, match="give text"):
+        tab_requests({"op": "note", "range": "A1"})
+    with pytest.raises(access.AccessError, match="http"):
+        tab_requests({"op": "format", "range": "A1", "link": "javascript:alert(1)"})
+
+
+def test_rich_text_styles_parts_of_the_cell():
+    (got,) = tab_requests({"op": "rich_text", "range": "Tasks!B2", "value": "絵😀 Total: ¥5,000 (see doc)",
+                           "runs": [{"text": "doc", "link": "https://example.com"},
+                                    {"text": "Total", "bold": True, "color": "#C00"}]})
+    cell = got["updateCells"]["rows"][0]["values"][0]
+    assert got["updateCells"]["fields"] == "userEnteredValue,textFormatRuns"
+    assert cell["userEnteredValue"] == {"stringValue": "絵😀 Total: ¥5,000 (see doc)"}
+    # Indices count UTF-16 units (the emoji is two), and each run ends back on the cell format.
+    assert [r["startIndex"] for r in cell["textFormatRuns"]] == [4, 9, 23, 26]
+    assert cell["textFormatRuns"][0]["format"]["bold"] is True and cell["textFormatRuns"][1]["format"] == {}
+    reads = []
+
+    def reader(grid):
+        reads.append(grid)
+        return "Call Ann today"
+
+    (kept,) = tab_requests({"op": "rich_text", "range": "C3", "runs": [{"text": "Ann", "italic": True}]},
+                           cell=reader)
+    assert reads == [{"sheetId": 0, "startColumnIndex": 2, "endColumnIndex": 3, "startRowIndex": 2,
+                      "endRowIndex": 3}]
+    assert kept["updateCells"]["rows"][0]["values"][0]["userEnteredValue"] == {"stringValue": "Call Ann today"}
+    for current in ("=A1&B1", 42, None):
+        with pytest.raises(access.AccessError, match="no plain text"):
+            tab_requests({"op": "rich_text", "range": "C3", "runs": [{"text": "x", "bold": True}]},
+                         cell=lambda grid, current=current: current)
+
+
+@pytest.mark.parametrize("op,message", [
+    ({"op": "rich_text", "range": "A1:B2", "runs": [{"text": "x", "bold": True}]}, "one cell"),
+    ({"op": "rich_text", "range": "A1", "value": "abc", "runs": [{"text": "z", "bold": True}]}, "not in the cell"),
+    ({"op": "rich_text", "range": "A1", "value": "abc", "runs": [{"text": "a"}]}, "needs a style"),
+    ({"op": "rich_text", "range": "A1", "value": "abc", "runs": [{"text": "a", "background": "#fff"}]}, "each run"),
+    ({"op": "sheet", "sheet": "Tasks"}, "give title"),
+    ({"op": "hide", "range": "A1:B2"}, "whole rows"),
+    ({"op": "conditional", "ranges": ["Tasks!A1:A9", "Main!A1:A9"], "when": "NOT_BLANK", "bold": True}, "one tab"),
+    ({"op": "filter", "range": "Tasks!A1:C9", "filter_columns": [{"column": "D", "hide": ["x"]}]}, "outside"),
+    ({"op": "filter", "range": "A1:C9", "filter_columns": [{"column": "B"}]}, "needs hide or when"),
+    ({"op": "filter_view_update", "view": "Open only"}, "give name, range"),
+    ({"op": "filter_view_delete", "view": "Nope"}, "no single filter view")])
+def test_malformed_tab_and_filter_ops_are_refused(op, message):
+    with pytest.raises(access.AccessError, match=message):
+        tab_requests(op)
+
+
+def test_filters_and_filter_views_become_requests():
+    basic, clear, view, change, drop = tab_requests(
+        {"op": "filter", "range": "Tasks!A1:D20", "filter_columns": [
+            {"column": "C", "hide": ["Done"]}, {"column": "D", "when": "NUMBER_GREATER", "values": ["10"]}]},
+        {"op": "filter_clear", "sheet": "Tasks"},
+        {"op": "filter_view", "name": "Mine", "range": "Tasks!A1:D20"},
+        {"op": "filter_view_update", "view": "open only", "range": "A1:D40",
+         "filter_columns": [{"column": "B", "when": "TEXT_CONTAINS", "values": ["Ann"]}]},
+        {"op": "filter_view_delete", "view": "55"})
+    specs = basic["setBasicFilter"]["filter"]["filterSpecs"]
+    assert specs == [{"columnIndex": 2, "filterCriteria": {"hiddenValues": ["Done"]}},
+                     {"columnIndex": 3, "filterCriteria": {"condition": {
+                         "type": "NUMBER_GREATER", "values": [{"userEnteredValue": "10"}]}}}]
+    assert clear == {"clearBasicFilter": {"sheetId": 7}}
+    assert view["addFilterView"]["filter"] == {"title": "Mine", "filterSpecs": [], "range": {
+        "sheetId": 7, "startColumnIndex": 0, "endColumnIndex": 4, "startRowIndex": 0, "endRowIndex": 20}}
+    update = change["updateFilterView"]
+    assert update["fields"] == "range,filterSpecs" and update["filter"]["filterViewId"] == 55
+    assert update["filter"]["range"]["sheetId"] == 7  # a range without a tab stays on the view's tab
+    assert drop == {"deleteFilterView": {"filterId": 55}}
+
+
+def test_conditional_rules_can_be_replaced_by_number():
+    (got,) = tab_requests({"op": "conditional_update", "index": 2, "range": "Tasks!D2:D9",
+                           "when": "NUMBER_LESS", "values": [0], "color": "#C00"})
+    assert got["updateConditionalFormatRule"]["sheetId"] == 7 and got["updateConditionalFormatRule"]["index"] == 2
+    assert got["updateConditionalFormatRule"]["rule"]["booleanRule"]["condition"]["type"] == "NUMBER_LESS"
+
+
+@pytest.mark.parametrize("op", [
+    {"op": "conditional_update", "index": 0, "range": "A1:A9", "when": "NOT_BLANK", "bold": True},
+    {"op": "filter_view_delete", "view": "Open only"},
+    {"op": "note", "range": "A1:C9", "text": ""},
+    {"op": "filter_view_update", "view": "Open only", "filter_columns": []}])
+def test_replacing_a_rule_or_dropping_a_view_asks_every_time(op):
+    assert "sheets-edit" not in access.approval_request("google_sheets", layout(op))[1]
+
+
+def test_new_safe_ops_share_the_spreadsheet_edit_approval():
+    args = layout({"op": "hide", "range": "3:4"}, {"op": "group", "range": "B:C"},
+                  {"op": "sheet", "sheet": "Tasks", "tab_color": "#F00"},
+                  {"op": "sheet_duplicate", "sheet": "Tasks"}, {"op": "rename_spreadsheet", "title": "X"},
+                  {"op": "note", "range": "A1", "text": "n"},
+                  {"op": "rich_text", "range": "A1", "value": "ab", "runs": [{"text": "a", "bold": True}]},
+                  {"op": "filter", "range": "A1:C9"}, {"op": "filter_clear"},
+                  {"op": "filter_view", "name": "v", "range": "A1:C9"},
+                  {"op": "filter_view_update", "view": "v", "name": "w"},
+                  {"op": "format", "range": "A1", "color": "theme:ACCENT1", "padding": {"top": 2}})
+    assert access.approval_request("google_sheets", args)[1] == f"google-access:sheets-edit:{SID}"
+
+
+def test_the_card_words_the_new_ops(monkeypatch):
+    context(monkeypatch, title="Plan", names=["Main", "Tasks"])
+    lines = access.approval_request("google_sheets", layout(
+        {"op": "hide", "ranges": ["Tasks!C:C", "Tasks!E:F"]},
+        {"op": "group", "range": "Tasks!3:5", "collapsed": True},
+        {"op": "note", "range": "Tasks!A1", "text": "Owner: Ann"},
+        {"op": "rich_text", "range": "Tasks!B2", "value": "Total: 5", "runs": [{"text": "Total", "bold": True}]},
+        {"op": "filter", "range": "Tasks!A1:D9", "filter_columns": [{"column": "C", "hide": ["Done"]}]}),
+        home=Path("/x"))[0].split("\n")
+    assert lines == ["SpreadSheet: Plan", "Sheet: Tasks", "",
+                     "Hide column C, columns E-F", "Group rows 3-5 (collapsed)", 'Note on A1: "Owner: Ann"',
+                     'Replace text in B2 with "Total: 5": "Total" bold',
+                     "Set the filter on A1:D9 (replaces any filter on the tab): C hide (Done)"]
+    lines = access.approval_request("google_sheets", layout(
+        {"op": "sheet", "sheet": "Tasks", "title": "Done", "position": 1},
+        {"op": "rename_spreadsheet", "title": "Plan 2026"},
+        {"op": "filter_view_update", "view": "Open only", "range": "A1:D9"},
+        {"op": "sheet_duplicate", "sheet": "Main"}), home=Path("/x"))[0].split("\n")
+    assert lines[2:] == ['Tab Tasks: rename to "Done", move to position 1', 'Rename spreadsheet to "Plan 2026"',
+                         'Change filter view "Open only": range A1:D9 on its tab', "Duplicate tab Main next to it"]
+
+
+def test_layout_reports_new_tabs_and_views(tmp_path, monkeypatch):
+    api, book = layout_api()
+    book.get().execute.return_value = TABS
+    book.batchUpdate().execute.return_value = {"replies": [
+        {"duplicateSheet": {"properties": {"sheetId": 99, "title": "Copy"}}},
+        {"addFilterView": {"filter": {"filterViewId": 12, "title": "Mine"}}}]}
+    services(monkeypatch, sheets=api)
+    result = access.sheets(tmp_path, layout({"op": "sheet_duplicate", "sheet": "Tasks", "title": "Copy"},
+                                            {"op": "filter_view", "name": "Mine", "range": "Tasks!A1:C9"}))
+    assert result["sheets"] == [{"sheet_id": 99, "title": "Copy"}]
+    assert result["filter_views"] == [{"view_id": 12, "name": "Mine"}]
+
+
+def test_rich_text_reads_the_cell_as_entered(tmp_path, monkeypatch):
+    api, book = layout_api()
+    book.get().execute.return_value = TABS
+    book.values().get().execute.return_value = {"values": [["Call Ann"]]}
+    book.values().get.reset_mock()
+    services(monkeypatch, sheets=api)
+    access.sheets(tmp_path, layout({"op": "rich_text", "range": "Tasks!B2", "runs": [{"text": "Ann", "bold": True}]}))
+    assert book.values().get.call_args.kwargs["range"] == "'Tasks'!B2"
+    assert book.values().get.call_args.kwargs["valueRenderOption"] == "FORMULA"
+
+
+# --- get_format -----------------------------------------------------------------------------------
+
+def rgb(r, g, b):
+    return {"rgbColor": {"red": r / 255, "green": g / 255, "blue": b / 255}}
+
+
+HEADER = {"textFormat": {"bold": True, "foregroundColorStyle": rgb(255, 255, 255)},
+          "backgroundColorStyle": rgb(26, 115, 232), "horizontalAlignment": "CENTER"}
+
+
+def test_get_format_groups_cells_by_look_in_the_ops_words(tmp_path, monkeypatch):
+    api = mock.MagicMock()
+    api.spreadsheets().get().execute.return_value = {"sheets": [{"properties": {"title": "Tasks"}, "data": [{
+        "startRow": 0, "startColumn": 1,
+        "columnMetadata": [{"pixelSize": 100}, {"pixelSize": 180, "hiddenByUser": True}, {"pixelSize": 100}],
+        "rowMetadata": [{"pixelSize": 21}, {"pixelSize": 40}, {"pixelSize": 21}],
+        "rowData": [
+            {"values": [{"userEnteredFormat": HEADER}, {"userEnteredFormat": HEADER}, {"userEnteredFormat": HEADER}]},
+            {"values": [{"note": "check", "userEnteredFormat": {"numberFormat": {"type": "CURRENCY",
+                                                                                "pattern": "¥#,##0"}}},
+                        {"hyperlink": "https://example.com", "formattedValue": "see doc", "textFormatRuns": [
+                            {"format": {}}, {"startIndex": 4, "format": {"link": {"uri": "https://example.com"}}}]},
+                        {"dataValidation": {"condition": {"type": "BOOLEAN"}, "strict": True}}]},
+            {"values": [{"userEnteredFormat": {"numberFormat": {"type": "CURRENCY", "pattern": "¥#,##0"}}}, {},
+                        {"dataValidation": {"condition": {"type": "BOOLEAN"}, "strict": True}}]}]}]}]}
+    services(monkeypatch, sheets=api)
+    result = access.sheets(tmp_path, {"action": "get_format", "spreadsheet_id": SID, "range": "Tasks!B1:D3"})
+    kwargs = api.spreadsheets().get.call_args.kwargs
+    assert kwargs["ranges"] == ["Tasks!B1:D3"] and kwargs["fields"] == access.FORMAT_FIELDS
+    (block,) = result["ranges"]
+    assert block["range"] == "Tasks!B1:D3"
+    assert block["styles"] == [
+        {"bold": True, "color": "#FFFFFF", "background": "#1A73E8", "align": "CENTER", "ranges": ["B1:D1"]},
+        {"number_format": "CURRENCY", "pattern": "¥#,##0", "ranges": ["B2:B3"]}]
+    assert block["input_rules"] == [{"when": "BOOLEAN", "values": [], "strict": True, "dropdown": False,
+                                     "ranges": ["D2:D3"]}]
+    assert block["notes"] == {"B2": "check"} and block["links"] == {"C2": "https://example.com"}
+    assert block["rich_text"] == {"C2": [{"text": "see "}, {"text": "doc", "link": "https://example.com"}]}
+    assert block["hidden_columns"] == ["C"] and block["row_heights"] == {"2": 40}
+    assert block["column_widths"] == {"B": 100, "C": 180, "D": 100}
+
+
+@pytest.mark.parametrize("rng,message", [("Tasks!A:C", "closed blocks"), ("Tasks", "closed blocks"),
+                                         ("Tasks!A1:Z100", "at most 2000")])
+def test_get_format_reads_bounded_blocks_only(rng, message, tmp_path):
+    with pytest.raises(access.AccessError, match=message):
+        access.sheets(tmp_path, {"action": "get_format", "spreadsheet_id": SID, "range": rng})
+
+
+def test_get_format_needs_no_approval():
+    assert access.approval_request("google_sheets", {"action": "get_format", "spreadsheet_id": SID,
+                                                     "range": "A1:B2"}) is None
+
+
+def test_info_lists_groups_filters_views_and_tab_colours(tmp_path, monkeypatch):
+    api = mock.MagicMock()
+    api.spreadsheets().get().execute.return_value = {"sheets": [{
+        "properties": {"sheetId": 7, "title": "Tasks", "hidden": True, "tabColorStyle": rgb(255, 0, 0),
+                       "gridProperties": {"rowCount": 100, "columnCount": 8}},
+        "rowGroups": [{"range": {"dimension": "ROWS", "startIndex": 2, "endIndex": 5}, "depth": 1, "collapsed": True}],
+        "columnGroups": [{"range": {"dimension": "COLUMNS", "startIndex": 1, "endIndex": 3}, "depth": 1}],
+        "basicFilter": {"range": {"sheetId": 7, "endRowIndex": 20, "endColumnIndex": 4}},
+        "filterViews": [{"filterViewId": 55, "title": "Open only", "range": {"sheetId": 7, "endRowIndex": 20,
+                                                                           "endColumnIndex": 4}}]}]}
+    services(monkeypatch, sheets=api)
+    sheet = access.sheets(tmp_path, {"action": "info", "spreadsheet_id": SID})["sheets"][0]
+    assert sheet["hidden"] is True and sheet["tab_color"] == "#FF0000" and "tabColorStyle" not in sheet
+    assert sheet["row_groups"] == [{"range": "3:5", "depth": 1, "collapsed": True}]
+    assert sheet["column_groups"] == [{"range": "B:C", "depth": 1, "collapsed": False}]
+    assert sheet["filter"] == {"range": "A1:D20"}
+    assert sheet["filter_views"] == [{"view_id": 55, "name": "Open only", "range": "A1:D20"}]
+
+
+def test_tab_positions_are_where_the_tab_ends_up():
+    meta = {"sheets": [{"properties": {"sheetId": i, "title": name, "index": i}}
+                       for i, name in enumerate(["A", "B", "C", "D"])]}
+    got = access._layout_requests(access._layout_ops(layout(
+        {"op": "sheet", "sheet": "A", "position": 3},          # B C A D: API index 3 (before the move)
+        {"op": "sheet", "sheet": "D", "position": 1},          # D B C A: API index 0
+        {"op": "sheet_duplicate", "sheet": "B", "title": "B2"},  # D B B2 C A: right after B
+        {"op": "sheet_duplicate", "sheet": "C", "position": 9})), meta)  # clamped to the end
+    assert [r["updateSheetProperties"]["properties"]["index"] for r in got[:2]] == [3, 0]
+    assert got[2]["duplicateSheet"]["insertSheetIndex"] == 2 and got[3]["duplicateSheet"]["insertSheetIndex"] == 5
+
+
+@pytest.mark.parametrize("prior", [{"op": "insert", "range": "Tasks!1:1"}, {"op": "delete", "range": "Main!9:9"},
+                                   {"op": "move", "range": "B:B", "to": "E"},
+                                   {"op": "rich_text", "range": "Tasks!b2", "value": "x", "runs": [{"text": "x", "bold": True}]}])
+def test_rich_text_without_value_refuses_cells_an_earlier_op_may_change(prior):
+    later = {"op": "rich_text", "range": "Tasks!B2", "runs": [{"text": "Ann", "bold": True}]}
+    with pytest.raises(access.AccessError, match="needs value"):
+        access.approval_request("google_sheets", layout(prior, later))
+    assert access.approval_request("google_sheets", layout(prior, dict(later, value="Ann")))
+
+
+def test_regrouping_after_ungroup_collapses_the_new_group():
+    got = tab_requests({"op": "ungroup", "range": "Main!2:10"},
+                       {"op": "group", "range": "Main!2:10", "collapsed": True})
+    assert got[2]["updateDimensionGroup"]["dimensionGroup"]["depth"] == 1
+
+
+def test_theme_colours_and_side_padding_round_trip():
+    (got,) = tab_requests({"op": "format", "range": "A1", "background": "theme:accent2",
+                           "padding": {"top": 2, "left": 8}})
+    fmt = got["repeatCell"]["cell"]["userEnteredFormat"]
+    assert fmt["backgroundColorStyle"] == {"themeColor": "ACCENT2"} and fmt["padding"] == {"top": 2, "left": 8}
+    assert access._format_words({"textFormat": {"bold": False, "foregroundColorStyle": {"themeColor": "TEXT"}},
+                                 "textRotation": {"angle": 0}}) == {"bold": False, "color": "theme:TEXT",
+                                                                    "rotation": 0}
+    with pytest.raises(access.AccessError, match="colour like"):
+        tab_requests({"op": "format", "range": "A1", "color": "theme:PURPLE"})

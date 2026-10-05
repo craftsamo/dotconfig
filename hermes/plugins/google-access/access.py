@@ -34,6 +34,7 @@ import html
 import json
 import mimetypes
 import os
+import random
 import re
 import shlex
 import shutil
@@ -63,8 +64,8 @@ REASON_LIMIT = 1500
 GCLOUD_TIMEOUT = 300
 GCLOUD_TIMEOUT_MAX = 1800
 
-SHEETS_ACTIONS = ("search", "info", "get", "update", "batch_update", "append", "clear", "create",
-                  "add_sheet", "layout")
+SHEETS_ACTIONS = ("search", "info", "get", "get_format", "update", "batch_update", "append", "clear",
+                  "create", "add_sheet", "layout")
 SHEETS_WRITES = {"update", "batch_update", "append", "clear", "create", "add_sheet", "layout"}
 # Edits approved once per spreadsheet: "session" / "always" on the first card covers the rest of
 # that spreadsheet's edits (its version history undoes them). clear and create still ask each time,
@@ -404,6 +405,7 @@ def sheets(home, args: dict) -> dict:
     action = _action(args, SHEETS_ACTIONS)
     guards = _expect(args, action)  # also refuses expect on an action it does not guard
     ops = _layout_ops(args) if action == "layout" else []  # refused before any Google call
+    blocks = _format_ranges(args) if action == "get_format" else []
     if action == "search":
         query = _str(args, "query", required=False)
         q = f"mimeType='{SPREADSHEET_MIME}' and trashed=false"
@@ -444,6 +446,9 @@ def sheets(home, args: dict) -> dict:
         added = done["replies"][0]["addSheet"]["properties"]
         return {"ok": True, "spreadsheet_id": sid, "sheet": added}
 
+    if action == "get_format":
+        return _get_format(book, sid, blocks)
+
     values = book.values()
     if action == "get":
         ranges = args.get("ranges")
@@ -470,15 +475,31 @@ def sheets(home, args: dict) -> dict:
                                              valueRenderOption="FORMATTED_VALUE").execute())
             return (got.get("values") or [[]])[0]
 
-        # Resolves tabs and tables (and reads header rows) before anything is written.
-        requests = _layout_requests(ops, meta, header)
+        def cell(grid):
+            if grid["sheetId"] not in titles:
+                raise AccessError("rich text on a tab made in the same call needs value")
+            ref = f"{column_letters(grid['startColumnIndex'])}{grid['startRowIndex'] + 1}"
+            got = _google(lambda: values.get(spreadsheetId=sid, range=f"{_quoted(titles[grid['sheetId']])}!{ref}",
+                                             valueRenderOption="FORMULA").execute())
+            rows = got.get("values") or [[]]
+            return rows[0][0] if rows and rows[0] else None
+
+        # Resolves tabs, tables and views (and reads cells it builds on) before anything is written.
+        requests = _layout_requests(ops, meta, header, cell)
         _check_expect(values, sid, guards)
         done = _google(lambda: book.batchUpdate(spreadsheetId=sid, body={"requests": requests}).execute())
-        added = [r["addTable"]["table"] for r in done.get("replies", []) if "addTable" in (r or {})]
+        replies = [r or {} for r in done.get("replies", [])]
         result = {"ok": True, "spreadsheet_id": sid, "applied": len(ops)}
+        added = [r["addTable"]["table"] for r in replies if "addTable" in r]
         if added:
             result["tables"] = [{"table_id": t.get("tableId"), "name": t.get("name"),
                                  "range": _a1(t.get("range", {}))} for t in added]
+        copies = [r["duplicateSheet"]["properties"] for r in replies if "duplicateSheet" in r]
+        if copies:
+            result["sheets"] = [{"sheet_id": p.get("sheetId"), "title": p.get("title")} for p in copies]
+        made = [r["addFilterView"]["filter"] for r in replies if "addFilterView" in r]
+        if made:
+            result["filter_views"] = [{"view_id": f.get("filterViewId"), "name": f.get("title")} for f in made]
         return result
 
     option = "RAW" if args.get("raw") else "USER_ENTERED"
@@ -511,10 +532,217 @@ def sheets(home, args: dict) -> dict:
 # --- Sheets tab details ---------------------------------------------------------------------------
 
 INFO_FIELDS = ("spreadsheetId,spreadsheetUrl,properties(title,locale,timeZone),"
-               "sheets(properties(sheetId,title,index,gridProperties(rowCount,columnCount,"
-               "frozenRowCount,frozenColumnCount)),merges,"
-               "tables(tableId,name,range,columnProperties),conditionalFormats)")
+               "sheets(properties(sheetId,title,index,hidden,tabColorStyle,gridProperties(rowCount,"
+               "columnCount,frozenRowCount,frozenColumnCount)),merges,"
+               "tables(tableId,name,range,columnProperties),conditionalFormats,"
+               "rowGroups(range,depth,collapsed),columnGroups(range,depth,collapsed),basicFilter(range),"
+               "filterViews(filterViewId,title,range))")
 INFO_LIST_LIMIT = 50
+FORMAT_CELL_LIMIT = 2000
+FORMAT_FIELDS = ("sheets(properties(sheetId,title),data(startRow,startColumn,"
+                 "rowMetadata(pixelSize,hiddenByUser),columnMetadata(pixelSize,hiddenByUser),"
+                 "rowData(values(formattedValue,userEnteredFormat,note,hyperlink,dataValidation,"
+                 "textFormatRuns))))")
+DEFAULT_ROW_HEIGHT = 21
+
+
+def _hex_of(style) -> str | None:
+    """'#RRGGBB' (or 'theme:ACCENT1') of a ColorStyle or legacy Color; None when unset."""
+    if not isinstance(style, dict) or not style:
+        return None
+    if style.get("themeColor"):
+        return f"theme:{style['themeColor']}"
+    rgb = style.get("rgbColor", style)
+    if not any(k in rgb for k in ("red", "green", "blue")):
+        return "#000000" if "rgbColor" in style else None
+    return "#" + "".join(f"{round(rgb.get(k, 0) * 255):02X}" for k in ("red", "green", "blue"))
+
+
+def _dim_a1(rng: dict) -> str:
+    start = rng.get("startIndex", 0)
+    end = rng.get("endIndex", start + 1)
+    if rng.get("dimension") == "COLUMNS":
+        return f"{column_letters(start)}:{column_letters(end - 1)}"
+    return f"{start + 1}:{end}"
+
+
+def _text_words(text: dict) -> dict:
+    out = {}
+    for key in ("bold", "italic", "underline", "strikethrough"):
+        if key in text:  # an explicit false matters in a rich-text run over a bold cell
+            out[key] = bool(text[key])
+    if text.get("fontSize"):
+        out["font_size"] = text["fontSize"]
+    if text.get("fontFamily"):
+        out["font"] = text["fontFamily"]
+    color = _hex_of(text.get("foregroundColorStyle")) or _hex_of(text.get("foregroundColor"))
+    if color:
+        out["color"] = color
+    if (text.get("link") or {}).get("uri"):
+        out["link"] = text["link"]["uri"]
+    return out
+
+
+def _format_words(fmt: dict) -> dict:
+    """A CellFormat in the format op's own words, so it can be read back and reapplied."""
+    out = _text_words(fmt.get("textFormat") or {})
+    background = _hex_of(fmt.get("backgroundColorStyle")) or _hex_of(fmt.get("backgroundColor"))
+    if background:
+        out["background"] = background
+    for key, target in (("horizontalAlignment", "align"), ("verticalAlignment", "valign")):
+        if fmt.get(key):
+            out[target] = fmt[key]
+    if fmt.get("wrapStrategy"):
+        out["wrap"] = "OVERFLOW" if fmt["wrapStrategy"] == "OVERFLOW_CELL" else fmt["wrapStrategy"]
+    number = fmt.get("numberFormat") or {}
+    if number.get("type"):
+        out["number_format"] = number["type"]
+        if number.get("pattern"):
+            out["pattern"] = number["pattern"]
+    rotation = fmt.get("textRotation") or {}
+    if rotation.get("vertical"):
+        out["rotation"] = "vertical"
+    elif "angle" in rotation:
+        out["rotation"] = rotation["angle"]
+    padding = fmt.get("padding") or {}
+    if padding:
+        sides = {padding.get(k, 0) for k in ("top", "right", "bottom", "left")}
+        out["padding"] = sides.pop() if len(sides) == 1 else padding
+    borders = {}
+    for side, border in (fmt.get("borders") or {}).items():
+        if border.get("style") and border["style"] != "NONE":
+            color = _hex_of(border.get("colorStyle")) or _hex_of(border.get("color")) or "#000000"
+            borders[side] = f"{border['style']} {color}"
+    if borders:
+        out["borders"] = borders
+    return out
+
+
+def _blocks(cells: dict, top: int, left: int) -> dict:
+    """{key: [A1 ranges]} for cells {(row, column): key}: row runs, then identical runs stacked."""
+    runs = {}  # (key, first column, last column) -> [[first row, last row], …]
+    by_row = {}
+    for (row, column), key in cells.items():
+        by_row.setdefault(row, {})[column] = key
+    for row in sorted(by_row):
+        columns = sorted(by_row[row])
+        i = 0
+        while i < len(columns):
+            j = i
+            while j + 1 < len(columns) and columns[j + 1] == columns[j] + 1 and \
+                    by_row[row][columns[j + 1]] == by_row[row][columns[i]]:
+                j += 1
+            span = (by_row[row][columns[i]], columns[i], columns[j])
+            stacks = runs.setdefault(span, [])
+            if stacks and stacks[-1][1] == row - 1:
+                stacks[-1][1] = row
+            else:
+                stacks.append([row, row])
+            i = j + 1
+    out = {}
+    for (key, c1, c2), stacks in runs.items():
+        for r1, r2 in stacks:
+            start = f"{column_letters(left + c1)}{top + r1 + 1}"
+            end = f"{column_letters(left + c2)}{top + r2 + 1}"
+            out.setdefault(key, []).append(start if start == end else f"{start}:{end}")
+    return out
+
+
+def _format_ranges(args: dict) -> list[str]:
+    """The validated get_format ranges: closed blocks, FORMAT_CELL_LIMIT cells in all."""
+    ranges = args.get("ranges")
+    if ranges is None:
+        ranges = [_str(args, "range")]
+    if not isinstance(ranges, list) or not ranges or not all(isinstance(r, str) and r.strip() for r in ranges):
+        raise AccessError("ranges must be a non-empty array of A1 ranges")
+    total = 0
+    for rng in ranges:
+        grid = _grid_ref(split_range(rng.strip())[1])
+        if not {"startRowIndex", "endRowIndex", "startColumnIndex", "endColumnIndex"} <= set(grid):
+            raise AccessError(f"get_format takes closed blocks like 'Sheet1!A1:F40', not {rng!r}")
+        total += (grid["endRowIndex"] - grid["startRowIndex"]) * (grid["endColumnIndex"] - grid["startColumnIndex"])
+    if total > FORMAT_CELL_LIMIT:
+        raise AccessError(f"the ranges hold {total} cells; read at most {FORMAT_CELL_LIMIT} per call")
+    return [r.strip() for r in ranges]
+
+
+def _get_format(book, sid: str, ranges: list[str]) -> dict:
+    """The formatting, notes, links, input rules and rich text of closed ranges, grouped by look and
+    worded like the layout ops; plus the hidden rows/columns and sizes in them."""
+    meta = _google(lambda: book.get(spreadsheetId=sid, ranges=ranges, fields=FORMAT_FIELDS).execute())
+    out = []
+    for sheet in meta.get("sheets", []):
+        tab = sheet.get("properties", {}).get("title")
+        for data in sheet.get("data", []) or []:
+            out.append(_format_block(tab, data))
+    return {"ok": True, "spreadsheet_id": sid, "ranges": out}
+
+
+def _format_block(tab: str, data: dict) -> dict:
+    top, left = data.get("startRow", 0), data.get("startColumn", 0)
+    rows = data.get("rowData", []) or []
+    width = max([len(r.get("values", []) or []) for r in rows] + [len(data.get("columnMetadata", []) or [])])
+    height = max(len(rows), len(data.get("rowMetadata", []) or []))
+    looks, keys, rules, rule_keys = {}, {}, {}, {}
+    notes, links, rich = {}, {}, {}
+    for r, row in enumerate(rows):
+        for c, value in enumerate(row.get("values", []) or []):
+            where = f"{column_letters(left + c)}{top + r + 1}"
+            words = _format_words(value.get("userEnteredFormat") or {})
+            if words:
+                key = json.dumps(words, sort_keys=True)
+                keys[key] = words
+                looks[(r, c)] = key
+            if value.get("note"):
+                notes[where] = value["note"]
+            if value.get("hyperlink"):
+                links[where] = value["hyperlink"]
+            rule = value.get("dataValidation")
+            if rule:
+                condition = rule.get("condition", {})
+                said = {"when": condition.get("type"),
+                        "values": [v.get("userEnteredValue") for v in condition.get("values", []) or []],
+                        "strict": bool(rule.get("strict")), "dropdown": bool(rule.get("showCustomUi"))}
+                if rule.get("inputMessage"):
+                    said["help"] = rule["inputMessage"]
+                key = json.dumps(said, sort_keys=True)
+                rule_keys[key] = said
+                rules[(r, c)] = key
+            if value.get("textFormatRuns"):
+                text = value.get("formattedValue") or ""
+                units = text.encode("utf-16-le")
+                starts = [run.get("startIndex", 0) for run in value["textFormatRuns"]] + [len(units) // 2]
+                parts = [{"text": units[:starts[0] * 2].decode("utf-16-le", "replace")}] if starts[0] else []
+                for run, start, end in zip(value["textFormatRuns"], starts, starts[1:]):
+                    piece = units[start * 2:end * 2].decode("utf-16-le", "replace")
+                    parts.append({"text": piece, **_text_words(run.get("format") or {})})
+                rich[where] = parts
+    block = {"range": f"{tab}!{column_letters(left)}{top + 1}:{column_letters(left + max(width, 1) - 1)}"
+                      f"{top + max(height, 1)}"}
+    styles = [dict(keys[key], ranges=found) for key, found in _blocks(looks, top, left).items()]
+    if styles:
+        block["styles"] = sorted(styles, key=lambda s: -len(s["ranges"]))
+    validations = [dict(rule_keys[key], ranges=found) for key, found in _blocks(rules, top, left).items()]
+    if validations:
+        block["input_rules"] = validations
+    for name, found in (("notes", notes), ("links", links), ("rich_text", rich)):
+        if found:
+            block[name] = found
+    hidden_rows = [str(top + i + 1) for i, m in enumerate(data.get("rowMetadata", []) or []) if m.get("hiddenByUser")]
+    hidden_cols = [column_letters(left + i) for i, m in enumerate(data.get("columnMetadata", []) or [])
+                   if m.get("hiddenByUser")]
+    if hidden_rows:
+        block["hidden_rows"] = hidden_rows
+    if hidden_cols:
+        block["hidden_columns"] = hidden_cols
+    widths = {column_letters(left + i): m.get("pixelSize") for i, m in enumerate(data.get("columnMetadata", []) or [])}
+    if widths:
+        block["column_widths"] = widths
+    heights = {str(top + i + 1): m.get("pixelSize") for i, m in enumerate(data.get("rowMetadata", []) or [])
+               if m.get("pixelSize") not in (None, DEFAULT_ROW_HEIGHT)}
+    if heights:
+        block["row_heights"] = heights
+    return block
 
 
 def _a1(grid: dict, rows: int | None = None, columns: int | None = None) -> str:
@@ -537,6 +765,14 @@ def _sheet_info(sheet: dict) -> dict:
     """A tab's properties plus its merges, tables and conditional rules, in A1 terms, with the
     ids and rule numbers that name them."""
     props = dict(sheet.get("properties", {}))
+    tab_color = _hex_of(props.pop("tabColorStyle", None))
+    if tab_color:
+        props["tab_color"] = tab_color
+    for key, label in (("rowGroups", "row_groups"), ("columnGroups", "column_groups")):
+        found = [{"range": _dim_a1(g.get("range", {})), "depth": g.get("depth", 1),
+                  "collapsed": bool(g.get("collapsed"))} for g in sheet.get(key, []) or []]
+        if found:
+            props[label] = found[:INFO_LIST_LIMIT]
     size = props.get("gridProperties", {})
     rows, cols = size.get("rowCount"), size.get("columnCount")
     merges = [_a1(m, rows, cols) for m in sheet.get("merges", []) or []]
@@ -575,6 +811,12 @@ def _sheet_info(sheet: dict) -> dict:
                       "rule": what})
     if rules:
         props["conditional_rules"] = rules
+    if sheet.get("basicFilter"):
+        props["filter"] = {"range": _a1(sheet["basicFilter"].get("range", {}), rows, cols)}
+    views = [{"view_id": v.get("filterViewId"), "name": v.get("title"), "range": _a1(v.get("range", {}), rows, cols)}
+             for v in sheet.get("filterViews", []) or []]
+    if views:
+        props["filter_views"] = views[:INFO_LIST_LIMIT]
     return props
 
 
@@ -585,36 +827,59 @@ def _sheet_info(sheet: dict) -> dict:
 LAYOUT_LIMIT = 100
 LIST_LIMIT = 500
 # Ops that delete or move data: rows/columns with their contents, a table with its contents, the
-# values a merge drops, a conditional rule picked by position. A call holding one is approved per
-# exact call, like clear.
-LAYOUT_DESTRUCTIVE = {"delete", "move", "merge", "table_delete", "conditional_delete"}
+# values a merge drops, a conditional rule or filter view picked by position or name (replaced or
+# deleted). A call holding one is approved per exact call, like clear.
+LAYOUT_DESTRUCTIVE = {"delete", "move", "merge", "table_delete", "conditional_delete", "conditional_update",
+                      "filter_view_delete"}
 _FORMAT = ("bold", "italic", "underline", "strikethrough", "font_size", "font", "color", "background",
-           "align", "valign", "wrap", "number_format", "pattern", "reset")
+           "align", "valign", "wrap", "number_format", "pattern", "link", "rotation", "padding", "reset")
 _STYLE = ("bold", "italic", "strikethrough", "color", "background")  # all a conditional rule can set
+_RUN = ("bold", "italic", "underline", "strikethrough", "font_size", "font", "color", "link")
 _TABLE = ("name", "table_columns", "header_color", "band_colors", "footer_color")
 LAYOUT_OPS = {  # op: (required fields, optional fields); "ranges" stands in for a required "range"
     "format": (("range",), ("ranges",) + _FORMAT),
     "borders": (("range",), ("ranges", "sides", "style", "color")),
     "size": (("range",), ("ranges", "pixels", "auto")),
+    "hide": (("range",), ("ranges",)),
+    "unhide": (("range",), ("ranges",)),
+    "group": (("range",), ("ranges", "collapsed")),
+    "ungroup": (("range",), ("ranges",)),
     "insert": (("range",), ("inherit",)),
     "delete": (("range",), ("ranges",)),
     "move": (("range", "to"), ()),
     "merge": (("range",), ("ranges", "merge")),
     "unmerge": (("range",), ("ranges",)),
     "freeze": ((), ("sheet", "rows", "columns")),
+    "sheet": (("sheet",), ("title", "tab_color", "hidden", "position")),
+    "sheet_duplicate": (("sheet",), ("title", "position")),
+    "rename_spreadsheet": (("title",), ()),
+    "note": (("range",), ("ranges", "text")),
+    "rich_text": (("range", "runs"), ("value",)),
     "table": (("range",), _TABLE),
     "table_update": (("table",), ("range",) + _TABLE),
     "table_delete": (("table",), ()),
     "conditional": (("range",), ("ranges", "when", "values", "scale") + _STYLE),
+    "conditional_update": (("index", "range"), ("ranges", "when", "values", "scale") + _STYLE),
     "conditional_delete": (("index",), ("sheet",)),
     "validate": (("range", "when"), ("ranges", "values", "strict", "dropdown", "help")),
     "validate_clear": (("range",), ("ranges",)),
+    "filter": (("range",), ("filter_columns",)),
+    "filter_clear": ((), ("sheet",)),
+    "filter_view": (("range", "name"), ("filter_columns",)),
+    "filter_view_update": (("view",), ("range", "name", "filter_columns")),
+    "filter_view_delete": (("view",), ()),
 }
 # Like batch_update's data: one op may name scattered ranges ("ranges"), and a call holds at most
 # BATCH_LIMIT ranges in all. insert and move keep one range (each shifts what the next would mean).
 MULTI_RANGE_OPS = {name for name, (_, optional) in LAYOUT_OPS.items() if "ranges" in optional}
+ONE_RULE_OPS = {"conditional", "conditional_update"}  # one rule over all its ranges
 RANGES_SHOWN = 4
-DIMENSION_OPS = {"size", "insert", "delete", "move"}
+DIMENSION_OPS = {"size", "insert", "delete", "move", "hide", "unhide", "group", "ungroup"}
+SHIFTING_OPS = {"insert", "delete", "move"}
+# Ops whose range without a tab stays on the tab of the object they change.
+OWN_TAB_OPS = {"table_update", "filter_view_update"}
+RUNS_LIMIT = 50
+LINK = re.compile(r"^(https?://|mailto:)\S+$")
 NUMBER_FORMATS = {"TEXT", "NUMBER", "PERCENT", "CURRENCY", "DATE", "TIME", "DATE_TIME", "SCIENTIFIC",
                   "AUTOMATIC"}
 COLUMN_TYPES = {"TEXT", "DOUBLE", "CURRENCY", "PERCENT", "DATE", "TIME", "DATE_TIME", "BOOLEAN",
@@ -633,7 +898,8 @@ CONDITIONS = {
     "DATE_BETWEEN", "DATE_NOT_BETWEEN", "DATE_IS_VALID", "ONE_OF_RANGE", "ONE_OF_LIST", "BLANK",
     "NOT_BLANK", "CUSTOM_FORMULA", "BOOLEAN"}
 RELATIVE_DATES = {"PAST_YEAR", "PAST_MONTH", "PAST_WEEK", "YESTERDAY", "TODAY", "TOMORROW"}
-LAYOUT_FIELDS = "sheets(properties(sheetId,title),tables(tableId,name,range,columnProperties))"
+LAYOUT_FIELDS = ("sheets(properties(sheetId,title,index),tables(tableId,name,range,columnProperties),"
+                 "rowGroups(range,depth),columnGroups(range,depth),filterViews(filterViewId,title,range))")
 _A1_REF = re.compile(r"([A-Za-z]{0,3})(\d*)(?::([A-Za-z]{0,3})(\d*))?")
 
 
@@ -724,8 +990,15 @@ def _choice(raw: dict, key: str, allowed, default=None) -> str:
     return text
 
 
+THEME_COLORS = {"TEXT", "BACKGROUND", "ACCENT1", "ACCENT2", "ACCENT3", "ACCENT4", "ACCENT5", "ACCENT6",
+                "LINK"}
+
+
 def _hex(value, key: str) -> tuple[dict, str]:
-    """({"rgbColor": …}, '#RRGGBB') of '#RGB' / '#RRGGBB'."""
+    """(ColorStyle, shown text) of '#RGB' / '#RRGGBB', or of 'theme:ACCENT1' (as get_format reads it)."""
+    theme = re.fullmatch(r"theme:([A-Za-z0-9]+)", value.strip()) if isinstance(value, str) else None
+    if theme and theme.group(1).upper() in THEME_COLORS:
+        return {"themeColor": theme.group(1).upper()}, f"theme:{theme.group(1).upper()}"
     match = re.fullmatch(r"#?([0-9A-Fa-f]{6}|[0-9A-Fa-f]{3})", value.strip()) if isinstance(value, str) else None
     if not match:
         raise AccessError(f"{key} must be a colour like '#1A73E8'")
@@ -778,8 +1051,40 @@ def _cell_format(raw: dict, keys, clearable: bool) -> tuple[dict, list[str], lis
             continue
         holder[f"{name}ColorStyle"], shown = _hex(raw[key], key)
         words.append(f"{label} {shown}")
+    if "link" in given:
+        fields.append("textFormat.link")
+        if clearable and isinstance(raw["link"], str) and raw["link"].strip().lower() == "none":
+            words.append("no link")
+        else:
+            url = _str(raw, "link")
+            if not LINK.match(url):
+                raise AccessError("link must be an http(s):// or mailto: address")
+            text["link"] = {"uri": url}
+            words.append(f"link {_cell(url, '', 40)}")
     if text:
         fmt["textFormat"] = text
+    if "rotation" in given:
+        value = raw["rotation"]
+        if isinstance(value, str) and value.strip().lower() == "vertical":
+            fmt["textRotation"] = {"vertical": True}
+            words.append("vertical text")
+        else:
+            fmt["textRotation"] = {"angle": _whole(raw, "rotation", -90, 90)}
+            words.append(f"rotate {fmt['textRotation']['angle']}°")
+        fields.append("textRotation")
+    if "padding" in given:
+        sides = ("top", "right", "bottom", "left")
+        given_padding = raw["padding"]
+        if isinstance(given_padding, dict):
+            if not given_padding or set(given_padding) - set(sides):
+                raise AccessError("padding is pixels, or {top, right, bottom, left} in pixels")
+            fmt["padding"] = {side: _whole(given_padding, side, 0, 100) for side in sides if side in given_padding}
+            words.append("padding " + "/".join(f"{fmt['padding'].get(s, 0)}" for s in sides) + "px")
+        else:
+            pixels = _whole(raw, "padding", 0, 100)
+            fmt["padding"] = {side: pixels for side in sides}
+            words.append(f"padding {pixels}px")
+        fields.append("padding")
     for key, target, allowed in (("align", "horizontalAlignment", {"LEFT", "CENTER", "RIGHT"}),
                                  ("valign", "verticalAlignment", {"TOP", "MIDDLE", "BOTTOM"})):
         if key in given:
@@ -858,6 +1163,83 @@ def _table_columns(raw: dict) -> list[dict]:
     return out
 
 
+def _filter_columns(raw: dict) -> list[dict]:
+    """[{column, hide, when, values}] → validated column criteria for a filter or filter view."""
+    columns = raw.get("filter_columns", [])
+    if not isinstance(columns, list) or len(columns) > 100:
+        raise AccessError("filter_columns must be an array of {column, hide, when, values}")
+    out = []
+    for item in columns:
+        if not isinstance(item, dict) or "column" not in item or set(item) - {"column", "hide", "when", "values"}:
+            raise AccessError("each filter column is {column: 'C', hide: [values], when, values}")
+        letters = _str(item, "column")
+        if not re.fullmatch(r"[A-Za-z]{1,3}", letters):
+            raise AccessError(f"column must be a sheet column letter like 'C': {letters!r}")
+        column = {"index": _column_index(letters), "letter": letters.upper(), "words": []}
+        if "hide" in item:
+            column["hide"] = _list(item, "hide")
+            column["words"].append(f"hide ({_few(column['hide'])})")
+        if "when" in item:
+            column["when"] = _choice(item, "when", CONDITIONS)
+            column["values"] = _list(item, "values")
+            column["words"].append(f"show {_condition_words(column['when'], column['values'])}")
+        elif "values" in item:
+            raise AccessError("filter column values need when")
+        if not column["words"]:
+            raise AccessError(f"filter column {column['letter']} needs hide or when")
+        out.append(column)
+    return out
+
+
+def _filter_words(columns: list[dict]) -> str:
+    return "; ".join(f"{c['letter']} {', '.join(c['words'])}" for c in columns)
+
+
+def _runs(raw: dict) -> list[dict]:
+    """[{text, bold, …, link}] → runs of rich text, each a TextFormat for one substring."""
+    runs = raw.get("runs")
+    if not isinstance(runs, list) or not 1 <= len(runs) <= RUNS_LIMIT:
+        raise AccessError(f"runs must be an array of 1 to {RUNS_LIMIT} {{text, bold, color, link, …}}")
+    out = []
+    for item in runs:
+        if not isinstance(item, dict) or set(item) - {"text", *_RUN}:
+            raise AccessError(f"each run is {{text}} plus some of {', '.join(_RUN)}")
+        text = item.get("text")
+        if not isinstance(text, str) or not text:
+            raise AccessError("each run needs text: the part of the cell's text it styles")
+        fmt, _, words = _cell_format(item, _RUN, clearable=False)
+        if not words:
+            raise AccessError(f"run {text!r} needs a style")
+        out.append({"text": text, "format": fmt.get("textFormat", {}),
+                    "say": f"\"{_cell(text, '', 20)}\" {' '.join(words)}"})
+    return out
+
+
+def _utf16(text: str) -> int:
+    return len(text.encode("utf-16-le")) // 2
+
+
+def _text_runs(full: str, runs: list[dict]) -> list[dict]:
+    """TextFormatRuns placing each run on its text's first free occurrence in ``full``; the text
+    after a run goes back to the cell's own format."""
+    placed = []
+    for run in runs:
+        start = full.find(run["text"])
+        while start >= 0 and any(s < start + len(run["text"]) and start < e for s, e, _ in placed):
+            start = full.find(run["text"], start + 1)
+        if start < 0:
+            raise AccessError(f"{run['text']!r} is not in the cell's text {_cell(full, EMPTY, 60)!r}")
+        placed.append((start, start + len(run["text"]), run["format"]))
+    placed.sort(key=lambda p: p[0])
+    out = []
+    for i, (start, end, fmt) in enumerate(placed):
+        out.append({"startIndex": _utf16(full[:start]), "format": fmt})
+        following = placed[i + 1][0] if i + 1 < len(placed) else len(full)
+        if end < following:
+            out.append({"startIndex": _utf16(full[:end]), "format": {}})
+    return out
+
+
 def _table_words(op: dict) -> list[str]:
     words = []
     for column in op.get("columns", []):
@@ -881,6 +1263,14 @@ def _layout_ops(args: dict) -> list[dict]:
     if len(ops) > LAYOUT_LIMIT:
         raise AccessError(f"ops holds {len(ops)} changes; send at most {LAYOUT_LIMIT} per call")
     done = [_layout_op(raw, n) for n, raw in enumerate(ops, 1)]
+    for n, op in enumerate(done, 1):
+        # Without value, rich_text rewrites the text it read before the call: refused once an
+        # earlier op may have moved other contents into that cell or rewritten it.
+        if op["op"] == "rich_text" and op["value"] is None and any(
+                prior["op"] in SHIFTING_OPS or (prior["op"] == "rich_text" and prior["ref"].upper() == op["ref"].upper())
+                for prior in done[:n - 1]):
+            raise AccessError(f"ops[{n}] rich_text: after inserting, deleting or moving rows/columns or "
+                              f"styling the cell in the same call it needs value, or a call of its own")
     total = sum(len(op.get("areas", ())) for op in done)
     if total > BATCH_LIMIT:
         raise AccessError(f"ops name {total} ranges; send at most {BATCH_LIMIT} per call")
@@ -928,8 +1318,10 @@ def _normalize(name: str, raw: dict, here: bool = False) -> dict:
         # Single-range ops (table, insert, move, …) read these from the one area.
         op["tab"], op["ref"], op["grid"] = (op["areas"][0][k] for k in ("tab", "ref", "grid"))
         where = _where_all(op["areas"], here)
-    if name in ("freeze", "conditional_delete"):
+    if name in ("freeze", "conditional_delete", "filter_clear", "sheet", "sheet_duplicate"):
         op["tab"] = _str(raw, "sheet", required=False) or None
+    if name in ONE_RULE_OPS and len({a["tab"] for a in op["areas"]}) > 1:
+        raise AccessError("the ranges of one conditional rule must be on one tab")
     on = "" if here else f" on {_tab_label(op.get('tab'))}"
     if name in DIMENSION_OPS:
         for area in op["areas"]:
@@ -1040,7 +1432,7 @@ def _normalize(name: str, raw: dict, here: bool = False) -> dict:
     elif name == "table_delete":
         op["table"] = _str(raw, "table")
         op["say"] = f"Delete table \"{_cell(op['table'], '', TAB_CLIP)}\" with its contents"
-    elif name == "conditional":
+    elif name in ONE_RULE_OPS:
         if "scale" in raw:
             if set(raw) & {"when", "values", *_STYLE}:
                 raise AccessError("scale (a colour scale) takes no when, values or style")
@@ -1048,7 +1440,7 @@ def _normalize(name: str, raw: dict, here: bool = False) -> dict:
             if not isinstance(scale, list) or not 2 <= len(scale) <= 3:
                 raise AccessError("scale is two or three colours, lowest value first")
             op["scale"] = [_hex(c, "scale") for c in scale]
-            op["say"] = f"Colour scale on {where}: " + " > ".join(shown for _, shown in op["scale"])
+            rule = f"Colour scale on {where}: " + " > ".join(shown for _, shown in op["scale"])
         else:
             if "when" not in raw:
                 raise AccessError("give when (a condition) with a style, or scale")
@@ -1057,7 +1449,101 @@ def _normalize(name: str, raw: dict, here: bool = False) -> dict:
             op["format"], _, words = _cell_format(raw, _STYLE, clearable=False)
             if not words:
                 raise AccessError("give the style to apply: bold, italic, strikethrough, color, background")
-            op["say"] = f"Highlight {where} when {_condition_words(op['when'], op['values'])}: {', '.join(words)}"
+            rule = f"Highlight {where} when {_condition_words(op['when'], op['values'])}: {', '.join(words)}"
+        if name == "conditional_update":
+            op["index"] = _whole(raw, "index", 0, 10000)
+            rule = f"Replace conditional rule #{op['index']}{on} with: {rule[0].lower()}{rule[1:]}"
+        op["say"] = rule
+    elif name in ("hide", "unhide"):
+        op["say"] = f"{'Hide' if name == 'hide' else 'Show'} {span}"
+    elif name == "group":
+        op["collapsed"] = _flag(raw, "collapsed") if "collapsed" in raw else False
+        op["say"] = f"Group {span}" + (" (collapsed)" if op["collapsed"] else "")
+    elif name == "ungroup":
+        op["say"] = f"Ungroup {span}"
+    elif name == "sheet":
+        words = []
+        if "title" in raw:
+            op["title"] = _str(raw, "title")
+            words.append(f"rename to \"{_cell(op['title'], '', TAB_CLIP)}\"")
+        if "tab_color" in raw:
+            if isinstance(raw["tab_color"], str) and raw["tab_color"].strip().lower() == "none":
+                op["tab_color"] = None
+                words.append("no tab colour")
+            else:
+                op["tab_color"] = _hex(raw["tab_color"], "tab_color")
+                words.append(f"tab colour {op['tab_color'][1]}")
+        if "hidden" in raw:
+            op["hidden"] = _flag(raw, "hidden")
+            words.append("hide" if op["hidden"] else "show")
+        if "position" in raw:
+            op["position"] = _whole(raw, "position", 1, 10000)
+            words.append(f"move to position {op['position']}")
+        if not words:
+            raise AccessError("give title, tab_color, hidden or position")
+        op["say"] = f"Tab {_tab_label(op['tab'])}: {', '.join(words)}"
+    elif name == "sheet_duplicate":
+        op["title"] = _str(raw, "title", required=False)
+        op["position"] = _whole(raw, "position", 1, 10000) if "position" in raw else None
+        named = f" as \"{_cell(op['title'], '', TAB_CLIP)}\"" if op["title"] else ""
+        at = f" at position {op['position']}" if op["position"] else " next to it"
+        op["say"] = f"Duplicate tab {_tab_label(op['tab'])}{named}{at}"
+    elif name == "rename_spreadsheet":
+        op["title"] = _str(raw, "title")
+        op["say"] = f"Rename spreadsheet to \"{_cell(op['title'], '', TITLE_CLIP)}\""
+    elif name == "note":
+        if not isinstance(raw.get("text"), str):
+            raise AccessError("give text (an empty text removes the notes)")
+        op["text"] = raw["text"].strip()
+        op["say"] = (f"Note on {where}: \"{_cell(op['text'], '', 60)}\"" if op["text"]
+                     else f"Remove notes on {where}")
+    elif name == "rich_text":
+        if not SINGLE_CELL.match(op["ref"]):
+            raise AccessError(f"rich_text takes one cell, like 'Sheet1!B2', not {op['ref']!r}")
+        op["runs"] = _runs(raw)
+        op["value"] = raw["value"] if "value" in raw else None
+        if op["value"] is not None and (not isinstance(op["value"], str) or not op["value"]):
+            raise AccessError("value must be the cell's new text")
+        if op["value"] is not None:
+            _text_runs(op["value"], op["runs"])  # every run's text must be in it
+        styled = ", ".join(r["say"] for r in op["runs"])
+        if op["value"] is not None:
+            op["say"] = f"Replace text in {where} with \"{_cell(op['value'], '', 40)}\": {styled}"
+        else:
+            op["say"] = f"Style text in {where} (resets its other partial styling): {styled}"
+    elif name in ("filter", "filter_view", "filter_view_update"):
+        op["columns"] = _filter_columns(raw)
+        if "grid" in op and "startColumnIndex" in op["grid"]:
+            first, end = op["grid"]["startColumnIndex"], op["grid"]["endColumnIndex"]
+            outside = [c["letter"] for c in op["columns"] if not first <= c["index"] < end]
+            if outside:
+                raise AccessError(f"filter column {', '.join(outside)} is outside the range")
+        criteria = f": {_filter_words(op['columns'])}" if op["columns"] else ""
+        if name == "filter":
+            op["say"] = f"Set the filter on {where} (replaces any filter on the tab){criteria}"
+        elif name == "filter_view":
+            op["name"] = _str(raw, "name")
+            op["say"] = f"Filter view \"{_cell(op['name'], '', TAB_CLIP)}\" on {where}{criteria}"
+        else:
+            op["view"] = _plain(raw["view"])
+            op["set_criteria"] = "filter_columns" in raw
+            words = []
+            if "name" in raw:
+                op["name"] = _str(raw, "name")
+                words.append(f"rename to \"{_cell(op['name'], '', TAB_CLIP)}\"")
+            if "grid" in op:
+                words.append(f"range {where}" if op["tab"] is not None else f"range {op['ref']} on its tab")
+            if "filter_columns" in raw:
+                words.append(f"replace criteria with {_filter_words(op['columns'])}" if op["columns"]
+                             else "remove all criteria")
+            if not words:
+                raise AccessError("give name, range or filter_columns to change")
+            op["say"] = f"Change filter view \"{_cell(op['view'], '', TAB_CLIP)}\": {', '.join(words)}"
+    elif name == "filter_clear":
+        op["say"] = f"Remove the filter{on}"
+    elif name == "filter_view_delete":
+        op["view"] = _plain(raw["view"])
+        op["say"] = f"Delete filter view \"{_cell(op['view'], '', TAB_CLIP)}\""
     elif name == "conditional_delete":
         op["index"] = _whole(raw, "index", 0, 10000)
         op["say"] = f"Delete conditional rule #{op['index']}{on}"
@@ -1078,11 +1564,14 @@ def _normalize(name: str, raw: dict, here: bool = False) -> dict:
     return op
 
 
-def _layout_requests(ops: list[dict], meta: dict, header=None) -> list[dict]:
-    """batchUpdate requests for validated ops, resolving tab names to sheetIds and table names or
-    ids to tables. A bare word is a tab (named ranges are not resolved). ``header(grid)`` reads a
-    table range's first row, for the names of columns new to a table."""
-    ids, tables, first = {}, {}, None
+def _layout_requests(ops: list[dict], meta: dict, header=None, cell=None) -> list[dict]:
+    """batchUpdate requests for validated ops, resolving tab names to sheetIds and table and filter
+    view names or ids. A bare word is a tab (named ranges are not resolved); "the first tab" is the
+    first one before the call. ``header(grid)`` reads a table range's first row, for the names of
+    columns new to a table; ``cell(grid)`` reads one cell as entered, for rich text."""
+    ids, tables, views, groups, first = {}, {}, {}, [], None
+    order = [s.get("properties", {}).get("sheetId", 0)  # tab ids left to right, kept as ops move them
+             for s in sorted(meta.get("sheets", []), key=lambda s: s.get("properties", {}).get("index", 0))]
     for sheet in meta.get("sheets", []):
         props = sheet.get("properties", {})
         sheet_id = props.get("sheetId", 0)
@@ -1090,6 +1579,11 @@ def _layout_requests(ops: list[dict], meta: dict, header=None) -> list[dict]:
         first = sheet_id if first is None else first
         for table in sheet.get("tables", []) or []:
             tables[table.get("tableId")] = dict(table, sheetId=sheet_id)
+        for view in sheet.get("filterViews", []) or []:
+            views[str(view.get("filterViewId"))] = dict(view, sheetId=sheet_id)
+        for group in (sheet.get("rowGroups") or []) + (sheet.get("columnGroups") or []):
+            rng = group.get("range", {})
+            groups.append((sheet_id, rng.get("dimension"), rng.get("startIndex", 0), rng.get("endIndex", 0)))
 
     def sheet_of(tab):
         if tab is None:
@@ -1150,6 +1644,47 @@ def _layout_requests(ops: list[dict], meta: dict, header=None) -> list[dict]:
                 prop["dataValidationRule"] = {"condition": _condition("ONE_OF_LIST", column["values"])}
         return [props[i] for i in sorted(props)]
 
+    def view_of(key):
+        if key in views:
+            return views[key]
+        found = [v for v in views.values() if v.get("title") == key] or [
+            v for v in views.values() if (v.get("title") or "").casefold() == key.casefold()]
+        if len(found) != 1:
+            titles = [v.get("title") for v in views.values()]
+            raise AccessError(f"no single filter view named {key!r}. Views: {_few(titles) if titles else 'none'}")
+        return found[0]
+
+    def specs(op, rng):
+        start, end = rng.get("startColumnIndex", 0), rng.get("endColumnIndex")
+        out = []
+        for column in op["columns"]:
+            if column["index"] < start or (end is not None and column["index"] >= end):
+                raise AccessError(f"filter column {column['letter']} is outside the filter's range")
+            criteria = {}
+            if "hide" in column:
+                criteria["hiddenValues"] = column["hide"]
+            if "when" in column:
+                criteria["condition"] = _condition(column["when"], column["values"])
+            out.append({"columnIndex": column["index"], "filterCriteria": criteria})
+        return out
+
+    def rule_of(op):
+        ranges = [grid(a) for a in op["areas"]]
+        if "scale" in op:
+            points = [{"colorStyle": op["scale"][0][0], "type": "MIN"}]
+            if len(op["scale"]) == 3:
+                points.append({"colorStyle": op["scale"][1][0], "type": "PERCENTILE", "value": "50"})
+            points.append({"colorStyle": op["scale"][-1][0], "type": "MAX"})
+            keys = ("minpoint", "midpoint", "maxpoint") if len(points) == 3 else ("minpoint", "maxpoint")
+            return {"ranges": ranges, "gradientRule": dict(zip(keys, points))}
+        return {"ranges": ranges, "booleanRule": {"condition": _condition(op["when"], op["values"]),
+                                                  "format": op["format"]}}
+
+    def rename(old, new):
+        if new in ids and ids[new] != ids.get(old):
+            raise AccessError(f"a tab named {new!r} already exists")
+        ids[new] = ids.pop(old) if old in ids else ids[new]
+
     def rows_props(op):
         props = {}
         for key, field in (("header_color", "headerColorStyle"), ("footer_color", "footerColorStyle")):
@@ -1163,7 +1698,7 @@ def _layout_requests(ops: list[dict], meta: dict, header=None) -> list[dict]:
         """Each op once per range; a conditional rule stays one rule over all its ranges, and
         deletions run bottom-up so earlier ones never shift later ones."""
         for whole in ops:
-            if whole["op"] not in MULTI_RANGE_OPS or whole["op"] == "conditional":
+            if whole["op"] not in MULTI_RANGE_OPS or whole["op"] in ONE_RULE_OPS:
                 yield whole
                 continue
             areas = whole["areas"][::-1] if whole["op"] == "delete" else whole["areas"]
@@ -1258,18 +1793,115 @@ def _layout_requests(ops: list[dict], meta: dict, header=None) -> list[dict]:
             names.discard(gone.get("name"))
             requests.append({"deleteTable": {"tableId": gone["tableId"]}})
         elif name == "conditional":
-            if "scale" in op:
-                points = [{"colorStyle": c, "type": "MIN"} for c, _ in op["scale"][:1]]
-                if len(op["scale"]) == 3:
-                    points.append({"colorStyle": op["scale"][1][0], "type": "PERCENTILE", "value": "50"})
-                points.append({"colorStyle": op["scale"][-1][0], "type": "MAX"})
-                gradient = dict(zip(("minpoint", "midpoint", "maxpoint") if len(points) == 3
-                                    else ("minpoint", "maxpoint"), points))
-                rule = {"ranges": [grid(a) for a in op["areas"]], "gradientRule": gradient}
-            else:
-                rule = {"ranges": [grid(a) for a in op["areas"]], "booleanRule": {
-                    "condition": _condition(op["when"], op["values"]), "format": op["format"]}}
-            requests.append({"addConditionalFormatRule": {"rule": rule, "index": 0}})
+            requests.append({"addConditionalFormatRule": {"rule": rule_of(op), "index": 0}})
+        elif name == "conditional_update":
+            requests.append({"updateConditionalFormatRule": {
+                "sheetId": sheet_of(op["tab"]), "index": op["index"], "rule": rule_of(op)}})
+        elif name in ("hide", "unhide"):
+            requests.append({"updateDimensionProperties": {
+                "range": dim(op), "properties": {"hiddenByUser": name == "hide"}, "fields": "hiddenByUser"}})
+        elif name == "group":
+            rng = dim(op)
+            key = (rng["sheetId"], rng["dimension"], rng["startIndex"], rng["endIndex"])
+            # A new group sits one level below every group that already contains it.
+            depth = 1 + sum(1 for g in groups if g[:2] == key[:2] and g[2] <= key[2] and g[3] >= key[3])
+            groups.append(key)
+            requests.append({"addDimensionGroup": {"range": rng}})
+            if op["collapsed"]:
+                requests.append({"updateDimensionGroup": {
+                    "dimensionGroup": {"range": rng, "depth": depth, "collapsed": True}, "fields": "collapsed"}})
+        elif name == "ungroup":
+            rng = dim(op)
+            key = (rng["sheetId"], rng["dimension"], rng["startIndex"], rng["endIndex"])
+            if key in groups:  # the deepest group over exactly this range goes
+                groups.remove(key)
+            requests.append({"deleteDimensionGroup": {"range": rng}})
+        elif name == "sheet":
+            props, fields = {"sheetId": sheet_of(op["tab"])}, []
+            if "title" in op:
+                rename(op["tab"], op["title"])
+                props["title"] = op["title"]
+                fields.append("title")
+            if "tab_color" in op:
+                if op["tab_color"] is not None:
+                    props["tabColorStyle"] = op["tab_color"][0]
+                fields += ["tabColor", "tabColorStyle"]
+            if "hidden" in op:
+                props["hidden"] = op["hidden"]
+                fields.append("hidden")
+            if "position" in op:
+                # The API counts the target before the move; position is where the tab ends up.
+                current, final = order.index(props["sheetId"]), min(op["position"], len(order)) - 1
+                props["index"] = final + 1 if final > current else final
+                order.remove(props["sheetId"])
+                order.insert(final, props["sheetId"])
+                fields.append("index")
+            requests.append({"updateSheetProperties": {"properties": props, "fields": ",".join(fields)}})
+        elif name == "sheet_duplicate":
+            taken = set(ids.values())
+            new_id = random.randrange(1, 2 ** 31 - 1)
+            while new_id in taken:
+                new_id = random.randrange(1, 2 ** 31 - 1)
+            source = sheet_of(op["tab"])
+            request = {"sourceSheetId": source, "newSheetId": new_id}
+            if op["title"]:
+                if op["title"] in ids:
+                    raise AccessError(f"a tab named {op['title']!r} already exists")
+                ids[op["title"]] = new_id
+                request["newSheetName"] = op["title"]
+            # Without a position the copy goes right after its source (the API would put it first).
+            at = min(op["position"], len(order) + 1) - 1 if op["position"] else order.index(source) + 1
+            request["insertSheetIndex"] = at
+            order.insert(at, new_id)
+            requests.append({"duplicateSheet": request})
+        elif name == "rename_spreadsheet":
+            requests.append({"updateSpreadsheetProperties": {"properties": {"title": op["title"]},
+                                                             "fields": "title"}})
+        elif name == "note":
+            requests.append({"repeatCell": {"range": grid(op), "cell": {"note": op["text"]} if op["text"] else {},
+                                            "fields": "note"}})
+        elif name == "rich_text":
+            target = grid(op)
+            text = op["value"]
+            if text is None:
+                current = cell(target) if cell else None
+                if not isinstance(current, str) or current.startswith("=") or not current:
+                    raise AccessError(f"{op['ref']} holds no plain text (a number, date, formula or nothing); "
+                                      f"give value to write the text")
+                text = current
+            requests.append({"updateCells": {
+                "range": target, "fields": "userEnteredValue,textFormatRuns",
+                "rows": [{"values": [{"userEnteredValue": {"stringValue": text},
+                                      "textFormatRuns": _text_runs(text, op["runs"])}]}]}})
+        elif name == "filter":
+            target = grid(op)
+            requests.append({"setBasicFilter": {"filter": {"range": target, "filterSpecs": specs(op, target)}}})
+        elif name == "filter_clear":
+            requests.append({"clearBasicFilter": {"sheetId": sheet_of(op["tab"])}})
+        elif name == "filter_view":
+            target = grid(op)
+            requests.append({"addFilterView": {"filter": {"title": op["name"], "range": target,
+                                                          "filterSpecs": specs(op, target)}}})
+        elif name == "filter_view_update":
+            current = view_of(op["view"])
+            view, fields = {"filterViewId": current["filterViewId"]}, []
+            rng = current.get("range", {})
+            if "grid" in op:  # a range without a tab stays on the view's own tab
+                rng = view["range"] = {"sheetId": current["sheetId"] if op["tab"] is None else sheet_of(op["tab"]),
+                                       **op["grid"]}
+                fields.append("range")
+            if "name" in op:
+                current["title"] = view["title"] = op["name"]
+                fields.append("title")
+            if op["set_criteria"]:
+                view["filterSpecs"] = specs(op, rng)
+                fields.append("filterSpecs")
+            current["range"] = rng
+            requests.append({"updateFilterView": {"filter": view, "fields": ",".join(fields)}})
+        elif name == "filter_view_delete":
+            gone = view_of(op["view"])
+            views.pop(str(gone["filterViewId"]), None)
+            requests.append({"deleteFilterView": {"filterId": gone["filterViewId"]}})
         elif name == "conditional_delete":
             requests.append({"deleteConditionalFormatRule": {"sheetId": sheet_of(op["tab"]), "index": op["index"]}})
         elif name == "validate":
@@ -1283,8 +1915,15 @@ def _layout_requests(ops: list[dict], meta: dict, header=None) -> list[dict]:
     return requests
 
 
+def _destructive(op: dict) -> bool:
+    """Whether an op deletes, moves or replaces data: the fixed set, plus removing notes and
+    replacing a filter view's criteria."""
+    return (op["op"] in LAYOUT_DESTRUCTIVE or (op["op"] == "note" and not op["text"])
+            or (op["op"] == "filter_view_update" and op["set_criteria"]))
+
+
 def _layout_destructive(args: dict) -> bool:
-    return any(op["op"] in LAYOUT_DESTRUCTIVE for op in _layout_ops(args))
+    return any(_destructive(op) for op in _layout_ops(args))
 
 
 # --- Gmail ----------------------------------------------------------------------------------------
@@ -1807,10 +2446,10 @@ def _sheets_card(home, action: str, args: dict) -> str:
     if action == "layout":
         ops = _layout_ops(args)
         title, _, names = _sheet_context(home, sid, set())
-        # Ops on a table by name have no tab of their own; neither does a table range without one.
+        # Ops on a table or view by name have no tab of their own; neither does their range without one.
         tabs = set()
         for op in ops:
-            if op["op"].startswith("table_") and op.get("tab") is None:
+            if op["op"] in OWN_TAB_OPS and op.get("tab") is None:
                 tabs.add(...)
             else:
                 tabs.update([a["tab"] for a in op["areas"]] if "areas" in op else [op.get("tab", ...)])
