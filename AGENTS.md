@@ -11,7 +11,7 @@ actually loads it.
 | Reader | Loads | How |
 |---|---|---|
 | Maintainer — OpenCode, or a Hermes profile doing repo upkeep (Engineer via OpenCode, the Assistant's Admin topic) | this file, then the subtree's `AGENTS.md` | on demand, when a task touches the subtree |
-| OpenCode, every session | `opencode/AGENTS.md`, `opencode/instructions/*.md` | global instructions (`opencode.jsonc`) |
+| OpenCode, every session | `opencode/AGENTS.md` | global instructions (no `instructions` array: V2 does not load it) |
 | Hermes profiles at runtime | their `config.yaml` (`agent.system_prompt`), `SOUL.md`, skills | per `HERMES_HOME`; never this repo's docs |
 | Hermes Assistant at runtime | also `~/Workspaces/AGENTS.md` (private overlay) | its `terminal.cwd` is `~/Workspaces` |
 | Other CLIs (Claude, Codex, Gemini, Grok, Copilot) | `<tool>/` instruction files | symlinked to each tool's home by `install.sh` |
