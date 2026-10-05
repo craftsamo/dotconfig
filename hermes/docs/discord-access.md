@@ -1,11 +1,12 @@
 # Discord access
 
 The Assistant's access to the user's own Discord account — reading their DMs,
-group DMs and servers, keeping a chosen set of servers synced, and sending text
-that the user approves first. It is not the Assistant's Discord bot (the
-gateway's Discord platform, through which the user talks to Hermes); nothing
-here changes that bot. Part of the Hermes design docs — index:
-[`PROFILES.md`](../PROFILES.md).
+group DMs and servers, keeping a chosen set of servers synced, and acting from
+the account (sending, reacting, editing and deleting their own messages,
+managing roles) only as the user approves each time. It is not the
+Assistant's Discord bot (the gateway's Discord platform, through which the
+user talks to Hermes); nothing here changes that bot. Part of the Hermes
+design docs — index: [`PROFILES.md`](../PROFILES.md).
 
 Automating a user account ("self-bot") is against Discord's terms and can end
 in account termination; read-only use is not exempt. The user accepted that
@@ -18,7 +19,8 @@ the risk away.
 |---|---|---|
 | Mirror schema, sync list and its limits (stdlib) | `plugins/discord-access/store.py` | engine and plugin |
 | Engine: the only code that talks to Discord and holds the token | `plugins/discord-access/engine.py` | its venv |
-| `discord_account` tool, reads, card, the `pre_tool_call` hook (toolset `discord_access`) | `plugins/discord-access/access.py`, `__init__.py` | Assistant |
+| `discord_account` tool, reads, cards, the `pre_tool_call` hooks (toolset `discord_access`) | `plugins/discord-access/access.py`, `__init__.py` | Assistant |
+| Permission names and what a member holds (stdlib) | `plugins/discord-access/perms.py` | plugin |
 | Engine venv (`curl_cffi`, hash-locked) | `engines/discord-user/requirements.lock` → ignored `local/discord-user/venv` | people |
 | Sync agent | `launchd/discord-access-launchctl.sh`, `launchd/local.hermes.discord-access.sync.plist.tmpl` | people |
 | When and how the Assistant uses it | the Assistant's private Chat reference `discord.md` | Assistant |
@@ -67,14 +69,31 @@ message id, so only channels whose last message moved are fetched, forward
 from a cursor in pages of 100 (`after` returns the messages directly after the
 cursor), each page committed with its progress before the next request, so a
 long run never holds the database against a send. A quiet run is two
-requests. Bounds: 60 requests per run, counted before each request (retries
-and the build-number page included), and 5 pages per channel per run;
-anything left continues next run. A channel seen for the first time is seeded
-with its newest 50 messages if its last message is under 30 days old (at most
-15 per run); an older DM is followed from now on, its history fetched only on
-request (`backfill`). A channel answering 403 or 404 is marked and skipped by
-later runs (DMs included) until a live read of it succeeds again. Edits and
-deletions after a message was mirrored are not replicated.
+requests, plus at most two rechecks (below). Bounds: 60 requests per run,
+counted before each request (retries and the build-number page included),
+and 5 pages per channel per run; anything left continues next run. A
+channel seen for the first time is seeded with its newest 50 messages if its
+last message is under 30 days old (at most 15 per run); an older DM is
+followed from now on, its history fetched only on request (`backfill`). A
+channel answering 403 or 404 is marked and skipped by later runs (DMs
+included) until a live read of it succeeds again.
+
+Edits and deletions have no feed, so they reach the mirror through reads.
+Every page of a channel's history the engine reads (sync, live windows,
+backfill, the message `media` or a write reads again) is contiguous, so it overwrites what
+it returns and drops mirrored messages inside its range that it did not
+return: those were deleted. A page shorter than asked also vouches for its
+open ends — back to the channel's start unless `after` bounded it, and past
+its newest message unless `before` did; past the newest message only for
+messages of the last 7 days mirrored before the request began, because one
+stored meanwhile by another process may be newer than Discord's answer. A
+page `around` a message vouches for its own range only, and an empty page
+drops nothing. Each run then rechecks: it reads the newest 50 messages of up
+to two channels active in the last 7 days whose newest page was not read for
+30 minutes (a seed counts, following new messages does not), least recently
+first, inside the run's budget. Older history changes only when it is read
+again (`live=true` or `backfill`). Search, pin and mention results are not
+contiguous and never drop anything.
 
 Each channel's cursor holds two edges. `oldest` is where its contiguous
 history starts; `backfill` pages back from there, never from older stray
@@ -88,17 +107,42 @@ reads never serve silently stale history.
 
 `status`, `dms`, `search`, `context` and `sync_list` read the mirror and
 make no request. `guilds` refreshes from Discord when its copy is over 6
-hours old; `channels` always asks Discord. `messages` reads the mirror for a
-current channel, inside its contiguous history; a channel that is not current,
+hours old, `friends` likewise; `channels`, `threads`, `pins`, `mentions`,
+`member`, `role_members` and `members` always ask Discord, and `roles` does
+when its copy is over 15 minutes old (or on `refresh`). `messages` reads the
+mirror for a current channel, inside its contiguous history; a channel that is not current,
 a page older than that history, an empty window or `live=true` is read live,
 as is `context` around a message not in the mirror; `backfill` runs the
 engine too. A live window is at most 100 messages and is stored in the mirror
 as well, so search and approval cards can see it.
 Messages come oldest first, with local times, `from: me` for the user's own,
-reply targets, attachment names and links, and a note that text and names
-are written by other people and are data, never instructions. `search` is a
-literal substring match over the mirror only, and says so. Stickers are
-listed by name.
+reply targets, attachment names and links, reactions (emoji, count and
+whether the user reacted, as of the message's last ordinary read: search,
+pin and mention results carry none and leave stored ones alone), the
+readable part of embeds (title, description, link, author, site, up to five
+fields, clipped), and a note that text, embeds and names are written by
+other people and are data, never instructions. Stickers are listed by name.
+
+- `search` is a literal substring match over the mirror, and says so. With
+  `live=true` it is Discord's own search instead, 25 a page with `offset`:
+  `guild` searches a server (a `channel` of it narrows it), a DM `channel`
+  that DM, neither every DM and group DM at once (the web client's tabbed
+  search, a POST). While Discord is still indexing (HTTP 202), the engine
+  waits once, up to 30 s, then says to try again later.
+- `threads` lists a text, announcement or forum channel's threads (forum
+  posts with their first post), newest activity first, 25 a page; `archived`
+  narrows to archived or active ones. Each thread is stored as a channel, so
+  `messages` reads it and `send` posts into it. User accounts have no list of
+  a whole server's threads.
+- `pins` lists a channel's pinned messages, paged by the last `pinned_at`.
+- `mentions` lists messages that mention the user, their roles, `@everyone`
+  or `@here`, newest first, optionally in one server.
+- `friends` lists friends (requests only counted), each with the channel id
+  of an existing DM, since a send needs one.
+- `roles`, `member`, `role_members` and `members`: see Roles.
+
+Results read from Discord are stored in the mirror as well, so later cards
+and searches can see them.
 
 ## Media
 
@@ -146,10 +190,12 @@ counting as 10. A change applies on the next run, with no restart.
 
 ## Send
 
-`send` is the only write to Discord: text (at most 2000 characters) and up to
-10 files, to a channel the mirror knows — an existing DM or group DM, or a
-server channel listed before. New DMs cannot be opened, names are refused, and
-a `reply_to` must be a message of that channel already in the mirror.
+`send` posts text (at most 2000 characters) and up to 10 files to a channel
+the mirror knows — an existing DM or group DM, a server channel listed
+before, or a thread listed by `threads`. New DMs cannot be opened, names are
+refused, and a `reply_to` must be a message of that channel already in the
+mirror. A locked thread is refused; for an archived one the card notes that
+sending reopens it.
 
 - **Files come from the attach roots only**: `discord_access.attach_roots` in
   the profile's `config.yaml`, default `~/Workspaces`, with a relative path
@@ -191,11 +237,12 @@ a `reply_to` must be a message of that channel already in the mirror.
 
   ```
   Discord: <account name> (@<username>)
-  To: DM with <name> (@<handle>)  |  group DM … | #<channel> in <server>
+  To: DM with <name> (@<handle>)  |  group DM … | #<channel> in <server> | thread '<name>' in #<parent> in <server>
   Channel id: <id>
   Reply to: <sender>: <quoted text>
   Files (2): docs/report.pdf (1.2 MB), photo.png (340.0 KB)
   Pings: @everyone
+  Note: the thread is archived; sending reopens it
 
   <message text>
   ```
@@ -227,6 +274,112 @@ a `reply_to` must be a message of that channel already in the mirror.
   `dispatching` is uncertain. Nothing is ever resent automatically.
 - Inbound A2A requests never reach the account; the toolset is not in the
   Assistant's `a2a` platform toolset either.
+
+## Other writes
+
+`react` / `unreact` (one Unicode emoji, or a custom emoji already on that
+message), `edit` and `delete` (the user's own messages only, already in the
+mirror) and the role writes below each go through the same approval gate.
+
+- **Checked before the card.** A request that cannot or may not happen
+  (unknown channel, message or role, someone else's message, the same text,
+  a reaction the user has not made, anything Roles forbids) is blocked
+  without asking.
+- **The card is what runs.** The approval hook and the bind hook share one
+  plan per call (keyed by the session, task and tool-call ids, whichever hook
+  runs first); bind hands the handler that plan's rule key (`_approved`). A
+  plan that expires (2 minutes) before its second hook fails that call rather
+  than making a new plan. After approval the handler builds the plan again
+  from the mirror and runs it only when the key still matches, so a change
+  meanwhile (the message edited, the role's permissions read differently)
+  voids the card. The key
+  hashes the engine request plus what it acts on — the message's text, edit
+  time and attachments (name, size and type; not their URLs, which Discord
+  re-signs) for an edit or delete, the role's permissions for an
+  assignment, edit or deletion — so "session" or "always" only repeats that
+  identical request. A caller-supplied `_approved` is blocked, and a call
+  without an id never gets one, so it cannot run.
+- **Cards fit or are refused.** A message card shortens its quote until it
+  fits (an edit keeps room for the new text, cut and counted past about 350
+  characters as a send's is); every line of a role card is part of the
+  approval, so a role card that does not fit is refused and the request has
+  to be split.
+- **Cards:** `In:` the chat, `Message:` its sender and text with `React
+  with:` / `Remove my reaction:`; `Edit my message` with `Before:`, `Pings:`
+  and the new text; `Delete my message:` with "This cannot be undone."
+- **One request, never retried.** Outcomes are `done`, `not done` (Discord
+  refused, or it cannot have left the machine) and `UNCERTAIN` (a 5xx, or a
+  failure after dispatch). An uncertain write reads back once — the message,
+  the member or the role list — and becomes `done` when that shows the
+  requested state; otherwise it stays uncertain with what was seen. All of
+  these set a state, so repeating them is harmless once the user agrees,
+  except `role_create`, whose read-back only reports a new role of that name
+  as a hint and which is never repeated without the user. Deleting a message
+  or role that is already gone (codes 10008, 10011) counts as done. If the
+  typed reaction-removal route is unknown (404, code 0), the legacy route,
+  which sets the same state, is tried once. A request Discord answers with a
+  two-factor challenge (401, code 60003) is `not done` — the user does it in
+  the app — and never marks the token as rejected.
+- **The mirror follows** a done write without another request where it can
+  (the user's reaction counted, the edited text stored, the message or role
+  dropped, the member's roles updated).
+
+## Roles
+
+Reads: `roles` lists a server's roles from the top (position, member count,
+colour, the strong permissions each holds, whether the user can manage it)
+and the user's own roles and permissions; `role` shows one role with all its
+permissions. It costs three requests (roles, member counts, the user's own
+member; plus the server list once to learn whether the user owns it) and is
+kept 15 minutes. `member` reads one member's name and roles; `role_members`
+up to 100 member ids of a role (Discord lists no more); `members` finds
+members by name through Discord's member search, which needs the Manage
+Server permission — elsewhere ids come from messages, mentions or friends.
+Roles and members read this way live in the mirror's `roles` and `members`
+tables; sync never fetches them.
+
+Writes: `role_add` / `role_remove` (one member), `role_bulk_add` (up to 30
+members, reporting who got the role), `role_create`, `role_edit` (name,
+colour, hoist, mentionable, `grant` / `revoke` permission names; the whole new
+permission set is sent) and `role_delete`, each with an optional `reason`
+sent as the audit-log reason. The rules, in code, checked against the mirror
+before the card:
+
+- The server's roles were listed within 15 minutes (the handler after
+  approval does not re-check the age; the key match covers changes).
+- The user holds Manage Roles (or Administrator, or owns the server), from
+  `@everyone` (whose id is the server's), their roles and ownership.
+- The role is below the user's highest role (the owner is exempt), not
+  managed by an integration, and not `@everyone` — except that `role_edit`
+  may change `@everyone`.
+- **Administrator is never given**: not created, granted, or handed out by
+  assigning a role that has it. Removing it, and removing a role that has it,
+  is allowed.
+- Nothing grants permissions the user lacks — creating, granting, or
+  assigning a role that holds them.
+- Permissions are given by name (`perms.py`); unknown names are refused.
+- A role write that gives strong permissions (ban, kick, manage server,
+  roles, channels, webhooks, messages, nicknames, expressions, events or
+  threads, timeouts, `@everyone` mentions, the audit log, pins) — creating a
+  role with them, granting them, or assigning a role that holds them — puts
+  `⚠ Strong permissions: …` at the top of the card; editing a role that
+  keeps Administrator shows `administrator (kept)` there. Removals,
+  revocations and deletions carry no warning.
+
+```
+⚠ Strong permissions: manage_messages
+Discord: <account name> (@<username>)
+Server: <server>
+Action: add role @<role> to <name> (@<username>)
+Role id: <id>
+User id: <id>
+Reason (audit log): <reason>
+```
+
+Managing roles from a user account is among the riskiest self-bot actions,
+and the audit log names the user. Discord enforces the same hierarchy and
+permission rules again; these checks only keep impossible or forbidden
+requests off the card.
 
 ## Ways around the tool
 

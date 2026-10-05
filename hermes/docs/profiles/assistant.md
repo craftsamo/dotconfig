@@ -188,9 +188,10 @@ The user's own Discord account (not the Assistant's Discord bot) is the
 assistant's alone too (`discord_access` toolset, never on A2A): DMs and the
 servers on its sync list come from a local mirror, other channels are read
 live through an engine that alone holds the token, the sync list is edited by
-request within code-enforced limits, and every send — text and `~/Workspaces`
-files — waits for approval on a card naming the chat, every file and the
-text. Contract:
+request within code-enforced limits, and every write — sends of text and
+`~/Workspaces` files, reactions, edits and deletions of the user's own
+messages, role management checked against the user's permissions — waits for
+approval on a card naming exactly what it does. Contract:
 [discord-access.md](../discord-access.md).
 
 The user's own Telegram account (not the Assistant's Telegram bot, whose

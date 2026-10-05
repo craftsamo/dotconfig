@@ -8,18 +8,22 @@ or logged.
 
     engine.py COMMAND  < JSON arguments  > {"ok": true, "data": ...} | {"ok": false, "kind", "error"}
 
-Commands: whoami, guilds, channels, channel, messages, backfill, sync, send, media. Requests carry the
-Discord web client's headers on a Chrome/macOS identity, are paced, and wait out short rate
-limits only for reads. ``send`` makes exactly one message POST with ``nonce`` + ``enforce_nonce``
-and never retries it; attachments are uploaded first (Discord's cloud upload, as the web client
-does), which creates no message. Its outcome is sent / not_sent / uncertain, recorded in the
-``sends`` ledger before and after dispatch. Contract: docs/discord-access.md.
+Commands: whoami, guilds, channels, channel, messages, backfill, sync, send, media, threads, pins,
+mentions, friends, search, roles, member, role_members, members, and the writes react, unreact,
+edit, delete, role_add, role_remove, role_bulk_add, role_create, role_edit, role_delete. Requests
+carry the Discord web client's headers on a Chrome/macOS identity, are paced, and wait out short
+rate limits only for reads. ``send`` makes exactly one message POST with ``nonce`` +
+``enforce_nonce`` and never retries it; attachments are uploaded first (Discord's cloud upload, as
+the web client does), which creates no message. Its outcome is sent / not_sent / uncertain,
+recorded in the ``sends`` ledger before and after dispatch. Every other write is one request too,
+never retried, with the outcome done / not_done / uncertain; an ambiguous one is read back once.
+Contract: docs/discord-access.md.
 """
 
 from __future__ import annotations
 
 import base64
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import fcntl
 import hashlib
 import json
@@ -61,6 +65,18 @@ SEED_COUNT = 50              # newest messages taken when a channel is first fol
 SEED_PER_RUN = 15
 SEED_DAYS = 30               # older-looking DMs are followed from now on; history via backfill
 BACKFILL_PAGES = (2, 5)
+# Edits and deletions: each run reads the newest page of a few recently active channels again.
+RECHECK_PER_RUN = 2
+RECHECK_DAYS = 7
+RECHECK_INTERVAL = 30 * 60   # a channel is read again at most this often
+RECHECK_COUNT = 50
+
+# Discord JSON error codes the engine tells apart.
+INDEXING = 110000            # search: the index is not ready (HTTP 202)
+MFA_REQUIRED = 60003         # the action needs a fresh two-factor check
+UNKNOWN_MESSAGE = 10008
+UNKNOWN_ROLE = 10011
+NO_ROUTE = 0                 # a 404 with code 0: the path itself does not exist
 
 # Attachments: Discord's cloud upload. The upload URL is a signed Google Cloud Storage URL; the
 # token never goes there, and files are only ever read from the plugin's approved outbox.
@@ -288,7 +304,7 @@ class Client:
             "client_heartbeat_session_id": self.launch["heartbeat"], "client_app_state": "focused"}
         return base64.b64encode(json.dumps(props, separators=(",", ":")).encode()).decode()
 
-    def headers(self, *, referer: str = "/channels/@me", json_body: bool = False) -> dict:
+    def headers(self, *, referer: str = "/channels/@me", json_body: bool = False, reason: str | None = None) -> dict:
         h = {"Accept": "*/*", "Accept-Language": self._accept_language(), "Authorization": self.token,
              "Origin": WEB, "Referer": f"{WEB}{referer}", "Sec-Fetch-Dest": "empty", "Sec-Fetch-Mode": "cors",
              "Sec-Fetch-Site": "same-origin", "User-Agent": self.http.user_agent,
@@ -299,6 +315,8 @@ class Client:
             h["X-Discord-Timezone"] = tz
         if json_body:
             h["Content-Type"] = "application/json"
+        if reason:
+            h["X-Audit-Log-Reason"] = urllib.parse.quote(reason, safe="/ ")
         return h
 
     # requests
@@ -322,12 +340,18 @@ class Client:
 
     def get(self, path: str, params=None, referer: str = "/channels/@me"):
         """A read: paced; a short rate limit is waited out once; errors become EngineError."""
+        return self.read("GET", path, params=params, referer=referer)
+
+    def read(self, method: str, path: str, *, params=None, body=None, referer: str = "/channels/@me"):
+        """A read (searches POST a body): a short rate limit or a search index still being built
+        (HTTP 202) is waited out once; errors become EngineError."""
         for attempt in (0, 1):
             self._spend()
             self._pace()
             try:
-                status, headers, payload = self.http.request("GET", f"{API}{path}", params=params,
-                                                             headers=self.headers(referer=referer))
+                status, headers, payload = self.http.request(
+                    method, f"{API}{path}", params=params, body=body,
+                    headers=self.headers(referer=referer, json_body=body is not None))
             except TransportError as exc:
                 raise EngineError("network", self._scrub(str(exc))) from exc
             if status == 429 and attempt == 0:
@@ -335,15 +359,33 @@ class Client:
                 if wait <= MAX_WAIT:
                     self.sleep(wait + random.uniform(0.2, 0.8))
                     continue
+            if status == 202 and isinstance(payload, dict) and payload.get("code") == INDEXING:
+                wait = retry_after(headers, payload) or 5.0
+                if attempt == 0 and wait <= MAX_WAIT:
+                    self.sleep(wait + random.uniform(0.2, 0.8))
+                    continue
+                raise EngineError("indexing", "Discord is still indexing this search; try again in a minute")
             if 200 <= status < 300:
                 return payload
             raise self._http_error(status, headers, payload)
         raise EngineError("rate_limited", "Discord rate-limited the request twice")
 
+    def write(self, method: str, path: str, *, params=None, body=None, referer: str = "/channels/@me",
+              reason: str | None = None):
+        """One write request, never retried: (status, headers, payload). Raises TransportError."""
+        self._spend()
+        self._pace()
+        return self.http.request(method, f"{API}{path}", params=params, body=body, timeout=SEND_TIMEOUT,
+                                 headers=self.headers(referer=referer, json_body=body is not None, reason=reason))
+
     def _http_error(self, status, headers, payload) -> EngineError:
         message = payload.get("message") if isinstance(payload, dict) else None
         code = payload.get("code") if isinstance(payload, dict) else None
         detail = self._scrub(f"Discord {status}" + (f" (code {code}): {message}" if message else ""))
+        if status == 401 and code == MFA_REQUIRED:
+            # Not a rejected token: Discord wants a fresh two-factor check, which only the app can give.
+            return EngineError("mfa", "Discord asked for two-factor verification for this action; nothing was "
+                                      "done. The user does it in the Discord app")
         if status == 401:
             store.set_meta(self.conn, "auth", {"state": "rejected", "at": self.clock()})
             self.conn.commit()
@@ -399,7 +441,7 @@ def guilds(client: Client) -> list[dict]:
     found = client.get("/users/@me/guilds", params={"with_counts": "false"})
     now = _now()
     for g in found:
-        store.upsert_guild(client.conn, g["id"], g.get("name"), now)
+        store.upsert_guild(client.conn, g["id"], g.get("name"), now, owner=g.get("owner"))
     store.set_meta(client.conn, "guilds_fetched", now)
     client.conn.commit()
     return [{"id": str(g["id"]), "name": g.get("name")} for g in found]
@@ -426,24 +468,73 @@ def _referer(conn, channel_id) -> str:
     return f"/channels/{row['guild_id'] or '@me'}/{channel_id}" if row else f"/channels/@me/{channel_id}"
 
 
-def _store_batch(client: Client, channel_id, batch: list) -> list[dict]:
+def _store_batch(client: Client, channel_id, batch: list, reactions: bool = True) -> list[dict]:
+    """Store messages of one channel. ``reactions=False`` for search, pin and mention results,
+    which leave reactions out (stored ones are kept)."""
     me_id = (client.me or {}).get("id")
     row = client.conn.execute("SELECT guild_id FROM channels WHERE id = ?", (int(channel_id),)).fetchone()
     guild_id = row["guild_id"] if row else None
-    rows = [store.message_row(m, me_id, guild_id) for m in batch if isinstance(m, dict) and m.get("id")]
+    rows = [store.message_row(m, me_id, guild_id, reactions=reactions)
+            for m in batch if isinstance(m, dict) and m.get("id")]
     store.upsert_messages(client.conn, rows)
     return rows
 
 
+def _store_found(client: Client, found: list) -> list[dict]:
+    """Messages from several channels (search, mentions), none authoritative for reactions."""
+    rows = []
+    for m in found:
+        if isinstance(m, dict) and m.get("id") and m.get("channel_id"):
+            rows += _store_batch(client, m["channel_id"], [m], reactions=False)
+    return rows
+
+
+def _fetch(client: Client, channel_id, params: dict) -> tuple[list, list[dict]]:
+    """One page of a channel's history (raw messages, mirror rows). A page is contiguous, so a
+    mirrored message inside the range it covers that it did not return was deleted on Discord:
+    the mirror drops it. The range is the page itself; a short page also vouches for its open ends:
+    back to the channel's start unless ``after`` bounded it (anything older than its oldest message
+    existed when it was read), and past its newest message unless ``before`` bounded it — there
+    only for messages already mirrored before the request began, since one stored meanwhile (by a
+    sync or a send in another process) may be newer than what Discord answered."""
+    cid = int(channel_id)
+    open_top = "before" not in params and "around" not in params
+    recent = store.snowflake_at(datetime.now(timezone.utc) - timedelta(days=RECHECK_DAYS))
+    known = {r[0] for r in client.conn.execute("SELECT id FROM messages WHERE channel_id = ? AND id >= ?",
+                                               (cid, recent))} if open_top else set()
+    batch = client.get(f"/channels/{cid}/messages", params=params, referer=_referer(client.conn, cid))
+    batch = [m for m in batch if isinstance(m, dict) and m.get("id")]
+    rows = _store_batch(client, cid, batch)
+    if rows:
+        ids = [r["id"] for r in rows]
+        lo, hi = min(ids), max(ids)
+        short = len(batch) < int(params.get("limit") or 50)
+        if short and "around" not in params and "after" not in params:
+            lo = 0
+        store.drop_missing(client.conn, cid, ids, lo, hi)
+        if short and open_top:
+            gone = [i for i in known if i > hi and i not in set(ids)]
+            for i in gone:
+                store.delete_message(client.conn, i)
+    return batch, rows
+
+
+def fetch_message(client: Client, channel_id, message_id) -> dict | None:
+    """One message as Discord has it now, or None when it is gone (the mirror follows)."""
+    batch, _ = _fetch(client, channel_id, {"around": str(message_id), "limit": "5"})
+    client.conn.commit()
+    return next((m for m in batch if str(m.get("id")) == str(message_id)), None)
+
+
 def messages(client: Client, channel_id: str, *, before=None, after=None, around=None, limit=50) -> list[dict]:
-    """A live window, stored in the mirror too (search and approval cards read it there). It
-    never moves a cursor: the mirror's contiguous history is only what sync and backfill made."""
+    """A live window, stored in the mirror too (search and approval cards read it there), with
+    edits and deletions inside it applied. It never moves a cursor: the mirror's contiguous
+    history is only what sync and backfill made."""
     params = {"limit": str(max(1, min(int(limit), PAGE)))}
     for key, value in (("before", before), ("after", after), ("around", around)):
         if value:
             params[key] = str(value)
-    batch = client.get(f"/channels/{channel_id}/messages", params=params, referer=_referer(client.conn, channel_id))
-    rows = _store_batch(client, channel_id, batch)
+    _, rows = _fetch(client, channel_id, params)
     # Readable again: a channel once marked forbidden or gone rejoins the sync.
     client.conn.execute("UPDATE channels SET state = NULL WHERE id = ? AND state IS NOT NULL", (int(channel_id),))
     client.conn.commit()
@@ -465,8 +556,7 @@ def backfill(client: Client, channel_id: str, pages: int) -> dict:
         params = {"limit": str(PAGE)}
         if before:
             params["before"] = str(before)
-        batch = client.get(f"/channels/{channel_id}/messages", params=params, referer=_referer(conn, channel_id))
-        rows = _store_batch(client, channel_id, batch)
+        batch, rows = _fetch(client, channel_id, params)
         added += len(rows)
         if rows:
             before = min(r["id"] for r in rows)
@@ -529,19 +619,17 @@ def _follow(conn, client: Client, summary: dict, cid: int, last: int, cursor, se
         if seeded >= SEED_PER_RUN:
             summary["deferred"] += 1
             return 0
-        batch = client.get(f"/channels/{cid}/messages", params={"limit": str(SEED_COUNT)}, referer=_referer(conn, cid))
-        rows = _store_batch(client, cid, batch)
+        batch, rows = _fetch(client, cid, {"limit": str(SEED_COUNT)})
         summary["fetched"] += len(rows)
         _set_cursor(conn, cid, max([r["id"] for r in rows] + [last]),
                     min(r["id"] for r in rows) if rows else last + 1, complete=len(batch) < SEED_COUNT)
+        conn.execute("UPDATE cursors SET rechecked_at = ? WHERE channel_id = ?", (_now(), cid))  # a fresh newest page
         conn.commit()
         summary["channels_updated"] += 1
         return 1
     after = cursor["newest"]
     for _ in range(PAGE_CAP):
-        batch = client.get(f"/channels/{cid}/messages", params={"after": str(after), "limit": str(PAGE)},
-                           referer=_referer(conn, cid))
-        rows = _store_batch(client, cid, batch)
+        batch, rows = _fetch(client, cid, {"after": str(after), "limit": str(PAGE)})
         summary["fetched"] += len(rows)
         if rows:
             after = max(r["id"] for r in rows)
@@ -607,30 +695,71 @@ def sync(client: Client) -> dict:
                 conn.execute("UPDATE cursors SET synced_at = NULL WHERE channel_id = ?", (cid,))
             changed.append((cid, last, cursor))
     conn.commit()  # nothing uncommitted while a request is in flight
-    seeded = 0
+    seeded, stopped = 0, False
     for cid, last, cursor in changed:
         try:
             seeded += _follow(conn, client, summary, cid, last, cursor, seeded)
         except EngineError as exc:
-            conn.commit()
-            if exc.kind in ("auth", "captcha"):
-                raise
-            if exc.kind == "budget":
-                summary["deferred"] += 1
-                continue
-            if exc.kind == "forbidden":
-                _mark(conn, cid, "forbidden")
-            elif exc.kind == "not_found":
-                _mark(conn, cid, "gone")
-            conn.commit()
-            if exc.kind in ("rate_limited", "network"):
-                summary["errors"].append(f"channel {cid}: {exc}; stopped this run")
+            if _channel_failed(conn, summary, cid, exc):
+                stopped = True
                 break
-            summary["errors"].append(f"channel {cid}: {exc}")
+    if not stopped:
+        _recheck(conn, client, summary, plan)
     conn.commit()
     summary["requests"] = client.requests
     summary["ok"] = True
     return summary
+
+
+def _channel_failed(conn, summary: dict, cid: int, exc: EngineError) -> bool:
+    """Record one channel's failure in a sync run; True when the run should stop here."""
+    conn.commit()
+    if exc.kind in ("auth", "captcha"):
+        raise exc
+    if exc.kind == "budget":
+        summary["deferred"] += 1
+        return False
+    if exc.kind == "forbidden":
+        _mark(conn, cid, "forbidden")
+    elif exc.kind == "not_found":
+        _mark(conn, cid, "gone")
+    conn.commit()
+    if exc.kind in ("rate_limited", "network"):
+        summary["errors"].append(f"channel {cid}: {exc}; stopped this run")
+        return True
+    summary["errors"].append(f"channel {cid}: {exc}")
+    return False
+
+
+def _recheck(conn, client: Client, summary: dict, plan: list) -> None:
+    """Edits and deletions: read the newest page of up to RECHECK_PER_RUN channels again — those
+    active in the last RECHECK_DAYS whose newest page was not read for RECHECK_INTERVAL (a seed
+    counts; following new messages does not), least recently first. What is left of the run's
+    budget bounds it all."""
+    since = store.snowflake_at(datetime.now(timezone.utc) - timedelta(days=RECHECK_DAYS))
+    ids = [int(r["id"]) for r in plan if (r.get("last_message_id") or 0) >= since]
+    if not ids:
+        return
+    due = _now() - RECHECK_INTERVAL
+    rows = conn.execute(
+        f"SELECT c.channel_id FROM cursors c JOIN channels ch ON ch.id = c.channel_id "
+        f"WHERE c.channel_id IN ({','.join('?' * len(ids))}) AND c.newest IS NOT NULL "
+        f"AND COALESCE(c.rechecked_at, 0) <= ? AND (ch.state IS NULL OR ch.state NOT IN ('forbidden', 'gone')) "
+        f"ORDER BY COALESCE(c.rechecked_at, 0) ASC LIMIT ?", ids + [due, RECHECK_PER_RUN]).fetchall()
+    summary.setdefault("rechecked", 0)
+    for (cid,) in rows:
+        try:
+            _fetch(client, cid, {"limit": str(RECHECK_COUNT)})
+        except EngineError as exc:
+            if exc.kind == "budget":
+                conn.commit()
+                return
+            if _channel_failed(conn, summary, cid, exc):
+                return
+            continue
+        conn.execute("UPDATE cursors SET rechecked_at = ? WHERE channel_id = ?", (_now(), cid))
+        conn.commit()
+        summary["rechecked"] += 1
 
 
 # --- media --------------------------------------------------------------------------------------
@@ -675,13 +804,9 @@ def media(client: Client, channel_id: str, message_id: str, folder: Path, limit:
     """Fetch the message again (attachment URLs are signed and expire), then download each item
     into ``folder``. Each item reports saved / refused / too_large / missing / failed."""
     cid = int(channel_id)
-    found = client.get(f"/channels/{cid}/messages", params={"around": message_id, "limit": "5"},
-                       referer=_referer(client.conn, cid))
-    m = next((x for x in found if isinstance(x, dict) and str(x.get("id")) == str(message_id)), None)
+    m = fetch_message(client, cid, message_id)
     if m is None:
         raise EngineError("not_found", "that message is gone or not visible to this account")
-    _store_batch(client, cid, [m])
-    client.conn.commit()
     deadline = time.monotonic() + MEDIA_BUDGET
     out = []
     for i, item in enumerate(media_items(m)):
@@ -904,7 +1029,442 @@ def _read_back(conn, client: Client, plan: dict, detail: str) -> dict:
     return {"outcome": "uncertain", "detail": f"{detail}; {seen}"}
 
 
+# --- threads, pins, mentions, friends, server-side search ----------------------------------------
+
+def threads(client: Client, channel_id: str, *, archived=None, offset: int = 0, limit: int = 25) -> dict:
+    """Threads (or forum posts) under one parent channel, newest activity first. Each thread is
+    stored as a channel, so it can be read and sent to afterwards."""
+    conn = client.conn
+    params = {"sort_by": "last_message_time", "sort_order": "desc", "limit": str(limit), "offset": str(offset)}
+    if archived is not None:
+        params["archived"] = "true" if archived else "false"
+    found = client.get(f"/channels/{channel_id}/threads/search", params=params, referer=_referer(conn, channel_id))
+    now, rows = _now(), []
+    for t in found.get("threads") or []:
+        if isinstance(t, dict) and t.get("id"):
+            row = store.channel_row(t)
+            store.upsert_channel(conn, row, now)
+            rows.append(row)
+    first = {}
+    for m in found.get("first_messages") or []:
+        if isinstance(m, dict) and m.get("id") and m.get("channel_id"):
+            _store_batch(client, m["channel_id"], [m], reactions=False)
+            first[str(m["channel_id"])] = (m.get("content") or "")[:300]
+    conn.commit()
+    return {"threads": rows, "first": first, "has_more": bool(found.get("has_more")),
+            "total": found.get("total_results")}
+
+
+def pins(client: Client, channel_id: str, *, before=None, limit: int = 50) -> dict:
+    params = {"limit": str(limit)}
+    if before:
+        params["before"] = before
+    found = client.get(f"/channels/{channel_id}/messages/pins", params=params,
+                       referer=_referer(client.conn, channel_id))
+    items = [i for i in found.get("items") or [] if isinstance(i, dict) and isinstance(i.get("message"), dict)]
+    rows = _store_batch(client, channel_id, [i["message"] for i in items], reactions=False)
+    pinned = {str(i["message"].get("id")): i.get("pinned_at") for i in items}
+    client.conn.commit()
+    return {"messages": [{**r, "pinned_at": pinned.get(str(r["id"]))} for r in rows],
+            "has_more": bool(found.get("has_more"))}
+
+
+def mentions(client: Client, *, guild=None, before=None, limit: int = 25) -> dict:
+    params = {"limit": str(limit), "roles": "true", "everyone": "true"}
+    if guild:
+        params["guild_id"] = guild
+    if before:
+        params["before"] = before
+    found = client.get("/users/@me/mentions", params=params)
+    rows = _store_found(client, found if isinstance(found, list) else [])
+    client.conn.commit()
+    return {"messages": rows}
+
+
+def friends(client: Client) -> dict:
+    """Friends (pending requests and blocks only counted), cached in the mirror's meta."""
+    found = client.get("/users/@me/relationships")
+    out = {"friends": [], "incoming": 0, "outgoing": 0}
+    for r in found if isinstance(found, list) else []:
+        if not isinstance(r, dict):
+            continue
+        user = r.get("user") or {}
+        if r.get("type") == 1:
+            out["friends"].append({"id": str(r.get("id") or user.get("id")), "name": store.display_name(user),
+                                   "username": user.get("username"), "nickname": r.get("nickname")})
+        elif r.get("type") == 3:
+            out["incoming"] += 1
+        elif r.get("type") == 4:
+            out["outgoing"] += 1
+    store.set_meta(client.conn, "friends", {**out, "fetched": _now()})
+    client.conn.commit()
+    return out
+
+
+def _hits(groups) -> list[dict]:
+    """Search results come as groups of messages; the hits are flagged when context rides along."""
+    out = []
+    for group in groups or []:
+        group = group if isinstance(group, list) else [group]
+        group = [m for m in group if isinstance(m, dict) and m.get("id")]
+        flagged = [m for m in group if m.get("hit")]
+        out += flagged or group
+    return out
+
+
+def search(client: Client, *, query: str, guild=None, channel=None, offset: int = 0, limit: int = 25,
+           min_id=None, max_id=None) -> dict:
+    """Discord's own search: one server (optionally one of its channels), one DM or group DM, or
+    every DM at once (no guild or channel)."""
+    terms = {"content": query, "offset": offset, "limit": limit, "sort_by": "timestamp", "sort_order": "desc"}
+    if min_id:
+        terms["min_id"] = str(min_id)
+    if max_id:
+        terms["max_id"] = str(max_id)
+    params = {k: str(v) for k, v in terms.items()}
+    if guild:
+        if channel:
+            params["channel_id"] = str(channel)
+        found = client.get(f"/guilds/{guild}/messages/search", params=params, referer=f"/channels/{guild}")
+        groups, total = found.get("messages"), found.get("total_results")
+        now = _now()
+        for t in found.get("threads") or []:
+            if isinstance(t, dict) and t.get("id"):
+                store.upsert_channel(client.conn, store.channel_row(t), now)
+    elif channel:
+        found = client.get(f"/channels/{channel}/messages/search", params=params, referer=f"/channels/@me/{channel}")
+        groups, total = found.get("messages"), found.get("total_results")
+    else:
+        found = client.read("POST", "/users/@me/messages/search/tabs",
+                            body={"tabs": {"messages": terms}, "track_exact_total_hits": False})
+        tab = (found.get("tabs") or {}).get("messages") or {}
+        groups, total = tab.get("messages"), tab.get("total_results")
+    rows = _store_found(client, _hits(groups))
+    client.conn.commit()
+    return {"messages": rows, "total": total}
+
+
+# --- roles and members --------------------------------------------------------------------------
+
+def roles(client: Client, guild_id: str) -> dict:
+    """The server's roles (with member counts) and the user's own member, into the mirror."""
+    conn = client.conn
+    if not client.me.get("id"):
+        whoami(client)  # the user's own member carries no user
+    referer = f"/channels/{guild_id}"
+    found = client.get(f"/guilds/{guild_id}/roles", referer=referer)
+    try:
+        counts = client.get(f"/guilds/{guild_id}/roles/member-counts", referer=referer)
+    except EngineError as exc:
+        if exc.kind in ("auth", "captcha"):
+            raise
+        counts = {}
+    mine = client.get(f"/users/@me/guilds/{guild_id}/member", referer=referer)
+    row = conn.execute("SELECT owner FROM guilds WHERE id = ?", (int(guild_id),)).fetchone()
+    if row is None or row["owner"] is None:
+        guilds(client)  # who owns the server comes with the server list
+    now = _now()
+    store.replace_roles(conn, guild_id, found if isinstance(found, list) else [], counts, now)
+    store.upsert_member(conn, store.member_row(mine, guild_id, client.me), now)
+    conn.commit()
+    return {"roles": len(found) if isinstance(found, list) else 0}
+
+
+def member(client: Client, guild_id: str, user_id: str) -> dict:
+    m = client.get(f"/guilds/{guild_id}/members/{user_id}", referer=f"/channels/{guild_id}")
+    row = store.member_row(m, guild_id)
+    store.upsert_member(client.conn, row, _now())
+    client.conn.commit()
+    return row
+
+
+def role_members(client: Client, guild_id: str, role_id: str) -> dict:
+    found = client.get(f"/guilds/{guild_id}/roles/{role_id}/member-ids", referer=f"/channels/{guild_id}")
+    return {"ids": [str(i) for i in found] if isinstance(found, list) else []}
+
+
+def members(client: Client, guild_id: str, query: str, limit: int = 25) -> dict:
+    """Members by name (display name, username or nickname): Discord's member search, which needs
+    the Manage Server permission."""
+    body = {"limit": limit, "or_query": {"usernames": {"or_query": [query]}}}
+    found = client.read("POST", f"/guilds/{guild_id}/members-search", body=body, referer=f"/channels/{guild_id}")
+    now, rows = _now(), []
+    for item in found.get("members") or []:
+        m = item.get("member") if isinstance(item, dict) and isinstance(item.get("member"), dict) else item
+        if isinstance(m, dict) and isinstance(m.get("user"), dict) and m["user"].get("id"):
+            row = store.member_row(m, guild_id)
+            store.upsert_member(client.conn, row, now)
+            rows.append(row)
+    client.conn.commit()
+    return {"members": rows, "total": found.get("total_result_count")}
+
+
+# --- writes other than send ---------------------------------------------------------------------
+#
+# One request each, never retried. done: Discord accepted it (or the read-back shows the requested
+# state). not_done: Discord refused it, or it cannot have left the machine. uncertain: a 5xx or a
+# failure after dispatch; one read-back adds what it saw. All but role_create set a state, so
+# repeating them is harmless; role_create's read-back only ever gives a hint.
+
+def _outcome(client: Client, request, *, confirm=None, already=()) -> dict:
+    try:
+        status, headers, payload = request()
+    except TransportError as exc:
+        detail = client._scrub(str(exc))
+        if not exc.dispatched:
+            return {"outcome": "not_done", "detail": detail}
+        return _confirm(client, confirm, detail)
+    if 200 <= status < 300:
+        return {"outcome": "done", "payload": payload}
+    code = payload.get("code") if isinstance(payload, dict) else None
+    if status == 404 and code in already:
+        return {"outcome": "done", "already": True, "payload": None}
+    if status >= 500:
+        return _confirm(client, confirm, client._scrub(f"Discord answered {status}"))
+    error = client._http_error(status, headers, payload)
+    return {"outcome": "not_done", "detail": str(error), "kind": error.kind, "status": status, "code": code}
+
+
+def _confirm(client: Client, confirm, detail: str) -> dict:
+    if confirm is None:
+        return {"outcome": "uncertain", "detail": detail}
+    try:
+        reached, seen = confirm()
+    except EngineError as exc:
+        return {"outcome": "uncertain", "detail": f"{detail}; read-back failed: {exc}"}
+    if reached:
+        return {"outcome": "done", "confirmed": True, "detail": f"{detail}; {seen}"}
+    return {"outcome": "uncertain", "detail": f"{detail}; {seen}"}
+
+
+def _done(result: dict) -> bool:
+    return result["outcome"] == "done"
+
+
+def react(client: Client, channel_id: str, message_id: str, emoji: str, add: bool) -> dict:
+    conn, referer = client.conn, _referer(client.conn, channel_id)
+    path = f"/channels/{channel_id}/messages/{message_id}/reactions/{urllib.parse.quote(emoji, safe='')}"
+
+    def confirm():
+        m = fetch_message(client, channel_id, message_id)
+        if m is None:
+            return False, "the message is gone"
+        mine = any(store.emoji_key((r or {}).get("emoji")) == emoji and r.get("me") for r in m.get("reactions") or [])
+        return mine == add, "your reaction is there" if mine else "your reaction is not there"
+
+    if add:
+        result = _outcome(client, lambda: client.write("PUT", f"{path}/@me", params={"type": "0"}, referer=referer),
+                          confirm=confirm)
+    else:
+        result = _outcome(client, lambda: client.write("DELETE", f"{path}/0/@me", referer=referer), confirm=confirm)
+        if result["outcome"] == "not_done" and result.get("status") == 404 and result.get("code") == NO_ROUTE:
+            # The typed route is unknown to this API version: the legacy one sets the same state.
+            result = _outcome(client, lambda: client.write("DELETE", f"{path}/@me", referer=referer), confirm=confirm)
+    if _done(result) and not result.get("confirmed"):
+        store.adjust_reaction(conn, message_id, emoji, add)
+        conn.commit()
+    return result
+
+
+def edit(client: Client, channel_id: str, message_id: str, text: str) -> dict:
+    body = {"content": text, "allowed_mentions": {"parse": ["users", "roles", "everyone"], "replied_user": False}}
+
+    def confirm():
+        m = fetch_message(client, channel_id, message_id)
+        if m is None:
+            return False, "the message is gone"
+        same = m.get("content") == text
+        return same, "the message shows the new text" if same else "the message still shows other text"
+
+    result = _outcome(client, lambda: client.write("PATCH", f"/channels/{channel_id}/messages/{message_id}", body=body,
+                                                   referer=_referer(client.conn, channel_id)), confirm=confirm)
+    if _done(result) and isinstance(result.get("payload"), dict) and result["payload"].get("id"):
+        _store_batch(client, channel_id, [result["payload"]], reactions=False)
+        client.conn.commit()
+    return result
+
+
+def delete(client: Client, channel_id: str, message_id: str) -> dict:
+    def confirm():
+        gone = fetch_message(client, channel_id, message_id) is None
+        return gone, "the message is gone" if gone else "the message is still there"
+
+    result = _outcome(client, lambda: client.write("DELETE", f"/channels/{channel_id}/messages/{message_id}",
+                                                   referer=_referer(client.conn, channel_id)),
+                      confirm=confirm, already=(UNKNOWN_MESSAGE,))
+    if _done(result):
+        store.delete_message(client.conn, message_id)
+        client.conn.commit()
+    return result
+
+
+def role_member(client: Client, guild_id: str, user_id: str, role_id: str, add: bool, reason=None) -> dict:
+    def confirm():
+        held = role_id in json.loads(member(client, guild_id, user_id)["roles"])
+        return held == add, "the member has the role" if held else "the member does not have the role"
+
+    result = _outcome(client, lambda: client.write("PUT" if add else "DELETE",
+                                                   f"/guilds/{guild_id}/members/{user_id}/roles/{role_id}",
+                                                   referer=f"/channels/{guild_id}", reason=reason), confirm=confirm)
+    if _done(result) and not result.get("confirmed"):
+        store.member_role(client.conn, guild_id, user_id, role_id, add, _now())
+        client.conn.commit()
+    return result
+
+
+def role_bulk_add(client: Client, guild_id: str, role_id: str, users: list, reason=None) -> dict:
+    def confirm():
+        holders = set(role_members(client, guild_id, role_id)["ids"])
+        missing = [u for u in users if u not in holders]
+        if not missing:
+            return True, "every member listed has the role"
+        return False, ("not seen with the role (the list shows at most 100 members): " + ", ".join(missing))
+
+    result = _outcome(client, lambda: client.write("PATCH", f"/guilds/{guild_id}/roles/{role_id}/members",
+                                                   body={"member_ids": users}, referer=f"/channels/{guild_id}",
+                                                   reason=reason), confirm=confirm)
+    payload = result.get("payload")
+    if _done(result) and isinstance(payload, dict):
+        now, added = _now(), []
+        for uid, m in payload.items():
+            if isinstance(m, dict):
+                if not isinstance(m.get("user"), dict):
+                    m = {**m, "user": {"id": uid}}
+                row = store.member_row(m, guild_id)
+                store.upsert_member(client.conn, row, now)
+                if role_id in json.loads(row["roles"]):
+                    added.append(str(uid))
+        client.conn.commit()
+        result["added"] = added
+        result["not_added"] = [u for u in users if u not in added]
+    return result
+
+
+def _roles_now(client: Client, guild_id: str) -> list[dict]:
+    found = client.get(f"/guilds/{guild_id}/roles", referer=f"/channels/{guild_id}")
+    found = [r for r in found if isinstance(r, dict) and r.get("id")] if isinstance(found, list) else []
+    for r in found:
+        store.upsert_role(client.conn, r, guild_id)
+    client.conn.commit()
+    return found
+
+
+def role_create(client: Client, guild_id: str, spec: dict, reason=None) -> dict:
+    started = client.clock()
+
+    def confirm():
+        floor = store.snowflake_at(datetime.fromtimestamp(started - CLOCK_SKEW, tz=timezone.utc))
+        hits = [r for r in _roles_now(client, guild_id) if r.get("name") == spec.get("name") and int(r["id"]) >= floor]
+        if hits:
+            return False, ("a role with this name was created after the request began (id "
+                           + ", ".join(str(r["id"]) for r in hits) + "): probably this one, but not proven")
+        return False, "no new role with this name yet"
+
+    result = _outcome(client, lambda: client.write("POST", f"/guilds/{guild_id}/roles", body=spec,
+                                                   referer=f"/channels/{guild_id}", reason=reason), confirm=confirm)
+    payload = result.get("payload")
+    if _done(result) and isinstance(payload, dict) and payload.get("id"):
+        store.upsert_role(client.conn, payload, guild_id, 0)
+        client.conn.commit()
+        result["role"] = str(payload["id"])
+    return result
+
+
+def _matches(role: dict, changes: dict) -> bool:
+    """Whether a role as Discord returned it shows every requested change."""
+    row = store.role_row(role, 0)
+    for key, want in changes.items():
+        if key == "permissions":
+            same = row["permissions"] == str(want)
+        elif key == "color":
+            same = row["color"] == int(want or 0)
+        elif key in ("hoist", "mentionable"):
+            same = row[key] == int(bool(want))
+        else:
+            same = row.get(key) == want
+        if not same:
+            return False
+    return True
+
+
+def role_edit(client: Client, guild_id: str, role_id: str, changes: dict, reason=None) -> dict:
+    def confirm():
+        role = next((r for r in _roles_now(client, guild_id) if str(r["id"]) == role_id), None)
+        if role is None:
+            return False, "the role is gone"
+        ok = _matches(role, changes)
+        return ok, "the role shows the new settings" if ok else "the role does not show the new settings"
+
+    result = _outcome(client, lambda: client.write("PATCH", f"/guilds/{guild_id}/roles/{role_id}", body=changes,
+                                                   referer=f"/channels/{guild_id}", reason=reason), confirm=confirm)
+    payload = result.get("payload")
+    if _done(result) and isinstance(payload, dict) and payload.get("id"):
+        store.upsert_role(client.conn, payload, guild_id)
+        client.conn.commit()
+    return result
+
+
+def role_delete(client: Client, guild_id: str, role_id: str, reason=None) -> dict:
+    def confirm():
+        gone = all(str(r["id"]) != role_id for r in _roles_now(client, guild_id))
+        return gone, "the role is gone" if gone else "the role is still there"
+
+    result = _outcome(client, lambda: client.write("DELETE", f"/guilds/{guild_id}/roles/{role_id}",
+                                                   referer=f"/channels/{guild_id}", reason=reason),
+                      confirm=confirm, already=(UNKNOWN_ROLE,))
+    if _done(result):
+        store.delete_role(client.conn, guild_id, role_id)
+        client.conn.commit()
+    return result
+
+
+WRITE_COMMANDS = {"react", "unreact", "edit", "delete", "role_add", "role_remove", "role_bulk_add", "role_create",
+                  "role_edit", "role_delete"}
+
+
+def _write(command: str, args: dict, client: Client) -> dict:
+    channel = lambda: _arg(args, "channel")  # noqa: E731
+    reason = args.get("reason") if isinstance(args.get("reason"), str) and args.get("reason") else None
+    if command in ("react", "unreact"):
+        emoji = args.get("emoji")
+        if not isinstance(emoji, str) or not emoji:
+            raise EngineError("usage", "emoji is required")
+        return react(client, channel(), _arg(args, "id"), emoji, command == "react")
+    if command == "edit":
+        text = args.get("text")
+        if not isinstance(text, str) or not text.strip():
+            raise EngineError("usage", "text is required")
+        return edit(client, channel(), _arg(args, "id"), text)
+    if command == "delete":
+        return delete(client, channel(), _arg(args, "id"))
+    guild = _arg(args, "guild")
+    if command in ("role_add", "role_remove"):
+        return role_member(client, guild, _arg(args, "user"), _arg(args, "role"), command == "role_add", reason)
+    if command == "role_bulk_add":
+        users = args.get("users")
+        if not isinstance(users, list) or not 1 <= len(users) <= 30 or not all(store.is_snowflake(u) for u in users):
+            raise EngineError("usage", "users must be 1 to 30 user ids")
+        return role_bulk_add(client, guild, _arg(args, "role"), users, reason)
+    spec = args.get("spec")
+    if command in ("role_create", "role_edit") and (not isinstance(spec, dict) or not spec):
+        raise EngineError("usage", "spec is required")
+    if command == "role_create":
+        return role_create(client, guild, spec, reason)
+    if command == "role_edit":
+        return role_edit(client, guild, _arg(args, "role"), spec, reason)
+    return role_delete(client, guild, _arg(args, "role"), reason)
+
+
 # --- entry --------------------------------------------------------------------------------------
+
+def _int(args: dict, key: str, default: int, top: int) -> int:
+    value = args.get(key)
+    if value in (None, ""):
+        return default
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        raise EngineError("usage", f"{key} must be a non-negative integer")
+    return min(value, top)
+
 
 def _arg(args: dict, key: str, *, snowflake: bool = True, required: bool = True):
     value = args.get(key)
@@ -951,6 +1511,13 @@ def run(command: str, args: dict, *, http=None, token=None) -> dict:
                 return summary
             finally:
                 lock.close()
+        if command in WRITE_COMMANDS:
+            # Every failure before the request means nothing was done; after it, _outcome decides.
+            try:
+                result = _write(command, args, make_client())
+            except EngineError as exc:
+                return {"outcome": "not_done", "detail": str(exc), "kind": exc.kind}
+            return {k: v for k, v in result.items() if k not in ("payload", "status", "code")}
         client = make_client()
         if command == "whoami":
             return whoami(client)
@@ -986,6 +1553,40 @@ def run(command: str, args: dict, *, http=None, token=None) -> dict:
             if not client.me.get("id"):
                 whoami(client)
             return backfill(client, _arg(args, "channel"), pages)
+        if command in ("mentions", "search") and not client.me.get("id"):
+            whoami(client)  # from_me needs the account id
+        if command == "threads":
+            archived = args.get("archived")
+            return threads(client, _arg(args, "channel"), archived=archived if isinstance(archived, bool) else None,
+                           offset=_int(args, "offset", 0, 9975), limit=_int(args, "limit", 25, 25) or 25)
+        if command == "pins":
+            before = args.get("before")
+            return pins(client, _arg(args, "channel"), before=before if isinstance(before, str) and before else None,
+                        limit=_int(args, "limit", 50, 50) or 50)
+        if command == "mentions":
+            return mentions(client, guild=_arg(args, "guild", required=False),
+                            before=_arg(args, "before", required=False), limit=_int(args, "limit", 25, 25) or 25)
+        if command == "friends":
+            return friends(client)
+        if command == "search":
+            query = args.get("query")
+            if not isinstance(query, str) or not query.strip():
+                raise EngineError("usage", "query is required")
+            return search(client, query=query.strip()[:1024], guild=_arg(args, "guild", required=False),
+                          channel=_arg(args, "channel", required=False), offset=_int(args, "offset", 0, 9975),
+                          limit=_int(args, "limit", 25, 25) or 25, min_id=_arg(args, "min_id", required=False),
+                          max_id=_arg(args, "max_id", required=False))
+        if command == "roles":
+            return roles(client, _arg(args, "guild"))
+        if command == "member":
+            return member(client, _arg(args, "guild"), _arg(args, "user"))
+        if command == "role_members":
+            return role_members(client, _arg(args, "guild"), _arg(args, "role"))
+        if command == "members":
+            query = args.get("query")
+            if not isinstance(query, str) or not query.strip():
+                raise EngineError("usage", "query is required")
+            return members(client, _arg(args, "guild"), query.strip()[:100], _int(args, "limit", 25, 100) or 25)
         raise EngineError("usage", f"unknown command {command!r}")
     finally:
         conn.close()

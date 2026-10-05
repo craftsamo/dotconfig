@@ -427,10 +427,14 @@ keeps user keys.
 - **discord-access** (`standalone`): `discord_account` (toolset
   `discord_access`) for the assistant — the user's own Discord account (not
   the Assistant's bot): DMs and the servers on its sync list read from a local
-  mirror, other channels read live, text and files sent through the approval
-  gate (files frozen at the card, from `~/Workspaces` by default), and a
-  message's attachments, link-preview media and stickers saved on request; its
-  hook blocks the terminal path around it. `engine.py` alone talks to Discord
+  mirror, other channels, threads, pins, mentions, friends, roles and members
+  read live, Discord's own search on request; text and files sent (threads
+  included), reactions, edits and deletions of the user's own messages, and
+  role management, each through the approval gate (files frozen at the card,
+  from `~/Workspaces` by default; role writes checked against the user's
+  permissions first); and a message's attachments, link-preview media and
+  stickers saved on request; its hook blocks the terminal path around it.
+  `engine.py` alone talks to Discord
   and holds the token, on its own hash-locked venv
   (`engines/discord-user`); the `local.hermes.discord-access.sync` LaunchAgent runs one
   bounded sync every 5 minutes, managed by
