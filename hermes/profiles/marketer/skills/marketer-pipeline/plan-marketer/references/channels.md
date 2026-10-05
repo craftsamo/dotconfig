@@ -9,6 +9,8 @@ cost and workload, available observations, platform dependency and ways to
 reconnect with consenting readers. Exportability is not unrestricted ownership
 or permission to move subscriber data elsewhere. Verify actual capabilities and
 terms when a choice depends on them; vendor policy and algorithm notes expire.
+For X, [X ranking](../../references/x-ranking.md) carries the dated ranking
+facts and how they constrain reach.
 
 Read the relevant shared platform reference before promising delivery:
 [X](../../references/platforms/x.md), [Substack](../../references/platforms/substack.md),

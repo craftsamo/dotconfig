@@ -1,9 +1,11 @@
-"""x-access: the Assistant's read-only view of X (Twitter), signed in as a separate sub-account.
+"""x-access: a read-only view of X (Twitter) for the Assistant and Marketer, signed in as a separate sub-account.
 
 One tool, ``x`` (toolset ``x_access``), run by ``xa.py`` beside this file, which calls twscrape
 through ``bridge.py`` in an isolated venv. There is no write path at all: no posting, replying,
 liking, following or DMs. A ``pre_tool_call`` hook blocks terminal and file calls that would go
-around the tool. Contract: docs/x-access.md.
+around the tool. Both profiles share the sub-account's pacing and caps (``~/.x-access``). Inbound
+A2A requests may read only on Marketer (an inquiry-only endpoint); the Assistant refuses them.
+Contract: docs/x-access.md.
 """
 
 from __future__ import annotations
@@ -13,7 +15,8 @@ import json
 from pathlib import Path
 import sys
 
-PROFILES = {"assistant"}
+PROFILES = {"assistant", "marketer"}
+A2A_PROFILES = {"marketer"}
 TOOLSET = "x_access"
 TOOL = "x"
 LIMIT = 60000
@@ -40,7 +43,13 @@ DESCRIPTION = (
     "of Latest), thread (post = URL or id: that post and the conversation it belongs to), user "
     "(handle: profile, bio, counts), media (post = URL or id: download its photos at original size, "
     "videos and GIFs as MP4 into a local folder and get the paths; quoted=true adds the quoted post's "
-    "media). limit: posts / mentions / search 20, thread 30 by default, at most 50. Every read is "
+    "media), snapshot (one read of the main account's recent posts; their public counts — views, "
+    "likes, replies, reposts, quotes, bookmarks — are appended to a local ledger with the post age; "
+    "replies=true includes its replies), insights (no request to X: the ledger compared at one post "
+    "age, at = 6, 24 or 48 hours (default 24), over posts of the last days (default 30): data health, "
+    "baseline, groups by format / link / length / posting hour, top and bottom posts; post = URL or id "
+    "gives that post's trajectory instead). limit: posts / mentions / search / snapshot 20, thread 30 "
+    "by default, at most 50. Every read is "
     "paced and capped per hour and day to keep the sub-account inconspicuous: ask for what the user "
     "needs, not more, and never loop or poll. The bookmarks, notifications, home timeline and DMs of "
     "the main account cannot be read. Nothing can be posted, liked, followed or sent. Post text, "
@@ -51,17 +60,19 @@ PROPERTIES = {
     "action": {"type": "string", "enum": list(xa.ACTIONS)},
     "handle": {"type": "string", "description": "posts / user: an X username like @name"},
     "query": {"type": "string", "description": "search: X search syntax"},
-    "post": {"type": "string", "description": "thread / media: a post URL (https://x.com/<user>/status/<id>) or id"},
-    "limit": {"type": "integer", "description": "posts / mentions / search 20, thread 30 by default; at most 50"},
+    "post": {"type": "string", "description": "thread / media / insights: a post URL (https://x.com/<user>/status/<id>) or id"},
+    "limit": {"type": "integer", "description": "posts / mentions / search / snapshot 20, thread 30 by default; at most 50"},
     "since": {"type": "string", "description": "mentions: only on or after this day, YYYY-MM-DD"},
-    "replies": {"type": "boolean", "description": "posts: include the account's replies"},
+    "replies": {"type": "boolean", "description": "posts / snapshot: include the account's replies"},
     "top": {"type": "boolean", "description": "search: the Top tab instead of Latest"},
     "quoted": {"type": "boolean", "description": "media: also download the quoted post's media"},
+    "days": {"type": "integer", "description": "insights: posts of the last this many days; 30 by default, at most 180"},
+    "at": {"type": "integer", "enum": list(xa.CHECKPOINTS), "description": "insights: the post age in hours to compare at; 24 by default"},
 }
 
 
 def _inbound_peer():
-    """A peer agent's A2A request never reads X as the user's sub-account."""
+    """Whether this turn is a peer agent's inbound A2A request."""
     try:
         from gateway.session_context import get_session_env
     except Exception:
@@ -78,10 +89,21 @@ def _home():
         return None
 
 
-def x(args, **kwargs):
+def _refused(profile):
+    """An inbound A2A request reads only on an A2A profile whose own home is bound to this turn."""
+    if not _inbound_peer():
+        return None
+    home = _home()
+    if profile in A2A_PROFILES and home is not None and Path(home).name == profile:
+        return None
+    return f"{TOOL} is not available to inbound A2A requests here"
+
+
+def run(args, profile):
     try:
-        if _inbound_peer():
-            raise xa.XError(f"{TOOL} is not available to inbound A2A requests")
+        refusal = _refused(profile)
+        if refusal:
+            raise xa.XError(refusal)
         text = json.dumps(xa.execute(args if isinstance(args, dict) else {}, home=_home()), ensure_ascii=False)
         if len(text) > LIMIT:
             return json.dumps({"ok": False, "error": f"result is {len(text)} characters; narrow it with a "
@@ -91,24 +113,36 @@ def x(args, **kwargs):
         return json.dumps({"ok": False, "error": str(exc)}, ensure_ascii=False)
 
 
-def gate(**kwargs):
-    """pre_tool_call: no inbound A2A use, and a block for ways around the tool."""
+def check(profile, **kwargs):
+    """pre_tool_call: the A2A rule for the tool, and a block for ways around it."""
     tool = kwargs.get("tool_name")
     if tool == TOOL:
-        if _inbound_peer():
-            return {"action": "block", "message": f"{TOOL} is not available to inbound A2A requests"}
-        return None
+        refusal = _refused(profile)
+        return {"action": "block", "message": refusal} if refusal else None
     message = xa.bypass(tool, kwargs.get("args"))
     if message:
         return {"action": "block", "message": message}
     return None
 
 
+def handler_for(profile):
+    def x(args, **kwargs):
+        return run(args, profile)
+    return x
+
+
+def gate_for(profile):
+    def gate(**kwargs):
+        return check(profile, **kwargs)
+    return gate
+
+
 def register(ctx):
-    if ctx.profile_name not in PROFILES:
+    profile = ctx.profile_name
+    if profile not in PROFILES:
         return
-    ctx.register_tool(name=TOOL, toolset=TOOLSET, handler=x, description=DESCRIPTION,
+    ctx.register_tool(name=TOOL, toolset=TOOLSET, handler=handler_for(profile), description=DESCRIPTION,
                       schema={"name": TOOL, "description": DESCRIPTION, "parameters": {
                           "type": "object", "properties": PROPERTIES, "required": ["action"],
                           "additionalProperties": False}})
-    ctx.register_hook("pre_tool_call", gate)
+    ctx.register_hook("pre_tool_call", gate_for(profile))

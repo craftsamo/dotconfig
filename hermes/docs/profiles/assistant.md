@@ -204,9 +204,10 @@ alone holds the session, and every send — text and `~/Workspaces` files —
 waits for approval on a card naming the chat, every file and the text.
 Contract: [telegram-access.md](../telegram-access.md).
 
-X is read-only and the assistant's alone (`x_access` toolset, never on A2A):
-it reads as a separate sub-account through twscrape, paced and capped, and
-downloads a post's media; nothing posts or sends. Contract:
+X is read-only (`x_access` toolset, never on the assistant's A2A): it reads
+as a separate sub-account through twscrape, paced and capped, downloads a
+post's media and records the main account's public counts; nothing posts or
+sends. Marketer shares the tool and its caps for analysis. Contract:
 [x-access.md](../x-access.md).
 
 note.com is the assistant's to write too (`note_access` toolset, never on

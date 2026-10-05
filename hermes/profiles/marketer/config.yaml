@@ -19,6 +19,7 @@ toolsets:
   - web
   - browser
   - x_search
+  - x_access
   - vision
   - skills
   - memory
@@ -766,6 +767,7 @@ platform_toolsets:
     - terminal
     - vision
     - web
+    - x_access
     - x_search
   telegram:
     - browser
@@ -781,6 +783,7 @@ platform_toolsets:
     - terminal
     - vision
     - web
+    - x_access
     - x_search
   discord: []
   a2a:
@@ -792,13 +795,17 @@ platform_toolsets:
     - specialist
     - vision
     - web
+    - x_access
     - x_search
+x_access:
+  main_handle: '@craftsamo'
 plugins:
   enabled:
     - skill-topology
     - kanban-worker-mutation-guard
     - specialist-call
     - note-access
+    - x-access
 specialist_call:
   resident_targets:
     - engineer

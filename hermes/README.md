@@ -140,8 +140,8 @@ profiles/<name>/       # bots: assistant, engineer, creator, marketer; specialis
                        #   assistant's is a private-overlay symlink), technic/
                        #   (flat leaf technics, where used), learned/ (ignored)
   scripts/             # assistant: resident-session.sh, kanban-resolve-block.sh,
-                       #   kanban-scheduled-sweeper.sh, creative-timeline.py,
-                       #   local-* cron wrappers (generated, ignored);
+                       #   kanban-scheduled-sweeper.sh, x-snapshot.sh,
+                       #   creative-timeline.py, local-* cron wrappers (generated, ignored);
                        #   creator: hyperframes-env.sh
   external-skills/     # writer: curated japanese-writing symlink
 setup.sh README.md PROFILES.md AGENTS.md
@@ -452,10 +452,11 @@ keeps user keys.
   `local.hermes.telegram-access.sync` LaunchAgent managed by
   `launchd/telegram-access-launchctl.sh` (`login` / `install` / `status`).
   Behavior: [docs/telegram-access.md](docs/telegram-access.md).
-- **x-access** (`standalone`): `x` (toolset `x_access`) for the assistant —
-  read-only X as a separate sub-account through twscrape (`bridge.py` in the
+- **x-access** (`standalone`): `x` (toolset `x_access`) for the assistant and
+  marketer — read-only X as a separate sub-account through twscrape (`bridge.py` in the
   ignored `local/twscrape/venv`, pinned in `engines/twscrape/`): the main
-  account's posts and mentions, search, threads, profiles and a post's media;
+  account's posts and mentions, search, threads, profiles, a post's media and
+  a ledger of the main account's public counts (`snapshot` / `insights`);
   the sub-account's cookies stay in the Keychain (`X_READER_COOKIES`, scope
   `x-reader`) and only in the bridge's memory; its hook blocks the terminal
   path around it. Engine: `scripts/x-access.sh` (`install` / `status`).

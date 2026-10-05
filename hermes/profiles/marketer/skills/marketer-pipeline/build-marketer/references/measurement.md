@@ -10,7 +10,10 @@ or start a recurring collector as part of reading results.
 
 Choose an available source: permitted public observation/search, the existing
 account's dashboard, an already-authorized integration, or a user-supplied
-export. Read the selected platform reference. If a dashboard or metric is
+export. Read the selected platform reference. For the client's X posts, the
+`x` tool's `snapshot` / `insights` are the authorized public-count source and
+need no browser lease; [X ranking](../../references/x-ranking.md) lists what
+they cannot show. If a dashboard or metric is
 unavailable, report that; do not silently install a tool, buy access or fabricate
 clicks, unique readers, retention or attribution from visible reactions.
 
