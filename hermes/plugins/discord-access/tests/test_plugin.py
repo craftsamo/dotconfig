@@ -129,3 +129,31 @@ def test_file_sends_are_staged_and_bound_to_the_call(tmp_path, monkeypatch):
     assert plugin.gate(tool_name="discord_account", args=forged, tool_call_id="call-2")["action"] == "block"
     assert plugin.bind(tool_name="discord_account", args={"action": "dms"}, tool_call_id="c") is None
     assert plugin.bind(tool_name="terminal", args=args, tool_call_id="c") is None
+
+
+def test_other_writes_are_approved_and_bound_to_their_key():
+    conn = store.connect(write=True)
+    store.upsert_messages(conn, [store.message_row({"id": "500000000000000001", "channel_id": DM, "type": 0,
+                                                    "content": "hi", "author": {"id": "100000000000000001"}},
+                                                   "100000000000000001")])
+    conn.commit()
+    conn.close()
+    args = {"action": "delete", "channel": DM, "id": "500000000000000001"}
+    call = {"tool_name": "discord_account", "args": args, "tool_call_id": "call-1", "session_id": "s"}
+    directive = plugin.gate(**call)
+    assert directive["action"] == "approve" and directive["rule_key"].startswith("discord-access:delete:")
+    assert "This cannot be undone." in directive["message"]
+    modify = plugin.bind(**call)
+    assert modify == {"action": "modify", "args": {"_approved": directive["rule_key"]}}
+    assert plugin.bind(tool_name="discord_account", args=args) is None                  # no call id: never runs
+    forged = {**args, "_approved": directive["rule_key"]}
+    assert plugin.gate(tool_name="discord_account", args=forged)["action"] == "block"
+
+
+@pytest.mark.parametrize("args", [
+    {"action": "react", "channel": DM, "id": "500000000000000099", "emoji": "x"},
+    {"action": "role_add", "guild": "300000000000000001", "role": "600000000000000001", "user": "100000000000000002"},
+])
+def test_writes_on_unknown_targets_are_blocked(args):
+    assert plugin.gate(tool_name="discord_account", args=args)["action"] == "block"
+    assert plugin.bind(tool_name="discord_account", args=args) is None

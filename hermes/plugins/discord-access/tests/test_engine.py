@@ -580,3 +580,354 @@ def test_stickers_are_recorded_and_old_mirrors_migrate():
     row = store.message_row(media_message(flake(1)), ME)
     store.upsert_messages(conn, [row])
     assert json.loads(conn.execute("SELECT stickers FROM messages").fetchone()[0]) == ["wave", "dance"]
+
+
+# --- edits and deletions --------------------------------------------------------------------------
+
+def mirrored(conn, *mids, channel=DM1):
+    seeded_dm(conn)
+    store.upsert_messages(conn, [store.message_row(msg(m, channel), ME) for m in mids])
+    conn.commit()
+
+
+def ids_in(conn, channel=DM1):
+    return [str(r[0]) for r in conn.execute("SELECT id FROM messages WHERE channel_id = ? ORDER BY id", (int(channel),))]
+
+
+def test_a_live_window_applies_edits_and_deletions_inside_it():
+    conn = store.connect(write=True)
+    a, b, c, d = flake(40), flake(30), flake(20), flake(10)
+    mirrored(conn, a, b, c, d)
+    page = [msg(c, DM1, content="edited"), msg(a, DM1)]          # b was deleted; d lies outside the page
+    engine.messages(client(FakeHttp({**me_route(), ("GET", f"/channels/{DM1}/messages"): (200, {}, page)}), conn),
+                    DM1, before=d, limit=2)
+    assert ids_in(conn) == [a, c, d]
+    assert conn.execute("SELECT content FROM messages WHERE id = ?", (int(c),)).fetchone()[0] == "edited"
+
+
+def test_a_short_newest_page_vouches_up_to_the_request():
+    conn = store.connect(write=True)
+    a, gone = flake(30), flake(1)
+    mirrored(conn, a, gone)
+    engine.messages(client(FakeHttp({("GET", f"/channels/{DM1}/messages"): (200, {}, [msg(a, DM1)])}), conn), DM1)
+    assert ids_in(conn) == [a]
+
+
+def test_a_short_page_before_an_id_vouches_back_to_the_start():
+    conn = store.connect(write=True)
+    oldest, a, b = flake(90), flake(30), flake(20)
+    mirrored(conn, oldest, a, b)
+    engine.messages(client(FakeHttp({("GET", f"/channels/{DM1}/messages"): (200, {}, [msg(a, DM1)])}), conn),
+                    DM1, before=b, limit=50)
+    assert ids_in(conn) == [a, b]
+
+
+def test_an_empty_page_deletes_nothing():
+    conn = store.connect(write=True)
+    a = flake(30)
+    mirrored(conn, a)
+    engine.messages(client(FakeHttp({("GET", f"/channels/{DM1}/messages"): (200, {}, [])}), conn), DM1)
+    assert ids_in(conn) == [a]
+
+
+def test_sync_rechecks_recent_channels_within_its_budget():
+    conn = store.connect(write=True)
+    old = flake(100 * 24 * 60)
+    m1, m2 = flake(60), flake(50)
+    engine.sync(client(FakeHttp(sync_routes(m2, (200, {}, [msg(m2, DM1), msg(m1, DM1)]), old)), conn))
+    conn.execute("UPDATE cursors SET rechecked_at = 0")
+    conn.commit()
+    seen = []
+
+    def newest(params, body):
+        seen.append(params)
+        return 200, {}, [msg(m2, DM1, content="edited")]           # m1 was deleted
+    http = FakeHttp(sync_routes(m2, newest, old))
+    summary = engine.sync(client(http, conn))
+    assert seen == [{"limit": "50"}] and summary["rechecked"] == 1
+    assert len(http.api_calls()) == 3          # whoami, the DM list and one recheck (servers are cached)
+    assert ids_in(conn) == [m2]
+    # Rechecked just now: the next quiet run makes no message request at all.
+    engine.sync(client(FakeHttp(sync_routes(m2, lambda p, b: pytest.fail("rechecked again"), old)), conn))
+
+
+def test_recheck_skips_quiet_and_unreadable_channels():
+    conn = store.connect(write=True)
+    old = flake(100 * 24 * 60)
+    engine.sync(client(FakeHttp(sync_routes(old, None, old)), conn))
+    conn.execute("UPDATE cursors SET rechecked_at = 0")
+    conn.commit()
+    engine.sync(client(FakeHttp(sync_routes(old, lambda p, b: pytest.fail("a quiet DM was rechecked"), old)), conn))
+
+
+# --- searches, threads, pins, mentions, friends ---------------------------------------------------
+
+def test_search_waits_out_one_index_build():
+    conn = store.connect(write=True)
+    mirrored(conn)
+    hits = []
+
+    def index(params, body):
+        hits.append(params)
+        if len(hits) == 1:
+            return 202, {}, {"message": "Index not yet available", "code": 110000, "retry_after": 0}
+        return 200, {}, {"total_results": 1, "messages": [[{**msg(flake(5), DM1, content="found"), "hit": True}]]}
+    http = FakeHttp({**me_route(), ("GET", f"/channels/{DM1}/messages/search"): index})
+    result = engine.search(client(http, conn), query="found", channel=DM1)
+    assert result["total"] == 1 and result["messages"][0]["content"] == "found" and len(hits) == 2
+    assert hits[0]["content"] == "found" and hits[0]["sort_by"] == "timestamp"
+    http = FakeHttp({("GET", f"/channels/{DM1}/messages/search"): (202, {}, {"code": 110000, "retry_after": 1})})
+    with pytest.raises(engine.EngineError) as exc:
+        engine.search(client(http, conn), query="x", channel=DM1)
+    assert exc.value.kind == "indexing"
+
+
+def test_search_of_every_dm_posts_the_tabs_query_and_keeps_reactions():
+    conn = store.connect(write=True)
+    mid = flake(5)
+    store.upsert_messages(conn, [store.message_row(msg(mid, DM1, reactions=[{"emoji": {"name": "a"}, "count": 1}]), ME)])
+    found = {**msg(mid, DM1, content="hello"), "hit": True}
+    http = FakeHttp({("POST", "/users/@me/messages/search/tabs"): (200, {}, {"tabs": {"messages": {
+        "total_results": 1, "messages": [[found]]}}})})
+    result = engine.search(client(http, conn), query="hello", min_id="1" * 18)
+    body = http.api_calls("POST")[0]["body"]
+    assert body["tabs"]["messages"]["content"] == "hello" and body["tabs"]["messages"]["min_id"] == "1" * 18
+    assert result["messages"][0]["id"] == int(mid)
+    assert conn.execute("SELECT reactions FROM messages WHERE id = ?", (int(mid),)).fetchone()[0]
+
+
+def test_guild_search_filters_a_channel_and_takes_hits_only():
+    conn = store.connect(write=True)
+    hit, context = {**msg(flake(5), TEXT), "hit": True}, msg(flake(6), TEXT)
+    http = FakeHttp({("GET", f"/guilds/{G}/messages/search"): (200, {}, {"total_results": 1,
+                                                                          "messages": [[context, hit]]})})
+    result = engine.search(client(http, conn), query="q", guild=G, channel=TEXT)
+    assert http.api_calls()[0]["params"]["channel_id"] == TEXT
+    assert [r["id"] for r in result["messages"]] == [int(hit["id"])]
+
+
+def test_threads_are_stored_as_channels():
+    conn = store.connect(write=True)
+    thread = {"id": "450000000000000001", "type": 11, "name": "help", "parent_id": TEXT, "guild_id": G,
+              "message_count": 3, "thread_metadata": {"archived": False, "locked": True}}
+    first = msg(flake(5), "450000000000000001", content="first post")
+    http = FakeHttp({("GET", f"/channels/{TEXT}/threads/search"): (200, {}, {
+        "threads": [thread], "has_more": True, "total_results": 9, "first_messages": [first]})})
+    result = engine.threads(client(http, conn), TEXT, archived=False, offset=25)
+    params = http.api_calls()[0]["params"]
+    assert params["archived"] == "false" and params["offset"] == "25" and params["sort_by"] == "last_message_time"
+    assert result["has_more"] and result["first"]["450000000000000001"] == "first post"
+    row = conn.execute("SELECT * FROM channels WHERE id = 450000000000000001").fetchone()
+    assert row["parent_id"] == int(TEXT) and json.loads(row["thread"])["locked"] is True
+
+
+def test_pins_mentions_and_friends():
+    conn = store.connect(write=True)
+    mirrored(conn)
+    p = msg(flake(9), DM1, content="pinned")
+    http = FakeHttp({**me_route(),
+                     ("GET", f"/channels/{DM1}/messages/pins"): (200, {}, {"items": [
+                         {"pinned_at": "2026-10-01T00:00:00+00:00", "message": p}], "has_more": False}),
+                     ("GET", "/users/@me/mentions"): (200, {}, [{**msg(flake(3), TEXT), "guild_id": G}]),
+                     ("GET", "/users/@me/relationships"): (200, {}, [
+                         {"id": FRIEND, "type": 1, "user": {"id": FRIEND, "username": "taro", "global_name": "Taro"}},
+                         {"id": "100000000000000009", "type": 3, "user": {"id": "100000000000000009"}},
+                         {"id": "100000000000000008", "type": 2, "user": {"id": "100000000000000008"}}])})
+    c = client(http, conn)
+    assert engine.pins(c, DM1)["messages"][0]["pinned_at"].startswith("2026-10-01")
+    found = engine.mentions(c, guild=G)
+    assert found["messages"][0]["guild_id"] == int(G)
+    assert [k for k in http.api_calls() if "mentions" in k["url"]][0]["params"]["guild_id"] == G
+    out = engine.friends(c)
+    assert out == {"friends": [{"id": FRIEND, "name": "Taro", "username": "taro", "nickname": None}],
+                   "incoming": 1, "outgoing": 0}
+    assert store.get_meta(conn, "friends")["fetched"]
+
+
+# --- roles ------------------------------------------------------------------------------------------
+
+ROLE, MOD = "600000000000000001", "600000000000000002"
+
+
+def role_routes(extra=None):
+    return {**me_route(),
+            ("GET", f"/guilds/{G}/roles"): (200, {}, [
+                {"id": G, "name": "@everyone", "position": 0, "permissions": "1024"},
+                {"id": ROLE, "name": "Member", "position": 1, "permissions": "2048"},
+                {"id": MOD, "name": "Mod", "position": 3, "permissions": str(1 << 28)}]),
+            ("GET", f"/guilds/{G}/roles/member-counts"): (200, {}, {ROLE: 12, MOD: 2}),
+            ("GET", f"/users/@me/guilds/{G}/member"): (200, {}, {"roles": [MOD], "nick": None}),
+            ("GET", "/users/@me/guilds"): (200, {}, [{"id": G, "name": "Guild", "owner": False}]),
+            **(extra or {})}
+
+
+def test_roles_store_the_list_counts_and_my_member():
+    conn = store.connect(write=True)
+    http = FakeHttp(role_routes())
+    assert engine.roles(client(http, conn), G) == {"roles": 3}
+    rows = {r["id"]: dict(r) for r in conn.execute("SELECT * FROM roles")}
+    assert rows[int(ROLE)]["members"] == 12 and rows[int(MOD)]["position"] == 3
+    me = conn.execute("SELECT roles FROM members WHERE user_id = ?", (int(ME),)).fetchone()
+    assert json.loads(me[0]) == [MOD]
+    assert conn.execute("SELECT owner, roles_at FROM guilds").fetchone()[0] == 0
+    engine.roles(client(FakeHttp(role_routes({("GET", "/users/@me/guilds"): lambda p, b: pytest.fail("again")})),
+                        conn), G)
+
+
+# --- writes -----------------------------------------------------------------------------------------
+
+THUMB = "\U0001F44D"
+
+
+def test_react_puts_the_encoded_emoji_and_counts_it():
+    conn = store.connect(write=True)
+    mid = flake(5)
+    mirrored(conn, mid)
+    path = f"/channels/{DM1}/messages/{mid}/reactions/%F0%9F%91%8D"
+    http = FakeHttp({("PUT", f"{path}/@me"): (204, {}, "")})
+    assert engine.react(client(http, conn), DM1, mid, THUMB, True)["outcome"] == "done"
+    assert http.api_calls()[0]["params"] == {"type": "0"}
+    assert json.loads(conn.execute("SELECT reactions FROM messages").fetchone()[0]) == [
+        {"emoji": THUMB, "count": 1, "me": True}]
+
+
+def test_unreact_falls_back_to_the_legacy_route_only_when_the_route_is_unknown():
+    conn = store.connect(write=True)
+    mid = flake(5)
+    mirrored(conn, mid)
+    path = f"/channels/{DM1}/messages/{mid}/reactions/x"
+    http = FakeHttp({("DELETE", f"{path}/0/@me"): (404, {}, {"message": "404: Not Found", "code": 0}),
+                     ("DELETE", f"{path}/@me"): (204, {}, "")})
+    assert engine.react(client(http, conn), DM1, mid, "x", False)["outcome"] == "done"
+    http = FakeHttp({("DELETE", f"{path}/0/@me"): (404, {}, {"message": "Unknown Message", "code": 10008})})
+    assert engine.react(client(http, conn), DM1, mid, "x", False)["outcome"] == "not_done"
+    assert len(http.api_calls()) == 1
+
+
+def test_edit_patches_once_and_stores_the_new_text():
+    conn = store.connect(write=True)
+    mid = flake(5)
+    mirrored(conn, mid)
+    http = FakeHttp({("PATCH", f"/channels/{DM1}/messages/{mid}"): (200, {}, msg(mid, DM1, author=ME, content="new"))})
+    assert engine.edit(client(http, conn), DM1, mid, "new")["outcome"] == "done"
+    body = http.api_calls()[0]["body"]
+    assert body["content"] == "new" and body["allowed_mentions"]["replied_user"] is False
+    assert conn.execute("SELECT content FROM messages").fetchone()[0] == "new"
+
+
+def test_an_ambiguous_edit_is_confirmed_by_one_read_back():
+    conn = store.connect(write=True)
+    mid = flake(5)
+    mirrored(conn, mid)
+    routes = {("PATCH", f"/channels/{DM1}/messages/{mid}"): (502, {}, "bad gateway"),
+              ("GET", f"/channels/{DM1}/messages"): (200, {}, [msg(mid, DM1, author=ME, content="new")])}
+    result = engine.edit(client(FakeHttp(routes), conn), DM1, mid, "new")
+    assert result["outcome"] == "done" and result["confirmed"]
+    routes[("GET", f"/channels/{DM1}/messages")] = (200, {}, [msg(mid, DM1, author=ME, content="old")])
+    http = FakeHttp(routes)
+    assert engine.edit(client(http, conn), DM1, mid, "new")["outcome"] == "uncertain"
+    assert len(http.api_calls("PATCH")) == 1
+
+
+def test_delete_of_a_message_already_gone_is_done():
+    conn = store.connect(write=True)
+    mid = flake(5)
+    mirrored(conn, mid)
+    http = FakeHttp({("DELETE", f"/channels/{DM1}/messages/{mid}"): (404, {}, {"message": "Unknown Message",
+                                                                              "code": 10008})})
+    result = engine.delete(client(http, conn), DM1, mid)
+    assert result["outcome"] == "done" and result["already"] and ids_in(conn) == []
+
+
+def test_a_two_factor_request_is_not_a_rejected_token():
+    conn = store.connect(write=True)
+    http = FakeHttp({("PUT", f"/guilds/{G}/members/{FRIEND}/roles/{ROLE}"): (401, {}, {
+        "message": "Two factor is required for this operation", "code": 60003, "mfa": {"ticket": "t"}})})
+    result = engine.role_member(client(http, conn), G, FRIEND, ROLE, True)
+    assert result["outcome"] == "not_done" and result["kind"] == "mfa"
+    assert store.get_meta(conn, "auth") is None
+
+
+def test_role_writes_carry_the_audit_reason():
+    conn = store.connect(write=True)
+    http = FakeHttp({("PUT", f"/guilds/{G}/members/{FRIEND}/roles/{ROLE}"): (204, {}, "")})
+    engine.role_member(client(http, conn), G, FRIEND, ROLE, True, reason="新人 / welcome")
+    assert http.api_calls()[0]["headers"]["X-Audit-Log-Reason"] == "%E6%96%B0%E4%BA%BA / welcome"
+
+
+def test_bulk_add_reports_who_got_the_role():
+    conn = store.connect(write=True)
+    other = "100000000000000003"
+    http = FakeHttp({("PATCH", f"/guilds/{G}/roles/{ROLE}/members"): (200, {}, {
+        FRIEND: {"user": {"id": FRIEND, "username": "taro"}, "roles": [ROLE]}})})
+    result = engine.role_bulk_add(client(http, conn), G, ROLE, [FRIEND, other])
+    assert result["added"] == [FRIEND] and result["not_added"] == [other]
+    assert http.api_calls()[0]["body"] == {"member_ids": [FRIEND, other]}
+
+
+def test_an_ambiguous_role_create_stays_uncertain_with_a_hint():
+    conn = store.connect(write=True)
+    new = flake(-0.01)
+    routes = {("POST", f"/guilds/{G}/roles"): engine.TransportError("curl 28 operation timed out", dispatched=True),
+              ("GET", f"/guilds/{G}/roles"): (200, {}, [{"id": new, "name": "Helpers", "position": 1}])}
+    result = engine.role_create(client(FakeHttp(routes), conn), G, {"name": "Helpers", "permissions": "0"})
+    assert result["outcome"] == "uncertain" and new in result["detail"] and "not proven" in result["detail"]
+
+
+def test_role_delete_of_a_gone_role_is_done():
+    conn = store.connect(write=True)
+    store.upsert_role(conn, {"id": ROLE, "name": "Member"}, G)
+    http = FakeHttp({("DELETE", f"/guilds/{G}/roles/{ROLE}"): (404, {}, {"message": "Unknown Role", "code": 10011})})
+    assert engine.role_delete(client(http, conn), G, ROLE)["outcome"] == "done"
+    assert conn.execute("SELECT COUNT(*) FROM roles").fetchone()[0] == 0
+
+
+def test_role_edit_read_back_compares_the_requested_fields():
+    conn = store.connect(write=True)
+    routes = {("PATCH", f"/guilds/{G}/roles/{ROLE}"): (500, {}, "x"),
+              ("GET", f"/guilds/{G}/roles"): (200, {}, [{"id": ROLE, "name": "New", "permissions": "3072",
+                                                         "colors": {"primary_color": 255}}])}
+    spec = {"name": "New", "permissions": "3072", "color": 255}
+    assert engine.role_edit(client(FakeHttp(routes), conn), G, ROLE, spec)["outcome"] == "done"
+    assert engine.role_edit(client(FakeHttp(routes), conn), G, ROLE, {**spec, "hoist": True})["outcome"] == "uncertain"
+
+
+def test_a_write_that_cannot_start_is_not_done(monkeypatch):
+    def no_token():
+        raise engine.EngineError("setup", "no Discord token in the Keychain")
+    monkeypatch.setattr(engine, "read_token", no_token)
+    result = engine.run("react", {"channel": DM1, "id": flake(1), "emoji": "x"}, http=FakeHttp())
+    assert result == {"outcome": "not_done", "detail": "no Discord token in the Keychain", "kind": "setup"}
+
+
+def test_a_message_mirrored_during_a_newest_page_read_is_kept():
+    conn = store.connect(write=True)
+    a = flake(30)
+    mirrored(conn, a)
+    meanwhile = flake(-0.2)      # stored by another process while the read was in flight
+
+    def page(params, body):
+        other = store.connect(write=True)
+        store.upsert_messages(other, [store.message_row(msg(meanwhile, DM1), ME)])
+        other.commit()
+        other.close()
+        return 200, {}, [msg(a, DM1)]
+    engine.messages(client(FakeHttp({("GET", f"/channels/{DM1}/messages"): page}), conn), DM1)
+    assert ids_in(conn) == [a, meanwhile]
+
+
+def test_a_busy_channel_is_still_rechecked_when_due():
+    conn = store.connect(write=True)
+    old = flake(100 * 24 * 60)
+    m1, m2, m3 = flake(60), flake(50), flake(1)
+    engine.sync(client(FakeHttp(sync_routes(m2, (200, {}, [msg(m2, DM1), msg(m1, DM1)]), old)), conn))
+    conn.execute("UPDATE cursors SET rechecked_at = 0")
+    conn.commit()
+    seen = []
+
+    def page(params, body):
+        seen.append(params)
+        return 200, {}, [msg(m3, DM1)] if "after" in params else [msg(m3, DM1), msg(m2, DM1)]
+    summary = engine.sync(client(FakeHttp(sync_routes(m3, page, old)), conn))
+    assert seen == [{"after": m2, "limit": "100"}, {"limit": "50"}] and summary["rechecked"] == 1
+    assert ids_in(conn) == [m2, m3]
