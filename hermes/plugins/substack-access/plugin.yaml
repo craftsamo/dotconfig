@@ -1,0 +1,4 @@
+name: substack-access
+version: 1.0.0
+description: The user's own Substack account through python-substack — posts, search, inbox, the user's drafts, published posts and publication stats, read by the Assistant and Marketer.
+kind: standalone
