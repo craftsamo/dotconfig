@@ -75,8 +75,10 @@ A read refreshes its access token with only the read scopes, so the token a
 read holds cannot write; a write uses every scope the channel granted. If
 Google ever refuses the narrowed refresh (`invalid_scope`), reads fall back
 to the full token for the rest of the process; `yaccess check` reports which
-happens. What keeps Marketer from writing is the action list below, not the
-token.
+happens. Comments are the exception: Google serves `commentThreads.list` and
+`comments.list` only to a token with `youtube.force-ssl`, even for reading,
+so `comments` always uses the full token. What keeps Marketer from writing
+is the action list below, not the token.
 
 `channel` (a title, `@handle` or `UC…` id) picks which authorized channel a
 call acts as and reports on; without it, `youtube_access.default_channel` in
