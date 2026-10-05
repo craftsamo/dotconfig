@@ -22,6 +22,7 @@ from pathlib import Path
 import re
 import statistics
 import subprocess
+import sys
 import tempfile
 import time
 import urllib.error
@@ -1050,6 +1051,30 @@ def execute(args: dict, home: Path | None = None) -> dict:
     return media(args, home)
 
 
+# --- scheduled snapshot -------------------------------------------------------------------------
+#
+# The Assistant's no_agent cron job (profiles/assistant/scripts/x-snapshot.sh) runs
+# ``xa.py snapshot <hermes_home>``. Hermes delivers a no_agent job's stdout and alerts on a nonzero
+# exit, so a recorded snapshot prints nothing; a pause (cap, rate limit, another read running) is
+# skipped silently because the next run catches up; anything else fails loudly.
+
+TRANSIENT = ("paused:", "another X read is still running")
+
+
+def cli(argv: list[str]) -> int:
+    if len(argv) != 2 or argv[0] != "snapshot":
+        print("usage: xa.py snapshot <hermes_home>", file=sys.stderr)
+        return 2
+    try:
+        execute({"action": "snapshot"}, home=Path(argv[1]).expanduser())
+    except XError as exc:
+        if str(exc).startswith(TRANSIENT):
+            return 0
+        print(f"x snapshot failed: {exc}", file=sys.stderr)
+        return 1
+    return 0
+
+
 # --- guard --------------------------------------------------------------------------------------
 
 def _strings(value):
@@ -1075,3 +1100,7 @@ def bypass(tool: str, args) -> str | None:
         if any(_STORE.search(text) for text in _strings(args)):
             return BYPASS_MESSAGE
     return None
+
+
+if __name__ == "__main__":
+    sys.exit(cli(sys.argv[1:]))

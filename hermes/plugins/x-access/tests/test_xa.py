@@ -393,6 +393,28 @@ def test_a_damaged_line_is_skipped_and_the_next_append_stays_whole(home):
     assert xa.execute({"action": "insights"}, home=home)["health"]["posts"] == 2
 
 
+def test_the_cron_entry_is_silent_unless_something_is_broken(isolated, home, capsys):
+    isolated.replies["posts"] = [own("1", 5)]
+    assert xa.cli(["snapshot", str(home)]) == 0 and capsys.readouterr().out == ""
+    assert len(xa._ledger("MainAcct")) == 1
+    isolated.replies["posts"] = xa.XError("paused: 30 reads of X in the last hour")
+    assert xa.cli(["snapshot", str(home)]) == 0
+    isolated.replies["posts"] = xa.XError("X refused the sub-account's session")
+    assert xa.cli(["snapshot", str(home)]) == 1
+    captured = capsys.readouterr()
+    assert captured.out == "" and "refused" in captured.err
+    assert xa.cli(["posts", str(home)]) == 2
+
+
+def test_the_cron_script_runs_the_engine_for_its_own_profile():
+    script = ROOT.parents[1] / "profiles/assistant/scripts/x-snapshot.sh"
+    text = script.read_text()
+    assert script.stat().st_mode & 0o111
+    assert 'home=$(cd "$(dirname "$0")/.." && pwd)' in text and "${HERMES_HOME" not in text
+    assert (script.parent / "../../../plugins/x-access/xa.py").resolve() == ROOT / "xa.py"
+    assert '"$engine" snapshot "$home"' in text and "--no-agent" in text
+
+
 def test_the_ledger_is_pruned_once_large(monkeypatch):
     monkeypatch.setattr(xa, "LEDGER_MAX_BYTES", 600)
     xa._append([rec("old", 24 * 200, 24, 1, at=ago(24 * 200))])
