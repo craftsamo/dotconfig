@@ -59,6 +59,9 @@ execution side (`opencode-sessions/`, grants, `opencode_cli`).
   detected from the tables (V1 `session`/`message`/`part`, V2
   `session_v2`/`session_message`, where tool calls sit inside the assistant
   message); the installed major breaks the tie when one file carries both.
+  OpenCode 2 imports V1 steps with their completion and tool times set to the
+  V1 row's last update, so while the V1 tables remain, an imported step's V1
+  record supplies its times.
   list/get/children fall back to the database only in `auto` and say so
   (`api-unavailable`). A missing required column fails closed; the internal
   schema has no compatibility promise.
