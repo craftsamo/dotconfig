@@ -40,6 +40,8 @@ Read shared [state](../references/state.md) for records, approvals or
 resumes. For a named service, read only its applicable shared procedure:
 [X](../references/platforms/x.md), [Substack](../references/platforms/substack.md),
 [note](../references/platforms/note.md) or [Zenn](../references/platforms/zenn.md).
+X content review, X result analysis and X conversation discovery also read
+[X ranking](../references/x-ranking.md).
 Instruction reads do not authorize browser work. Any actual browser action,
 including verification or measurement, requires the kernel's
 [browser lease](../scripts/browser-lease.py) contract and the relevant shared
@@ -77,6 +79,11 @@ For an offer-unknown client, connect repeated reader needs with actual delivery
 capacity through [discovery](../plan-marketer/references/discovery.md). Respect their priority among
 products/services, paid content, relationships and enjoyable work. Do not create
 sales promises or stronger public claims from this analysis.
+
+For X, start from the `x` tool's `insights` over the snapshot ledger, compare
+posts at equal age and read the limits in [X ranking](../references/x-ranking.md):
+public counts are not the ranking score, and a format or hour difference over
+a few posts is a hypothesis for the next experiment, not a rule.
 
 A requested weekly review can follow these steps, but no cron or automatic
 start is implied. Changing thresholds, budgets, saving new drafts or starting
