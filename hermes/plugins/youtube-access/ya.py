@@ -989,7 +989,9 @@ def _comment(item: dict) -> dict:
 
 def comments(cid: str, args: dict) -> dict:
     limit = _limit(args, "comments")
-    api = _service(cid, True)
+    # Google lets commentThreads.list and comments.list run only with youtube.force-ssl, even to
+    # read, so comments use the channel's full token; the action list still keeps them reads.
+    api = _service(cid, False)
     if args.get("thread"):
         parent = _str(args, "thread")
         if not COMMENT_ID.match(parent):
