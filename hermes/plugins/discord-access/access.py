@@ -4,8 +4,9 @@ Reads come from the local mirror (``store``) that the sync agent keeps current; 
 needs Discord (server, channel, role and member lists, threads, pins, mentions, friends, live
 windows and searches, backfill, and every write) runs ``engine.py`` on its own venv as a child
 process, which alone holds the token. The sync list is edited here. Every write (send, reactions,
-edits, deletions) is held for the user's approval by the plugin's ``pre_tool_call`` hook
-(``approval_request``). Contract: docs/discord-access.md.
+edits, deletions, roles) is held for the user's approval by the plugin's ``pre_tool_call`` hook
+(``approval_request``); role writes are checked against the user's permissions (``perms``)
+first. Contract: docs/discord-access.md.
 """
 
 from __future__ import annotations
@@ -47,9 +48,11 @@ perms = _load("hermes_discord_access_perms", HERE / "perms.py")
 
 ACTIONS = ("status", "guilds", "channels", "dms", "messages", "search", "context", "backfill", "media",
            "threads", "pins", "mentions", "friends", "roles", "member", "role_members", "members",
-           "sync_list", "sync_add", "sync_remove", "send", "react", "unreact", "edit", "delete")
+           "sync_list", "sync_add", "sync_remove", "send", "react", "unreact", "edit", "delete",
+           "role_add", "role_remove", "role_bulk_add", "role_create", "role_edit", "role_delete")
 MESSAGE_WRITES = {"react", "unreact", "edit", "delete"}
-WRITES = {"send"} | MESSAGE_WRITES
+ROLE_WRITES = {"role_add", "role_remove", "role_bulk_add", "role_create", "role_edit", "role_delete"}
+WRITES = {"send"} | MESSAGE_WRITES | ROLE_WRITES
 
 ENGINE = HERE / "engine.py"
 ENGINE_PYTHON = HERE.parents[1] / "local" / "discord-user" / "venv" / "bin" / "python"
@@ -67,6 +70,8 @@ LIMITS = {"dms": (30, 200), "messages": (50, 200), "search": (30, 200), "live_se
           "threads": (25, 25), "pins": (50, 50), "mentions": (25, 25), "members": (25, 100)}
 ROLES_FRESH = 900           # a role write needs the server's role list read within this
 FRIENDS_TTL = 6 * 3600
+BULK_MAX = 30
+REASON_LIMIT = 400
 LIVE_MAX = 100
 CONTEXT_MAX = 50
 OFFSET_MAX = 100000
@@ -1564,7 +1569,7 @@ def rule_key(plan: dict, staged: list[dict] | None = None) -> str:
     return f"discord-access:send:{digest}"
 
 
-# --- writes other than send: reactions, edits, deletions -----------------------------------
+# --- writes other than send: reactions, edits, deletions, roles ---------------------------------
 #
 # Each is checked against the mirror before a card is shown (a request that cannot or may not
 # happen is blocked without asking). The approval hook and the bind hook compute the same plan at
@@ -1573,6 +1578,9 @@ def rule_key(plan: dict, staged: list[dict] | None = None) -> str:
 
 CUSTOM_EMOJI = re.compile(r"^(?:<a?:)?([A-Za-z0-9_~]{1,32}):(\d{15,21})>?$")
 KEYCAP = re.compile("^[0-9#*]\ufe0f?\u20e3$")
+COLOR = re.compile(r"^#?([0-9a-fA-F]{6})$")
+ADMIN_REFUSED = ("the Administrator permission is never given from here (it hands over the whole server): the user "
+                 "does that in the Discord app")
 
 
 def _account(me: dict) -> str:
@@ -1675,11 +1683,208 @@ def _attachment_identity(m: dict) -> list:
     return [[a.get("name"), a.get("size"), a.get("type")] for a in _json(m, "attachments") or []]
 
 
-def write_plan(conn, args: dict) -> dict:
+def _role_label(ctx: dict, role: dict) -> str:
+    return "@everyone" if role["id"] == ctx["gid"] else "@" + _one_line(role["name"], NAME_CLIP)
+
+
+def _target_role(ctx: dict, args: dict, *, everyone_ok: bool = False) -> dict:
+    rid = _id(args, "role", required=True, what="a role id")
+    role = ctx["roles"].get(int(rid))
+    if role is None:
+        raise DiscordError("unknown role: list the server's roles with action=roles")
+    if role["id"] == ctx["gid"] and not everyone_ok:
+        raise DiscordError("@everyone is every member's base role: it cannot be assigned, removed or deleted")
+    if role["managed"]:
+        raise DiscordError("that role is managed by an integration (a bot, boosts or a subscription) and cannot be "
+                           "changed here")
+    if not ctx["owner"] and role["position"] >= ctx["top"]:
+        raise DiscordError("that role is not below your highest role, so Discord does not let you manage it")
+    return role
+
+
+def _users(conn, gid: str, args: dict) -> list[tuple[str, str]]:
+    raw = args.get("users")
+    if isinstance(raw, (str, int)) and not isinstance(raw, bool):
+        raw = [raw]
+    if not isinstance(raw, list) or not raw:
+        raise DiscordError("users must be a list of user ids")
+    ids = list(dict.fromkeys(str(u) for u in raw))
+    if len(ids) > BULK_MAX:
+        raise DiscordError(f"at most {BULK_MAX} members at once")
+    return [(uid, _known_user(conn, gid, uid)) for uid in ids]
+
+
+def _known_user(conn, gid: str, uid: str) -> str:
+    if not store.is_snowflake(uid):
+        raise DiscordError("a user must be given by id (digits) from a previous result, not a name")
+    name = _user_name(conn, gid, uid)
+    if name is None:
+        raise DiscordError(f"unknown user {uid}: look them up with member, members, messages or mentions first")
+    return name
+
+
+def _bool(args: dict, key: str):
+    value = args.get(key)
+    if value is not None and not isinstance(value, bool):
+        raise DiscordError(f"{key} must be true or false")
+    return value
+
+
+def _color(args: dict):
+    value = args.get("color")
+    if value in (None, ""):
+        return None
+    if isinstance(value, str) and value.strip().lower() == "none":
+        return 0
+    match = COLOR.match(value.strip()) if isinstance(value, str) else None
+    if not match:
+        raise DiscordError("color must be #RRGGBB, or none")
+    return int(match.group(1), 16)
+
+
+def _permissions(args: dict, key: str) -> int:
+    try:
+        return perms.parse(args.get(key))
+    except perms.UnknownPermission as exc:
+        raise DiscordError(f"{key}: {exc}") from exc
+
+
+def _grantable(ctx: dict, bits: int) -> None:
+    if bits & perms.ADMINISTRATOR:
+        raise DiscordError(ADMIN_REFUSED)
+    missing = bits & ~ctx["perms"]
+    if missing:
+        raise DiscordError("you cannot give permissions you do not have yourself: " + ", ".join(perms.names(missing)))
+
+
+def _names_line(names: list[str], limit: int = FILES_CLIP) -> str:
+    shown, used = [], 0
+    for i, name in enumerate(names):
+        if shown and used + len(name) > limit:
+            shown.append(f"(+{len(names) - i} more)")
+            break
+        shown.append(name)
+        used += len(name) + 2
+    return ", ".join(shown) or "none"
+
+
+def _yes(value) -> str:
+    return "yes" if value else "no"
+
+
+def _role_plan(conn, args: dict, action: str, fresh: bool) -> dict:
+    gid = _id(args, "guild", required=True, what="a server id")
+    ctx = role_context(conn, gid, fresh=fresh)
+    if not _can_manage_roles(ctx):
+        raise DiscordError("you do not have the Manage Roles permission in this server")
+    reason = _str(args, "reason")
+    if len(reason) > REASON_LIMIT:
+        raise DiscordError(f"reason is at most {REASON_LIMIT} characters")
+    engine, lines, warn, bound = {"guild": gid}, [], [], None
+    check = "list the roles with action=roles refresh=true"
+    if action in ("role_add", "role_remove", "role_bulk_add"):
+        role = _target_role(ctx, args)
+        bits = perms.value(role["permissions"])
+        label = _role_label(ctx, role)
+        engine["role"], bound = str(role["id"]), role["permissions"]
+        if action != "role_remove":
+            if bits & perms.ADMINISTRATOR:
+                raise DiscordError("that role has the Administrator permission; " + ADMIN_REFUSED)
+            _grantable(ctx, bits)        # handing out a role hands out its permissions
+            warn = perms.strong(bits)
+        if action == "role_bulk_add":
+            people = _users(conn, gid, args)
+            engine["users"] = [uid for uid, _ in people]
+            lines += [f"Action: add role {label} to {len(people)} member(s)",
+                      "Members: " + _names_line([_one_line(n, NAME_CLIP) for _, n in people]), f"Role id: {role['id']}"]
+            done = "role added"
+        else:
+            uid = _id(args, "user", required=True, what="a user id")
+            name = _known_user(conn, gid, uid)
+            engine["user"] = uid
+            verb = f"add role {label} to" if action == "role_add" else f"remove role {label} from"
+            lines += [f"Action: {verb} {_one_line(name, NAME_CLIP)}", f"Role id: {role['id']}", f"User id: {uid}"]
+            done = "role added" if action == "role_add" else "role removed"
+            check = "look the member up with action=member"
+    elif action == "role_create":
+        name = _str(args, "name", required=True)
+        if len(name) > 100:
+            raise DiscordError("name is at most 100 characters")
+        bits = _permissions(args, "permissions")
+        _grantable(ctx, bits)
+        spec = {"name": name, "permissions": str(bits), "hoist": bool(_bool(args, "hoist")),
+                "mentionable": bool(_bool(args, "mentionable"))}
+        color = _color(args)
+        if color is not None:
+            spec["color"] = color
+        engine["spec"], warn = spec, perms.strong(bits)
+        lines += [f"Action: create role {_one_line(name, NAME_CLIP)!r}", "Permissions: " + _names_line(perms.names(bits)),
+                  f"Color: {_hex(color) or 'default'}, shown separately: {_yes(spec['hoist'])}, "
+                  f"anyone can mention it: {_yes(spec['mentionable'])}"]
+        done = "role created"
+    elif action == "role_edit":
+        role = _target_role(ctx, args, everyone_ok=True)
+        engine["role"], label, spec = str(role["id"]), _role_label(ctx, role), {}
+        lines += [f"Action: edit role {label}", f"Role id: {role['id']}"]
+        name = _str(args, "name")
+        if name and name != role["name"]:
+            if len(name) > 100:
+                raise DiscordError("name is at most 100 characters")
+            spec["name"] = name
+            lines.append(f"Name: {_one_line(role['name'], NAME_CLIP)} → {_one_line(name, NAME_CLIP)}")
+        color = _color(args)
+        if color is not None and color != (role["color"] or 0):
+            spec["color"] = color
+            lines.append(f"Color: {_hex(role['color']) or 'default'} → {_hex(color) or 'default'}")
+        for key, shown in (("hoist", "Shown separately"), ("mentionable", "Anyone can mention it")):
+            value = _bool(args, key)
+            if value is not None and value != bool(role[key]):
+                spec[key] = value
+                lines.append(f"{shown}: {_yes(role[key])} → {_yes(value)}")
+        grant, revoke = _permissions(args, "grant"), _permissions(args, "revoke")
+        if grant & revoke:
+            raise DiscordError("a permission cannot be in both grant and revoke: " + ", ".join(perms.names(grant & revoke)))
+        _grantable(ctx, grant)
+        old = perms.value(role["permissions"])
+        new = (old | grant) & ~revoke
+        if new != old:
+            spec["permissions"] = str(new)
+            if new & ~old:
+                lines.append("Adds: " + _names_line(perms.names(new & ~old)))
+            if old & ~new:
+                lines.append("Removes: " + _names_line(perms.names(old & ~new)))
+        if not spec:
+            raise DiscordError("nothing would change: give name, color, hoist, mentionable, grant or revoke")
+        warn = perms.strong(new & ~old)
+        if new & perms.ADMINISTRATOR:
+            warn = ["administrator (kept)"] + warn
+        engine["spec"], bound, done = spec, role["permissions"], "role edited"
+    else:
+        role = _target_role(ctx, args)
+        engine["role"], bound = str(role["id"]), role["permissions"]
+        members_count = f" ({role['members']} member(s))" if isinstance(role["members"], int) else ""
+        lines += [f"Action: delete role {_role_label(ctx, role)}{members_count}", f"Role id: {role['id']}",
+                  "This cannot be undone."]
+        done = "role deleted"
+    if reason:
+        engine["reason"] = reason
+        lines.append(f"Reason (audit log): {_one_line(reason, QUOTE_CLIP * 3)}")
+    head = ([f"⚠ Strong permissions: {_names_line(warn)}"] if warn else []) + [
+        _account(ctx["me"]), f"Server: {_one_line(ctx['guild'], NAME_CLIP * 2)}"]
+    card = "\n".join(head + lines)
+    if _units(card) > CARD_LIMIT:
+        # Every line of a role card is part of what is approved, so it is never cut.
+        raise DiscordError("this change does not fit on one approval card: split it (for example permissions "
+                           "apart from the name and color, or a shorter reason)")
+    return {"action": action, "command": action, "engine": engine, "card": card, "done": done,
+            "check": check, "bound": bound}
+
+
+def write_plan(conn, args: dict, *, fresh: bool = True) -> dict:
     """A checked write other than send: its engine request, card and rule key. Raises for a
     request that cannot or may not happen."""
     action = action_of(args)
-    plan = _message_plan(conn, args, action)
+    plan = _message_plan(conn, args, action) if action in MESSAGE_WRITES else _role_plan(conn, args, action, fresh)
     digest = hashlib.sha256(json.dumps([action, plan["engine"], plan["bound"]], ensure_ascii=False, sort_keys=True)
                             .encode("utf-8")).hexdigest()[:16]
     plan["key"] = f"discord-access:{action}:{digest}"
@@ -1688,19 +1893,21 @@ def write_plan(conn, args: dict) -> dict:
 
 UNCERTAIN_SET = ("UNCERTAIN: {detail}. It may or may not have taken effect. Check first ({check}); repeating the "
                  "same request is harmless, but ask the user before doing it.")
+UNCERTAIN_CREATE = ("UNCERTAIN: {detail}. The role may have been created. List the roles with action=roles "
+                    "refresh=true before anything else, and never create it again without asking the user.")
 
 
 def write(args: dict) -> dict:
     """The approved write: the plan computed again must carry the key approved on the card."""
     try:
         with _mirror() as conn:
-            plan = write_plan(conn, args)
+            plan = write_plan(conn, args, fresh=False)
     except (DiscordError, store.StoreError) as exc:
         return {"ok": False, "error": f"not done: {exc}"}
     if not args.get("_approved") or args.get("_approved") != plan["key"]:
         return {"ok": False, "error": "not done: this request is not the one approved on the card (or what it acts on "
                                       "changed since); make the request again to get a new card"}
-    uncertain = UNCERTAIN_SET
+    uncertain = UNCERTAIN_CREATE if plan["action"] == "role_create" else UNCERTAIN_SET
     try:
         data = call_engine(plan["command"], plan["engine"], timeout=WRITE_TIMEOUT)
     except (DiscordError, TimeoutError) as exc:
@@ -1714,6 +1921,9 @@ def write(args: dict) -> dict:
         return {"ok": False, "error": uncertain.format(detail=data.get("detail") or "no confirmation",
                                                        check=plan["check"])}
     out = {"ok": True, "action": plan["action"], "note": plan["done"] + (" (it already was)" if data.get("already") else "")}
+    for key in ("role", "added", "not_added"):
+        if key in data:
+            out[key] = data[key]
     if data.get("confirmed"):
         out["note"] += "; confirmed by reading it back after an unclear answer"
     return out

@@ -827,6 +827,128 @@ def test_stale_roles_are_read_again(monkeypatch):
     with pytest.raises(access.DiscordError, match="older than 15 minutes"):      # the stub did not refresh
         access.execute({"action": "roles", "guild": G})
     assert calls == [("roles", {"guild": G})]
+    with pytest.raises(access.DiscordError, match="older than 15 minutes"):
+        access.approval_request({"action": "role_add", "guild": G, "role": MEMBER, "user": TARO})
+
+
+def test_role_add_card_and_strong_warning():
+    seed_roles(mod_bits=(1 << 28) | (1 << 2))
+    card, key = access.approval_request({"action": "role_add", "guild": G, "role": MEMBER, "user": TARO,
+                                         "reason": "welcome"})
+    assert card == (f"Discord: Me (@me)\nServer: Guild\nAction: add role @Member to Taro (@taro)\n"
+                    f"Role id: {MEMBER}\nUser id: {TARO}\nReason (audit log): welcome")
+    _set("UPDATE roles SET permissions = ? WHERE id = ?", str(1 << 2), MEMBER)
+    card, other = access.approval_request({"action": "role_add", "guild": G, "role": MEMBER, "user": TARO,
+                                           "reason": "welcome"})
+    assert card.startswith("⚠ Strong permissions: ban_members\n") and other != key
+
+
+@pytest.mark.parametrize("args,error", [
+    ({"action": "role_add", "role": ADMIN, "user": TARO}, "Administrator"),
+    ({"action": "role_add", "role": TOP, "user": TARO}, "not below your highest role"),
+    ({"action": "role_add", "role": MOD, "user": TARO}, "not below your highest role"),
+    ({"action": "role_add", "role": BOT, "user": TARO}, "managed by an integration"),
+    ({"action": "role_add", "role": G, "user": TARO}, "@everyone"),
+    ({"action": "role_add", "role": MEMBER, "user": "100000000000000077"}, "unknown user"),
+    ({"action": "role_delete", "role": G}, "@everyone"),
+    ({"action": "role_create", "name": "X", "permissions": ["administrator"]}, "Administrator"),
+    ({"action": "role_create", "name": "X", "permissions": ["ban_members"]}, "do not have yourself: ban_members"),
+    ({"action": "role_create", "name": "X", "permissions": ["fly"]}, "unknown permission"),
+    ({"action": "role_edit", "role": MEMBER, "grant": ["administrator"]}, "Administrator"),
+    ({"action": "role_edit", "role": MEMBER}, "nothing would change"),
+    ({"action": "role_bulk_add", "role": MEMBER, "users": [TARO] * 2 + [str(100000000000000100 + i) for i in range(30)]},
+     "at most 30"),
+])
+def test_role_writes_that_may_not_happen_never_reach_a_card(args, error):
+    seed_roles()
+    with pytest.raises(access.DiscordError, match=error):
+        access.approval_request({"guild": G, **args})
+
+
+def test_without_manage_roles_nothing_is_offered():
+    seed_roles(my_roles=(MEMBER,))
+    with pytest.raises(access.DiscordError, match="Manage Roles"):
+        access.approval_request({"action": "role_add", "guild": G, "role": MEMBER, "user": TARO})
+
+
+def test_the_owner_manages_every_role_but_never_hands_out_administrator():
+    seed_roles(my_roles=(), owner=True)
+    assert access.approval_request({"action": "role_add", "guild": G, "role": TOP, "user": TARO})
+    with pytest.raises(access.DiscordError, match="Administrator"):
+        access.approval_request({"action": "role_add", "guild": G, "role": ADMIN, "user": TARO})
+    card, _ = access.approval_request({"action": "role_remove", "guild": G, "role": ADMIN, "user": TARO})
+    assert "remove role @Admin from Taro" in card
+
+
+def test_role_create_edit_and_delete_cards(monkeypatch):
+    seed_roles()
+    card, _ = access.approval_request({"action": "role_create", "guild": G, "name": "Helpers",
+                                       "permissions": ["manage_messages", "send_messages"], "color": "#FF8800",
+                                       "hoist": True})
+    assert card.startswith("⚠ Strong permissions: manage_messages\n")
+    assert "Permissions: send_messages, manage_messages" in card and "Color: #ff8800, shown separately: yes" in card
+    card, _ = access.approval_request({"action": "role_edit", "guild": G, "role": MEMBER, "name": "Members",
+                                       "grant": ["manage_messages"], "revoke": ["send_messages"]})
+    assert ("Action: edit role @Member\n" in card and "Name: Member → Members" in card
+            and "Adds: manage_messages" in card and "Removes: send_messages" in card)
+    card, _, call = approve({"action": "role_delete", "guild": G, "role": MEMBER})
+    assert "delete role @Member (12 member(s))" in card and card.endswith("This cannot be undone.")
+    calls = _engine_says(monkeypatch, {"outcome": "done"})
+    assert access.execute(call)["note"] == "role deleted" and calls[0] == ("role_delete", {"guild": G, "role": MEMBER})
+
+
+def test_role_edit_sends_the_whole_new_permission_set(monkeypatch):
+    seed_roles()
+    _, _, call = approve({"action": "role_edit", "guild": G, "role": MEMBER, "grant": ["embed_links"]})
+    calls = _engine_says(monkeypatch, {"outcome": "done"})
+    access.execute(call)
+    assert calls[0][1]["spec"] == {"permissions": str((1 << 11) | (1 << 14))}
+
+
+def test_a_role_change_between_card_and_run_is_refused(monkeypatch):
+    seed_roles()
+    _, _, call = approve({"action": "role_add", "guild": G, "role": MEMBER, "user": TARO})
+    _set("UPDATE roles SET permissions = ? WHERE id = ?", str(1 << 14), MEMBER)      # the role changed meanwhile
+    calls = _engine_says(monkeypatch, {"outcome": "done"})
+    assert "not the one approved" in access.execute(call)["error"] and calls == []
+    _set("UPDATE roles SET permissions = ? WHERE id = ?", str(1 << 2), MEMBER)       # now it would give ban_members
+    assert "do not have yourself: ban_members" in access.execute(call)["error"] and calls == []
+
+
+def test_an_uncertain_role_create_says_never_create_again(monkeypatch):
+    seed_roles()
+    _, _, call = approve({"action": "role_create", "guild": G, "name": "Helpers"})
+    _engine_says(monkeypatch, {"outcome": "uncertain", "detail": "timeout; no new role with this name yet"})
+    assert "never create it again" in access.execute(call)["error"]
+
+
+def test_bulk_add_names_every_member(monkeypatch):
+    seed_roles()
+    card, _, call = approve({"action": "role_bulk_add", "guild": G, "role": MEMBER, "users": [TARO, TARO]})
+    assert "add role @Member to 1 member(s)\nMembers: Taro (@taro)" in card
+    _engine_says(monkeypatch, {"outcome": "done", "added": [TARO], "not_added": []})
+    assert access.execute(call)["added"] == [TARO]
+
+
+def test_the_bind_hook_hands_over_the_cards_key_even_if_the_mirror_moves(monkeypatch):
+    seed_roles()
+    args = {"action": "role_add", "guild": G, "role": MEMBER, "user": TARO}
+    call = ids(call="moving")
+    _, key = access.approval_request(args, ids=call)
+    _set("UPDATE roles SET permissions = ? WHERE id = ?", str(1 << 14), MEMBER)      # between the two hooks
+    bound = access.binding(args, ids=call)
+    assert bound == {"_approved": key} and access._PLANS == {}
+    calls = _engine_says(monkeypatch, {"outcome": "done"})
+    assert "not the one approved" in access.execute({**args, **bound})["error"] and calls == []
+
+
+def test_assigning_a_role_never_hands_out_permissions_the_user_lacks():
+    seed_roles()
+    _set("UPDATE roles SET permissions = ? WHERE id = ?", str(1 << 2), MEMBER)
+    for action in ("role_add", "role_bulk_add"):
+        with pytest.raises(access.DiscordError, match="do not have yourself: ban_members"):
+            access.approval_request({"action": action, "guild": G, "role": MEMBER, "user": TARO, "users": [TARO]})
+    assert access.approval_request({"action": "role_remove", "guild": G, "role": MEMBER, "user": TARO})
 
 
 def test_an_edited_message_voids_a_delete_card(monkeypatch):
@@ -842,6 +964,11 @@ def test_cards_fit_or_are_refused():
     assert access._units(card) <= access.CARD_LIMIT and card.endswith("新しい本文")
     card, _ = access.approval_request({"action": "delete", "channel": DM1, "id": str(M2)})
     assert access._units(card) <= access.CARD_LIMIT and card.endswith("This cannot be undone.")
+    seed_roles()
+    with pytest.raises(access.DiscordError, match="does not fit"):
+        access.approval_request({"action": "role_edit", "guild": G, "role": MEMBER, "name": "&" * 100,
+                                 "color": "#ffffff", "hoist": True, "mentionable": True, "reason": "<" * 300,
+                                 "grant": ["manage_messages", "embed_links"], "revoke": ["send_messages"]})
 
 
 def test_a_plan_that_expires_between_the_hooks_fails_the_call(monkeypatch):

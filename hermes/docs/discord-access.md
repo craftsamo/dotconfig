@@ -2,8 +2,8 @@
 
 The Assistant's access to the user's own Discord account — reading their DMs,
 group DMs and servers, keeping a chosen set of servers synced, and acting from
-the account (sending, reacting, editing and deleting their own messages)
-only as the user approves each time. It is not the
+the account (sending, reacting, editing and deleting their own messages,
+managing roles) only as the user approves each time. It is not the
 Assistant's Discord bot (the gateway's Discord platform, through which the
 user talks to Hermes); nothing here changes that bot. Part of the Hermes
 design docs — index: [`PROFILES.md`](../PROFILES.md).
@@ -279,44 +279,54 @@ sending reopens it.
 
 `react` / `unreact` (one Unicode emoji, or a custom emoji already on that
 message), `edit` and `delete` (the user's own messages only, already in the
-mirror) each go through the same approval gate.
+mirror) and the role writes below each go through the same approval gate.
 
 - **Checked before the card.** A request that cannot or may not happen
-  (unknown channel or message, someone else's message, the same text, a
-  reaction the user has not made) is blocked without asking.
+  (unknown channel, message or role, someone else's message, the same text,
+  a reaction the user has not made, anything Roles forbids) is blocked
+  without asking.
 - **The card is what runs.** The approval hook and the bind hook share one
   plan per call (keyed by the session, task and tool-call ids, whichever hook
   runs first); bind hands the handler that plan's rule key (`_approved`). A
   plan that expires (2 minutes) before its second hook fails that call rather
   than making a new plan. After approval the handler builds the plan again
   from the mirror and runs it only when the key still matches, so a change
-  meanwhile (the message edited) voids the card. The key
+  meanwhile (the message edited, the role's permissions read differently)
+  voids the card. The key
   hashes the engine request plus what it acts on — the message's text, edit
   time and attachments (name, size and type; not their URLs, which Discord
-  re-signs) for an edit or delete — so "session" or "always" only repeats
-  that identical request. A caller-supplied `_approved` is blocked, and a call
+  re-signs) for an edit or delete, the role's permissions for an
+  assignment, edit or deletion — so "session" or "always" only repeats that
+  identical request. A caller-supplied `_approved` is blocked, and a call
   without an id never gets one, so it cannot run.
 - **Cards fit or are refused.** A message card shortens its quote until it
   fits (an edit keeps room for the new text, cut and counted past about 350
-  characters as a send's is).
+  characters as a send's is); every line of a role card is part of the
+  approval, so a role card that does not fit is refused and the request has
+  to be split.
 - **Cards:** `In:` the chat, `Message:` its sender and text with `React
   with:` / `Remove my reaction:`; `Edit my message` with `Before:`, `Pings:`
   and the new text; `Delete my message:` with "This cannot be undone."
 - **One request, never retried.** Outcomes are `done`, `not done` (Discord
   refused, or it cannot have left the machine) and `UNCERTAIN` (a 5xx, or a
-  failure after dispatch). An uncertain write reads the message back once and
-  becomes `done` when it shows the requested state; otherwise it stays
-  uncertain with what was seen. Each of these sets a state, so repeating it
-  is harmless once the user agrees. Deleting a message that is already gone
-  (code 10008) counts as done. If the typed reaction-removal route is unknown
-  (404, code 0), the legacy route, which sets the same state, is tried once.
+  failure after dispatch). An uncertain write reads back once — the message,
+  the member or the role list — and becomes `done` when that shows the
+  requested state; otherwise it stays uncertain with what was seen. All of
+  these set a state, so repeating them is harmless once the user agrees,
+  except `role_create`, whose read-back only reports a new role of that name
+  as a hint and which is never repeated without the user. Deleting a message
+  or role that is already gone (codes 10008, 10011) counts as done. If the
+  typed reaction-removal route is unknown (404, code 0), the legacy route,
+  which sets the same state, is tried once. A request Discord answers with a
+  two-factor challenge (401, code 60003) is `not done` — the user does it in
+  the app — and never marks the token as rejected.
 - **The mirror follows** a done write without another request where it can
-  (the user's reaction counted, the edited text stored, the message
-  dropped).
+  (the user's reaction counted, the edited text stored, the message or role
+  dropped, the member's roles updated).
 
 ## Roles
 
-`roles` lists a server's roles from the top (position, member count,
+Reads: `roles` lists a server's roles from the top (position, member count,
 colour, the strong permissions each holds, whether the user can manage it)
 and the user's own roles and permissions; `role` shows one role with all its
 permissions. It costs three requests (roles, member counts, the user's own
@@ -327,6 +337,49 @@ members by name through Discord's member search, which needs the Manage
 Server permission — elsewhere ids come from messages, mentions or friends.
 Roles and members read this way live in the mirror's `roles` and `members`
 tables; sync never fetches them.
+
+Writes: `role_add` / `role_remove` (one member), `role_bulk_add` (up to 30
+members, reporting who got the role), `role_create`, `role_edit` (name,
+colour, hoist, mentionable, `grant` / `revoke` permission names; the whole new
+permission set is sent) and `role_delete`, each with an optional `reason`
+sent as the audit-log reason. The rules, in code, checked against the mirror
+before the card:
+
+- The server's roles were listed within 15 minutes (the handler after
+  approval does not re-check the age; the key match covers changes).
+- The user holds Manage Roles (or Administrator, or owns the server), from
+  `@everyone` (whose id is the server's), their roles and ownership.
+- The role is below the user's highest role (the owner is exempt), not
+  managed by an integration, and not `@everyone` — except that `role_edit`
+  may change `@everyone`.
+- **Administrator is never given**: not created, granted, or handed out by
+  assigning a role that has it. Removing it, and removing a role that has it,
+  is allowed.
+- Nothing grants permissions the user lacks — creating, granting, or
+  assigning a role that holds them.
+- Permissions are given by name (`perms.py`); unknown names are refused.
+- A role write that gives strong permissions (ban, kick, manage server,
+  roles, channels, webhooks, messages, nicknames, expressions, events or
+  threads, timeouts, `@everyone` mentions, the audit log, pins) — creating a
+  role with them, granting them, or assigning a role that holds them — puts
+  `⚠ Strong permissions: …` at the top of the card; editing a role that
+  keeps Administrator shows `administrator (kept)` there. Removals,
+  revocations and deletions carry no warning.
+
+```
+⚠ Strong permissions: manage_messages
+Discord: <account name> (@<username>)
+Server: <server>
+Action: add role @<role> to <name> (@<username>)
+Role id: <id>
+User id: <id>
+Reason (audit log): <reason>
+```
+
+Managing roles from a user account is among the riskiest self-bot actions,
+and the audit log names the user. Discord enforces the same hierarchy and
+permission rules again; these checks only keep impossible or forbidden
+requests off the card.
 
 ## Ways around the tool
 
