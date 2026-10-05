@@ -28,6 +28,9 @@ job can keep the necessary sections in one private file.
   target and expected current remote revision/content when updating, exact approved
   replacement text/assets and approving-message evidence,
   browser lease owner, actual editor identity, save/reopen results and limitations.
+  A tool save (note) records the tool result instead of lease and editor
+  details; a save handed to the caller records the package sent and the
+  caller's reported result and approval.
 - Measurements: source/time/period/definition/denominator and availability state.
   Keep personal identifiers and private reader messages to the minimum needed.
 

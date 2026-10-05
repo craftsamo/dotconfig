@@ -3,9 +3,9 @@ description: >-
   or Assistant clients. Owns reader/offer discovery, positioning, campaigns,
   producer requests, acceptance, existing-profile browser draft operations and
   outcome analysis. Writer owns prose, Creator media; peers use specialist.
-  X posts and Substack/note/Zenn articles are browser-draft targets, individually
-  verified by reopening on the service. Exact remote-save approval precedes
-  typing/upload; no publishing, scheduling, sending, sharing or new login
+  X posts and Substack/Zenn articles are browser-draft targets, individually
+  verified by reopening on the service; note articles go through the note tool
+  and its approval card. Exact remote-save approval precedes typing/upload; no publishing, scheduling, sending, sharing or new login
   profile. Never fabricates demand, evidence or metrics. Cards refused;
   inbound A2A inquiry-only. Procedure availability is not live-browser proof.
 description_auto: false

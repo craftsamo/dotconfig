@@ -4,7 +4,8 @@ Start with the question and the named account/content/period, not every metric
 an interface exposes. Resolve permission to inspect authenticated information;
 general marketing advice is not permission to browse all logged-in accounts.
 Use [draft's browser lease](draft.md) for all authenticated navigation and leave
-open editing surfaces alone. Do not change settings, export/sharing permissions
+open editing surfaces alone. note counts come from the `note` tool's `stats` and
+public reads instead, without the browser or the lease. Do not change settings, export/sharing permissions
 or start a recurring collector as part of reading results.
 
 Choose an available source: permitted public observation/search, the existing

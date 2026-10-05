@@ -43,7 +43,7 @@ resumes. For a named service, read only its applicable shared procedure:
 Instruction reads do not authorize browser work. Any actual browser action,
 including verification or measurement, requires the kernel's
 [browser lease](../scripts/browser-lease.py) contract and the relevant shared
-procedure.
+procedure. note uses the `note` tool instead of the browser, without the lease.
 
 </ReadBeforeWork>
 
@@ -63,6 +63,8 @@ An inquiry over inbound A2A does not authorize browser work or resident children
 3. For a service-side draft use [draft](references/draft.md) and the selected platform file.
    For observation use [measurement](references/measurement.md). These use the same existing
    Marketer browser and lease; never create another login/profile to parallelize.
+   note is the exception: drafts, reads and counts go through the `note` tool,
+   never its editor, as the note platform file describes.
 4. After saving, run [saved-draft QA](../qa-marketer/references/saved-draft.md).
    Changed text invalidates the affected acceptance and upload approval.
 5. Report actual completion and unresolved evidence. A manuscript path alone

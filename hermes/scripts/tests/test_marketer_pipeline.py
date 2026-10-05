@@ -326,6 +326,12 @@ def test_actual_config_preserves_browser_and_limits_dispatch():
     assert "Before typing or uploading" in prompt and "autosave is already an upload" in prompt
     assert "Old Publish/P1 grants do not authorize" in prompt
     assert "inquiry-only" in prompt
+    assert "note is the exception" in prompt and "return the exact save package to the caller" in prompt
+    assert "note-access" in config["plugins"]["enabled"] and "note_access" in config["toolsets"]
+    for platform in ("cli", "telegram"):
+        assert "note_access" in config["platform_toolsets"][platform]
+    assert "note_access" not in config["platform_toolsets"]["a2a"]
+    assert config["approvals"]["timeout"] >= 300   # an approval card must outlast a Telegram tap
 
 
 def test_direct_client_discovery_and_bounded_requests():
@@ -383,18 +389,22 @@ def test_platform_specific_nonpublication_hazards():
     assert "default scope must be inspected" in text("references/platforms/zenn.md")
 
 
-def test_note_smoke_scope_and_observed_input_hazards_are_explicit():
+def test_note_saves_through_the_tool_and_hands_resident_saves_back():
     note = text("references/platforms/note.md")
-    assert "BEFORE opening a new editor" in note
-    assert "native character key events" in note
-    assert "multiline Input.insertText" in note
-    assert "scope its Close control to that dialog" in note
-    assert "NOT a fresh candidate AIAgent" in note
-    assert "remain unverified" in note
-    assert "textarea alone also does not prove hydration is complete" in note
-    assert "another read, not another save" in note
+    for requirement in ("note drafts go through the `note` tool only", "Never type a note draft into",
+                        "needs no browser lease", "replace the WHOLE title and body",
+                        "final remote-save consent", "return a save package to the caller",
+                        "`preview=true`", "a draft saved since is refused", "The card the user answered, not a relayed word, is the consent", "never create a second draft to recover",
+                        "renew approval, never overwrite", "`status: draft` without `published` or `scheduled`",
+                        "report it as not inspected", "Marketer's own card in a live gateway",
+                        "remain unverified"):
+        assert requirement in note, requirement
     draft = text("build-marketer/references/draft.md")
     assert "do not assume Python variables or the active tab persist" in draft
+    assert "note is the exception" in draft and "browser lease and browser steps do not" in draft
+    assert "through that tool's read of the same object" in text("qa-marketer/references/saved-draft.md")
+    assert "note counts come from the `note` tool" in text("build-marketer/references/measurement.md")
+    assert "a resident session cannot answer it" in text("SKILL.md")
 
 
 def test_readonly_draft_recheck_keeps_common_qa_and_bounded_verdict():
