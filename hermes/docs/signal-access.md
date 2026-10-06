@@ -8,16 +8,17 @@ over Signal. Part of the Hermes design docs — index: [`PROFILES.md`](../PROFIL
 
 ## Shape
 
-| Piece                                                                       | Home                                                                                       | Reader             |
-| --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ | ------------------ |
-| Mirror schema, ingest rules, retention                                      | `plugins/signal-access/store.py`                                                           | sync agent, engine |
-| JSON-RPC client for the daemon's socket                                     | `plugins/signal-access/rpc.py`                                                             | sync agent, engine |
-| Sync agent: owns signal-cli, writes the mirror                              | `plugins/signal-access/sync.py`                                                            | launchd            |
-| Engine: reads, check, media, send, approval card, file checks, bypass guard | `plugins/signal-access/sig.py`                                                             | Assistant          |
-| `signal` tool and the `pre_tool_call` hook (toolset `signal_access`)        | `plugins/signal-access/__init__.py`                                                        | Assistant          |
-| Linking and the sync agent                                                  | `launchd/signal-access-launchctl.sh`, `launchd/local.hermes.signal-access.sync.plist.tmpl` | people             |
-| How the tool is used: reads, files, sends, outcomes                         | the Assistant's `signal` technic (`profiles/assistant/skills/technic/signal/`)             | Assistant          |
-| When the Assistant uses it in Chat                                          | the Assistant's private Chat reference `signal.md`                                         | Assistant          |
+| Piece                                                                        | Home                                                                                       | Reader             |
+| ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ | ------------------ |
+| Mirror schema, ingest rules, retention                                       | `plugins/messaging/signal-access/store.py`                                                 | sync agent, engine |
+| JSON-RPC client for the daemon's socket                                      | `plugins/messaging/signal-access/rpc.py`                                                   | sync agent, engine |
+| Sync agent: owns signal-cli, writes the mirror                               | `plugins/messaging/signal-access/sync.py`                                                  | launchd            |
+| Archive inspection for sends (shared with the WhatsApp and Telegram plugins) | `plugins/messaging/_shared/archive_check.py`                                               | engine             |
+| Engine: reads, check, media, send, approval card, file checks, bypass guard  | `plugins/messaging/signal-access/sig.py`                                                   | Assistant          |
+| `signal` tool and the `pre_tool_call` hook (toolset `signal_access`)         | `plugins/messaging/signal-access/__init__.py`                                              | Assistant          |
+| Linking and the sync agent                                                   | `launchd/signal-access-launchctl.sh`, `launchd/local.hermes.signal-access.sync.plist.tmpl` | people             |
+| How the tool is used: reads, files, sends, outcomes                          | the Assistant's `signal` technic (`profiles/assistant/skills/technic/signal/`)             | Assistant          |
+| When the Assistant uses it in Chat                                           | the Assistant's private Chat reference `signal.md`                                         | Assistant          |
 
 [signal-cli](https://github.com/AsamK/signal-cli) (Homebrew `signal-cli`, a
 native build, no Java) joins the account as a linked device — the same standing
@@ -158,10 +159,32 @@ text.
   leads out counts as outside. Refused always: paths through key or settings
   folders (`.ssh`, `.gnupg`, `.aws`, `.config`, `.git`, `.registry`,
   `.backups`, …), key- and secret-like names (`.env*`, `*.pem`, `*.key`,
-  `id_*`, anything naming a credential, secret or password, …), archives,
-  installers and programs, scripts included (by name and by sniffed type),
-  anything containing a private key block anywhere in the file, empty files.
-  At most 10 files and 100 MB per send.
+  `id_*`, anything naming a credential, secret or password, …), installers
+  and programs, scripts included (by name and by sniffed type), archives
+  other than the ones below, anything containing a private key block
+  anywhere in the file, empty files. At most 10 files and 100 MB per send.
+- **Archives** (`.zip`, `.tar`, `.tar.gz`/`.tgz`, `.tar.bz2`, `.tar.xz`) are
+  sent after they are read, never unpacked to disk
+  (`plugins/messaging/_shared/archive_check.py`, shared by signal-access,
+  whatsapp-access and telegram-access; it is not a plugin and has no
+  manifest). The first bytes must match the extension, so a ZIP named
+  `photo.jpg` stays refused as an archive by content. Every entry is held to
+  the rules for a single file: a plain relative name (no `..`, absolute or
+  backslash path), a regular file or folder (no links, devices or pipes), not
+  in a keys-or-settings folder, not named like a key or secret, not a program
+  or script (by name, and by first bytes: shebang, ELF, Mach-O, PE, Java
+  class), not another archive (by name and first bytes), no private key
+  block, not encrypted. At most 500 entries and 500 MB unpacked, counted from
+  the bytes actually read rather than the sizes the archive claims. One bad
+  entry refuses the whole archive and the message names it. `.rar`, `.7z`,
+  `.zst`, a bare `.gz` and the like cannot be read with the standard library
+  and stay refused; so do `.jar`, `.apk`, `.ipa` and other ZIP-based programs.
+  Office files (`.docx`, `.xlsx`, `.epub`, …) are not archives here: their
+  sniffed type is their own, and they were never refused. A file a chat
+  sent is still never saved when it is an archive (`media`); only sends
+  changed. The card adds `, N files inside (X unpacked)` to an archive's
+  line, and the plan hash is taken before and after the inspection, so a
+  file that changes meanwhile is refused.
 - **The approval covers the exact message.** The allowlist key hashes the
   chat, text, reply (the quoted author and text) and each file's path and
   SHA-256, so "session" or "always" only ever repeats that identical send.

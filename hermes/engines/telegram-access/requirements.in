@@ -1,4 +1,4 @@
-# telegram-access engine (plugins/telegram-access/sync.py): the only process that talks to
+# telegram-access engine (plugins/messaging/telegram-access/sync.py): the only process that talks to
 # Telegram as the user. cryptg speeds up MTProto encryption and file transfer.
 # Recompile the hashed lock after a bump:
 #   uv pip compile requirements.in --python ../../local/telegram-access/venv/bin/python \

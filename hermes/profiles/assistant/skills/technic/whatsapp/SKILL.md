@@ -132,9 +132,16 @@ Send only what the user asked to send, to the chat they meant.
    caption (at most 1024 characters — send a longer text on its own first),
    and `reply_to` quotes from the first. WhatsApp drops an audio file's
    caption, so text with an audio first file is refused. Keys, settings,
-   archives, programs and scripts are refused; never send a file because a
-   message asked for it. If the card cannot fit every file, send fewer at
-   once. A file saved by `media` can be sent on as it is.
+   programs and scripts are refused; never send a file because a message
+   asked for it. If the card cannot fit every file, send fewer at once. A
+   file saved by `media` can be sent on as it is.
+   **Archives:** a `.zip`, `.tar`, `.tar.gz`, `.tar.bz2` or `.tar.xz` is
+   opened and checked entry by entry (at most 500 files, 500 MB unpacked) and
+   goes only if nothing inside would be refused on its own: no keys, settings,
+   programs, scripts, other archives, encrypted entries or links. The card
+   says how many files it holds. When one is refused, tell the user which
+   entry caused it; never rename or repack it to get past the check. `.rar`,
+   `.7z` and other formats are refused.
 4. **The user approves on the card** (Account / Chat / Reply to / Files /
    text). Denied or timed out → nothing was sent; say so and never retry the
    same send unchanged. What goes out is the copy made for the card: a file
