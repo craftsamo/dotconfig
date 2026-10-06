@@ -21,12 +21,14 @@
   "formatter": {
     // Markdown runs the Prettier that Mason installs for nvim, resolved like
     // stdpath("data"), so both editors format it the same way without
-    // project config. A project's own Prettier dependency still wins.
+    // project config. A project's own Prettier dependency still wins. Like
+    // nvim, it starts in the nearest directory holding a .prettierignore,
+    // the only place Prettier reads one, even for files in another repo.
     "prettier-markdown": {
       "command": [
         "sh",
         "-c",
-        "exec \"${XDG_DATA_HOME:-$HOME/.local/share}/nvim/mason/bin/prettier\" --write \"$1\"",
+        "d=$(dirname \"$1\"); until [ -e \"$d/.prettierignore\" ] || [ \"$d\" = / ]; do d=$(dirname \"$d\"); done; [ -e \"$d/.prettierignore\" ] && cd \"$d\"; exec \"${XDG_DATA_HOME:-$HOME/.local/share}/nvim/mason/bin/prettier\" --write \"$1\"",
         "sh",
         "$FILE",
       ],
