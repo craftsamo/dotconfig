@@ -3,21 +3,24 @@
 note.com for the Assistant and Marketer. Both read note and save the user's
 unpublished drafts, each save behind an approval card. The tool reads public articles,
 creators, comments and hashtags, plus the user's own drafts and stats. Drafts
-are written in Markdown, and images are uploaded from local files. Nothing
+are written in Markdown, and images are uploaded from local files. An offline
+`check` tells whether a body would save; Writer gets that action alone. Nothing
 publishes, deletes, likes, follows or comments: the user publishes in the
 browser. Part of the Hermes design docs — index:
 [`PROFILES.md`](../PROFILES.md).
 
 ## Shape
 
-| Piece                                                                                                                                       | Home                                                                                                         | Reader              |
-| ------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ | ------------------- |
-| Engine: validation, pacing, session state, public reads, result shapes, image checks, write plan, approval card, image upload, bypass guard | `plugins/note-access/na.py`                                                                                  | all                 |
-| Markdown ⇄ note editor HTML                                                                                                                 | `plugins/note-access/notefmt.py`                                                                             | all                 |
-| The only process holding the session; a fixed set of signed-in operations                                                                   | `plugins/note-access/bridge.py`                                                                              | all                 |
-| `note` tool and the `pre_tool_call` hook (toolset `note_access`)                                                                            | `plugins/note-access/__init__.py`                                                                            | Assistant, Marketer |
-| When and how the Assistant uses it                                                                                                          | the Assistant's private Chat reference `note.md`; `execute-assistant-marketing` for Marketer's save packages | Assistant           |
-| How Marketer drafts and measures on note                                                                                                    | `marketer-pipeline/references/platforms/note.md`                                                             | Marketer            |
+| Piece                                                                                                                                       | Home                                                                   | Reader                      |
+| ------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- | --------------------------- |
+| Engine: validation, pacing, session state, public reads, result shapes, image checks, write plan, approval card, image upload, bypass guard | `plugins/note-access/na.py`                                            | all                         |
+| Markdown ⇄ note editor HTML                                                                                                                 | `plugins/note-access/notefmt.py`                                       | all                         |
+| The only process holding the session; a fixed set of signed-in operations                                                                   | `plugins/note-access/bridge.py`                                        | all                         |
+| `note` tool and the `pre_tool_call` hook (toolset `note_access`), the actions each profile gets                                             | `plugins/note-access/__init__.py`                                      | Assistant, Marketer, Writer |
+| How the Assistant works with it: actions, budget, preparing a body, saving, results, Marketer's save packages                               | the `note-com` technic (`profiles/assistant/skills/technic/note-com/`) | Assistant                   |
+| When Chat uses it                                                                                                                           | the Assistant's private Chat reference `note.md`                       | Assistant                   |
+| How Marketer drafts and measures on note                                                                                                    | `marketer-pipeline/references/platforms/note.md`                       | Marketer                    |
+| How Writer writes and checks a note source draft                                                                                            | `writer-pipeline/<write\|edit\|analyze>/article/references/note.md`    | Writer                      |
 
 note has no public API. The tool calls the internal endpoints that note's own
 web app and editor use, the same way the editor does. They can change without
@@ -28,16 +31,32 @@ no install step. The bridge runs under Hermes' own interpreter in isolated mode
 (`-I`), as a child process with a minimal environment: `HOME`, `PATH` and
 `LANG`, none of the gateway's keys.
 
-Only the Assistant and Marketer get the tool (`WRITERS`; a profile in
-`READERS` would get a schema with the reads only, and its handler and hook
-would refuse writes). For note the tool replaces Marketer's browser procedure:
-Marketer never types into note's editor and needs no browser lease for note
+For note the tool replaces Marketer's browser procedure: Marketer never types
+into note's editor and needs no browser lease for note
 ([marketer.md](profiles/marketer.md)).
 
-Whether a save can run depends on whether a person can answer the card, not
-on the profile. On a gateway platform (each profile's own Telegram bot) or an
-interactive CLI the card appears and the save runs after approval. A resident
-session that one agent starts in another (`specialist_call` →
+## Profiles
+
+| Profile   | Actions                    | Inbound A2A       |
+| --------- | -------------------------- | ----------------- |
+| Assistant | every read, `check`, saves | refused           |
+| Marketer  | every read, `check`, saves | reads and `check` |
+| Writer    | `check` only               | `check`           |
+
+The action list a profile gets (`PROFILES`) is fixed when the plugin
+registers and checked again by the gate, the handler and the engine, so naming
+an action outside it is refused even though the tool is the same. An inbound
+request runs only what `A2A` lists for the profile, never a save or a
+`preview`, and only when the turn's bound profile home is that profile's,
+failing closed otherwise. The Assistant never serves a peer. Marketer
+answers a peer's question with a read, the user's drafts and stats included,
+on the shared request budget. Writer, which has no terminal, checks its own
+note drafts.
+
+Where a profile may save, whether a save can run depends on whether a person
+can answer the card. On a gateway platform (each profile's own Telegram bot)
+or an interactive CLI the card appears and the save runs after approval. A
+resident session that one agent starts in another (`specialist_call` →
 `resident-session.sh`) runs as a single query, as do cron, webhooks and API
 sessions: nobody can answer there, so the plugin refuses the save and its
 answer tells the agent to return the exact save — action, draft key and
@@ -84,13 +103,13 @@ images may be taken from. The default is `~/Workspaces`.
 
 ## Reads
 
-`status` never contacts note. It reports whether the cookie is stored, a
-refusal recorded for it, a running pause, the cached account and the requests
-used. Every other action is paced per request across sessions (`call.lock`):
-at least 2 s between requests, at most 60 per hour and 500 per 24 hours. The
-gap also holds between the two requests of one bridge operation. Past a cap
-the tool answers `paused: …` without calling note. After a 429 every request
-waits 10 minutes.
+`status` and `check` never contact note. `status` reports whether the cookie
+is stored, a refusal recorded for it, a running pause, the cached account and
+the requests used. Every other action is paced per request across sessions
+(`call.lock`): at least 2 s between requests, at most 60 per hour and 500 per
+24 hours. The gap also holds between the two requests of one bridge operation.
+Past a cap the tool answers `paused: …` without calling note. After a 429
+every request waits 10 minutes.
 
 | Action     | Signed in                          | Requests | Notes                                                                                                            |
 | ---------- | ---------------------------------- | -------- | ---------------------------------------------------------------------------------------------------------------- |
@@ -132,6 +151,40 @@ stored HTML of that block verbatim, so those blocks are kept by leaving their
 lines in place. Anything note cannot hold is refused with its line number:
 `#` / `####` headings, nested lists, non-http links, an unclosed fence,
 foreign `note-block` ids.
+
+Outside code blocks, three things note could store are refused too, because a
+reader would see their marks: Writer's insertion markers (`[[image:id]]`,
+`[[embed:id]]`, `[[table:id]]`, which stand for assets that do not exist
+yet), table rows and rules, and HTML comments. Other Markdown note has no form
+for is saved as typed: `*italic*`, `` `inline code` ``, HTML tags, footnotes,
+an image inside a paragraph and `<https://…>`. A stored body that only looks
+like one of the refused marks reads back escaped (`\|`, `\[`, `\<!--`), so
+it still round-trips.
+
+## Check
+
+`check` takes `body`, or `path` (a `.md`, `.markdown` or `.txt` file inside
+an attach root, at most 1 MB of UTF-8), plus an optional `title` and
+`eyecatch`. It runs the same scan and parse as a save, without contacting
+note or spending a request, and returns each problem with its line. The parse
+stops at the first structural error (a heading level, a nested list, an
+unclosed fence), which then hides the image checks and the length, so fix it
+and check again:
+
+- `errors`: what a save refuses, including a local image that is missing,
+  outside the attach roots, too large or not an image (a relative path is
+  read from the first root, and the answer names the absolute path when the
+  file sits beside the Markdown file instead);
+- `markers`: the insertion markers, kept apart so Writer can report the
+  draft as needing assets;
+- `as_typed`: Markdown saved with its marks;
+- `images`, `cover` (with a note when it is not 1280:670), `web_images` and
+  `kept_blocks` (valid only in an update of the draft they came from), and
+  `characters`, the text length note counts.
+
+`ready` means a save would accept the format. It says nothing about the
+account, the draft an update targets or the approval card, which only
+`preview` and the save check.
 
 ## Writes
 
@@ -185,7 +238,7 @@ The rule key covers:
 session. Approval records are per tool call, last 15 minutes and allow one
 save. Cron, webhook, API and single-query contexts are refused by the plugin
 itself, because Hermes consults stored approvals before its cron rule.
-Inbound A2A is refused on both profiles.
+Inbound A2A never saves or previews on any profile.
 
 At execution, plugin writes to one draft run one at a time (`drafts/<key>.lock`)
 from re-checking through saving. The handler re-derives the plan and refuses
@@ -228,7 +281,7 @@ Nothing is retried automatically.
 
 ## Ways around the tool
 
-On both profiles the hook blocks two kinds of call:
+On every profile with the tool the hook blocks two kinds of call:
 
 - terminal calls whose text names the plugin (`note-access`, `note_access`),
   the Keychain item or scope (`NOTE_SESSION`, `note-session`), the cookie
@@ -236,8 +289,9 @@ On both profiles the hook blocks two kinds of call:
 - file-tool calls on the state directory (`.note-access`) or the cookie names.
 
 File tools may still read the plugin source, and the browser may still open
-note. It is a pattern match, not a sandbox. The toolset is never in an `a2a`
-platform toolset.
+note. It is a pattern match, not a sandbox. The toolset is in an `a2a`
+platform toolset only where `A2A` lists actions (Marketer, Writer), never the
+Assistant's.
 
 ## Setup
 
@@ -249,8 +303,9 @@ platform toolset.
    `_note_session_v5=…` at the hidden prompt. A refreshed cookie is stored the
    same way; nothing else needs resetting.
 2. Enable the plugin and add `note_access` to the profile's `toolsets` and
-   `platform_toolsets` (not `a2a`), then restart the gateway. Marketer has it
-   in this repo; the Assistant's lives in the private overlay. Optionally set
+   `platform_toolsets` (`a2a` only for Marketer and Writer), then restart the
+   gateway. Marketer and Writer have it in this repo; the Assistant's lives in
+   the private overlay. Optionally set
    `note_access.attach_roots` per profile; a Marketer package handed to the
    Assistant must use paths inside the Assistant's roots (both default to
    `~/Workspaces`).
