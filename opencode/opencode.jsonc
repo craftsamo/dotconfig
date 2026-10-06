@@ -24,11 +24,13 @@
     // project config. A project's own Prettier dependency still wins. Like
     // nvim, it starts in the nearest directory holding a .prettierignore,
     // the only place Prettier reads one, even for files in another repo.
+    // Symlinks are resolved first, so a file reached through the Hermes or
+    // private overlay follows the ignore file of the repo it lives in.
     "prettier-markdown": {
       "command": [
         "sh",
         "-c",
-        "d=$(dirname \"$1\"); until [ -e \"$d/.prettierignore\" ] || [ \"$d\" = / ]; do d=$(dirname \"$d\"); done; [ -e \"$d/.prettierignore\" ] && cd \"$d\"; exec \"${XDG_DATA_HOME:-$HOME/.local/share}/nvim/mason/bin/prettier\" --write \"$1\"",
+        "f=$(realpath \"$1\" 2>/dev/null) || f=$1; d=$(dirname \"$f\"); until [ -e \"$d/.prettierignore\" ] || [ \"$d\" = / ]; do d=$(dirname \"$d\"); done; [ -e \"$d/.prettierignore\" ] && cd \"$d\"; exec \"${XDG_DATA_HOME:-$HOME/.local/share}/nvim/mason/bin/prettier\" --write \"$f\"",
         "sh",
         "$FILE",
       ],
