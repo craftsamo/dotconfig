@@ -1,0 +1,9 @@
+{
+  "enabledProviders": ["anthropic", "openai"],
+  "formatStyle": "allWindows",
+  "enableToast": false,
+  // Never fall back to Claude Code: its default Keychain entry is Hermes'
+  // account. With no `claude` found, Anthropic usage comes only from
+  // OpenCode's own login (the sub account).
+  "anthropicBinaryPath": "/nonexistent/claude-disabled"
+}

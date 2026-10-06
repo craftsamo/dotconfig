@@ -1,5 +1,4 @@
-# created by opencode when plugins declare npm dependencies
+# installed by install.sh --deps from package.json (zod for plugins/custom-tools.ts)
 node_modules
-package.json
 package-lock.json
 bun.lock

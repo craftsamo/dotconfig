@@ -281,11 +281,11 @@ default profile's `~/.hermes/auth.json`.
   `Claude Code-credentials` over the credential pool (pool entries and
   `suppressed_sources` never override it), and that entry must stay logged
   into the **Hermes** account. OpenCode runs on the **sub account** (its own
-  subscription) via the
-  `opencode-claude-auth` plugin pinned to a suffixed entry
-  (`Claude Code-credentials-<suffix>`; the concrete name lives in the untracked
-  `claude-account-source.txt`; `CLAUDE_CONFIG_DIR=~/.claude-sub`, alias
-  `claude-sub`). A plain `claude /login` therefore changes **Hermes'** account,
+  subscription) through its own OAuth login (the
+  `@ex-machina/opencode-anthropic-auth` plugin, stored in OpenCode's database),
+  which never reads or writes the Keychain. Claude Code's suffixed entry for the
+  sub account (`CLAUDE_CONFIG_DIR=~/.claude-sub`, alias `claude-sub`) no longer
+  feeds OpenCode. A plain `claude /login` therefore changes **Hermes'** account,
   not OpenCode's; after one, verify with
   `security find-generic-password -s "Claude Code-credentials"` + the OAuth
   profile endpoint before assuming the split still holds.

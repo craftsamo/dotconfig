@@ -2,9 +2,9 @@
 #
 # hermes-dashboard — lazily start (or reuse) the shared Hermes Agent web
 # dashboard, bound to this machine's Tailscale IPv4 so only the tailnet can
-# reach it. Mirrors tmux/opencode-web.zsh's "one detached machine-level
-# server" pattern: the first `prefix H` starts it, later launches reuse it,
-# and it survives closing every directory's Hermes TUI.
+# reach it. One detached machine-level server: the first `prefix H` starts
+# it, later launches reuse it, and it survives closing every directory's
+# Hermes TUI.
 #
 #   ~/.config/tmux/hermes-dashboard.zsh
 #
