@@ -68,14 +68,28 @@ class Fake:
         return self.clock
 
     # -- scripting
-    def finish(self, sid, outcome="succeeded", text="RESULT_OK"):
+    def finish(self, sid, outcome="succeeded", text="RESULT_OK", error=None):
         with self.lock:
             self.active.discard(sid)
             now = self.tick()
-            self.messages[sid].append({"id": f"msg_a{now}", "type": "assistant",
-                                       "content": [{"type": "text", "text": text}]})
+            message = {"id": f"msg_a{now}", "type": "assistant", "model": self.sessions[sid].get("model"),
+                       "content": [{"type": "text", "text": text}] if text else []}
+            if error:
+                message["error"] = {"type": "provider.error", "message": error}
+            self.messages[sid].append(message)
             self.sessions[sid]["time"]["idle"] = now
             self.sessions[sid]["outcome"] = outcome
+
+    def retry(self, sid, message, attempt):
+        """OpenCode sitting in a provider retry: the newest assistant message carries it."""
+        with self.lock:
+            last = self.messages[sid][-1] if self.messages[sid] else {}
+            if last.get("type") != "assistant":
+                last = {"id": f"msg_a{self.tick()}", "type": "assistant",
+                        "model": self.sessions[sid].get("model"), "content": []}
+                self.messages[sid].append(last)
+            last["retry"] = {"attempt": attempt, "at": self.clock + 60_000,
+                             "error": {"type": "provider.error", "message": message}}
 
     def ask(self, sid, action="external_directory", resources=("/elsewhere/*",), save=("/elsewhere/*",)):
         with self.lock:
@@ -96,6 +110,14 @@ class Fake:
             self.finish(sid, outcome or "succeeded", text or "RESULT_OK")
         elif step == "vanish":
             self.active.discard(sid)
+        elif step.startswith("fail-error:"):
+            self.finish(sid, "failed", "", step.split(":", 1)[1])
+        elif step.startswith("retry:"):
+            _, message, attempt = step.split(":", 2)
+            self.retry(sid, message, int(attempt))
+        elif step == "unretry":
+            for message in self.messages[sid]:
+                message.pop("retry", None)
         elif step.startswith("ask"):
             parts = step.split(":")
             self.ask(sid, *(parts[1:2] or ["external_directory"]))
@@ -232,6 +254,7 @@ def fixture(tmp_path, monkeypatch):
     monkeypatch.setattr(plugin, "HALT_GRACE", 0.2)
     monkeypatch.setattr(plugin, "UNREACHABLE_GRACE", 0.2)
     monkeypatch.setattr(plugin, "CATALOG_RETRY", 0)
+    monkeypatch.setattr(plugin, "RETRY_POLL", 0)
     yield home, directory.resolve(), owner, fake
     for thread in threads:
         thread.join(timeout=5)
@@ -686,6 +709,107 @@ def test_registration_observes_the_callers_model():
     plugin.register(Context())
     assert hooks == [("post_api_request", plugin._observe)]
     assert {"opencode_call", "opencode_session", "opencode_history"} <= set(tools)
+
+
+# ---------------------------------------------------------------- provider limits
+
+def scripted(fake, *steps):
+    """Script the next session the service creates."""
+    real = fake._route
+
+    def route(method, parts, query, data):
+        out = real(method, parts, query, data)
+        if parts == ["session"] and method == "post":
+            fake.scripts[out["data"]["id"]] = list(steps)
+        return out
+    fake._route = route
+
+
+def test_failed_turn_says_why_and_what_to_do(fixture):
+    _, directory, _, fake = fixture
+    scripted(fake, "fail-error:The usage limit has been reached")
+    failed = call(directory)
+    assert failed["status"] == "failed", failed
+    assert failed["provider_error"] == {"kind": "limit", "message": "The usage limit has been reached",
+                                        "model": "anthropic/claude-opus-5-5"}
+    assert "usage limit has been reached" in failed["error"] and "another model" in failed["error"]
+    scripted(fake, "finish:failed:")
+    plain = call(directory)
+    assert plain["status"] == "failed" and "provider_error" not in plain
+    assert plain["error"] == "OpenCode reported a failed turn; partial effects may exist"
+
+
+def test_provider_problems_are_classified():
+    problem = plugin._provider_problem
+    assert problem({"type": "provider.error", "message": "Our servers are currently overloaded."}, None)["kind"] == "limit"
+    assert problem({"name": "APIError", "data": {"message": "Too Many Requests", "statusCode": 429}},
+                   {"providerID": "anthropic", "id": "claude-sonnet-5-5"}) == {
+        "kind": "limit", "message": "Too Many Requests", "model": "anthropic/claude-sonnet-5-5"}
+    assert problem({"type": "unknown", "message": "Claude Code credentials are unavailable or expired."},
+                   None)["kind"] == "auth"
+    assert problem({"type": "provider.error", "message": "Not Found"}, None)["kind"] == "other"
+
+
+def test_limit_retry_hands_back_once_then_waits_on(fixture):
+    _, directory, _, fake = fixture
+    scripted(fake, "retry:Rate limit exceeded:1", "hold")
+    first = call(directory)
+    assert first["status"] == "running" and not first["timed_out"], first
+    assert first["retrying"]["kind"] == "limit" and first["retrying"]["attempt"] == 1
+    assert first["retrying"]["model"] == "anthropic/claude-opus-5-5" and not first["retrying"]["subagent"]
+    assert "keeps retrying" in first["note"] and "opencode_session models" in first["note"]
+    cid, sid = first["conversation_id"], first["session_id"]
+    # The same episode does not hand back again, even as its attempts grow.
+    fake.scripts[sid] = ["retry:Rate limit exceeded:2", "hold"]
+    again = session(cid, "wait", timeout=1)
+    assert again["timed_out"] and again["retrying"]["attempt"] == 2, again
+    fake.scripts[sid] = ["unretry", "finish"]
+    done = session(cid, "wait")
+    assert done["status"] == "completed" and "retrying" not in done, done
+
+
+def test_transient_retry_hands_back_only_after_some_attempts(fixture, monkeypatch):
+    _, directory, _, fake = fixture
+    seen = []
+    real = plugin._retrying
+
+    def spy(*args):
+        found = real(*args)
+        seen.append(found and found["attempt"])
+        return found
+    monkeypatch.setattr(plugin, "_retrying", spy)
+    # A 502 is OpenCode's to ride out at first: the blocking call keeps waiting.
+    scripted(fake, "retry:Bad Gateway:1", "retry:Bad Gateway:2", "retry:Bad Gateway:3", "hold")
+    third = call(directory)
+    assert {1, 2} <= set(seen), seen
+    assert third["retrying"]["kind"] == "other" and third["retrying"]["attempt"] == 3, third
+    session(third["conversation_id"], "stop")
+
+
+def test_subagent_retry_hands_back_with_its_session(fixture):
+    _, directory, _, fake = fixture
+    scripted(fake, "hold")
+    real = fake._route
+    child = "ses_child1abc"
+
+    def route(method, parts, query, data):
+        out = real(method, parts, query, data)
+        if parts[:3] == ["session", "active"] or parts == ["session", "active"]:
+            root = next((s for s in fake.sessions if s != child and "fork" not in s), None)
+            if root and child not in fake.sessions:
+                fake.sessions[child] = {"id": child, "parentID": root, "agent": "explore-medium", "time": {},
+                                        "model": {"providerID": "anthropic", "id": "claude-sonnet-5-5"}}
+                fake.messages[child] = []
+                fake.retry(child, "usage limit reached", 1)
+                fake.active.add(child)
+                out["data"][child] = {"type": "running"}
+        return out
+    fake._route = route
+    first = call(directory)
+    assert first["retrying"]["subagent"] and first["retrying"]["session_id"] == child, first
+    assert first["retrying"]["model"] == "anthropic/claude-sonnet-5-5"
+    assert "a subagent of the run" in first["note"]
+    session(first["conversation_id"], "stop")
 
 
 # ---------------------------------------------------------------- ownership and gates
