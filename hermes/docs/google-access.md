@@ -58,7 +58,8 @@ The hook decides before a tool runs; the rule is `approval_request` in
 `access.py`.
 
 - **Changes ask first**: Sheets `update` / `batch_update` / `append` /
-  `clear` / `create` / `add_sheet` / `layout` / `data` / `chart` / `pivot` / `protect`, Gmail `send`, Drive `upload`, and every
+  `clear` / `create` / `add_sheet` / `layout` / `data` / `chart` / `pivot` / `protect` /
+  `comment`, Gmail `send`, Drive `upload`, and every
   gcloud command that is not a read. The action must be spelled exactly; the
   gate and the engine share one check, so no variant is read differently by
   each.
@@ -80,8 +81,10 @@ The hook decides before a tool runs; the rule is `approval_request` in
   spreadsheet's edits run for the session and "always" for good; another
   spreadsheet asks again. The spreadsheet's version history undoes them.
   `clear` and `create` keep a key per exact call, like every other change:
-  "always" there only repeats that identical call. So does every `data`
-  and `protect` call, and a `layout` call
+  "always" there only repeats that identical call. So does every `data`,
+  `protect` and `comment` call, a `layout` call changing
+  `spreadsheet_settings` (the locale and time zone re-read every date and
+  number in the file), and a `layout` call
   holding any op that deletes, moves or replaces data, or picks a rule or
   view by its number or name to replace or drop it (`delete`, `move`,
   `merge`, `table_delete`, `sheet_delete`, `conditional_update`,
@@ -105,7 +108,8 @@ The hook decides before a tool runs; the rule is `approval_request` in
 - **Layout** is one `spreadsheets.batchUpdate` per call, so its ops land
   together or not at all. Ops come from a fixed vocabulary (`LAYOUT_OPS`:
   formatting, borders, sizes, hiding and grouping, inserting/deleting/moving
-  rows and columns, merges, freezing, tab properties and copies, notes, rich
+  rows and columns, merges, freezing, tab properties (gridlines included) and
+  copies, the spreadsheet's locale and time zone, notes, rich
   text, native tables, conditional formatting, input rules, filters and filter
   views), never
   raw API requests, so the gate can word and classify every one. As
@@ -164,6 +168,29 @@ The hook decides before a tool runs; the rule is `approval_request` in
   naming editors ends warning-only. Google refuses the whole call for an
   address it does not accept. Protections are found by id or label (the
   API's description); `info` lists them with their editors.
+- **Comments** are the `comment` op action: add a comment on one cell
+  (optionally assigned), reply, resolve or reopen, edit your own post, delete
+  a thread you started. Every call asks, because a comment reaches other
+  people (an assignee or a `+address` / `@address` mention is emailed) and
+  version history keeps no comments; the card names whoever is emailed, and a
+  card Hermes would mask is refused. Comment changes can fail on their own
+  while the call succeeds, so the result is `ok: false` unless
+  `commentUpdateState` reads `ALL_SAVED`. The read action `comments` lists
+  threads with their cell (`commentsViewMode` goes on the request URI, as the
+  client library's bundled API description predates comments).
+- **Table appends.** `append` with `table` (a native table's name or id)
+  sends `appendCells` with the `tableId`, so rows fill the table's free rows
+  and the table grows before its footer; a plain range append would land
+  after the footer or outside the table. `appendCells` has no UI typing:
+  numbers and booleans keep their type, `=…` is a formula unless `raw`, and
+  other text, dates included, stays text. It shares the per-spreadsheet key.
+- **Snapshots** are a read (no approval): `snapshot` exports a tab, or a
+  closed block of it, through the `docs.google.com/…/export?format=pdf` URL
+  with the profile's token (the parameters Google's own Apps Script samples
+  use, not a documented API) and renders the first pages to PNG with
+  ImageMagick (`sips` draws page 1 without it). The files go to the download
+  folder's `sheet-snapshots/`, so the look can be checked with vision instead
+  of a browser.
 - **Row guards.** Writes by row number can land on the wrong row when another
   writer inserts, deletes or sorts rows. `update`, `batch_update`, `clear`,
   `layout` and `data` take `expect` — up to 200 single cells with the value each must display
