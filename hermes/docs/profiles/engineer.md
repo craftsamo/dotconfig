@@ -123,20 +123,23 @@ read-only role still denies edits, shell writes and `worker` under the combined
 rules; otherwise it launches nothing.
 
 **Models.** Models are pinned per role in the agent frontmatter (plan, review
-and debug Opus 5.5, build GPT-6.1 Sol) so Engineer's own model (Fable 5.1, see
-[`models-auth.md`](../models-auth.md) "Models and fallback chains") never
-challenges or QAs its own OpenCode output. The plugin reads the pin from the
-service and passes it explicitly with every turn (and on every resume or
-fork), checks it against the service's model catalog, and records it as
-`engine`. `opencode_cli.models` still overrides per role. Accepted exception:
-the Assistant also runs on Opus 5.5, so its Admin-topic OpenCode calls are
-planned and reviewed by the requesting model — accepted because Admin work is
-small inline upkeep. Do not extend it to Engineer; moving Engineer off Fable, or
-broadening Admin's grant, needs the reviewer moved to another model family
-first. `opencode_call` also takes `model` / `variant`, fail-closed against
-`opencode_cli.allowed_models` / `allowed_variants`: a name outside the list or
-the catalog is refused, never substituted, and an explicit selection binds the
-rest of that conversation.
+and debug Opus 5.5, build GPT-6.1 Sol); a profile's `opencode_cli.models`
+overrides them per role as `provider/model` or `provider/model#variant` (the
+Assistant, which runs on Opus 5.5, sets its own). The plugin passes the model
+explicitly with every turn (and on every resume or fork), checks it against the
+service's model catalog (it must use tools; a variant must be one the model
+offers), and records it as `engine`. A caller may choose any catalog model of
+`opencode_cli.allowed_providers` with `opencode_call` `model` / `variant`;
+`opencode_session models` lists them with each role's default. A name outside
+the providers or the catalog is refused, never substituted, and an explicit
+selection binds the rest of that conversation.
+
+The caller's own model is refused for every role, so a profile never judges or
+QAs output from the model it runs on: the configured `model.default` and the
+model it last answered with in this Hermes session (a `post_api_request` hook
+records it, so a fallback counts too). Speed tiers and dated snapshots
+(`-fast`, `-20251001`) count as the same model. A refused default needs another
+model from the list, never a retry on the same one.
 
 **Permissions.** OpenCode 2 evaluates ordered rules, last match wins: global
 config, then the agent's own `permissions`, then the session's ruleset; and
