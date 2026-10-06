@@ -34,9 +34,13 @@ repository upkeep (Engineer through OpenCode, the Assistant's Admin topic).
   in [README "Tracking a profile"](README.md#tracking-a-profile).
 - **No secrets, no `.env`.** Keys live in the macOS Keychain and are injected
   by the `bin/hermes` shim (see the `keychain-secrets` skill). Private data —
-  reference voices, the Irodori lexicon, manifest paths, Telegram ids — never
-  enters tracked config or docs; it lives in the private overlay
-  (`~/.config/private`, the `private-dotconfig` repo).
+  reference voices, the Irodori lexicon, manifest paths, Telegram ids, and the
+  names of the user's businesses, clients, messaging accounts, spreadsheets
+  and tabs — never enters tracked config, docs, tests, examples or commit and
+  PR text; it lives in the private overlay (`~/.config/private`, the
+  `private-dotconfig` repo). Use neutral examples (`work`, `personal`,
+  `Leads`). The overlay installs local commit and push hooks that refuse
+  known names; a refusal is fixed by rewording, never by `--no-verify`.
 - **`config.yaml` is rewritten by Hermes on load.** Match its output format
   (block style, key order) and keep diffs minimal; never hand-reformat or
   alphabetize. Custom top-level keys survive the rewrite.
