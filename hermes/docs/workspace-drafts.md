@@ -23,8 +23,8 @@ without anyone deciding to.
 
 | Piece                                 | Home                                   | Reader              |
 | ------------------------------------- | -------------------------------------- | ------------------- |
-| Lister, text output, CLI              | `plugins/workspace-drafts/drafts.py`   | all                 |
-| `workspace_drafts` tool and `/drafts` | `plugins/workspace-drafts/__init__.py` | Engineer, Assistant |
+| Lister, text output, CLI              | `plugins/workspace/workspace-drafts/drafts.py`   | all                 |
+| `workspace_drafts` tool and `/drafts` | `plugins/workspace/workspace-drafts/__init__.py` | Engineer, Assistant |
 | Launcher                              | `../bin/ws-drafts`                     | people, cron        |
 
 Stdlib only, loaded by path, so the tool, the launcher and cron run the same code.
