@@ -286,7 +286,7 @@ def _handoff(data, message):
     reconcile = ""
     if data.get("turn_kind") == "reconcile":
         reconcile = ("Turn kind: RECONCILE-ONLY. This conversation was interrupted earlier. Inspect the "
-                     "child runs you own (process liveness, event logs, Git and remote effects), then "
+                     "child runs you own (opencode_session status and diff, Git and remote effects), then "
                      "opencode_session stop/reconcile with observed evidence. No opencode_call, no file "
                      "edits, no commits, no push. Report each child's reconciled state and stop.\n")
     resumed = ""

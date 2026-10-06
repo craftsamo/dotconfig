@@ -1,16 +1,15 @@
-"""Read-only OpenCode session inventory: list, get, children and usage.
+"""Read-only OpenCode 2 session inventory: list, get, children and usage.
 
-The official HTTP API comes first: every call starts a private `opencode serve`
-bound to loopback with a one-shot password and stops it before returning. The
-guarded read-only SQLite route is used only where the API has no equivalent —
-message-level usage and activity, whose API form carries message content — or
-as a disclosed fallback when the API is unavailable. Message content is never
-returned. Titles and costs are withheld unless the caller asks for them.
+The official HTTP API of the person's shared background service comes first,
+reached through `opencode api` (see api.py). The guarded read-only SQLite route
+is used only where the API has no equivalent — message-level usage and
+activity, whose API form carries message content — or as a disclosed fallback
+when the service is unavailable. Message content is never returned. Titles and
+costs are withheld unless the caller asks for them.
 
-OpenCode 1 and 2 are both supported. The installed major version picks the
-server command and API routes; the database schema is detected from its tables
-(V1: session/message/part, V2: session_v2/session_message), and the installed
-version only breaks the tie when a database carries both.
+The database is OpenCode 2's (`session_v2` / `session_message`). Data imported
+from OpenCode 1 keeps its V1 tables beside them, and their step times win for
+the imported messages (see Snapshot).
 
 Stdlib only: cron scripts run this file as a CLI, the Hermes tool imports it.
 """
@@ -18,39 +17,30 @@ Stdlib only: cron scripts run this file as a CLI, the Hermes tool imports it.
 from __future__ import annotations
 
 import argparse
-import base64
 import importlib.util
 import json
 import os
 from pathlib import Path
 import re
-import secrets
-import shutil
-import signal
 import sqlite3
 import subprocess
 import sys
-import tempfile
-import time
-import urllib.error
 import urllib.parse
-import urllib.request
 
 
-def _load_common():
-    # The shared contract lives with the session-history plugin; load it by path so
-    # this file stays runnable as a plain CLI (no package, no Hermes).
-    name = "hermes_session_history_common"
+def _load(name, path):
+    # Load siblings by path so this file stays runnable as a plain CLI (no package, no Hermes).
     if name not in sys.modules:
-        spec = importlib.util.spec_from_file_location(
-            name, Path(__file__).resolve().parents[1] / "session-history" / "common.py")
+        spec = importlib.util.spec_from_file_location(name, path)
         module = importlib.util.module_from_spec(spec)
         sys.modules[name] = module
         spec.loader.exec_module(module)
     return sys.modules[name]
 
 
-common = _load_common()
+HERE = Path(__file__).resolve().parent
+common = _load("hermes_session_history_common", HERE.parent / "session-history" / "common.py")
+api = _load("hermes_opencode_api", HERE / "api.py")
 Unavailable = common.Unavailable
 
 
@@ -61,14 +51,8 @@ SOURCES = ("auto", "api", "db")
 FIELDS = {"action", "session_id", "from", "to", "days", "timezone", "directory", "kind", "agent", "model",
           "archived", "search", "include_title", "include_cost", "limit", "offset", "group_by", "source"}
 SESSION_ID = re.compile(r"ses_[A-Za-z0-9_-]{1,64}\Z")
-URL = re.compile(r"http://127\.0\.0\.1:(\d+)")
 DEFAULT_LIMIT = 50
 MAX_LIMIT = 200
-# The global list has no documented cap; ask for more than any real store holds
-# and treat a full page as truncation rather than trusting it as complete.
-API_LIST_LIMIT = 100000
-START_TIMEOUT = 30
-REQUEST_TIMEOUT = 60
 TOKEN_KEYS = ("input", "output", "reasoning", "cache_read", "cache_write")
 SESSION_COLUMNS = {"id", "project_id", "parent_id", "directory", "title", "version", "time_created",
                    "time_updated", "time_archived", "agent", "model", "cost", "tokens_input",
@@ -76,9 +60,8 @@ SESSION_COLUMNS = {"id", "project_id", "parent_id", "directory", "title", "versi
 MESSAGE_COLUMNS = {"id", "session_id", "time_created", "data"}
 PART_COLUMNS = {"session_id", "time_created", "data"}
 V2_MESSAGE_COLUMNS = {"id", "session_id", "type", "time_created", "data"}
-VERSION = re.compile(r"(\d+)\.(\d+)\.(\d+)")
-# V2 lists sessions newest-updated first in cursor pages; stop well before any
-# real store could loop forever on a broken cursor.
+# Sessions come newest-updated first in cursor pages; stop well before any real
+# store could loop forever on a broken cursor.
 API_PAGE = 200
 API_MAX_PAGES = 1000
 # Tools whose run time is the model waiting on a person, not working. A step
@@ -88,33 +71,22 @@ WAIT_TOOLS = ("question",)
 
 
 class ApiNotFound(Unavailable):
-    """The API has no such session. Auto mode confirms against the database, which
-    also covers a server that scopes lookups to its own project."""
+    """The API has no such session. Auto mode confirms against the database."""
 
 
 def child_env(extra=None):
-    """The caller's environment without Hermes' own turn state or OpenCode run policy."""
-    env = {k: v for k, v in os.environ.items()
-           if not k.startswith(("HERMES_", "RESIDENT_"))
-           and k not in {"OPENCODE_PERMISSION", "OPENCODE_CONFIG_CONTENT"}}
-    env.update(extra or {})
-    return env
+    return api.child_env(extra)
 
 
-def opencode_major(executable="opencode"):
-    """Major version of the OpenCode CLI on PATH (`1.18.34` or `opencode v2.0.23`)."""
+def _client(method, route):
     try:
-        proc = subprocess.run([executable, "--version"], capture_output=True, text=True, timeout=30,
-                              stdin=subprocess.DEVNULL, env=child_env())
-    except (OSError, subprocess.TimeoutExpired) as exc:
-        raise Unavailable(f"opencode --version failed: {exc.__class__.__name__}") from None
-    match = VERSION.search(proc.stdout)
-    if proc.returncode or not match:
-        raise Unavailable("opencode --version did not report a version")
-    major = int(match.group(1))
-    if major not in (1, 2):
-        raise Unavailable(f"unsupported OpenCode major version {major}")
-    return major
+        return api.call(method, route)
+    except api.ApiError as exc:
+        if exc.status == 404:
+            raise LookupError(route) from None
+        raise Unavailable(f"API {route.split('?')[0]} returned HTTP {exc.status}") from None
+    except api.Unavailable as exc:
+        raise Unavailable(str(exc)) from None
 
 
 # --------------------------------------------------------------------------
@@ -210,18 +182,13 @@ def _from_api(item):
         raise Unavailable("unexpected API session shape")
     t, tokens = item["time"], item.get("tokens") or {}
     cache = tokens.get("cache") or {}
-    summary = item.get("summary")
-    changes = ({k: _num(summary.get(k)) for k in ("additions", "deletions", "files")}
-               if isinstance(summary, dict) else None)
-    # V1 carries `directory`; V2 nests it in `location` and has no version or summary.
     location = item.get("location") if isinstance(item.get("location"), dict) else {}
-    directory = item.get("directory") or location.get("directory")
-    return _record(item.get("id"), item.get("parentID"), item.get("projectID"), directory,
+    return _record(item.get("id"), item.get("parentID"), item.get("projectID"), location.get("directory"),
                    item.get("title"), item.get("version"), t.get("created"), t.get("updated"),
                    t.get("archived"), item.get("agent"), item.get("model"), item.get("cost"),
                    {"input": tokens.get("input"), "output": tokens.get("output"),
                     "reasoning": tokens.get("reasoning"), "cache_read": cache.get("read"),
-                    "cache_write": cache.get("write")}, changes)
+                    "cache_write": cache.get("write")}, None)
 
 
 _iso = common.iso
@@ -276,122 +243,16 @@ def _select(records, q):
 
 
 # --------------------------------------------------------------------------
-# Official API: a private, loopback-only server per call
+# Official API on the shared service
 
 
-def _child_env(password):
-    # V1 reads OPENCODE_SERVER_*; V2 keeps that password as a legacy alias of
-    # OPENCODE_PASSWORD and fixes the username to "opencode".
-    return child_env({"OPENCODE_SERVER_USERNAME": "opencode", "OPENCODE_SERVER_PASSWORD": password,
-                      "OPENCODE_PASSWORD": password})
-
-
-class ApiServer:
-    """A private `opencode serve` on 127.0.0.1 with a random password; always stopped.
-
-    V1 runs `--pure` (no external plugins). V2 has no such flag: its foreground
-    server is already separate from the shared background service, but it does
-    load the configured plugins."""
-
-    def __init__(self, executable="opencode", major=None):
-        self.executable = executable
-        self.major = major
-        self.proc = None
-        self.workdir = None
-        self.base = None
-        self.version = None
-
-    def __enter__(self):
-        if self.major is None:
-            self.major = opencode_major(self.executable)
-        password = secrets.token_urlsafe(32)
-        self.auth = "Basic " + base64.b64encode(f"opencode:{password}".encode()).decode()
-        self.workdir = tempfile.mkdtemp(prefix="opencode-history-")
-        log = Path(self.workdir) / "serve.log"
-        command = [self.executable, "serve", *(["--pure"] if self.major == 1 else []),
-                   "--hostname", "127.0.0.1", "--port", "0"]
-        try:
-            with open(log, "wb") as out:
-                self.proc = subprocess.Popen(
-                    command, cwd=self.workdir, env=_child_env(password), stdin=subprocess.DEVNULL,
-                    stdout=out, stderr=subprocess.STDOUT, start_new_session=True)
-        except OSError as exc:
-            self._cleanup()
-            raise Unavailable(f"opencode serve could not start: {exc.__class__.__name__}") from None
-        deadline = time.monotonic() + START_TIMEOUT
-        try:
-            while time.monotonic() < deadline:
-                match = URL.search(log.read_text(errors="replace"))
-                if match:
-                    self.base = f"http://127.0.0.1:{match.group(1)}"
-                    break
-                if self.proc.poll() is not None:
-                    raise Unavailable("opencode serve exited before listening")
-                time.sleep(0.05)
-            else:
-                raise Unavailable("opencode serve did not start in time")
-            if self.major == 1:
-                try:
-                    health = self.get("/global/health")
-                except LookupError:
-                    raise Unavailable("opencode serve has no health endpoint") from None
-                if not isinstance(health, dict) or health.get("healthy") is not True:
-                    raise Unavailable("opencode serve reported unhealthy")
-            else:
-                try:
-                    health = self.get("/api/info")
-                except LookupError:
-                    raise Unavailable("opencode serve has no info endpoint") from None
-                if not isinstance(health, dict):
-                    raise Unavailable("opencode serve returned no server info")
-            self.version = health.get("version") if isinstance(health.get("version"), str) else None
-        except BaseException:
-            self._cleanup()
-            raise
-        return self
-
-    def get(self, path, params=None):
-        url = self.base + path + ("?" + urllib.parse.urlencode(params) if params else "")
-        request = urllib.request.Request(url, headers={"Authorization": self.auth, "Accept": "application/json"})
-        try:
-            with urllib.request.urlopen(request, timeout=REQUEST_TIMEOUT) as response:
-                return json.loads(response.read())
-        except urllib.error.HTTPError as exc:
-            if exc.code == 404:
-                raise LookupError(path) from None
-            raise Unavailable(f"API {path.split('?')[0]} returned HTTP {exc.code}") from None
-        except (urllib.error.URLError, OSError, ValueError) as exc:
-            raise Unavailable(f"API request failed: {exc.__class__.__name__}") from None
-
-    def _cleanup(self):
-        if self.proc is not None and self.proc.poll() is None:
-            try:
-                os.killpg(self.proc.pid, signal.SIGTERM)
-                self.proc.wait(timeout=5)
-            except (ProcessLookupError, PermissionError):
-                pass
-            except subprocess.TimeoutExpired:
-                try:
-                    os.killpg(self.proc.pid, signal.SIGKILL)
-                    self.proc.wait(timeout=5)
-                except (ProcessLookupError, PermissionError, subprocess.TimeoutExpired):
-                    pass
-        if self.workdir:
-            shutil.rmtree(self.workdir, ignore_errors=True)
-            self.workdir = None
-
-    def __exit__(self, *exc):
-        self._cleanup()
-        return False
-
-
-def _api_pages(server, params, stop_before=None):
-    """V2 `/api/session` pages, newest-updated first, until the cursor ends or a
+def _api_pages(client, params, stop_before=None):
+    """`/api/session` pages, newest-updated first, until the cursor ends or a
     session was last updated before `stop_before` (later pages only get older)."""
     out, cursor = [], None
     for _ in range(API_MAX_PAGES):
-        page = server.get("/api/session", {**params, "limit": API_PAGE, "order": "desc",
-                                           **({"cursor": cursor} if cursor else {})})
+        query = {**params, "limit": API_PAGE, "order": "desc", **({"cursor": cursor} if cursor else {})}
+        page = client("get", "/api/session?" + urllib.parse.urlencode(query))
         if not isinstance(page, dict) or not isinstance(page.get("data"), list) \
                 or not isinstance(page.get("cursor"), dict):
             raise Unavailable("unexpected API list shape")
@@ -406,55 +267,37 @@ def _api_pages(server, params, stop_before=None):
     raise Unavailable("API list did not end; it may be truncated")
 
 
-def _api_list(server, q):
-    if server.major != 1:
-        try:
-            return _api_pages(server, {**({"parentID": "null"} if q["kind"] == "root" else {}),
-                                       **({"search": q["search"]} if q.get("search") else {})},
-                              stop_before=q["from"])
-        except LookupError:
-            raise Unavailable("API has no all-project session list") from None
-    params = {"roots": "true" if q["kind"] == "root" else "false", "limit": API_LIST_LIMIT,
-              "archived": "true" if q["archived"] else "false"}
-    if q["from"] is not None:
-        params["start"] = q["from"]  # measured: lower bound on time.updated
-    if q.get("search"):
-        params["search"] = q["search"]
+def _api_list(client, q):
     try:
-        items = server.get("/experimental/session", params)
+        return _api_pages(client, {**({"parentID": "null"} if q["kind"] == "root" else {}),
+                                   **({"search": q["search"]} if q.get("search") else {})},
+                          stop_before=q["from"])
     except LookupError:
-        raise Unavailable("API has no all-project session list") from None
-    if not isinstance(items, list):
-        raise Unavailable("unexpected API list shape")
-    if len(items) >= API_LIST_LIMIT:
-        raise Unavailable("API list may be truncated")
-    return [_from_api(item) for item in items]
+        raise Unavailable("API has no session list") from None
 
 
-def _api_get(server, sid):
+def _api_get(client, sid):
     try:
-        if server.major != 1:
-            body = server.get(f"/api/session/{sid}")
-            return _from_api(body.get("data") if isinstance(body, dict) else None)
-        return _from_api(server.get(f"/session/{sid}"))
+        body = client("get", f"/api/session/{sid}")
     except LookupError:
         raise ApiNotFound(f"session {sid} not found via API") from None
+    return _from_api(body.get("data") if isinstance(body, dict) else None)
 
 
-def _api_children(server, sid):
-    _api_get(server, sid)
-    if server.major != 1:
-        try:
-            return _api_pages(server, {"parentID": sid})
-        except LookupError:
-            raise Unavailable("API has no session list") from None
+def _api_children(client, sid):
+    _api_get(client, sid)
     try:
-        items = server.get(f"/session/{sid}/children")
+        return _api_pages(client, {"parentID": sid})
     except LookupError:
-        raise Unavailable("API has no children route") from None
-    if not isinstance(items, list):
-        raise Unavailable("unexpected API children shape")
-    return [_from_api(item) for item in items]
+        raise Unavailable("API has no session list") from None
+
+
+def _api_version(client):
+    try:
+        info = client("get", "/api/info")
+    except LookupError:
+        return None
+    return info.get("version") if isinstance(info, dict) and isinstance(info.get("version"), str) else None
 
 
 # --------------------------------------------------------------------------
@@ -462,8 +305,7 @@ def _api_children(server, sid):
 
 
 def db_path():
-    # V1: `opencode db path`; V2 moved it to `opencode debug paths db`.
-    command = ["opencode", "db", "path"] if opencode_major() == 1 else ["opencode", "debug", "paths", "db"]
+    command = ["opencode", "debug", "paths", "db"]
     label = " ".join(command)
     try:
         proc = subprocess.run(command, capture_output=True, text=True, timeout=30,
@@ -477,26 +319,13 @@ def db_path():
 
 
 class Snapshot:
-    """One read-only snapshot. `version_factory` (the installed OpenCode major)
-    is consulted only when the file carries both the V1 and the V2 tables, as
-    after a V2 trial on the same data directory."""
+    """One read-only snapshot of the OpenCode 2 database."""
 
-    def __init__(self, path, version_factory=None):
+    def __init__(self, path):
         self.path = path
-        self.version_factory = version_factory
 
     def _columns(self, table):
         return {row[1] for row in self.conn.execute(f"PRAGMA table_info({table})")}
-
-    def _schema(self):
-        tables = {row[0] for row in self.conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
-        self.tables = tables
-        v1, v2 = "session" in tables, "session_v2" in tables
-        if v1 and v2:
-            if self.version_factory is None:
-                raise Unavailable("database carries OpenCode 1 and 2 tables; installed version unknown")
-            return 2 if self.version_factory() == 2 else 1
-        return 2 if v2 else 1
 
     def __enter__(self):
         try:
@@ -504,31 +333,21 @@ class Snapshot:
             self.conn = sqlite3.connect(uri, uri=True, timeout=5, isolation_level=None)
             self.conn.execute("PRAGMA query_only = ON")
             self.conn.execute("BEGIN")
-            self.schema = self._schema()
-            if self.schema == 2:
-                self.session_table = "session_v2"
-                required_tables = (("session_v2", SESSION_COLUMNS), ("session_message", V2_MESSAGE_COLUMNS))
-            else:
-                self.session_table = "session"
-                required_tables = (("session", SESSION_COLUMNS), ("message", MESSAGE_COLUMNS))
-            for table, required in required_tables:
-                have = {row[1] for row in self.conn.execute(f"PRAGMA table_info({table})")}
-                missing = sorted(required - have)
+            self.tables = {row[0] for row in self.conn.execute(
+                "SELECT name FROM sqlite_master WHERE type = 'table'")}
+            if "session_v2" not in self.tables:
+                raise Unavailable("database has no OpenCode 2 tables")
+            for table, required in (("session_v2", SESSION_COLUMNS), ("session_message", V2_MESSAGE_COLUMNS)):
+                missing = sorted(required - self._columns(table)) if table in self.tables else ["(table)"]
                 if missing:
                     raise Unavailable(f"unsupported database schema: {table} lacks {', '.join(missing)}")
-            if self.schema == 2:
-                # V2 keeps tool calls inside the assistant message, so waits are always readable.
-                self.has_parts = True
-                # OpenCode 2 imports V1 messages with time.completed set to the V1
-                # row's last update (a later revert, fork or compaction), and their
-                # tool times likewise, so a V1 message's own record wins while the
-                # V1 tables remain (measured on 2.0.23: ~11% of imported steps).
-                self.legacy = ("message" in self.tables and "part" in self.tables
-                               and MESSAGE_COLUMNS <= self._columns("message")
-                               and PART_COLUMNS <= self._columns("part"))
-            else:
-                have = {row[1] for row in self.conn.execute("PRAGMA table_info(part)")}
-                self.has_parts = PART_COLUMNS <= have
+            # OpenCode 2 imports V1 messages with time.completed set to the V1
+            # row's last update (a later revert, fork or compaction), and their
+            # tool times likewise, so a V1 message's own record wins while the
+            # V1 tables remain (measured on 2.0.23: ~11% of imported steps).
+            self.legacy = ("message" in self.tables and "part" in self.tables
+                           and MESSAGE_COLUMNS <= self._columns("message")
+                           and PART_COLUMNS <= self._columns("part"))
         except sqlite3.Error as exc:
             self.__exit__()
             raise Unavailable(f"database not readable: {exc.__class__.__name__}") from None
@@ -552,7 +371,7 @@ class Snapshot:
         rows = self.conn.execute(
             "SELECT id, parent_id, project_id, directory, title, version, time_created, time_updated, "
             "time_archived, agent, model, cost, tokens_input, tokens_output, tokens_reasoning, "
-            f"tokens_cache_read, tokens_cache_write FROM {self.session_table} WHERE {where}", params)
+            f"tokens_cache_read, tokens_cache_write FROM session_v2 WHERE {where}", params)
         out = []
         for row in rows:
             try:
@@ -567,33 +386,21 @@ class Snapshot:
         """Assistant-message scalars only; never content, parts or raw JSON."""
         out = []
         ids = list(session_ids)
+        completed = ("coalesce(json_extract(o.data, '$.time.completed'), json_extract(m.data, '$.time.completed'))"
+                     if self.legacy else "json_extract(m.data, '$.time.completed')")
+        join = "LEFT JOIN message AS o ON o.id = m.id " if self.legacy else ""
         for start in range(0, len(ids), 500):
             chunk = ids[start:start + 500]
             marks = ",".join("?" * len(chunk))
-            if self.schema == 2:
-                completed = ("coalesce(json_extract(o.data, '$.time.completed'), "
-                             "json_extract(m.data, '$.time.completed'))" if self.legacy
-                             else "json_extract(m.data, '$.time.completed')")
-                join = "LEFT JOIN message AS o ON o.id = m.id " if self.legacy else ""
-                out.extend(self.conn.execute(
-                    "SELECT m.session_id, json_extract(m.data, '$.model.providerID'), "
-                    "json_extract(m.data, '$.model.id'), json_extract(m.data, '$.agent'), "
-                    f"json_extract(m.data, '$.time.created'), {completed}, "
-                    "json_extract(m.data, '$.tokens.input'), json_extract(m.data, '$.tokens.output'), "
-                    "json_extract(m.data, '$.tokens.reasoning'), json_extract(m.data, '$.tokens.cache.read'), "
-                    "json_extract(m.data, '$.tokens.cache.write'), json_extract(m.data, '$.cost') "
-                    f"FROM session_message AS m {join}WHERE m.session_id IN ({marks}) AND m.time_created < ? "
-                    "AND m.type = 'assistant'", (*chunk, to_ms)))
-                continue
             out.extend(self.conn.execute(
-                "SELECT session_id, json_extract(data, '$.providerID'), json_extract(data, '$.modelID'), "
-                "json_extract(data, '$.agent'), json_extract(data, '$.time.created'), "
-                "json_extract(data, '$.time.completed'), json_extract(data, '$.tokens.input'), "
-                "json_extract(data, '$.tokens.output'), json_extract(data, '$.tokens.reasoning'), "
-                "json_extract(data, '$.tokens.cache.read'), json_extract(data, '$.tokens.cache.write'), "
-                "json_extract(data, '$.cost') FROM message "
-                f"WHERE session_id IN ({marks}) AND time_created < ? "
-                "AND json_extract(data, '$.role') = 'assistant'", (*chunk, to_ms)))
+                "SELECT m.session_id, json_extract(m.data, '$.model.providerID'), "
+                "json_extract(m.data, '$.model.id'), json_extract(m.data, '$.agent'), "
+                f"json_extract(m.data, '$.time.created'), {completed}, "
+                "json_extract(m.data, '$.tokens.input'), json_extract(m.data, '$.tokens.output'), "
+                "json_extract(m.data, '$.tokens.reasoning'), json_extract(m.data, '$.tokens.cache.read'), "
+                "json_extract(m.data, '$.tokens.cache.write'), json_extract(m.data, '$.cost') "
+                f"FROM session_message AS m {join}WHERE m.session_id IN ({marks}) AND m.time_created < ? "
+                "AND m.type = 'assistant'", (*chunk, to_ms)))
         return out
 
     def waits(self, session_ids, to_ms):
@@ -601,26 +408,22 @@ class Snapshot:
         out = {}
         ids = list(session_ids)
         tools = ",".join("?" * len(WAIT_TOOLS))
-        v1_parts = ("SELECT session_id, json_extract(data, '$.state.time.start'), "
-                    "json_extract(data, '$.state.time.end') FROM part "
-                    "WHERE session_id IN ({marks}) AND time_created < ? "
-                    "AND json_extract(data, '$.type') = 'tool' "
-                    f"AND json_extract(data, '$.tool') IN ({tools})")
-        queries = [v1_parts]
-        if self.schema == 2:
-            # Tool calls are entries of the assistant message's content array;
-            # only their type, name and times are extracted. Imported V1
-            # messages take their waits from the V1 parts instead.
-            queries = [("SELECT m.session_id, coalesce(json_extract(c.value, '$.time.ran'), "
-                        "json_extract(c.value, '$.time.created')), json_extract(c.value, '$.time.completed') "
-                        "FROM session_message AS m, json_each(m.data, '$.content') AS c "
-                        "WHERE m.session_id IN ({marks}) AND m.time_created < ? AND m.type = 'assistant' "
-                        "AND json_extract(c.value, '$.type') = 'tool' "
-                        f"AND json_extract(c.value, '$.name') IN ({tools})"
-                        + (" AND NOT EXISTS (SELECT 1 FROM message AS o WHERE o.id = m.id)"
-                           if self.legacy else ""))]
-            if self.legacy:
-                queries.append(v1_parts)
+        # Tool calls are entries of the assistant message's content array; only
+        # their type, name and times are extracted. Imported V1 messages take
+        # their waits from the V1 parts instead.
+        queries = [("SELECT m.session_id, coalesce(json_extract(c.value, '$.time.ran'), "
+                    "json_extract(c.value, '$.time.created')), json_extract(c.value, '$.time.completed') "
+                    "FROM session_message AS m, json_each(m.data, '$.content') AS c "
+                    "WHERE m.session_id IN ({marks}) AND m.time_created < ? AND m.type = 'assistant' "
+                    "AND json_extract(c.value, '$.type') = 'tool' "
+                    f"AND json_extract(c.value, '$.name') IN ({tools})"
+                    + (" AND NOT EXISTS (SELECT 1 FROM message AS o WHERE o.id = m.id)" if self.legacy else ""))]
+        if self.legacy:
+            queries.append("SELECT session_id, json_extract(data, '$.state.time.start'), "
+                           "json_extract(data, '$.state.time.end') FROM part "
+                           "WHERE session_id IN ({marks}) AND time_created < ? "
+                           "AND json_extract(data, '$.type') = 'tool' "
+                           f"AND json_extract(data, '$.tool') IN ({tools})")
         for start in range(0, len(ids), 500):
             chunk = ids[start:start + 500]
             marks = ",".join("?" * len(chunk))
@@ -663,7 +466,7 @@ def _usage(snap, q):
         if q["directory"] and not _under(rec["directory"], q["directory"]):
             continue
         sessions[rec["id"]] = rec
-    waits = snap.waits(sessions, hi) if snap.has_parts else {}
+    waits = snap.waits(sessions, hi)
     groups = {}
     incomplete = malformed = 0
 
@@ -732,9 +535,6 @@ def _usage(snap, q):
     if malformed:
         diagnostics.append({"code": "messages-malformed-time", "count": malformed,
                             "effect": "skipped", "partial": True})
-    if not snap.has_parts:
-        diagnostics.append({"code": "waits-unavailable",
-                            "effect": "question waits are not subtracted from activity", "partial": True})
     return {"totals": finish(totals), "groups": [finish(b) for b in ordered]}, diagnostics
 
 
@@ -751,43 +551,37 @@ def _page(records, q):
             "sessions": [_present(r, q) for r in page]}
 
 
-def _via_api(q, server_factory):
-    with server_factory() as server:
-        if q["action"] == "list":
-            body = _page(_api_list(server, q), q)
-        elif q["action"] == "get":
-            body = {"session": _present(_api_get(server, q["session_id"]), q)}
-        else:
-            children = sorted(_api_children(server, q["session_id"]), key=lambda r: (r["created_ms"], r["id"]))
-            body = {"sessions": [_present(r, q) for r in children]}
-        return body, server.version
+def _via_api(q, client):
+    if q["action"] == "list":
+        body = _page(_api_list(client, q), q)
+    elif q["action"] == "get":
+        body = {"session": _present(_api_get(client, q["session_id"]), q)}
+    else:
+        children = sorted(_api_children(client, q["session_id"]), key=lambda r: (r["created_ms"], r["id"]))
+        body = {"sessions": [_present(r, q) for r in children]}
+    return body, _api_version(client)
 
 
-def _via_db(q, path_factory, version_factory):
+def _via_db(q, path_factory):
     try:
-        return _read_db(q, path_factory, version_factory)
+        with Snapshot(path_factory()) as snap:
+            if q["action"] == "usage":
+                return _usage(snap, q)
+            if q["action"] == "list":
+                return _page(_db_window_sessions(snap, q), q), []
+            found = snap.sessions("id = ?", (q["session_id"],))
+            if not found:
+                raise ValueError(f"Session {q['session_id']} not found")
+            if q["action"] == "get":
+                return {"session": _present(found[0], q)}, []
+            children = sorted(snap.sessions("parent_id = ?", (q["session_id"],)),
+                              key=lambda r: (r["created_ms"], r["id"]))
+            return {"sessions": [_present(r, q) for r in children]}, []
     except sqlite3.Error as exc:
         raise Unavailable(f"database read failed: {exc.__class__.__name__}") from None
 
 
-def _read_db(q, path_factory, version_factory):
-    with Snapshot(path_factory(), version_factory) as snap:
-        if q["action"] == "usage":
-            return _usage(snap, q)
-        if q["action"] == "list":
-            return _page(_db_window_sessions(snap, q), q), []
-        found = snap.sessions("id = ?", (q["session_id"],))
-        if not found:
-            raise ValueError(f"Session {q['session_id']} not found")
-        if q["action"] == "get":
-            return {"session": _present(found[0], q)}, []
-        children = sorted(snap.sessions("parent_id = ?", (q["session_id"],)),
-                          key=lambda r: (r["created_ms"], r["id"]))
-        return {"sessions": [_present(r, q) for r in children]}, []
-
-
-def run(args, *, server_factory=ApiServer, path_factory=db_path, keep_intervals=False,
-        version_factory=opencode_major):
+def run(args, *, client=_client, path_factory=db_path, keep_intervals=False):
     """Answer one request. Raises ValueError for caller mistakes, Unavailable for sources.
 
     keep_intervals (callers in code only) adds the merged activity intervals to
@@ -798,7 +592,7 @@ def run(args, *, server_factory=ApiServer, path_factory=db_path, keep_intervals=
     window = common.window_view(q.get("from"), q.get("to"), q["timezone"])
     if q["action"] != "usage" and q["source"] in ("auto", "api"):
         try:
-            body, version = _via_api(q, server_factory)
+            body, version = _via_api(q, client)
             return common.envelope(q["action"], window, "api", diagnostics, body, opencode_version=version)
         except Unavailable as exc:
             if q["source"] == "api":
@@ -807,7 +601,7 @@ def run(args, *, server_factory=ApiServer, path_factory=db_path, keep_intervals=
                 raise
             diagnostics.append({"code": "api-unavailable", "detail": str(exc),
                                 "effect": "answered from the local database"})
-    body, notes = _via_db(q, path_factory, version_factory)
+    body, notes = _via_db(q, path_factory)
     diagnostics.extend(notes)
     return common.envelope(q["action"], window, "db", diagnostics, body, opencode_version=None)
 

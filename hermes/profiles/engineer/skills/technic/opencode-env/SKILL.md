@@ -24,12 +24,12 @@ Client decisions and the opencode_call transport; this skill is only a map.
 | --- | --- |
 | `~/.config/opencode/opencode.jsonc` | Provider/agent defaults, plugins, permissions, MCP and custom-tool grants |
 | `~/.config/opencode/agent/*.md` | Installed primary/subagent definitions and model/permission overrides |
-| `~/.config/opencode/agent/hermes-{plan,build,review}.md` | The hidden non-interactive primaries the wrapper maps plan/build/review onto (`plugins/opencode` `OPENCODE_AGENTS`); their frontmatter holds the default model per role |
+| `~/.config/opencode/agent/hermes-{plan,build,review,debug}.md` | The hidden non-interactive primaries the wrapper maps its four roles onto (`plugins/opencode` `OPENCODE_AGENTS`); their frontmatter holds each role's default model and permission posture, and the wrapper adds each run's constraints as the session's ruleset |
 | `~/.config/opencode/AGENTS.md` | Global skill routing and delegation rules |
 | `~/.config/opencode/skills/` | OpenCode-specific skills, including nested approach/Git groups |
 | `~/.agents/skills/` | Shared/external skill discovery; ownership varies, not all are repo-managed |
 | Target repository instructions | Local structure, test commands, conventions and constraints |
-| Engineer config `opencode_cli` | Wrapper enablement/deadline and optional per-agent model override |
+| Engineer config `opencode_cli` | Wrapper enablement, deadlines (`timeout`, `wait_timeout`, `permission_timeout`) and optional per-agent model override |
 
 Read needed configuration with file tools, never dump credential stores, process
 environment or resolved provider configurations containing secrets. JSONC is not
