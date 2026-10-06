@@ -16,6 +16,27 @@
   // (anomalyco/opencode#51341). All global rules live in AGENTS.md, which both
   // V1 and V2 read.
   "small_model": "openai/gpt-6-luna",
+  // OpenCode 2 formats nothing unless a config sets "formatter"; the object
+  // form also enables the built-ins whose tools are installed.
+  "formatter": {
+    // Markdown runs the Prettier that Mason installs for nvim, resolved like
+    // stdpath("data"), so both editors format it the same way without
+    // project config. A project's own Prettier dependency still wins.
+    "prettier-markdown": {
+      "command": [
+        "sh",
+        "-c",
+        "exec \"${XDG_DATA_HOME:-$HOME/.local/share}/nvim/mason/bin/prettier\" --write \"$1\"",
+        "sh",
+        "$FILE",
+      ],
+      "extensions": [".md", ".mdx"],
+    },
+    // nvim does not format Python on save, and most Python here is not
+    // ruff-formatted: every edit would rewrite the whole file.
+    "uv": { "disabled": true },
+    "ruff": { "disabled": true },
+  },
   "agent": {
     "plan": {
       "color": "#f5f5f5",
