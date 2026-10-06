@@ -11,6 +11,8 @@ approval. Part of the Hermes design docs — index: [`PROFILES.md`](../PROFILES.
 | Engine, approval rule, bypass guard, setup CLI | `plugins/google-access/access.py` | all |
 | `google_sheets`, `google_gmail`, `google_drive`, `gcloud` tools and the `pre_tool_call` hook (toolset `google_access`) | `plugins/google-access/__init__.py` | Assistant |
 | Setup launcher | `../bin/gaccess` (runs on `hermes-python`) | people |
+| How the Assistant works a sheet: reads, guarded writes, approvals, formatting, checking the look, recovery, sheet design | the `google-sheets` technic (`profiles/assistant/skills/technic/google-sheets/`) | Assistant |
+| When the Assistant uses the tools in Chat, and Gmail, Drive and gcloud | the Assistant's private Chat reference `google.md` | Assistant |
 
 The engine uses the Google client libraries of Hermes' own runtime (the
 `google` extra `setup.sh` installs) and the `gcloud` binary on `PATH`. The
