@@ -34,7 +34,7 @@ TARGETS = {
     "marketer": {"engineer", "creator", "researcher", "writer"},
     "engineer": {"marketer", "researcher", "writer"},
 }
-RESIDENT = Path(__file__).resolve().parents[2] / "profiles/assistant/scripts/resident-session.sh"
+RESIDENT = Path(__file__).resolve().parents[3] / "profiles/assistant/scripts/resident-session.sh"
 TURN_TIMEOUT = 5400
 BUSY = {"accepted", "running", "unknown"}
 # Work a runner may still be executing; everything else is settled for waiting.

@@ -51,7 +51,7 @@ from typing import Any, NamedTuple
 
 
 LEARNED_CATEGORY = "learned"
-MANAGED_ROOT = Path(__file__).resolve().parents[2]  # <repo>/hermes
+MANAGED_ROOT = Path(__file__).resolve().parents[3]  # <repo>/hermes
 # Private overlay counterpart (the checkout's `private` link, so a task worktree
 # with its own overlay link guards its own pair); only profiles/*/skills count.
 PRIVATE_ROOT = MANAGED_ROOT.parent / "private" / "hermes"

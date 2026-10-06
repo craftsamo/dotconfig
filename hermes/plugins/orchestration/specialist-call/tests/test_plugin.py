@@ -101,7 +101,7 @@ def test_target_policy(caller, target):
 def creator_caller(caller, monkeypatch):
     home = caller[0].parent / "creator"
     home.mkdir()
-    config = yaml.safe_load((PLUGIN.parents[2] / "profiles/creator/config.yaml").read_text())
+    config = yaml.safe_load((PLUGIN.parents[3] / "profiles/creator/config.yaml").read_text())
     assert set(config["a2a_agents"]) == set(CREATOR_TARGETS) == p.TARGETS["creator"]
     assert set(config["specialist_call"]["resident_targets"]) == set(CREATOR_TARGETS)
     (home / "config.yaml").write_text(yaml.safe_dump(config))
@@ -680,7 +680,7 @@ def test_profile_configuration_and_plugin_api():
     from hermes_cli.plugins import PluginContext
     import inspect
 
-    root = PLUGIN.parents[2]
+    root = PLUGIN.parents[3]
     manifest = yaml.safe_load(PLUGIN.with_name("plugin.yaml").read_text())
     assert manifest["name"] == "specialist-call" and manifest["kind"] == "standalone"
     paths = [root / "profiles/assistant/config.example.yaml", root / "profiles/creator/config.yaml"]

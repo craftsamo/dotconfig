@@ -35,7 +35,7 @@ NETWORK = {"posts", "mentions", "search", "thread", "user", "media", "snapshot"}
 
 HERE = Path(__file__).resolve().parent
 BRIDGE = HERE / "bridge.py"
-VENV_PYTHON = HERE.parents[1] / "local" / "twscrape" / "venv" / "bin" / "python"
+VENV_PYTHON = HERE.parents[2] / "local" / "twscrape" / "venv" / "bin" / "python"
 STORE = Path.home() / ".x-access"
 SETUP = "hermes/scripts/x-access.sh"
 COOKIES_SET = "secret set X_READER_COOKIES -p hermes --scope x-reader"

@@ -7,14 +7,14 @@
 #   ai-history opencode usage --days 7 --group-by model
 #   ai-history --help
 #
-# The code lives in the Hermes session-history plugin (hermes/plugins/
+# The code lives in the Hermes session-history plugin (hermes/plugins/orchestration/
 # session-history/cli.py). It runs on Hermes' own Python so the Hermes reader
 # can use Hermes' session store (via hermes-python); without it, plain python3 still works and the
 # result says it read the databases directly. Read-only: nothing is written.
 # Overrides: AI_HISTORY_PYTHON, AI_HISTORY_CLI.
 set -euo pipefail
 
-cli="${AI_HISTORY_CLI:-$HOME/.config/hermes/plugins/session-history/cli.py}"
+cli="${AI_HISTORY_CLI:-$HOME/.config/hermes/plugins/orchestration/session-history/cli.py}"
 if [[ ! -f $cli ]]; then
   echo "ai-history: cannot find $cli (set AI_HISTORY_CLI)" >&2
   exit 127

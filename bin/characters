@@ -11,7 +11,7 @@
 # characters plugin. Override: CHARACTERS_CLI.
 set -euo pipefail
 
-cli="${CHARACTERS_CLI:-$HOME/.config/private/hermes/plugins/characters/characters.py}"
+cli="${CHARACTERS_CLI:-$HOME/.config/private/hermes/plugins/tts/characters/characters.py}"
 if [[ ! -f $cli ]]; then
   echo "characters: cannot find $cli (set CHARACTERS_CLI)" >&2
   exit 127

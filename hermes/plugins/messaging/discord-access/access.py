@@ -55,7 +55,7 @@ ROLE_WRITES = {"role_add", "role_remove", "role_bulk_add", "role_create", "role_
 WRITES = {"send"} | MESSAGE_WRITES | ROLE_WRITES
 
 ENGINE = HERE / "engine.py"
-ENGINE_PYTHON = HERE.parents[1] / "local" / "discord-user" / "venv" / "bin" / "python"
+ENGINE_PYTHON = HERE.parents[2] / "local" / "discord-user" / "venv" / "bin" / "python"
 ENGINE_PATH = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
 READ_TIMEOUT = 90           # token + build number + a few paced requests
 SYNC_TIMEOUT = 300
