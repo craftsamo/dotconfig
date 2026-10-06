@@ -52,17 +52,19 @@ visible in their OpenCode history and survive a lost wrapper process.
 - A build refuses a worktree in which another OpenCode session is running
   (another Hermes profile or a person); read-only roles may run alongside.
 - Models normally follow each hidden primary's pin (plan, review and debug on
-  Opus 5.5, build on GPT-6.1 Sol, independent of the model this profile runs on,
-  so your challenge and QA stay cross-family); the record's `engine` names what
-  actually ran. Maintainer opencode_cli.models may override per-agent models. A
-  Client may ask for a specific engine: pass model (provider/model) and/or
-  variant (reasoning effort such as high) from the maintainer allowlists
-  opencode_cli.allowed_models / allowed_variants. A name outside the allowlist
-  or not offered by OpenCode is refused, never substituted; report the refusal
-  and ask, do not stop the whole job over it. An explicit selection binds the
-  rest of that conversation; omitting it keeps the recorded engine. The caller
-  still cannot change the executable, environment or permission rules. No
-  automatic fallback or retry after uncertain effects.
+  Opus 5.5, build on GPT-6.1 Sol), or the maintainer's opencode_cli.models for
+  that role; the record's `engine` names what actually ran. You may pick another
+  engine when the work or the Client calls for it: opencode_session models lists
+  what you may pass as model (provider/model) and variant (that model's
+  reasoning efforts), the defaults per role, and your own models. Your own model
+  (your configured one, and a fallback you are answering with now) is refused
+  for every role, the default included, so you never judge or QA output from the
+  model you run on; on that refusal pick another listed model. A name outside
+  the list or not offered by OpenCode is refused, never substituted; report the
+  refusal and ask, do not stop the whole job over it. An explicit selection
+  binds the rest of that conversation; omitting it keeps the recorded engine.
+  The caller still cannot change the executable, environment or permission
+  rules. No automatic fallback or retry after uncertain effects.
 
 `opencode_session(action, conversation_id?, …)`
 
@@ -70,6 +72,8 @@ visible in their OpenCode history and survive a lost wrapper process.
   conversations. It is not a cross-session discovery or ownership-transfer API.
   Both also restart a run's lost watcher, which then reads the outcome from
   OpenCode.
+- models lists the engines opencode_call accepts (model, variants, context,
+  cost), each role's default, and your own models, which are refused.
 - wait blocks until the run hands back — finished, uncertain, or paused on a
   request you have not answered (bounded by timeout, opencode_cli.wait_timeout,
   your tool deadline and the turn deadline) — and returns the record with
