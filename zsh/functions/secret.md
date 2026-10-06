@@ -137,9 +137,10 @@ root; run inside `apps/api` for per-package precision. Templates
 skip re-injection via the `_SECRET_SHIM_PROJ` / `_SECRET_SHIM_TOOL`
 sentinels.
 
-The tmux OpenCode launcher uses tool mode for both the shared `opencode serve`
-process and its `opencode attach` clients, so Basic authentication credentials
-are injected into both sides without appearing in process arguments.
+OpenCode clients run in tool mode. OpenCode 2's shared background service is
+spawned by the first client and inherits its environment, so it sees the same
+Keychain secrets; restart it (`opencode service restart`) after changing one.
+The service keeps its own generated password.
 
 ```sh
 secret set OPENAI_API_KEY -p global        # every AI tool
@@ -164,7 +165,8 @@ environment:
 
 If the keychain cannot be unlocked, the shim normally starts the command
 without injection. `opencode serve` is the fail-closed exception: it exits
-unless `OPENCODE_SERVER_PASSWORD` was inherited or injected. Test hooks:
+unless `OPENCODE_PASSWORD` or `OPENCODE_SERVER_PASSWORD` was inherited or
+injected. Test hooks:
 `SECRET_SHIM_MODE` forces the mode, `SECRET_SHIM_BASE` replaces `global` as
 the tool-mode base.
 

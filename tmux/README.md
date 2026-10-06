@@ -31,67 +31,31 @@ symlink or setup step needed.
 | `prefix e`                 | kill every pane except the current one          |
 | `prefix f`                 | open the pane's directory in Finder             |
 | `prefix g`                 | lazygit popup (80% x 80%)                       |
-| `prefix o`                 | opencode popup — starts the shared server if needed, then opens one detached attach client per directory |
-| `prefix O` (Shift+o)       | reload the OpenCode instance for the pane's project after confirmation |
+| `prefix o`                 | opencode popup — one detached TUI session per directory, connected to OpenCode's shared background service |
+| `prefix O` (Shift+o)       | reload OpenCode configuration for every loaded project after confirmation |
 | `prefix H` (Shift+h)       | hermes popup (modern TUI) — one detached session per directory, launched via `bin/hermes --tui` (secret-shim); also starts the shared, tailnet-only web dashboard in the background |
 
-## OpenCode web server
+## OpenCode
 
-The first `prefix o` starts `opencode serve` in the detached `opencode-web`
-session. The server listens only on `127.0.0.1:4096`. Each directory keeps its
-own detached tmux session, but its TUI runs `opencode attach --dir <path>`
-against that shared server instead of starting another server. tmux waits for
-the server before creating a new client; a startup failure is reported with
-the persistent `~/Library/Logs/opencode-web.log` startup log.
+OpenCode 2 runs one shared background service per user (`127.0.0.1:49374`).
+The first `opencode` client starts it, it survives closing every TUI, and
+every directory's TUI talks to it. `prefix o` only keeps one detached tmux
+session per directory running `opencode <path>` through the secret shim;
+there is no server of its own to start. Existing directory sessions are not
+replaced while they are running.
 
-Existing directory sessions are not replaced while they are running. After an
-old standalone TUI exits, the next `prefix o` recreates that directory's tmux
-session as an attach client.
+The service inherits the environment of the client that started it, so
+Keychain secrets come from the shim at that moment. After changing a secret,
+restart it with `opencode service restart`, which also runs through the shim.
 
-`prefix O` calls the shared server's directory-scoped instance disposal API.
-Only the pane's project is affected; its persisted sessions remain available,
-and the next request rebuilds project configuration, agents, commands, skills,
-MCP connections, formatters, and language servers. Project `AGENTS.md` content
-is read on every model turn and normally does not require a reload. The helper
-refuses to reload while any session in that project is running or retrying;
-other clients using the same idle project will still reconnect their project
-services after the reload.
+`prefix O` runs `opencode reload`: the service rebuilds configuration for
+every project it has loaded, not just the pane's. Pending permission prompts
+and questions are cancelled; running sessions pick up the new configuration at
+their next step. Configuration and plugin files are also watched and reloaded
+on change, so `prefix O` is mostly for changes outside those files.
 
-The project reload does not invalidate Bun's module cache. Restart the shared
-server after editing an already-loaded `.opencode/plugin(s)/*.ts` or
-`.opencode/tool(s)/*.ts`, or after changing global OpenCode configuration.
-Restart only the directory-specific TUI after changing `tui.json` or
-`tui.jsonc`. Arbitrary files under `.opencode/` are not loaded unless they
-match an OpenCode configuration resource.
-
-`OPENCODE_SERVER_PASSWORD` must exist in the `opencode` Keychain layer. Add or
-replace it interactively without putting the value in shell history:
-
-```sh
-secret set OPENCODE_SERVER_PASSWORD -p opencode
-```
-
-After replacing the password, restart the server so the old credential stops
-working. The next `prefix o` starts it again with the new value:
-
-```sh
-tmux kill-session -t opencode-web
-```
-
-The web server is intended to be exposed to the tailnet with Tailscale Serve,
-not by binding OpenCode to the LAN. Enable Serve for the tailnet when prompted,
-then configure the persistent HTTPS proxy once:
-
-```sh
-tailscale serve --bg 127.0.0.1:4096
-```
-
-Check the local process and proxy with:
-
-```sh
-tmux has-session -t opencode-web
-tailscale serve status
-```
+Web and mobile access, the service's password and Tailscale Serve:
+[`opencode/README.md`](../opencode/README.md#web-access).
 
 ## Hermes web dashboard
 

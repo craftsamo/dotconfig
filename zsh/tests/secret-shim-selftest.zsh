@@ -9,6 +9,7 @@
 #   - cleans up after itself (trap on EXIT)
 #
 #   zsh -f ~/.config/zsh/tests/secret-shim-selftest.zsh
+#   SECRET_SHIM_UNDER_TEST=<worktree>/bin/secret-shim zsh -f ...   (a candidate shim)
 emulate -L zsh
 setopt pipefail
 source "$HOME/.config/zsh/functions/secret.zsh"
@@ -22,7 +23,7 @@ export SECRET_MASTER_ACCOUNT=master-selftest
 export SECRET_TEST_ONLY_KC='secret-selftest*'
 MP='master-pass-shim'
 
-SHIM=$HOME/.config/bin/secret-shim
+SHIM=${SECRET_SHIM_UNDER_TEST:-$HOME/.config/bin/secret-shim}
 PT=secret-selftest-shimproj      # project-mode project (via git config)
 PB=secret-selftest-shimbase      # tool-mode base layer (SECRET_SHIM_BASE)
 PTOOL=secret-selftest-shimtool   # tool-mode layer == fake command name
@@ -132,6 +133,10 @@ out=$(path=("$TD/bin" "$TD/real" $path) _SECRET_SHIM_TOOL=opencode \
   OPENCODE_SERVER_PASSWORD=test "$TD/bin/opencode" serve --port 4096 2>/dev/null)
 [[ $out == 'serve'$'\n''--port'$'\n''4096' ]] \
   && ok "tool: opencode serve accepts an injected password" || bad "tool: opencode serve accepts an injected password"
+out=$(path=("$TD/bin" "$TD/real" $path) _SECRET_SHIM_TOOL=opencode \
+  OPENCODE_PASSWORD=test "$TD/bin/opencode" serve --port 4096 2>/dev/null)
+[[ $out == 'serve'$'\n''--port'$'\n''4096' ]] \
+  && ok "tool: opencode serve accepts OPENCODE_PASSWORD" || bad "tool: opencode serve accepts OPENCODE_PASSWORD"
 
 # --- project mode ---------------------------------------------------------
 R=$TD/repo
