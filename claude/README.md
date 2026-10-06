@@ -1,15 +1,16 @@
 # Claude Code
 
 User-level configuration for Claude Code. [`install.sh`](../install.sh)
-creates five symlinks into `~/.claude/`:
+creates four symlinks into `~/.claude/` and links each shared skill into
+`~/.claude/skills/`:
 
-| Symlink                      | Target                                          |
-| ---------------------------- | ----------------------------------------------- |
-| `~/.claude/CLAUDE.md`        | `claude/CLAUDE.md`                              |
-| `~/.claude/settings.json`    | `claude/settings.json`                          |
-| `~/.claude/keybindings.json` | `claude/keybindings.json`                       |
-| `~/.claude/commands`         | `claude/commands/`                              |
-| `~/.claude/skills`           | `~/.agents/skills/` (machine-local shared root) |
+| Symlink                      | Target                                                |
+| ---------------------------- | ----------------------------------------------------- |
+| `~/.claude/CLAUDE.md`        | `claude/CLAUDE.md`                                    |
+| `~/.claude/settings.json`    | `claude/settings.json`                                |
+| `~/.claude/keybindings.json` | `claude/keybindings.json`                             |
+| `~/.claude/commands`         | `claude/commands/`                                    |
+| `~/.claude/skills/<name>`    | `~/.agents/skills/<name>` (machine-local shared root) |
 
 ## User-managed content
 
@@ -27,11 +28,14 @@ today; if one appears, give it a dedicated linked file rather than
 re-linking the whole directory.
 
 Skills are not kept here. Claude Code is the only CLI that does not read the
-shared `~/.agents/skills` root, so its skill dir is bridged to that root —
-the machine-local mutable dir that third-party installers write into, holding
-per-skill links to the repo-curated tree
-([`agents/curated/`](../agents/README.md)). The bridge deliberately points at
-the mutable root, not into the repo.
+shared `~/.agents/skills` root — the machine-local mutable dir that
+third-party installers write into, holding per-skill links to the
+repo-curated tree ([`agents/curated/`](../agents/README.md)). So
+`~/.claude/skills` is a real directory with one link per shared skill, each
+pointing at the mutable root, not into the repo. It is not linked whole
+because Claude Code syncs claude.ai skills into `~/.claude/skills/synced/`
+(and retires them to `.trash/`); those need the Claude app's tools and must
+not reach the shared root other CLIs read.
 
 ## Never tracked
 
