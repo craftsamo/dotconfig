@@ -231,23 +231,34 @@ Contract: [docs/hands/overview.md](docs/hands/overview.md) and
 Contract: [docs/profiles/engineer.md "OpenCode runtime"](docs/profiles/engineer.md).
 When editing `plugins/opencode` or `~/.config/opencode/agent/hermes-*.md`:
 
-- **The plugin is the only owner of the hidden primaries' permissions.** The
-  agent files carry no `permission:` block (a plugin test fails if one
-  reappears) — OpenCode deep-merges both, so two owners means neither is the
-  truth. On `opencode run`, `ask` is never a question (rejected without
-  `--auto`, approved with it); write `allow` or `deny`.
-- **OpenCode 2 runs stay `--standalone`.** The shared background service never
-  sees the run's `OPENCODE_CONFIG_CONTENT`, so attaching to it silently drops
-  the whole permission policy (V2 ignores `OPENCODE_PERMISSION`). Details:
-  [docs/profiles/engineer.md "OpenCode 1 and 2"](docs/profiles/engineer.md).
+- **Two policy owners with a fixed boundary.** Each `hermes-*.md` owns its
+  role posture in a V2 `permissions:` array (a V1 `permission:` map fails a
+  test: its `**/.env` patterns miss root files on V2); the plugin's session
+  ruleset owns each run's constraints. Subagent sessions copy that ruleset and
+  OpenCode applies it after their own posture, so it never carries a broad
+  allow and the caller can approve a request only `once` — a session-wide
+  allow would reopen what an explore or reviewer subagent denies itself (a
+  test enforces). An `ask` reaches the caller as a decision; anything
+  the caller must never approve is a `deny`.
+- **Reach OpenCode only through `api.py`** (`opencode api`, output to files,
+  minimal environment). A piped reply is cut off at a buffer boundary with exit
+  status zero, `--param` silently drops query parameters (queries go in the
+  path), and a service the command starts keeps its environment for every
+  session — never widen `ENV_NAMES` to a secret.
+- **The turn's watcher is the only writer of a running record**, and its held
+  conversation lock is its liveness. Recovery is starting a watcher, never
+  writing the record from elsewhere or signalling a stored PID.
 - Role → agent mapping lives only in `OPENCODE_AGENTS`; renaming an installed
   agent touches that map and nothing else.
-- Keep caller/worktree/branch binding, JSON error handling (exit zero is not
-  success), finite deadlines and no automatic replay after uncertain effects.
+- Keep caller/worktree/branch binding, completion from the turn's own idle
+  outcome (not a session-level outcome or an exit code), finite deadlines and
+  no automatic replay after `unknown`.
 - Keep `TURN_TIMEOUT` identical in `profiles/assistant/scripts/resident-session.sh`
   and `plugins/specialist-call`. Engineer's tool deadline
-  (`timeouts.tools.sequential_call` / `concurrent_batch`) must stay above
-  `opencode_cli.timeout`, or long calls turn into polling loops; verify with
+  (`timeouts.tools.sequential_call` / `concurrent_batch`) stays above
+  `opencode_cli.timeout`, so one blocking call covers a whole run (a call hands
+  back at `opencode_cli.wait_timeout` or 30 s before the tool deadline,
+  whichever is first, and the model continues with `wait`); verify with
   `HERMES_HOME=~/.hermes/profiles/engineer` +
   `agent.tool_executor._resolve_sequential_tool_timeout()`. Likewise `creator`
   and `marketer` keep theirs (5460) above `TURN_TIMEOUT` + cleanup, or a

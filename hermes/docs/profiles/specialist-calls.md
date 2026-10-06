@@ -85,8 +85,9 @@ completion.
   stop reached it stays `completed`. A2A inquiries cannot be cancelled, and A2A
   inbound callers cannot detach. Nested children (a Creator's hands, an
   Engineer's OpenCode runs) are not part of the confirmed group: their own
-  runners stop them on parent death, a little later, as `unknown` on the nested
-  side. A cancelled reconcile turn returns to `interrupted`, so cancelling never
+  runners stop them on parent death, a little later — a Creator's hands as
+  `unknown` on the nested side, an OpenCode run as `interrupted` once OpenCode
+  confirms it stopped. A cancelled reconcile turn returns to `interrupted`, so cancelling never
   reopens work.
 
 ### Completion and deadlines
