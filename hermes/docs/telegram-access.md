@@ -36,7 +36,8 @@ only.
 | `telegram_account` tool and the `pre_tool_call` hook (toolset `telegram_access`) | `plugins/telegram-access/__init__.py`                                                          | Assistant            |
 | Engine venv (Telethon, hash-locked)                                              | `engines/telegram-access/requirements.lock` → ignored `local/telegram-access/venv`             | people               |
 | Login and the agent                                                              | `launchd/telegram-access-launchctl.sh`, `launchd/local.hermes.telegram-access.sync.plist.tmpl` | people               |
-| When and how the Assistant uses it                                               | the Assistant's private Chat reference `telegram.md`                                           | Assistant            |
+| How the Assistant works with it: reads, files, sync list, sends, outcomes        | the `telegram-account` technic (`profiles/assistant/skills/technic/telegram-account/`)         | Assistant            |
+| When the Assistant uses it in Chat                                               | the Assistant's private Chat reference `telegram.md`                                           | Assistant            |
 
 [Telethon](https://codeberg.org/Lonami/Telethon) 1.x logs in as a new device
 of the account, listed on the phone under _Settings → Devices_ as "Hermes
@@ -244,7 +245,9 @@ the card.
   that skipped the gate, or a concurrent identical call, never uses another
   call's approval. The plan is rebuilt and must match the record; each file is
   copied into the private outbox and only copies whose hash still matches the
-  card are sent. The agent accepts files only from the outbox.
+  card are sent. Each copy keeps the card's file name in a folder of its own,
+  because Telegram names an upload after the file. The agent accepts files
+  only from the outbox.
 - **One send, never retried.** The agent uploads files first (an upload
   creates no message, so a failed upload is `not sent`), then makes one send
   call. Telethon's own resends of that call (after a reconnect or a Telegram
