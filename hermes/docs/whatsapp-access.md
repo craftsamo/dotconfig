@@ -97,10 +97,10 @@ WhatsApp synced to the linked device: history before pairing is best-effort.
   the result's `sync` note says what is wrong (not running, no longer paired,
   lock not taken yet, or `FAILED to restart` with the fix). With no agent
   loaded nothing is stopped; a lock held by anything else refuses.
-- **Pauses and sends share one per-account lock** (`$TMPDIR/hermes-wacli/
-  <account>.lock`), so a pause never cuts off a send in flight: a send that
-  finds a pause running waits ten seconds, then reads `not sent: a check or
-  backfill has paused sync`, and nothing went out.
+- **Pauses and sends share one per-account lock**
+  (`$TMPDIR/hermes-wacli/<account>.lock`), so a pause never cuts off a send in flight: a send that
+  finds a pause running waits ten seconds, then reads
+  `not sent: a check or backfill has paused sync`, and nothing went out.
 
 ## Send
 
@@ -222,8 +222,8 @@ Once per account, in a terminal:
    — stops that account's agent, adds the account if needed, prints a pairing
    code, and waits; on the phone, *Linked devices → Link a device → Link with
    phone number instead*, enter the code. When pairing finishes it installs
-   and starts the sync agent. Without `--phone`, `wacli --account <account>
-   auth` pairs by QR instead.
+   and starts the sync agent. Without `--phone`,
+   `wacli --account <account> auth` pairs by QR instead.
 4. `whatsapp-access-launchctl.sh status` — agent state and `wacli doctor` for
    every account; the tool's `status` action shows the same.
 

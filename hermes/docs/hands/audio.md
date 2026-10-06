@@ -380,8 +380,8 @@ stereo-to-mono cancellation is warned and recorded. Captions (`captions.json` +
 `mix_<slug>.srt`) come only from an existing `.words.json` sidecar on a speech
 source, timing-adjusted to the cue's placement — never a fresh ASR pass on the
 mixed master; overlapping spoken cues or a trim crossing a word/caption boundary
-is refused. Determinism is scoped to same spec + frozen sources + helper version
-+ environment → byte-identical PCM. The family is `cost: free` throughout —
+is refused. Determinism is scoped to same spec + frozen sources + helper
+version + environment → byte-identical PCM. The family is `cost: free` throughout —
 deterministic placement/gain/fade/sum on decoded PCM, with no attempt ledger or
 paid-approval gate beyond the approval hash. Exact schema: the leaf's
 `references/arrangement.md`.

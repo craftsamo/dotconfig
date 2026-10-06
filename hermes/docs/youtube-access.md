@@ -265,8 +265,8 @@ a sandbox.
    the channel on Google's chooser (unverified-app warning: Advanced →
    continue). An account without a channel yet works for public reads; run
    `yaccess check` after creating its channel. `yaccess channels` lists them, `yaccess check` refreshes each
-   token and shows whether reads get a read-only token, `yaccess revoke
-   CHANNEL` revokes one.
+   token and shows whether reads get a read-only token,
+   `yaccess revoke CHANNEL` revokes one.
 4. In the Assistant's and Marketer's `config.yaml`: the `youtube_access`
    toolset in `toolsets` and `platform_toolsets` (Marketer's `a2a` too, never
    the Assistant's), `youtube-access` in `plugins.enabled`, and optionally

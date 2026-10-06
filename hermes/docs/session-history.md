@@ -99,8 +99,8 @@ derived from `HERMES_HOME`, else `~/.hermes`), including `default`.
 ## Everyday use
 
 - `ai-history` — today's activity for both tools, overlap removed;
-  `--days 7`, `--from/--to`, `--json`. `ai-history hermes|opencode
-  list|get|children|usage` reach each reader with a short table. The launcher
+  `--days 7`, `--from/--to`, `--json`.
+  `ai-history hermes|opencode list|get|children|usage` reach each reader with a short table. The launcher
   runs on Hermes' interpreter (read from the real `hermes` launcher's shebang)
   so the Hermes reader can use `SessionDB`.
 - `/activity [today|week|month|N]` in Engineer and Assistant sessions (Telegram

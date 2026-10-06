@@ -62,10 +62,10 @@ Stdlib only, loaded by path, so the tool, the launcher and cron run the same cod
 
 ## Everyday use
 
-- `ws-drafts` — per-Group summary with an inbox line; `ws-drafts list
-  [--group G] [--stale] [--misnamed] [--legacy] [--sort idle|size|name|started]
-  [--json]`; `ws-drafts inbox [--stale] [--inbox-stale-days N] [--sort
-  idle|size|name] [--json]`, oldest first.
+- `ws-drafts` — per-Group summary with an inbox line;
+  `ws-drafts list [--group G] [--stale] [--misnamed] [--legacy] [--sort idle|size|name|started] [--json]`;
+  `ws-drafts inbox [--stale] [--inbox-stale-days N] [--sort idle|size|name] [--json]`,
+  oldest first.
 - `/drafts [inbox|stale|misnamed|legacy|<group>]` in Engineer and Assistant sessions
   (Telegram included) answers without a model turn as plain Markdown: an
   overview table, then one folded `<details>` section per place (current or

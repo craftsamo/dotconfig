@@ -59,8 +59,8 @@ read here; the board has its own tools (`github_project_*`).
 
 ## Everyday use
 
-- `ws-repos [--group G] [--no-github] [--json]`, `ws-repos prs|issues|commits
-  [--period today|week|month|N] [--group G]`.
+- `ws-repos [--group G] [--no-github] [--json]`,
+  `ws-repos prs|issues|commits [--period today|week|month|N] [--group G]`.
 - `/repos [prs|issues|commits] [today|week|month|N] [<group>]`, words in any
   order (`/repos commits week tech`); `commits` alone means today, and a
   period without `commits`, `prs` or `issues` answers with those three. In
@@ -68,8 +68,8 @@ read here; the board has its own tools (`github_project_*`).
   turn as plain Markdown, like `/drafts`: a per-Group table (one Group: per
   repo), the repos needing attention folded, and for `prs` / `issues` /
   `commits` one folded section per repository with linked items. A Group name
-  matches case-insensitively by name, then prefix, then substring (`/repos prs
-  tech`); an unknown name answers with the choices, and every answer folds
+  matches case-insensitively by name, then prefix, then substring
+  (`/repos prs tech`); an unknown name answers with the choices, and every answer folds
   tap-to-copy next commands. `pr`, `pulls` and `pullrequests` are accepted for
   `prs`, `commit` and `log` for `commits`. `/repos` is in the Engineer and
   Assistant command menus.

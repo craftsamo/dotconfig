@@ -121,8 +121,8 @@ The hook decides before a tool runs; the rule is `approval_request` in
   each shifts what the next position would mean, and a multi-range `delete`
   runs bottom-up so its row numbers are the ones read before the call. Its card
   reads `SpreadSheet:`, `Sheet:` when every op is on one tab, the checks,
-  then one line per op (`Width of columns B-D: 140px`, `Delete rows 4-5 with
-  their contents`), counting the rest as `(+N more changes)`. Tabs resolve
+  then one line per op (`Width of columns B-D: 140px`,
+  `Delete rows 4-5 with their contents`), counting the rest as `(+N more changes)`. Tabs resolve
   to sheet ids by name (a bare word is a tab, never a named range); tables by
   name or id. `table_update` keeps the columns it does not name, and
   `table_delete` removes the table with its contents (the API has no
@@ -226,8 +226,8 @@ under `plugins/` excepted), its Keychain item or scope, or a whole-Keychain
 read (`dump-keychain`, `secret export`). It is a pattern match on the call's text, not a
 sandbox: it stops ordinary use, not a determined script.
 
-Token refreshes run one at a time, the HTTP transport's own (on expiry or a
-401) included, and a refresh token Google rotates is stored only over the one
+Token refreshes run one at a time, the HTTP transport's own (on expiry or
+a 401) included, and a refresh token Google rotates is stored only over the one
 it was refreshed from. Keychain read-modify-writes are serialized by a lock
 file in the state directory, and an item that exists but cannot be read
 (a locked keychain) stops them instead of being replaced. Every store is
