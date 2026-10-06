@@ -136,6 +136,7 @@ executor.
 
 ### The form (front matter is the only representation)
 
+<!-- prettier-ignore -->
 ```yaml
 ---
 name: generate-icon
@@ -287,8 +288,8 @@ before the next look.
 
 ### Migration
 
-Each family moves on its own, each step verified before the next: (0) contract
-+ validator, (1) the hands skeleton, (2) the family's leaves proven from the
+Each family moves on its own, each step verified before the next: (0)
+contract + validator, (1) the hands skeleton, (2) the family's leaves proven from the
 hands' own CLI with a pasted filled form, (3) Creator routes that family to the
 hands while every other family stays on its technic, (4) the assistant's legacy
 plan leaf, QA contract and the creator technic for that family retire, (5) soak
@@ -300,23 +301,23 @@ and so do `image_gen` / `video_gen` / `tts` / `unreal-engine` from Creator's
 toolsets. The abandoned `refactor/creator-profile` branch is read only for
 scripts worth porting.
 
-| Family | Hands | Leaves | Legacy retained / retirement gate |
-|---|---|---|---|
-| icon | image-creator | source, create, generate, edit, analyze | `creator-logo-icons` and its assistant plan/QA retired; both-client soak (step 5) still open |
-| emoji | image-creator | create, generate, edit, analyze | never had a technic; published glyphs use `source-icon` |
-| mascot | image-creator | generate, edit, analyze | no technic mapping |
-| reimagine | image-creator | generate | no technic mapping |
-| kit | image-creator | source, create, generate, edit, analyze | no legacy family maps 1:1; nothing retired |
-| card | image-creator | create, generate, edit, analyze | `creator-text-card` and private-overlay mappings kept until handoff coverage, paid live validation and legacy caller migration prove retirement safe |
-| clip | video-creator | generate, edit, analyze | `creator-generated-video` and its assistant plan/QA kept for explicit legacy coverage (e.g. local ComfyUI) |
-| music-video | video-creator | generate | broader legacy video kept; nothing retires on partial MV coverage |
-| tour | video-creator | create | `creator-html-motion` and its 1:1 mappings kept intact |
-| ad | video-creator | analyze, create (a generated ad is generate-clip shots composed by create-ad; an authored PV is create-promotion) | no legacy mapping retired |
-| explainer-video | video-creator | create | `creator-manim-explainer` kept for explicit Manim / math / 3D scope |
-| promotion | video-creator | create | `creator-html-motion` kept, narrowed in routing to what no served video leaf covers (overlays on footage, captioned narration, audio-reactive, >60 s); its 1:1 mappings kept until caller coverage and both-client soak |
-| story | video-creator | create | `creator-html-motion` kept for captioned narration and pieces outside the served scopes; nothing retires on this leaf alone |
-| master | video-creator | create | `creator-media-assembly` kept, narrowed in routing to what create-master does not cover (overlays on footage, segments' own sound, ducking, edit-spec trims); its mappings kept until caller coverage and both-client soak |
-| speech | audio-creator | generate, edit, analyze | voice card, assistant plan/QA and canonical TTS special case retired; AudioCraft/HeartMuLa/songsee technics withdrawn without replacement |
-| sfx | audio-creator | create, generate, edit, analyze | no technic mapping |
-| music | audio-creator | create, generate, edit, analyze | vocal-song generation and standalone audio visualization withdrawn, not migrated |
-| mix | audio-creator | create, edit, analyze | no technic mapping |
+| Family          | Hands         | Leaves                                                                                                            | Legacy retained / retirement gate                                                                                                                                                                                          |
+| --------------- | ------------- | ----------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| icon            | image-creator | source, create, generate, edit, analyze                                                                           | `creator-logo-icons` and its assistant plan/QA retired; both-client soak (step 5) still open                                                                                                                               |
+| emoji           | image-creator | create, generate, edit, analyze                                                                                   | never had a technic; published glyphs use `source-icon`                                                                                                                                                                    |
+| mascot          | image-creator | generate, edit, analyze                                                                                           | no technic mapping                                                                                                                                                                                                         |
+| reimagine       | image-creator | generate                                                                                                          | no technic mapping                                                                                                                                                                                                         |
+| kit             | image-creator | source, create, generate, edit, analyze                                                                           | no legacy family maps 1:1; nothing retired                                                                                                                                                                                 |
+| card            | image-creator | create, generate, edit, analyze                                                                                   | `creator-text-card` and private-overlay mappings kept until handoff coverage, paid live validation and legacy caller migration prove retirement safe                                                                       |
+| clip            | video-creator | generate, edit, analyze                                                                                           | `creator-generated-video` and its assistant plan/QA kept for explicit legacy coverage (e.g. local ComfyUI)                                                                                                                 |
+| music-video     | video-creator | generate                                                                                                          | broader legacy video kept; nothing retires on partial MV coverage                                                                                                                                                          |
+| tour            | video-creator | create                                                                                                            | `creator-html-motion` and its 1:1 mappings kept intact                                                                                                                                                                     |
+| ad              | video-creator | analyze, create (a generated ad is generate-clip shots composed by create-ad; an authored PV is create-promotion) | no legacy mapping retired                                                                                                                                                                                                  |
+| explainer-video | video-creator | create                                                                                                            | `creator-manim-explainer` kept for explicit Manim / math / 3D scope                                                                                                                                                        |
+| promotion       | video-creator | create                                                                                                            | `creator-html-motion` kept, narrowed in routing to what no served video leaf covers (overlays on footage, captioned narration, audio-reactive, >60 s); its 1:1 mappings kept until caller coverage and both-client soak    |
+| story           | video-creator | create                                                                                                            | `creator-html-motion` kept for captioned narration and pieces outside the served scopes; nothing retires on this leaf alone                                                                                                |
+| master          | video-creator | create                                                                                                            | `creator-media-assembly` kept, narrowed in routing to what create-master does not cover (overlays on footage, segments' own sound, ducking, edit-spec trims); its mappings kept until caller coverage and both-client soak |
+| speech          | audio-creator | generate, edit, analyze                                                                                           | voice card, assistant plan/QA and canonical TTS special case retired; AudioCraft/HeartMuLa/songsee technics withdrawn without replacement                                                                                  |
+| sfx             | audio-creator | create, generate, edit, analyze                                                                                   | no technic mapping                                                                                                                                                                                                         |
+| music           | audio-creator | create, generate, edit, analyze                                                                                   | vocal-song generation and standalone audio visualization withdrawn, not migrated                                                                                                                                           |
+| mix             | audio-creator | create, edit, analyze                                                                                             | no technic mapping                                                                                                                                                                                                         |

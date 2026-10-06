@@ -105,8 +105,8 @@ lists all three controls; Qwen3 lists none.
   post-processing included, as long as the engine's checkpoint is unchanged —
   a checkpoint change in `engines/` invalidates every earlier seed. Qwen3
   exposes no seed because its server fixes one per voice, so identical
-  requests already reproduce. A seed rebuilds *that
-  take*; making a different line match an approved one is continuity work it
+  requests already reproduce. A seed rebuilds _that
+  take_; making a different line match an approved one is continuity work it
   does not buy. Verify reproduction on decoded SAMPLES, not container bytes —
   the delivered Ogg carries a random bitstream serial.
 
@@ -380,8 +380,8 @@ stereo-to-mono cancellation is warned and recorded. Captions (`captions.json` +
 `mix_<slug>.srt`) come only from an existing `.words.json` sidecar on a speech
 source, timing-adjusted to the cue's placement — never a fresh ASR pass on the
 mixed master; overlapping spoken cues or a trim crossing a word/caption boundary
-is refused. Determinism is scoped to same spec + frozen sources + helper version
-+ environment → byte-identical PCM. The family is `cost: free` throughout —
+is refused. Determinism is scoped to same spec + frozen sources + helper
+version + environment → byte-identical PCM. The family is `cost: free` throughout —
 deterministic placement/gain/fade/sum on decoded PCM, with no attempt ledger or
 paid-approval gate beyond the approval hash. Exact schema: the leaf's
 `references/arrangement.md`.

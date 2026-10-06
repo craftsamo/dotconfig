@@ -1,0 +1,16 @@
+# Markdown that agents read stays as written: Prettier's aligned tables pad
+# every load with spaces and turn wide tables into unreadable raw lines.
+# Docs for people (README, docs/) are still formatted.
+**/AGENTS.md
+**/SOUL*.md
+**/SKILL.md
+agents/curated/**/*.md
+agents/tests/**/*.md
+claude/CLAUDE.md
+copilot/copilot-instructions.md
+gemini/GEMINI.md
+hermes/profiles/**/*.md
+hermes/scripts/tests/**/*.md
+hermes/skills/**/*.md
+opencode/agent/**/*.md
+opencode/skills/**/*.md

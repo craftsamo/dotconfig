@@ -13,11 +13,11 @@ generation or a paid provider health check.
 
 `music_generate` accepts only these fields:
 
-| Action | Required | Optional |
-| --- | --- | --- |
-| `start` | `action`, `job_dir`, `approved_plan`, `approval_sha256` | `paid_approved: true` for fal only |
-| `next` | `action`, `job_dir` | Both approval fields together for a corrected proposal |
-| `resume` | `action`, `job_dir` | None |
+| Action   | Required                                                | Optional                                               |
+| -------- | ------------------------------------------------------- | ------------------------------------------------------ |
+| `start`  | `action`, `job_dir`, `approved_plan`, `approval_sha256` | `paid_approved: true` for fal only                     |
+| `next`   | `action`, `job_dir`                                     | Both approval fields together for a corrected proposal |
+| `resume` | `action`, `job_dir`                                     | None                                                   |
 
 Start requires a new absolute directory with an existing parent. Protected,
 traversing and symlinked paths are rejected. An existing job is never replaced.

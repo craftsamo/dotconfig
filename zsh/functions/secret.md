@@ -32,13 +32,13 @@ shows how the current directory resolves, `--unset` removes the mapping).
 
 One keychain item per secret — fully visible and editable in Keychain Access:
 
-| Attribute | Value                                                                        |
-| --------- | ---------------------------------------------------------------------------- |
+| Attribute | Value                                                                                                 |
+| --------- | ----------------------------------------------------------------------------------------------------- |
 | service   | `secret.<project>` (shared) or `secret.<project>/<scope>` (scoped) — lookup key together with account |
-| account   | the variable name (`TAVILY_API_KEY`) — **unique key, do not repurpose**      |
-| label     | `NAME` / `<scope>/NAME` inside the project's own keychain, prefixed with `<project>/` elsewhere |
-| kind      | short type label (`-D`), upper-cased on write; default `ENV` (`API KEY`, `TOKEN`, `SECRET`, ...)                             |
-| comment   | free-form description (`-j`), shown by `show` / `ls --long` / the GUI        |
+| account   | the variable name (`TAVILY_API_KEY`) — **unique key, do not repurpose**                               |
+| label     | `NAME` / `<scope>/NAME` inside the project's own keychain, prefixed with `<project>/` elsewhere       |
+| kind      | short type label (`-D`), upper-cased on write; default `ENV` (`API KEY`, `TOKEN`, `SECRET`, ...)      |
+| comment   | free-form description (`-j`), shown by `show` / `ls --long` / the GUI                                 |
 
 ## Keychains
 
@@ -89,21 +89,21 @@ macOS login password
        └─ <project>.keychain-db ... (auto-created on first write, no prompt)
 ```
 
-| Command                              | Purpose                                                      |
-| ------------------------------------ | ------------------------------------------------------------ |
-| `secret keychain master set`         | define it and rotate every registered custom keychain to it  |
-| `secret keychain master rotate`      | change it everywhere at once                                 |
-| `secret keychain master status`      | unlock source (`master`/`individual`/`none`) + lock state    |
-| `secret keychain master reveal [-c]` | show / copy it (for the password manager)                    |
-| `secret keychain master forget`      | remove the login copy (access starts prompting)              |
-| `secret keychain create NAME`        | new keychain — no password prompt once a master is set       |
-| `secret keychain register NAME`      | add a copied `.keychain-db` to the search list               |
-| `secret keychain remember NAME`      | per-keychain password override (takes precedence)            |
-| `secret keychain ls` | inventory and lifecycle                                  |
-| `secret keychain info` | inventory and lifecycle                                  |
-| `secret keychain lock` | inventory and lifecycle                                  |
-| `secret keychain unlock` | inventory and lifecycle                                  |
-| `secret keychain rm` | inventory and lifecycle                                  |
+| Command                              | Purpose                                                     |
+| ------------------------------------ | ----------------------------------------------------------- |
+| `secret keychain master set`         | define it and rotate every registered custom keychain to it |
+| `secret keychain master rotate`      | change it everywhere at once                                |
+| `secret keychain master status`      | unlock source (`master`/`individual`/`none`) + lock state   |
+| `secret keychain master reveal [-c]` | show / copy it (for the password manager)                   |
+| `secret keychain master forget`      | remove the login copy (access starts prompting)             |
+| `secret keychain create NAME`        | new keychain — no password prompt once a master is set      |
+| `secret keychain register NAME`      | add a copied `.keychain-db` to the search list              |
+| `secret keychain remember NAME`      | per-keychain password override (takes precedence)           |
+| `secret keychain ls`                 | inventory and lifecycle                                     |
+| `secret keychain info`               | inventory and lifecycle                                     |
+| `secret keychain lock`               | inventory and lifecycle                                     |
+| `secret keychain unlock`             | inventory and lifecycle                                     |
+| `secret keychain rm`                 | inventory and lifecycle                                     |
 
 ## Launcher shims — env injection without .env files
 
@@ -115,9 +115,9 @@ which injects Keychain secrets and execs the real binary (resolved from
 `PATH`, skipping itself, so e.g. the Claude Code self-updater in
 `~/.local/bin` keeps working). The symlink name selects one of two modes:
 
-| Mode    | Commands                                       | Injects                                                  |
-| ------- | ---------------------------------------------- | -------------------------------------------------------- |
-| tool    | `opencode`, `claude`, `codex`, `copilot`, `grok` — and any name not listed below | the shared layers of `global`, then `<command>` (tool wins); never a repository scope |
+| Mode    | Commands                                                                                                   | Injects                                                                                            |
+| ------- | ---------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| tool    | `opencode`, `claude`, `codex`, `copilot`, `grok` — and any name not listed below                           | the shared layers of `global`, then `<command>` (tool wins); never a repository scope              |
 | project | `npm`, `pnpm`, `node`, `bun`, `bunx`, `yarn`, `npx`, `python`, `python3`, `uv`, `docker`, `docker-compose` | `secret env` — the ambient project + repository scope of the CWD; nothing outside a git repository |
 
 Effective precedence in both modes:
@@ -127,7 +127,7 @@ explicitly exported environment  >  .env files (project mode)  >  Keychain
 ```
 
 Project mode never shadows an application's own dotenv loading: it collects
-variable *names* (values are never read) from `.env`, `.env.local` and
+variable _names_ (values are never read) from `.env`, `.env.local` and
 `.env.{development,production,test}{,.local}` — in every directory from the
 CWD up to the git toplevel plus the subtree below the CWD (`node_modules`
 pruned, depth-limited) — and skips those names. Monorepo package files like
@@ -158,9 +158,9 @@ the shell, and falls back to the injected (Keychain) value otherwise
 ```yaml
 env_file:
   - path: ./apps/api/.env
-    required: false           # works with or without the file
+    required: false # works with or without the file
 environment:
-  - STRIPE_SECRET_KEY         # value-less: shell (= injected) when set
+  - STRIPE_SECRET_KEY # value-less: shell (= injected) when set
 ```
 
 If the keychain cannot be unlocked, the shim normally starts the command
@@ -179,11 +179,11 @@ function directly (a defined function outranks the `bin/secret` command on
 
 ## Import / export
 
-| Format          | Metadata | Protection                                  |
-| --------------- | -------- | ------------------------------------------- |
-| `age` (default) | kept     | age passphrase encryption (`.json.age`)     |
-| `json`          | kept     | plaintext JSON, `chmod 600`                 |
-| `env`           | lost     | plaintext `export NAME='...'`, `chmod 600`  |
+| Format          | Metadata | Protection                                 |
+| --------------- | -------- | ------------------------------------------ |
+| `age` (default) | kept     | age passphrase encryption (`.json.age`)    |
+| `json`          | kept     | plaintext JSON, `chmod 600`                |
+| `env`           | lost     | plaintext `export NAME='...'`, `chmod 600` |
 
 ```sh
 secret export -p global                  # -> secret-export-global-YYYYMMDD.json.age

@@ -59,21 +59,21 @@ where conversation adds nothing.
   [`models-auth.md`](./models-auth.md) "Secrets layering".
 - **One shared board** at the base `~/.hermes/kanban.db`
   (`get_default_hermes_root()`, not profile-scoped).
-- **Workers spawn through the PATH `hermes`**: the dispatcher runs `hermes -p
-  <worker> … chat -q "work kanban task <id>"` via `shutil.which` (so the
+- **Workers spawn through the PATH `hermes`**: the dispatcher runs
+  `hermes -p <worker> … chat -q "work kanban task <id>"` via `shutil.which` (so the
   `bin/hermes` shim is used) with a copy of the gateway env and `HERMES_HOME`
   overridden, so workers get the `global` + `hermes` Keychain layers — no
   per-worker secret is needed.
 
 ## Three delegation layers
 
-| | Resident session | Kanban | `delegate_task` |
-| --- | --- | --- | --- |
-| Worker | **named profile** session with living context | **named profile**, fresh process per run | anonymous subagent |
-| Dialogue | conversational turns (feedback in minutes) | STATE/Q<n>/DECISION comments + block round-trips | none — one shot |
-| Durability | session registry + durable-path files | persistent queue, resumable | dies with the turn |
-| Requires | terminal + the wrapper script | a running gateway (the dispatcher) | nothing |
-| Use for | **default for heavy work**: anything you expect to give feedback on | fire-and-forget, cron-originated, mass-parallel, `scheduled` parking | in-turn parallel lookups |
+|            | Resident session                                                    | Kanban                                                               | `delegate_task`          |
+| ---------- | ------------------------------------------------------------------- | -------------------------------------------------------------------- | ------------------------ |
+| Worker     | **named profile** session with living context                       | **named profile**, fresh process per run                             | anonymous subagent       |
+| Dialogue   | conversational turns (feedback in minutes)                          | STATE/Q<n>/DECISION comments + block round-trips                     | none — one shot          |
+| Durability | session registry + durable-path files                               | persistent queue, resumable                                          | dies with the turn       |
+| Requires   | terminal + the wrapper script                                       | a running gateway (the dispatcher)                                   | nothing                  |
+| Use for    | **default for heavy work**: anything you expect to give feedback on | fire-and-forget, cron-originated, mass-parallel, `scheduled` parking | in-turn parallel lookups |
 
 **Fallback story:** resident sessions work whenever `hermes` runs — no gateway
 needed. Gateway up adds the board for fire-and-forget work; gateway down,
@@ -82,19 +82,19 @@ needed. Gateway up adds the board for fire-and-forget work; gateway down,
 
 ## Profile roster
 
-| Profile | Role | Front door | `terminal.cwd` | Toolsets | Gateway | Tracked |
-| --- | --- | --- | --- | --- | --- | --- |
-| **default** | CLI front door — assistant's CLI counterpart (neutral persona); hosts the multiplex gateway | CLI | `.` (launch dir) | `web,browser,terminal,file,code_execution,vision,x_search,skills,todo,memory,clarify,delegation,cronjob,kanban` | host | yes |
-| **assistant** | primary: messaging front door, dispatcher home board, non-creative quality gate, GitHub bookkeeping | Telegram + Discord | `~/Workspaces` | `web,browser,terminal,file,vision,x_search,skills,todo,memory,clarify,delegation,cronjob,computer_use,kanban,specialist,opencode,characters` + `unreal-engine` MCP | served | yes (private overlay) |
-| **engineer** | developer using OpenCode; human/Assistant Clients; technical planning, approved implementation through PR and UI QA; Issue writes only on explicit request | Telegram (own bot) | explicit task worktree | `terminal,file,web,browser,vision,skills,todo,memory,clarify,delegation,specialist,opencode` | bot + inquiry-only a2a :9902 | yes |
-| **researcher** | purpose-first depth Plan / Build / QA: evidence-pack / tradeoff-matrix / fact-check / guidance; proposes own-role scope, requests heavy breadth from the caller; serves engineer/creator/marketer only (not Assistant directly), cards refused | — (A2A receive-only) | `.` (launch / task ws) | `file,web,vision,video,skills,memory,delegation` | served (a2a :9906) | yes |
-| **searcher** | purpose-first retrieval Plan / Build / QA: lookup / sweep / hunt; valid settled catalog cards go directly Build / QA / terminal (multi-hop via `goal_mode`) | — (specialist) | `.` (launch / task ws) | `file,web,x_search,skills,memory` | served (no platforms) | yes |
-| **creator** | primary: plans with human/assistant clients, delegates served image/video/speech/sfx/music/mix forms, gates evidence and delivers; remaining technics cover images, authored video and assembly of supplied parts; vocal-song generation and standalone audio visualization remain withdrawn | Telegram (own bot) | `.` (launch / task ws) | `terminal,file,vision,image_gen,video_gen,video,tts,skills,memory,delegation,specialist,clarify,characters` + gen plugins + `unreal-engine` MCP | served (bot + a2a :9903) | yes |
-| **image-creator** | Creator's still-image hands: runs one `<verb>/<subject>` leaf from a filled form, QA with evidence, report; answers only Creator | — (A2A receive-only) | `.` (launch / task ws) | `terminal,file,vision,image_gen,skills,memory` | served (a2a :9907) | yes |
-| **video-creator** | Creator's video hands: clip, tour, ad, explainer-video and music-video leaves from approved forms; answers only Creator | — (A2A receive-only) | `.` (launch / task ws) | `terminal,file,vision,video_gen,video,skills,memory` | served (a2a :9908) | yes |
-| **audio-creator** | Creator's audio hands: speech, sfx, music (instrumental BGM/melodic pieces only) and mix (placing already-finished sources, never synthesis) from approved forms; measured/readback QA, no claims of listening; no full songs or voice registration | — (A2A receive-only) | `.` (launch / task ws) | `terminal,file,tts,sfx_gen,music_gen,skills,memory` | served (a2a :9909) | yes |
-| **writer** | reader-facing prose and producer-facing scripts from released units (outline / piece / whole job); draft-only, never publishes; serves all four primaries | — (A2A receive-only) | `.` (launch / task ws) | `writing-inspection,characters,file,web,skills,memory,delegation` | served (a2a :9905) | yes |
-| **marketer** | primary: strategy, offer discovery, producer coordination, existing-browser service drafts and outcome analysis; no publishing | Telegram (own bot) | `.` (launch / task ws) | `terminal,file,web,browser,x_search,x_access,youtube_access,vision,skills,memory,delegation,specialist,clarify` | served (bot + a2a :9904) | yes |
+| Profile           | Role                                                                                                                                                                                                                                                                                         | Front door           | `terminal.cwd`         | Toolsets                                                                                                                                                           | Gateway                      | Tracked               |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------- | --------------------- |
+| **default**       | CLI front door — assistant's CLI counterpart (neutral persona); hosts the multiplex gateway                                                                                                                                                                                                  | CLI                  | `.` (launch dir)       | `web,browser,terminal,file,code_execution,vision,x_search,skills,todo,memory,clarify,delegation,cronjob,kanban`                                                    | host                         | yes                   |
+| **assistant**     | primary: messaging front door, dispatcher home board, non-creative quality gate, GitHub bookkeeping                                                                                                                                                                                          | Telegram + Discord   | `~/Workspaces`         | `web,browser,terminal,file,vision,x_search,skills,todo,memory,clarify,delegation,cronjob,computer_use,kanban,specialist,opencode,characters` + `unreal-engine` MCP | served                       | yes (private overlay) |
+| **engineer**      | developer using OpenCode; human/Assistant Clients; technical planning, approved implementation through PR and UI QA; Issue writes only on explicit request                                                                                                                                   | Telegram (own bot)   | explicit task worktree | `terminal,file,web,browser,vision,skills,todo,memory,clarify,delegation,specialist,opencode`                                                                       | bot + inquiry-only a2a :9902 | yes                   |
+| **researcher**    | purpose-first depth Plan / Build / QA: evidence-pack / tradeoff-matrix / fact-check / guidance; proposes own-role scope, requests heavy breadth from the caller; serves engineer/creator/marketer only (not Assistant directly), cards refused                                               | — (A2A receive-only) | `.` (launch / task ws) | `file,web,vision,video,skills,memory,delegation`                                                                                                                   | served (a2a :9906)           | yes                   |
+| **searcher**      | purpose-first retrieval Plan / Build / QA: lookup / sweep / hunt; valid settled catalog cards go directly Build / QA / terminal (multi-hop via `goal_mode`)                                                                                                                                  | — (specialist)       | `.` (launch / task ws) | `file,web,x_search,skills,memory`                                                                                                                                  | served (no platforms)        | yes                   |
+| **creator**       | primary: plans with human/assistant clients, delegates served image/video/speech/sfx/music/mix forms, gates evidence and delivers; remaining technics cover images, authored video and assembly of supplied parts; vocal-song generation and standalone audio visualization remain withdrawn | Telegram (own bot)   | `.` (launch / task ws) | `terminal,file,vision,image_gen,video_gen,video,tts,skills,memory,delegation,specialist,clarify,characters` + gen plugins + `unreal-engine` MCP                    | served (bot + a2a :9903)     | yes                   |
+| **image-creator** | Creator's still-image hands: runs one `<verb>/<subject>` leaf from a filled form, QA with evidence, report; answers only Creator                                                                                                                                                             | — (A2A receive-only) | `.` (launch / task ws) | `terminal,file,vision,image_gen,skills,memory`                                                                                                                     | served (a2a :9907)           | yes                   |
+| **video-creator** | Creator's video hands: clip, tour, ad, explainer-video and music-video leaves from approved forms; answers only Creator                                                                                                                                                                      | — (A2A receive-only) | `.` (launch / task ws) | `terminal,file,vision,video_gen,video,skills,memory`                                                                                                               | served (a2a :9908)           | yes                   |
+| **audio-creator** | Creator's audio hands: speech, sfx, music (instrumental BGM/melodic pieces only) and mix (placing already-finished sources, never synthesis) from approved forms; measured/readback QA, no claims of listening; no full songs or voice registration                                          | — (A2A receive-only) | `.` (launch / task ws) | `terminal,file,tts,sfx_gen,music_gen,skills,memory`                                                                                                                | served (a2a :9909)           | yes                   |
+| **writer**        | reader-facing prose and producer-facing scripts from released units (outline / piece / whole job); draft-only, never publishes; serves all four primaries                                                                                                                                    | — (A2A receive-only) | `.` (launch / task ws) | `writing-inspection,characters,file,web,skills,memory,delegation`                                                                                                  | served (a2a :9905)           | yes                   |
+| **marketer**      | primary: strategy, offer discovery, producer coordination, existing-browser service drafts and outcome analysis; no publishing                                                                                                                                                               | Telegram (own bot)   | `.` (launch / task ws) | `terminal,file,web,browser,x_search,x_access,youtube_access,vision,skills,memory,delegation,specialist,clarify`                                                    | served (bot + a2a :9904)     | yes                   |
 
 ### Toolsets
 
@@ -184,7 +184,7 @@ expose Writer's production leaves to solve a reference lookup.
 Three per-profile layers, kept separate:
 
 - **SOUL.md** — persona/voice (BASE: Identity/Style/Avoid/Defaults + a one-line Role posture).
-- **`agent.system_prompt`** (config.yaml) — the always-on *operating contract*: how the
+- **`agent.system_prompt`** (config.yaml) — the always-on _operating contract_: how the
   profile works each task. Workers open with "first action: load `<skill>`"; the assistant
   carries its chat-output contract + a compact work-routing tripwire here, kept out of
   SOUL so it survives. `/personality` shares this slot and would clobber it — don't
@@ -210,6 +210,7 @@ Three per-profile layers, kept separate:
   only (task state lives in the kanban thread + git/board; playbook-sized
   knowledge becomes a skill), and `user_profile_enabled` is off for workers —
   they never converse with the human.
+
 - **skills/** — detailed, on-demand playbooks. Every local library uses the same
   ownership types. A worker has one tracked `<profile>-pipeline/` plus tracked,
   directly selectable `technic/` leaves. The assistant owns `assistant-pipeline/`

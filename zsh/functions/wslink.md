@@ -33,21 +33,21 @@ wslink sync                           # fix unlinked registered repos; report dr
 
 ## Model
 
-A *link* is a symlink `Projects/<group>/github/<name>` → a `~/ghq/<host>/<owner>/<name>`
+A _link_ is a symlink `Projects/<group>/github/<name>` → a `~/ghq/<host>/<owner>/<name>`
 clone. The registry (`wsreg`) records which repo belongs to which group; `wslink`
-keeps the filesystem symlinks and the registry in step. A *group* is a registry
+keeps the filesystem symlinks and the registry in step. A _group_ is a registry
 project whose `Projects/<id>` directory exists (`dir_path`).
 
-| Sigil | State          | Meaning                                            |
-| ----- | -------------- | -------------------------------------------------- |
-| `●`   | ok             | symlink present and points at the registered clone |
-| `○`   | declared       | registered, clone present, no symlink yet          |
-| `+`   | unregistered   | a ghq clone with no registry row / link            |
-| `✗`   | broken-link    | symlink target is missing                          |
-| `≠`   | wrong-target   | symlink points somewhere other than the clone      |
-| `?`   | orphan-link    | symlink with no registry row                       |
-| `!`   | conflict       | a real file/dir occupies the link path             |
-| `…`   | missing-clone  | registered, but the clone is not on disk           |
+| Sigil | State         | Meaning                                            |
+| ----- | ------------- | -------------------------------------------------- |
+| `●`   | ok            | symlink present and points at the registered clone |
+| `○`   | declared      | registered, clone present, no symlink yet          |
+| `+`   | unregistered  | a ghq clone with no registry row / link            |
+| `✗`   | broken-link   | symlink target is missing                          |
+| `≠`   | wrong-target  | symlink points somewhere other than the clone      |
+| `?`   | orphan-link   | symlink with no registry row                       |
+| `!`   | conflict      | a real file/dir occupies the link path             |
+| `…`   | missing-clone | registered, but the clone is not on disk           |
 
 ## Wizard (bare `wslink` / C-s)
 

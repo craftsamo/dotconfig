@@ -5,9 +5,9 @@ xAI's `grok` CLI coding agent.
 [`install.sh`](../install.sh) symlinks `AGENTS.md` and seeds `config.toml`
 into `~/.grok/`:
 
-| `~/.grok/` file | Repo source        | How                                   |
-| --------------- | ------------------ | ------------------------------------- |
-| `AGENTS.md`     | `grok/AGENTS.md`   | symlink                               |
+| `~/.grok/` file | Repo source        | How                                     |
+| --------------- | ------------------ | --------------------------------------- |
+| `AGENTS.md`     | `grok/AGENTS.md`   | symlink                                 |
 | `config.toml`   | `grok/config.toml` | seeded on first install (not symlinked) |
 
 `config.toml` is seeded rather than symlinked because the CLI atomically
