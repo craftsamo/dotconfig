@@ -159,9 +159,11 @@ under `discord_access.download_dir` from the profile's `config.yaml`, else
   (`images-ext-*.discordapp.net`, `media.discordapp.net`), never from the
   site behind the link; stickers from Discord's CDN (PNG, GIF or Lottie
   JSON). Any other host is refused.
-- Archives and programs are refused by name and declared type before the
-  download, and by the bytes (`file --mime-type`) after it, the same rules as
-  signal-access. A file over `discord_access.download_max_mb` (default 100, at
+- Programs are refused by name and declared type before the download, and by
+  the bytes (`file --mime-type`) after it, the same rules as signal-access. A
+  `.zip` or tar archive is downloaded and inspected before it is saved
+  ([Signal access](./signal-access.md), "Received archives"); `unpack` unpacks it ("Unpacking"). A file over
+  `discord_access.download_max_mb` (default 100, at
   most 500) is not downloaded, and the size is reported where known.
 - The plugin writes what passed into the download folder under a cleaned
   name (`a.txt`, `a-2.txt` for a repeat; a shortened name keeps its
@@ -173,8 +175,8 @@ under `discord_access.download_dir` from the profile's `config.yaml`, else
   from a crash expire after a day. Saving the same message again overwrites
   its folder's files.
 - A message that is gone, or an item Discord no longer serves, is reported as
-  missing. The note says a saved file is to be looked at, never opened, run
-  or unpacked.
+  missing. The note says a saved file is to be looked at, never opened or
+  run (an archive is unpacked only by `unpack`).
 
 ## Sync list
 

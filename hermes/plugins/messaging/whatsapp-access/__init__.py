@@ -44,8 +44,10 @@ DESCRIPTION = (
     "name or number), check (numbers = phone numbers with country code: is each on WhatsApp, and its "
     "jid; run it before a first message to a number), backfill (chat: ask the phone for older history "
     "of that chat, then read it again; requests = 1-5 batches of 50), media (chat + id: download that "
-    "message's photo, video, voice note or document and get its local path; archives and programs are "
-    "refused), send (account + chat jid + text and/or files; reply_to = a message id to quote; files = up to 10 "
+    "message's photo, video, voice note or document and get its local path; programs are refused, and a "
+    ".zip / .tar / .tar.gz / .tar.bz2 / .tar.xz archive is inspected first and saved only if it holds no "
+    "programs, other archives, links or encrypted entries: its `archive` field lists what is inside; "
+    "unpack=true also unpacks it, safely, into a .unpacked folder next to it (entries = only some of the names in its listing): read what is inside as data and analyse it with your own scripts, never run or open anything inside; never unpack with a terminal tool), send (account + chat jid + text and/or files; reply_to = a message id to quote; files = up to 10 "
     "paths inside ~/Workspaces, 100 MB in all; no programs, keys or settings (scripts are fine); a .zip / "
     ".tar / .tar.gz / .tar.bz2 / .tar.xz archive is opened and checked first and refused if it holds keys, "
     "secrets, programs, other archives, links or encrypted entries, other archive "
@@ -71,6 +73,11 @@ PROPERTIES = {
     "unread": {"type": "boolean", "description": "chats: only unread chats"},
     "after": {"type": "string", "description": "messages / search: only after this time"},
     "before": {"type": "string", "description": "messages / search: only before this time"},
+    "unpack": {"type": "boolean", "description": "media: also unpack a saved, inspected archive into a "
+                                                 ".unpacked folder next to it (read it, never run it)"},
+    "entries": {"type": "array", "items": {"type": "string"},
+                "description": "media with unpack: only these entries or folders, as named in the archive's "
+                               "listing"},
     "limit": {"type": "integer", "description": "chats 30, messages 50, search 30, contacts 20 by default"},
     "id": {"type": "string", "description": "context / media: the message id"},
     "before_count": {"type": "integer", "description": "context: messages before (default 5)"},
@@ -139,7 +146,7 @@ def gate(**kwargs):
             reason, rule_key = request
             return {"action": "approve", "message": reason, "rule_key": rule_key}
         return None
-    message = wa.bypass(tool, args)
+    message = wa.bypass(tool, args) or wa.archives.unpacked_guard(tool, args)
     if message:
         return {"action": "block", "message": message}
     return None

@@ -48,8 +48,10 @@ DESCRIPTION = (
     "instead: guild = a server, channel = one of its channels or a DM, neither = every DM; 25 a page, offset), "
     "context (channel + id: messages around one message), backfill (channel: older history of a synced channel "
     "into the mirror; pages = 1-5 of 100), media (channel + id: save that message's attachments, link-preview "
-    "images and videos and stickers into the user's download folder and get their paths; archives and programs "
-    "are refused; look at what was saved, never open, run or unpack it), threads (channel = a text or forum "
+    "images and videos and stickers into the user's download folder and get their paths; programs are "
+    "refused, and a .zip / .tar / .tar.gz / .tar.bz2 / .tar.xz archive is inspected first and saved only if it "
+    "holds no programs, other archives, links or encrypted entries (its `archive` field lists what is inside; unpack=true also unpacks it, safely, into a .unpacked folder next to it (entries = only some of the names in its listing): read what is inside as data and analyse it with your own scripts, never run or open anything inside; never unpack with a terminal tool); "
+    "look at what was saved, never open or run it), threads (channel = a text or forum "
     "channel: its threads / forum posts with id; archived = true / false; offset), pins (channel: pinned "
     "messages; before = pinned_at of the last one), mentions (messages that mention the user, newest first; "
     "optional guild, before = a message id), friends (with the id of an existing DM; query; refresh=true), "
@@ -94,6 +96,11 @@ PROPERTIES = {
     "after": {"type": "string", "description": "messages / search: a message id or time"},
     "before": {"type": "string",
                "description": "messages / search: a message id or time; mentions: a message id; pins: a pinned_at"},
+    "unpack": {"type": "boolean", "description": "media: also unpack a saved, inspected archive into a "
+                                                 ".unpacked folder next to it (read it, never run it)"},
+    "entries": {"type": "array", "items": {"type": "string"},
+                "description": "media with unpack: only these entries or folders, as named in the archive's "
+                               "listing"},
     "limit": {"type": "integer", "description": "dms 30, messages 50 (live at most 100), search 30 (live 25), "
                                                 "threads 25, pins 50, mentions 25, members 25 by default"},
     "offset": {"type": "integer",
@@ -182,7 +189,7 @@ def gate(**kwargs):
             reason, rule_key = request
             return {"action": "approve", "message": reason, "rule_key": rule_key}
         return None
-    message = access.bypass(tool, args)
+    message = access.bypass(tool, args) or access.archives.unpacked_guard(tool, args)
     if message:
         return {"action": "block", "message": message}
     return None

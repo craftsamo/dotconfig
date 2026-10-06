@@ -120,9 +120,54 @@ phone numbers are never accepted as a chat.
 - **`media`** copies one message's files from signal-cli's store into a folder
   under `signal_access.download_dir` from the profile's `config.yaml` (the
   Assistant uses `~/Workspaces/.inbox/signal`, so a received file can be sent
-  on), else `<HERMES_HOME>/signal-downloads/`, and returns the paths. Archives
-  and programs are refused by name, declared type and sniffed content; a file
-  signal-cli never downloaded is reported as only on the phone.
+  on), else `<HERMES_HOME>/signal-downloads/`, and returns the paths. Programs
+  are refused by name, declared type and sniffed content, and so are archive
+  formats that cannot be inspected; a file signal-cli never downloaded is
+  reported as only on the phone.
+- **Received archives.** A `.zip`, `.tar`, `.tar.gz`/`.tgz`, `.tar.bz2` or
+  `.tar.xz` that someone sent is saved only after the shared inspection
+  (`plugins/messaging/_shared/archive_check.py`, `vet_received`) passes on the
+  downloaded copy: no program, installer, other archive, link, encrypted
+  entry or escaping path, within the limits below. Unlike a send, key and
+  secret names and private key blocks are not refused (nothing here can leak),
+  and source scripts are allowed: they do nothing until someone runs them. An
+  archive that passes is saved whole; the result lists up to 50 of its file
+  names and counts the rest. The names are the sender's words, so they are
+  cleaned of control, bidi and invisible characters and cut to 80 characters
+  before anyone reads them, and the result's note says they are data.
+  Telegram, WhatsApp and Discord do the same. A name that says zip or tar over
+  other content, `.rar`, `.7z` and the like are refused, and the file is
+  deleted. Every file `media` saves, of any kind, carries the macOS quarantine
+  flag (`com.apple.quarantine`) as a browser download does, so macOS asks
+  before it opens an application or script from it. WhatsApp also sniffs a
+  downloaded file's content with `file`, as the other three do.
+- **Unpacking** (`media` with `unpack: true`, and `entries` for only some of
+  the names or folders in the listing). The tool unpacks the archive itself
+  (`extract`), never a system tool, into `<name>.unpacked/` next to it (a
+  number is added when that is taken). The saved archive is copied to a private
+  folder and inspected again there, and the entries are written from that same
+  copy, so nothing can change between the check and the unpacking. Each file
+  is created below the new folder through descriptors that follow no link and
+  overwrite nothing (a clashing name gets a number, odd characters in a name
+  become `_`), with mode 0644 (the sender's execute bit is dropped) and the
+  quarantine flag. Any failure removes everything written and leaves the
+  archive saved, with `unpack_error` saying why. The unpacked files are for
+  reading as data and for analysis with the Assistant's own scripts, kept
+  outside the folder, through safe parsers.
+- **Never run what was received.** The same hook that guards each plugin
+  blocks a terminal call that would run a file inside a `*.unpacked` folder:
+  an interpreter or a path as the command, from there or with the folder as
+  its working directory, `source`, `open` (apart from `open -R`), `chmod`,
+  `xattr` that deletes or changes the quarantine flag, build and package tools
+  (`make`, `npm`, `pip`, `cargo`, …), `find -exec` and `xargs` handing it to
+  something that runs it. Reading (`cat`, `head`, `grep`, `jq`, `file`, `ls`,
+  `cp` out) and `python analyze.py <folder>/data.csv` are not blocked: the
+  script that runs is the Assistant's, and the data is only read. It is a
+  pattern match on the call's text, not a sandbox; a file copied out of the
+  folder, a script that loads a file inside it (`pickle`, an unsafe `yaml`
+  load, a notebook, a macro) or a changed working directory kept from an
+  earlier call are not seen. The execute bit, the quarantine flag and the
+  Assistant's own rules are the other layers.
 
 ## Send
 
@@ -189,9 +234,8 @@ text.
   `.zst`, a bare `.gz` and the like cannot be read with the standard library
   and stay refused; so do `.jar`, `.apk`, `.ipa` and other ZIP-based programs.
   Office files (`.docx`, `.xlsx`, `.epub`, …) are not archives here: their
-  sniffed type is their own, and they were never refused. A file a chat
-  sent is still never saved when it is an archive (`media`); only sends
-  changed. The card adds `, N files inside (X unpacked)` to an archive's
+  sniffed type is their own, and they were never refused. Archives a chat
+  sent are inspected too, under the receiving rules above. The card adds `, N files inside (X unpacked)` to an archive's
   line, and the plan hash is taken before and after the inspection, so a
   file that changes meanwhile is refused.
 - **The approval covers the exact message.** The allowlist key hashes the

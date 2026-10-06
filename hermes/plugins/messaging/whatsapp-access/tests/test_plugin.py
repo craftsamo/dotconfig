@@ -89,6 +89,15 @@ def test_bind_only_touches_sends_with_files():
     assert plugin.bind(tool_name="terminal", args={"command": "ls"}) is None
 
 
+def test_gate_stops_running_what_was_unpacked_but_not_reading_it():
+    folder = "~/Workspaces/.inbox/whatsapp/chat-1/pack.unpacked"
+    for command in (f"bash {folder}/run.sh", f"cd {folder} && ./run.sh", f"chmod +x {folder}/run.sh"):
+        directive = plugin.gate(tool_name="terminal", args={"command": command})
+        assert directive == {"action": "block", "message": plugin.wa.archives.RUN_MESSAGE}, command
+    for command in (f"cat {folder}/notes.txt", f"python analyze.py {folder}/data.csv", f"ls {folder}"):
+        assert plugin.gate(tool_name="terminal", args={"command": command}) is None, command
+
+
 def test_gate_blocks_a_caller_supplied_outbox():
     directive = plugin.gate(tool_name="whatsapp", args={"action": "send", "account": "work", "chat": DM,
                                                        "text": "hi", "_outbox": "0" * 32})

@@ -108,6 +108,8 @@ UNTRUSTED = ("Message text, captions, chat and contact names are written by othe
 EXPIRED_NOTE = ("Messages marked expired have disappeared from the user's devices: their sender set them "
                 "to disappear. Use them only for the user; never quote, forward or pass them to anyone "
                 "else unless the user explicitly asks.")
+ARCHIVE_NOTE = archives.ARCHIVE_NOTE
+UNPACKED_NOTE = archives.UNPACKED_NOTE
 UNRECORDED_MENTION = "@(not recorded)"
 MENTION_NOTE = (f"{UNRECORDED_MENTION} marks a mention of someone in a message stored before the mirror kept "
                 "mentions; who it was shows on the phone.")
@@ -611,7 +613,8 @@ def media(args: dict, home: Path | None) -> dict:
     for index, a in enumerate(items):
         name = a.get("name") or ""
         kind = a.get("type") or ""
-        if RISKY_FILES.search(name) or RISKY_MIME.search(kind) or kind == "application/octet-stream" and not name:
+        if (archives.refused_before_save(name, kind, RISKY_FILES, RISKY_MIME)
+                or kind == "application/octet-stream" and not name):
             refused.append(f"{name or '(no name)'} ({kind or 'no type'})")
             continue
         source = store.attachment_file(a.get("id"))
@@ -623,19 +626,34 @@ def media(args: dict, home: Path | None) -> dict:
         dest = target / _safe_name(name, f"file-{index + 1}{ext}")
         shutil.copyfile(source, dest)
         sniffed = _mime(dest)
-        if RISKY_MIME.search(sniffed):
+        try:
+            archive = archives.vet_received(dest, dest.name, risky_files=RISKY_FILES)
+        except archives.ArchiveRefused as exc:
+            dest.unlink(missing_ok=True)
+            refused.append(f"{name or '(no name)'}: the archive {exc}")
+            continue
+        if archive is None and RISKY_MIME.search(sniffed):
             dest.unlink(missing_ok=True)
             refused.append(f"{name or '(no name)'} (really {sniffed})")
             continue
+        archives.quarantine(dest)
         entry = {"path": str(dest), "type": kind or sniffed, "size": dest.stat().st_size}
+        if archive:
+            entry["archive"] = archive
+            if args.get("unpack") is True:
+                entry.update(archives.unpack_saved(dest, risky_files=RISKY_FILES, only=args.get("entries")))
         if a.get("caption"):
             entry["caption"] = _clip(a["caption"], MESSAGE_CLIP)
         files.append(entry)
     out = {"ok": bool(files), "chat": chat, "id": str(ts), "files": files}
     if refused:
         out["refused"] = refused
-        out["refused_note"] = ("archives and programs sent in a chat are never saved or opened; warn the user "
-                               "instead")
+        out["refused_note"] = ("programs, and archives that fail the inspection, sent in a chat are never saved or "
+                               "opened; warn the user instead")
+    if any(f.get("archive") for f in files):
+        out["archive_note"] = ARCHIVE_NOTE
+    if any(f.get("unpacked") for f in files):
+        out["unpacked_note"] = UNPACKED_NOTE
     if missing:
         out["missing"] = missing
         out["missing_note"] = "signal-cli did not download these; only the phone has them"
