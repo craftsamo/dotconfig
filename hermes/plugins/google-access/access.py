@@ -616,8 +616,10 @@ def sheets(home, args: dict) -> dict:
     book = api.spreadsheets()
     if action == "info":
         meta = _google(lambda: book.get(spreadsheetId=sid, fields=INFO_FIELDS).execute())
-        return {"ok": True, "spreadsheet_id": sid, "title": meta.get("properties", {}).get("title"),
-                "url": meta.get("spreadsheetUrl"),
+        props = meta.get("properties", {})
+        return {"ok": True, "spreadsheet_id": sid, "title": props.get("title"),
+                "url": meta.get("spreadsheetUrl"), "locale": props.get("locale"),
+                "time_zone": props.get("timeZone"),
                 "sheets": [_sheet_info(s) for s in meta.get("sheets", [])]}
     if action == "add_sheet":
         title = _str(args, "title")
@@ -733,7 +735,7 @@ def sheets(home, args: dict) -> dict:
 
 INFO_FIELDS = ("spreadsheetId,spreadsheetUrl,properties(title,locale,timeZone),"
                "sheets(properties(sheetId,title,index,hidden,tabColorStyle,gridProperties(rowCount,"
-               "columnCount,frozenRowCount,frozenColumnCount)),merges,"
+               "columnCount,frozenRowCount,frozenColumnCount,hideGridlines)),merges,"
                "tables(tableId,name,range,columnProperties),conditionalFormats,"
                "rowGroups(range,depth,collapsed),columnGroups(range,depth,collapsed),basicFilter(range),"
                "filterViews(filterViewId,title,range),"
@@ -1082,10 +1084,11 @@ LAYOUT_OPS = {  # op: (required fields, optional fields); "ranges" stands in for
     "merge": (("range",), ("ranges", "merge")),
     "unmerge": (("range",), ("ranges",)),
     "freeze": ((), ("sheet", "rows", "columns")),
-    "sheet": (("sheet",), ("title", "tab_color", "hidden", "position")),
+    "sheet": (("sheet",), ("title", "tab_color", "hidden", "position", "gridlines")),
     "sheet_duplicate": (("sheet",), ("title", "position")),
     "sheet_delete": (("sheet",), ()),
     "rename_spreadsheet": (("title",), ()),
+    "spreadsheet_settings": ((), ("locale", "time_zone")),
     "note": (("range",), ("ranges", "text")),
     "rich_text": (("range", "runs"), ("value",)),
     "table": (("range",), _TABLE),
@@ -1113,6 +1116,13 @@ SHIFTING_OPS = {"insert", "delete", "move"}
 OWN_TAB_OPS = {"table_update", "filter_view_update", "chart_update", "chart_move", "chart_delete",
                "protect_update", "protect_delete"}
 RUNS_LIMIT = 50
+LOCALE = re.compile(r"^[a-z]{2,3}(_[A-Za-z0-9]{2,8})*$")
+
+
+@functools.lru_cache(maxsize=1)
+def _time_zones() -> frozenset:
+    import zoneinfo
+    return frozenset(zoneinfo.available_timezones())
 LINK = re.compile(r"^(https?://|mailto:)\S+$")
 NUMBER_FORMATS = {"TEXT", "NUMBER", "PERCENT", "CURRENCY", "DATE", "TIME", "DATE_TIME", "SCIENTIFIC",
                   "AUTOMATIC"}
@@ -1721,8 +1731,11 @@ def _normalize(name: str, raw: dict, here: bool = False) -> dict:
         if "position" in raw:
             op["position"] = _whole(raw, "position", 1, 10000)
             words.append(f"move to position {op['position']}")
+        if "gridlines" in raw:
+            op["gridlines"] = _flag(raw, "gridlines")
+            words.append("show gridlines" if op["gridlines"] else "hide gridlines")
         if not words:
-            raise AccessError("give title, tab_color, hidden or position")
+            raise AccessError("give title, tab_color, hidden, position or gridlines")
         op["say"] = f"Tab {_tab_label(op['tab'])}: {', '.join(words)}"
     elif name == "sheet_duplicate":
         op["title"] = _str(raw, "title", required=False)
@@ -1735,6 +1748,22 @@ def _normalize(name: str, raw: dict, here: bool = False) -> dict:
     elif name == "rename_spreadsheet":
         op["title"] = _str(raw, "title")
         op["say"] = f"Rename spreadsheet to \"{_cell(op['title'], '', TITLE_CLIP)}\""
+    elif name == "spreadsheet_settings":
+        words = []
+        if "locale" in raw:
+            op["locale"] = _str(raw, "locale")
+            if not LOCALE.match(op["locale"]):
+                raise AccessError("locale is like 'ja_JP' or 'en_US'")
+            words.append(f"locale {op['locale']}")
+        if "time_zone" in raw:
+            op["time_zone"] = _str(raw, "time_zone")
+            if op["time_zone"] not in _time_zones():
+                raise AccessError("time_zone is an IANA name like 'Asia/Tokyo'")
+            words.append(f"time zone {op['time_zone']}")
+        if not words:
+            raise AccessError("give locale and/or time_zone")
+        op["say"] = (f"Spreadsheet settings: {', '.join(words)} (dates, numbers and NOW()/TODAY() "
+                     f"may read differently everywhere in the file)")
     elif name == "note":
         if not isinstance(raw.get("text"), str):
             raise AccessError("give text (an empty text removes the notes)")
@@ -2100,6 +2129,9 @@ def _layout_requests(ops: list[dict], meta: dict, header=None, cell=None, **_) -
             if "hidden" in op:
                 props["hidden"] = op["hidden"]
                 fields.append("hidden")
+            if "gridlines" in op:
+                props["gridProperties"] = {"hideGridlines": not op["gridlines"]}
+                fields.append("gridProperties.hideGridlines")
             if "position" in op:
                 # The API counts the target before the move; position is where the tab ends up.
                 current, final = order.index(props["sheetId"]), min(op["position"], len(order)) - 1
@@ -2137,6 +2169,9 @@ def _layout_requests(ops: list[dict], meta: dict, header=None, cell=None, **_) -
         elif name == "rename_spreadsheet":
             requests.append({"updateSpreadsheetProperties": {"properties": {"title": op["title"]},
                                                              "fields": "title"}})
+        elif name == "spreadsheet_settings":
+            props = {key: op[word] for word, key in (("locale", "locale"), ("time_zone", "timeZone")) if word in op}
+            requests.append({"updateSpreadsheetProperties": {"properties": props, "fields": ",".join(props)}})
         elif name == "note":
             requests.append({"repeatCell": {"range": grid(op), "cell": {"note": op["text"]} if op["text"] else {},
                                             "fields": "note"}})
@@ -2196,9 +2231,11 @@ def _layout_requests(ops: list[dict], meta: dict, header=None, cell=None, **_) -
 
 
 def _destructive(op: dict) -> bool:
-    """Whether an op deletes, moves or replaces data: the fixed set, plus removing notes and
-    replacing a filter view's criteria."""
+    """Whether an op deletes, moves or replaces data: the fixed set, plus removing notes,
+    replacing a filter view's criteria and changing the locale or time zone (which re-reads every
+    date and number in the file)."""
     return (op["op"] in LAYOUT_DESTRUCTIVE or op["op"] in DATA_OPS or op["op"] in OBJECT_DESTRUCTIVE
+            or op["op"] == "spreadsheet_settings"
             or (op["op"] == "pivot" and op["at"] is not None) or (op["op"] == "note" and not op["text"])
             or (op["op"] == "filter_view_update" and op["set_criteria"]))
 

@@ -2303,3 +2303,45 @@ def test_a_card_hermes_would_mask_is_refused(monkeypatch):
     with pytest.raises(access.AccessError, match="looks like a secret"):
         access.approval_request("google_sheets", protect(
             {"op": "protect", "range": "A1", "editors": ["sk-alex123@example.com"]}))
+
+
+# --- spreadsheet settings and gridlines -----------------------------------------------------------
+
+def test_gridlines_and_settings_become_requests():
+    grid, settings = requests({"op": "sheet", "sheet": "Tasks", "gridlines": False},
+                              {"op": "spreadsheet_settings", "locale": "ja_JP", "time_zone": "Asia/Tokyo"})
+    assert grid == {"updateSheetProperties": {"properties": {"sheetId": 7, "gridProperties": {"hideGridlines": True}},
+                                              "fields": "gridProperties.hideGridlines"}}
+    assert settings == {"updateSpreadsheetProperties": {"properties": {"locale": "ja_JP", "timeZone": "Asia/Tokyo"},
+                                                        "fields": "locale,timeZone"}}
+
+
+def test_settings_ask_per_call_and_gridlines_share_the_spreadsheet_key(monkeypatch):
+    context(monkeypatch, title="Plan", names=["Main", "Tasks"])
+    reason, key = access.approval_request("google_sheets", layout(
+        {"op": "spreadsheet_settings", "time_zone": "Asia/Tokyo"}), home=Path("/x"))
+    assert "sheets-edit" not in key and "time zone Asia/Tokyo" in reason
+    reason, key = access.approval_request("google_sheets", layout(
+        {"op": "sheet", "sheet": "Tasks", "gridlines": False}), home=Path("/x"))
+    assert key == f"google-access:sheets-edit:{SID}" and reason.endswith("Tab Tasks: hide gridlines")
+
+
+@pytest.mark.parametrize("op,message", [
+    ({"op": "spreadsheet_settings"}, "locale and/or time_zone"),
+    ({"op": "spreadsheet_settings", "locale": "Japanese"}, "locale is like"),
+    ({"op": "spreadsheet_settings", "time_zone": "Mars/Base"}, "IANA"),
+    ({"op": "spreadsheet_settings", "time_zone": "../etc/passwd"}, "IANA"),
+    ({"op": "sheet", "sheet": "Tasks", "gridlines": "no"}, "true or false")])
+def test_malformed_settings_are_refused(op, message):
+    with pytest.raises(access.AccessError, match=message):
+        access._ops(layout(op), "layout")
+
+
+def test_info_reports_locale_and_time_zone(tmp_path, monkeypatch):
+    api = mock.MagicMock()
+    api.spreadsheets().get().execute.return_value = {"properties": {"title": "Plan", "locale": "ja_JP",
+                                                                    "timeZone": "Asia/Tokyo"}, "sheets": []}
+    services(monkeypatch, sheets=api)
+    result = access.sheets(tmp_path, {"action": "info", "spreadsheet_id": SID})
+    assert result["locale"] == "ja_JP" and result["time_zone"] == "Asia/Tokyo"
+    assert "hideGridlines" in access.INFO_FIELDS
