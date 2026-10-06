@@ -184,6 +184,13 @@ The hook decides before a tool runs; the rule is `approval_request` in
   after the footer or outside the table. `appendCells` has no UI typing:
   numbers and booleans keep their type, `=…` is a formula unless `raw`, and
   other text, dates included, stays text. It shares the per-spreadsheet key.
+- **Snapshots** are a read (no approval): `snapshot` exports a tab, or a
+  closed block of it, through the `docs.google.com/…/export?format=pdf` URL
+  with the profile's token (the parameters Google's own Apps Script samples
+  use, not a documented API) and renders the first pages to PNG with
+  ImageMagick (`sips` draws page 1 without it). The files go to the download
+  folder's `sheet-snapshots/`, so the look can be checked with vision instead
+  of a browser.
 - **Row guards.** Writes by row number can land on the wrong row when another
   writer inserts, deletes or sorts rows. `update`, `batch_update`, `clear`,
   `layout` and `data` take `expect` — up to 200 single cells with the value each must display

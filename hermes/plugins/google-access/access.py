@@ -13,7 +13,8 @@ repository:
 A ``token.json`` an earlier version left in ``<HERMES_HOME>/google-access/`` is moved into the
 Keychain on first use and deleted.
 Drive downloads go to ``google_access.download_dir`` (config.yaml), else
-``<HERMES_HOME>/google-downloads/`` — outside the state directory the guard protects.
+``<HERMES_HOME>/google-downloads/`` — outside the state directory the guard protects; sheet
+snapshots (PDF and PNG pages) go to its ``sheet-snapshots/``.
 
 Which calls change something, and therefore need a human approval, is decided here
 (``approval_request``) so the plugin hook and the tests share one rule.
@@ -68,7 +69,7 @@ REASON_LIMIT = 1500
 GCLOUD_TIMEOUT = 300
 GCLOUD_TIMEOUT_MAX = 1800
 
-SHEETS_ACTIONS = ("search", "info", "get", "get_format", "comments", "update", "batch_update",
+SHEETS_ACTIONS = ("search", "info", "get", "get_format", "snapshot", "comments", "update", "batch_update",
                   "append", "clear", "create", "add_sheet", "layout", "data", "chart", "pivot", "protect",
                   "comment")
 # Actions taking a list of ops from a fixed vocabulary (OP_SETS), sent as one batchUpdate.
@@ -622,6 +623,8 @@ def sheets(home, args: dict) -> dict:
                 "url": meta.get("spreadsheetUrl"), "locale": props.get("locale"),
                 "time_zone": props.get("timeZone"),
                 "sheets": [_sheet_info(s) for s in meta.get("sheets", [])]}
+    if action == "snapshot":
+        return _snapshot(home, book, sid, args)
     if action == "comments":
         return _comments(book, sid, args)
     if action == "append" and args.get("table") is not None:
@@ -1067,11 +1070,123 @@ def _sheet_info(sheet: dict) -> dict:
     return props
 
 
-# --- Sheets comments and table appends ------------------------------------------------------------
+# --- Sheets snapshots, comments and table appends -------------------------------------------------
 
+EXPORT_URL = "https://docs.google.com/spreadsheets/d/{sid}/export"
+EXPORT_TIMEOUT = 120
+EXPORT_LIMIT = 30 * 1024 * 1024
+SNAPSHOT_DIR = "sheet-snapshots"
+SNAPSHOT_PAGES = 3
+SNAPSHOT_PAGES_MAX = 10
+SNAPSHOT_DENSITY = 110
+# The export URL's own parameters: not a documented API, but the ones Google's Apps Script samples use.
+SNAPSHOT_FITS = {"WIDTH": "2", "HEIGHT": "3", "PAGE": "4", "NONE": "1"}
+SNAPSHOT_PAPERS = {"A4": "a4", "A3": "a3", "LETTER": "letter", "LEGAL": "legal", "TABLOID": "tabloid"}
+SNAPSHOT_FIELDS = "properties(title),sheets(properties(sheetId,title))"
 COMMENTS_FIELDS = "comments,sheets(properties(sheetId,title),commentAnchors)"
 COMMENTS_LIMIT = 200
 TABLE_FIELDS = "sheets(properties(sheetId,title),tables(tableId,name,range))"
+
+
+def _snapshot(home, book, sid: str, args: dict) -> dict:
+    """A tab, or a block of it, exported as PDF and rendered to PNG pages, so its look can be checked
+    without a browser. Reads only; the files land in the download folder."""
+    tab = _str(args, "sheet", required=False) or None
+    rng = _str(args, "range", required=False)
+    grid = {}
+    if rng:
+        rng_tab, ref = split_range(rng)
+        if rng_tab is not None and tab is not None and rng_tab != tab:
+            raise AccessError("range names another tab than sheet")
+        tab = rng_tab if rng_tab is not None else tab
+        grid = _grid_ref(ref)
+        if ref and not _CLOSED <= set(grid):
+            raise AccessError(f"snapshot takes a closed block like 'Sheet1!A1:F40', not {rng!r}")
+    pages = _int(args, "pages", SNAPSHOT_PAGES, SNAPSHOT_PAGES_MAX)
+    fit = _choice(args, "fit", set(SNAPSHOT_FITS), "WIDTH")
+    paper = _choice(args, "paper", set(SNAPSHOT_PAPERS), "A4")
+    portrait = _flag(args, "portrait") if "portrait" in args else False
+    gridlines = _flag(args, "gridlines") if "gridlines" in args else True
+    meta = _google(lambda: book.get(spreadsheetId=sid, fields=SNAPSHOT_FIELDS).execute())
+    gid = _Tabs(meta).id(tab)
+    name = next((s.get("properties", {}).get("title") for s in meta.get("sheets", [])
+                 if s.get("properties", {}).get("sheetId", 0) == gid), tab) or ""
+    params = {"format": "pdf", "gid": str(gid), "size": SNAPSHOT_PAPERS[paper], "portrait": str(portrait).lower(),
+              "scale": SNAPSHOT_FITS[fit], "gridlines": str(gridlines).lower(), "fzr": "true",
+              "sheetnames": "false", "printtitle": "false", "pagenum": "UNDEFINED", "attachment": "false"}
+    if grid:  # zero-based, end exclusive
+        params.update(r1=str(grid["startRowIndex"]), c1=str(grid["startColumnIndex"]),
+                      r2=str(grid["endRowIndex"]), c2=str(grid["endColumnIndex"]))
+    folder = download_dir(home) / SNAPSHOT_DIR
+    folder.mkdir(parents=True, exist_ok=True)
+    title = meta.get("properties", {}).get("title") or sid
+    stem = re.sub(r"[^\w-]+", "_", f"{title}-{name}").strip("_")[:80] or "snapshot"
+    path, fd = _reserve(folder / f"{stem}-{time.strftime('%Y%m%d-%H%M%S')}.pdf")
+    try:
+        with os.fdopen(fd, "wb") as handle:
+            _export_pdf(home, sid, params, handle)
+    except BaseException:
+        path.unlink(missing_ok=True)
+        raise
+    images, note = _pdf_pages(path, pages)
+    result = {"ok": True, "spreadsheet_id": sid, "sheet": name, "pdf": str(path), "images": images}
+    if rng:
+        result["range"] = rng
+    if note:
+        result["note"] = note
+    elif len(images) == pages:
+        result["note"] = f"rendered the first {pages} pages; the PDF may hold more (pages up to {SNAPSHOT_PAGES_MAX})"
+    return result
+
+
+def _export_pdf(home, sid: str, params: dict, handle) -> None:
+    """Stream the export URL's PDF into ``handle``; anything but a PDF is an error."""
+    try:
+        import requests
+        from google.auth.transport.requests import AuthorizedSession
+    except ImportError as exc:
+        raise AccessError(f"Google client libraries are missing from Hermes' runtime: {exc}") from exc
+    try:
+        with AuthorizedSession(credentials(home, DRIVE_READ)) as session, session.get(
+                EXPORT_URL.format(sid=sid), params=params, timeout=EXPORT_TIMEOUT, stream=True) as resp:
+            kind = resp.headers.get("Content-Type", "")
+            if resp.status_code != 200 or not kind.startswith("application/pdf"):
+                raise AccessError(f"Google did not return a PDF (HTTP {resp.status_code}, {kind or 'no type'}); "
+                                  f"check the tab and range")
+            total = 0
+            for chunk in resp.iter_content(1 << 16):
+                total += len(chunk)
+                if total > EXPORT_LIMIT:
+                    raise AccessError(f"the PDF is over {EXPORT_LIMIT >> 20} MB; snapshot a smaller range")
+                handle.write(chunk)
+    except requests.RequestException as exc:  # its text may carry a signed redirect URL
+        raise AccessError(f"the PDF export failed ({type(exc).__name__})") from None
+
+
+def _pdf_pages(pdf: Path, pages: int) -> tuple[list[str], str | None]:
+    """PNG files of the PDF's first pages, beside it, and a note when fewer could be made.
+    ImageMagick renders them; without it macOS sips draws the first page."""
+    magick = shutil.which("magick")
+    if magick:
+        done = subprocess.run([magick, "-density", str(SNAPSHOT_DENSITY), f"{pdf}[0-{pages - 1}]",
+                               "-background", "white", "-alpha", "remove", "-alpha", "off",
+                               str(pdf.with_name(f"{pdf.stem}-%d.png"))],
+                              capture_output=True, text=True, timeout=EXPORT_TIMEOUT)
+        prefix = f"{pdf.stem}-"
+        made = [p for p in pdf.parent.iterdir()
+                if p.suffix == ".png" and p.name.startswith(prefix) and p.stem[len(prefix):].isdigit()]
+        made.sort(key=lambda p: int(p.stem[len(prefix):]))
+        if made:
+            return [str(p) for p in made], None
+        return [], f"rendering failed: {(done.stderr or '').strip()[-300:] or done.returncode}"
+    sips = shutil.which("sips")
+    if sips:
+        out = pdf.with_suffix(".png")
+        done = subprocess.run([sips, "-s", "format", "png", str(pdf), "--out", str(out)],
+                              capture_output=True, text=True, timeout=EXPORT_TIMEOUT)
+        if done.returncode == 0 and out.exists():
+            return [str(out)], "only the first page was rendered (ImageMagick is missing)"
+    return [], "no renderer (ImageMagick or sips) is available; only the PDF was saved"
 
 
 def _post(post: dict) -> dict:

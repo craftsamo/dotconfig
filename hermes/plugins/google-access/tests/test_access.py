@@ -2509,5 +2509,131 @@ def test_comments_read_threads_with_their_cells(tmp_path, monkeypatch):
 
 
 def test_reads_never_ask():
-    for action in ("comments",):
+    for action in ("snapshot", "comments"):
         assert access.approval_request("google_sheets", {"action": action, "spreadsheet_id": SID}) is None
+
+
+# --- snapshots ------------------------------------------------------------------------------------
+
+def snapshot_api():
+    api = mock.MagicMock()
+    api.spreadsheets().get().execute.return_value = {"properties": {"title": "Plan/2026"}, "sheets": [
+        {"properties": {"title": "Main"}}, {"properties": {"sheetId": 7, "title": "Tasks"}}]}
+    return api
+
+
+def test_snapshot_exports_the_tab_and_renders_pages(tmp_path, monkeypatch):
+    services(monkeypatch, sheets=snapshot_api())
+    seen = {}
+
+    def export(home, sid, params, handle):
+        seen.update(params)
+        handle.write(b"%PDF-1.7")
+
+    def pages(pdf, count):
+        seen["count"] = count
+        return [str(pdf.with_name(pdf.stem + "-0.png"))], None
+
+    monkeypatch.setattr(access, "_export_pdf", export)
+    monkeypatch.setattr(access, "_pdf_pages", pages)
+    result = access.sheets(tmp_path, {"action": "snapshot", "spreadsheet_id": SID, "range": "Tasks!B2:D9",
+                                      "portrait": True, "gridlines": False, "fit": "page"})
+    pdf = Path(result["pdf"])
+    assert pdf.parent == tmp_path / "google-downloads" / "sheet-snapshots" and pdf.read_bytes() == b"%PDF-1.7"
+    assert pdf.name.startswith("Plan_2026-Tasks-") and result["sheet"] == "Tasks"
+    assert result["images"] == [str(pdf.with_name(pdf.stem + "-0.png"))] and "note" not in result
+    assert {k: seen[k] for k in ("gid", "portrait", "gridlines", "scale", "r1", "c1", "r2", "c2", "count")} == {
+        "gid": "7", "portrait": "true", "gridlines": "false", "scale": "4", "r1": "1", "c1": "1", "r2": "9",
+        "c2": "4", "count": access.SNAPSHOT_PAGES}
+
+
+def test_snapshot_defaults_to_the_first_tab_and_cleans_up_on_failure(tmp_path, monkeypatch):
+    services(monkeypatch, sheets=snapshot_api())
+    seen = {}
+
+    def export(home, sid, params, handle):
+        seen.update(params)
+        raise access.AccessError("Google did not return a PDF")
+
+    monkeypatch.setattr(access, "_export_pdf", export)
+    with pytest.raises(access.AccessError, match="did not return"):
+        access.sheets(tmp_path, {"action": "snapshot", "spreadsheet_id": SID})
+    assert seen["gid"] == "0" and "r1" not in seen and seen["gridlines"] == "true" and seen["portrait"] == "false"
+    assert list((tmp_path / "google-downloads" / "sheet-snapshots").iterdir()) == []
+
+
+@pytest.mark.parametrize("extra,message", [
+    ({"range": "Tasks!B2:D"}, "closed block"),
+    ({"range": "Tasks!B2:D9", "sheet": "Main"}, "another tab"),
+    ({"sheet": "Nope"}, "no tab named"),
+    ({"fit": "SQUEEZE"}, "fit must be one of"),
+    ({"pages": 0}, "positive integer")])
+def test_malformed_snapshots_are_refused(extra, message, tmp_path, monkeypatch):
+    services(monkeypatch, sheets=snapshot_api())
+    monkeypatch.setattr(access, "_export_pdf", lambda *a: pytest.fail("exported"))
+    with pytest.raises(access.AccessError, match=message):
+        access.sheets(tmp_path, dict({"action": "snapshot", "spreadsheet_id": SID}, **extra))
+
+
+def test_pdf_pages_render_in_page_order_or_explain_why_not(tmp_path, monkeypatch):
+    pdf = tmp_path / "Plan-Tasks.pdf"
+    pdf.write_bytes(b"%PDF")
+
+    def run(argv, **_):
+        assert argv[3] == f"{pdf}[0-2]"
+        for n in (0, 10, 2):
+            Path(argv[-1].replace("%d", str(n))).write_bytes(b"png")
+        (tmp_path / "Plan-Tasks-old.png").write_bytes(b"other")
+        return SimpleNamespace(returncode=0, stderr="")
+
+    monkeypatch.setattr(access.shutil, "which", lambda name: "/bin/magick" if name == "magick" else None)
+    monkeypatch.setattr(access.subprocess, "run", run)
+    images, note = access._pdf_pages(pdf, 3)
+    assert [Path(p).name for p in images] == ["Plan-Tasks-0.png", "Plan-Tasks-2.png", "Plan-Tasks-10.png"]
+    assert note is None
+    monkeypatch.setattr(access.shutil, "which", lambda name: None)
+    assert access._pdf_pages(pdf, 3) == ([], "no renderer (ImageMagick or sips) is available; only the PDF was saved")
+
+
+def test_export_refuses_anything_but_a_pdf(tmp_path, monkeypatch):
+    pytest.importorskip("google.auth.transport.requests")
+    from google.auth.transport import requests as transport
+
+    class Response:
+        def __init__(self, status, kind, body=b""):
+            self.status_code, self.headers, self.body = status, {"Content-Type": kind}, body
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+        def iter_content(self, size):
+            yield self.body
+
+    replies = []
+
+    class Session:
+        def __init__(self, creds):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+        def get(self, url, **kwargs):
+            replies.append((url, kwargs["params"]))
+            return responses.pop(0)
+
+    monkeypatch.setattr(transport, "AuthorizedSession", Session)
+    monkeypatch.setattr(access, "credentials", lambda home, scope: object())
+    responses = [Response(200, "text/html; charset=utf-8"), Response(200, "application/pdf", b"%PDF")]
+    with pytest.raises(access.AccessError, match="did not return a PDF"):
+        access._export_pdf(tmp_path, SID, {"gid": "0"}, open(os.devnull, "wb"))
+    target = tmp_path / "out.pdf"
+    with open(target, "wb") as handle:
+        access._export_pdf(tmp_path, SID, {"gid": "0"}, handle)
+    assert target.read_bytes() == b"%PDF" and replies[0][0] == access.EXPORT_URL.format(sid=SID)
