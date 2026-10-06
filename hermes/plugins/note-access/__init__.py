@@ -1,13 +1,14 @@
-"""note-access: note.com for the Assistant and Marketer — read, and save unpublished drafts.
+"""note-access: note.com for the Assistant and Marketer — read, and save unpublished drafts — and
+an offline format check of a draft body for them and Writer.
 
 One tool, ``note`` (toolset ``note_access``), run by ``na.py`` beside this file. Public reads go
 out without any cookie; signed-in calls run through ``bridge.py``, the only process that reads the
-user's note session from the Keychain. A ``pre_tool_call`` hook holds every draft write for Hermes'
-human approval gate (the card names the draft, the title, every new image and the start of the
-Markdown); a run with no person to answer it (cron, a resident or other single-query session, a
-webhook) cannot save and hands the exact save back to its caller. The hook also blocks inbound A2A
-use and terminal and file calls that would go around the tool. Nothing publishes.
-Contract: docs/note-access.md.
+user's note session from the Keychain. ``check`` contacts nothing. A ``pre_tool_call`` hook holds
+every draft write for Hermes' human approval gate (the card names the draft, the title, every new
+image and the start of the Markdown); a run with no person to answer it (cron, a resident or other
+single-query session, a webhook) cannot save and hands the exact save back to its caller. Inbound
+A2A gets only what ``A2A`` lists for the profile, and never a save. The hook also blocks terminal
+and file calls that would go around the tool. Nothing publishes. Contract: docs/note-access.md.
 """
 
 from __future__ import annotations
@@ -17,8 +18,6 @@ import json
 from pathlib import Path
 import sys
 
-WRITERS = {"assistant", "marketer"}
-READERS: set[str] = set()   # a profile listed here would get the reads only
 TOOLSET = "note_access"
 TOOL = "note"
 LIMIT = 60000
@@ -34,6 +33,13 @@ def _load(name, path):
 
 
 na = _load("hermes_note_access_engine", Path(__file__).resolve().parent / "na.py")
+
+# The actions each profile's schema offers (checked again by the gate, the handler and the engine),
+# and the ones an inbound A2A request may run there. The Assistant never serves a peer; Marketer
+# answers a peer's question with a read (the user's drafts and stats included, on the shared budget);
+# Writer only checks a body's format.
+PROFILES = {"assistant": na.ACTIONS, "marketer": na.ACTIONS, "writer": na.OFFLINE}
+A2A = {"marketer": na.READS + na.OFFLINE, "writer": na.OFFLINE}
 
 READ_DESCRIPTION = (
     "note.com, the Japanese publishing platform. status (whether the user's note session is stored or was "
@@ -58,7 +64,22 @@ MARKDOWN_HELP = (
     "WebP under ~/Workspaces (20 MB at most, 20 new per save), or when updating an image URL the draft "
     "already has. Ruby ｜漢字《かんじ》 and math $${…}$$ are plain text. Lines '[label](note-block:…)' in a "
     "draft read stand for embeds, files and sounds: keep them where they are to keep them; new embeds are "
-    "added in the browser. Anything note cannot hold is refused with its line number.")
+    "added in the browser. Anything note cannot hold is refused with its line number, and so are "
+    "[[image|embed|table:…]] insertion markers, table rows and HTML comments, which a reader would see as "
+    "marks. Other Markdown note has no form for (*italic*, `inline code`, HTML tags, footnotes) is saved as "
+    "typed.")
+
+CHECK_TEXT = (
+    " check (body = the Markdown, or path = a Markdown file under ~/Workspaces; optional title and eyecatch) "
+    "checks a draft body without contacting note or using the request budget: errors a save would refuse, "
+    "with their line (of the structure, the first only: fix it and check again); unresolved [[image|embed|table:…]] markers; as_typed, Markdown that is saved as typed; "
+    "each local image and the cover; the text length. ready=true means a save would accept the format; a "
+    "save still checks the account, the draft it updates and the approval card.")
+
+CHECK_DESCRIPTION = (
+    "note.com, the Japanese publishing platform: here only its format check, which never contacts note or the "
+    "user's account." + CHECK_TEXT + " " + MARKDOWN_HELP + " Reading and saving note are not available to "
+    "this profile.")
 
 WRITE_DESCRIPTION = READ_DESCRIPTION.replace(
     " Nothing is liked, followed, commented or published.",
@@ -74,11 +95,11 @@ WRITE_DESCRIPTION = READ_DESCRIPTION.replace(
     "another agent, cron, a single query) cannot save: check it with preview=true, then return the exact "
     "save (action, draft key and base, title, whole Markdown, image and cover paths under ~/Workspaces with "
     "the sha256 the preview gave) to the caller, who saves it with its own card. 'not saved' means nothing "
-    "changed; 'stopped part way' lists what was done; 'UNCERTAIN' means read the draft before anything else. Nothing is published, deleted, liked, followed or commented: "
-    "the user publishes in the browser.")
+    "changed; 'stopped part way' lists what was done; 'UNCERTAIN' means read the draft before anything else. "
+    "Check a body with check before preview. Nothing is published, deleted, liked, followed or commented: "
+    "the user publishes in the browser." + CHECK_TEXT)
 
-PROPERTIES = {
-    "action": {"type": "string", "enum": list(na.READS)},
+READ_PROPERTIES = {
     "query": {"type": "string", "description": "search: words to find"},
     "sort": {"type": "string", "description": "search: new | popular | hot; stats: pv | like | comment"},
     "limit": {"type": "integer", "description": "search 10 (at most 20), drafts 20 (at most 50)"},
@@ -91,21 +112,45 @@ PROPERTIES = {
     "period": {"type": "string", "description": "stats: all | daily | weekly | monthly | yearly"},
 }
 
+BODY_PROPERTIES = {
+    "title": {"type": "string", "description": "create_draft (required) / update_draft (default: keep) / check "
+                                               "(optional): the title"},
+    "body": {"type": "string", "description": "create_draft / update_draft / check: the WHOLE article as Markdown"},
+    "eyecatch": {"type": "string", "description": "create_draft / update_draft / check: path of a cover image "
+                                                  "under ~/Workspaces (default: none / keep)"},
+}
+
+CHECK_PROPERTIES = {
+    "path": {"type": "string", "description": "check: a Markdown file under ~/Workspaces, instead of body"},
+}
+
 WRITE_PROPERTIES = {
-    **PROPERTIES,
-    "action": {"type": "string", "enum": list(na.ACTIONS)},
-    "title": {"type": "string", "description": "create_draft (required) / update_draft (default: keep): the title"},
-    "body": {"type": "string", "description": "create_draft / update_draft: the WHOLE article as Markdown"},
-    "eyecatch": {"type": "string", "description": "create_draft / update_draft: path of a cover image under "
-                                                  "~/Workspaces (default: none / keep)"},
     "base": {"type": "string", "description": "update_draft (required): the `saved` time from your draft read"},
     "preview": {"type": "boolean", "description": "create_draft / update_draft: check only, return the card; "
                                                   "nothing is saved"},
 }
 
 
+def schema_parts(actions) -> tuple[str, dict]:
+    """(description, properties) for the actions a profile is offered."""
+    actions = tuple(actions)
+    properties = {"action": {"type": "string", "enum": list(actions)}}
+    if set(actions) & set(na.READS):
+        properties.update(READ_PROPERTIES)
+    if set(actions) & set(na.OFFLINE + na.WRITES):
+        properties.update(BODY_PROPERTIES)
+    if "check" in actions:
+        properties.update(CHECK_PROPERTIES)
+    if set(actions) & set(na.WRITES):
+        properties.update(WRITE_PROPERTIES)
+        return WRITE_DESCRIPTION, properties
+    if set(actions) & set(na.READS):
+        return READ_DESCRIPTION + (CHECK_TEXT if "check" in actions else ""), properties
+    return CHECK_DESCRIPTION, properties
+
+
 def _inbound_peer():
-    """A peer agent's A2A request never touches the user's note account."""
+    """Whether this call serves a peer agent's A2A request."""
     try:
         from gateway.session_context import get_session_env
     except Exception:
@@ -177,18 +222,38 @@ def _home():
         return None
 
 
-def make_handler(can_write: bool):
+def _refusal(profile: str, args) -> str | None:
+    """Why this call may not run for this profile at all: an action its schema does not offer, or an
+    inbound A2A request for anything but what ``A2A`` lists (never a save or a preview)."""
+    allowed = PROFILES.get(profile, ())
+    action = args.get("action") if isinstance(args, dict) else None
+    if action not in allowed:
+        return na.not_allowed(action, allowed)
+    if _inbound_peer():
+        if not A2A.get(profile):
+            return f"{TOOL} is not available to inbound A2A requests"
+        if action not in A2A[profile]:
+            return f"{TOOL}: {action} is not available to inbound A2A requests; " + ", ".join(A2A[profile]) + " are"
+        home = _home()
+        if home is None or Path(home).name != profile:   # fail closed unless the turn is bound to this profile
+            return f"{TOOL} is not available to inbound A2A requests here"
+    return None
+
+
+def make_handler(profile: str):
+    allowed = PROFILES[profile]
+    can_write = bool(set(allowed) & set(na.WRITES))
+
     def note(args, **kwargs):
         try:
-            if _inbound_peer():
-                raise na.NoteError(f"{TOOL} is not available to inbound A2A requests")
-            if _is_write(args):
-                if not can_write:
-                    raise na.NoteError(na.READ_ONLY)
-                if _unattended():
-                    return json.dumps({"ok": False, "error": UNATTENDED})
-            text = json.dumps(na.execute(args if isinstance(args, dict) else {}, home=_home(), call_id=_call_id(),
-                                         can_write=can_write), ensure_ascii=False)
+            args = args if isinstance(args, dict) else {}
+            refusal = _refusal(profile, args)
+            if refusal:
+                raise na.NoteError(refusal)
+            if _is_write(args) and _unattended():
+                return json.dumps({"ok": False, "error": UNATTENDED})
+            text = json.dumps(na.execute(args, home=_home(), call_id=_call_id(), can_write=can_write,
+                                         allowed=allowed), ensure_ascii=False)
             if len(text) > LIMIT:
                 return json.dumps({"ok": False, "error": f"result is {len(text)} characters; narrow it with a "
                                                          "smaller limit or another page"})
@@ -198,19 +263,18 @@ def make_handler(can_write: bool):
     return note
 
 
-def make_gate(can_write: bool):
+def make_gate(profile: str):
     def gate(**kwargs):
-        """pre_tool_call: approval for draft saves, a block for invalid or unattended saves, inbound
-        A2A and ways around the tool."""
+        """pre_tool_call: approval for draft saves, a block for actions the profile is not offered,
+        invalid or unattended saves, inbound A2A beyond what it may run, and ways around the tool."""
         tool = kwargs.get("tool_name")
         args = kwargs.get("args")
         if tool == TOOL:
-            if _inbound_peer():
-                return {"action": "block", "message": f"{TOOL} is not available to inbound A2A requests"}
+            refusal = _refusal(profile, args)
+            if refusal:
+                return {"action": "block", "message": refusal if refusal.startswith(TOOL) else f"{TOOL}: {refusal}"}
             if not _is_write(args):
                 return None
-            if not can_write:
-                return {"action": "block", "message": f"{TOOL}: {na.READ_ONLY}"}
             if _unattended():
                 return {"action": "block", "message": f"{TOOL}: {UNATTENDED}"}
             try:
@@ -231,13 +295,11 @@ def make_gate(can_write: bool):
 
 def register(ctx):
     profile = ctx.profile_name
-    if profile not in WRITERS | READERS:
+    if not PROFILES.get(profile):
         return
-    can_write = profile in WRITERS
-    description = WRITE_DESCRIPTION if can_write else READ_DESCRIPTION
-    properties = WRITE_PROPERTIES if can_write else PROPERTIES
-    ctx.register_tool(name=TOOL, toolset=TOOLSET, handler=make_handler(can_write), description=description,
+    description, properties = schema_parts(PROFILES[profile])
+    ctx.register_tool(name=TOOL, toolset=TOOLSET, handler=make_handler(profile), description=description,
                       schema={"name": TOOL, "description": description, "parameters": {
                           "type": "object", "properties": properties, "required": ["action"],
                           "additionalProperties": False}})
-    ctx.register_hook("pre_tool_call", make_gate(can_write))
+    ctx.register_hook("pre_tool_call", make_gate(profile))

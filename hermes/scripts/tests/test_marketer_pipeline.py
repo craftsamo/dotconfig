@@ -328,9 +328,8 @@ def test_actual_config_preserves_browser_and_limits_dispatch():
     assert "inquiry-only" in prompt
     assert "note is the exception" in prompt and "return the exact save package to the caller" in prompt
     assert "note-access" in config["plugins"]["enabled"] and "note_access" in config["toolsets"]
-    for platform in ("cli", "telegram"):
+    for platform in ("cli", "telegram", "a2a"):   # inbound A2A reads and checks; the plugin refuses saves there
         assert "note_access" in config["platform_toolsets"][platform]
-    assert "note_access" not in config["platform_toolsets"]["a2a"]
     assert config["approvals"]["timeout"] >= 300   # an approval card must outlast a Telegram tap
 
 
