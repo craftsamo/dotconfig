@@ -22,18 +22,18 @@ symlink or setup step needed.
 
 ## Key bindings
 
-| Binding                    | Action                                          |
-| -------------------------- | ----------------------------------------------- |
-| `prefix r`                 | reload `tmux.conf`                              |
-| `prefix h/j/k/l`           | switch pane (repeatable)                        |
-| `prefix C-h/C-j/C-k/C-l`   | resize pane by 5 cells (repeatable)             |
-| `Ctrl-Shift-Left/Right`    | move the current window left / right (no prefix) |
-| `prefix e`                 | kill every pane except the current one          |
-| `prefix f`                 | open the pane's directory in Finder             |
-| `prefix g`                 | lazygit popup (80% x 80%)                       |
-| `prefix o`                 | opencode popup — one detached TUI session per directory, connected to OpenCode's shared background service |
-| `prefix O` (Shift+o)       | reload OpenCode configuration for every loaded project after confirmation |
-| `prefix H` (Shift+h)       | hermes popup (modern TUI) — one detached session per directory, launched via `bin/hermes --tui` (secret-shim); also starts the shared, tailnet-only web dashboard in the background |
+| Binding                  | Action                                                                                                                                                                              |
+| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `prefix r`               | reload `tmux.conf`                                                                                                                                                                  |
+| `prefix h/j/k/l`         | switch pane (repeatable)                                                                                                                                                            |
+| `prefix C-h/C-j/C-k/C-l` | resize pane by 5 cells (repeatable)                                                                                                                                                 |
+| `Ctrl-Shift-Left/Right`  | move the current window left / right (no prefix)                                                                                                                                    |
+| `prefix e`               | kill every pane except the current one                                                                                                                                              |
+| `prefix f`               | open the pane's directory in Finder                                                                                                                                                 |
+| `prefix g`               | lazygit popup (80% x 80%)                                                                                                                                                           |
+| `prefix o`               | opencode popup — one detached TUI session per directory, connected to OpenCode's shared background service                                                                          |
+| `prefix O` (Shift+o)     | reload OpenCode configuration for every loaded project after confirmation                                                                                                           |
+| `prefix H` (Shift+h)     | hermes popup (modern TUI) — one detached session per directory, launched via `bin/hermes --tui` (secret-shim); also starts the shared, tailnet-only web dashboard in the background |
 
 ## OpenCode
 

@@ -12,12 +12,12 @@ assistant, creator, marketer and engineer; it is their only outbound path (the
 raw `a2a_*` tools stay off, see [topology](../topology.md) "Toolsets"). Each
 caller has an explicit `specialist_call.resident_targets` allowlist:
 
-| Caller | Targets |
-| --- | --- |
-| assistant | engineer, creator, marketer, writer; searcher resident-only. Never the hands, never researcher directly |
-| creator | its seven configured peers: engineer, marketer, researcher, writer, image-creator, video-creator, audio-creator |
-| marketer | engineer, creator, researcher, writer (keeps inbound A2A) |
-| engineer | marketer, researcher, writer |
+| Caller    | Targets                                                                                                         |
+| --------- | --------------------------------------------------------------------------------------------------------------- |
+| assistant | engineer, creator, marketer, writer; searcher resident-only. Never the hands, never researcher directly         |
+| creator   | its seven configured peers: engineer, marketer, researcher, writer, image-creator, video-creator, audio-creator |
+| marketer  | engineer, creator, researcher, writer (keeps inbound A2A)                                                       |
+| engineer  | marketer, researcher, writer                                                                                    |
 
 The default CLI flow is unchanged. Short inquiries use an allowed target's
 existing `a2a_agents` RPC endpoint when one exists; no endpoint is ever

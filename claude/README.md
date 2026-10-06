@@ -3,12 +3,12 @@
 User-level configuration for Claude Code. [`install.sh`](../install.sh)
 creates five symlinks into `~/.claude/`:
 
-| Symlink                      | Target                    |
-| ---------------------------- | ------------------------- |
-| `~/.claude/CLAUDE.md`        | `claude/CLAUDE.md`        |
-| `~/.claude/settings.json`    | `claude/settings.json`    |
-| `~/.claude/keybindings.json` | `claude/keybindings.json` |
-| `~/.claude/commands`         | `claude/commands/`        |
+| Symlink                      | Target                                          |
+| ---------------------------- | ----------------------------------------------- |
+| `~/.claude/CLAUDE.md`        | `claude/CLAUDE.md`                              |
+| `~/.claude/settings.json`    | `claude/settings.json`                          |
+| `~/.claude/keybindings.json` | `claude/keybindings.json`                       |
+| `~/.claude/commands`         | `claude/commands/`                              |
 | `~/.claude/skills`           | `~/.agents/skills/` (machine-local shared root) |
 
 ## User-managed content

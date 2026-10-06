@@ -71,23 +71,23 @@ and the **image-creator** / **audio-creator** hands lead on
   `opencode_cli.models`. No second fixed ladder or automatic replay of an
   uncertain run lives in Engineer's Skill.
 
-| Profile | T1 (primary) | T2 | T3 | T4 | T5 | `reasoning_effort` |
-| --- | --- | --- | --- | --- | --- | --- |
-| **default** | `anthropic` / claude-opus-5-5 | `anthropic` / claude-sonnet-5-5 | `openrouter` / `xiaomi/mimo-v2.5` | — | — | `medium` |
-| **assistant** | `anthropic` / **claude-opus-5-5** | `anthropic` / claude-fable-5-1 | `anthropic` / claude-sonnet-5-5 | `openai-codex` / gpt-6.1-sol | `openrouter` / `xiaomi/mimo-v2.5` | `medium` |
-| **engineer** | `anthropic` / **claude-fable-5-1** | `anthropic` / claude-opus-5-5 | `anthropic` / claude-sonnet-5-5 | `openrouter` / `deepseek/deepseek-v4-flash` | — | `high` |
-| **researcher** | `anthropic` / **claude-sonnet-5-5** | `anthropic` / claude-opus-5-5 | `openai-codex` / gpt-6.1-sol | `openrouter` / `xiaomi/mimo-v2.5` | — | `medium` |
-| **searcher** | `xai-oauth` / grok-4.3 | `openrouter` / `xiaomi/mimo-v2.5` | — | — | — | `low` |
-| **creator**, **video-creator** | `anthropic` / **claude-opus-5-5** | `anthropic` / claude-fable-5-1 | `anthropic` / claude-sonnet-5-5 | `openrouter` / `minimax/minimax-m3` | — | `medium` |
-| **image-creator**, **audio-creator** | `anthropic` / **claude-sonnet-5-5** | `anthropic` / claude-opus-5-5 | `anthropic` / claude-fable-5-1 | `openrouter` / `minimax/minimax-m3` | — | `medium` |
-| **writer** | `anthropic` / **claude-sonnet-5-5** | `anthropic` / claude-opus-5-5 | `anthropic` / claude-fable-5-1 | `openai-codex` / gpt-6.1-sol | `openrouter` / `deepseek/deepseek-v4-flash` | `medium` |
-| **marketer** | `anthropic` / **claude-opus-5-5** | `anthropic` / claude-fable-5-1 | `anthropic` / claude-sonnet-5-5 | `openrouter` / `xiaomi/mimo-v2.5` | — | `medium` |
+| Profile                              | T1 (primary)                        | T2                                | T3                                | T4                                          | T5                                          | `reasoning_effort` |
+| ------------------------------------ | ----------------------------------- | --------------------------------- | --------------------------------- | ------------------------------------------- | ------------------------------------------- | ------------------ |
+| **default**                          | `anthropic` / claude-opus-5-5       | `anthropic` / claude-sonnet-5-5   | `openrouter` / `xiaomi/mimo-v2.5` | —                                           | —                                           | `medium`           |
+| **assistant**                        | `anthropic` / **claude-opus-5-5**   | `anthropic` / claude-fable-5-1    | `anthropic` / claude-sonnet-5-5   | `openai-codex` / gpt-6.1-sol                | `openrouter` / `xiaomi/mimo-v2.5`           | `medium`           |
+| **engineer**                         | `anthropic` / **claude-fable-5-1**  | `anthropic` / claude-opus-5-5     | `anthropic` / claude-sonnet-5-5   | `openrouter` / `deepseek/deepseek-v4-flash` | —                                           | `high`             |
+| **researcher**                       | `anthropic` / **claude-sonnet-5-5** | `anthropic` / claude-opus-5-5     | `openai-codex` / gpt-6.1-sol      | `openrouter` / `xiaomi/mimo-v2.5`           | —                                           | `medium`           |
+| **searcher**                         | `xai-oauth` / grok-4.3              | `openrouter` / `xiaomi/mimo-v2.5` | —                                 | —                                           | —                                           | `low`              |
+| **creator**, **video-creator**       | `anthropic` / **claude-opus-5-5**   | `anthropic` / claude-fable-5-1    | `anthropic` / claude-sonnet-5-5   | `openrouter` / `minimax/minimax-m3`         | —                                           | `medium`           |
+| **image-creator**, **audio-creator** | `anthropic` / **claude-sonnet-5-5** | `anthropic` / claude-opus-5-5     | `anthropic` / claude-fable-5-1    | `openrouter` / `minimax/minimax-m3`         | —                                           | `medium`           |
+| **writer**                           | `anthropic` / **claude-sonnet-5-5** | `anthropic` / claude-opus-5-5     | `anthropic` / claude-fable-5-1    | `openai-codex` / gpt-6.1-sol                | `openrouter` / `deepseek/deepseek-v4-flash` | `medium`           |
+| **marketer**                         | `anthropic` / **claude-opus-5-5**   | `anthropic` / claude-fable-5-1    | `anthropic` / claude-sonnet-5-5   | `openrouter` / `xiaomi/mimo-v2.5`           | —                                           | `medium`           |
 
 A `fallback_providers` entry carries no per-entry `reasoning_effort` or
 `api_mode` for the main agent: on each fallback activation Hermes re-reads the
 profile config and re-resolves both from provider / base URL / model
 (`chat_completion_helpers.py`). **There is no per-tier effort knob in
-0.21.0** — `agent.reasoning_overrides` is a *session* concept
+0.21.0** — `agent.reasoning_overrides` is a _session_ concept
 (`gateway/session_state.py`, driven by `/model`), not a config key, so a
 profile's single `agent.reasoning_effort` applies to every tier in its chain.
 
@@ -121,8 +121,8 @@ backed by the two blind A/Bs above (small n per arm). Provider facts:
 - **xAI (searcher only)** — `xai-oauth` (`base_url: https://api.x.ai/v1`) is a
   flat-rate **xAI subscription**, not the metered
   `XAI_API_KEY` API, so per-token prices do not apply and searcher adds no
-  worker to the Claude weekly pool. grok-4.3 is positioned for *tool calling and
-  instruction following* — the right shape for link-first retrieval — and its
+  worker to the Claude weekly pool. grok-4.3 is positioned for _tool calling and
+  instruction following_ — the right shape for link-first retrieval — and its
   reasoning can be switched off (`none`). It is on the reasoning-capable
   allowlist (`model_metadata.py`), so its `reasoning_effort` really is sent as
   `reasoning: {effort: …}`; non-allowlisted Grok models have the field dropped
@@ -131,14 +131,15 @@ backed by the two blind A/Bs above (small n per arm). Provider facts:
   **A lapsed xAI OAuth does not degrade searcher to its lower tiers.**
   Credential resolution fails before the request is built, so the agent aborts
   with `xAI OAuth state is missing access_token` and `fallback_providers` never
-  engages. The same gate hides `x_search` from the schema, which `hermes
-  doctor` misleadingly reports as `x_search (missing XAI_API_KEY)` — the tool
+  engages. The same gate hides `x_search` from the schema, which
+  `hermes doctor` misleadingly reports as `x_search (missing XAI_API_KEY)` — the tool
   prefers the OAuth bearer and only falls back to the key (`tools/xai_http.py`).
   Re-authenticate with `hermes model` from the **default** profile — never
   with `-p`, which would write the worker's own `auth.json` and shadow the
   inherited credential.
+
 - **Auxiliary models are pinned, not `auto`.** `auto` resolves to the
-  profile's own main provider *and main model* (`agent/auxiliary_client.py`),
+  profile's own main provider _and main model_ (`agent/auxiliary_client.py`),
   which would run compression, titles, triage and the rest on the most
   expensive model. Every task except `vision` and `web_extract` is pinned to a
   cheap Claude sibling — `anthropic` / `claude-sonnet-5` on the judgment
@@ -176,24 +177,24 @@ assistant to route `delegate_task` subagents to a cheap model.
 These facts govern the paired Claude tiers (Fable 5 and 5.1 behave the same):
 
 1. **Fable is not a separate quota tank.** It is included but capped at
-   **≤50% of the weekly pool**, drawn from the *same* pool as Opus, and
+   **≤50% of the weekly pool**, drawn from the _same_ pool as Opus, and
    it burns that pool faster. A Fable ⇄ Opus step therefore only rescues the
    case where one model's sub-cap is exhausted while the overall weekly still
    has room; if the shared weekly or the 5-hour session limit tripped, both
    are dead and the chain continues to Sonnet 5.5 (metered under "all other
    models", not the Opus bucket) and then the OpenRouter tail. **That is why
    the second Claude model sits at T2** on every Claude-judgment profile: the
-   sub-cap case is the *long* failure — it persists until the week rolls over
+   sub-cap case is the _long_ failure — it persists until the week rolls over
    — and in exactly that case the other Claude model is still alive. With one
    Claude account behind every profile, a busy Creator week can drain the
    shared pool for all of them; watch it before adding concurrency.
 2. **The T2 step depends on the token being resolvable outside the credential
-   pool.** A `usage_limit_reached` 429 marks the *credential* exhausted, and
+   pool.** A `usage_limit_reached` 429 marks the _credential_ exhausted, and
    that mark has **no model dimension** (`credential_pool.py`), so the pool
    refuses to hand it out. The same-provider T2 only succeeds because
    `resolve_anthropic_token()` checks `ANTHROPIC_TOKEN` /
    `CLAUDE_CODE_OAUTH_TOKEN` / the Claude Code Keychain entry **before** the
-   pool (`anthropic_adapter.py`). Park the Claude subscription *only* in the
+   pool (`anthropic_adapter.py`). Park the Claude subscription _only_ in the
    credential pool and every later Claude tier is silently skipped — the
    chain quietly degrades straight to OpenRouter.
 3. **Hermes has no per-model quota memory.** The "included Fable usage for
@@ -257,7 +258,7 @@ default profile's `~/.hermes/auth.json`.
 
 - **OAuth logins happen in default only** (`hermes model`, no `-p`). Codex,
   Copilot and xAI-OAuth creds are then inherited by every profile — **no
-  per-worker re-auth.** Running `hermes model` *inside* a worker writes that
+  per-worker re-auth.** Running `hermes model` _inside_ a worker writes that
   profile's `auth.json` and shadows the inherited creds for that provider
   (writes never propagate).
 - **Shadowed creds survive a default re-login, and `hermes doctor` will not see
