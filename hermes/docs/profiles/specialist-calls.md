@@ -17,12 +17,11 @@ caller has an explicit `specialist_call.resident_targets` allowlist:
 | assistant | engineer, creator, marketer, writer; searcher resident-only. Never the hands, never researcher directly |
 | creator | its seven configured peers: engineer, marketer, researcher, writer, image-creator, video-creator, audio-creator |
 | marketer | engineer, creator, researcher, writer (keeps inbound A2A) |
-| engineer | marketer, researcher, writer, ui-review, ux-persona |
+| engineer | marketer, researcher, writer |
 
-UI evaluators are resident-only, without bots or A2A ports. The default CLI flow
-is unchanged. Short inquiries use an allowed target's existing `a2a_agents` RPC
-endpoint when one exists; no endpoint is ever discovered from model text or a
-supplied URL. Work always uses the resident script
+The default CLI flow is unchanged. Short inquiries use an allowed target's
+existing `a2a_agents` RPC endpoint when one exists; no endpoint is ever
+discovered from model text or a supplied URL. Work always uses the resident script
 (`assistant/scripts/resident-session.sh`).
 
 Call `specialist_call(target, message, kind="inquiry"|"work")`, then continue

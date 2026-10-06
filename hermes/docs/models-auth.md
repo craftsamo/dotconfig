@@ -17,8 +17,8 @@ Hermes Claude account; the ChatGPT subscription belongs to OpenCode, and
 Hermes touches it for image generation and, on `writer` / `researcher` /
 `assistant` only, as a last-resort chat tier ahead of the OpenRouter tail (see
 "Codex" below). Judgment profiles lead with Opus or Fable and fall through a
-second Claude model and Sonnet 5.5 before that tail; **researcher**, **writer**,
-the UI evaluators and the **image-creator** / **audio-creator** hands lead on
+second Claude model and Sonnet 5.5 before that tail; **researcher**, **writer**
+and the **image-creator** / **audio-creator** hands lead on
 **Sonnet 5.5**.
 
 - **Opus 5.5 leads `default`, `assistant`, `marketer`, `creator`
@@ -82,7 +82,6 @@ the UI evaluators and the **image-creator** / **audio-creator** hands lead on
 | **image-creator**, **audio-creator** | `anthropic` / **claude-sonnet-5-5** | `anthropic` / claude-opus-5-5 | `anthropic` / claude-fable-5-1 | `openrouter` / `minimax/minimax-m3` | — | `medium` |
 | **writer** | `anthropic` / **claude-sonnet-5-5** | `anthropic` / claude-opus-5-5 | `anthropic` / claude-fable-5-1 | `openai-codex` / gpt-6.1-sol | `openrouter` / `deepseek/deepseek-v4-flash` | `medium` |
 | **marketer** | `anthropic` / **claude-opus-5-5** | `anthropic` / claude-fable-5-1 | `anthropic` / claude-sonnet-5-5 | `openrouter` / `xiaomi/mimo-v2.5` | — | `medium` |
-| **ui-review**, **ux-persona** | `anthropic` / claude-sonnet-5-5 | `anthropic` / claude-opus-5-5 | — | — | — | `medium` |
 
 A `fallback_providers` entry carries no per-entry `reasoning_effort` or
 `api_mode` for the main agent: on each fallback activation Hermes re-reads the
@@ -146,7 +145,7 @@ backed by the two blind A/Bs above (small n per arm). Provider facts:
   profiles, `claude-sonnet-5-5` on researcher and Creator's family (their
   thinking-off calls get `between_tools`, see below) — each with a
   `fallback_chain` to `openrouter` /
-  `deepseek/deepseek-v4-flash` (searcher and the evaluators stay `auto`).
+  `deepseek/deepseek-v4-flash` (searcher stays `auto`).
   Below that sit the configured chain and a last-resort hop to the main agent
   model, so a pinned aux model never becomes a single point of failure.
   **`vision` deliberately stays `auto`** — pinning it disables the main

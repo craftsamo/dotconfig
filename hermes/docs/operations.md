@@ -12,8 +12,8 @@ makes that single process serve every profile directory under `profiles/`
 use it on a role that must stay reachable) and connect each one's enabled
 platforms — assistant Telegram (+ topics) and Discord, the engineer / creator /
 marketer Telegram bots, and the A2A endpoints on 127.0.0.1:9902-9909. Profiles
-without platforms (searcher, ui-review, ux-persona) are served as well and
-carry `secrets.command` → `profile-secrets.sh`. Secondary profiles never run
+without platforms (searcher) are served as well and carry `secrets.command` →
+`profile-secrets.sh`. Secondary profiles never run
 their own gateway. Three tracked, machine-agnostic files in `hermes/launchd/`:
 
 - **`bin/hermes-gateway-multiplex`** — the launcher. Sets its own `PATH` (a
