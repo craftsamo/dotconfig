@@ -13,7 +13,8 @@ repository:
 A ``token.json`` an earlier version left in ``<HERMES_HOME>/google-access/`` is moved into the
 Keychain on first use and deleted.
 Drive downloads go to ``google_access.download_dir`` (config.yaml), else
-``<HERMES_HOME>/google-downloads/`` — outside the state directory the guard protects.
+``<HERMES_HOME>/google-downloads/`` — outside the state directory the guard protects; sheet
+snapshots (PDF and PNG pages) go to its ``sheet-snapshots/``.
 
 Which calls change something, and therefore need a human approval, is decided here
 (``approval_request``) so the plugin hook and the tests share one rule.
@@ -68,16 +69,17 @@ REASON_LIMIT = 1500
 GCLOUD_TIMEOUT = 300
 GCLOUD_TIMEOUT_MAX = 1800
 
-SHEETS_ACTIONS = ("search", "info", "get", "get_format", "update", "batch_update", "append", "clear",
-                  "create", "add_sheet", "layout", "data", "chart", "pivot", "protect")
+SHEETS_ACTIONS = ("search", "info", "get", "get_format", "snapshot", "comments", "update", "batch_update",
+                  "append", "clear", "create", "add_sheet", "layout", "data", "chart", "pivot", "protect",
+                  "comment")
 # Actions taking a list of ops from a fixed vocabulary (OP_SETS), sent as one batchUpdate.
-OP_ACTIONS = {"layout", "data", "chart", "pivot", "protect"}
+OP_ACTIONS = {"layout", "data", "chart", "pivot", "protect", "comment"}
 SHEETS_WRITES = {"update", "batch_update", "append", "clear", "create", "add_sheet", "layout", "data", "chart",
-                 "pivot", "protect"}
+                 "pivot", "protect", "comment"}
 # Edits approved once per spreadsheet: "session" / "always" on the first card covers the rest of
 # that spreadsheet's edits (its version history undoes them). clear and create still ask each time,
 # and so does a layout call holding an op that deletes or moves data (LAYOUT_DESTRUCTIVE) and every
-# data and protect call.
+# data, protect and comment call (comments reach other people and version history keeps none).
 SHEETS_EDITS = {"update", "batch_update", "append", "add_sheet", "layout", "chart", "pivot"}
 BATCH_LIMIT = 500
 # Row guards: cells that must still hold a known value (a key column) when a write by row number
@@ -616,9 +618,17 @@ def sheets(home, args: dict) -> dict:
     book = api.spreadsheets()
     if action == "info":
         meta = _google(lambda: book.get(spreadsheetId=sid, fields=INFO_FIELDS).execute())
-        return {"ok": True, "spreadsheet_id": sid, "title": meta.get("properties", {}).get("title"),
-                "url": meta.get("spreadsheetUrl"),
+        props = meta.get("properties", {})
+        return {"ok": True, "spreadsheet_id": sid, "title": props.get("title"),
+                "url": meta.get("spreadsheetUrl"), "locale": props.get("locale"),
+                "time_zone": props.get("timeZone"),
                 "sheets": [_sheet_info(s) for s in meta.get("sheets", [])]}
+    if action == "snapshot":
+        return _snapshot(home, book, sid, args)
+    if action == "comments":
+        return _comments(book, sid, args)
+    if action == "append" and args.get("table") is not None:
+        return _table_append(book, sid, args)
     if action == "add_sheet":
         title = _str(args, "title")
         done = _google(lambda: book.batchUpdate(spreadsheetId=sid, body={
@@ -700,6 +710,14 @@ def sheets(home, args: dict) -> dict:
         counted = _data_results(replies)
         if counted:
             result["results"] = counted
+        threads = [r["insertComment"].get("commentThread") or {} for r in replies if "insertComment" in r]
+        if threads:
+            result["comments"] = [{"comment_id": t.get("commentId")} for t in threads]
+        state = done.get("commentUpdateState")
+        if action == "comment" and state != "ALL_SAVED":
+            # Comment changes can fail on their own while the call succeeds.
+            result.update(ok=False, error=f"Google did not save the comment changes ({state or 'no state'}); "
+                                          f"read them with comments before trying again")
         return result
 
     option = "RAW" if args.get("raw") else "USER_ENTERED"
@@ -733,7 +751,7 @@ def sheets(home, args: dict) -> dict:
 
 INFO_FIELDS = ("spreadsheetId,spreadsheetUrl,properties(title,locale,timeZone),"
                "sheets(properties(sheetId,title,index,hidden,tabColorStyle,gridProperties(rowCount,"
-               "columnCount,frozenRowCount,frozenColumnCount)),merges,"
+               "columnCount,frozenRowCount,frozenColumnCount,hideGridlines)),merges,"
                "tables(tableId,name,range,columnProperties),conditionalFormats,"
                "rowGroups(range,depth,collapsed),columnGroups(range,depth,collapsed),basicFilter(range),"
                "filterViews(filterViewId,title,range),"
@@ -1052,6 +1070,236 @@ def _sheet_info(sheet: dict) -> dict:
     return props
 
 
+# --- Sheets snapshots, comments and table appends -------------------------------------------------
+
+EXPORT_URL = "https://docs.google.com/spreadsheets/d/{sid}/export"
+EXPORT_TIMEOUT = 120
+EXPORT_LIMIT = 30 * 1024 * 1024
+SNAPSHOT_DIR = "sheet-snapshots"
+SNAPSHOT_PAGES = 3
+SNAPSHOT_PAGES_MAX = 10
+SNAPSHOT_DENSITY = 110
+# The export URL's own parameters: not a documented API, but the ones Google's Apps Script samples use.
+SNAPSHOT_FITS = {"WIDTH": "2", "HEIGHT": "3", "PAGE": "4", "NONE": "1"}
+SNAPSHOT_PAPERS = {"A4": "a4", "A3": "a3", "LETTER": "letter", "LEGAL": "legal", "TABLOID": "tabloid"}
+SNAPSHOT_FIELDS = "properties(title),sheets(properties(sheetId,title))"
+COMMENTS_FIELDS = "comments,sheets(properties(sheetId,title),commentAnchors)"
+COMMENTS_LIMIT = 200
+TABLE_FIELDS = "sheets(properties(sheetId,title),tables(tableId,name,range))"
+
+
+def _snapshot(home, book, sid: str, args: dict) -> dict:
+    """A tab, or a block of it, exported as PDF and rendered to PNG pages, so its look can be checked
+    without a browser. Reads only; the files land in the download folder."""
+    tab = _str(args, "sheet", required=False) or None
+    rng = _str(args, "range", required=False)
+    grid = {}
+    if rng:
+        rng_tab, ref = split_range(rng)
+        if rng_tab is not None and tab is not None and rng_tab != tab:
+            raise AccessError("range names another tab than sheet")
+        tab = rng_tab if rng_tab is not None else tab
+        grid = _grid_ref(ref)
+        if ref and not _CLOSED <= set(grid):
+            raise AccessError(f"snapshot takes a closed block like 'Sheet1!A1:F40', not {rng!r}")
+    pages = _int(args, "pages", SNAPSHOT_PAGES, SNAPSHOT_PAGES_MAX)
+    fit = _choice(args, "fit", set(SNAPSHOT_FITS), "WIDTH")
+    paper = _choice(args, "paper", set(SNAPSHOT_PAPERS), "A4")
+    portrait = _flag(args, "portrait") if "portrait" in args else False
+    gridlines = _flag(args, "gridlines") if "gridlines" in args else True
+    meta = _google(lambda: book.get(spreadsheetId=sid, fields=SNAPSHOT_FIELDS).execute())
+    gid = _Tabs(meta).id(tab)
+    name = next((s.get("properties", {}).get("title") for s in meta.get("sheets", [])
+                 if s.get("properties", {}).get("sheetId", 0) == gid), tab) or ""
+    params = {"format": "pdf", "gid": str(gid), "size": SNAPSHOT_PAPERS[paper], "portrait": str(portrait).lower(),
+              "scale": SNAPSHOT_FITS[fit], "gridlines": str(gridlines).lower(), "fzr": "true",
+              "sheetnames": "false", "printtitle": "false", "pagenum": "UNDEFINED", "attachment": "false"}
+    if grid:  # zero-based, end exclusive
+        params.update(r1=str(grid["startRowIndex"]), c1=str(grid["startColumnIndex"]),
+                      r2=str(grid["endRowIndex"]), c2=str(grid["endColumnIndex"]))
+    folder = download_dir(home) / SNAPSHOT_DIR
+    folder.mkdir(parents=True, exist_ok=True)
+    title = meta.get("properties", {}).get("title") or sid
+    stem = re.sub(r"[^\w-]+", "_", f"{title}-{name}").strip("_")[:80] or "snapshot"
+    path, fd = _reserve(folder / f"{stem}-{time.strftime('%Y%m%d-%H%M%S')}.pdf")
+    try:
+        with os.fdopen(fd, "wb") as handle:
+            _export_pdf(home, sid, params, handle)
+    except BaseException:
+        path.unlink(missing_ok=True)
+        raise
+    images, note = _pdf_pages(path, pages)
+    result = {"ok": True, "spreadsheet_id": sid, "sheet": name, "pdf": str(path), "images": images}
+    if rng:
+        result["range"] = rng
+    if note:
+        result["note"] = note
+    elif len(images) == pages:
+        result["note"] = f"rendered the first {pages} pages; the PDF may hold more (pages up to {SNAPSHOT_PAGES_MAX})"
+    return result
+
+
+def _export_pdf(home, sid: str, params: dict, handle) -> None:
+    """Stream the export URL's PDF into ``handle``; anything but a PDF is an error."""
+    try:
+        import requests
+        from google.auth.transport.requests import AuthorizedSession
+    except ImportError as exc:
+        raise AccessError(f"Google client libraries are missing from Hermes' runtime: {exc}") from exc
+    try:
+        with AuthorizedSession(credentials(home, DRIVE_READ)) as session, session.get(
+                EXPORT_URL.format(sid=sid), params=params, timeout=EXPORT_TIMEOUT, stream=True) as resp:
+            kind = resp.headers.get("Content-Type", "")
+            if resp.status_code != 200 or not kind.startswith("application/pdf"):
+                raise AccessError(f"Google did not return a PDF (HTTP {resp.status_code}, {kind or 'no type'}); "
+                                  f"check the tab and range")
+            total = 0
+            for chunk in resp.iter_content(1 << 16):
+                total += len(chunk)
+                if total > EXPORT_LIMIT:
+                    raise AccessError(f"the PDF is over {EXPORT_LIMIT >> 20} MB; snapshot a smaller range")
+                handle.write(chunk)
+    except requests.RequestException as exc:  # its text may carry a signed redirect URL
+        raise AccessError(f"the PDF export failed ({type(exc).__name__})") from None
+
+
+def _pdf_pages(pdf: Path, pages: int) -> tuple[list[str], str | None]:
+    """PNG files of the PDF's first pages, beside it, and a note when fewer could be made.
+    ImageMagick renders them; without it macOS sips draws the first page."""
+    magick = shutil.which("magick")
+    if magick:
+        done = subprocess.run([magick, "-density", str(SNAPSHOT_DENSITY), f"{pdf}[0-{pages - 1}]",
+                               "-background", "white", "-alpha", "remove", "-alpha", "off",
+                               str(pdf.with_name(f"{pdf.stem}-%d.png"))],
+                              capture_output=True, text=True, timeout=EXPORT_TIMEOUT)
+        prefix = f"{pdf.stem}-"
+        made = [p for p in pdf.parent.iterdir()
+                if p.suffix == ".png" and p.name.startswith(prefix) and p.stem[len(prefix):].isdigit()]
+        made.sort(key=lambda p: int(p.stem[len(prefix):]))
+        if made:
+            return [str(p) for p in made], None
+        return [], f"rendering failed: {(done.stderr or '').strip()[-300:] or done.returncode}"
+    sips = shutil.which("sips")
+    if sips:
+        out = pdf.with_suffix(".png")
+        done = subprocess.run([sips, "-s", "format", "png", str(pdf), "--out", str(out)],
+                              capture_output=True, text=True, timeout=EXPORT_TIMEOUT)
+        if done.returncode == 0 and out.exists():
+            return [str(out)], "only the first page was rendered (ImageMagick is missing)"
+    return [], "no renderer (ImageMagick or sips) is available; only the PDF was saved"
+
+
+def _post(post: dict) -> dict:
+    author = post.get("author") or {}
+    out = {"post_id": post.get("postId"), "author": author.get("displayName"), "me": bool(author.get("me")),
+           "text": post.get("content") or "", "time": post.get("updateTime") or post.get("createTime")}
+    if post.get("assigneeEmail"):
+        out["assignee"] = post["assigneeEmail"]
+    if post.get("commentAction") in ("RESOLVE", "REOPEN"):
+        out["action"] = post["commentAction"]
+    return out
+
+
+def _comments(book, sid: str, args: dict) -> dict:
+    """Comment threads with the cell each is anchored to; resolved ones only with resolved=true.
+    Given ranges, only threads anchored inside them come back."""
+    ranges = args.get("ranges")
+    if ranges is None and args.get("range") is not None:
+        ranges = [_str(args, "range")]
+    if ranges is not None and (not isinstance(ranges, list) or not ranges
+                               or not all(isinstance(r, str) and r.strip() for r in ranges)):
+        raise AccessError("ranges must be a non-empty array of A1 ranges")
+    resolved = _flag(args, "resolved") if "resolved" in args else False
+    request = book.get(spreadsheetId=sid, fields=COMMENTS_FIELDS, **({"ranges": ranges} if ranges else {}))
+    # The client's bundled API description predates comments, so the parameter goes on the URI.
+    request.uri += ("&" if "?" in request.uri else "?") + "commentsViewMode=COMMENTS_VIEW_MODE_INCLUDED"
+    meta = _google(request.execute)
+    anchors = {}
+    for sheet in meta.get("sheets", []):
+        title = sheet.get("properties", {}).get("title")
+        for anchor in sheet.get("commentAnchors", []) or []:
+            ref = _a1(anchor.get("range") or {})
+            first, _, last = ref.partition(":")
+            anchors[anchor.get("anchorId")] = f"{title}!{first if first == last else ref}"
+    out, hidden = [], 0
+    for thread in meta.get("comments", []) or []:
+        status = thread.get("status") or "OPEN"
+        if status == "RESOLVED" and not resolved:
+            hidden += 1
+            continue
+        entry = {"comment_id": thread.get("commentId"), "at": anchors.get(thread.get("anchorId"), "unanchored"),
+                 "status": status, **_post(thread.get("headPost") or {})}
+        entry.pop("post_id", None)
+        replies = [_post(p) for p in thread.get("replies") or [] if not p.get("deleted")]
+        if replies:
+            entry["replies"] = replies
+        out.append(entry)
+    result = {"ok": True, "spreadsheet_id": sid, "comments": out[:COMMENTS_LIMIT]}
+    if len(out) > COMMENTS_LIMIT:
+        result["more"] = len(out) - COMMENTS_LIMIT
+    if hidden:
+        result["resolved_hidden"] = hidden
+    return result
+
+
+def _find_table(meta: dict, key: str) -> dict:
+    """A table by id or name (exact, then ignoring case), with its sheetId and tab title."""
+    tables = []
+    for sheet in meta.get("sheets", []):
+        props = sheet.get("properties", {})
+        for table in sheet.get("tables", []) or []:
+            tables.append(dict(table, sheetId=props.get("sheetId", 0), tab=props.get("title")))
+    found = [t for t in tables if t.get("tableId") == key] or [t for t in tables if t.get("name") == key] or [
+        t for t in tables if (t.get("name") or "").casefold() == key.casefold()]
+    if len(found) != 1:
+        names = [t.get("name") for t in tables]
+        raise AccessError(f"no single table named {key!r}. Tables: {_few(names) if names else 'none'}")
+    return found[0]
+
+
+def _table_rows(args: dict) -> tuple[str, list]:
+    """(table, rows) of an append to a table; the gate and the engine share this check."""
+    if args.get("range"):
+        raise AccessError("append to a table takes table, not range")
+    return _str(args, "table"), _values(args)
+
+
+def _cell_data(value, raw: bool) -> dict:
+    """A cell for appendCells, which has no typing like the UI: numbers and booleans keep their
+    type, '=…' is a formula unless raw, and any other text (a date included) stays text."""
+    if value is None or value == "":
+        return {}
+    if isinstance(value, bool):
+        return {"userEnteredValue": {"boolValue": value}}
+    if isinstance(value, (int, float)):
+        return {"userEnteredValue": {"numberValue": value}}
+    if isinstance(value, str):
+        kind = "formulaValue" if value.startswith("=") and not raw else "stringValue"
+        return {"userEnteredValue": {kind: value}}
+    raise AccessError("each cell is text, a number or a boolean")
+
+
+def _table_append(book, sid: str, args: dict) -> dict:
+    """Rows into a native table's first free rows (the table grows, its footer stays last)."""
+    key, rows = _table_rows(args)
+    raw = bool(args.get("raw"))
+    meta = _google(lambda: book.get(spreadsheetId=sid, fields=TABLE_FIELDS).execute())
+    table = _find_table(meta, key)
+    rng = table.get("range", {})
+    width = rng.get("endColumnIndex", 0) - rng.get("startColumnIndex", 0)
+    if any(len(row) > width for row in rows):
+        raise AccessError(f"table {table.get('name')!r} has {width} columns; a row holds more")
+    body = [{"values": [_cell_data(value, raw) for value in row]} for row in rows]
+    _google(lambda: book.batchUpdate(spreadsheetId=sid, body={"requests": [{"appendCells": {
+        "sheetId": table["sheetId"], "tableId": table["tableId"], "rows": body,
+        "fields": "userEnteredValue"}}]}).execute())
+    after = _google(lambda: book.get(spreadsheetId=sid, fields=TABLE_FIELDS).execute())
+    grown = next((t for s in after.get("sheets", []) for t in s.get("tables", []) or []
+                  if t.get("tableId") == table["tableId"]), table)
+    return {"ok": True, "spreadsheet_id": sid, "table": table.get("name"), "appended_rows": len(rows),
+            "table_range": f"{table['tab']}!{_a1(grown.get('range', {}))}"}
+
+
 # --- Sheets layout --------------------------------------------------------------------------------
 # One `layout` call is one spreadsheets.batchUpdate: every op lands or none does. Ops are a fixed
 # vocabulary validated here (never raw API requests), so the gate can describe and classify them.
@@ -1082,10 +1330,11 @@ LAYOUT_OPS = {  # op: (required fields, optional fields); "ranges" stands in for
     "merge": (("range",), ("ranges", "merge")),
     "unmerge": (("range",), ("ranges",)),
     "freeze": ((), ("sheet", "rows", "columns")),
-    "sheet": (("sheet",), ("title", "tab_color", "hidden", "position")),
+    "sheet": (("sheet",), ("title", "tab_color", "hidden", "position", "gridlines")),
     "sheet_duplicate": (("sheet",), ("title", "position")),
     "sheet_delete": (("sheet",), ()),
     "rename_spreadsheet": (("title",), ()),
+    "spreadsheet_settings": ((), ("locale", "time_zone")),
     "note": (("range",), ("ranges", "text")),
     "rich_text": (("range", "runs"), ("value",)),
     "table": (("range",), _TABLE),
@@ -1113,6 +1362,13 @@ SHIFTING_OPS = {"insert", "delete", "move"}
 OWN_TAB_OPS = {"table_update", "filter_view_update", "chart_update", "chart_move", "chart_delete",
                "protect_update", "protect_delete"}
 RUNS_LIMIT = 50
+LOCALE = re.compile(r"^[a-z]{2,3}(_[A-Za-z0-9]{2,8})*$")
+
+
+@functools.lru_cache(maxsize=1)
+def _time_zones() -> frozenset:
+    import zoneinfo
+    return frozenset(zoneinfo.available_timezones())
 LINK = re.compile(r"^(https?://|mailto:)\S+$")
 NUMBER_FORMATS = {"TEXT", "NUMBER", "PERCENT", "CURRENCY", "DATE", "TIME", "DATE_TIME", "SCIENTIFIC",
                   "AUTOMATIC"}
@@ -1721,8 +1977,11 @@ def _normalize(name: str, raw: dict, here: bool = False) -> dict:
         if "position" in raw:
             op["position"] = _whole(raw, "position", 1, 10000)
             words.append(f"move to position {op['position']}")
+        if "gridlines" in raw:
+            op["gridlines"] = _flag(raw, "gridlines")
+            words.append("show gridlines" if op["gridlines"] else "hide gridlines")
         if not words:
-            raise AccessError("give title, tab_color, hidden or position")
+            raise AccessError("give title, tab_color, hidden, position or gridlines")
         op["say"] = f"Tab {_tab_label(op['tab'])}: {', '.join(words)}"
     elif name == "sheet_duplicate":
         op["title"] = _str(raw, "title", required=False)
@@ -1735,6 +1994,22 @@ def _normalize(name: str, raw: dict, here: bool = False) -> dict:
     elif name == "rename_spreadsheet":
         op["title"] = _str(raw, "title")
         op["say"] = f"Rename spreadsheet to \"{_cell(op['title'], '', TITLE_CLIP)}\""
+    elif name == "spreadsheet_settings":
+        words = []
+        if "locale" in raw:
+            op["locale"] = _str(raw, "locale")
+            if not LOCALE.match(op["locale"]):
+                raise AccessError("locale is like 'ja_JP' or 'en_US'")
+            words.append(f"locale {op['locale']}")
+        if "time_zone" in raw:
+            op["time_zone"] = _str(raw, "time_zone")
+            if op["time_zone"] not in _time_zones():
+                raise AccessError("time_zone is an IANA name like 'Asia/Tokyo'")
+            words.append(f"time zone {op['time_zone']}")
+        if not words:
+            raise AccessError("give locale and/or time_zone")
+        op["say"] = (f"Spreadsheet settings: {', '.join(words)} (dates, numbers and NOW()/TODAY() "
+                     f"may read differently everywhere in the file)")
     elif name == "note":
         if not isinstance(raw.get("text"), str):
             raise AccessError("give text (an empty text removes the notes)")
@@ -2100,6 +2375,9 @@ def _layout_requests(ops: list[dict], meta: dict, header=None, cell=None, **_) -
             if "hidden" in op:
                 props["hidden"] = op["hidden"]
                 fields.append("hidden")
+            if "gridlines" in op:
+                props["gridProperties"] = {"hideGridlines": not op["gridlines"]}
+                fields.append("gridProperties.hideGridlines")
             if "position" in op:
                 # The API counts the target before the move; position is where the tab ends up.
                 current, final = order.index(props["sheetId"]), min(op["position"], len(order)) - 1
@@ -2137,6 +2415,9 @@ def _layout_requests(ops: list[dict], meta: dict, header=None, cell=None, **_) -
         elif name == "rename_spreadsheet":
             requests.append({"updateSpreadsheetProperties": {"properties": {"title": op["title"]},
                                                              "fields": "title"}})
+        elif name == "spreadsheet_settings":
+            props = {key: op[word] for word, key in (("locale", "locale"), ("time_zone", "timeZone")) if word in op}
+            requests.append({"updateSpreadsheetProperties": {"properties": props, "fields": ",".join(props)}})
         elif name == "note":
             requests.append({"repeatCell": {"range": grid(op), "cell": {"note": op["text"]} if op["text"] else {},
                                             "fields": "note"}})
@@ -2196,9 +2477,11 @@ def _layout_requests(ops: list[dict], meta: dict, header=None, cell=None, **_) -
 
 
 def _destructive(op: dict) -> bool:
-    """Whether an op deletes, moves or replaces data: the fixed set, plus removing notes and
-    replacing a filter view's criteria."""
+    """Whether an op deletes, moves or replaces data: the fixed set, plus removing notes,
+    replacing a filter view's criteria and changing the locale or time zone (which re-reads every
+    date and number in the file)."""
     return (op["op"] in LAYOUT_DESTRUCTIVE or op["op"] in DATA_OPS or op["op"] in OBJECT_DESTRUCTIVE
+            or op["op"] == "spreadsheet_settings"
             or (op["op"] == "pivot" and op["at"] is not None) or (op["op"] == "note" and not op["text"])
             or (op["op"] == "filter_view_update" and op["set_criteria"]))
 
@@ -3033,13 +3316,107 @@ def _protect_requests(ops: list[dict], meta: dict, **_) -> list[dict]:
     return requests
 
 
+# --- Sheets comments ------------------------------------------------------------------------------
+# A `comment` call is approved per exact call: comments reach other people (an assignee or a
+# mentioned address is emailed) and the version history does not undo them.
+
+COMMENT_OPS = {  # op: (required fields, optional fields)
+    "comment": (("range", "text"), ("assignee",)),
+    "comment_reply": (("comment",), ("text", "status", "assignee")),
+    "comment_edit": (("comment", "post", "text"), ()),
+    "comment_delete": (("comment",), ()),
+}
+COMMENT_TEXT_LIMIT = 2000
+COMMENT_STATUSES = {"RESOLVE", "REOPEN"}
+COMMENT_FIELDS = "sheets(properties(sheetId,title,index))"
+MENTION = re.compile(r"(?:^|\s)[+@][^\s@]+@[^\s@]+\.[^\s@]+")
+
+
+def _comment_text(raw: dict, required: bool) -> str:
+    if "text" not in raw and not required:
+        return ""
+    text = raw.get("text")
+    if not isinstance(text, str) or not text.strip():
+        raise AccessError("text must be the comment's words")
+    if len(text) > COMMENT_TEXT_LIMIT:
+        raise AccessError(f"text holds {len(text)} characters; at most {COMMENT_TEXT_LIMIT}")
+    return text.strip()
+
+
+def _normalize_comment(name: str, raw: dict, here: bool = False) -> dict:
+    """The validated comment op; ``here`` words its card line without the tab."""
+    op = {"op": name}
+    if name == "comment":
+        op["areas"] = _areas(raw)
+        op["tab"], op["ref"], op["grid"] = (op["areas"][0][k] for k in ("tab", "ref", "grid"))
+        if not SINGLE_CELL.match(op["ref"]):
+            raise AccessError(f"a comment goes on one cell, like 'Tasks!B2', not {op['ref'] or 'a whole tab'!r}")
+    else:
+        op["comment"] = _plain(raw["comment"])
+    op["text"] = _comment_text(raw, required=name != "comment_reply" and name != "comment_delete")
+    if "assignee" in raw:
+        address = raw["assignee"].strip() if isinstance(raw["assignee"], str) else ""
+        if len(address) > 100 or not EMAIL.match(address):
+            raise AccessError(f"assignee: not an email address: {raw['assignee']!r}")
+        op["assignee"] = address
+    quoted = f"\"{_cell(op['text'], '', 120)}\""
+    extra = (f"; assign to {op['assignee']} (emailed)" if "assignee" in op else "") + (
+        " (mentioned addresses are emailed)" if MENTION.search(op["text"]) else "")
+    if name == "comment":
+        op["say"] = f"Comment on {_where(op['tab'], op['ref'], here)}: {quoted}{extra}"
+    elif name == "comment_reply":
+        op["status"] = _choice(raw, "status", COMMENT_STATUSES) if "status" in raw else None
+        if not op["text"] and not op["status"] and "assignee" not in op:
+            raise AccessError("give text, status or assignee")
+        verb = {"RESOLVE": "Resolve", "REOPEN": "Reopen", None: "Reply to"}[op["status"]]
+        said = f" with {quoted}" if op["text"] and op["status"] else (f": {quoted}" if op["text"] else "")
+        op["say"] = f"{verb} comment {_cell(op['comment'], '', TAB_CLIP)}{said}{extra}"
+    elif name == "comment_edit":
+        op["post"] = _plain(raw["post"])
+        op["say"] = (f"Edit post {_cell(op['post'], '', TAB_CLIP)} of comment "
+                     f"{_cell(op['comment'], '', TAB_CLIP)} to {quoted}{extra}")
+    else:
+        op["say"] = f"Delete comment {_cell(op['comment'], '', TAB_CLIP)} with its replies"
+    return op
+
+
+def _comment_requests(ops: list[dict], meta: dict, **_) -> list[dict]:
+    tabs = _Tabs(meta)
+    requests = []
+    for op in ops:
+        name = op["op"]
+        if name == "comment":
+            cell = tabs.grid(op)
+            request = {"content": op["text"], "coordinate": {
+                "sheetId": cell["sheetId"], "rowIndex": cell["startRowIndex"], "columnIndex": cell["startColumnIndex"]}}
+            if "assignee" in op:
+                request["assigneeEmailAddress"] = op["assignee"]
+            requests.append({"insertComment": request})
+        elif name == "comment_reply":
+            post = {}
+            if op["text"]:
+                post["content"] = op["text"]
+            if op["status"]:
+                post["commentAction"] = op["status"]
+            if "assignee" in op:
+                post["assigneeEmail"] = op["assignee"]
+            requests.append({"addCommentReply": {"commentId": op["comment"], "post": post}})
+        elif name == "comment_edit":
+            requests.append({"updateCommentPost": {"commentId": op["comment"], "postId": op["post"],
+                                                   "content": op["text"]}})
+        else:
+            requests.append({"deleteComment": {"commentId": op["comment"]}})
+    return requests
+
+
 # Op actions: the vocabulary, its normalizer, its request builder (given the metadata and the
 # engine's readers) and the metadata fields it builds from.
 OP_SETS = {"layout": (LAYOUT_OPS, _normalize, _layout_requests, LAYOUT_FIELDS),
            "data": (DATA_OPS, _normalize_data, _data_requests, LAYOUT_FIELDS),
            "chart": (CHART_OPS, _normalize_objects, _object_requests, CHART_FIELDS),
            "pivot": (PIVOT_OPS, _normalize_objects, _object_requests, PIVOT_FIELDS),
-           "protect": (PROTECT_OPS, _normalize_protect, _protect_requests, PROTECT_FIELDS)}
+           "protect": (PROTECT_OPS, _normalize_protect, _protect_requests, PROTECT_FIELDS),
+           "comment": (COMMENT_OPS, _normalize_comment, _comment_requests, COMMENT_FIELDS)}
 
 
 # --- Gmail ----------------------------------------------------------------------------------------
@@ -3578,6 +3955,9 @@ def _sheets_card(home, action: str, args: dict) -> str:
         # Lines are already clipped per field; only the length is bounded here, so the repeated
         # spaces a literal shows survive.
         lines = [" ".join(op[say].splitlines()) for op in ops]
+        if action == "comment" and _redacted("\n".join(lines)) != "\n".join(lines):
+            raise AccessError("the comment card would mask part of it as a secret; the user writes that comment "
+                              "in Sheets")
         if action == "protect":  # every editor's address in full, or no card at all
             text = "\n".join(head + lines)
             if _redacted(text) != text:
@@ -3598,6 +3978,14 @@ def _sheets_card(home, action: str, args: dict) -> str:
             head.append(f"Clear: {_cell(_str(args, 'range'), '?', TAB_CLIP)}")
         clear_tab = split_range(_str(args, "range"))[0] if action == "clear" else ...
         return _fit(head + _check_lines(_expect(args, action), clear_tab), [], MORE)
+    if action == "append" and args.get("table") is not None:
+        table, rows = _table_rows(args)
+        title, _, _ = _sheet_context(home, sid, set())
+        head = [f"SpreadSheet: {_cell(title, '', TITLE_CLIP) or sid}",
+                f"Table: {_cell(table, '?', TAB_CLIP)} (new rows at its end)", ""]
+        cells = [f"(+{r + 1}) column {c + 1}: {_cell(value, EMPTY)}"
+                 for r, row in enumerate(rows) for c, value in enumerate(row)]
+        return _fit(head, cells, MORE)
     blocks = _batch(args) if action == "batch_update" else [{"range": _str(args, "range"),
                                                             "values": _values(args)}]
     parsed = [(split_range(b["range"]), b["values"]) for b in blocks]

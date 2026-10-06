@@ -2303,3 +2303,337 @@ def test_a_card_hermes_would_mask_is_refused(monkeypatch):
     with pytest.raises(access.AccessError, match="looks like a secret"):
         access.approval_request("google_sheets", protect(
             {"op": "protect", "range": "A1", "editors": ["sk-alex123@example.com"]}))
+
+
+# --- spreadsheet settings and gridlines -----------------------------------------------------------
+
+def test_gridlines_and_settings_become_requests():
+    grid, settings = requests({"op": "sheet", "sheet": "Tasks", "gridlines": False},
+                              {"op": "spreadsheet_settings", "locale": "ja_JP", "time_zone": "Asia/Tokyo"})
+    assert grid == {"updateSheetProperties": {"properties": {"sheetId": 7, "gridProperties": {"hideGridlines": True}},
+                                              "fields": "gridProperties.hideGridlines"}}
+    assert settings == {"updateSpreadsheetProperties": {"properties": {"locale": "ja_JP", "timeZone": "Asia/Tokyo"},
+                                                        "fields": "locale,timeZone"}}
+
+
+def test_settings_ask_per_call_and_gridlines_share_the_spreadsheet_key(monkeypatch):
+    context(monkeypatch, title="Plan", names=["Main", "Tasks"])
+    reason, key = access.approval_request("google_sheets", layout(
+        {"op": "spreadsheet_settings", "time_zone": "Asia/Tokyo"}), home=Path("/x"))
+    assert "sheets-edit" not in key and "time zone Asia/Tokyo" in reason
+    reason, key = access.approval_request("google_sheets", layout(
+        {"op": "sheet", "sheet": "Tasks", "gridlines": False}), home=Path("/x"))
+    assert key == f"google-access:sheets-edit:{SID}" and reason.endswith("Tab Tasks: hide gridlines")
+
+
+@pytest.mark.parametrize("op,message", [
+    ({"op": "spreadsheet_settings"}, "locale and/or time_zone"),
+    ({"op": "spreadsheet_settings", "locale": "Japanese"}, "locale is like"),
+    ({"op": "spreadsheet_settings", "time_zone": "Mars/Base"}, "IANA"),
+    ({"op": "spreadsheet_settings", "time_zone": "../etc/passwd"}, "IANA"),
+    ({"op": "sheet", "sheet": "Tasks", "gridlines": "no"}, "true or false")])
+def test_malformed_settings_are_refused(op, message):
+    with pytest.raises(access.AccessError, match=message):
+        access._ops(layout(op), "layout")
+
+
+def test_info_reports_locale_and_time_zone(tmp_path, monkeypatch):
+    api = mock.MagicMock()
+    api.spreadsheets().get().execute.return_value = {"properties": {"title": "Plan", "locale": "ja_JP",
+                                                                    "timeZone": "Asia/Tokyo"}, "sheets": []}
+    services(monkeypatch, sheets=api)
+    result = access.sheets(tmp_path, {"action": "info", "spreadsheet_id": SID})
+    assert result["locale"] == "ja_JP" and result["time_zone"] == "Asia/Tokyo"
+    assert "hideGridlines" in access.INFO_FIELDS
+
+
+# --- appending to a native table ------------------------------------------------------------------
+
+TABLES = {"sheets": [{"properties": {"title": "Main"}}, {"properties": {"sheetId": 7, "title": "Tasks"}, "tables": [
+    {"tableId": "t1", "name": "Todo", "range": {"sheetId": 7, "startRowIndex": 0, "endRowIndex": 5,
+                                                "startColumnIndex": 1, "endColumnIndex": 4}}]}]}
+
+
+def test_table_append_types_cells_and_reports_the_grown_range(tmp_path, monkeypatch):
+    api = mock.MagicMock()
+    book = api.spreadsheets()
+    grown = json.loads(json.dumps(TABLES))
+    grown["sheets"][1]["tables"][0]["range"]["endRowIndex"] = 7
+    book.get().execute.side_effect = [TABLES, grown]
+    services(monkeypatch, sheets=api)
+    result = access.sheets(tmp_path, {"action": "append", "spreadsheet_id": SID, "table": "todo",
+                                      "values": [["Call", 3, True], ["=A1", "", "2026-10-06"]]})
+    assert result == {"ok": True, "spreadsheet_id": SID, "table": "Todo", "appended_rows": 2,
+                      "table_range": "Tasks!B1:D7"}
+    request = book.batchUpdate.call_args.kwargs["body"]["requests"][0]["appendCells"]
+    assert request["tableId"] == "t1" and request["sheetId"] == 7 and request["fields"] == "userEnteredValue"
+    assert request["rows"] == [
+        {"values": [{"userEnteredValue": {"stringValue": "Call"}}, {"userEnteredValue": {"numberValue": 3}},
+                    {"userEnteredValue": {"boolValue": True}}]},
+        {"values": [{"userEnteredValue": {"formulaValue": "=A1"}}, {},
+                    {"userEnteredValue": {"stringValue": "2026-10-06"}}]}]
+    assert not book.values().append.called
+
+
+def test_table_append_refuses_wide_rows_and_unknown_tables(tmp_path, monkeypatch):
+    api = mock.MagicMock()
+    api.spreadsheets().get().execute.return_value = TABLES
+    services(monkeypatch, sheets=api)
+    base = {"action": "append", "spreadsheet_id": SID}
+    with pytest.raises(access.AccessError, match="has 3 columns"):
+        access.sheets(tmp_path, dict(base, table="t1", values=[["a", "b", "c", "d"]]))
+    with pytest.raises(access.AccessError, match="no single table"):
+        access.sheets(tmp_path, dict(base, table="Other", values=[["a"]]))
+    with pytest.raises(access.AccessError, match="not range"):
+        access.sheets(tmp_path, dict(base, table="t1", range="Tasks!A1", values=[["a"]]))
+    assert not api.spreadsheets().batchUpdate.called
+
+
+def test_table_append_card_and_key(monkeypatch):
+    context(monkeypatch, title="Plan")
+    reason, key = access.approval_request("google_sheets", {
+        "action": "append", "spreadsheet_id": SID, "table": "Todo", "values": [["Call", 3]]}, home=Path("/x"))
+    assert key == f"google-access:sheets-edit:{SID}"
+    assert reason.split("\n") == ["SpreadSheet: Plan", "Table: Todo (new rows at its end)", "",
+                                  "(+1) column 1: Call", "(+1) column 2: 3"]
+
+
+# --- comments -------------------------------------------------------------------------------------
+
+def comment(*ops):
+    return {"action": "comment", "spreadsheet_id": SID, "ops": list(ops)}
+
+
+def comment_requests(*ops):
+    return access._comment_requests(access._ops(comment(*ops), "comment"), TABLES)
+
+
+def test_comment_ops_become_requests():
+    new, reply, resolve, edit, gone = comment_requests(
+        {"op": "comment", "range": "Tasks!C3", "text": "要確認", "assignee": "ann@example.com"},
+        {"op": "comment_reply", "comment": "c1", "text": "done"},
+        {"op": "comment_reply", "comment": "c1", "status": "resolve"},
+        {"op": "comment_edit", "comment": "c1", "post": "p2", "text": "fixed"},
+        {"op": "comment_delete", "comment": "c1"})
+    assert new == {"insertComment": {"content": "要確認", "assigneeEmailAddress": "ann@example.com",
+                                     "coordinate": {"sheetId": 7, "rowIndex": 2, "columnIndex": 2}}}
+    assert reply == {"addCommentReply": {"commentId": "c1", "post": {"content": "done"}}}
+    assert resolve == {"addCommentReply": {"commentId": "c1", "post": {"commentAction": "RESOLVE"}}}
+    assert edit == {"updateCommentPost": {"commentId": "c1", "postId": "p2", "content": "fixed"}}
+    assert gone == {"deleteComment": {"commentId": "c1"}}
+
+
+def test_every_comment_call_asks_and_names_who_is_emailed(monkeypatch):
+    context(monkeypatch, title="Plan", names=["Main", "Tasks"])
+    reason, key = access.approval_request("google_sheets", comment(
+        {"op": "comment", "range": "Tasks!C3", "text": "Check this +bob@example.com", "assignee": "ann@example.com"}),
+        home=Path("/x"))
+    assert "sheets-edit" not in key
+    assert reason.split("\n") == ["SpreadSheet: Plan", "Sheet: Tasks", "",
+                                  'Comment on C3: "Check this +bob@example.com"; assign to ann@example.com '
+                                  "(emailed) (mentioned addresses are emailed)"]
+    lines = access.approval_request("google_sheets", comment(
+        {"op": "comment_reply", "comment": "c1", "text": "ok", "status": "RESOLVE"},
+        {"op": "comment_delete", "comment": "c2"}), home=Path("/x"))[0].split("\n")
+    assert lines[1:] == ["", 'Resolve comment c1 with "ok"', "Delete comment c2 with its replies"]
+
+
+@pytest.mark.parametrize("op,message", [
+    ({"op": "comment", "range": "Tasks!C3:D4", "text": "x"}, "one cell"),
+    ({"op": "comment", "range": "Tasks", "text": "x"}, "one cell"),
+    ({"op": "comment", "range": "C3", "text": "  "}, "comment's words"),
+    ({"op": "comment", "range": "C3", "text": "x" * 2001}, "at most 2000"),
+    ({"op": "comment", "range": "C3", "text": "x", "assignee": "bob"}, "not an email"),
+    ({"op": "comment_reply", "comment": "c1"}, "give text, status or assignee"),
+    ({"op": "comment_reply", "comment": "c1", "status": "CLOSE"}, "status must be one of"),
+    ({"op": "comment_delete", "comment": "c1", "text": "x"}, "unknown field"),
+    ({"op": "comment_edit", "comment": "c1", "text": "x"}, "post is required")])
+def test_malformed_comment_ops_are_refused(op, message):
+    with pytest.raises(access.AccessError, match=message):
+        access.approval_request("google_sheets", comment(op))
+
+
+def test_a_comment_card_hermes_would_mask_is_refused(monkeypatch):
+    monkeypatch.setattr(access, "_redacted", lambda text: text.replace("sk-live", "***"))
+    with pytest.raises(access.AccessError, match="mask"):
+        access.approval_request("google_sheets", comment({"op": "comment", "range": "A1", "text": "key sk-live-1"}))
+
+
+def comment_api(state="ALL_SAVED"):
+    api = mock.MagicMock()
+    book = api.spreadsheets()
+    book.get().execute.return_value = TABLES
+    book.batchUpdate().execute.return_value = {
+        "replies": [{"insertComment": {"commentThread": {"commentId": "c9"}}}], "commentUpdateState": state}
+    return api
+
+
+def test_comment_results_name_new_threads_and_unsaved_changes(tmp_path, monkeypatch):
+    services(monkeypatch, sheets=comment_api())
+    args = comment({"op": "comment", "range": "Tasks!C3", "text": "要確認"})
+    result = access.sheets(tmp_path, args)
+    assert result["ok"] is True and result["comments"] == [{"comment_id": "c9"}]
+    services(monkeypatch, sheets=comment_api("ALL_FAILED_UNKNOWN_REASON"))
+    result = access.sheets(tmp_path, args)
+    assert result["ok"] is False and "did not save" in result["error"]
+
+
+def test_comments_read_threads_with_their_cells(tmp_path, monkeypatch):
+    api = mock.MagicMock()
+    request = api.spreadsheets().get.return_value
+    request.uri = f"https://sheets.googleapis.com/v4/spreadsheets/{SID}?fields=x&alt=json"
+    request.execute.return_value = {
+        "sheets": [{"properties": {"sheetId": 7, "title": "Tasks"}, "commentAnchors": [
+            {"anchorId": "a1", "range": {"sheetId": 7, "startRowIndex": 2, "endRowIndex": 3,
+                                         "startColumnIndex": 2, "endColumnIndex": 3}}]}],
+        "comments": [
+            {"commentId": "c1", "anchorId": "a1", "status": "OPEN",
+             "headPost": {"postId": "p1", "content": "要確認", "author": {"displayName": "Ann", "me": False},
+                          "createTime": "2026-10-01T00:00:00Z"},
+             "replies": [{"postId": "p2", "content": "ok", "author": {"displayName": "Me", "me": True},
+                          "updateTime": "2026-10-02T00:00:00Z"}, {"postId": "p3", "deleted": True}]},
+            {"commentId": "c2", "anchorId": "gone", "status": "RESOLVED", "headPost": {"content": "old"}}]}
+    services(monkeypatch, sheets=api)
+    result = access.sheets(tmp_path, {"action": "comments", "spreadsheet_id": SID})
+    assert request.uri.endswith("&commentsViewMode=COMMENTS_VIEW_MODE_INCLUDED")
+    assert api.spreadsheets().get.call_args.kwargs == {"spreadsheetId": SID, "fields": access.COMMENTS_FIELDS}
+    assert result["comments"] == [{
+        "comment_id": "c1", "at": "Tasks!C3", "status": "OPEN", "author": "Ann", "me": False, "text": "要確認",
+        "time": "2026-10-01T00:00:00Z",
+        "replies": [{"post_id": "p2", "author": "Me", "me": True, "text": "ok", "time": "2026-10-02T00:00:00Z"}]}]
+    assert result["resolved_hidden"] == 1
+    every = access.sheets(tmp_path, {"action": "comments", "spreadsheet_id": SID, "resolved": True,
+                                     "range": "Tasks!A1:D9"})
+    assert [c["at"] for c in every["comments"]] == ["Tasks!C3", "unanchored"]
+    assert api.spreadsheets().get.call_args.kwargs["ranges"] == ["Tasks!A1:D9"]
+
+
+def test_reads_never_ask():
+    for action in ("snapshot", "comments"):
+        assert access.approval_request("google_sheets", {"action": action, "spreadsheet_id": SID}) is None
+
+
+# --- snapshots ------------------------------------------------------------------------------------
+
+def snapshot_api():
+    api = mock.MagicMock()
+    api.spreadsheets().get().execute.return_value = {"properties": {"title": "Plan/2026"}, "sheets": [
+        {"properties": {"title": "Main"}}, {"properties": {"sheetId": 7, "title": "Tasks"}}]}
+    return api
+
+
+def test_snapshot_exports_the_tab_and_renders_pages(tmp_path, monkeypatch):
+    services(monkeypatch, sheets=snapshot_api())
+    seen = {}
+
+    def export(home, sid, params, handle):
+        seen.update(params)
+        handle.write(b"%PDF-1.7")
+
+    def pages(pdf, count):
+        seen["count"] = count
+        return [str(pdf.with_name(pdf.stem + "-0.png"))], None
+
+    monkeypatch.setattr(access, "_export_pdf", export)
+    monkeypatch.setattr(access, "_pdf_pages", pages)
+    result = access.sheets(tmp_path, {"action": "snapshot", "spreadsheet_id": SID, "range": "Tasks!B2:D9",
+                                      "portrait": True, "gridlines": False, "fit": "page"})
+    pdf = Path(result["pdf"])
+    assert pdf.parent == tmp_path / "google-downloads" / "sheet-snapshots" and pdf.read_bytes() == b"%PDF-1.7"
+    assert pdf.name.startswith("Plan_2026-Tasks-") and result["sheet"] == "Tasks"
+    assert result["images"] == [str(pdf.with_name(pdf.stem + "-0.png"))] and "note" not in result
+    assert {k: seen[k] for k in ("gid", "portrait", "gridlines", "scale", "r1", "c1", "r2", "c2", "count")} == {
+        "gid": "7", "portrait": "true", "gridlines": "false", "scale": "4", "r1": "1", "c1": "1", "r2": "9",
+        "c2": "4", "count": access.SNAPSHOT_PAGES}
+
+
+def test_snapshot_defaults_to_the_first_tab_and_cleans_up_on_failure(tmp_path, monkeypatch):
+    services(monkeypatch, sheets=snapshot_api())
+    seen = {}
+
+    def export(home, sid, params, handle):
+        seen.update(params)
+        raise access.AccessError("Google did not return a PDF")
+
+    monkeypatch.setattr(access, "_export_pdf", export)
+    with pytest.raises(access.AccessError, match="did not return"):
+        access.sheets(tmp_path, {"action": "snapshot", "spreadsheet_id": SID})
+    assert seen["gid"] == "0" and "r1" not in seen and seen["gridlines"] == "true" and seen["portrait"] == "false"
+    assert list((tmp_path / "google-downloads" / "sheet-snapshots").iterdir()) == []
+
+
+@pytest.mark.parametrize("extra,message", [
+    ({"range": "Tasks!B2:D"}, "closed block"),
+    ({"range": "Tasks!B2:D9", "sheet": "Main"}, "another tab"),
+    ({"sheet": "Nope"}, "no tab named"),
+    ({"fit": "SQUEEZE"}, "fit must be one of"),
+    ({"pages": 0}, "positive integer")])
+def test_malformed_snapshots_are_refused(extra, message, tmp_path, monkeypatch):
+    services(monkeypatch, sheets=snapshot_api())
+    monkeypatch.setattr(access, "_export_pdf", lambda *a: pytest.fail("exported"))
+    with pytest.raises(access.AccessError, match=message):
+        access.sheets(tmp_path, dict({"action": "snapshot", "spreadsheet_id": SID}, **extra))
+
+
+def test_pdf_pages_render_in_page_order_or_explain_why_not(tmp_path, monkeypatch):
+    pdf = tmp_path / "Plan-Tasks.pdf"
+    pdf.write_bytes(b"%PDF")
+
+    def run(argv, **_):
+        assert argv[3] == f"{pdf}[0-2]"
+        for n in (0, 10, 2):
+            Path(argv[-1].replace("%d", str(n))).write_bytes(b"png")
+        (tmp_path / "Plan-Tasks-old.png").write_bytes(b"other")
+        return SimpleNamespace(returncode=0, stderr="")
+
+    monkeypatch.setattr(access.shutil, "which", lambda name: "/bin/magick" if name == "magick" else None)
+    monkeypatch.setattr(access.subprocess, "run", run)
+    images, note = access._pdf_pages(pdf, 3)
+    assert [Path(p).name for p in images] == ["Plan-Tasks-0.png", "Plan-Tasks-2.png", "Plan-Tasks-10.png"]
+    assert note is None
+    monkeypatch.setattr(access.shutil, "which", lambda name: None)
+    assert access._pdf_pages(pdf, 3) == ([], "no renderer (ImageMagick or sips) is available; only the PDF was saved")
+
+
+def test_export_refuses_anything_but_a_pdf(tmp_path, monkeypatch):
+    pytest.importorskip("google.auth.transport.requests")
+    from google.auth.transport import requests as transport
+
+    class Response:
+        def __init__(self, status, kind, body=b""):
+            self.status_code, self.headers, self.body = status, {"Content-Type": kind}, body
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+        def iter_content(self, size):
+            yield self.body
+
+    replies = []
+
+    class Session:
+        def __init__(self, creds):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+        def get(self, url, **kwargs):
+            replies.append((url, kwargs["params"]))
+            return responses.pop(0)
+
+    monkeypatch.setattr(transport, "AuthorizedSession", Session)
+    monkeypatch.setattr(access, "credentials", lambda home, scope: object())
+    responses = [Response(200, "text/html; charset=utf-8"), Response(200, "application/pdf", b"%PDF")]
+    with pytest.raises(access.AccessError, match="did not return a PDF"):
+        access._export_pdf(tmp_path, SID, {"gid": "0"}, open(os.devnull, "wb"))
+    target = tmp_path / "out.pdf"
+    with open(target, "wb") as handle:
+        access._export_pdf(tmp_path, SID, {"gid": "0"}, handle)
+    assert target.read_bytes() == b"%PDF" and replies[0][0] == access.EXPORT_URL.format(sid=SID)
