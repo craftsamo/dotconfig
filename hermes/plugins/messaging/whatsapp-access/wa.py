@@ -16,6 +16,7 @@ from datetime import datetime
 import fcntl
 import hashlib
 import html
+import importlib.util
 import json
 import mimetypes
 import os
@@ -25,6 +26,7 @@ import secrets
 import shutil
 import stat
 import subprocess
+import sys
 import tempfile
 import threading
 import time
@@ -698,6 +700,20 @@ SEND_RISKY_FILES = re.compile(r"\.(?:zip|rar|7z|tar|gz|tgz|bz2|xz|zst|lz|lzma|ca
                               r"|appimage|kext|plugin|prefpane|xpi|crx)$", re.IGNORECASE)
 
 
+def _load_shared(name: str):
+    key = f"hermes_{name}"
+    if key not in sys.modules:
+        spec = importlib.util.spec_from_file_location(key, Path(__file__).resolve().parent.parent / "_shared"
+                                                      / f"{name}.py")
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[key] = module
+        spec.loader.exec_module(module)
+    return sys.modules[key]
+
+
+archives = _load_shared("archive_check")
+
+
 def state_dir() -> Path:
     raw = os.environ.get(STATE_ENV)
     path = Path(raw).expanduser() if raw else DEFAULT_STATE
@@ -780,7 +796,7 @@ def attachment_files(args: dict) -> list[dict]:
         size = real.stat().st_size
         if size == 0:
             raise WhatsAppError(f"{real.name!r} is empty")
-        if SEND_RISKY_FILES.search(real.name):
+        if SEND_RISKY_FILES.search(real.name) and not archives.family_of_name(real.name):  # those are opened in stage
             raise WhatsAppError(f"refused: {real.name!r} is an archive or program; such files are never sent")
         out.append({"path": str(real), "name": real.name, "relative": relative, "size": size})
     if len({f["path"] for f in out}) != len(out):
@@ -857,11 +873,16 @@ def stage(plan: dict, request: str) -> tuple[str, list[dict]]:
             if i == 0 and plan["text"] and _is_audio(f["name"], kind):
                 raise WhatsAppError(f"{f['name']!r} is audio, and WhatsApp drops the caption of an audio "
                                     "message: put another file first, or send the text on its own")
-            if SEND_RISKY_MIME.search(kind):
+            try:
+                archive = archives.vet(dest, f["name"], deny_parts=DENY_PARTS, deny_names=DENY_NAMES,
+                                       risky_files=SEND_RISKY_FILES)
+            except archives.ArchiveRefused as exc:
+                raise WhatsAppError(f"refused: the archive {f['name']!r} is not sent: {exc}") from None
+            if archive is None and SEND_RISKY_MIME.search(kind):
                 raise WhatsAppError(f"refused: {f['name']!r} ({kind}) is an archive or program; such files are "
                                     "never sent")
             staged.append({"path": str(dest), "name": f["name"], "relative": f["relative"], "type": kind,
-                           "size": size, "sha256": sha})
+                           "size": size, "sha256": sha, **({"archive": archive} if archive else {})})
         total = sum(f["size"] for f in staged)
         if total > FILES_BYTES_MAX:
             raise WhatsAppError(f"files total {_human(total)}; at most {_human(FILES_BYTES_MAX)} per send")
@@ -1361,7 +1382,10 @@ def _reply_label(plan: dict) -> str:
 def _file_line(f: dict) -> str:
     folder = str(Path(f["relative"]).parent)
     where = "~/Workspaces" if folder == "." else _clip(folder, 40)
-    return (f"- {_one_line(f['name'], 40)} ({f['type']}, {_human(f['size'])}) in {visible(where)}, "
+    inside = ""
+    if f.get("archive"):
+        inside = f", {f['archive']['entries']} files inside ({_human(f['archive']['unpacked'])} unpacked)"
+    return (f"- {_one_line(f['name'], 40)} ({f['type']}, {_human(f['size'])}{inside}) in {visible(where)}, "
             f"sha256 {f['sha256'][:12]}")
 
 
