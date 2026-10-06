@@ -5,10 +5,10 @@ by the [Agent Skills](https://agentskills.io/client-implementation/adding-skills
 client guide — read by every AI CLI on this machine. It is backed by two
 layers with distinct owners:
 
-| Layer        | Path                            | Owner                  |
-| ------------ | ------------------------------- | ---------------------- |
-| Mutable root | `~/.agents/skills/` (real dir)  | third-party installers |
-| Curated tree | [`agents/curated/`](./curated)  | this repo, fully tracked |
+| Layer        | Path                           | Owner                    |
+| ------------ | ------------------------------ | ------------------------ |
+| Mutable root | `~/.agents/skills/` (real dir) | third-party installers   |
+| Curated tree | [`agents/curated/`](./curated) | this repo, fully tracked |
 
 `install.sh` links each curated skill into the mutable root
 (`~/.agents/skills/<name> -> agents/curated/<name>`) and prunes links whose
@@ -25,14 +25,14 @@ store, so the bridge must point at the mutable root, never into the repo
 
 ## Who reads what
 
-| CLI            | Reads `~/.agents/skills` | Own skill dir                          |
-| -------------- | ------------------------ | -------------------------------------- |
-| Codex          | yes (canonical path)     | `~/.codex/skills` (machine-local)      |
-| opencode       | yes                      | `~/.config/opencode/skills`            |
-| GitHub Copilot | yes                      | `~/.copilot/skills` (machine-local)    |
-| Grok Build     | yes (AGENTS.md compat)   | `~/.grok/skills`                       |
-| Gemini CLI     | yes (alias)              | `~/.gemini/skills`                     |
-| Claude Code    | **no**                   | `~/.claude/skills` — bridged           |
+| CLI            | Reads `~/.agents/skills` | Own skill dir                       |
+| -------------- | ------------------------ | ----------------------------------- |
+| Codex          | yes (canonical path)     | `~/.codex/skills` (machine-local)   |
+| opencode       | yes                      | `~/.config/opencode/skills`         |
+| GitHub Copilot | yes                      | `~/.copilot/skills` (machine-local) |
+| Grok Build     | yes (AGENTS.md compat)   | `~/.grok/skills`                    |
+| Gemini CLI     | yes (alias)              | `~/.gemini/skills`                  |
+| Claude Code    | **no**                   | `~/.claude/skills` — bridged        |
 
 Skill directories must be **flat** — `agents/curated/<name>/SKILL.md`. Codex
 and Claude Code do not descend into nested groups, so a shared skill cannot
@@ -69,16 +69,16 @@ workflow (design, draft, inspect, judge, converge, final review at quick or
 full depth); everything conditional lives in `references/` and is read when
 `SKILL.md` routes to it:
 
-| File | Content |
-| --- | --- |
-| `constitution.md` | 12 drafting principles |
-| `readability.md` | readability principles and the A1–J3 catalog |
-| `expression.md` | stock phrasing, translationese, rhythm, specificity (X1–X10) |
-| `notation.md` | house notation (N1–N11), Microsoft style based |
-| `revision.md` | meaning preservation, stance, decision ledger, convergence (R1–R5) |
-| `genres.md`, `doctypes/*.md` | genre adjustments; minutes, report, guide, memo, slide |
-| `evaluation.md` | 0-100 diagnosis and the six-axis final review (each ≥ 90, mean ≥ 92) |
-| `inspection.md` | how to run and read the inspector |
+| File                         | Content                                                              |
+| ---------------------------- | -------------------------------------------------------------------- |
+| `constitution.md`            | 12 drafting principles                                               |
+| `readability.md`             | readability principles and the A1–J3 catalog                         |
+| `expression.md`              | stock phrasing, translationese, rhythm, specificity (X1–X10)         |
+| `notation.md`                | house notation (N1–N11), Microsoft style based                       |
+| `revision.md`                | meaning preservation, stance, decision ledger, convergence (R1–R5)   |
+| `genres.md`, `doctypes/*.md` | genre adjustments; minutes, report, guide, memo, slide               |
+| `evaluation.md`              | 0-100 diagnosis and the six-axis final review (each ≥ 90, mean ≥ 92) |
+| `inspection.md`              | how to run and read the inspector                                    |
 
 Inspector findings cite these anchors in their `reason`, and
 `agents/tests/test_japanese_writing.py` keeps the anchors and the citations in
@@ -94,13 +94,13 @@ model (`document.py`), optional Sudachi morphology (`morphology.py`), report
 limits (`report.py`), the mechanical score (`score.py`), one module per mode
 under `rules/` and the word lists and patterns as data under `data/`:
 
-| Mode | Origin |
-| --- | --- |
+| Mode                          | Origin                                                            |
+| ----------------------------- | ----------------------------------------------------------------- |
 | `naturalness`, `reading-load` | natural-japanese lint lanes (default, experimental, reading load) |
-| `outline`, `terms` | natural-japanese outline/terms |
-| `expression`, `revision` | yomiyasu lint and diff |
-| `notation` | Microsoft Japanese style guide (own rule set) |
-| `structure` | this repo |
+| `outline`, `terms`            | natural-japanese outline/terms                                    |
+| `expression`, `revision`      | yomiyasu lint and diff                                            |
+| `notation`                    | Microsoft Japanese style guide (own rule set)                     |
+| `structure`                   | this repo                                                         |
 
 Hermes Writer reaches it only through the `writing_inspect` tool; other
 clients run the CLI themselves.

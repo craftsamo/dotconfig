@@ -6,13 +6,13 @@ approval. Part of the Hermes design docs — index: [`PROFILES.md`](../PROFILES.
 
 ## Shape
 
-| Piece | Home | Reader |
-|---|---|---|
-| Engine, approval rule, bypass guard, setup CLI | `plugins/google-access/access.py` | all |
-| `google_sheets`, `google_gmail`, `google_drive`, `gcloud` tools and the `pre_tool_call` hook (toolset `google_access`) | `plugins/google-access/__init__.py` | Assistant |
-| Setup launcher | `../bin/gaccess` (runs on `hermes-python`) | people |
+| Piece                                                                                                                    | Home                                                                             | Reader    |
+| ------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------- | --------- |
+| Engine, approval rule, bypass guard, setup CLI                                                                           | `plugins/google-access/access.py`                                                | all       |
+| `google_sheets`, `google_gmail`, `google_drive`, `gcloud` tools and the `pre_tool_call` hook (toolset `google_access`)   | `plugins/google-access/__init__.py`                                              | Assistant |
+| Setup launcher                                                                                                           | `../bin/gaccess` (runs on `hermes-python`)                                       | people    |
 | How the Assistant works a sheet: reads, guarded writes, approvals, formatting, checking the look, recovery, sheet design | the `google-sheets` technic (`profiles/assistant/skills/technic/google-sheets/`) | Assistant |
-| When the Assistant uses the tools in Chat, and Gmail, Drive and gcloud | the Assistant's private Chat reference `google.md` | Assistant |
+| When the Assistant uses the tools in Chat, and Gmail, Drive and gcloud                                                   | the Assistant's private Chat reference `google.md`                               | Assistant |
 
 The engine uses the Google client libraries of Hermes' own runtime (the
 `google` extra `setup.sh` installs) and the `gcloud` binary on `PATH`. The
@@ -23,11 +23,11 @@ every Workspace scope at once and keeps one unscoped token.
 
 One Google account per profile, kept outside every repository:
 
-| State | Home | Content |
-|---|---|---|
-| OAuth token | Keychain item `GOOGLE_OAUTH_<PROFILE>` (project `hermes`, scope `google-access`) | refresh token, client id and secret, granted scopes: `spreadsheets`, `gmail.readonly`, `gmail.send`, `drive.readonly`, `drive.file` |
-| `gcloud/` | `~/.hermes/profiles/<profile>/google-access/` | Hermes' own gcloud configuration (`CLOUDSDK_CONFIG`) |
-| `token.generation` | the same directory | no secret: a random mark rewritten each time the token is stored |
+| State              | Home                                                                             | Content                                                                                                                             |
+| ------------------ | -------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| OAuth token        | Keychain item `GOOGLE_OAUTH_<PROFILE>` (project `hermes`, scope `google-access`) | refresh token, client id and secret, granted scopes: `spreadsheets`, `gmail.readonly`, `gmail.send`, `drive.readonly`, `drive.file` |
+| `gcloud/`          | `~/.hermes/profiles/<profile>/google-access/`                                    | Hermes' own gcloud configuration (`CLOUDSDK_CONFIG`)                                                                                |
+| `token.generation` | the same directory                                                               | no secret: a random mark rewritten each time the token is stored                                                                    |
 
 The token sits in a Keychain scope no Hermes profile receives (the
 arrangement the YouTube and X credentials use), so it never enters a

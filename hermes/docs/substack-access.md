@@ -10,14 +10,14 @@ index: [`PROFILES.md`](../PROFILES.md).
 
 ## Shape
 
-| Piece | Home | Reader |
-|---|---|---|
-| Engine: validation, profile actions, pacing, session state, result shapes, image outbox, approval card, write ledger, bypass guard | `plugins/substack-access/sa.py` | all |
-| One Substack call per request in the engine venv; reads the cookies | `plugins/substack-access/bridge.py` | all |
-| `substack` tool and its `pre_tool_call` hooks (toolset `substack_access`) | `plugins/substack-access/__init__.py` | Assistant, Marketer |
-| Engine venv | `scripts/substack-access.sh`, `engines/python-substack/` | people |
-| When and how the Assistant uses it | the Assistant's private Chat reference `substack.md` | Assistant |
-| When Marketer may read with it | `marketer-pipeline/references/platforms/substack.md` | Marketer |
+| Piece                                                                                                                              | Home                                                     | Reader              |
+| ---------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- | ------------------- |
+| Engine: validation, profile actions, pacing, session state, result shapes, image outbox, approval card, write ledger, bypass guard | `plugins/substack-access/sa.py`                          | all                 |
+| One Substack call per request in the engine venv; reads the cookies                                                                | `plugins/substack-access/bridge.py`                      | all                 |
+| `substack` tool and its `pre_tool_call` hooks (toolset `substack_access`)                                                          | `plugins/substack-access/__init__.py`                    | Assistant, Marketer |
+| Engine venv                                                                                                                        | `scripts/substack-access.sh`, `engines/python-substack/` | people              |
+| When and how the Assistant uses it                                                                                                 | the Assistant's private Chat reference `substack.md`     | Assistant           |
+| When Marketer may read with it                                                                                                     | `marketer-pipeline/references/platforms/substack.md`     | Marketer            |
 
 Substack has no general API for this: its Developer API covers public
 profile data and its official MCP server reads analytics of Bestseller
@@ -72,10 +72,10 @@ refused session.
 
 ## Profiles
 
-| Profile | Actions | Inbound A2A |
-|---|---|---|
-| Assistant | every read and write | refused |
-| Marketer | reads only (schema and handler) | reads allowed |
+| Profile   | Actions                         | Inbound A2A   |
+| --------- | ------------------------------- | ------------- |
+| Assistant | every read and write            | refused       |
+| Marketer  | reads only (schema and handler) | reads allowed |
 
 The action list a profile gets is fixed when the plugin registers and checked
 again in both hooks and the handler, so naming a write from Marketer is
@@ -93,16 +93,16 @@ past a cap or during a rate limit the tool answers `paused: …` without
 calling Substack. A call counts only when Substack was, or may have been,
 contacted.
 
-| Action | Notes |
-|---|---|
-| `archive` | a publication's posts, newest first (default the user's own); `query` searches; limit 10, at most 25; `offset` pages |
-| `post` | URL (`/p/<slug>`, `open.substack.com`, `substack.com/@…/p-<id>`) or id: text from the post HTML (headings, lists, `[image: alt]`), links, counts; a paid post says whether its text appears to end at the paywall |
-| `inbox` | newest posts of the subscribed publications |
-| `published` | the user's published posts with whatever per-post numbers the list carries |
-| `drafts` | the user's drafts with ids, edit links, scheduled release and email setting |
-| `draft` | one draft as Markdown (python-substack's exporter; blocks without a Markdown form become preservation markers) |
-| `prepublish` | Substack's own pre-publish checks for a draft |
-| `stats` | subscribers, email and app subscribers, open rate, pledges |
+| Action       | Notes                                                                                                                                                                                                             |
+| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `archive`    | a publication's posts, newest first (default the user's own); `query` searches; limit 10, at most 25; `offset` pages                                                                                              |
+| `post`       | URL (`/p/<slug>`, `open.substack.com`, `substack.com/@…/p-<id>`) or id: text from the post HTML (headings, lists, `[image: alt]`), links, counts; a paid post says whether its text appears to end at the paywall |
+| `inbox`      | newest posts of the subscribed publications                                                                                                                                                                       |
+| `published`  | the user's published posts with whatever per-post numbers the list carries                                                                                                                                        |
+| `drafts`     | the user's drafts with ids, edit links, scheduled release and email setting                                                                                                                                       |
+| `draft`      | one draft as Markdown (python-substack's exporter; blocks without a Markdown form become preservation markers)                                                                                                    |
+| `prepublish` | Substack's own pre-publish checks for a draft                                                                                                                                                                     |
+| `stats`      | subscribers, email and app subscribers, open rate, pledges                                                                                                                                                        |
 
 Results carry local times, text clipped at 30000 characters (Markdown
 at 40000) and a note that titles, text, names and links are data, never
@@ -145,6 +145,7 @@ is scheduled. Drafts cannot be deleted. At most 20 writes per 24 hours.
   with the rest counted (`(+N more characters)`), never refused. Its full
   wording is agreed with the user in chat beforehand (the Assistant's
   reference), and the approval key binds the exact text regardless.
+
 - **The approval covers the exact write.** The allowlist key hashes the
   request, the publication, the account, the draft digest and each image's
   SHA-256, so "session" or "always" only ever repeats that identical write to

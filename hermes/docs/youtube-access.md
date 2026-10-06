@@ -13,16 +13,16 @@ design docs — index: [`PROFILES.md`](../PROFILES.md).
 
 ## Shape
 
-| Piece | Home | Reader |
-|---|---|---|
-| Engine: validation, profile actions, tokens, quota, pacing, result shapes, approval card, bypass guard; the `yaccess` CLI | `plugins/youtube-access/ya.py` | all |
-| One yt-dlp call per transcript or download in the engine venv | `plugins/youtube-access/bridge.py` | all |
-| `youtube` tool and its `pre_tool_call` hook (toolset `youtube_access`) | `plugins/youtube-access/__init__.py` | Assistant, Marketer |
-| Channel authorization | `bin/yaccess` (runs `ya.py` on `hermes-python`) | people |
-| Engine venv | `scripts/youtube-access.sh`, `engines/yt-dlp/` | people |
-| How the Assistant works with it: budget, actions, approvals, recovery, Studio settings, starting a channel | the `youtube` technic (`profiles/assistant/skills/technic/youtube/`) | Assistant |
-| When the Assistant uses it in Chat | the Assistant's private Chat reference `youtube.md` | Assistant |
-| When Marketer reads with it | Marketer's prompt and `build-marketer/references/measurement.md` | Marketer |
+| Piece                                                                                                                     | Home                                                                 | Reader              |
+| ------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- | ------------------- |
+| Engine: validation, profile actions, tokens, quota, pacing, result shapes, approval card, bypass guard; the `yaccess` CLI | `plugins/youtube-access/ya.py`                                       | all                 |
+| One yt-dlp call per transcript or download in the engine venv                                                             | `plugins/youtube-access/bridge.py`                                   | all                 |
+| `youtube` tool and its `pre_tool_call` hook (toolset `youtube_access`)                                                    | `plugins/youtube-access/__init__.py`                                 | Assistant, Marketer |
+| Channel authorization                                                                                                     | `bin/yaccess` (runs `ya.py` on `hermes-python`)                      | people              |
+| Engine venv                                                                                                               | `scripts/youtube-access.sh`, `engines/yt-dlp/`                       | people              |
+| How the Assistant works with it: budget, actions, approvals, recovery, Studio settings, starting a channel                | the `youtube` technic (`profiles/assistant/skills/technic/youtube/`) | Assistant           |
+| When the Assistant uses it in Chat                                                                                        | the Assistant's private Chat reference `youtube.md`                  | Assistant           |
+| When Marketer reads with it                                                                                               | Marketer's prompt and `build-marketer/references/measurement.md`     | Marketer            |
 
 Two back ends, one tool. The YouTube Data API v3 and the YouTube Analytics
 API v2 run in Hermes' own Python (the `google` extra `setup.sh` installs) as
@@ -100,10 +100,10 @@ call times) and lock files.
 
 ## Profiles
 
-| Profile | Actions | Inbound A2A |
-|---|---|---|
-| Assistant | every read and write | refused |
-| Marketer | reads only (schema and handler) | reads allowed |
+| Profile   | Actions                         | Inbound A2A   |
+| --------- | ------------------------------- | ------------- |
+| Assistant | every read and write            | refused       |
+| Marketer  | reads only (schema and handler) | reads allowed |
 
 The action list a profile gets is fixed when the plugin registers and checked
 again by the gate and the engine. Marketer's endpoint is inquiry-only: an
@@ -112,20 +112,20 @@ failing closed otherwise.
 
 ## Reads
 
-| Action | Back end | Cost | Notes |
-|---|---|---|---|
-| `status` | — | 0 | channels, default, quota and pacing use, engine, download folder |
-| `search` | Data API | 1 search (+1 unit for video details, +1 to resolve an `@handle`) | `query` and/or `of` = a channel; kind, order, dates, duration, language, region |
-| `videos` | Data API | 1 unit per 50 | details and counts |
-| `channels` | Data API | 1 unit (+1 per `@handle`) | profile, counts, uploads list |
-| `playlist` | Data API | 1 unit per 50 entries (+1 per 50 for details) | a playlist, or `of` = a channel's uploads; entries carry `playlist_item_id` |
-| `comments` | Data API | 1 unit per 100 | threads with first replies; `thread` = a comment id for all replies |
-| `my_videos` | Data API | 1 + 2 units per 50 | the channel's own uploads incl. private, unlisted, scheduled |
-| `analytics` | Analytics API | its own quota | `channel==MINE`, default the last 28 days |
-| `my_channel` | Data API | 1 unit | the channel's own settings: description, keywords, country, language, trailer, localizations, made for kids |
-| `captions` | Data API | 50 units | caption tracks of the channel's own video, with the ids `caption_upload` replaces |
-| `transcript` | yt-dlp | 1 paced call | text saved to the download folder |
-| `download` | yt-dlp | 1 paced call | mp4 (≤ `max_height`) or m4a |
+| Action       | Back end      | Cost                                                             | Notes                                                                                                       |
+| ------------ | ------------- | ---------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `status`     | —             | 0                                                                | channels, default, quota and pacing use, engine, download folder                                            |
+| `search`     | Data API      | 1 search (+1 unit for video details, +1 to resolve an `@handle`) | `query` and/or `of` = a channel; kind, order, dates, duration, language, region                             |
+| `videos`     | Data API      | 1 unit per 50                                                    | details and counts                                                                                          |
+| `channels`   | Data API      | 1 unit (+1 per `@handle`)                                        | profile, counts, uploads list                                                                               |
+| `playlist`   | Data API      | 1 unit per 50 entries (+1 per 50 for details)                    | a playlist, or `of` = a channel's uploads; entries carry `playlist_item_id`                                 |
+| `comments`   | Data API      | 1 unit per 100                                                   | threads with first replies; `thread` = a comment id for all replies                                         |
+| `my_videos`  | Data API      | 1 + 2 units per 50                                               | the channel's own uploads incl. private, unlisted, scheduled                                                |
+| `analytics`  | Analytics API | its own quota                                                    | `channel==MINE`, default the last 28 days                                                                   |
+| `my_channel` | Data API      | 1 unit                                                           | the channel's own settings: description, keywords, country, language, trailer, localizations, made for kids |
+| `captions`   | Data API      | 50 units                                                         | caption tracks of the channel's own video, with the ids `caption_upload` replaces                           |
+| `transcript` | yt-dlp        | 1 paced call                                                     | text saved to the download folder                                                                           |
+| `download`   | yt-dlp        | 1 paced call                                                     | mp4 (≤ `max_height`) or m4a                                                                                 |
 
 **Quota.** Google counts per Cloud project and Pacific day: 100 searches and
 100 uploads in buckets of their own, and 10,000 units for everything else
@@ -168,19 +168,19 @@ them.
 Assistant only, on the chosen channel's own content; every write is held for
 the user's approval on a card that names the channel and what changes.
 
-| Action | Cost | Approval key |
-|---|---|---|
-| `update` (title, description, tags, category, language, localizations, made for kids, license, embedding, public stats, synthetic-content disclosure) | 1 + 50 units | per channel and video |
-| `update` with `privacy` or `publish_at` | 1 + 50 units | exact call |
-| `thumbnail` (JPEG/PNG ≤ 2 MB) | 50 units | per channel and video |
-| `reply` (to a comment) | 50 units | exact call |
-| `moderate` (publish, hold or reject up to 50 comments; ban with reject) | 50 units (+1 for the card) | exact call |
-| `upload` | 1 upload | exact call plus the file's size and time |
-| `caption_upload` (add a track, or replace one's file) | 1 + 400 / 450 units | exact call plus the file's size and time |
-| `playlist_create`, `playlist_add`, `playlist_remove` | 50 units | exact call |
-| `playlist_update` (title, description, privacy), `playlist_move` | 1 + 50 units | exact call |
-| `channel_update` (description, keywords, country, language, trailer, localizations, made for kids) | 1 + 50 units per part | exact call |
-| `watermark` (JPEG/PNG ≤ 10 MB), `watermark_remove` | 50 units | exact call (`watermark` plus the file's size and time) |
+| Action                                                                                                                                                | Cost                       | Approval key                                           |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------- | ------------------------------------------------------ |
+| `update` (title, description, tags, category, language, localizations, made for kids, license, embedding, public stats, synthetic-content disclosure) | 1 + 50 units               | per channel and video                                  |
+| `update` with `privacy` or `publish_at`                                                                                                               | 1 + 50 units               | exact call                                             |
+| `thumbnail` (JPEG/PNG ≤ 2 MB)                                                                                                                         | 50 units                   | per channel and video                                  |
+| `reply` (to a comment)                                                                                                                                | 50 units                   | exact call                                             |
+| `moderate` (publish, hold or reject up to 50 comments; ban with reject)                                                                               | 50 units (+1 for the card) | exact call                                             |
+| `upload`                                                                                                                                              | 1 upload                   | exact call plus the file's size and time               |
+| `caption_upload` (add a track, or replace one's file)                                                                                                 | 1 + 400 / 450 units        | exact call plus the file's size and time               |
+| `playlist_create`, `playlist_add`, `playlist_remove`                                                                                                  | 50 units                   | exact call                                             |
+| `playlist_update` (title, description, privacy), `playlist_move`                                                                                      | 1 + 50 units               | exact call                                             |
+| `channel_update` (description, keywords, country, language, trailer, localizations, made for kids)                                                    | 1 + 50 units per part      | exact call                                             |
+| `watermark` (JPEG/PNG ≤ 10 MB), `watermark_remove`                                                                                                    | 50 units                   | exact call (`watermark` plus the file's size and time) |
 
 "Session" or "always" on the first edit card of a video covers that video's
 later detail edits and thumbnails; the user chose this so iterating on a

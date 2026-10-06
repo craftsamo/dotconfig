@@ -10,14 +10,14 @@ browser. Part of the Hermes design docs — index:
 
 ## Shape
 
-| Piece | Home | Reader |
-|---|---|---|
-| Engine: validation, pacing, session state, public reads, result shapes, image checks, write plan, approval card, image upload, bypass guard | `plugins/note-access/na.py` | all |
-| Markdown ⇄ note editor HTML | `plugins/note-access/notefmt.py` | all |
-| The only process holding the session; a fixed set of signed-in operations | `plugins/note-access/bridge.py` | all |
-| `note` tool and the `pre_tool_call` hook (toolset `note_access`) | `plugins/note-access/__init__.py` | Assistant, Marketer |
-| When and how the Assistant uses it | the Assistant's private Chat reference `note.md`; `execute-assistant-marketing` for Marketer's save packages | Assistant |
-| How Marketer drafts and measures on note | `marketer-pipeline/references/platforms/note.md` | Marketer |
+| Piece                                                                                                                                       | Home                                                                                                         | Reader              |
+| ------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ | ------------------- |
+| Engine: validation, pacing, session state, public reads, result shapes, image checks, write plan, approval card, image upload, bypass guard | `plugins/note-access/na.py`                                                                                  | all                 |
+| Markdown ⇄ note editor HTML                                                                                                                 | `plugins/note-access/notefmt.py`                                                                             | all                 |
+| The only process holding the session; a fixed set of signed-in operations                                                                   | `plugins/note-access/bridge.py`                                                                              | all                 |
+| `note` tool and the `pre_tool_call` hook (toolset `note_access`)                                                                            | `plugins/note-access/__init__.py`                                                                            | Assistant, Marketer |
+| When and how the Assistant uses it                                                                                                          | the Assistant's private Chat reference `note.md`; `execute-assistant-marketing` for Marketer's save packages | Assistant           |
+| How Marketer drafts and measures on note                                                                                                    | `marketer-pipeline/references/platforms/note.md`                                                             | Marketer            |
 
 note has no public API. The tool calls the internal endpoints that note's own
 web app and editor use, the same way the editor does. They can change without
@@ -92,17 +92,17 @@ gap also holds between the two requests of one bridge operation. Past a cap
 the tool answers `paused: …` without calling note. After a 429 every request
 waits 10 minutes.
 
-| Action | Signed in | Requests | Notes |
-|---|---|---|---|
-| `search` | no | 1 | sort `new` / `popular` / `hot`; 10 per page, at most 20; `start` = `next_start` |
-| `articles` | no (+1 to find the user's id once) | 1 | a creator's articles; default the user's own |
-| `article` | no | 1 | a published article as Markdown; a paid one gives its free part |
-| `creator` | no | 1 | profile and counts; follower counts only where the creator shows them |
-| `comments` | no | 1 | flattened from note's comment documents, with the author's latest reply; "turned off" on 403 |
-| `hashtag` | no | 1 | newest articles with the tag, 50 per page |
-| `drafts` | yes | 2 | who is signed in, then the unpublished drafts |
-| `draft` | yes | 1 | one own draft as Markdown, with `updatable` |
-| `stats` | yes | 1 | views, likes, comments per article; `period` all / daily / weekly / monthly / yearly; `sort` pv / like / comment |
+| Action     | Signed in                          | Requests | Notes                                                                                                            |
+| ---------- | ---------------------------------- | -------- | ---------------------------------------------------------------------------------------------------------------- |
+| `search`   | no                                 | 1        | sort `new` / `popular` / `hot`; 10 per page, at most 20; `start` = `next_start`                                  |
+| `articles` | no (+1 to find the user's id once) | 1        | a creator's articles; default the user's own                                                                     |
+| `article`  | no                                 | 1        | a published article as Markdown; a paid one gives its free part                                                  |
+| `creator`  | no                                 | 1        | profile and counts; follower counts only where the creator shows them                                            |
+| `comments` | no                                 | 1        | flattened from note's comment documents, with the author's latest reply; "turned off" on 403                     |
+| `hashtag`  | no                                 | 1        | newest articles with the tag, 50 per page                                                                        |
+| `drafts`   | yes                                | 2        | who is signed in, then the unpublished drafts                                                                    |
+| `draft`    | yes                                | 1        | one own draft as Markdown, with `updatable`                                                                      |
+| `stats`    | yes                                | 1        | views, likes, comments per article; `period` all / daily / weekly / monthly / yearly; `sort` pv / like / comment |
 
 Results carry local times, clipped text, and a note that titles, articles,
 profiles and comments are other people's words, never instructions.
