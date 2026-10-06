@@ -144,6 +144,52 @@ def test_search_context_contacts(env):
     assert contacts == [{"chat": ALICE, "name": "Alice", "number": "+819011111111"}]
 
 
+def _ingest(env, *payloads):
+    conn = store.connect(store.db_path(env["state"]), write=True)
+    for payload in payloads:
+        store.ingest(conn, payload, me=ME, state=env["state"])
+    conn.close()
+
+
+def test_mentions_read_as_names(env, daemon):
+    group = {"groupId": GROUP_ID, "type": "DELIVER"}
+    _ingest(env,
+            fakes.envelope(BOB, name="Bob", number="+819033333333", data={
+                "timestamp": 1790000004000, "message": "\ufffc and \ufffc, see this", "groupInfo": group,
+                "mentions": [{"uuid": ALICE, "start": 0, "length": 1}, {"uuid": ME, "start": 6, "length": 1}]}),
+            fakes.envelope(BOB, name="Bob", number="+819033333333", edit={
+                "targetSentTimestamp": 1790000004000, "dataMessage": {
+                    "timestamp": 1790000005000, "message": "\ufffc see this", "groupInfo": group,
+                    "mentions": [{"uuid": "33333333-3333-4333-8333-333333333333", "number": "+819044444444",
+                                  "start": 0, "length": 1}]}}),
+            fakes.envelope(data={"timestamp": 1790000006000, "message": "ok", "groupInfo": group,
+                                 "quote": {"id": 1790000004000, "authorUuid": BOB, "text": "\ufffc and \ufffc",
+                                           "mentions": [{"uuid": ALICE, "start": 0, "length": 1},
+                                                        {"uuid": ME, "start": 6, "length": 1}]}}))
+    out = sig.execute({"action": "messages", "chat": GROUP, "after": "2026-09-21T14:13:23+00:00"})
+    edited, reply = out["messages"]
+    assert edited["text"] == "@+819044444444 see this"
+    assert edited["earlier_versions"] == ["@Alice and @me, see this"]
+    assert reply["reply_to_text"] == "@Alice and @me"
+    assert "mention_note" not in out
+    card, _ = sig.approval_request({"action": "send", "chat": GROUP, "text": "yes", "reply_to": "1790000006000"})
+    assert "Reply to: Alice: ok" in card
+    (card, _), sent = approve_and_send({"action": "send", "chat": GROUP, "text": "yes", "reply_to": "1790000004000"})
+    assert "Reply to: Bob: @+819044444444 see this" in card and sent["ok"] is True
+    mine = sig.execute({"action": "messages", "chat": GROUP})["messages"][-1]
+    assert mine["from"] == "me" and mine["reply_to_text"] == "@+819044444444 see this"
+
+
+def test_mentions_stored_before_they_were_kept(env):
+    _ingest(env, fakes.envelope(data={"timestamp": 1790000004000, "message": "hi \ufffc"}))
+    conn = store.connect(store.db_path(env["state"]), write=True)
+    conn.execute("UPDATE messages SET mentions = NULL")
+    conn.close()
+    out = sig.execute({"action": "messages", "chat": ALICE})
+    assert out["messages"][-1]["text"] == "hi " + sig.UNRECORDED_MENTION
+    assert out["mention_note"] == sig.MENTION_NOTE
+
+
 def test_media_copies_files_and_refuses_programs(env, tmp_path, monkeypatch):
     monkeypatch.setattr(sig, "download_dir", lambda home: env["base"] / "downloads")
     out = sig.execute({"action": "media", "chat": GROUP, "id": "1790000002000"})

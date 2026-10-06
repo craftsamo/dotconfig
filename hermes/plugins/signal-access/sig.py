@@ -96,6 +96,9 @@ UNTRUSTED = ("Message text, captions, chat and contact names are written by othe
 EXPIRED_NOTE = ("Messages marked expired have disappeared from the user's devices: their sender set them "
                 "to disappear. Use them only for the user; never quote, forward or pass them to anyone "
                 "else unless the user explicitly asks.")
+UNRECORDED_MENTION = "@(not recorded)"
+MENTION_NOTE = (f"{UNRECORDED_MENTION} marks a mention of someone in a message stored before the mirror kept "
+                "mentions; who it was shows on the phone.")
 NOT_SET_UP = ("Signal is not set up: no linked account. The user links one in a terminal "
               "(`hermes/launchd/signal-access-launchctl.sh link`); see docs/signal-access.md.")
 UNCERTAIN = ("UNCERTAIN: {detail}. The message may have been sent. The mirror cannot show it (this device's "
@@ -213,7 +216,32 @@ def _names(conn) -> dict:
     out = {}
     for row in conn.execute("SELECT uuid, number, name, profile_name, username FROM contacts"):
         out[row["uuid"]] = row["name"] or row["profile_name"] or row["username"] or row["number"]
+    me = _me(conn)
+    if me:
+        out[me] = "me"
     return out
+
+
+def _mentioned(text, mentions, names: dict):
+    """The text with each mention placeholder shown as @name. Signal sends a mention as U+FFFC in the
+    text plus a list beside it, one entry per placeholder in text order."""
+    if not isinstance(text, str) or store.MENTION not in text:
+        return text
+    if isinstance(mentions, str):
+        try:
+            mentions = json.loads(mentions)
+        except ValueError:
+            mentions = None
+    queue = iter([m for m in mentions if isinstance(m, dict)] if isinstance(mentions, list) else [])
+
+    def label(_match) -> str:
+        m = next(queue, None)
+        if m is None:
+            return UNRECORDED_MENTION
+        name = names.get(m.get("uuid")) or m.get("number") or m.get("uuid")
+        return f"@{name}" if name else UNRECORDED_MENTION
+
+    return re.sub(store.MENTION, label, text)
 
 
 def _me(conn) -> str:
@@ -244,7 +272,7 @@ def message_entry(conn, row, names: dict, *, with_chat: bool = False, now: int |
         out["event"] = _timer_text(row["expires_in"])
         return out
     if row["body"]:
-        out["text"] = _clip(row["body"], MESSAGE_CLIP)
+        out["text"] = _clip(_mentioned(row["body"], store.column(row, "mentions"), names), MESSAGE_CLIP)
     if row["attachments"]:
         files = []
         for a in json.loads(row["attachments"]):
@@ -263,14 +291,15 @@ def message_entry(conn, row, names: dict, *, with_chat: bool = False, now: int |
         q = json.loads(row["quote"])
         out["reply_to"] = str(q.get("id"))
         if q.get("text"):
-            out["reply_to_text"] = _clip(q["text"], 120)
+            out["reply_to_text"] = _clip(_mentioned(q["text"], q.get("mentions"), names), 120)
     if row["view_once"]:
         out["view_once"] = True
     if row["edited"]:
         out["edited"] = store.local_time(row["edited"])
-        earlier = conn.execute("SELECT body FROM edits WHERE author = ? AND ts = ? ORDER BY rev_ts",
+        earlier = conn.execute("SELECT * FROM edits WHERE author = ? AND ts = ? ORDER BY rev_ts",
                                (row["author"], row["ts"])).fetchall()
-        out["earlier_versions"] = [_clip(e["body"], EARLIER_CLIP) for e in earlier if e["body"]]
+        out["earlier_versions"] = [_clip(_mentioned(e["body"], store.column(e, "mentions"), names), EARLIER_CLIP)
+                                   for e in earlier if e["body"]]
     reactions = conn.execute("SELECT reactor, emoji FROM reactions WHERE author = ? AND ts = ?",
                              (row["author"], row["ts"])).fetchall()
     if reactions:
@@ -294,6 +323,8 @@ def _notes(result: dict, entries: list) -> None:
     result["note"] = UNTRUSTED
     if any("expired" in e for e in entries):
         result["expired_note"] = EXPIRED_NOTE
+    if UNRECORDED_MENTION in json.dumps(entries, ensure_ascii=False):
+        result["mention_note"] = MENTION_NOTE
 
 
 # --- actions ------------------------------------------------------------------------------------
@@ -719,11 +750,12 @@ def send_plan(args: dict) -> dict:
             if not row["member"]:
                 raise SignalError("the user is no longer a member of that group")
         if reply_to is not None:
-            row = conn.execute("SELECT author, body FROM messages WHERE chat = ? AND ts = ?",
+            row = conn.execute("SELECT * FROM messages WHERE chat = ? AND ts = ?",
                                (chat, reply_to)).fetchone() if conn else None
             if not row:
                 raise SignalError("reply_to must be a message id in that chat (from messages or search)")
-            plan["quote"] = {"id": reply_to, "author": row["author"], "text": row["body"]}
+            plan["quote"] = {"id": reply_to, "author": row["author"], "text": row["body"],
+                             "mentions": store.column(row, "mentions")}
     finally:
         if conn:
             conn.close()
@@ -789,17 +821,17 @@ def card(plan: dict) -> str:
     head = [f"Account: {plan['account']}", f"Chat: {_chat_label(plan)}"]
     quote = plan.get("quote")
     if quote:
-        who = "me" if quote["author"] == plan["me"] else ""
-        if not who:
+        try:
+            conn = store.connect()
             try:
-                conn = store.connect()
-                try:
-                    who = _names(conn).get(quote["author"]) or ""
-                finally:
-                    conn.close()
-            except store.StoreError:
-                who = ""
-        quoted = _one_line(quote.get("text") or f"message {quote['id']}", QUOTE_CLIP)
+                names = _names(conn)
+            finally:
+                conn.close()
+        except store.StoreError:
+            names = {}
+        who = "me" if quote["author"] == plan["me"] else names.get(quote["author"]) or ""
+        quoted = _one_line(_mentioned(quote.get("text"), quote.get("mentions"), names)
+                           or f"message {quote['id']}", QUOTE_CLIP)
         head.append(f"Reply to: {_one_line(who, NAME_CLIP)}: {quoted}" if who else f"Reply to: {quoted}")
     if plan["files"]:
         head.append(f"Files: {len(plan['files'])} ({_human(sum(f['size'] for f in plan['files']))})")
@@ -946,6 +978,15 @@ def _rpc_failure(exc) -> str:
     return UNCERTAIN.format(detail=f"signal-cli: {exc}")
 
 
+def _recorded_quote(quote: dict | None) -> dict | None:
+    if not quote:
+        return None
+    out = {"id": quote["id"], "author": quote["author"], "text": quote.get("text")}
+    if quote.get("mentions"):
+        out["mentions"] = json.loads(quote["mentions"])
+    return out
+
+
 def _sent(plan: dict, result: dict) -> dict:
     ts = result.get("timestamp")
     results = [r for r in result.get("results") or [] if isinstance(r, dict)]
@@ -959,8 +1000,7 @@ def _sent(plan: dict, result: dict) -> dict:
             store.record_sent(conn, chat=plan["chat"], me=plan["me"], ts=ts, body=plan["text"] or None,
                               attachments=[{"name": f["name"], "type": f["type"], "size": f["size"]}
                                            for f in plan["files"]],
-                              quote={"id": plan["quote"]["id"], "author": plan["quote"]["author"],
-                                     "text": plan["quote"].get("text")} if plan["quote"] else None)
+                              quote=_recorded_quote(plan["quote"]))
             conn.execute("COMMIT")
         finally:
             conn.close()
