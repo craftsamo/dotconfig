@@ -10,14 +10,14 @@ sends DMs. Part of the Hermes design docs — index:
 
 ## Shape
 
-| Piece | Home | Reader |
-|---|---|---|
-| Engine: validation, pacing, session state, result shapes, media download, bypass guard | `plugins/x-access/xa.py` | all |
-| One twscrape read per call in the engine venv; reads the cookies | `plugins/x-access/bridge.py` | all |
-| `x` tool and the `pre_tool_call` hook (toolset `x_access`) | `plugins/x-access/__init__.py` | Assistant, Marketer |
-| Engine venv | `scripts/x-access.sh`, `engines/twscrape/` | people |
-| When and how the Assistant uses it | the Assistant's private Chat reference `x.md` | Assistant |
-| How Marketer reads ranking, results and conversations | `marketer-pipeline/references/x-ranking.md` | Marketer |
+| Piece                                                                                  | Home                                          | Reader              |
+| -------------------------------------------------------------------------------------- | --------------------------------------------- | ------------------- |
+| Engine: validation, pacing, session state, result shapes, media download, bypass guard | `plugins/x-access/xa.py`                      | all                 |
+| One twscrape read per call in the engine venv; reads the cookies                       | `plugins/x-access/bridge.py`                  | all                 |
+| `x` tool and the `pre_tool_call` hook (toolset `x_access`)                             | `plugins/x-access/__init__.py`                | Assistant, Marketer |
+| Engine venv                                                                            | `scripts/x-access.sh`, `engines/twscrape/`    | people              |
+| When and how the Assistant uses it                                                     | the Assistant's private Chat reference `x.md` | Assistant           |
+| How Marketer reads ranking, results and conversations                                  | `marketer-pipeline/references/x-ranking.md`   | Marketer            |
 
 [twscrape](https://github.com/vladkens/twscrape) calls the GraphQL endpoints
 the x.com web app uses, signed in with a browser session's `auth_token` and
@@ -80,16 +80,16 @@ without calling X. A call counts only when X was, or may have been,
 contacted: a missing engine or cookies, or a remembered refusal, costs
 nothing.
 
-| Action | Paced reads | Notes |
-|---|---|---|
-| `posts` | 1 (+1 to resolve an uncached handle) | `replies=true` includes replies; protected accounts refused |
-| `mentions` | 1 | search `(@main OR to:main) -from:main`, Latest; `since` = YYYY-MM-DD |
-| `search` | 1 | X search syntax; Latest, or Top with `top=true` |
-| `thread` | 2 | the post, then its whole conversation from the root |
-| `user` | 1 | profile, bio, counts |
-| `media` | 1 | then CDN downloads without cookies |
-| `snapshot` | 1 (+1 to resolve an uncached handle) | the main account's recent posts into the ledger |
-| `insights` | 0 | the ledger only |
+| Action     | Paced reads                          | Notes                                                                |
+| ---------- | ------------------------------------ | -------------------------------------------------------------------- |
+| `posts`    | 1 (+1 to resolve an uncached handle) | `replies=true` includes replies; protected accounts refused          |
+| `mentions` | 1                                    | search `(@main OR to:main) -from:main`, Latest; `since` = YYYY-MM-DD |
+| `search`   | 1                                    | X search syntax; Latest, or Top with `top=true`                      |
+| `thread`   | 2                                    | the post, then its whole conversation from the root                  |
+| `user`     | 1                                    | profile, bio, counts                                                 |
+| `media`    | 1                                    | then CDN downloads without cookies                                   |
+| `snapshot` | 1 (+1 to resolve an uncached handle) | the main account's recent posts into the ledger                      |
+| `insights` | 0                                    | the ledger only                                                      |
 
 Limits default to 20 (thread 30), at most 50. Results carry local times with
 offset, text clipped at 2000 characters (quoted posts 280), reposts as
