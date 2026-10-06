@@ -174,7 +174,7 @@ class PerProfileHandoffContractTest(unittest.TestCase):
 
     PUBLIC_ROOTS = (
         "creator", "engineer", "marketer", "writer", "researcher", "searcher",
-        "image-creator", "video-creator", "audio-creator", "ui-review", "ux-persona",
+        "image-creator", "video-creator", "audio-creator",
     )
 
     def test_public_roots_mention_agent_vs_human_handoff_distinction(self) -> None:

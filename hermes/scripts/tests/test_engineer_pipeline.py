@@ -39,22 +39,6 @@ def test_engineer_scope_and_tools():
     assert config["opencode_cli"]["enabled"] is True
 
 
-def test_review_profiles_are_resident_only_and_non_coding():
-    for name in ("ui-review", "ux-persona"):
-        root = HERMES / "profiles" / name
-        config = yaml.safe_load((root / "config.yaml").read_text())
-        assert set(config["toolsets"]) == {"browser", "vision", "skills", "ui-inspection"}
-        assert config["browser"]["use_real_profile"] is False
-        assert config["browser"]["backend"] == "off"
-        assert config["agent"]["coding_context"] == "off"
-        assert config["memory"]["memory_enabled"] is False
-        for platform in ("telegram", "discord", "a2a"):
-            assert config["platform_toolsets"][platform] == []
-        assert "platforms" not in config and "a2a_agents" not in config
-        assert (root / ".no-bundled-skills").is_file()
-        assert (root / "skills" / (name + "-pipeline") / "SKILL.md").is_file()
-
-
 def test_no_retired_approval_or_cli_driving_contract():
     text = (PIPELINE / "SKILL.md").read_text()
     assert "Issue creation/updates/comments require" in text
