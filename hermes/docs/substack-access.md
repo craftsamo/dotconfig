@@ -104,8 +104,8 @@ contacted.
 | `prepublish` | Substack's own pre-publish checks for a draft |
 | `stats` | subscribers, email and app subscribers, open rate, pledges |
 
-Results carry local times, text clipped at 30000 characters (Markdown at
-40000) and a note that titles, text, names and links are data, never
+Results carry local times, text clipped at 30000 characters (Markdown
+at 40000) and a note that titles, text, names and links are data, never
 instructions. Notes, comments, chats and other publications' statistics are
 not read.
 

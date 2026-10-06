@@ -1143,8 +1143,8 @@ tool returns `status: "blocked"`.
   `tests/test_plugin.py`, those basenames collide under the default import mode,
   and `__init__.py` cannot fix it because the hyphenated plugin directories are
   not importable package names.
-- `scripts/verify-work-continuity.py --runtime <hermes-agent-checkout>
-  --private <paired-private-checkout>` — run before cutover and after an
+- `scripts/verify-work-continuity.py --runtime <hermes-agent-checkout> --private <paired-private-checkout>`
+  — run before cutover and after an
   upstream update; it resolves the runtime's PM test interpreter through
   `bin/hermes-python --test`. It runs the strict Git/topology
   validator, paired public/private tests and runtime regressions; it never
@@ -1182,8 +1182,9 @@ agent's pre-rename label and carry its old log over once.
   default-hosted process serves every profile directory: assistant Telegram +
   Discord, the engineer / creator / marketer bots, the A2A endpoints
   (`127.0.0.1:9902-9909`) and the embedded dispatcher. The launcher execs the
-  checkout's `.hermes/bin/hermes gateway run --accept-hooks
-  --external-supervisor` as a supervised child (`HERMES_SUPERVISED_CHILD=1`);
+  checkout's
+  `.hermes/bin/hermes gateway run --accept-hooks --external-supervisor` as a
+  supervised child (`HERMES_SUPERVISED_CHILD=1`);
   the `ai.hermes` label prefix gives Hermes its launchd identity (drain budget,
   restart route) while not being `ai.hermes.gateway*`, so Hermes never
   regenerates the plist. `install` also unloads and removes the legacy

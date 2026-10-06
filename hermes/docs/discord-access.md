@@ -304,8 +304,8 @@ mirror) and the role writes below each go through the same approval gate.
   characters as a send's is); every line of a role card is part of the
   approval, so a role card that does not fit is refused and the request has
   to be split.
-- **Cards:** `In:` the chat, `Message:` its sender and text with `React
-  with:` / `Remove my reaction:`; `Edit my message` with `Before:`, `Pings:`
+- **Cards:** `In:` the chat, `Message:` its sender and text with
+  `React with:` / `Remove my reaction:`; `Edit my message` with `Before:`, `Pings:`
   and the new text; `Delete my message:` with "This cannot be undone."
 - **One request, never retried.** Outcomes are `done`, `not done` (Discord
   refused, or it cannot have left the machine) and `UNCERTAIN` (a 5xx, or a

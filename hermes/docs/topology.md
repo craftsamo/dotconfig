@@ -59,8 +59,8 @@ where conversation adds nothing.
   [`models-auth.md`](./models-auth.md) "Secrets layering".
 - **One shared board** at the base `~/.hermes/kanban.db`
   (`get_default_hermes_root()`, not profile-scoped).
-- **Workers spawn through the PATH `hermes`**: the dispatcher runs `hermes -p
-  <worker> … chat -q "work kanban task <id>"` via `shutil.which` (so the
+- **Workers spawn through the PATH `hermes`**: the dispatcher runs
+  `hermes -p <worker> … chat -q "work kanban task <id>"` via `shutil.which` (so the
   `bin/hermes` shim is used) with a copy of the gateway env and `HERMES_HOME`
   overridden, so workers get the `global` + `hermes` Keychain layers — no
   per-worker secret is needed.

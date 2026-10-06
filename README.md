@@ -51,9 +51,9 @@ Installed outside the [Brewfile](./Brewfile):
 
 - **Claude Code CLI** — [native installer](https://claude.com/product/claude-code)
   (lands in `~/.local/bin/claude`)
-- **Grok Build CLI** — official installer (`SHELL=/bin/sh bash -c "$(curl -fsSL
-  https://x.ai/cli/install.sh)"`; lands in `~/.grok/bin`, symlinked into
-  `~/.local/bin`). The `grok-build` cask is avoided on purpose — Caskroom
+- **Grok Build CLI** — official installer
+  (`SHELL=/bin/sh bash -c "$(curl -fsSL https://x.ai/cli/install.sh)"`; lands
+  in `~/.grok/bin`, symlinked into `~/.local/bin`). The `grok-build` cask is avoided on purpose — Caskroom
   binaries hang in dyld on this machine; see [`grok/README.md`](./grok/README.md)
 - **Hermes Agent** — run [`hermes/setup.sh`](./hermes/setup.sh) (idempotent:
   `ghq` clone + `uv` venv + `~/.local/bin/hermes` symlink; no shell-rc edits).

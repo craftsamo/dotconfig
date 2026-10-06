@@ -136,6 +136,7 @@ executor.
 
 ### The form (front matter is the only representation)
 
+<!-- prettier-ignore -->
 ```yaml
 ---
 name: generate-icon
@@ -287,8 +288,8 @@ before the next look.
 
 ### Migration
 
-Each family moves on its own, each step verified before the next: (0) contract
-+ validator, (1) the hands skeleton, (2) the family's leaves proven from the
+Each family moves on its own, each step verified before the next: (0)
+contract + validator, (1) the hands skeleton, (2) the family's leaves proven from the
 hands' own CLI with a pasted filled form, (3) Creator routes that family to the
 hands while every other family stays on its technic, (4) the assistant's legacy
 plan leaf, QA contract and the creator technic for that family retire, (5) soak

@@ -131,8 +131,8 @@ backed by the two blind A/Bs above (small n per arm). Provider facts:
   **A lapsed xAI OAuth does not degrade searcher to its lower tiers.**
   Credential resolution fails before the request is built, so the agent aborts
   with `xAI OAuth state is missing access_token` and `fallback_providers` never
-  engages. The same gate hides `x_search` from the schema, which `hermes
-  doctor` misleadingly reports as `x_search (missing XAI_API_KEY)` — the tool
+  engages. The same gate hides `x_search` from the schema, which
+  `hermes doctor` misleadingly reports as `x_search (missing XAI_API_KEY)` — the tool
   prefers the OAuth bearer and only falls back to the key (`tools/xai_http.py`).
   Re-authenticate with `hermes model` from the **default** profile — never
   with `-p`, which would write the worker's own `auth.json` and shadow the
