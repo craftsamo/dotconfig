@@ -3,10 +3,10 @@
 User-level configuration for the Codex CLI / desktop app.
 [`install.sh`](../install.sh) creates two symlinks into `~/.codex/`:
 
-| Symlink              | Target           |
-| -------------------- | ---------------- |
+| Symlink              | Target            |
+| -------------------- | ----------------- |
 | `~/.codex/AGENTS.md` | `codex/AGENTS.md` |
-| `~/.codex/prompts`   | `codex/prompts/` |
+| `~/.codex/prompts`   | `codex/prompts/`  |
 
 ## User-managed content
 

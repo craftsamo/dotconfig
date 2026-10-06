@@ -15,15 +15,15 @@ the risk away.
 
 ## Shape
 
-| Piece | Home | Reader |
-|---|---|---|
-| Mirror schema, sync list and its limits (stdlib) | `plugins/discord-access/store.py` | engine and plugin |
-| Engine: the only code that talks to Discord and holds the token | `plugins/discord-access/engine.py` | its venv |
-| `discord_account` tool, reads, cards, the `pre_tool_call` hooks (toolset `discord_access`) | `plugins/discord-access/access.py`, `__init__.py` | Assistant |
-| Permission names and what a member holds (stdlib) | `plugins/discord-access/perms.py` | plugin |
-| Engine venv (`curl_cffi`, hash-locked) | `engines/discord-user/requirements.lock` → ignored `local/discord-user/venv` | people |
-| Sync agent | `launchd/discord-access-launchctl.sh`, `launchd/local.hermes.discord-access.sync.plist.tmpl` | people |
-| When and how the Assistant uses it | the Assistant's private Chat reference `discord.md` | Assistant |
+| Piece                                                                                      | Home                                                                                         | Reader            |
+| ------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------- | ----------------- |
+| Mirror schema, sync list and its limits (stdlib)                                           | `plugins/discord-access/store.py`                                                            | engine and plugin |
+| Engine: the only code that talks to Discord and holds the token                            | `plugins/discord-access/engine.py`                                                           | its venv          |
+| `discord_account` tool, reads, cards, the `pre_tool_call` hooks (toolset `discord_access`) | `plugins/discord-access/access.py`, `__init__.py`                                            | Assistant         |
+| Permission names and what a member holds (stdlib)                                          | `plugins/discord-access/perms.py`                                                            | plugin            |
+| Engine venv (`curl_cffi`, hash-locked)                                                     | `engines/discord-user/requirements.lock` → ignored `local/discord-user/venv`                 | people            |
+| Sync agent                                                                                 | `launchd/discord-access-launchctl.sh`, `launchd/local.hermes.discord-access.sync.plist.tmpl` | people            |
+| When and how the Assistant uses it                                                         | the Assistant's private Chat reference `discord.md`                                          | Assistant         |
 
 No MCP server, browser or Hermes core change is involved, and no third-party
 Discord client: an audited one retried message POSTs up to five times without
@@ -254,6 +254,7 @@ sending reopens it.
   to about 160 characters with the rest counted. The allowlist key hashes the
   channel, text, reply and file contents, so "session" or "always" only ever
   repeats that identical message.
+
 - **One POST, idempotent.** The plugin draws a fresh nonce per send; the
   engine records it in the `sends` ledger as `pending`, then `dispatching`,
   and POSTs once with `enforce_nonce`, so Discord returns the original message

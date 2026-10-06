@@ -3,20 +3,20 @@
 The Assistant's access to the user's own Signal account: reading chats and
 messages, and sending text and workspace files that the user approves first.
 It is not the Signal messaging platform (`gateway/platforms/signal.py`, which
-makes Signal a channel *to* Hermes); nothing here lets people talk to Hermes
+makes Signal a channel _to_ Hermes); nothing here lets people talk to Hermes
 over Signal. Part of the Hermes design docs — index: [`PROFILES.md`](../PROFILES.md).
 
 ## Shape
 
-| Piece | Home | Reader |
-|---|---|---|
-| Mirror schema, ingest rules, retention | `plugins/signal-access/store.py` | sync agent, engine |
-| JSON-RPC client for the daemon's socket | `plugins/signal-access/rpc.py` | sync agent, engine |
-| Sync agent: owns signal-cli, writes the mirror | `plugins/signal-access/sync.py` | launchd |
-| Engine: reads, check, media, send, approval card, file checks, bypass guard | `plugins/signal-access/sig.py` | Assistant |
-| `signal` tool and the `pre_tool_call` hook (toolset `signal_access`) | `plugins/signal-access/__init__.py` | Assistant |
-| Linking and the sync agent | `launchd/signal-access-launchctl.sh`, `launchd/local.hermes.signal-access.sync.plist.tmpl` | people |
-| When and how the Assistant uses it | the Assistant's private Chat reference `signal.md` | Assistant |
+| Piece                                                                       | Home                                                                                       | Reader             |
+| --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ | ------------------ |
+| Mirror schema, ingest rules, retention                                      | `plugins/signal-access/store.py`                                                           | sync agent, engine |
+| JSON-RPC client for the daemon's socket                                     | `plugins/signal-access/rpc.py`                                                             | sync agent, engine |
+| Sync agent: owns signal-cli, writes the mirror                              | `plugins/signal-access/sync.py`                                                            | launchd            |
+| Engine: reads, check, media, send, approval card, file checks, bypass guard | `plugins/signal-access/sig.py`                                                             | Assistant          |
+| `signal` tool and the `pre_tool_call` hook (toolset `signal_access`)        | `plugins/signal-access/__init__.py`                                                        | Assistant          |
+| Linking and the sync agent                                                  | `launchd/signal-access-launchctl.sh`, `launchd/local.hermes.signal-access.sync.plist.tmpl` | people             |
+| When and how the Assistant uses it                                          | the Assistant's private Chat reference `signal.md`                                         | Assistant          |
 
 [signal-cli](https://github.com/AsamK/signal-cli) (Homebrew `signal-cli`, a
 native build, no Java) joins the account as a linked device — the same standing
@@ -147,6 +147,7 @@ text.
   `⟨U+202E⟩`. Every file is always on the card: a send whose files do not fit
   is refused (send fewer at once). The text gets what is left; a longer one is
   cut and the rest counted, and its full wording is agreed in chat first.
+
 - **Files** come only from `~/Workspaces`, judged by real path, so a link that
   leads out counts as outside. Refused always: paths through key or settings
   folders (`.ssh`, `.gnupg`, `.aws`, `.config`, `.git`, `.registry`,
@@ -198,8 +199,8 @@ Once, in a terminal:
 2. Check that the phone has a free linked-device slot (five at most; Signal
    Desktop counts).
 3. `~/.config/hermes/launchd/signal-access-launchctl.sh link` — prepares the
-   state directory, prints a QR code and waits; on the phone, *Settings →
-   Linked devices → Link new device*, scan it. When linking finishes it
+   state directory, prints a QR code and waits; on the phone, _Settings →
+   Linked devices → Link new device_, scan it. When linking finishes it
    installs and starts the sync agent.
 4. `signal-access-launchctl.sh status` — agent state, account and mirror status;
    the tool's `status` action shows the same.

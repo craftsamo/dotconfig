@@ -11,11 +11,11 @@ investigates and proposes the technical plan with OpenCode. No
 Assistant-produced decomposition, Issue or Base session is required. Existing
 plans remain useful context, not an automatic new approval.
 
-| Relationship | Owner of decisions | Execution |
-| --- | --- | --- |
-| Client with Engineer | Outcome, scope and important tradeoffs agreed conversationally | Human clarify or structured Client Q<n> replies |
-| Engineer with OpenCode | Technical planning, in-scope implementation sequencing, evidence and correction | opencode_call / opencode_session |
-| OpenCode with its own agents | Code-level methods, exploration, testing and review | OpenCode's own tools/skills |
+| Relationship                 | Owner of decisions                                                              | Execution                                       |
+| ---------------------------- | ------------------------------------------------------------------------------- | ----------------------------------------------- |
+| Client with Engineer         | Outcome, scope and important tradeoffs agreed conversationally                  | Human clarify or structured Client Q<n> replies |
+| Engineer with OpenCode       | Technical planning, in-scope implementation sequencing, evidence and correction | opencode_call / opencode_session                |
+| OpenCode with its own agents | Code-level methods, exploration, testing and review                             | OpenCode's own tools/skills                     |
 
 One explicit implementation approval releases the agreed scope through QA,
 task-branch push and PR delivery. Ordinary internal steps need no per-unit

@@ -4,17 +4,17 @@ The Assistant's access to the user's own WhatsApp accounts — reading chats
 and messages, and sending text and workspace files that the user approves
 first. It is not the
 WhatsApp messaging platform (`plugins/platforms/whatsapp`, which makes
-WhatsApp a channel *to* Hermes); nothing here lets people talk to Hermes over
+WhatsApp a channel _to_ Hermes); nothing here lets people talk to Hermes over
 WhatsApp. Part of the Hermes design docs — index: [`PROFILES.md`](../PROFILES.md).
 
 ## Shape
 
-| Piece | Home | Reader |
-|---|---|---|
-| Engine: wacli calls, result shapes, file checks and snapshots, approval card, bypass guard | `plugins/whatsapp-access/wa.py` | all |
-| `whatsapp` tool and the `pre_tool_call` hooks (toolset `whatsapp_access`) | `plugins/whatsapp-access/__init__.py` | Assistant |
-| Pairing and the per-account sync agent | `launchd/whatsapp-access-launchctl.sh`, `launchd/local.hermes.whatsapp-access.sync.plist.tmpl` | people |
-| When and how the Assistant uses it | the Assistant's private Chat reference `whatsapp.md` | Assistant |
+| Piece                                                                                      | Home                                                                                           | Reader    |
+| ------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------- | --------- |
+| Engine: wacli calls, result shapes, file checks and snapshots, approval card, bypass guard | `plugins/whatsapp-access/wa.py`                                                                | all       |
+| `whatsapp` tool and the `pre_tool_call` hooks (toolset `whatsapp_access`)                  | `plugins/whatsapp-access/__init__.py`                                                          | Assistant |
+| Pairing and the per-account sync agent                                                     | `launchd/whatsapp-access-launchctl.sh`, `launchd/local.hermes.whatsapp-access.sync.plist.tmpl` | people    |
+| When and how the Assistant uses it                                                         | the Assistant's private Chat reference `whatsapp.md`                                           | Assistant |
 
 The engine shells out to [`wacli`](https://github.com/openclaw/wacli)
 (Homebrew `openclaw/tap/wacli`, built on whatsmeow), which joins each account
@@ -138,6 +138,7 @@ so the quote resolves.
   characters in names, quotes and the text are spelled out as `⟨U+202E⟩`
   (emoji joiners stay); the message itself is sent unchanged. Name and quote
   lookups wait at most three seconds each and fall back to the number or JID.
+
 - **Long texts are cut on the card, not refused.** Telegram shows about 480
   escaped UTF-16 units of a reason, so beyond roughly 350 characters the card
   shows the beginning and counts the rest (`(+N more characters)`). A long
@@ -220,8 +221,8 @@ Once per account, in a terminal:
 2. Check that the phone has a free linked-device slot (four at most).
 3. `~/.config/hermes/launchd/whatsapp-access-launchctl.sh pair <account> +<number>`
    — stops that account's agent, adds the account if needed, prints a pairing
-   code, and waits; on the phone, *Linked devices → Link a device → Link with
-   phone number instead*, enter the code. When pairing finishes it installs
+   code, and waits; on the phone, _Linked devices → Link a device → Link with
+   phone number instead_, enter the code. When pairing finishes it installs
    and starts the sync agent. Without `--phone`,
    `wacli --account <account> auth` pairs by QR instead.
 4. `whatsapp-access-launchctl.sh status` — agent state and `wacli doctor` for

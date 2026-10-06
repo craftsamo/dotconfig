@@ -26,18 +26,18 @@ under `~/.hermes/` and does **not** read `~/.config`, so
 
 This file does not restate agent behavior. Contracts:
 
-| Topic | Contract |
-| --- | --- |
-| Engineer modes, OpenCode runtime, resident turns, UI verification | [docs/profiles/engineer.md](docs/profiles/engineer.md) |
-| `specialist_call` / `specialist_session`, completion, deadlines, work continuity | [docs/profiles/specialist-calls.md](docs/profiles/specialist-calls.md) |
-| Assistant entry routing, creative early delivery, kanban catalog, pinned topics | [docs/profiles/assistant.md](docs/profiles/assistant.md) |
-| Writer v8 leaves, Marketer v8 entries, Researcher/Searcher phases | [writer.md](docs/profiles/writer.md), [marketer.md](docs/profiles/marketer.md), [research.md](docs/profiles/research.md) |
-| Entry loading contract, candidate rollout and cutover | [docs/topology.md](docs/topology.md) |
-| Creator v9 broker phases | [docs/broker.md](docs/broker.md) |
-| Hands entry routing and instruction context | [docs/hands/overview.md](docs/hands/overview.md) "Skill tree" |
-| Character voices, performance direction, Speech / SFX / Music / Mix families | [docs/hands/audio.md](docs/hands/audio.md) |
-| Model chains, auth inheritance, what belongs in each secret layer | [docs/models-auth.md](docs/models-auth.md) |
-| Gateway service design | [docs/operations.md](docs/operations.md) "Gateway as a persistent service" |
+| Topic                                                                            | Contract                                                                                                                 |
+| -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| Engineer modes, OpenCode runtime, resident turns, UI verification                | [docs/profiles/engineer.md](docs/profiles/engineer.md)                                                                   |
+| `specialist_call` / `specialist_session`, completion, deadlines, work continuity | [docs/profiles/specialist-calls.md](docs/profiles/specialist-calls.md)                                                   |
+| Assistant entry routing, creative early delivery, kanban catalog, pinned topics  | [docs/profiles/assistant.md](docs/profiles/assistant.md)                                                                 |
+| Writer v8 leaves, Marketer v8 entries, Researcher/Searcher phases                | [writer.md](docs/profiles/writer.md), [marketer.md](docs/profiles/marketer.md), [research.md](docs/profiles/research.md) |
+| Entry loading contract, candidate rollout and cutover                            | [docs/topology.md](docs/topology.md)                                                                                     |
+| Creator v9 broker phases                                                         | [docs/broker.md](docs/broker.md)                                                                                         |
+| Hands entry routing and instruction context                                      | [docs/hands/overview.md](docs/hands/overview.md) "Skill tree"                                                            |
+| Character voices, performance direction, Speech / SFX / Music / Mix families     | [docs/hands/audio.md](docs/hands/audio.md)                                                                               |
+| Model chains, auth inheritance, what belongs in each secret layer                | [docs/models-auth.md](docs/models-auth.md)                                                                               |
+| Gateway service design                                                           | [docs/operations.md](docs/operations.md) "Gateway as a persistent service"                                               |
 
 ## Installing the binary
 
@@ -78,14 +78,14 @@ Every link below points back into this repo, so edit the repo copy.
 `install.sh`'s `link()` never overwrites a real file — it prints
 `WARN … not overwriting` and skips (the repo-wide drift policy).
 
-| Symlink | Target |
-| --- | --- |
-| `~/.hermes/config.yaml` | `hermes/config.yaml` |
-| `~/.hermes/SOUL.md` | `hermes/SOUL.md` (untracked; see below) |
-| `~/.hermes/mcp.json` | `hermes/mcp.json` |
-| `~/.hermes/skills` | `hermes/skills/` |
-| `~/.hermes/plugins` | `hermes/plugins/` |
-| `~/.hermes/.no-bundled-skills` | `hermes/.no-bundled-skills` |
+| Symlink                        | Target                                  |
+| ------------------------------ | --------------------------------------- |
+| `~/.hermes/config.yaml`        | `hermes/config.yaml`                    |
+| `~/.hermes/SOUL.md`            | `hermes/SOUL.md` (untracked; see below) |
+| `~/.hermes/mcp.json`           | `hermes/mcp.json`                       |
+| `~/.hermes/skills`             | `hermes/skills/`                        |
+| `~/.hermes/plugins`            | `hermes/plugins/`                       |
+| `~/.hermes/.no-bundled-skills` | `hermes/.no-bundled-skills`             |
 
 For every `hermes/profiles/<name>/`, `install.sh` links into
 `~/.hermes/profiles/<name>/`: `config.yaml`, `profile.yaml`, `SOUL.md`,
@@ -265,7 +265,7 @@ single host gateway serves every profile directory; there is no allowlist) — s
 
 ### Caveats
 
-- **Order matters / "already installed".** The symlink must exist *before*
+- **Order matters / "already installed".** The symlink must exist _before_
   Hermes writes a real file. If real files already exist (a named profile, or a
   `~/.hermes/` set up before this repo), `install.sh` won't replace them — use
   the move-then-`install.sh` adoption above. Hermes itself runs fine either way;
@@ -614,7 +614,7 @@ Two loopback-only engines run as LaunchAgents and take no API key:
 
 **Language routing is the chain order, not a router.** `tts.fallback.chain` is
 `irodori-tts → qwen3-tts → edge`. Irodori is Japanese-only — it mangles
-English — so it *declines* English-dominant text (under 20% kana/kanji) by
+English — so it _declines_ English-dominant text (under 20% kana/kanji) by
 raising, and the chain advances to Qwen3. No routing layer exists and none
 should be added. The hand-off is per utterance on purpose: the same reference
 voice sounds audibly different on the two engines, so splicing them inside one
@@ -938,16 +938,16 @@ paid path.
 **Current split** — the three paid keys stay with the high-volume profiles;
 everyone else is on the free ring with distributed entry points:
 
-| Profile | search / extract backend | Lane |
-| --- | --- | --- |
-| assistant | `exa` | paid (auto, key present) |
-| searcher | `parallel` | paid (auto) |
-| researcher | `firecrawl` | paid (auto) |
-| engineer | `exa` | `provider_tier.exa: free` |
-| creator, image-creator, video-creator, audio-creator | `parallel` | `provider_tier.parallel: free` |
-| writer | `firecrawl` | `provider_tier.firecrawl: free` |
-| marketer | `keenable` | `provider_tier.keenable: free` |
-| default | empty (neutral for `--clone`) | `provider_tier.exa: free` — otherwise auto-detect resolves to keyed Exa and spends the assistant's grant |
+| Profile                                              | search / extract backend      | Lane                                                                                                     |
+| ---------------------------------------------------- | ----------------------------- | -------------------------------------------------------------------------------------------------------- |
+| assistant                                            | `exa`                         | paid (auto, key present)                                                                                 |
+| searcher                                             | `parallel`                    | paid (auto)                                                                                              |
+| researcher                                           | `firecrawl`                   | paid (auto)                                                                                              |
+| engineer                                             | `exa`                         | `provider_tier.exa: free`                                                                                |
+| creator, image-creator, video-creator, audio-creator | `parallel`                    | `provider_tier.parallel: free`                                                                           |
+| writer                                               | `firecrawl`                   | `provider_tier.firecrawl: free`                                                                          |
+| marketer                                             | `keenable`                    | `provider_tier.keenable: free`                                                                           |
+| default                                              | empty (neutral for `--clone`) | `provider_tier.exa: free` — otherwise auto-detect resolves to keyed Exa and spends the assistant's grant |
 
 `KEENABLE_API_KEY` is not set and not needed — a `free` pin resolves without one.
 
@@ -984,10 +984,10 @@ See also [marketer.md](docs/profiles/marketer.md) "Browser lease".
 **directory** — the `Local State → profile.info_cache` key, not the display
 name) and `real_profile_binary:` (the clone, `brave-agent-sync.sh path`):
 
-| Hermes profile | `real_profile_pin` | Brave profile name |
-| --- | --- | --- |
-| assistant | `"Profile 12"` | Hermes Agent (Assistant) |
-| marketer | `"Profile 13"` | Hermes Agent (Marketer) |
+| Hermes profile | `real_profile_pin` | Brave profile name       |
+| -------------- | ------------------ | ------------------------ |
+| assistant      | `"Profile 12"`     | Hermes Agent (Assistant) |
+| marketer       | `"Profile 13"`     | Hermes Agent (Marketer)  |
 
 Everyone else gets upstream's on-demand packaged Chromium in a throwaway
 profile. To sign an agent in, log in to services in its pinned profile in the

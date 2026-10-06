@@ -6,18 +6,18 @@ needed. Installed from the `anomalyco/tap/opencode-v2` formula (see the
 
 ## User-managed content
 
-| Path             | Purpose                                                  |
-| ---------------- | -------------------------------------------------------- |
-| `opencode.jsonc` | main configuration (models, permissions, MCP, ...)       |
-| `cli.json`       | terminal UI preferences (theme, keybinds, session view)  |
-| `AGENTS.md`      | global instructions, loaded into every session           |
-| `agent/`         | custom agents / subagents (`*.md`)                       |
-| `command/`       | custom slash commands (`*.md`)                           |
-| `plugins/`       | local plugins (`*.ts`), auto-discovered                  |
-| `lib/`           | code imported by plugins (not scanned by OpenCode)       |
-| `skills/`        | opencode-only skills (`<name>/SKILL.md`)                 |
-| `package.json`   | plugin dependencies (zod), installed by `install.sh --deps` |
-| `opencode-quota/` | quota plugin settings (`quota-toast.jsonc`)             |
+| Path              | Purpose                                                     |
+| ----------------- | ----------------------------------------------------------- |
+| `opencode.jsonc`  | main configuration (models, permissions, MCP, ...)          |
+| `cli.json`        | terminal UI preferences (theme, keybinds, session view)     |
+| `AGENTS.md`       | global instructions, loaded into every session              |
+| `agent/`          | custom agents / subagents (`*.md`)                          |
+| `command/`        | custom slash commands (`*.md`)                              |
+| `plugins/`        | local plugins (`*.ts`), auto-discovered                     |
+| `lib/`            | code imported by plugins (not scanned by OpenCode)          |
+| `skills/`         | opencode-only skills (`<name>/SKILL.md`)                    |
+| `package.json`    | plugin dependencies (zod), installed by `install.sh --deps` |
+| `opencode-quota/` | quota plugin settings (`quota-toast.jsonc`)                 |
 
 A fresh clone needs `./install.sh --deps` once: OpenCode 2 does not install
 config-directory dependencies, and without `node_modules/zod` the custom-tools

@@ -6,13 +6,13 @@ reports and everyday checks. Part of the Hermes design docs — index:
 
 ## Shape
 
-| Piece | Home | Reader |
-|---|---|---|
-| Shared contract: windows, opt-in fields, interval arithmetic, result envelope | `plugins/session-history/common.py` | both readers |
-| OpenCode reader and `opencode_history` | `plugins/opencode/history.py` | Engineer, Assistant |
-| Hermes reader and `hermes_history` | `plugins/session-history/hermes.py` | Engineer, Assistant |
-| Cross-tool summary, text output, `/activity` | `plugins/session-history/cli.py`, `__init__.py` | people, cron |
-| Launcher | `../bin/ai-history` | people, cron |
+| Piece                                                                         | Home                                            | Reader              |
+| ----------------------------------------------------------------------------- | ----------------------------------------------- | ------------------- |
+| Shared contract: windows, opt-in fields, interval arithmetic, result envelope | `plugins/session-history/common.py`             | both readers        |
+| OpenCode reader and `opencode_history`                                        | `plugins/opencode/history.py`                   | Engineer, Assistant |
+| Hermes reader and `hermes_history`                                            | `plugins/session-history/hermes.py`             | Engineer, Assistant |
+| Cross-tool summary, text output, `/activity`                                  | `plugins/session-history/cli.py`, `__init__.py` | people, cron        |
+| Launcher                                                                      | `../bin/ai-history`                             | people, cron        |
 
 Each reader owns its sources and what a session is; the common module owns only
 what must mean the same in both. They are stdlib modules loaded by path, so the

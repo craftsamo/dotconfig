@@ -478,7 +478,7 @@ mathematical/3D scope still retains.
 
 **Performance fields.** `framing` (none / bust / full) is independent of
 `performance` (still / puppet / animated) and `lip_sync` (off / cues / baked).
-Bust only *proposes* lip-sync cues by default, never a silent substitute for an
+Bust only _proposes_ lip-sync cues by default, never a silent substitute for an
 explicit `off`. Full supports whatever performance the client actually approved,
 never an automatic upgrade. Neither renderer provides phoneme/viseme inference,
 rig authoring or native talking-model playback, so the leaf never generates a

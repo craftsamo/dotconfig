@@ -105,8 +105,8 @@ lists all three controls; Qwen3 lists none.
   post-processing included, as long as the engine's checkpoint is unchanged —
   a checkpoint change in `engines/` invalidates every earlier seed. Qwen3
   exposes no seed because its server fixes one per voice, so identical
-  requests already reproduce. A seed rebuilds *that
-  take*; making a different line match an approved one is continuity work it
+  requests already reproduce. A seed rebuilds _that
+  take_; making a different line match an approved one is continuity work it
   does not buy. Verify reproduction on decoded SAMPLES, not container bytes —
   the delivered Ogg carries a random bitstream serial.
 

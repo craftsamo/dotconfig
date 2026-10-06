@@ -20,10 +20,10 @@ nvim/
 
 ## Personal modules (`lua/craftsamo/`)
 
-| Module           | Purpose                                                              |
-| ---------------- | -------------------------------------------------------------------- |
-| `discipline.lua` | "Hold it Cowboy!" — warns when `h/j/k/l/+/-` is mashed >10x in 2s    |
-| `hsl.lua`        | `<leader>r` replaces the hex colour under the cursor with HSL        |
+| Module           | Purpose                                                                     |
+| ---------------- | --------------------------------------------------------------------------- |
+| `discipline.lua` | "Hold it Cowboy!" — warns when `h/j/k/l/+/-` is mashed >10x in 2s           |
+| `hsl.lua`        | `<leader>r` replaces the hex colour under the cursor with HSL               |
 | `lsp.lua`        | `<leader>i` toggles inlay hints; `:ToggleAutoformat` toggles format-on-save |
 
 ## Notable keymaps (`lua/config/keymaps.lua`)
