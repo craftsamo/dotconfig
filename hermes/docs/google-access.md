@@ -58,7 +58,8 @@ The hook decides before a tool runs; the rule is `approval_request` in
 `access.py`.
 
 - **Changes ask first**: Sheets `update` / `batch_update` / `append` /
-  `clear` / `create` / `add_sheet` / `layout` / `data` / `chart` / `pivot` / `protect`, Gmail `send`, Drive `upload`, and every
+  `clear` / `create` / `add_sheet` / `layout` / `data` / `chart` / `pivot` / `protect` /
+  `comment`, Gmail `send`, Drive `upload`, and every
   gcloud command that is not a read. The action must be spelled exactly; the
   gate and the engine share one check, so no variant is read differently by
   each.
@@ -80,8 +81,8 @@ The hook decides before a tool runs; the rule is `approval_request` in
   spreadsheet's edits run for the session and "always" for good; another
   spreadsheet asks again. The spreadsheet's version history undoes them.
   `clear` and `create` keep a key per exact call, like every other change:
-  "always" there only repeats that identical call. So does every `data`
-  and `protect` call, a `layout` call changing
+  "always" there only repeats that identical call. So does every `data`,
+  `protect` and `comment` call, a `layout` call changing
   `spreadsheet_settings` (the locale and time zone re-read every date and
   number in the file), and a `layout` call
   holding any op that deletes, moves or replaces data, or picks a rule or
@@ -167,6 +168,16 @@ The hook decides before a tool runs; the rule is `approval_request` in
   naming editors ends warning-only. Google refuses the whole call for an
   address it does not accept. Protections are found by id or label (the
   API's description); `info` lists them with their editors.
+- **Comments** are the `comment` op action: add a comment on one cell
+  (optionally assigned), reply, resolve or reopen, edit your own post, delete
+  a thread you started. Every call asks, because a comment reaches other
+  people (an assignee or a `+address` / `@address` mention is emailed) and
+  version history keeps no comments; the card names whoever is emailed, and a
+  card Hermes would mask is refused. Comment changes can fail on their own
+  while the call succeeds, so the result is `ok: false` unless
+  `commentUpdateState` reads `ALL_SAVED`. The read action `comments` lists
+  threads with their cell (`commentsViewMode` goes on the request URI, as the
+  client library's bundled API description predates comments).
 - **Table appends.** `append` with `table` (a native table's name or id)
   sends `appendCells` with the `tableId`, so rows fill the table's free rows
   and the table grows before its footer; a plain range append would land

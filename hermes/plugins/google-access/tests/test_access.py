@@ -2396,3 +2396,118 @@ def test_table_append_card_and_key(monkeypatch):
     assert key == f"google-access:sheets-edit:{SID}"
     assert reason.split("\n") == ["SpreadSheet: Plan", "Table: Todo (new rows at its end)", "",
                                   "(+1) column 1: Call", "(+1) column 2: 3"]
+
+
+# --- comments -------------------------------------------------------------------------------------
+
+def comment(*ops):
+    return {"action": "comment", "spreadsheet_id": SID, "ops": list(ops)}
+
+
+def comment_requests(*ops):
+    return access._comment_requests(access._ops(comment(*ops), "comment"), TABLES)
+
+
+def test_comment_ops_become_requests():
+    new, reply, resolve, edit, gone = comment_requests(
+        {"op": "comment", "range": "Tasks!C3", "text": "要確認", "assignee": "ann@example.com"},
+        {"op": "comment_reply", "comment": "c1", "text": "done"},
+        {"op": "comment_reply", "comment": "c1", "status": "resolve"},
+        {"op": "comment_edit", "comment": "c1", "post": "p2", "text": "fixed"},
+        {"op": "comment_delete", "comment": "c1"})
+    assert new == {"insertComment": {"content": "要確認", "assigneeEmailAddress": "ann@example.com",
+                                     "coordinate": {"sheetId": 7, "rowIndex": 2, "columnIndex": 2}}}
+    assert reply == {"addCommentReply": {"commentId": "c1", "post": {"content": "done"}}}
+    assert resolve == {"addCommentReply": {"commentId": "c1", "post": {"commentAction": "RESOLVE"}}}
+    assert edit == {"updateCommentPost": {"commentId": "c1", "postId": "p2", "content": "fixed"}}
+    assert gone == {"deleteComment": {"commentId": "c1"}}
+
+
+def test_every_comment_call_asks_and_names_who_is_emailed(monkeypatch):
+    context(monkeypatch, title="Plan", names=["Main", "Tasks"])
+    reason, key = access.approval_request("google_sheets", comment(
+        {"op": "comment", "range": "Tasks!C3", "text": "Check this +bob@example.com", "assignee": "ann@example.com"}),
+        home=Path("/x"))
+    assert "sheets-edit" not in key
+    assert reason.split("\n") == ["SpreadSheet: Plan", "Sheet: Tasks", "",
+                                  'Comment on C3: "Check this +bob@example.com"; assign to ann@example.com '
+                                  "(emailed) (mentioned addresses are emailed)"]
+    lines = access.approval_request("google_sheets", comment(
+        {"op": "comment_reply", "comment": "c1", "text": "ok", "status": "RESOLVE"},
+        {"op": "comment_delete", "comment": "c2"}), home=Path("/x"))[0].split("\n")
+    assert lines[1:] == ["", 'Resolve comment c1 with "ok"', "Delete comment c2 with its replies"]
+
+
+@pytest.mark.parametrize("op,message", [
+    ({"op": "comment", "range": "Tasks!C3:D4", "text": "x"}, "one cell"),
+    ({"op": "comment", "range": "Tasks", "text": "x"}, "one cell"),
+    ({"op": "comment", "range": "C3", "text": "  "}, "comment's words"),
+    ({"op": "comment", "range": "C3", "text": "x" * 2001}, "at most 2000"),
+    ({"op": "comment", "range": "C3", "text": "x", "assignee": "bob"}, "not an email"),
+    ({"op": "comment_reply", "comment": "c1"}, "give text, status or assignee"),
+    ({"op": "comment_reply", "comment": "c1", "status": "CLOSE"}, "status must be one of"),
+    ({"op": "comment_delete", "comment": "c1", "text": "x"}, "unknown field"),
+    ({"op": "comment_edit", "comment": "c1", "text": "x"}, "post is required")])
+def test_malformed_comment_ops_are_refused(op, message):
+    with pytest.raises(access.AccessError, match=message):
+        access.approval_request("google_sheets", comment(op))
+
+
+def test_a_comment_card_hermes_would_mask_is_refused(monkeypatch):
+    monkeypatch.setattr(access, "_redacted", lambda text: text.replace("sk-live", "***"))
+    with pytest.raises(access.AccessError, match="mask"):
+        access.approval_request("google_sheets", comment({"op": "comment", "range": "A1", "text": "key sk-live-1"}))
+
+
+def comment_api(state="ALL_SAVED"):
+    api = mock.MagicMock()
+    book = api.spreadsheets()
+    book.get().execute.return_value = TABLES
+    book.batchUpdate().execute.return_value = {
+        "replies": [{"insertComment": {"commentThread": {"commentId": "c9"}}}], "commentUpdateState": state}
+    return api
+
+
+def test_comment_results_name_new_threads_and_unsaved_changes(tmp_path, monkeypatch):
+    services(monkeypatch, sheets=comment_api())
+    args = comment({"op": "comment", "range": "Tasks!C3", "text": "要確認"})
+    result = access.sheets(tmp_path, args)
+    assert result["ok"] is True and result["comments"] == [{"comment_id": "c9"}]
+    services(monkeypatch, sheets=comment_api("ALL_FAILED_UNKNOWN_REASON"))
+    result = access.sheets(tmp_path, args)
+    assert result["ok"] is False and "did not save" in result["error"]
+
+
+def test_comments_read_threads_with_their_cells(tmp_path, monkeypatch):
+    api = mock.MagicMock()
+    request = api.spreadsheets().get.return_value
+    request.uri = f"https://sheets.googleapis.com/v4/spreadsheets/{SID}?fields=x&alt=json"
+    request.execute.return_value = {
+        "sheets": [{"properties": {"sheetId": 7, "title": "Tasks"}, "commentAnchors": [
+            {"anchorId": "a1", "range": {"sheetId": 7, "startRowIndex": 2, "endRowIndex": 3,
+                                         "startColumnIndex": 2, "endColumnIndex": 3}}]}],
+        "comments": [
+            {"commentId": "c1", "anchorId": "a1", "status": "OPEN",
+             "headPost": {"postId": "p1", "content": "要確認", "author": {"displayName": "Ann", "me": False},
+                          "createTime": "2026-10-01T00:00:00Z"},
+             "replies": [{"postId": "p2", "content": "ok", "author": {"displayName": "Me", "me": True},
+                          "updateTime": "2026-10-02T00:00:00Z"}, {"postId": "p3", "deleted": True}]},
+            {"commentId": "c2", "anchorId": "gone", "status": "RESOLVED", "headPost": {"content": "old"}}]}
+    services(monkeypatch, sheets=api)
+    result = access.sheets(tmp_path, {"action": "comments", "spreadsheet_id": SID})
+    assert request.uri.endswith("&commentsViewMode=COMMENTS_VIEW_MODE_INCLUDED")
+    assert api.spreadsheets().get.call_args.kwargs == {"spreadsheetId": SID, "fields": access.COMMENTS_FIELDS}
+    assert result["comments"] == [{
+        "comment_id": "c1", "at": "Tasks!C3", "status": "OPEN", "author": "Ann", "me": False, "text": "要確認",
+        "time": "2026-10-01T00:00:00Z",
+        "replies": [{"post_id": "p2", "author": "Me", "me": True, "text": "ok", "time": "2026-10-02T00:00:00Z"}]}]
+    assert result["resolved_hidden"] == 1
+    every = access.sheets(tmp_path, {"action": "comments", "spreadsheet_id": SID, "resolved": True,
+                                     "range": "Tasks!A1:D9"})
+    assert [c["at"] for c in every["comments"]] == ["Tasks!C3", "unanchored"]
+    assert api.spreadsheets().get.call_args.kwargs["ranges"] == ["Tasks!A1:D9"]
+
+
+def test_reads_never_ask():
+    for action in ("comments",):
+        assert access.approval_request("google_sheets", {"action": action, "spreadsheet_id": SID}) is None
