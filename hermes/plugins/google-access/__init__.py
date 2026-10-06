@@ -36,7 +36,8 @@ APPROVAL = ("Calls that change something ({}) wait for the user's approval in ch
 
 SHEETS_DESCRIPTION = (
     "The user's own Google Sheets. search (query = part of a file name; lists spreadsheets), "
-    "info (spreadsheet_id; title, URL and tabs, each with its frozen rows/columns, merges, "
+    "info (spreadsheet_id; title, URL, locale, time zone and tabs, each with its frozen rows/columns, "
+    "gridlines, merges, "
     "tables (id, range, column types), numbered conditional rules, row/column groups, filter and "
     "filter views, tab colour and hidden state), get (spreadsheet_id + range or ranges in A1 "
     "notation, e.g. 'Sheet1!A1:D20'; unformatted=true for raw numbers), update (range + values: "
@@ -65,13 +66,15 @@ SHEETS_DESCRIPTION = (
     "layout call that "
     "deletes, moves or replaces data (delete, move, merge, table_delete, sheet_delete, conditional_update, "
     "conditional_delete, filter_view_delete, a note with text '', a filter_view_update with "
-    "filter_columns, chart_delete, pivot_delete, a pivot written at a cell) are approved per exact call, so keep those in their own call.")
+    "filter_columns, chart_delete, pivot_delete, a pivot written at a cell) or changes "
+    "spreadsheet_settings are approved per exact call, so keep those in their own call.")
 
 LAYOUT_OPS_DESCRIPTION = (
     "layout: changes applied in order in one batch. Every op names a range in A1 notation "
     "('Tab!B2:D9', 'Tab!B:D' columns, 'Tab!3:5' rows, 'Tab' whole tab; no tab = first tab), "
     "except the tab ops (sheet = tab name: freeze, sheet, sheet_duplicate, filter_clear, "
-    "conditional_delete), rename_spreadsheet, table_update / table_delete (table = name or id) "
+    "conditional_delete), rename_spreadsheet, spreadsheet_settings, table_update / table_delete "
+    "(table = name or id) "
     "and filter_view_update / filter_view_delete (view = name or id). The same change on "
     "scattered places is ONE op with ranges = [...] instead of range (every op taking ranges in "
     "the schema; up to 500 ranges per call), never one op per cell; size, hide, group and delete "
@@ -93,9 +96,12 @@ LAYOUT_OPS_DESCRIPTION = (
     "rows/columns, to = row number or column letter to move in front of, counted before the "
     "move. merge: merge ALL|ROWS|COLUMNS (only the top-left value stays). unmerge. freeze: rows, "
     "columns (0 unfreezes). sheet: change a tab: title (rename), tab_color ('none' clears), "
-    "hidden, position (where it ends up: 1 = first). sheet_duplicate: copy a tab, optional "
+    "hidden, position (where it ends up: 1 = first), gridlines (false hides them). "
+    "sheet_duplicate: copy a tab, optional "
     "title and position (default: right after the source). sheet_delete: removes a tab with "
-    "all its contents (later ops in the call cannot name it). rename_spreadsheet: title. note: text on each cell's note "
+    "all its contents (later ops in the call cannot name it). rename_spreadsheet: title. "
+    "spreadsheet_settings: locale (e.g. 'ja_JP') and/or time_zone (IANA, e.g. 'Asia/Tokyo'); "
+    "changes how dates and numbers read across the file, asks each time. note: text on each cell's note "
     "('' removes notes). rich_text: one cell; runs = [{text, bold, italic, underline, "
     "strikethrough, font_size, font, color, link}] styles each text's first occurrence in the "
     "cell (replacing its earlier partial styling); value = new text for the cell, needed unless "
@@ -177,6 +183,9 @@ LAYOUT_OP_SCHEMA = {
         "position": {"type": "integer", "description": "sheet / sheet_duplicate: 1 = first tab"},
         "collapsed": {"type": "boolean", "description": "group: fold the new group"},
         "text": {"type": "string", "description": "note: the note ('' removes it)"},
+        "gridlines": {"type": "boolean", "description": "sheet: show (true) or hide (false) the gridlines"},
+        "locale": {"type": "string", "description": "spreadsheet_settings: e.g. 'ja_JP'"},
+        "time_zone": {"type": "string", "description": "spreadsheet_settings: IANA name, e.g. 'Asia/Tokyo'"},
         "value": {"type": "string", "description": "rich_text: the cell's new text"},
         "runs": {"type": "array", "description": "rich_text: styled parts of the text", "items": {
             "type": "object", "required": ["text"], "additionalProperties": False, "properties": {

@@ -81,7 +81,9 @@ The hook decides before a tool runs; the rule is `approval_request` in
   spreadsheet asks again. The spreadsheet's version history undoes them.
   `clear` and `create` keep a key per exact call, like every other change:
   "always" there only repeats that identical call. So does every `data`
-  and `protect` call, and a `layout` call
+  and `protect` call, a `layout` call changing
+  `spreadsheet_settings` (the locale and time zone re-read every date and
+  number in the file), and a `layout` call
   holding any op that deletes, moves or replaces data, or picks a rule or
   view by its number or name to replace or drop it (`delete`, `move`,
   `merge`, `table_delete`, `sheet_delete`, `conditional_update`,
@@ -105,7 +107,8 @@ The hook decides before a tool runs; the rule is `approval_request` in
 - **Layout** is one `spreadsheets.batchUpdate` per call, so its ops land
   together or not at all. Ops come from a fixed vocabulary (`LAYOUT_OPS`:
   formatting, borders, sizes, hiding and grouping, inserting/deleting/moving
-  rows and columns, merges, freezing, tab properties and copies, notes, rich
+  rows and columns, merges, freezing, tab properties (gridlines included) and
+  copies, the spreadsheet's locale and time zone, notes, rich
   text, native tables, conditional formatting, input rules, filters and filter
   views), never
   raw API requests, so the gate can word and classify every one. As
