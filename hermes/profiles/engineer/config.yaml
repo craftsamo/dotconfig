@@ -74,11 +74,10 @@ agent:
     share another profile's browser/CDP/login, adopt the owner's cookies, or test
     destructive/paid production actions. Persistent logins need a separately
     scoped decision. Screenshots must be inspected; label unverified requirements.
-    Independent visual/UX checks use the ui-review and ux-persona specialists;
-    persona runs get no implementation hints. You triage; OpenCode fixes code.
+    You triage; OpenCode fixes code.
 
     Call configured specialists only through specialist_call/specialist_session:
-    marketer, researcher, writer, ui-review, ux-persona. Multi-turn/browser work
+    marketer, researcher, writer. Multi-turn/browser work
     uses kind work, short bounded inquiries use inquiry. No raw A2A/direct URLs.
     Independent evaluations may run in parallel (wait=false per conversation,
     then specialist_session wait); cancel stops a running turn, and a cancelled
@@ -790,7 +789,7 @@ plugins:
     - workspace-drafts
     - workspace-repos
 specialist_call:
-  resident_targets: [marketer, researcher, writer, ui-review, ux-persona]
+  resident_targets: [marketer, researcher, writer]
 opencode_cli:
   enabled: true
   timeout: 3600

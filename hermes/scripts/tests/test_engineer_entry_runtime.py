@@ -206,7 +206,7 @@ def _child(case, sandbox, candidate, source):
                         body(view(name, path), tree / name / path)
             assert view("plan-engineer")["content_returned"] is False
             # An unloaded reference is still readable after its root/entry was loaded.
-            body(view("qa-engineer", "references/personas.md"), tree / "qa-engineer/references/personas.md")
+            body(view("qa-engineer", "references/web-ui.md"), tree / "qa-engineer/references/web-ui.md")
         elif case in {"recovery", "missing"}:
             from agent.conversation_compression import _reset_read_dedup_caches
             from tools import file_tools as ft

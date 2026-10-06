@@ -41,10 +41,7 @@ WORKER_PROFILES = (
     "creator",
     "writer",
     "marketer",
-    "ui-review",
-    "ux-persona",
 )
-REVIEW_PROFILES = {"ui-review", "ux-persona"}
 # Creator's hands (docs/hands/overview.md "Creator hands (v3)"): receive-only A2A
 # producers whose skills are `<hands>-pipeline/<verb>/<subject>/SKILL.md`
 # leaves, one deliverable and one form each. Add a profile here when its
@@ -913,7 +910,7 @@ def validate_worker(
     else:
         validate_skill(pipeline, pipeline_name, errors)
 
-    if not technic_dir.is_dir() and profile not in REVIEW_PROFILES:
+    if not technic_dir.is_dir():
         errors.append(f"missing technic directory: {technic_dir}")
 
     leaves: dict[str, Path] = {}
@@ -1170,7 +1167,7 @@ def validate_researcher_entries(pipeline_dir: Path, errors: list[str]) -> dict[s
 ENGINEER_ENTRIES = {
     "plan-engineer": {"web-ui.md", "hands-references.md"},
     "build-engineer": {"web-ui.md", "hands-references.md"},
-    "qa-engineer": {"web-ui.md", "ux-persona.md", "personas.md", "hands-references.md"},
+    "qa-engineer": {"web-ui.md", "hands-references.md"},
     "assess-engineer": {"hands-references.md"},
 }
 ENGINEER_SHARED_REFERENCES = {"opencode.md", "shared/design-catalog.md"}
@@ -1239,12 +1236,9 @@ def validate_engineer_references(pipeline_dir: Path, errors: list[str]) -> dict[
         ):
             if not re.search(pattern, block, re.I):
                 errors.append(f"engineer entry ReadBeforeWork missing {label}: {name}")
-        for leaf in sorted(references - {"personas.md"}):
+        for leaf in sorted(references):
             if f"](references/{leaf})" not in text:
                 errors.append(f"engineer {name} entry does not route {leaf}")
-    personas = pipeline_dir / "qa-engineer/references/ux-persona.md"
-    if personas.is_file() and "](personas.md)" not in personas.read_text(encoding="utf-8"):
-        errors.append("engineer ux-persona reference does not route personas.md")
     root = pipeline_dir.resolve()
     for path in pipeline_dir.rglob("*.md"):
         if "card_units" in frontmatter(path):
