@@ -217,14 +217,16 @@ public technic `x-twitter` holds the mechanics for both. Contract:
 [x-access.md](../x-access.md).
 
 note.com is the assistant's to write too (`note_access` toolset, never on
-A2A; Marketer has the same tool): public articles, creators, comments and
+the assistant's A2A; Marketer has the same tool, Writer only its offline
+format `check`): public articles, creators, comments and
 hashtags plus the user's own drafts and stats are read as the user's main
 account, and unpublished drafts are created or wholly replaced from Markdown
 with local images, each save waiting for approval on a card naming the
 draft, the title, every new image and the start of the text; nothing
 publishes. A resident Marketer cannot answer a card, so it hands its note
-save to the Assistant, which saves it unchanged with its own card. Contract:
-[note-access.md](../note-access.md).
+save to the Assistant, which saves it unchanged with its own card. The
+public technic `note-com` holds the mechanics; the browser stays off note.
+Contract: [note-access.md](../note-access.md).
 
 The user's own Substack account is shared with Marketer, which only reads
 (`substack_access` toolset; the Assistant's never on A2A): any publication's
