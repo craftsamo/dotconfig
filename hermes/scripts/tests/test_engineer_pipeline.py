@@ -34,7 +34,7 @@ def test_engineer_scope_and_tools():
         assert {"browser", "specialist", "opencode"} <= set(config["platform_toolsets"][platform])
     assert not {"terminal", "browser", "specialist", "opencode", "delegation"} & set(config["platform_toolsets"]["a2a"])
     assert config["browser"]["use_real_profile"] is False
-    assert set(config["specialist_call"]["resident_targets"]) == {"marketer", "researcher", "writer", "ui-review", "ux-persona"}
+    assert set(config["specialist_call"]["resident_targets"]) == {"marketer", "researcher", "writer"}
     assert {"opencode", "specialist-call"} <= set(config["plugins"]["enabled"])
     assert config["opencode_cli"]["enabled"] is True
 
@@ -62,16 +62,6 @@ def test_no_retired_approval_or_cli_driving_contract():
     assert "A1" not in text and "one unit at a time" not in text
     for name in ("assess.md", "implement.md", "verify.md", "delivery.md"):
         assert not (PIPELINE / "references" / name).exists()
-
-
-def test_persona_independence_and_triage_owner():
-    qa = (PIPELINE / "qa-engineer/references/ux-persona.md").read_text()
-    persona = (HERMES / "profiles/ux-persona/skills/ux-persona-pipeline/SKILL.md").read_text()
-    assert "OWN ux-persona resident conversation" in qa
-    assert "persona never performs this triage" in qa
-    assert "Never inspect repository files" in persona
-    for name in ("Hostile", "Reluctant", "Conscripted", "Earnest novice", "Hurried expert", "Distracted mobile", "Forced novice"):
-        assert name in (PIPELINE / "qa-engineer/references/personas.md").read_text()
 
 
 def _copy_pipeline_candidate(tmp_path):
@@ -188,16 +178,13 @@ def test_no_nested_symlinks_or_reference_escape(tmp_path):
     assert "engineer pipeline must not contain symlinks: linked" in errors
 
 
-def test_no_new_card_catalog_or_orphan_personas(tmp_path):
+def test_no_new_card_catalog(tmp_path):
     candidate = _copy_pipeline_candidate(tmp_path)
     skill = candidate / "build-engineer/SKILL.md"
     skill.write_text(skill.read_text().replace("version: 1.0.0", "card_units: []\nversion: 1.0.0"))
-    persona = candidate / "qa-engineer/references/ux-persona.md"
-    persona.write_text(persona.read_text().replace("](personas.md)", "](#missing)"))
     errors = []
     validator.validate_engineer_references(candidate, errors)
     assert "engineer defines no card units: build-engineer/SKILL.md" in errors
-    assert "engineer ux-persona reference does not route personas.md" in errors
 
 
 def test_worker_allows_only_the_four_engineer_entries(tmp_path, monkeypatch):
