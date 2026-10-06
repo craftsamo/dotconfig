@@ -503,8 +503,8 @@ def media_message(mid):
     return {**msg(mid, DM1), "attachments": [
                 {"filename": "photo.png", "content_type": "image/png", "size": 4,
                  "url": "https://cdn.discordapp.com/attachments/1/2/photo.png?ex=1"},
-                {"filename": "tool.zip", "content_type": "application/zip", "size": 4,
-                 "url": "https://cdn.discordapp.com/attachments/1/3/tool.zip"},
+                {"filename": "tool.exe", "content_type": "application/x-msdownload", "size": 4,
+                 "url": "https://cdn.discordapp.com/attachments/1/3/tool.exe"},
                 {"filename": "huge.mov", "content_type": "video/quicktime", "size": 10 ** 9,
                  "url": "https://cdn.discordapp.com/attachments/1/4/huge.mov"}],
             "embeds": [{"url": "https://example.com/post",
@@ -534,10 +534,32 @@ class MediaHttp(FakeHttp):
 def test_media_items_cover_attachments_previews_and_stickers():
     items = engine.media_items(media_message(flake(1)))
     assert [(i["kind"], i["name"]) for i in items] == [
-        ("attachment", "photo.png"), ("attachment", "tool.zip"), ("attachment", "huge.mov"),
+        ("attachment", "photo.png"), ("attachment", "tool.exe"), ("attachment", "huge.mov"),
         ("preview", "preview-t.jpg"), ("preview", "preview-x.png"), ("sticker", "wave.png"), ("sticker", "dance.gif")]
     assert items[-1]["url"] == "https://media.discordapp.net/stickers/700000000000000002.gif"
     assert items[3]["source"] == "https://example.com/post"
+
+
+def test_an_archive_is_downloaded_for_inspection_but_other_formats_are_refused_up_front(tmp_path):
+    conn = store.connect(write=True)
+    seeded_dm(conn)
+    mid = flake(1)
+    message = {**msg(mid, DM1), "attachments": [
+        {"filename": "bundle.zip", "content_type": "application/zip", "size": 4,
+         "url": "https://cdn.discordapp.com/attachments/1/5/bundle.zip"},
+        {"filename": "docs.rar", "content_type": "application/x-rar", "size": 4,
+         "url": "https://cdn.discordapp.com/attachments/1/6/docs.rar"},
+        {"filename": "photo.png", "content_type": "application/zip", "size": 4,    # claims to be an archive
+         "url": "https://cdn.discordapp.com/attachments/1/7/photo.png"}], "embeds": [], "sticker_items": []}
+    http = MediaHttp({("GET", f"/channels/{DM1}/messages"): (200, {}, [message])},
+                     {"https://cdn.discordapp.com/attachments/1/5/bundle.zip": b"PK\x03\x04"})
+    folder = tmp_path / "in"
+    folder.mkdir()
+    out = engine.media(client(http, conn), DM1, mid, folder, limit=20)["items"]
+    assert {i["name"]: i["status"] for i in out} == {"bundle.zip": "saved", "docs.rar": "refused",
+                                                      "photo.png": "refused"}
+    assert [c["url"] for c in http.calls if c["method"] == "DOWNLOAD"] == [
+        "https://cdn.discordapp.com/attachments/1/5/bundle.zip"]
 
 
 def test_media_downloads_only_from_discord_and_within_limits(tmp_path):
@@ -552,12 +574,12 @@ def test_media_downloads_only_from_discord_and_within_limits(tmp_path):
     folder.mkdir()
     out = engine.media(client(http, conn), DM1, mid, folder, limit=20)["items"]
     status = {i["name"]: i["status"] for i in out}
-    assert status == {"photo.png": "saved", "tool.zip": "refused", "huge.mov": "too_large",
+    assert status == {"photo.png": "saved", "tool.exe": "refused", "huge.mov": "too_large",
                       "preview-t.jpg": "saved", "preview-x.png": "refused", "wave.png": "too_large",
                       "dance.gif": "missing"}
     downloads = [c for c in http.calls if c["method"] == "DOWNLOAD"]
     assert all("Authorization" not in c["headers"] for c in downloads)
-    assert not any("evil" in c["url"] or "zip" in c["url"] for c in downloads)
+    assert not any("evil" in c["url"] or "exe" in c["url"] for c in downloads)
     assert (folder / out[0]["file"]).read_bytes() == b"\x89PNG"
 
 

@@ -159,9 +159,11 @@ under `discord_access.download_dir` from the profile's `config.yaml`, else
   (`images-ext-*.discordapp.net`, `media.discordapp.net`), never from the
   site behind the link; stickers from Discord's CDN (PNG, GIF or Lottie
   JSON). Any other host is refused.
-- Archives and programs are refused by name and declared type before the
-  download, and by the bytes (`file --mime-type`) after it, the same rules as
-  signal-access. A file over `discord_access.download_max_mb` (default 100, at
+- Programs are refused by name and declared type before the download, and by
+  the bytes (`file --mime-type`) after it, the same rules as signal-access. A
+  `.zip` or tar archive is downloaded and inspected before it is saved
+  ([Signal access](./signal-access.md), "Received archives"); `unpack` unpacks it ("Unpacking"). A file over
+  `discord_access.download_max_mb` (default 100, at
   most 500) is not downloaded, and the size is reported where known.
 - The plugin writes what passed into the download folder under a cleaned
   name (`a.txt`, `a-2.txt` for a repeat; a shortened name keeps its
@@ -173,8 +175,8 @@ under `discord_access.download_dir` from the profile's `config.yaml`, else
   from a crash expire after a day. Saving the same message again overwrites
   its folder's files.
 - A message that is gone, or an item Discord no longer serves, is reported as
-  missing. The note says a saved file is to be looked at, never opened, run
-  or unpacked.
+  missing. The note says a saved file is to be looked at, never opened or
+  run (an archive is unpacked only by `unpack`).
 
 ## Sync list
 
@@ -206,6 +208,19 @@ sending reopens it.
   `*.sqlite`, `*.keychain*` and anything with `.git`, `.ssh`, `.gnupg`,
   `.aws`, `.config` or `Keychains` anywhere in its real path, compared without
   case. A message may be files alone.
+- **Archives are opened first.** A `.zip`, `.tar`, `.tar.gz`/`.tgz`,
+  `.tar.bz2` or `.tar.xz` is read entry by entry on the snapshot copy
+  (`plugins/messaging/_shared/archive_check.py`; rules and limits in
+  [Signal access](./signal-access.md)) and sent only if no entry would be
+  refused as a file above, is a program (`.exe`, `.app`, `.jar`, … or an ELF,
+  Mach-O or PE file), is another archive, a link or an encrypted entry, or
+  holds a private key block. Source scripts inside are allowed, as they are
+  on their own here. One bad entry refuses the whole archive and the error
+  names it; the card adds the file count to the archive's line. An archive
+  format that cannot be read (`.rar`, `.7z`, a bare `.gz`, …), and a file
+  that is an archive but not named like one, are not opened and go as the
+  files they are, as before: the roots stay the boundary. A name that says
+  zip or tar over content that is not is refused.
 - **The approved bytes are the sent bytes.** For each call, the approval hook
   and a second `pre_tool_call` hook (`bind`) share one snapshot, made by
   whichever runs first and keyed by the session, task and tool-call ids; the
