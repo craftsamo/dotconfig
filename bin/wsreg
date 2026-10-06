@@ -5,7 +5,7 @@
 # override.
 set -euo pipefail
 
-wsreg_bin="${WSREG_BIN:-$HOME/.config/private/hermes/plugins/workspace-registry/wsreg}"
+wsreg_bin="${WSREG_BIN:-$HOME/.config/private/hermes/plugins/workspace/workspace-registry/wsreg}"
 
 if [[ ! -f $wsreg_bin ]]; then
   echo "wsreg: cannot locate the workspace registry CLI at $wsreg_bin" >&2

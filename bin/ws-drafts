@@ -9,12 +9,12 @@
 #   ws-drafts inbox [--stale]      inbox items, oldest first (stale = waiting 7+ days)
 #   ws-drafts --help
 #
-# The code lives in the Hermes workspace-drafts plugin (hermes/plugins/
+# The code lives in the Hermes workspace-drafts plugin (hermes/plugins/workspace/
 # workspace-drafts/drafts.py). Read-only: nothing is opened, moved or deleted.
 # Override: WS_DRAFTS_CLI, WORKSPACES_ROOT.
 set -euo pipefail
 
-cli="${WS_DRAFTS_CLI:-$HOME/.config/hermes/plugins/workspace-drafts/drafts.py}"
+cli="${WS_DRAFTS_CLI:-$HOME/.config/hermes/plugins/workspace/workspace-drafts/drafts.py}"
 if [[ ! -f $cli ]]; then
   echo "ws-drafts: cannot find $cli (set WS_DRAFTS_CLI)" >&2
   exit 127

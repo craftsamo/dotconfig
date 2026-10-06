@@ -551,7 +551,7 @@ def test_upload_reports_a_storage_refusal(tmp_path, monkeypatch):
 @pytest.mark.parametrize("tool, args", [
     ("terminal", {"command": "secret get NOTE_SESSION -p hermes --scope note-session"}),
     ("terminal", {"command": "curl -H 'Cookie: _note_session_v5=x' https://note.com/api/v2/current_user"}),
-    ("terminal", {"command": "python3 plugins/note-access/bridge.py"}),
+    ("terminal", {"command": "python3 plugins/social/note-access/bridge.py"}),
     ("terminal", {"command": "cat ~/.note-access/state.json"}),
     ("read_file", {"path": "/Users/u/.note-access/state.json"}),
     ("search_files", {"path": "~/.note-access", "pattern": "x"}),
@@ -563,7 +563,7 @@ def test_ways_around_the_tool_are_blocked(tool, args):
 @pytest.mark.parametrize("tool, args", [
     ("terminal", {"command": "ls ~/Workspaces"}),
     ("terminal", {"command": "open https://note.com/info"}),
-    ("read_file", {"path": "/Users/u/.config/hermes/plugins/note-access/na.py"}),
+    ("read_file", {"path": "/Users/u/.config/hermes/plugins/social/note-access/na.py"}),
     ("browser_navigate", {"url": "https://editor.note.com/notes/n1/edit/"}),
 ])
 def test_ordinary_calls_pass(tool, args):

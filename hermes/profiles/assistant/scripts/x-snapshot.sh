@@ -15,7 +15,7 @@ set -u
 # The profile home is this script's parent as invoked (<HERMES_HOME>/scripts/..), not $HERMES_HOME:
 # the multiplex gateway's process env may name another profile. Its config.yaml has the handle.
 home=$(cd "$(dirname "$0")/.." && pwd)
-engine="$(cd "$(dirname "$0")" && pwd -P)/../../../plugins/x-access/xa.py"
+engine="$(cd "$(dirname "$0")" && pwd -P)/../../../plugins/social/x-access/xa.py"
 
 # Hermes' own interpreter: the engine reads the profile's config.yaml with hermes_yaml.
 exec "$HOME/.config/bin/hermes-python" "$engine" snapshot "$home"

@@ -21,8 +21,8 @@ STAGE_TIMEOUT = 600
 PUBLIC_PYTEST_FILES = (
     "hermes/scripts/tests/test_card.py",
     "hermes/scripts/tests/test_card_authored.py",
-    "hermes/plugins/specialist-call/tests/test_plugin.py",
-    "hermes/plugins/opencode/tests/test_plugin.py",
+    "hermes/plugins/orchestration/specialist-call/tests/test_plugin.py",
+    "hermes/plugins/orchestration/opencode/tests/test_plugin.py",
     "hermes/scripts/tests/test_hands_routing_continuity.py",
     "hermes/scripts/tests/test_creator_references.py",
     "hermes/scripts/tests/test_hands_instruction_context.py",
