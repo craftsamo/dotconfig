@@ -87,8 +87,9 @@ reference.
 
 ### note through the tool
 
-For note, the `note` tool (`note_access` toolset, CLI and Telegram, never A2A)
-replaces the browser: drafts, reads and counts, with no browser lease.
+For note, the `note` tool (`note_access` toolset) replaces the browser:
+drafts, reads, counts and the offline format `check`, with no browser lease.
+Inbound A2A inquiries get the reads and `check`, never a save or a preview.
 Marketer saves a note draft itself only where a person can answer the approval
 card — its own Telegram bot or an interactive CLI. In a resident session the
 tool refuses saves, and Marketer returns the exact save package to its caller;

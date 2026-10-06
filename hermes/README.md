@@ -473,7 +473,8 @@ keeps user keys.
   with images through the approval gate (a run without a person, such as a
   resident session, hands the save back to its caller) — search, articles,
   creators, comments, hashtags and the user's own drafts and stats on
-  note.com. Standard library only: `bridge.py` alone reads the session
+  note.com — plus an offline `check` of a draft body, the only action Writer
+  gets. Standard library only: `bridge.py` alone reads the session
   cookie from the Keychain (`NOTE_SESSION`, scope `note-session`); public
   reads and image uploads carry no cookie; its hook blocks the terminal path
   around it. Behavior: [docs/note-access.md](docs/note-access.md).

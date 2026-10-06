@@ -54,8 +54,9 @@ def _load_sibling(name: str, filename: str):
 fmt = _load_sibling("hermes_note_access_format", "notefmt.py")
 
 READS = ("status", "search", "articles", "article", "creator", "comments", "hashtag", "drafts", "draft", "stats")
+OFFLINE = ("check",)          # never contacts note
 WRITES = ("create_draft", "update_draft")
-ACTIONS = READS + WRITES
+ACTIONS = READS + OFFLINE + WRITES
 
 BRIDGE = HERE / "bridge.py"
 STORE = Path.home() / ".note-access"
@@ -84,6 +85,10 @@ BODY_CLIP = 40000
 QUERY_MAX = 200
 TITLE_MAX = 200
 BODY_MAX = 200_000
+MARKDOWN_FILE_MAX = 1024 * 1024
+MARKDOWN_SUFFIXES = {".md", ".markdown", ".txt"}
+CHECK_LIST_MAX = 30
+COVER_RATIO = 1280 / 670
 
 DEFAULT_ATTACH_ROOT = Path.home() / "Workspaces"
 BODY_IMAGE_MAX = 20 * 1024 * 1024    # note's limit for a body image
@@ -123,6 +128,15 @@ FILE_TOOLS = {"read_file", "write_file", "patch", "search_files"}
 
 class NoteError(Exception):
     pass
+
+
+def not_allowed(action: str, allowed) -> str:
+    """Why a profile cannot run an action its schema does not offer."""
+    if action in WRITES and set(READS) & set(allowed):
+        return READ_ONLY
+    if tuple(allowed) == OFFLINE:
+        return "this profile can only check a draft body's format (action check); it cannot read or save note"
+    return "action must be one of " + ", ".join(allowed)
 
 
 class Uncertain(NoteError):
@@ -919,22 +933,33 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def image_file(given: str, roots: list[Path], limit: int, what: str) -> dict:
-    """A local image that may be uploaded: a regular JPEG / PNG / GIF / WebP file inside an attach
-    root, not a credential, at most ``limit`` bytes. A relative path is taken from the first root."""
+def _rooted(given, roots: list[Path], what: str, kind: str) -> tuple[Path, Path]:
+    """(real path, its attach root) of a file inside an attach root. Containment is decided before
+    anything about the file is reported, so a path outside the roots answers the same whether or
+    not it exists. A relative path is taken from the first root."""
     if not isinstance(given, str) or not given.strip():
         raise NoteError(f"{what}: a file path is required")
     path = Path(given.strip()).expanduser()
     if not path.is_absolute():
         path = roots[0] / path
     try:
-        real = path.resolve(strict=True)
+        real = path.resolve()
     except (OSError, RuntimeError):
-        raise NoteError(f"{what}: no such file: {given}") from None
-    root = next((r for r in roots if r in real.parents), None)
-    if root is None or STORE.resolve() == real or STORE.resolve() in real.parents:
-        raise NoteError(f"{what}: {real.name} is outside the folders images may be taken from "
+        real = None
+    root = next((r for r in roots if real is not None and r in real.parents), None)
+    store = STORE.resolve()
+    if root is None or real == store or store in real.parents:
+        raise NoteError(f"{what}: {given} is outside the folders {kind} may be taken from "
                         f"({', '.join(str(r) for r in roots)})")
+    if not real.exists():
+        raise NoteError(f"{what}: no such file: {given}")
+    return real, root
+
+
+def image_file(given: str, roots: list[Path], limit: int, what: str) -> dict:
+    """A local image that may be uploaded: a regular JPEG / PNG / GIF / WebP file inside an attach
+    root, not a credential, at most ``limit`` bytes. A relative path is taken from the first root."""
+    real, root = _rooted(given, roots, what, "images")
     if any(part.casefold() in SENSITIVE_DIRS for part in real.parts[:-1]) or SENSITIVE.search(real.name):
         raise NoteError(f"{what}: {real.name} looks like a credential, key or database; it is never uploaded")
     if not real.is_file():
@@ -1385,6 +1410,134 @@ def _write(args: dict, home: Path | None, approved: str) -> dict:
             shutil.rmtree(folder, ignore_errors=True)
 
 
+# --- check: a body's format, offline ------------------------------------------------------------
+
+CHECK_NOTE = ("Format only: nothing was sent to note. A save also checks the account, the draft it updates and "
+              "the user's approval card; web images and note-block lines are kept only by an update of the draft "
+              "they were read from.")
+
+
+def markdown_file(given, roots: list[Path]) -> tuple[Path, str]:
+    """A Markdown file inside an attach root: (its real path, its text)."""
+    real, _ = _rooted(given, roots, "path", "drafts")
+    if any(part.casefold() in SENSITIVE_DIRS for part in real.parts[:-1]) or SENSITIVE.search(real.name):
+        raise NoteError(f"path: {real.name} looks like a credential, key or database; it is never read")
+    if not real.is_file() or real.suffix.lower() not in MARKDOWN_SUFFIXES:
+        raise NoteError(f"path: {given} is not a Markdown file (.md, .markdown or .txt)")
+    if real.stat().st_size > MARKDOWN_FILE_MAX:
+        raise NoteError(f"path: {real.name} is {_human(real.stat().st_size)}; at most {_human(MARKDOWN_FILE_MAX)}")
+    try:
+        text = real.read_bytes().decode("utf-8")
+    except UnicodeDecodeError:
+        raise NoteError(f"path: {real.name} is not UTF-8 text") from None
+    return real, text.removeprefix("\ufeff")
+
+
+def _lined(message: str) -> dict:
+    match = re.match(r"^(?:body )?line (\d+): (.*)$", message, re.DOTALL)
+    return {"line": int(match.group(1)), "problem": match.group(2)} if match else {"problem": message}
+
+
+def _capped(result: dict, key: str, items: list) -> None:
+    if items:
+        result[key] = items[:CHECK_LIST_MAX]
+        if len(items) > CHECK_LIST_MAX:
+            result[f"{key}_more"] = len(items) - CHECK_LIST_MAX
+
+
+def check(args: dict, home: Path | None) -> dict:
+    """Whether note would accept a body's format, and what a reader would see as typed, without
+    contacting note: the same scan and parse a save runs, the local images and the cover."""
+    for key in ("draft", "base", "preview"):
+        if args.get(key) is not None:
+            raise NoteError(f"check takes body or path (and optionally title and eyecatch), not {key}: it checks the "
+                            "format only; preview=true on the save checks the draft")
+    roots = attach_roots(home)
+    body, given = args.get("body"), args.get("path")
+    if (body is None) == (given is None):
+        raise NoteError("check needs one of body (the Markdown) or path (a Markdown file under "
+                        f"{', '.join(str(r) for r in roots)})")
+    source = None
+    if given is not None:
+        source, body = markdown_file(given, roots)
+        if len(body) > BODY_MAX:
+            raise NoteError(f"path: {source.name} is {len(body)} characters; a note body holds at most {BODY_MAX}")
+    markdown = _markdown(body)
+    errors: list[dict] = []
+    markers: list[dict] = []
+    literal: list[dict] = []
+    for item in fmt.scan(markdown):
+        if item["kind"] == "marker":
+            markers.append({"line": item["line"], "marker": item["text"]})
+        elif item["kind"] in fmt.REFUSED:
+            errors.append({"line": item["line"], "problem": item["problem"]})
+        else:
+            literal.append({"line": item["line"], "text": item["text"], "problem": item["problem"]})
+    try:
+        blocks = fmt.parse_markdown(markdown, refuse_marks=False)
+    except fmt.FormatError as exc:
+        blocks = []
+        errors.append(_lined(str(exc)))
+    images, remote, by_path = [], [], {}
+    kept_blocks = 0
+    for block in blocks:
+        if block["t"] == "raw":
+            kept_blocks += 1
+        if block["t"] != "image":
+            continue
+        src, line = block["src"], block.get("line")
+        if src.lower().startswith(("http://", "https://")):
+            remote.append({"line": line, "src": src[:200]})
+            continue
+        try:
+            f = by_path.get(src) or image_file(src, roots, BODY_IMAGE_MAX, f"line {line}")
+        except NoteError as exc:
+            problem = _lined(str(exc))
+            beside = source.parent / src if source and not Path(src).expanduser().is_absolute() else None
+            if beside and beside.exists():
+                problem["problem"] += (f"; a relative image path is read from {roots[0]}, not from the Markdown "
+                                       f"file's folder: write {beside.resolve()}")
+            errors.append(problem)
+            continue
+        by_path[src] = f
+        images.append({"line": line, "path": f["path"], "size": f["size"], "width": f["width"],
+                       "height": f["height"], "sha256": f["sha256"]})
+    new_images = len({f["path"] for f in by_path.values()})
+    if new_images > MAX_NEW_IMAGES:
+        errors.append({"problem": f"{new_images} new images; at most {MAX_NEW_IMAGES} per save"})
+    result = {"ok": True, "action": "check"}
+    if source:
+        result["path"] = str(source)
+    if args.get("title") is not None:
+        try:
+            result["title"] = _title(args["title"])
+        except NoteError as exc:
+            errors.append({"problem": f"title: {exc}"})
+    if args.get("eyecatch") is not None:
+        try:
+            cover = image_file(args["eyecatch"], roots, COVER_MAX, "eyecatch")
+            result["cover"] = {"path": cover["path"], "size": cover["size"], "width": cover["width"],
+                               "height": cover["height"], "sha256": cover["sha256"]}
+            if abs(cover["width"] / cover["height"] - COVER_RATIO) > 0.02:
+                result["cover"]["note"] = "not 1280:670; note fits it to that box, so part of it is cut or padded"
+        except NoteError as exc:
+            errors.append({"problem": str(exc)})
+    if blocks:
+        fake = {b["src"]: {"url": "https://assets.st-note.com/img/x.png", "width": 1, "height": 1}
+                for b in blocks if b["t"] == "image"}
+        _, result["characters"] = fmt.render_html(blocks, fake, {b["id"]: "" for b in blocks if b["t"] == "raw"})
+    result["ready"] = not errors and not markers and bool(blocks)
+    _capped(result, "errors", errors)
+    _capped(result, "markers", markers)
+    _capped(result, "as_typed", literal)
+    _capped(result, "images", images)
+    _capped(result, "web_images", remote)
+    if kept_blocks:
+        result["kept_blocks"] = kept_blocks
+    result["note"] = CHECK_NOTE
+    return result
+
+
 # --- dispatch -----------------------------------------------------------------------------------
 
 def is_preview(args) -> bool:
@@ -1408,9 +1561,14 @@ def preview(args: dict, home: Path | None) -> dict:
     return {k: v for k, v in result.items() if v is not None}
 
 
-def execute(args: dict, home: Path | None = None, call_id: str = "", can_write: bool = False) -> dict:
+def execute(args: dict, home: Path | None = None, call_id: str = "", can_write: bool = False,
+            allowed: tuple | None = None) -> dict:
     args = args if isinstance(args, dict) else {}
     action = action_of(args)
+    if allowed is not None and action not in allowed:
+        raise NoteError(not_allowed(action, allowed))
+    if action == "check":
+        return check(args, home)
     if action in WRITES:
         if not can_write:
             raise NoteError(READ_ONLY)

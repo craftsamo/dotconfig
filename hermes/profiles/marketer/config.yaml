@@ -60,7 +60,8 @@ agent:
     refused with kanban_block(kind=capability). Inbound A2A is inquiry-only:
     no authenticated browser operations or resident children; ask the caller
     to release that work through a resident specialist session. The substack
-    and youtube tools' reads are allowed there too.
+    and youtube tools' reads are allowed there too, and so are the note tool's
+    reads and check (never a save or preview).
 
     Draft floor, even before skill loading: a draft is an unpublished object
     saved on the selected service, reopened and checked. A local manuscript
@@ -804,6 +805,7 @@ platform_toolsets:
     - file
     - memory
     - no_mcp
+    - note_access
     - skills
     - specialist
     - substack_access

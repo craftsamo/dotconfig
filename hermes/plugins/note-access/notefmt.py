@@ -22,6 +22,12 @@ Markdown (one block per paragraph, blank lines between blocks):
 Ruby (｜漢字《かんじ》) and math ($${…}$$, or a paragraph between $$ lines) are plain text in
 note and rendered when the article is published, so they pass through unchanged. A backslash
 escapes a character that would otherwise be read as Markdown.
+
+Outside code blocks, three things are refused although note could store their characters, because
+a reader would see the marks: a Writer insertion marker ([[image:id]], [[embed:id]], [[table:id]]),
+a table row or rule, and an HTML comment. Other Markdown note has no form for (*italic*, `code`,
+HTML tags, footnotes, an image inside a paragraph, <https://…>) is saved as typed; ``scan`` names
+each so a check can warn before a save.
 """
 
 from __future__ import annotations
@@ -62,6 +68,87 @@ RAW = re.compile(r"^\[((?:\\.|[^\]\\])*)\]\(" + re.escape(BLOCK_SCHEME) + r"([0-
 TOC = re.compile(r"^\[TOC\]\s*$", re.IGNORECASE)
 EMPTY = re.compile(r"^<br\s*/?>\s*$", re.IGNORECASE)
 INDENTED_ITEM = re.compile(r"^[ \t]+(?:[-*+]|\d{1,9}\.)[ \t]+")
+
+
+# --- what a reader would see as marks -------------------------------------------------------------
+
+MARKER = re.compile(r"\[\[(image|embed|table):([^\]\n]*)\]\]")
+TABLE_RULE = re.compile(r"^\|?[ \t]*:?-{2,}:?[ \t]*(?:\|[ \t]*:?-{2,}:?[ \t]*)+\|?$")
+COMMENT = re.compile(r"<!--")
+LINK_ADDRESS = re.compile(r"\]\([^)\s]*\)")
+LITERAL = (
+    ("italic", re.compile(r"(?<!\*)\*(?![\s*])[^*\n]*?(?<![\s*])\*(?!\*)"),
+     "*…* is not italic in note: the asterisks are saved as typed"),
+    ("code", re.compile(r"`[^`\n]+`"), "`…` is not inline code in note: the backticks are saved as typed"),
+    ("html", re.compile(r"</?[A-Za-z][\w-]*(?:\s[^<>\n]*)?/?>"), "HTML tags are not read in note: they are saved as typed"),
+    ("footnote", re.compile(r"\[\^[^\]\n]+\]"), "note has no footnotes: [^…] is saved as typed"),
+    ("image", re.compile(r"!\[[^\]\n]*\]\([^)\n]*\)"),
+     "an image inside a paragraph is saved as text; put an image on a line of its own"),
+    ("autolink", re.compile(r"<https?://[^>\s]+>"),
+     "<https://…> keeps its angle brackets in note; use [text](https://…) or the bare address"),
+)
+REFUSED = {
+    "marker": "an unresolved insertion marker {text}: note would show it as text; insert what it stands for or "
+              "take it out",
+    "table": "note has no tables, so this row would show as text with its | marks; make it a list, or an image "
+             "of the table",
+    "comment": "an HTML comment shows as text in note; take it out",
+}
+
+
+def _masked(line: str) -> str:
+    """The line with every escaped character (a backslash and what it escapes) blanked out, so
+    patterns only see what Markdown would read."""
+    return re.sub(r"\\.", lambda m: "\0\0" if m.group(0)[1] in ESCAPABLE else m.group(0), line)
+
+
+def _table_line(masked: str) -> bool:
+    text = masked.strip()
+    if TABLE_RULE.match(text):
+        return True
+    return len(text) > 2 and text.startswith("|") and text.endswith("|") and text.count("|") >= 3
+
+
+def scan(text: str) -> list[dict]:
+    """What a reader would see as marks, outside code blocks: {"line", "kind", "text", "problem"} with
+    kind "marker", "table" or "comment" (refused) or one of LITERAL's kinds (saved as typed)."""
+    found: list[dict] = []
+    fence = None
+    for number, line in enumerate((text or "").replace("\r\n", "\n").replace("\r", "\n").split("\n"), 1):
+        if fence:
+            if re.match(r"^ {0,3}" + re.escape(fence[0]) + "{" + str(len(fence)) + r",}\s*$", line):
+                fence = None
+            continue
+        opened = FENCE.match(line)
+        if opened:
+            fence = opened.group(1)
+            continue
+        if IMAGE.match(line) or LINKED_IMAGE.match(line) or RAW.match(line) or EMPTY.match(line) or TOC.match(line):
+            continue
+        masked = _masked(re.sub(r"^(?:>[ \t]?)+", "", line))
+        # A link's address is the stored URL, never text a reader sees.
+        masked = LINK_ADDRESS.sub(lambda m: "](" + "\0" * (len(m.group(0)) - 3) + ")", masked)
+        for match in MARKER.finditer(masked):
+            found.append({"line": number, "kind": "marker", "text": match.group(0),
+                          "problem": REFUSED["marker"].format(text=match.group(0))})
+        if _table_line(masked):
+            found.append({"line": number, "kind": "table", "text": line.strip()[:80], "problem": REFUSED["table"]})
+        if COMMENT.search(masked):
+            found.append({"line": number, "kind": "comment", "text": line.strip()[:80], "problem": REFUSED["comment"]})
+        without_br = INLINE_BR.sub(lambda m: "\0" * len(m.group(0)), COMMENT.sub("\0\0\0\0", masked))
+        for kind, pattern, problem in LITERAL:
+            match = pattern.search(without_br)
+            if match:
+                found.append({"line": number, "kind": kind, "text": match.group(0)[:80], "problem": problem})
+    return found
+
+
+def refusal(text: str) -> str | None:
+    """The first thing in a body that note would show as marks and a save refuses, as an error line."""
+    for item in scan(text):
+        if item["kind"] in REFUSED:
+            return f"line {item['line']}: {item['problem']}"
+    return None
 
 
 def _unescape(text: str) -> str:
@@ -161,10 +248,14 @@ def parse_inline(text: str, line: int = 0) -> list:
     return out
 
 
-def parse_markdown(text: str) -> list[dict]:
-    """The blocks of a Markdown body; raises FormatError naming the line of anything note cannot hold."""
+def parse_markdown(text: str, refuse_marks: bool = True) -> list[dict]:
+    """The blocks of a Markdown body; raises FormatError naming the line of anything note cannot hold
+    (with refuse_marks=False, the marks ``scan`` refuses are left for the caller to report)."""
     if not isinstance(text, str):
         raise FormatError("body must be Markdown text")
+    problem = refusal(text) if refuse_marks else None
+    if problem:
+        raise FormatError(problem)
     lines = text.replace("\r\n", "\n").replace("\r", "\n").split("\n")
     blocks: list[dict] = []
     i = 0
@@ -645,7 +736,7 @@ def blocks_from_html(source: str) -> tuple[list[dict], dict]:
 # --- blocks -> Markdown ---------------------------------------------------------------------------
 
 def _escape_text(text: str) -> str:
-    return re.sub(r"<(?=br\s*/?>)", r"\\<", re.sub(r"([\\*~\[\]])", r"\\\1", text), flags=re.IGNORECASE)
+    return re.sub(r"<(?=br\s*/?>|!--)", r"\\<", re.sub(r"([\\*~\[\]])", r"\\\1", text), flags=re.IGNORECASE)
 
 
 def inline_markdown(nodes: list) -> str:
@@ -690,6 +781,9 @@ def _guard_line(line: str) -> str:
         return f"{ol.group(1)}\\.{line[len(ol.group(1)) + 1:]}"
     if _starts_block(line) or line.startswith("-> "):
         return "\\" + line if line[:1] in ESCAPABLE else line
+    if _table_line(_masked(line)):   # stored text that only looks like a table row stays text
+        pipe = _masked(line).index("|")
+        return line[:pipe] + "\\" + line[pipe:]
     return line
 
 
