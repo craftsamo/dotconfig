@@ -202,8 +202,9 @@ and channels on its sync list come from a local mirror that keeps
 disappearing messages (marked expired, files included) and drops messages
 deleted for everyone, other chats are read live through a sync agent that
 alone holds the session, and every send — text and `~/Workspaces` files —
-waits for approval on a card naming the chat, every file and the text.
-Contract: [telegram-access.md](../telegram-access.md).
+waits for approval on a card naming the chat, every file and the text. The
+public technic `telegram-account` holds the mechanics. Contract:
+[telegram-access.md](../telegram-access.md).
 
 X is read-only (`x_access` toolset, never on the assistant's A2A): it reads
 as a separate sub-account through twscrape, paced and capped, downloads a

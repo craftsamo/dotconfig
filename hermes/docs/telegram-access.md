@@ -36,7 +36,8 @@ only.
 | `telegram_account` tool and the `pre_tool_call` hook (toolset `telegram_access`) | `plugins/telegram-access/__init__.py`                                                          | Assistant            |
 | Engine venv (Telethon, hash-locked)                                              | `engines/telegram-access/requirements.lock` → ignored `local/telegram-access/venv`             | people               |
 | Login and the agent                                                              | `launchd/telegram-access-launchctl.sh`, `launchd/local.hermes.telegram-access.sync.plist.tmpl` | people               |
-| When and how the Assistant uses it                                               | the Assistant's private Chat reference `telegram.md`                                           | Assistant            |
+| How the Assistant works with it: reads, files, sync list, sends, outcomes        | the `telegram-account` technic (`profiles/assistant/skills/technic/telegram-account/`)         | Assistant            |
+| When the Assistant uses it in Chat                                               | the Assistant's private Chat reference `telegram.md`                                           | Assistant            |
 
 [Telethon](https://codeberg.org/Lonami/Telethon) 1.x logs in as a new device
 of the account, listed on the phone under _Settings → Devices_ as "Hermes
