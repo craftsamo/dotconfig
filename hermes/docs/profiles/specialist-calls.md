@@ -1,13 +1,13 @@
 # Specialist calls and work continuity
 
 How primaries open, continue and close conversations with specialists and hands
-(`plugins/specialist-call`), and what survives a failure. Part of the Hermes
+(`plugins/orchestration/specialist-call`), and what survives a failure. Part of the Hermes
 design docs — index: [`PROFILES.md`](../../PROFILES.md). Install/enable steps
 live in [`README.md`](../../README.md).
 
 ## Specialist calls
 
-The shared `plugins/specialist-call` plugin exposes the `specialist` toolset to
+The shared `plugins/orchestration/specialist-call` plugin exposes the `specialist` toolset to
 assistant, creator, marketer and engineer; it is their only outbound path (the
 raw `a2a_*` tools stay off, see [topology](../topology.md) "Toolsets"). Each
 caller has an explicit `specialist_call.resident_targets` allowlist:
@@ -141,7 +141,7 @@ chat does not grant access to its previous specialist conversations.
 
 ## Shared work continuity
 
-Continuity is implemented in `plugins/specialist-call`, not an upstream patch.
+Continuity is implemented in `plugins/orchestration/specialist-call`, not an upstream patch.
 Each new conversation retains its untruncated initial agent request, and each
 turn has a private `.handoff` record. Only the current request is actionable;
 history supplies constraints only, never another production run or regrant.

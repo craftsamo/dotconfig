@@ -14,8 +14,8 @@ above `github/`; the GitHub repository is the one `origin` points at.
 
 | Piece                                   | Home                                  | Reader              |
 | --------------------------------------- | ------------------------------------- | ------------------- |
-| Scanner, GitHub query, text output, CLI | `plugins/workspace-repos/repos.py`    | all                 |
-| `workspace_repos` tool and `/repos`     | `plugins/workspace-repos/__init__.py` | Engineer, Assistant |
+| Scanner, GitHub query, text output, CLI | `plugins/workspace/workspace-repos/repos.py`    | all                 |
+| `workspace_repos` tool and `/repos`     | `plugins/workspace/workspace-repos/__init__.py` | Engineer, Assistant |
 | Launcher                                | `../bin/ws-repos`                     | people, cron        |
 
 Stdlib plus the `git` and `gh` binaries, loaded by path, so the tool, the
