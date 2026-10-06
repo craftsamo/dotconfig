@@ -613,6 +613,233 @@ def test_default_download_dir(tmp_path):
     assert xa.download_dir(tmp_path) == tmp_path / "x-downloads"
 
 
+# --- verify -------------------------------------------------------------------------------------
+
+def fx_tweet(pid="100", handle="alice", **extra):
+    t = {"id": pid, "url": f"https://x.com/{handle}/status/{pid}", "text": "hello", "raw_text": {"text": "hello"},
+         "created_timestamp": 1759322096, "lang": "en", "likes": 3, "retweets": 2, "replies": 1, "quotes": 0,
+         "bookmarks": 4, "views": 50, "replying_to": None, "replying_to_status": None, "possibly_sensitive": False,
+         "author": {"screen_name": handle, "name": "Alice A", "followers": 10, "protected": False},
+         "media": {"all": [{"type": "video", "duration": 27.326, "width": 1920, "height": 1080,
+                            "url": "https://video.twimg.com/v.mp4"}]}}
+    t.update(extra)
+    return t
+
+
+class Fx:
+    """Stands in for FxTwitter: a canned (status, body) per post id, every request recorded."""
+
+    def __init__(self, monkeypatch):
+        self.requests = []
+        self.replies = {}
+        monkeypatch.setattr(xa._FX_OPENER, "open", self.open)
+
+    def found(self, pid, **extra):
+        self.replies[pid] = (200, json.dumps({"code": 200, "message": "OK", "tweet": fx_tweet(pid, **extra)}).encode())
+
+    def open(self, req, timeout=None):
+        self.requests.append(req)
+        pid = req.full_url.rsplit("/", 1)[1]
+        status, body = self.replies.get(pid, (404, b'{"code":404,"message":"NOT_FOUND","tweet":null}'))
+        if isinstance(body, BaseException):
+            raise body
+        if status != 200:
+            raise xa.urllib.error.HTTPError(req.full_url, status, "x", {}, io.BytesIO(body))
+        return Response(body, "application/json")
+
+
+@pytest.fixture
+def fx(monkeypatch):
+    monkeypatch.setattr(xa, "FX_GAP", 0)
+    return Fx(monkeypatch)
+
+
+def test_verify_checks_posts_without_the_sub_account(isolated, home, fx):
+    fx.found("100")
+    fx.found("200", quote=fx_tweet("7", handle="bob"), replying_to="carol", replying_to_status="9")
+    result = xa.execute({"action": "verify", "posts": ["https://x.com/alice/status/100?s=20", "200", "100", "300"]},
+                        home=home)
+    assert isolated.calls == [] and xa.usage()["last_day"] == 0
+    assert [r.full_url for r in fx.requests] == [xa.FX_API + p for p in ("100", "200", "300")]
+    first, second, missing = result["results"]
+    assert first["status"] == "ok" and first["author"] == "@alice" and first["followers"] == 10
+    assert first["counts"] == {"views": 50, "likes": 3, "replies": 1, "reposts": 2, "quotes": 0, "bookmarks": 4}
+    assert first["media"] == [{"type": "video", "width": 1920, "height": 1080, "duration_s": 27.3}]
+    assert "handle_mismatch" not in first and "saved" not in first
+    assert second["quoted"]["author"] == "@bob" and second["reply_to"] == {"id": "9", "author": "@carol"}
+    assert missing == {"id": "300", "status": "not_found", "reason": missing["reason"]}
+    assert result["summary"] == {"ok": 2, "not_found": 1} and result["checked"] == 3
+    assert xa.verify_usage()["last_day"] == 3
+    assert "folder" not in result and not (home.parent / "inbox").exists()
+
+
+def test_verify_flags_a_url_naming_another_author(fx):
+    fx.found("100", handle="realauthor")
+    item = xa.execute({"action": "verify", "posts": ["https://x.com/someoneelse/status/100",
+                                                     "https://x.com/i/web/status/100"]})["results"]
+    assert len(item) == 1 and item[0]["handle_mismatch"] is True and item[0]["url_handle"] == "@someoneelse"
+    assert "handle_mismatch" not in xa.execute({"action": "verify", "posts": ["https://x.com/i/status/100"]})["results"][0]
+
+
+def test_verify_saves_raw_replies(home, fx, tmp_path):
+    fx.found("100")
+    result = xa.execute({"action": "verify", "posts": ["100", "404"], "save": True}, home=home)
+    folder = tmp_path / "inbox" / "verify"
+    assert result["folder"] == str(folder) and result["results"][0]["saved"] == str(folder / "100.json")
+    assert json.loads((folder / "100.json").read_text())["tweet"]["id"] == "100"
+    assert sorted(p.name for p in folder.iterdir()) == ["100.json"]
+
+
+def test_verify_statuses(fx):
+    fx.replies["401"] = (401, b'{"code":401,"message":"PRIVATE_TWEET","tweet":null}')
+    fx.replies["500"] = (500, b"<html>")
+    fx.replies["201"] = (200, b"<!DOCTYPE html>")
+    fx.replies["429"] = (429, b"")
+    result = xa.execute({"action": "verify", "posts": ["401", "500", "201", "429", "1"]})
+    assert [(r["id"], r["status"]) for r in result["results"]] == [
+        ("401", "protected"), ("500", "unavailable"), ("201", "unavailable"), ("429", "not_checked"),
+        ("1", "not_checked")]
+    assert result["checked"] == 4 and "rate-limiting" in result["results"][-1]["reason"]
+
+
+def test_verify_stops_after_repeated_network_failures(fx):
+    for pid in ("1", "2", "3", "4"):
+        fx.replies[pid] = (200, xa.urllib.error.URLError("offline"))
+    result = xa.execute({"action": "verify", "posts": ["1", "2", "3", "4"]})
+    assert [r["status"] for r in result["results"]] == ["error", "error", "error", "not_checked"]
+    assert len(fx.requests) == 3
+
+
+def test_verify_has_its_own_daily_cap(fx, monkeypatch):
+    monkeypatch.setattr(xa, "FX_DAILY", 2)
+    fx.found("1")
+    result = xa.execute({"action": "verify", "posts": ["1", "2", "3"]})
+    assert [r["status"] for r in result["results"]] == ["ok", "not_found", "not_checked"]
+    with pytest.raises(xa.XError, match="paused: 2 public-post checks"):
+        xa.execute({"action": "verify", "posts": ["1"]})
+    assert len(fx.requests) == 2
+
+
+def test_verify_refuses_redirects_off_fxtwitter():
+    handler = xa._FxOnly()
+    with pytest.raises(xa.XError, match="redirected"):
+        handler.redirect_request(None, None, 302, "", {}, "https://evil.example/i/status/1")
+
+
+@pytest.mark.parametrize("posts,match", [
+    (None, "posts is required"), ([], "posts is required"), ("100", "posts is required"),
+    (["1"] * 51, "at most 50"), (["100", "https://evil.com/a/status/1"], r"posts\[2\]"),
+])
+def test_verify_arguments(posts, match):
+    with pytest.raises(xa.XError, match=match):
+        xa.execute({"action": "verify", "posts": posts})
+
+
+def test_verify_opener_carries_no_cookies_and_stays_on_fxtwitter():
+    handlers = xa._FX_OPENER.handlers
+    assert any(isinstance(h, xa._FxOnly) for h in handlers)
+    assert not any(isinstance(h, xa.urllib.request.HTTPCookieProcessor) for h in handlers)
+
+
+def test_verify_accepts_mirror_links():
+    assert xa._post_ref("https://fxtwitter.com/alice/status/100") == ("100", "alice")
+    assert xa._post_ref("https://fixvx.com/i/status/100") == ("100", None)
+
+
+def test_verify_survives_odd_reply_shapes(fx):
+    fx.replies["100"] = (200, json.dumps({"code": 200, "tweet": {
+        "id": None, "author": "x", "text": 5, "media": [], "quote": "q", "views": "many"}}).encode())
+    item = xa.execute({"action": "verify", "posts": ["100"]})["results"][0]
+    assert item["id"] == "100" and item["status"] == "ok" and item["author"] == "@" and item["counts"] == {}
+
+
+def test_verify_server_failures_end_the_call(fx):
+    for pid in ("1", "2", "3", "4"):
+        fx.replies[pid] = (503, b"<html>down</html>")
+    result = xa.execute({"action": "verify", "posts": ["1", "2", "3", "4"]})
+    assert [r["status"] for r in result["results"]] == ["unavailable"] * 3 + ["not_checked"]
+    assert "HTTP 503" in result["results"][0]["reason"] and len(fx.requests) == 3
+
+
+@pytest.mark.parametrize("error", [TimeoutError(), xa.http.client.IncompleteRead(b"")])
+def test_verify_counts_broken_replies_as_errors(fx, error):
+    for pid in ("1", "2", "3"):
+        fx.replies[pid] = (200, error)
+    result = xa.execute({"action": "verify", "posts": ["1", "2", "3"]})
+    assert [r["status"] for r in result["results"]] == ["error"] * 3
+
+
+def test_verify_rejects_oversized_and_non_object_replies(fx, monkeypatch):
+    monkeypatch.setattr(xa, "FX_MAX_BYTES", 10)
+    fx.found("1")
+    fx.replies["2"] = (200, b"[]")
+    result = xa.execute({"action": "verify", "posts": ["1", "2"]})
+    assert [r["status"] for r in result["results"]] == ["unavailable", "unavailable"]
+
+
+def test_verify_remembers_a_rate_limit(fx):
+    fx.replies["1"] = (429, b"")
+    xa.execute({"action": "verify", "posts": ["1", "2"]})
+    assert "limited_until" in xa.verify_usage()
+    with pytest.raises(xa.XError, match="paused: FxTwitter is rate-limiting; try again after"):
+        xa.execute({"action": "verify", "posts": ["2"]})
+    assert len(fx.requests) == 1
+
+
+def test_verify_time_budget_starts_after_the_lock(fx, monkeypatch):
+    ticks = iter([0, 0, 0] + [1000] * 10)
+    monkeypatch.setattr(xa.time, "monotonic", lambda: next(ticks))
+    fx.found("1")
+    result = xa.execute({"action": "verify", "posts": ["1", "2"]})
+    assert [r["status"] for r in result["results"]] == ["ok", "not_checked"]
+    assert "time budget" in result["results"][1]["reason"]
+
+
+def test_verify_waits_for_another_verify(fx, monkeypatch):
+    monkeypatch.setattr(xa, "FX_LOCK_WAIT", 0.2)
+    xa.STORE.mkdir(exist_ok=True)
+    with open(xa.STORE / "fx.lock", "a+") as held:
+        xa.fcntl.flock(held, xa.fcntl.LOCK_EX)
+        with pytest.raises(xa.XError, match="another verify is still running"):
+            xa.execute({"action": "verify", "posts": ["1"]})
+    assert fx.requests == []
+
+
+def test_verify_drops_a_stale_saved_file(home, fx, tmp_path):
+    fx.found("100")
+    xa.execute({"action": "verify", "posts": ["100"], "save": True}, home=home)
+    saved = tmp_path / "inbox" / "verify" / "100.json"
+    assert saved.exists()
+    del fx.replies["100"]  # deleted since
+    assert xa.execute({"action": "verify", "posts": ["100"], "save": True}, home=home)["results"][0]["status"] == "not_found"
+    assert not saved.exists()
+
+
+def test_verify_reports_a_failed_save_without_losing_the_row(home, fx, monkeypatch):
+    fx.found("100")
+    def broken(folder, post_id, body):
+        raise PermissionError("read-only")
+    monkeypatch.setattr(xa, "_save_fx", broken)
+    item = xa.execute({"action": "verify", "posts": ["100"], "save": True}, home=home)["results"][0]
+    assert item["status"] == "ok" and "read-only" in item["save_error"] and "saved" not in item
+
+
+def test_verify_results_fit_the_plugin_cap(fx):
+    long = "長い本文" * 600
+    ids = [str(n) for n in range(1, 51)]
+    for pid in ids:
+        fx.found(pid, text=long, quote=fx_tweet("9" + pid, text=long))
+    result = xa.execute({"action": "verify", "posts": ids})
+    assert result["summary"] == {"ok": 50} and result["text_clipped_to"] < xa.TEXT_CLIP
+    assert len(json.dumps(result, ensure_ascii=False)) <= xa.FX_RESULT_MAX
+    small = xa.execute({"action": "verify", "posts": ["1"]})
+    assert "text_clipped_to" not in small and small["results"][0]["text"].startswith("長い本文")
+
+
+def test_status_reports_verify_usage(isolated, home):
+    assert xa.execute({"action": "status"}, home=home)["verify_usage"] == {"last_day": 0, "daily_cap": xa.FX_DAILY}
+
+
 # --- guard --------------------------------------------------------------------------------------
 
 @pytest.mark.parametrize("tool,args", [
@@ -627,6 +854,10 @@ def test_default_download_dir(tmp_path):
     ("terminal", {"command": "ls", "workdir": "/Users/u/.x-access"}),
     ("read_file", {"path": "/Users/u/.x-access/accounts.db"}),
     ("search_files", {"path": "~/.x-access", "pattern": "ct0"}),
+    ("terminal", {"command": "curl -s https://api.fxtwitter.com/i/status/100"}),
+    ("terminal", {"command": "curl -s https://api.vxtwitter.com/alice/status/100"}),
+    ("terminal", {"command": "python3 fetch.py https://fixupx.com/alice/status/100"}),
+    ("terminal", {"command": "curl -s https://api.fixvx.com/alice/status/100"}),
 ])
 def test_bypass_blocked(tool, args):
     assert xa.bypass(tool, args) == xa.BYPASS_MESSAGE
