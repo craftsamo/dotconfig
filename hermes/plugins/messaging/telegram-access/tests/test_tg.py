@@ -2,8 +2,11 @@
 approval binding, send outcomes, media and the guard. Never the real agent or state."""
 
 import importlib.util
+import io
 from pathlib import Path
 import shutil
+import tarfile
+import zipfile
 
 import pytest
 
@@ -322,6 +325,73 @@ def test_files_are_staged_and_must_match_the_card(state, home, agent):
     assert "changed after the approval card" in out["error"] and len(agent.requests) == 1
 
 
+def _zip(name, entries):
+    path = tg.SEND_ROOT / name
+    with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as z:
+        for entry, data in entries.items():
+            z.writestr(entry, data)
+    return path
+
+
+def test_zip_is_inspected_shown_on_the_card_and_sent(home, agent):
+    seen = {}
+
+    def send(p):
+        seen["names"] = [Path(f).name for f in p["files"]]
+        return {"ids": [7], "ts": 1, "recorded": True}
+    agent.handlers["send"] = send
+    _zip("trip.zip", {"a.txt": b"hello", "b/c.csv": b"1,2"})
+    request, out = approve_and_send({"action": "send", "chat": str(fakes.ALICE), "files": ["trip.zip"]}, home)
+    assert "- trip.zip (application/zip, " in request[0] and ", 2 files inside (" in request[0]
+    assert out["ok"] and out["files"] == ["trip.zip"] and seen["names"] == ["trip.zip"]
+
+
+def test_tar_gz_is_sent(home, agent):
+    agent.handlers["send"] = lambda p: {"ids": [7], "ts": 1, "recorded": True}
+    with tarfile.open(tg.SEND_ROOT / "b.tar.gz", "w:gz") as t:
+        info = tarfile.TarInfo("a.txt")
+        info.size = 2
+        t.addfile(info, io.BytesIO(b"hi"))
+    request, out = approve_and_send({"action": "send", "chat": str(fakes.ALICE), "files": ["b.tar.gz"]}, home)
+    assert ", 1 files inside (" in request[0] and out["ok"]
+
+
+@pytest.mark.parametrize("entries, message", [
+    ({"a.txt": b"x", ".env": b"A=1"}, "named like a key or secret"),
+    ({"a.txt": b"x", "notes.db": b"x"}, "named like a key or secret"),
+    ({"a.txt": b"x", ".ssh/id": b"x"}, "keys or settings"),
+    ({"a.txt": b"x", "run.sh": b"echo\n"}, "an archive or a program"),
+    ({"a.txt": b"x", "inner.zip": b"x"}, "an archive or a program"),
+    ({"a.txt": b"x", "../evil.txt": b"x"}, "not a plain relative path"),
+    ({"a.txt": b"x", "k.txt": b"-----BEGIN PRIVATE KEY-----\nabc"}, "contains a private key"),
+])
+def test_zip_with_something_that_would_be_refused_alone_is_refused(home, entries, message):
+    _zip("bad.zip", entries)
+    with pytest.raises(tg.TelegramError, match=f"archive 'bad.zip' is not sent: .*{message}"):
+        tg.approval_request({"action": "send", "chat": str(fakes.ALICE), "files": ["bad.zip"]}, home=home)
+
+
+@pytest.mark.parametrize("name, body", [
+    ("tool.jar", b"PK\x03\x04" + b"\x00" * 64), ("data.rar", b"Rar!\x1a\x07\x00" + b"\x00" * 64),
+    ("data.7z", b"7z\xbc\xaf\x27\x1c" + b"\x00" * 64), ("photo.jpg", b"PK\x03\x04" + b"\x00" * 64),
+    ("really.zip", b"not an archive at all"),
+])
+def test_archives_the_inspection_does_not_cover_stay_refused(home, name, body):
+    (tg.SEND_ROOT / name).write_bytes(body)
+    with pytest.raises(tg.TelegramError, match="archive"):
+        tg.approval_request({"action": "send", "chat": str(fakes.ALICE), "files": [name]}, home=home)
+
+
+def test_zip_changed_after_the_card_is_not_sent(home, agent):
+    agent.handlers["send"] = lambda p: {"ids": [7], "ts": 1, "recorded": True}
+    _zip("a.zip", {"a.txt": b"one"})
+    args = {"action": "send", "chat": str(fakes.ALICE), "files": ["a.zip"]}
+    tg.approval_request(args, home=home, call_id="call-9")
+    _zip("a.zip", {"a.txt": b"one", "b.txt": b"two"})
+    out = tg.execute(args, home=home, call_id="call-9")
+    assert "changed after the approval card" in out["error"] and agent.requests == []
+
+
 def test_staged_files_keep_the_names_the_card_showed(state, home, agent):
     """Telegram names an upload after the staged copy, so the copy must carry the card's name."""
     seen = {}
@@ -407,7 +477,7 @@ def test_config_defaults(state):
     ("terminal", {"command": "pip install pyrogram"}),
     ("terminal", {"command": "open https://my.telegram.org"}),
     ("terminal", {"command": "ls ~/Library/Group\\ Containers/6N38VWS5BX.ru.keepcoder.Telegram"}),
-    ("terminal", {"command": "cat plugins/telegram-access/tg.py"}),
+    ("terminal", {"command": "cat plugins/messaging/telegram-access/tg.py"}),
     ("terminal", {"command": "launchctl kickstart gui/501/local.telegram-access.sync"}),
     ("terminal", {"command": "launchctl kickstart gui/501/local.hermes.telegram-access.sync"}),
     ("terminal", {"command": "ls", "workdir": "/Users/x/.local/state/hermes-telegram"}),
@@ -425,7 +495,7 @@ def test_bypass_is_blocked(tool, args):
 @pytest.mark.parametrize("tool, args", [
     ("terminal", {"command": "ls ~/Workspaces/.inbox/telegram"}),
     ("terminal", {"command": "echo telegram is nice"}),
-    ("read_file", {"path": "plugins/telegram-access/tg.py"}),
+    ("read_file", {"path": "plugins/messaging/telegram-access/tg.py"}),
     ("read_file", {"path": "~/.config/hermes/launchd/telegram-access-launchctl.sh"}),
     ("read_file", {"path": "~/Workspaces/.inbox/telegram/2001-12/photo.jpg"}),
     ("web_search", {"query": "telethon"}),

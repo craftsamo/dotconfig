@@ -1,9 +1,12 @@
 import importlib.util
+import io
 import json
 import os
 from pathlib import Path
 import shutil
 import struct
+import tarfile
+import zipfile
 import zlib
 
 import pytest
@@ -345,6 +348,79 @@ def test_file_send_card_staging_and_cleanup(env, daemon):
     assert list((env["state"] / "outbox").iterdir()) == []
 
 
+def make_zip(env, relative, entries):
+    path = env["workspace"] / relative
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as z:
+        for name, data in entries.items():
+            z.writestr(name, data)
+    return path
+
+
+def test_zip_is_inspected_shown_on_the_card_and_sent(env, daemon):
+    make_zip(env, "Personal/trip/photos.zip", {"a.png": PNG, "notes/b.txt": b"hello"})
+    args = {"action": "send", "chat": ALICE, "files": ["Personal/trip/photos.zip"]}
+    (card, key), out = approve_and_send(args)
+    assert "- photos.zip (application/zip, " in card and ", 2 files inside (" in card and "unpacked)" in card
+    assert out["ok"] is True and out["files"] == ["photos.zip"]
+    staged = daemon.requests[-1]["params"]["attachment"]
+    assert len(staged) == 1 and staged[0].endswith("-photos.zip")
+
+
+def test_tar_gz_is_sent(env, daemon):
+    path = env["workspace"] / "backup.tar.gz"
+    with tarfile.open(path, "w:gz") as t:
+        info = tarfile.TarInfo("a.png")
+        info.size = len(PNG)
+        t.addfile(info, io.BytesIO(PNG))
+    (card, _), out = approve_and_send({"action": "send", "chat": ALICE, "files": ["backup.tar.gz"]})
+    assert "backup.tar.gz (application/gzip" in card and ", 1 files inside (" in card and out["ok"] is True
+
+
+@pytest.mark.parametrize("entries, message", [
+    ({"a.png": PNG, ".env": b"A=1"}, "named like a key or secret"),
+    ({"a.png": PNG, "proj/.ssh/id": b"x"}, "keys or settings"),
+    ({"a.png": PNG, "run.sh": b"echo hi\n"}, "an archive or a program"),
+    ({"a.png": PNG, "inner.zip": b"x"}, "an archive or a program"),
+    ({"a.png": PNG, "../evil.txt": b"x"}, "not a plain relative path"),
+    ({"a.png": PNG, "n.txt": b"-----BEGIN RSA PRIVATE KEY-----\nabc"}, "contains a private key"),
+])
+def test_zip_with_something_that_would_be_refused_alone_is_refused(env, daemon, entries, message):
+    make_zip(env, "bad.zip", entries)
+    with pytest.raises(sig.SignalError, match=f"archive 'bad.zip' is not sent: .*{message}"):
+        sig.approval_request({"action": "send", "chat": ALICE, "files": ["bad.zip"]})
+    assert daemon.requests == []
+
+
+@pytest.mark.parametrize("name, data", [
+    ("tool.jar", b"PK\x03\x04" + b"\x00" * 64),
+    ("app.apk", b"PK\x03\x04" + b"\x00" * 64),
+    ("data.rar", b"Rar!\x1a\x07\x00" + b"\x00" * 64),
+    ("data.7z", b"7z\xbc\xaf\x27\x1c" + b"\x00" * 64),
+    ("data.gz", b"\x1f\x8b\x08\x00" + b"\x00" * 64),
+    ("photo.jpg", b"PK\x03\x04" + b"\x00" * 64),
+    ("really.zip", b"not an archive at all"),
+])
+def test_archives_the_inspection_does_not_cover_stay_refused(env, name, data):
+    put(env, name, data)
+    with pytest.raises(sig.SignalError, match="archive"):
+        sig.approval_request({"action": "send", "chat": ALICE, "files": [name]})
+
+
+def test_zip_changed_after_the_card_is_not_sent(env, daemon):
+    path = make_zip(env, "a.zip", {"a.png": PNG})
+    args = {"action": "send", "chat": ALICE, "files": ["a.zip"]}
+    sig.approval_request(args)
+    make_zip(env, "a.zip", {"a.png": PNG, "b.png": PNG})
+    out = sig.execute(args)
+    assert out["ok"] is False and "changed" in out["error"] and daemon.requests == []
+    assert path.exists()
+
+
+def test_received_archives_are_still_never_saved(env):
+    assert sig.RISKY_FILES.search("invoice.zip") and sig.RISKY_MIME.search("application/zip")
+
+
 def test_changed_file_after_approval_is_not_sent(env, daemon):
     path = put(env, "a.png")
     args = {"action": "send", "chat": ALICE, "files": [str(path)]}
@@ -442,7 +518,7 @@ def test_too_many_files_for_one_card(env):
     ("terminal", {"command": "signal-cli -a +81 send -m hi"}),
     ("terminal", {"command": "/opt/homebrew/bin/signal-cli listContacts"}),
     ("terminal", {"command": "sqlite3 ~/.local/state/hermes-signal/mirror.db"}),
-    ("terminal", {"command": "python -c 'import sys; sys.path.append(\"plugins/signal-access\")'"}),
+    ("terminal", {"command": "python -c 'import sys; sys.path.append(\"plugins/messaging/signal-access\")'"}),
     ("terminal", {"command": "ls", "workdir": "/Users/x/.local/state/hermes-signal"}),
     ("terminal", {"command": "cp ~/Library/Application Support/Signal/sql/db.sqlite ."}),
     ("terminal", {"command": "cp ~/Library/Application\\ Support/Signal/config.json ."}),
@@ -459,7 +535,7 @@ def test_bypass_is_blocked(tool, args):
 @pytest.mark.parametrize("tool, args", [
     ("terminal", {"command": "ls ~/Workspaces"}),
     ("terminal", {"command": "echo signal processing"}),
-    ("read_file", {"path": "plugins/signal-access/sig.py"}),
+    ("read_file", {"path": "plugins/messaging/signal-access/sig.py"}),
 ])
 def test_ordinary_calls_pass(tool, args):
     assert sig.bypass(tool, args) is None

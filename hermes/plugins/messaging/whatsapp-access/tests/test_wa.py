@@ -442,7 +442,7 @@ def test_status_when_healthy(fake):
     "~/.config/hermes/launchd/whatsapp-access-launchctl.sh uninstall work",
     "tail ~/Library/Logs/whatsapp-access-sync-work.log",
     "echo $WACLI_STORE_DIR",
-    "python3 -c 'import runpy; runpy.run_path(\"hermes/plugins/whatsapp-access/wa.py\")'",
+    "python3 -c 'import runpy; runpy.run_path(\"hermes/plugins/messaging/whatsapp-access/wa.py\")'",
     "env wacli chats list",
     "bash -lc 'wacli send text'",
 ])
@@ -459,7 +459,7 @@ def test_file_tools_and_others():
     assert wa.bypass("read_file", {"path": "~/.wacli/config.yaml"}) == wa.BYPASS_MESSAGE
     assert wa.bypass("search_files", {"path": "/Users/x/.wacli"}) == wa.BYPASS_MESSAGE
     assert wa.bypass("terminal", {"command": "ls", "workdir": "/Users/x/.wacli"}) == wa.BYPASS_MESSAGE
-    assert wa.bypass("read_file", {"path": "hermes/plugins/whatsapp-access/wa.py"}) is None
+    assert wa.bypass("read_file", {"path": "hermes/plugins/messaging/whatsapp-access/wa.py"}) is None
     assert wa.bypass("web_search", {"query": "wacli"}) is None
 
 

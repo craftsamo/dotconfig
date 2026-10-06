@@ -2,7 +2,7 @@
 # Engine venv, login and sync LaunchAgent for telegram-access (the user's own Telegram account).
 #
 # The telegram_account tool reads the local mirror (~/.local/state/hermes-telegram/mirror.db)
-# that this agent keeps current, and asks the agent (plugins/telegram-access/sync.py on the venv
+# that this agent keeps current, and asks the agent (plugins/messaging/telegram-access/sync.py on the venv
 # built here, the only process connected to Telegram) for live reads, media and sends. The
 # account's credentials live only in the Keychain (project hermes, scope telegram-access, which no
 # Hermes profile receives); nothing here prints or stores them. The state directory is private
@@ -33,7 +33,7 @@ TMPL="$CONFIG_DIR/launchd/$LABEL.plist.tmpl"
 DEST="$HOME/Library/LaunchAgents/$LABEL.plist"
 LOCK="$CONFIG_DIR/engines/telegram-access/requirements.lock"
 VENV="$CONFIG_DIR/local/telegram-access/venv"
-SYNC="$CONFIG_DIR/plugins/telegram-access/sync.py"
+SYNC="$CONFIG_DIR/plugins/messaging/telegram-access/sync.py"
 STATE="${HERMES_TELEGRAM_STATE:-$HOME/.local/state/hermes-telegram}"
 LOG="$HOME/Library/Logs/telegram-access-sync.log"
 LEGACY_LOG="$LOG"

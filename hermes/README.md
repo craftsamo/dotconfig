@@ -414,7 +414,12 @@ keeps user keys.
   blocks the terminal path around them, and the code behind `bin/gaccess`
   (one-time setup). The token stays in the Keychain (`GOOGLE_OAUTH_<PROFILE>`,
   scope `google-access`). Behavior: [docs/google-access.md](docs/google-access.md).
-- **whatsapp-access** (`standalone`): `whatsapp` (toolset `whatsapp_access`)
+- **messaging/** groups the four chat-account plugins below
+  (`whatsapp-access`, `signal-access`, `discord-access`, `telegram-access`),
+  as `tts/` groups the speech ones; they are still enabled by their bare names.
+  `messaging/_shared/` is code they load by path (archive inspection for
+  sends), not a plugin.
+- **messaging/whatsapp-access** (`standalone`): `whatsapp` (toolset `whatsapp_access`)
   for the assistant — reads the user's WhatsApp accounts from the local
   `wacli` mirror (plus number checks, history backfill and media downloads)
   and sends text and `~/Workspaces` files through the approval gate (files
@@ -423,7 +428,7 @@ keeps user keys.
   `local.hermes.whatsapp-access.sync.<account>` LaunchAgent managed by
   `launchd/whatsapp-access-launchctl.sh` (`pair` / `install` / `status`).
   Behavior: [docs/whatsapp-access.md](docs/whatsapp-access.md).
-- **signal-access** (`standalone`): `signal` (toolset `signal_access`) for
+- **messaging/signal-access** (`standalone`): `signal` (toolset `signal_access`) for
   the assistant — reads the user's Signal account from a local mirror (plus
   number checks and saving received files) and sends text and
   `~/Workspaces` files through the approval gate; its hook blocks the
@@ -431,7 +436,7 @@ keeps user keys.
   `signal-cli daemon`, as the `local.hermes.signal-access.sync` LaunchAgent managed by
   `launchd/signal-access-launchctl.sh` (`link` / `install` / `status`).
   Behavior: [docs/signal-access.md](docs/signal-access.md).
-- **discord-access** (`standalone`): `discord_account` (toolset
+- **messaging/discord-access** (`standalone`): `discord_account` (toolset
   `discord_access`) for the assistant — the user's own Discord account (not
   the Assistant's bot): DMs and the servers on its sync list read from a local
   mirror, other channels, threads, pins, mentions, friends, roles and members
@@ -447,7 +452,7 @@ keeps user keys.
   bounded sync every 5 minutes, managed by
   `launchd/discord-access-launchctl.sh` (`setup` / `install` / `run` /
   `status`). Behavior: [docs/discord-access.md](docs/discord-access.md).
-- **telegram-access** (`standalone`): `telegram_account` (toolset
+- **messaging/telegram-access** (`standalone`): `telegram_account` (toolset
   `telegram_access`) for the assistant — the user's own Telegram account (not
   the Assistant's bot, whose chats it hides): private chats, bots, basic
   groups and the supergroups and channels on its sync list read from a local

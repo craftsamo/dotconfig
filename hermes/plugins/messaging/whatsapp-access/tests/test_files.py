@@ -1,11 +1,14 @@
 """File sends: the checks, the snapshot shared by the approval and bind hooks, one message per file."""
 
 import importlib.util
+import io
 import json
 import os
 from pathlib import Path
 import struct
 import subprocess
+import tarfile
+import zipfile
 import zlib
 
 import pytest
@@ -158,6 +161,76 @@ def test_dangerous_files_are_refused(ws, fake, relative, data, message):
     with pytest.raises(wa.WhatsAppError, match=message):
         wa.approval_request(send_args(files=[relative]), ids=IDS)
     assert list(wa.outbox().iterdir()) == []                                  # nothing left behind
+
+
+def make_zip(ws, relative, entries):
+    path = ws / relative
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as z:
+        for name, data in entries.items():
+            z.writestr(name, data)
+    return path
+
+
+def test_zip_is_inspected_shown_on_the_card_and_sent(ws, fake):
+    make_zip(ws, "trip/photos.zip", {"a.png": PNG, "notes/b.txt": b"hello"})
+    card, _, args = approved(send_args(files=["trip/photos.zip"]))
+    assert "- photos.zip (application/zip, " in card and ", 2 files inside (" in card and "unpacked)" in card
+    result = wa.execute(args)
+    assert result["ok"] is True and [f["file"] for f in result["files"]] == ["photos.zip"]
+    call = fake.args_of(["send", "file"])[0]
+    assert call["args"][call["args"].index("--filename") + 1] == "photos.zip"
+    assert list(wa.outbox().iterdir()) == []
+
+
+def test_tar_gz_is_sent(ws, fake):
+    path = ws / "backup.tar.gz"
+    with tarfile.open(path, "w:gz") as t:
+        info = tarfile.TarInfo("a.png")
+        info.size = len(PNG)
+        t.addfile(info, io.BytesIO(PNG))
+    card, _, args = approved(send_args(files=["backup.tar.gz"]))
+    assert "backup.tar.gz (application/gzip" in card and ", 1 files inside (" in card
+    assert wa.execute(args)["ok"] is True
+
+
+@pytest.mark.parametrize("entries, message", [
+    ({"a.png": PNG, ".env": b"A=1"}, "named like a key or secret"),
+    ({"a.png": PNG, "proj/.ssh/id": b"x"}, "keys or settings"),
+    ({"a.png": PNG, "run.sh": b"echo hi\n"}, "an archive or a program"),
+    ({"a.png": PNG, "inner.zip": b"x"}, "an archive or a program"),
+    ({"a.png": PNG, "../evil.txt": b"x"}, "not a plain relative path"),
+    ({"a.png": PNG, "n.txt": b"-----BEGIN RSA PRIVATE KEY-----\nabc"}, "contains a private key"),
+])
+def test_zip_with_something_that_would_be_refused_alone_is_refused(ws, fake, entries, message):
+    make_zip(ws, "bad.zip", entries)
+    with pytest.raises(wa.WhatsAppError, match=f"archive 'bad.zip' is not sent: .*{message}"):
+        wa.approval_request(send_args(files=["bad.zip"]), ids=IDS)
+    assert list(wa.outbox().iterdir()) == [] and fake.args_of(["send", "file"]) == []
+
+
+@pytest.mark.parametrize("name, data", [
+    ("tool.jar", b"PK\x03\x04" + b"\x00" * 64),
+    ("app.apk", b"PK\x03\x04" + b"\x00" * 64),
+    ("data.rar", b"Rar!\x1a\x07\x00" + b"\x00" * 64),
+    ("data.7z", b"7z\xbc\xaf\x27\x1c" + b"\x00" * 64),
+    ("data.gz", b"\x1f\x8b\x08\x00" + b"\x00" * 64),
+    ("photo.jpg", b"PK\x03\x04" + b"\x00" * 64),
+    ("really.zip", b"not an archive at all"),
+])
+def test_archives_the_inspection_does_not_cover_stay_refused(ws, fake, name, data):
+    put(ws, name, data)
+    with pytest.raises(wa.WhatsAppError, match="archive"):
+        wa.approval_request(send_args(files=[name]), ids=IDS)
+    assert list(wa.outbox().iterdir()) == []
+
+
+def test_zip_changed_after_the_card_goes_out_as_approved(ws, fake):
+    path = make_zip(ws, "a.zip", {"a.png": PNG})
+    original = path.read_bytes()
+    _, _, args = approved(send_args(files=["a.zip"]))
+    make_zip(ws, "a.zip", {"a.png": PNG, "b.png": PNG2})
+    assert wa.execute(args)["ok"] is True and fake.args_of(["send", "file"])[0]["bytes"] == original
 
 
 def test_limits(ws, fake, monkeypatch):

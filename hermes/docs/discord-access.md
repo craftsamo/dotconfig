@@ -17,10 +17,10 @@ the risk away.
 
 | Piece                                                                                      | Home                                                                                         | Reader            |
 | ------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------- | ----------------- |
-| Mirror schema, sync list and its limits (stdlib)                                           | `plugins/discord-access/store.py`                                                            | engine and plugin |
-| Engine: the only code that talks to Discord and holds the token                            | `plugins/discord-access/engine.py`                                                           | its venv          |
-| `discord_account` tool, reads, cards, the `pre_tool_call` hooks (toolset `discord_access`) | `plugins/discord-access/access.py`, `__init__.py`                                            | Assistant         |
-| Permission names and what a member holds (stdlib)                                          | `plugins/discord-access/perms.py`                                                            | plugin            |
+| Mirror schema, sync list and its limits (stdlib)                                           | `plugins/messaging/discord-access/store.py`                                                  | engine and plugin |
+| Engine: the only code that talks to Discord and holds the token                            | `plugins/messaging/discord-access/engine.py`                                                 | its venv          |
+| `discord_account` tool, reads, cards, the `pre_tool_call` hooks (toolset `discord_access`) | `plugins/messaging/discord-access/access.py`, `__init__.py`                                  | Assistant         |
+| Permission names and what a member holds (stdlib)                                          | `plugins/messaging/discord-access/perms.py`                                                  | plugin            |
 | Engine venv (`curl_cffi`, hash-locked)                                                     | `engines/discord-user/requirements.lock` → ignored `local/discord-user/venv`                 | people            |
 | Sync agent                                                                                 | `launchd/discord-access-launchctl.sh`, `launchd/local.hermes.discord-access.sync.plist.tmpl` | people            |
 | When and how the Assistant uses it                                                         | the Assistant's private Chat reference `discord.md`                                          | Assistant         |

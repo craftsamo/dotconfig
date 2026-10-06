@@ -2,7 +2,7 @@
 # Engine venv and sync LaunchAgent for discord-access (the user's own Discord account).
 #
 # The plugin reads the local mirror (~/.local/state/hermes-discord) that this agent keeps current,
-# and runs plugins/discord-access/engine.py on the venv built here for anything that talks to
+# and runs plugins/messaging/discord-access/engine.py on the venv built here for anything that talks to
 # Discord. The user token lives only in the Keychain (project hermes, scope discord-user, which no
 # Hermes profile receives); nothing here prints or stores it.
 #
@@ -24,7 +24,7 @@ TMPL="$CONFIG_DIR/launchd/$LABEL.plist.tmpl"
 DEST="$HOME/Library/LaunchAgents/$LABEL.plist"
 LOCK="$CONFIG_DIR/engines/discord-user/requirements.lock"
 VENV="$CONFIG_DIR/local/discord-user/venv"
-ENGINE="$CONFIG_DIR/plugins/discord-access/engine.py"
+ENGINE="$CONFIG_DIR/plugins/messaging/discord-access/engine.py"
 STATE="${HERMES_DISCORD_STATE:-$HOME/.local/state/hermes-discord}"
 LOG="$HOME/Library/Logs/discord-access-sync.log"
 LEGACY_LOG="$HOME/Library/Logs/discord-user-sync.log"

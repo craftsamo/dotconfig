@@ -25,7 +25,7 @@ LEGACY_LABEL="local.signal.sync"
 TMPL="$CONFIG_DIR/launchd/$LABEL.plist.tmpl"
 DEST="$HOME/Library/LaunchAgents/$LABEL.plist"
 VENV="$CONFIG_DIR/local/signal-sync/venv"
-SYNC="$CONFIG_DIR/plugins/signal-access/sync.py"
+SYNC="$CONFIG_DIR/plugins/messaging/signal-access/sync.py"
 STATE="${HERMES_SIGNAL_STATE:-$HOME/.local/state/hermes-signal}"
 DATA="$STATE/signal-cli"
 LOG="$HOME/Library/Logs/signal-access-sync.log"
@@ -63,7 +63,7 @@ setup() {
 # "<number> <registered>" of the linked account from signal-cli's own files, empty when none.
 account_state() {
   [ -x "$VENV/bin/python" ] || setup >/dev/null
-  HERMES_SIGNAL_STATE="$STATE" "$VENV/bin/python" - "$CONFIG_DIR/plugins/signal-access/store.py" <<'PY'
+  HERMES_SIGNAL_STATE="$STATE" "$VENV/bin/python" - "$CONFIG_DIR/plugins/messaging/signal-access/store.py" <<'PY'
 import importlib.util, sys
 spec = importlib.util.spec_from_file_location("signal_store", sys.argv[1])
 store = importlib.util.module_from_spec(spec); spec.loader.exec_module(store)
