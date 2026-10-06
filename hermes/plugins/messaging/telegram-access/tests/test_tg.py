@@ -407,7 +407,7 @@ def test_config_defaults(state):
     ("terminal", {"command": "pip install pyrogram"}),
     ("terminal", {"command": "open https://my.telegram.org"}),
     ("terminal", {"command": "ls ~/Library/Group\\ Containers/6N38VWS5BX.ru.keepcoder.Telegram"}),
-    ("terminal", {"command": "cat plugins/telegram-access/tg.py"}),
+    ("terminal", {"command": "cat plugins/messaging/telegram-access/tg.py"}),
     ("terminal", {"command": "launchctl kickstart gui/501/local.telegram-access.sync"}),
     ("terminal", {"command": "launchctl kickstart gui/501/local.hermes.telegram-access.sync"}),
     ("terminal", {"command": "ls", "workdir": "/Users/x/.local/state/hermes-telegram"}),
@@ -425,7 +425,7 @@ def test_bypass_is_blocked(tool, args):
 @pytest.mark.parametrize("tool, args", [
     ("terminal", {"command": "ls ~/Workspaces/.inbox/telegram"}),
     ("terminal", {"command": "echo telegram is nice"}),
-    ("read_file", {"path": "plugins/telegram-access/tg.py"}),
+    ("read_file", {"path": "plugins/messaging/telegram-access/tg.py"}),
     ("read_file", {"path": "~/.config/hermes/launchd/telegram-access-launchctl.sh"}),
     ("read_file", {"path": "~/Workspaces/.inbox/telegram/2001-12/photo.jpg"}),
     ("web_search", {"query": "telethon"}),

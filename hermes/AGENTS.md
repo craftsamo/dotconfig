@@ -174,6 +174,11 @@ repository upkeep (Engineer through OpenCode, the Assistant's Admin topic).
 - **Tool handlers take the model's JSON as one positional dict**
   (`handler(args, **kwargs)`); declaring schema fields as parameters registers
   a tool that fails on every call.
+- **Moving a plugin directory moves its LaunchAgent's script path.** The
+  installed plists of the `messaging/` sync agents embed the absolute path of
+  `sync.py` / `engine.py`, so after such a move each agent needs its
+  launcher's `install` (or `restart`) again, or launchd keeps restarting a
+  file that is gone.
 
 ## Creator hands and broker
 
