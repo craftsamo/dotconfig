@@ -837,45 +837,6 @@ def test_detached_checkout_allows_assessment_not_build(monkeypatch):
         plugin._branch("/fixture", True)
 
 
-def test_evaluator_resident_does_not_inherit_repository_cwd(fixture, monkeypatch):
-    home, directory, _, _ = fixture
-    target = home.parent / "ui-review"
-    target.mkdir()
-    (target / "config.yaml").write_text("{}\n")
-    launched = []
-
-    class Process:
-        pid = 999999
-        returncode = 0
-
-        def __init__(self, command, **kwargs):
-            launched.append(kwargs)
-
-        def communicate(self, **kwargs):
-            return "review complete", ""
-
-        def wait(self, **kwargs):
-            return 0
-    monkeypatch.setattr(plugin.dispatch.subprocess, "Popen", Process)
-    monkeypatch.setattr(plugin.dispatch.os, "killpg", lambda *args: None)
-    data = {"conversation_id": "a" * 32, "job_id": "b" * 32,
-            "target": "ui-review", "deadline": time.time() + 30}
-    plugin.dispatch._resident(home, data, "Review the supplied test URL")
-    assert Path(launched[0]["cwd"]) == target / "workspace" / ("review-" + "a" * 32)
-    assert not Path(launched[0]["cwd"]).is_relative_to(directory)
-
-
-def test_evaluator_git_workspace_refused_before_dispatch(fixture):
-    home, _, _, _ = fixture
-    target = home.parent / "ux-persona"
-    target.mkdir()
-    (target / "config.yaml").write_text("{}\n")
-    (target / ".git").mkdir()
-    data = {"conversation_id": "a" * 32, "job_id": "b" * 32, "target": "ux-persona"}
-    with pytest.raises(plugin.dispatch.NotDispatched, match="outside a Git project"):
-        plugin.dispatch._resident(home, data, "Do not inherit implementation context")
-
-
 # ---------------------------------------------------------------- api client
 
 def test_api_client_reads_files_not_pipes_and_maps_errors(tmp_path, monkeypatch):

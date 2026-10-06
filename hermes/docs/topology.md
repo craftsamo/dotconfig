@@ -13,7 +13,7 @@ Process topology, the multiplex gateway and A2A peer graph, delegation layers, t
           └──────┬─────────┘
                  │                        peer graph (specialist_call; A2A = localhost HTTP):
         ┌────────┼──────────────────┐       assistant → engineer creator marketer writer (+ resident searcher)
-        │ resident sessions         │       engineer  → marketer researcher writer (+ resident UI evaluators)
+        │ resident sessions         │       engineer  → marketer researcher writer
         │ lean kanban cards         │       creator   → engineer marketer researcher writer
         │ delegate_task             │                   + image-creator video-creator audio-creator
         ▼                           ▼       marketer  → engineer creator researcher writer
@@ -43,8 +43,8 @@ where conversation adds nothing.
   endpoints and the embedded dispatcher, which sweeps **all** boards each tick
   (`gateway/kanban_watchers.py`) and ticks each profile's cron store; secondary
   profiles never start their own (see [operations](./operations.md) "Gateway as
-  a persistent service"). Profiles without platforms (searcher, ui-review,
-  ux-persona) are served too, so each carries `secrets.command` like the rest.
+  a persistent service"). Profiles without platforms (searcher) are served
+  too, so each carries `secrets.command` like the rest.
 - **A2A ports** are per-profile config in `platforms.a2a.extra.port`, not an env
   var (the process env is shared by every multiplexed profile): engineer `:9902`
   (inquiry-only), creator `:9903`, marketer `:9904`, writer `:9905`, researcher
@@ -86,8 +86,7 @@ needed. Gateway up adds the board for fire-and-forget work; gateway down,
 | --- | --- | --- | --- | --- | --- | --- |
 | **default** | CLI front door — assistant's CLI counterpart (neutral persona); hosts the multiplex gateway | CLI | `.` (launch dir) | `web,browser,terminal,file,code_execution,vision,x_search,skills,todo,memory,clarify,delegation,cronjob,kanban` | host | yes |
 | **assistant** | primary: messaging front door, dispatcher home board, non-creative quality gate, GitHub bookkeeping | Telegram + Discord | `~/Workspaces` | `web,browser,terminal,file,vision,x_search,skills,todo,memory,clarify,delegation,cronjob,computer_use,kanban,specialist,opencode,characters` + `unreal-engine` MCP | served | yes (private overlay) |
-| **engineer** | developer using OpenCode; human/Assistant Clients; technical planning, approved implementation through PR and independent UI/UX QA; Issue writes only on explicit request | Telegram (own bot) | explicit task worktree | `terminal,file,web,browser,vision,skills,todo,memory,clarify,delegation,specialist,opencode` | bot + inquiry-only a2a :9902 | yes |
-| **ui-review / ux-persona** | independent visual review / isolated user simulation for Engineer; no code edits or self-acceptance | resident only | owned non-Git job dir | `browser,vision,skills,ui-inspection` | served (no bot or A2A endpoint) | yes (inherited default OAuth) |
+| **engineer** | developer using OpenCode; human/Assistant Clients; technical planning, approved implementation through PR and UI QA; Issue writes only on explicit request | Telegram (own bot) | explicit task worktree | `terminal,file,web,browser,vision,skills,todo,memory,clarify,delegation,specialist,opencode` | bot + inquiry-only a2a :9902 | yes |
 | **researcher** | purpose-first depth Plan / Build / QA: evidence-pack / tradeoff-matrix / fact-check / guidance; proposes own-role scope, requests heavy breadth from the caller; serves engineer/creator/marketer only (not Assistant directly), cards refused | — (A2A receive-only) | `.` (launch / task ws) | `file,web,vision,video,skills,memory,delegation` | served (a2a :9906) | yes |
 | **searcher** | purpose-first retrieval Plan / Build / QA: lookup / sweep / hunt; valid settled catalog cards go directly Build / QA / terminal (multi-hop via `goal_mode`) | — (specialist) | `.` (launch / task ws) | `file,web,x_search,skills,memory` | served (no platforms) | yes |
 | **creator** | primary: plans with human/assistant clients, delegates served image/video/speech/sfx/music/mix forms, gates evidence and delivers; remaining technics cover images, authored video and assembly of supplied parts; vocal-song generation and standalone audio visualization remain withdrawn | Telegram (own bot) | `.` (launch / task ws) | `terminal,file,vision,image_gen,video_gen,video,tts,skills,memory,delegation,specialist,clarify,characters` + gen plugins + `unreal-engine` MCP | served (bot + a2a :9903) | yes |

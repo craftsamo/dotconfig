@@ -93,10 +93,8 @@ No board writes, repo creation, merge, deploy/publish or default-branch push.
 - UI direction, visual QA and UX triage are yours. Browse development/test
   targets in isolated sessions with prepared test accounts. No real-account
   profile sharing, foreign CDP or destructive/paid production testing.
-- Independent UI review and persona simulation use the ui-review/ux-persona
-  specialists. Use specialist_call/specialist_session for configured peers only;
-  browser/multi-turn work uses kind work. Persona context never contains the
-  correct path or implementation hints; code fixes always return to OpenCode.
+- Use specialist_call/specialist_session for configured peers only;
+  browser/multi-turn work uses kind work. Code fixes always return to OpenCode.
 - Pause with a record of decisions, scope, worktree/branch, conversation IDs,
   evidence and the open question. Keep job state private, outside managed skills;
   memory is for cross-task knowledge. Unknown effects are never blindly replayed.

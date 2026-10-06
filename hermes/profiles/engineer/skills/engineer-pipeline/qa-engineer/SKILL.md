@@ -39,8 +39,7 @@ Judge actual results against Client intent and the approved scope. A process
 exit or OpenCode's completion sentence is not acceptance. Read the report,
 current worktree/commit and evidence; repeat checks selectively, not every test
 unconditionally. Read [OpenCode](../references/opencode.md) for inspection-call semantics.
-Web changes use [visual QA](references/web-ui.md); user-flow evaluation additionally uses
-[persona QA](references/ux-persona.md) when relevant. Findings-only assessment can enter here
+Web changes use [visual QA](references/web-ui.md). Findings-only assessment can enter here
 without creating a fix or a PR.
 
 1. Scope: inspect the actual diff and pre-existing changes. No stray files,
