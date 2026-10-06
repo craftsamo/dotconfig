@@ -24,8 +24,16 @@ async function resolveAuth(context: ToolContext): Promise<{ token: string; sourc
   let xai
   try {
     xai = await context.oauthAccess("xai")
-  } catch {
-    throw new Error("No XAI_API_KEY set and opencode credential store is unreadable.")
+  } catch (error) {
+    // Under OpenCode 2 this is usually a failed refresh of an expired login.
+    // Long token-like runs (with a digit, unlike error names) are masked
+    // before the cause is shown.
+    const cause = (error instanceof Error ? `${error.name}: ${error.message}` : String(error))
+      .replace(/(?=[A-Za-z0-9._~+/=-]*\d)[A-Za-z0-9._~+/=-]{24,}/g, "[redacted]")
+      .slice(0, 200)
+    throw new Error(
+      `No XAI_API_KEY set and the xAI login could not be read or refreshed (${cause}). Run \`opencode auth login xai --method device\`, or set XAI_API_KEY.`,
+    )
   }
   if (!xai?.access) {
     throw new Error("No XAI_API_KEY set and no xAI OAuth credential found. Run `opencode auth login` for xAI, or set XAI_API_KEY.")

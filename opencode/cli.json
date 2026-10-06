@@ -1,21 +1,34 @@
 {
   "$schema": "https://opencode.ai/v2/cli.json",
   "theme": {
-    "name": "lucent-orng"
+    "name": "lucent-orng",
+    // Matches the dark tmux and Ghostty palette instead of following macOS.
+    "mode": "dark"
   },
   "keybinds": {
     // Mobile-friendly input: Enter inserts a newline; Shift+Enter submits.
     "input.submit": "shift+return",
     "input.newline": "return",
-    // Open the workspace (worktree) dialog. Default is unbound.
-    "session.move": "<leader>w",
+    // Open the workspace (worktree) dialog. Default is unbound; <leader>w is
+    // V2's default for closing a session tab.
+    "session.move": "<leader>o",
     // New worktree in that dialog.
     "dialog.move_session.new": "ctrl+o"
   },
+  // Only values that differ from OpenCode's defaults are written here, with
+  // one exception below.
   "session": {
-    "thinking": "hide",
     // Keep permission prompts. "autoaccept" approves every `ask` rule in
-    // opencode.jsonc (git push, commit --amend, ...) without asking.
+    // opencode.jsonc (git push, commit --amend, ...) without asking. Pinned
+    // although it is the default, so a switch in the settings dialog shows up
+    // in `git status`.
     "permissions": "prompt"
-  }
+  },
+  // A sound when a run finishes or waits for a permission answer, so a
+  // closed tmux popup does not hide it. No system notifications.
+  "attention": {
+    "sound": true,
+    "volume": 0.5
+  },
+  "animations": true
 }
