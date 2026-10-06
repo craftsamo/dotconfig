@@ -5,13 +5,14 @@ Quote the passages that support an observation about intimacy, restraint or
 progression. Do not infer sincerity, biographical truth or the audience's
 reaction from prose alone.
 
-An exported source draft may differ from the rich-text page. Limited Markdown
-shortcuts do not prove full Markdown import. Separate intended headings,
-quotes, links and images from an actual observed rendering; unverified tables
-or HTML behavior are not automatically supported or forbidden.
-Documented editor features include headings, lists, bold, links, code and
-quote blocks, images, captions and alt text. Italic and table support remain
-unverified here, as do whole-document paste fidelity and arbitrary HTML.
+A note draft's source is Markdown in the `note` tool's dialect; an article
+the requester read from note with its `note` tool is already note's stored
+form, a source file is not.
+When the question covers format, the tool's `check` action is the evidence:
+errors a save would refuse (tables, HTML comments, `#`/`####` headings,
+nested lists), unresolved insertion markers, and Markdown saved as typed
+(italic, inline code, HTML, footnotes), each with its line. Embeds, sounds and
+a paid line are added in the browser and are not judged from the source.
 
 Documentary sources (checked 2026-09-08):
 - https://www.help-note.com/hc/ja/articles/360012426133
@@ -38,7 +39,7 @@ Retain: the body's uncertainty, an intentional pause, a short transition or
 an unresolved ending when it serves the supplied voice. Do not demand equal
 section lengths or conclusion-first storytelling. In description mode,
 describe how the account develops without manufacturing an editorial defect.
-An inspected source draft is not evidence of successful editor import.
+A passed format check is not evidence of how the published page reads.
 
 QA evidence: pair the relevant event, interpretation and heading quotes;
 state the textual difference and its likely reading consequence separately.

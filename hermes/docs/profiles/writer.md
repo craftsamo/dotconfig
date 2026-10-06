@@ -64,11 +64,14 @@ never publishes or silently rewrites its target.
 
 Article leaves live under `writer-pipeline/<write|edit|analyze>/article/`, with
 destination-format references. They distinguish source drafts from destination
-rendering: Zenn's Markdown source is distinguished from note/X Article rich-text
-editor features and unspecified blog engines. Platform capability notes stay
-local to each leaf. Documented support is not a live preview test; do not
-promise note/X Article Markdown import, unknown HTML support or untested embeds,
-and assume no universal platform cap or HTML-comment hiding.
+rendering: Zenn's Markdown source is distinguished from X Article rich-text
+editor features and unspecified blog engines. A note source is written in the
+`note` tool's Markdown dialect, which the requester saves; Writer's `note` tool
+offers only the offline `check` action, on CLI and A2A
+([note-access.md](../note-access.md)). Platform capability notes stay local to
+each leaf. Documented support is not a live preview test; do not promise X
+Article Markdown import, unknown HTML support or untested embeds, and assume no
+universal platform cap or HTML-comment hiding.
 
 `[[image:id]]`, `[[embed:id]]` and `[[table:id]]` are internal insertion
 requirements, bound to stable IDs and same-stem `.production.md` notes. They are

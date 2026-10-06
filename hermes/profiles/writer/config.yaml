@@ -25,6 +25,7 @@ toolsets:
   - skills
   - memory
   - delegation
+  - note_access
 max_concurrent_sessions:
 agent:
   system_prompt: |
@@ -681,6 +682,7 @@ platform_toolsets:
     - file
     - memory
     - no_mcp
+    - note_access
     - skills
     - web
     - writing-inspection
@@ -693,12 +695,14 @@ platform_toolsets:
     - file
     - memory
     - no_mcp
+    - note_access
     - skills
     - web
     - writing-inspection
 plugins:
   enabled:
     - writing-inspection
+    - note-access
     - characters
     - skill-topology
     - kanban-worker-mutation-guard
