@@ -4,7 +4,8 @@
 #
 #   ./install.sh          recreate symlinks only (idempotent, offline)
 #   ./install.sh --deps   also bootstrap Homebrew (if missing), `brew bundle`,
-#                         GitHub CLI extensions and `mise install`
+#                         GitHub CLI extensions, `mise install` and the
+#                         OpenCode plugin dependencies (opencode/package.json)
 #
 # Symlink policy: real files live in this repo; tool dirs (~/.claude, ~/.codex,
 # ...) only hold symlinks. This script never overwrites a real file — if a
@@ -97,6 +98,10 @@ install_deps() {
   if [ -x "$mise_bin" ]; then
     echo "[deps] mise install (runtimes from mise/config.toml)"
     "$mise_bin" install --yes || rc=1
+    # OpenCode 2 does not install config-directory dependencies; the
+    # custom-tools plugin imports zod from opencode/node_modules.
+    echo "[deps] npm install (opencode/package.json)"
+    "$mise_bin" exec -- npm install --prefix "$DOTFILES/opencode" --no-audit --no-fund || rc=1
   else
     echo "[deps] mise not found next to brew — skipping runtime install"
     rc=1

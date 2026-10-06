@@ -1,20 +1,28 @@
 # opencode
 
-XDG native: opencode reads `~/.config/opencode/` directly — no symlinks
-needed.
+XDG native: OpenCode 2 reads `~/.config/opencode/` directly — no symlinks
+needed. Installed from the `anomalyco/tap/opencode-v2` formula (see the
+[`Brewfile`](../Brewfile)).
 
 ## User-managed content
 
 | Path             | Purpose                                                  |
 | ---------------- | -------------------------------------------------------- |
 | `opencode.jsonc` | main configuration (models, permissions, MCP, ...)       |
-| `tui.json`       | TUI preferences                                          |
+| `cli.json`       | terminal UI preferences (theme, keybinds, session view)  |
 | `AGENTS.md`      | global instructions, loaded into every session           |
 | `agent/`         | custom agents / subagents (`*.md`)                       |
 | `command/`       | custom slash commands (`*.md`)                           |
-| `plugins/`       | plugins (`*.ts`), loaded by both V1 and V2               |
+| `plugins/`       | local plugins (`*.ts`), auto-discovered                  |
 | `lib/`           | code imported by plugins (not scanned by OpenCode)       |
 | `skills/`        | opencode-only skills (`<name>/SKILL.md`)                 |
+| `package.json`   | plugin dependencies (zod), installed by `install.sh --deps` |
+| `opencode-quota/` | quota plugin settings (`quota-toast.jsonc`)             |
+
+A fresh clone needs `./install.sh --deps` once: OpenCode 2 does not install
+config-directory dependencies, and without `node_modules/zod` the custom-tools
+plugin fails to load. The `opencode-v2` formula conflicts with the 1.x
+`opencode` formula; uninstall that first on a machine that still has it.
 
 Custom tools live in `lib/custom-tools/<file>.ts` and are registered by
 `plugins/custom-tools.ts`, which exports both a V1 `server()` and a V2
@@ -35,53 +43,54 @@ subagents, custom tools, or the Plan/Build handoff. Skills any agent can
 follow live in [`agents/curated/`](../agents/README.md) and are picked up here
 too, since opencode scans `~/.agents/skills` alongside this directory.
 
+## Accounts
+
+- **Anthropic** (Claude Pro/Max, the sub account): OpenCode's own OAuth login
+  through the `@ex-machina/opencode-anthropic-auth` plugin. It never reads or
+  writes Claude Code's Keychain entries, so Hermes' account (the default
+  `Claude Code-credentials` entry) and Claude Code stay untouched. Log in from
+  a browser signed into the sub account:
+  `opencode auth login anthropic --method claude-max`.
+- **OpenAI**: built-in ChatGPT login,
+  `opencode auth login openai --method chatgpt-browser`.
+- **xAI** (`x_search`): built-in SuperGrok login,
+  `opencode auth login xai --method device`; `XAI_API_KEY` wins when set.
+
+`opencode auth list` shows the stored logins; `opencode auth switch` picks
+another one. Credentials live in OpenCode's database, not in `auth.json`.
+
 ## Web access
 
-tmux `prefix o` lazily starts a shared `opencode serve` process on
-`127.0.0.1:4096`. The server is kept in the detached `opencode-web` tmux
-session and is exposed to mobile devices through Tailscale Serve. Directory-
-specific tmux sessions run `opencode attach --dir <path>` against the same
-server, so the web UI and terminal clients share project and session state.
-
-tmux `prefix O` reloads only the OpenCode instance associated with the current
-pane's project. The next request rebuilds project configuration and discovered
-agents, commands, skills, MCP connections, formatters, and language servers;
-persisted sessions remain available. Reload is refused while any session in
-the project is running or retrying. Project `AGENTS.md` files are already read
-on every model turn and normally need no explicit reload.
-
-The project reload cannot refresh already-imported JavaScript or TypeScript
-plugins and custom tools because Bun retains its module cache. Restart the
-shared server for those changes and for global OpenCode configuration changes.
-Restart the directory-specific TUI for `tui.json` or `tui.jsonc` changes.
-
-After enabling Serve for the tailnet, configure its persistent HTTPS proxy:
+The shared background service listens on `127.0.0.1:49374` and serves the web
+UI as well; `opencode service status|restart|stop` manage it. It generates and
+keeps its own password, which local clients read from its registration. To
+reach it from other devices, expose it to the tailnet with Tailscale Serve
+instead of binding OpenCode to the LAN:
 
 ```sh
-tailscale serve --bg 127.0.0.1:4096
+tailscale serve --bg 127.0.0.1:49374
 ```
 
-HTTP Basic authentication is mandatory for `opencode serve`. Store its
-password in the macOS Keychain through the existing `opencode` secret layer:
+Then sign a browser or phone in with a one-time link (five minutes, single
+use; the QR code encodes the first link):
 
 ```sh
-secret set OPENCODE_SERVER_PASSWORD -p opencode
+opencode pair --url https://<machine>.<tailnet>.ts.net
 ```
 
-Restart the server after replacing the password; the next tmux `prefix o`
-starts it with the new value:
+Ignore the hint to `opencode service set hostname 0.0.0.0`: that exposes the
+service to the whole LAN. Rotating the password (`opencode service set
+password ...`) revokes every paired browser.
 
-```sh
-tmux kill-session -t opencode-web
-```
+`opencode reload` (tmux `prefix O`) rebuilds configuration for every loaded
+project; configuration and plugin files are also watched and reloaded on
+change. After changing Keychain secrets, run `opencode service restart`: the
+service keeps the environment of the client that started it.
 
-The launcher rejects `opencode serve` when the password is unavailable,
-preventing an accidentally unauthenticated web server. Attach clients receive
-the same credential through the `opencode` secret shim; it is never placed in
-the process arguments.
+`opencode serve` (a foreground, private server) still exists; the secret shim
+refuses it unless `OPENCODE_PASSWORD` or `OPENCODE_SERVER_PASSWORD` is set, so
+it is never started unauthenticated.
 
 ## Ignored machine state
 
-`node_modules/`, `package.json`, `package-lock.json` and `bun.lock` are
-created by opencode when plugins declare npm dependencies — see
-[`.gitignore`](./.gitignore).
+`node_modules/` and the lockfiles — see [`.gitignore`](./.gitignore).

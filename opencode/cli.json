@@ -1,0 +1,21 @@
+{
+  "$schema": "https://opencode.ai/v2/cli.json",
+  "theme": {
+    "name": "lucent-orng"
+  },
+  "keybinds": {
+    // Mobile-friendly input: Enter inserts a newline; Shift+Enter submits.
+    "input.submit": "shift+return",
+    "input.newline": "return",
+    // Open the workspace (worktree) dialog. Default is unbound.
+    "session.move": "<leader>w",
+    // New worktree in that dialog.
+    "dialog.move_session.new": "ctrl+o"
+  },
+  "session": {
+    "thinking": "hide",
+    // Keep permission prompts. "autoaccept" approves every `ask` rule in
+    // opencode.jsonc (git push, commit --amend, ...) without asking.
+    "permissions": "prompt"
+  }
+}
