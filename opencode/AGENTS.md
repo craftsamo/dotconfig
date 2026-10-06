@@ -152,8 +152,7 @@ agents run on the OpenAI subscription tier and absorb bulky web-page tokens;
 avoid running `websearch`/`webfetch` in the primary session except for a
 single user-provided URL. Codebase questions stay with the explore-* agents;
 never put secrets, private code, or internal identifiers into delegated
-queries. For multi-question research sessions, the `deepsearch` primary mode
-orchestrates both.
+queries.
 
 </ResearchDelegation>
 

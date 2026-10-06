@@ -36,12 +36,6 @@
     "debug": {
       "color": "#06B6D4",
     },
-    "explain": {
-      "color": "#10B981",
-    },
-    "deepsearch": {
-      "color": "#3B82F6",
-    },
     "compaction": {
       "model": "anthropic/claude-sonnet-5-5",
       "variant": "medium",
