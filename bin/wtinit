@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
-# wtinit — post-/move worktree setup.
+# wtinit — worktree setup after OpenCode's workspace move.
 #
 # Workflow (inside the opencode TUI):
-#   /move              -> opencode creates a linked worktree + moves the session
+#   /worktrees (<leader>o, or /move in OpenCode 1)
+#                      -> opencode creates a linked worktree + moves the session
 #   !wtinit <branch>   -> this: `git switch -c <branch>`, copy gitignored .env*
 #                         from the main worktree, and symlink heavy ignored
 #                         dirs (node_modules, .venv, ...) from the main worktree
@@ -37,9 +38,9 @@ usage() {
   cat >&2 <<EOF
 Usage: $prog [-f|--force] [-n|--dry-run] [-h|--help] <branch>
 
-After opencode's /move, create a new git branch in the current worktree,
-copy gitignored .env* files from the main worktree, and symlink heavy
-ignored dirs (node_modules, .venv, target, ...) from it.
+After OpenCode moves the session into a new worktree (/worktrees), create a
+new git branch there, copy gitignored .env* files from the main worktree,
+and symlink heavy ignored dirs (node_modules, .venv, target, ...) from it.
 
 Options:
   -f, --force    overwrite existing .env* files; replace existing symlinks
