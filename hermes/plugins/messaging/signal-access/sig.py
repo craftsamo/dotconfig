@@ -39,8 +39,19 @@ def _load(name: str):
     return sys.modules[key]
 
 
+def _load_shared(name: str):
+    key = f"hermes_{name}"
+    if key not in sys.modules:
+        spec = importlib.util.spec_from_file_location(key, HERE.parent / "_shared" / f"{name}.py")
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[key] = module
+        spec.loader.exec_module(module)
+    return sys.modules[key]
+
+
 store = _load("store")
 rpc = _load("rpc")
+archives = _load_shared("archive_check")
 
 ACTIONS = ("status", "chats", "messages", "search", "context", "contacts", "check", "media", "send")
 WRITES = {"send"}
@@ -681,12 +692,23 @@ def check_file(given: str) -> dict:
     if size == 0:
         raise SignalError(f"{given!r} is empty")
     kind = _mime(real)
-    if RISKY_FILES.search(real.name) or RISKY_MIME.search(kind):
+    digest = _sha256(real)
+    try:
+        archive = archives.vet(real, real.name, deny_parts=DENY_PARTS, deny_names=DENY_NAMES,
+                               risky_files=RISKY_FILES)
+    except archives.ArchiveRefused as exc:
+        raise SignalError(f"refused: the archive {real.name!r} is not sent: {exc}") from None
+    if archive is None and (RISKY_FILES.search(real.name) or RISKY_MIME.search(kind)):
         raise SignalError(f"refused: {real.name!r} ({kind}) is an archive or program; such files are never sent")
     if _has_private_key(real):
         raise SignalError(f"refused: {real.name!r} contains a private key")
-    return {"path": str(real), "relative": str(relative), "name": real.name, "type": kind, "size": size,
-            "sha256": _sha256(real)}
+    if _sha256(real) != digest:
+        raise SignalError(f"{real.name!r} changed while it was being checked")
+    out = {"path": str(real), "relative": str(relative), "name": real.name, "type": kind, "size": size,
+           "sha256": digest}
+    if archive:
+        out["archive"] = archive
+    return out
 
 
 def _has_private_key(path: Path) -> bool:
@@ -801,7 +823,10 @@ def _chat_label(plan: dict) -> str:
 def _file_line(f: dict) -> str:
     folder = str(Path(f["relative"]).parent)
     where = "~/Workspaces" if folder == "." else _clip(folder, 40)
-    return (f"- {_one_line(f['name'], 40)} ({f['type']}, {_human(f['size'])}) in {where}, "
+    inside = ""
+    if f.get("archive"):
+        inside = f", {f['archive']['entries']} files inside ({_human(f['archive']['unpacked'])} unpacked)"
+    return (f"- {_one_line(f['name'], 40)} ({f['type']}, {_human(f['size'])}{inside}) in {where}, "
             f"sha256 {f['sha256'][:12]}")
 
 
