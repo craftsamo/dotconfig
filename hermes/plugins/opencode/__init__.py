@@ -64,8 +64,15 @@ ACTIVE = {"accepted", "running"}
 DECISIONS = ("once", "reject")
 SESSION_ID = re.compile(r"ses_[A-Za-z0-9_-]+\Z")
 PERMISSION_ID = re.compile(r"per_[A-Za-z0-9_-]{1,64}\Z")
-MODEL_NAME = re.compile(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.:-]+\Z")
+MODEL_NAME = re.compile(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.:/-]+\Z")
 VARIANT_NAME = re.compile(r"[A-Za-z0-9_-]{1,32}\Z")
+PROVIDER_NAME = re.compile(r"[A-Za-z0-9_.-]+\Z")
+# Speed tiers and dated snapshots serve the same weights as the plain model.
+MODEL_ALIAS = re.compile(r"(?:-(?:fast|ultrafast)|-\d{8}|:free)+\Z")
+# The main model each Hermes session last answered with (post_api_request), so a
+# fallback model counts as the caller's own as well as the configured one.
+CALLER_MODELS = {}
+CALLER_MODELS_LIMIT = 512
 DEFAULT_TIMEOUT = 3600
 DEFAULT_WAIT_TIMEOUT = 3300
 DEFAULT_PERMISSION_TIMEOUT = 900
@@ -253,10 +260,49 @@ def _config(home):
         if type(value) is not int or not 1 <= value <= 5400:
             raise ValueError(f"opencode_cli.{key} must be 1..5400 seconds")
     for key in ("allowed_models", "allowed_variants"):
-        values = config.get(key, [])
-        if not isinstance(values, list) or not all(isinstance(v, str) and v for v in values):
-            raise ValueError(f"opencode_cli.{key} must be a list of names")
+        if key in config:
+            raise ValueError(f"opencode_cli.{key} was replaced by allowed_providers; update the profile config")
+    values = config.get("allowed_providers", [])
+    if not isinstance(values, list) or not all(isinstance(v, str) and PROVIDER_NAME.fullmatch(v) for v in values):
+        raise ValueError("opencode_cli.allowed_providers must be a list of provider names")
+    models = config.get("models") or {}
+    if not isinstance(models, dict) or set(models) - AGENTS or \
+            not all(isinstance(v, str) and _pinned(v) for v in models.values()):
+        raise ValueError("opencode_cli.models maps plan/build/review/debug to provider/model or provider/model#variant")
     return config
+
+
+def _pinned(value):
+    """A configured provider/model[#variant], or None when malformed."""
+    model, _, variant = value.partition("#")
+    if not MODEL_NAME.fullmatch(model) or ("#" in value and not VARIANT_NAME.fullmatch(variant)):
+        return None
+    return model, variant or None
+
+
+def _model_key(name):
+    """A model's identity across providers and speed tiers: anthropic/claude-opus-5-5,
+    claude-opus-5-5-fast and a dated snapshot are one model."""
+    return MODEL_ALIAS.sub("", str(name).rsplit("/", 1)[-1].lower())
+
+
+def _observe(**payload):
+    """post_api_request: remember which main model this Hermes session runs on now."""
+    session, model = payload.get("session_id"), payload.get("model")
+    if isinstance(session, str) and session and isinstance(model, str) and model:
+        CALLER_MODELS.pop(session, None)
+        CALLER_MODELS[session] = model
+        while len(CALLER_MODELS) > CALLER_MODELS_LIMIT:
+            CALLER_MODELS.pop(next(iter(CALLER_MODELS)), None)
+
+
+def _caller_models(home, session):
+    """The caller's own models: the configured main model and the one it last answered with."""
+    names = set()
+    with contextlib.suppress(Exception):
+        names.add((_yaml(home).get("model") or {}).get("default"))
+    names.add(CALLER_MODELS.get(session or ""))
+    return {_model_key(name) for name in names if isinstance(name, str) and name}
 
 
 def _setting(home, key, default):
@@ -268,22 +314,23 @@ def _setting(home, key, default):
 
 
 def _selection(args, config):
-    """Caller-requested model/variant, accepted only from the configured allowlists.
+    """Caller-requested model/variant: any model of an allowed provider; the model
+    and its variant are checked against the service's catalog at setup.
 
-    A request outside the allowlist is refused rather than silently replaced:
-    the caller asked for a specific engine, and running another one would return
-    a result that is not the one asked for.
+    A request outside the allowed providers is refused rather than silently
+    replaced: the caller asked for a specific engine, and running another one
+    would return a result that is not the one asked for.
     """
     selection = {}
-    for key, pattern, config_key in (("model", MODEL_NAME, "allowed_models"),
-                                     ("variant", VARIANT_NAME, "allowed_variants")):
+    for key, pattern in (("model", MODEL_NAME), ("variant", VARIANT_NAME)):
         value = args.get(key)
         if value is None:
             continue
         if not isinstance(value, str) or not pattern.fullmatch(value):
             raise ValueError(f"{key} must be a plain name" + (" in provider/model form" if key == "model" else ""))
-        if value not in config.get(config_key, []):
-            raise ValueError(f"{key} {value!r} is not in opencode_cli.{config_key}; ask the maintainer or omit it")
+        if key == "model" and value.split("/", 1)[0] not in config.get("allowed_providers", []):
+            raise ValueError(f"model {value!r} is not from opencode_cli.allowed_providers "
+                             f"{config.get('allowed_providers', [])}; pick one from opencode_session models")
         selection[key] = value
     if "variant" in selection and "model" not in selection and not (config.get("models") or {}).get(args.get("agent")):
         # A variant is provider-specific reasoning effort; it binds to a model the
@@ -652,10 +699,15 @@ def _watch(home, cid, job, poll=POLL):
 # Turn setup
 
 
-def _engine(data, config, info):
-    """The provider model reference for this turn, checked against the service's catalog."""
-    explicit = data.get("model") or (config.get("models") or {}).get(data["agent"])
-    variant = data.get("variant")
+def _engine(data, config, info, caller=frozenset()):
+    """The provider model reference for this turn, checked against the service's
+    catalog and never one of the caller's own models, which would judge its output."""
+    configured = (config.get("models") or {}).get(data["agent"])
+    pinned = _pinned(configured) if isinstance(configured, str) else None
+    if configured and not pinned:
+        raise ValueError("Invalid configured OpenCode model")
+    explicit = data.get("model") or (pinned or (None,))[0]
+    variant = data.get("variant") or (None if data.get("model") or not pinned else pinned[1])
     if explicit:
         if not isinstance(explicit, str) or not MODEL_NAME.fullmatch(explicit):
             raise ValueError("Invalid configured OpenCode model")
@@ -671,6 +723,9 @@ def _engine(data, config, info):
             raise ValueError(f"OpenCode agent {info.get('id')} pins no model and none is configured")
     if variant is not None and not VARIANT_NAME.fullmatch(variant):
         raise ValueError("Invalid OpenCode variant")
+    if _model_key(model) in caller:
+        raise ValueError(f"{provider}/{model} is your own model, so it would judge or build what you then "
+                         "check yourself; pass model= another one from opencode_session models (no run launched)")
     entry = None
     for attempt in range(2):
         # The catalog is per location (project config may add providers) and can
@@ -682,6 +737,8 @@ def _engine(data, config, info):
         time.sleep(CATALOG_RETRY)
     if entry is None:
         raise ValueError(f"OpenCode does not offer {provider}/{model}; no run launched")
+    if (entry.get("capabilities") or {}).get("tools") is not True or entry.get("enabled") is False:
+        raise ValueError(f"OpenCode model {provider}/{model} cannot run an agent (no tool use); no run launched")
     variants = [v.get("id") for v in entry.get("variants") or [] if isinstance(v, dict)]
     if variant and variant not in variants:
         raise ValueError(f"OpenCode model {provider}/{model} has no variant {variant!r}; no run launched")
@@ -713,7 +770,7 @@ def _agent(name, where):
     raise ValueError(f"OpenCode agent {name} is not installed; no run launched")
 
 
-def _setup(home, root, data, config, protected, fork):
+def _setup(home, root, data, config, protected, fork, caller=frozenset()):
     """Create, resume or fork the session under this turn's agent, model and ruleset,
     and verify the service applied them. Sends no prompt."""
     directory = data["directory"]
@@ -732,7 +789,7 @@ def _setup(home, root, data, config, protected, fork):
     tmp = (server.get("paths") or {}).get("tmp") if isinstance(server, dict) else None
     rules = _rules(data["agent"], data.get("issue_approval"), protected, tmp=tmp, person_denies=person)
     _check_agent(data["agent"], info, rules)
-    model = _engine(data, config, info)
+    model = _engine(data, config, info, caller)
     metadata = {"hermes": {"profile": home.name, "conversation": data["conversation_id"]}}
     sid = data.get("session_id")
     if sid and fork:
@@ -888,7 +945,7 @@ def opencode_call(args, **kwargs):
             data, source, protected = _accept(home, root, owner, args, config, selection, fork, held, live)
             path = root / (data["conversation_id"] + ".json")
             try:
-                _setup(home, root, data, config, protected, fork)
+                _setup(home, root, data, config, protected, fork, _caller_models(home, kwargs.get("session_id")))
             except (ValueError, api.ApiError, api.Unavailable) as exc:
                 if fork and source and data.get("session_id") == source.get("session_id"):
                     data.pop("session_id", None)
@@ -971,6 +1028,40 @@ def _accept(home, root, owner, args, config, selection, fork, held, live):
     return data, source, protected
 
 
+def _models(home, session):
+    """What a caller may pass as model=: tool-capable models of the allowed
+    providers, each role's default, and the caller's own models (refused)."""
+    config = _config(home)
+    allowed = config.get("allowed_providers", [])
+    caller = _caller_models(home, session)
+    catalog = api.data(_call("get", "/api/model"), list)
+    if not catalog:
+        time.sleep(CATALOG_RETRY)
+        catalog = api.data(_call("get", "/api/model"), list)
+    pins = {info.get("id"): info.get("model") or {} for info in api.data(_call("get", "/api/agent"), list)}
+    defaults = {}
+    for role, name in sorted(OPENCODE_AGENTS.items()):
+        configured = (config.get("models") or {}).get(role)
+        pin = pins.get(name) or {}
+        defaults[role] = configured or ("{}/{}".format(pin.get("providerID"), pin.get("id"))
+                                        + (f"#{pin['variant']}" if pin.get("variant") else "") if pin.get("id") else None)
+    models = []
+    for entry in catalog:
+        if entry.get("providerID") not in allowed or entry.get("enabled") is False or \
+                (entry.get("capabilities") or {}).get("tools") is not True:
+            continue
+        cost = (entry.get("cost") or [{}])[0] or {}
+        models.append({
+            "model": f"{entry['providerID']}/{entry['id']}", "name": entry.get("name"),
+            "variants": [v.get("id") for v in entry.get("variants") or [] if isinstance(v, dict)],
+            "context": (entry.get("limit") or {}).get("context"),
+            "cost_per_mtok": {k: cost.get(k) for k in ("input", "output")} if cost else None,
+            **({"yours": True} if _model_key(entry["id"]) in caller else {})})
+    return {"allowed_providers": allowed, "defaults": defaults, "models": sorted(models, key=lambda m: m["model"]),
+            "note": "Pass model= (and optionally variant= from its variants) to opencode_call. Models marked "
+                    "yours are your own and are refused; a default that is yours needs another model."}
+
+
 def _respond(home, root, data, args):
     request_id, decision, reason = args.get("request_id"), args.get("decision"), args.get("reason")
     if not isinstance(request_id, str) or not PERMISSION_ID.fullmatch(request_id):
@@ -1015,6 +1106,8 @@ def opencode_session(args, **kwargs):
                         _recover(home, root, data)
                         rows.append(_public(data))
             return json.dumps(rows)
+        if action == "models":
+            return json.dumps(_models(home, kwargs.get("session_id")))
         cid = dispatch._id(args.get("conversation_id"))
         data = dispatch._owned(root, cid, owner)
         if action == "status":
@@ -1060,7 +1153,7 @@ def opencode_session(args, **kwargs):
             return json.dumps({**_public(data), "stop_requested": True,
                                "note": "Interrupt sent; the record settles within seconds. Never a rollback."})
         if action != "reconcile" or not isinstance(args.get("evidence"), str) or not args["evidence"].strip():
-            raise ValueError("Use status/list/wait/respond/steer/diff/stop, or reconcile with observed "
+            raise ValueError("Use status/list/models/wait/respond/steer/diff/stop, or reconcile with observed "
                              "process/Git/remote-effect evidence")
         if _watched(root, cid):
             raise ValueError("A watcher is still checking this run; wait for it, then reconcile if it stays unknown")
@@ -1100,7 +1193,7 @@ CALL_DESCRIPTION = (
     "issue_approval or a per-request decision. Completion is not acceptance. Never retry uncertain work. "
     "If the call returns while still running, use opencode_session wait, never a status loop.")
 SESSION_DESCRIPTION = (
-    "Inspect and steer your OpenCode runs. wait blocks until the run hands back, spending no turns. respond "
+    "Inspect and steer your OpenCode runs. models lists what opencode_call accepts as model=. wait blocks until the run hands back, spending no turns. respond "
     "answers a pending permission request: once only within the Client's approved scope, otherwise reject "
     "with a reason and ask the Client. steer adds an instruction to a running turn. diff lists the turn's changed files (patch=true "
     "adds patches). stop interrupts the run; it never rolls back effects. reconcile is only for unknown "
@@ -1141,17 +1234,20 @@ def register(ctx):
                 dispatch._REGISTRATION.reset(token)
         return invoke
 
+    ctx.register_hook("post_api_request", _observe)
     for name, handler, properties, required, description in (
         ("opencode_call", opencode_call, {
             "directory": {"type": "string"}, "agent": {"type": "string", "enum": sorted(AGENTS)},
             "message": {"type": "string"}, "conversation_id": {"type": "string"},
             "fork": {"type": "boolean"}, "approval": {"type": "string"}, "issue_approval": {"type": "string"},
-            "model": {"type": "string", "description": "Optional provider/model from opencode_cli.allowed_models"},
-            "variant": {"type": "string", "description": "Optional reasoning-effort variant from opencode_cli.allowed_variants"},
+            "model": {"type": "string", "description": "Optional provider/model from opencode_session models; "
+                      "never your own model"},
+            "variant": {"type": "string", "description": "Optional reasoning effort from that model's variants"},
         }, ["agent", "message"], CALL_DESCRIPTION),
         ("opencode_session", opencode_session, {
             "action": {"type": "string",
-                       "enum": ["status", "list", "wait", "respond", "steer", "diff", "stop", "reconcile"]},
+                       "enum": ["status", "list", "models", "wait", "respond", "steer", "diff", "stop",
+                                "reconcile"]},
             "conversation_id": {"type": "string"}, "evidence": {"type": "string"},
             "timeout": {"type": "integer", "description": "wait only: seconds to block (bounded by config and turn deadline)"},
             "request_id": {"type": "string", "description": "respond only: the pending request's id (per_…)"},
