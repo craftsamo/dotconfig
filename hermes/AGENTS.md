@@ -109,8 +109,8 @@ repository upkeep (Engineer through OpenCode, the Assistant's Admin topic).
   a worker writes that profile's `auth.json` and shadows the inherited creds.
 - **Anthropic accounts — do not cross the streams.** The default Keychain entry
   `Claude Code-credentials` always wins Hermes' resolver and must stay logged
-  into the **Hermes** account; OpenCode runs on the sub account through a
-  suffixed entry (`claude-sub`). A plain `claude /login` therefore changes
+  into the **Hermes** account; OpenCode runs on the sub account through its
+  own OAuth login, outside the Keychain. A plain `claude /login` therefore changes
   Hermes' account — afterwards verify with
   `security find-generic-password -s "Claude Code-credentials"` plus the OAuth
   profile endpoint. Details: [docs/models-auth.md](docs/models-auth.md).

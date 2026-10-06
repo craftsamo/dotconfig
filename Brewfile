@@ -31,7 +31,7 @@ brew "luarocks"
 brew "libyaml" # ruby build dep (mise compiles ruby from source)
 brew "mise"    # language runtimes + global npm CLIs — see mise/config.toml
 brew "uv"      # python venv/deps manager — required by hermes/setup.sh
-brew "anomalyco/tap/opencode"
+brew "anomalyco/tap/opencode-v2" # OpenCode 2; conflicts with the 1.x formula "opencode"
 brew "foundry"  # forge/anvil/cast — Solidity LSP (forge_fmt) + Foundry toolchain
 brew "solidity" # solc — Solidity compiler CLI (ad-hoc compile; Nomic LSP resolves solc via Hardhat)
 
