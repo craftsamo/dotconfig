@@ -313,12 +313,28 @@ def test_files_are_staged_and_must_match_the_card(state, home, agent):
     args = {"action": "send", "chat": str(fakes.ALICE), "files": ["doc.txt"]}
     _, out = approve_and_send(args, home)
     assert out["ok"] and out["files"] == ["doc.txt"] and seen["files"] == [b"version 1"]
+    assert [Path(p).name for p in seen["paths"]] == ["doc.txt"]
     outbox = store.outbox_dir(state)
     assert all(outbox in Path(p).parents for p in seen["paths"]) and not any(outbox.iterdir())
     tg.approval_request(args, home=home, call_id="call-2")
     doc.write_text("version 2")
     out = tg.execute(args, home=home, call_id="call-2")
     assert "changed after the approval card" in out["error"] and len(agent.requests) == 1
+
+
+def test_staged_files_keep_the_names_the_card_showed(state, home, agent):
+    """Telegram names an upload after the staged copy, so the copy must carry the card's name."""
+    seen = {}
+
+    def send(p):
+        seen["names"] = [Path(f).name for f in p["files"]]
+        return {"ids": [7, 8], "ts": 1, "recorded": True}
+    agent.handlers["send"] = send
+    names = ["週報 (final) v2.txt", "notes+1.txt"]
+    for name in names:
+        (tg.SEND_ROOT / name).write_text(name)
+    _, out = approve_and_send({"action": "send", "chat": str(fakes.ALICE), "files": names}, home)
+    assert out["ok"] and out["files"] == names and seen["names"] == names
 
 
 # --- media ---------------------------------------------------------------------------------------
