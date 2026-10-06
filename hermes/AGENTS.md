@@ -181,7 +181,10 @@ repository upkeep (Engineer through OpenCode, the Assistant's Admin topic).
   for a plugin that takes a private overlay symlink, also move the overlay's
   twin in the same paired change and name the link in `.gitignore` (the
   `hermes/plugins/*/` re-include no longer reaches a link one level down). Never
-  nest deeper than `<group>/<name>`: Hermes stops reading there.
+  nest deeper than `<group>/<name>`: Hermes stops reading there. Per-plugin
+  settings under `plugins.entries` are keyed `group/name` too (only
+  `plugins.enabled` takes the bare name), so a move renames those keys in every
+  profile config; `test_plugin_config_keys.py` checks it.
 - **`plugins/messaging/_shared/` is code, not a plugin.** `signal-access`,
   `whatsapp-access` and `telegram-access` load `archive_check.py` from it by
   path, so moving or renaming it breaks all three at import. Never give it a
