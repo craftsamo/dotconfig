@@ -16,7 +16,8 @@ over Signal. Part of the Hermes design docs — index: [`PROFILES.md`](../PROFIL
 | Engine: reads, check, media, send, approval card, file checks, bypass guard | `plugins/signal-access/sig.py`                                                             | Assistant          |
 | `signal` tool and the `pre_tool_call` hook (toolset `signal_access`)        | `plugins/signal-access/__init__.py`                                                        | Assistant          |
 | Linking and the sync agent                                                  | `launchd/signal-access-launchctl.sh`, `launchd/local.hermes.signal-access.sync.plist.tmpl` | people             |
-| When and how the Assistant uses it                                          | the Assistant's private Chat reference `signal.md`                                         | Assistant          |
+| How the tool is used: reads, files, sends, outcomes                         | the Assistant's `signal` technic (`profiles/assistant/skills/technic/signal/`)             | Assistant          |
+| When the Assistant uses it in Chat                                          | the Assistant's private Chat reference `signal.md`                                         | Assistant          |
 
 [signal-cli](https://github.com/AsamK/signal-cli) (Homebrew `signal-cli`, a
 native build, no Java) joins the account as a linked device — the same standing
@@ -83,6 +84,11 @@ author and sent time; its `id` in the tool is that time in milliseconds.
 - **Delete for me is not seen.** signal-cli 0.14 drops Signal's "delete for
   me" sync, so a message the user deleted only on their own devices stays in
   the mirror.
+- **Mentions read as names.** Signal puts a mention in the text as U+FFFC and
+  sends who it is beside the text; the mirror keeps that list per message,
+  per earlier version and per quote, and reads show `@name` (`@me` for the
+  user). A message stored before mentions were kept shows
+  `@(not recorded)`, with a note that the phone shows who it was.
 - Reactions are kept per person; timer changes are events
   (`set disappearing messages to 1 day`); polls, shared contacts and payments
   are listed as unsupported, with the advice to look on the phone. Group
