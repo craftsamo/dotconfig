@@ -174,6 +174,12 @@ repository upkeep (Engineer through OpenCode, the Assistant's Admin topic).
 - **Tool handlers take the model's JSON as one positional dict**
   (`handler(args, **kwargs)`); declaring schema fields as parameters registers
   a tool that fails on every call.
+- **`plugins/messaging/_shared/` is code, not a plugin.** `signal-access`,
+  `whatsapp-access` and `telegram-access` load `archive_check.py` from it by
+  path, so moving or renaming it breaks all three at import. Never give it a
+  `plugin.yaml` (Hermes would try to load it), and keep each sender's own
+  file rules passed in rather than copied there
+  ([docs/signal-access.md](docs/signal-access.md)).
 - **Moving a plugin directory moves its LaunchAgent's script path.** The
   installed plists of the `messaging/` sync agents embed the absolute path of
   `sync.py` / `engine.py`, so after such a move each agent needs its

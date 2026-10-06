@@ -417,6 +417,8 @@ keeps user keys.
 - **messaging/** groups the four chat-account plugins below
   (`whatsapp-access`, `signal-access`, `discord-access`, `telegram-access`),
   as `tts/` groups the speech ones; they are still enabled by their bare names.
+  `messaging/_shared/` is code they load by path (archive inspection for
+  sends), not a plugin.
 - **messaging/whatsapp-access** (`standalone`): `whatsapp` (toolset `whatsapp_access`)
   for the assistant — reads the user's WhatsApp accounts from the local
   `wacli` mirror (plus number checks, history backfill and media downloads)
