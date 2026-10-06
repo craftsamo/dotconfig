@@ -74,10 +74,11 @@ visible in their OpenCode history and survive a lost wrapper process.
   OpenCode.
 - models lists the engines opencode_call accepts (model, variants, context,
   cost), each role's default, and your own models, which are refused.
-- wait blocks until the run hands back — finished, uncertain, or paused on a
-  request you have not answered (bounded by timeout, opencode_cli.wait_timeout,
-  your tool deadline and the turn deadline) — and returns the record with
-  waited_seconds and timed_out. It spends no model turns; a timed_out reply
+- wait blocks until the run hands back — finished, uncertain, paused on a
+  request you have not answered, or stuck in a provider retry (see "Provider
+  limits"), bounded by timeout, opencode_cli.wait_timeout, your tool deadline
+  and the turn deadline — and returns the record with waited_seconds and
+  timed_out. It spends no model turns; a timed_out reply
   means wait again, steer, or stop, never a status/sleep loop.
 - respond(conversation_id, request_id, decision, reason?) answers one pending
   permission request; then it waits like wait. See "Permission requests".
@@ -151,6 +152,8 @@ Engineer answers in-scope technical questions and relays material Client
 decisions, then continues.
 
 failed means OpenCode reported a failed turn; it can still have partial changes.
+A provider_error on it says why (kind limit / auth / other, the model and the
+provider's message); see "Provider limits".
 interrupted means the run stopped before finishing: your stop, the deadline, or
 OpenCode itself (a restarted service ends a turn without an outcome). OpenCode
 confirmed nothing still runs, so the conversation can continue: inspect the
@@ -159,6 +162,20 @@ a blind replay of the original prompt. unknown means OpenCode could not confirm
 the outcome (service unreachable, prompt admission unconfirmed, or a run from
 the retired OpenCode 1 runner); it holds the worktree until inspection and
 reconcile, even when creating another conversation.
+
+Provider limits. When a model's provider refuses (usage or rate limit, an
+overload, an expired login), OpenCode either fails the turn at once or keeps
+retrying with backoff. A failure arrives as failed with provider_error. A
+retry hands back once while the run is still running, with `retrying` (kind,
+message, attempt, which session — a subagent's model can be the one limited)
+and a note: at once for a limit, after a few attempts for anything else.
+Decide then: wait if it should recover soon; otherwise stop the run and send
+the next message on the same conversation with model= another engine from
+opencode_session models. Plan, review and debug read only, so they can simply
+rerun; for build read the diff first and continue from what is there. A
+limited subagent model needs the run's message to name another subagent, or a
+Client decision. An auth problem is OpenCode's own provider login: tell the
+Client. Never loop on the same limited model.
 
 Every resident turn carries a "Turn budget" line naming when the whole turn
 is killed. Give each call a job that fits the remaining budget; a run still

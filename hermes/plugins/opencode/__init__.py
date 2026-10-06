@@ -90,7 +90,16 @@ HALT_GRACE = 30
 HALT_LIMIT = 180
 CATALOG_RETRY = 2.0
 TURN_FIELDS = ("result", "error", "outcome", "pending", "changes", "tokens", "exit_code", "reconciliation",
-               "stop_reason", "prompt_id", "prompt_time")
+               "stop_reason", "prompt_id", "prompt_time", "retrying", "provider_error")
+# How often the watchdog looks for a provider retry, and from which attempt a
+# retry that is not a usage/rate limit (a 502, an overload) hands back.
+RETRY_POLL = 10.0
+RETRY_HANDBACK_ATTEMPTS = 3
+# OpenCode's own split: limits retry with backoff or fail at once, so a caller
+# that waits on them may wait until the deadline.
+LIMIT_ERROR = re.compile(r"usage[-_\s]?limit|quota|insufficient[-_\s]?(?:quota|balance)|limit (?:exhausted|reached)|"
+                         r"rate[-_\s]?limit|too[-_\s]?many[-_\s]?requests|overloaded|\b(?:429|529)\b", re.I)
+AUTH_ERROR = re.compile(r"credential|unauthori[sz]ed|\b401\b|expired|api[-_\s]?key|ProviderAuthError", re.I)
 NO_DECISION = "No decision from Hermes within {seconds} s; continue without this action or report it."
 PROJECT_WRITES = (
     "github_project_create", "github_project_field_ensure", "github_project_item_add",
@@ -466,6 +475,63 @@ def _result(data):
     return ""
 
 
+def _latest_assistant(sid, after=None):
+    """The session's newest assistant message, or None (none since `after`)."""
+    body = _call("get", "/api/session/{sid}/message", query={"order": "desc", "limit": 10}, sid=sid)
+    for message in api.data(body, list):
+        if after and message.get("id") == after:
+            return None
+        if message.get("type") == "assistant":
+            return message
+    return None
+
+
+def _provider_problem(error, model):
+    """A provider failure as the caller needs it: limit, auth or other, with its text."""
+    inner = error.get("data") if isinstance(error, dict) and isinstance(error.get("data"), dict) else {}
+    if isinstance(error, dict):
+        text = str(error.get("message") or inner.get("message") or error.get("name") or error.get("type") or "")
+        status = error.get("statusCode") or inner.get("statusCode")
+        label = " ".join(str(v) for v in (error.get("name"), error.get("type"), status) if v)
+    else:
+        text, label = str(error or ""), ""
+    probe = f"{text} {label}"
+    kind = "limit" if LIMIT_ERROR.search(probe) else "auth" if AUTH_ERROR.search(probe) else "other"
+    model = model if isinstance(model, dict) else {}
+    engine = f"{model.get('providerID')}/{model.get('id')}" if model.get("id") else None
+    return {"kind": kind, "message": text[:500] or label or "unknown provider error",
+            **({"model": engine} if engine else {})}
+
+
+def _retrying(data, active, cache):
+    """A provider retry OpenCode is sitting in for this run (root or subagent), or None."""
+    root = data["session_id"]
+    for sid in [root] + sorted(s for s in active if s != root and _in_tree(root, s, cache)):
+        message = _latest_assistant(sid, data.get("prompt_id") if sid == root else None)
+        retry = (message or {}).get("retry")
+        if isinstance(retry, dict):
+            return {"session_id": sid, "subagent": sid != root, "attempt": retry.get("attempt"),
+                    "next_at": retry.get("at"), **_provider_problem(retry.get("error"), message.get("model"))}
+    return None
+
+
+def _failure(data):
+    """Why a failed turn failed, from its last assistant message's provider error."""
+    with contextlib.suppress(api.ApiError, api.Unavailable):
+        message = _latest_assistant(data["session_id"], data.get("prompt_id"))
+        if message and message.get("error"):
+            return _provider_problem(message["error"], message.get("model"))
+    return None
+
+
+PROBLEM_HINTS = {
+    "limit": "The provider refused for usage or rate limits: continue with another model from opencode_session "
+             "models (a read-only role can simply rerun; for build read the diff first).",
+    "auth": "OpenCode's login for this provider is missing or expired: tell the Client, or continue with "
+            "another provider's model.",
+}
+
+
 def _changes(data):
     body = _call("get", "/api/session/{sid}/diff", query={"from": data.get("prompt_id")}, sid=data["session_id"])
     items = body.get("data") if isinstance(body, dict) else body
@@ -490,7 +556,7 @@ def _halt(data):
 def _public(data):
     keys = ("conversation_id", "job_id", "directory", "branch", "agent", "model", "variant", "engine", "status",
             "session_id", "result", "error", "outcome", "pending", "changes", "tokens", "updated_at",
-            "reconciliation", "stop_reason")
+            "reconciliation", "stop_reason", "retrying", "provider_error")
     out = {key: data[key] for key in keys if key in data and data[key] not in (None, [])}
     if data.get("transport") != "api" and "log" in data:
         out["log"] = data["log"]
@@ -507,6 +573,38 @@ def _side(root, name):
 
 def _answered(root, job):
     return set(_side(root, job + ".answered") or [])
+
+
+def _retry_unseen(root, data):
+    """A provider retry worth the caller's decision that it has not been handed yet:
+    a usage/rate limit at once, any other after a few attempts."""
+    retry = data.get("retrying") or {}
+    if not retry or (retry.get("kind") != "limit" and (retry.get("attempt") or 0) < RETRY_HANDBACK_ATTEMPTS):
+        return False
+    return retry.get("since") not in (_side(root, data["job_id"] + ".retried") or [])
+
+
+def _mark_retry_seen(root, data):
+    if _retry_unseen(root, data):
+        seen = list(_side(root, data["job_id"] + ".retried") or [])
+        dispatch._write(root / (data["job_id"] + ".retried"), seen + [data["retrying"]["since"]])
+
+
+def _note(data):
+    retry = data.get("retrying")
+    if data["status"] == "waiting":
+        return ("OpenCode is paused on the pending request(s). Decide each with opencode_session "
+                "respond: once within the Client's approved scope, otherwise reject "
+                "and ask the Client. Unanswered requests are rejected at expires_at.")
+    if data["status"] == "running" and retry:
+        who = "a subagent of the run" if retry.get("subagent") else "the run"
+        return (f"OpenCode keeps retrying {retry.get('model') or 'the model'} for {who} after: "
+                f"{retry.get('message')} (attempt {retry.get('attempt')}). Wait if it should recover soon; "
+                "otherwise stop it and continue the conversation with model= another one from opencode_session "
+                "models. This hands back once per retry episode.")
+    if data["status"] in BUSY:
+        return "Still active or uncertain; wait again, steer, stop, or reconcile. Never retry."
+    return None
 
 
 def _watched(root, cid):
@@ -545,6 +643,8 @@ def _caller_alive(data):
 def _handback(root, data):
     """Whether the run is the caller's to act on: finished, uncertain, or waiting
     on a request it has not answered yet."""
+    if data["status"] == "running" and _retry_unseen(root, data):
+        return True
     if data["status"] in ACTIVE:
         return False
     if data["status"] == "waiting":
@@ -583,6 +683,7 @@ def _recover(home, root, data):
 
 def _finish(data, status, error=""):
     data.update(status=status, error=error, pending=[])
+    data.pop("retrying", None)
     with contextlib.suppress(api.ApiError, api.Unavailable):
         data["result"] = _result(data)
     with contextlib.suppress(api.ApiError, api.Unavailable):
@@ -616,6 +717,7 @@ def _watch(home, cid, job, poll=POLL):
         cache, seen = {}, {p["id"]: p.get("first_seen", time.time()) for p in data.get("pending") or []}
         unseen_since = unreachable_since = halted_at = None
         last_interrupt = None
+        last_retry_check, retrying = 0.0, data.get("retrying")
         while True:
             now = time.time()
             if halted_at is None:
@@ -638,7 +740,8 @@ def _watch(home, cid, job, poll=POLL):
                 return _public(data)
             try:
                 info = _session_info(data["session_id"])
-                running = data["session_id"] in _active()
+                active = _active()
+                running = data["session_id"] in active
                 pending = [] if halted_at else _pending(data, cache)
                 unreachable_since = None
             except api.Unavailable:
@@ -665,7 +768,16 @@ def _watch(home, cid, job, poll=POLL):
                 elif halted_at or outcome == "interrupted":
                     _finish(data, "interrupted", "Interrupted: " + data.get("stop_reason", "by the service"))
                 else:
-                    _finish(data, "failed", "OpenCode reported a failed turn; partial effects may exist")
+                    problem = _failure(data)
+                    error = "OpenCode reported a failed turn"
+                    if problem:
+                        error += f" ({problem.get('model', 'model')}: {problem['message']})"
+                    error += "; partial effects may exist"
+                    if problem and problem["kind"] in PROBLEM_HINTS:
+                        error += ". " + PROBLEM_HINTS[problem["kind"]]
+                    _finish(data, "failed", error)
+                    if problem:
+                        data["provider_error"] = problem
                 data["updated_at"] = time.time()
                 dispatch._write(path, data)
                 return _public(data)
@@ -688,9 +800,22 @@ def _watch(home, cid, job, poll=POLL):
                               {"decision": "reject", "message": NO_DECISION.format(seconds=permission_timeout)},
                               sid=item["session_id"], per=item["id"])
             pending = [item for item in pending if now < item["expires_at"]]
+            if halted_at is None and running and now - last_retry_check >= RETRY_POLL:
+                last_retry_check = now
+                with contextlib.suppress(api.ApiError, api.Unavailable):
+                    found = _retrying(data, active, cache)
+                    if found:
+                        # One retry episode keeps the time it began, so it hands back once.
+                        found["since"] = (retrying or {}).get("since", now)
+                    retrying = found
             status = "waiting" if pending else "running"
-            if status != data["status"] or pending != (data.get("pending") or []):
+            if status != data["status"] or pending != (data.get("pending") or []) or \
+                    retrying != data.get("retrying"):
                 data.update(status=status, pending=pending, updated_at=now)
+                if retrying:
+                    data["retrying"] = retrying
+                else:
+                    data.pop("retrying", None)
                 dispatch._write(path, data)
             time.sleep(poll)
 
@@ -862,12 +987,11 @@ def _wait(home, root, cid, owner, requested=None):
                 unwatched = now
         time.sleep(min(WAIT_POLL, max(0.0, limit - now)))
     out = {**_public(data), "waited_seconds": round(time.time() - started, 1), "timed_out": timed_out}
-    if data["status"] == "waiting":
-        out["note"] = ("OpenCode is paused on the pending request(s). Decide each with opencode_session "
-                       "respond: once within the Client's approved scope, otherwise reject "
-                       "and ask the Client. Unanswered requests are rejected at expires_at.")
-    elif data["status"] in BUSY:
-        out["note"] = "Still active or uncertain; wait again, steer, stop, or reconcile. Never retry."
+    note = _note(data)
+    if note:
+        out["note"] = note
+    if not timed_out:
+        _mark_retry_seen(root, data)
     return out
 
 
@@ -894,7 +1018,13 @@ def _notify(home, cid, job):
     while True:
         data = dispatch._read(path)
         if data.get("job_id") != job or _handback(root, data):
-            return _public(data)
+            out = _public(data)
+            if data.get("job_id") == job:
+                note = _note(data)
+                if note:
+                    out["note"] = note
+                _mark_retry_seen(root, data)
+            return out
         if _watched(root, cid):
             unwatched = None
         else:
@@ -1188,7 +1318,8 @@ def opencode_history(args, **kwargs):
 
 CALL_DESCRIPTION = (
     "Drive OpenCode in an owned Git worktree on the shared OpenCode service. Blocks until the run hands "
-    "back: finished, or paused on a permission request you must decide with opencode_session respond. "
+    "back: finished, paused on a permission request you must decide with opencode_session respond, or "
+    "stuck in a provider retry (usage/rate limit) you may stop and continue on another model. "
     "Build needs explicit Client implementation approval; Issue writes need separate explicit "
     "issue_approval or a per-request decision. Completion is not acceptance. Never retry uncertain work. "
     "If the call returns while still running, use opencode_session wait, never a status loop.")
