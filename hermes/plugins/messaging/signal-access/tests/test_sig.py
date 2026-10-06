@@ -442,7 +442,7 @@ def test_too_many_files_for_one_card(env):
     ("terminal", {"command": "signal-cli -a +81 send -m hi"}),
     ("terminal", {"command": "/opt/homebrew/bin/signal-cli listContacts"}),
     ("terminal", {"command": "sqlite3 ~/.local/state/hermes-signal/mirror.db"}),
-    ("terminal", {"command": "python -c 'import sys; sys.path.append(\"plugins/signal-access\")'"}),
+    ("terminal", {"command": "python -c 'import sys; sys.path.append(\"plugins/messaging/signal-access\")'"}),
     ("terminal", {"command": "ls", "workdir": "/Users/x/.local/state/hermes-signal"}),
     ("terminal", {"command": "cp ~/Library/Application Support/Signal/sql/db.sqlite ."}),
     ("terminal", {"command": "cp ~/Library/Application\\ Support/Signal/config.json ."}),
@@ -459,7 +459,7 @@ def test_bypass_is_blocked(tool, args):
 @pytest.mark.parametrize("tool, args", [
     ("terminal", {"command": "ls ~/Workspaces"}),
     ("terminal", {"command": "echo signal processing"}),
-    ("read_file", {"path": "plugins/signal-access/sig.py"}),
+    ("read_file", {"path": "plugins/messaging/signal-access/sig.py"}),
 ])
 def test_ordinary_calls_pass(tool, args):
     assert sig.bypass(tool, args) is None

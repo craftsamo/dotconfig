@@ -223,7 +223,7 @@ def test_a_dead_engine_is_judged_by_its_ledger(monkeypatch, ledger, phrase):
     ("terminal", {"command": "secret get DISCORD_USER_TOKEN -p discord-user"}),
     ("terminal", {"command": "sqlite3 ~/.local/state/hermes-discord/mirror.db"}),
     ("terminal", {"command": "curl -H 'Authorization: x' https://discord.com/api/v9/users/@me"}),
-    ("terminal", {"command": "python ~/.config/hermes/plugins/discord-access/engine.py send"}),
+    ("terminal", {"command": "python ~/.config/hermes/plugins/messaging/discord-access/engine.py send"}),
     ("terminal", {"command": "ls", "workdir": "/Users/x/.local/state/hermes-discord"}),
     ("read_file", {"path": "~/.local/state/hermes-discord/sync.json"}),
 ])
@@ -233,7 +233,7 @@ def test_ways_around_the_tool_are_blocked(tool, args):
 
 @pytest.mark.parametrize("tool,args", [
     ("terminal", {"command": "ls ~/Workspaces"}),
-    ("read_file", {"path": "~/.config/hermes/plugins/discord-access/access.py"}),
+    ("read_file", {"path": "~/.config/hermes/plugins/messaging/discord-access/access.py"}),
     ("web_search", {"query": "discord.com/api docs"}),
 ])
 def test_ordinary_calls_pass(tool, args):

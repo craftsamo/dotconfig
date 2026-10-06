@@ -29,11 +29,11 @@ only.
 
 | Piece                                                                            | Home                                                                                           | Reader               |
 | -------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- | -------------------- |
-| Mirror schema, sync list, retention (stdlib)                                     | `plugins/telegram-access/store.py`                                                             | agent and plugin     |
-| Sync agent: the only Telegram connection, mirror upkeep, the socket's requests   | `plugins/telegram-access/sync.py`                                                              | launchd, on its venv |
-| Socket client (stdlib)                                                           | `plugins/telegram-access/rpc.py`                                                               | plugin               |
-| Engine: reads, card, file checks, media, send, bypass guard                      | `plugins/telegram-access/tg.py`                                                                | Assistant            |
-| `telegram_account` tool and the `pre_tool_call` hook (toolset `telegram_access`) | `plugins/telegram-access/__init__.py`                                                          | Assistant            |
+| Mirror schema, sync list, retention (stdlib)                                     | `plugins/messaging/telegram-access/store.py`                                                   | agent and plugin     |
+| Sync agent: the only Telegram connection, mirror upkeep, the socket's requests   | `plugins/messaging/telegram-access/sync.py`                                                    | launchd, on its venv |
+| Socket client (stdlib)                                                           | `plugins/messaging/telegram-access/rpc.py`                                                     | plugin               |
+| Engine: reads, card, file checks, media, send, bypass guard                      | `plugins/messaging/telegram-access/tg.py`                                                      | Assistant            |
+| `telegram_account` tool and the `pre_tool_call` hook (toolset `telegram_access`) | `plugins/messaging/telegram-access/__init__.py`                                                | Assistant            |
 | Engine venv (Telethon, hash-locked)                                              | `engines/telegram-access/requirements.lock` → ignored `local/telegram-access/venv`             | people               |
 | Login and the agent                                                              | `launchd/telegram-access-launchctl.sh`, `launchd/local.hermes.telegram-access.sync.plist.tmpl` | people               |
 | How the Assistant works with it: reads, files, sync list, sends, outcomes        | the `telegram-account` technic (`profiles/assistant/skills/technic/telegram-account/`)         | Assistant            |

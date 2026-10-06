@@ -10,11 +10,11 @@ over Signal. Part of the Hermes design docs — index: [`PROFILES.md`](../PROFIL
 
 | Piece                                                                       | Home                                                                                       | Reader             |
 | --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ | ------------------ |
-| Mirror schema, ingest rules, retention                                      | `plugins/signal-access/store.py`                                                           | sync agent, engine |
-| JSON-RPC client for the daemon's socket                                     | `plugins/signal-access/rpc.py`                                                             | sync agent, engine |
-| Sync agent: owns signal-cli, writes the mirror                              | `plugins/signal-access/sync.py`                                                            | launchd            |
-| Engine: reads, check, media, send, approval card, file checks, bypass guard | `plugins/signal-access/sig.py`                                                             | Assistant          |
-| `signal` tool and the `pre_tool_call` hook (toolset `signal_access`)        | `plugins/signal-access/__init__.py`                                                        | Assistant          |
+| Mirror schema, ingest rules, retention                                      | `plugins/messaging/signal-access/store.py`                                                 | sync agent, engine |
+| JSON-RPC client for the daemon's socket                                     | `plugins/messaging/signal-access/rpc.py`                                                   | sync agent, engine |
+| Sync agent: owns signal-cli, writes the mirror                              | `plugins/messaging/signal-access/sync.py`                                                  | launchd            |
+| Engine: reads, check, media, send, approval card, file checks, bypass guard | `plugins/messaging/signal-access/sig.py`                                                   | Assistant          |
+| `signal` tool and the `pre_tool_call` hook (toolset `signal_access`)        | `plugins/messaging/signal-access/__init__.py`                                              | Assistant          |
 | Linking and the sync agent                                                  | `launchd/signal-access-launchctl.sh`, `launchd/local.hermes.signal-access.sync.plist.tmpl` | people             |
 | How the tool is used: reads, files, sends, outcomes                         | the Assistant's `signal` technic (`profiles/assistant/skills/technic/signal/`)             | Assistant          |
 | When the Assistant uses it in Chat                                          | the Assistant's private Chat reference `signal.md`                                         | Assistant          |
