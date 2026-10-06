@@ -1083,14 +1083,17 @@ def _approved_send(args: dict, call_id: str) -> tuple[str, list] | None:
 
 def _stage(plan: dict, approved: list) -> tuple[Path, list[str]]:
     """Private copies of the approved files, checked against the hashes the card showed: what the
-    agent uploads cannot change after the check."""
+    agent uploads cannot change after the check. Telegram takes the uploaded file's name, so each
+    copy keeps the exact name the card showed, in a folder of its own."""
     outbox = store.outbox_dir(store.state_dir(create=True)) / secrets.token_hex(8)
     outbox.mkdir(parents=True, mode=0o700)
     paths = []
     expected = {path: digest for path, digest in approved}
     try:
         for index, f in enumerate(plan["files"]):
-            dest = outbox / f"{index}-{_safe_name(f['name'], 'file')}"
+            folder = outbox / str(index)
+            folder.mkdir(mode=0o700)
+            dest = folder / (Path(f["name"]).name or "file")
             shutil.copyfile(f["path"], dest)
             if expected.get(f["path"]) != _sha256(dest):
                 raise TelegramError(f"{f['name']!r} changed after the approval card was made; ask again")

@@ -244,7 +244,9 @@ the card.
   that skipped the gate, or a concurrent identical call, never uses another
   call's approval. The plan is rebuilt and must match the record; each file is
   copied into the private outbox and only copies whose hash still matches the
-  card are sent. The agent accepts files only from the outbox.
+  card are sent. Each copy keeps the card's file name in a folder of its own,
+  because Telegram names an upload after the file. The agent accepts files
+  only from the outbox.
 - **One send, never retried.** The agent uploads files first (an upload
   creates no message, so a failed upload is `not sent`), then makes one send
   call. Telethon's own resends of that call (after a reconnect or a Telegram
