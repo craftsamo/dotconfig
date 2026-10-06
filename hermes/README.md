@@ -354,7 +354,9 @@ keeps user keys.
 
 - **Groups.** Plugins sit either at the top level or one directory down in a
   group (`<group>/<name>/plugin.yaml`; Hermes reads one level and keys the plugin
-  `group/name`). Every `plugins.enabled` entry stays the bare name. Current groups:
+  `group/name`). `plugins.enabled` accepts the bare name, but `plugins.entries`
+  (e.g. `allow_tool_override`) needs the full `group/name` key: a bare key is
+  ignored and the plugin fails to load. Current groups:
   `messaging/` (chat accounts), `social/` (public platforms: x, note, substack,
   youtube), `orchestration/` (specialist, OpenCode and session-history
   transports), `workspace/` (drafts, repos and the private registry/report
