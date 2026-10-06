@@ -49,10 +49,17 @@ class Fake:
         self.calls, self.scripts, self.agents = [], {}, {}
         self.down = False
         self.clock = 1_000_000
+        tools = {"capabilities": {"tools": True}, "enabled": True}
         self.models = [
-            {"providerID": "anthropic", "id": "claude-opus-5-5", "variants": [{"id": "high"}, {"id": "medium"}]},
-            {"providerID": "openai", "id": "gpt-6.1-sol", "variants": [{"id": "medium"}, {"id": "high"}]},
-            {"providerID": "openai", "id": "gpt-6-sol", "variants": [{"id": "high"}]},
+            {"providerID": "anthropic", "id": "claude-opus-5-5", "variants": [{"id": "high"}, {"id": "medium"}],
+             **tools},
+            {"providerID": "anthropic", "id": "claude-opus-5-5-fast", "variants": [{"id": "high"}], **tools},
+            {"providerID": "anthropic", "id": "claude-fable-5-1", "variants": [{"id": "high"}], **tools},
+            {"providerID": "openai", "id": "gpt-6.1-sol", "variants": [{"id": "medium"}, {"id": "high"}],
+             "cost": [{"input": 2, "output": 10}], "limit": {"context": 400000}, **tools},
+            {"providerID": "openai", "id": "gpt-6-sol", "variants": [{"id": "high"}], **tools},
+            {"providerID": "openai", "id": "gpt-image-3", "variants": [], "capabilities": {"tools": False}},
+            {"providerID": "xai", "id": "grok-4.7", "variants": [], **tools},
         ]
         self.lock = threading.RLock()
 
@@ -118,6 +125,9 @@ class Fake:
             return {"version": "2.0.23", "paths": {"tmp": "/tmp/fake-opencode"}}
         if parts == ["model"]:
             return {"data": self.models}
+        if parts == ["agent"]:
+            return {"data": [self.agents.get(n) or agent_info(n)
+                             for n in ("build", *plugin.OPENCODE_AGENTS.values())]}
         if parts[0] == "agent":
             info = self.agents.get(parts[1]) or agent_info(parts[1])
             return {"data": info}
@@ -567,15 +577,21 @@ def test_agent_that_lost_its_posture_is_refused(fixture):
     assert "hidden primary" in call(directory, agent="review")["error"]
 
 
-def test_model_and_variant_require_allowlist_and_catalog(fixture):
+def configure(home, extra=""):
+    (home / "config.yaml").write_text("opencode_cli:\n  enabled: true\n  timeout: 30\n" + extra)
+
+
+def test_model_choice_is_any_catalog_model_of_an_allowed_provider(fixture):
     home, directory, _, fake = fixture
-    assert "allowed_models" in call(directory, model="openai/gpt-6-sol")["error"]
-    (home / "config.yaml").write_text(
-        "opencode_cli:\n  enabled: true\n  timeout: 30\n"
-        "  allowed_models: [openai/gpt-6-sol, openai/gpt-9]\n  allowed_variants: [high, max]\n")
+    assert "allowed_providers" in call(directory, model="openai/gpt-6-sol")["error"]
+    configure(home, "  allowed_models: [openai/gpt-6-sol]\n")
+    assert "replaced by allowed_providers" in call(directory)["error"]
+    configure(home, "  allowed_providers: [anthropic, openai]\n")
     assert "requires a model" in call(directory, variant="high")["error"]
     assert "plain name" in call(directory, model="openai/gpt-6-sol; rm -rf")["error"]
+    assert "allowed_providers" in call(directory, model="xai/grok-4.7")["error"]
     assert "does not offer" in call(directory, model="openai/gpt-9")["error"]
+    assert "no tool use" in call(directory, model="openai/gpt-image-3")["error"]
     assert "no variant" in call(directory, model="openai/gpt-6-sol", variant="max")["error"]
     first = call(directory, model="openai/gpt-6-sol", variant="high")
     assert first["status"] == "completed", first
@@ -586,16 +602,90 @@ def test_model_and_variant_require_allowlist_and_catalog(fixture):
     assert resumed["status"] == "completed" and resumed["engine"] == "openai/gpt-6-sol#high"
 
 
+def test_configured_role_model_carries_its_variant(fixture):
+    home, directory, _, fake = fixture
+    configure(home, "  models: {plan: 'openai/gpt-6.1-sol#high'}\n")
+    first = call(directory)
+    assert first["status"] == "completed" and first["engine"] == "openai/gpt-6.1-sol#high", first
+    configure(home, "  models: {plan: 'openai/gpt-6.1-sol#high'}\n  allowed_providers: [openai]\n")
+    override = call(directory, variant="medium")
+    assert override["engine"] == "openai/gpt-6.1-sol#medium", override
+    configure(home, "  models: {plan: 'openai/gpt-6.1-sol#bad variant'}\n")
+    assert "opencode_cli.models" in call(directory)["error"]
+
+
 def test_recorded_variant_without_model_is_refused_at_dispatch(fixture):
     home, directory, _, _ = fixture
-    (home / "config.yaml").write_text(
-        "opencode_cli:\n  enabled: true\n  timeout: 30\n  models: {plan: openai/gpt-6-sol}\n"
-        "  allowed_variants: [high]\n")
+    configure(home, "  models: {plan: openai/gpt-6-sol}\n")
     first = call(directory, variant="high")
     assert first["status"] == "completed" and "model" not in first, first
-    (home / "config.yaml").write_text("opencode_cli:\n  enabled: true\n  timeout: 30\n  allowed_variants: [high]\n")
+    configure(home)
     stale = call(conversation_id=first["conversation_id"])
     assert stale["status"] == "failed" and "no model to bind" in stale["error"], stale
+
+
+def test_callers_own_models_are_refused_for_every_role(fixture, monkeypatch):
+    home, directory, _, _ = fixture
+    monkeypatch.setattr(plugin, "CALLER_MODELS", {})
+    (home / "config.yaml").write_text("model:\n  default: claude-opus-5-5\n  provider: anthropic\n"
+                                      "opencode_cli:\n  enabled: true\n  timeout: 30\n"
+                                      "  allowed_providers: [anthropic, openai]\n")
+    pinned = call(directory)
+    assert pinned["status"] == "failed" and "your own model" in pinned["error"], pinned
+    assert "your own model" in call(directory, model="anthropic/claude-opus-5-5-fast")["error"]
+    # A fallback the caller answered with last counts too, keyed by its Hermes session.
+    plugin._observe(session_id="hermes-1", model="claude-fable-5-1", provider="anthropic")
+    args = dict(agent="plan", message="Inspect", directory=str(directory), model="anthropic/claude-fable-5-1")
+    assert "your own model" in json.loads(plugin.opencode_call(args, session_id="hermes-1"))["error"]
+    elsewhere = json.loads(plugin.opencode_call(args, session_id="hermes-2"))
+    assert elsewhere["status"] == "completed", elsewhere
+    build = call(directory, agent="build", approval="Client approved: fix the typo",
+                 model="openai/gpt-6.1-sol")
+    assert build["status"] == "completed", build
+
+
+def test_model_key_folds_speed_tiers_and_snapshots():
+    key = plugin._model_key
+    assert key("anthropic/claude-opus-5-5") == key("claude-opus-5-5-fast") == key("claude-opus-5-5")
+    assert key("claude-haiku-4-5-20251001") == key("claude-haiku-4-5")
+    assert key("openrouter/xiaomi/mimo-v2.5") == key("mimo-v2.5")
+    assert key("claude-opus-5") != key("claude-opus-5-5")
+
+
+def test_models_lists_allowed_tool_models_defaults_and_your_own(fixture, monkeypatch):
+    home, _, _, _ = fixture
+    monkeypatch.setattr(plugin, "CALLER_MODELS", {})
+    (home / "config.yaml").write_text("model:\n  default: claude-opus-5-5\n"
+                                      "opencode_cli:\n  enabled: true\n  allowed_providers: [anthropic, openai]\n"
+                                      "  models: {review: 'anthropic/claude-fable-5-1#high'}\n")
+    listed = json.loads(plugin.opencode_session({"action": "models"}))
+    names = [m["model"] for m in listed["models"]]
+    assert "xai/grok-4.7" not in names and "openai/gpt-image-3" not in names
+    assert {"anthropic/claude-opus-5-5", "openai/gpt-6.1-sol"} <= set(names)
+    mine = {m["model"] for m in listed["models"] if m.get("yours")}
+    assert mine == {"anthropic/claude-opus-5-5", "anthropic/claude-opus-5-5-fast"}
+    sol = next(m for m in listed["models"] if m["model"] == "openai/gpt-6.1-sol")
+    assert sol["variants"] == ["medium", "high"] and sol["context"] == 400000
+    assert sol["cost_per_mtok"] == {"input": 2, "output": 10}
+    assert listed["defaults"]["review"] == "anthropic/claude-fable-5-1#high"
+    assert listed["defaults"]["build"] == "openai/gpt-6.1-sol#medium"
+
+
+def test_registration_observes_the_callers_model():
+    hooks, tools = [], []
+
+    class Context:
+        profile_name = "engineer"
+
+        def register_hook(self, name, callback):
+            hooks.append((name, callback))
+
+        def register_tool(self, **kwargs):
+            tools.append(kwargs["name"])
+
+    plugin.register(Context())
+    assert hooks == [("post_api_request", plugin._observe)]
+    assert {"opencode_call", "opencode_session", "opencode_history"} <= set(tools)
 
 
 # ---------------------------------------------------------------- ownership and gates
