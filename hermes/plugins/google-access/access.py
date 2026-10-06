@@ -621,6 +621,8 @@ def sheets(home, args: dict) -> dict:
                 "url": meta.get("spreadsheetUrl"), "locale": props.get("locale"),
                 "time_zone": props.get("timeZone"),
                 "sheets": [_sheet_info(s) for s in meta.get("sheets", [])]}
+    if action == "append" and args.get("table") is not None:
+        return _table_append(book, sid, args)
     if action == "add_sheet":
         title = _str(args, "title")
         done = _google(lambda: book.batchUpdate(spreadsheetId=sid, body={
@@ -1052,6 +1054,69 @@ def _sheet_info(sheet: dict) -> dict:
     if protections:
         props["protections"] = protections[:INFO_LIST_LIMIT]
     return props
+
+
+# --- Sheets table appends -------------------------------------------------------------------------
+
+TABLE_FIELDS = "sheets(properties(sheetId,title),tables(tableId,name,range))"
+
+
+def _find_table(meta: dict, key: str) -> dict:
+    """A table by id or name (exact, then ignoring case), with its sheetId and tab title."""
+    tables = []
+    for sheet in meta.get("sheets", []):
+        props = sheet.get("properties", {})
+        for table in sheet.get("tables", []) or []:
+            tables.append(dict(table, sheetId=props.get("sheetId", 0), tab=props.get("title")))
+    found = [t for t in tables if t.get("tableId") == key] or [t for t in tables if t.get("name") == key] or [
+        t for t in tables if (t.get("name") or "").casefold() == key.casefold()]
+    if len(found) != 1:
+        names = [t.get("name") for t in tables]
+        raise AccessError(f"no single table named {key!r}. Tables: {_few(names) if names else 'none'}")
+    return found[0]
+
+
+def _table_rows(args: dict) -> tuple[str, list]:
+    """(table, rows) of an append to a table; the gate and the engine share this check."""
+    if args.get("range"):
+        raise AccessError("append to a table takes table, not range")
+    return _str(args, "table"), _values(args)
+
+
+def _cell_data(value, raw: bool) -> dict:
+    """A cell for appendCells, which has no typing like the UI: numbers and booleans keep their
+    type, '=…' is a formula unless raw, and any other text (a date included) stays text."""
+    if value is None or value == "":
+        return {}
+    if isinstance(value, bool):
+        return {"userEnteredValue": {"boolValue": value}}
+    if isinstance(value, (int, float)):
+        return {"userEnteredValue": {"numberValue": value}}
+    if isinstance(value, str):
+        kind = "formulaValue" if value.startswith("=") and not raw else "stringValue"
+        return {"userEnteredValue": {kind: value}}
+    raise AccessError("each cell is text, a number or a boolean")
+
+
+def _table_append(book, sid: str, args: dict) -> dict:
+    """Rows into a native table's first free rows (the table grows, its footer stays last)."""
+    key, rows = _table_rows(args)
+    raw = bool(args.get("raw"))
+    meta = _google(lambda: book.get(spreadsheetId=sid, fields=TABLE_FIELDS).execute())
+    table = _find_table(meta, key)
+    rng = table.get("range", {})
+    width = rng.get("endColumnIndex", 0) - rng.get("startColumnIndex", 0)
+    if any(len(row) > width for row in rows):
+        raise AccessError(f"table {table.get('name')!r} has {width} columns; a row holds more")
+    body = [{"values": [_cell_data(value, raw) for value in row]} for row in rows]
+    _google(lambda: book.batchUpdate(spreadsheetId=sid, body={"requests": [{"appendCells": {
+        "sheetId": table["sheetId"], "tableId": table["tableId"], "rows": body,
+        "fields": "userEnteredValue"}}]}).execute())
+    after = _google(lambda: book.get(spreadsheetId=sid, fields=TABLE_FIELDS).execute())
+    grown = next((t for s in after.get("sheets", []) for t in s.get("tables", []) or []
+                  if t.get("tableId") == table["tableId"]), table)
+    return {"ok": True, "spreadsheet_id": sid, "table": table.get("name"), "appended_rows": len(rows),
+            "table_range": f"{table['tab']}!{_a1(grown.get('range', {}))}"}
 
 
 # --- Sheets layout --------------------------------------------------------------------------------
@@ -3635,6 +3700,14 @@ def _sheets_card(home, action: str, args: dict) -> str:
             head.append(f"Clear: {_cell(_str(args, 'range'), '?', TAB_CLIP)}")
         clear_tab = split_range(_str(args, "range"))[0] if action == "clear" else ...
         return _fit(head + _check_lines(_expect(args, action), clear_tab), [], MORE)
+    if action == "append" and args.get("table") is not None:
+        table, rows = _table_rows(args)
+        title, _, _ = _sheet_context(home, sid, set())
+        head = [f"SpreadSheet: {_cell(title, '', TITLE_CLIP) or sid}",
+                f"Table: {_cell(table, '?', TAB_CLIP)} (new rows at its end)", ""]
+        cells = [f"(+{r + 1}) column {c + 1}: {_cell(value, EMPTY)}"
+                 for r, row in enumerate(rows) for c, value in enumerate(row)]
+        return _fit(head, cells, MORE)
     blocks = _batch(args) if action == "batch_update" else [{"range": _str(args, "range"),
                                                             "values": _values(args)}]
     parsed = [(split_range(b["range"]), b["values"]) for b in blocks]

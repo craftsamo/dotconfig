@@ -44,7 +44,10 @@ SHEETS_DESCRIPTION = (
     "overwrite), get_format (range or ranges, closed blocks of up to 2000 cells: formatting "
     "grouped by look in layout's format words, notes, links, input rules, rich text, hidden "
     "rows/columns and sizes; read it before matching an existing look), batch_update (data = [{range, values}, …], up to 500 ranges in one call), append "
-    "(range + values: add rows after the table), clear (range), create (title, optional "
+    "(range + values: add rows after the data; or table = a native table's name or id + values "
+    "(no range): rows go into the table's first free rows and the table grows, numbers and "
+    "booleans keep their type, '=…' is a formula unless raw, other text, dates included, stays "
+    "text), clear (range), create (title, optional "
     "sheet_names), add_sheet (spreadsheet_id + title: a new tab), layout (ops: formatting, "
     "sizes, hiding, grouping, rows/columns, merges, freezing, tabs, notes, rich text, tables, "
     "conditional formatting, input rules, filters and filter views; see ops), data (ops that "
@@ -324,6 +327,7 @@ SCHEMAS = {
         "query": {"type": "string", "description": "search: part of the file name"},
         "range": {"type": "string", "description": "A1 range, e.g. 'Sheet1!A1:C10' or 'Sheet1'"},
         "ranges": {"type": "array", "items": {"type": "string"}, "description": "get / get_format: several ranges"},
+        "table": {"type": "string", "description": "append: native table name or id (instead of range)"},
         "ops": {"type": "array", "description": " ".join((LAYOUT_OPS_DESCRIPTION, DATA_OPS_DESCRIPTION,
                                                           OBJECT_OPS_DESCRIPTION, PROTECT_OPS_DESCRIPTION)),
                 "items": LAYOUT_OP_SCHEMA},
