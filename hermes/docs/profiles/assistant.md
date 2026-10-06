@@ -232,10 +232,13 @@ The user's YouTube channels are shared with Marketer, which only reads
 (`youtube_access` toolset; the Assistant's never on A2A): search, videos,
 channels, playlists and comments, each authorized channel's own uploads and
 analytics, and transcripts and downloads of public videos into
-`~/Workspaces/.inbox/youtube`; on the Assistant's side video edits,
-thumbnails, comment replies, uploads (kept private by YouTube) and playlists,
+`~/Workspaces/.inbox/youtube`; on the Assistant's side video edits and
+settings, thumbnails, comment replies and moderation, uploads (kept private
+by YouTube), captions, playlists and the channel's settings and watermark,
 each waiting for approval on a card naming the channel and the change.
-Contract: [youtube-access.md](../youtube-access.md).
+Settings outside the API (name, handle, picture, banner, links, upload
+defaults) go through YouTube Studio in its browser after a `clarify`
+confirmation. Contract: [youtube-access.md](../youtube-access.md).
 
 ### Kanban catalog
 
