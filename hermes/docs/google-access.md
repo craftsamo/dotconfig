@@ -167,6 +167,12 @@ The hook decides before a tool runs; the rule is `approval_request` in
   naming editors ends warning-only. Google refuses the whole call for an
   address it does not accept. Protections are found by id or label (the
   API's description); `info` lists them with their editors.
+- **Table appends.** `append` with `table` (a native table's name or id)
+  sends `appendCells` with the `tableId`, so rows fill the table's free rows
+  and the table grows before its footer; a plain range append would land
+  after the footer or outside the table. `appendCells` has no UI typing:
+  numbers and booleans keep their type, `=…` is a formula unless `raw`, and
+  other text, dates included, stays text. It shares the per-spreadsheet key.
 - **Row guards.** Writes by row number can land on the wrong row when another
   writer inserts, deletes or sorts rows. `update`, `batch_update`, `clear`,
   `layout` and `data` take `expect` — up to 200 single cells with the value each must display

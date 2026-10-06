@@ -2345,3 +2345,54 @@ def test_info_reports_locale_and_time_zone(tmp_path, monkeypatch):
     result = access.sheets(tmp_path, {"action": "info", "spreadsheet_id": SID})
     assert result["locale"] == "ja_JP" and result["time_zone"] == "Asia/Tokyo"
     assert "hideGridlines" in access.INFO_FIELDS
+
+
+# --- appending to a native table ------------------------------------------------------------------
+
+TABLES = {"sheets": [{"properties": {"title": "Main"}}, {"properties": {"sheetId": 7, "title": "Tasks"}, "tables": [
+    {"tableId": "t1", "name": "Todo", "range": {"sheetId": 7, "startRowIndex": 0, "endRowIndex": 5,
+                                                "startColumnIndex": 1, "endColumnIndex": 4}}]}]}
+
+
+def test_table_append_types_cells_and_reports_the_grown_range(tmp_path, monkeypatch):
+    api = mock.MagicMock()
+    book = api.spreadsheets()
+    grown = json.loads(json.dumps(TABLES))
+    grown["sheets"][1]["tables"][0]["range"]["endRowIndex"] = 7
+    book.get().execute.side_effect = [TABLES, grown]
+    services(monkeypatch, sheets=api)
+    result = access.sheets(tmp_path, {"action": "append", "spreadsheet_id": SID, "table": "todo",
+                                      "values": [["Call", 3, True], ["=A1", "", "2026-10-06"]]})
+    assert result == {"ok": True, "spreadsheet_id": SID, "table": "Todo", "appended_rows": 2,
+                      "table_range": "Tasks!B1:D7"}
+    request = book.batchUpdate.call_args.kwargs["body"]["requests"][0]["appendCells"]
+    assert request["tableId"] == "t1" and request["sheetId"] == 7 and request["fields"] == "userEnteredValue"
+    assert request["rows"] == [
+        {"values": [{"userEnteredValue": {"stringValue": "Call"}}, {"userEnteredValue": {"numberValue": 3}},
+                    {"userEnteredValue": {"boolValue": True}}]},
+        {"values": [{"userEnteredValue": {"formulaValue": "=A1"}}, {},
+                    {"userEnteredValue": {"stringValue": "2026-10-06"}}]}]
+    assert not book.values().append.called
+
+
+def test_table_append_refuses_wide_rows_and_unknown_tables(tmp_path, monkeypatch):
+    api = mock.MagicMock()
+    api.spreadsheets().get().execute.return_value = TABLES
+    services(monkeypatch, sheets=api)
+    base = {"action": "append", "spreadsheet_id": SID}
+    with pytest.raises(access.AccessError, match="has 3 columns"):
+        access.sheets(tmp_path, dict(base, table="t1", values=[["a", "b", "c", "d"]]))
+    with pytest.raises(access.AccessError, match="no single table"):
+        access.sheets(tmp_path, dict(base, table="Other", values=[["a"]]))
+    with pytest.raises(access.AccessError, match="not range"):
+        access.sheets(tmp_path, dict(base, table="t1", range="Tasks!A1", values=[["a"]]))
+    assert not api.spreadsheets().batchUpdate.called
+
+
+def test_table_append_card_and_key(monkeypatch):
+    context(monkeypatch, title="Plan")
+    reason, key = access.approval_request("google_sheets", {
+        "action": "append", "spreadsheet_id": SID, "table": "Todo", "values": [["Call", 3]]}, home=Path("/x"))
+    assert key == f"google-access:sheets-edit:{SID}"
+    assert reason.split("\n") == ["SpreadSheet: Plan", "Table: Todo (new rows at its end)", "",
+                                  "(+1) column 1: Call", "(+1) column 2: 3"]
