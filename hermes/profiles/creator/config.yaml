@@ -1138,7 +1138,7 @@ plugins:
     - vision-window
     - characters
   entries:
-    video-analyze-mimo:
+    inspection/video-analyze-mimo:
       allow_tool_override: true
 timeouts:
   tools:

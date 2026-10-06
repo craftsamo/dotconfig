@@ -709,5 +709,5 @@ plugins:
     - skill-topology
     - kanban-worker-mutation-guard
   entries:
-    video-analyze-mimo:
+    inspection/video-analyze-mimo:
       allow_tool_override: true
