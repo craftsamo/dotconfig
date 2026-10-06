@@ -405,6 +405,16 @@
       "manage-github-projects": "allow",
       "git-*": "allow",
       "japanese-*": "allow",
+      // The Claude desktop app syncs its skills into ~/.agents/skills/synced/,
+      // which OpenCode reads through ~/.claude/skills. These need tools only
+      // that app has (its browser, Claude in Chrome, computer use, connectors,
+      // memory), so deny hides them from the model instead of failing.
+      "built-in-browser": "deny",
+      "chrome-browser": "deny",
+      "computer-use": "deny",
+      "docs": "deny",
+      "import-memory": "deny",
+      "morning": "deny",
     },
     // Custom GitHub Project tools (lib/custom-tools/github_project.ts) — board + issue-lifecycle ops, no delete
     "github_project_create": "allow",
