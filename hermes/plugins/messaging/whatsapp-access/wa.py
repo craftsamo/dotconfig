@@ -688,7 +688,8 @@ DENY_NAMES = re.compile(r"^(?:\.env.*|\.netrc|\.npmrc|\.pypirc|\.pgpass|\.git-cr
                         r"|kdbx|gpg|asc|ovpn|mobileprovision))$", re.IGNORECASE)
 PRIVATE_KEY = re.compile(rb"-----BEGIN (?:[A-Z0-9 ]+ )?PRIVATE KEY-----")
 PRIVATE_KEY_OVERLAP = 64
-# Archives, installers and programs, scripts included: never sent.
+# Archives, installers, programs and scripts: a send refuses all but source scripts and the
+# archives that are opened first (archives.refused_alone).
 SEND_RISKY_MIME = re.compile(r"zip|rar|7z|tar|gzip|bzip|x-xz|compressed|archive|java-archive|android\.package"
                              r"|msdownload|msdos|x-executable|x-mach|x-sh\b|x-shellscript|javascript|vbscript"
                              r"|x-apple-diskimage|x-iso|x-elf|x-sharedlib|x-object|x-python|x-ruby|x-perl|x-php"
@@ -796,7 +797,8 @@ def attachment_files(args: dict) -> list[dict]:
         size = real.stat().st_size
         if size == 0:
             raise WhatsAppError(f"{real.name!r} is empty")
-        if SEND_RISKY_FILES.search(real.name) and not archives.family_of_name(real.name):  # those are opened in stage
+        if (archives.refused_alone(real.name, None, SEND_RISKY_FILES, SEND_RISKY_MIME)
+                and not archives.family_of_name(real.name)):  # those are opened in stage
             raise WhatsAppError(f"refused: {real.name!r} is an archive or program; such files are never sent")
         out.append({"path": str(real), "name": real.name, "relative": relative, "size": size})
     if len({f["path"] for f in out}) != len(out):
@@ -875,10 +877,10 @@ def stage(plan: dict, request: str) -> tuple[str, list[dict]]:
                                     "message: put another file first, or send the text on its own")
             try:
                 archive = archives.vet(dest, f["name"], deny_parts=DENY_PARTS, deny_names=DENY_NAMES,
-                                       risky_files=SEND_RISKY_FILES)
+                                       risky_files=SEND_RISKY_FILES, allow_scripts=True)
             except archives.ArchiveRefused as exc:
                 raise WhatsAppError(f"refused: the archive {f['name']!r} is not sent: {exc}") from None
-            if archive is None and SEND_RISKY_MIME.search(kind):
+            if archive is None and archives.refused_alone(f["name"], kind, SEND_RISKY_FILES, SEND_RISKY_MIME):
                 raise WhatsAppError(f"refused: {f['name']!r} ({kind}) is an archive or program; such files are "
                                     "never sent")
             staged.append({"path": str(dest), "name": f["name"], "relative": f["relative"], "type": kind,

@@ -237,7 +237,7 @@ def test_files_on_the_card_and_their_checks(state, home):
     reason, _ = tg.approval_request({"action": "send", "chat": str(fakes.ALICE), "text": "旅行の写真",
                                      "files": ["trip/photo.png"]}, home=home)
     assert "Files: 1 (108 B)\n- photo.png (" in reason and ", 108 B) in trip, sha256 " in reason
-    for name, body in ((".env", b"A=1"), ("run.sh", b"#!/bin/sh\n"), ("key.txt", b"-----BEGIN PRIVATE KEY-----"),
+    for name, body in ((".env", b"A=1"), ("run.command", b"#!/bin/sh\n"), ("key.txt", b"-----BEGIN PRIVATE KEY-----"),
                        ("empty.txt", b""), ("mirror.db", b"x")):
         (ws / name).write_bytes(body)
         with pytest.raises(tg.TelegramError):
@@ -360,7 +360,7 @@ def test_tar_gz_is_sent(home, agent):
     ({"a.txt": b"x", ".env": b"A=1"}, "named like a key or secret"),
     ({"a.txt": b"x", "notes.db": b"x"}, "named like a key or secret"),
     ({"a.txt": b"x", ".ssh/id": b"x"}, "keys or settings"),
-    ({"a.txt": b"x", "run.sh": b"echo\n"}, "an archive or a program"),
+    ({"a.txt": b"x", "setup.exe": b"x"}, "an archive or a program"),
     ({"a.txt": b"x", "inner.zip": b"x"}, "an archive or a program"),
     ({"a.txt": b"x", "../evil.txt": b"x"}, "not a plain relative path"),
     ({"a.txt": b"x", "k.txt": b"-----BEGIN PRIVATE KEY-----\nabc"}, "contains a private key"),
@@ -369,6 +369,25 @@ def test_zip_with_something_that_would_be_refused_alone_is_refused(home, entries
     _zip("bad.zip", entries)
     with pytest.raises(tg.TelegramError, match=f"archive 'bad.zip' is not sent: .*{message}"):
         tg.approval_request({"action": "send", "chat": str(fakes.ALICE), "files": ["bad.zip"]}, home=home)
+
+
+def test_scripts_are_sent_alone_and_inside_an_archive(home, agent):
+    agent.handlers["send"] = lambda p: {"ids": [7], "ts": 1, "recorded": True}
+    _zip("proj.zip", {"a.txt": b"x", "run.sh": b"echo hi\n", "src/tool.py": b"print(1)\n"})
+    request, out = approve_and_send({"action": "send", "chat": str(fakes.ALICE), "files": ["proj.zip"]}, home)
+    assert ", 3 files inside (" in request[0] and out["ok"]
+    for i, (name, body) in enumerate((("run.sh", b"#!/bin/sh\necho hi\n"), ("tool.py", b"print('hi')\n"),
+                                      ("app.js", b"let a = 1;\n"), ("notes.txt", b"#!/bin/sh\necho hi\n"))):
+        (tg.SEND_ROOT / name).write_bytes(body)
+        request, out = approve_and_send({"action": "send", "chat": str(fakes.ALICE), "files": [name]}, home,
+                                        call_id=f"call-s{i}")
+        assert f"- {name} (" in request[0] and out["ok"], name
+
+
+def test_a_binary_named_like_a_script_is_still_refused(home):
+    (tg.SEND_ROOT / "run.sh").write_bytes(b"\x00\x01\x02\x03binary" * 20)
+    with pytest.raises(tg.TelegramError, match="archive or program"):
+        tg.approval_request({"action": "send", "chat": str(fakes.ALICE), "files": ["run.sh"]}, home=home)
 
 
 @pytest.mark.parametrize("name, body", [

@@ -380,7 +380,7 @@ def test_tar_gz_is_sent(env, daemon):
 @pytest.mark.parametrize("entries, message", [
     ({"a.png": PNG, ".env": b"A=1"}, "named like a key or secret"),
     ({"a.png": PNG, "proj/.ssh/id": b"x"}, "keys or settings"),
-    ({"a.png": PNG, "run.sh": b"echo hi\n"}, "an archive or a program"),
+    ({"a.png": PNG, "setup.exe": b"x"}, "an archive or a program"),
     ({"a.png": PNG, "inner.zip": b"x"}, "an archive or a program"),
     ({"a.png": PNG, "../evil.txt": b"x"}, "not a plain relative path"),
     ({"a.png": PNG, "n.txt": b"-----BEGIN RSA PRIVATE KEY-----\nabc"}, "contains a private key"),
@@ -390,6 +390,17 @@ def test_zip_with_something_that_would_be_refused_alone_is_refused(env, daemon, 
     with pytest.raises(sig.SignalError, match=f"archive 'bad.zip' is not sent: .*{message}"):
         sig.approval_request({"action": "send", "chat": ALICE, "files": ["bad.zip"]})
     assert daemon.requests == []
+
+
+def test_scripts_are_sent_alone_and_inside_an_archive(env, daemon):
+    make_zip(env, "proj.zip", {"a.png": PNG, "run.sh": b"echo hi\n", "src/tool.py": b"print(1)\n"})
+    (card, _), out = approve_and_send({"action": "send", "chat": ALICE, "files": ["proj.zip"]})
+    assert ", 3 files inside (" in card and out["ok"] is True
+    for name, body in (("run.sh", b"#!/bin/sh\necho hi\n"), ("tool.py", b"print('hi')\n"), ("app.js", b"let a = 1;\n"),
+                       ("job.rb", b"puts 1\n"), ("notes.txt", b"#!/bin/sh\necho hi\n")):
+        put(env, name, body)
+        (card, _), out = approve_and_send({"action": "send", "chat": ALICE, "files": [name]})
+        assert f"- {name} (" in card and out["ok"] is True, name
 
 
 @pytest.mark.parametrize("name, data", [
@@ -474,15 +485,15 @@ def test_files_outside_the_workspace_are_refused(env):
     (".ssh/notes.png", PNG, "keys or settings"),
     ("proj/.env", b"A=1", "keys or settings"),
     ("proj/server.pem", b"x", "keys or settings"),
-    ("proj/tool.sh", b"#!/bin/sh\necho hi\n", "archive or program"),
+    ("proj/run.sh", b"\x00\x01\x02\x03binary" * 20, "archive or program"),   # not a script, whatever the name
     ("proj/photo.jpg", b"PK\x03\x04" + b"\x00" * 64, "archive or program"),
     ("proj/notes.txt", b"-----BEGIN OPENSSH PRIVATE KEY-----\nabc", "private key"),
     ("proj/late.txt", b"a" * 200000 + b"-----BEGIN RSA PRIVATE KEY-----\nabc", "private key"),
     ("proj/.envrc", b"export A=1", "keys or settings"),
     ("proj/credentials-backup.json", b"{}", "keys or settings"),
     ("proj/secrets_backup.txt", b"x", "keys or settings"),
-    ("proj/tool.py", b"print('hi')\n", "archive or program"),
-    ("proj/run.rb", b"puts 1\n", "archive or program"),
+    ("proj/tool.command", b"#!/bin/sh\necho hi\n", "archive or program"),
+    ("proj/Tool.app", b"x", "archive or program"),
     ("proj/empty.png", b"", "empty"),
 ])
 def test_dangerous_files_are_refused(env, relative, data, message):

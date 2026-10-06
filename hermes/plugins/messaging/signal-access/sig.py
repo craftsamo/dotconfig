@@ -89,7 +89,8 @@ RISKY_MIME = re.compile(r"zip|rar|7z|tar|gzip|bzip|x-xz|compressed|archive|java-
                         r"|msdownload|msdos|x-executable|x-mach|x-sh\b|x-shellscript|javascript|vbscript"
                         r"|x-apple-diskimage|x-iso|x-elf|x-sharedlib|x-object|x-python|x-ruby|x-perl|x-php"
                         r"|x-script|x-tcl|x-lua|x-applescript|x-msi|x-bat", re.IGNORECASE)
-# Archives, installers and programs, scripts included.
+# Archives, installers, programs and scripts. A chat's files are refused on all of them; a send
+# lets source scripts through (archives.refused_alone).
 RISKY_FILES = re.compile(r"\.(?:zip|rar|7z|tar|gz|tgz|bz2|xz|zst|lz|lzma|cab|apk|aab|ipa|exe|msi|msp|dmg|pkg|mpkg"
                          r"|iso|img|jar|war|class|scr|bat|cmd|com|cpl|hta|lnk|reg|inf|msc|wsf|wsh|js|jse|mjs|cjs"
                          r"|vbs|vbe|ps1|psm1|sh|bash|zsh|fish|ksh|csh|command|tool|app|workflow|terminal"
@@ -695,10 +696,10 @@ def check_file(given: str) -> dict:
     digest = _sha256(real)
     try:
         archive = archives.vet(real, real.name, deny_parts=DENY_PARTS, deny_names=DENY_NAMES,
-                               risky_files=RISKY_FILES)
+                               risky_files=RISKY_FILES, allow_scripts=True)
     except archives.ArchiveRefused as exc:
         raise SignalError(f"refused: the archive {real.name!r} is not sent: {exc}") from None
-    if archive is None and (RISKY_FILES.search(real.name) or RISKY_MIME.search(kind)):
+    if archive is None and archives.refused_alone(real.name, kind, RISKY_FILES, RISKY_MIME):
         raise SignalError(f"refused: {real.name!r} ({kind}) is an archive or program; such files are never sent")
     if _has_private_key(real):
         raise SignalError(f"refused: {real.name!r} contains a private key")

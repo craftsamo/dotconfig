@@ -1,17 +1,18 @@
 """archive_check: look inside a ZIP or tar archive before a messaging plugin sends it.
 
-Shared by signal-access, whatsapp-access and telegram-access (each loads this file by path; it is
-not a plugin and has no manifest). Nothing is ever extracted to disk: the archive is read in
-memory, entry by entry, and refused as a whole at the first entry that would not be sent on its
-own. An archive passes only when
+Shared by the four chat-account plugins (each loads this file by path; it is not a plugin and has
+no manifest). Nothing is ever extracted to disk: the archive is read in memory, entry by entry,
+and refused as a whole at the first entry that would not be sent on its own. An archive passes
+only when
 
 * its name says zip / tar / tar.gz / tar.bz2 / tar.xz and its first bytes say the same (a ZIP named
   ``photo.jpg`` is not vetted here, so the caller's own "archive by content" refusal still applies);
 * every entry has a plain relative name (no ``..``, no absolute path, no backslash), is a regular
   file or a folder (no links, devices or pipes) and, if it is a ZIP entry, is not encrypted;
-* no entry sits in a keys-or-settings folder, is named like a key or secret file, is a program or
-  script (by name, or by its first bytes: shebang, ELF, Mach-O, PE, Java class) or is itself an
-  archive (nested archives are refused, by name and by first bytes);
+* no entry sits in a keys-or-settings folder, is named like a key or secret file, is a program
+  (by name, or by its first bytes: ELF, Mach-O, PE, Java class) or is itself an archive (nested
+  archives are refused, by name and by first bytes); source scripts (and a shebang first line)
+  are refused too unless the caller sets ``allow_scripts``;
 * no entry contains a private key block anywhere in its content;
 * there are at most ``MAX_ENTRIES`` entries and ``MAX_UNPACKED`` bytes once unpacked, counted from
   the bytes actually read, not from the sizes the archive claims.
@@ -51,6 +52,30 @@ FORMAT_LABEL = {"zip": "zip", "tar": "tar", "gz": "tar.gz", "bz2": "tar.bz2", "x
 MACHO = {b"\xfe\xed\xfa\xce", b"\xfe\xed\xfa\xcf", b"\xce\xfa\xed\xfe", b"\xcf\xfa\xed\xfe",
          b"\xca\xfe\xba\xbe", b"\xbe\xba\xfe\xca"}
 
+# Source scripts, the one kind of "risky" name an archive may carry when the caller sets
+# ``allow_scripts``. Installers, bundles, shortcuts and compiled programs are not in it.
+SCRIPT_FILES = re.compile(r"\.(?:js|jse|mjs|cjs|vbs|vbe|ps1|psm1|sh|bash|zsh|fish|ksh|csh|bat|cmd|wsf|wsh"
+                          r"|applescript|scpt|scptd|py|pyc|pyw|rb|pl|php|lua|tcl)$", re.IGNORECASE)
+# What ``file --mime-type`` calls a source script (the type that goes with SCRIPT_FILES).
+SCRIPT_MIME = re.compile(r"x-sh\b|x-shellscript|javascript|vbscript|x-python|x-ruby|x-perl|x-php|x-script|x-tcl"
+                         r"|x-lua|x-applescript|x-bat|x-msdos-batch", re.IGNORECASE)
+
+
+def refused_alone(name: str, kind: str | None, risky_files, risky_mime) -> bool:
+    """True when a file sent on its own is an archive, installer or program, by name or by its
+    sniffed type ``kind`` (``None``: not sniffed yet, so only the name is judged, and a script's
+    name passes for a later check to confirm). A source script passes: a script's name needs a
+    type that is a script or plain text too, so a program called ``run.sh`` is still refused, and
+    so is a script's type under a name such as ``tool.command`` that the caller lists as risky."""
+    risky_name = bool(risky_files.search(name or ""))
+    script_name = bool(SCRIPT_FILES.search(name or ""))
+    if kind is None:
+        return risky_name and not script_name
+    script_type = bool(SCRIPT_MIME.search(kind)) or kind.startswith("text/")
+    if risky_mime.search(kind) and not SCRIPT_MIME.search(kind):
+        return True
+    return risky_name and not (script_name and script_type)
+
 
 class ArchiveRefused(Exception):
     """The archive (or something in it) may not be sent; the message says why."""
@@ -78,9 +103,9 @@ def family_of_head(head: bytes) -> str | None:
     return None
 
 
-def _refusal_by_head(head: bytes) -> str | None:
+def _refusal_by_head(head: bytes, allow_scripts: bool) -> str | None:
     """What an entry's first bytes give away: a program, a script or another archive."""
-    if head[:2] == b"#!":
+    if head[:2] == b"#!" and not allow_scripts:
         return "a script"
     if head[:4] == b"\x7fELF" or head[:4] in MACHO:
         return "a program"
@@ -119,7 +144,7 @@ def _entry_path(raw: str) -> list[str]:
     return parts
 
 
-def _check_name(raw: str, is_dir: bool, deny_parts, deny_names, risky_files) -> None:
+def _check_name(raw: str, is_dir: bool, deny_parts, deny_names, risky_files, allow_scripts) -> None:
     parts = _entry_path(raw)
     folders = parts if is_dir else parts[:-1]
     if {p.lower() for p in folders} & deny_parts:
@@ -127,13 +152,13 @@ def _check_name(raw: str, is_dir: bool, deny_parts, deny_names, risky_files) -> 
     if is_dir:
         return
     name = parts[-1]
-    if deny_names.match(name):
+    if deny_names.search(name):
         raise ArchiveRefused(f"{raw!r} is named like a key or secret file")
-    if risky_files.search(name):
+    if risky_files.search(name) and not (allow_scripts and SCRIPT_FILES.search(name)):
         raise ArchiveRefused(f"{raw!r} is an archive or a program")
 
 
-def _scan(stream, raw: str, budget: _Budget) -> None:
+def _scan(stream, raw: str, budget: _Budget, allow_scripts: bool) -> None:
     """Read one entry to its end: first bytes, private keys, and the bytes counted."""
     first, tail, size = True, b"", 0
     while True:
@@ -142,7 +167,7 @@ def _scan(stream, raw: str, budget: _Budget) -> None:
             break
         if first:
             first = False
-            why = _refusal_by_head(chunk[:HEAD])
+            why = _refusal_by_head(chunk[:HEAD], allow_scripts)
             if why:
                 raise ArchiveRefused(f"{raw!r} is {why}")
         size += len(chunk)
@@ -172,7 +197,7 @@ def _walk_zip(path: Path, budget: _Budget, checks) -> None:
                 raise ArchiveRefused(f"{info.filename!r} is encrypted, so it cannot be checked")
             if not is_dir:
                 with archive.open(info) as stream:
-                    _scan(stream, info.filename, budget)
+                    _scan(stream, info.filename, budget, checks[3])
 
 
 def _walk_tar(path: Path, family: str, budget: _Budget, checks) -> None:
@@ -187,17 +212,20 @@ def _walk_tar(path: Path, family: str, budget: _Budget, checks) -> None:
                     raise ArchiveRefused(f"it unpacks to more than {MAX_UNPACKED // (1024 * 1024)} MB")
                 stream = archive.extractfile(member)
                 if stream is not None:
-                    _scan(stream, member.name, budget)
+                    _scan(stream, member.name, budget, checks[3])
 
 
-def vet(path: Path, name: str, *, deny_parts, deny_names, risky_files) -> dict | None:
+def vet(path: Path, name: str, *, deny_parts, deny_names, risky_files, allow_scripts: bool = False) -> dict | None:
     """None when ``name`` is not an archive this module reads (the caller's own rules decide).
     Otherwise the archive is inspected: ``{"format", "entries", "unpacked"}`` when it may be sent,
     ArchiveRefused when it may not.
 
-    ``deny_parts`` (lower-case folder names), ``deny_names`` (a regex, ``.match`` on a file name)
+    ``deny_parts`` (lower-case folder names), ``deny_names`` (a regex, ``.search`` on a file name)
     and ``risky_files`` (a regex, ``.search`` on a file name: archives, installers, programs and
-    scripts) are the caller's own rules for single files, applied to every entry."""
+    scripts) are the caller's own rules for single files, applied to every entry.
+    ``allow_scripts`` lets source scripts (``SCRIPT_FILES``, and a shebang first line) through
+    inside the archive; programs, installers and nested archives stay refused. It does not
+    change what the caller does with a script sent on its own."""
     family = family_of_name(name)
     if family is None:
         return None
@@ -207,7 +235,7 @@ def vet(path: Path, name: str, *, deny_parts, deny_names, risky_files) -> dict |
         if family_of_head(head) != family:
             raise ArchiveRefused(f"its content is not a {FORMAT_LABEL[family]} archive, whatever the name says")
         budget = _Budget()
-        checks = (deny_parts, deny_names, risky_files)
+        checks = (deny_parts, deny_names, risky_files, allow_scripts)
         if family == "zip":
             _walk_zip(path, budget, checks)
         else:
