@@ -12,9 +12,9 @@ index: [`PROFILES.md`](../PROFILES.md).
 
 | Piece                                                                                                                              | Home                                                     | Reader              |
 | ---------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- | ------------------- |
-| Engine: validation, profile actions, pacing, session state, result shapes, image outbox, approval card, write ledger, bypass guard | `plugins/substack-access/sa.py`                          | all                 |
-| One Substack call per request in the engine venv; reads the cookies                                                                | `plugins/substack-access/bridge.py`                      | all                 |
-| `substack` tool and its `pre_tool_call` hooks (toolset `substack_access`)                                                          | `plugins/substack-access/__init__.py`                    | Assistant, Marketer |
+| Engine: validation, profile actions, pacing, session state, result shapes, image outbox, approval card, write ledger, bypass guard | `plugins/social/substack-access/sa.py`                          | all                 |
+| One Substack call per request in the engine venv; reads the cookies                                                                | `plugins/social/substack-access/bridge.py`                      | all                 |
+| `substack` tool and its `pre_tool_call` hooks (toolset `substack_access`)                                                          | `plugins/social/substack-access/__init__.py`                    | Assistant, Marketer |
 | Engine venv                                                                                                                        | `scripts/substack-access.sh`, `engines/python-substack/` | people              |
 | When and how the Assistant uses it                                                                                                 | the Assistant's private Chat reference `substack.md`     | Assistant           |
 | When Marketer may read with it                                                                                                     | `marketer-pipeline/references/platforms/substack.md`     | Marketer            |

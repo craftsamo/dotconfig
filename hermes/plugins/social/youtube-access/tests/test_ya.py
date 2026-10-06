@@ -858,7 +858,7 @@ def test_bypass_blocked(tool, args):
     ("terminal", {"command": "ls ~/Workspaces/.inbox/youtube"}),
     ("terminal", {"command": "ffprobe ~/.hermes/profiles/assistant/youtube-downloads/x/x.mp4"}),
     ("read_file", {"path": "/Users/x/Workspaces/.inbox/youtube/abc/abc.en.txt"}),
-    ("read_file", {"path": "/Users/x/.config/hermes/plugins/youtube-access/ya.py"}),
+    ("read_file", {"path": "/Users/x/.config/hermes/plugins/social/youtube-access/ya.py"}),
     ("web_search", {"query": "yt-dlp"}),
 ])
 def test_bypass_allowed(tool, args):

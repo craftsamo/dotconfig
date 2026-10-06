@@ -663,7 +663,7 @@ def test_html_text_keeps_structure_and_drops_scripts():
     ("terminal", {"command": "substack-mcp"}, True),
     ("terminal", {"command": "curl https://craftsamo.substack.com/api/v1/drafts"}, True),
     ("terminal", {"command": "curl -b 'substack.sid=x' https://substack.com/"}, True),
-    ("terminal", {"command": "python3 plugins/substack-access/bridge.py"}, True),
+    ("terminal", {"command": "python3 plugins/social/substack-access/bridge.py"}, True),
     ("terminal", {"command": "echo 'I read a substack post today'"}, False),
     ("terminal", {"command": "curl https://craftsamo.substack.com/feed"}, False),
     ("terminal", {"command": "ls"}, False),

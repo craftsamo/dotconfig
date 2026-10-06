@@ -111,8 +111,9 @@ skills/
   default-pipeline/    # thin CLI adapter for default over the assistant's
                        #   assistant-pipeline kernel/entry tree
   learned/             # runtime-authored skills; mutable, ignored
-plugins/               # backend chains, tool overrides, specialist/OpenCode
-                       #   transports, Worker guards; source tracked
+plugins/               # grouped plugins (messaging/, social/, orchestration/,
+                       #   workspace/, guards/, inspection/, media families);
+                       #   source tracked
 launchd/               # multiplex gateway launcher + plist template, local
                        #   TTS engine launchers + plist templates
 engines/               # tracked pins/locks: irodori-tts, qwen3-tts,
@@ -351,12 +352,25 @@ gateway needs one normal drained restart (`/restart` or
 such as `video_analyze:`) survive Hermes' config rewrites because `_deep_merge`
 keeps user keys.
 
+- **Groups.** Plugins sit either at the top level or one directory down in a
+  group (`<group>/<name>/plugin.yaml`; Hermes reads one level and keys the plugin
+  `group/name`). Every `plugins.enabled` entry stays the bare name. Current groups:
+  `messaging/` (chat accounts), `social/` (public platforms: x, note, substack,
+  youtube), `orchestration/` (specialist, OpenCode and session-history
+  transports), `workspace/` (drafts, repos and the private registry/report
+  overlay), `guards/` (topology and Worker guards), `inspection/` (vision
+  window, video analysis, writing inspection), and the media families
+  `image_gen/`, `video_gen/`, `audio_gen/`, `tts/`, `transcription/`.
+  `google-access` and `hermes-achievements` (upstream writes its data to a fixed
+  path) stay at the top level. A directory with no `plugin.yaml` (`_shared/`) is
+  code, not a plugin.
+
 - **image_gen/image-fallback** (`backend`): `img-codex-xai`, `img-xai-codex-fal`,
   `img-codex-xai-fal` (Creator's chain) — names spell the order. Capabilities:
   [docs/hands/image.md](docs/hands/image.md) "Image generation capabilities".
 - **video_gen/video-fallback** (`backend`): `vid-xai-fal` (Grok Imagine → FAL),
   `vid-fal-xai`.
-- **video-analyze-mimo** (`standalone`): overrides `video_analyze` with a fixed,
+- **inspection/video-analyze-mimo** (`standalone`): overrides `video_analyze` with a fixed,
   config-driven backend (`video_analyze: {provider, model}`, default OpenRouter /
   `xiaomi/mimo-v2.5`), so `auxiliary.vision` can stay `auto` and images route
   natively to the main model. **Pinning `auxiliary.vision` to a video-capable
@@ -375,12 +389,12 @@ keeps user keys.
 
 **Transports and guards.**
 
-- **specialist-call** (`standalone`): the `specialist` toolset for assistant,
+- **orchestration/specialist-call** (`standalone`): the `specialist` toolset for assistant,
   creator, marketer and engineer. Enable `specialist-call` in `plugins.enabled`,
   `specialist` in the relevant `platform_toolsets` lists, and configure the
   explicit `specialist_call.resident_targets` allowlist. Behavior:
   [docs/profiles/specialist-calls.md](docs/profiles/specialist-calls.md).
-- **opencode** (`standalone`): `opencode_call` / `opencode_session` for engineer
+- **orchestration/opencode** (`standalone`): `opencode_call` / `opencode_session` for engineer
   and assistant, over the shared OpenCode 2 service's HTTP API through
   `opencode api` (resolved through `PATH`, preserving the secret shim). Enable
   the plugin and `opencode` toolset plus `opencode_cli.enabled: true`; optional
@@ -390,21 +404,21 @@ keeps user keys.
   [docs/profiles/engineer.md](docs/profiles/engineer.md) "OpenCode runtime".
   The same toolset carries the read-only `opencode_history`, which needs no
   `opencode_cli` setting ([docs/session-history.md](docs/session-history.md)).
-- **session-history** (`standalone`): `hermes_history` (toolset
+- **orchestration/session-history** (`standalone`): `hermes_history` (toolset
   `session_history`) and the `/activity` command for engineer and assistant;
   also the code behind `bin/ai-history`. Behavior:
   [docs/session-history.md](docs/session-history.md).
-- **characters** (private overlay): the character library — `characters`
+- **tts/characters** (private overlay): the character library — `characters`
   (toolset `characters`) for writer, assistant and creator, and the code behind
   `bin/characters`, whose `sync` registers character voices in the local TTS
   engines. Writer and Creator enable it by name; without the overlay the
   toolset is simply absent.
-- **workspace-drafts** (`standalone`): read-only `workspace_drafts` (toolset
+- **workspace/workspace-drafts** (`standalone`): read-only `workspace_drafts` (toolset
   `workspace_drafts`) and the `/drafts` command for engineer and assistant —
   drafts under `.agent/`, and the inbox apart (`/drafts inbox`); also the code
   behind `bin/ws-drafts`. Behavior:
   [docs/workspace-drafts.md](docs/workspace-drafts.md).
-- **workspace-repos** (`standalone`): read-only `workspace_repos` (toolset
+- **workspace/workspace-repos** (`standalone`): read-only `workspace_repos` (toolset
   `workspace_repos`) and the `/repos` command for engineer and assistant;
   also the code behind `bin/ws-repos`. Behavior:
   [docs/workspace-repos.md](docs/workspace-repos.md).
@@ -464,7 +478,7 @@ keeps user keys.
   `local.hermes.telegram-access.sync` LaunchAgent managed by
   `launchd/telegram-access-launchctl.sh` (`login` / `install` / `status`).
   Behavior: [docs/telegram-access.md](docs/telegram-access.md).
-- **x-access** (`standalone`): `x` (toolset `x_access`) for the assistant and
+- **social/x-access** (`standalone`): `x` (toolset `x_access`) for the assistant and
   marketer — read-only X as a separate sub-account through twscrape (`bridge.py` in the
   ignored `local/twscrape/venv`, pinned in `engines/twscrape/`): the main
   account's posts and mentions, search, threads, profiles, a post's media and
@@ -473,7 +487,7 @@ keeps user keys.
   `x-reader`) and only in the bridge's memory; its hook blocks the terminal
   path around it. Engine: `scripts/x-access.sh` (`install` / `status`).
   Behavior: [docs/x-access.md](docs/x-access.md).
-- **note-access** (`standalone`): `note` (toolset `note_access`) for the
+- **social/note-access** (`standalone`): `note` (toolset `note_access`) for the
   assistant and marketer — read, and save unpublished drafts from Markdown
   with images through the approval gate (a run without a person, such as a
   resident session, hands the save back to its caller) — search, articles,
@@ -483,7 +497,7 @@ keeps user keys.
   cookie from the Keychain (`NOTE_SESSION`, scope `note-session`); public
   reads and image uploads carry no cookie; its hook blocks the terminal path
   around it. Behavior: [docs/note-access.md](docs/note-access.md).
-- **substack-access** (`standalone`): `substack` (toolset `substack_access`)
+- **social/substack-access** (`standalone`): `substack` (toolset `substack_access`)
   for the assistant and marketer — the user's own Substack account through
   python-substack (`bridge.py` in the ignored `local/python-substack/venv`,
   pinned in `engines/python-substack/`): any publication's posts and search,
@@ -495,7 +509,7 @@ keeps user keys.
   memory; its hook blocks the terminal path around it. Engine:
   `scripts/substack-access.sh` (`install` / `status`). Behavior:
   [docs/substack-access.md](docs/substack-access.md).
-- **youtube-access** (`standalone`): `youtube` (toolset `youtube_access`)
+- **social/youtube-access** (`standalone`): `youtube` (toolset `youtube_access`)
   for the assistant and marketer — the user's own YouTube channels through
   the Data and Analytics APIs (search, videos, channels, playlists, comments,
   each channel's own uploads and analytics) plus transcripts and downloads of
@@ -508,10 +522,10 @@ keeps user keys.
   authorized once per channel with `bin/yaccess`; its hook blocks the
   terminal path around it. Engine: `scripts/youtube-access.sh` (`install` /
   `status`). Behavior: [docs/youtube-access.md](docs/youtube-access.md).
-- **writing-inspection** (`standalone`): Writer's bounded `writing_inspect`.
-- **kanban-worker-mutation-guard** (`standalone`): stops dispatcher workers
+- **inspection/writing-inspection** (`standalone`): Writer's bounded `writing_inspect`.
+- **guards/kanban-worker-mutation-guard** (`standalone`): stops dispatcher workers
   from creating, linking or releasing Kanban cards outside the Assistant path.
-- **skill-topology** (`standalone`): the topology guard's home — it blocks
+- **guards/skill-topology** (`standalone`): the topology guard's home — it blocks
   runtime writes into maintainer skill trees here and into the private
   overlay's `hermes/profiles/*/skills/` (both outside `learned/`) — plus a
   `tool_request` middleware that strips a redundant `category: learned` from

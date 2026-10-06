@@ -407,11 +407,11 @@ def test_the_cron_entry_is_silent_unless_something_is_broken(isolated, home, cap
 
 
 def test_the_cron_script_runs_the_engine_for_its_own_profile():
-    script = ROOT.parents[1] / "profiles/assistant/scripts/x-snapshot.sh"
+    script = ROOT.parents[2] / "profiles/assistant/scripts/x-snapshot.sh"
     text = script.read_text()
     assert script.stat().st_mode & 0o111
     assert 'home=$(cd "$(dirname "$0")/.." && pwd)' in text and "${HERMES_HOME" not in text
-    assert (script.parent / "../../../plugins/x-access/xa.py").resolve() == ROOT / "xa.py"
+    assert (script.parent / "../../../plugins/social/x-access/xa.py").resolve() == ROOT / "xa.py"
     assert '"$engine" snapshot "$home"' in text and "--no-agent" in text
 
 
@@ -846,7 +846,7 @@ def test_status_reports_verify_usage(isolated, home):
     ("terminal", {"command": "twscrape search foo"}),
     ("terminal", {"command": "~/.config/hermes/local/twscrape/venv/bin/python -c 'import twscrape'"}),
     ("terminal", {"command": "sqlite3 ~/.x-access/accounts.db .dump"}),
-    ("terminal", {"command": "python3 plugins/x-access/bridge.py"}),
+    ("terminal", {"command": "python3 plugins/social/x-access/bridge.py"}),
     ("terminal", {"command": "TWS_PROXY=x python3 run.py"}),
     ("terminal", {"command": "secret get X_READER_COOKIES -p hermes --scope x-reader"}),
     ("terminal", {"command": "security find-generic-password -s secret.hermes/x-reader -w"}),
@@ -867,7 +867,7 @@ def test_bypass_blocked(tool, args):
     ("terminal", {"command": "curl -H 'X-Access-Token: 1' https://api.example.com"}),
     ("terminal", {"command": "ls ~/Workspaces/.inbox/x/100"}),
     ("read_file", {"path": "/Users/u/Workspaces/.inbox/x/100/100-1.jpg"}),
-    ("read_file", {"path": "/Users/u/.config/hermes/plugins/x-access/xa.py"}),
+    ("read_file", {"path": "/Users/u/.config/hermes/plugins/social/x-access/xa.py"}),
     ("web_search", {"query": "twscrape"}),
 ])
 def test_bypass_allowed(tool, args):

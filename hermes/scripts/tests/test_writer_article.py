@@ -84,7 +84,7 @@ def test_writer_checks_note_format_through_the_tool_only():
     for verb in ("write", "edit", "analyze"):
         reference = " ".join((PIPELINE / verb / "article/references/note.md").read_text().split())
         assert "`check`" in reference, verb
-    spec = importlib.util.spec_from_file_location("note_access_for_writer", HERMES / "plugins/note-access/__init__.py")
+    spec = importlib.util.spec_from_file_location("note_access_for_writer", HERMES / "plugins/social/note-access/__init__.py")
     plugin = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(plugin)
     assert plugin.PROFILES["writer"] == plugin.na.OFFLINE == ("check",)

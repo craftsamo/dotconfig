@@ -36,7 +36,7 @@ PROFILE_ACTIONS = {"assistant": ACTIONS, "marketer": READS}
 
 HERE = Path(__file__).resolve().parent
 BRIDGE = HERE / "bridge.py"
-VENV_PYTHON = HERE.parents[1] / "local" / "python-substack" / "venv" / "bin" / "python"
+VENV_PYTHON = HERE.parents[2] / "local" / "python-substack" / "venv" / "bin" / "python"
 STORE = Path.home() / ".substack-access"
 SETUP = "hermes/scripts/substack-access.sh"
 COOKIES_SET = "secret set SUBSTACK_COOKIES -p hermes --scope substack-session"

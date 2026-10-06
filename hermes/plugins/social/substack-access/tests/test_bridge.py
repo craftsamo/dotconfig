@@ -10,7 +10,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 BRIDGE = ROOT / "bridge.py"
-PYTHON = ROOT.parents[1] / "local" / "python-substack" / "venv" / "bin" / "python"
+PYTHON = ROOT.parents[2] / "local" / "python-substack" / "venv" / "bin" / "python"
 SID, LLI = "s%3AsEcReTsEsSiOn0123456789.AbCdEfGhIjKlMn", "lliSECRETvalue9876543210"
 
 needs_venv = pytest.mark.skipif(not PYTHON.exists(),

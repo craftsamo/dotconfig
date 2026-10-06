@@ -174,6 +174,14 @@ repository upkeep (Engineer through OpenCode, the Assistant's Admin topic).
 - **Tool handlers take the model's JSON as one positional dict**
   (`handler(args, **kwargs)`); declaring schema fields as parameters registers
   a tool that fails on every call.
+- **Moving a plugin between groups changes its depth, and the code that counts
+  it fails silently.** Engines and tests locate `hermes/` (the `local/` venvs,
+  `profiles/`, `scripts/`) with `parents[N]`, and tests mock the calls that would
+  notice. After a move, re-count every `parents[N]` in the plugin and its tests;
+  for a plugin that takes a private overlay symlink, also move the overlay's
+  twin in the same paired change and name the link in `.gitignore` (the
+  `hermes/plugins/*/` re-include no longer reaches a link one level down). Never
+  nest deeper than `<group>/<name>`: Hermes stops reading there.
 - **`plugins/messaging/_shared/` is code, not a plugin.** `signal-access`,
   `whatsapp-access` and `telegram-access` load `archive_check.py` from it by
   path, so moving or renaming it breaks all three at import. Never give it a
@@ -244,7 +252,7 @@ Contract: [docs/hands/overview.md](docs/hands/overview.md) and
 ## OpenCode integration
 
 Contract: [docs/profiles/engineer.md "OpenCode runtime"](docs/profiles/engineer.md).
-When editing `plugins/opencode` or `~/.config/opencode/agent/hermes-*.md`:
+When editing `plugins/orchestration/opencode` or `~/.config/opencode/agent/hermes-*.md`:
 
 - **Two policy owners with a fixed boundary.** Each `hermes-*.md` owns its
   role posture in a V2 `permissions:` array (a V1 `permission:` map fails a
@@ -269,7 +277,7 @@ When editing `plugins/opencode` or `~/.config/opencode/agent/hermes-*.md`:
   outcome (not a session-level outcome or an exit code), finite deadlines and
   no automatic replay after `unknown`.
 - Keep `TURN_TIMEOUT` identical in `profiles/assistant/scripts/resident-session.sh`
-  and `plugins/specialist-call`. Engineer's tool deadline
+  and `plugins/orchestration/specialist-call`. Engineer's tool deadline
   (`timeouts.tools.sequential_call` / `concurrent_batch`) stays above
   `opencode_cli.timeout`, so one blocking call covers a whole run (a call hands
   back at `opencode_cli.wait_timeout` or 30 s before the tool deadline,

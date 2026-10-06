@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Engine manager for the youtube-access plugin (yt-dlp for transcripts and downloads).
 #
-# The plugin runs plugins/youtube-access/bridge.py with the interpreter of an isolated venv
+# The plugin runs plugins/social/youtube-access/bridge.py with the interpreter of an isolated venv
 # under the ignored hermes/local/yt-dlp/, built from the hash-locked
 # engines/yt-dlp/requirements.lock. YouTube's player challenges are solved by Deno (Brewfile);
 # merged video downloads need ffmpeg. The OAuth tokens of the user's channels are not this

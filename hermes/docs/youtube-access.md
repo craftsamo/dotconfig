@@ -15,9 +15,9 @@ design docs — index: [`PROFILES.md`](../PROFILES.md).
 
 | Piece                                                                                                                     | Home                                                                 | Reader              |
 | ------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- | ------------------- |
-| Engine: validation, profile actions, tokens, quota, pacing, result shapes, approval card, bypass guard; the `yaccess` CLI | `plugins/youtube-access/ya.py`                                       | all                 |
-| One yt-dlp call per transcript or download in the engine venv                                                             | `plugins/youtube-access/bridge.py`                                   | all                 |
-| `youtube` tool and its `pre_tool_call` hook (toolset `youtube_access`)                                                    | `plugins/youtube-access/__init__.py`                                 | Assistant, Marketer |
+| Engine: validation, profile actions, tokens, quota, pacing, result shapes, approval card, bypass guard; the `yaccess` CLI | `plugins/social/youtube-access/ya.py`                                       | all                 |
+| One yt-dlp call per transcript or download in the engine venv                                                             | `plugins/social/youtube-access/bridge.py`                                   | all                 |
+| `youtube` tool and its `pre_tool_call` hook (toolset `youtube_access`)                                                    | `plugins/social/youtube-access/__init__.py`                                 | Assistant, Marketer |
 | Channel authorization                                                                                                     | `bin/yaccess` (runs `ya.py` on `hermes-python`)                      | people              |
 | Engine venv                                                                                                               | `scripts/youtube-access.sh`, `engines/yt-dlp/`                       | people              |
 | How the Assistant works with it: budget, actions, approvals, recovery, Studio settings, starting a channel                | the `youtube` technic (`profiles/assistant/skills/technic/youtube/`) | Assistant           |

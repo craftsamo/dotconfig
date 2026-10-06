@@ -18,7 +18,7 @@ import hermes_yaml as yaml
 
 ROOT = Path(__file__).resolve().parents[3]
 spec = importlib.util.spec_from_file_location(
-    "writer_inspection_test", ROOT / "hermes/plugins/writing-inspection/__init__.py")
+    "writer_inspection_test", ROOT / "hermes/plugins/inspection/writing-inspection/__init__.py")
 plugin = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(plugin)
 

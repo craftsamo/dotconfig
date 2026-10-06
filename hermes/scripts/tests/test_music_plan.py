@@ -98,7 +98,7 @@ def create_args(result, out):
 @pytest.mark.parametrize("kind", ["create", "generate"])
 def test_guard_allows_real_proposal_under_mv_named_job(inputs, tmp_path, kind):
     """The real terminal guard precedes the real zero-media proposal command."""
-    guard = load(HERMES / "plugins/skill-topology/__init__.py", "music_plan_guard")
+    guard = load(HERMES / "plugins/guards/skill-topology/__init__.py", "music_plan_guard")
     request = inputs(kind)
     parent = tmp_path / "character-mv-no-voice" / "music-plan"
     parent.mkdir(parents=True)

@@ -47,7 +47,7 @@ are reconciled, never silently replayed by migration.
 
 ### OpenCode runtime
 
-`plugins/opencode` drives the person's shared OpenCode 2 service over its HTTP
+`plugins/orchestration/opencode` drives the person's shared OpenCode 2 service over its HTTP
 API (`opencode_call`, `opencode_session`) and keeps the private
 `opencode-sessions/` records (one per conversation, never Git). Requests go
 through the documented `opencode api` command, which finds or starts the
@@ -213,7 +213,7 @@ into costly `status`/`ps`/`sleep` polling loops (the assistant uses 960 for
 The fallback `opencode_session(action="wait", timeout?)` blocks the same way.
 
 The 90-minute resident turn (`TURN_TIMEOUT`, fixed in both
-`resident-session.sh` and `plugins/specialist-call`) is visible to the
+`resident-session.sh` and `plugins/orchestration/specialist-call`) is visible to the
 specialist: the handoff prints a `Turn budget:` line from `data["deadline"]`,
 and `build-engineer` checkpoint-commits verified increments and stops at
 ~15 min remaining. An OpenCode turn's own deadline never outlives the resident

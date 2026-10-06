@@ -24,7 +24,7 @@ Client decisions and the opencode_call transport; this skill is only a map.
 | --- | --- |
 | `~/.config/opencode/opencode.jsonc` | Provider/agent defaults, plugins, permissions, MCP and custom-tool grants |
 | `~/.config/opencode/agent/*.md` | Installed primary/subagent definitions and model/permission overrides |
-| `~/.config/opencode/agent/hermes-{plan,build,review,debug}.md` | The hidden non-interactive primaries the wrapper maps its four roles onto (`plugins/opencode` `OPENCODE_AGENTS`); their frontmatter holds each role's default model and permission posture, and the wrapper adds each run's constraints as the session's ruleset |
+| `~/.config/opencode/agent/hermes-{plan,build,review,debug}.md` | The hidden non-interactive primaries the wrapper maps its four roles onto (`plugins/orchestration/opencode` `OPENCODE_AGENTS`); their frontmatter holds each role's default model and permission posture, and the wrapper adds each run's constraints as the session's ruleset |
 | `~/.config/opencode/AGENTS.md` | Global skill routing and delegation rules |
 | `~/.config/opencode/skills/` | OpenCode-specific skills, including nested approach/Git groups |
 | `~/.agents/skills/` | Shared/external skill discovery; ownership varies, not all are repo-managed |
