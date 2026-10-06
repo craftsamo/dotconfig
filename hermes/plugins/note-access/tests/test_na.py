@@ -717,3 +717,109 @@ def test_a_preview_checks_everything_and_saves_nothing(note, tmp_path):
         na.execute({**args, "preview": "yes"}, can_write=True)
     with pytest.raises(na.NoteError, match="read note but not write"):
         na.execute(args, can_write=False)
+
+
+# --- check ---------------------------------------------------------------------------------------
+
+def test_check_reports_a_ready_body_without_contacting_note(note, tmp_path):
+    ws(tmp_path, "a.png", png(1240, 400))
+    ws(tmp_path, "cover.png", png(1280, 670))
+    result = na.execute({"action": "check", "title": "T", "body": "## h\n\ntext\n\n![c](a.png)\n",
+                         "eyecatch": "cover.png"}, allowed=na.OFFLINE)
+    assert result["ready"] is True and result["title"] == "T" and result["characters"] == len("h") + len("text")
+    assert result["images"][0]["sha256"] == na._sha256(tmp_path / "ws" / "a.png")
+    assert result["cover"]["width"] == 1280 and "note" not in result["cover"]
+    assert "errors" not in result and "markers" not in result and "nothing was sent" in result["note"]
+    assert note.calls == [] and not (tmp_path / "state").exists()
+
+
+def test_check_lists_every_problem_with_its_line(note, tmp_path):
+    ws(tmp_path, "wide.png", png(1000, 1000))
+    body = ("## h\n\n[[image:shot]]\n\n| a | b |\n\nan *italic* and `code`\n\n![x](missing.png)\n\n"
+            "![w](https://assets.st-note.com/img/1.png)\n\n[f](note-block:0123456789ab)\n")
+    result = na.check({"body": body, "eyecatch": "wide.png", "title": "x\ny"}, None)
+    assert result["ready"] is False
+    assert result["markers"] == [{"line": 3, "marker": "[[image:shot]]"}]
+    problems = {(e.get("line"), e["problem"].split(" ")[0]) for e in result["errors"]}
+    assert (5, "note") in problems and (9, "no") in problems and any("title" in e["problem"] for e in result["errors"])
+    assert [i["line"] for i in result["as_typed"]] == [7, 7]
+    assert result["web_images"][0]["line"] == 11 and result["kept_blocks"] == 1
+    assert "1280:670" in result["cover"]["note"]
+    deep = na.check({"body": "a\n\n#### deep\n"}, None)
+    assert deep["ready"] is False and deep["errors"] == [
+        {"line": 3, "problem": "note has two heading levels, ## and ###; #### is not one of them"}]
+
+
+def test_check_reads_a_markdown_file_in_the_attach_roots(note, tmp_path):
+    ws(tmp_path, "post/a.png", png(100, 100))
+    draft = ws(tmp_path, "post/draft.md", "\ufeffbody\n\n![c](a.png)\n".encode())
+    result = na.check({"path": str(draft)}, None)
+    assert result["path"] == str(draft.resolve()) and result["ready"] is False
+    assert "not from the Markdown file's folder" in result["errors"][0]["problem"]
+    assert str((tmp_path / "ws" / "post" / "a.png").resolve()) in result["errors"][0]["problem"]
+    outside = tmp_path / "elsewhere.md"
+    outside.write_text("x")
+    for args, message in (({"path": str(outside)}, "outside the folders"),
+                          ({"path": str(ws(tmp_path, "x.png", png()))}, "not a Markdown file"),
+                          ({"body": "x", "path": str(draft)}, "one of body"),
+                          ({}, "one of body"),
+                          ({"body": "x", "draft": "n0000000000a1"}, "not draft")):
+        with pytest.raises(na.NoteError, match=message):
+            na.check(args, None)
+
+
+def test_saves_refuse_marks_a_reader_would_see(note):
+    for body in ("[[embed:video]]\n", "| a | b |\n", "<!-- todo -->\n"):
+        with pytest.raises(na.NoteError, match="body: line 1"):
+            na.execute({"action": "create_draft", "title": "T", "body": body, "preview": True}, can_write=True)
+
+
+def test_an_action_outside_the_profile_is_refused_by_the_engine(note):
+    with pytest.raises(na.NoteError, match="only check"):
+        na.execute({"action": "drafts"}, allowed=na.OFFLINE)
+    with pytest.raises(na.NoteError, match="read note but not write"):
+        na.execute({"action": "create_draft", "title": "T", "body": "x"}, can_write=True, allowed=na.READS)
+    assert note.calls == []
+
+
+def test_an_unchanged_update_of_a_draft_with_mark_like_text_is_accepted(note):
+    note.add("n0000000000b2", "T", '<p name="11111111-2222" id="11111111-2222">| a | b | &lt;!-- c '
+             '<a href="https://e.example/[[image:x]]">l</a></p>')
+    read = na.draft({"draft": "n0000000000b2"})
+    result = na.execute({"action": "update_draft", "draft": "n0000000000b2", "base": read["saved"],
+                         "body": read["markdown"], "preview": True}, can_write=True)
+    assert result["preview"] is True
+
+
+def test_check_path_never_reveals_files_outside_the_roots(note, tmp_path):
+    secret = tmp_path / "outside" / "real.md"
+    secret.parent.mkdir()
+    secret.write_text("x")
+    link = tmp_path / "ws" / "link.md"
+    link.symlink_to(secret)
+    answers = set()
+    for given in (str(secret), str(tmp_path / "outside" / "missing.md"), str(link), "../outside/real.md"):
+        with pytest.raises(na.NoteError, match="outside the folders") as caught:
+            na.check({"path": given}, None)
+        answers.add(str(caught.value).replace(given, "<given>"))
+        assert "real.md" not in str(caught.value).replace(given, "")
+    assert len(answers) == 1
+    for name, data, message in ((".git/x.md", b"x", "credential"), ("credentials.md", b"x", "credential"),
+                                ("big.md", b"x" * (na.MARKDOWN_FILE_MAX + 1), "at most"),
+                                ("latin.md", b"\xff\xfe", "not UTF-8"), ("long.md", b"x" * (na.BODY_MAX + 1),
+                                                                          "a note body holds")):
+        with pytest.raises(na.NoteError, match=message):
+            na.check({"path": str(ws(tmp_path, name, data))}, None)
+    with pytest.raises(na.NoteError, match="no such file"):
+        na.check({"path": str(tmp_path / "ws" / "missing.md")}, None)
+
+
+def test_check_counts_new_images_and_caps_its_lists(note, tmp_path, monkeypatch):
+    monkeypatch.setattr(na, "CHECK_LIST_MAX", 3)
+    for n in range(na.MAX_NEW_IMAGES + 1):
+        ws(tmp_path, f"i{n}.png", png(10, 10))
+    body = "\n\n".join(f"![c](i{n}.png)" for n in range(na.MAX_NEW_IMAGES + 1)) + "\n\n" + "*a* " * 1 + "\n"
+    result = na.check({"body": body + "\n\n".join(f"`x{n}`" for n in range(5))}, None)
+    assert result["ready"] is False and "per save" in result["errors"][0]["problem"]
+    assert len(result["images"]) == 3 and result["images_more"] == na.MAX_NEW_IMAGES + 1 - 3
+    assert len(result["as_typed"]) == 3 and result["as_typed_more"] == 3
