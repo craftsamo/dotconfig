@@ -99,7 +99,7 @@ CREATIVE_LEGACY_SHELVES = {
 REQUIRED_MODE_FILES = {
     "chat": {"workspace-ops.md", "message-reply.md", "work-report.md", "cron.md", "lookups.md", "whatsapp.md",
              "signal.md", "discord.md", "telegram.md", "x.md", "note.md", "substack.md",
-             "youtube.md"},
+             "youtube.md", "google.md"},
     "execute": {"resident-sessions.md", "kanban-lite.md", "scheduled.md"},
 }
 # Verification contracts that must exist (migration-loss guard); extra
