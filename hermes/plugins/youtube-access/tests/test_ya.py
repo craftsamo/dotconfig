@@ -474,8 +474,224 @@ def test_schedule_keeps_the_video_private(api):
         ya._edits({"publish_at": "2099-01-01T00:00+00:00", "privacy": "public"})
 
 
+def test_update_sets_video_flags_and_merges_localizations(api):
+    authorize(CID)
+    item = video_item()
+    item["snippet"]["defaultLanguage"] = "ja"
+    item["localizations"] = {"en": {"title": "E", "description": "e"}, "de": {"title": "D"}}
+    api.answers = {"videos.list": {"items": [item]}, "videos.update": lambda kw: {**item, **kw["body"]}}
+    out = ya.execute({"action": "update", "video": VID, "license": "creativeCommon", "embeddable": False,
+                      "synthetic_media": True, "localizations": {"en": {"description": "new"}, "fr": {"title": "F"},
+                                                                 "de": None}}, profile="assistant")
+    name, kwargs = api.calls[-1]
+    assert kwargs["part"] == "status,localizations"
+    body = kwargs["body"]
+    assert body["status"]["license"] == "creativeCommon" and body["status"]["embeddable"] is False
+    assert body["status"]["containsSyntheticMedia"] is True and body["status"]["privacyStatus"] == "private"
+    assert body["localizations"] == {"en": {"title": "E", "description": "new"}, "fr": {"title": "F"}}
+    assert out["localizations"] == ["en", "fr"]
+    assert "localizations" in api.calls[0][1]["part"]
+
+
+def test_video_localizations_need_a_default_language(api):
+    authorize(CID)
+    api.answers = {"videos.list": {"items": [video_item()]}}
+    with pytest.raises(ya.YouTubeError, match="default_language"):
+        ya.execute({"action": "update", "video": VID, "localizations": {"en": {"title": "E"}}}, profile="assistant")
+    api.answers["videos.update"] = lambda kw: {**video_item(), **kw["body"]}
+    ya.execute({"action": "update", "video": VID, "default_language": "ja", "localizations": {"en": {"title": "E"}}},
+               profile="assistant")
+    body = api.calls[-1][1]["body"]
+    assert body["snippet"]["defaultLanguage"] == "ja" and api.calls[-1][1]["part"] == "snippet,localizations"
+    with pytest.raises(ya.YouTubeError, match="needs a title"):
+        ya.execute({"action": "update", "video": VID, "default_language": "ja",
+                    "localizations": {"es": {"description": "x"}}}, profile="assistant")
+    with pytest.raises(ya.YouTubeError, match="with update once"):
+        ya._upload_edits({"title": "x", "localizations": {"en": {"title": "E"}}})
+
+
+def channel_item(**branding):
+    return {"id": CID, "snippet": {"title": "Mine", "customUrl": "@mine"},
+            "brandingSettings": {"channel": {"title": "Mine", "description": "old", "keywords": 'ai "old phrase"',
+                                             "defaultLanguage": "ja", "unsubscribedTrailer": VID, **branding}},
+            "localizations": {"en": {"title": "Mine EN", "description": "en"}},
+            "status": {"privacyStatus": "public", "madeForKids": False, "selfDeclaredMadeForKids": False},
+            "statistics": {"subscriberCount": "5", "videoCount": "3"}}
+
+
+def test_my_channel_reads_the_settings(api):
+    authorize(CID)
+    api.answers = {"channels.list": {"items": [channel_item()]}}
+    out = ya.execute({"action": "my_channel"}, profile="marketer")
+    channel = out["channel"]
+    assert channel["keywords"] == ["ai", "old phrase"] and channel["trailer"] == VID
+    assert channel["default_language"] == "ja" and channel["localizations"]["en"]["title"] == "Mine EN"
+    assert channel["made_for_kids"] is False and "Studio" in out["note"]
+    assert api.calls[0][1]["id"] == CID and api.read_only == [True]
+
+
+def test_channel_update_sends_each_part_whole(api):
+    authorize(CID)
+    api.answers = {"channels.list": {"items": [channel_item()]}, "channels.update": {}}
+    out = ya.execute({"action": "channel_update", "keywords": ["ai", "video  editing"], "trailer": "",
+                      "country": "jp", "localizations": {"fr": {"title": "Mine FR"}}, "made_for_kids": False},
+                     profile="assistant")
+    updates = [kw for name, kw in api.calls if name == "channels.update"]
+    assert [kw["part"] for kw in updates] == ["brandingSettings", "localizations", "status"]
+    branding = updates[0]["body"]["brandingSettings"]["channel"]
+    assert branding == {"title": "Mine", "description": "old", "keywords": 'ai "video editing"',
+                        "defaultLanguage": "ja", "country": "JP"}
+    assert updates[1]["body"]["localizations"] == {"en": {"title": "Mine EN", "description": "en"},
+                                                   "fr": {"title": "Mine FR"}}
+    assert updates[2]["body"] == {"id": CID, "status": {"selfDeclaredMadeForKids": False}}
+    assert out["changed"] == ["brandingSettings", "localizations", "status"]
+    assert ya.usage()["api"]["units"] == 1 + 3 * 50 and api.read_only == [False]
+
+
+def test_channel_update_reports_a_partial_change(api):
+    authorize(CID)
+
+    def update(kwargs):
+        if kwargs["part"] == "localizations":
+            raise ya.YouTubeError("YouTube API error 400 (localizationValidationError): bad")
+        return {}
+    api.answers = {"channels.list": {"items": [channel_item()]}, "channels.update": update}
+    with pytest.raises(ya.YouTubeError, match="partly done: brandingSettings changed; localizations failed"):
+        ya.execute({"action": "channel_update", "description": "new",
+                    "localizations": {"fr": {"title": "F"}}}, profile="assistant")
+
+
+def test_channel_localizations_need_a_default_language(api):
+    authorize(CID)
+    api.answers = {"channels.list": {"items": [channel_item(defaultLanguage=None)]}}
+    with pytest.raises(ya.YouTubeError, match="default_language"):
+        ya.execute({"action": "channel_update", "description": "x", "localizations": {"en": {"title": "E"}}},
+                   profile="assistant")
+    assert [name for name, _ in api.calls] == ["channels.list"]  # nothing written
+
+
+@pytest.mark.parametrize("args,match", [
+    ({}, "needs at least one"),
+    ({"description": "x" * 1001}, "at most 1000"),
+    ({"country": "JPN"}, "two-letter"),
+    ({"keywords": ['say "hi"']}, "cannot contain"),
+    ({"keywords": ["k" * 501]}, "at most 500"),
+    ({"default_language": "japanese!"}, "language code"),
+    ({"trailer": "nope"}, "trailer"),
+    ({"localizations": {"en": {"name": "x"}}}, "title and/or description"),
+    ({"localizations": {"en": {"title": "<b>"}}}, "cannot contain"),
+])
+def test_channel_update_validation(args, match):
+    authorize(CID)
+    with pytest.raises(ya.YouTubeError, match=match):
+        ya.approval_request({"action": "channel_update", **args}, profile="assistant", lookup=False)
+
+
+def test_playlist_update_merges_and_keeps_to_the_channel(api):
+    authorize(CID)
+    pid = "PL1234567890abc"
+    current = {"id": pid, "snippet": {"channelId": CID, "title": "Old", "description": "keep", "channelTitle": "x"},
+               "status": {"privacyStatus": "private", "podcastStatus": "enabled"}}
+    api.answers = {"playlists.list": {"items": [current]}, "playlists.update": lambda kw: kw["body"]}
+    out = ya.execute({"action": "playlist_update", "playlist": pid, "title": "New", "privacy": "public"},
+                     profile="assistant")
+    kwargs = api.calls[-1][1]
+    assert kwargs["part"] == "snippet,status"
+    assert kwargs["body"] == {"id": pid, "snippet": {"title": "New", "description": "keep"},
+                              "status": {"privacyStatus": "public", "podcastStatus": "enabled"}}
+    assert out["playlist"]["privacy"] == "public"
+    current["snippet"]["channelId"] = CID2
+    with pytest.raises(ya.YouTubeError, match="another channel"):
+        ya.execute({"action": "playlist_update", "playlist": pid, "title": "x"}, profile="assistant")
+
+
+def test_playlist_move(api):
+    authorize(CID)
+    resource = {"kind": "youtube#video", "videoId": VID}
+    api.answers = {"playlistItems.list": {"items": [{"snippet": {"playlistId": "PL1234567890abc",
+                                                                 "resourceId": resource, "position": 4}}]},
+                   "playlistItems.update": lambda kw: kw["body"]}
+    out = ya.execute({"action": "playlist_move", "item": "UExabcdefghijklmn", "position": 0}, profile="assistant")
+    assert api.calls[-1][1] == {"part": "snippet", "body": {"id": "UExabcdefghijklmn", "snippet": {
+        "playlistId": "PL1234567890abc", "resourceId": resource, "position": 0}}}
+    assert out["position"] == 0
+    with pytest.raises(ya.YouTubeError, match="position"):
+        ya.execute({"action": "playlist_move", "item": "UExabcdefghijklmn"}, profile="assistant")
+
+
+def test_moderate(api):
+    authorize(CID)
+    one, two = "Ugx" + "c" * 20, "Ugx" + "d" * 20
+    api.answers = {"comments.setModerationStatus": ""}
+    out = ya.execute({"action": "moderate", "comment": [one, two, one], "moderation": "reject", "ban_author": True},
+                     profile="assistant")
+    assert api.calls[-1] == ("comments.setModerationStatus", {"id": f"{one},{two}", "moderationStatus": "rejected",
+                                                              "banAuthor": True})
+    assert out["comments"] == [one, two]
+    with pytest.raises(ya.YouTubeError, match="ban_author goes with"):
+        ya.execute({"action": "moderate", "comment": one, "moderation": "hold", "ban_author": True},
+                   profile="assistant")
+    with pytest.raises(ya.YouTubeError, match="moderation is required"):
+        ya.execute({"action": "moderate", "comment": one}, profile="assistant")
+    with pytest.raises(ya.YouTubeError, match="up to 50"):
+        ya.execute({"action": "moderate", "comment": [one] * 51, "moderation": "hold"}, profile="assistant")
+
+
+def test_watermark(api, tmp_path):
+    pytest.importorskip("googleapiclient.http")
+    authorize(CID)
+    image = tmp_path / "Workspaces" / "mark.png"
+    image.write_bytes(b"x" * 10)
+    api.answers = {"watermarks.set": "", "watermarks.unset": ""}
+    out = ya.execute({"action": "watermark", "path": str(image), "display": "from", "start_s": 30},
+                     profile="assistant")
+    name, kwargs = api.calls[-1]
+    assert name == "watermarks.set" and kwargs["channelId"] == CID
+    assert kwargs["body"] == {"timing": {"type": "offsetFromStart", "offsetMs": 30000}}
+    assert out["shown"] == "from 30 s to the end"
+    assert ya._watermark_timing({"display": "end"}) == {"type": "offsetFromEnd", "offsetMs": 15000,
+                                                        "durationMs": 15000}
+    with pytest.raises(ya.YouTubeError, match="start_s"):
+        ya._watermark_timing({"display": "from"})
+    with pytest.raises(ya.YouTubeError, match="start_s goes with"):
+        ya._watermark_timing({"start_s": 3})
+    ya.execute({"action": "watermark_remove"}, profile="assistant")
+    assert api.calls[-1] == ("watermarks.unset", {"channelId": CID})
+
+
+def test_captions_list_and_upload(api, tmp_path):
+    pytest.importorskip("googleapiclient.http")
+    authorize(CID)
+    track = {"id": "AUieDaZ_abc123", "snippet": {"videoId": VID, "language": "ja", "name": "", "trackKind": "standard",
+                                                 "isDraft": False}}
+    api.answers = {"captions.list": {"items": [track]}, "videos.list": {"items": [video_item()]},
+                   "captions.insert": lambda kw: {"id": "AUnew_track1", "snippet": kw["body"]["snippet"]},
+                   "captions.update": lambda kw: {"id": kw["body"]["id"], "snippet": {"isDraft": True}}}
+    out = ya.execute({"action": "captions", "video": VID}, profile="marketer")
+    assert out["tracks"] == [{"id": "AUieDaZ_abc123", "video": VID, "language": "ja", "name": "", "kind": "standard",
+                              "draft": False}]
+    assert ya.usage()["api"]["units"] == ya.COST["captions"] and api.read_only == [False]
+    srt = tmp_path / "Workspaces" / "ja.srt"
+    srt.write_text("1\n00:00:00,000 --> 00:00:01,000\nhi\n")
+    added = ya.execute({"action": "caption_upload", "video": VID, "path": str(srt), "language": "en", "name": "EN"},
+                       profile="assistant")
+    assert added["caption"]["language"] == "en" and api.calls[-1][1]["body"]["snippet"]["isDraft"] is False
+    ya.execute({"action": "caption_upload", "video": VID, "path": str(srt), "caption": "AUieDaZ_abc123",
+                "draft": True}, profile="assistant")
+    assert api.calls[-1][0] == "captions.update"
+    assert api.calls[-1][1]["body"] == {"id": "AUieDaZ_abc123", "snippet": {"isDraft": True}}
+    assert ya.usage()["api"]["units"] == 50 + 1 + 400 + 1 + 450
+    with pytest.raises(ya.YouTubeError, match="keeps its language"):
+        ya.execute({"action": "caption_upload", "video": VID, "path": str(srt), "caption": "AUieDaZ_abc123",
+                    "language": "en"}, profile="assistant")
+    api.answers["videos.list"] = {"items": [video_item(channel=CID2)]}
+    with pytest.raises(ya.YouTubeError, match="another channel"):
+        ya.execute({"action": "caption_upload", "video": VID, "path": str(srt), "language": "en"}, profile="assistant")
+
+
 def test_marketer_cannot_write():
     authorize(CID)
+    assert not set(ya.WRITES) & set(ya.actions_for("marketer"))
     with pytest.raises(ya.YouTubeError, match="action must be one of"):
         ya.execute({"action": "update", "video": VID, "title": "x"}, profile="marketer")
     with pytest.raises(ya.YouTubeError, match="action must be one of"):
@@ -525,6 +741,62 @@ def test_other_writes_key_the_exact_call(tmp_path):
     movie.write_bytes(b"y" * 200)
     second = ya.approval_request(calls[1], profile="assistant", lookup=False)
     assert first[1] != second[1] and "PRIVATE" in second[0]
+
+
+def test_new_writes_key_the_exact_call(tmp_path, monkeypatch):
+    authorize(CID)
+    image = tmp_path / "Workspaces" / "mark.png"
+    image.write_bytes(b"x" * 10)
+    srt = tmp_path / "Workspaces" / "ja.srt"
+    srt.write_text("1\n")
+    one = "Ugx" + "c" * 20
+    calls = [{"action": "channel_update", "description": "D" * 1000, "keywords": ["k"] * 200,
+              "localizations": {lang: {"title": "T" * 100, "description": "x" * 900}
+                                for lang in ("en", "fr", "de", "es", "it", "pt")},
+              "made_for_kids": True},
+             {"action": "playlist_update", "playlist": "PL1234567890abc", "privacy": "public"},
+             {"action": "playlist_move", "item": "UExabcdefghijklmn", "position": 2},
+             {"action": "watermark", "path": str(image)},
+             {"action": "watermark_remove"},
+             {"action": "moderate", "comment": one, "moderation": "reject", "ban_author": True},
+             {"action": "caption_upload", "video": VID, "path": str(srt), "language": "ja"}]
+    keys = set()
+    for args in calls:
+        reason, key = ya.approval_request(args, profile="assistant", lookup=False)
+        assert key.startswith(f"youtube-access:{args['action']}:") and ya._units(reason) <= ya.CARD_LIMIT
+        keys.add(key)
+    assert len(keys) == len(calls)
+    card = ya.approval_request(calls[0], profile="assistant", lookup=False)[0]
+    assert "Edit channel settings" in card and "made for kids → YES" in card and "…and 3 more" in card
+    assert "BAN" in ya.approval_request(calls[5], profile="assistant", lookup=False)[0]
+    first = ya.approval_request(calls[6], profile="assistant", lookup=False)[1]
+    srt.write_text("1\n00:00:00,000 --> 00:00:01,000\nchanged\n")
+    assert ya.approval_request(calls[6], profile="assistant", lookup=False)[1] != first
+    monkeypatch.setattr(ya, "_comment_texts", lambda cid, ids: ["Spammer: buy now"])
+    assert "Spammer: buy now" in ya.approval_request(calls[5], profile="assistant")[0]
+
+
+def test_video_settings_share_the_per_video_key():
+    authorize(CID)
+    reason, key = ya.approval_request({"action": "update", "video": VID, "license": "creativeCommon",
+                                       "public_stats": False, "localizations": {"en": {"title": "E"}, "de": None}},
+                                      profile="assistant", lookup=False)
+    assert key == f"youtube-access:edit:{CID}:{VID}"
+    assert "license → Creative Commons" in reason and "public stats → no" in reason
+    assert "en → E" in reason and "remove languages: de" in reason
+
+
+def test_a_watermark_file_changed_after_its_card_is_refused(tmp_path, api):
+    authorize(CID)
+    image = tmp_path / "Workspaces" / "mark.png"
+    image.write_bytes(b"x" * 10)
+    args = {"action": "watermark", "path": str(image)}
+    pinned = {**args, **ya.binding(args, profile="assistant")}
+    assert pinned["_bound"]["file"][1] == 10
+    image.write_bytes(b"y" * 20)
+    with pytest.raises(ya.YouTubeError, match="file changed"):
+        ya.execute(pinned, profile="assistant", bound=True)
+    assert api.calls == []
 
 
 def test_cards_stay_short():
