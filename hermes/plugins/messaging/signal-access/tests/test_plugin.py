@@ -84,6 +84,15 @@ def test_gate_blocks_ways_around_the_tool():
     assert plugin.gate(tool_name="terminal", args={"command": "ls"}) is None
 
 
+def test_gate_stops_running_what_was_unpacked_but_not_reading_it():
+    folder = "~/Workspaces/.inbox/signal/chat-1/pack.unpacked"
+    for command in (f"bash {folder}/run.sh", f"cd {folder} && ./run.sh", f"chmod +x {folder}/run.sh"):
+        directive = plugin.gate(tool_name="terminal", args={"command": command})
+        assert directive == {"action": "block", "message": plugin.sig.archives.RUN_MESSAGE}, command
+    for command in (f"cat {folder}/notes.txt", f"python analyze.py {folder}/data.csv", f"ls {folder}"):
+        assert plugin.gate(tool_name="terminal", args={"command": command}) is None, command
+
+
 def test_inbound_a2a_is_refused(monkeypatch):
     monkeypatch.setattr(plugin, "_inbound_peer", lambda: True)
     directive = plugin.gate(tool_name="signal", args={"action": "chats"})

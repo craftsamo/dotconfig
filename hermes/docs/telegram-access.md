@@ -166,9 +166,11 @@ message, `<chat>-<id>` (a group's leading minus written `g`), under `telegram_ac
 `config.yaml` (the Assistant uses `~/Workspaces/.inbox/telegram`), else
 `<HERMES_HOME>/telegram-downloads/`, and returns the path.
 
-- Archives and programs are refused by name and declared type before the
-  download and by the bytes (`file --mime-type`) after it — the rules
-  signal-access uses, plus animated `.tgs` stickers (gzip). A file over
+- Programs are refused by name and declared type before the download and by
+  the bytes (`file --mime-type`) after it — the rules signal-access uses,
+  plus animated `.tgs` stickers (gzip). A `.zip` or tar archive is downloaded
+  and inspected before it is saved; the rules are in
+  [Signal access](./signal-access.md) ("Received archives"); `unpack` unpacks it ("Unpacking"). A file over
   `telegram_access.download_max_mb` (default 100, at most 500) is not
   downloaded.
 - A disappearing message's file is copied from the agent's kept copy, with
@@ -181,7 +183,7 @@ message, `<chat>-<id>` (a group's leading minus written `g`), under `telegram_ac
   hidden part file renamed into place (a link or folder at the name is left
   alone), and empties the token folder whatever happens. Leftovers from a crash
   expire after a day. The note says a saved file is to be looked at, never
-  opened, run or unpacked.
+  opened or run (an archive is unpacked only by `unpack`).
 
 ## Sync list
 
@@ -242,8 +244,7 @@ the card.
   the database-like names above also refused inside); other archive formats
   are refused. See
   [Signal access](./signal-access.md) for the inspection. Several images go
-  as an album; any other mix goes as documents. Received archives are still
-  never downloaded.
+  as an album; any other mix goes as documents.
 - **The approval covers the exact message.** The allowlist key hashes the
   account, chat, text, reply (the quoted sender and text) and each file's path
   and SHA-256, so "session" or "always" only ever repeats that identical send.

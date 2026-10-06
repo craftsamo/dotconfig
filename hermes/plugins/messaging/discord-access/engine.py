@@ -26,6 +26,7 @@ import base64
 from datetime import datetime, timedelta, timezone
 import fcntl
 import hashlib
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -39,6 +40,21 @@ import uuid
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import store  # noqa: E402
+
+
+def _shared(name: str):
+    """A module of ``messaging/_shared`` (the engine runs as a script, so it loads it by path)."""
+    key = f"hermes_{name}"
+    if key not in sys.modules:
+        spec = importlib.util.spec_from_file_location(key, Path(__file__).resolve().parent.parent / "_shared"
+                                                      / f"{name}.py")
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[key] = module
+        spec.loader.exec_module(module)
+    return sys.modules[key]
+
+
+archives = _shared("archive_check")
 
 API = "https://discord.com/api/v9"
 WEB = "https://discord.com"
@@ -815,7 +831,7 @@ def media(client: Client, channel_id: str, message_id: str, folder: Path, limit:
         if url.scheme != "https" or not store.MEDIA_HOST.match(url.hostname or ""):
             out.append({**entry, "status": "refused", "why": "not on Discord's media hosts"})
             continue
-        if store.risky(item["name"], item["type"]):
+        if archives.refused_before_save(item["name"], item["type"], store.RISKY_FILES, store.RISKY_MIME):
             out.append({**entry, "status": "refused", "why": "an archive or program"})
             continue
         if isinstance(item["size"], int) and item["size"] > limit:

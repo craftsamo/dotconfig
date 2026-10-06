@@ -190,7 +190,10 @@ repository upkeep (Engineer through OpenCode, the Assistant's Admin topic).
   breaks all four at import. Never give it a
   `plugin.yaml` (Hermes would try to load it), and keep each sender's own
   file rules passed in rather than copied there
-  ([docs/signal-access.md](docs/signal-access.md)).
+  ([docs/signal-access.md](docs/signal-access.md)). Its terminal guard
+  (`unpacked_guard`) keys on the `.unpacked` folder name that `extract` gives
+  an unpacked archive, and the Assistant's technics name it too: rename it
+  everywhere or the guard stops matching without a failure.
 - **Moving a plugin directory moves its LaunchAgent's script path.** The
   installed plists of the `messaging/` sync agents embed the absolute path of
   `sync.py` / `engine.py`, so after such a move each agent needs its

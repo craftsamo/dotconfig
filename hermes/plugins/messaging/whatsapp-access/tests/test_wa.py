@@ -1,8 +1,11 @@
 import importlib.util
+import io
 import json
 from datetime import datetime
 from pathlib import Path
 import subprocess
+import sys
+import zipfile
 
 import pytest
 
@@ -595,14 +598,122 @@ def test_media_downloads_read_only_into_its_own_folder(fake, tmp_path, monkeypat
     assert call["write"] is False  # --read-only: no store lock, sync keeps running
 
 
-def test_media_refuses_archives_and_messages_without_files(fake, tmp_path):
-    fake.overrides["messages show"] = message("ZIP1", MediaType="document", Filename="PDF_invoice.ZIP")
+def test_media_refuses_programs_and_messages_without_files(fake, tmp_path):
+    fake.overrides["messages show"] = message("EXE1", MediaType="document", Filename="PDF_invoice.EXE")
     with pytest.raises(wa.WhatsAppError, match="never download"):
-        wa.execute({"action": "media", "chat": DM, "id": "ZIP1"}, home=tmp_path)
+        wa.execute({"action": "media", "chat": DM, "id": "EXE1"}, home=tmp_path)
+    fake.overrides["messages show"] = message("RAR1", MediaType="document", Filename="docs.rar",
+                                              MimeType="application/x-rar")
+    with pytest.raises(wa.WhatsAppError, match="never download"):
+        wa.execute({"action": "media", "chat": DM, "id": "RAR1"}, home=tmp_path)
     fake.overrides["messages show"] = message("TXT1")
     with pytest.raises(wa.WhatsAppError, match="no file"):
         wa.execute({"action": "media", "chat": DM, "id": "TXT1"}, home=tmp_path)
     assert not fake.args_of(["media", "download"])
+
+
+def _zip_bytes(entries):
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as z:
+        for name, data in entries.items():
+            z.writestr(name, data)
+    return buffer.getvalue()
+
+
+def _downloads(name, content, mime):
+    """The fake wacli writing ``content`` as the downloaded file."""
+    def download(args):
+        folder = Path(args[args.index("--output") + 1])
+        folder.mkdir(parents=True, exist_ok=True)
+        path = folder / name
+        path.write_bytes(content)
+        return {"path": str(path), "bytes": len(content), "mime_type": mime}
+    return download
+
+
+def test_media_saves_an_inspected_archive_and_lists_what_is_inside(fake, tmp_path, monkeypatch):
+    monkeypatch.setattr(wa, "download_dir", lambda home: tmp_path / "inbox")
+    data = _zip_bytes({"notes.txt": b"hello", ".env": b"A=1", "run.sh": b"#!/bin/sh\necho hi\n"})
+    fake.overrides["messages show"] = message("ZIP2", MediaType="document", Filename="photos.zip",
+                                              MimeType="application/zip")
+    fake.overrides["media download"] = _downloads("photos.zip", data, "application/zip")
+    out = wa.execute({"action": "media", "chat": DM, "id": "ZIP2"}, home=tmp_path)
+    assert Path(out["path"]).read_bytes() == data and out["archive"]["entries"] == 3
+    assert sorted(out["archive"]["names"]) == [".env", "notes.txt", "run.sh"]
+    assert out["archive_note"] == wa.ARCHIVE_NOTE
+
+
+PACK = {"notes.txt": b"hello", "data/q1.csv": b"a,b\n1,2\n", "run.sh": b"#!/bin/sh\necho hi\n"}
+
+
+def _pack(fake, tmp_path, monkeypatch, mid):
+    monkeypatch.setattr(wa, "download_dir", lambda home: tmp_path / "inbox")
+    fake.overrides["messages show"] = message(mid, MediaType="document", Filename="photos.zip",
+                                              MimeType="application/zip")
+    fake.overrides["media download"] = _downloads("photos.zip", _zip_bytes(PACK), "application/zip")
+
+
+def test_media_unpacks_an_inspected_archive_only_when_asked(fake, tmp_path, monkeypatch):
+    _pack(fake, tmp_path, monkeypatch, "ZIP4")
+    out = wa.execute({"action": "media", "chat": DM, "id": "ZIP4", "unpack": True}, home=tmp_path)
+    folder = Path(out["unpacked"]["folder"])
+    assert folder == Path(out["path"]).parent / "photos.unpacked" and out["unpacked"]["count"] == 3
+    assert (folder / "data" / "q1.csv").read_bytes() == b"a,b\n1,2\n"
+    assert not any(p.stat().st_mode & 0o111 for p in folder.rglob("*") if p.is_file())
+    assert out["unpacked_note"] == wa.UNPACKED_NOTE and Path(out["path"]).exists()
+
+
+def test_media_does_not_unpack_by_itself(fake, tmp_path, monkeypatch):
+    _pack(fake, tmp_path, monkeypatch, "ZIP5")
+    out = wa.execute({"action": "media", "chat": DM, "id": "ZIP5"}, home=tmp_path)
+    assert "unpacked" not in out and "unpacked_note" not in out
+    assert not list((tmp_path / "inbox").rglob("*.unpacked"))
+
+
+def test_media_unpacks_only_the_named_entries_and_a_bad_name_leaves_the_archive_saved(fake, tmp_path, monkeypatch):
+    _pack(fake, tmp_path, monkeypatch, "ZIP6")
+    out = wa.execute({"action": "media", "chat": DM, "id": "ZIP6", "unpack": True, "entries": ["notes.txt"]},
+                     home=tmp_path)
+    assert out["unpacked"]["files"] == ["notes.txt"]
+    out = wa.execute({"action": "media", "chat": DM, "id": "ZIP6", "unpack": True, "entries": ["missing.txt"]},
+                     home=tmp_path)
+    assert Path(out["path"]).exists() and "unpacked" not in out and "stays saved" in out["unpack_error"]
+
+
+@pytest.mark.parametrize("entries, fragment", [
+    ({"a.txt": b"x", "setup.exe": b"x"}, "an archive or a program"),
+    ({"a.txt": b"x", "inner.zip": b"x"}, "an archive or a program"),
+    ({"a.txt": b"x", "../evil.txt": b"x"}, "not a plain relative path"),
+])
+def test_media_deletes_an_archive_that_fails_the_inspection(fake, tmp_path, monkeypatch, entries, fragment):
+    monkeypatch.setattr(wa, "download_dir", lambda home: tmp_path / "inbox")
+    fake.overrides["messages show"] = message("ZIP3", MediaType="document", Filename="bad.zip",
+                                              MimeType="application/zip")
+    fake.overrides["media download"] = _downloads("bad.zip", _zip_bytes(entries), "application/zip")
+    with pytest.raises(wa.WhatsAppError, match=f"{fragment}.*deleted"):
+        wa.execute({"action": "media", "chat": DM, "id": "ZIP3"}, home=tmp_path)
+    assert not [p for p in (tmp_path / "inbox").rglob("*") if p.is_file()]
+
+
+def test_media_looks_at_the_content_not_only_the_claims(fake, tmp_path, monkeypatch):
+    """A ZIP that calls itself a photo, with a photo's declared type, is caught by what it really is."""
+    monkeypatch.setattr(wa, "download_dir", lambda home: tmp_path / "inbox")
+    fake.overrides["messages show"] = message("IMG2", MediaType="image", Filename="photo.jpg", MimeType="image/jpeg")
+    fake.overrides["media download"] = _downloads("photo.jpg", _zip_bytes({"a.txt": b"x"}), "image/jpeg")
+    with pytest.raises(wa.WhatsAppError, match="archive or program; it was deleted"):
+        wa.execute({"action": "media", "chat": DM, "id": "IMG2"}, home=tmp_path)
+    assert not [p for p in (tmp_path / "inbox").rglob("*") if p.is_file()]
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="the quarantine flag is macOS's")
+def test_media_marks_what_it_saves_as_downloaded(fake, tmp_path, monkeypatch):
+    monkeypatch.setattr(wa, "download_dir", lambda home: tmp_path / "inbox")
+    fake.overrides["messages show"] = message("IMG3", MediaType="image", Filename="pic.jpg", MimeType="image/jpeg")
+    fake.overrides["media download"] = _downloads("pic.jpg", b"\xff\xd8\xff\xe0" + b"0" * 64, "image/jpeg")
+    out = wa.execute({"action": "media", "chat": DM, "id": "IMG3"}, home=tmp_path)
+    flag = subprocess.run(["/usr/bin/xattr", "-p", "com.apple.quarantine", out["path"]], capture_output=True,
+                          text=True).stdout
+    assert flag.startswith("0081;")
 
 
 def test_expired_media_says_so(fake, tmp_path, monkeypatch):

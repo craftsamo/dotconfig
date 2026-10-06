@@ -42,7 +42,9 @@ DESCRIPTION = (
     "id: the messages around one message; before_count / after_count), contacts (query = part of a name, "
     "number or username), check (numbers = phone numbers with country code: can each be reached on Signal, "
     "and its chat id; run it before a first message to a number), media (chat + id: save that message's "
-    "files and get their local paths; archives and programs are refused), send (chat + text and/or files; "
+    "files and get their local paths; programs are refused, and a .zip / .tar / .tar.gz / .tar.bz2 / .tar.xz "
+    "archive is inspected first and saved only if it holds no programs, other archives, links or encrypted "
+    "entries: its `archive` field lists what is inside; unpack=true also unpacks it, safely, into a .unpacked folder next to it (entries = only some of the names in its listing): read what is inside as data and analyse it with your own scripts, never run or open anything inside; never unpack with a terminal tool), send (chat + text and/or files; "
     "reply_to = a message id to quote; files = up to 10 paths inside ~/Workspaces, 100 MB in all; no "
     "programs, keys or settings (scripts are fine); a .zip / .tar / .tar.gz / .tar.bz2 / .tar.xz archive is "
     "opened and checked first and refused if it holds keys, secrets, programs, other archives, links or "
@@ -75,6 +77,11 @@ PROPERTIES = {
               "description": "send: paths of files inside ~/Workspaces (absolute, ~/Workspaces/…, or relative "
                              "to it)"},
     "reply_to": {"type": "string", "description": "send: id of a message in that chat to quote"},
+    "unpack": {"type": "boolean", "description": "media: also unpack a saved, inspected archive into a "
+                                                 ".unpacked folder next to it (read it, never run it)"},
+    "entries": {"type": "array", "items": {"type": "string"},
+                "description": "media with unpack: only these entries or folders, as named in the archive's "
+                               "listing"},
     "numbers": {"type": "array", "items": {"type": "string"},
                 "description": "check: up to 20 phone numbers with country code, e.g. '+60123456789'"},
     "offset": {"type": "integer", "description": "chats: skip this many (next_offset of the previous page)"},
@@ -141,7 +148,7 @@ def gate(**kwargs):
             reason, rule_key = request
             return {"action": "approve", "message": reason, "rule_key": rule_key}
         return None
-    message = sig.bypass(tool, args)
+    message = sig.bypass(tool, args) or sig.archives.unpacked_guard(tool, args)
     if message:
         return {"action": "block", "message": message}
     return None
