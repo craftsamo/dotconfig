@@ -1,24 +1,28 @@
 # note Articles
 
-Input uses a rich-text editor with a finite Markdown shortcut set, not a
-general Markdown-file import contract. Documentary check: 2026-09-08;
-paste fidelity and the logged-in editor were not tested.
+A note draft is saved from Markdown in the `note` tool's dialect, so the
+source draft is written in it; the requester saves it, never Writer. The
+tool's description lists the dialect, and its `check` action (`path` = the
+draft file, or `body`) says whether a save would accept the format, without
+contacting note or the user's account.
+
+The title is not part of the body: name it separately (the requester passes
+it as `title`). The body starts at its first `##` heading or paragraph, never
+a `#` title line.
 
 | Expression | Source handling |
 | --- | --- |
-| Headings and ordered/unordered lists | Editor features; a shortcut is not proof of full-document Markdown paste |
-| Bold and links | Editor formatting; preserve intended emphasis/link targets in the source draft |
-| Italic | Not confirmed by this capability check; do not promise rendering |
-| Code and quotes | Editor blocks; keep their contents separate from setup instructions |
-| Tables | Unverified here; propose a readable alternative or an explicit production task |
-| Images, captions and alt text | Separate editor inputs, grounded in actual supplied media |
-| Embeds | Supported service/URL behavior must be confirmed for the actual target |
-| HTML/comments | No assumed interpretation or hiding behavior |
+| Headings | `##` and `###` only; a deeper level becomes `###` or bold text |
+| Lists | Flat only; a nested point becomes its own item or a sentence |
+| Images | A line of its own, `![caption](/absolute/path "alt text")`, from a supplied local file under ~/Workspaces; never a web address |
+| Italic, inline code, HTML, footnotes | No note form: saved as typed. Use bold, plain words or a code block |
+| Tables | No note form, and a table row is refused: a list, or a separate image-of-table asset job |
+| Embeds, files, sounds, a paid line | The user adds them in the browser after the save: record them as editor operations |
 
-Deliver a readable draft and, only when needed, a separate list of editor
-operations. Do not present literal Markdown as verified formatted note output.
-When a table cannot be represented reliably, preserve its meaning in a list
-or ask about another form; converting data to an image is a separate asset job.
+Write image paths in full: a relative path is read from ~/Workspaces, not
+from the draft's folder. Unresolved `[[image:id]]`, `[[embed:id]]` and
+`[[table:id]]` markers keep the draft needs-assets and are refused by a save;
+`check` lists them under `markers`. Never drop one to make the check pass.
 
 Follow the requested voice rather than a stereotype of the platform. An
 experience-led article requires real supplied experiences. Do not add a
@@ -49,13 +53,17 @@ Retain: an intentional pause, modest heading or unresolved ending that fits
 the supplied voice. Do not force a conclusion-first opening, confession or
 equal paragraph lengths. An independent list can remain a list rather than
 being expanded into a narrative the source does not contain.
-This is a source draft; story polish does not demonstrate editor import.
+This is a source draft; story polish does not show how the saved page reads.
 
 QA evidence: quote the event, the attributed interpretation and the limiting
 phrase, then check the title and section headings for a stronger assertion.
 Explain why the longest section deserves that space for the stated reader.
-Report needed editor operations separately from reader-visible prose; no
-paste or page-render verdict follows from a smooth reading of the draft.
+Run `check` on the delivered file and report its result: `ready` with no
+`markers`, or each error and marker with its line, and each `as_typed` item
+either kept on purpose or rewritten in a note form. Without the `note` tool
+in this run, say the format check was not run. Report needed editor
+operations separately from reader-visible prose; a passed check is a format
+verdict, not a page-render one.
 
 Local adaptation of [natural-japanese v1.5.0 genre notes](https://github.com/coji/natural-japanese/blob/v1.5.0/skills/natural-japanese/references/genre-notes.md)
 (essay latitude) and [revision guide](https://github.com/coji/natural-japanese/blob/v1.5.0/skills/natural-japanese/references/revision-guide.md)

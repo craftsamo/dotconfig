@@ -57,8 +57,8 @@ def registered(profile):
     return ctx
 
 
-def test_assistant_and_marketer_read_and_write_others_get_nothing():
-    for profile in ("creator", "engineer", "default", "writer"):
+def test_assistant_and_marketer_read_and_write_writer_checks_others_get_nothing():
+    for profile in ("creator", "engineer", "default", "researcher"):
         ctx = registered(profile)
         assert ctx.tools == {} and ctx.hooks == []
     for profile in ("assistant", "marketer"):
@@ -68,17 +68,27 @@ def test_assistant_and_marketer_read_and_write_others_get_nothing():
         params = tool["schema"]["parameters"]
         assert params["additionalProperties"] is False and params["required"] == ["action"]
         assert params["properties"]["action"]["enum"] == list(na.ACTIONS)
-        assert {"title", "body", "eyecatch"} <= set(params["properties"])
+        assert {"title", "body", "eyecatch", "path", "base", "preview"} <= set(params["properties"])
         assert "create_draft" in tool["description"] and "resident session" in tool["description"]
+        assert "check (body" in tool["description"]
         assert [name for name, _ in ctx.hooks] == ["pre_tool_call"]
 
 
+def test_writer_gets_the_format_check_only():
+    tool = registered("writer").tools["note"]
+    assert tool["toolset"] == "note_access"
+    params = tool["schema"]["parameters"]["properties"]
+    assert params["action"]["enum"] == ["check"]
+    assert set(params) == {"action", "title", "body", "eyecatch", "path"}
+    assert "never contacts note" in tool["description"] and "create_draft" not in tool["description"]
+    assert "[[image|embed|table" in tool["description"]
+
+
 def test_a_read_only_profile_gets_no_write_schema(monkeypatch):
-    monkeypatch.setattr(plugin, "WRITERS", set())
-    monkeypatch.setattr(plugin, "READERS", {"marketer"})
+    monkeypatch.setitem(plugin.PROFILES, "marketer", na.READS)
     tool = registered("marketer").tools["note"]
     assert tool["schema"]["parameters"]["properties"]["action"]["enum"] == list(na.READS)
-    assert not {"title", "body", "eyecatch"} & set(tool["schema"]["parameters"]["properties"])
+    assert not {"title", "body", "eyecatch", "base", "preview"} & set(tool["schema"]["parameters"]["properties"])
     assert "create_draft" not in tool["description"]
 
 
@@ -88,8 +98,7 @@ def handler_and_gate(profile):
 
 
 def test_a_read_only_profile_cannot_write_through_the_handler_or_the_gate(isolated, monkeypatch):
-    monkeypatch.setattr(plugin, "WRITERS", set())
-    monkeypatch.setattr(plugin, "READERS", {"marketer"})
+    monkeypatch.setitem(plugin.PROFILES, "marketer", na.READS)
     handler, gate = handler_and_gate("marketer")
     args = {"action": "update_draft", "draft": "n0000000000a1", "base": "t1", "body": "x"}
     assert gate(tool_name="note", args=args)["action"] == "block"
@@ -157,18 +166,57 @@ def test_marketer_saves_through_its_own_card(isolated, monkeypatch):
     assert json.loads(handler(dict(args)))["ok"] is True and isolated.count("save") == 1
 
 
-def test_inbound_a2a_is_refused(monkeypatch):
+def test_inbound_a2a_never_reaches_the_assistant(monkeypatch):
     monkeypatch.setattr(plugin, "_inbound_peer", lambda: True)
-    for profile in ("assistant", "marketer"):
-        handler, gate = handler_and_gate(profile)
-        directive = gate(tool_name="note", args={"action": "drafts"})
+    monkeypatch.setattr(plugin, "_home", lambda: Path("/h/profiles/assistant"))
+    handler, gate = handler_and_gate("assistant")
+    for args in ({"action": "drafts"}, {"action": "check", "body": "x"}):
+        directive = gate(tool_name="note", args=args)
         assert directive["action"] == "block" and "A2A" in directive["message"]
-        result = json.loads(handler({"action": "drafts"}))
+        result = json.loads(handler(args))
         assert result["ok"] is False and "A2A" in result["error"]
 
 
+def test_inbound_a2a_lets_marketer_read_and_check_but_never_save(isolated, monkeypatch):
+    monkeypatch.setattr(plugin, "_inbound_peer", lambda: True)
+    monkeypatch.setattr(plugin, "_home", lambda: Path("/h/profiles/marketer"))
+    handler, gate = handler_and_gate("marketer")
+    assert gate(tool_name="note", args={"action": "status"}) is None
+    assert json.loads(handler({"action": "status"}))["ok"] is True
+    assert json.loads(handler({"action": "check", "body": "## a\n\nb"}))["ready"] is True
+    for args in ({"action": "update_draft", "draft": "n0000000000a1", "base": "t1", "body": "new"},
+                 {"action": "create_draft", "title": "T", "body": "x", "preview": True}):
+        directive = gate(tool_name="note", args=args, tool_call_id="a1")
+        assert directive["action"] == "block" and "A2A" in directive["message"]
+        assert "A2A" in json.loads(handler(args))["error"]
+    assert "save" not in isolated
+
+
+def test_inbound_a2a_fails_closed_unless_bound_to_the_profile(monkeypatch):
+    monkeypatch.setattr(plugin, "_inbound_peer", lambda: True)
+    for home in (None, Path("/h/profiles/assistant")):
+        monkeypatch.setattr(plugin, "_home", lambda home=home: home)
+        handler, gate = handler_and_gate("marketer")
+        assert gate(tool_name="note", args={"action": "drafts"})["action"] == "block"
+        assert "here" in json.loads(handler({"action": "drafts"}))["error"]
+
+
+def test_writer_checks_on_a2a_and_nothing_else(isolated, monkeypatch):
+    handler, gate = handler_and_gate("writer")
+    for inbound in (False, True):
+        monkeypatch.setattr(plugin, "_inbound_peer", lambda inbound=inbound: inbound)
+        monkeypatch.setattr(plugin, "_home", lambda: Path("/h/profiles/writer"))
+        assert gate(tool_name="note", args={"action": "check", "body": "x"}) is None
+        assert json.loads(handler({"action": "check", "body": "x"}))["ok"] is True
+        for args in ({"action": "status"}, {"action": "drafts"},
+                     {"action": "create_draft", "title": "T", "body": "x", "preview": True}):
+            assert gate(tool_name="note", args=args, tool_call_id="w")["action"] == "block"
+            assert "only check" in json.loads(handler(args))["error"]
+    assert isolated == []   # nothing reached the bridge
+
+
 def test_the_gate_blocks_ways_around_the_tool():
-    for profile in ("assistant", "marketer"):
+    for profile in ("assistant", "marketer", "writer"):
         _, gate = handler_and_gate(profile)
         directive = gate(tool_name="terminal", args={"command": "curl https://note.com/api/v2/current_user"})
         assert directive == {"action": "block", "message": na.BYPASS_MESSAGE}
@@ -207,7 +255,7 @@ def test_unattended_detection_uses_hermes_when_available():
 
 
 def test_oversized_results_are_refused(monkeypatch):
-    monkeypatch.setattr(na, "execute", lambda args, home=None, call_id="", can_write=False: {"x": "y" * plugin.LIMIT})
+    monkeypatch.setattr(na, "execute", lambda args, home=None, call_id="", can_write=False, allowed=None: {"x": "y" * plugin.LIMIT})
     handler, _ = handler_and_gate("marketer")
     result = json.loads(handler({"action": "drafts"}))
     assert result["ok"] is False and "narrow" in result["error"]
@@ -232,9 +280,22 @@ def test_a_malformed_preview_flag_is_never_a_preview(isolated, flag):
 
 
 def test_a_read_only_profile_cannot_preview_either(isolated, monkeypatch):
-    monkeypatch.setattr(plugin, "WRITERS", set())
-    monkeypatch.setattr(plugin, "READERS", {"marketer"})
+    monkeypatch.setitem(plugin.PROFILES, "marketer", na.READS)
     handler, gate = handler_and_gate("marketer")
     args = {"action": "create_draft", "title": "T", "body": "x", "preview": True}
     result = json.loads(handler(args))
     assert result["ok"] is False and "read note but not write" in result["error"]
+
+
+def test_writer_inbound_a2a_fails_closed_unless_bound_and_names_only_check(monkeypatch):
+    monkeypatch.setattr(plugin, "_inbound_peer", lambda: True)
+    for home in (None, Path("/h/profiles/marketer")):
+        monkeypatch.setattr(plugin, "_home", lambda home=home: home)
+        handler, gate = handler_and_gate("writer")
+        assert gate(tool_name="note", args={"action": "check", "body": "x"})["action"] == "block"
+        assert "here" in json.loads(handler({"action": "check", "body": "x"}))["error"]
+    monkeypatch.setattr(plugin, "_home", lambda: Path("/h/profiles/writer"))
+    handler, gate = handler_and_gate("writer")
+    for args in ({"action": "like"}, "not a dict", {"action": ["check"]}):
+        assert gate(tool_name="note", args=args)["action"] == "block"
+        assert "only check" in json.loads(handler(args))["error"]
