@@ -183,3 +183,82 @@ def test_image_alt_and_caption_with_quotes_and_backslashes_survive_repeated_edit
         assert no_ids(rebuilt) == no_ids(body.replace('"620" height="325">', '"620" height="325" contenteditable="false" '
                                                         'draggable="false">'))
         markdown = fmt.html_to_markdown(rebuilt)[0]
+
+
+# --- marks a reader would see ---------------------------------------------------------------------
+
+@pytest.mark.parametrize("markdown, message", [
+    ("text\n\n[[image:save-location]]\n", "insertion marker"),
+    ("see [[table:prices]] below\n", "insertion marker"),
+    ("| a | b |\n", "no tables"),
+    ("a | b\n---|---\n", "no tables"),
+    ("> | quoted | table |\n", "no tables"),
+    ("x <!-- hidden --> y\n", "HTML comment"),
+])
+def test_marks_a_reader_would_see_are_refused_with_their_line(markdown, message):
+    with pytest.raises(fmt.FormatError, match=r"line \d+: .*" + message):
+        fmt.parse_markdown(markdown)
+    assert fmt.parse_markdown(markdown, refuse_marks=False)
+
+
+def test_marks_inside_code_or_escaped_are_text():
+    for markdown in ("```\n| a | b |\n[[image:x]]\n<!-- c -->\n```\n", "\\[\\[image:x\\]\\]\n", "\\| a | b |\n",
+                     "\\<!-- not a comment -->\n", "one | two\n"):
+        assert fmt.scan(markdown) == [] or all(i["kind"] not in fmt.REFUSED for i in fmt.scan(markdown)), markdown
+        fmt.parse_markdown(markdown)
+
+
+@pytest.mark.parametrize("markdown, kind", [
+    ("an *italic* word\n", "italic"),
+    ("日本語の*強調*です\n", "italic"),
+    ("run `ls` here\n", "code"),
+    ("a <span>tag</span>\n", "html"),
+    ("a claim[^1]\n", "footnote"),
+    ("inline ![x](https://x.example/a.png) image\n", "image"),
+    ("<https://example.com>\n", "autolink"),
+])
+def test_markdown_note_has_no_form_for_is_named_and_saved_as_typed(markdown, kind):
+    found = fmt.scan(markdown)
+    assert [i["kind"] for i in found] == [kind] and found[0]["line"] == 1
+    fmt.parse_markdown(markdown)   # saved as typed, not refused
+
+
+def test_what_note_does_hold_is_not_named():
+    markdown = ("## h\n\n**bold** ~~strike~~ [l](https://x.example/) a<br>b\n\n- a\n\n> q\n>\n> — s\n\n"
+                "![c](a.png \"alt\")\n\n[TOC]\n\n<br>\n\n---\n\na * b * c 2 ** 3\n")
+    assert fmt.scan(markdown) == []
+
+
+@pytest.mark.parametrize("text", ["| a | b |", "|---|---|", "a | b |", ":--|--:", "x <!-- y --> z", "[[image:x]]"])
+def test_stored_text_that_looks_like_a_mark_round_trips_as_text(text):
+    body = f'<p name="u" id="u">{text.replace("<", "&lt;")}</p>'
+    markdown = fmt.html_to_markdown(body)[0]
+    blocks = fmt.parse_markdown(markdown)
+    assert fmt.inline_text(blocks[0]["inline"]) == text
+
+
+@pytest.mark.parametrize("body", [
+    '<h2 name="u" id="u">| a | b |</h2>',
+    '<ul name="u" id="u"><li><p name="a" id="a">| a | b |</p></li><li><p name="b" id="b">x &lt;!-- y</p></li></ul>',
+    '<figure name="u" id="u"><blockquote><p name="a" id="a">| a | b |</p></blockquote>'
+    '<figcaption>[[image:x]] &lt;!-- c</figcaption></figure>',
+    '<p style="text-align: center;" name="u" id="u">| a | b |</p>',
+    '<p style="text-align: right;" name="u" id="u">|---|---|</p>',
+    '<p name="u" id="u"><a href="https://e.example/[[image:x]]">l</a> <a href="https://e.example/&lt;!--">m</a></p>',
+    '<p name="u" id="u"><a href="https://e.example/a*b*c">l</a></p>',
+])
+def test_every_block_that_only_looks_like_a_mark_round_trips(body):
+    markdown = fmt.html_to_markdown(body)[0]
+    assert all(i["kind"] not in fmt.REFUSED for i in fmt.scan(markdown)), markdown
+    again = fmt.html_to_markdown(fmt.markdown_to_html(markdown)[0])[0]
+    assert again == markdown
+
+
+def test_a_link_address_is_never_read_as_a_mark():
+    assert fmt.scan("[l](https://e.example/[[image:x]]) and [m](https://e.example/a*b*)\n") == []
+
+
+def test_an_unclosed_fence_hides_nothing_from_the_save():
+    assert fmt.scan("```\n| a | b |\n") == []
+    with pytest.raises(fmt.FormatError, match="never closed"):
+        fmt.parse_markdown("```\n| a | b |\n")
