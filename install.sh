@@ -140,6 +140,48 @@ link_skills_into() {
   done
 }
 
+# Claude Code's skill dir stays a REAL machine-local directory holding one
+# link per shared skill, not a link to the whole shared root: Claude Code
+# syncs claude.ai skills into its own skills/synced/ (and retires them to
+# skills/.trash/), and those need the Claude app's tools, so they must not
+# surface in the shared root that every other CLI reads. Entries an installer
+# copied in for real (`hyperframes skills` passes --copy) are left alone, and
+# links whose shared skill disappeared are pruned. Older checkouts bridged the
+# whole dir; that link is replaced and Claude Code's sync state moved back.
+bridge_claude_skills() {
+  local shared="$1" dest="$2" entry name
+  if [ -L "$dest" ]; then
+    rm "$dest"
+    mkdir -p "$dest"
+    for name in synced .trash; do
+      if [ -e "$shared/$name" ]; then
+        mv "$shared/$name" "$dest/$name" || status=1
+      fi
+    done
+    echo "  migrated: $dest was a link to the shared root — now a real directory"
+  fi
+  mkdir -p "$dest"
+  for entry in "$shared"/*/; do
+    [ -d "$entry" ] || continue
+    name="$(basename "$entry")"
+    [ "$name" = synced ] && continue
+    if [ -e "$dest/$name" ] && [ ! -L "$dest/$name" ]; then
+      continue
+    fi
+    ln -sfn "$shared/$name" "$dest/$name"
+  done
+  echo "  ok: $dest -> per-skill links into $shared"
+  for entry in "$dest"/*; do
+    [ -L "$entry" ] && [ ! -e "$entry" ] || continue
+    case "$(readlink "$entry")" in
+      "$shared"/*)
+        rm "$entry"
+        echo "  pruned dangling: $entry"
+        ;;
+    esac
+  done
+}
+
 # Hermes owns its cron directory outright: it mkdir -p's the path and writes
 # jobs.json, output/, executions.db, the tick/jobs locks, ticker_* and
 # catch_up_occurrences into it. Linking it from the repo bought nothing and
@@ -216,7 +258,7 @@ fi
 
 # Shared skill root: ~/.agents/skills is the cross-agent convention honored by
 # codex, opencode, copilot, grok and gemini (claude reads ~/.claude/skills, so
-# that one is bridged to the same dir below). It stays a REAL machine-local
+# each shared skill is linked into it below). It stays a REAL machine-local
 # directory — third-party installers write into it — and repo-curated skills
 # are linked in one by one from agents/curated/. The curated tree deliberately
 # does NOT live at agents/skills: ~/.config/agents/skills is a registered
@@ -231,11 +273,12 @@ echo "[claude]"
 link "$DOTFILES/claude/CLAUDE.md"        "$HOME/.claude/CLAUDE.md"
 link "$DOTFILES/claude/settings.json"    "$HOME/.claude/settings.json"
 link "$DOTFILES/claude/keybindings.json" "$HOME/.claude/keybindings.json"
-# Claude Code is the one CLI that does not read ~/.agents/skills, so its skill
-# dir is bridged to the shared MUTABLE root, never into the repo: installers
-# (`hyperframes skills`) treat ~/.claude/skills as a write target, and their
-# cross-CLI symlinks resolve through this path.
-link "$HOME/.agents/skills"              "$HOME/.claude/skills"
+# Claude Code is the one CLI that does not read ~/.agents/skills, so each
+# shared skill is linked into its skill dir — pointing at the shared MUTABLE
+# root, never into the repo: installers (`hyperframes skills`) treat
+# ~/.claude/skills as a write target, and their cross-CLI symlinks resolve
+# through this path.
+bridge_claude_skills "$HOME/.agents/skills" "$HOME/.claude/skills"
 # ~/.claude/agents is machine-local, NOT linked: app installers (e.g. tldraw
 # Desktop) replace the symlink with a real dir and drop subagent files into
 # it, so a repo link only produces recurring drift warnings.
