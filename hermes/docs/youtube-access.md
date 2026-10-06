@@ -4,9 +4,12 @@ The user's own YouTube channels as a tool: search, videos, channels,
 playlists and comments anywhere on YouTube, each authorized channel's own
 uploads (private, unlisted and scheduled included) and its YouTube Analytics,
 and transcripts and downloads of any public video. The Assistant also
-writes on its channels — video details, thumbnails, comment replies, uploads
-and playlists — each held for the user's approval on a card. Marketer only
-reads. Part of the Hermes design docs — index: [`PROFILES.md`](../PROFILES.md).
+writes on its channels — video details and settings, thumbnails, comment
+replies and moderation, uploads, captions, playlists, the channel's settings
+and watermark — each held for the user's approval on a card. Marketer only
+reads. Channel settings the API does not reach go through YouTube Studio in
+the Assistant's browser ([below](#studio-settings)). Part of the Hermes
+design docs — index: [`PROFILES.md`](../PROFILES.md).
 
 ## Shape
 
@@ -17,7 +20,8 @@ reads. Part of the Hermes design docs — index: [`PROFILES.md`](../PROFILES.md)
 | `youtube` tool and its `pre_tool_call` hook (toolset `youtube_access`) | `plugins/youtube-access/__init__.py` | Assistant, Marketer |
 | Channel authorization | `bin/yaccess` (runs `ya.py` on `hermes-python`) | people |
 | Engine venv | `scripts/youtube-access.sh`, `engines/yt-dlp/` | people |
-| When and how the Assistant uses it | the Assistant's private Chat reference `youtube.md` | Assistant |
+| How the Assistant works with it: budget, actions, approvals, recovery, Studio settings, starting a channel | the `youtube` technic (`profiles/assistant/skills/technic/youtube/`) | Assistant |
+| When the Assistant uses it in Chat | the Assistant's private Chat reference `youtube.md` | Assistant |
 | When Marketer reads with it | Marketer's prompt and `build-marketer/references/measurement.md` | Marketer |
 
 Two back ends, one tool. The YouTube Data API v3 and the YouTube Analytics
@@ -75,10 +79,11 @@ A read refreshes its access token with only the read scopes, so the token a
 read holds cannot write; a write uses every scope the channel granted. If
 Google ever refuses the narrowed refresh (`invalid_scope`), reads fall back
 to the full token for the rest of the process; `yaccess check` reports which
-happens. Comments are the exception: Google serves `commentThreads.list` and
-`comments.list` only to a token with `youtube.force-ssl`, even for reading,
-so `comments` always uses the full token. What keeps Marketer from writing
-is the action list below, not the token.
+happens. Comments and captions are the exception: Google serves
+`commentThreads.list`, `comments.list` and `captions.list` only to a token
+with `youtube.force-ssl`, even for reading, so `comments` and `captions`
+always use the full token. What keeps Marketer from writing is the action
+list below, not the token.
 
 `channel` (a title, `@handle` or `UC…` id) picks which authorized channel a
 call acts as and reports on; without it, `youtube_access.default_channel` in
@@ -117,6 +122,8 @@ failing closed otherwise.
 | `comments` | Data API | 1 unit per 100 | threads with first replies; `thread` = a comment id for all replies |
 | `my_videos` | Data API | 1 + 2 units per 50 | the channel's own uploads incl. private, unlisted, scheduled |
 | `analytics` | Analytics API | its own quota | `channel==MINE`, default the last 28 days |
+| `my_channel` | Data API | 1 unit | the channel's own settings: description, keywords, country, language, trailer, localizations, made for kids |
+| `captions` | Data API | 50 units | caption tracks of the channel's own video, with the ids `caption_upload` replaces |
 | `transcript` | yt-dlp | 1 paced call | text saved to the download folder |
 | `download` | yt-dlp | 1 paced call | mp4 (≤ `max_height`) or m4a |
 
@@ -163,20 +170,40 @@ the user's approval on a card that names the channel and what changes.
 
 | Action | Cost | Approval key |
 |---|---|---|
-| `update` (title, description, tags, category, made for kids) | 1 + 50 units | per channel and video |
+| `update` (title, description, tags, category, language, localizations, made for kids, license, embedding, public stats, synthetic-content disclosure) | 1 + 50 units | per channel and video |
 | `update` with `privacy` or `publish_at` | 1 + 50 units | exact call |
 | `thumbnail` (JPEG/PNG ≤ 2 MB) | 50 units | per channel and video |
 | `reply` (to a comment) | 50 units | exact call |
+| `moderate` (publish, hold or reject up to 50 comments; ban with reject) | 50 units (+1 for the card) | exact call |
 | `upload` | 1 upload | exact call plus the file's size and time |
+| `caption_upload` (add a track, or replace one's file) | 1 + 400 / 450 units | exact call plus the file's size and time |
 | `playlist_create`, `playlist_add`, `playlist_remove` | 50 units | exact call |
+| `playlist_update` (title, description, privacy), `playlist_move` | 1 + 50 units | exact call |
+| `channel_update` (description, keywords, country, language, trailer, localizations, made for kids) | 1 + 50 units per part | exact call |
+| `watermark` (JPEG/PNG ≤ 10 MB), `watermark_remove` | 50 units | exact call (`watermark` plus the file's size and time) |
 
 "Session" or "always" on the first edit card of a video covers that video's
 later detail edits and thumbnails; the user chose this so iterating on a
-title does not ask every time. Going public, scheduling, replying, uploading
-and playlist changes ask every time. `update` reads the video first, refuses
-another channel's video, and sends the whole writable snippet and status back
-with the changes merged in (the API clears fields a request leaves out).
-`publish_at` keeps the video private until then.
+title does not ask every time. Going public, scheduling, replying,
+moderating, uploading, captions, playlist and channel changes ask every
+time: they are rarer, public at once, or reach every video. `update`,
+`playlist_update` and `channel_update` read the resource first, refuse
+another channel's, and send each part they touch back whole with the changes
+merged in (the API clears fields a request leaves out, and refuses a changed
+channel title). `localizations` merge per language (`null` removes one) and
+need the video's or channel's default language, set in the same call or
+earlier. `publish_at` keeps the video private until then.
+
+The channel API takes one part per request, so `channel_update` prepares
+every part before the first and then sends brandingSettings, localizations
+and status in that order; when a later part fails, the result says which
+already changed. Google documents `status.selfDeclaredMadeForKids` as
+writable while listing only the other parts for `channels.update`, so the
+whole-channel kids flag may come back as an API error. Banners are not here:
+`brandingSettings.image` is deprecated and stopped working, so the banner is a
+Studio setting. The watermark is always shown in the upper right; `display`
+picks the whole video, the last 15 seconds, or from `start_s`. Caption files
+must carry their own timings (YouTube no longer syncs plain text).
 
 Every write is pinned to what its card was made from: a second
 `pre_tool_call` hook (`bind`, Assistant only) adds the resolved channel and,
@@ -191,13 +218,31 @@ Uploads are resumable (8 MB chunks), private by default, and come only from
 the attach roots (no hidden credential folders). **YouTube locks uploads from
 an unaudited API project created after July 2020 to private**; the result
 says so and the user publishes in YouTube Studio (or the project passes
-YouTube's API audit). Nothing deletes videos, comments or playlists;
-`playlist_remove` removes an entry, never the video.
+YouTube's API audit). Nothing deletes videos, comments, playlists or
+caption tracks; `playlist_remove` removes an entry, never the video, and
+`moderate` with `reject` hides a comment (YouTube never lets it be published
+again).
 
 Writes are refused where no person can approve — cron, webhook and API
 sessions, single queries, and when approvals are switched off (`/yolo`,
 `approvals.mode: off`) — because Hermes would otherwise approve them without
 a card.
+
+## Studio settings
+
+The API cannot change the channel's name, handle, profile picture, banner,
+links, contact email, home-tab layout or upload defaults. For those the
+Assistant uses YouTube Studio in its own browser (Brave profile pinned in
+its config, signed in by the user; [README "Browser"](../README.md#browser)):
+it reads the current value, asks the user with `clarify` showing before and
+after, saves only on a yes, and reads the page again to confirm. There is no
+approval card on this path — `clarify` is the confirmation — so it runs only
+in a conversation with the user, never in cron, a single query or an A2A
+request. Account-level and destructive Studio settings (permissions,
+monetization, channel deletion or transfer) stay with the user. The
+procedure lives in the `youtube` technic's `references/studio.md`. Studio pages
+change without notice; when one does not match, the Assistant stops and
+hands the change to the user.
 
 ## Ways around the tool
 

@@ -494,8 +494,9 @@ keeps user keys.
   each channel's own uploads and analytics) plus transcripts and downloads of
   public videos through yt-dlp (`bridge.py` in the ignored
   `local/yt-dlp/venv`, pinned in `engines/yt-dlp/`); the assistant alone also
-  edits videos, sets thumbnails, replies to comments, uploads and manages
-  playlists, each write through the approval gate. Every channel's refresh
+  edits videos, sets thumbnails, replies to and moderates comments, uploads,
+  adds captions, manages playlists and changes the channel's settings and
+  watermark, each write through the approval gate. Every channel's refresh
   token stays in the Keychain (`YOUTUBE_OAUTH`, scope `youtube-access`),
   authorized once per channel with `bin/yaccess`; its hook blocks the
   terminal path around it. Engine: `scripts/youtube-access.sh` (`install` /
