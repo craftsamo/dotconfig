@@ -45,6 +45,7 @@ def _load(name, path):
 
 store = _load("hermes_discord_access_store", HERE / "store.py")
 perms = _load("hermes_discord_access_perms", HERE / "perms.py")
+archives = _load("hermes_archive_check", HERE.parent / "_shared" / "archive_check.py")
 
 ACTIONS = ("status", "guilds", "channels", "dms", "messages", "search", "context", "backfill", "media",
            "threads", "pins", "mentions", "friends", "roles", "member", "role_members", "members",
@@ -1309,7 +1310,13 @@ def stage(plan: dict, roots: list[Path], request: str) -> tuple[str, list[dict]]
         for i, f in enumerate(plan["files"]):
             dest = folder / f"{i:02d}"
             sha, size = _copy_checked(f, roots, dest)
-            staged.append({"path": str(dest), "name": f["name"], "shown": f["shown"], "size": size, "sha256": sha})
+            try:
+                archive = archives.vet(dest, f["name"], deny_parts=SENSITIVE_DIRS, deny_names=SENSITIVE,
+                                       risky_files=store.RISKY_FILES, allow_scripts=True)
+            except archives.ArchiveRefused as exc:
+                raise DiscordError(f"the archive {f['name']} is not sent: {exc}") from None
+            staged.append({"path": str(dest), "name": f["name"], "shown": f["shown"], "size": size, "sha256": sha,
+                           **({"archive": archive} if archive else {})})
         (folder / "manifest.json").write_text(json.dumps({"request": request, "files": staged},
                                                          ensure_ascii=False), encoding="utf-8")
     except BaseException:
@@ -1507,7 +1514,8 @@ def _files_line(staged: list[dict]) -> str:
     counted, so a card with ten files still leaves room for the text."""
     shown, used = [], 0
     for i, f in enumerate(staged):
-        item = f"{_one_line(f['shown'], NAME_CLIP * 2)} ({_human(f['size'])})"
+        inside = f", {f['archive']['entries']} files inside" if f.get("archive") else ""
+        item = f"{_one_line(f['shown'], NAME_CLIP * 2)} ({_human(f['size'])}{inside})"
         if shown and used + len(item) > FILES_CLIP:
             shown.append(f"(+{len(staged) - i} more)")
             break
