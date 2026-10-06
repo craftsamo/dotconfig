@@ -22,8 +22,7 @@ supervise the approved local test server through its terminal/process tools,
 recording its worktree, URL and process handle and stopping only that server
 after QA. This is test execution, not target-code editing or deployment.
 Engineer inspects the result through
-[visual QA](../../qa-engineer/references/web-ui.md), commissioning independent visual or
-persona evaluation when appropriate. Send accepted findings back to this same
+[visual QA](../../qa-engineer/references/web-ui.md). Send accepted findings back to this same
 implementation conversation as specific corrections. Recheck affected evidence.
 
 Prototype-only style tiles remain disposable and outside target code. They do

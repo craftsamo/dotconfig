@@ -52,8 +52,8 @@ Skill procedures, to OpenCode.
 | Diagnosis/review | debug/review primary through the wrapper |
 | Commits/PRs | git-commit / git-pullrequest |
 
-The migrated UI design/visual-review/persona workflows belong to Engineer and
-its Hermes evaluators. They are not OpenCode global skills/subagents anymore.
+The migrated UI design and visual-review workflows belong to Engineer. They
+are not OpenCode global skills/subagents anymore.
 OpenCode still implements UI and runs project/browser tests. Do not reintroduce
 the removed workflows as aliases, fallback agents or copied prompts.
 

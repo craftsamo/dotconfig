@@ -32,7 +32,7 @@ TARGETS = {
     "assistant": {"engineer", "creator", "marketer", "writer", "searcher"},
     "creator": {"engineer", "marketer", "researcher", "writer", "image-creator", "video-creator", "audio-creator"},
     "marketer": {"engineer", "creator", "researcher", "writer"},
-    "engineer": {"marketer", "researcher", "writer", "ui-review", "ux-persona"},
+    "engineer": {"marketer", "researcher", "writer"},
 }
 RESIDENT = Path(__file__).resolve().parents[2] / "profiles/assistant/scripts/resident-session.sh"
 TURN_TIMEOUT = 5400
@@ -401,21 +401,6 @@ def _drop_own_lock(home, cid, pgid):
 
 def _resident(home, data, message):
     root = _root(home)
-    workdir = None
-    if data["target"] in {"ui-review", "ux-persona"}:
-        # A separate conversation is not enough: normal CLI startup also reads
-        # project context from cwd. Evaluators must not inherit the coding repo.
-        target_home = home.parent / data["target"]
-        workspace = target_home / "workspace"
-        if target_home.is_symlink() or workspace.is_symlink() or not (target_home / "config.yaml").is_file():
-            raise NotDispatched("Evaluator profile is not installed with an isolated workspace")
-        workdir = workspace / ("review-" + _id(data["conversation_id"]))
-        if workdir.is_symlink():
-            raise NotDispatched("Evaluator workspace redirects outside its profile")
-        workdir.mkdir(parents=True, exist_ok=True, mode=0o700)
-        resolved = workdir.resolve()
-        if any((parent / ".git").exists() for parent in (resolved, *resolved.parents)):
-            raise NotDispatched("Evaluator workspace must be outside a Git project")
     reg = home / "resident-sessions" / (data["conversation_id"] + ".json")
     data["log"] = str(reg.with_suffix(".log"))
     fd, prompt = tempfile.mkstemp(dir=root, suffix=".txt")
@@ -432,8 +417,7 @@ def _resident(home, data, message):
             raise NotDispatched("Resident deadline expired before launch")
         try:
             proc = subprocess.Popen(cmd, env=_child_env(home, deadline, data.get("turn_kind")), stdin=subprocess.DEVNULL,
-                                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, start_new_session=True,
-                                    **({"cwd": str(workdir)} if workdir else {}))
+                                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, start_new_session=True)
         except OSError as exc:
             raise NotDispatched("Resident process could not be spawned") from exc
         data["pgid"] = proc.pid
