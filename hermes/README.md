@@ -382,10 +382,12 @@ keeps user keys.
   explicit `specialist_call.resident_targets` allowlist. Behavior:
   [docs/profiles/specialist-calls.md](docs/profiles/specialist-calls.md).
 - **opencode** (`standalone`): `opencode_call` / `opencode_session` for engineer
-  and assistant. Enable the plugin and `opencode` toolset plus
-  `opencode_cli.enabled: true`; optional `opencode_cli.models` sets per-agent
-  overrides, otherwise OpenCode's defaults apply. The CLI resolves through
-  `PATH`, preserving the secret shim. Behavior:
+  and assistant, over the shared OpenCode 2 service's HTTP API through
+  `opencode api` (resolved through `PATH`, preserving the secret shim). Enable
+  the plugin and `opencode` toolset plus `opencode_cli.enabled: true`; optional
+  `opencode_cli.models` sets per-role overrides, otherwise each hidden primary's
+  pinned model applies; `opencode_cli.permission_timeout` bounds how long a
+  permission request waits for the caller. Behavior:
   [docs/profiles/engineer.md](docs/profiles/engineer.md) "OpenCode runtime".
   The same toolset carries the read-only `opencode_history`, which needs no
   `opencode_cli` setting ([docs/session-history.md](docs/session-history.md)).

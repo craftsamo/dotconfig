@@ -48,136 +48,165 @@ are reconciled, never silently replayed by migration.
 
 ### OpenCode runtime
 
-`plugins/opencode` owns CLI execution (`opencode_call`, `opencode_session`) and
-the private `opencode-sessions/` records (state, prompts, bounded logs — never
-Git). The CLI resolves through PATH, preserving the normal secret shim. Each
-conversation binds its originating Hermes session, Git worktree and branch; there
-is no implicit last-session resume. The plugin captures JSON events, reapplies
-permissions on resume, records private evidence and never blindly retries
-uncertain work:
+`plugins/opencode` drives the person's shared OpenCode 2 service over its HTTP
+API (`opencode_call`, `opencode_session`) and keeps the private
+`opencode-sessions/` records (one per conversation, never Git). Requests go
+through the documented `opencode api` command, which finds or starts the
+background service and authenticates like the TUI, so the plugin handles no
+server address or password. The command gets a minimal environment (`PATH`,
+`HOME`, locale, `TMPDIR`, `XDG_*`): a service it starts keeps that environment
+for every session, a person's included, so Hermes' secrets never reach it. Each conversation binds its originating Hermes
+session, Git worktree and branch; there is no implicit last-session resume.
+The plugin never blindly retries uncertain work:
 
-- CLI error events can arrive with exit zero, so exit code alone is not success.
-- Deadlines are finite. `stop` requests termination, never rollback; only the
-  owning live runner signals its child group.
-- An `unknown` result blocks replay until observed process/Git/remote effects
-  are explicitly reconciled — by inspection, never an invented completion
-  assertion. A CLI stop event is not technical acceptance.
+- Completion is the turn's own `idle` outcome reported by OpenCode
+  (`succeeded` → completed, `failed` → failed, `interrupted` → interrupted),
+  read after this turn's prompt; a session-level outcome alone would still be
+  the previous turn's.
+- Deadlines are finite. A stop, the deadline, or the end of the CLI/resident
+  Hermes process that started the turn interrupts the session, which ends its
+  tool processes and every subagent session, and drops parked input. The
+  interrupt is resent until the turn settles; one OpenCode never confirms within
+  three minutes leaves the run `unknown`. Never a rollback.
+- `unknown` is left for what OpenCode could not confirm (service unreachable
+  past the deadline, prompt admission unconfirmed, setup cut short, a record
+  from the retired OpenCode 1 runner). It holds the worktree until
+  `opencode_session reconcile` with observed Git/remote evidence.
 - Approval text is an operating-contract record, not authentication; records and
-  command-deny policies are not a process sandbox.
+  permission rules are not a process sandbox.
+
+**Watcher.** Each turn gets one detached watcher process
+(`__init__.py watch`). It holds the conversation's lock for its lifetime — the
+OS drops the lock when it dies, which is how a lost watcher is detected — and
+it alone writes the running record: progress tokens, pending permission
+requests, the permission timeout, the deadline interrupt and the final outcome,
+result text and changed files. `status`, `list`, `wait` and a live caller's
+notifier restart a lost watcher, which then reads the outcome from OpenCode or
+resumes watching; that is how a run survives a dead Hermes process. A turn that
+is neither running nor idle for 30 s ended without an outcome (the service
+restarted under it) and is recorded `interrupted`, resumable by the next
+message on the same conversation.
+
+**Hand-back.** A blocking call (CLI/resident) returns when the run hands back
+— finished, uncertain, or `waiting` on an unanswered permission request — or
+at a bounded wait limit below the caller's own tool deadline. A live caller
+(Telegram) gets an immediate reply and a notifier process launched through the
+terminal tool with completion notification; it exits at the next hand-back, and
+`respond` launches the next one.
 
 The plugin registers for `engineer` AND `assistant`, each with its own
 `opencode_cli` block and its own registry under its home. The Assistant's grant
 is the Admin topic's scope (this config repo, Hermes upkeep, a named workspace
 repo; contract text in that topic's private `channel_prompts` entry), never
-Engineer's project work. Because registries are per home, the Assistant's
-worktree-busy check cannot see an Engineer hold — the contract, not the code,
-keeps them apart. The Assistant's Telegram calls run in the background with a
-completion notification; its tool deadline (960 s) is sized for waiting on
-specialist conversations, not for these calls.
+Engineer's project work. Registries are per home, but a build refuses any
+worktree in which the service already runs another session — another profile's
+or a person's — so the two profiles cannot edit one worktree at once;
+read-only roles may run alongside.
 
 **Session history.** `opencode_history` is the read side of the same plugin,
 separate from execution: it never touches `opencode-sessions/`, grants or
 `opencode_cli`. Contract, with the Hermes counterpart:
 [docs/session-history.md](../session-history.md).
 
-**Hidden primaries.** plan/build/review run on hidden OpenCode primaries, not the
+**Hidden primaries.** All four roles run on hidden OpenCode primaries, not the
 human TUI agents: `OPENCODE_AGENTS` in the plugin maps each Hermes role to
-`~/.config/opencode/agent/hermes-{plan,build,review}.md` (`mode: primary`,
-`hidden: true`; `debug` stays shared). Every other plugin decision — `--auto`,
-the permission shape, the task-branch gate, the appended scope lines — keys on
-the Hermes role name, so renaming an installed agent touches only the map. A
-hidden primary is reachable only by name via `opencode run --agent`;
-`default_agent` refuses it and the TUI never cycles to it. OpenCode's plan-mode
-reminder is keyed on the literal agent name `plan`, so `hermes-plan`'s read-only
-posture is prompt + permission, not plan mode. The primaries replace the
-provider default prompt with a non-interactive contract: no `question` tool, no
+`~/.config/opencode/agent/hermes-{plan,build,review,debug}.md` (`mode: primary`,
+`hidden: true`). Every other plugin decision keys on the Hermes role name, so
+renaming an installed agent touches only the map. OpenCode's plan-mode reminder
+is keyed on the literal agent name `plan`, so `hermes-plan`'s read-only posture
+is prompt + permission, not plan mode. The primaries replace the provider
+default prompt with a non-interactive contract: no `question` tool, no
 plan→build handoff or PlanHandoff todos, Client decisions returned as `Q<n>:`
 with a default already taken, every check delegated to `verifier`, and
-reviewer / reviewer-deep passes ONLY when the message asks (overriding the
-human-facing "consider a reviewer pass before commits" rule).
+reviewer / reviewer-deep passes ONLY when the message asks. The plugin checks
+before each turn that the agent is still the hidden primary and that a
+read-only role still denies edits, shell writes and `worker` under the combined
+rules; otherwise it launches nothing.
 
-**Models.** Models are pinned per role in the agent frontmatter (plan + review
-Opus 5.5, build GPT-6.1 Sol) so Engineer's own model (Fable 5.1, see
+**Models.** Models are pinned per role in the agent frontmatter (plan, review
+and debug Opus 5.5, build GPT-6.1 Sol) so Engineer's own model (Fable 5.1, see
 [`models-auth.md`](../models-auth.md) "Models and fallback chains") never
-challenges or QAs its own OpenCode output; `opencode_cli.models` / `--model`
-still override. Accepted exception: the Assistant also runs on Opus 5.5, so its
-Admin-topic OpenCode calls are planned and reviewed by the requesting model —
-accepted because Admin work is small inline upkeep. Do not extend it to
-Engineer; moving Engineer off Fable, or broadening Admin's grant, needs the
-reviewer moved to another model family first. `opencode_call` also takes `model` / `variant` (OpenCode
-`--model` / `--variant`), fail-closed against `opencode_cli.allowed_models` /
-`allowed_variants`: a name outside the list is refused, never substituted, and
-an explicit selection binds the rest of that conversation.
+challenges or QAs its own OpenCode output. The plugin reads the pin from the
+service and passes it explicitly with every turn (and on every resume or
+fork), checks it against the service's model catalog, and records it as
+`engine`. `opencode_cli.models` still overrides per role. Accepted exception:
+the Assistant also runs on Opus 5.5, so its Admin-topic OpenCode calls are
+planned and reviewed by the requesting model — accepted because Admin work is
+small inline upkeep. Do not extend it to Engineer; moving Engineer off Fable, or
+broadening Admin's grant, needs the reviewer moved to another model family
+first. `opencode_call` also takes `model` / `variant`, fail-closed against
+`opencode_cli.allowed_models` / `allowed_variants`: a name outside the list or
+the catalog is refused, never substituted, and an explicit selection binds the
+rest of that conversation.
 
-**Permissions.** The plugin is the ONLY owner of the primaries' permissions; the
-agent files carry no `permission:` block (a plugin test fails if one reappears).
-OpenCode deep-merges frontmatter with the injected `OPENCODE_CONFIG_CONTENT`
-(nested maps union, injected value wins per key, last matching rule wins at
-evaluation), so two sources meant neither was the truth. The policy rests on
-two facts: an agent-level `"*": deny` shadows the user's global tool allows AND
-OpenCode's own auto-allows (skill dirs, the `tool-output/` overflow dir, its
-temp dir), so every tool a read-only role needs is listed in `_permissions` and
-only OpenCode's own scratch dirs are re-allowed under `external_directory`; and a plain
-`ask` on this transport is never a question — `opencode run` rejects it without
-`--auto` and approves it with `--auto` — so build's `external_directory` is
-`deny`. Subagents (`verifier`, `explore-*`, `reviewer*`, `worker`) keep their
-own frontmatter permissions and are not governed by the injected policy, with
-one exception: `worker.md` opens worktree homes outside the session directory
-and asks elsewhere (for the human TUI), which `--auto` would approve, so a role
-that may spawn `worker` also injects `agent.worker.permission.external_directory`
-re-denying every pattern `worker.md` names (`WORKER_EXTERNAL_KEYS`; a test keeps
-the two in sync).
+**Permissions.** OpenCode 2 evaluates ordered rules, last match wins: global
+config, then the agent's own `permissions`, then the session's ruleset; and
+every subagent session copies its parent's ruleset (measured on 2.0.23). So
+policy has two owners with a fixed boundary:
 
-**OpenCode 1 and 2.** The runner reads `opencode --version` before each launch
-and fails closed on any other major. OpenCode 2 differs in four ways the plugin
-absorbs:
+- Each hidden primary's frontmatter owns its **role posture**: plan, review and
+  debug start from a full deny and list what they need (read tools, read-only
+  git/gh, their subagents); build allows edits, routine commands and its
+  subagents. A full deny also shadows the person's global allows, so a
+  read-only role names every tool it needs.
+- The plugin's session ruleset (`_rules`) owns each **run's constraints** for
+  the whole session tree: the worktree boundary (`external_directory` asks,
+  OpenCode's own scratch dirs and the read-only config/skill dirs re-allowed),
+  `question` denied, secrets unreadable, plan's tree unedited, build's pushes,
+  history rewrites, branch moves, package runners and ungranted Issue writes
+  as asks, the hard denies (force and protected-branch pushes, merges, `gh api`,
+  Project writes), and last the person's own denies read from the built-in
+  `build` agent, so build's broad allow never reopens `sudo` or `secret get`.
+  Because subagents copy it and it is applied after their own posture, the
+  ruleset carries no broad allow — one would reopen what an explore or reviewer
+  subagent denies itself. A test enforces this.
 
-- `run --standalone`: the shared background service was started by someone
-  else and never sees this run's `OPENCODE_CONFIG_CONTENT`; a private server
-  does. `OPENCODE_PERMISSION` is ignored there, so the injected config is the
-  only carrier of the policy (V2 appends it after the agent file's rules, and
-  the last matching rule wins).
-- No `--dir`: the worktree is the child's cwd and `$PWD`.
-- `run --agent` does not apply the agent's model, so the pin is read from the
-  agent frontmatter and passed as `--model provider/model#variant` (no
-  separate `--variant`); with no pin and no configured model the run is refused.
-- The final step emits no `step_finish`, and every error exits non-zero, so
-  completion is a clean exit with an owned session and no error event; the
-  reply is the last assistant message that produced text.
+V2 wildcards match whole values and `*` crosses `/`, so secrets are spelled
+`*.env`, `*.pem`, … (`**/.env` misses a root-level file).
 
-V2 also adds a `shell/` output dir to OpenCode's own scratch dirs, which the
-injected `external_directory` re-allows with the others.
+**Permission requests.** An `ask` pauses the run as `waiting`, from the session
+or any of its subagents (requests are listed per location; the watcher keeps
+those of its own session tree). The caller answers each with `opencode_session
+respond`: `once`, or `reject` with a reason OpenCode receives. There is no
+broader approval: `always` saves a project-wide approval people's own sessions
+would inherit, and a session-wide allow would be copied into every subagent
+session after its own denies. An unanswered
+request is rejected at `opencode_cli.permission_timeout` (default 900 s). The
+decision rule — inside the Client's approved scope, otherwise reject and ask —
+lives in the callers' runtime instructions (Engineer's `references/opencode.md`,
+the Assistant's Admin topic prompt).
 
 **Plan → Build on the same conversation.** The next `opencode_call` on a plan
-conversation may name `agent="build"` plus `approval`; OpenCode resumes the
-session under `hermes-build` with the whole history (investigation, proposal,
+conversation may name `agent="build"` plus `approval`; the session switches
+agent, model and ruleset and keeps its whole history (investigation, proposal,
 `DECISION(Q<n>)` lines) in context. The wrapper requires the same worktree and
 branch and refuses a default-branch build, so `plan-engineer` moves the
 checkout onto a task branch BEFORE the first plan call when implementation is
 likely (a worktree only for isolation). A plan made on the default branch
 starts a new conversation whose message carries the proposal sections and
-decisions verbatim; `--fork` is a full-history copy and prunes nothing.
+decisions verbatim; a fork is a full-history copy and prunes nothing.
 
 ### Resident turns and reconcile
 
 A resident Engineer is a plain CLI process, and CLI has no background-process
 wakeup (completion notifications are gateway-only), so resident turns block on
-OpenCode rather than poll. `opencode_call` waits up to `opencode_cli.timeout`
-(3600); the engineer `config.yaml` raises `timeouts.tools.sequential_call` /
+OpenCode rather than poll. A blocking call waits until the run hands back or
+`min(opencode_cli.wait_timeout, tool deadline − 30 s, turn deadline)`; the
+engineer `config.yaml` raises `timeouts.tools.sequential_call` /
 `concurrent_batch` to 3660 because the generic 420 s tool deadline cut calls
 into costly `status`/`ps`/`sleep` polling loops (the assistant uses 960 for
 `specialist_session wait`; see [specialist-calls.md](./specialist-calls.md)).
-The fallback `opencode_session(action="wait", timeout?)` blocks on the record,
-bounded by `opencode_cli.wait_timeout`, the job deadline and
-`RESIDENT_DEADLINE`.
+The fallback `opencode_session(action="wait", timeout?)` blocks the same way.
 
 The 90-minute resident turn (`TURN_TIMEOUT`, fixed in both
 `resident-session.sh` and `plugins/specialist-call`) is visible to the
 specialist: the handoff prints a `Turn budget:` line from `data["deadline"]`,
 and `build-engineer` checkpoint-commits verified increments and stops at
-~15 min remaining. The Assistant sizes turns to one verifiable increment and
-continues in the same conversation — never a whole "implement to PR" scope in
-one turn, which strands uncommitted work.
+~15 min remaining. An OpenCode turn's own deadline never outlives the resident
+turn (`RESIDENT_DEADLINE`), so a run still going then is interrupted, not left
+uncertain. The Assistant sizes turns to one verifiable increment and continues
+in the same conversation — never a whole "implement to PR" scope in one turn,
+which strands uncommitted work.
 
 An interrupted conversation accepts `specialist_call(kind="reconcile")` and
 nothing else. OpenCode records are owned by the Engineer session + routing

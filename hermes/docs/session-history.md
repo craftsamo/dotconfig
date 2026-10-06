@@ -43,25 +43,21 @@ session, it does not undo the work.
 It reads OpenCode's own sessions across every project and never touches the
 execution side (`opencode-sessions/`, grants, `opencode_cli`).
 
-- **Official API first.** Each call starts a private `opencode serve` on
-  127.0.0.1 with a one-shot password (explicit env wins over the secret shim, so
-  no Keychain value is needed) in a throwaway directory, and stops it before
-  returning. OpenCode 1 runs it `--pure` and lists through the all-project
-  `/experimental/session` route, whose `start` bounds `time.updated`; a full
-  page counts as truncation. OpenCode 2 has no `--pure` (its plugins load) and
-  lists through `/api/session`, newest-updated first, following the cursor
-  until a session predates the window; it reports no version or change summary
+- **Official API first.** It asks the person's shared OpenCode 2 service
+  through the documented `opencode api` command (which finds or starts the
+  service and authenticates like the TUI; output goes to files, because a
+  piped reply is cut off at a buffer boundary with exit status zero). It lists
+  through `/api/session`, newest-updated first, following the cursor until a
+  session predates the window; the API reports no version or change summary
   per session.
 - **Database only where the API cannot answer.** `usage` needs message-level
   model, tokens and step times, which the API returns only with message content,
-  so it reads the database (`opencode db path`, V2: `opencode debug paths db`)
-  read-only in one snapshot, selecting scalar JSON paths only. The schema is
-  detected from the tables (V1 `session`/`message`/`part`, V2
-  `session_v2`/`session_message`, where tool calls sit inside the assistant
-  message); the installed major breaks the tie when one file carries both.
-  OpenCode 2 imports V1 steps with their completion and tool times set to the
-  V1 row's last update, so while the V1 tables remain, an imported step's V1
-  record supplies its times.
+  so it reads the database (`opencode debug paths db`) read-only in one
+  snapshot, selecting scalar JSON paths only, from OpenCode 2's
+  `session_v2`/`session_message` (tool calls sit inside the assistant message);
+  a file without them is unavailable. OpenCode 2 imports V1 steps with their
+  completion and tool times set to the V1 row's last update, so while the
+  imported V1 tables remain, an imported step's V1 record supplies its times.
   list/get/children fall back to the database only in `auto` and say so
   (`api-unavailable`). A missing required column fails closed; the internal
   schema has no compatibility promise.
