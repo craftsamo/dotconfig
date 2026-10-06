@@ -68,16 +68,17 @@ REASON_LIMIT = 1500
 GCLOUD_TIMEOUT = 300
 GCLOUD_TIMEOUT_MAX = 1800
 
-SHEETS_ACTIONS = ("search", "info", "get", "get_format", "update", "batch_update", "append", "clear",
-                  "create", "add_sheet", "layout", "data", "chart", "pivot", "protect")
+SHEETS_ACTIONS = ("search", "info", "get", "get_format", "comments", "update", "batch_update",
+                  "append", "clear", "create", "add_sheet", "layout", "data", "chart", "pivot", "protect",
+                  "comment")
 # Actions taking a list of ops from a fixed vocabulary (OP_SETS), sent as one batchUpdate.
-OP_ACTIONS = {"layout", "data", "chart", "pivot", "protect"}
+OP_ACTIONS = {"layout", "data", "chart", "pivot", "protect", "comment"}
 SHEETS_WRITES = {"update", "batch_update", "append", "clear", "create", "add_sheet", "layout", "data", "chart",
-                 "pivot", "protect"}
+                 "pivot", "protect", "comment"}
 # Edits approved once per spreadsheet: "session" / "always" on the first card covers the rest of
 # that spreadsheet's edits (its version history undoes them). clear and create still ask each time,
 # and so does a layout call holding an op that deletes or moves data (LAYOUT_DESTRUCTIVE) and every
-# data and protect call.
+# data, protect and comment call (comments reach other people and version history keeps none).
 SHEETS_EDITS = {"update", "batch_update", "append", "add_sheet", "layout", "chart", "pivot"}
 BATCH_LIMIT = 500
 # Row guards: cells that must still hold a known value (a key column) when a write by row number
@@ -621,6 +622,8 @@ def sheets(home, args: dict) -> dict:
                 "url": meta.get("spreadsheetUrl"), "locale": props.get("locale"),
                 "time_zone": props.get("timeZone"),
                 "sheets": [_sheet_info(s) for s in meta.get("sheets", [])]}
+    if action == "comments":
+        return _comments(book, sid, args)
     if action == "append" and args.get("table") is not None:
         return _table_append(book, sid, args)
     if action == "add_sheet":
@@ -704,6 +707,14 @@ def sheets(home, args: dict) -> dict:
         counted = _data_results(replies)
         if counted:
             result["results"] = counted
+        threads = [r["insertComment"].get("commentThread") or {} for r in replies if "insertComment" in r]
+        if threads:
+            result["comments"] = [{"comment_id": t.get("commentId")} for t in threads]
+        state = done.get("commentUpdateState")
+        if action == "comment" and state != "ALL_SAVED":
+            # Comment changes can fail on their own while the call succeeds.
+            result.update(ok=False, error=f"Google did not save the comment changes ({state or 'no state'}); "
+                                          f"read them with comments before trying again")
         return result
 
     option = "RAW" if args.get("raw") else "USER_ENTERED"
@@ -1056,9 +1067,64 @@ def _sheet_info(sheet: dict) -> dict:
     return props
 
 
-# --- Sheets table appends -------------------------------------------------------------------------
+# --- Sheets comments and table appends ------------------------------------------------------------
 
+COMMENTS_FIELDS = "comments,sheets(properties(sheetId,title),commentAnchors)"
+COMMENTS_LIMIT = 200
 TABLE_FIELDS = "sheets(properties(sheetId,title),tables(tableId,name,range))"
+
+
+def _post(post: dict) -> dict:
+    author = post.get("author") or {}
+    out = {"post_id": post.get("postId"), "author": author.get("displayName"), "me": bool(author.get("me")),
+           "text": post.get("content") or "", "time": post.get("updateTime") or post.get("createTime")}
+    if post.get("assigneeEmail"):
+        out["assignee"] = post["assigneeEmail"]
+    if post.get("commentAction") in ("RESOLVE", "REOPEN"):
+        out["action"] = post["commentAction"]
+    return out
+
+
+def _comments(book, sid: str, args: dict) -> dict:
+    """Comment threads with the cell each is anchored to; resolved ones only with resolved=true.
+    Given ranges, only threads anchored inside them come back."""
+    ranges = args.get("ranges")
+    if ranges is None and args.get("range") is not None:
+        ranges = [_str(args, "range")]
+    if ranges is not None and (not isinstance(ranges, list) or not ranges
+                               or not all(isinstance(r, str) and r.strip() for r in ranges)):
+        raise AccessError("ranges must be a non-empty array of A1 ranges")
+    resolved = _flag(args, "resolved") if "resolved" in args else False
+    request = book.get(spreadsheetId=sid, fields=COMMENTS_FIELDS, **({"ranges": ranges} if ranges else {}))
+    # The client's bundled API description predates comments, so the parameter goes on the URI.
+    request.uri += ("&" if "?" in request.uri else "?") + "commentsViewMode=COMMENTS_VIEW_MODE_INCLUDED"
+    meta = _google(request.execute)
+    anchors = {}
+    for sheet in meta.get("sheets", []):
+        title = sheet.get("properties", {}).get("title")
+        for anchor in sheet.get("commentAnchors", []) or []:
+            ref = _a1(anchor.get("range") or {})
+            first, _, last = ref.partition(":")
+            anchors[anchor.get("anchorId")] = f"{title}!{first if first == last else ref}"
+    out, hidden = [], 0
+    for thread in meta.get("comments", []) or []:
+        status = thread.get("status") or "OPEN"
+        if status == "RESOLVED" and not resolved:
+            hidden += 1
+            continue
+        entry = {"comment_id": thread.get("commentId"), "at": anchors.get(thread.get("anchorId"), "unanchored"),
+                 "status": status, **_post(thread.get("headPost") or {})}
+        entry.pop("post_id", None)
+        replies = [_post(p) for p in thread.get("replies") or [] if not p.get("deleted")]
+        if replies:
+            entry["replies"] = replies
+        out.append(entry)
+    result = {"ok": True, "spreadsheet_id": sid, "comments": out[:COMMENTS_LIMIT]}
+    if len(out) > COMMENTS_LIMIT:
+        result["more"] = len(out) - COMMENTS_LIMIT
+    if hidden:
+        result["resolved_hidden"] = hidden
+    return result
 
 
 def _find_table(meta: dict, key: str) -> dict:
@@ -3135,13 +3201,107 @@ def _protect_requests(ops: list[dict], meta: dict, **_) -> list[dict]:
     return requests
 
 
+# --- Sheets comments ------------------------------------------------------------------------------
+# A `comment` call is approved per exact call: comments reach other people (an assignee or a
+# mentioned address is emailed) and the version history does not undo them.
+
+COMMENT_OPS = {  # op: (required fields, optional fields)
+    "comment": (("range", "text"), ("assignee",)),
+    "comment_reply": (("comment",), ("text", "status", "assignee")),
+    "comment_edit": (("comment", "post", "text"), ()),
+    "comment_delete": (("comment",), ()),
+}
+COMMENT_TEXT_LIMIT = 2000
+COMMENT_STATUSES = {"RESOLVE", "REOPEN"}
+COMMENT_FIELDS = "sheets(properties(sheetId,title,index))"
+MENTION = re.compile(r"(?:^|\s)[+@][^\s@]+@[^\s@]+\.[^\s@]+")
+
+
+def _comment_text(raw: dict, required: bool) -> str:
+    if "text" not in raw and not required:
+        return ""
+    text = raw.get("text")
+    if not isinstance(text, str) or not text.strip():
+        raise AccessError("text must be the comment's words")
+    if len(text) > COMMENT_TEXT_LIMIT:
+        raise AccessError(f"text holds {len(text)} characters; at most {COMMENT_TEXT_LIMIT}")
+    return text.strip()
+
+
+def _normalize_comment(name: str, raw: dict, here: bool = False) -> dict:
+    """The validated comment op; ``here`` words its card line without the tab."""
+    op = {"op": name}
+    if name == "comment":
+        op["areas"] = _areas(raw)
+        op["tab"], op["ref"], op["grid"] = (op["areas"][0][k] for k in ("tab", "ref", "grid"))
+        if not SINGLE_CELL.match(op["ref"]):
+            raise AccessError(f"a comment goes on one cell, like 'Tasks!B2', not {op['ref'] or 'a whole tab'!r}")
+    else:
+        op["comment"] = _plain(raw["comment"])
+    op["text"] = _comment_text(raw, required=name != "comment_reply" and name != "comment_delete")
+    if "assignee" in raw:
+        address = raw["assignee"].strip() if isinstance(raw["assignee"], str) else ""
+        if len(address) > 100 or not EMAIL.match(address):
+            raise AccessError(f"assignee: not an email address: {raw['assignee']!r}")
+        op["assignee"] = address
+    quoted = f"\"{_cell(op['text'], '', 120)}\""
+    extra = (f"; assign to {op['assignee']} (emailed)" if "assignee" in op else "") + (
+        " (mentioned addresses are emailed)" if MENTION.search(op["text"]) else "")
+    if name == "comment":
+        op["say"] = f"Comment on {_where(op['tab'], op['ref'], here)}: {quoted}{extra}"
+    elif name == "comment_reply":
+        op["status"] = _choice(raw, "status", COMMENT_STATUSES) if "status" in raw else None
+        if not op["text"] and not op["status"] and "assignee" not in op:
+            raise AccessError("give text, status or assignee")
+        verb = {"RESOLVE": "Resolve", "REOPEN": "Reopen", None: "Reply to"}[op["status"]]
+        said = f" with {quoted}" if op["text"] and op["status"] else (f": {quoted}" if op["text"] else "")
+        op["say"] = f"{verb} comment {_cell(op['comment'], '', TAB_CLIP)}{said}{extra}"
+    elif name == "comment_edit":
+        op["post"] = _plain(raw["post"])
+        op["say"] = (f"Edit post {_cell(op['post'], '', TAB_CLIP)} of comment "
+                     f"{_cell(op['comment'], '', TAB_CLIP)} to {quoted}{extra}")
+    else:
+        op["say"] = f"Delete comment {_cell(op['comment'], '', TAB_CLIP)} with its replies"
+    return op
+
+
+def _comment_requests(ops: list[dict], meta: dict, **_) -> list[dict]:
+    tabs = _Tabs(meta)
+    requests = []
+    for op in ops:
+        name = op["op"]
+        if name == "comment":
+            cell = tabs.grid(op)
+            request = {"content": op["text"], "coordinate": {
+                "sheetId": cell["sheetId"], "rowIndex": cell["startRowIndex"], "columnIndex": cell["startColumnIndex"]}}
+            if "assignee" in op:
+                request["assigneeEmailAddress"] = op["assignee"]
+            requests.append({"insertComment": request})
+        elif name == "comment_reply":
+            post = {}
+            if op["text"]:
+                post["content"] = op["text"]
+            if op["status"]:
+                post["commentAction"] = op["status"]
+            if "assignee" in op:
+                post["assigneeEmail"] = op["assignee"]
+            requests.append({"addCommentReply": {"commentId": op["comment"], "post": post}})
+        elif name == "comment_edit":
+            requests.append({"updateCommentPost": {"commentId": op["comment"], "postId": op["post"],
+                                                   "content": op["text"]}})
+        else:
+            requests.append({"deleteComment": {"commentId": op["comment"]}})
+    return requests
+
+
 # Op actions: the vocabulary, its normalizer, its request builder (given the metadata and the
 # engine's readers) and the metadata fields it builds from.
 OP_SETS = {"layout": (LAYOUT_OPS, _normalize, _layout_requests, LAYOUT_FIELDS),
            "data": (DATA_OPS, _normalize_data, _data_requests, LAYOUT_FIELDS),
            "chart": (CHART_OPS, _normalize_objects, _object_requests, CHART_FIELDS),
            "pivot": (PIVOT_OPS, _normalize_objects, _object_requests, PIVOT_FIELDS),
-           "protect": (PROTECT_OPS, _normalize_protect, _protect_requests, PROTECT_FIELDS)}
+           "protect": (PROTECT_OPS, _normalize_protect, _protect_requests, PROTECT_FIELDS),
+           "comment": (COMMENT_OPS, _normalize_comment, _comment_requests, COMMENT_FIELDS)}
 
 
 # --- Gmail ----------------------------------------------------------------------------------------
@@ -3680,6 +3840,9 @@ def _sheets_card(home, action: str, args: dict) -> str:
         # Lines are already clipped per field; only the length is bounded here, so the repeated
         # spaces a literal shows survive.
         lines = [" ".join(op[say].splitlines()) for op in ops]
+        if action == "comment" and _redacted("\n".join(lines)) != "\n".join(lines):
+            raise AccessError("the comment card would mask part of it as a secret; the user writes that comment "
+                              "in Sheets")
         if action == "protect":  # every editor's address in full, or no card at all
             text = "\n".join(head + lines)
             if _redacted(text) != text:
