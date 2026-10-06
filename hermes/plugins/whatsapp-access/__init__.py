@@ -33,7 +33,7 @@ def _load(name, path):
 wa = _load("hermes_whatsapp_access_engine", Path(__file__).resolve().parent / "wa.py")
 
 DESCRIPTION = (
-    "The user's own WhatsApp accounts (named wacli accounts, e.g. 'technicity'), read from a local "
+    "The user's own WhatsApp accounts (named wacli accounts, e.g. 'work'), read from a local "
     "mirror kept current by a sync service. status (each account: paired, sync running, last "
     "activity), chats (chats newest first with jid, name, unread; query = part of a name, "
     "unread=true; last=true adds who spoke last, when, and a short preview; page with offset = "

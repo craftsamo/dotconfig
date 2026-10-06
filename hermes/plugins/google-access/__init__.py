@@ -367,7 +367,7 @@ SCHEMAS = {
                    "description": "update / append: rows of cell values"},
         "expect": {"type": "array", "description": (
             "update / batch_update / clear / layout: row guards checked right before writing; one cell each, "
-            "e.g. {range: 'bp候補!A2534', value: 'bp-2534'}"), "items": {
+            "e.g. {range: 'Leads!A2534', value: 'lead-2534'}"), "items": {
             "type": "object", "required": ["range", "value"], "additionalProperties": False,
             "properties": {"range": {"type": "string", "description": "one cell in A1 notation"},
                            "value": {"description": "the value it must display (text, number or boolean)"}}}},

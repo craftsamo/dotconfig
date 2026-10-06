@@ -21,7 +21,7 @@ DM = "819012345678@s.whatsapp.net"
 
 def fake_run(args, *, account=None, write=False, timeout=None):
     if args[:2] == ["accounts", "list"]:
-        return {"accounts": [{"name": "technicity"}]}
+        return {"accounts": [{"name": "work"}]}
     if args[:2] == ["chats", "show"]:
         return {"jid": DM, "name": "Yamada Taro", "kind": "dm"}
     if args[:2] == ["chats", "list"]:
@@ -66,16 +66,16 @@ def test_only_the_assistant_gets_the_tool():
 def test_gate_asks_for_sends_only():
     assert plugin.gate(tool_name="whatsapp", args={"action": "chats"}) is None
     directive = plugin.gate(tool_name="whatsapp", args={
-        "action": "send", "account": "technicity", "chat": DM, "text": "hi"})
+        "action": "send", "account": "work", "chat": DM, "text": "hi"})
     assert directive["action"] == "approve"
-    assert directive["message"] == "Account: technicity\nChat: Yamada Taro (+819012345678)\n\nhi"
+    assert directive["message"] == "Account: work\nChat: Yamada Taro (+819012345678)\n\nhi"
     assert directive["rule_key"].startswith("whatsapp-access:send:")
 
 
 @pytest.mark.parametrize("args", [
     {"action": "send", "chat": DM, "text": "hi"},                               # no account
-    {"action": "send", "account": "technicity", "chat": "Yamada", "text": "hi"},  # a name
-    {"action": "send", "account": "technicity", "chat": DM, "text": " "},
+    {"action": "send", "account": "work", "chat": "Yamada", "text": "hi"},  # a name
+    {"action": "send", "account": "work", "chat": DM, "text": " "},
     {"action": "forward"},
 ])
 def test_gate_blocks_invalid_calls_without_asking(args):
@@ -84,13 +84,13 @@ def test_gate_blocks_invalid_calls_without_asking(args):
 
 def test_bind_only_touches_sends_with_files():
     assert plugin.bind(tool_name="whatsapp", args={"action": "chats"}) is None
-    assert plugin.bind(tool_name="whatsapp", args={"action": "send", "account": "technicity", "chat": DM,
+    assert plugin.bind(tool_name="whatsapp", args={"action": "send", "account": "work", "chat": DM,
                                                   "text": "hi"}) is None
     assert plugin.bind(tool_name="terminal", args={"command": "ls"}) is None
 
 
 def test_gate_blocks_a_caller_supplied_outbox():
-    directive = plugin.gate(tool_name="whatsapp", args={"action": "send", "account": "technicity", "chat": DM,
+    directive = plugin.gate(tool_name="whatsapp", args={"action": "send", "account": "work", "chat": DM,
                                                        "text": "hi", "_outbox": "0" * 32})
     assert directive["action"] == "block" and "_outbox" in directive["message"]
 
@@ -111,7 +111,7 @@ def test_inbound_a2a_is_refused(monkeypatch):
 
 def test_handler_returns_json():
     result = json.loads(plugin.whatsapp({"action": "chats"}))
-    assert result["ok"] is True and result["chats"] == [] and result["account"] == "technicity"
+    assert result["ok"] is True and result["chats"] == [] and result["account"] == "work"
     result = json.loads(plugin.whatsapp({"action": "messages"}))
     assert result["ok"] is False and "chat is required" in result["error"]
     assert json.loads(plugin.whatsapp("not a dict"))["ok"] is False

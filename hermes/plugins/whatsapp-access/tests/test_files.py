@@ -60,7 +60,7 @@ def approved(args, ids=IDS):
 
 
 def send_args(**over):
-    args = {"action": "send", "account": "technicity", "chat": DM, "files": ["trip/a.png"]}
+    args = {"action": "send", "account": "work", "chat": DM, "files": ["trip/a.png"]}
     args.update(over)
     return args
 
@@ -269,12 +269,12 @@ def test_the_deadline_stops_before_a_file_it_cannot_finish(ws, fake, monkeypatch
 
 
 def test_text_sends_and_their_rule_key_are_unchanged(fake, ws):
-    plan = {"account": "technicity", "chat": DM, "text": "hi", "reply_to": "", "files": []}
-    old = __import__("hashlib").sha256(json.dumps(["technicity", DM, "hi", ""], ensure_ascii=False)
+    plan = {"account": "work", "chat": DM, "text": "hi", "reply_to": "", "files": []}
+    old = __import__("hashlib").sha256(json.dumps(["work", DM, "hi", ""], ensure_ascii=False)
                                        .encode("utf-8")).hexdigest()[:16]
     assert wa.rule_key(plan) == f"whatsapp-access:send:{old}"
-    assert wa.outbox_binding({"action": "send", "account": "technicity", "chat": DM, "text": "hi"}, ids=IDS) is None
-    assert wa.execute({"action": "send", "account": "technicity", "chat": DM, "text": "hi"})["ok"] is True
+    assert wa.outbox_binding({"action": "send", "account": "work", "chat": DM, "text": "hi"}, ids=IDS) is None
+    assert wa.execute({"action": "send", "account": "work", "chat": DM, "text": "hi"})["ok"] is True
 
 
 def test_run_restricts_media_roots(monkeypatch, tmp_path):

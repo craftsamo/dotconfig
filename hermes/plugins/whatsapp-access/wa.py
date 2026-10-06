@@ -1368,7 +1368,7 @@ def _file_line(f: dict) -> str:
 def card(plan: dict, staged: list[dict] | None = None) -> str:
     """Plain English, one fact per line, as the Sheets cards:
 
-        Account: technicity
+        Account: work
         Chat: <name> (+<number>)
         Reply to: <sender>: <quoted text>
 

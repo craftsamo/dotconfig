@@ -288,7 +288,7 @@ def test_a_write_without_values_is_blocked_before_asking():
 
 
 @pytest.mark.parametrize("rng,expected", [
-    ("bp候補!K3257:L3257", ("bp候補", "K3257:L3257")), ("'My ''Tab'''!A1", ("My 'Tab'", "A1")),
+    ("Leads!K3257:L3257", ("Leads", "K3257:L3257")), ("'My ''Tab'''!A1", ("My 'Tab'", "A1")),
     ("Sheet1", ("Sheet1", "")), ("A1:B2", (None, "A1:B2")), ("C:C", (None, "C:C")), ("3:5", (None, "3:5"))])
 def test_split_range(rng, expected):
     assert access.split_range(rng) == expected
@@ -300,7 +300,7 @@ def test_column_letters_round_trip():
     assert access.column_letters(10) == "K" and access.column_letters(27) == "AB"
 
 
-def context(monkeypatch, title="BP候補リスト", headers=None, names=None):
+def context(monkeypatch, title="Leads sheet", headers=None, names=None):
     calls = []
 
     def fake(home, sid, tabs):
@@ -312,15 +312,15 @@ def context(monkeypatch, title="BP候補リスト", headers=None, names=None):
 
 
 def test_card_shows_title_headers_and_cells(monkeypatch):
-    context(monkeypatch, headers={"bp候補": ["id"] + [""] * 9 + ["確認メモ", "判定"]})
+    context(monkeypatch, headers={"Leads": ["id"] + [""] * 9 + ["確認メモ", "判定"]})
     reason, _ = access.approval_request("google_sheets", {
-        "action": "update", "spreadsheet_id": SID, "range": "bp候補!K3257:L3257",
-        "values": [["2026-10-02確認: 自社サイト sinarfajarempire.com にパッケージ・サービス(トイレ・リビング・寝室・台所)",
-                    "【bp batch23】見送り_既存機能重複。"]]}, home=Path("/nonexistent"))
+        "action": "update", "spreadsheet_id": SID, "range": "Leads!K3257:L3257",
+        "values": [["2026-10-02確認: 自社サイト example-shop.com にパッケージ・サービス(トイレ・リビング・寝室・台所)",
+                    "【batch 3】見送り_既存機能重複。"]]}, home=Path("/nonexistent"))
     lines = reason.split("\n")
-    assert lines[:3] == ["SpreadSheet: BP候補リスト", "Sheet: bp候補", ""]
+    assert lines[:3] == ["SpreadSheet: Leads sheet", "Sheet: Leads", ""]
     assert lines[3].startswith("K3257 > 確認メモ: 2026-10-02確認") and lines[3].endswith("…")
-    assert lines[4] == "L3257 > 判定: 【bp batch23】見送り_既存機能重複。"
+    assert lines[4] == "L3257 > 判定: 【batch 3】見送り_既存機能重複。"
     assert SID not in reason
 
 
@@ -896,22 +896,22 @@ def guarded_api(found):
 
 
 GUARDED = {"action": "batch_update", "spreadsheet_id": SID,
-           "expect": [{"range": "bp候補!A2534", "value": "bp-2534"}, {"range": "bp候補!A2535", "value": 2535}],
-           "data": [{"range": "bp候補!F2534", "values": [["自動返信"]]},
-                    {"range": "bp候補!J2535", "values": [["2026-10-02"]]}]}
+           "expect": [{"range": "Leads!A2534", "value": "lead-2534"}, {"range": "Leads!A2535", "value": 2535}],
+           "data": [{"range": "Leads!F2534", "values": [["自動返信"]]},
+                    {"range": "Leads!J2535", "values": [["2026-10-02"]]}]}
 
 
 def test_matching_guards_let_the_write_through(tmp_path, monkeypatch):
-    api, values = guarded_api([" bp-2534 ", "2535"])
+    api, values = guarded_api([" lead-2534 ", "2535"])
     services(monkeypatch, sheets=api)
     result = access.sheets(tmp_path, GUARDED)
     assert result["ok"] and values.batchUpdate.call_count == 1
     kwargs = values.batchGet.call_args.kwargs
-    assert kwargs["ranges"] == ["bp候補!A2534", "bp候補!A2535"]
+    assert kwargs["ranges"] == ["Leads!A2534", "Leads!A2535"]
     assert kwargs["valueRenderOption"] == "FORMATTED_VALUE"
 
 
-@pytest.mark.parametrize("found", [["bp-2535", "2535"], ["bp-2534", None], ["bp-2534", "2536"]])
+@pytest.mark.parametrize("found", [["lead-2535", "2535"], ["lead-2534", None], ["lead-2534", "2536"]])
 def test_one_mismatch_writes_nothing(tmp_path, monkeypatch, found):
     api, values = guarded_api(found)
     services(monkeypatch, sheets=api)
@@ -972,9 +972,9 @@ def test_expect_is_refused_where_it_guards_nothing(args, tmp_path):
 def test_the_card_shows_the_checks():
     reason, key = access.approval_request("google_sheets", GUARDED)
     lines = reason.split("\n")
-    assert lines[2] == "Check: A2534 = bp-2534, A2535 = 2535" and lines[3] == ""
+    assert lines[2] == "Check: A2534 = lead-2534, A2535 = 2535" and lines[3] == ""
     assert key == f"google-access:sheets-edit:{SID}"
-    many = dict(GUARDED, expect=[{"range": f"bp候補!A{i}", "value": f"id{i}"} for i in range(1, 7)])
+    many = dict(GUARDED, expect=[{"range": f"Leads!A{i}", "value": f"id{i}"} for i in range(1, 7)])
     assert "Check: A1 = id1, A2 = id2, A3 = id3 (+3 more)" in access.approval_request("google_sheets", many)[0]
     clear = {"action": "clear", "spreadsheet_id": SID, "range": "S!F2", "expect": [{"range": "S!A2", "value": "k"}]}
     assert access.approval_request("google_sheets", clear)[0].endswith("Clear: S!F2\nCheck: A2 = k")
@@ -982,16 +982,16 @@ def test_the_card_shows_the_checks():
 
 def test_checks_name_another_tab_and_the_first_sheet():
     args = dict(GUARDED, expect=[{"range": "Control!A2", "value": "on"}, {"range": "A9", "value": "k"},
-                                 {"range": "bp候補!A2534", "value": "bp-2534"}])
+                                 {"range": "Leads!A2534", "value": "lead-2534"}])
     line = access.approval_request("google_sheets", args)[0].split("\n")[2]
-    assert line == "Check: Control!A2 = on, (first sheet)!A9 = k, A2534 = bp-2534"
+    assert line == "Check: Control!A2 = on, (first sheet)!A9 = k, A2534 = lead-2534"
     two_tabs = dict(args, data=GUARDED["data"] + [{"range": "Other!B1", "values": [["x"]]}])
-    assert "bp候補!A2534 = bp-2534" in access.approval_request("google_sheets", two_tabs)[0]
+    assert "Leads!A2534 = lead-2534" in access.approval_request("google_sheets", two_tabs)[0]
 
 
 def test_long_checks_give_way_and_keep_the_count():
-    args = dict(GUARDED, expect=[{"range": f"bp候補!A{i}", "value": "&" * 30} for i in range(1, 4)],
-                data=[{"range": f"bp候補!B{i}", "values": [["v" * 40] * 3]} for i in range(1, 30)])
+    args = dict(GUARDED, expect=[{"range": f"Leads!A{i}", "value": "&" * 30} for i in range(1, 4)],
+                data=[{"range": f"Leads!B{i}", "values": [["v" * 40] * 3]} for i in range(1, 30)])
     reason = access.approval_request("google_sheets", args)[0]
     assert access._units(reason) <= access.CARD_LIMIT
     assert reason.split("\n")[2].startswith("Check: A1 = ") and "more cells)" in reason.split("\n")[-1]

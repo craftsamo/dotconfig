@@ -39,7 +39,7 @@ class Fake:
 
     def __init__(self):
         self.calls = []
-        self.accounts = ["technicity"]
+        self.accounts = ["work"]
         self.overrides = {}
         self.messages = [message("NEW", text="newest", stamp="2026-10-02T00:00:00Z"),
                          message("OLD", from_me=True, text="older")]
@@ -95,7 +95,7 @@ def fake(monkeypatch):
 
 
 def plan(**over):
-    p = {"account": "technicity", "chat": DM, "text": "こんにちは\n了解です。", "reply_to": ""}
+    p = {"account": "work", "chat": DM, "text": "こんにちは\n了解です。", "reply_to": ""}
     p.update(over)
     return p
 
@@ -120,14 +120,14 @@ def test_run_builds_argv_env_and_parses(monkeypatch):
     monkeypatch.setenv("WACLI_READONLY", "0")
     monkeypatch.setenv("WACLI_STORE_DIR", "/elsewhere")
 
-    assert real.run(["chats", "list"], account="technicity") == {"x": 1}
+    assert real.run(["chats", "list"], account="work") == {"x": 1}
     argv, kwargs = seen["argv"], seen["kwargs"]
-    assert argv[:2] == ["/x/wacli", "--json"] and argv[2:4] == ["--account", "technicity"]
+    assert argv[:2] == ["/x/wacli", "--json"] and argv[2:4] == ["--account", "work"]
     assert "--read-only" in argv and argv[-2:] == ["chats", "list"]
     assert kwargs["env"]["WACLI_READONLY"] == "1" and "WACLI_STORE_DIR" not in kwargs["env"]
     assert kwargs["stdin"] is subprocess.DEVNULL
 
-    real.run(["send", "text"], account="technicity", write=True, timeout=60)
+    real.run(["send", "text"], account="work", write=True, timeout=60)
     argv, kwargs = seen["argv"], seen["kwargs"]
     assert "--read-only" not in argv and "WACLI_READONLY" not in kwargs["env"]
     assert "WACLI_STORE_DIR" not in kwargs["env"]
@@ -146,19 +146,19 @@ def test_run_builds_argv_env_and_parses(monkeypatch):
 # --- accounts ------------------------------------------------------------------------------------
 
 def test_resolve_account(fake):
-    assert wa.resolve_account({"account": "Technicity"}, required=True) == "technicity"
-    assert wa.resolve_account({}, required=False) == "technicity"
-    with pytest.raises(wa.WhatsAppError, match="no WhatsApp account named 'work'.*technicity"):
-        wa.resolve_account({"account": "work"}, required=False)
+    assert wa.resolve_account({"account": "Work"}, required=True) == "work"
+    assert wa.resolve_account({}, required=False) == "work"
+    with pytest.raises(wa.WhatsAppError, match="no WhatsApp account named 'shop'.*work"):
+        wa.resolve_account({"account": "shop"}, required=False)
     with pytest.raises(wa.WhatsAppError, match="send needs account"):
         wa.resolve_account({}, required=True)
-    fake.accounts = ["technicity", "personal"]
+    fake.accounts = ["work", "personal"]
     with pytest.raises(wa.WhatsAppError, match="several"):
         wa.resolve_account({}, required=False)
     assert wa.resolve_account({"account": "personal"}, required=False) == "personal"
     fake.accounts = []
     with pytest.raises(wa.WhatsAppError) as info:
-        wa.resolve_account({"account": "technicity"}, required=False)
+        wa.resolve_account({"account": "work"}, required=False)
     assert str(info.value) == wa.NOT_SET_UP
 
 
@@ -168,19 +168,19 @@ def test_resolve_account(fake):
                                   "x@s.whatsapp.net", f"{DM} "])
 def test_send_rejects_chats_that_are_not_people_or_groups(chat):
     if chat.strip() == DM:  # surrounding whitespace is tolerated
-        assert wa.send_plan({"account": "technicity", "chat": chat, "text": "x"})["chat"] == DM
+        assert wa.send_plan({"account": "work", "chat": chat, "text": "x"})["chat"] == DM
         return
     with pytest.raises(wa.WhatsAppError, match="chat must be"):
-        wa.send_plan({"account": "technicity", "chat": chat, "text": "x"})
+        wa.send_plan({"account": "work", "chat": chat, "text": "x"})
 
 
 @pytest.mark.parametrize("chat", [DM, GROUP, "123456789012345@lid"])
 def test_send_accepts_people_and_groups(chat):
-    assert wa.send_plan({"account": "technicity", "chat": chat, "text": "x"})["chat"] == chat
+    assert wa.send_plan({"account": "work", "chat": chat, "text": "x"})["chat"] == chat
 
 
 def test_send_checks_text_and_reply():
-    base = {"account": "technicity", "chat": DM}
+    base = {"account": "work", "chat": DM}
     for text in ("", "  \n "):
         with pytest.raises(wa.WhatsAppError):
             wa.send_plan({**base, "text": text})
@@ -196,14 +196,14 @@ def test_send_checks_text_and_reply():
 
 def test_card_for_a_person():
     text = wa.card(plan())
-    assert text.split("\n") == ["Account: technicity", "Chat: Yamada Taro (+819012345678)", "",
+    assert text.split("\n") == ["Account: work", "Chat: Yamada Taro (+819012345678)", "",
                                 "こんにちは", "了解です。"]
     assert "more characters" not in text
 
 
 def test_card_for_a_group_with_a_reply():
     lines = wa.card(plan(chat=GROUP, reply_to="3EB0ABCDEF")).split("\n")
-    assert lines[0] == "Account: technicity"
+    assert lines[0] == "Account: work"
     assert lines[1] == f"Chat: Project X (group {GROUP})"  # two groups can share a name
     assert lines[2].startswith("Reply to: Yamada Taro: 明日の打ち合わせ") and lines[2].endswith("…")
     assert len(lines[2]) <= len("Reply to: Yamada Taro: ") + wa.QUOTE_CLIP
@@ -240,12 +240,12 @@ def test_long_text_is_cut_and_counted():
 
 def test_a_long_send_is_approved_in_one_card():
     body = "長文テスト。" * 200
-    reason, key = wa.approval_request({"action": "send", "account": "technicity", "chat": DM, "text": body})
+    reason, key = wa.approval_request({"action": "send", "account": "work", "chat": DM, "text": body})
     assert "more characters" in reason and key == wa.rule_key(plan(text=body))
 
 
 def test_the_card_shows_exactly_what_is_sent():
-    p = wa.send_plan({"account": "technicity", "chat": DM, "text": "\n\n  hello\nthere  \n"})
+    p = wa.send_plan({"account": "work", "chat": DM, "text": "\n\n  hello\nthere  \n"})
     assert p["text"] == "hello\nthere"
     assert wa.card(p).endswith("\n\nhello\nthere")
 
@@ -260,7 +260,7 @@ def test_hidden_characters_are_spelled_out():
 def test_a_name_cannot_forge_card_lines(fake):
     fake.overrides["chats show"] = {"name": "Boss\nAccount: personal\u202e", "kind": "dm"}
     lines = wa.card(plan()).split("\n")
-    assert lines[0] == "Account: technicity" and lines[1].startswith("Chat: Boss Account: personal⟨U+202E⟩")
+    assert lines[0] == "Account: work" and lines[1].startswith("Chat: Boss Account: personal⟨U+202E⟩")
 
 
 # --- rule key and approval -----------------------------------------------------------------------
@@ -279,8 +279,8 @@ def test_reads_need_no_approval(fake, action):
 
 
 def test_approval_request_for_send_and_invalid_actions():
-    card, key = wa.approval_request({"action": "send", "account": "technicity", "chat": DM, "text": "hi"})
-    assert card.startswith("Account: technicity\n") and key == wa.rule_key(plan(text="hi"))
+    card, key = wa.approval_request({"action": "send", "account": "work", "chat": DM, "text": "hi"})
+    assert card.startswith("Account: work\n") and key == wa.rule_key(plan(text="hi"))
     with pytest.raises(wa.WhatsAppError, match="action must be"):
         wa.approval_request({"action": "delete"})
 
@@ -290,7 +290,7 @@ def test_approval_request_for_send_and_invalid_actions():
 def test_messages_are_oldest_first_and_compact(fake):
     fake.messages[0]["Text"] = fake.messages[0]["DisplayText"] = "x" * (wa.MESSAGE_CLIP + 50)
     result = wa.read({"action": "messages", "chat": DM, "limit": 2})
-    assert result["account"] == "technicity" and result["note"] == wa.UNTRUSTED
+    assert result["account"] == "work" and result["note"] == wa.UNTRUSTED
     old, new = result["messages"]
     assert (old["id"], new["id"]) == ("OLD", "NEW")
     assert old["from"] == "me" and "from_jid" not in old
@@ -358,22 +358,22 @@ def test_a_missing_mirror_reads_as_not_paired(fake):
 # --- send ----------------------------------------------------------------------------------------
 
 def test_send_success(fake):
-    result = wa.execute({"action": "send", "account": "Technicity", "chat": DM, "text": "hi"})
-    assert result["ok"] is True and result["id"] == "3EB0XYZ" and result["account"] == "technicity"
+    result = wa.execute({"action": "send", "account": "Work", "chat": DM, "text": "hi"})
+    assert result["ok"] is True and result["id"] == "3EB0XYZ" and result["account"] == "work"
     call = fake.args_of(["send", "text"])[-1]
     assert call["args"] == ["send", "text", "--to", DM, "--message", "hi"]
-    assert call["write"] is True and call["account"] == "technicity"
+    assert call["write"] is True and call["account"] == "work"
 
 
 def test_group_reply_names_the_quoted_sender(fake):
-    wa.execute({"action": "send", "account": "technicity", "chat": GROUP, "text": "hi", "reply_to": "3EB0ABCDEF"})
+    wa.execute({"action": "send", "account": "work", "chat": GROUP, "text": "hi", "reply_to": "3EB0ABCDEF"})
     argv = fake.args_of(["send", "text"])[-1]["args"]
     assert argv[argv.index("--reply-to") + 1] == "3EB0ABCDEF"
     assert argv[argv.index("--reply-to-sender") + 1] == DM
 
 
 def test_send_failures_say_whether_anything_went_out(fake):
-    args = {"action": "send", "account": "technicity", "chat": DM, "text": "hi"}
+    args = {"action": "send", "account": "work", "chat": DM, "text": "hi"}
     fake.overrides["send text"] = wa.WhatsAppError("store is locked")
     result = wa.execute(args)
     assert result["ok"] is False and result["error"].startswith("not sent:")
@@ -406,8 +406,8 @@ def test_account_names_differing_only_in_case_must_be_exact(fake):
 # --- status --------------------------------------------------------------------------------------
 
 def test_status_reports_each_account(fake):
-    fake.accounts = ["technicity", "personal"]
-    doctors = {"technicity": {"authenticated": True, "lock_held": False, "store": {}},
+    fake.accounts = ["work", "personal"]
+    doctors = {"work": {"authenticated": True, "lock_held": False, "store": {}},
                "personal": {"authenticated": False, "lock_held": False}}
     original = Fake.__call__
 
@@ -418,8 +418,8 @@ def test_status_reports_each_account(fake):
 
     wa.run = doctor
     rows = {r["account"]: r for r in wa.read({"action": "status"})["accounts"]}
-    assert rows["technicity"]["paired"] is True and rows["technicity"]["sync_running"] is False
-    assert "install" in rows["technicity"]["action_needed"]
+    assert rows["work"]["paired"] is True and rows["work"]["sync_running"] is False
+    assert "install" in rows["work"]["action_needed"]
     assert rows["personal"]["paired"] is False and "pair" in rows["personal"]["action_needed"]
 
 
@@ -435,12 +435,12 @@ def test_status_when_healthy(fake):
     "wacli send text --to x --message y",
     "/opt/homebrew/bin/wacli chats list",
     "cd /tmp && wacli --json messages list",
-    "sqlite3 ~/.wacli/accounts/technicity/wacli.db",
-    "launchctl bootout gui/501/local.wacli.sync.technicity",
-    "~/.config/hermes/launchd/wacli-sync-launchctl.sh uninstall technicity",
-    "launchctl bootout gui/501/local.hermes.whatsapp-access.sync.technicity",
-    "~/.config/hermes/launchd/whatsapp-access-launchctl.sh uninstall technicity",
-    "tail ~/Library/Logs/whatsapp-access-sync-technicity.log",
+    "sqlite3 ~/.wacli/accounts/work/wacli.db",
+    "launchctl bootout gui/501/local.wacli.sync.work",
+    "~/.config/hermes/launchd/wacli-sync-launchctl.sh uninstall work",
+    "launchctl bootout gui/501/local.hermes.whatsapp-access.sync.work",
+    "~/.config/hermes/launchd/whatsapp-access-launchctl.sh uninstall work",
+    "tail ~/Library/Logs/whatsapp-access-sync-work.log",
     "echo $WACLI_STORE_DIR",
     "python3 -c 'import runpy; runpy.run_path(\"hermes/plugins/whatsapp-access/wa.py\")'",
     "env wacli chats list",
@@ -560,7 +560,7 @@ def test_a_failed_restart_is_reported(fake, monkeypatch, tmp_path):
     monkeypatch.setattr(wa.time, "sleep", lambda s: None)
     fake.overrides["contacts check"] = []
     result = wa.read({"action": "check", "numbers": ["+60123456789"]})
-    assert result["sync"].startswith("FAILED to restart") and "install technicity" in result["sync"]
+    assert result["sync"].startswith("FAILED to restart") and "install work" in result["sync"]
 
 
 @pytest.mark.parametrize("numbers", [[], "0123456789", ["0123456789"], ["hello"], ["+60"] * 21, [123]])
@@ -661,8 +661,8 @@ def test_resume_reports_a_revoked_session(fake, monkeypatch, tmp_path):
 def test_a_send_waits_for_no_pause_and_never_cuts_one(fake, monkeypatch, tmp_path):
     Agent(monkeypatch, tmp_path, fake)
     monkeypatch.setattr(wa, "SEND_LOCK_WAIT", 0)
-    args = {"action": "send", "account": "technicity", "chat": DM, "text": "hi"}
-    with open(wa._guard("technicity"), "a") as held:
+    args = {"action": "send", "account": "work", "chat": DM, "text": "hi"}
+    with open(wa._guard("work"), "a") as held:
         wa.fcntl.flock(held, wa.fcntl.LOCK_EX)  # a pause in progress
         result = wa.execute(args)
     assert result["ok"] is False and result["error"].startswith("not sent: a check or backfill")
@@ -673,15 +673,15 @@ def test_a_send_waits_for_no_pause_and_never_cuts_one(fake, monkeypatch, tmp_pat
 def test_an_abandoned_pause_is_recovered(fake, monkeypatch, tmp_path):
     agent = Agent(monkeypatch, tmp_path, fake, loaded=False)
     (tmp_path / "agent.plist").write_text("x")
-    (tmp_path / "state" / "technicity.paused").write_text("999999999 0\n")  # a pid that is gone
+    (tmp_path / "state" / "work.paused").write_text("999999999 0\n")  # a pid that is gone
     wa.recover_abandoned_pauses()
-    assert agent.loaded is True and not (tmp_path / "state" / "technicity.paused").exists()
+    assert agent.loaded is True and not (tmp_path / "state" / "work.paused").exists()
 
 
 def test_a_live_pause_is_left_alone(fake, monkeypatch, tmp_path):
     agent = Agent(monkeypatch, tmp_path, fake, loaded=False)
     (tmp_path / "agent.plist").write_text("x")
-    marker = tmp_path / "state" / "technicity.paused"
+    marker = tmp_path / "state" / "work.paused"
     marker.write_text(f"{wa.os.getppid()} 0\n")  # another live process is pausing
     wa.recover_abandoned_pauses()
     assert agent.loaded is False and marker.exists()

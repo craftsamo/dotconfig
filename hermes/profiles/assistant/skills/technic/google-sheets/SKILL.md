@@ -43,7 +43,7 @@ column or vocabulary, follow it; the mechanics below still apply.
 2. Read the real header row of every tab you use, every run, and find columns
    by header name. Columns get added between runs; a remembered letter goes
    stale.
-3. Name a row by its key and name (`A2534 = bp-2534, 店名 …`), never by its
+3. Name a row by its key and name (`A2534 = lead-2534, 店名 …`), never by its
    number alone. Say whether a number is the sheet row or an index column.
 4. `get` returns displayed text (`2,535`, `2026/10/06`); `unformatted=true`
    returns values. Count, filter and total in a script, never by eye, and

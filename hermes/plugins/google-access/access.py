@@ -4016,7 +4016,7 @@ def _sheets_card(home, action: str, args: dict) -> str:
 
 
 def _check_lines(guards: list[dict], tab=...) -> list[str]:
-    """`Check: A2534 = bp-2534` for the first guards, then a count of the rest. A guard on another
+    """`Check: A2534 = lead-2534` for the first guards, then a count of the rest. A guard on another
     tab than the one written (``tab``; ``...`` when several are written) keeps its tab, and an
     unqualified guard on a qualified write is marked as the first sheet's."""
     def cell(guard):

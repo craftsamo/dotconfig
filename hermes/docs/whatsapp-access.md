@@ -24,7 +24,7 @@ change involved.
 
 ## Accounts and state
 
-Each account is a named wacli account (`technicity`, later `personal`) with
+Each account is a named wacli account (`work`, later `personal`) with
 its own store under `~/.wacli/accounts/<name>/` — session keys, the SQLite
 mirror and the send socket — outside every repository. Phone numbers appear
 only on the pairing command line and in that store, never in tracked files.
@@ -119,7 +119,7 @@ so the quote resolves.
 - **The card** is plain English, one fact per line, like the Sheets cards:
 
   ```
-  Account: technicity
+  Account: work
   Chat: Yamada Taro (+819012345678)
   Reply to: Yamada Taro: 明日の打ち合わせは…
 
