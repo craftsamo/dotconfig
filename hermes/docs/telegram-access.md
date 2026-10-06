@@ -235,9 +235,14 @@ the card.
 
 - **Files** come only from `~/Workspaces` under signal-access's rules (real
   path inside the workspace; no key or settings folders, key-, secret- or
-  database-like names, archives, installers, programs or scripts, private key
-  blocks, or empty files), at most 10 files and 100 MB per send. Several images
-  go as an album; any other mix goes as documents.
+  database-like names, installers, programs or scripts, private key blocks,
+  or empty files), at most 10 files and 100 MB per send. Archives (`.zip`,
+  `.tar`, `.tar.gz`, `.tar.bz2`, `.tar.xz`) are read entry by entry and sent
+  only if every entry would pass these rules alone (with the database-like
+  names above also refused inside); other archive formats are refused. See
+  [Signal access](./signal-access.md) for the inspection. Several images go
+  as an album; any other mix goes as documents. Received archives are still
+  never downloaded.
 - **The approval covers the exact message.** The allowlist key hashes the
   account, chat, text, reply (the quoted sender and text) and each file's path
   and SHA-256, so "session" or "always" only ever repeats that identical send.
