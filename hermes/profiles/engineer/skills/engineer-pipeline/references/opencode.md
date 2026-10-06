@@ -2,10 +2,13 @@
 
 Read before the first wrapper call in any mode. This file owns session and
 result semantics; Plan/Build/QA/Assess own what to request and how to judge it.
-Never call raw opencode run, attach to a human server, or substitute another
+Never call raw opencode commands or the OpenCode API, or substitute another
 coding agent to bypass the wrapper. OpenCode still owns its internal tools and
 development methods; concise prompts carry the job-specific delta, not copied
 global instructions or whole Skill bodies.
+
+The wrapper drives the person's shared OpenCode service, so your sessions are
+visible in their OpenCode history and survive a lost wrapper process.
 
 ## Calls
 
@@ -35,45 +38,60 @@ global instructions or whole Skill bodies.
   not a boolean. The initial build call needs it; continuations retain it.
   issue_approval separately quotes the explicit current-job Issue-management
   request. Both are operating-contract records, not authentication.
-- plan, build and review run on hidden OpenCode primaries built for this
-  transport (hermes-plan / hermes-build / hermes-review), not the human TUI
-  agents: they take no questions, never wait for approval, do not hand off
-  between plan and build themselves, and answer with fixed report headings.
+- The four roles run on hidden OpenCode primaries built for this transport
+  (hermes-plan / -build / -review / -debug): they take no questions, do not hand
+  off between plan and build themselves, and answer with fixed report headings.
   Plan returns Client decisions as `Q<n>:` lines with a recommended default
   already taken; answer them with `DECISION(Q<n>): …` on the same
   conversation. Build delegates every check to a verifier subagent and runs
   a reviewer pass ONLY when the message asks for one ("run a review pass" /
   "deep review <area>"); Review likewise runs reviewer-deep only on request.
-  Say so in the message when the increment warrants it; otherwise it is
-  skipped on purpose. debug is the ordinary primary.
-- Models normally follow OpenCode's configured agent defaults (plan and
-  review on Opus 5.5, build on GPT-6.1 Sol, independent of the model this
-  profile runs on, so your challenge and QA stay cross-family). Maintainer
-  opencode_cli.models may override per-agent models. A Client may ask for a
-  specific engine: pass model (provider/model) and/or variant (reasoning effort
-  such as high) from the maintainer allowlists opencode_cli.allowed_models /
-  allowed_variants. A name outside the allowlist is refused, never substituted;
-  report the refusal and ask, do not stop the whole job over it. An explicit
-  selection binds the rest of that conversation; omitting it keeps the recorded
-  engine. The caller still cannot change executable, environment or arbitrary
-  permission JSON. No automatic fallback or retry after uncertain effects.
-  Private logs are not public deliverables.
+  Debug returns the causal chain down to a root cause and never edits. Say so
+  in the message when the increment warrants a review; otherwise it is skipped
+  on purpose.
+- A build refuses a worktree in which another OpenCode session is running
+  (another Hermes profile or a person); read-only roles may run alongside.
+- Models normally follow each hidden primary's pin (plan, review and debug on
+  Opus 5.5, build on GPT-6.1 Sol, independent of the model this profile runs on,
+  so your challenge and QA stay cross-family); the record's `engine` names what
+  actually ran. Maintainer opencode_cli.models may override per-agent models. A
+  Client may ask for a specific engine: pass model (provider/model) and/or
+  variant (reasoning effort such as high) from the maintainer allowlists
+  opencode_cli.allowed_models / allowed_variants. A name outside the allowlist
+  or not offered by OpenCode is refused, never substituted; report the refusal
+  and ask, do not stop the whole job over it. An explicit selection binds the
+  rest of that conversation; omitting it keeps the recorded engine. The caller
+  still cannot change the executable, environment or permission rules. No
+  automatic fallback or retry after uncertain effects.
 
-`opencode_session(action, conversation_id?, evidence?, timeout?)`
+`opencode_session(action, conversation_id?, …)`
 
 - status reads one owned conversation; list returns this originating session's
   conversations. It is not a cross-session discovery or ownership-transfer API.
-- wait blocks until the run leaves accepted/running (bounded by timeout,
-  opencode_cli.wait_timeout and the turn deadline) and returns the record with
+  Both also restart a run's lost watcher, which then reads the outcome from
+  OpenCode.
+- wait blocks until the run hands back — finished, uncertain, or paused on a
+  request you have not answered (bounded by timeout, opencode_cli.wait_timeout,
+  your tool deadline and the turn deadline) — and returns the record with
   waited_seconds and timed_out. It spends no model turns; a timed_out reply
-  means wait again, inspect, or stop, never a status/sleep loop.
-- stop records a stop request for the live runner. The reply does not prove the
-  process stopped. Inspect status afterward. Stopping never rolls back Git,
-  application data, provider requests, pushes or PRs already created.
-- reconcile is an explicit recovery after uncertain work: inspect process state,
-  Git changes and possible remote effects first, then pass that evidence. It
-  refuses an active runner/process group. A record is not proof of the observed
-  facts; Engineer remains responsible. Do not reconcile just to unlock a retry.
+  means wait again, steer, or stop, never a status/sleep loop.
+- respond(conversation_id, request_id, decision, reason?) answers one pending
+  permission request; then it waits like wait. See "Permission requests".
+- steer(conversation_id, message) adds an instruction to a running turn. It is
+  delivered at the run's next step boundary (a long tool call finishes first)
+  and is for course corrections, not new scope.
+- diff(conversation_id, patch?) lists the last turn's changed files with
+  additions/deletions; patch=true adds the (truncated) patches. It is evidence
+  for your QA, not a substitute for reading the worktree.
+- stop interrupts the run (its subagents stop with it) and drops instructions
+  still parked for it. The record settles within seconds as interrupted.
+  Stopping never rolls back Git, application data, provider requests, pushes or
+  PRs already created.
+- reconcile is only for `unknown` runs: inspect Git changes, the diff and
+  possible remote effects first, then pass that evidence. It refuses a run
+  OpenCode still executes and a run that is still watched. A record is not proof
+  of the observed facts; Engineer remains responsible. Do not reconcile just to
+  unlock a retry.
 
 `opencode_history(action, …)` reads OpenCode's own session history across all
 projects, including sessions a person ran in the TUI. It launches no agent and
@@ -87,49 +105,76 @@ its reason in diagnostics; pass that limitation on rather than filling the gap.
 `hermes_history` is the same for Hermes' own sessions across every profile
 (profile, platform, lineage); `/activity` shows both tools' activity together.
 
+## Permission requests
+
+OpenCode pauses a run when it needs a decision the policy leaves open: a path
+outside the worktree, a build's push, history rewrite, branch move or package
+runner, an Issue write without issue_approval, or a subagent command outside
+that subagent's own allowlist. The run turns `waiting`, the call hands back, and
+`pending` lists each request: action, resources, the pattern a broader approval
+would cover (`save`), whether a subagent asked, and `expires_at`.
+
+Decide each one against the Client's quoted approval and the mode's scope:
+
+- inside the approved scope → `once`;
+- outside the scope or unclear → `reject` with a short reason OpenCode can act
+  on, then relay the decision to the Client if the work needs it.
+
+There is no broader approval: `always` would save a project-wide approval
+people's own sessions inherit, and a session-wide one would reach every
+subagent. If the same request keeps recurring inside scope, say in the next
+message how to avoid it (for example, which command to use). A request left unanswered is rejected at `expires_at`
+(opencode_cli.permission_timeout) and the run continues without it. Force or
+protected-branch pushes, merges, `gh api`, repository/Project writes, secret
+reads and the person's own denies never reach you: they are denied outright.
+
 ## Results
 
-accepted/running mean execution is outstanding. Live messaging uses Hermes'
-completion notification. In a CLI/resident session opencode_call BLOCKS until
-the run finishes (the Engineer tool deadline is set above opencode_cli.timeout
-for this); a resident CLI has no completion wakeup, so blocking is the cheap
-path. Never poll: no status/terminal/sleep loops, no ps checks while a call is
-outstanding. If a call does return a tool-timeout error, issue ONE
-opencode_session wait for the conversation and read its result. Unknown
-results hold the worktree until inspection and reconciliation, even when
-creating another conversation.
+accepted/running mean execution is outstanding. A run belongs to the Hermes
+process that started it from a CLI or resident session: if that process ends,
+the run is interrupted. Live messaging uses Hermes'
+completion notification, sent at every hand-back (finished or waiting). In a
+CLI/resident session opencode_call BLOCKS until the run hands back, within
+your tool deadline; a resident CLI has no completion wakeup, so blocking is the
+cheap path. Never poll: no status/terminal/sleep loops, no ps checks while a
+call is outstanding. If a call returns with timed_out or a tool-timeout error,
+issue ONE opencode_session wait for the conversation and read its result.
+
+completed means OpenCode reported the turn succeeded, not that the task passed.
+Read result for open questions, assumptions and unverified claims, and changes
+for what it touched. A question can arrive in an otherwise completed run.
+Engineer answers in-scope technical questions and relays material Client
+decisions, then continues.
+
+failed means OpenCode reported a failed turn; it can still have partial changes.
+interrupted means the run stopped before finishing: your stop, the deadline, or
+OpenCode itself (a restarted service ends a turn without an outcome). OpenCode
+confirmed nothing still runs, so the conversation can continue: inspect the
+diff and worktree, then send the next message on the same conversation — never
+a blind replay of the original prompt. unknown means OpenCode could not confirm
+the outcome (service unreachable, prompt admission unconfirmed, or a run from
+the retired OpenCode 1 runner); it holds the worktree until inspection and
+reconcile, even when creating another conversation.
 
 Every resident turn carries a "Turn budget" line naming when the whole turn
-is killed. Give each blocking call a job that fits the remaining budget; an
-OpenCode run cut by the turn deadline is unknown and leaves a stale hold on
-its worktree that only this session can reconcile. When the remaining budget
-is ~15 minutes, do not start a new run: ask OpenCode for nothing further, make
+is killed. Give each call a job that fits the remaining budget; a run still
+going at the turn deadline is interrupted there. When the remaining budget is
+~15 minutes, do not start a new run: ask OpenCode for nothing further, make
 sure verified work is committed on the task branch, and end the turn with a
 checkpoint report (worktree, branch, HEAD, what is verified, what remains).
 
 An interrupted conversation may be continued by its Client only as a
 RECONCILE-ONLY turn (the handoff says so and opencode_call is refused). In it,
-inspect each owned child conversation (status, process liveness, event log,
-Git and remote effects), stop/reconcile with observed evidence, and report;
-do no other work.
+inspect each owned child conversation (status, diff, Git and remote effects),
+stop or reconcile with observed evidence, and report; do no other work.
 
 A `Warning: Unknown toolsets: opencode, specialist` line at the start of a
 resident turn is a plugin-discovery-order artifact, not a missing capability:
 the tools load right after it. Do not report it or work around it.
 
-completed means the CLI ended with a matching JSON stop event, not that the task
-passed. Read result for open questions, assumptions and unverified claims. A
-question can arrive in an otherwise completed run. Engineer answers in-scope
-technical questions and relays material Client decisions, then continues.
-
-failed can still have partial changes. unknown includes interrupted, malformed
-or unconfirmed completion. Neither permits blind replay. An error event is an
-error even when the CLI exits zero. Use the private log only for necessary
-diagnosis; never paste credentials, tool inputs or raw private traces into PRs.
-
-The wrapper applies read-only policies to plan/review/debug and grants build's
-permitted branch/PR surface. It rejects default-branch builds and denies Issue
-writes without the separate grant. Command rules are defence in depth, not an
-arbitrary-shell/website sandbox. Preserve narrower Client restrictions in the
-prompt and verify actual effects; if a restriction cannot be safely honored,
-return the limitation instead of widening access.
+The wrapper keeps plan/review/debug read-only, grants build its worktree edits
+and routine commands, rejects default-branch builds, and returns pushes and
+Issue writes without the separate grant to you as requests. Command rules are
+defence in depth, not an arbitrary-shell/website sandbox. Preserve narrower
+Client restrictions in the prompt and verify actual effects; if a restriction
+cannot be safely honored, return the limitation instead of widening access.
