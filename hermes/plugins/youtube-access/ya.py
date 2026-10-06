@@ -47,8 +47,10 @@ import time
 # --- vocabulary ---------------------------------------------------------------------------------
 
 READS = ("status", "search", "videos", "channels", "playlist", "comments", "my_videos", "analytics",
-         "transcript", "download")
-WRITES = ("update", "thumbnail", "reply", "upload", "playlist_create", "playlist_add", "playlist_remove")
+         "my_channel", "captions", "transcript", "download")
+WRITES = ("update", "thumbnail", "reply", "upload", "playlist_create", "playlist_add", "playlist_remove",
+          "playlist_update", "playlist_move", "channel_update", "watermark", "watermark_remove", "moderate",
+          "caption_upload")
 ACTIONS = READS + WRITES
 PROFILE_ACTIONS = {"assistant": ACTIONS, "marketer": READS}
 # Edits approved once per video: "session" / "always" on the first card covers that video's later
@@ -80,7 +82,8 @@ UNITS_STOP = 9500
 SEARCH_DAILY = 100
 UPLOAD_DAILY = 100
 COST = {"list": 1, "update": 50, "thumbnail": 50, "reply": 50, "playlist_create": 50, "playlist_add": 50,
-        "playlist_remove": 50}
+        "playlist_remove": 50, "playlist_update": 50, "playlist_move": 50, "channel_update": 50, "watermark": 50,
+        "watermark_remove": 50, "moderate": 50, "captions": 50, "caption_insert": 400, "caption_update": 450}
 PACIFIC = "America/Los_Angeles"
 
 # yt-dlp pacing (no login, so the only thing at stake is this machine's IP).
@@ -109,6 +112,20 @@ THUMB_TYPES = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png"}
 VIDEO_TYPES = {".mp4": "video/mp4", ".mov": "video/quicktime", ".m4v": "video/x-m4v", ".webm": "video/webm",
                ".mkv": "video/x-matroska", ".avi": "video/x-msvideo"}
 UPLOAD_CHUNK = 8 * 1024 * 1024
+CHANNEL_DESCRIPTION_MAX = 1000
+KEYWORDS_MAX = 500
+PLAYLIST_TITLE_MAX = 150
+LOCALIZATIONS_MAX = 50
+WATERMARK_MAX = 10 * 1024 * 1024
+CAPTION_MAX = 10 * 1024 * 1024
+CAPTION_NAME_MAX = 150
+CAPTION_TYPES = {".srt": "application/octet-stream", ".vtt": "application/octet-stream",
+                 ".sbv": "application/octet-stream", ".ttml": "application/octet-stream",
+                 ".dfxp": "application/octet-stream", ".scc": "application/octet-stream"}
+LICENSES = ("youtube", "creativeCommon")
+MODERATION = {"publish": "published", "hold": "heldForReview", "reject": "rejected"}
+WATERMARK_DISPLAY = ("entire", "end", "from")
+WATERMARK_END_MS = 15000
 PRIVACY = ("private", "unlisted", "public")
 SEARCH_KINDS = ("video", "channel", "playlist")
 SEARCH_ORDERS = ("relevance", "date", "viewCount", "rating", "title")
@@ -135,6 +152,8 @@ PLAYLIST_URL = re.compile(r"^https?://(?:www\.|m\.|music\.)?youtube\.com/(?:play
                           r"([A-Za-z0-9_-]{12,64})(?:[&#].*)?$")
 ITEM_ID = re.compile(r"^[A-Za-z0-9_=-]{10,120}$")
 COMMENT_ID = re.compile(r"^[A-Za-z0-9_.-]{10,120}$")
+CAPTION_ID = re.compile(r"^[A-Za-z0-9_=.-]{8,300}$")
+COUNTRY = re.compile(r"^[A-Za-z]{2}$")
 DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 NAME_LIST = re.compile(r"^[A-Za-z]+(?:,[A-Za-z]+)*$")
 FILTERS = re.compile(r"^[A-Za-z]+==[A-Za-z0-9_,.-]+(?:;[A-Za-z]+==[A-Za-z0-9_,.-]+)*$")
@@ -151,10 +170,12 @@ ACCOUNT = "account"
 ACCOUNT_TITLE = "Google account without a channel"
 NO_CHANNEL = ("only a Google account without a YouTube channel is authorized, so this needs a channel: the "
               "user creates one on YouTube, then runs `yaccess check` (it picks the new channel up)")
-OWN = {"my_videos", "analytics"}  # reads of the channel's own content; every write is one too
+OWN = {"my_videos", "analytics", "my_channel", "captions"}  # reads of the channel's own content; every write is one too
 NOT_INSTALLED = f"the yt-dlp engine is not installed; the user runs `{SETUP} install` in a terminal"
 PRIVATE_UPLOADS = ("YouTube keeps videos uploaded through an unaudited API project private; the user makes "
                    "them public in YouTube Studio.")
+STUDIO_ONLY = ("The API cannot change the channel's name, handle, picture, banner, links, contact email, home "
+               "tab layout or upload defaults: those are changed in YouTube Studio.")
 
 # Ways around the tool: yt-dlp and its forks, the setup CLI, the plugin and engine, the state, the
 # Keychain item and scope.
@@ -330,6 +351,115 @@ def _languages(args: dict) -> list[str]:
     if not all(isinstance(x, str) and LANG.match(x.strip()) for x in items) or len(items) > 10:
         raise YouTubeError("languages must be up to 10 language codes like 'ja' or 'en-US'")
     return [x.strip() for x in items]
+
+
+def _lang(args: dict, key: str, required: bool = False) -> str | None:
+    value = _str(args, key, required=required)
+    if not value:
+        return None
+    if not LANG.match(value):
+        raise YouTubeError(f"{key} must be a language code like 'ja' or 'en-US'")
+    return value
+
+
+def _text(value, key: str, limit: int, empty: bool = True) -> str:
+    """A title or description as YouTube takes it: a string within ``limit``, without < or >."""
+    if not isinstance(value, str) or (not empty and not value.strip()):
+        raise YouTubeError(f"{key} must be a{'' if empty else ' non-empty'} string")
+    if len(value) > limit:
+        raise YouTubeError(f"{key} is {len(value)} characters; at most {limit}")
+    if any(c in value for c in "<>"):
+        raise YouTubeError(f"{key} cannot contain < or >")
+    return value.strip() if not empty else value
+
+
+def _localizations(args: dict, title_max: int, description_max: int) -> dict | None:
+    """``localizations`` = {language: {title, description}}; null for a language removes it."""
+    value = args.get("localizations")
+    if value is None:
+        return None
+    if not isinstance(value, dict) or not value or len(value) > LOCALIZATIONS_MAX:
+        raise YouTubeError("localizations maps one to 50 language codes to {title, description} (null removes "
+                           "a language)")
+    out = {}
+    for lang, entry in value.items():
+        if not isinstance(lang, str) or not LANG.match(lang.strip()):
+            raise YouTubeError(f"localizations: {lang!r} is not a language code like 'en' or 'pt-BR'")
+        if entry is None:
+            out[lang.strip()] = None
+            continue
+        if not isinstance(entry, dict) or not entry or not set(entry) <= {"title", "description"}:
+            raise YouTubeError(f"localizations.{lang} takes title and/or description (or null to remove it)")
+        item = {}
+        if entry.get("title") is not None:
+            item["title"] = _text(entry["title"], f"localizations.{lang}.title", title_max, empty=False)
+        if entry.get("description") is not None:
+            item["description"] = _text(entry["description"], f"localizations.{lang}.description", description_max)
+        out[lang.strip()] = item
+    return out
+
+
+def _merge_localizations(current: dict, changes: dict) -> dict:
+    merged = {lang: dict(item) for lang, item in (current or {}).items() if isinstance(item, dict)}
+    for lang, item in changes.items():
+        if item is None:
+            merged.pop(lang, None)
+        else:
+            merged[lang] = {**merged.get(lang, {}), **item}
+            if not merged[lang].get("title"):
+                raise YouTubeError(f"localizations.{lang} is a new language and needs a title")
+    return merged
+
+
+def _keywords(args: dict) -> str | None:
+    """``keywords`` (an array) as the channel's space-separated string, phrases in quotes."""
+    value = args.get("keywords")
+    if value is None:
+        return None
+    if not isinstance(value, list) or not all(isinstance(k, str) and k.strip() for k in value):
+        raise YouTubeError("keywords must be an array of non-empty strings ([] clears them)")
+    words = [" ".join(k.split()) for k in value]
+    if any(c in k for k in words for c in '<>"'):
+        raise YouTubeError('keywords cannot contain <, > or "')
+    text = " ".join(f'"{k}"' if " " in k else k for k in words)
+    if len(text) > KEYWORDS_MAX:
+        raise YouTubeError(f"keywords hold {len(text)} characters in all; at most {KEYWORDS_MAX}")
+    return text
+
+
+def _split_keywords(text) -> list[str]:
+    if not isinstance(text, str) or not text.strip():
+        return []
+    import shlex
+    try:
+        return shlex.split(text)
+    except ValueError:
+        return text.split()
+
+
+def _position(args: dict, required: bool = False) -> int | None:
+    position = args.get("position")
+    if position is None:
+        if required:
+            raise YouTubeError("position is required: 0 (first) or more")
+        return None
+    if isinstance(position, bool) or not isinstance(position, int) or position < 0:
+        raise YouTubeError("position must be 0 (first) or more")
+    return position
+
+
+def _comment_ids(args: dict) -> list[str]:
+    value = args.get("comment")
+    items = value if isinstance(value, list) else [value]
+    if not items or len(items) > 50:
+        raise YouTubeError("comment takes one comment id from comments, or an array of up to 50")
+    ids = []
+    for item in items:
+        if not isinstance(item, str) or not COMMENT_ID.match(item.strip()):
+            raise YouTubeError("comment must be comment ids from comments")
+        if item.strip() not in ids:
+            ids.append(item.strip())
+    return ids
 
 
 # --- config -------------------------------------------------------------------------------------
@@ -1078,6 +1208,46 @@ def analytics(cid: str, args: dict) -> dict:
     return result
 
 
+def _own_channel(api, cid: str, part: str) -> dict:
+    got = api_list(api.channels().list(part=part, id=cid))
+    if not got.get("items"):
+        raise YouTubeError("YouTube did not return the channel")
+    return got["items"][0]
+
+
+def my_channel(cid: str, args: dict) -> dict:
+    item = _own_channel(_service(cid, True), cid, "snippet,brandingSettings,localizations,status,statistics")
+    snippet, status_ = item.get("snippet") or {}, item.get("status") or {}
+    branding = (item.get("brandingSettings") or {}).get("channel") or {}
+    stats = item.get("statistics") or {}
+    out = {"id": cid, "title": snippet.get("title"), "handle": snippet.get("customUrl"),
+           "url": f"https://www.youtube.com/channel/{cid}", "description": branding.get("description"),
+           "keywords": _split_keywords(branding.get("keywords")), "country": branding.get("country"),
+           "default_language": branding.get("defaultLanguage"), "trailer": branding.get("unsubscribedTrailer"),
+           "localizations": item.get("localizations") or {}, "made_for_kids": status_.get("madeForKids"),
+           "self_declared_made_for_kids": status_.get("selfDeclaredMadeForKids"),
+           "privacy": status_.get("privacyStatus"), "long_uploads": status_.get("longUploadsStatus"),
+           "subscribers": _int(stats.get("subscriberCount")), "videos": _int(stats.get("videoCount"))}
+    return {"ok": True, "channel": {k: v for k, v in out.items() if v is not None}, "note": STUDIO_ONLY}
+
+
+def _caption(item: dict) -> dict:
+    snippet = item.get("snippet") or {}
+    out = {"id": item.get("id"), "video": snippet.get("videoId"), "language": snippet.get("language"),
+           "name": snippet.get("name"), "kind": snippet.get("trackKind"), "draft": snippet.get("isDraft"),
+           "status": snippet.get("status"), "updated": snippet.get("lastUpdated")}
+    return {k: v for k, v in out.items() if v is not None}
+
+
+def captions(cid: str, args: dict) -> dict:
+    vid = video_id(args.get("video"))
+    # Like comments, captions.list runs only with youtube.force-ssl, even to read.
+    got = api_list(_service(cid, False).captions().list(part="snippet", videoId=vid), units=COST["captions"])
+    return {"ok": True, "video": vid, "tracks": [_caption(i) for i in got.get("items", [])],
+            "note": "Caption tracks of the channel's own video; kind asr is YouTube's automatic track. Read the "
+                    "text with transcript; caption_upload adds or replaces a track."}
+
+
 # --- bridge (yt-dlp) ----------------------------------------------------------------------------
 
 def _env() -> dict:
@@ -1204,17 +1374,37 @@ def _edits(args: dict) -> tuple[dict, dict]:
         status_["privacyStatus"] = "private"
     if args.get("made_for_kids") is not None:
         status_["selfDeclaredMadeForKids"] = _flag(args, "made_for_kids")
+    license_ = _choice(args, "license", LICENSES)
+    if license_:
+        status_["license"] = license_
+    for key, name in VIDEO_FLAGS:
+        if args.get(key) is not None:
+            status_[name] = _flag(args, key)
+    language = _lang(args, "default_language")
+    if language:
+        snippet["defaultLanguage"] = language
     return snippet, status_
+
+
+VIDEO_FLAGS = (("embeddable", "embeddable"), ("public_stats", "publicStatsViewable"),
+               ("synthetic_media", "containsSyntheticMedia"))
+UPDATE_FIELDS = ("update needs at least one of title, description, tags, category_id, default_language, "
+                 "localizations, privacy, publish_at, made_for_kids, license, embeddable, public_stats, "
+                 "synthetic_media")
+
+
+def _video_localizations(args: dict) -> dict | None:
+    return _localizations(args, TITLE_MAX, DESCRIPTION_MAX)
 
 
 def update(cid: str, args: dict) -> dict:
     vid = video_id(args.get("video"))
     snippet, status_ = _edits(args)
-    if not snippet and not status_:
-        raise YouTubeError("update needs at least one of title, description, tags, category_id, privacy, "
-                           "publish_at, made_for_kids")
+    localizations = _video_localizations(args)
+    if not snippet and not status_ and localizations is None:
+        raise YouTubeError(UPDATE_FIELDS)
     api = _service(cid, False)
-    got = api_list(api.videos().list(part="snippet,status", id=vid))
+    got = api_list(api.videos().list(part="snippet,status,localizations", id=vid))
     if not got.get("items"):
         raise YouTubeError("no such video")
     current = got["items"][0]
@@ -1233,9 +1423,19 @@ def update(cid: str, args: dict) -> dict:
         merged.update(status_)
         body["status"] = merged
         parts.append("status")
+    if localizations is not None:
+        language = snippet.get("defaultLanguage") or (current.get("snippet") or {}).get("defaultLanguage")
+        if not language:
+            raise YouTubeError("the video has no default language yet: set default_language (the language of its "
+                               "own title and description) together with localizations")
+        body["localizations"] = _merge_localizations(current.get("localizations"), localizations)
+        parts.append("localizations")
     charge(units=COST["update"])
     done = _call(api.videos().update(part=",".join(parts), body=body))
-    return {"ok": True, "video": _video(done, own=True)}
+    result = {"ok": True, "video": _video(done, own=True)}
+    if localizations is not None:
+        result["localizations"] = sorted((done.get("localizations") or body["localizations"]))
+    return result
 
 
 def thumbnail(cid: str, args: dict, home: Path | None) -> dict:
@@ -1262,11 +1462,18 @@ def reply(cid: str, args: dict) -> dict:
     return {"ok": True, "reply": _comment(done)}
 
 
-def upload(cid: str, args: dict, home: Path | None) -> dict:
-    path = local_file(args, "path", VIDEO_TYPES, home)
+def _upload_edits(args: dict) -> tuple[dict, dict]:
     snippet, status_ = _edits(args)
     if "title" not in snippet:
         raise YouTubeError("upload needs a title")
+    if args.get("localizations") is not None:
+        raise YouTubeError("localizations go on with update once the upload is done")
+    return snippet, status_
+
+
+def upload(cid: str, args: dict, home: Path | None) -> dict:
+    path = local_file(args, "path", VIDEO_TYPES, home)
+    snippet, status_ = _upload_edits(args)
     snippet.setdefault("categoryId", "22")
     status_.setdefault("privacyStatus", "private")
     status_.setdefault("selfDeclaredMadeForKids", False)
@@ -1309,10 +1516,8 @@ def playlist_add(cid: str, args: dict) -> dict:
     pid = playlist_id(args.get("playlist"))
     vid = video_id(args.get("video"))
     body = {"snippet": {"playlistId": pid, "resourceId": {"kind": "youtube#video", "videoId": vid}}}
-    if args.get("position") is not None:
-        position = args["position"]
-        if isinstance(position, bool) or not isinstance(position, int) or position < 0:
-            raise YouTubeError("position must be 0 (first) or more")
+    position = _position(args)
+    if position is not None:
         body["snippet"]["position"] = position
     api = _service(cid, False)
     charge(units=COST["playlist_add"])
@@ -1331,6 +1536,233 @@ def playlist_remove(cid: str, args: dict) -> dict:
     return {"ok": True, "removed": item, "note": "Only the playlist entry was removed; the video is unchanged."}
 
 
+def _playlist_edits(args: dict) -> tuple[dict, str | None]:
+    snippet = {}
+    if args.get("title") is not None:
+        snippet["title"] = _text(args["title"], "title", PLAYLIST_TITLE_MAX, empty=False)
+    if args.get("description") is not None:
+        snippet["description"] = _text(args["description"], "description", DESCRIPTION_MAX)
+    privacy = _choice(args, "privacy", PRIVACY)
+    if not snippet and not privacy:
+        raise YouTubeError("playlist_update needs at least one of title, description, privacy")
+    return snippet, privacy
+
+
+def playlist_update(cid: str, args: dict) -> dict:
+    pid = playlist_id(args.get("playlist"))
+    snippet, privacy = _playlist_edits(args)
+    api = _service(cid, False)
+    got = api_list(api.playlists().list(part="snippet,status", id=pid))
+    if not got.get("items"):
+        raise YouTubeError("no such playlist")
+    current = got["items"][0]
+    if (current.get("snippet") or {}).get("channelId") != cid:
+        raise YouTubeError("that playlist belongs to another channel; only the channel's own playlists can be changed")
+    # The API clears what a part leaves out: send the whole writable snippet (and status) back.
+    merged = {k: v for k, v in (current.get("snippet") or {}).items() if k in ("title", "description", "defaultLanguage")}
+    merged.update(snippet)
+    body, parts = {"id": pid, "snippet": merged}, ["snippet"]
+    if privacy:
+        status_ = {k: v for k, v in (current.get("status") or {}).items()
+                   if k == "podcastStatus" and v in ("enabled", "disabled")}
+        status_["privacyStatus"] = privacy
+        body["status"] = status_
+        parts.append("status")
+    charge(units=COST["playlist_update"])
+    done = _call(api.playlists().update(part=",".join(parts), body=body))
+    return {"ok": True, "playlist": {"id": pid, "title": (done.get("snippet") or merged).get("title"),
+                                     "privacy": (done.get("status") or {}).get("privacyStatus") or privacy,
+                                     "url": f"https://www.youtube.com/playlist?list={pid}"}}
+
+
+def playlist_move(cid: str, args: dict) -> dict:
+    item = _str(args, "item")
+    if not ITEM_ID.match(item):
+        raise YouTubeError("item must be a playlist_item_id from playlist")
+    position = _position(args, required=True)
+    api = _service(cid, False)
+    got = api_list(api.playlistItems().list(part="snippet", id=item))
+    if not got.get("items"):
+        raise YouTubeError("no such playlist entry")
+    snippet = got["items"][0].get("snippet") or {}
+    body = {"id": item, "snippet": {"playlistId": snippet.get("playlistId"), "resourceId": snippet.get("resourceId"),
+                                    "position": position}}
+    charge(units=COST["playlist_move"])
+    done = _call(api.playlistItems().update(part="snippet", body=body))
+    return {"ok": True, "playlist_item_id": item, "playlist": snippet.get("playlistId"),
+            "position": (done.get("snippet") or {}).get("position", position)}
+
+
+CHANNEL_BRANDING = ("title", "description", "keywords", "defaultLanguage", "country", "unsubscribedTrailer",
+                    "trackingAnalyticsAccountId")
+CHANNEL_FIELDS = ("channel_update needs at least one of description, keywords, country, default_language, trailer, "
+                  "localizations, made_for_kids")
+
+
+def _channel_edits(args: dict) -> tuple[dict, dict | None, bool | None]:
+    """(brandingSettings.channel changes, localizations, made for kids) of a channel_update."""
+    branding = {}
+    if args.get("description") is not None:
+        branding["description"] = _text(args["description"], "description", CHANNEL_DESCRIPTION_MAX)
+    keywords = _keywords(args)
+    if keywords is not None:
+        branding["keywords"] = keywords
+    if args.get("country") is not None:
+        country = _str(args, "country")
+        if not COUNTRY.match(country):
+            raise YouTubeError("country must be a two-letter country code like 'JP'")
+        branding["country"] = country.upper()
+    language = _lang(args, "default_language")
+    if language:
+        branding["defaultLanguage"] = language
+    if args.get("trailer") is not None:
+        trailer = args["trailer"]
+        branding["unsubscribedTrailer"] = "" if trailer == "" else video_id(trailer, "trailer")
+    localizations = _localizations(args, TITLE_MAX, CHANNEL_DESCRIPTION_MAX)
+    kids = _flag(args, "made_for_kids") if args.get("made_for_kids") is not None else None
+    if not branding and localizations is None and kids is None:
+        raise YouTubeError(CHANNEL_FIELDS)
+    return branding, localizations, kids
+
+
+def channel_update(cid: str, args: dict) -> dict:
+    """One request per part changed (the API takes one part per call), all prepared before the first."""
+    branding, localizations, kids = _channel_edits(args)
+    api = _service(cid, False)
+    current = _own_channel(api, cid, "brandingSettings,localizations,status")
+    now = (current.get("brandingSettings") or {}).get("channel") or {}
+    requests = []
+    language = now.get("defaultLanguage")
+    if branding:
+        # The API clears what the part leaves out, and refuses a changed title: send everything back.
+        merged = {k: v for k, v in now.items() if k in CHANNEL_BRANDING}
+        merged.update(branding)
+        if not merged.get("unsubscribedTrailer"):
+            merged.pop("unsubscribedTrailer", None)
+        language = merged.get("defaultLanguage")
+        requests.append(("brandingSettings", {"id": cid, "brandingSettings": {"channel": merged}}))
+    if localizations is not None:
+        if not language:
+            raise YouTubeError("the channel has no default language yet: set default_language (the language of "
+                               "its own name and description) together with localizations")
+        requests.append(("localizations", {"id": cid, "localizations": _merge_localizations(
+            current.get("localizations"), localizations)}))
+    if kids is not None:
+        requests.append(("status", {"id": cid, "status": {"selfDeclaredMadeForKids": kids}}))
+    done = []
+    for part, body in requests:
+        try:
+            charge(units=COST["channel_update"])
+            _call(api.channels().update(part=part, body=body))
+        except YouTubeError as exc:
+            if done:
+                raise YouTubeError(f"partly done: {', '.join(done)} changed; {part} failed: {exc}") from exc
+            raise
+        done.append(part)
+    return {"ok": True, "channel": cid, "changed": done,
+            "note": "Read my_channel to see the result. " + STUDIO_ONLY}
+
+
+def _watermark_timing(args: dict) -> dict:
+    display = _choice(args, "display", WATERMARK_DISPLAY, "entire")
+    start = args.get("start_s")
+    if display != "from" and start is not None:
+        raise YouTubeError("start_s goes with display = from")
+    if display == "entire":
+        return {"type": "offsetFromStart", "offsetMs": 0}
+    if display == "end":
+        return {"type": "offsetFromEnd", "offsetMs": WATERMARK_END_MS, "durationMs": WATERMARK_END_MS}
+    if isinstance(start, bool) or not isinstance(start, int) or start < 0:
+        raise YouTubeError("display = from needs start_s: seconds from the start of each video, 0 or more")
+    return {"type": "offsetFromStart", "offsetMs": start * 1000}
+
+
+def _timing_text(timing: dict) -> str:
+    if timing["type"] == "offsetFromEnd":
+        return "the last 15 seconds of each video"
+    return "the whole video" if not timing["offsetMs"] else f"from {timing['offsetMs'] // 1000} s to the end"
+
+
+def watermark(cid: str, args: dict, home: Path | None) -> dict:
+    path = local_file(args, "path", THUMB_TYPES, home, WATERMARK_MAX)
+    timing = _watermark_timing(args)
+    from googleapiclient.http import MediaFileUpload
+    api = _service(cid, False)
+    charge(units=COST["watermark"])
+    _call(api.watermarks().set(channelId=cid, body={"timing": timing}, media_body=MediaFileUpload(
+        str(path), mimetype=THUMB_TYPES[path.suffix.lower()])))
+    return {"ok": True, "channel": cid, "shown": _timing_text(timing),
+            "note": "YouTube shows the watermark in the upper right corner of the channel's videos."}
+
+
+def watermark_remove(cid: str, args: dict) -> dict:
+    api = _service(cid, False)
+    charge(units=COST["watermark_remove"])
+    _call(api.watermarks().unset(channelId=cid))
+    return {"ok": True, "channel": cid, "removed": "watermark"}
+
+
+def _moderation(args: dict) -> tuple[str, bool]:
+    moderation = _choice(args, "moderation", tuple(MODERATION))
+    if not moderation:
+        raise YouTubeError("moderation is required: publish | hold | reject")
+    ban = _flag(args, "ban_author")
+    if ban and moderation != "reject":
+        raise YouTubeError("ban_author goes with moderation = reject")
+    return moderation, ban
+
+
+def moderate(cid: str, args: dict) -> dict:
+    ids = _comment_ids(args)
+    moderation, ban = _moderation(args)
+    params = {"id": ",".join(ids), "moderationStatus": MODERATION[moderation]}
+    if ban:
+        params["banAuthor"] = True
+    api = _service(cid, False)
+    charge(units=COST["moderate"])
+    _call(api.comments().setModerationStatus(**params))
+    return {"ok": True, "comments": ids, "moderation": MODERATION[moderation], "banned_author": ban}
+
+
+def _caption_edits(args: dict) -> dict:
+    """What a caption_upload does: replace a track (``caption``) or add one (``language``, ``name``)."""
+    draft = _flag(args, "draft")
+    if args.get("caption") is not None:
+        track = _str(args, "caption")
+        if not CAPTION_ID.match(track):
+            raise YouTubeError("caption must be a track id from captions")
+        if args.get("language") is not None or args.get("name") is not None:
+            raise YouTubeError("a replaced track keeps its language and name; leave them out")
+        return {"caption": track, "draft": draft}
+    language = _lang(args, "language", required=True)
+    name = _str(args, "name", required=False, limit=CAPTION_NAME_MAX)
+    return {"language": language, "name": name, "draft": draft}
+
+
+def caption_upload(cid: str, args: dict, home: Path | None) -> dict:
+    vid = video_id(args.get("video"))
+    path = local_file(args, "path", CAPTION_TYPES, home, CAPTION_MAX)
+    edits = _caption_edits(args)
+    from googleapiclient.http import MediaFileUpload
+    api = _service(cid, False)
+    got = api_list(api.videos().list(part="snippet", id=vid))
+    if not got.get("items"):
+        raise YouTubeError("no such video")
+    if (got["items"][0].get("snippet") or {}).get("channelId") != cid:
+        raise YouTubeError("that video belongs to another channel; only the channel's own videos get captions here")
+    media = MediaFileUpload(str(path), mimetype=CAPTION_TYPES[path.suffix.lower()])
+    if "caption" in edits:
+        charge(units=COST["caption_update"])
+        done = _call(api.captions().update(part="snippet", body={"id": edits["caption"], "snippet": {
+            "isDraft": edits["draft"]}}, media_body=media))
+    else:
+        charge(units=COST["caption_insert"])
+        done = _call(api.captions().insert(part="snippet", body={"snippet": {
+            "videoId": vid, "language": edits["language"], "name": edits["name"], "isDraft": edits["draft"]}},
+            media_body=media))
+    return {"ok": True, "caption": _caption(done) or {"video": vid}}
+
+
 def write(cid: str, action: str, args: dict, home: Path | None) -> dict:
     if action == "update":
         return update(cid, args)
@@ -1344,10 +1776,31 @@ def write(cid: str, action: str, args: dict, home: Path | None) -> dict:
         return playlist_create(cid, args)
     if action == "playlist_add":
         return playlist_add(cid, args)
+    if action == "playlist_update":
+        return playlist_update(cid, args)
+    if action == "playlist_move":
+        return playlist_move(cid, args)
+    if action == "channel_update":
+        return channel_update(cid, args)
+    if action == "watermark":
+        return watermark(cid, args, home)
+    if action == "watermark_remove":
+        return watermark_remove(cid, args)
+    if action == "moderate":
+        return moderate(cid, args)
+    if action == "caption_upload":
+        return caption_upload(cid, args, home)
     return playlist_remove(cid, args)
 
 
-FILE_WRITES = {"upload": VIDEO_TYPES, "thumbnail": THUMB_TYPES}
+# A write that reads a local file: its types and size cap. The card and the run are pinned to the file.
+FILE_WRITES = {"upload": (VIDEO_TYPES, None), "thumbnail": (THUMB_TYPES, THUMB_MAX),
+               "watermark": (THUMB_TYPES, WATERMARK_MAX), "caption_upload": (CAPTION_TYPES, CAPTION_MAX)}
+
+
+def _write_file(action: str, args: dict, home: Path | None) -> Path:
+    types, limit = FILE_WRITES[action]
+    return local_file(args, "path", types, home, limit)
 
 
 def _fingerprint(path: Path) -> list:
@@ -1365,8 +1818,7 @@ def binding(args, home: Path | None = None, profile: str | None = None) -> dict 
         action = action_of(args, profile)
         bound = {"channel": resolve_channel(args.get("channel"), home, own=True)[0]}
         if action in FILE_WRITES:
-            limit = THUMB_MAX if action == "thumbnail" else None
-            bound["file"] = _fingerprint(local_file(args, "path", FILE_WRITES[action], home, limit))
+            bound["file"] = _fingerprint(_write_file(action, args, home))
     except (YouTubeError, OSError):
         return {"_bound": None}
     return {"_bound": bound}
@@ -1381,8 +1833,7 @@ def _bound_channel(action: str, args: dict, home: Path | None) -> str:
     if cid == ACCOUNT or cid not in channels():
         raise YouTubeError("not done: the approved channel is no longer authorized; nothing was changed")
     if action in FILE_WRITES:
-        limit = THUMB_MAX if action == "thumbnail" else None
-        if _fingerprint(local_file(args, "path", FILE_WRITES[action], home, limit)) != bound.get("file"):
+        if _fingerprint(_write_file(action, args, home)) != bound.get("file"):
             raise YouTubeError("not done: the file changed after it was approved; call again for a new card")
     return cid
 
@@ -1415,6 +1866,10 @@ def execute(args: dict, home: Path | None = None, profile: str | None = None, bo
         return comments(cid, args)
     if action == "my_videos":
         return my_videos(cid, args)
+    if action == "my_channel":
+        return my_channel(cid, args)
+    if action == "captions":
+        return captions(cid, args)
     return analytics(cid, args)
 
 
@@ -1447,30 +1902,46 @@ def _fit(lines: list[str]) -> str:
     return text
 
 
-def _video_title(cid: str, vid: str) -> str | None:
-    """The video's title for a card; cached, bounded by CONTEXT_TIMEOUT, never raises (the hook
-    runs before Hermes checks an existing grant, so a slow lookup must not hold up an approved edit)."""
+def _lookup(key: str, fetch):
+    """Context for a card; cached, bounded by CONTEXT_TIMEOUT, never raises (the hook runs before
+    Hermes checks an existing grant, so a slow lookup must not hold up an approved edit)."""
     now = time.monotonic()
     with _CONTEXT_LOCK:
-        cached = _CONTEXT.get(vid)
+        cached = _CONTEXT.get(key)
     if cached and now - cached[0] < CONTEXT_TTL:
         return cached[1]
     result = {}
 
-    def lookup():
+    def run():
         try:
-            found = _videos(cid, [vid])
-            title = found[0].get("title") if found else None
+            value = fetch()
         except Exception:
-            title = None
+            value = None
         with _CONTEXT_LOCK:
-            _CONTEXT[vid] = (time.monotonic(), title)
-        result["title"] = title
+            _CONTEXT[key] = (time.monotonic(), value)
+        result["value"] = value
 
-    worker = threading.Thread(target=lookup, name="youtube-access-card", daemon=True)
+    worker = threading.Thread(target=run, name="youtube-access-card", daemon=True)
     worker.start()
     worker.join(CONTEXT_TIMEOUT)
-    return result.get("title")
+    return result.get("value")
+
+
+def _video_title(cid: str, vid: str) -> str | None:
+    """The video's title for a card."""
+    def fetch():
+        found = _videos(cid, [vid])
+        return found[0].get("title") if found else None
+    return _lookup(f"video:{vid}", fetch)
+
+
+def _comment_texts(cid: str, ids: list[str]) -> list[str] | None:
+    """"author: text" of the first comments a moderation card names."""
+    def fetch():
+        got = api_list(_service(cid, False).comments().list(part="snippet", id=",".join(ids),
+                                                            textFormat="plainText"))
+        return [f"{c.get('author')}: {c.get('text')}" for c in map(_comment, got.get("items") or [])]
+    return _lookup("comments:" + ",".join(ids), fetch)
 
 
 def _digest(payload) -> str:
@@ -1503,6 +1974,51 @@ def _change_lines(args: dict) -> list[str]:
         lines.append(f"privacy → {status_['privacyStatus'].upper()}")
     if "selfDeclaredMadeForKids" in status_:
         lines.append(f"made for kids → {'yes' if status_['selfDeclaredMadeForKids'] else 'no'}")
+    if "defaultLanguage" in snippet:
+        lines.append(f"language → {snippet['defaultLanguage']}")
+    if "license" in status_:
+        lines.append(f"license → {'Creative Commons' if status_['license'] == 'creativeCommon' else 'YouTube'}")
+    for key, label in (("embeddable", "embedding"), ("publicStatsViewable", "public stats"),
+                       ("containsSyntheticMedia", "altered or synthetic content")):
+        if key in status_:
+            lines.append(f"{label} → {'yes' if status_[key] else 'no'}")
+    lines += _localization_lines(_video_localizations(args))
+    return lines
+
+
+def _localization_lines(localizations: dict | None) -> list[str]:
+    if localizations is None:
+        return []
+    lines = []
+    changed = [lang for lang, item in localizations.items() if item is not None]
+    removed = [lang for lang, item in localizations.items() if item is None]
+    for lang in changed[:3]:
+        item = localizations[lang]
+        lines.append(f"{lang} → " + " / ".join(_line(item[k], 60) for k in ("title", "description") if k in item))
+    if len(changed) > 3:
+        lines.append(f"…and {len(changed) - 3} more languages: {', '.join(changed[3:])}")
+    if removed:
+        lines.append("remove languages: " + ", ".join(removed))
+    return lines
+
+
+def _channel_lines(args: dict) -> list[str]:
+    branding, localizations, kids = _channel_edits(args)
+    lines = []
+    if "description" in branding:
+        lines.append(f"description → {_line(branding['description'], 200) or '(empty)'} "
+                     f"({len(branding['description'])} chars)")
+    if "keywords" in branding:
+        lines.append(f"keywords → {_line(branding['keywords']) or '(none)'}")
+    if "country" in branding:
+        lines.append(f"country → {branding['country']}")
+    if "defaultLanguage" in branding:
+        lines.append(f"language → {branding['defaultLanguage']}")
+    if "unsubscribedTrailer" in branding:
+        lines.append(f"trailer for visitors → {branding['unsubscribedTrailer'] or '(none)'}")
+    lines += _localization_lines(localizations)
+    if kids is not None:
+        lines.append(f"whole channel made for kids → {'YES' if kids else 'no'}")
     return lines
 
 
@@ -1513,8 +2029,8 @@ def approval_request(args: dict, home: Path | None = None, profile: str | None =
     Raises YouTubeError for a call the tool would refuse anyway, so it is blocked without asking.
     An update without a privacy or schedule change and a thumbnail share one key per channel and
     video, so "session" / "always" on the first card covers that video's later edits; every other
-    rule key covers the exact arguments (an upload's also the file's size and time), so an "always"
-    answer never widens to other writes."""
+    rule key covers the exact arguments (a file's also its size and time), so an "always" answer
+    never widens to other writes — channel settings, moderation and captions included."""
     args = args if isinstance(args, dict) else {}
     action = action_of(args, profile)
     if action not in WRITES:
@@ -1529,8 +2045,7 @@ def approval_request(args: dict, home: Path | None = None, profile: str | None =
         if action == "update":
             changes = _change_lines(args)
             if not changes:
-                raise YouTubeError("update needs at least one of title, description, tags, category_id, privacy, "
-                                   "publish_at, made_for_kids")
+                raise YouTubeError(UPDATE_FIELDS)
             lines = [head, f"Edit video: {target}", *changes]
             _, status_ = _edits(args)
             if "privacyStatus" in status_ or "publishAt" in status_:
@@ -1547,9 +2062,7 @@ def approval_request(args: dict, home: Path | None = None, profile: str | None =
         lines = [head, f"Reply publicly to comment {parent}", f"text: {_line(text, 300)}"]
     elif action == "upload":
         path = local_file(args, "path", VIDEO_TYPES, home)
-        snippet, status_ = _edits(args)
-        if "title" not in snippet:
-            raise YouTubeError("upload needs a title")
+        snippet, status_ = _upload_edits(args)
         stat = path.stat()
         key_args["file"] = [stat.st_size, stat.st_mtime_ns]
         lines = [head, f"Upload video: {path} ({_human(stat.st_size)})", f"title: {_line(snippet['title'])}",
@@ -1562,8 +2075,60 @@ def approval_request(args: dict, home: Path | None = None, profile: str | None =
                  f"privacy: {(_choice(args, 'privacy', PRIVACY, 'private')).upper()}"]
     elif action == "playlist_add":
         pid, vid = playlist_id(args.get("playlist")), video_id(args.get("video"))
+        _position(args)
         title = _video_title(cid, vid) if lookup else None
         lines = [head, f"Add to playlist {pid}", f"video: {_line(title, 80) + ' (' + vid + ')' if title else vid}"]
+    elif action == "playlist_update":
+        pid = playlist_id(args.get("playlist"))
+        snippet, privacy = _playlist_edits(args)
+        lines = [head, f"Edit playlist {pid}"]
+        if "title" in snippet:
+            lines.append(f"title → {_line(snippet['title'])}")
+        if "description" in snippet:
+            lines.append(f"description → {_line(snippet['description'], 200) or '(empty)'}")
+        if privacy:
+            lines.append(f"privacy → {privacy.upper()}")
+    elif action == "playlist_move":
+        item = _str(args, "item")
+        if not ITEM_ID.match(item):
+            raise YouTubeError("item must be a playlist_item_id from playlist")
+        lines = [head, f"Move playlist entry {item}", f"to position {_position(args, required=True)} (0 = first)"]
+    elif action == "channel_update":
+        lines = [head, "Edit channel settings", *_channel_lines(args)]
+    elif action == "watermark":
+        path = local_file(args, "path", THUMB_TYPES, home, WATERMARK_MAX)
+        stat = path.stat()
+        key_args["file"] = [stat.st_size, stat.st_mtime_ns]
+        lines = [head, "Set the channel watermark on every video", f"image: {path} ({_human(stat.st_size)})",
+                 f"shown: {_timing_text(_watermark_timing(args))}"]
+    elif action == "watermark_remove":
+        lines = [head, "Remove the channel watermark from every video"]
+    elif action == "moderate":
+        ids = _comment_ids(args)
+        moderation, ban = _moderation(args)
+        verb = {"publish": "Publish", "hold": "Hold for review", "reject": "Reject (hide)"}[moderation]
+        lines = [head, f"{verb} {len(ids)} comment{'s' if len(ids) > 1 else ''}"]
+        texts = _comment_texts(cid, ids[:3]) if lookup else None
+        lines += [_line(t, 100) for t in texts or []] or [", ".join(ids[:3]) + (" …" if len(ids) > 3 else "")]
+        if moderation == "reject":
+            lines.append("its replies are hidden too; a rejected comment cannot be published again")
+        if ban:
+            lines.append("and BAN the author from the channel's comments")
+    elif action == "caption_upload":
+        vid = video_id(args.get("video"))
+        path = local_file(args, "path", CAPTION_TYPES, home, CAPTION_MAX)
+        edits = _caption_edits(args)
+        stat = path.stat()
+        key_args["file"] = [stat.st_size, stat.st_mtime_ns]
+        title = _video_title(cid, vid) if lookup else None
+        target = f"{_line(title, 80)} ({vid})" if title else vid
+        if "caption" in edits:
+            lines = [head, f"Replace caption track {edits['caption']}", f"video: {target}"]
+        else:
+            lines = [head, f"Add captions ({edits['language']}{', ' + edits['name'] if edits['name'] else ''})",
+                     f"video: {target}"]
+        lines += [f"file: {path} ({_human(stat.st_size)})",
+                  "draft (not shown to viewers)" if edits["draft"] else "shown to viewers at once"]
     else:
         item = _str(args, "item")
         if not ITEM_ID.match(item):

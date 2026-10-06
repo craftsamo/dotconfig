@@ -88,6 +88,18 @@ def test_gate_asks_for_writes_only():
     assert plugin.gate("marketer", tool_name="youtube", args={"action": "reply"})["action"] == "block"
 
 
+def test_channel_settings_ask_every_time(monkeypatch):
+    decision = plugin.gate("assistant", tool_name="youtube", args={"action": "channel_update", "country": "JP"})
+    assert decision["action"] == "approve" and decision["rule_key"].startswith("youtube-access:channel_update:")
+    assert "country → JP" in decision["message"]
+    assert plugin.gate("marketer", tool_name="youtube", args={"action": "channel_update",
+                                                              "country": "JP"})["action"] == "block"
+    assert plugin.gate("marketer", tool_name="youtube", args={"action": "my_channel"}) is None
+    monkeypatch.setattr(plugin, "_unattended", lambda: True)
+    assert plugin.gate("assistant", tool_name="youtube", args={"action": "moderate", "comment": "Ugx" + "c" * 20,
+                                                               "moderation": "hold"})["message"] == plugin.UNATTENDED
+
+
 def test_writes_refused_without_a_person(monkeypatch):
     monkeypatch.setattr(plugin, "_unattended", lambda: True)
     decision = plugin.gate("assistant", tool_name="youtube", args={"action": "update", "video": VID, "title": "x"})

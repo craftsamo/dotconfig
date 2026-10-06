@@ -52,7 +52,10 @@ READ_DESCRIPTION = (
     "(default views, watch time, average view duration and percentage, subscribers gained/lost, likes, "
     "comments, shares), dimensions e.g. day, month, video, country, insightTrafficSourceType, deviceType, "
     "ageGroup,gender, subscribedStatus, creatorContentType; filters e.g. 'country==JP'; video narrows to "
-    "videos; start / end YYYY-MM-DD, default the last 28 days; sort e.g. '-views'), transcript (video: the "
+    "videos; start / end YYYY-MM-DD, default the last 28 days; sort e.g. '-views'), my_channel (the channel's own "
+    "settings: description, keywords, country, language, trailer for visitors, translated names and "
+    "descriptions, made-for-kids status), captions (video = the channel's own video: its caption tracks with "
+    "their ids; 50 units, so only when needed), transcript (video: the "
     "captions of any public video as text with [m:ss] stamps (timestamps=false for plain text), manual "
     "captions first, then the spoken language's automatic ones; languages = preferred codes; the full text is "
     "also saved as a file and its path returned), download (video: the file into the profile's download "
@@ -67,19 +70,32 @@ READ_DESCRIPTION = (
 
 WRITE_DESCRIPTION = (
     " Writes, each held for the user's approval on a card (a denial or timeout means it did not happen; never "
-    "retry a denied call unchanged), on the channel's own videos only: update (video plus any of title, "
-    "description, tags, category_id, privacy private | unlisted | public, publish_at = ISO 8601 with a UTC "
-    "offset to schedule (keeps it private until then), made_for_kids; fields left out stay as they are), "
-    "thumbnail (video, path = a JPEG/PNG of at most 2 MB), reply (comment = a comment id from comments, text: "
-    "a public reply as the channel), upload (path = a video file, title, optional description, tags, "
-    "category_id (default 22), privacy (default private), publish_at, made_for_kids (default false); YouTube "
-    "keeps uploads of an unaudited API project private, so the user publishes them in YouTube Studio), "
-    "playlist_create (title, optional description, privacy default private), playlist_add (playlist, video, "
-    "optional position from 0), playlist_remove (item = a playlist_item_id from playlist; the video stays). "
-    "Local files come only from the attach roots (default ~/Workspaces). Edits to one video (update without "
-    "privacy or publish_at, thumbnail) are approved once: after \"session\" or \"always\", further edits to that "
-    "video run without asking; a privacy or schedule change, reply, upload and the playlist writes ask every "
-    "time. Videos, comments and playlists cannot be deleted here.")
+    "retry a denied call unchanged), on the channel's own videos, playlists and comments only: update (video "
+    "plus any of title, description, tags, category_id, default_language, localizations, privacy private | "
+    "unlisted | public, publish_at = ISO 8601 with a UTC offset to schedule (keeps it private until then), "
+    "made_for_kids, license youtube | creativeCommon, embeddable, public_stats, synthetic_media (the "
+    "altered-or-synthetic-content disclosure); fields left out stay as they are), thumbnail (video, path = a "
+    "JPEG/PNG of at most 2 MB), reply (comment = a comment id from comments, text: a public reply as the "
+    "channel), upload (path = a video file, title, optional description, tags, category_id (default 22), "
+    "privacy (default private), publish_at, made_for_kids (default false), license, embeddable, public_stats, "
+    "synthetic_media; YouTube keeps uploads of an unaudited API project private, so the user publishes them in "
+    "YouTube Studio), playlist_create (title, optional description, privacy default private), playlist_add "
+    "(playlist, video, optional position from 0), playlist_update (playlist plus any of title, description, "
+    "privacy), playlist_move (item = a playlist_item_id, position from 0), playlist_remove (item; the video "
+    "stays), channel_update (any of description (at most 1000), keywords (an array; replaces all), country, "
+    "default_language, trailer = a public or unlisted own video for visitors who are not subscribed ('' "
+    "removes it), localizations, made_for_kids for the whole channel), watermark (path = a JPEG/PNG of at most "
+    "10 MB, shown in the upper right of every video; display entire (default) | end (last 15 s) | from with "
+    "start_s), watermark_remove, moderate (comment = one comment id or up to 50, moderation publish | hold | "
+    "reject; ban_author with reject; a rejected comment cannot be published again), caption_upload (video, "
+    "path = an .srt/.vtt/.sbv/.ttml/.dfxp/.scc file with timings, language and optional name for a new track, "
+    "or caption = a track id from captions to replace its file; draft hides it; 400-450 units). localizations "
+    "= {language code: {title, description}}, merged into the existing ones, null removes a language; the "
+    "video or channel needs a default_language first. Local files come only from the attach roots (default "
+    "~/Workspaces). Edits to one video (update without privacy or publish_at, thumbnail) are approved once: "
+    "after \"session\" or \"always\", further edits to that video run without asking; every other write asks "
+    "every time. Videos, comments, playlists and caption tracks cannot be deleted here. The channel's name, "
+    "handle, picture, banner, links and upload defaults are not in the API (YouTube Studio only).")
 
 PROPERTIES = {
     "channel": {"type": "string", "description": "which authorized channel of the user's to act as (title, "
@@ -94,7 +110,8 @@ PROPERTIES = {
     "published_after": {"type": "string", "description": "search: YYYY-MM-DD"},
     "published_before": {"type": "string", "description": "search: YYYY-MM-DD"},
     "duration": {"type": "string", "enum": list(ya.DURATIONS), "description": "search: under 4 min | 4-20 | over 20"},
-    "language": {"type": "string", "description": "search: prefer results in this language, e.g. 'ja'"},
+    "language": {"type": "string", "description": "search: prefer results in this language, e.g. 'ja'; "
+                                                  "caption_upload: the new track's language"},
     "region": {"type": "string", "description": "search: two-letter country code, e.g. 'JP'"},
     "video": {"description": "a video URL or 11-character id (videos / analytics: or an array of up to 50)"},
     "playlist": {"type": "string", "description": "a playlist URL or id"},
@@ -113,19 +130,48 @@ PROPERTIES = {
 }
 
 WRITE_PROPERTIES = {
-    "title": {"type": "string", "description": "update / upload: video title (at most 100); playlist_create: name"},
-    "description": {"type": "string", "description": "update / upload / playlist_create: the whole description"},
+    "title": {"type": "string", "description": "update / upload: video title (at most 100); playlist_create / "
+                                               "playlist_update: name"},
+    "description": {"type": "string", "description": "update / upload / playlist_create / playlist_update / "
+                                                     "channel_update: the whole description"},
     "tags": {"type": "array", "items": {"type": "string"}, "description": "update / upload: replaces all tags"},
     "category_id": {"type": "string", "description": "update / upload: e.g. '22' People & Blogs, '27' Education, "
                                                      "'28' Science & Technology"},
-    "privacy": {"type": "string", "enum": list(ya.PRIVACY), "description": "update / upload / playlist_create"},
+    "privacy": {"type": "string", "enum": list(ya.PRIVACY),
+                "description": "update / upload / playlist_create / playlist_update"},
     "publish_at": {"type": "string", "description": "update / upload: scheduled publish time, ISO 8601 with offset"},
-    "made_for_kids": {"type": "boolean", "description": "update / upload: the audience declaration"},
-    "path": {"type": "string", "description": "upload: absolute path of the video file; thumbnail: of the image"},
-    "comment": {"type": "string", "description": "reply: the comment id to reply to"},
+    "made_for_kids": {"type": "boolean", "description": "update / upload: the video's audience declaration; "
+                                                        "channel_update: the whole channel's"},
+    "license": {"type": "string", "enum": list(ya.LICENSES), "description": "update / upload"},
+    "embeddable": {"type": "boolean", "description": "update / upload: other sites may embed the video"},
+    "public_stats": {"type": "boolean", "description": "update / upload: the watch page shows its statistics"},
+    "synthetic_media": {"type": "boolean", "description": "update / upload: discloses realistic altered or "
+                                                          "synthetic content"},
+    "default_language": {"type": "string", "description": "update / channel_update: the language of the video's "
+                                                          "or channel's own title and description, e.g. 'ja'"},
+    "localizations": {"type": "object", "description": "update / channel_update: {language code: {title, "
+                                                       "description}}, merged; null removes a language"},
+    "keywords": {"type": "array", "items": {"type": "string"},
+                 "description": "channel_update: the channel's keywords; replaces all ([] clears)"},
+    "country": {"type": "string", "description": "channel_update: two-letter country code, e.g. 'JP'"},
+    "trailer": {"type": "string", "description": "channel_update: video URL/id shown to visitors who are not "
+                                                 "subscribed; '' removes it"},
+    "path": {"type": "string", "description": "upload: absolute path of the video file; thumbnail / watermark: "
+                                              "of the image; caption_upload: of the caption file"},
+    "display": {"type": "string", "enum": list(ya.WATERMARK_DISPLAY),
+                "description": "watermark: entire video (default), end (last 15 s), from start_s"},
+    "start_s": {"type": "integer", "description": "watermark with display from: seconds from the start"},
+    "comment": {"description": "reply: the comment id to reply to; moderate: one comment id or an array of up "
+                               "to 50"},
+    "moderation": {"type": "string", "enum": list(ya.MODERATION), "description": "moderate: publish | hold "
+                                                                                 "(for review) | reject (hide)"},
+    "ban_author": {"type": "boolean", "description": "moderate with reject: also ban the comment's author"},
     "text": {"type": "string", "description": "reply: the reply's text"},
-    "item": {"type": "string", "description": "playlist_remove: a playlist_item_id from playlist"},
-    "position": {"type": "integer", "description": "playlist_add: 0 = first"},
+    "item": {"type": "string", "description": "playlist_remove / playlist_move: a playlist_item_id from playlist"},
+    "position": {"type": "integer", "description": "playlist_add / playlist_move: 0 = first"},
+    "caption": {"type": "string", "description": "caption_upload: a track id from captions to replace"},
+    "name": {"type": "string", "description": "caption_upload: the new track's name (optional)"},
+    "draft": {"type": "boolean", "description": "caption_upload: keep the track hidden from viewers"},
 }
 
 
