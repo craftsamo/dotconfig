@@ -14,7 +14,8 @@ WhatsApp. Part of the Hermes design docs — index: [`PROFILES.md`](../PROFILES.
 | Engine: wacli calls, result shapes, file checks and snapshots, approval card, bypass guard | `plugins/whatsapp-access/wa.py`                                                                | all       |
 | `whatsapp` tool and the `pre_tool_call` hooks (toolset `whatsapp_access`)                  | `plugins/whatsapp-access/__init__.py`                                                          | Assistant |
 | Pairing and the per-account sync agent                                                     | `launchd/whatsapp-access-launchctl.sh`, `launchd/local.hermes.whatsapp-access.sync.plist.tmpl` | people    |
-| When and how the Assistant uses it                                                         | the Assistant's private Chat reference `whatsapp.md`                                           | Assistant |
+| How the Assistant works with it: reads, history, files, checks, sends, outcomes, counts    | the `whatsapp` technic (`profiles/assistant/skills/technic/whatsapp/`)                         | Assistant |
+| When the Assistant uses it in Chat                                                         | the Assistant's private Chat reference `whatsapp.md`                                           | Assistant |
 
 The engine shells out to [`wacli`](https://github.com/openclaw/wacli)
 (Homebrew `openclaw/tap/wacli`, built on whatsmeow), which joins each account
@@ -143,7 +144,7 @@ so the quote resolves.
   escaped UTF-16 units of a reason, so beyond roughly 350 characters the card
   shows the beginning and counts the rest (`(+N more characters)`). A long
   message goes out in one send; its full wording is agreed with the user in
-  chat beforehand (the Assistant's reference), and the approval key still
+  chat beforehand (the `whatsapp` technic), and the approval key still
   binds that exact text, so a changed text asks again.
 - **The approval covers the exact message.** The allowlist key hashes the
   account, chat, text and reply (and, with files, each file's place and

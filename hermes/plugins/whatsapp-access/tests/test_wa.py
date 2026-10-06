@@ -148,8 +148,8 @@ def test_run_builds_argv_env_and_parses(monkeypatch):
 def test_resolve_account(fake):
     assert wa.resolve_account({"account": "Work"}, required=True) == "work"
     assert wa.resolve_account({}, required=False) == "work"
-    with pytest.raises(wa.WhatsAppError, match="no WhatsApp account named 'work'.*work"):
-        wa.resolve_account({"account": "work"}, required=False)
+    with pytest.raises(wa.WhatsAppError, match="no WhatsApp account named 'shop'.*work"):
+        wa.resolve_account({"account": "shop"}, required=False)
     with pytest.raises(wa.WhatsAppError, match="send needs account"):
         wa.resolve_account({}, required=True)
     fake.accounts = ["work", "personal"]
