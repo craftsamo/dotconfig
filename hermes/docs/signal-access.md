@@ -83,6 +83,11 @@ author and sent time; its `id` in the tool is that time in milliseconds.
 - **Delete for me is not seen.** signal-cli 0.14 drops Signal's "delete for
   me" sync, so a message the user deleted only on their own devices stays in
   the mirror.
+- **Mentions read as names.** Signal puts a mention in the text as U+FFFC and
+  sends who it is beside the text; the mirror keeps that list per message,
+  per earlier version and per quote, and reads show `@name` (`@me` for the
+  user). A message stored before mentions were kept shows
+  `@(not recorded)`, with a note that the phone shows who it was.
 - Reactions are kept per person; timer changes are events
   (`set disappearing messages to 1 day`); polls, shared contacts and payments
   are listed as unsupported, with the advice to look on the phone. Group

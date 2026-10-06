@@ -37,12 +37,12 @@ CREATE TABLE IF NOT EXISTS messages (
     from_me INTEGER NOT NULL DEFAULT 0, author_name TEXT, kind TEXT NOT NULL DEFAULT 'message',
     body TEXT, attachments TEXT, quote TEXT, sticker INTEGER NOT NULL DEFAULT 0, other TEXT,
     expires_in INTEGER NOT NULL DEFAULT 0, expire_start INTEGER, read_at INTEGER,
-    view_once INTEGER NOT NULL DEFAULT 0, edited INTEGER, received INTEGER,
+    view_once INTEGER NOT NULL DEFAULT 0, edited INTEGER, received INTEGER, mentions TEXT,
     PRIMARY KEY (author, ts));
 CREATE INDEX IF NOT EXISTS messages_chat ON messages (chat, ts);
 CREATE TABLE IF NOT EXISTS edits (
     author TEXT NOT NULL, ts INTEGER NOT NULL, rev_ts INTEGER NOT NULL, body TEXT, attachments TEXT,
-    PRIMARY KEY (author, ts, rev_ts));
+    mentions TEXT, PRIMARY KEY (author, ts, rev_ts));
 CREATE TABLE IF NOT EXISTS reactions (
     author TEXT NOT NULL, ts INTEGER NOT NULL, reactor TEXT NOT NULL, emoji TEXT, at INTEGER,
     PRIMARY KEY (author, ts, reactor));
@@ -51,6 +51,10 @@ CREATE TABLE IF NOT EXISTS contacts (
     blocked INTEGER NOT NULL DEFAULT 0, updated INTEGER);
 CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT);
 """
+# Columns added after the first mirrors were written: (table, column, type).
+ADDED_COLUMNS = (("messages", "mentions", "TEXT"), ("edits", "mentions", "TEXT"))
+# Where Signal puts a mention in a message's text; the mention itself travels beside the text.
+MENTION = "\ufffc"
 
 
 class StoreError(Exception):
@@ -134,9 +138,26 @@ def connect(path: Path | None = None, *, write: bool = False) -> sqlite3.Connect
     if write:
         conn.execute("PRAGMA journal_mode = WAL")
         conn.executescript(SCHEMA)
+        _add_columns(conn)
     else:
         conn.execute("PRAGMA query_only = ON")
     return conn
+
+
+def _add_columns(conn: sqlite3.Connection) -> None:
+    """Bring an older mirror up to the current schema; existing rows keep NULL there."""
+    for table, column, kind in ADDED_COLUMNS:
+        if column not in {row["name"] for row in conn.execute(f"PRAGMA table_info({table})")}:
+            try:
+                conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {kind}")
+            except sqlite3.OperationalError as exc:  # the other writer added it first
+                if "duplicate column" not in str(exc):
+                    raise
+
+
+def column(row: sqlite3.Row, name: str):
+    """A column a reader may find missing: a mirror no writer has opened since it was added."""
+    return row[name] if name in row.keys() else None
 
 
 def get_meta(conn: sqlite3.Connection) -> dict:
@@ -200,11 +221,31 @@ def _attachments(items) -> list[dict]:
     return out
 
 
+def _mention_list(items) -> list[dict]:
+    """signal-cli's mentions (``{number, uuid, start, length}``), in text order, account id or number only."""
+    out = []
+    for m in items or []:
+        if not isinstance(m, dict) or not isinstance(m.get("start"), int):
+            continue
+        entry = {"start": m["start"], "uuid": _uuid(m.get("uuid")),
+                 "number": m.get("number") if isinstance(m.get("number"), str) else None}
+        out.append({k: v for k, v in entry.items() if v is not None})
+    return sorted(out, key=lambda m: m["start"])
+
+
+def _mentions(items) -> str | None:
+    found = _mention_list(items)
+    return json.dumps(found, ensure_ascii=False) if found else None
+
+
 def _quote(q) -> str | None:
     if not isinstance(q, dict) or not isinstance(q.get("id"), int):
         return None
-    return json.dumps({"id": q["id"], "author": _uuid(q.get("authorUuid")), "text": q.get("text")},
-                      ensure_ascii=False)
+    quote = {"id": q["id"], "author": _uuid(q.get("authorUuid")), "text": q.get("text")}
+    mentions = _mention_list(q.get("mentions"))
+    if mentions:
+        quote["mentions"] = mentions
+    return json.dumps(quote, ensure_ascii=False)
 
 
 OTHER_KINDS = ("pollCreate", "contacts", "payment", "pollVote", "pollTerminate", "pinMessage")
@@ -242,12 +283,12 @@ def _store_message(conn, *, chat: str, author: str, from_me: bool, author_name, 
     _touch_chat(conn, chat, ts)
     conn.execute(
         "INSERT INTO messages (chat, author, ts, from_me, author_name, body, attachments, quote, sticker, other, "
-        "expires_in, expire_start, view_once, received) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
-        "ON CONFLICT (author, ts) DO NOTHING",
+        "expires_in, expire_start, view_once, received, mentions) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (author, ts) DO NOTHING",
         (chat, author, ts, int(from_me), author_name, body,
          json.dumps(attachments, ensure_ascii=False) if attachments else None, _quote(data.get("quote")),
          int(sticker), other, expires, ts if (from_me and expires) else None, int(bool(data.get("viewOnce"))),
-         received))
+         received, _mentions(data.get("mentions"))))
     return "message"
 
 
@@ -275,14 +316,15 @@ def _edit(conn, *, chat: str, author: str, from_me: bool, author_name, edit: dic
         return _store_message(conn, chat=chat, author=author, from_me=from_me, author_name=author_name,
                               data={**data, "timestamp": target}, received=received) and "edit"
     rev = row["edited"] or row["ts"]
-    conn.execute("INSERT OR IGNORE INTO edits (author, ts, rev_ts, body, attachments) VALUES (?, ?, ?, ?, ?)",
-                 (author, row["ts"], rev, row["body"], row["attachments"]))
+    conn.execute("INSERT OR IGNORE INTO edits (author, ts, rev_ts, body, attachments, mentions) "
+                 "VALUES (?, ?, ?, ?, ?, ?)",
+                 (author, row["ts"], rev, row["body"], row["attachments"], row["mentions"]))
     attachments = _attachments(data.get("attachments"))
-    conn.execute("UPDATE messages SET body = ?, attachments = COALESCE(?, attachments), edited = ? "
+    conn.execute("UPDATE messages SET body = ?, attachments = COALESCE(?, attachments), edited = ?, mentions = ? "
                  "WHERE author = ? AND ts = ?",
                  (data.get("message") if isinstance(data.get("message"), str) else None,
                   json.dumps(attachments, ensure_ascii=False) if attachments else None,
-                  data["timestamp"], author, row["ts"]))
+                  data["timestamp"], _mentions(data.get("mentions")), author, row["ts"]))
     return "edit"
 
 

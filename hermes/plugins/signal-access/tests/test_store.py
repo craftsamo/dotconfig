@@ -64,6 +64,38 @@ def test_incoming_direct_and_group_messages(conn):
     assert rows(conn, "SELECT profile_name FROM contacts WHERE uuid = ?", BOB) == [{"profile_name": "Bob"}]
 
 
+def test_mentions_are_kept_beside_the_text(conn):
+    ingest(conn, fakes.envelope(data={"timestamp": 3, "message": "hi \ufffc and \ufffc", "mentions": [
+        {"name": "+8190", "number": "+8190", "uuid": ME.upper(), "start": 9, "length": 1},
+        {"number": None, "uuid": BOB, "start": 3, "length": 1}, "junk"],
+        "quote": {"id": 1, "authorUuid": BOB, "text": "\ufffc?", "mentions": [{"uuid": ALICE, "start": 0, "length": 1}]}}))
+    m = rows(conn)[0]
+    assert json.loads(m["mentions"]) == [{"start": 3, "uuid": BOB}, {"start": 9, "uuid": ME, "number": "+8190"}]
+    assert json.loads(m["quote"])["mentions"] == [{"start": 0, "uuid": ALICE}]
+    ingest(conn, fakes.envelope(edit={"targetSentTimestamp": 3, "dataMessage": {"timestamp": 4, "message": "hi all"}}))
+    m = rows(conn)[0]
+    assert m["mentions"] is None
+    assert json.loads(rows(conn, "SELECT mentions FROM edits")[0]["mentions"])[0]["uuid"] == BOB
+
+
+def test_an_older_mirror_gains_the_new_columns(state):
+    path = store.db_path(state)
+    old = store.sqlite3.connect(str(path))
+    old.executescript(store.SCHEMA.replace(", mentions TEXT,", ",").replace("    mentions TEXT, PRIMARY", "    PRIMARY"))
+    old.execute("INSERT INTO messages (chat, author, ts, body) VALUES (?, ?, 1, 'x')", (ALICE, ALICE))
+    old.commit()
+    assert not any(r[1] == "mentions" for t in ("messages", "edits") for r in old.execute(f"PRAGMA table_info({t})"))
+    old.close()
+    reader = store.connect(path)
+    assert store.column(reader.execute("SELECT * FROM messages").fetchone(), "mentions") is None
+    reader.close()
+    writer = store.connect(path, write=True)
+    for table in ("messages", "edits"):
+        assert "mentions" in {r["name"] for r in writer.execute(f"PRAGMA table_info({table})")}
+    store._add_columns(writer)  # a second writer finding them present changes nothing
+    writer.close()
+
+
 def test_duplicate_delivery_is_ignored(conn):
     payload = fakes.envelope(data={"timestamp": 5, "message": "once"})
     ingest(conn, payload)
