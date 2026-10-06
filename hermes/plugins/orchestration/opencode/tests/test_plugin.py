@@ -16,7 +16,7 @@ plugin = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(plugin)
 api = plugin.api
 
-REPO_ROOT = Path(__file__).resolve().parents[4]
+REPO_ROOT = Path(__file__).resolve().parents[5]
 AGENT_DIR = REPO_ROOT / "opencode/agent"
 PERSON_DENIES = [{"action": "shell", "resource": "sudo *", "effect": "deny"},
                  {"action": "external_directory", "resource": "/secret/*", "effect": "deny"}]

@@ -8,7 +8,7 @@ import subprocess
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
-VENV_PYTHON = ROOT.parents[1] / "local" / "yt-dlp" / "venv" / "bin" / "python"
+VENV_PYTHON = ROOT.parents[2] / "local" / "yt-dlp" / "venv" / "bin" / "python"
 
 
 def _load(name, path):

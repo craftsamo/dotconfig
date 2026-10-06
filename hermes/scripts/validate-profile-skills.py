@@ -555,8 +555,8 @@ def untracked_managed_files() -> list[str]:
             "hermes/skills/default-pipeline/**",
             "hermes/profiles/*/skills/*-pipeline/**",
             "hermes/profiles/*/skills/technic/**",
-            "hermes/plugins/skill-topology/**",
-            f"hermes/plugins/{WORKER_MUTATION_GUARD_PLUGIN}/**",
+            "hermes/plugins/guards/skill-topology/**",
+            f"hermes/plugins/guards/{WORKER_MUTATION_GUARD_PLUGIN}/**",
         ],
         cwd=REPO_ROOT,
         check=True,
@@ -666,7 +666,7 @@ def validate_git_boundary(
 
 def validate_plugin_source(errors: list[str]) -> None:
     for name in ("skill-topology", WORKER_MUTATION_GUARD_PLUGIN):
-        plugin = HERMES_ROOT / "plugins" / name
+        plugin = HERMES_ROOT / "plugins" / "guards" / name
         manifest = plugin / "plugin.yaml"
         implementation = plugin / "__init__.py"
         if not manifest.is_file():

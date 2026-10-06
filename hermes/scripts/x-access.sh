@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Engine manager for the x-access plugin (read-only X through twscrape).
 #
-# The plugin runs plugins/x-access/bridge.py with the interpreter of an isolated venv
+# The plugin runs plugins/social/x-access/bridge.py with the interpreter of an isolated venv
 # under the ignored hermes/local/twscrape/, built from the hash-locked
 # engines/twscrape/requirements.lock. The sub-account's session cookies live only in the
 # Keychain (X_READER_COOKIES, project hermes, scope x-reader), never in a file:

@@ -67,7 +67,7 @@ TOKEN_URI = "https://oauth2.googleapis.com/token"
 
 HERE = Path(__file__).resolve().parent
 BRIDGE = HERE / "bridge.py"
-VENV_PYTHON = HERE.parents[1] / "local" / "yt-dlp" / "venv" / "bin" / "python"
+VENV_PYTHON = HERE.parents[2] / "local" / "yt-dlp" / "venv" / "bin" / "python"
 STORE = Path.home() / ".youtube-access"
 SETUP = "hermes/scripts/youtube-access.sh"
 SECRET = Path.home() / ".config" / "bin" / "secret"

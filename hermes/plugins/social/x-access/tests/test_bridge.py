@@ -10,7 +10,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 BRIDGE = ROOT / "bridge.py"
-PYTHON = ROOT.parents[1] / "local" / "twscrape" / "venv" / "bin" / "python"
+PYTHON = ROOT.parents[2] / "local" / "twscrape" / "venv" / "bin" / "python"
 AUTH, CT0 = "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0", "c0ffeec0ffeec0ffeec0ffeec0ffee"
 
 pytestmark = pytest.mark.skipif(not PYTHON.exists(), reason="engine venv not installed (scripts/x-access.sh install)")

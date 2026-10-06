@@ -9,12 +9,12 @@
 #   ws-repos prs --period month    PRs updated in 30 days, merged and closed too
 #   ws-repos --help
 #
-# The code lives in the Hermes workspace-repos plugin (hermes/plugins/
+# The code lives in the Hermes workspace-repos plugin (hermes/plugins/workspace/
 # workspace-repos/repos.py). Read-only: nothing is fetched, committed or pushed.
 # Override: WS_REPOS_CLI, WORKSPACES_ROOT.
 set -euo pipefail
 
-cli="${WS_REPOS_CLI:-$HOME/.config/hermes/plugins/workspace-repos/repos.py}"
+cli="${WS_REPOS_CLI:-$HOME/.config/hermes/plugins/workspace/workspace-repos/repos.py}"
 if [[ ! -f $cli ]]; then
   echo "ws-repos: cannot find $cli (set WS_REPOS_CLI)" >&2
   exit 127

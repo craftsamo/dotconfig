@@ -9,7 +9,7 @@ import subprocess
 import time
 
 
-ROOT = Path(__file__).resolve().parents[3]
+ROOT = Path(__file__).resolve().parents[4]
 SCRIPT = ROOT / "agents/curated/japanese-writing/scripts/inspect_text.py"
 PYTHON = ROOT / "hermes/local/writing-inspection/venv/bin/python"
 MODES = ("naturalness", "expression", "notation", "reading-load",

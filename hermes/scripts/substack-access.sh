@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Engine manager for the substack-access plugin (Substack through python-substack).
 #
-# The plugin runs plugins/substack-access/bridge.py with the interpreter of an isolated venv
+# The plugin runs plugins/social/substack-access/bridge.py with the interpreter of an isolated venv
 # under the ignored hermes/local/python-substack/, built from the hash-locked
 # engines/python-substack/requirements.lock. The session cookies of the user's own Substack
 # account live only in the Keychain (SUBSTACK_COOKIES, project hermes, scope
