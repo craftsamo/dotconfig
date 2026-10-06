@@ -34,9 +34,10 @@ and the **image-creator** / **audio-creator** hands lead on
   5.1) — revert it to Opus 5.5 if its output degrades; `marketer` still leads
   on Opus 5.5 — revert it to Fable 5.1 if its output degrades.
 - **`engineer` alone leads on Fable 5.1** (T2 Opus 5.5) so the OpenCode hidden
-  primaries that plan for and review it (Opus 5.5) remain a different model;
-  see [`profiles/engineer.md`](./profiles/engineer.md) "OpenCode runtime" for
-  the Assistant Admin-topic exception.
+  primaries that plan for and review it (Opus 5.5) remain a different model.
+  The `opencode` plugin refuses a caller's own model for any role (see
+  [`profiles/engineer.md`](./profiles/engineer.md) "OpenCode runtime"), so on
+  its Opus fallback Engineer must pick another reviewer model.
 - **`default` stays off Fable deliberately** — every `--clone` inherits its
   chain, and a neutral starting point should not lead with the model that has
   the tightest sub-cap.

@@ -268,9 +268,12 @@ When editing `plugins/opencode` or `~/.config/opencode/agent/hermes-*.md`:
   from**, and only because the owning runner confirmed its group gone; never
   make `unknown`/`interrupted` resumable or let anything but that runner signal
   the group ([docs/profiles/specialist-calls.md](docs/profiles/specialist-calls.md)).
-- The Assistant's Admin-topic calls being planned and reviewed by its own
-  model is an accepted exception; do not extend it to Engineer, and move the
-  reviewer to another model family before moving Engineer off Fable.
+- **A caller never gets its own model.** The plugin refuses the caller's
+  configured `model.default` and the model it last answered with (the
+  `post_api_request` hook) for every role. Keep that hook registered and keep
+  `_model_key` folding speed tiers and snapshots, or a fallback or `-fast`
+  alias slips through. When a profile's main model equals a hidden primary's
+  pin, give it its own `opencode_cli.models` for that role.
 
 ## Candidates and cutover
 
