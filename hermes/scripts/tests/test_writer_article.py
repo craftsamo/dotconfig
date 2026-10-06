@@ -1,5 +1,6 @@
 """Article contract checks; source syntax is not a rendered-platform test."""
 
+import importlib.util
 from pathlib import Path
 
 import pytest
@@ -68,10 +69,25 @@ def test_platform_input_models_are_not_conflated():
     note = " ".join((refs / "note.md").read_text().split())
     x = " ".join((refs / "x-article.md").read_text().split())
     assert "Input is Markdown source" in zenn
-    assert "not a general Markdown-file import contract" in note
+    assert "`note` tool's dialect" in note and "`check` action" in note
+    assert "| Tables | No note form, and a table row is refused" in note
     assert "dedicated rich-text editor" in x
     assert "not a long post or a thread" in x
     assert "do not promise raw Markdown import" in x
+
+
+def test_writer_checks_note_format_through_the_tool_only():
+    config = yaml.safe_load((HERMES / "profiles/writer/config.yaml").read_text())
+    assert "note-access" in config["plugins"]["enabled"] and "note_access" in config["toolsets"]
+    for platform, names in config["platform_toolsets"].items():
+        assert ("note_access" in names) == (platform in ("cli", "a2a")), platform
+    for verb in ("write", "edit", "analyze"):
+        reference = " ".join((PIPELINE / verb / "article/references/note.md").read_text().split())
+        assert "`check`" in reference, verb
+    spec = importlib.util.spec_from_file_location("note_access_for_writer", HERMES / "plugins/note-access/__init__.py")
+    plugin = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(plugin)
+    assert plugin.PROFILES["writer"] == plugin.na.OFFLINE == ("check",)
 
 
 def test_edit_article_proofread_scope_enum_default_and_routing_contract():

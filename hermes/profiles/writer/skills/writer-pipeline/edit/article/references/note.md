@@ -1,18 +1,27 @@
 # Editing note Drafts
 
-note's rich-text editor and Markdown shortcuts are not a promise of full
-Markdown-file import. Preserve existing editor intent when revising a source
-draft: link targets, quote/code boundaries, headings, captions and alt text
-are distinct content, not decorative punctuation to strip indiscriminately.
+A note draft's source is Markdown in the `note` tool's dialect (`##`/`###`
+headings, flat lists, quotes, code blocks, bold, strike, links, alignment
+arrows, images on their own line; the tool's description lists it). A draft
+read from note marks embeds, files and sounds as `[label](note-block:…)`
+lines: keep each where it is, since removing the line removes the block.
+Keep its image lines with `https://assets.st-note.com/…` addresses as they
+are too: an update keeps such an image only where the draft already has it.
+Preserve existing editor intent when revising a source draft: link targets,
+quote/code boundaries, headings, captions and alt text are distinct content,
+not decorative punctuation to strip indiscriminately.
 
-Do not claim tables, arbitrary HTML or comments work without current evidence.
-If conversion needs editor operations, report them separately. Do not remove
+Italic, inline code, HTML and footnotes have no note form and are saved as
+typed; tables, HTML comments and unresolved insertion markers are refused by
+a save. Do not introduce any of them. One already in the source stays unless
+the scope covers it, and is reported: an existing table needs the requester's
+choice of a list or an image, not a silent conversion. Do not remove
 meaningful emphasis or a data table merely to make the source look cleaner.
 
 A request for a warmer voice does not authorize a new anecdote or personal
 emotion. Keep actual experiences and the original level of certainty.
 
-Documentary sources (checked 2026-09-08; no editor test):
+Documentary sources (checked 2026-09-08):
 - https://www.help-note.com/hc/ja/articles/360012426133
 - https://www.help-note.com/hc/ja/articles/4410617032217
 
@@ -37,13 +46,16 @@ that carries the author's voice. Do not impose equal section lengths or
 conclusion-first storytelling. In proofread scope, leave grammatical style
 choices alone; with no qualifying errors, deliver a verified byte-identical
 no-op, including line breaks. Protected text is not a polishing opportunity.
-The output remains a source draft, not an editor import or a live note edit.
+The output remains a source draft, not a saved or live note edit.
 
 QA evidence: quote the original observation and qualifier beside the revision;
 check that headings and the ending do not claim more than the source does.
 For authorized pacing changes, explain the particular reader benefit and
-verify chronology survived. Separate applied corrections, uncertainties and
-optional suggestions; keep editor work outside reader-visible narrative.
+verify chronology survived. Run the `note` tool's `check` on the revised file
+(or say it was not available) and report errors, markers and `as_typed` items
+with their lines; a no-op is checked too but never changed to pass. Separate
+applied corrections, uncertainties and optional suggestions; keep editor work
+outside reader-visible narrative.
 
 Local adaptation of [natural-japanese v1.5.0 genre notes](https://github.com/coji/natural-japanese/blob/v1.5.0/skills/natural-japanese/references/genre-notes.md)
 (essay latitude) and [revision guide](https://github.com/coji/natural-japanese/blob/v1.5.0/skills/natural-japanese/references/revision-guide.md)
