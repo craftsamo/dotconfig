@@ -206,6 +206,19 @@ sending reopens it.
   `*.sqlite`, `*.keychain*` and anything with `.git`, `.ssh`, `.gnupg`,
   `.aws`, `.config` or `Keychains` anywhere in its real path, compared without
   case. A message may be files alone.
+- **Archives are opened first.** A `.zip`, `.tar`, `.tar.gz`/`.tgz`,
+  `.tar.bz2` or `.tar.xz` is read entry by entry on the snapshot copy
+  (`plugins/messaging/_shared/archive_check.py`; rules and limits in
+  [Signal access](./signal-access.md)) and sent only if no entry would be
+  refused as a file above, is a program (`.exe`, `.app`, `.jar`, … or an ELF,
+  Mach-O or PE file), is another archive, a link or an encrypted entry, or
+  holds a private key block. Source scripts inside are allowed, as they are
+  on their own here. One bad entry refuses the whole archive and the error
+  names it; the card adds the file count to the archive's line. An archive
+  format that cannot be read (`.rar`, `.7z`, a bare `.gz`, …), and a file
+  that is an archive but not named like one, are not opened and go as the
+  files they are, as before: the roots stay the boundary. A name that says
+  zip or tar over content that is not is refused.
 - **The approved bytes are the sent bytes.** For each call, the approval hook
   and a second `pre_tool_call` hook (`bind`) share one snapshot, made by
   whichever runs first and keyed by the session, task and tool-call ids; the

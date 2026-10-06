@@ -1,7 +1,10 @@
 from datetime import datetime, timedelta, timezone
+import io
 import json
 import importlib.util
 from pathlib import Path
+import tarfile
+import zipfile
 
 import pytest
 
@@ -369,6 +372,70 @@ def test_a_card_with_ten_long_names_still_fits(ws):
         names.append(str(ws / name))
     card = approve_and_bind({"action": "send", "channel": DM1, "text": "本文", "files": names})[0]
     assert "Files (10):" in card and "more)" in card and access._units(card) <= access.CARD_LIMIT
+
+
+def _zip(ws, name, entries):
+    path = ws / name
+    with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as z:
+        for entry, data in entries.items():
+            z.writestr(entry, data)
+    return path
+
+
+def test_a_zip_is_inspected_shown_on_the_card_and_sent_scripts_included(ws, monkeypatch):
+    sent = []
+
+    def engine(command, args, timeout=None):
+        sent.append({"names": [f["name"] for f in args["files"]],
+                     "bytes": [Path(f["path"]).read_bytes() for f in args["files"]]})
+        return {"outcome": "sent", "message_id": "1"}
+    monkeypatch.setattr(access, "call_engine", engine)
+    path = _zip(ws, "proj.zip", {"a.txt": b"hello", "run.sh": b"echo hi\n", "src/tool.py": b"print(1)\n",
+                                 "bin/launch": b"#!/bin/sh\necho hi\n"})
+    args = {"action": "send", "channel": DM1, "text": "zip", "files": [str(path)]}
+    card, _, call = approve_and_bind(args)
+    assert "Files (1): proj.zip (" in card and ", 4 files inside)" in card
+    result = access.execute(call)
+    assert result["ok"] is True and sent[0]["names"] == ["proj.zip"] and sent[0]["bytes"] == [path.read_bytes()]
+
+
+def test_a_tar_gz_is_sent(ws):
+    path = ws / "backup.tar.gz"
+    with tarfile.open(path, "w:gz") as t:
+        info = tarfile.TarInfo("a.txt")
+        info.size = 2
+        t.addfile(info, io.BytesIO(b"hi"))
+    card = approve_and_bind({"action": "send", "channel": DM1, "text": "x", "files": [str(path)]})[0]
+    assert "backup.tar.gz (" in card and ", 1 files inside)" in card
+
+
+@pytest.mark.parametrize("entries, message", [
+    ({"a.txt": b"x", ".env": b"A=1"}, "named like a key or secret"),
+    ({"a.txt": b"x", "certs/server.pem": b"x"}, "named like a key or secret"),
+    ({"a.txt": b"x", "budget.db": b"x"}, "named like a key or secret"),
+    ({"a.txt": b"x", ".ssh/id": b"x"}, "keys or settings"),
+    ({"a.txt": b"x", "proj/.git/config": b"x"}, "keys or settings"),
+    ({"a.txt": b"x", "setup.exe": b"x"}, "an archive or a program"),
+    ({"a.txt": b"x", "inner.zip": b"x"}, "an archive or a program"),
+    ({"a.txt": b"x", "../evil.txt": b"x"}, "not a plain relative path"),
+    ({"a.txt": b"x", "run.sh": b"-----BEGIN RSA PRIVATE KEY-----\nabc"}, "contains a private key"),
+])
+def test_a_zip_holding_credentials_programs_or_nested_archives_is_refused(ws, entries, message):
+    path = _zip(ws, "bad.zip", entries)
+    with pytest.raises(access.DiscordError, match=f"the archive bad.zip is not sent: .*{message}"):
+        access.approval_request({"action": "send", "channel": DM1, "text": "x", "files": [str(path)]}, ids=ids())
+    assert list(access._outbox().iterdir()) == []
+
+
+def test_a_zip_that_is_not_a_zip_is_refused_and_other_formats_are_left_alone(ws):
+    (ws / "fake.zip").write_bytes(b"not an archive at all")
+    with pytest.raises(access.DiscordError, match="not a zip archive"):
+        access.approval_request({"action": "send", "channel": DM1, "text": "x", "files": [str(ws / "fake.zip")]},
+                                ids=ids())
+    (ws / "data.7z").write_bytes(b"7z\xbc\xaf\x27\x1c" + b"\x00" * 64)   # cannot be read here: as before
+    card = approve_and_bind({"action": "send", "channel": DM1, "text": "x", "files": [str(ws / "data.7z")]},
+                            call="c9")[0]
+    assert "data.7z (" in card and "files inside" not in card
 
 
 def _recording_engine(monkeypatch):

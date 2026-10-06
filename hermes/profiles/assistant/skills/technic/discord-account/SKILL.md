@@ -134,6 +134,13 @@ job; schedule a reminder instead.
    ask. What is sent is the copy taken when the card was shown, so a file
    edited afterwards needs a new send. Credentials, keys and databases are
    refused; never work around that.
+   **Archives:** a `.zip`, `.tar`, `.tar.gz`, `.tar.bz2` or `.tar.xz` is
+   opened and checked entry by entry (at most 500 files, 500 MB unpacked) and
+   goes only if it holds no credentials, keys, databases, programs, other
+   archives, encrypted entries or links; scripts inside are fine. The card
+   says how many files it holds. When one is refused, tell the user which
+   entry caused it; never rename or repack it to get past the check. Other
+   archive formats are not opened and go as the files they are.
 5. **Threads.** A thread id works as the channel. A locked thread is refused;
    sending to an archived one reopens it (the card says so).
 

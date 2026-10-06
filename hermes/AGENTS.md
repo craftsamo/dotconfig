@@ -185,9 +185,9 @@ repository upkeep (Engineer through OpenCode, the Assistant's Admin topic).
   settings under `plugins.entries` are keyed `group/name` too (only
   `plugins.enabled` takes the bare name), so a move renames those keys in every
   profile config; `test_plugin_config_keys.py` checks it.
-- **`plugins/messaging/_shared/` is code, not a plugin.** `signal-access`,
-  `whatsapp-access` and `telegram-access` load `archive_check.py` from it by
-  path, so moving or renaming it breaks all three at import. Never give it a
+- **`plugins/messaging/_shared/` is code, not a plugin.** The four chat
+  plugins load `archive_check.py` from it by path, so moving or renaming it
+  breaks all four at import. Never give it a
   `plugin.yaml` (Hermes would try to load it), and keep each sender's own
   file rules passed in rather than copied there
   ([docs/signal-access.md](docs/signal-access.md)).
