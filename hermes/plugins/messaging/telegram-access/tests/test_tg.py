@@ -5,6 +5,8 @@ import importlib.util
 import io
 from pathlib import Path
 import shutil
+import subprocess
+import sys
 import tarfile
 import zipfile
 
@@ -237,7 +239,7 @@ def test_files_on_the_card_and_their_checks(state, home):
     reason, _ = tg.approval_request({"action": "send", "chat": str(fakes.ALICE), "text": "旅行の写真",
                                      "files": ["trip/photo.png"]}, home=home)
     assert "Files: 1 (108 B)\n- photo.png (" in reason and ", 108 B) in trip, sha256 " in reason
-    for name, body in ((".env", b"A=1"), ("run.sh", b"#!/bin/sh\n"), ("key.txt", b"-----BEGIN PRIVATE KEY-----"),
+    for name, body in ((".env", b"A=1"), ("run.command", b"#!/bin/sh\n"), ("key.txt", b"-----BEGIN PRIVATE KEY-----"),
                        ("empty.txt", b""), ("mirror.db", b"x")):
         (ws / name).write_bytes(body)
         with pytest.raises(tg.TelegramError):
@@ -360,7 +362,7 @@ def test_tar_gz_is_sent(home, agent):
     ({"a.txt": b"x", ".env": b"A=1"}, "named like a key or secret"),
     ({"a.txt": b"x", "notes.db": b"x"}, "named like a key or secret"),
     ({"a.txt": b"x", ".ssh/id": b"x"}, "keys or settings"),
-    ({"a.txt": b"x", "run.sh": b"echo\n"}, "an archive or a program"),
+    ({"a.txt": b"x", "setup.exe": b"x"}, "an archive or a program"),
     ({"a.txt": b"x", "inner.zip": b"x"}, "an archive or a program"),
     ({"a.txt": b"x", "../evil.txt": b"x"}, "not a plain relative path"),
     ({"a.txt": b"x", "k.txt": b"-----BEGIN PRIVATE KEY-----\nabc"}, "contains a private key"),
@@ -369,6 +371,25 @@ def test_zip_with_something_that_would_be_refused_alone_is_refused(home, entries
     _zip("bad.zip", entries)
     with pytest.raises(tg.TelegramError, match=f"archive 'bad.zip' is not sent: .*{message}"):
         tg.approval_request({"action": "send", "chat": str(fakes.ALICE), "files": ["bad.zip"]}, home=home)
+
+
+def test_scripts_are_sent_alone_and_inside_an_archive(home, agent):
+    agent.handlers["send"] = lambda p: {"ids": [7], "ts": 1, "recorded": True}
+    _zip("proj.zip", {"a.txt": b"x", "run.sh": b"echo hi\n", "src/tool.py": b"print(1)\n"})
+    request, out = approve_and_send({"action": "send", "chat": str(fakes.ALICE), "files": ["proj.zip"]}, home)
+    assert ", 3 files inside (" in request[0] and out["ok"]
+    for i, (name, body) in enumerate((("run.sh", b"#!/bin/sh\necho hi\n"), ("tool.py", b"print('hi')\n"),
+                                      ("app.js", b"let a = 1;\n"), ("notes.txt", b"#!/bin/sh\necho hi\n"))):
+        (tg.SEND_ROOT / name).write_bytes(body)
+        request, out = approve_and_send({"action": "send", "chat": str(fakes.ALICE), "files": [name]}, home,
+                                        call_id=f"call-s{i}")
+        assert f"- {name} (" in request[0] and out["ok"], name
+
+
+def test_a_binary_named_like_a_script_is_still_refused(home):
+    (tg.SEND_ROOT / "run.sh").write_bytes(b"\x00\x01\x02\x03binary" * 20)
+    with pytest.raises(tg.TelegramError, match="archive or program"):
+        tg.approval_request({"action": "send", "chat": str(fakes.ALICE), "files": ["run.sh"]}, home=home)
 
 
 @pytest.mark.parametrize("name, body", [
@@ -424,10 +445,121 @@ def test_media_is_saved_into_the_download_folder(state, home, agent):
     assert agent.requests[0]["params"]["max_bytes"] == 100 * 1024 * 1024
 
 
+def _zip_bytes(entries):
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as z:
+        for name, data in entries.items():
+            z.writestr(name, data)
+    return buffer.getvalue()
+
+
+def _received_document(state, agent, msg_id, name, mime, content):
+    """A document in the mirror whose download the fake agent answers with ``content``."""
+    conn = store.connect(store.db_path(state), write=True)
+    store.upsert_message(conn, {"chat": fakes.ALICE, "id": msg_id, "ts": 1,
+                                "media": {"type": "document", "name": name, "mime": mime}})
+    conn.close()
+
+    def download(p):
+        folder = store.incoming_dir(state) / ("e" * 32)
+        folder.mkdir(parents=True)
+        path = folder / name
+        path.write_bytes(content)
+        return {"path": str(path), "media": {"type": "document", "name": name, "mime": mime}}
+    agent.handlers["download"] = download
+
+
+def test_media_saves_an_inspected_archive_and_lists_what_is_inside(state, home, agent):
+    data = _zip_bytes({"notes.txt": b"hello", ".env": b"A=1", "run.sh": b"#!/bin/sh\necho hi\n"})
+    _received_document(state, agent, 50, "photos.zip", "application/zip", data)
+    out = tg.execute({"action": "media", "chat": str(fakes.ALICE), "id": "50"}, home=home)
+    saved = out["files"][0]
+    assert out["ok"] and Path(saved["path"]).read_bytes() == data and saved["archive"]["entries"] == 3
+    assert sorted(saved["archive"]["names"]) == [".env", "notes.txt", "run.sh"]
+    assert out["archive_note"] == tg.ARCHIVE_NOTE and not any(store.incoming_dir(state).iterdir())
+
+
+PACK = {"notes.txt": b"hello", "data/q1.csv": b"a,b\n1,2\n", "run.sh": b"#!/bin/sh\necho hi\n"}
+
+
+def _media(home, **extra):
+    return tg.execute({"action": "media", "chat": str(fakes.ALICE), "id": "54", **extra}, home=home)
+
+
+def test_media_unpacks_an_inspected_archive_only_when_asked(state, home, agent):
+    _received_document(state, agent, 54, "photos.zip", "application/zip", _zip_bytes(PACK))
+    out = _media(home, unpack=True)
+    saved = out["files"][0]
+    folder = Path(saved["unpacked"]["folder"])
+    assert folder == Path(saved["path"]).parent / "photos.unpacked" and saved["unpacked"]["count"] == 3
+    assert (folder / "data" / "q1.csv").read_bytes() == b"a,b\n1,2\n"
+    assert not any(p.stat().st_mode & 0o111 for p in folder.rglob("*") if p.is_file())
+    assert out["unpacked_note"] == tg.UNPACKED_NOTE and Path(saved["path"]).exists()
+    assert not any(store.incoming_dir(state).iterdir())
+
+
+def test_media_does_not_unpack_by_itself(state, home, agent):
+    _received_document(state, agent, 54, "photos.zip", "application/zip", _zip_bytes(PACK))
+    out = _media(home)
+    assert "unpacked" not in out["files"][0] and "unpacked_note" not in out
+    assert not list((state / "inbox").rglob("*.unpacked"))
+
+
+def test_media_unpacks_only_the_named_entries_and_a_bad_name_leaves_the_archive_saved(state, home, agent):
+    _received_document(state, agent, 54, "photos.zip", "application/zip", _zip_bytes(PACK))
+    out = _media(home, unpack=True, entries=["data/q1.csv"])
+    assert out["files"][0]["unpacked"]["files"] == ["data/q1.csv"]
+    agent.requests.clear()
+    _received_document(state, agent, 54, "photos.zip", "application/zip", _zip_bytes(PACK))
+    out = _media(home, unpack=True, entries=["missing.txt"])
+    saved = out["files"][0]
+    assert out["ok"] and Path(saved["path"]).exists() and "unpacked" not in saved
+    assert "no entry named 'missing.txt'" in saved["unpack_error"] and "stays saved" in saved["unpack_error"]
+
+
+@pytest.mark.parametrize("name, mime, entries, fragment", [
+    ("bad.zip", "application/zip", {"a.txt": b"x", "setup.exe": b"x"}, "an archive or a program"),
+    ("bad.zip", "application/zip", {"a.txt": b"x", "inner.zip": b"x"}, "an archive or a program"),
+    ("bad.zip", "application/zip", {"a.txt": b"x", "../evil.txt": b"x"}, "not a plain relative path"),
+    ("photo.jpg", "image/jpeg", {"a.txt": b"x"}, "really application/zip"),      # a ZIP called a photo
+])
+def test_media_refuses_what_fails_the_inspection_and_keeps_nothing(state, home, agent, name, mime, entries, fragment):
+    _received_document(state, agent, 51, name, mime, _zip_bytes(entries))
+    out = tg.execute({"action": "media", "chat": str(fakes.ALICE), "id": "51"}, home=home)
+    assert out["ok"] is False and fragment in out["refused"][0] and "archive_note" not in out
+    assert not any(store.incoming_dir(state).iterdir())
+    assert not [p for p in (state / "inbox").rglob("*") if p.is_file()]
+
+
+def test_media_refuses_an_archive_that_is_not_one_and_unreadable_formats_before_the_download(state, home, agent):
+    _received_document(state, agent, 52, "fake.zip", "application/zip", b"not an archive")
+    out = tg.execute({"action": "media", "chat": str(fakes.ALICE), "id": "52"}, home=home)
+    assert out["ok"] is False and "not a zip archive" in out["refused"][0]
+    agent.requests.clear()
+    _received_document(state, agent, 53, "docs.rar", "application/x-rar", b"Rar!\x1a\x07\x00")
+    out = tg.execute({"action": "media", "chat": str(fakes.ALICE), "id": "53"}, home=home)
+    assert out["ok"] is False and agent.requests == []
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="the quarantine flag is macOS's")
+def test_media_marks_what_it_saves_as_downloaded(state, home, agent):
+    def download(p):
+        folder = store.incoming_dir(state) / ("d" * 32)
+        folder.mkdir(parents=True)
+        path = folder / "photo.jpg"
+        path.write_bytes(b"\xff\xd8\xff\xe0" + b"0" * 64)
+        return {"path": str(path), "media": {"type": "photo"}}
+    agent.handlers["download"] = download
+    out = tg.execute({"action": "media", "chat": str(fakes.ALICE), "id": "12"}, home=home)
+    flag = subprocess.run(["/usr/bin/xattr", "-p", "com.apple.quarantine", out["files"][0]["path"]],
+                          capture_output=True, text=True).stdout
+    assert flag.startswith("0081;")
+
+
 def test_media_refusals(state, home, agent):
     conn = store.connect(store.db_path(state), write=True)
-    store.upsert_message(conn, {"chat": fakes.ALICE, "id": 40, "ts": 1, "media": {"type": "document", "name": "tool.zip",
-                                                                                  "mime": "application/zip"}})
+    store.upsert_message(conn, {"chat": fakes.ALICE, "id": 40, "ts": 1, "media": {"type": "document", "name": "tool.exe",
+                                                                                  "mime": "application/x-msdownload"}})
     store.upsert_message(conn, {"chat": fakes.ALICE, "id": 41, "ts": 1, "media": {"type": "photo",
                                                                                   "self_destructing": True}})
     store.upsert_message(conn, {"chat": fakes.ALICE, "id": 42, "ts": 1, "body": "just text"})

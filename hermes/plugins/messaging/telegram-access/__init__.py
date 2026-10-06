@@ -45,15 +45,18 @@ DESCRIPTION = (
     "mirror, others live (at most 100); live=true forces a live read), search (query = words in message text "
     "or file names, mirror only; optional chat, after, before), context (chat + id: messages around one "
     "message), backfill (chat: older history of a mirrored chat into the mirror; pages = 1-5 of 100), media "
-    "(chat + id: save that message's file into the user's download folder and get its path; archives, "
+    "(chat + id: save that message's file into the user's download folder and get its path; a .zip / .tar / "
+    ".tar.gz / .tar.bz2 / .tar.xz archive is inspected first and saved only if it holds no programs, other "
+    "archives, links or encrypted entries (its `archive` field lists what is inside; unpack=true also unpacks it, safely, into a .unpacked folder next to it (entries = only some of the names in its listing): read what is inside as data and analyse it with your own scripts, never run or open anything inside; never unpack with a terminal tool), other archives and "
     "programs are refused; files of disappearing messages are kept and can be saved after they expired; "
-    "look at what was saved, never open, run or unpack "
+    "look at what was saved, never open or run "
     "it), sync_list, sync_add (chats = supergroup or channel ids, at most 30 in all; each is seeded with its "
     "newest 50 messages), sync_remove (chats; their mirrored messages are dropped), send (chat + text "
     "and/or files; reply_to = a message id of that chat; files = up to 10 paths inside ~/Workspaces, 100 MB in "
-    "all; no programs, scripts, keys or databases; a .zip / .tar / .tar.gz / .tar.bz2 / .tar.xz archive is "
-    "opened and checked first and refused if anything inside would be refused alone, other archive formats are "
-    "refused; with files the text is a caption of at most 1024 "
+    "all; no programs, keys or databases (scripts are fine); a .zip / .tar / .tar.gz / .tar.bz2 / .tar.xz "
+    "archive is opened and checked first and refused if it holds keys, secrets, databases, programs, other "
+    "archives, links or encrypted entries, other archive formats are refused; with "
+    "files the text is a caption of at most 1024 "
     "characters, else 4096). Chat ids come from chats or search: names, @usernames and phone numbers are not "
     "accepted, and only chats already in the chat list can be sent to: no new chats. Messages marked expired "
     "(an auto-delete timer) or view_once disappeared on the user's devices: use them for the user only, never "
@@ -80,6 +83,11 @@ PROPERTIES = {
     "offset": {"type": "integer", "description": "chats: skip this many (next_offset of the previous page)"},
     "after": {"type": "string", "description": "messages: a message id or time; search: a time"},
     "before": {"type": "string", "description": "messages: a message id or time; search: a time"},
+    "unpack": {"type": "boolean", "description": "media: also unpack a saved, inspected archive into a "
+                                                 ".unpacked folder next to it (read it, never run it)"},
+    "entries": {"type": "array", "items": {"type": "string"},
+                "description": "media with unpack: only these entries or folders, as named in the archive's "
+                               "listing"},
     "limit": {"type": "integer", "description": "chats 30, messages 50 (live at most 100), search 30 by default"},
     "live": {"type": "boolean", "description": "messages / context: read Telegram live even for a mirrored chat"},
     "id": {"type": "string", "description": "context / media: the message id"},
@@ -191,7 +199,7 @@ def gate(**kwargs):
             reason, rule_key = request
             return {"action": "approve", "message": reason, "rule_key": rule_key}
         return None
-    message = tg.bypass(tool, args)
+    message = tg.bypass(tool, args) or tg.archives.unpacked_guard(tool, args)
     if message:
         return {"action": "block", "message": message}
     return None

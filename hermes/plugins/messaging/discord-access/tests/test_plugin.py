@@ -79,6 +79,15 @@ def test_gate_blocks_invalid_calls_without_asking(args):
     assert plugin.gate(tool_name="discord_account", args=args)["action"] == "block"
 
 
+def test_gate_stops_running_what_was_unpacked_but_not_reading_it():
+    folder = "~/Workspaces/.inbox/discord/chat-1/pack.unpacked"
+    for command in (f"bash {folder}/run.sh", f"cd {folder} && ./run.sh", f"chmod +x {folder}/run.sh"):
+        directive = plugin.gate(tool_name="terminal", args={"command": command})
+        assert directive == {"action": "block", "message": plugin.access.archives.RUN_MESSAGE}, command
+    for command in (f"cat {folder}/notes.txt", f"python analyze.py {folder}/data.csv", f"ls {folder}"):
+        assert plugin.gate(tool_name="terminal", args={"command": command}) is None, command
+
+
 def test_gate_blocks_ways_around_the_tool():
     directive = plugin.gate(tool_name="terminal", args={"command": "secret get DISCORD_USER_TOKEN -p discord-user"})
     assert directive == {"action": "block", "message": plugin.access.BYPASS_MESSAGE}

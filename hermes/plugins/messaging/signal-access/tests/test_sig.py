@@ -4,6 +4,8 @@ import json
 import os
 from pathlib import Path
 import shutil
+import subprocess
+import sys
 import struct
 import tarfile
 import zipfile
@@ -199,11 +201,113 @@ def test_media_copies_files_and_refuses_programs(env, tmp_path, monkeypatch):
     assert out["ok"] is True and Path(out["files"][0]["path"]).read_bytes() == PNG
     conn = store.connect(store.db_path(env["state"]), write=True)
     store.ingest(conn, fakes.envelope(data={"timestamp": 1790000003000, "attachments": [
-        {"contentType": "application/zip", "filename": "invoice.zip", "id": "z.zip"},
+        {"contentType": "application/x-msdownload", "filename": "invoice.exe", "id": "z.exe"},
         {"contentType": "image/jpeg", "filename": "gone.jpg", "id": "gone.jpg"}]}), me=ME)
     conn.close()
     out = sig.execute({"action": "media", "chat": ALICE, "id": "1790000003000"})
     assert out["ok"] is False and out["refused"] and out["missing"] == ["gone.jpg"]
+
+
+def _received(env, monkeypatch, attachments, files, **extra):
+    """A message with attachments, whose files signal-cli 'downloaded' into its store."""
+    monkeypatch.setattr(sig, "download_dir", lambda home: env["base"] / "downloads")
+    folder = env["state"] / "signal-cli" / "attachments"
+    for file_id, data in files.items():
+        (folder / file_id).write_bytes(data)
+    conn = store.connect(store.db_path(env["state"]), write=True)
+    store.ingest(conn, fakes.envelope(data={"timestamp": 1790000030000, "attachments": attachments}), me=ME)
+    conn.close()
+    return sig.execute({"action": "media", "chat": ALICE, "id": "1790000030000", **extra})
+
+
+def _zip_bytes(entries):
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as z:
+        for name, data in entries.items():
+            z.writestr(name, data)
+    return buffer.getvalue()
+
+
+def test_media_saves_an_inspected_archive_and_lists_what_is_inside(env, monkeypatch):
+    data = _zip_bytes({"notes.txt": b"hello", ".env": b"A=1", "run.sh": b"#!/bin/sh\necho hi\n"})
+    out = _received(env, monkeypatch, [{"contentType": "application/zip", "filename": "photos.zip", "id": "p.zip"}],
+                    {"p.zip": data})
+    assert out["ok"] is True and "refused" not in out
+    saved = out["files"][0]
+    assert Path(saved["path"]).read_bytes() == data and saved["archive"]["entries"] == 3
+    assert sorted(saved["archive"]["names"]) == [".env", "notes.txt", "run.sh"] and saved["archive"]["more"] == 0
+    assert out["archive_note"] == sig.ARCHIVE_NOTE and "unpack" in out["note"]
+
+
+PHOTOS = [{"contentType": "application/zip", "filename": "photos.zip", "id": "p.zip"}]
+PACK = {"notes.txt": b"hello", "data/q1.csv": b"a,b\n1,2\n", "run.sh": b"#!/bin/sh\necho hi\n"}
+
+
+def test_media_unpacks_an_inspected_archive_only_when_asked(env, monkeypatch):
+    out = _received(env, monkeypatch, PHOTOS, {"p.zip": _zip_bytes(PACK)}, unpack=True)
+    saved = out["files"][0]
+    folder = Path(saved["unpacked"]["folder"])
+    assert folder == Path(saved["path"]).parent / "photos.unpacked" and saved["unpacked"]["count"] == 3
+    assert (folder / "data" / "q1.csv").read_bytes() == b"a,b\n1,2\n"
+    assert not any(p.stat().st_mode & 0o111 for p in folder.rglob("*") if p.is_file())
+    assert out["unpacked_note"] == sig.UNPACKED_NOTE and Path(saved["path"]).exists()
+
+
+def test_media_does_not_unpack_by_itself(env, monkeypatch):
+    out = _received(env, monkeypatch, PHOTOS, {"p.zip": _zip_bytes(PACK)})
+    assert "unpacked" not in out["files"][0] and "unpacked_note" not in out
+    assert not list((env["base"] / "downloads").rglob("*.unpacked"))
+
+
+def test_media_unpacks_only_the_named_entries(env, monkeypatch):
+    out = _received(env, monkeypatch, PHOTOS, {"p.zip": _zip_bytes(PACK)}, unpack=True, entries=["data"])
+    unpacked = out["files"][0]["unpacked"]
+    assert unpacked["files"] == ["data/q1.csv"] and not (Path(unpacked["folder"]) / "notes.txt").exists()
+
+
+@pytest.mark.parametrize("entries", [["missing.txt"], [], [1], "notes.txt\n\n"])
+def test_a_bad_entries_list_leaves_the_archive_saved_and_says_why(env, monkeypatch, entries):
+    out = _received(env, monkeypatch, PHOTOS, {"p.zip": _zip_bytes(PACK)}, unpack=True, entries=entries)
+    saved = out["files"][0]
+    if entries == "notes.txt\n\n":                      # a single name is accepted, after trimming
+        assert saved["unpacked"]["files"] == ["notes.txt"]
+        return
+    assert out["ok"] is True and Path(saved["path"]).exists() and "unpacked" not in saved
+    assert "stays saved" in saved["unpack_error"] or "entries must be" in saved["unpack_error"]
+    assert not list((env["base"] / "downloads").rglob("*.unpacked"))
+
+
+@pytest.mark.parametrize("entries, fragment", [
+    ({"a.txt": b"x", "setup.exe": b"x"}, "an archive or a program"),
+    ({"a.txt": b"x", "inner.zip": b"x"}, "an archive or a program"),
+    ({"a.txt": b"x", "../evil.txt": b"x"}, "not a plain relative path"),
+])
+def test_media_refuses_an_archive_that_fails_the_inspection_and_keeps_nothing(env, monkeypatch, entries, fragment):
+    out = _received(env, monkeypatch, [{"contentType": "application/zip", "filename": "bad.zip", "id": "b.zip"}],
+                    {"b.zip": _zip_bytes(entries)})
+    assert out["ok"] is False and fragment in out["refused"][0] and "archive_note" not in out
+    assert not list((env["base"] / "downloads").rglob("*.zip"))
+
+
+def test_media_refuses_an_archive_that_does_not_say_so_and_other_formats(env, monkeypatch):
+    zipped = _zip_bytes({"a.txt": b"x"})
+    out = _received(env, monkeypatch, [
+        {"contentType": "image/jpeg", "filename": "photo.jpg", "id": "j.jpg"},        # a ZIP called a photo
+        {"contentType": "application/x-rar", "filename": "docs.rar", "id": "d.rar"},
+        {"contentType": "application/zip", "filename": "fake.zip", "id": "f.zip"}],   # not a ZIP at all
+        {"j.jpg": zipped, "d.rar": b"Rar!\x1a\x07\x00" + b"\x00" * 30, "f.zip": b"not an archive"})
+    assert out["ok"] is False and len(out["refused"]) == 3
+    assert "really application/zip" in out["refused"][0] and "not a zip archive" in out["refused"][2]
+    assert not [p for p in (env["base"] / "downloads").rglob("*") if p.is_file()]
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="the quarantine flag is macOS's")
+def test_media_marks_what_it_saves_as_downloaded(env, monkeypatch):
+    out = _received(env, monkeypatch, [{"contentType": "image/png", "filename": "pic.png", "id": "pic2.png"}],
+                    {"pic2.png": PNG})
+    flag = subprocess.run(["/usr/bin/xattr", "-p", "com.apple.quarantine", out["files"][0]["path"]],
+                          capture_output=True, text=True).stdout
+    assert flag.startswith("0081;")
 
 
 def test_check_learns_numbers(env, daemon):
@@ -380,7 +484,7 @@ def test_tar_gz_is_sent(env, daemon):
 @pytest.mark.parametrize("entries, message", [
     ({"a.png": PNG, ".env": b"A=1"}, "named like a key or secret"),
     ({"a.png": PNG, "proj/.ssh/id": b"x"}, "keys or settings"),
-    ({"a.png": PNG, "run.sh": b"echo hi\n"}, "an archive or a program"),
+    ({"a.png": PNG, "setup.exe": b"x"}, "an archive or a program"),
     ({"a.png": PNG, "inner.zip": b"x"}, "an archive or a program"),
     ({"a.png": PNG, "../evil.txt": b"x"}, "not a plain relative path"),
     ({"a.png": PNG, "n.txt": b"-----BEGIN RSA PRIVATE KEY-----\nabc"}, "contains a private key"),
@@ -390,6 +494,17 @@ def test_zip_with_something_that_would_be_refused_alone_is_refused(env, daemon, 
     with pytest.raises(sig.SignalError, match=f"archive 'bad.zip' is not sent: .*{message}"):
         sig.approval_request({"action": "send", "chat": ALICE, "files": ["bad.zip"]})
     assert daemon.requests == []
+
+
+def test_scripts_are_sent_alone_and_inside_an_archive(env, daemon):
+    make_zip(env, "proj.zip", {"a.png": PNG, "run.sh": b"echo hi\n", "src/tool.py": b"print(1)\n"})
+    (card, _), out = approve_and_send({"action": "send", "chat": ALICE, "files": ["proj.zip"]})
+    assert ", 3 files inside (" in card and out["ok"] is True
+    for name, body in (("run.sh", b"#!/bin/sh\necho hi\n"), ("tool.py", b"print('hi')\n"), ("app.js", b"let a = 1;\n"),
+                       ("job.rb", b"puts 1\n"), ("notes.txt", b"#!/bin/sh\necho hi\n")):
+        put(env, name, body)
+        (card, _), out = approve_and_send({"action": "send", "chat": ALICE, "files": [name]})
+        assert f"- {name} (" in card and out["ok"] is True, name
 
 
 @pytest.mark.parametrize("name, data", [
@@ -415,10 +530,6 @@ def test_zip_changed_after_the_card_is_not_sent(env, daemon):
     out = sig.execute(args)
     assert out["ok"] is False and "changed" in out["error"] and daemon.requests == []
     assert path.exists()
-
-
-def test_received_archives_are_still_never_saved(env):
-    assert sig.RISKY_FILES.search("invoice.zip") and sig.RISKY_MIME.search("application/zip")
 
 
 def test_changed_file_after_approval_is_not_sent(env, daemon):
@@ -474,15 +585,15 @@ def test_files_outside_the_workspace_are_refused(env):
     (".ssh/notes.png", PNG, "keys or settings"),
     ("proj/.env", b"A=1", "keys or settings"),
     ("proj/server.pem", b"x", "keys or settings"),
-    ("proj/tool.sh", b"#!/bin/sh\necho hi\n", "archive or program"),
+    ("proj/run.sh", b"\x00\x01\x02\x03binary" * 20, "archive or program"),   # not a script, whatever the name
     ("proj/photo.jpg", b"PK\x03\x04" + b"\x00" * 64, "archive or program"),
     ("proj/notes.txt", b"-----BEGIN OPENSSH PRIVATE KEY-----\nabc", "private key"),
     ("proj/late.txt", b"a" * 200000 + b"-----BEGIN RSA PRIVATE KEY-----\nabc", "private key"),
     ("proj/.envrc", b"export A=1", "keys or settings"),
     ("proj/credentials-backup.json", b"{}", "keys or settings"),
     ("proj/secrets_backup.txt", b"x", "keys or settings"),
-    ("proj/tool.py", b"print('hi')\n", "archive or program"),
-    ("proj/run.rb", b"puts 1\n", "archive or program"),
+    ("proj/tool.command", b"#!/bin/sh\necho hi\n", "archive or program"),
+    ("proj/Tool.app", b"x", "archive or program"),
     ("proj/empty.png", b"", "empty"),
 ])
 def test_dangerous_files_are_refused(env, relative, data, message):

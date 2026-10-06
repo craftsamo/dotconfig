@@ -150,8 +150,9 @@ def test_files_outside_the_workspace_are_refused(ws, fake, tmp_path):
     ("proj/.env", b"A=1", "keys or settings"),
     ("proj/server.pem", b"x", "keys or settings"),
     ("proj/credentials-backup.json", b"{}", "keys or settings"),
-    ("proj/tool.sh", b"#!/bin/sh\necho hi\n", "archive or program"),
-    ("proj/run.py", b"print(1)\n", "archive or program"),
+    ("proj/run.sh", b"\x00\x01\x02\x03binary" * 20, "archive or program"),   # not a script, whatever the name
+    ("proj/tool.command", b"#!/bin/sh\necho hi\n", "archive or program"),
+    ("proj/Tool.app", b"x", "archive or program"),
     ("proj/photo.jpg", b"PK\x03\x04" + b"\x00" * 64, "archive or program"),
     ("proj/late.txt", b"a" * 1_500_000 + b"-----BEGIN RSA PRIVATE KEY-----\nabc", "private key"),
     ("proj/empty.png", b"", "empty"),
@@ -197,7 +198,7 @@ def test_tar_gz_is_sent(ws, fake):
 @pytest.mark.parametrize("entries, message", [
     ({"a.png": PNG, ".env": b"A=1"}, "named like a key or secret"),
     ({"a.png": PNG, "proj/.ssh/id": b"x"}, "keys or settings"),
-    ({"a.png": PNG, "run.sh": b"echo hi\n"}, "an archive or a program"),
+    ({"a.png": PNG, "setup.exe": b"x"}, "an archive or a program"),
     ({"a.png": PNG, "inner.zip": b"x"}, "an archive or a program"),
     ({"a.png": PNG, "../evil.txt": b"x"}, "not a plain relative path"),
     ({"a.png": PNG, "n.txt": b"-----BEGIN RSA PRIVATE KEY-----\nabc"}, "contains a private key"),
@@ -207,6 +208,17 @@ def test_zip_with_something_that_would_be_refused_alone_is_refused(ws, fake, ent
     with pytest.raises(wa.WhatsAppError, match=f"archive 'bad.zip' is not sent: .*{message}"):
         wa.approval_request(send_args(files=["bad.zip"]), ids=IDS)
     assert list(wa.outbox().iterdir()) == [] and fake.args_of(["send", "file"]) == []
+
+
+def test_scripts_are_sent_alone_and_inside_an_archive(ws, fake):
+    make_zip(ws, "proj.zip", {"a.png": PNG, "run.sh": b"echo hi\n", "src/tool.py": b"print(1)\n"})
+    card, _, args = approved(send_args(files=["proj.zip"]))
+    assert ", 3 files inside (" in card and wa.execute(args)["ok"] is True
+    for i, (name, body) in enumerate((("run.sh", b"#!/bin/sh\necho hi\n"), ("tool.py", b"print('hi')\n"),
+                                      ("app.js", b"let a = 1;\n"), ("notes.txt", b"#!/bin/sh\necho hi\n"))):
+        put(ws, name, body)
+        card, _, args = approved(send_args(files=[name]), ids={**IDS, "tool_call_id": f"call-s{i}"})
+        assert f"- {name} (" in card and wa.execute(args)["ok"] is True, name
 
 
 @pytest.mark.parametrize("name, data", [

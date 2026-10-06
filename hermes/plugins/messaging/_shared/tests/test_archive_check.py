@@ -18,7 +18,7 @@ spec.loader.exec_module(ac)
 
 DENY_PARTS = {".ssh", ".git", ".config"}
 DENY_NAMES = re.compile(r"^(?:\.env.*|.*secret.*|.*\.(?:pem|key))$", re.IGNORECASE)
-RISKY = re.compile(r"\.(?:zip|rar|7z|tar|gz|tgz|exe|jar|sh|py|js|app)$", re.IGNORECASE)
+RISKY = re.compile(r"\.(?:zip|rar|7z|tar|gz|tgz|exe|jar|sh|py|js|mjs|bat|rb|ps1|command|app)$", re.IGNORECASE)
 RULES = dict(deny_parts=DENY_PARTS, deny_names=DENY_NAMES, risky_files=RISKY)
 
 
@@ -116,6 +116,84 @@ def test_zip_entries_that_would_be_refused_alone(tmp_path, entries, fragment):
 ])
 def test_entries_given_away_by_their_content(tmp_path, data, fragment):
     refused(make_zip(tmp_path / "x.zip", {**GOOD, "innocent.txt": data}), fragment)
+
+
+def vet_scripts(path):
+    return ac.vet(path, path.name, **RULES, allow_scripts=True)
+
+
+def test_scripts_inside_pass_when_the_caller_allows_them(tmp_path):
+    entries = {**GOOD, "run.sh": b"echo hi\n", "src/tool.py": b"print(1)\n", "web/app.js": b"1;\n",
+               "bin/launch": b"#!/bin/sh\necho hi\n", "win/go.bat": b"@echo off\n"}
+    assert vet_scripts(make_zip(tmp_path / "x.zip", entries))["entries"] == len(entries)
+    assert vet_scripts(make_tar(tmp_path / "x.tar.gz", entries, "w:gz"))["entries"] == len(entries)
+
+
+@pytest.mark.parametrize("entries, fragment", [
+    ({"setup.exe": b"x"}, "an archive or a program"),
+    ({"lib.jar": b"x"}, "an archive or a program"),
+    ({"Tool.app": b"x"}, "an archive or a program"),
+    ({"inner.zip": b"x"}, "an archive or a program"),
+    ({".env": b"A=1"}, "named like a key or secret"),
+    ({".ssh/id": b"x"}, "keys or settings"),
+    ({"../evil.sh": b"echo\n"}, "not a plain relative path"),
+    ({"tool.py": b"-----BEGIN RSA PRIVATE KEY-----\nabc"}, "contains a private key"),
+    ({"innocent.txt": b"\x7fELF\x02\x01\x01" + b"\x00" * 60}, "a program"),
+    ({"innocent.txt": b"\xcf\xfa\xed\xfe" + b"\x00" * 60}, "a program"),
+    ({"innocent.txt": b"PK\x03\x04" + b"\x00" * 30}, "an archive inside the archive"),
+])
+def test_allowing_scripts_does_not_allow_anything_else(tmp_path, entries, fragment):
+    path = make_zip(tmp_path / "x.zip", {**GOOD, "run.sh": b"echo hi\n", **entries})
+    with pytest.raises(ac.ArchiveRefused) as err:
+        vet_scripts(path)
+    assert fragment in str(err.value)
+
+
+RISKY_MIME = re.compile(r"zip|tar|gzip|x-executable|x-mach|x-sharedlib|x-elf|msdownload|msdos|javascript|x-shellscript"
+                        r"|x-script|x-bat", re.IGNORECASE)
+
+
+@pytest.mark.parametrize("name, kind", [
+    ("run.sh", "text/x-shellscript"), ("tool.py", "text/x-script.python"), ("app.js", "text/javascript"),
+    ("app.mjs", "application/javascript"), ("go.bat", "text/x-msdos-batch"), ("job.rb", "text/x-ruby"),
+    ("notes.txt", "text/x-shellscript"), ("deploy.ps1", "text/plain"), ("readme.md", "text/plain"),
+])
+def test_a_source_script_alone_is_not_refused(name, kind):
+    assert ac.refused_alone(name, kind, RISKY, RISKY_MIME) is False
+
+
+@pytest.mark.parametrize("name, kind", [
+    ("run.sh", "application/octet-stream"),          # a script's name over a binary's content
+    ("run.sh", "application/x-mach-binary"),
+    ("run.sh", "application/x-executable"),
+    ("notes.txt", "application/x-executable"),
+    ("setup.exe", "application/x-dosexec"),
+    ("lib.jar", "application/zip"),
+    ("inner.zip", "application/zip"),
+    ("data.tar", "application/x-tar"),
+    ("Tool.app", "text/x-shellscript"),              # a bundle is not a source script
+    ("go.command", "text/x-shellscript"),
+])
+def test_programs_installers_and_archives_alone_are_refused(name, kind):
+    assert ac.refused_alone(name, kind, RISKY, RISKY_MIME) is True
+
+
+def test_without_a_sniffed_type_only_the_name_is_judged():
+    assert ac.refused_alone("run.sh", None, RISKY, RISKY_MIME) is False
+    assert ac.refused_alone("setup.exe", None, RISKY, RISKY_MIME) is True
+    assert ac.refused_alone("notes.txt", None, RISKY, RISKY_MIME) is False
+
+
+def test_scripts_are_refused_by_default(tmp_path):
+    refused(make_zip(tmp_path / "x.zip", {**GOOD, "run.sh": b"echo hi\n"}), "an archive or a program")
+    refused(make_zip(tmp_path / "y.zip", {**GOOD, "launch": b"#!/bin/sh\n"}), "a script")
+
+
+def test_a_name_rule_that_is_not_anchored_still_applies(tmp_path):
+    rules = dict(deny_parts=DENY_PARTS, deny_names=re.compile(r"\.(?:pem|key)$|^\.env"), risky_files=RISKY)
+    path = make_zip(tmp_path / "x.zip", {**GOOD, "keys/server.pem": b"x"})
+    with pytest.raises(ac.ArchiveRefused, match="named like a key or secret"):
+        ac.vet(path, path.name, **rules)
 
 
 def test_private_key_across_a_read_boundary_is_found(tmp_path):

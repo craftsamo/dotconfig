@@ -73,9 +73,15 @@ WhatsApp synced to the linked device: history before pairing is best-effort.
   folder under `whatsapp_access.download_dir` from the profile's
   `config.yaml` (the Assistant uses `~/Workspaces/.inbox/whatsapp`, so a
   received file can be sent on), else `<HERMES_HOME>/whatsapp-downloads/`,
-  and returns the path. Archives and programs (`.zip`, `.apk`, `.exe`, …) are refused before
-  any download — a file sent unprompted with "open it on your computer" is
-  the known malware pattern. Expired media (HTTP 410) is reported as such:
+  and returns the path. Programs (`.apk`, `.exe`, …) and archive formats that
+  cannot be inspected (`.rar`, `.7z`) are refused before any download — a file
+  sent unprompted with "open it on your computer" is the known malware
+  pattern. A `.zip` or tar archive is downloaded and inspected, and kept only
+  if it passes, and `unpack` unpacks it ([Signal access](./signal-access.md), "Received archives" and
+  "Unpacking"). The
+  downloaded file's content is sniffed with `file --mime-type`, not only the
+  name and the type WhatsApp gave it, so a ZIP called `photo.jpg` is deleted.
+  Expired media (HTTP 410) is reported as such:
   only the phone still has it.
 - **`check`** (up to 20 numbers with country code) asks WhatsApp whether
   each is registered and returns its JID; `null` means WhatsApp did not
@@ -155,16 +161,15 @@ so the quote resolves.
   Refused always: paths through key or settings folders (`.ssh`, `.gnupg`,
   `.aws`, `.config`, `.git`, `.registry`, `.backups`, …), key- and
   secret-like names (`.env*`, `*.pem`, `*.key`, `id_*`, anything naming a
-  credential, secret or password, …), installers and programs, scripts
-  included (by name and by sniffed type), archives other than the ones below,
-  anything with a private key block anywhere in it, empty files. At most 10
+  credential, secret or password, …), installers and programs (by name and by
+  sniffed type), archives other than the ones below, anything with a private
+  key block anywhere in it, empty files; source scripts are fine. At most 10
   files and 100 MB per send. `.zip`, `.tar`, `.tar.gz`, `.tar.bz2` and
   `.tar.xz` archives are read entry by entry on the snapshot copy and sent
-  only if every entry would pass these rules alone, at most 500 entries and
-  500 MB unpacked; the card adds the file count to the archive's line. The
+  only if every entry would pass these rules alone, at most 500 entries
+  and 500 MB unpacked; the card adds the file count to the archive's line. The
   rules and the reasons are in [Signal access](./signal-access.md) (the
-  inspection is shared). Received archives are still never downloaded.
-  WhatsApp carries one file per message, so each file is its own message, in
+  inspection is shared). WhatsApp carries one file per message, so each file is its own message, in
   order; the text becomes the first file's caption (1024 characters at most;
   a longer text is sent on its own first) and `reply_to` quotes from the
   first. WhatsApp drops the caption of an audio message, so a send whose
