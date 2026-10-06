@@ -18,21 +18,31 @@ alongside the curated links and never touch the repo. The `skills` CLI keeps
 its update state in `~/.agents/.skill-lock.json`, which is per-machine and
 stays outside the repo.
 
-`~/.claude/skills` is symlinked to `~/.agents/skills` — Claude Code does not
-read the shared root natively, and `hyperframes skills` uses that path as its
-store, so the bridge must point at the mutable root, never into the repo
-(a repo-pointing bridge once turned every hyperframes link circular).
+Claude Code does not read the shared root natively, so `install.sh` links
+each shared skill into `~/.claude/skills`, which stays a real directory. The
+links point at the mutable root, never into the repo (a repo-pointing bridge
+once turned every hyperframes link circular). Linking the whole directory is
+not an option: Claude Code syncs claude.ai skills into `~/.claude/skills/synced/`,
+and those need the Claude app's own tools, so they would leak into every CLI
+that reads the shared root. `hyperframes skills` installs with `--copy`, so it
+writes a real copy into both directories; `install.sh` leaves real entries in
+`~/.claude/skills` alone. A skill installed only into the shared root reaches
+Claude Code at the next `install.sh` run.
+
+OpenCode V2 still reads `~/.claude/skills` as a compatibility source and has
+no way to exclude it yet (anomalyco/opencode#36990), so
+`opencode/opencode.jsonc` denies the synced skills that cannot work there.
 
 ## Who reads what
 
-| CLI            | Reads `~/.agents/skills` | Own skill dir                       |
-| -------------- | ------------------------ | ----------------------------------- |
-| Codex          | yes (canonical path)     | `~/.codex/skills` (machine-local)   |
-| opencode       | yes                      | `~/.config/opencode/skills`         |
-| GitHub Copilot | yes                      | `~/.copilot/skills` (machine-local) |
-| Grok Build     | yes (AGENTS.md compat)   | `~/.grok/skills`                    |
-| Gemini CLI     | yes (alias)              | `~/.gemini/skills`                  |
-| Claude Code    | **no**                   | `~/.claude/skills` — bridged        |
+| CLI            | Reads `~/.agents/skills` | Own skill dir                         |
+| -------------- | ------------------------ | ------------------------------------- |
+| Codex          | yes (canonical path)     | `~/.codex/skills` (machine-local)     |
+| opencode       | yes                      | `~/.config/opencode/skills`           |
+| GitHub Copilot | yes                      | `~/.copilot/skills` (machine-local)   |
+| Grok Build     | yes (AGENTS.md compat)   | `~/.grok/skills`                      |
+| Gemini CLI     | yes (alias)              | `~/.gemini/skills`                    |
+| Claude Code    | **no**                   | `~/.claude/skills` — linked per skill |
 
 Skill directories must be **flat** — `agents/curated/<name>/SKILL.md`. Codex
 and Claude Code do not descend into nested groups, so a shared skill cannot
