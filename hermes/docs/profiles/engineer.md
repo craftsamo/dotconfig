@@ -87,8 +87,20 @@ restarted under it) and is recorded `interrupted`, resumable by the next
 message on the same conversation.
 
 **Hand-back.** A blocking call (CLI/resident) returns when the run hands back
-— finished, uncertain, or `waiting` on an unanswered permission request — or
-at a bounded wait limit below the caller's own tool deadline. A live caller
+— finished, uncertain, `waiting` on an unanswered permission request, or stuck
+in a provider retry — or at a bounded wait limit below the caller's own tool
+deadline.
+
+**Provider limits.** A provider that refuses (usage or rate limit, overload,
+expired login) makes OpenCode fail the turn at once or retry with backoff,
+possibly until the deadline. A failed turn records `provider_error` (`kind`
+limit / auth / other, model, message) from its last assistant message's error,
+and the error text says what to do. While a run is in a retry, its newest
+assistant message (root or any running subagent's) carries OpenCode's `retry`
+state; the watcher checks every 10 s and records `retrying`. A limit hands back
+at once and anything else from the 3rd attempt, once per retry episode (the
+`<job>.retried` side file records which), so the caller can stop and continue
+with another model instead of waiting out a backoff. A live caller
 (Telegram) gets an immediate reply and a notifier process launched through the
 terminal tool with completion notification; it exits at the next hand-back, and
 `respond` launches the next one.
