@@ -28,7 +28,7 @@ This file does not restate agent behavior. Contracts:
 
 | Topic | Contract |
 | --- | --- |
-| Engineer modes, OpenCode runtime, resident turns, UI evaluators | [docs/profiles/engineer.md](docs/profiles/engineer.md) |
+| Engineer modes, OpenCode runtime, resident turns, UI verification | [docs/profiles/engineer.md](docs/profiles/engineer.md) |
 | `specialist_call` / `specialist_session`, completion, deadlines, work continuity | [docs/profiles/specialist-calls.md](docs/profiles/specialist-calls.md) |
 | Assistant entry routing, creative early delivery, kanban catalog, pinned topics | [docs/profiles/assistant.md](docs/profiles/assistant.md) |
 | Writer v8 leaves, Marketer v8 entries, Researcher/Searcher phases | [writer.md](docs/profiles/writer.md), [marketer.md](docs/profiles/marketer.md), [research.md](docs/profiles/research.md) |
@@ -130,8 +130,7 @@ local/                 # ignored machine-local installs: engine venvs/weights,
 docs/                  # behavior/design contracts (index: PROFILES.md)
 profiles/<name>/       # bots: assistant, engineer, creator, marketer; specialists:
                        #   writer, researcher, searcher; Creator's hands:
-                       #   image-, video-, audio-creator; resident-only UI
-                       #   evaluators: ui-review, ux-persona
+                       #   image-, video-, audio-creator
   config.yaml          # model/fallback + agent.system_prompt (operating contract);
                        #   assistant tracks config.example.yaml instead
   profile.yaml         # routing description (kanban/delegation)
@@ -503,7 +502,6 @@ keeps user keys.
   authorized once per channel with `bin/yaccess`; its hook blocks the
   terminal path around it. Engine: `scripts/youtube-access.sh` (`install` /
   `status`). Behavior: [docs/youtube-access.md](docs/youtube-access.md).
-- **ui-inspection** (`standalone`): `ui_capture` for ui-review / ux-persona.
 - **writing-inspection** (`standalone`): Writer's bounded `writing_inspect`.
 - **kanban-worker-mutation-guard** (`standalone`): stops dispatcher workers
   from creating, linking or releasing Kanban cards outside the Assistant path.
@@ -950,7 +948,6 @@ everyone else is on the free ring with distributed entry points:
 | writer | `firecrawl` | `provider_tier.firecrawl: free` |
 | marketer | `keenable` | `provider_tier.keenable: free` |
 | default | empty (neutral for `--clone`) | `provider_tier.exa: free` — otherwise auto-detect resolves to keyed Exa and spends the assistant's grant |
-| ui-review, ux-persona | no `web` block | — |
 
 `KEENABLE_API_KEY` is not set and not needed — a `free` pin resolves without one.
 
@@ -980,8 +977,7 @@ resident CDP browser. A `BU_CDP_URL` / `BU_CDP_WS` in the **process env** wins
 over everything, silently — it is copied raw from `os.environ`, so under
 multiplex one value pre-empts real-profile browsing for every profile. Never add
 either key to a Keychain layer the gateway launcher evals (`global`, `hermes`).
-See also [engineer.md](docs/profiles/engineer.md) "UI evaluators" (native
-browser tools) and [marketer.md](docs/profiles/marketer.md) "Browser lease".
+See also [marketer.md](docs/profiles/marketer.md) "Browser lease".
 
 **Real-profile pins.** Only profiles that need the owner's logins set
 `browser.use_real_profile: true`, `real_profile_pin:` (a Brave profile

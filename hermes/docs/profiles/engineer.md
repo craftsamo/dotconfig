@@ -1,6 +1,6 @@
 # Engineer
 
-Engineer dialogue loop, grants and approvals, mode entries, the OpenCode runtime, resident turns and UI evaluators. Part of the Hermes design docs — index: [`PROFILES.md`](../../PROFILES.md).
+Engineer dialogue loop, grants and approvals, mode entries, the OpenCode runtime, resident turns and UI verification. Part of the Hermes design docs — index: [`PROFILES.md`](../../PROFILES.md).
 
 ## Engineer dialogue loop
 
@@ -16,7 +16,6 @@ plans remain useful context, not an automatic new approval.
 | Client with Engineer | Outcome, scope and important tradeoffs agreed conversationally | Human clarify or structured Client Q<n> replies |
 | Engineer with OpenCode | Technical planning, in-scope implementation sequencing, evidence and correction | opencode_call / opencode_session |
 | OpenCode with its own agents | Code-level methods, exploration, testing and review | OpenCode's own tools/skills |
-| Engineer with UI evaluators | Visual/UX evaluation scope and final triage | ui-review / ux-persona resident conversations |
 
 One explicit implementation approval releases the agreed scope through QA,
 task-branch push and PR delivery. Ordinary internal steps need no per-unit
@@ -221,28 +220,14 @@ the next turn. The `Warning: Unknown toolsets: …` line naming plugin toolsets
 (`opencode`, `specialist`, `session_history`) on every resident turn is a benign
 plugin-discovery-order artifact.
 
-### UI evaluators
+### UI verification
 
-Engineer browses isolated development/test targets itself. `ui-review` and
-`ux-persona` are independent, terminal-free, resident-only evaluator profiles:
-no terminal/file-edit tools, bots, A2A endpoint, port or personal login
-profile. Their resident launcher gives each an owned non-Git job directory, not
-the implementation cwd, so ordinary CLI context discovery cannot import the
-implementation repository's instructions; memory and coding-context injection
-are disabled. They use native browser tools (`browser.backend: "off"` disables
-the Browser Use replacement, not browsing) plus `plugins/ui-inspection`'s
-bounded `ui_capture(width,height)`, which attaches actual viewport PNGs and
-returns private evidence paths. `browser_exec` runs host Python, so upstream
-withholds it from terminal-free profiles; never add terminal merely to restore
-it. Use isolated test accounts/state, never owner cookies or another profile's
-CDP. Browser actions may still change test data; this is not a website sandbox.
-Model is `anthropic/claude-sonnet-5-5` with `claude-opus-5-5` as fallback
-(chains: [`../models-auth.md`](../models-auth.md)).
-
-The former global OpenCode web-ui/ux-persona-testing skills and ui-review/
-ux-persona definitions moved into Engineer's mode entries and references and
-were removed there, not retained as aliases; OpenCode must restart to discover
-the removal. OpenCode keeps implementation-time rendering and project tests.
+Engineer browses isolated development/test targets itself
+(`qa-engineer/references/web-ui.md`): its own browser sessions, isolated test
+accounts and state, never owner cookies or another profile's CDP. Browser
+actions may still change test data; this is not a website sandbox. UI design
+and visual review belong to Engineer's mode entries, not OpenCode global
+skills; OpenCode keeps implementation-time rendering and project tests.
 
 ### Hands-reference maintenance
 
