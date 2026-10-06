@@ -2,7 +2,8 @@
 
 A read-only view of X (Twitter) for the Assistant and Marketer: the user's
 main account's posts and mentions, search, threads, profiles, a post's
-photos, videos and GIFs, and a ledger of the main account's public counts.
+photos, videos and GIFs, a ledger of the main account's public counts, and
+bulk checks of public posts' authors and counts.
 It reads as a separate **sub-account**; the main account is only a search
 subject and never signs in here. Nothing posts, replies, likes, follows or
 sends DMs. Part of the Hermes design docs — index:
@@ -10,14 +11,15 @@ sends DMs. Part of the Hermes design docs — index:
 
 ## Shape
 
-| Piece | Home | Reader |
-|---|---|---|
-| Engine: validation, pacing, session state, result shapes, media download, bypass guard | `plugins/x-access/xa.py` | all |
-| One twscrape read per call in the engine venv; reads the cookies | `plugins/x-access/bridge.py` | all |
-| `x` tool and the `pre_tool_call` hook (toolset `x_access`) | `plugins/x-access/__init__.py` | Assistant, Marketer |
-| Engine venv | `scripts/x-access.sh`, `engines/twscrape/` | people |
-| When and how the Assistant uses it | the Assistant's private Chat reference `x.md` | Assistant |
-| How Marketer reads ranking, results and conversations | `marketer-pipeline/references/x-ranking.md` | Marketer |
+| Piece                                                                                                                                           | Home                                                                     | Reader              |
+| ----------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ | ------------------- |
+| Engine: validation, pacing, session state, result shapes, media download, `verify`, bypass guard                                                | `plugins/x-access/xa.py`                                                 | all                 |
+| One twscrape read per call in the engine venv; reads the cookies                                                                                | `plugins/x-access/bridge.py`                                             | all                 |
+| `x` tool and the `pre_tool_call` hook (toolset `x_access`)                                                                                      | `plugins/x-access/__init__.py`                                           | Assistant, Marketer |
+| Engine venv                                                                                                                                     | `scripts/x-access.sh`, `engines/twscrape/`                               | people              |
+| How the Assistant works with it: actions, both budgets, verifying posts, media, the user's own numbers, recovery, the X Article draft exception | the `x-twitter` technic (`profiles/assistant/skills/technic/x-twitter/`) | Assistant           |
+| When the Assistant uses it in Chat                                                                                                              | the Assistant's private Chat reference `x.md`                            | Assistant           |
+| How Marketer reads ranking, results and conversations                                                                                           | `marketer-pipeline/references/x-ranking.md`                              | Marketer            |
 
 [twscrape](https://github.com/vladkens/twscrape) calls the GraphQL endpoints
 the x.com web app uses, signed in with a browser session's `auth_token` and
@@ -50,9 +52,10 @@ are masked in every string the bridge returns.
 
 `~/.x-access/` (mode 700, outside every repository) holds no secret:
 `state.json` (call timestamps for pacing, a handle → user id cache for seven
-days, and what X last made of the session), `call.lock` and the metrics
-ledger `metrics.jsonl` (see [Metrics](#metrics)). Both profiles share it, so
-the caps below count every read from either.
+days, and what X last made of the session), `call.lock`, the metrics
+ledger `metrics.jsonl` (see [Metrics](#metrics)) and `verify`'s own `fx.json`
+and `fx.lock` (see [Verify](#verify)). Both profiles share it, so the caps
+below count every read from either.
 
 Because the pool is rebuilt for every call, the engine remembers X's verdicts
 itself. When X refuses the session (twscrape marks it inactive: expired,
@@ -80,16 +83,17 @@ without calling X. A call counts only when X was, or may have been,
 contacted: a missing engine or cookies, or a remembered refusal, costs
 nothing.
 
-| Action | Paced reads | Notes |
-|---|---|---|
-| `posts` | 1 (+1 to resolve an uncached handle) | `replies=true` includes replies; protected accounts refused |
-| `mentions` | 1 | search `(@main OR to:main) -from:main`, Latest; `since` = YYYY-MM-DD |
-| `search` | 1 | X search syntax; Latest, or Top with `top=true` |
-| `thread` | 2 | the post, then its whole conversation from the root |
-| `user` | 1 | profile, bio, counts |
-| `media` | 1 | then CDN downloads without cookies |
-| `snapshot` | 1 (+1 to resolve an uncached handle) | the main account's recent posts into the ledger |
-| `insights` | 0 | the ledger only |
+| Action     | Paced reads                          | Notes                                                                |
+| ---------- | ------------------------------------ | -------------------------------------------------------------------- |
+| `posts`    | 1 (+1 to resolve an uncached handle) | `replies=true` includes replies; protected accounts refused          |
+| `mentions` | 1                                    | search `(@main OR to:main) -from:main`, Latest; `since` = YYYY-MM-DD |
+| `search`   | 1                                    | X search syntax; Latest, or Top with `top=true`                      |
+| `thread`   | 2                                    | the post, then its whole conversation from the root                  |
+| `user`     | 1                                    | profile, bio, counts                                                 |
+| `media`    | 1                                    | then CDN downloads without cookies                                   |
+| `snapshot` | 1 (+1 to resolve an uncached handle) | the main account's recent posts into the ledger                      |
+| `insights` | 0                                    | the ledger only                                                      |
+| `verify`   | 0                                    | FxTwitter, not X; its own pacing ([Verify](#verify))                 |
 
 Limits default to 20 (thread 30), at most 50. Results carry local times with
 offset, text clipped at 2000 characters (quoted posts 280), reposts as
@@ -156,11 +160,48 @@ Spaces and live broadcasts are not downloaded. A post that cannot be read is
 reported as deleted, protected, withheld or sensitive — the sub-account must
 have "Display media that may contain sensitive content" enabled for the last.
 
+## Verify
+
+`verify` checks up to 50 public posts per call (URLs or ids, duplicates
+dropped) through [FxTwitter](https://github.com/FxEmbed/FxEmbed)'s public
+API (`https://api.fxtwitter.com/i/status/<id>`), never through X or the
+sub-account, so it costs none of the caps above. It exists because research
+needs ground truth for many posts at once: LLM-backed search (`x_search`)
+supplies candidate ids and confident but unreliable prose, and the
+sub-account's caps cannot absorb a corpus. Each post returns its canonical
+URL and real author (`handle_mismatch` when the URL named someone else), the
+text, time, language, the author's followers, public counts (views, likes,
+replies, reposts, quotes, bookmarks), media type, size and duration, and the
+quoted and replied-to posts; a post is `ok`, `not_found` (deleted, never
+existed, or hidden from signed-out readers), `protected`, `unavailable`,
+`error` or `not_checked`. `save=true` also writes each found post's reply,
+FxTwitter's JSON as received, to `<download_dir>/verify/<id>.json`
+(replaced on every check) for scripts that compute over a corpus; a post
+FxTwitter answers as anything but `ok` loses its saved file, so a deleted
+post never keeps passing as verified. When the result would pass the
+plugin's size cap, post text is shortened step by step (`text_clipped_to`);
+the saved files keep it whole. Links on FxTwitter-style mirrors
+(`fxtwitter.com`, `vxtwitter.com`, `fixupx.com`, `fixvx.com`) are accepted
+wherever the tool takes a post.
+
+Requests carry no cookies, follow redirects only within `api.fxtwitter.com`
+and run one call at a time (`fx.lock`, waited for at most 60 s), at least
+0.5 s apart, at most 1000 checks per 24 hours (`fx.json`). A call stops
+starting checks 150 s after it took the lock, after three failures in a row
+(network errors, server errors or replies that are not FxTwitter's JSON),
+and on FxTwitter's 429, which also pauses every call until `Retry-After`
+(15 minutes without one) has passed; the rest come back `not_checked`.
+`status` reports the day's checks and any pause as `verify_usage`.
+FxTwitter is a third-party service that may change or go away: only `ok`
+rows are evidence, and media itself is downloaded with `media`.
+
 ## Ways around the tool
 
 The hook blocks terminal calls whose text names `twscrape`, the plugin
-(`x-access`, `x_access`), a `TWS_` variable or the cookies' Keychain item or
-scope (`X_READER_COOKIES`, `x-reader`), and file-tool calls on the state
+(`x-access`, `x_access`), a `TWS_` variable, the cookies' Keychain item or
+scope (`X_READER_COOKIES`, `x-reader`) or the FxTwitter family of mirrors
+(`fxtwitter`, `fixupx`, `vxtwitter`, `fixvx`, which `verify` wraps), and
+file-tool calls on the state
 directory (`.x-access`), the item name or the engine venv. File tools may
 still read the plugin source and the download folder. It is a pattern match,
 not a sandbox.

@@ -122,6 +122,10 @@ candidates (link, why it fits, suggested angle for Writer). The user replies.
 - Exact queries and context: `x` `search` (Latest or Top) and `thread`. Its
   reads are paced and capped (shared with the Assistant): ask for what the
   question needs and never poll.
+- Numbers for posts found elsewhere (an `x_search` citation, a competitor's
+  launch): `x` `verify` with up to 50 post URLs or ids at once. It reads
+  FxTwitter's public API outside the sub-account's caps and returns the real
+  author, text and public counts; only `ok` rows are evidence.
 - A reply reaches mostly that conversation's readers and the client's
   followers: For You drops replies from accounts a viewer does not follow.
   Conversations of mutual follows and posts still inside 48 hours are where a

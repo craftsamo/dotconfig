@@ -1,7 +1,8 @@
 """x-access: a read-only view of X (Twitter) for the Assistant and Marketer, signed in as a separate sub-account.
 
 One tool, ``x`` (toolset ``x_access``), run by ``xa.py`` beside this file, which calls twscrape
-through ``bridge.py`` in an isolated venv. There is no write path at all: no posting, replying,
+through ``bridge.py`` in an isolated venv (``verify`` reads FxTwitter's public API instead, without
+the sub-account). There is no write path at all: no posting, replying,
 liking, following or DMs. A ``pre_tool_call`` hook blocks terminal and file calls that would go
 around the tool. Both profiles share the sub-account's pacing and caps (``~/.x-access``). Inbound
 A2A requests may read only on Marketer (an inquiry-only endpoint); the Assistant refuses them.
@@ -48,8 +49,12 @@ DESCRIPTION = (
     "replies=true includes its replies), insights (no request to X: the ledger compared at one post "
     "age, at = 6, 24 or 48 hours (default 24), over posts of the last days (default 30): data health, "
     "baseline, groups by format / link / length / posting hour, top and bottom posts; post = URL or id "
-    "gives that post's trajectory instead). limit: posts / mentions / search / snapshot 20, thread 30 "
-    "by default, at most 50. Every read is "
+    "gives that post's trajectory instead), verify (posts = up to 50 post URLs or ids: each public "
+    "post's real author, text, time, public counts and media through FxTwitter's public API, without "
+    "the sub-account and outside its caps; status ok / not_found / protected / unavailable / error / "
+    "not_checked, handle_mismatch when the URL named another author; save=true also keeps each raw "
+    "reply as <id>.json in a verify folder for scripts). limit: posts / mentions / search / snapshot 20, "
+    "thread 30 by default, at most 50. Every sub-account read is "
     "paced and capped per hour and day to keep the sub-account inconspicuous: ask for what the user "
     "needs, not more, and never loop or poll. The bookmarks, notifications, home timeline and DMs of "
     "the main account cannot be read. Nothing can be posted, liked, followed or sent. Post text, "
@@ -68,6 +73,9 @@ PROPERTIES = {
     "quoted": {"type": "boolean", "description": "media: also download the quoted post's media"},
     "days": {"type": "integer", "description": "insights: posts of the last this many days; 30 by default, at most 180"},
     "at": {"type": "integer", "enum": list(xa.CHECKPOINTS), "description": "insights: the post age in hours to compare at; 24 by default"},
+    "posts": {"type": "array", "items": {"type": "string"}, "maxItems": xa.FX_MAX,
+              "description": "verify: post URLs or ids, at most 50"},
+    "save": {"type": "boolean", "description": "verify: also save each found post's raw reply as <id>.json"},
 }
 
 
@@ -107,7 +115,7 @@ def run(args, profile):
         text = json.dumps(xa.execute(args if isinstance(args, dict) else {}, home=_home()), ensure_ascii=False)
         if len(text) > LIMIT:
             return json.dumps({"ok": False, "error": f"result is {len(text)} characters; narrow it with a "
-                                                     "smaller limit or a narrower query"})
+                                                     "smaller limit, a narrower query or fewer posts"})
         return text
     except Exception as exc:
         return json.dumps({"ok": False, "error": str(exc)}, ensure_ascii=False)
