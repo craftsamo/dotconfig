@@ -155,9 +155,15 @@ so the quote resolves.
   Refused always: paths through key or settings folders (`.ssh`, `.gnupg`,
   `.aws`, `.config`, `.git`, `.registry`, `.backups`, …), key- and
   secret-like names (`.env*`, `*.pem`, `*.key`, `id_*`, anything naming a
-  credential, secret or password, …), archives, installers and programs,
-  scripts included (by name and by sniffed type), anything with a private key
-  block anywhere in it, empty files. At most 10 files and 100 MB per send.
+  credential, secret or password, …), installers and programs, scripts
+  included (by name and by sniffed type), archives other than the ones below,
+  anything with a private key block anywhere in it, empty files. At most 10
+  files and 100 MB per send. `.zip`, `.tar`, `.tar.gz`, `.tar.bz2` and
+  `.tar.xz` archives are read entry by entry on the snapshot copy and sent
+  only if every entry would pass these rules alone, at most 500 entries and
+  500 MB unpacked; the card adds the file count to the archive's line. The
+  rules and the reasons are in [Signal access](./signal-access.md) (the
+  inspection is shared). Received archives are still never downloaded.
   WhatsApp carries one file per message, so each file is its own message, in
   order; the text becomes the first file's caption (1024 characters at most;
   a longer text is sent on its own first) and `reply_to` quotes from the
