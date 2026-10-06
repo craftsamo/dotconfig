@@ -164,7 +164,8 @@ environment:
 
 If the keychain cannot be unlocked, the shim normally starts the command
 without injection. `opencode serve` is the fail-closed exception: it exits
-unless `OPENCODE_SERVER_PASSWORD` was inherited or injected. Test hooks:
+unless `OPENCODE_PASSWORD` or `OPENCODE_SERVER_PASSWORD` was inherited or
+injected. Test hooks:
 `SECRET_SHIM_MODE` forces the mode, `SECRET_SHIM_BASE` replaces `global` as
 the tool-mode base.
 
