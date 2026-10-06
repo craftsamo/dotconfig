@@ -160,21 +160,30 @@ text.
   folders (`.ssh`, `.gnupg`, `.aws`, `.config`, `.git`, `.registry`,
   `.backups`, …), key- and secret-like names (`.env*`, `*.pem`, `*.key`,
   `id_*`, anything naming a credential, secret or password, …), installers
-  and programs, scripts included (by name and by sniffed type), archives
-  other than the ones below, anything containing a private key block
-  anywhere in the file, empty files. At most 10 files and 100 MB per send.
+  and programs (by name and by sniffed type), archives other than the ones
+  below, anything containing a private key block anywhere in the file, empty
+  files. At most 10 files and 100 MB per send. **Source scripts** (`.sh`,
+  `.py`, `.js`, `.bat`, …) are sent like any other file, as on Discord, if
+  the sniffed type says script or plain text too: a file named `run.sh` that
+  is really a binary is refused, as is anything `file` calls a program. A
+  bundle or shortcut (`.app`, `.command`, `.lnk`, …) is not a script.
 - **Archives** (`.zip`, `.tar`, `.tar.gz`/`.tgz`, `.tar.bz2`, `.tar.xz`) are
   sent after they are read, never unpacked to disk
-  (`plugins/messaging/_shared/archive_check.py`, shared by signal-access,
-  whatsapp-access and telegram-access; it is not a plugin and has no
-  manifest). The first bytes must match the extension, so a ZIP named
-  `photo.jpg` stays refused as an archive by content. Every entry is held to
-  the rules for a single file: a plain relative name (no `..`, absolute or
-  backslash path), a regular file or folder (no links, devices or pipes), not
-  in a keys-or-settings folder, not named like a key or secret, not a program
-  or script (by name, and by first bytes: shebang, ELF, Mach-O, PE, Java
-  class), not another archive (by name and first bytes), no private key
-  block, not encrypted. At most 500 entries and 500 MB unpacked, counted from
+  (`plugins/messaging/_shared/archive_check.py`, shared by the four chat
+  plugins; it is not a plugin and has no manifest). The first bytes must match
+  the extension, so a ZIP named `photo.jpg` stays refused as an archive by
+  content. Every entry is held to the sender's rules for a single file: a
+  plain relative name (no `..`, absolute or backslash path), a regular file or
+  folder (no links, devices or pipes), not in a keys-or-settings folder, not
+  named like a key or secret, not a program (by name, and by first bytes: ELF,
+  Mach-O, PE, Java class), not another archive (by name and first bytes), no
+  private key block, not encrypted. Source scripts (or a shebang first line)
+  are allowed inside an archive as they are alone: each sender passes
+  `allow_scripts`, and what counts as a script, by name or by sniffed type,
+  is `SCRIPT_FILES` / `SCRIPT_MIME` in the module, so the four plugins agree
+  (`refused_alone` gives the single-file verdict). Installers, bundles and
+  shortcuts are not scripts. At most 500
+  entries and 500 MB unpacked, counted from
   the bytes actually read rather than the sizes the archive claims. One bad
   entry refuses the whole archive and the message names it. `.rar`, `.7z`,
   `.zst`, a bare `.gz` and the like cannot be read with the standard library

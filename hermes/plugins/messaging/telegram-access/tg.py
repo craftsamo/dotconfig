@@ -903,10 +903,10 @@ def check_file(given: str) -> dict:
     digest = _sha256(real)
     try:
         archive = archives.vet(real, real.name, deny_parts=DENY_PARTS, deny_names=DENY_NAMES,
-                               risky_files=RISKY_FILES)
+                               risky_files=RISKY_FILES, allow_scripts=True)
     except archives.ArchiveRefused as exc:
         raise TelegramError(f"refused: the archive {real.name!r} is not sent: {exc}") from None
-    if archive is None and (RISKY_FILES.search(real.name) or RISKY_MIME.search(kind)):
+    if archive is None and archives.refused_alone(real.name, kind, RISKY_FILES, RISKY_MIME):
         raise TelegramError(f"refused: {real.name!r} ({kind}) is an archive or program; such files are never sent")
     if _has_private_key(real):
         raise TelegramError(f"refused: {real.name!r} contains a private key")
