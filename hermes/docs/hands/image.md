@@ -201,3 +201,19 @@ grid nor palette. It replaces the archived `creator-pixel-art` technic.
   size, palette membership, absence of partial alpha, integer preview scale,
   uniform blocks and the alpha state, prints one `RESULT:` line and exits
   non-zero on failure. `check` writes nothing.
+
+## Illustration family
+
+`image-creator-pipeline/generate/illustration/` carries one verb.
+`generate-illustration` delivers a model-generated, text-free still (cover,
+hero, editorial or article illustration, thumbnail art, background, document or
+social art) in a named or described look, as variants at an exact size and
+format next to a contact sheet with one recommended variant. Exact text never
+goes into the pixels: that is a card (`create-card`, `generate-card`); icons,
+emoji, mascots, kits and photo reimaginings have their own leaves. It is
+metered through core `image_generate`: default 4 variants + 1 corrective across
+resumes, failed calls count and `attempts.json` is the tally. A reference image
+leaves the machine only with explicit upload consent. Variants are normalized
+with the shared `img-postprocess.sh`. It replaces the archived
+`creator-generated-image` technic; its prompt craft is distilled into the
+leaf's `references/craft-notes.md`.
