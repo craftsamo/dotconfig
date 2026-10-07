@@ -6,7 +6,7 @@ reason to stop, and a stop reason must be true. Fixtures are neutral; no real
 brief is used.
 
 Structural contracts only: they pin what the instructions and handoff say, not
-how a model behaves. Behavior is measured with ``audit-searcher-sessions.py``.
+how a model behaves. Behavior is checked by reading real session transcripts.
 """
 
 from __future__ import annotations
