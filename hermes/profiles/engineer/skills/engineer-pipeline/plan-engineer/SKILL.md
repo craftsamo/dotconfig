@@ -46,12 +46,12 @@ Read [OpenCode](../references/opencode.md) before a wrapper call and
    the Client explicitly requested Issue management.
    When implementation is the likely outcome, put the checkout on a task
    branch BEFORE the first plan call (ordinary `git switch -c`; a separate
-   worktree only when another conversation holds this checkout or the main
-   checkout must stay untouched). A conversation is bound to its worktree
-   and branch, and the same conversation is the intended path from Plan to
+   worktree only when another session holds this checkout or the main
+   checkout must stay untouched). A session is bound to its worktree
+   and branch, and the same session is the intended path from Plan to
    Build, so the branch decides now whether the plan's context carries over.
    A plan-only request or an unknown outcome may stay on the default branch.
-2. Ground in the current tree. Use opencode_call(agent="plan") for investigation,
+2. Ground in the current tree. Use opencode_run_plan for investigation,
    options and a technical proposal. Existing approved plans need a relevance
    check, not compulsory re-decomposition. Separate ordinary implementation
    choices from Client choices about outcomes, cost, risk and scope.
@@ -63,23 +63,24 @@ Read [OpenCode](../references/opencode.md) before a wrapper call and
    stays explicit. Mixed work can be split technically without asking the Client
    to design the split, unless that changes the requested scope.
 4. Read OpenCode's proposal, challenge unsupported assumptions and request the
-   smallest useful additional investigation. Its `Client decisions` section
-   arrives as `Q<n>:` lines with a default already taken; settle each with the
-   Client or within your authority and send `DECISION(Q<n>): …` back on the
-   same conversation. For Web UI, agree direction before
+   smallest useful additional investigation. A question the run puts to a person
+   pauses it as `waiting`: settle it within your authority or with the Client and
+   answer through opencode_request. A decision it took by default and reported
+   in its reply is settled the same way, in the next message on the same
+   session. For Web UI, agree direction before
    target implementation; existing design systems outrank style-catalog defaults.
 5. Present the plan: intended change, boundaries, meaningful steps, verification,
    risks and unresolved decisions. Human clarify or Client Q<n>, not a fixed
    questionnaire. Obtain explicit implementation approval for that scope.
-6. Hand over to [Build](../build-engineer/SKILL.md) on the SAME conversation:
-   the next opencode_call names `agent="build"` with the Client's approval
-   and the plan history, the `Q<n>`/`DECISION` exchange and OpenCode's own
-   investigation stay in context. That works only while worktree and branch
-   are unchanged and the branch is not a default branch. A plan made on the
-   default branch cannot switch mid-conversation: switch the checkout to a
-   task branch and start a NEW conversation whose message carries the
-   proposal verbatim (see Build). Never use `--fork` to prune context: a
-   fork copies the whole history.
+6. Hand over to [Build](../build-engineer/SKILL.md) on the SAME session:
+   the next opencode_run_build call passes the plan run's `session_id` and the
+   Client's approval, and the plan history, the decisions you answered and
+   OpenCode's own investigation stay in context. That works only while worktree
+   and branch are unchanged and the branch is not a default branch. A plan made
+   on the default branch cannot switch mid-session: switch the checkout to a
+   task branch and start a NEW session whose message carries the proposal
+   verbatim (see Build). Never use `fork` to prune context: a fork copies the
+   whole history.
 
 Record the approved plan and the Client's decision in private job state or the
 agreed existing record. No automatic PLAN.md in the repository, Issue or board.

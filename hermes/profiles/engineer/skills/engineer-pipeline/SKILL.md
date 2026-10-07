@@ -87,21 +87,23 @@ No board writes, repo creation, merge, deploy/publish or default-branch push.
 - Target code/scaffolding, commits, pushes, PRs and permitted Issue writes go
   through OpenCode. Deterministic worktree setup and independent inspection are
   yours. Preserve unrelated changes; no blanket staging or mandatory WIP commits.
-- Use opencode_call/opencode_session, not raw CLI or another coding agent as a
-  bypass. The wrapper is not a sandbox. Read output and verify scope/effects.
+- Use the opencode_run_<role> tools and opencode_session, not raw CLI or another
+  coding agent as a bypass. The wrapper is not a sandbox. Read output and verify
+  scope/effects.
 - UI direction, visual QA and UX triage are yours. Browse development/test
   targets in isolated sessions with prepared test accounts. No real-account
   profile sharing, foreign CDP or destructive/paid production testing.
 - Use specialist_call/specialist_session for configured peers only;
   browser/multi-turn work uses kind work. Code fixes always return to OpenCode.
-- Pause with a record of decisions, scope, worktree/branch, conversation IDs,
+- Pause with a record of decisions, scope, worktree/branch, session IDs,
   evidence and the open question. Keep job state private, outside managed skills;
   memory is for cross-task knowledge. Unknown effects are never blindly replayed.
 - For a stuck specialist (not an OpenCode run), inspect its outputs, child jobs
   and external effects, then use specialist_session reconcile with those
   observations. It can record stopped resident transport as interrupted, never
-  completed or resumable. A2A uncertainty stays blocked. OpenCode retains its
-  separate opencode_session reconciliation and worktree/branch checks.
+  completed or resumable. A2A uncertainty stays blocked. An uncertain OpenCode
+  run is read through opencode_session status/diff/messages and the worktree,
+  and interrupted if it still runs; it has no reconcile step.
 
 </Boundaries>
 

@@ -14,7 +14,7 @@ metadata:
 
 Know the configured executor, not a memorized roster. OpenCode owns its coding
 methods, internal agents and repository conventions. Engineer's pipeline owns
-Client decisions and the opencode_call transport; this skill is only a map.
+Client decisions and the opencode_run_<role> transport; this skill is only a map.
 
 </Goal>
 
@@ -24,12 +24,12 @@ Client decisions and the opencode_call transport; this skill is only a map.
 | --- | --- |
 | `~/.config/opencode/opencode.jsonc` | Provider/agent defaults, plugins, permissions, MCP and custom-tool grants |
 | `~/.config/opencode/agent/*.md` | Installed primary/subagent definitions and model/permission overrides |
-| `~/.config/opencode/agent/hermes-{plan,build,review,debug}.md` | The hidden non-interactive primaries the wrapper maps its four roles onto (`plugins/orchestration/opencode` `OPENCODE_AGENTS`); their frontmatter holds each role's default model and permission posture, and the wrapper adds each run's constraints as the session's ruleset |
+| `~/.config/opencode/opencode.jsonc` `agent` block, `agent/{review,debug}.md` | The plan, build, review and debug primaries the wrapper's four roles run on; they are the person's own modes, so their model and permission posture are what a person gets, and the wrapper adds each run's constraints as the session's ruleset |
 | `~/.config/opencode/AGENTS.md` | Global skill routing and delegation rules |
 | `~/.config/opencode/skills/` | OpenCode-specific skills, including nested approach/Git groups |
 | `~/.agents/skills/` | Shared/external skill discovery; ownership varies, not all are repo-managed |
 | Target repository instructions | Local structure, test commands, conventions and constraints |
-| Engineer config `opencode_cli` | Wrapper enablement, deadlines (`timeout`, `wait_timeout`, `permission_timeout`) and optional per-agent model override |
+| Engineer config `opencode_v2` | Wrapper enablement, the wait bound (`wait_timeout`), allowed providers and the roles (agent, policy, optional model and note) |
 
 Read needed configuration with file tools, never dump credential stores, process
 environment or resolved provider configurations containing secrets. JSONC is not

@@ -45,33 +45,34 @@ continuation. Read [Web UI](references/web-ui.md) for UI implementation handoffs
    overwrite someone else's changes. This exception is not code generation:
    scaffolders, target edits and commits still go through OpenCode. Build refuses
    default branches; do not disguise one or widen permissions to get past it.
-2. Use opencode_call(agent="build", approval="<relayed scoped Client decision>").
-   Continue the PLAN conversation by default (`conversation_id` of the plan
-   run, `agent="build"`): OpenCode then holds its own investigation, the
-   proposal and every `DECISION(Q<n>)`, and the message needs only the
-   approval, the increment to do now and any change since the proposal.
-   Continuation requires the same worktree and branch; the wrapper refuses
-   a moved conversation, and a default-branch plan cannot become a build.
-   A NEW conversation (plan made on the default branch, another checkout,
-   or a plan the Client edited) starts with no memory: paste the proposal's
-   `Proposed change`, `Verification` and `Implementation choices` sections
-   and every `DECISION(Q<n>)` line VERBATIM into the message. A summary may
-   precede them, never replace them; what is not in the message does not
-   exist for OpenCode. Request actual check results. Select a useful work
-   increment that fits the turn budget; OpenCode owns detailed
-   coding/subagent choreography. The call blocks until the run ends: do not
-   poll it. No rigid one-call-per-phase requirement or duplicate
-   approach-skill content. OpenCode never reviews its own increment unless
-   asked: for a risky increment (auth, data shape, concurrency, public API)
-   write "run a review pass" or "deep review <area>" into the message; a
-   small mechanical change needs none. Pass a Client-requested model/variant
+2. Use opencode_run_build(approval="<relayed scoped Client decision>").
+   Continue the PLAN session by default (`session_id` of the plan run):
+   OpenCode then holds its own investigation, the proposal and every decision
+   you relayed, and the message needs only the approval, the increment to do
+   now and any change since the proposal. Continuation requires the same
+   worktree and branch; the wrapper refuses a moved session, and a
+   default-branch plan cannot become a build. A NEW session (plan made on the
+   default branch, another checkout, or a plan the Client edited) starts with
+   no memory: paste the proposal's `Proposed change`, `Verification` and
+   `Implementation choices` sections and every settled decision VERBATIM into
+   the message. A summary may precede them, never replace them; what is not in
+   the message does not exist for OpenCode. Request actual check results.
+   Select a useful work increment that fits the turn budget; OpenCode owns
+   detailed coding/subagent choreography. The call blocks until the run ends or
+   needs you: do not poll it. No rigid one-call-per-phase requirement or duplicate
+   approach-skill content. OpenCode decides on its own whether to review its
+   increment; do not rely on it: for a risky increment (auth, data shape,
+   concurrency, public API) write "run a review pass" or "deep review <area>"
+   into the message; a small mechanical change needs none. Pass a Client-requested model/variant
    through the call's own arguments when the allowlist permits it; otherwise
    report and ask.
-3. Read progress/results for questions, blocked actions and assumptions. Answer
-   ordinary technical questions within scope; relay material changes to the Client.
-   A follow-up continues the owned conversation. A fork copies its current state,
-   not an arbitrary earlier checkpoint; for independent diagnosis use a fresh
-   conversation with only the needed inputs.
+3. Read progress/results for questions, blocked actions and assumptions. A
+   question or permission the run paused on is yours to answer through
+   opencode_request: ordinary technical questions within scope you settle,
+   material changes you relay to the Client first. A follow-up continues the
+   owned session. A fork copies its current state, not an arbitrary earlier
+   checkpoint; for independent diagnosis use a fresh session with only the
+   needed inputs.
 4. Send implementation evidence to [QA](../qa-engineer/SKILL.md). Apply
    accepted corrections through OpenCode and recheck affected behavior. Do not
    alter code yourself to manufacture a passing report.
@@ -101,11 +102,11 @@ one file) is carried in the prompt and verified by you afterwards through Git
 state; it is not a reason to refuse the run. Only when a restriction cannot be
 honored even that way (it needs an enforcement the wrapper lacks and the effect
 is irreversible) do you stop and state it. State such a limitation once per
-conversation; an answered permission question is not re-asked next turn.
+session; an answered permission question is not re-asked next turn.
 
-Before waiting, record the current plan/approval, worktree/branch, conversation
+Before waiting, record the current plan/approval, worktree/branch, session
 IDs, evidence and open question. When the turn budget nears its end (~15 min),
 finish with a checkpoint commit and report instead of starting a run.
-Stop/reconcile uncertain runs per the shared contract; never restart blindly
+Interrupt and inspect uncertain runs per the shared contract; never restart blindly
 or change backends to escape a block. Follow-up review corrections need a
 released scope, not an indefinite background loop.

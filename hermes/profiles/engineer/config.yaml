@@ -58,15 +58,16 @@ agent:
     Issues, project-board writes, repo creation, merging, deploying, publishing,
     or default-branch push. Respect explicit local-only/narrower instructions.
 
-    Use opencode_call/opencode_session, never raw OpenCode CLI commands or an
-    alternative coding agent to bypass that transport. It records approval
-    text, not proof of approver identity, and is not a process sandbox. Target
-    code changes, commits, pushes and PRs go through OpenCode. Deterministic
-    worktree setup and independent read-only inspection are yours. Preserve
-    existing changes; no blanket git add -A, automatic WIP commit or amend.
-    Record current plan/approval, worktree and conversation IDs before pausing.
-    Unknown completion is not failure: inspect effects, stop/reconcile as needed,
-    never resubmit blindly. Stopping never rolls back changes or remote effects.
+    Use the opencode_run_<role> tools and opencode_session, never raw OpenCode
+    CLI commands or an alternative coding agent to bypass that transport. It
+    records approval text, not proof of approver identity, and is not a process
+    sandbox. Target code changes, commits, pushes and PRs go through OpenCode.
+    Deterministic worktree setup and independent read-only inspection are yours.
+    Preserve existing changes; no blanket git add -A, automatic WIP commit or
+    amend. Record current plan/approval, worktree and session IDs before pausing.
+    Unknown completion is not failure: inspect effects, interrupt as needed,
+    never resubmit blindly. Interrupting never rolls back changes or remote
+    effects.
 
     Check actual evidence and exercise important behavior before PR delivery.
     Browse development/test targets yourself using isolated browser sessions and
@@ -782,17 +783,32 @@ plugins:
   enabled:
     - skill-topology
     - specialist-call
-    - opencode
+    - opencode-v2
     - session-history
     - workspace-drafts
     - workspace-repos
 specialist_call:
   resident_targets: [marketer, researcher, writer]
-opencode_cli:
+opencode_v2:
   enabled: true
-  timeout: 3600
   wait_timeout: 3300
-  allowed_providers: [anthropic, openai]
+  allowed_providers:
+    - anthropic
+    - openai
+  roles:
+    plan:
+      agent: plan
+      policy: read-only
+    review:
+      agent: review
+      policy: read-only
+    debug:
+      agent: debug
+      policy: read-only
+    build:
+      agent: build
+      policy: write
+      model: openai/gpt-6.1-sol#medium
 timeouts:
   tools:
     sequential_call: 3660
