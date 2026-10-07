@@ -49,7 +49,7 @@ needs; a composite reads one per released unit.
 | Hands | Subject references |
 | --- | --- |
 | image-creator | [card](references/card.md), [icon](references/icon.md), [emoji](references/emoji.md), [mascot](references/mascot.md), [reimagine](references/reimagine.md), [kit](references/kit.md), [diagram](references/diagram.md), [pixel-art](references/pixel-art.md), [illustration](references/illustration.md) |
-| video-creator | [clip](references/clip.md), [music-video](references/music-video.md), [ad](references/ad.md), [tour](references/tour.md), [explainer-video](references/explainer-video.md), [promotion](references/promotion.md), [master](references/master.md), [story](references/story.md) |
+| video-creator | [clip](references/clip.md), [music-video](references/music-video.md), [ad](references/ad.md), [tour](references/tour.md), [explainer-video](references/explainer-video.md), [promotion](references/promotion.md), [master](references/master.md), [story](references/story.md), [pixel-animation](references/pixel-animation.md) |
 | audio-creator | [speech](references/speech.md), [sfx](references/sfx.md), [music](references/music.md), [mix](references/mix.md) |
 
 ## Choosing the leaf

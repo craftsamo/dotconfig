@@ -286,11 +286,11 @@ references ([`broker.md`](../broker.md) "References each side owns"), (4) a soak
 through the Assistant, recording what the form got wrong.
 
 Creator's former `creator-*` technics end with the advisor cutover. Five become
-hands leaves first: the SVG diagram (now `create-diagram`) and grid-exact pixel
-art (now `create-pixel-art`) and text-free generated illustration (now
-`generate-illustration`), and still to come official brand-asset sourcing
-(extending `source-icon`) on image-creator, and pixel animation on
-video-creator. The other
+hands leaves first: the SVG diagram (now `create-diagram`), grid-exact pixel
+art (now `create-pixel-art`), text-free generated illustration (now
+`generate-illustration`) and pixel animation on video-creator (now
+`create-pixel-animation`); still to come is only official brand-asset sourcing
+(extending `source-icon`) on image-creator. The other
 fourteen are archived under `hermes/archive/creator-technic/`, which no profile
 reads; `image_gen` / `video_gen` / `tts` / `unreal-engine` leave Creator's
 toolsets with them.
@@ -314,6 +314,7 @@ toolsets with them.
 | promotion       | video-creator | create                                                                                                            | `creator-html-motion` archived (overlays on footage, captioned narration, audio-reactive, >60 s too) |
 | story           | video-creator | create                                                                                                            | `creator-html-motion` archived                                                                       |
 | master          | video-creator | create                                                                                                            | `creator-media-assembly` archived (segment sound, ducking, edit-spec trims too)                      |
+| pixel-animation | video-creator | create                                                                                                            | `creator-pixel-video` archived                                                                       |
 | speech          | audio-creator | generate, edit, analyze                                                                                           | voice card retired; AudioCraft/HeartMuLa/songsee withdrawn                                           |
 | sfx             | audio-creator | create, generate, edit, analyze                                                                                   | none                                                                                                 |
 | music           | audio-creator | create, generate, edit, analyze                                                                                   | vocal-song generation and standalone audio visualization withdrawn                                   |
