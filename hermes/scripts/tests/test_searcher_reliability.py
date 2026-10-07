@@ -54,10 +54,20 @@ def test_searcher_handoff_still_states_the_remaining_minutes():
     assert re.search(r"~(89|90) min from now", handoff("searcher"))
 
 
-@pytest.mark.xfail(strict=True, reason="the kernel says social platforms are read-only without saying x_search "
-                                       "is allowed; a run skipped X search citing a read-only constraint")
-def test_kernel_states_that_x_search_is_allowed():
-    assert "x_search is allowed" in flat(PIPELINE / "SKILL.md")
+def searcher_prompt() -> str:
+    import hermes_yaml as yaml
+    config = yaml.safe_load((HERMES / "profiles/searcher/config.yaml").read_text())
+    return " ".join(config["agent"]["system_prompt"].split())
+
+
+def test_kernel_and_prompt_say_reading_is_allowed_while_writing_is_not():
+    kernel = flat(PIPELINE / "SKILL.md")
+    assert "x_search is allowed" in kernel and "never a reason to skip a platform" in kernel
+    assert "No write-actions on social platforms" in kernel
+    prompt = searcher_prompt()
+    assert "Reading is allowed" in prompt and "never a reason to skip it" in prompt
+    assert "Never write to a social platform" in prompt
+    assert "Social platforms are read-only" not in prompt
 
 
 @pytest.mark.xfail(strict=True, reason="Build has no stop-reason rule: a run stopped after about 30 seconds "

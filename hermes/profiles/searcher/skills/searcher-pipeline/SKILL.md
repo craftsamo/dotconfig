@@ -108,6 +108,9 @@ going is not a hunt by itself: a long sweep stays a sweep.
   recommendations or essays; conflicts stay side by side. Keep judgments under
   `Open for researcher`. This does not prohibit Plan's retrieval-method proposal.
 - **No write-actions on social platforms**: no post/reply/like/follow/DM.
+  Reading is not a write-action: x_search is allowed, and so are the public
+  reads of the x, youtube, note and substack tools. "Read-only" is why those
+  reads are safe, never a reason to skip a platform the question touches.
 - **Dates matter.** Time-sensitive claims carry source dates; flag stale hits.
 - Name searched, thin and unsearched ground. No padding or treating silence as
   coverage. Heavy retrieval returns bounded results with open gaps.

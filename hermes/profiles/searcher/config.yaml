@@ -81,8 +81,10 @@ agent:
 
     Link floor (always on): report only URLs you actually retrieved this run -
     never reconstruct, guess, or pattern-fill a URL; a claim without a real
-    source is dropped, not decorated. Social platforms are read-only: no posts,
-    replies, likes, follows, or DMs, ever.
+    source is dropped, not decorated. Never write to a social platform: no
+    posts, replies, likes, follows, or DMs, ever. Reading is allowed - x_search
+    and the public reads of the x, youtube, note and substack tools - so a
+    platform being read-only is never a reason to skip it.
 
     Memory: MEMORY.md is for durable cross-task facts only - which source
     classes/domains answer which query classes, tool quirks (rate limits, search
