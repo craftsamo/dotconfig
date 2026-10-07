@@ -271,8 +271,34 @@ _secret_norm_kind() {          # $1 raw kind -> canonical kind on stdout
   print -r -- "${k:-ENV}"
 }
 
-_secret_store() {              # $1 name $2 project $3 comment $4 kind $5 scope ; value on stdin
-  local name=$1 proj=$2 comment=$3 kind=$4 scope=$5 value extra err
+# Per-item flags live in the keychain's generic attribute ("gena"), which
+# nothing else uses: ';'-separated key=value tokens. Today the only one is
+# env=no — the item never appears in `secret env`, so no shell, shim or
+# helper that injects a layer ever receives it (get still reads it). An
+# item without the token is env=yes, the historical behaviour.
+_secret_env_on() {             # $1 flags -> success when `secret env` may emit the item
+  [[ ";$1;" != *";env=no;"* ]]
+}
+
+_secret_flags_with_env() {     # $1 current flags  $2 yes|no -> new flags on stdout
+  local -a kept
+  local token
+  for token in ${(s:;:)1}; do
+    [[ -n $token && $token != env=* ]] && kept+=("$token")
+  done
+  [[ $2 == no ]] && kept+=(env=no)
+  print -r -- "${(j:;:)kept}"
+}
+
+_secret_flags_of() {           # $1 name  $2 project  $3 scope -> current flags ("" if none/absent)
+  _secret_rows "$2" | awk -F'\t' -v n="$1" -v s="$3" '$2 == n && $7 == s { print $8; exit }'
+}
+
+# $6 flags: the item's whole flag string to write ("" clears every flag), or
+# "keep" / absent to leave an existing item's flags as they are — a value
+# rewrite never re-enables what --no-env turned off.
+_secret_store() {              # $1 name $2 project $3 comment $4 kind $5 scope [$6 flags] ; value on stdin
+  local name=$1 proj=$2 comment=$3 kind=$4 scope=$5 flags=${6-keep} value extra err
   IFS= read -r value
   if IFS= read -r extra; then
     _secret_err "$proj/$name: multi-line values are not supported"; return 1
@@ -299,6 +325,8 @@ _secret_store() {              # $1 name $2 project $3 comment $4 kind $5 scope 
   cmd+=" -l $(_secret_quote_si "$label")"
   cmd+=" -D $(_secret_quote_si "$(_secret_norm_kind "$kind")")"
   cmd+=" -j $(_secret_quote_si "$comment")"
+  # -U without -G keeps the stored generic attribute; -G '' clears it
+  [[ $flags == keep ]] || cmd+=" -G $(_secret_quote_si "$flags")"
   cmd+=" -w $(_secret_quote_si "$value")"
   cmd+=" $(_secret_quote_si "$kc")"
   err=$(print -r -- "$cmd" | security -i 2>&1 >/dev/null)
@@ -347,7 +375,7 @@ _secret_find_layer() {
 }
 
 # All secret.* items in one keychain ($1, defaults to $_kc).
-# TSV rows: project \t name \t label \t kind \t comment \t mdate \t scope
+# TSV rows: project \t name \t label \t kind \t comment \t mdate \t scope \t flags
 _secret_dump_items() {
   local kc=${1:-$_kc}
   _secret_kc_ensure "$kc"
@@ -364,18 +392,19 @@ _secret_dump_items() {
         slash = index(rest, "/")
         if (slash > 0) { proj = substr(rest, 1, slash - 1); scope = substr(rest, slash + 1) }
         else           { proj = rest; scope = "" }
-        printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\n", proj, acct, labl, desc, icmt, mdat, scope
+        printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", proj, acct, labl, desc, icmt, mdat, scope, gena
       }
       item = 0
     }
     /^keychain:/            { flush() }
-    /^class: "genp"/        { item = 1; acct = svce = labl = desc = icmt = mdat = ""; next }
+    /^class: "genp"/        { item = 1; acct = svce = labl = desc = icmt = mdat = gena = ""; next }
     !item                   { next }
     /^ *"acct"<blob>=/      { acct = val($0) }
     /^ *"svce"<blob>=/      { svce = val($0) }
     /^ *0x00000007 <blob>=/ { labl = val($0) }
     /^ *"desc"<blob>=/      { desc = val($0) }
     /^ *"icmt"<blob>=/      { icmt = val($0) }
+    /^ *"gena"<blob>=/      { gena = val($0) }
     /^ *"mdat"<timedate>=/  {
       if (match($0, /"[0-9]+Z\\000"/)) mdat = substr($0, RSTART + 1, RLENGTH - 6)
     }
@@ -416,7 +445,7 @@ _secret_tsv_unescape() {       # undo jq @tsv escaping
 # ------------------------------------------------------------ subcommands --
 
 _secret_cmd_set() {
-  local name="" proj="" comment="" kind="" from_stdin=0 scoped=0 scope_opt=""
+  local name="" proj="" comment="" kind="" from_stdin=0 scoped=0 scope_opt="" env_opt=""
   while (( $# )); do
     case $1 in
       -p) proj=$2; shift 2 ;;
@@ -425,6 +454,8 @@ _secret_cmd_set() {
       -S|--scoped) scoped=1; shift ;;
       --scope) scope_opt=$2; shift 2 ;;
       --stdin) from_stdin=1; shift ;;
+      --env) env_opt=yes; shift ;;
+      --no-env) env_opt=no; shift ;;
       -*) _secret_err "set: unknown option '$1'"; return 2 ;;
       *) name=$1; shift ;;
     esac
@@ -435,17 +466,21 @@ _secret_cmd_set() {
   _secret_check_project "$proj" || return 2
   local scope
   scope=$(_secret_resolve_scope "$scope_opt" $scoped "$proj") || return 2
+  # no --env/--no-env: an existing item keeps its flags, a new one has none
+  local flags=keep
+  [[ -n $env_opt ]] && flags=$(_secret_flags_with_env "$(_secret_flags_of "$name" "$proj" "$scope")" "$env_opt")
 
   if (( from_stdin )) || [[ ! -t 0 ]]; then
-    _secret_store "$name" "$proj" "$comment" "$kind" "$scope" || return 1
+    _secret_store "$name" "$proj" "$comment" "$kind" "$scope" "$flags" || return 1
   else
     local value
     value=$(_secret_prompt_value "$proj/${scope:+$scope/}$name") || return 1
-    print -r -- "$value" | _secret_store "$name" "$proj" "$comment" "$kind" "$scope" || return 1
+    print -r -- "$value" | _secret_store "$name" "$proj" "$comment" "$kind" "$scope" "$flags" || return 1
   fi
-  local lbl
+  local lbl note=""
   lbl=$(_secret_kc_label "$proj")
-  print -r -- "stored $proj/${scope:+$scope/}$name${lbl:+ [keychain: $lbl]}"
+  _secret_env_on "$(_secret_flags_of "$name" "$proj" "$scope")" || note=" (env: no)"
+  print -r -- "stored $proj/${scope:+$scope/}$name$note${lbl:+ [keychain: $lbl]}"
 }
 
 # Shared layer-targeting flags for get/show/rm/update:
@@ -483,7 +518,7 @@ _secret_locate() {             # $1 name  $2 project
 }
 
 _secret_cmd_update() {
-  local name="" proj="" comment="" kind=""
+  local name="" proj="" comment="" kind="" env_opt=""
   local comment_set=0 kind_set=0 want_value=0 from_stdin=0
   local scoped=0 shared=0 scope_opt=""
   while (( $# )); do
@@ -491,6 +526,8 @@ _secret_cmd_update() {
       -p) proj=$2; shift 2 ;;
       -j) comment=$2; comment_set=1; shift 2 ;;
       -D) kind=$2; kind_set=1; shift 2 ;;
+      --env) env_opt=yes; shift ;;
+      --no-env) env_opt=no; shift ;;
       -S|--scoped) scoped=1; shift ;;
       --scope) scope_opt=$2; shift 2 ;;
       --shared) shared=1; shift ;;
@@ -508,8 +545,8 @@ _secret_cmd_update() {
     _secret_err "not found: $proj/${_layer_scope:+$_layer_scope/}$name (use 'secret set' to create it)"
     return 1
   fi
-  if (( ! want_value && ! from_stdin && ! comment_set && ! kind_set )); then
-    _secret_err "update: nothing to do (use --value/--stdin, -j COMMENT, -D KIND)"
+  if (( ! want_value && ! from_stdin && ! comment_set && ! kind_set )) && [[ -z $env_opt ]]; then
+    _secret_err "update: nothing to do (use --value/--stdin, -j COMMENT, -D KIND, --env/--no-env)"
     return 2
   fi
 
@@ -521,9 +558,11 @@ _secret_cmd_update() {
   f=("${(@ps:\t:)row}")
   (( kind_set )) || kind=${f[4]}
   (( comment_set )) || comment=${f[5]}
+  local flags=keep
+  [[ -n $env_opt ]] && flags=$(_secret_flags_with_env "${f[8]}" "$env_opt")
 
   if (( from_stdin )) || ( (( want_value )) && [[ ! -t 0 ]] ); then
-    _secret_store "$name" "$proj" "$comment" "$kind" "$layer" || return 1
+    _secret_store "$name" "$proj" "$comment" "$kind" "$layer" "$flags" || return 1
   else
     local value
     if (( want_value )); then
@@ -533,13 +572,14 @@ _secret_cmd_update() {
         _secret_err "cannot read current value of $proj/${layer:+$layer/}$name"; return 1
       }
     fi
-    print -r -- "$value" | _secret_store "$name" "$proj" "$comment" "$kind" "$layer" || return 1
+    print -r -- "$value" | _secret_store "$name" "$proj" "$comment" "$kind" "$layer" "$flags" || return 1
   fi
 
   local -a parts
   (( want_value || from_stdin )) && parts+=(value)
   (( comment_set )) && parts+=(comment)
   (( kind_set )) && parts+=(kind)
+  [[ -n $env_opt ]] && parts+=("env: $env_opt")
   local lbl
   lbl=$(_secret_kc_label "$proj")
   print -r -- "updated $proj/${layer:+$layer/}$name (${(j:, :)parts})${lbl:+ [keychain: $lbl]}"
@@ -610,6 +650,7 @@ _secret_cmd_show() {
     'Label:'    "${f[3]}" \
     'Kind:'     "${f[4]}" \
     'Comment:'  "${f[5]}" \
+    'Env:'      "$(_secret_env_on "${f[8]}" && print yes || print 'no (never emitted by secret env)')" \
     'Modified:' "$(_secret_fmt_date "${f[6]}")" \
     'Keychain:' "$(_secret_kc_for "$proj")"
 }
@@ -630,7 +671,7 @@ _secret_cmd_ls() {
   [[ -z $rows ]] && { print -r -- "no secrets in project '$proj'" >&2; return 0 }
   if (( long )); then
     local row mod scope
-    local -a f names scopes kinds mods comments
+    local -a f names scopes kinds mods envs comments
     local -i wn=4 ws=5 wk=4 wm=8           # seed from header label widths
     while IFS= read -r row; do
       f=("${(@ps:\t:)row}")
@@ -638,18 +679,20 @@ _secret_cmd_ls() {
       mod=$(_secret_fmt_date "${f[6]}")
       names+=("${f[2]}"); scopes+=("$scope"); kinds+=("${f[4]}")
       mods+=("$mod"); comments+=("${f[5]}")
+      if _secret_env_on "${f[8]}"; then envs+=(yes); else envs+=(no); fi
       (( ${#f[2]}  > wn )) && wn=${#f[2]}
       (( ${#scope} > ws )) && ws=${#scope}
       (( ${#f[4]}  > wk )) && wk=${#f[4]}
       (( ${#mod}   > wm )) && wm=${#mod}
     done <<< "$rows"
-    # auto-size columns to their content (NAME/SCOPE/KIND/MODIFIED); the
-    # trailing COMMENT is left unbounded so long names never misalign a row
-    local fmt="%-${wn}s  %-${ws}s  %-${wk}s  %-${wm}s  %s\n"
-    printf "$fmt" NAME SCOPE KIND MODIFIED COMMENT
+    # auto-size columns to their content (NAME/SCOPE/KIND/MODIFIED); ENV is
+    # yes/no, and the trailing COMMENT is left unbounded so long names never
+    # misalign a row
+    local fmt="%-${wn}s  %-${ws}s  %-${wk}s  %-${wm}s  %-3s  %s\n"
+    printf "$fmt" NAME SCOPE KIND MODIFIED ENV COMMENT
     local -i i
     for (( i = 1; i <= ${#names}; i++ )); do
-      printf "$fmt" "${names[i]}" "${scopes[i]}" "${kinds[i]}" "${mods[i]}" "${comments[i]}"
+      printf "$fmt" "${names[i]}" "${scopes[i]}" "${kinds[i]}" "${mods[i]}" "${envs[i]}" "${comments[i]}"
     done
   else
     print -r -- "$rows" | awk -F'\t' '{ print ($7 == "" ? $2 : $7 "/" $2) }'
@@ -686,21 +729,26 @@ _secret_cmd_env() {
   else
     scope=$(_secret_ambient_scope "$proj")
   fi
-  # overlay: the shared layer, with the active scope winning on collisions
+  # overlay: the shared layer, with the active scope winning on collisions.
+  # An item flagged env=no is never emitted, and its name stays out even
+  # when the other layer holds one: the winning layer decides.
   local row name
   local -a f
-  local -A layer_of
+  local -A layer_of noenv_of
   while IFS= read -r row; do
     [[ -n $row ]] || continue
     f=("${(@ps:\t:)row}")
     if [[ -z ${f[7]} ]]; then
       [[ -n ${layer_of[${f[2]}]-} ]] || layer_of[${f[2]}]=shared
+      _secret_env_on "${f[8]}" || noenv_of[${f[2]}:shared]=1
     elif [[ -n $scope && ${f[7]} == "$scope" ]]; then
       layer_of[${f[2]}]=scoped
+      _secret_env_on "${f[8]}" || noenv_of[${f[2]}:scoped]=1
     fi
   done <<< "$(_secret_rows "$proj")"
   local v lay
   for name in ${(ko)layer_of}; do
+    [[ -n ${noenv_of[$name:${layer_of[$name]}]-} ]] && continue
     lay=""
     [[ ${layer_of[$name]} == scoped ]] && lay=$scope
     if ! v=$(_secret_get_value "$name" "$proj" "$lay"); then
@@ -754,7 +802,8 @@ _secret_export_json() {        # $1 project ("" = all); JSON document on stdout
     print -r -- "$v" | jq -Rc \
       --arg project "${f[1]}" --arg name "${f[2]}" --arg kind "${f[4]}" \
       --arg comment "${f[5]}" --arg scope "${f[7]}" \
-      '{project: $project, scope: $scope, name: $name, kind: $kind, comment: $comment, value: .}'
+      --arg env "$(_secret_env_on "${f[8]}" && print yes || print no)" \
+      '{project: $project, scope: $scope, name: $name, kind: $kind, comment: $comment, env: $env, value: .}'
   done | jq -s --arg exported "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
     '{version: 1, exported: $exported, items: .}'
 }
@@ -769,6 +818,9 @@ _secret_export_env() {         # $1 project ("" = all); export lines on stdout
       print -r -- "# === project: ${f[1]}${f[7]:+ (scope: ${f[7]})} ==="
       last="${f[1]}|${f[7]}"
     fi
+    # an env=no item stays commented out, so sourcing the file never exports
+    # it; import reads the marker back as env=no
+    _secret_env_on "${f[8]}" || print -rn -- "#no-env# "
     print -r -- "export ${f[2]}=${(qq)v}"
   done
 }
@@ -863,7 +915,9 @@ _secret_cmd_import() {
     content=$(<"$file")
   fi
 
-  local -a names values projs comments kinds scopes
+  # envs: yes / no from the file, or "" when it says nothing (older exports):
+  # then an item being overwritten keeps its flags
+  local -a names values projs comments kinds scopes envs
   local trimmed=${content##[[:space:]]#}
   if [[ $trimmed == \{* || $trimmed == \[* ]]; then
     command -v jq >/dev/null 2>&1 || { _secret_err "jq is required (brew install jq)"; return 1 }
@@ -880,14 +934,22 @@ _secret_cmd_import() {
       comments+=("$(_secret_tsv_unescape "${jf[4]}")")
       kinds+=("$(_secret_tsv_unescape "${jf[5]}")")
       scopes+=("$(_secret_tsv_unescape "${jf[6]}")")
+      envs+=("$(_secret_tsv_unescape "${jf[7]}")")
     done < <(print -r -- "$content" \
-      | jq -r '.items[] | [.name, .value, (.project // ""), (.comment // ""), (.kind // ""), (.scope // "")] | @tsv') || true
+      | jq -r '.items[] | [.name, .value, (.project // ""), (.comment // ""), (.kind // ""), (.scope // ""),
+                           (if .env == "no" or .env == false then "no" elif .env == "yes" or .env == true then "yes"
+                            else "" end)] | @tsv') || true
   else
-    local line n v
+    local line n v e
     while IFS= read -r line; do
       line=${line%$'\r'}
       [[ -z ${line//[[:space:]]/} ]] && continue
       line=${line##[[:space:]]#}
+      e=""
+      if [[ $line == '#no-env# '* ]]; then
+        line=${line#'#no-env# '}
+        e=no
+      fi
       [[ $line == \#* ]] && continue
       line=${line#export }
       [[ $line == *=* ]] || continue
@@ -895,7 +957,7 @@ _secret_cmd_import() {
       v=${line#*=}
       n=${n%%[[:space:]]#}
       v=${(Q)v}
-      names+=("$n"); values+=("$v"); projs+=(""); comments+=(""); kinds+=(""); scopes+=("")
+      names+=("$n"); values+=("$v"); projs+=(""); comments+=(""); kinds+=(""); scopes+=(""); envs+=("$e")
     done <<< "$content"
   fi
   (( ${#names} )) || { _secret_err "no items found in '$file'"; return 1 }
@@ -940,8 +1002,11 @@ _secret_cmd_import() {
     if [[ -n ${tscopes[i]} ]] && ! _secret_check_scope "${tscopes[i]}"; then
       (( fail++ )); continue
     fi
+    local flags=keep
+    [[ -n ${envs[i]} ]] && flags=$(_secret_flags_with_env \
+      "$(_secret_flags_of "${names[i]}" "${targets[i]}" "${tscopes[i]}")" "${envs[i]}")
     if print -r -- "${values[i]}" \
-        | _secret_store "${names[i]}" "${targets[i]}" "${comments[i]}" "${kinds[i]}" "${tscopes[i]}"; then
+        | _secret_store "${names[i]}" "${targets[i]}" "${comments[i]}" "${kinds[i]}" "${tscopes[i]}" "$flags"; then
       (( ok++ ))
     else
       (( fail++ ))
@@ -1483,14 +1548,17 @@ USAGE
   secret [-k KEYCHAIN] <command> [args]
 
 COMMANDS
-  set NAME [-p proj] [-S|--scope X] [-j comment] [-D kind] [--stdin]
+  set NAME [-p proj] [-S|--scope X] [-j comment] [-D kind] [--no-env|--env] [--stdin]
         store a secret; prompts for the value (no echo), or reads one
         line from stdin with --stdin / when piped. Default layer: shared;
-        -S stores into this repository's scope
-  update NAME [-p proj] [LAYER] [-j comment] [-D kind] [--value|--stdin]
+        -S stores into this repository's scope. --no-env keeps it out of
+        `secret env` (see ENV); without --env/--no-env an existing item
+        keeps its setting
+  update NAME [-p proj] [LAYER] [-j comment] [-D kind] [--no-env|--env] [--value|--stdin]
         partially update an existing secret: --value prompts for a new
         value (--stdin reads it from stdin), -j/-D replace comment/kind
-        (-j '' clears the comment); everything else is kept as-is
+        (-j '' clears the comment), --no-env/--env change the ENV
+        setting; everything else is kept as-is
   get NAME [-p proj] [LAYER] [-c|--copy]
         print the value (or copy to clipboard, auto-clears in 45s)
   show NAME [-p proj] [LAYER]  metadata only (never prints the value)
@@ -1498,7 +1566,8 @@ COMMANDS
         as "scope/NAME", --long has a dedicated Scope column
   projects                     list all projects
   env [-p proj] [--scope X]    emit `export NAME=...` lines: the shared
-        layer overlaid with the repository scope (scoped wins), e.g.:
+        layer overlaid with the repository scope (scoped wins), skipping
+        items set --no-env, e.g.:
           eval "$(secret env)"
   rm NAME [-p proj] [LAYER] [-f]   delete a secret
   link [NAME|--unset]
@@ -1506,7 +1575,8 @@ COMMANDS
         without arguments, show how this directory resolves
   export [-p proj|--all] [-o FILE] [--format age|json|env]
         write secrets to a file; age (encrypted JSON, default), json,
-        or env (plaintext export lines, metadata lost)
+        or env (plaintext export lines, metadata lost except ENV:
+        --no-env items are written as `#no-env# export ...`)
   import FILE [-p proj] [-S|--scope X] [-y]
         load secrets from .json.age / .json / .env files; -p forces all
         items into one project, -S/--scope forces one layer, otherwise
@@ -1548,6 +1618,14 @@ SCOPES
   (DATABASE_URL, PORT, ...) with -S. The scope name defaults to the
   repository basename, so two linked repos never collide. `secret env`
   emits shared + this repo's scope, scoped values winning.
+
+ENV
+  Every item is emitted by `secret env` — and so injected by every shell,
+  shim or helper built on it — unless it is set --no-env: then only
+  `get` (and export/import, which carry the setting) ever reads it. Use it
+  for what no process environment should hold, such as a wallet's seed
+  phrase. Stored in the item's generic attribute as env=no; rewriting the
+  value keeps it, `update --env` lifts it. `ls --long` and `show` display it.
 
 KINDS
   -D sets the item's kind, a short type label shown in Keychain Access.
