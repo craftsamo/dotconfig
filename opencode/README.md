@@ -36,6 +36,39 @@ All global instructions live in `AGENTS.md`. Do not reintroduce an
 `instructions` array: OpenCode V2 accepts the key but does not load its files
 (anomalyco/opencode#51341).
 
+## Delegation and progress in V2
+
+V2's `subagent` tool takes `agent`, not V1's `task` / `subagent_type`.
+The files remain under `agent/` and retain supported legacy frontmatter;
+V2 normalizes those settings without rewriting them.
+
+`hidden: true` hides an agent from both interactive discovery and the model's
+subagent catalog. The twelve specialist subagents are therefore visible;
+the four API-only `hermes-*` primary agents remain hidden. Visibility is not
+authorization: caller-specific permissions decide which specialists may run.
+
+- Plan allows read-only exploration, research, diagnosis, and review, but not
+  `general`, `worker`, or `verifier` (which can apply formatters).
+- Debug and Review exclude editing agents and ask `verifier` for checks only,
+  never formatter application. Build may request scoped formatter application.
+- Plan and the built-in Explore explicitly deny edits, overriding the global
+  `edit: ask`. Plan retains its exception for `~/.opencode/plan/*`; writing a
+  plan file still requires the user's explicit request.
+
+New subagents use their configured model, otherwise the parent's model. A
+user-requested per-call `model` override takes precedence. General and the
+built-in Explore have no model configured and inherit the parent; use the
+specialists for their role and cheaper default models. Primary sessions retain
+their selected model when switching agents; the agent configuration is not a
+guarantee of the model currently selected in a session.
+
+V2 has no native Todo tool. Keep ephemeral execution steps in the conversation
+as `Phase{N}.{m} - <task> (executor)`, updating pending / in-progress / completed /
+blocked statuses and restating unfinished work at handoffs. Plan asks the user
+to switch to Build before execution. Do not create local TODO files or claim
+that a native list was registered. Durable work still uses GitHub Projects
+when requested; no Todo plugin is installed for this workaround.
+
 Empty directories carry a `.gitkeep` so the skeleton survives a fresh clone.
 
 `skills/` holds only the skills that depend on opencode itself — its
