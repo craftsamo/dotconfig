@@ -110,6 +110,17 @@ repository upkeep (Engineer through OpenCode, the Assistant's Admin topic).
   [docs/substack-access.md](docs/substack-access.md),
   [docs/youtube-access.md](docs/youtube-access.md),
   [docs/google-access.md](docs/google-access.md)).
+- **The web3 wallet is the one reader across `secret` projects.** Its signer
+  lists every project's names and kinds and reads only items of kind
+  `MNEMONIC` / `PRIVATE_KEY`; only names with the word `HERMES` sign or count as
+  own, every other wallet is watch-only. Never widen the kinds it reads,
+  loosen that name rule, or pass a wallet secret through a process
+  environment — a project's own deployer key would start signing. Hermes
+  wallets are stored `--no-env` so `secret env` (the helper and the shims)
+  never injects them; keep `secret env` honouring that flag. On the
+  Assistant the web3 tools' hook blocks terminal `secret get/env/set/rm` and
+  `security …-generic-password` for the same reason
+  ([docs/web3.md](docs/web3.md)).
 - **Rotating an API key needs a gateway restart** — resident sessions keep the
   environment injected at gateway launch.
 - **OAuth logins from `default` only** (`hermes model`, no `-p`). Running it in
@@ -196,6 +207,12 @@ repository upkeep (Engineer through OpenCode, the Assistant's Admin topic).
   (`unpacked_guard`) keys on the `.unpacked` folder name that `extract` gives
   an unpacked archive, and the Assistant's technics name it too: rename it
   everywhere or the guard stops matching without a failure.
+- **`plugins/web3/_shared/` is code, not a plugin, and holds the web3 tools'
+  logic.** evm-access and solana-access are thin entry points that load
+  `access.py` from it by path and share its one in-memory record of approval
+  decisions, so both break at import if it moves, and it never gets a
+  `plugin.yaml`. The signer and reader run from there too, with paths that
+  `scripts/web3.sh` names ([docs/web3.md](docs/web3.md)).
 - **Moving a plugin directory moves its LaunchAgent's script path.** The
   installed plists of the `messaging/` sync agents embed the absolute path of
   `sync.py` / `engine.py`, so after such a move each agent needs its
