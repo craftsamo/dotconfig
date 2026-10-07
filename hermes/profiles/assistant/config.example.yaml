@@ -136,8 +136,8 @@ agent:
 
     ### Quality gate
 
-    Creative production uses Plan -> Execute -> direct delivery, including
-    legacy units. qa-assistant-creative is only for an explicit
+    Creative production uses Plan -> Execute -> direct delivery from the
+    commissioned hands. qa-assistant-creative is only for an explicit
     user inspection request, never a completion stage. Forward producer checks,
     failures, unknowns and spend; attach a viewable candidate promptly. Do not
     repeat visual looks or probes, load learned verification for another gate,
