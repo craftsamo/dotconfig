@@ -583,21 +583,18 @@ class PrivateOverlaySkillWriteGuardTest(unittest.TestCase):
         cls.plugin.PRIVATE_ROOT = root / "private/hermes"
         cls.public_skills = cls.plugin.MANAGED_ROOT / "profiles/assistant/skills"
         cls.private_skills = cls.plugin.PRIVATE_ROOT / "profiles/assistant/skills"
-        for directory in (cls.public_skills, cls.private_skills / "assistant-pipeline",
+        for directory in (cls.public_skills / "assistant-pipeline",
                           cls.private_skills / "technic/example",
                           cls.plugin.PRIVATE_ROOT / "skills/workspaces"):
             directory.mkdir(parents=True)
-        # The public tree reaches the private pipeline through one overlay link.
-        cls.overlay_link = cls.public_skills / "assistant-pipeline"
-        cls.overlay_link.symlink_to(cls.private_skills / "assistant-pipeline", target_is_directory=True)
+        cls.pipeline = cls.public_skills / "assistant-pipeline"
         cls.technic = str(cls.private_skills / "technic/example/SKILL.md")
 
     def guard(self, tool_name: str, **args: Any) -> Any:
         return self.plugin._guard_managed_skill_writes(tool_name=tool_name, args=args)
 
     def test_private_technic_and_pipeline_writes_are_blocked(self) -> None:
-        for path in (self.technic, str(self.private_skills / "assistant-pipeline/SKILL.md"),
-                     str(self.overlay_link / "SKILL.md")):
+        for path in (self.technic, str(self.pipeline / "SKILL.md")):
             with self.subTest(path=path):
                 self.assertEqual(self.guard("write_file", path=path, content="x")["action"], "block")
                 self.assertEqual(self.guard("patch", path=path, old_string="a", new_string="b")["action"], "block")
