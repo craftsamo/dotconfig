@@ -127,18 +127,16 @@ The local plugin `lib/subagent-fallback` (listed last under `plugins` in
 `opencode.jsonc`) checks quota before a new specialist launch and chooses in
 this order:
 
-1. The configured primary model, when its included quota is available.
-2. The role's alternate model, when its included quota is available. This can be
-   chosen while the primary's quota is unknown, to prefer known included quota.
-3. Existing credits, as a last resort, only when both candidates' included
-   quotas are verified fresh and exhausted.
+1. The configured primary model, when Quota reports included quota remaining.
+2. The role's alternate, only when the primary is at 0% and the alternate has
+   included quota remaining.
+3. The usual primary with provider-managed credits as a last resort, when both
+   are at 0% and `creditsLastResort` is `true`. This attempts a normal provider
+   request; it does not prove a positive credit balance or guarantee success.
 
-If both quotas are unknown and the primary's API proves no usable credits
-(`subscription_only`), the usual default is still allowed. If quota is unknown
-and the source is credit-funded, nothing is spent unless both included quotas
-are exhausted. It covers two routes only: Claude Max (the existing accepted
-risk) and ChatGPT Plus. Current model pins, variants and permissions are
-unchanged.
+Missing, stale or unreadable Quota data keeps the configured default, not a
+quota error or an automatic model switch. No independent balance/entitlement
+check is performed. Current model pins, variants and permissions are unchanged.
 
 | Role                     | Alternate model   | Variant |
 | ------------------------ | ----------------- | ------- |
@@ -158,72 +156,51 @@ or environment-variable escalation; both ends must be approved native OAuth
 accounts. The plugin never buys credits, enables auto-purchase, or changes
 account settings or logins.
 
-**Fresh proof.** Quota comes from a direct read of the active OpenCode OAuth
-login only, via the provider's usage API (GET). Toast strings, multi-login
-export and the cache CLI are not used. A short process-local singleflight
-cache (15 s) applies. Unknown authentication proof, or unknown billing, stops
-automatic selection before the child is created. Full-context and transport
-checks happen before model transmission; a rejected check can leave an empty
-child. Timestamps may be at most 30 s old; network calls time out after 5 s.
+**Shared information.** Reads Quota 5.0.1's public v2 JSON export once before
+each eligible launch: `$XDG_CACHE_HOME/opencode/quota-export.json`, or
+`~/.cache/opencode/quota-export.json`. Quota's existing `export.enabled` setting
+is enabled in `opencode-quota/quota-toast.jsonc`. Its home footer writes the file
+on normal refresh; the selector does not fetch usage, run the Quota CLI, start
+timers, read internal caches or patch Quota. A custom export path can be matched
+with the plugin option `quotaExportPath` (absolute path).
 
-Fresh billing observations (the native account plus API credit status flags,
-or no current paid balance) are kept separate from included quota. A snapshot
-is not a durable prohibition. `credits_available` requires an already available,
-positive, bounded credit budget.
+Rows are matched to the active OpenCode connection using `sourceId`. Both 5h
+and Weekly quota rows must be present. Monthly usage credits and Code Review
+rows are excluded; other named quota rows apply conservatively provider-wide,
+without guessing a model from a display label. Published 0% (or less) counts as
+empty, even if rounded. Provider `fetchedAt` may be up to six minutes old,
+matching Quota's five-minute cache plus export-refresh grace; rewriting the
+export does not renew its data. A passed reset is treated as unknown.
 
-- **Anthropic** (login method `claude-max`): `extra_usage.is_enabled: false`
-  reports no currently usable extra usage; enabled extra usage needs a positive,
-  bounded remaining monthly budget for last-resort credits. The known `five_hour` and `seven_day`
-  windows and the selected known model's window are checked. The presence of a
-  documented field is not an error. In `limits`, the native global kinds
-  `session` and `weekly_all` are recorded as shared windows only when
-  `scope` is explicitly `null`, with a finite percent in 0..100 and a future
-  reset. A `weekly_scoped` entry uses the native model ID only: it counts for
-  the selected model only when its `scope.model` ID matches exactly; a
-  known scope for a different native model does not apply. An opaque,
-  non-native or null model scope with a valid window below 100 does not block
-  `available`, because all potentially applicable reported windows still
-  have remaining quota; a
-  display name is never guessed into a model. An unknown scope at 100 stays
-  `unknown` (as does an unknown kind or a malformed entry) unless shared or
-  selected-model exhaustion is proven, and credits are never admitted
-  prematurely. Malformed windows stay `unknown`. A shared window that is
-  exhausted is still valid despite an opaque entry. Not every invalid API
-  response is treated as a model-scope problem.
-- **OpenAI** (`chatgpt-browser` or headless): metadata must carry the
-  accountID and `plan_type` plus the current `rate_limit` windows. An explicit
-  backend `allowed` flag and `limit_reached` decision are used; percentages
-  alone (even 100) cannot prove exhaustion. `spend_control` is a recognized
-  status, not permission to buy credits.
+Before the first export, without the home footer (including headless use), or
+after its data expires, launches use the configured default. A different
+account's rows cannot authorize a fallback. A partial multi-login export can
+still use complete matching-account rows. This is a best-effort launch
+preference, not an exact prediction of whether a task fits its remaining quota.
 
 **Ongoing transport check.** The actual HTTP and WebSocket transports are
 verified for the subscription host, subscription auth and absence of an API
 key. Title, compaction and generate requests are guarded too. This is not a
 global financial guarantee: tools, other plugins and stateless `ctx.generate`
-are out of scope. Credit authorization applies only to the selected
-provider/account; cross-provider title, generate and similar requests need
-fresh available included quota. The default unknown-quota exception covers the
-exact primary selected model only, not auxiliary requests.
+are out of scope. These guards check identity, model and transport only; they
+never read usage or credit balances during execution, including auxiliary
+requests. Actual charging and credit availability remain provider-managed.
 
 **Marker.** A durable metadata marker is written on the new child before its
 prompt, which closes the registration race and survives a background launch or a
-reload. No credentials or PII go into quota or token files or logs; the
-connectionID stays in the internal marker only, never in logs.
+reload. The selector writes no quota cache or credentials; the connectionID
+stays in the internal marker, never in its notices. Quota's own public export
+contains connection IDs and display labels, but no access tokens.
 
 **Passthrough.** An explicit model, an existing sessionID, unknown roles and
-roles whose configured models changed keep the normal selection. Once an
-included-funded child has started, quota exhaustion stops it: no model switch,
-restart, probe resubmit
-or waiting for the 5 h reset. A short native transient retry is allowed. A child
-funded by admitted credits can run while included quota is exhausted; it carries
-a persisted credit-mode marker and is guarded on every request; if credits are
-no longer available it stops rather than buying more.
-Native providers may move to credits mid-request when an admitted included run
-runs out, even if the other provider has included quota left. The strict order
-applies only before launch; it is not a server-enforced no-paid gate. Existing
-older markers stay strict because the optional `allowUnknownQuota` is absent
-(`false`). The root parent's model
-and retry policy are unchanged, so a parent on the same pool may still fail.
+roles whose configured models changed keep the normal selection. During a task,
+Quota errors or exhaustion do not stop a child. Native provider quota errors
+and long rate-limit reset waits still end the protected task; short native
+transient retries are allowed. There is no model switch, restart or automatic
+resubmit. Native providers may move to credits mid-request; launch preference
+is not a no-paid gate. Older markers retain identity/context protection without
+their obsolete funding gates. The root parent's model and retry policy are
+unchanged, so a parent on the same pool may still fail.
 Protection is sticky for marked children, including completed continuations:
 historical execution outcomes cannot prove current idleness. They retain their
 selected role and model; start a new child for a different explicit selection.
@@ -233,13 +210,14 @@ selected role and model; start a new child for a different explicit selection.
 context minus output. The first primary HTTP body or WebSocket frame is also
 measured before transmission, including additions from later context hooks.
 Media or unknown sizes reject, and no compaction is
-run to make a launch fit. A later native compaction happens only when its
-configured subscription route is approved and quota is available; otherwise it
-stops.
+run to make a launch fit. Later native compaction retains the subscription
+identity and route checks, without a fresh quota requirement.
 
 **Reporting.** The UI report uses the built-in tool's content and metadata with
-`from` / `to`, including background launches, and the funding source (included
-or credits). Declared structured output is unchanged.
+`from` / `to`, including background launches. `funding: included` reports the
+fallback preference; `funding: provider` means both reported pools were empty
+and the provider decides whether the default can proceed. Neither proves the
+actual charge. Declared structured output is unchanged.
 
 **Setup.** Pinned to OpenCode V2.0.23: on any other release the automatic new
 launch is rejected, but a manual pass still works. Re-validate the mocked tests
@@ -247,51 +225,19 @@ after an upgrade. Run them from the repo root with
 `bun test opencode/lib/subagent-fallback`; no test-runner script or new
 dependency is installed.
 
-Last-resort credits are used only when the plugin option `creditsLastResort` is
-`true`, set by explicit user authorization; otherwise the launch stops.
+When both reported pools are empty, the default-provider attempt requires
+`creditsLastResort: true`; otherwise the launch stops. Missing Quota data still
+uses the default, so this option is not a global prohibition on credit charges.
 
 To disable new selection, set the plugin's `options.enabled` to `false`;
 guards for already-marked children remain. To keep those guards, do not remove
 the plugin or config entries or change auth while it is active. Keep the entry
 last, after quota, and trust no other later request mutator.
 
-Current activation: `enabled` is `true` and `creditsLastResort` is `true`;
-`allowDiagnostics` is removed. Activation followed the checks below and an
-actual Claude-only GET after the fix that returned HTTP 200, `proof_accepted`,
-quota `available`, `billingState` `subscription_only`, with the known kinds
-`session`, `weekly_all` and `weekly_scoped` in safe shapes. The earlier
-`parser_reject` came from our assumption that every supplemental limit was
-`weekly_scoped`, not from a missing Max x20 plan. The earlier OpenAI probe was
-accepted with quota
-available and `credits_available`; no fresh OpenAI GET has been made since. Mock
-verification does not prove external billing or entitlement behavior, nor the
-actual quality of any role on its alternate model. The plugin never purchases
-credits, but cannot prevent the provider's in-flight credit charges.
-
-Verification: review approved; 359 mocked tests and 1184 assertions passed,
-along with the Bun build and diff checks.
-
-Diagnostic RPC methods are all gated by the same `allowDiagnostics: true`
-plugin option plus an explicit local RPC call; none is a default behavior and
-none runs an API call without user consent:
-
-- `dotconfig.subagent-preflight.inspectQuota`: one GET per provider, memoized
-  per plugin registration.
-- `dotconfig.subagent-preflight.inspectAnthropicQuota`: Anthropic only, one GET,
-  memoized and shared with the aggregate method.
-- `dotconfig.subagent-preflight.inspectParser`: runs the parser on FIXED
-  synthetic fixtures, with ZERO GETs and no auth; it returns the parser
-  revision `v2` and the fixture outcomes (50 available, 100 unknown), and the
-  active service was verified (no global service restart).
-
-None launches an LLM or child. They return only fixed states, status, reasons
-and kind enum names. One-shot usage diagnostics also carry `limitShapes` (at
-most 20) with whitelisted field names mapped to type codes and sanitized short
-kind strings; no accountIDs, numeric usage, real reset dates, model display
-names, full bodies or raw credentials. The user explicitly authorized this
-structural information. The flag is absent by default: disable it after the
-specific authorized call; any future diagnostic needs the user's explicit
-permission. Credentials are never included in diagnostic output.
+Current options remain `enabled: true` and `creditsLastResort: true`. The
+independent usage reader, billing parser and usage-diagnostic RPCs have been
+removed. Tests use synthetic public exports and mocked OpenCode transports;
+they do not probe providers or establish real billing/entitlement behavior.
 
 ## Accounts
 
