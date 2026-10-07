@@ -57,21 +57,29 @@ def registered(profile):
     return ctx
 
 
-def test_assistant_and_marketer_read_and_write_writer_checks_others_get_nothing():
+def test_assistant_writes_marketer_reads_writer_checks_others_get_nothing():
     for profile in ("creator", "engineer", "default", "researcher"):
         ctx = registered(profile)
         assert ctx.tools == {} and ctx.hooks == []
-    for profile in ("assistant", "marketer"):
-        ctx = registered(profile)
-        tool = ctx.tools["note"]
-        assert tool["toolset"] == "note_access" and tool["schema"]["name"] == "note"
-        params = tool["schema"]["parameters"]
-        assert params["additionalProperties"] is False and params["required"] == ["action"]
-        assert params["properties"]["action"]["enum"] == list(na.ACTIONS)
-        assert {"title", "body", "eyecatch", "path", "base", "preview"} <= set(params["properties"])
-        assert "create_draft" in tool["description"] and "resident session" in tool["description"]
-        assert "check (body" in tool["description"]
-        assert [name for name, _ in ctx.hooks] == ["pre_tool_call"]
+    ctx = registered("assistant")
+    tool = ctx.tools["note"]
+    assert tool["toolset"] == "note_access" and tool["schema"]["name"] == "note"
+    params = tool["schema"]["parameters"]
+    assert params["additionalProperties"] is False and params["required"] == ["action"]
+    assert params["properties"]["action"]["enum"] == list(na.ACTIONS)
+    assert {"title", "body", "eyecatch", "path", "base", "preview"} <= set(params["properties"])
+    assert "create_draft" in tool["description"] and "resident session" in tool["description"]
+    assert "check (body" in tool["description"]
+    assert [name for name, _ in ctx.hooks] == ["pre_tool_call"]
+    # Marketer advises: reads and the offline check, no save and no preview.
+    ctx = registered("marketer")
+    tool = ctx.tools["note"]
+    params = tool["schema"]["parameters"]
+    assert params["properties"]["action"]["enum"] == list(na.READS + na.OFFLINE)
+    assert {"body", "path"} <= set(params["properties"])
+    assert not {"base", "preview"} & set(params["properties"])
+    assert "create_draft" not in tool["description"] and "check (body" in tool["description"]
+    assert [name for name, _ in ctx.hooks] == ["pre_tool_call"]
 
 
 def test_writer_gets_the_format_check_only():
@@ -144,10 +152,9 @@ def test_a_write_without_the_gate_is_refused(isolated):
     assert result["ok"] is False and "approval card" in result["error"] and "save" not in isolated
 
 
-@pytest.mark.parametrize("profile", ["assistant", "marketer"])
-def test_unattended_runs_cannot_write_and_hand_the_save_back(isolated, monkeypatch, profile):
+def test_unattended_runs_cannot_write_and_hand_the_save_back(isolated, monkeypatch):
     monkeypatch.setattr(plugin, "_unattended", lambda: True)
-    handler, gate = handler_and_gate(profile)
+    handler, gate = handler_and_gate("assistant")
     args = {"action": "update_draft", "draft": "n0000000000a1", "base": "t1", "body": "new"}
     directive = gate(tool_name="note", args=args)
     assert directive["action"] == "block" and "approve" in directive["message"]
@@ -157,13 +164,16 @@ def test_unattended_runs_cannot_write_and_hand_the_save_back(isolated, monkeypat
     assert gate(tool_name="note", args={"action": "drafts"}) is None   # reads still work unattended
 
 
-def test_marketer_saves_through_its_own_card(isolated, monkeypatch):
+def test_marketer_can_neither_save_nor_preview_even_with_a_person(isolated, monkeypatch):
     handler, gate = handler_and_gate("marketer")
-    args = {"action": "update_draft", "draft": "n0000000000a1", "base": "t1", "body": "new"}
-    directive = gate(tool_name="note", args=args, tool_call_id="m1")
-    assert directive["action"] == "approve" and directive["message"].startswith("note: replace draft")
-    monkeypatch.setattr(plugin, "_call_id", lambda: "m1")
-    assert json.loads(handler(dict(args)))["ok"] is True and isolated.count("save") == 1
+    for args in ({"action": "update_draft", "draft": "n0000000000a1", "base": "t1", "body": "new"},
+                 {"action": "create_draft", "title": "T", "body": "x", "preview": True}):
+        assert gate(tool_name="note", args=args, tool_call_id="m1")["action"] == "block"
+        monkeypatch.setattr(plugin, "_call_id", lambda: "m1")
+        result = json.loads(handler(dict(args)))
+        assert result["ok"] is False and "read note but not write" in result["error"]
+    assert json.loads(handler({"action": "check", "body": "## a\n\nb"}))["ready"] is True
+    assert "save" not in isolated
 
 
 def test_inbound_a2a_never_reaches_the_assistant(monkeypatch):
@@ -186,9 +196,8 @@ def test_inbound_a2a_lets_marketer_read_and_check_but_never_save(isolated, monke
     assert json.loads(handler({"action": "check", "body": "## a\n\nb"}))["ready"] is True
     for args in ({"action": "update_draft", "draft": "n0000000000a1", "base": "t1", "body": "new"},
                  {"action": "create_draft", "title": "T", "body": "x", "preview": True}):
-        directive = gate(tool_name="note", args=args, tool_call_id="a1")
-        assert directive["action"] == "block" and "A2A" in directive["message"]
-        assert "A2A" in json.loads(handler(args))["error"]
+        assert gate(tool_name="note", args=args, tool_call_id="a1")["action"] == "block"
+        assert json.loads(handler(args))["ok"] is False
     assert "save" not in isolated
 
 
@@ -263,7 +272,7 @@ def test_oversized_results_are_refused(monkeypatch):
 
 def test_a_preview_runs_without_a_card_even_unattended(isolated, monkeypatch):
     monkeypatch.setattr(plugin, "_unattended", lambda: True)
-    handler, gate = handler_and_gate("marketer")
+    handler, gate = handler_and_gate("assistant")
     args = {"action": "update_draft", "draft": "n0000000000a1", "base": "t1", "body": "new", "preview": True}
     assert gate(tool_name="note", args=args, tool_call_id="p1") is None
     result = json.loads(handler(args))

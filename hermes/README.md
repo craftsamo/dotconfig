@@ -490,9 +490,9 @@ keeps user keys.
   path around it. Engine: `scripts/x-access.sh` (`install` / `status`).
   Behavior: [docs/x-access.md](docs/x-access.md).
 - **social/note-access** (`standalone`): `note` (toolset `note_access`) for the
-  assistant and marketer — read, and save unpublished drafts from Markdown
-  with images through the approval gate (a run without a person, such as a
-  resident session, hands the save back to its caller) — search, articles,
+  assistant (read, and save unpublished drafts from Markdown with images
+  through the approval gate; a run without a person hands the save back to
+  its caller) and marketer (read only) — search, articles,
   creators, comments, hashtags and the user's own drafts and stats on
   note.com — plus an offline `check` of a draft body, the only action Writer
   gets. Standard library only: `bridge.py` alone reads the session
