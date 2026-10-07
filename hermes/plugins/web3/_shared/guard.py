@@ -17,7 +17,7 @@ _READ = re.compile(
     r"(?<![\w-])web3-rpc(?![\w-])|ALCHEMY_API_KEY|HELIUS_API_KEY|local/web3(?![\w-])"
     r"|dump-keychain|secret\s+export|find-generic-password", re.IGNORECASE)
 _WALLET = re.compile(
-    r"(?<![\w-])web3-wallet(?![\w-])|WEB3_MNEMONIC|WEB3_KEY_|signer\.py|web3/wallet"
+    r"(?<![\w-])web3-wallet(?![\w-])|WEB3_SEED_|signer\.py|web3/wallet"
     r"|\bcast\s+(send|wallet|mktx|publish)\b|\bsolana\s+(transfer|keygen)\b|\bspl-token\s+transfer\b"
     r"|eth_sendRawTransaction|sendTransaction", re.IGNORECASE)
 _SOURCE_READ = re.compile(r"plugins/web3/[\w./-]+\.(py|yaml|md)$")

@@ -3,14 +3,17 @@
 #
 # Both plugins run their engine with the interpreter of an isolated venv under the ignored
 # hermes/local/web3/, built from the hash-locked engines/web3/requirements.lock. The wallet's
-# seed phrase and the optional RPC provider keys live only in the Keychain, never in a file:
+# seed phrases and the optional RPC provider keys live only in the Keychain, never in a file;
+# a seed named in web3-wallet.yaml as "work-x" is the item WEB3_SEED_WORK_X:
 #
-#   secret set WEB3_MNEMONIC -p hermes --scope web3-wallet -D MNEMONIC
+#   secret set WEB3_SEED_MAIN -p hermes --scope web3-wallet -D MNEMONIC
 #   secret set ALCHEMY_API_KEY -p hermes --scope web3-rpc
 #   secret set HELIUS_API_KEY -p hermes --scope web3-rpc
 #
-#   install   build or refresh the venv from the lock (Python 3.12.11, uv)
-#   status    engine versions and which secrets are stored (values are never printed)
+#   install              build or refresh the venv from the lock (Python 3.12.11, uv)
+#   status               engine versions and which secrets are stored (values are never printed)
+#   addresses SEED [N]   that seed's first N accounts (default 3) on EVM and Solana, to fund them;
+#                        addresses only, never a key
 set -euo pipefail
 
 HERMES_DIR="$(cd "$(dirname "$0")/.." && pwd)"
@@ -56,12 +59,32 @@ case "${1:-}" in
     else
       echo "engine:   not installed (run: $0 install)"
     fi
-    echo "seed:     $(stored WEB3_MNEMONIC web3-wallet "secret set WEB3_MNEMONIC -p hermes --scope web3-wallet -D MNEMONIC")"
+    seeds=$("$SECRET" ls -p hermes 2>/dev/null | sed -n 's#^web3-wallet/\(WEB3_SEED_[A-Z0-9_]*\)$#\1#p' | tr '\n' ' ')
+    echo "seeds:    ${seeds:-none (secret set WEB3_SEED_MAIN -p hermes --scope web3-wallet -D MNEMONIC)}"
     echo "alchemy:  $(stored ALCHEMY_API_KEY web3-rpc "optional; public RPC is used")"
     echo "helius:   $(stored HELIUS_API_KEY web3-rpc "optional; public RPC is used")"
     ;;
+  addresses)
+    [ -x "$VENV/bin/python" ] || die "engine not installed (run: $0 install)"
+    SEED="${2:-}"
+    COUNT="${3:-3}"
+    case "$SEED" in ''|*[!a-z0-9-]*) die "usage: $0 addresses SEED [N] (SEED as named in web3-wallet.yaml)" ;; esac
+    case "$COUNT" in ''|*[!0-9]*) die "N must be a number" ;; esac
+    printf '{"op": "derive", "seed": "%s", "count": %s}' "$SEED" "$COUNT" \
+      | env -i HOME="$HOME" PATH=/usr/bin:/bin LANG=en_US.UTF-8 \
+          "$VENV/bin/python" "$HERMES_DIR/plugins/web3/wallet/signer.py" \
+      | "$VENV/bin/python" -c '
+import json, sys
+reply = json.load(sys.stdin)
+if not reply.get("ok"):
+    sys.exit("error: " + reply.get("error", "unknown"))
+print("seed " + reply["data"]["seed"])
+for row in reply["data"]["accounts"]:
+    print("%3d  EVM %s  Solana %s" % (row["index"], row["evm"], row["solana"]))
+'
+    ;;
   *)
-    sed -n '2,14p' "$0" | sed 's/^# \{0,1\}//'
+    sed -n '2,17p' "$0" | sed 's/^# \{0,1\}//'
     exit 2
     ;;
 esac
