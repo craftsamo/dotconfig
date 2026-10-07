@@ -154,3 +154,22 @@ allowed even when the image-call grant forbids retries. A reduced style sheet
 or `key_px=0` is not native-pixel proof; inspect finished assets at native size.
 Kit fixtures are smoke evidence, not proof that every style has earned
 production use; soak against real client jobs is still pending.
+
+## Diagram family
+
+`image-creator-pipeline/create/diagram/` carries one verb. `create-diagram`
+draws an architecture, flow, sequence or concept diagram deterministically as
+one self-contained HTML file with inline SVG plus 1x and 2x PNG renders, from
+the nodes, edges and exact labels in the form; nothing is generated and it is
+free. It replaces the archived `creator-svg-diagram` technic.
+
+- **Engines:** upstream `architecture-diagram` (architecture) and the optional
+  `concept-diagrams` (flow, sequence, concept), attached through the hands'
+  `skills.external_dirs`; the leaf takes their drawing conventions only, never
+  their clarify or intake.
+- **`diagram.py render`:** stdlib Python plus `agent-browser` and `magick`.
+  It rejects remote URLs, `<script>` and stylesheet links, requires every label
+  of `labels.json` in the SVG text, renders offline at 1x and at device scale
+  factor 2, requires two identical screenshots per scale and no browser errors,
+  and writes `diagram.png`, `diagram@2x.png`, `sheet.png` and `render.json`
+  into a new directory.
