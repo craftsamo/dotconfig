@@ -67,6 +67,11 @@ hermes/profiles/*/specialist-sessions/
 hermes/profiles/*/resident-sessions/
 hermes/profiles/*/opencode-sessions/
 
+# web3 wallet: the settings (seed names, accounts, the mainnet switch) live in the
+# private overlay and are linked here; quotes and the send ledger are runtime state.
+hermes/profiles/*/web3-wallet.yaml
+hermes/profiles/*/web3-wallet/
+
 # Hermes skills: maintainer-owned topology is tracked; adaptive libraries are not.
 # At the shared root, default-pipeline/ is the only managed surface — the
 # ~/Workspaces data-skill cluster lives in the private overlay
