@@ -20,9 +20,13 @@ which references each side owns. Part of the Hermes design docs — index:
 A request the user's words already settle goes straight from the Assistant to
 the hands. Creator is consulted when a required field is open, a look or a
 reference needs interpreting, or the user's feedback on a storyboard, draft or
-delivery is too vague to map onto a form. The user picks among Creator's
-directions or changes; the Assistant records that human decision separately
-from Creator's suggestion and sends the picked draft handoff.
+delivery is too vague to map onto a form. A look is settled only when named
+concretely (a leaf style or option, a reference, colours, typefaces or motifs);
+a mood given as an adjective or two is open, because in the advisor study the
+run that commissioned straight from 「あたたかみのある感じで」 lost its case. The
+user picks among Creator's directions or changes; the Assistant records that
+human decision separately from Creator's suggestion and sends the picked draft
+handoff.
 
 A hands `Q<n>:` that the user can answer literally is filled by the Assistant
 from the user's words. One that needs interpretation (which field "brighter"
@@ -59,8 +63,12 @@ recovery dependencies.
 - A Budget line is not proposal approval, and proposal approval is not an
   expanded spend. Grants only expand on request with a cost estimate.
 - Approvals are relayed in the same `target` and `conversation_id`, quoting the
-  exact proposal or preview path and SHA-256 the hands returned. The Assistant
-  never computes, refreshes or invents a hash.
+  user's words and the exact proposal or preview path and SHA-256 the hands
+  returned. The Assistant never computes, refreshes or invents a hash.
+- Approvals and choices are the user's only. An unreachable user leaves the
+  gate open: the Assistant stops and reports, and the hands treat an approval
+  the Assistant or Creator gave on its own judgement as none (the advisor study
+  caught both arms approving storyboards for a client they could not reach).
 - Asset and operation upload consent is relayed explicitly. A local path, a
   public URL, a direction choice or "use this" is not consent; reuse rights,
   model upload, remote analysis and publication are separate permissions.
