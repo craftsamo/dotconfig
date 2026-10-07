@@ -67,9 +67,7 @@ hermes/profiles/*/specialist-sessions/
 hermes/profiles/*/resident-sessions/
 hermes/profiles/*/opencode-sessions/
 
-# web3 wallet: the settings (seed names, accounts, the mainnet switch) live in the
-# private overlay and are linked here; quotes and the send ledger are runtime state.
-hermes/profiles/*/web3-wallet.yaml
+# web3 wallet runtime state (quotes and the send ledger) under the profile home.
 hermes/profiles/*/web3-wallet/
 
 # Hermes skills: maintainer-owned topology is tracked; adaptive libraries are not.

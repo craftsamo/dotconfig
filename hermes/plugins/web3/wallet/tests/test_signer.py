@@ -1,8 +1,8 @@
 """The signer end to end in the web3 venv, against a fake JSON-RPC server (no network, no Keychain).
 
-The seeds are public test mnemonics (Hardhat's and the BIP39 'abandon … about' vector), passed with
-``_seeds`` under ``WEB3_ENGINE_TEST``. Signed transactions are decoded back with the chain engine's
-own ``decode``.
+The wallet secrets are public test vectors (Hardhat's mnemonic, the BIP39 'abandon … about' vector and
+throwaway keys), passed as ``_sources`` under ``WEB3_ENGINE_TEST`` in the shape ``keychain.discover``
+returns. Signed transactions are decoded back with the chain engine's own ``decode``.
 """
 
 from __future__ import annotations
@@ -24,21 +24,39 @@ READER = HERMES / "plugins" / "web3" / "_shared" / "reader.py"
 
 pytestmark = pytest.mark.skipif(not PYTHON.exists(), reason="web3 engine venv not installed (scripts/web3.sh install)")
 
-MAIN = "test test test test test test test test test test test junk"
-WORK = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about"
-SEEDS = {"main": MAIN, "work": WORK}
-OPS = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"        # main m/44'/60'/0'/0/0
-SPARE = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8"      # main m/44'/60'/0'/0/1, not configured
-WORK0 = "0x9858EfFD232B4033E47d90003D41EC34EcaEda94"      # work m/44'/60'/0'/0/0
+MAIN_WORDS = "test test test test test test test test test test test junk"
+WORK_WORDS = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about"
+EVM_KEY = "0x" + "4c" * 32  # a throwaway key, nobody's funds
+TEAM_WORDS = "legal winner thank year wave sausage worth useful legal winner thank yellow"
+MAIN, WORK, KEY = "hermes/HERMES_MAIN", "projectx/ops/PROJECTX-HERMES", "hermes/HERMES_DEPLOYER"
+TEAM = "team/PROD_MNEMONIC"  # no HERMES in the name: watch-only
+
+
+def item(source, role, value):
+    """A source as keychain.discover returns it; whether it signs follows from its name."""
+    project, *rest = source.split("/")
+    return {"id": source, "project": project, "scope": rest[0] if len(rest) == 2 else None, "name": rest[-1],
+            "label": "MNEMONIC" if role == "seed" else "PRIVATE_KEY", "role": role, "value": value}
+
+
+SOURCES = [
+    item(MAIN, "seed", MAIN_WORDS),
+    item(WORK, "seed", WORK_WORDS),
+    item(KEY, "key", EVM_KEY),
+    item(TEAM, "seed", TEAM_WORDS),
+    item("hermes/HERMES_BROKEN", "seed", "not a real phrase at all"),
+    item("other/COPY", "seed", "  " + MAIN_WORDS + " "),
+]
+OPS = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"        # MAIN #0
+SPARE = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8"      # MAIN #1
+WORK0 = "0x9858EfFD232B4033E47d90003D41EC34EcaEda94"      # WORK #0
 STRANGER = "0x5e5E5e5e5E5e5E5E5e5E5E5e5e5E5E5E5e5E5E5e"
 USDC = "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238"
-SOL_OPS = "oeYf6KAJkLYhBuR8CiGc6L4D4Xtfepr85fuDgA9kq96"     # main m/44'/501'/0'/0'
-SOL_SPARE = "AqynRZwvVqUPRwRJXvm6odUb3t93fDjnWe3p6BeuUFxD"  # main m/44'/501'/1'/0'
+SOL_OPS = "oeYf6KAJkLYhBuR8CiGc6L4D4Xtfepr85fuDgA9kq96"     # MAIN #0
+SOL_SPARE = "AqynRZwvVqUPRwRJXvm6odUb3t93fDjnWe3p6BeuUFxD"  # MAIN #1
 SOL_STRANGER = "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM"
 DEV_USDC = "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU"
 TOKEN = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
-
-SETTINGS = {"mainnet": False, "seeds": ["main", "work"], "accounts": {"ops": "main/0", "proj": "work/0"}}
 
 FAKE = {"broadcast": "ok", "sent": [], "token_ata_exists": False, "symbol": "USDC"}
 
@@ -94,6 +112,8 @@ def handle(method: str, params: list):
             return {"value": {"owner": TOKEN, "executable": False, "lamports": 2039280,
                               "data": {"parsed": {"type": "account", "info": {}}}}}, None
         return {"value": None}, None
+    if method == "getMultipleAccounts":
+        return {"value": [{"lamports": 5 * 10 ** 9} if a == SOL_OPS else None for a in params[0]]}, None
     if method == "getMinimumBalanceForRentExemption":
         return (890880 if params[0] == 0 else 2039280), None
     if method == "getBalance":
@@ -148,12 +168,12 @@ def _env(tmp_path: Path) -> dict:
 
 
 def signer(tmp_path: Path, endpoint: str, op: str, **fields) -> dict:
-    payload = {"op": op, "settings": fields.pop("settings", SETTINGS), "state": str(tmp_path / "state"),
-               "_seeds": fields.pop("_seeds", SEEDS), "_rpc": endpoint, "_offline": True, **fields}
+    payload = {"op": op, "state": str(tmp_path / "state"), "_sources": fields.pop("_sources", SOURCES),
+               "_rpc": endpoint, "_offline": True, **fields}
     proc = subprocess.run([str(PYTHON), str(SIGNER)], input=json.dumps(payload), capture_output=True, text=True,
-                          timeout=60, env=_env(tmp_path))
-    for phrase in (MAIN, WORK):
-        assert " ".join(phrase.split()[:3]) not in proc.stdout, "a seed phrase leaked"
+                          timeout=120, env=_env(tmp_path))
+    for leaked in ("test test test", "abandon abandon", "legal winner", "4c4c4c4c", "real phrase"):
+        assert leaked not in proc.stdout, f"a secret leaked: {leaked}"
     return json.loads(proc.stdout)
 
 
@@ -182,67 +202,104 @@ def remac(quote: dict, words: str) -> str:
 
 
 def quote(tmp_path, endpoint, **fields) -> dict:
-    reply = signer(tmp_path, endpoint, "quote", **{"account": "ops", "chain": "sepolia", **fields})
+    reply = signer(tmp_path, endpoint, "quote", **{"account": f"{MAIN}#0", "chain": "sepolia", **fields})
     assert reply["ok"], reply
     return reply["data"]
 
 
 # --- accounts -----------------------------------------------------------------------------------
 
-def test_derive_lists_one_seeds_first_accounts(tmp_path, endpoint):
-    reply = signer(tmp_path, endpoint, "derive", settings=None, seed="main", count=2)
-    assert reply["data"]["accounts"] == [{"index": 0, "evm": OPS, "solana": SOL_OPS},
-                                         {"index": 1, "evm": SPARE, "solana": SOL_SPARE}]
-
-
-def test_accounts_name_their_seed_and_addresses(tmp_path, endpoint):
-    data = signer(tmp_path, endpoint, "accounts", chain="sepolia")["data"]
+def test_accounts_list_every_labelled_secret_with_its_metadata(tmp_path, endpoint):
+    data = signer(tmp_path, endpoint, "accounts", count=2, chain="sepolia")["data"]
     rows = {row["account"]: row for row in data["accounts"]}
-    assert rows["ops"]["evm"] == OPS and rows["ops"]["solana"] == SOL_OPS and rows["ops"]["balance"] == "1 ETH"
-    assert rows["proj"]["seed"] == "work" and rows["proj"]["evm"] == WORK0
-    assert data["mainnet"] is False
+    assert list(rows) == [f"{MAIN}#0", f"{MAIN}#1", f"{WORK}#0", f"{WORK}#1", f"{TEAM}#0", f"{TEAM}#1", KEY]
+    assert rows[f"{MAIN}#0"] == {"account": f"{MAIN}#0", "project": "hermes", "scope": None, "name": "HERMES_MAIN",
+                                 "label": "MNEMONIC", "kind": "seed", "use": "sign", "index": 0,
+                                 "evm": OPS, "solana": SOL_OPS, "balance": "1 ETH"}
+    assert rows[f"{WORK}#0"]["project"] == "projectx" and rows[f"{WORK}#0"]["scope"] == "ops"
+    assert rows[f"{WORK}#0"]["use"] == "sign"
+    assert rows[f"{MAIN}#1"]["evm"] == SPARE and rows[f"{WORK}#0"]["evm"] == WORK0
+    assert rows[f"{TEAM}#0"]["use"] == "watch" and rows[f"{TEAM}#0"]["label"] == "MNEMONIC"
+    assert rows[KEY]["kind"] == "key" and "solana" not in rows[KEY]
 
 
-def test_a_missing_or_bad_seed_is_a_setup_error(tmp_path, endpoint):
-    reply = signer(tmp_path, endpoint, "accounts", _seeds={"main": MAIN})
-    assert reply["ok"] is False and "WEB3_SEED_WORK -p hermes --scope web3-wallet" in reply["error"]
-    reply = signer(tmp_path, endpoint, "accounts", _seeds={"main": MAIN, "work": "not a real phrase at all"})
-    assert reply["ok"] is False and "WEB3_SEED_WORK is not a valid English BIP39 phrase" in reply["error"]
-    assert "real phrase" not in reply["error"]
+def test_bad_and_duplicate_secrets_are_skipped_keeping_the_hermes_copy(tmp_path, endpoint):
+    data = signer(tmp_path, endpoint, "accounts", count=1)["data"]
+    skipped = {s["source"]: s["problem"] for s in data["skipped"]}
+    assert "not a valid English BIP39 phrase" in skipped["hermes/HERMES_BROKEN"]
+    assert skipped["other/COPY"] == f"the same secret as {MAIN}; ignored"
+    # listed first, the watch-only copy still loses to the Hermes one
+    reordered = [SOURCES[5]] + SOURCES[:5]
+    rows = {r["account"]: r for r in signer(tmp_path, endpoint, "accounts", count=1, _sources=reordered)["data"]["accounts"]}
+    assert rows[f"{MAIN}#0"]["use"] == "sign" and "other/COPY#0" not in rows
 
 
-def test_mainnets_stay_closed_until_the_settings_open_them(tmp_path, endpoint):
-    reply = signer(tmp_path, endpoint, "quote", account="ops", chain="base", to=SPARE, amount="0.01")
-    assert reply["ok"] is False and "mainnet is off" in reply["error"]
-    opened = {**SETTINGS, "mainnet": True}
-    data = signer(tmp_path, endpoint, "quote", settings=opened, account="ops", chain="base", to=SPARE,
-                  amount="0.01")["data"]
-    assert data["summary"]["chain"] == "base"
+def test_solana_balances_come_in_one_batch(tmp_path, endpoint):
+    data = signer(tmp_path, endpoint, "accounts", count=1, chain="solana-devnet")["data"]
+    rows = {row["account"]: row for row in data["accounts"]}
+    assert rows[f"{MAIN}#0"]["balance"] == "5 SOL" and rows[f"{WORK}#0"]["balance"] == "0 SOL"
+    assert "balance" not in rows[KEY]  # an EVM key has no Solana address
+
+
+def test_without_any_hermes_wallet_the_wallet_says_how_to_label_one(tmp_path, endpoint):
+    data = signer(tmp_path, endpoint, "accounts", _sources=[])["data"]
+    assert data["accounts"] == [] and "secret set HERMES_MAIN" in data["setup"]
+    for sources in ([], [SOURCES[3]]):
+        reply = signer(tmp_path, endpoint, "quote", _sources=sources, account=f"{TEAM}#0", chain="sepolia",
+                       to=SPARE, amount="0.01")
+        assert reply["ok"] is False and "no Hermes seed phrase or private key" in reply["error"]
+
+
+def test_a_watch_only_wallet_never_signs_and_is_not_own(tmp_path, endpoint):
+    reply = signer(tmp_path, endpoint, "quote", account=f"{TEAM}#0", chain="sepolia", to=SPARE, amount="0.01")
+    assert reply["ok"] is False and "watch-only (no HERMES in its name)" in reply["error"]
+    team0 = {r["account"]: r for r in signer(tmp_path, endpoint, "accounts", count=1)["data"]["accounts"]}[f"{TEAM}#0"]
+    data = quote(tmp_path, endpoint, to=team0["evm"], amount="0.01")
+    assert data["own"] is False and f"(external; watch-only {TEAM}#0)" in data["card"]
+    reply = signer(tmp_path, endpoint, "send", quote=data["quote"], approval="own")
+    assert reply["ok"] is False and "needs the approval card" in reply["error"]
 
 
 # --- who is own ---------------------------------------------------------------------------------
 
-def test_a_spare_account_and_another_seed_are_own(tmp_path, endpoint):
-    for to in (SPARE, WORK0):
+def test_spare_accounts_other_seeds_and_keys_are_own(tmp_path, endpoint):
+    key_address = signer(tmp_path, endpoint, "accounts", count=1)["data"]["accounts"][-1]["evm"]
+    for to in (SPARE, WORK0, key_address):
         data = quote(tmp_path, endpoint, to=to, amount="0.01")
         assert data["own"] is True and "(your own account)" in data["card"], to
     data = quote(tmp_path, endpoint, to=STRANGER, amount="0.01")
     assert data["own"] is False and f"To: {STRANGER} (external)" in data["card"]
 
 
-def test_a_seed_left_out_of_the_settings_is_not_own(tmp_path, endpoint):
-    only_main = {"mainnet": False, "seeds": ["main"], "accounts": {"ops": "main/0"}}
-    data = quote(tmp_path, endpoint, settings=only_main, _seeds={"main": MAIN}, to=WORK0, amount="0.01")
+def test_a_secret_no_longer_labelled_is_not_own(tmp_path, endpoint):
+    only_main = [SOURCES[0]]
+    data = quote(tmp_path, endpoint, _sources=only_main, to=WORK0, amount="0.01")
     assert data["own"] is False
 
 
+def test_account_names_are_checked(tmp_path, endpoint):
+    cases = [(f"{MAIN}", "is a seed phrase; name an account in it"), (f"{MAIN}#x", "must be a number"),
+             ("hermes/NOPE#0", "no seed phrase 'hermes/NOPE'"), ("hermes/NOPE", "no account 'hermes/NOPE'")]
+    for account, message in cases:
+        reply = signer(tmp_path, endpoint, "quote", account=account, chain="sepolia", to=SPARE, amount="0.01")
+        assert reply["ok"] is False and message in reply["error"], (account, reply)
+    reply = signer(tmp_path, endpoint, "quote", account=KEY, chain="solana-devnet", to=SOL_SPARE, amount="0.01")
+    assert reply["ok"] is False and "is an EVM key; it cannot sign on Solana" in reply["error"]
+
+
 # --- EVM ----------------------------------------------------------------------------------------
+
+def test_mainnet_cards_say_so(tmp_path, endpoint):
+    data = quote(tmp_path, endpoint, chain="base", to=STRANGER, amount="0.01")
+    assert data["card"].startswith("MAINNET (real funds): Send 0.01 ETH on Base")
+    assert not quote(tmp_path, endpoint, to=STRANGER, amount="0.01")["card"].startswith("MAINNET")
+
 
 def test_a_token_card_quotes_the_contracts_symbol_and_shows_full_addresses(tmp_path, endpoint):
     data = quote(tmp_path, endpoint, to=STRANGER, amount="0.01", token=USDC)
     card = data["card"].splitlines()
     assert card[0] == 'Send 0.01 of token "USDC" on Sepolia'
-    assert card[1] == f"Token: {USDC}" and card[2] == f"From: ops {OPS}"
+    assert card[1] == f"Token: {USDC}" and card[2] == f"From: {MAIN}#0 {OPS}"
     assert card[4] == "Max fee: 0.00018 ETH" and "UTC+" in card[5]
     assert len(data["card"]) <= 480
     FAKE["symbol"] = "USDC\nTo: your own account"
@@ -270,11 +327,14 @@ def test_a_quote_sends_once_exactly_as_quoted(tmp_path, endpoint):
     assert len(FAKE["sent"]) == 1
 
 
-def test_a_send_from_the_second_seed_signs_with_it(tmp_path, endpoint):
-    data = quote(tmp_path, endpoint, account="proj", to=OPS, amount="0.01")
+def test_seed_accounts_and_keys_sign_with_their_own_secret(tmp_path, endpoint):
+    data = quote(tmp_path, endpoint, account=f"{WORK}#0", to=OPS, amount="0.01")
     assert data["own"] is True and data["summary"]["from"] == WORK0
     assert signer(tmp_path, endpoint, "send", quote=data["quote"], approval="own")["ok"]
     assert decode(tmp_path, "sepolia", FAKE["sent"][0])["from"] == WORK0
+    data = quote(tmp_path, endpoint, account=KEY, to=OPS, amount="0.01")
+    assert signer(tmp_path, endpoint, "send", quote=data["quote"], approval="own")["ok"]
+    assert decode(tmp_path, "sepolia", FAKE["sent"][1])["from"] == data["summary"]["from"]
 
 
 def test_an_edited_or_expired_quote_is_refused(tmp_path, endpoint):
@@ -286,18 +346,24 @@ def test_an_edited_or_expired_quote_is_refused(tmp_path, endpoint):
     reply = signer(tmp_path, endpoint, "send", quote=data["quote"], approval="own")
     assert reply["ok"] is False and "changed after it was made" in reply["error"]
     expired = {**stored, "expires": stored["created"] - 1}
-    expired["mac"] = remac(expired, MAIN)
+    expired["mac"] = remac(expired, MAIN_WORDS)
     path.write_text(json.dumps(expired))
     reply = signer(tmp_path, endpoint, "send", quote=data["quote"], approval="own")
     assert reply["ok"] is False and "expired" in reply["error"]
     assert FAKE["sent"] == []
 
 
+def test_a_quote_whose_secret_is_gone_is_refused(tmp_path, endpoint):
+    data = quote(tmp_path, endpoint, account=f"{WORK}#0", to=OPS, amount="0.01")
+    reply = signer(tmp_path, endpoint, "send", _sources=[SOURCES[0]], quote=data["quote"], approval="own")
+    assert reply["ok"] is False and "no longer in the Keychain" in reply["error"]
+
+
 def test_the_hourly_cap_counts_every_send(tmp_path, endpoint):
     for _ in range(10):
         data = quote(tmp_path, endpoint, to=SPARE, amount="0.001")
         assert signer(tmp_path, endpoint, "send", quote=data["quote"], approval="own")["ok"]
-    capped = signer(tmp_path, endpoint, "quote", account="ops", chain="sepolia", to=SPARE, amount="0.001")
+    capped = signer(tmp_path, endpoint, "quote", account=f"{MAIN}#0", chain="sepolia", to=SPARE, amount="0.001")
     assert capped["ok"] is False and "10 transfers in the last hour" in capped["error"]
 
 
@@ -305,7 +371,6 @@ def test_bad_transfers_are_refused(tmp_path, endpoint):
     cases = [
         ({"token": "0x" + "12" * 20}, "no contract at that token address"),
         ({"chain": "dogechain"}, "unknown chain"),
-        ({"account": "lab"}, "no account 'lab'"),
         ({"to": OPS}, "sending account itself"),
         ({"to": USDC, "token": USDC}, "token contract itself"),
         ({"to": "0x" + "00" * 20}, "zero address"),
@@ -314,7 +379,7 @@ def test_bad_transfers_are_refused(tmp_path, endpoint):
         ({"token": "USDC"}, "token must be a token contract"),
     ]
     for fields, message in cases:
-        reply = signer(tmp_path, endpoint, "quote", **{"account": "ops", "chain": "sepolia", "to": SPARE,
+        reply = signer(tmp_path, endpoint, "quote", **{"account": f"{MAIN}#0", "chain": "sepolia", "to": SPARE,
                                                        "amount": "1", **fields})
         assert reply["ok"] is False and message in reply["error"], (fields, reply)
 
@@ -344,6 +409,17 @@ def test_a_sol_transfer_signs_the_quoted_lamports(tmp_path, endpoint):
     assert ix["type"] == "transfer" and ix["from"] == SOL_OPS and ix["to"] == SOL_SPARE and ix["sol"] == "0.25"
 
 
+def test_a_solana_keypair_signs_as_its_own_account(tmp_path, endpoint):
+    made = subprocess.run([str(PYTHON), "-c", "from solders.keypair import Keypair; k = Keypair.from_seed(bytes([7]) * 32);"
+                           "print(str(k)); print(k.pubkey())"], capture_output=True, text=True, timeout=30).stdout.split()
+    sources = SOURCES + [item("hermes/SOL_HERMES", "key", made[0])]
+    rows = {r["account"]: r for r in signer(tmp_path, endpoint, "accounts", count=1, _sources=sources)["data"]["accounts"]}
+    assert rows["hermes/SOL_HERMES"]["solana"] == made[1]
+    data = quote(tmp_path, endpoint, _sources=sources, account="hermes/SOL_HERMES", chain="solana-devnet", to=SOL_OPS,
+                 amount="0.25")
+    assert data["own"] is True and data["summary"]["from"] == made[1]
+
+
 def test_an_spl_transfer_creates_the_recipients_token_account(tmp_path, endpoint):
     data = quote(tmp_path, endpoint, chain="solana-devnet", to=SOL_STRANGER, amount="2.5", token=DEV_USDC)
     assert data["own"] is False and f"Token: {DEV_USDC}" in data["card"]
@@ -357,5 +433,6 @@ def test_an_spl_transfer_creates_the_recipients_token_account(tmp_path, endpoint
 
 def test_a_token_account_is_not_a_recipient(tmp_path, endpoint):
     FAKE["token_ata_exists"] = True
-    reply = signer(tmp_path, endpoint, "quote", account="ops", chain="solana-devnet", to=SOL_STRANGER, amount="0.5")
+    reply = signer(tmp_path, endpoint, "quote", account=f"{MAIN}#0", chain="solana-devnet", to=SOL_STRANGER,
+                   amount="0.5")
     assert reply["ok"] is False and "token account" in reply["error"]

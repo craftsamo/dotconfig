@@ -16,8 +16,11 @@ FILE_TOOLS = {"read_file", "write_file", "patch", "search_files"}
 _READ = re.compile(
     r"(?<![\w-])web3-rpc(?![\w-])|ALCHEMY_API_KEY|HELIUS_API_KEY|local/web3(?![\w-])"
     r"|dump-keychain|secret\s+export|find-generic-password", re.IGNORECASE)
+# The wallet's secrets have any name in any project, so the Keychain itself is out of reach of the
+# terminal on a wallet profile: reading, writing or deleting an item (a deleted seed is lost funds).
 _WALLET = re.compile(
-    r"(?<![\w-])web3-wallet(?![\w-])|WEB3_SEED_|signer\.py|web3/wallet"
+    r"(?<![\w-])web3-wallet(?![\w-])|signer\.py|keychain\.py|web3/wallet|web3\.sh"
+    r"|\bsecret\s+(get|set|update|rm|import|export)\b|\bsecurity\s+\S*-generic-password\b"
     r"|\bcast\s+(send|wallet|mktx|publish)\b|\bsolana\s+(transfer|keygen)\b|\bspl-token\s+transfer\b"
     r"|eth_sendRawTransaction|sendTransaction", re.IGNORECASE)
 _SOURCE_READ = re.compile(r"plugins/web3/[\w./-]+\.(py|yaml|md)$")
