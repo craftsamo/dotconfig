@@ -61,6 +61,12 @@ def test_hands_config_safe_yaml_offline_mechanical(hands_config):
         "audio-creator": ("direction", "audio"),
     }
     expected += [f"~/.agents/skills/media-craft-{name}" for name in craft[profile]]
+    if profile == "image-creator":
+        # create-diagram's drawing conventions, read for conventions only.
+        expected += [
+            "~/ghq/github.com/NousResearch/hermes-agent/skills/creative/architecture-diagram",
+            "~/ghq/github.com/NousResearch/hermes-agent/optional-skills/creative/concept-diagrams",
+        ]
     assert safe["skills"]["external_dirs"] == expected
 
 
