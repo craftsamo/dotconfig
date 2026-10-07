@@ -29,6 +29,7 @@ toolsets:
   - note_access
   - substack_access
   - youtube_access
+  - web3_read
 max_concurrent_sessions:
 agent:
   system_prompt: |
@@ -730,6 +731,7 @@ platform_toolsets:
     - terminal
     - vision
     - web
+    - web3_read
     - x_access
     - x_search
     - youtube_access
@@ -748,6 +750,7 @@ platform_toolsets:
     - terminal
     - vision
     - web
+    - web3_read
     - x_access
     - x_search
     - youtube_access
@@ -763,6 +766,7 @@ platform_toolsets:
     - substack_access
     - vision
     - web
+    - web3_read
     - x_access
     - x_search
     - youtube_access
@@ -776,6 +780,7 @@ plugins:
     - x-access
     - substack-access
     - youtube-access
+    - chain-read
 specialist_call:
   resident_targets:
     - researcher

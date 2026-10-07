@@ -62,7 +62,9 @@ def test_candidate_topology_and_always_on_contract():
         assert token in prompt.lower()
     assert "artifact-vs-brief quality verdicts" in prompt
     assert "terminal" not in config["toolsets"]
-    assert set(config["toolsets"]) == {"file", "web", "vision", "video", "skills", "memory", "delegation"}
+    assert set(config["toolsets"]) == {"file", "web", "vision", "video", "skills", "memory", "delegation",
+                                       "web3_read"}
+    assert "chain-read" in config["plugins"]["enabled"]
     for platform in ("cli", "a2a"):
         assert set(config["platform_toolsets"][platform]) == set(config["toolsets"]) | {"no_mcp", "connections"}
     assert config["platform_toolsets"]["telegram"] == []
