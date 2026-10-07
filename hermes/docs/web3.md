@@ -173,25 +173,45 @@ from the model's arguments beyond the quote id.
 - **Own recipient:** runs without asking, mainnets included (the funds stay
   the user's; only the fee is spent). The signer refuses a send approved
   this way unless it re-derives the recipient as own.
-- **Any other recipient:** an approval card through Hermes' gate
-  (`request_tool_approval`). On Telegram that is the inline-button card; the
-  card is kept inside Telegram's reason budget (480 escaped UTF-16 units) so
-  it never falls back to the text `/approve` prompt. It reads, one fact per
-  line:
+- **Any other recipient**, watch-only wallets included: an approval card
+  through Hermes' gate (`request_tool_approval`), the inline-button card on
+  Telegram. The signer writes two cards into the quote, both under its MAC.
+  The detailed one (Telegram, CLI) puts the transfer first, then a block per
+  side with the Keychain's metadata:
 
   ```
-  MAINNET (real funds): Send 10 of token "USDC" on Base
+  Chain: Base(MAINNET)
   Token: 0x…full address…
-  From: hermes/MAIN#0 0x…full address…
-  To: 0x…full address… (external)
-  Max fee: 0.00018 ETH
-  Quote: q1a2b3c4d, expires 14:32 UTC+0800
+  Send: 25 "USDC" token (≈ $25.00)
+  Fee: up to 0.0000042 ETH
+  Quote: q1a2b3c4d · expires 22:43 UTC+0800
+
+  --- From ---
+  Project: hermes(Shared)
+  Name: HERMES_MAIN
+  Address #0: 0x…full address…
+  Memo: main ops wallet
+
+  --- To ---
+  Type: External
+  Address: 0x…full address…
   ```
 
-  The `MAINNET (real funds)` prefix appears on every mainnet; testnet cards
-  start with `Send`. Every value comes from the signer's quote. Addresses
-  are shown in full, never shortened, because poisoning attacks forge
-  look-alike prefixes and suffixes.
+  The chain line ends in `(MAINNET)` or `(testnet)`; the token line appears
+  for tokens only. A side's address line carries the seed account's index
+  (`Address #0`) or reads `Address (key)`, and the project carries the scope
+  in parentheses. Memo is the item's `secret` comment, on one line and cut
+  at 40 characters. The `To` block opens with whose it is — `Type: External`,
+  `Type: Your own` or `Type: Watch-only (external)` — and the last two name the
+  wallet like the `From` block; an ENS recipient adds an `ENS:` line. The
+  card stays inside Telegram's reason budget (500 escaped UTF-16 units, kept
+  to 480) so it is never cut: it sheds the memos, then falls back to the
+  compact card. The compact one (Discord, whose budget is 300) is five
+  lines: amount and network, token, `From <account>: <address>`,
+  `To (own|watch-only|external): <address>`, fee and quote id. Every value
+  comes from the signer's quote. Addresses are shown in full, never
+  shortened, because poisoning attacks forge look-alike prefixes and
+  suffixes.
 
 - **Session and always do nothing.** Hermes' card always offers them and a
   plugin cannot hide them, so the rule key is the quote id and a quote is
@@ -199,10 +219,16 @@ from the model's arguments beyond the quote id.
   "Always" leaves a dead `plugin_rule:` entry in `command_allowlist`; the
   technic tells the user to answer _once_.
 - **Fail closed where no human answers.** External transfers are blocked,
-  without asking, in cron, single-query runs, contexts without a human, under
+  without asking, in cron, single-query runs, unattended platforms (webhook,
+  Microsoft Graph webhook, API server), contexts without a human, under
   `/yolo` and with `approvals.mode: off` — the hook checks these itself, since
-  the gate would otherwise auto-approve them. Silence, denial, timeout and a
-  gate error block as everywhere else.
+  the gate would otherwise auto-approve them, and assumes nobody is present
+  when it cannot read Hermes' approval context. Silence, denial, timeout and
+  a gate error block as everywhere else.
+- **The hook's decision travels in memory.** The hook records `own` or `card`
+  per quote in the gateway process; the tool takes it once and passes it to
+  the signer, and a transfer without one (or with one older than 20
+  minutes) never reaches the signer.
 - **At most 10 transfers an hour**, every account and recipient together, so
   a loop cannot drain an account into fees. There are no amount limits: an
   approved external transfer can move everything the account holds, so the
