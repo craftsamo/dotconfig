@@ -73,6 +73,52 @@ def test_registration_per_profile():
     assert set(assistant.tools["youtube"]["schema"]["parameters"]["properties"]["action"]["enum"]) == set(ya.ACTIONS)
 
 
+PRIVATE_ACTIONS = ("my_videos", "analytics", "my_channel", "captions", "download", *ya.WRITES)
+
+
+def test_searcher_gets_public_youtube_only():
+    ctx = Ctx("searcher")
+    plugin.register(ctx)
+    tool = ctx.tools["youtube"]
+    params = tool["schema"]["parameters"]["properties"]
+    assert tool["toolset"] == "youtube_access" and [name for name, _ in ctx.hooks] == ["pre_tool_call"]
+    assert params["action"]["enum"] == list(ya.PUBLIC_READS)
+    assert set(params) == {"action", *plugin.PUBLIC_PROPERTIES}
+    assert "channel" not in params and params["kind"]["enum"] == list(ya.SEARCH_KINDS)
+    assert not set(plugin.WRITE_PROPERTIES) & set(params)
+    for word in ("my_videos (", "analytics (", "my_channel (", "download (", "captions (", "update ("):
+        assert word not in tool["description"]
+    assert "Nothing can be changed" in tool["description"]
+
+
+@pytest.mark.parametrize("action", PRIVATE_ACTIONS)
+def test_searcher_cannot_reach_own_channel_data_or_writes(action):
+    args = {"action": action, "video": VID, "title": "x", "comment": "Ugx" + "c" * 20, "text": "hi"}
+    decision = plugin.gate("searcher", tool_name="youtube", args=args)
+    assert decision["action"] == "block"
+    out = json.loads(plugin.handle("searcher", args))
+    assert out["ok"] is False and "action must be one of" in out["error"]
+    assert "status" in out["error"] and action not in out["error"].split("one of")[1]
+
+
+def test_searcher_reads_pass_the_gate_and_bypass_guard_stays():
+    for action in ya.PUBLIC_READS:
+        assert plugin.gate("searcher", tool_name="youtube", args={"action": action}) is None
+    blocked = plugin.gate("searcher", tool_name="terminal", args={"command": "cat ~/.youtube-access/state.json"})
+    assert blocked["action"] == "block"
+
+
+def test_inbound_a2a_never_reaches_searcher(monkeypatch, tmp_path):
+    monkeypatch.setattr(plugin, "_inbound_peer", lambda: True)
+    searcher_home = tmp_path / "searcher"
+    searcher_home.mkdir()
+    monkeypatch.setattr(plugin, "_home", lambda: searcher_home)
+    blocked = plugin.gate("searcher", tool_name="youtube", args={"action": "status"})
+    assert blocked["action"] == "block" and "A2A" in blocked["message"]
+    out = json.loads(plugin.handle("searcher", {"action": "status"}))
+    assert out["ok"] is False and "A2A" in out["error"]
+
+
 def test_marketer_handler_refuses_writes():
     out = json.loads(plugin.handle("marketer", {"action": "update", "video": VID, "title": "x"}))
     assert out["ok"] is False and "action must be one of" in out["error"]

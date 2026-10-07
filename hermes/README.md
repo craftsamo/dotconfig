@@ -516,7 +516,8 @@ keeps user keys.
   `scripts/substack-access.sh` (`install` / `status`). Behavior:
   [docs/substack-access.md](docs/substack-access.md).
 - **social/youtube-access** (`standalone`): `youtube` (toolset `youtube_access`)
-  for the assistant and marketer — the user's own YouTube channels through
+  for the assistant and marketer, and for searcher with public reads only —
+  the user's own YouTube channels through
   the Data and Analytics APIs (search, videos, channels, playlists, comments,
   each channel's own uploads and analytics) plus transcripts and downloads of
   public videos through yt-dlp (`bridge.py` in the ignored
