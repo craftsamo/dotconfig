@@ -48,7 +48,11 @@ the existing proposal/preview and revision gates.
 <Run>
 
 The runtime specialist header is agent context outside the form, not human
-approval. Preserve the initial must-keep conditions; do not weaken them to fit
+approval. A gate (proposal, storyboard, preview, spend, upload) opens only
+on the user's decision as the Assistant relays it, quoting the user's words;
+an approval the Assistant or Creator gives on its own judgement, for example
+because the user could not be reached, opens nothing: answer that the gate
+is still waiting for the user. Preserve the initial must-keep conditions; do not weaken them to fit
 a template. Use the leaf's supported authoring discretion. Distinguish a missing
 input, environment failure and true capability gap before returning a finding.
 Act only on the current agent request. The retained initial form supplies
