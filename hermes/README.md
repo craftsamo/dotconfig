@@ -159,8 +159,9 @@ live under `profiles/creator/skills`. Skill placement (validator-enforced):
   references. Creator has no technics; its former `creator-*` leaves are
   folded into the hands or archived ([docs/broker.md](docs/broker.md) "Legacy
   routes").
-- Researcher/Searcher entries own plain `references/<unit>.md` (4/3); Researcher
-  shares parent `references/gather.md`; Searcher has no technics.
+- Researcher/Searcher route one entry per mode (investigate / compare / verify /
+  advise; lookup / sweep / hunt) over shared `references/{plan,build,qa}.md`
+  stages; Researcher also shares `references/gather.md`. Neither has technics.
 - Writer reads the `japanese-writing` core through its curated
   `external-skills/` symlink.
 - The assistant's `assistant-pipeline` (kernel + 19 child entries + shared mode

@@ -70,7 +70,7 @@ def test_kernel_and_prompt_say_reading_is_allowed_while_writing_is_not():
 
 
 def test_build_separates_the_turn_budget_from_a_reason_to_stop():
-    text = flat(PIPELINE / "build-searcher/SKILL.md")
+    text = flat(PIPELINE / "references/build.md")
     for phrase in ("`Turn budget:` line is the time left in the turn, not a reason to stop",
                    "never call the budget spent when it is not",
                    "durable path the brief names",
@@ -81,7 +81,7 @@ def test_build_separates_the_turn_budget_from_a_reason_to_stop():
 
 
 def test_qa_treats_an_untrue_stop_as_unmet():
-    text = flat(PIPELINE / "qa-searcher/SKILL.md")
+    text = flat(PIPELINE / "references/qa.md")
     assert "Check the stop reason too" in text and "is Unmet, not a pass" in text
 
 

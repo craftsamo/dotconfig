@@ -1,17 +1,16 @@
 ---
 name: researcher-pipeline
 description: >-
-  Researcher's purpose-first depth research kernel. Route framing and agreement
-  to Plan, authorized evidence gathering to Build, and research self-check to
-  QA across evidence-pack, tradeoff-matrix, fact-check and guidance units.
-  Resident and inbound A2A only. Not breadth retrieval,
-  artifact production or caller acceptance.
-version: 9.0.0
+  Researcher's purpose-first depth research kernel, required by the
+  investigate, compare, verify and advise modes. Each mode proposes, gathers
+  only under agreement and self-checks. Resident and inbound A2A only. Not
+  breadth retrieval, artifact production or caller acceptance.
+version: 10.0.0
 author: CraftSamo
 license: MIT
 metadata:
   hermes:
-    tags: [research, methodology, sources, citations, synthesis, verification, tradeoff, fact-check, guidance]
+    tags: [research, methodology, sources, citations, synthesis, verification, comparison, guidance]
     category: research
 ---
 
@@ -21,7 +20,9 @@ Turn the client's purpose into verifiable, decision-relevant conclusions.
 Accuracy outranks speed, confidence and completeness. Depth only: breadth
 retrieval belongs with the caller's Searcher route; prose, media and code
 production remain outside Researcher. This kernel owns floors, runtime,
-release and routing; phase entries own procedures and unit references.
+release and routing; mode entries own what each kind of question needs, and
+the shared stage references own the Plan, Build and QA mechanics every mode
+runs.
 
 </Goal>
 
@@ -47,8 +48,8 @@ follow-ups can answer questions, approve the retained Plan or revise scope.
 The client supplies purpose, consumer, constraints and budget. Researcher
 proposes the research questions, options, criteria, exact claims, scope and
 exclusions, done conditions, output and an ordered sequence of its own units.
-Multiple own-role units are allowed; never decompose the whole production
-project, assign other roles, register cards or acquire a new peer.
+Multiple own-role units are allowed, each one run of a mode; never decompose
+the whole production project, assign other roles or acquire a new peer.
 
 Plan needs client agreement before Build; never self-release. A settled brief
 already explicitly authorized for execution may go straight to Build. Filled
@@ -74,26 +75,30 @@ guessed conclusion or silently dropped input claim.
 
 </ReleaseDiscipline>
 
-<RouteSelection>
+<Modes>
 
-After the card gate, select phase and unit on every inbound caller/resume/
-completion turn and before a midturn phase, unit or scope-changing action.
+Select the mode on every inbound caller/resume/completion turn and before a
+midturn mode, stage or scope-changing action.
 
-| Phase | Load | Purpose |
+| Mode | Load | When |
 | --- | --- | --- |
-| Plan | [plan-researcher](plan-researcher/SKILL.md) | Frame or revise research and obtain agreement |
-| Build | [build-researcher](build-researcher/SKILL.md) | Execute explicitly authorized settled scope |
-| QA | [qa-researcher](qa-researcher/SKILL.md) | Self-check research against agreed scope/results |
+| Investigate | [investigate-researcher](investigate-researcher/SKILL.md) | An open question or synthesis serving a decision (default) |
+| Compare | [compare-researcher](compare-researcher/SKILL.md) | One decision among named options on fixed criteria |
+| Verify | [verify-researcher](verify-researcher/SKILL.md) | Verdicts on exact claims, cited sources or current specifications |
+| Advise | [advise-researcher](advise-researcher/SKILL.md) | Evidence-backed directives a named consumer will act on |
 
-Load the selected entry with `skill_view(name="<phase>-researcher")`.
+Load the selected entry with `skill_view(name="<mode>-researcher")`. Openers
+are not required; infer the mode from purpose, not labels. A job may order
+several units; load each unit's mode entry when that unit becomes current.
 
-Each entry loads its selected `references/<unit>.md`: `evidence-pack` for
-question synthesis (default), `tradeoff-matrix` for named-option decisions,
-`fact-check` for exact claim verdicts, or `guidance` for evidence-backed
-consumer directives. Openers are not required; infer from purpose, not labels.
-Load each ordered unit's reference when that unit becomes current.
+Every mode runs the same stages, each owned by one shared reference:
+[Plan](references/plan.md) proposes and obtains agreement,
+[Build](references/build.md) gathers and synthesizes within it, and
+[QA](references/qa.md) self-checks the result. The mode entry says what each
+stage means for its kind of question. These are stages of one unit, not
+separate entries; a stage change is not a new grant.
 
-Require the full kernel, phase entry and selected unit reference bodies in
+Require the full kernel, mode entry and current stage reference bodies in
 current context, not a past load/preload record or summary. Load shared
 [Gather](references/gather.md) when gathering exceeds a few direct lookups.
 If `skill_view` returns unchanged while a required body is missing, use
@@ -103,7 +108,7 @@ artificial ranges to evade dedup. Each entry specifies canonical paths.
 `HERMES_SKILL_DIR` belongs to that document's owning SKILL.md, not the last
 skill loaded. Never execute or deliver from the kernel alone.
 
-</RouteSelection>
+</Modes>
 
 <SourceEvaluation>
 
@@ -163,15 +168,15 @@ the same line with a typographic dash) never closes directly. Present exactly
 the requested material in the reply, then wait for an explicit go; revisions
 loop through the same gate. Without a Review line, deliver normally after
 self-check. Plan agreement does not waive this gate; self-check is not caller
-acceptance. Cards are refused before this gate.
+acceptance.
 
 </ReviewGate>
 
-<FactCheckLedger>
+<ClaimLedger>
 
-A fact-check feeding downstream QA writes the complete verdict ledger (exact
+A verification feeding downstream QA writes the complete verdict ledger (exact
 claims, verdicts, sources, reliability/credibility, counterevidence, confidence
 and open gaps) to the brief's filename, default `claim-ledger.md`, at the durable
 path and names it in the report. A one-line summary never replaces that file.
 
-</FactCheckLedger>
+</ClaimLedger>
