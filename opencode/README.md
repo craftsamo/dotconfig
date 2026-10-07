@@ -76,6 +76,51 @@ subagents, custom tools, or the Plan/Build handoff. Skills any agent can
 follow live in [`agents/curated/`](../agents/README.md) and are picked up here
 too, since opencode scans `~/.agents/skills` alongside this directory.
 
+## Parallel and background work
+
+The global `ParallelAndBackgroundWork` instructions schedule necessary work by
+dependencies, not a fixed count of simultaneous tasks. They add no plugin,
+scheduler, permissions, or model changes. Agent-specific restrictions still
+apply, including Plan's read-only boundary and Hermes's explicit-review rule.
+
+Parallel execution and background execution solve different problems:
+
+- Start independent questions together, with a distinct scope and expected
+  evidence for each specialist. Do not duplicate investigation or manufacture
+  tiny tasks to fill parallel slots.
+- Use `background: true` when the parent can do useful independent work. When
+  the next decision needs the results, wait for them; those calls can still run
+  in parallel. Never implement a guess while the needed investigation runs.
+
+| Work                                                            | Useful work while it runs            | Dependency boundary                                         |
+| --------------------------------------------------------------- | ------------------------------------ | ----------------------------------------------------------- |
+| Independent code, specification, and test-layout investigations | Gather other relevant facts          | Collect answers before choosing the implementation          |
+| Review of a frozen change                                       | Prepare the PR explanation           | Resolve findings before committing                          |
+| Checks after formatting                                         | Review the diff or prepare a handoff | Collect required check results before reporting completion  |
+| A task-owned development server                                 | Prepare the browser check            | Confirm readiness before use; stop it when no longer needed |
+
+Complete authorized formatting before review or verification. Hold the target
+files/ref stable until results return. Review and checks may overlap only if
+the checks do not modify those files; commands that share build outputs, test
+databases, ports, or other mutable resources must run sequentially unless
+isolated. A verifier's requested command order still applies. Development
+servers belong to an authorized shell workflow, not verifier.
+
+Use completion notifications rather than polling. Keep outstanding tasks in the
+conversation, collect results where their dependents need them, and distinguish
+passed, failed, skipped, and blocked work. Launching a background task is not
+evidence that it passed. Retain background process handles for readiness and
+cleanup; never stop an unrelated existing service.
+
+If limits or contention appear, pause new launches on the affected resource;
+do not change models, restart tasks, or widen permissions to bypass them. The
+subscription preflight below chooses a route but neither reserves quota nor
+guarantees that concurrent launches fit the provider's limits.
+
+This is an operating policy, not a measured speedup. Evaluate elapsed waiting,
+duplicate work, and limit errors during normal use before adding scheduling
+machinery or changing the policy.
+
 ## Subscription preflight for new specialists
 
 The local plugin `lib/subagent-fallback` (listed last under `plugins` in
