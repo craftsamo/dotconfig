@@ -359,7 +359,7 @@ keeps user keys.
   (e.g. `allow_tool_override`) needs the full `group/name` key: a bare key is
   ignored and the plugin fails to load. Current groups:
   `messaging/` (chat accounts), `social/` (public platforms: x, note, substack,
-  youtube), `orchestration/` (specialist, OpenCode and session-history
+  youtube), `web3/` (chain reads and the wallet), `orchestration/` (specialist, OpenCode and session-history
   transports), `workspace/` (drafts, repos and the private registry/report
   overlay), `guards/` (topology and Worker guards), `inspection/` (vision
   window, video analysis, writing inspection), and the media families
@@ -536,6 +536,24 @@ keeps user keys.
   authorized once per channel with `bin/yaccess`; its hook blocks the
   terminal path around it. Engine: `scripts/youtube-access.sh` (`install` /
   `status`). Behavior: [docs/youtube-access.md](docs/youtube-access.md).
+- **web3/evm-access** and **web3/solana-access** (`standalone`): `evm`
+  (toolset `evm_access`) and `solana` (toolset `solana_access`) for the
+  assistant, researcher, searcher and marketer — analysis of EVM chains and
+  Solana (blocks, transactions with decoded calls, events and balance
+  changes, addresses, portfolios, logs, tokens, allowances, raw decoding,
+  gas, prices, contract and program analysis, `eth_call` and storage reads)
+  through `_shared/reader.py`, with ABIs from Sourcify and, given an
+  `ETHERSCAN_API_KEY`, Etherscan; the assistant alone also gets the
+  wallet actions: the Keychain's seed phrases and private keys (any project,
+  found by kind) and transfers from those named with `HERMES` through
+  `_shared/signer.py`, the `pre_tool_call` hook letting a transfer to an own
+  wallet run and sending any other through the approval gate on a card
+  naming both sides. Both share `_shared/access.py`, run their engine in the
+  ignored `local/web3/venv` (pinned in `engines/web3/`), keep the optional
+  Alchemy and Helius keys in the Keychain (scope `web3-rpc`) and block the
+  terminal path around them, the Keychain itself on the assistant. Engine:
+  `scripts/web3.sh` (`install` / `status` / `addresses`). Behavior:
+  [docs/web3.md](docs/web3.md).
 - **inspection/writing-inspection** (`standalone`): Writer's bounded `writing_inspect`.
 - **guards/skill-topology** (`standalone`): the topology guard's home — it blocks
   runtime writes into maintainer skill trees here and into the private

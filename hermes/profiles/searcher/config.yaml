@@ -23,6 +23,8 @@ toolsets:
   - substack_access
   - skills
   - memory
+  - evm_access
+  - solana_access
 max_concurrent_sessions:
 agent:
   system_prompt: |
@@ -607,11 +609,13 @@ _config_version: 49
 platform_toolsets:
   cli:
     - connections
+    - evm_access
     - file
     - memory
     - no_mcp
     - note_access
     - skills
+    - solana_access
     - substack_access
     - web
     - x_access
@@ -629,3 +633,5 @@ plugins:
     - x-access
     - substack-access
     - youtube-access
+    - evm-access
+    - solana-access

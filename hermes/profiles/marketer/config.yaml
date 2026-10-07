@@ -29,6 +29,8 @@ toolsets:
   - note_access
   - substack_access
   - youtube_access
+  - evm_access
+  - solana_access
 max_concurrent_sessions:
 agent:
   system_prompt: |
@@ -720,11 +722,13 @@ platform_toolsets:
     - clarify
     - connections
     - delegation
+    - evm_access
     - file
     - memory
     - no_mcp
     - note_access
     - skills
+    - solana_access
     - specialist
     - substack_access
     - terminal
@@ -738,11 +742,13 @@ platform_toolsets:
     - clarify
     - connections
     - delegation
+    - evm_access
     - file
     - memory
     - no_mcp
     - note_access
     - skills
+    - solana_access
     - specialist
     - substack_access
     - terminal
@@ -754,11 +760,13 @@ platform_toolsets:
   discord: []
   a2a:
     - connections
+    - evm_access
     - file
     - memory
     - no_mcp
     - note_access
     - skills
+    - solana_access
     - specialist
     - substack_access
     - vision
@@ -776,6 +784,8 @@ plugins:
     - x-access
     - substack-access
     - youtube-access
+    - evm-access
+    - solana-access
 specialist_call:
   resident_targets:
     - researcher

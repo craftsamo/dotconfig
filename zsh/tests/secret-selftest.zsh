@@ -9,9 +9,11 @@
 #   - cleans up after itself (trap on EXIT)
 #
 #   zsh -f ~/.config/zsh/tests/secret-selftest.zsh
+#
+# It tests the secret.zsh of its own checkout, so a worktree runs its own.
 emulate -L zsh
 setopt pipefail
-source "$HOME/.config/zsh/functions/secret.zsh"
+source "${${(%):-%x}:A:h}/../functions/secret.zsh"
 
 typeset -i fails=0
 ok()  { print -r -- "ok   - $1"; }
@@ -434,6 +436,41 @@ print -r -- 'v' | secret set NOM_ONE -p $PNOM --stdin >/dev/null 2>&1 \
   && bad "headless write without master fails" || ok "headless write without master fails"
 [[ ! -e $HOME/Library/Keychains/$PNOM.keychain-db ]] \
   && ok "no keychain created without master" || bad "no keychain created without master"
+
+# --- env=no (--no-env): readable by get, never emitted by env ---
+SEED='word word word word word word word word word word word seed'
+print -r -- "$SEED" | secret set TEST_SEED -p $P -D mnemonic -j 'wallet' --no-env --stdin >/dev/null 2>&1 \
+  && ok "set --no-env" || bad "set --no-env"
+[[ "$(secret get TEST_SEED -p $P)" == "$SEED" ]] && ok "get reads a --no-env item" || bad "get reads a --no-env item"
+neout=$(secret env -p $P)
+[[ $neout != *TEST_SEED* && $neout != *"$SEED"* ]] && ok "env skips a --no-env item" || bad "env skips a --no-env item"
+[[ $neout == *TEST_ALPHA* ]] && ok "env still emits other items" || bad "env still emits other items"
+[[ "$(secret ls -p $P --long)" =~ 'TEST_SEED[[:space:]]+Shared[[:space:]]+MNEMONIC[[:space:]]+[0-9-]+ [0-9:]+[[:space:]]+no[[:space:]]+wallet' ]] \
+  && ok "ls --long shows ENV no" || bad "ls --long shows ENV no"
+[[ "$(secret show TEST_SEED -p $P)" =~ 'Env:[[:space:]]+no' ]] && ok "show shows Env no" || bad "show shows Env no"
+print -r -- "$SEED" | secret set TEST_SEED -p $P -D mnemonic --stdin >/dev/null 2>&1
+[[ "$(secret env -p $P)" != *TEST_SEED* ]] && ok "rewriting the value keeps env=no" || bad "rewriting the value keeps env=no"
+secret update TEST_SEED -p $P -j 'renamed memo' >/dev/null 2>&1
+[[ "$(secret env -p $P)" != *TEST_SEED* ]] && ok "a comment update keeps env=no" || bad "a comment update keeps env=no"
+secret export -p $P --format json -o "$TD/noenv.json" >/dev/null 2>&1
+jq -e '.items[] | select(.name == "TEST_SEED") | .env == "no"' "$TD/noenv.json" >/dev/null 2>&1 \
+  && ok "json export carries env no" || bad "json export carries env no"
+secret export -p $P --format env -o "$TD/noenv.env" >/dev/null 2>&1
+grep -q '^#no-env# export TEST_SEED=' "$TD/noenv.env" 2>/dev/null \
+  && ok "env export comments out a --no-env item" || bad "env export comments out a --no-env item"
+( source "$TD/noenv.env"; [[ -z ${TEST_SEED-} ]] ) \
+  && ok "sourcing an env export never exports it" || bad "sourcing an env export never exports it"
+secret rm TEST_SEED -p $P -f >/dev/null 2>&1
+secret import "$TD/noenv.json" -y >/dev/null 2>&1
+[[ "$(secret env -p $P)" != *TEST_SEED* && "$(secret get TEST_SEED -p $P)" == "$SEED" ]] \
+  && ok "json import restores env=no" || bad "json import restores env=no"
+secret rm TEST_SEED -p $P -f >/dev/null 2>&1
+secret import "$TD/noenv.env" -p $P -y >/dev/null 2>&1
+[[ "$(secret env -p $P)" != *TEST_SEED* && "$(secret get TEST_SEED -p $P)" == "$SEED" ]] \
+  && ok "env import restores env=no from the marker" || bad "env import restores env=no from the marker"
+secret update TEST_SEED -p $P --env >/dev/null 2>&1
+[[ "$(secret env -p $P)" == *TEST_SEED* ]] && ok "update --env lifts it" || bad "update --env lifts it"
+secret rm TEST_SEED -p $P -f >/dev/null 2>&1
 
 # --- keychain rm ---
 secret keychain rm $KCN3 -f >/dev/null 2>&1 && ok "keychain rm" || bad "keychain rm"

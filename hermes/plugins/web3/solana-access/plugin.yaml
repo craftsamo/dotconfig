@@ -1,0 +1,4 @@
+name: solana-access
+version: 1.0.0
+description: Solana through one solana tool — blocks, transactions, accounts, portfolios, tokens, delegations, decoding, fees and prices for four profiles, and for the Assistant the user's wallets and approval-carded transfers.
+kind: standalone
