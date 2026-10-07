@@ -265,21 +265,23 @@ is never a fallback.
 ### Kanban catalog
 
 The kanban catalog is closed and per-assignee: its machine-readable surface is
-the union of `card_units` frontmatter in
-`assistant-pipeline/execute-assistant-creative/SKILL.md` and
-`assistant-pipeline/execute-assistant-search/SKILL.md` only; detail references
+the `card_units` frontmatter in
+`assistant-pipeline/execute-assistant-creative/SKILL.md` only; detail references
 must never declare card units. Each unit names its `assignee` worker, and the
-validator cross-checks worker kernels against it. Seeded units are creative:
-`anchored-image-batch`, `deterministic-render`; and search:
-`survey-enumeration`, `exhaustive-hunt`. Engineering, writing, marketing and
-research are card-free and refuse every card (the research `claim-verification`
-unit is retired; fact-checks travel through the researcher's A2A peers).
+validator cross-checks worker kernels against it. The two seeded units are
+creative: `anchored-image-batch`, `deterministic-render`. Engineering, writing,
+marketing, research and search are card-free and refuse every card (the
+research `claim-verification` unit is retired; fact-checks travel through the
+researcher's A2A peers; the search `survey-enumeration` and `exhaustive-hunt`
+units are retired, so retrieval, including a multi-hop hunt, is a resident
+session).
 
 A card must match one unit and carry every required input; otherwise the work
 stays resident or is decomposed during planning. Composites are never one card
-(never send 0→10 as one card). All six worker pipelines fail fast at the Unit
-gate with `kanban_block(kind=capability)` for composite or malformed cards.
-The card is lean: no manifests, digests or probes.
+(never send 0→10 as one card). Every worker pipeline refuses what is not its
+unit with `kanban_block(kind=capability)`: the card-free ones refuse every card,
+and Creator's two units fail fast at the Unit gate for composite or malformed
+cards. The card is lean: no manifests, digests or probes.
 
 On cards, specialists speak the `STATE:` / `Q<n>:` / `DECISION(Q<n>):` /
 `PROGRESS:` / `AUTHORITY+:` / `REVIEW:` comment protocol. Only terminal events

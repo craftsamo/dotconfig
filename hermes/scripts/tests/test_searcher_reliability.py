@@ -11,7 +11,6 @@ how a model behaves. Behavior is measured with ``audit-searcher-sessions.py``.
 from __future__ import annotations
 
 import importlib.util
-import os
 import re
 import time
 from pathlib import Path
@@ -40,17 +39,6 @@ def handoff(target: str, minutes: int = 90) -> str:
     return plugin._handoff(data, "survey")
 
 
-def runtime_block_kinds() -> set[str]:
-    """Kinds `kanban_block` accepts for a goal_mode task, read from the Hermes source."""
-    roots = [Path(p) for p in os.environ.get("PYTHONPATH", "").split(os.pathsep) if p]
-    source = next((r / "tools/kanban_tools.py" for r in roots if (r / "tools/kanban_tools.py").is_file()), None)
-    if source is None:
-        pytest.skip("Set PYTHONPATH to the Hermes source checkout to read the runtime block gate")
-    found = re.search(r"_GOAL_MODE_BLOCK_ALLOWED_KINDS\s*=\s*frozenset\(\{([^}]*)\}\)", source.read_text())
-    assert found, "runtime gate constant moved; update this contract"
-    return set(re.findall(r"[\"']([a-z_]+)[\"']", found.group(1)))
-
-
 def test_engineer_handoff_keeps_the_committed_checkpoint_rule():
     text = handoff("engineer")
     assert "committed checkpoint" in text and "Turn budget" in text
@@ -77,21 +65,3 @@ def test_kernel_states_that_x_search_is_allowed():
 def test_build_distinguishes_budget_exhaustion_from_an_early_stop():
     text = flat(PIPELINE / "build-searcher/SKILL.md")
     assert "Turn budget" in text and "durable path" in text
-
-
-@pytest.mark.xfail(strict=True, reason="the judge reads only summary/result, while the kernel asks for a short "
-                                       "summary; detailed reports were rejected as missing")
-def test_kernel_puts_acceptance_evidence_where_the_goal_judge_reads_it():
-    assert "acceptance evidence" in flat(PIPELINE / "SKILL.md")
-
-
-@pytest.mark.xfail(strict=True, reason="the kernel orders kanban_block(kind=capability) for a malformed card, "
-                                       "which a goal_mode task is not allowed to use")
-def test_kernel_block_guidance_matches_the_goal_mode_runtime_gate():
-    allowed = runtime_block_kinds()
-    text = flat(PIPELINE / "SKILL.md")
-    assert "kanban_block(kind=capability)" in text, "the non-goal_mode path must stay"
-    if "capability" in allowed:
-        return
-    goal_mode_rule = re.search(r"goal_mode[^.]{0,200}(?:needs_input|dependency|kanban_complete)", text)
-    assert goal_mode_rule, "the kernel needs a goal_mode path that uses an allowed block kind"

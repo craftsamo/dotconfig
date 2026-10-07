@@ -1,6 +1,6 @@
 ---
 name: plan-assistant-search
-description: "Plan search: bring purpose and constraints, then agree Searcher-proposed scope, coverage and units. Preserve settled card briefs; conclusions and recommendations belong to research."
+description: "Plan search: bring purpose and constraints, then agree Searcher-proposed scope, coverage and units. Preserve settled caller briefs; conclusions and recommendations belong to research."
 version: 1.0.0
 author: CraftSamo
 license: MIT
@@ -61,10 +61,10 @@ researcher's (`../plan-assistant-research/SKILL.md`).
 
 A sweep whose coverage claim is really several sweeps, or a lookup
 that keeps growing hops, is a **granularity finding** — decompose,
-never stretch the unit. Card eligibility: a settled sweep unit may
-ride kanban as `survey-enumeration`, a settled hunt unit as
-`exhaustive-hunt` (`../execute-assistant-search/SKILL.md`); lookups never
-ride kanban — they are chat work or a session turn.
+never stretch the unit. No search unit rides kanban
+(`../execute-assistant-search/SKILL.md`): a sweep or hunt is a resident
+session, a long one continued in the same conversation; lookups are chat work
+or a session turn.
 
 ## Proposal and agreement core
 
