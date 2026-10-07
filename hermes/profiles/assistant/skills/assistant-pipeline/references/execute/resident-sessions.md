@@ -113,13 +113,14 @@ resident-session.sh prune [--older-than <days>] [--yes]
   `cancelled` status already carries the runner's confirmation and may be
   continued as described in "Parallel conversations, waiting and cancelling".
 - **Reconcile turn after an interruption (Engineer).** An interrupted Engineer
-  conversation usually still owns OpenCode child runs whose records only THAT
-  resident session can reconcile; left alone they hold the worktree
-  indefinitely, and no other route (a fresh conversation, the terminal, a
-  `--resume`) is accepted as owner. After `specialist_session reconcile`, send
-  exactly one `specialist_call(conversation_id=<same>, kind="reconcile",
-  message=<which child conversations to inspect>)`. The plugin marks the turn
-  RECONCILE-ONLY: Engineer inspects and reconciles, `opencode_call` is refused,
+  conversation can still have OpenCode runs going that only THAT resident
+  session may interrupt (they are bound to it); left alone they keep running
+  and hold the worktree, and no other route (a fresh conversation, the
+  terminal, a `--resume`) is accepted as owner. After `specialist_session
+  reconcile`, send exactly one `specialist_call(conversation_id=<same>,
+  kind="reconcile", message=<which child sessions to inspect>)`. The plugin
+  marks the turn RECONCILE-ONLY: Engineer inspects and interrupts, every
+  `opencode_run_<role>` is refused,
   nothing is edited or committed, and the conversation ends `reconciled`. Then
   release the remaining work as a fresh conversation seeded with the committed
   checkpoint and the evidence paths — not with the interrupted transcript.

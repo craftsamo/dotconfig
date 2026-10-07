@@ -58,7 +58,7 @@ access, it is not implementation approval.
    A large approved scope is many turns of one conversation. Ask Engineer to
    checkpoint-commit verified work on the task branch as it goes.
    A model/variant preference is passed as a preference for Engineer's
-   opencode_call arguments (the maintainer allowlist decides); a refused name
+   run-tool arguments (the maintainer allowlist decides); a refused name
    is reported back, never a reason to stall the job or to invent a
    restriction the user did not make. A narrower grant (local commit only, no
    push) still runs through Engineer's ordinary build wrapper with that
@@ -77,13 +77,13 @@ Never drive Engineer outside specialist_call — no `hermes -p engineer` from th
 terminal, no `--resume` of its session, no environment stripping; a foreign
 route cannot own its OpenCode records and only deepens the block. After a
 timeout (exit 124) follow resident-sessions.md: reconcile, then send ONE
-`kind="reconcile"` turn on that same conversation so the owning session clears
-its OpenCode holds, then continue the work in a fresh conversation seeded with
-the committed checkpoint. Do not run a competing OpenCode session, copy
-Engineer's browser session, or patch its target code yourself: your own
-opencode_call exists for the Admin topic's scope (this config repo, Hermes
-upkeep, a named workspace repo), and its registry is separate from
-Engineer's, so it would not even see Engineer's hold on a worktree. Independent
+`kind="reconcile"` turn on that same conversation so the owning session
+interrupts the OpenCode runs it left going, then continue the work in a fresh
+conversation seeded with the committed checkpoint. Do not run a competing
+OpenCode session, copy Engineer's browser session, or patch its target code
+yourself: your own opencode_run_<role> tools exist for the Admin topic's scope
+(this config repo, Hermes upkeep, a named workspace repo), and a build of yours
+is refused in any worktree where Engineer's run is still going. Independent
 jobs need separate worktrees and explicitly disjoint scope; concurrency is not
 a reason to multiply one job.
 
