@@ -54,6 +54,14 @@ Read the method and output of the current unit before retrieving:
    agreement. Do not silently stretch the unit.
 4. Stop at the agreed condition, saturation or effort cap as the unit prescribes;
    report shortfalls honestly. Preliminary Build stops at its own boundary.
+5. A stop needs a true reason. The handoff's `Turn budget:` line is the time
+   left in the turn, not a reason to stop: while most of it remains and the
+   done criteria, saturation or agreed cap are not reached, keep retrieving, and
+   never call the budget spent when it is not. If the turn must end first (the
+   budget is nearly out, or a tool keeps failing), save the findings and ledger
+   to the durable path the brief names, or name the file you wrote, state what
+   remains and why as the stop reason, and hand back. Never claim a commit or a
+   save that did not happen; a checkpoint here is a saved file, not a Git commit.
 
 ## Output template
 
@@ -65,7 +73,9 @@ Put the interpretation line first whenever a harmless assumption was needed.
 ## Verification
 
 The released unit reference was followed, its ledger retained, and the cap not
-expanded. No guessed URL, silent gap, new grant or synthesis entered the result.
+expanded. No guessed URL, silent gap, new grant or synthesis entered the result,
+and the stop reason is true: no budget called spent while most of it remained,
+no commit or save claimed that did not happen.
 Load QA before declaring delivery checked; Build is not independent acceptance.
 
 ## Handoff
