@@ -1,6 +1,6 @@
 # Assistant
 
-Front-door Client: quality gate, visual design and timeline, creative early delivery, entry routing, tiers and pinned topics. Part of the Hermes design docs — index: [`PROFILES.md`](../../PROFILES.md).
+Front-door Client: quality gate, visual design, creative early delivery, entry routing, tiers and pinned topics. Part of the Hermes design docs — index: [`PROFILES.md`](../../PROFILES.md).
 
 ## Assistant quality gate
 
@@ -18,64 +18,16 @@ Delivery happens only after verification; the session is closed on
 acceptance. External factual claims still ride researcher evidence supplied
 in the flow.
 
-## Visual design and timeline
+## Visual design
 
 Assistant is a deliverable-first Client, not a second production broker. For
 newly authored video it passes intent and acceptance — purpose, audience,
 destination, fixed words, brand rules, exclusions, inputs, references and what
 each is for — and the producer designs the storyboard, which Assistant relays
-for the user's approval. In a blind study (2026-09-24,
-`~/Workspaces/Projects/Acme/docs/hermes-studies/video-craft-ab-2026-09/`)
-every film whose visual design the Assistant authored as a timeline ranked in
-the bottom half, with or without a motion vocabulary, because the diagram's
-shapes and opacities bind the producer; producer-designed storyboards ranked
-first. Static UI images still use Assistant's component design without an
-invented video duration.
-
-Assistant authors a designed timeline only when the user explicitly asks for
-one; then it owns concrete visible intent — complete scene progression,
-intermediate changes, deliberate holds, camera/text/audio relations and
-per-component UI anatomy, typography, surfaces and states — and conditional
-reference research connects inspected examples to scene/event/component
-decisions. Exact edits, analysis, research-only and frozen render resumes keep
-their existing scope.
-
-The existing Plan entry owns a plain `video-design.md` guide; no new
-profile, skill root, toolset or card is added. Its public stdlib helper at
-`profiles/assistant/scripts/creative-timeline.py` renders validated data into
-an inert, self-contained HTML timeline, with retained JSON and an identity
-receipt in a fresh exclusive bundle. This is a planning-only document for the
-existing plan agreement — not production HTML, another hands form, a media
-render or arbitrary HTML execution. Diagrams and complete design text are
-visible together; omitted intermediate states or unaccounted visual time fail
-structural checks, but the helper validates structure, not artistic quality or
-user authority. Open issues stay discussion-only. Telegram receives a document;
-attached HTML opening needs actual client verification, not a promise based on
-message `parse_mode`. No hosting, Mini App or remote asset fetch is introduced.
-
-Use that identified version for the existing plan agreement, not a new approval
-ceremony. Creator owns the actual supported technology, realization and
-production approvals: its shared craft contract owns the technical realization
-map and sends full design requirements through existing hands fields/note.
-Preserve full design identity/IDs and intermediate states across the handoff.
-Required parallax, occlusion, material changes, 3D/shader motion or bespoke
-components cannot be silently flattened into simpler substitutes or generic
-controls. Actual GSAP/Three.js/GLSL/Anime.js roles must be checked against the
-selected producer; this feature changes neither the available renderers nor
-frozen jobs, and Three.js/shader runtime expansion is separate implementation
-work, not implied by reference access. Hands keep their own proposal/preview
-approvals, rendered checks and budgets. Ordinary production still delivers
-without another broker aesthetic inspection. Assistant's retired house formats,
-device catalog and blanket past-film recipes are not transplanted into Creator.
-Client guides, legacy references and upload consent: [`broker.md`](../broker.md)
-"Assistant Client guides and retirement gates".
-
-Status: deployed. Validation covered structure, restricted model probes and a
-native Telegram document the user opened; it does not establish artistic
-quality, actual video rendering, new Three.js/GLSL runtime support, primary-model
-behavior or automatic failover. Required craft bodies unavailable through name
-lookup recover from canonical files. Existing conversation histories are not
-presumed refreshed.
+for the user's approval. Static UI images use the Plan entry's
+`plan-assistant-creative/references/ui-design.md` component design without an
+invented video duration. Creator owns realization and production approvals;
+the hands keep their own proposal and preview approvals.
 
 ## Creative early delivery candidate
 

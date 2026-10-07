@@ -81,31 +81,6 @@ approval; relay that storyboard to the user in plain language and relay the
 user's decision back. Do not prescribe layouts, shapes, components or
 motion the user did not ask for.
 
-Only when the user explicitly asked for a designed timeline and agreed it,
-carry the complete versioned visual design from
-[visual-story planning](../plan-assistant-creative/references/video-design.md):
-JSON, HTML timeline and identity receipt, plus the actual user's agreement
-and unresolved items. Keep the owning Plan entry and kernel current before
-using that guide. With a compact review, include the exact review JSON and its
-receipt identity as well; the short viewing layer never replaces full design
-data or actual user agreement. A version-2 design also fixes the frame aspect,
-background, on-screen words, surface shapes and opacities that Creator must
-honor; its orange motion marks are derived reading aids, not part of the film.
-Append `Visual design:` as ordinary briefing text with exact
-paths and scope, not an invented hands form field. The receipt binds the
-document, never the user's authority. Do not reduce it to a mood label or
-request production while important intermediate states remain undesigned.
-For an uncertain method, use bounded Creator consultation with the design
-marked unapproved/discussion-only. Visual agreement is not approval of later
-producer plan/preview bytes, spending, upload or source reuse.
-
-Creator must preserve the designed visible result while selecting actual
-supported methods. A proposed loss of parallax, occlusion, material behavior,
-UI fidelity or intermediate motion is a visual-design change, not a harmless
-implementation choice. Return it for the affected decision; never silently
-accept a flat zoom, generic component or fade in its place. New design versions
-invalidate affected dependent work without rewriting old frozen artifacts.
-
 Use `kind="inquiry"` only for a short, bounded, non-generating consultation.
 Released production and multi-turn work use `kind="work"`, including any
 analysis whose contract requires work. If an inquiry leads to production,

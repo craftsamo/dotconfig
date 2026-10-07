@@ -22,7 +22,7 @@ QA = QA_ENTRY.parent / "references"
 GUIDES = {
     "icon", "emoji", "mascot", "reimagine", "kit", "card", "clip",
     "music-video", "ad", "tour", "explainer-video", "speech", "sfx",
-    "music", "mix", "video-design",
+    "music", "mix", "ui-design",
 }
 
 
