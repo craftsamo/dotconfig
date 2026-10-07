@@ -35,8 +35,8 @@ def locked(state: Path):
 
 
 def entries(state: Path, since: float) -> list[dict]:
-    """Ledger rows since a time; a send is written before broadcast and again with its outcome, so
-    the last row per quote wins."""
+    """Ledger rows since a time; a send attempt is written before broadcast and again with its
+    outcome, so the last row per attempt wins (every attempt counts, a repeated quote included)."""
     path = state / "ledger.jsonl"
     if not path.exists():
         return []
@@ -47,8 +47,13 @@ def entries(state: Path, since: float) -> list[dict]:
         except ValueError:
             continue
         if isinstance(row, dict) and row.get("time", 0) >= since:
-            rows[str(row.get("quote") or f"line-{n}")] = row
+            rows[str(row.get("attempt") or row.get("quote") or f"line-{n}")] = row
     return list(rows.values())
+
+
+def attempted(state: Path, quote_id: str) -> bool:
+    """Whether the ledger has ever recorded a send of this quote."""
+    return any(row.get("quote") == quote_id for row in entries(state, 0))
 
 
 def append(state: Path, row: dict) -> None:

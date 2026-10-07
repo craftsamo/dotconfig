@@ -1,4 +1,0 @@
-name: chain-read
-version: 1.0.0
-description: Read-only EVM and Solana analysis — blocks, transactions, addresses, portfolios, logs, tokens, allowances, decoding, gas and prices — through one chain tool run in an isolated engine venv.
-kind: standalone

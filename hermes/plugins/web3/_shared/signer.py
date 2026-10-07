@@ -37,7 +37,7 @@ import sys
 import time
 
 HERE = Path(__file__).resolve().parent
-sys.path[:0] = [str(HERE.parent / "_shared"), str(HERE)]
+sys.path.insert(0, str(HERE))
 
 import chains  # noqa: E402
 import evm  # noqa: E402
@@ -58,10 +58,16 @@ ATA_PROGRAM = "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
 QUOTE_ID = re.compile(r"^q[0-9a-f]{8}$")
 SYMBOL = re.compile(r"^[A-Za-z0-9.$_-]{1,12}$")
 MEMO_CLIP = 40
+OP_STACK = {"base", "optimism", "base-sepolia", "optimism-sepolia"}  # an L1 data fee on top of gas
+GAS_PRICE_ORACLE = "0x420000000000000000000000000000000000000F"
+L1_MARGIN = 2              # the L1 base fee moves between quote and send
 CARD_BUDGET = 480          # Telegram cuts an approval card's reason at 500 escaped UTF-16 units
 SHORT_BUDGET = 290         # Discord cuts it at 300
 SETUP = ("store a Hermes-only seed phrase under a name with HERMES in it, like `secret set HERMES_MAIN -p <project> "
-         "-D MNEMONIC` (a private key: -D PRIVATE_KEY); seed phrases and keys under other names are watch-only")
+         "-D MNEMONIC --no-env` (a private key: -D PRIVATE_KEY); seed phrases and keys under other names are "
+         "watch-only")
+INJECTED = ("stored without --no-env: secret env, and so the environment of every shell, tool and Hermes process "
+            "that injects this layer, carries it; the user runs `secret update {name} -p {project}{scope} --no-env`")
 
 
 # --- secrets ------------------------------------------------------------------------------------
@@ -126,7 +132,8 @@ class Secrets:
                 self.keys[source] = secret
             self.meta[source] = {"project": item.get("project"), "scope": item.get("scope"),
                                  "name": item.get("name"), "label": item.get("label"),
-                                 "kind": item["role"], "use": use, "memo": one_line(item.get("memo"), MEMO_CLIP)}
+                                 "kind": item["role"], "use": use, "memo": one_line(item.get("memo"), MEMO_CLIP),
+                                 "env": "no" if item.get("env") == "no" else "yes"}
         self._parents: dict[str, tuple[bytes, bytes]] = {}
 
     def signable(self, source: str) -> bool:
@@ -187,11 +194,11 @@ class Secrets:
     def account(self, account_id) -> tuple[str, int | None]:
         """(source, index) of an account id; index is None for a key."""
         if not isinstance(account_id, str) or not account_id:
-            raise ChainError("account is required, like hermes/MAIN#0; wallet accounts lists them")
+            raise ChainError("account is required, like hermes/HERMES_MAIN#0; the accounts action lists them")
         source, _, index = account_id.partition("#")
         if index:
             if source not in self.seeds:
-                raise ChainError(f"no seed phrase {source!r}; wallet accounts lists them")
+                raise ChainError(f"no seed phrase {source!r}; the accounts action lists them")
             if not index.isdigit() or int(index) > 2 ** 31 - 1:
                 raise ChainError("the account index must be a number, like #0")
             return source, int(index)
@@ -199,7 +206,7 @@ class Secrets:
             return source, None
         if source in self.seeds:
             raise ChainError(f"{source} is a seed phrase; name an account in it, like {source}#0")
-        raise ChainError(f"no account {account_id!r}; wallet accounts lists them")
+        raise ChainError(f"no account {account_id!r}; the accounts action lists them")
 
     def address_of(self, account_id: str, family: str) -> str:
         """An account's address on a family, watch-only accounts included."""
@@ -421,7 +428,25 @@ def _evm_fees(r) -> tuple[int, int]:
     return base, evm.h2i(tip) if tip else 10 ** 9
 
 
-def evm_quote(ctx: Ctx, sender: str, args: dict, asset: str) -> dict:
+def _l1_fee(r, call: dict, gas: int, max_fee_per_gas: int, tip: int, chain_id: int, key: bytes) -> int:
+    """An OP Stack chain's L1 data fee for this transfer, from the chain's GasPriceOracle given the
+    signed transaction's bytes (signed only to size it; never broadcast)."""
+    from eth_account import Account
+    from eth_abi import encode as abi_encode
+    from eth_utils import keccak
+    nonce = evm.h2i(r.call("eth_getTransactionCount", [call["from"], "pending"]))
+    raw = Account.sign_transaction({"type": 2, "chainId": chain_id, "nonce": nonce, "to": call["to"],
+                                    "value": evm.h2i(call["value"]), "data": call["data"], "gas": gas,
+                                    "maxFeePerGas": max_fee_per_gas,
+                                    "maxPriorityFeePerGas": min(tip, max_fee_per_gas)}, key).raw_transaction
+    data = "0x" + keccak(text="getL1Fee(bytes)")[:4].hex() + abi_encode(["bytes"], [bytes(raw)]).hex()
+    got = r.call("eth_call", [{"to": GAS_PRICE_ORACLE, "data": data}, "latest"])
+    if not got or len(got) < 66:
+        raise ChainError("the chain's L1 data fee could not be read; try again")
+    return evm.h2i(got[:66])
+
+
+def evm_quote(ctx: Ctx, sender: str, args: dict, asset: str, key: bytes | None = None) -> dict:
     from eth_abi import encode as abi_encode
     from eth_utils import to_checksum_address
     info = chains.EVM[ctx.chain]
@@ -461,6 +486,8 @@ def evm_quote(ctx: Ctx, sender: str, args: dict, asset: str) -> dict:
     fee_base, tip = _evm_fees(r)
     max_fee_per_gas = 2 * fee_base + tip
     max_fee = gas * max_fee_per_gas
+    if ctx.chain in OP_STACK and key is not None:
+        max_fee += L1_MARGIN * _l1_fee(r, call, gas, max_fee_per_gas, tip, info["id"], key)
     balance = evm.h2i(r.call("eth_getBalance", [sender, "latest"]))
     value = evm.h2i(call["value"])
     if balance < value + max_fee:
@@ -642,20 +669,28 @@ def _balances(ctx: Ctx, family: str, addresses: list[str]) -> list[str | None]:
 
 
 def op_accounts(payload: dict) -> dict:
-    """Every labelled secret and its accounts' addresses; with chain, their native balances there."""
+    """Every labelled secret and its accounts' addresses — of one chain family when ``family`` names it
+    (the evm and solana tools each list their own); with chain, their native balances there."""
     secrets_ = Secrets(payload)
     count = payload.get("count", LIST_DEFAULT)
     if not isinstance(count, int) or not 1 <= count <= OWN_INDEXES:
         raise ChainError(f"count must be from 1 to {OWN_INDEXES}")
+    only = payload.get("family")
+    if only not in (None, "evm", "solana"):
+        raise ChainError("family must be evm or solana")
+    families = [only] if only else ["evm", "solana"]
+    chain = payload.get("chain")
+    if chain and only and _family(chain) != only:
+        raise ChainError(f"{chain} is not {'an EVM' if only == 'evm' else 'a Solana'} chain")
     rows = []
     for source in secrets_.seeds:
         for index in range(count):
             account = f"{source}#{index}"
             rows.append({"account": account, **secrets_.meta[source], "index": index,
-                         "evm": secrets_.address_of(account, "evm"), "solana": secrets_.address_of(account, "solana")})
+                         **{family: secrets_.address_of(account, family) for family in families}})
     for source, (kind, _) in secrets_.keys.items():
-        rows.append({"account": source, **secrets_.meta[source], kind: secrets_.address_of(source, kind)})
-    chain = payload.get("chain")
+        if kind in families:
+            rows.append({"account": source, **secrets_.meta[source], kind: secrets_.address_of(source, kind)})
     if chain:
         family = _family(chain)
         with_address = [row for row in rows if row.get(family)]
@@ -669,9 +704,17 @@ def op_accounts(payload: dict) -> dict:
     result = {"accounts": rows, "seeds_list": count,
               "note": f"use sign: a Hermes wallet (HERMES in its name) that can send, and whose seeds' accounts "
                       f"0-{OWN_INDEXES - 1} count as own; use watch: a wallet Hermes only reads, never signs with, "
-                      "and treats as external. Token balances: chain portfolio"}
+                      "and treats as external. Token balances: the portfolio action on an address"}
     if secrets_.problems:
         result["skipped"] = secrets_.problems
+    warnings = []
+    for source, meta in secrets_.meta.items():
+        if meta["use"] == "sign" and meta["env"] != "no":
+            scope = f" --scope {meta['scope']}" if meta.get("scope") else " --shared"
+            warnings.append({"source": source, "warning": INJECTED.format(name=meta["name"], project=meta["project"],
+                                                                          scope=scope)})
+    if warnings:
+        result["warnings"] = warnings
     if not rows:
         result["setup"] = SETUP
     return result
@@ -694,9 +737,9 @@ def op_quote(payload: dict) -> dict:
     secrets_.require_any()
     account = payload.get("account")
     source, index = secrets_.account(account)
-    sender, _ = secrets_.signer(account, family)
+    sender, secret = secrets_.signer(account, family)
     ctx = Ctx(chain, _override(payload))
-    built = evm_quote(ctx, sender, payload, asset) if family == "evm" else sol_quote(ctx, sender, payload, asset)
+    built = evm_quote(ctx, sender, payload, asset, secret) if family == "evm" else sol_quote(ctx, sender, payload, asset)
     try:
         ledger.check_rate(state)
     except ledger.CapReached as exc:
@@ -727,11 +770,36 @@ def op_quote(payload: dict) -> dict:
 
 def load_quote(state: Path, quote_id) -> dict:
     if not isinstance(quote_id, str) or not QUOTE_ID.match(quote_id):
-        raise ChainError("quote must be an id like q1a2b3c4d from wallet quote")
+        raise ChainError("quote must be an id like q1a2b3c4d from the quote action")
     path = state / "quotes" / f"{quote_id}.json"
     if not path.exists():
-        raise ChainError(f"no quote {quote_id}; make one with wallet quote")
+        raise ChainError(f"no quote {quote_id}; make one with the quote action")
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _verified(state: Path, quote_id, secrets_: "Secrets", now: float) -> dict:
+    """A stored quote that is authentic (its MAC, under its own id), unused and unexpired."""
+    quote = load_quote(state, quote_id)
+    if quote.get("id") != quote_id:
+        raise ChainError("this quote file holds another quote; it is refused")
+    if quote.get("source") not in secrets_.seeds and quote.get("source") not in secrets_.keys:
+        raise ChainError("this quote's seed phrase or key is no longer in the Keychain")
+    if not hmac.compare_digest(str(quote.get("mac")), secrets_.mac(quote)):
+        raise ChainError("this quote was changed after it was made; it is refused")
+    if quote.get("consumed") or ledger.attempted(state, quote_id):
+        raise ChainError("this quote was already used; make a new one")
+    if now > quote["expires"]:
+        raise ChainError("this quote expired; make a new one")
+    return quote
+
+
+def op_verify(payload: dict) -> dict:
+    """What the approval hook may show and decide on: the authentic quote's verdict and cards, and
+    its MAC, which the send must present again."""
+    state = _state(payload)
+    quote = _verified(state, payload.get("quote"), Secrets(payload), time.time())
+    return {"quote": quote["id"], "chain": quote["chain"], "own": quote["own"], "card": quote["card"],
+            "card_short": quote["card_short"], "mac": quote["mac"]}
 
 
 def op_send(payload: dict) -> dict:
@@ -740,17 +808,11 @@ def op_send(payload: dict) -> dict:
     if approval not in ("own", "card"):
         raise ChainError("a send needs the plugin's approval decision")
     with ledger.locked(state):
-        quote = load_quote(state, payload.get("quote"))
         secrets_ = Secrets(payload)
-        if quote.get("source") not in secrets_.seeds and quote.get("source") not in secrets_.keys:
-            raise ChainError("this quote's seed phrase or key is no longer in the Keychain")
-        if not hmac.compare_digest(str(quote.get("mac")), secrets_.mac(quote)):
-            raise ChainError("this quote was changed after it was made; it is refused")
-        if quote.get("consumed"):
-            raise ChainError("this quote was already used; make a new one")
         now = time.time()
-        if now > quote["expires"]:
-            raise ChainError("this quote expired; make a new one")
+        quote = _verified(state, payload.get("quote"), secrets_, now)
+        if not hmac.compare_digest(str(payload.get("mac") or ""), quote["mac"]):
+            raise ChainError("this is not the quote that was approved; nothing was sent")
         family = _family(quote["chain"])
         own = (quote["to"].lower() if family == "evm" else quote["to"]) in secrets_.own(family)
         if approval == "own" and not (own and quote["own"]):
@@ -768,7 +830,8 @@ def op_send(payload: dict) -> dict:
         tmp.write_text(json.dumps(quote, ensure_ascii=False), encoding="utf-8")
         os.chmod(tmp, 0o600)
         tmp.replace(path)
-        row = {"time": now, "quote": quote["id"], "account": quote["account"], "chain": quote["chain"],
+        row = {"time": now, "attempt": random.token_hex(8), "quote": quote["id"], "account": quote["account"],
+               "chain": quote["chain"],
                "from": quote["from"], "to": quote["to"], "asset": quote["asset"], "symbol": quote["symbol"],
                "amount": quote["amount"], "max_fee": quote["max_fee"], "own": own, "approval": approval,
                "outcome": "unknown"}
@@ -790,7 +853,7 @@ def op_send(payload: dict) -> dict:
         ledger.append(state, {**row, "outcome": "sent", "hash": sent})
     return {"sent": True, "hash": sent, "chain": quote["chain"], "amount": quote["amount"], "symbol": quote["symbol"],
             "to": quote["to"], "explorer": chains.explorer(quote["chain"], "tx", sent),
-            "note": "use wallet status with this hash for confirmation"}
+            "note": "use the status action with this hash for confirmation"}
 
 
 def op_status(payload: dict) -> dict:
@@ -815,7 +878,7 @@ def op_status(payload: dict) -> dict:
             "slot": value.get("slot")}
 
 
-OPS = {"accounts": op_accounts, "quote": op_quote, "send": op_send, "status": op_status}
+OPS = {"accounts": op_accounts, "quote": op_quote, "verify": op_verify, "send": op_send, "status": op_status}
 
 
 def run(payload: dict) -> dict:

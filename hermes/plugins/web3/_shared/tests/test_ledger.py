@@ -14,7 +14,7 @@ def _load(name, path):
     return module
 
 
-ledger = _load("web3_wallet_ledger_test", ROOT / "ledger.py")
+ledger = _load("web3_ledger_test", ROOT / "ledger.py")
 
 
 def test_the_last_row_per_quote_wins(tmp_path):

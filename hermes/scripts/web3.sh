@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# Engine manager for the web3 plugins (chain-read and wallet; docs/web3.md).
+# Engine manager for the web3 plugins (evm-access and solana-access; docs/web3.md).
 #
 # Both plugins run their engine with the interpreter of an isolated venv under the ignored
 # hermes/local/web3/, built from the hash-locked engines/web3/requirements.lock. The wallet uses
 # every Keychain item labelled as a seed phrase or a private key, under any name and project, and
 # the optional RPC provider keys; none of them ever lives in a file:
 #
-#   secret set HERMES_MAIN -p <project> -D MNEMONIC        a seed phrase Hermes may sign with
-#   secret set HERMES_DEPLOY -p <project> -D PRIVATE_KEY   a private key Hermes may sign with
+#   secret set HERMES_MAIN -p <project> -D MNEMONIC --no-env        a seed phrase Hermes may sign with
+#   secret set HERMES_DEPLOY -p <project> -D PRIVATE_KEY --no-env   a private key Hermes may sign with
 #   (HERMES as a word of the name marks a Hermes wallet; under any other name a seed phrase or
 #    key is watch-only: its addresses are read, it never signs)
 #   secret set ALCHEMY_API_KEY -p hermes --scope web3-rpc
@@ -66,16 +66,22 @@ case "${1:-}" in
     echo "wallet:"
     found=0
     for project in $("$SECRET" projects 2>/dev/null); do
+      # the wallet's own listing parser (stdlib only): kinds may hold spaces
       while IFS= read -r line; do
-        echo "  $project  $line"
+        echo "  $line"
         found=1
-      done < <("$SECRET" ls -p "$project" --long 2>/dev/null | tail -n +2 \
-                 | grep -iE '[[:space:]](mnemonic|seed phrase|private[ _-]?key)[[:space:]]' \
-                 | awk '{n = split(tolower($1), w, /[-_.]/); use = "watch-only"
-                         for (i = 1; i <= n; i++) if (w[i] == "hermes") use = "sign"
-                         print $1, "(" $2 ")", use}')
+      done < <("$SECRET" ls -p "$project" --long 2>/dev/null | python3 -c '
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("keychain", sys.argv[1])
+keychain = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(keychain)
+for item in keychain.parse_listing(sys.argv[2], sys.stdin.read()):
+    note = "  <- injected: secret update ... --no-env" if item["use"] == "sign" and item["env"] != "no" else ""
+    print("%s  %s (%s)  %s  env %s%s" % (item["project"], item["name"], item["scope"] or "Shared",
+                                         "sign" if item["use"] == "sign" else "watch-only", item["env"], note))
+' "$HERMES_DIR/plugins/web3/_shared/keychain.py" "$project")
     done
-    [ "$found" = 1 ] || echo "  none labelled (secret set <NAME> -p <project> -D MNEMONIC)"
+    [ "$found" = 1 ] || echo "  none (secret set HERMES_<NAME> -p <project> -D MNEMONIC --no-env)"
     echo "alchemy:  $(stored ALCHEMY_API_KEY web3-rpc "optional; public RPC is used")"
     echo "helius:   $(stored HELIUS_API_KEY web3-rpc "optional; public RPC is used")"
     ;;
@@ -87,7 +93,7 @@ case "${1:-}" in
     case "$CHAIN" in *[!a-z0-9-]*) die "CHAIN is a name like sepolia or solana-devnet" ;; esac
     printf '{"op": "accounts", "count": %s%s}' "$COUNT" "${CHAIN:+, \"chain\": \"$CHAIN\"}" \
       | env -i HOME="$HOME" PATH=/usr/bin:/bin LANG=en_US.UTF-8 \
-          "$VENV/bin/python" "$HERMES_DIR/plugins/web3/wallet/signer.py" \
+          "$VENV/bin/python" "$HERMES_DIR/plugins/web3/_shared/signer.py" \
       | "$VENV/bin/python" -c '
 import json, sys
 reply = json.load(sys.stdin)

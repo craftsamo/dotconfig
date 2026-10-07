@@ -1,4 +1,4 @@
-# web3 engine (plugins/web3: chain-read's reader and wallet's signer). eth-account signs EVM
+# web3 engine (plugins/web3/_shared: the reader and the signer of evm-access and solana-access). eth-account signs EVM
 # transactions and derives m/44'/60'/0'/0/i (its HD features are flagged unaudited, so tests pin
 # known MetaMask vectors); eth-abi decodes calldata and logs; mnemonic is Trezor's BIP39
 # reference; solders derives m/44'/501'/i'/0' from the 64-byte seed and signs Solana messages.

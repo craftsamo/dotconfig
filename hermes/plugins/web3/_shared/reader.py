@@ -1,4 +1,4 @@
-"""The ``chain`` tool's engine: one read per process, run by the web3 venv's interpreter.
+"""The read engine of the ``evm`` and ``solana`` tools: one read per process, run by the web3 venv's interpreter.
 
 The plugin writes one JSON request to stdin and reads one JSON reply from stdout:
 
