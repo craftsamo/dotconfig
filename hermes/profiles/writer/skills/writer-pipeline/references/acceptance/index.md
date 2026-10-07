@@ -330,14 +330,14 @@ repairing a candidate during independent QA.
 ## Handoff note
 
 A part fails its CONSUMER's needs (a script the producer cannot
-render, copy whose claim the marketer's inspection strikes) → the
+render, copy whose claim the requester's inspection strikes) → the
 defect returns to the writer session as a normal feedback turn; the
 consumer never edits the part.
 
 ## Who reads this
 
-Any requester that calls Writer directly — assistant, engineer, creator or
-marketer — owns its own acceptance of the returned candidate using this
+Any requester that calls Writer directly — assistant, engineer or creator —
+owns its own acceptance of the returned candidate using this
 contract. It needs no other file from this or any other profile: the brief,
 fact ledger or evidence record and revision budget it applies above are the
 caller's own, tracked in whatever form its own workflow already uses. Writer

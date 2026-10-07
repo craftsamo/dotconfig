@@ -97,7 +97,7 @@ def test_assessor_is_the_requester_not_a_named_profile():
 def test_who_reads_this_names_every_caller_and_stays_self_contained():
     index = text("index.md")
     assert "## Who reads this" in raw("index.md")
-    for caller in ("assistant", "engineer", "creator", "marketer"):
+    for caller in ("assistant", "engineer", "creator"):
         assert caller in index
     assert "It needs no other file from this or any other profile" in index
     assert "Writer does not run this contract as self-QA" in index
