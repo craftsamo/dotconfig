@@ -66,7 +66,7 @@ Per asset (or batch chunk):
    before presenting the candidate. If a required check still fails, report the
    blocker; a viewable best-attempt preview must retain the failure and cannot
    be called final-ready. Exceeding Budget is a `Q<n>` block, never a judgment call.
-4. `PROGRESS:` with the running spend tally, then the next asset.
+4. Note the running spend tally in the reply, then the next asset.
 
 Ambiguity discovered mid-loop (a spec the brief doesn't pin, a taste fork
 the anchor doesn't settle) → the kernel's block protocol: batch the

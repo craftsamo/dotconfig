@@ -33,8 +33,7 @@ Read only applicable detail references below.
 # Engineering - Client execution
 
 Engineer is the developer responsible for technical planning and implementation
-with OpenCode. You are its Client. Engineering is resident-only and has no
-card_units. Reserve kind="inquiry" for a short question Engineer can answer
+with OpenCode. You are its Client. Engineering is resident-only. Reserve kind="inquiry" for a short question Engineer can answer
 within its inbound A2A limits, without terminal, browser or OpenCode. Any filesystem
 inspection, script or audit run, or other OpenCode-backed investigation - even
 a findings-only assessment - goes through specialist_call(kind="work")

@@ -91,17 +91,12 @@ class ResearchSearchHandoffTest(unittest.TestCase):
             self.assertIn("bounded preliminary Build", public)
             self.assertRegex(public, r"(?:agree the main work|Do not silently release the main work)")
 
-    def test_search_defines_no_cards_and_is_resident_only_on_both_sides(self):
+    def test_search_is_resident_only_on_both_sides(self):
         raw = (ROOT / "execute-assistant-search/SKILL.md").read_text(encoding="utf-8")
-        self.assertNotIn("card_units", yaml.safe_load(raw.split("---\n", 2)[1]))
         caller = " ".join(raw.split())
         public = text(public_pipeline("search") / "SKILL.md")
-        self.assertIn("Search never rides kanban", caller)
-        self.assertIn("refused by the searcher with `kanban_block(kind=capability)`", caller)
         self.assertIn("No detailed prebuilt spec is required to start Plan", caller)
         self.assertIn("is one conversation", caller)
-        self.assertIn("Searcher defines no card units", public)
-        self.assertIn("refused with `kanban_block(kind=capability)`", public)
         for gone in (*RETIRED_SEARCH_CARDS, "goal_mode", "goal_max_turns"):
             self.assertNotIn(gone, caller)
             self.assertNotIn(gone, public)
@@ -111,12 +106,6 @@ class ResearchSearchHandoffTest(unittest.TestCase):
         for marker in ("STATE:", "DECISION(Q<n>):", "AUTHORITY+:", "SCHEDULED: until=",
                        "kanban_complete"):
             self.assertNotIn(marker, public)
-        kanban = text(ROOT / "references/execute/kanban-lite.md")
-        self.assertIn("only Creator has units", kanban)
-        self.assertNotIn("execute-assistant-search", kanban)
-        self.assertIn("every `required_inputs` item exists and is settled", kanban)
-        self.assertIn("One round is the cap", kanban)
-        self.assertIn("Second block of any kind", kanban)
 
     def test_research_stays_indirect_with_authorized_one_shot_and_resident_work(self):
         caller = text(ROOT / "execute-assistant-research/SKILL.md")
@@ -124,11 +113,10 @@ class ResearchSearchHandoffTest(unittest.TestCase):
         for token in ("engineer", "creator", "marketer", "primary", "spec-gap", "granularity"):
             self.assertIn(token, caller)
             self.assertIn(token, public)
-        self.assertIn("you never start researcher sessions or register research cards", caller)
+        self.assertIn("you never start researcher sessions", caller)
         self.assertIn("bounded authorized researcher inquiry may be one-shot", caller)
         self.assertIn('`kind="inquiry"` alone is not authorization', caller)
         self.assertIn('resident `kind="work"`', caller)
-        self.assertIn("refuse every kanban card", public)
         for phase in ("plan", "execute"):
             contract = text(ROOT / f"{phase}-assistant-research/SKILL.md")
             self.assertIn("The primary owns and continues the Researcher work handle and `conversation_id`", contract)

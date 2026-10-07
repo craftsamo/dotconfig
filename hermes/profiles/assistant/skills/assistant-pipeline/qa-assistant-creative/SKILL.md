@@ -33,7 +33,7 @@ Read only applicable detail references below.
 # Creative - requested inspection
 
 Use this entry only for an explicit user inspection request. Normal production,
-including legacy units and cards, uses
+including legacy units, uses
 [direct delivery](../execute-assistant-creative/SKILL.md) without this pass.
 Inspect the named artifacts and criteria once, then return findings. Do not
 chain an Assistant inspection after a Creator inspection by default, launch an

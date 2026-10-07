@@ -178,7 +178,7 @@ their engines [iterate](../references/legacy/iterate.md), [verify](../references
 [delivery](../references/legacy/delivery.md), [resume](../references/legacy/resume.md), and the
 technic table in [capabilities](../references/capabilities.md). The MediaBrief
 checklist ([brief](../references/legacy/brief.md)) replaces the form there.
-[Cards](../references/legacy/card.md) exist only for legacy families. Nothing in
+Nothing in
 this branch changes for served families - do not mix the two: a job
 that spans a served and a legacy family is two handoffs, the hands'
 first. A legacy job that needs spoken audio (narration for

@@ -26,7 +26,7 @@ decides an open field (kernel <UnitDiscipline>).
   released decision, not a Creator preference. Core provider-chain fallback
   stays inside the core backend; ComfyUI never falls through to cloud.
 - **Inputs** - attached source assets, QA-passed part paths, and
-  previous-card/anchor pointers.
+  previous-delivery/anchor pointers.
 - **Invariants** - what a revision or animation must preserve unchanged.
 - **Budget** - generation caps; absent means the kernel defaults.
 - **Review** - required gate and what evidence must be shown.
@@ -34,9 +34,9 @@ decides an open field (kernel <UnitDiscipline>).
 
 ## Destination discovery
 
-Use evidence in this order: task/card attachments and explicit user facts,
+Use evidence in this order: supplied attachments and explicit user facts,
 destination code/config, brand/design docs, then one batched question round.
-Record discovered facts in the first `STATE:` or `PROGRESS:` comment.
+Record discovered facts in your first progress note.
 
 For a codebase-backed destination, inspect the actual rendering component,
 schema/upload constraints, design tokens, existing media, and storage path.

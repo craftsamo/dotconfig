@@ -162,15 +162,6 @@ def test_no_nested_symlinks_or_reference_escape(tmp_path):
     assert "engineer pipeline must not contain symlinks: linked" in errors
 
 
-def test_no_new_card_catalog(tmp_path):
-    candidate = _copy_pipeline_candidate(tmp_path)
-    skill = candidate / "build-engineer/SKILL.md"
-    skill.write_text(skill.read_text().replace("version: 1.0.0", "card_units: []\nversion: 1.0.0"))
-    errors = []
-    validator.validate_engineer_references(candidate, errors)
-    assert "engineer defines no card units: build-engineer/SKILL.md" in errors
-
-
 def test_worker_allows_only_the_four_engineer_entries(tmp_path, monkeypatch):
     profile = tmp_path / "profiles/engineer"
     shutil.copytree(HERMES / "profiles/engineer", profile)
@@ -179,7 +170,7 @@ def test_worker_allows_only_the_four_engineer_entries(tmp_path, monkeypatch):
     monkeypatch.setattr(validator, "validate_git_boundary", lambda *args: None)
     monkeypatch.setattr(validator, "validate_plugin_enabled", lambda *args: None)
     errors = []
-    leaves, _ = validator.validate_worker("engineer", errors, catalog={})
+    leaves, _ = validator.validate_worker("engineer", errors)
     assert not errors
     assert leaves == 4 + len(list((profile / "skills/technic").glob("*/SKILL.md")))
     duplicate = profile / "skills/technic/plan-engineer"
@@ -188,5 +179,5 @@ def test_worker_allows_only_the_four_engineer_entries(tmp_path, monkeypatch):
         "---\nname: plan-engineer\nmetadata:\n  hermes:\n    category: technic\n---\n"
     )
     errors = []
-    validator.validate_worker("engineer", errors, catalog={})
+    validator.validate_worker("engineer", errors)
     assert "duplicate engineer skill name: plan-engineer" in errors

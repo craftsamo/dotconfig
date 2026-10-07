@@ -36,9 +36,8 @@ The specialist is the **researcher** — analytic hands; it verifies
 and concludes, it never performs heavy breadth retrieval and never crafts.
 Bounded preliminary depth discovery is allowed only after primary agreement;
 enumerations, surveys and exhaustive hunts remain Searcher dependencies.
-**The researcher is not your peer and defines no card units** (the
-`claim-verification` card is retired): you never start researcher
-sessions or register research cards. Research is consumed through
+**The researcher is not your peer**: you never start researcher
+sessions. Research is consumed through
 the peer bots whose peer the researcher is — engineer, creator, or
 marketer — inside their own work.
 
@@ -79,7 +78,7 @@ Undecided defining choices are **spec-gap findings** for Plan; work larger than
 its agreed unit is a **granularity finding**, not permission to expand Build.
 
 Every research unit type — evidence-pack, tradeoff-matrix,
-fact-check, guidance — moves this way; none rides kanban, and
+fact-check, guidance — moves this way, and
 synthesis never lands in your own turn.
 
 ## Part handoff
@@ -99,7 +98,7 @@ consumer never reaches into the researcher's session:
 
 ## Pitfalls
 
-- Registering a research card or starting a researcher session —
+- Starting a researcher session —
   the direct assistant→researcher path is closed; route through the
   consuming primary.
 - Sending heavy breadth retrieval through this path: enumerations and hunts are

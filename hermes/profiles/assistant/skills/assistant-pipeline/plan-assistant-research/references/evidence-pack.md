@@ -7,7 +7,7 @@ corroboration, and counterevidence mechanics; its Plan proposes the question
 and closure criteria for Client agreement against your purpose.
 
 Researcher unit `evidence-pack` · QA `evidence-pack` · units: one
-question per unit; never card-eligible — synthesis whose framing may
+question per unit; synthesis whose framing may
 move with the user stays resident on purpose.
 
 ## Agree before Build

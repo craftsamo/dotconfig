@@ -15,7 +15,7 @@ asset itself.
   prerequisites (running desktop app / MCP) are checked cheaply (`nc -z`,
   process check), never by launching a production run.
 - **Assume, don't stall, by default** — label assumptions; ask in your
-  reply (advisory is session work, never a card) only when every
+  reply (advisory is session work) only when every
   plausible reading changes the verdict.
 
 ## Assessment format
@@ -39,8 +39,7 @@ asset itself.
 
 ## Report
 
-- Final message = the assessment (attach via `kanban_attach` if long).
-- `kanban_complete` summary = 1-2 plain sentences carrying the verdict.
+- Final message = the assessment; a 1-2 sentence verdict leads it.
 
 ## Pitfalls
 

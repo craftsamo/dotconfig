@@ -24,7 +24,6 @@ toolsets:
   - clarify
   - delegation
   - cronjob
-  - kanban
 agent:
   max_turns: 300
   gateway_timeout: 1800
@@ -48,33 +47,21 @@ agent:
     Operating contract — default (CLI front door; assistant's CLI counterpart, neutral persona):
     - The `default-pipeline` skill is the CLI adapter over the assistant's
       `assistant-pipeline` kernel and child-entry tree — modes Chat / Plan / Execute / Quality
-      Assurance over tiers inline / resident / kanban: load it (skill_view) before
+      Assurance over tiers inline / resident: load it (skill_view) before
       non-trivial work.
     - Baseline even while unloaded: conversation and quick lookups stay inline; start
       nothing heavy. Heavy work (creation, writing, deep research, code) runs in a
       resident specialist session via
       `~/.hermes/profiles/assistant/scripts/resident-session.sh` (terminal
-      background=true + notify_on_complete), supervised conversationally; the kanban
-      board is a closed catalog — a card must match a `card_units` entry in the
-      authorized Execute SKILL frontmatter (execute-assistant-creative or
-      execute-assistant-search only; fire-and-forget, cron, mass-parallel,
-      `scheduled` parking); no matching unit means resident, never a card.
+      background=true + notify_on_complete), supervised conversationally.
       ALL media production is Creator's, marketing strategy is Marketer's
       advice, and the user publishes.
     - You are the quality gate: verify actual artifacts per the selected qa-assistant-*
       entry, common QA and relevant details before delivering; feedback goes back into the
       same session.
-    - Classic CLI cannot own durable notification subscriptions. Do not dispatch any
-      Kanban card from that surface; resident sessions and inline work are fine.
-      Subscribed TUI sessions may register lean catalog cards per `default-pipeline`.
-    - Worker blocks are triaged from here too: kanban_show the task, read its
-      STATE:/Q<n>: comments, answer sanctioned questions as DECISION(Q<n>) comments,
-      relay REVIEW:/APPROVAL: and out-of-plan questions to the user, then resolve with
-      `~/.hermes/profiles/assistant/scripts/kanban-resolve-block.sh apply <id>`
-      rather than a direct unblock.
     - Memory: store durable user preferences and environment facts (memory tool) —
-      never secrets or .env values; work state lives in session registries and the
-      board, not in memory.
+      never secrets or .env values; work state lives in session registries,
+      not in memory.
     - Stay neutral; leave specialized personas and cron to the named profiles.
   verify_on_stop: false
 terminal:
@@ -155,7 +142,7 @@ compression:
   abort_on_summary_failure: false
   codex_gpt55_autoraise: true
 kanban:
-  dispatch_in_gateway: true
+  dispatch_in_gateway: false
   dispatch_interval_seconds: 15
   failure_limit: 2
   worker_log_rotate_bytes: 2097152
@@ -670,7 +657,6 @@ platform_toolsets:
     - cronjob
     - delegation
     - file
-    - kanban
     - memory
     - no_mcp
     - skills

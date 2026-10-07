@@ -17,8 +17,7 @@ performance or a seamless loop; perceptual acceptance is human-reported.
 ## Speech family
 
 `audio-creator-pipeline/<verb>/speech/` contains three leaves, not a second
-menu system. Speech assets use these leaves; the old voice card is retired and
-no hands kanban contract is added. Creator keeps ordinary conversational TTS
+menu system. Speech assets use these leaves; the old voice card is retired. Creator keeps ordinary conversational TTS
 for its own replies only, never as a speech-asset bypass.
 
 - `generate-speech`: one approved UTF-8 script, up to 600 characters. `voice`
@@ -129,7 +128,7 @@ resolver across scopes. Creator's character tools stay disabled.
 
 SFX is a separate four-leaf subject under `audio-creator-pipeline/<verb>/sfx/`,
 not a music or mix family. Creator reads its forms through the existing hands
-root; SFX adds no profile, peer, external skill library, kanban contract, gain
+root; SFX adds no profile, peer, external skill library, gain
 automation, TTS or tour change.
 
 - `create-sfx`: eight deterministic local kernels — click, beep, chime, whoosh,
@@ -263,7 +262,7 @@ Music is instrumental BGM or a short melodic opener/closer under
 lyrics/singing or standalone sound design is `no skill fits`, never
 approximated by a music leaf; combining finished sources is "Mix family" below.
 Create/generate cap at 60 s; edit/analyze accept up to 600 s / 128 MiB. Music
-implies no new profile, peer, external skill library, kanban contract, tour/MV
+implies no new profile, peer, external skill library, tour/MV
 finish, song, secret, model download or launch service.
 
 - `create-music`: an exact deterministic score of five closed synthetic
@@ -337,7 +336,7 @@ family: no generation, loops, speed/pitch changes, EQ, reverb, source
 separation or video assembly — a request needing those routes to the fitting
 leaf (generate-speech/create-sfx/generate-sfx/create-music/generate-music)
 first, and a music/SFX leaf is still not itself a mixer. Mix adds no engine,
-plugin, toolset, secret, peer, daemon, profile or kanban contract and shares no
+plugin, toolset, secret, peer, daemon or profile and shares no
 runtime with SFX/Music's Stable Audio install.
 
 - `create-mix`: 1-16 standalone local speech/sfx/music sources

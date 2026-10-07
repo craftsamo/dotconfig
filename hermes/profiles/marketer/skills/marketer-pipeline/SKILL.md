@@ -54,9 +54,6 @@ The user owns economic commitments and approvals. Agent choices, source labels
 and hashes are not human approval. Marketer checks its proposals against
 evidence; user approval chooses an option, not proof it will work.
 
-Marketer defines no card units. A kanban card (`HERMES_KANBAN_TASK` set) is
-refused with `kanban_block(kind=capability)`.
-
 </Client>
 
 <Modes>

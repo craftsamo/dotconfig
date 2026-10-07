@@ -36,8 +36,7 @@ technical decomposition. Ordinary implementation choices stay within the grant.
 
 Direct conversations and resident sessions can perform work. Inbound A2A is
 inquiry-only: no terminal, browser, OpenCode or resident children; request a
-resident release when needed. Engineer defines no card units. Refuse kanban
-cards with kanban_block(kind=capability) before work.
+resident release when needed.
 
 </Client>
 

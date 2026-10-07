@@ -2,8 +2,8 @@
 name: default-pipeline
 description: >-
   CLI front-door adapter for the default profile. The workflow itself —
-  modes Chat / Plan / Execute / Quality Assurance, the three execution
-  tiers, and the closed kanban card catalog — is owned by the assistant's
+  modes Chat / Plan / Execute / Quality Assurance and the two execution
+  tiers — is owned by the assistant's
   `assistant-pipeline` kernel and child entries; this skill reads that tree and
   records only the deltas of running it from an interactive terminal
   instead of the Telegram gateway.
@@ -12,7 +12,7 @@ author: CraftSamo
 license: MIT
 metadata:
   hermes:
-    tags: [orchestration, cli, front-door, modes, resident-session, kanban]
+    tags: [orchestration, cli, front-door, modes, resident-session]
     category: orchestration
     related_skills: []
 ---
@@ -36,12 +36,12 @@ The single source of truth is the assistant's tree:
   {plan,execute,qa}-assistant-<domain>/SKILL.md
   <entry>/references/                 # entry-owned details, creative legacy
   references/plan/index.md
-  references/execute/{index,resident-sessions,kanban-lite,scheduled}.md
+  references/execute/{index,resident-sessions}.md
   references/quality-assurance/index.md
 ```
 
-Use `read_file` on the known root's `SKILL.md` for the common contract,
-tier litmus and closed-catalog rule. Discover available mode/domain entries
+Use `read_file` on the known root's `SKILL.md` for the common contract
+and tier litmus. Discover available mode/domain entries
 with a bounded filesystem listing of that root's immediate child directories
 and their `SKILL.md` files, using the same names as the root map:
 `chat-assistant` and `plan-assistant-*` / `execute-assistant-*` /
@@ -93,20 +93,6 @@ fallback.
   no wake — don't start long background work you cannot hand back;
   either wait foreground within the timeout or tell the user to continue
   from the messaging assistant.
-- **Kanban completions notify the gateway, not this terminal.** The
-  board is shared, so registering a catalog card from here is legal, but
-  its terminal events wake the *messaging* assistant's subscribed chat —
-  not you. Register a card from the CLI only when the user understands
-  results land there (or will ask later); otherwise keep the work in a
-  resident session you supervise synchronously.
-- **Scheduled parking works from here** (`references/execute/scheduled.md`) — the
-  sweeper cron runs on the assistant profile regardless of who parked
-  the card.
-- **Same closed catalog.** The CLI has no special dispensation: no
-  `card_units` match → no card, however detailed the body you could
-  write. Only `execute-assistant-creative/SKILL.md` and
-  `execute-assistant-search/SKILL.md` declare its four unchanged units in
-  frontmatter; detail references never declare cards.
 
 </CliDeltas>
 
@@ -115,8 +101,7 @@ fallback.
 - Duplicating or paraphrasing assistant-pipeline content here — this
   skill is an adapter; the tree is the authority.
 - Long background work in a one-shot run that nothing will ever collect.
-- Registering feedback-likely work as cards because the CLI makes
-  sessions feel heavyweight — supervision cost is the point, not
-  overhead.
+- Skipping a resident session because the CLI makes it feel
+  heavyweight — supervision cost is the point, not overhead.
 
 </AntiPatterns>

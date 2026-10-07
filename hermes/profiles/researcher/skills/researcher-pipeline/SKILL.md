@@ -4,7 +4,7 @@ description: >-
   Researcher's purpose-first depth research kernel. Route framing and agreement
   to Plan, authorized evidence gathering to Build, and research self-check to
   QA across evidence-pack, tradeoff-matrix, fact-check and guidance units.
-  Resident and inbound A2A only; refuse every kanban card. Not breadth retrieval,
+  Resident and inbound A2A only. Not breadth retrieval,
   artifact production or caller acceptance.
 version: 9.0.0
 author: CraftSamo
@@ -26,11 +26,6 @@ release and routing; phase entries own procedures and unit references.
 </Goal>
 
 <Runtimes>
-
-**Card gate first, including direct entry:** if `HERMES_KANBAN_TASK` is set,
-refuse every kanban card with `kanban_block(kind=capability)` and a one-line
-reason; do no research. Research defines no card units; `claim-verification`
-is retired. Request a resident or inbound peer conversation instead.
 
 **Resident session:** the counterpart is an orchestrating agent client
 (engineer, creator or marketer), not the end user. Ask batched `Q1:` / `Q2:`

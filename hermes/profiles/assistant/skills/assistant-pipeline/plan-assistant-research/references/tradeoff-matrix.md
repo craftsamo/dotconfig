@@ -7,7 +7,7 @@ gathering, cell scoring, and deal-breaker hunting; its Plan proposes options
 and axes for Client agreement against your decision and constraints.
 
 Researcher unit `tradeoff-matrix` · QA `tradeoff-matrix` · units:
-one decision per unit; never card-eligible — a live decision loop
+one decision per unit; a live decision loop
 needs the session's back-and-forth.
 
 ## Agree before Build
