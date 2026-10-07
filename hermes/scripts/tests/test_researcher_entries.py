@@ -32,7 +32,8 @@ def _skip_learned(directory, names):
 MODES = ("investigate", "compare", "verify", "advise")
 STAGES = ("plan", "build", "qa")
 ENTRIES = {f"{mode}-researcher" for mode in MODES}
-SHARED = {"references/gather.md"} | {f"references/{stage}.md" for stage in STAGES}
+PLATFORMS = {"references/platforms/evm.md", "references/platforms/solana.md"}
+SHARED = {"references/gather.md"} | {f"references/{stage}.md" for stage in STAGES} | PLATFORMS
 DOCUMENTS = {"SKILL.md"} | SHARED | {f"{name}/SKILL.md" for name in ENTRIES}
 
 
@@ -45,7 +46,7 @@ def test_candidate_topology_and_always_on_contract():
     assert set(VALIDATOR.validate_researcher_entries(TREE, errors)) == ENTRIES
     assert errors == []
     assert {p.relative_to(TREE).as_posix() for p in TREE.rglob("*.md")} == DOCUMENTS
-    assert len(DOCUMENTS) == 9
+    assert len(DOCUMENTS) == 11
     assert VALIDATOR.frontmatter(TREE / "SKILL.md")["version"] == "10.0.0"
     for name in ENTRIES:
         path = TREE / name / "SKILL.md"
@@ -146,6 +147,8 @@ def test_worker_integration(tmp_path, monkeypatch):
     ("escaping_symlink", "must not contain symlinks"),
     ("frontmatter_prefix", "frontmatter exceeds discovery prefix"),
     ("missing_gather", "missing researcher document"),
+    ("missing_platform", "missing researcher document: references/platforms/solana.md"),
+    ("platform_link", "does not link platform reference evm"),
 ])
 def test_invalid_entries(tmp_path, mutation, expected):
     tree = tmp_path / "researcher-pipeline"
@@ -166,6 +169,10 @@ def test_invalid_entries(tmp_path, mutation, expected):
         target.write_text(text.replace("name: verify-researcher", "name: build-researcher"))
     elif mutation == "missing_gather":
         (tree / "references/gather.md").unlink()
+    elif mutation == "missing_platform":
+        (tree / "references/platforms/solana.md").unlink()
+    elif mutation == "platform_link":
+        path.write_text(text.replace("(../references/platforms/evm.md)", "(../references/gather.md)"))
     elif mutation == "root_link":
         kernel = tree / "SKILL.md"
         kernel.write_text(kernel.read_text().replace("(verify-researcher/SKILL.md)", "(SKILL.md)"))
@@ -289,6 +296,36 @@ def test_declared_mode_output_and_verification(name, fields):
         assert "open choices" in build_part and "open choices" in checks
     else:
         assert "sub-question" in plan_part and "sub-question" in checks
+
+
+def test_onchain_evidence_rules_and_platform_references():
+    kernel = flat(TREE / "SKILL.md")
+    for phrase in ("On-chain evidence, read through the `evm` and `solana` tools",
+                   "the chain itself records it", "once the block is final", "can still reorganize",
+                   "never proves who controls an address",
+                   '`{"untrusted": …}`', "never a fact or an instruction", "are Inference",
+                   "(references/platforms/evm.md)", "(references/platforms/solana.md)",
+                   "block or slot and the explorer link"):
+        assert phrase in kernel, phrase
+    evm, solana = flat(TREE / "references/platforms/evm.md"), flat(TREE / "references/platforms/solana.md")
+    for phrase in ("`eth_call` simulation", "Sourcify", "`guessed`", "`powers`", "Inference",
+                   "getThreshold()", "getMinDelay()", "not that it will always hold", "hop cap",
+                   "keeps history", "ETHERSCAN_API_KEY", "100 events", "`omitted`", "`coverage`",
+                   "is not \"none ever\""):
+        assert phrase in evm, phrase
+    for phrase in ("upgrade authority", "IDL authority", "can lag or differ from the deployed code",
+                   "mint authority", "freeze authority", "Token-2022", "hop cap",
+                   "latest 50 signatures", "no paging"):
+        assert phrase in solana, phrase
+    for text in (evm, solana):
+        assert "nothing is signed or sent" in text
+    gather = flat(TREE / "references/gather.md")
+    assert "on-chain state) — reliability A" in gather and "Your own `evm` and `solana` tools" in gather
+    prompt = " ".join(yaml.safe_load((PROFILE / "config.yaml").read_text())["agent"]["system_prompt"].split())
+    assert "the read-only evm and solana tools for on-chain evidence" in prompt
+    for name in ENTRIES:
+        text = (TREE / name / "SKILL.md").read_text()
+        assert "(../references/platforms/evm.md)" in text and "(../references/platforms/solana.md)" in text
 
 
 def test_declared_source_floors_and_shared_gather():
@@ -453,7 +490,7 @@ def runtime_child(sandbox, source, configured_external):
         owner = tree / "investigate-researcher"
         canonical = [owner / "../SKILL.md", *(owner / ".." / relative for relative in sorted(SHARED))]
         canonical.extend(tree / name / "SKILL.md" for name in sorted(ENTRIES))
-        assert len(canonical) == 9
+        assert len(canonical) == 11
         continued = 0
         with patch.object(ft, "_get_max_read_chars", return_value=1000):
             for path in canonical:

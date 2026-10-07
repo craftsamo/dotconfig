@@ -22,7 +22,9 @@ reference in current context, not a past load or summary. Direct entry requires
 `skill_view(name="hunt-searcher")` and the current stage with
 `skill_view(name="searcher-pipeline", file_path="references/<stage>.md")`:
 [Plan](../references/plan.md), [Build](../references/build.md) or
-[QA](../references/qa.md).
+[QA](../references/qa.md). On-chain retrieval also requires the chain's
+shared reference: [EVM](../references/platforms/evm.md) or
+[Solana](../references/platforms/solana.md).
 If unchanged is returned while the earlier body is unavailable, or a body is
 missing, use read_file on canonical
 `${HERMES_SKILL_DIR}/../SKILL.md`, `${HERMES_SKILL_DIR}/SKILL.md` and

@@ -745,10 +745,12 @@ def validate_worker(
 STAGES = ("plan", "build", "qa")
 STAGE_SECTIONS = ("## Output template", "## Verification", "## Handoff")
 MODE_SECTIONS = ("## Plan", "## Build", "## Output template", "## Verification", "## Handoff")
+# One shared reference per chain the evm and solana tools read, like Marketer's per-service ones.
+PLATFORMS = ("evm", "solana")
 
 SEARCHER_MODES = ("lookup", "sweep", "hunt")
 SEARCHER_ENTRIES = tuple(f"{mode}-searcher" for mode in SEARCHER_MODES)
-SEARCHER_SHARED_REFERENCES = {f"{stage}.md" for stage in STAGES}
+SEARCHER_SHARED_REFERENCES = {f"{stage}.md" for stage in STAGES} | {f"platforms/{p}.md" for p in PLATFORMS}
 
 
 def _pipeline_documents(pipeline_dir: Path) -> set[str]:
@@ -836,6 +838,9 @@ def validate_searcher_entries(pipeline_dir: Path, errors: list[str]) -> dict[str
         for stage in STAGES:
             if f"(../references/{stage}.md)" not in text:
                 errors.append(f"searcher entry does not link stage reference {stage}: {name}")
+        for platform in PLATFORMS:
+            if f"(../references/platforms/{platform}.md)" not in text:
+                errors.append(f"searcher entry does not link platform reference {platform}: {name}")
 
     for path in sorted(pipeline_dir.rglob("*.md")):
         if "goal_mode" in path.read_text(encoding="utf-8"):
@@ -852,7 +857,8 @@ def validate_searcher_entries(pipeline_dir: Path, errors: list[str]) -> dict[str
 
 RESEARCHER_MODES = ("investigate", "compare", "verify", "advise")
 RESEARCHER_ENTRIES = {f"{mode}-researcher" for mode in RESEARCHER_MODES}
-RESEARCHER_SHARED_REFERENCES = {"gather.md"} | {f"{stage}.md" for stage in STAGES}
+RESEARCHER_SHARED_REFERENCES = (
+    {"gather.md"} | {f"{stage}.md" for stage in STAGES} | {f"platforms/{p}.md" for p in PLATFORMS})
 
 
 def validate_researcher_entries(pipeline_dir: Path, errors: list[str]) -> dict[str, Path]:
@@ -917,6 +923,9 @@ def validate_researcher_entries(pipeline_dir: Path, errors: list[str]) -> dict[s
         for stage in STAGES:
             if f"(../references/{stage}.md)" not in text:
                 errors.append(f"researcher entry does not link stage reference {stage}: {name}")
+        for platform in PLATFORMS:
+            if f"(../references/platforms/{platform}.md)" not in text:
+                errors.append(f"researcher entry does not link platform reference {platform}: {name}")
     for doc in sorted(pipeline_dir.rglob("*.md")):
         if doc.is_symlink() or not doc.resolve().is_relative_to(pipeline_dir.resolve()):
             errors.append(f"researcher document escapes pipeline: {doc}")

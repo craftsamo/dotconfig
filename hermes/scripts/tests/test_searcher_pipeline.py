@@ -17,6 +17,7 @@ MODES = ("lookup", "sweep", "hunt")
 ENTRIES = tuple(f"{mode}-searcher" for mode in MODES)
 STAGES = ("plan", "build", "qa")
 SHARED = {f"references/{stage}.md" for stage in STAGES}
+PLATFORMS = {"references/platforms/evm.md", "references/platforms/solana.md"}
 
 
 def flat(path):
@@ -29,7 +30,7 @@ def test_exact_entries_and_owned_procedures():
     assert not errors
     assert set(found) == set(ENTRIES)
     assert {p.relative_to(PIPELINE).as_posix() for p in PIPELINE.rglob("*.md")} == {
-        "SKILL.md", *(f"{name}/SKILL.md" for name in ENTRIES), *SHARED,
+        "SKILL.md", *(f"{name}/SKILL.md" for name in ENTRIES), *SHARED, *PLATFORMS,
     }
     for name in ENTRIES:
         text = found[name].read_text()
@@ -52,7 +53,7 @@ def test_exact_entries_and_owned_procedures():
     assert "<Procedure>" not in root
     for name in ENTRIES:
         assert f"({name}/SKILL.md)" in root
-    for relative in SHARED:
+    for relative in SHARED | PLATFORMS:
         assert f"({relative})" in root
 
 
@@ -117,7 +118,7 @@ def candidate(tmp_path):
     return Path(shutil.copytree(PIPELINE, tmp_path / "searcher-pipeline"))
 
 
-@pytest.mark.parametrize("relative", (*(f"{name}/SKILL.md" for name in ENTRIES), *sorted(SHARED)))
+@pytest.mark.parametrize("relative", (*(f"{name}/SKILL.md" for name in ENTRIES), *sorted(SHARED | PLATFORMS)))
 def test_missing_instruction_fails(candidate, relative):
     (candidate / relative).unlink()
     errors = []
@@ -299,8 +300,8 @@ def test_kernel_must_route_every_mode(candidate, name):
     assert f"searcher kernel does not route {name}" in errors
 
 
-@pytest.mark.parametrize("relative", sorted(SHARED))
-def test_kernel_must_link_every_stage(candidate, relative):
+@pytest.mark.parametrize("relative", sorted(SHARED | PLATFORMS))
+def test_kernel_must_link_every_shared_reference(candidate, relative):
     root = candidate / "SKILL.md"
     root.write_text(root.read_text().replace(f"({relative})", ""))
     errors = []
@@ -316,3 +317,31 @@ def test_mode_must_link_every_stage(candidate, name, stage):
     errors = []
     validator.validate_searcher_entries(candidate, errors)
     assert f"searcher entry does not link stage reference {stage}: {name}" in errors
+
+
+@pytest.mark.parametrize("name", ENTRIES)
+@pytest.mark.parametrize("platform", ("evm", "solana"))
+def test_mode_must_link_every_chain(candidate, name, platform):
+    entry = candidate / name / "SKILL.md"
+    entry.write_text(entry.read_text().replace(f"(../references/platforms/{platform}.md)", ""))
+    errors = []
+    validator.validate_searcher_entries(candidate, errors)
+    assert f"searcher entry does not link platform reference {platform}: {name}" in errors
+
+
+def test_chain_reads_are_retrieval_without_verdicts():
+    evm, solana = (flat(PIPELINE / f"references/platforms/{p}.md") for p in ("evm", "solana"))
+    for text in (evm, solana):
+        for phrase in ("Reading is allowed and it never writes", "nothing is signed or sent",
+                       "`Open for researcher`", '`{"untrusted": …}`', "explorer link",
+                       "unsearched ground"):
+            assert phrase in text, phrase
+    assert "`powers`" in evm and "`guessed`" in evm and "block ranges actually read" in evm
+    assert "`address` = the contract" in evm and "`omitted`" in evm and "`coverage`" in evm
+    assert "latest 50 signatures" in solana and "no paging" in solana
+    assert "`program`" in solana and "slot" in solana
+    root = flat(PIPELINE / "SKILL.md")
+    assert "chain reads of the evm and solana tools, which never sign or send" in root
+    prompt = " ".join(yaml.safe_load((HERMES / "profiles/searcher/config.yaml").read_text())
+                      ["agent"]["system_prompt"].split())
+    assert "the read-only evm and solana tools for on-chain facts" in prompt
