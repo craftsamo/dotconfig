@@ -1,6 +1,6 @@
 # Explicit diagnostic study
 
-Use only when Creator releases a bounded visual/motion question within an ad
+Use only when the Assistant releases a bounded visual/motion question within an ad
 production, not because a final ad is missing a CTA. This is an opt-in purpose of
 create-ad, not a new media family or an unrestricted animation tool. Final ad
 requirements remain unchanged.

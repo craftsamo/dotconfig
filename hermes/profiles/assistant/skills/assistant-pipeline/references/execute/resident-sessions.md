@@ -39,7 +39,7 @@ resident-session.sh prune [--older-than <days>] [--yes]
   inquiries and rejects work before launch; reissue work through resident.
   For old keys on live messaging only, use terminal background execution with
   `notify_on_complete`. The gateway watcher still polls every five seconds.
-- **Key = `<topic>-<profile>[-<purpose>]`** (e.g. `12116-creator-pv`).
+- **Key = `<topic>-<profile>[-<purpose>]`** (e.g. `12116-video-creator-pv`).
   One live session per key; turns are serialized per key by the wrapper
   (busy → exit 75: wait for the in-flight notification instead of
   retrying). The wrapper re-captures the session id every turn, so
@@ -66,8 +66,8 @@ resident-session.sh prune [--older-than <days>] [--yes]
   "最後2秒は開眼で").
 - **Grants live in the conversation.** State them in the brief and expand
   them in later turns; the session log is the record:
-  - `Budget:` (creator) — generation-spend caps; omitted = creator
-    defaults.
+  - `Budget:` (hands) — generation-spend caps; omitted = the leaf's
+    documented default.
   - Engineer: explicit implementation approval releases the agreed scope through
     task-branch PR delivery; Issue management requires a separate explicit request.
     Planning consent or an Issue URL is not a write grant. No merge/deploy/default
@@ -171,7 +171,7 @@ resident-session.sh prune [--older-than <days>] [--yes]
   not resend; check `status` before acting. A `completed` reply with
   `cancel_too_late` means the turn had already finished: show that result and
   ask whether the change still applies. `cancelled` confirms only the
-  specialist's own process. Engineer's OpenCode runs and Creator's hands
+  specialist's own process. Engineer's OpenCode runs and the hands'
   conversations are stopped by their own runners when it exits, possibly a few
   seconds later, and end as `unknown` on their side, so the resumed turn first
   inspects and reconciles them. Spend already incurred is not refunded.

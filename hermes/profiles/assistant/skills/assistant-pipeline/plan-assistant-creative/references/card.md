@@ -3,7 +3,7 @@
 ## Use
 
 A message-bearing image, header, thumbnail or ordered card set. An
-information-led diagram is not automatically a card; Creator resolves the
+information-led diagram is not automatically a card; the hands resolve the
 production boundary. A retained old text-card identity is not the default
 for new work and never a fallback after a failed current Card job.
 
@@ -14,10 +14,10 @@ exact supplied copy, logos and protected content unchanged. Clarify whether
 ordered tiles tell one continuous message or stand alone when that affects
 the outcome. Missing copy is a writing dependency, not permission to invent
 claims. Preserve the intended destination without copying a platform-size
-catalog or choosing Creator's rendering method.
+catalog or choosing the hands' rendering method.
 
 For a revision, carry the existing editable source and the placement, typography
-and identity that must survive. Let Creator arrange production within granted
+and identity that must survive. Let the hands arrange production within granted
 discretion; do not turn a template limitation into permission to shrink or move
 protected content. Your implementation choice is not the user's scope change.
 Do not ask the user to write source code to retain an existing design.

@@ -17,8 +17,8 @@ performance or a seamless loop; perceptual acceptance is human-reported.
 ## Speech family
 
 `audio-creator-pipeline/<verb>/speech/` contains three leaves, not a second
-menu system. Speech assets use these leaves; the old voice card is retired. Creator keeps ordinary conversational TTS
-for its own replies only, never as a speech-asset bypass.
+menu system. Speech assets use these leaves; the old voice card is retired. Profiles with ordinary conversational TTS use it
+for their own replies only, never as a speech-asset bypass.
 
 - `generate-speech`: one approved UTF-8 script, up to 600 characters. `voice`
   is `house` or a qualified registered `<engine>:<voice>` ID. House uses the
@@ -122,12 +122,12 @@ is keyed on profile scope in the hermes-agent checkout (carried as a local
 patch); without it a warm `tts` entry in another profile hides them.
 Registration-only tests and direct CLI synthesis cannot detect this
 gateway-specific loss; `test_audio_creator_routing.py` exercises the real
-resolver across scopes. Creator's character tools stay disabled.
+resolver across scopes. Creator has no character tools.
 
 ## SFX family
 
 SFX is a separate four-leaf subject under `audio-creator-pipeline/<verb>/sfx/`,
-not a music or mix family. Creator reads its forms through the existing hands
+not a music or mix family. The Assistant reads its forms through the existing hands
 root; SFX adds no profile, peer, external skill library, gain
 automation, TTS or tour change.
 
@@ -295,7 +295,7 @@ and reference hashes into `proposal-v<N>/proposal.md`, returning it and its
 SHA-256 with zero spend. Its frozen `score.json` or `generation-prompt.txt` is
 the artifact to use, including when packaging an older take after a correction.
 Only a second handoff with that EXACT `approved_plan` + `approval_sha256`,
-relayed by Creator in the same work conversation, releases a `music-media.py
+relayed by the Assistant in the same work conversation, releases a `music-media.py
 create` render or a `music_generate` call; hash matching is integrity, never
 approver authentication. A changed creative field needs a new proposal and
 approval. Attempts never reset on resume or corrective reapproval; a corrected
@@ -361,7 +361,7 @@ runtime with SFX/Music's Stable Audio install.
 bundle for reuse without rerendering). `create-mix`/`edit-mix` are TWO rounds,
 unconditionally: round A writes `spec.json` + `description.md` and runs
 `propose` (`--previous <bundle>` for edit), returning only a zero-render
-`proposal-v<N>/proposal.md` + SHA-256; only a matching Creator-relayed
+`proposal-v<N>/proposal.md` + SHA-256; only a matching Assistant-relayed
 `approved_plan` + `approval_sha256` in the same work conversation releases the
 render. Any changed source, cue placement, gain/fade/envelope, duration,
 `target_lufs` or `true_peak_dbtp` needs a new proposal. `target_lufs` has no
@@ -388,7 +388,7 @@ paid-approval gate beyond the approval hash. Exact schema: the leaf's
 **Video integration.** A finished sfx/speech/music WAV may feed `create-mix` as
 a source, the same way a finished WAV may feed `create-ad` as a cue — separate
 forms, never folded into one handoff, and never a direct hands-to-hands call.
-Ad/Tour opt in with `audio_workflow: mix`: Creator brokers a preliminary timing
+Ad/Tour opt in with `audio_workflow: mix`: the Assistant brokers a preliminary timing
 proposal from the video leaf, then the Mix proposal/approval/render, then the
 ordinary video plan/preview approval using the real master/receipt hashes. An
 approved plan contains no dummy audio or placeholders. `mix_audio.py` validates
@@ -400,5 +400,5 @@ v1/v2/v3 behavior; MV/clip finishing is create-master's
 ([`video.md`](./video.md) "Master family"), which verifies a whole bundle and
 uses the master under joined segments. The synthetic fixture
 (`scripts/tests/fixtures/mix-video/example.py`) verifies wiring, not real
-speech/ASR quality or a live Creator conversation. Existing resident
+speech/ASR quality or a live Assistant conversation. Existing resident
 conversations may retain older instructions; validate with fresh sessions.

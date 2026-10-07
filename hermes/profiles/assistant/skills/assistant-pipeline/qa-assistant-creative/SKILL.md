@@ -1,6 +1,6 @@
 ---
 name: qa-assistant-creative
-description: "QA creative: inspect ONLY on explicit user request. Return bounded findings against the named criteria, without automatic revision. Ordinary Creator completions use execute-assistant-creative for direct delivery."
+description: "QA creative: inspect ONLY on explicit user request. Return bounded findings against the named criteria, without automatic revision. Ordinary hands completions use execute-assistant-creative for direct delivery."
 version: 1.0.0
 author: CraftSamo
 license: MIT
@@ -32,19 +32,17 @@ Read only applicable detail references below.
 
 # Creative - requested inspection
 
-Use this entry only for an explicit user inspection request. Normal production,
-including legacy units, uses
+Use this entry only for an explicit user inspection request. Normal production uses
 [direct delivery](../execute-assistant-creative/SKILL.md) without this pass.
 Inspect the named artifacts and criteria once, then return findings. Do not
-chain an Assistant inspection after a Creator inspection by default, launch an
+chain inspections, launch an
 autonomous correction or iterate until acceptable. The common QA procedure's
 automatic feedback loop does not apply here. A correction requires a client
 request and the original scoped release, budget and proposal/preview gates.
 
 Apply the [common QA floor](../references/quality-assurance/index.md) to the actual returned artifacts
-and the acceptance criteria carried in the brief. Creator owns production QA;
-you judge whether its result meets the user's intended outcome. Do not load
-legacy inspection contracts for an ordinary Creator-served result.
+and the acceptance criteria carried in the brief. The hands own production QA;
+you judge whether their result meets the user's intended outcome.
 
 ## What returned?
 
@@ -72,9 +70,9 @@ invent perceived differences from meters. Record the version and reported choice
    Verify that decided direction survived; an Assistant suggestion was not
    itself a user decision. Do not reopen settled planning questions.
 2. Inspect supplied visual evidence at its size of use where available.
-   Read Creator's technical evidence, provenance and spend rather than
+   Read the hands' technical evidence, provenance and spend rather than
    mandating duplicate measurements or a fresh upload. If a required claim
-   lacks evidence, ask Creator for the missing check in the same conversation.
+   lacks evidence, ask the producing hands for the missing check in the same conversation.
 3. Keep evidence limits explicit. Sampled frames do not prove continuous
    motion. Audio readback/measurements are not a listening verdict. A local
    layout is not proof of a platform's real crop. An artifact only shown or
@@ -95,9 +93,3 @@ invent perceived differences from meters. Record the version and reported choice
 Service-side drafts are saved through marketing Execute under separate
 remote-save consent; publication is the user's action, not a producer grant.
 Neither successful media QA nor the user's preview approval authorizes a post.
-
-## Legacy inspection
-
-For a confirmed legacy unit only, use [legacy/index.md](references/legacy/index.md).
-The legacy Covers table is not a catalog of current Creator capabilities.
-Not being in that table is not evidence a normal Client result is unverifiable.

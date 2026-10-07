@@ -105,8 +105,8 @@ and use-size readability. A template limitation is not permission to relax the
 Client's design, buy new art, fall back silently or relabel an agent choice as
 human approval.
 
-Card routes to the hands before `creator-text-card` (retirement gate:
-[`overview.md`](./overview.md) "Migration"). Card needs no new profile, ports,
+Card has no legacy route: `creator-text-card` is archived (see
+[`overview.md`](./overview.md) "Families and former technics"). Card needs no new profile, ports,
 toolsets, secrets, test posts, authenticated access or gateway restart.
 
 ## Kit family

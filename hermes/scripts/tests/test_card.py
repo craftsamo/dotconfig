@@ -291,7 +291,7 @@ class CardTests(unittest.TestCase):
 
     def test_card_routing_and_generation_contracts(self):
         # Static contracts, NOT a live LLM handoff or provider-call test.
-        routing = (ROOT / "profiles/creator/skills/creator-pipeline/references/capabilities.md").read_text()
+        routing = (ROOT / "profiles/assistant/skills/assistant-pipeline/execute-assistant-creative/references/card.md").read_text()
         for verb in ("create", "generate", "edit", "analyze"):
             name = verb + "-card"
             leaf = card.ROOT / verb / "card/SKILL.md"
@@ -299,7 +299,7 @@ class CardTests(unittest.TestCase):
             self.assertIn("name: " + name, body)
             for tag in ("<Procedure>", "<QA>", "<Report>"):
                 self.assertIn(tag, body)
-            self.assertLess(routing.index("image-creator: " + name), routing.index("`creator-text-card`"))
+            self.assertIn("| `" + name + "` |", routing)
         generated = (card.ROOT / "generate/card/SKILL.md").read_text()
         for phrase in ("explicit budget approval", "current work conversation", "BEFORE calling",
                        "never reset spent calls", "3 variant", "1 corrective", "No hardcoded 21:9"):
@@ -313,7 +313,10 @@ class CardTests(unittest.TestCase):
             self.assertEqual(options.split("[", 1)[1].rstrip("]").split(", "), list(STYLES))
             for style in STYLES:
                 self.assertTrue((card.ROOT / verb / "card/references/styles" / (style + ".md")).is_file())
-        self.assertTrue((ROOT / "profiles/creator/skills/technic/creator-text-card/SKILL.md").is_file())
+        advisor = (ROOT / "profiles/creator/skills/creator-pipeline/references/image-creator/card.md").read_text()
+        for verb in ("create", "generate", "edit", "analyze"):
+            self.assertIn(verb + "-card", advisor)
+        self.assertFalse((ROOT / "profiles/creator/skills/technic/creator-text-card").exists())
 
 
 @unittest.skipUnless(os.environ.get("CARD_SMOKE_DIR"), "set CARD_SMOKE_DIR to a NEW directory for real browser smoke")

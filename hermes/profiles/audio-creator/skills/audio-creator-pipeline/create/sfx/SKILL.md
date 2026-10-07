@@ -49,7 +49,7 @@ metadata:
 1. Confirm this is really a request for one of the eight closed local
    kernels, not a described real-world sound, music, speech or anything a
    kernel can only approximate. `no skill fits` for the latter is a
-   finding for Creator (route to `generate-sfx`), never a kernel picked to
+   finding for the Assistant (route to `generate-sfx`), never a kernel picked to
    stand in for something it does not render.
 2. Read `references/kind/<kind>.md` for that kernel's actual waveform,
    what `pitch` does (some kernels ignore it or use it as a filter cutoff,
@@ -92,6 +92,6 @@ metadata:
 
 Return `create-sfx` + kind/seconds/pitch/seed used, the delivered bundle
 path, the `RESULT:` measurements and status, `spend: free`. Flag for
-Creator only when the closed kernel set does not fit the actual ask.
+the Assistant only when the closed kernel set does not fit the actual ask.
 
 </Report>

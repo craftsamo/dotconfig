@@ -5,7 +5,7 @@
 An identifying symbol for an application, action or destination, including
 changes or findings on an existing icon. A full character identity belongs
 to [mascot.md](mascot.md); an official third-party mark must be sourced, not
-redesigned without authority. Creator chooses the actual operation.
+redesigned without authority. The hands choose the actual operation.
 
 ## Client decisions
 
@@ -25,5 +25,5 @@ library asset or brand mark, following [reference research](reference-research.m
 
 Does the supplied use-size preview identify the intended thing without
 confusion with neighboring symbols? Were required identity and destination
-needs preserved? Use Creator's fit/provenance evidence rather than inventing
+needs preserved? Use the hands' fit/provenance evidence rather than inventing
 platform compatibility from a large preview.

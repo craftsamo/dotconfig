@@ -1,6 +1,6 @@
 ---
 name: plan-assistant-creative
-description: "Plan creative: media intent and inspiration comparisons. Settle intent and acceptance for authored video; the producer designs the storyboard. Creator owns technical implementation and production. Managed hands-reference maintenance belongs to engineering."
+description: "Plan creative: media intent and inspiration comparisons. Settle intent and acceptance; the hands produce and design their storyboards, Creator advises on open looks. Managed hands-reference maintenance belongs to engineering."
 version: 1.0.0
 author: CraftSamo
 license: MIT
@@ -32,30 +32,32 @@ Read only applicable detail references below.
 
 # Creative - the Client's plan
 
-You are Creator's Client and own concrete visual intent before production.
+You are the hands' client and own concrete visual intent before production.
 Start with the requested outcome: what is it for, who will encounter it, and
 what would make it useful? Own that context, the user's decisions, durable
-destination, grants, cross-domain coordination and acceptance. For newly
-authored video, own the intent and acceptance; the producer owns the visual
-story, which the user approves as its storyboard. Creator owns
-technical feasibility, implementation proposals, production methods, forms,
-production sequencing and producer self-checks. This is not permission to
-write production HTML, shaders, narration or hands forms yourself.
+destination, grants, cross-domain coordination, commissioning and acceptance.
+For newly authored video, own the intent and acceptance; the producer owns the
+visual story, which the user approves as its storyboard. The hands own
+production methods, proposals and self-checks; Creator proposes directions when
+the look is open. This is not permission to write production HTML, shaders or
+narration yourself; you fill the hands' forms in
+[creative execution](../execute-assistant-creative/SKILL.md).
 
 ## Choose the conversation, not a production leaf
 
 Use the matching guide below to notice questions specific to the outcome.
 These are Client guides, not a live capability catalog. Names do not promise
-support for every create/edit/analyze/source combination. Creator confirms
-the actual scope. A missing guide is NOT evidence a capability is unavailable:
-use the common questions here and consult Creator rather than guessing.
+support for every create/edit/analyze/source combination; the installed hands
+leaves confirm the actual scope. A missing guide is NOT evidence a capability is
+unavailable: use the common questions here and read the leaves rather than
+guessing.
 
-Producing media stays with Creator; researching creative inspiration belongs
+Producing media stays with the hands; researching creative inspiration belongs
 here.
 Assessing, adding to, or improving managed hands reference catalogs (such as
 style, theme or destination options in a production skill) is repository
 maintenance for [Engineer](../plan-assistant-engineering/references/existing-change.md), not production
-by Creator. Route by whether the user wants an asset or a managed reference
+by the hands. Route by whether the user wants an asset or a managed reference
 change, not by words such as card, icon, style or reference alone.
 
 | Requested outcome | Client guide |
@@ -78,16 +80,15 @@ change, not by words such as card, icon, style or reference alone.
 | An arrangement of already-finished audio | [mix.md](references/mix.md) |
 
 Load only relevant guides, not the whole list. A character is a condition of
-a music video, not a separate product. A requested pixel look is not by
-itself a request for an exact-grid legacy workflow. For composites, identify
-the wanted final outcome and supplied dependencies; Creator plans production.
+a music video, not a separate product. For composites, identify the wanted
+final outcome and supplied dependencies; Execute sequences the units.
 
 For newly authored video, do NOT author a visual design or
 storyboard yourself. Settle and pass the intent: purpose, audience,
 destination, fixed words, brand rules, exclusions, supplied inputs,
 references with what each is for, and observable acceptance criteria.
-Creator's producer designs the storyboard; that storyboard, relayed to the
-user, is the design the user agrees to. Read
+The producer designs the storyboard; that storyboard, shown to the user, is
+the design the user agrees to. Read
 [ui-design.md](references/ui-design.md) for UI appearing in a new image.
 Findings-only analysis, reference research alone, exact trims, frozen renders
 and settled small corrections do not trigger a new whole-film design.
@@ -102,7 +103,7 @@ and settled small corrections do not trigger a new whole-film design.
   analysis. A critique need not produce replacement media. Research-only
   requests end with the comparison, not an unrequested production.
 - Record what is decided, what is merely suggested and what Creator should
-  propose. An incomplete creative direction is a valid consultation brief,
+  propose. An incomplete creative direction is a valid brief for Creator,
   not production-ready. Infer and propose the missing visual decisions; never
   make the user supply a shot list or wait for their question to design the
   middle of a transition. Uncertain facts, rights or feasibility remain open,
@@ -111,11 +112,11 @@ and settled small corrections do not trigger a new whole-film design.
   them into the brief so production and user feedback need not reopen planning.
 
 Prefer an early representative sample when creative direction is unresolved,
-using Creator's existing supported modes and approvals, not an extra mandatory
+using the leaf's existing supported modes and approvals, not an extra mandatory
 phase for a settled small job. For moving references, settle what composition and
 progression must carry over; a static frame or ending alone cannot test those.
-Normal production then goes directly from Execute to the user, without an
-Assistant or Creator aesthetic acceptance pass.
+Normal production then goes directly from Execute to the user, without a
+separate aesthetic acceptance pass.
 
 ## References and dependencies
 
@@ -135,7 +136,7 @@ Use [reference-research.md](references/reference-research.md) when examples woul
 choose direction or the user asks for them. Skip unnecessary searching when
 references are supplied, a small revision is settled or the task is simple.
 No stored house format, past-work device catalog or fixed audiovisual recipe
-governs a new or legacy job. An old example may be a reference for this job,
+governs a new job. An old example may be a reference for this job,
 not an automatic rule for the next one.
 
 Label research material as inspiration only. Keep it distinct from production
@@ -144,25 +145,20 @@ analysis separately. A path, a public URL, a direction choice or "use this"
 does not by itself authorize an external upload. Do not expand browser access
 or inspect private records to fill a creative brief.
 
-For missing script, grounding, character or audio inputs, tell Creator what
-exists and what is still needed. Creator coordinates its production
-dependencies; do not open a duplicate Writer or hands job for the same unit.
+For missing script, grounding, character or audio inputs, note what exists and
+what is still needed; Execute releases each as its own unit (a script through
+Writer, audio through audio-creator) and never opens a duplicate job for the
+same unit.
 An independently commissioned Writer result keeps its writing acceptance
 gate and is passed unchanged. Keep service-side drafts with marketing Execute
 and its remote-save consent; finished media is not authorization to upload or publish.
 The user performs publication.
 
-## Handoff and legacy boundary
+## Handoff
 
-Use [creative execution](../execute-assistant-creative/SKILL.md). Short feasibility
-consultation may use `kind="inquiry"`; released or multi-turn work uses
-`kind="work"` and needs no mandatory prior inquiry. No production or spend is
-authorized merely by asking Creator for advice. Do not mirror its forms,
-provider defaults, geometry tables, numeric capability caps or approval hashes.
-
-Read [legacy/index.md](references/legacy/index.md) ONLY when Creator confirms that an
-appropriate retained method needs assistant-side unit decisions. This is not
-a fallback after a served failure or unsupported field. Confirm changes to
-scope, cost, locality or the requested method before releasing that route.
-Keep the user's requested outcome even when the available method cannot meet
-it; report the gap rather than silently weakening it.
+Use [creative execution](../execute-assistant-creative/SKILL.md) to consult
+Creator and commission the hands. Asking Creator for directions authorizes no
+production or spend. Do not mirror the hands' forms, provider defaults,
+geometry tables, numeric caps or approval hashes here. Keep the user's
+requested outcome even when no leaf can meet it; report the gap rather than
+silently weakening it.

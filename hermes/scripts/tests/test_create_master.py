@@ -174,17 +174,18 @@ def test_burned_captions_render_through_hyperframes(tmp_path):
     assert result["probe"]["width"] == 720 and result["probe"]["height"] == 1280
 
 
-def test_creator_routes_finishing_to_create_master_first():
-    table = (CREATOR / "references/capabilities.md").read_text(encoding="utf-8")
-    assert "| video-creator: create-master |" in table
-    rules = " ".join(table.split())
-    assert "selects create-master before `creator-media-assembly`" in rules
-    for phase in ("plan-creator", "build-creator", "qa-creator"):
-        assert (CREATOR / phase / "references/video-creator/master.md").is_file()
-        assert "[master](references/video-creator/master.md)" in (CREATOR / phase / "SKILL.md").read_text()
-    prompt = yaml.safe_load((CREATOR.parents[1] / "config.yaml").read_text())["agent"]["system_prompt"]
-    assert "create-master and create-story" in prompt
-    legacy = (CREATOR.parents[0] / "technic/creator-media-assembly/SKILL.md").read_text(encoding="utf-8")
-    assert "video-creator's `create-master`" in " ".join(legacy.split())
-    mv_build = (CREATOR / "build-creator/references/video-creator/music-video.md").read_text(encoding="utf-8")
-    assert "[create-master](master.md)" in mv_build
+def test_assistant_routes_finishing_to_create_master():
+    commission = (CREATOR.parents[1] / "../assistant/skills/assistant-pipeline/execute-assistant-creative/references/master.md"
+                  ).resolve().read_text(encoding="utf-8")
+    assert "| `create-master` |" in commission and "## Leaves" in commission
+    assert 'target="video-creator", message=<the text>, kind="work"' in commission
+    assert (CREATOR / "references/video-creator/master.md").is_file()
+    assert "[master](references/video-creator/master.md)" in (CREATOR / "SKILL.md").read_text()
+    advisor = (CREATOR / "references/video-creator/music-video.md").read_text(encoding="utf-8")
+    assert "[master](master.md)" in advisor
+    mv = (CREATOR.parents[1] / "../assistant/skills/assistant-pipeline/execute-assistant-creative/references/music-video.md"
+          ).resolve().read_text(encoding="utf-8")
+    assert "[create-master](master.md)" in mv
+    config = yaml.safe_load((CREATOR.parents[1] / "config.yaml").read_text())
+    assert config["specialist_call"]["resident_targets"] == ["researcher"]
+    assert not (CREATOR.parents[0] / "technic/creator-media-assembly").exists()

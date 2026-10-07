@@ -234,16 +234,16 @@ def test_reference_fields_are_open_ended():
     assert "explicit none" in config["agent"]["system_prompt"]
 
 
-def test_creator_routes_authored_tours():
+def test_assistant_commissions_authored_tours_and_creator_only_advises():
+    commission = (ROOT / "profiles/assistant/skills/assistant-pipeline/execute-assistant-creative/references/tour.md").read_text()
+    assert "| `create-tour` |" in commission
+    assert 'kind="work"' in commission
+    assert "task-local" in commission and "Explicit none is the only omission instruction" in commission
+    advisor = (ROOT / "profiles/creator/skills/creator-pipeline/references/video-creator/tour.md").read_text()
+    assert "create-tour" in advisor
     config = yaml.safe_load((ROOT / "profiles/creator/config.yaml").read_text())
-    assert "task-local" in config["agent"]["system_prompt"]
-    assert "explicit none" in config["agent"]["system_prompt"]
-    for path in ("build-creator/references/video-creator/tour.md",
-                 "plan-creator/references/video-creator/tour.md",
-                 "references/capabilities.md"):
-        contents = (ROOT / "profiles/creator/skills/creator-pipeline" / path).read_text()
-        assert "create-tour" in contents
-        assert 'kind="work"' in contents
+    assert config["specialist_call"]["resident_targets"] == ["researcher"]
+    assert "video_gen" not in config["toolsets"]
 
 
 def test_reference_validator_catches_deleted_whole_reference_directory(tmp_path):

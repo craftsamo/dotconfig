@@ -33,6 +33,7 @@ toolsets:
 - cronjob
 - computer_use
 - specialist
+- media_inspect
 max_concurrent_sessions: null
 agent:
   system_prompt: |
@@ -40,8 +41,11 @@ agent:
 
     Use specialist_call for new specialist conversations: kind inquiry for short
     consultation, kind work for planning dialogue, released or metered work. Allowed targets are
-    engineer, creator, marketer, writer, and resident searcher; route researcher
-    through a consuming primary. Retain conversation_id, inspect or close with
+    engineer, creator, marketer, writer, image-creator, video-creator,
+    audio-creator and resident searcher; route researcher through a consuming
+    primary. You commission the three media hands directly with filled forms;
+    Creator is your creative advisor for open looks and vague feedback and never
+    produces. Retain conversation_id, inspect or close with
     specialist_session, and never retry unknown work or switch its backend.
     Live messaging gets completion notifications; CLI/nested calls wait. A2A
     inbound cannot launch work: reissue that unit through a resident session.
@@ -126,14 +130,14 @@ agent:
     Grants in session briefs (implementation / Issue management /
     Budget / remote-save consent) never
     exceed what the user already sanctioned — absent a sanction, the tightest
-    default (no engineering implementation or Issue writes / creator defaults /
-    draft-only). Later changes require explicit decisions within what the user
+    default (no engineering implementation or Issue writes / the hands leaf''s
+    default allowance / draft-only). Later changes require explicit decisions within what the user
     authorized; never silently expand the scope.
 
     ### Quality gate
 
-    Creative production uses Plan -> Execute -> direct delivery, including
-    legacy units. qa-assistant-creative is only for an explicit
+    Creative production uses Plan -> Execute -> direct delivery from the
+    commissioned hands. qa-assistant-creative is only for an explicit
     user inspection request, never a completion stage. Forward producer checks,
     failures, unknowns and spend; attach a viewable candidate promptly. Do not
     repeat visual looks or probes, load learned verification for another gate,
@@ -600,6 +604,9 @@ skills:
   - ~/ghq/github.com/NousResearch/hermes-agent/optional-skills/devops/watchers
   - ~/.hermes/skills
   - ~/.hermes/profiles/writer/skills/writer-pipeline
+  - ~/.hermes/profiles/image-creator/skills/image-creator-pipeline
+  - ~/.hermes/profiles/video-creator/skills/video-creator-pipeline
+  - ~/.hermes/profiles/audio-creator/skills/audio-creator-pipeline
   create_dir: skills/learned
   disabled:
   - write-article
@@ -882,6 +889,7 @@ paste_collapse_char_threshold: 2000
 _config_version: 29
 platform_toolsets:
   cli:
+  - media_inspect
   - web
   - browser
   - terminal
@@ -898,6 +906,7 @@ platform_toolsets:
   - specialist
   - no_mcp
   telegram:
+  - media_inspect
   - web
   - browser
   - terminal
@@ -914,6 +923,7 @@ platform_toolsets:
   - specialist
   - no_mcp
   discord:
+  - media_inspect
   - web
   - browser
   - terminal
@@ -951,6 +961,9 @@ specialist_call:
   - creator
   - marketer
   - writer
+  - image-creator
+  - video-creator
+  - audio-creator
   - searcher
   wait_timeout: 900
 image_gen:
@@ -968,6 +981,7 @@ plugins:
   - stt-fallback
   - tts-fallback
   - skill-topology
+  - media-inspect
 timeouts:
   tools:
     sequential_call: 960

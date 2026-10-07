@@ -33,7 +33,7 @@ This file does not restate agent behavior. Contracts:
 | Assistant entry routing, creative early delivery, pinned topics  | [docs/profiles/assistant.md](docs/profiles/assistant.md)                                                                 |
 | Writer v8 leaves, Marketer v9 entries, Researcher/Searcher phases                | [writer.md](docs/profiles/writer.md), [marketer.md](docs/profiles/marketer.md), [research.md](docs/profiles/research.md) |
 | Entry loading contract, candidate rollout and cutover                            | [docs/topology.md](docs/topology.md)                                                                                     |
-| Creator v9 broker phases                                                         | [docs/broker.md](docs/broker.md)                                                                                         |
+| Creator advisor entries; hands commissioning                                     | [creator.md](docs/profiles/creator.md), [docs/broker.md](docs/broker.md)                                                 |
 | Hands entry routing and instruction context                                      | [docs/hands/overview.md](docs/hands/overview.md) "Skill tree"                                                            |
 | Character voices, performance direction, Speech / SFX / Music / Mix families     | [docs/hands/audio.md](docs/hands/audio.md)                                                                               |
 | Model chains, auth inheritance, what belongs in each secret layer                | [docs/models-auth.md](docs/models-auth.md)                                                                               |
@@ -129,9 +129,9 @@ scripts/               # profile-secrets.sh (secrets.command helper),
 local/                 # ignored machine-local installs: engine venvs/weights,
                        #   brave-agent clone bundle, …
 docs/                  # behavior/design contracts (index: PROFILES.md)
-profiles/<name>/       # bots: assistant, engineer, creator, marketer; specialists:
-                       #   writer, researcher, searcher; Creator's hands:
-                       #   image-, video-, audio-creator
+profiles/<name>/       # bots: assistant, engineer, marketer; specialists:
+                       #   creator (advisor), writer, researcher, searcher;
+                       #   media hands: image-, video-, audio-creator
   config.yaml          # model/fallback + agent.system_prompt (operating contract);
                        #   assistant tracks config.example.yaml instead
   profile.yaml         # routing description (delegation)
@@ -156,8 +156,9 @@ live under `profiles/creator/skills`. Skill placement (validator-enforced):
 - Directly selectable leaf technics sit exactly one directory below
   `skills/technic/` (flat canonical leaves) and are pinned by name. A technic's references are modes only when
   tools, spend class and QA stay the same; styles/presets/formats remain
-  references. Creator's `creator-*` technics stay 1:1 with the assistant's
-  legacy Plan leaves ([docs/broker.md](docs/broker.md)).
+  references. Creator has no technics; its former `creator-*` leaves are
+  folded into the hands or archived ([docs/broker.md](docs/broker.md) "Legacy
+  routes").
 - Researcher/Searcher entries own plain `references/<unit>.md` (4/3); Researcher
   shares parent `references/gather.md`; Searcher has no technics.
 - Writer reads the `japanese-writing` core through its curated
@@ -368,7 +369,7 @@ keeps user keys.
   code, not a plugin.
 
 - **image_gen/image-fallback** (`backend`): `img-codex-xai`, `img-xai-codex-fal`,
-  `img-codex-xai-fal` (Creator's chain) — names spell the order. Capabilities:
+  `img-codex-xai-fal` — names spell the order. Capabilities:
   [docs/hands/image.md](docs/hands/image.md) "Image generation capabilities".
 - **video_gen/video-fallback** (`backend`): `vid-xai-fal` (Grok Imagine → FAL),
   `vid-fal-xai`.
@@ -377,6 +378,14 @@ keeps user keys.
   `xiaomi/mimo-v2.5`), so `auxiliary.vision` can stay `auto` and images route
   natively to the main model. **Pinning `auxiliary.vision` to a video-capable
   model disables the main model's native image vision.**
+- **inspection/media-inspect** (`standalone`): the `media_inspect` tool for
+  Creator and the Assistant, each offered its own action list like the
+  `social/` and `messaging/` access plugins: `probe` (format, duration,
+  streams), `frames` (stills at times or frame numbers) and `sheet` (one
+  contact sheet). Engine `media.py` (stdlib + ffprobe/ffmpeg). It never writes
+  next to the input: output goes to a fresh run directory under the OS
+  temporary directory, and runs older than seven days are removed when the
+  plugin registers.
 - **tts/tts-fallback** (`backend`, `tts.provider: tts-fallback`) and
   **tts/irodori-tts** / **tts/qwen3-tts** (`backend`, loopback clients): see
   [Local TTS engines](#local-tts-engines).
@@ -546,7 +555,7 @@ then `secret env -p hermes`). The `hermes` layer holds keys only Hermes uses
 dashboard auth pair); it is injected for every `hermes` invocation, including
 every profile alias. The `global` layer is for keys shared with other shimmed
 tools (e.g. the web-search keys). Per-bot layers `hermes-assistant` /
-`hermes-engineer` / `hermes-creator` / `hermes-marketer` hold each bot's
+`hermes-engineer` / `hermes-marketer` hold each bot's
 `TELEGRAM_BOT_TOKEN` (+ allowlists; assistant also carries the Discord keys).
 
 The shim does not isolate profiles: every alias gets the same `global` +
@@ -1201,9 +1210,9 @@ agent's pre-rename label and carry its old log over once.
 
 - `launchd/gateway-launchctl.sh {install,status,uninstall}` — the multiplex
   gateway LaunchAgent (`ai.hermes.multiplex`), **one host only** (one
-  bot token = one live connection; four bots in this one process). The
+  bot token = one live connection; three bots in this one process). The
   default-hosted process serves every profile directory: assistant Telegram +
-  Discord, the engineer / creator / marketer bots, the A2A endpoints
+  Discord, the engineer / marketer bots, the A2A endpoints
   (`127.0.0.1:9902-9909`). The launcher execs the
   checkout's
   `.hermes/bin/hermes gateway run --accept-hooks --external-supervisor` as a

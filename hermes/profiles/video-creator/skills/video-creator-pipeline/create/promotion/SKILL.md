@@ -33,7 +33,7 @@ metadata:
       style: {required: false, type: text, label: "described look; free text is first-class"}
       direction: {required: false, type: text, label: "pacing/energy/transition language; free text"}
       audio: {required: false, type: file, label: "finished WAV, or JSON list of <=16 {source,start} cues from audio-creator"}
-      approved_plan: {required: false, type: file, label: "Creator-relayed approval: exact proposal-vN/storyboard.md; absent = storyboard only"}
+      approved_plan: {required: false, type: file, label: "relayed approval: exact proposal-vN/storyboard.md; absent = storyboard only"}
       approval_sha256: {required: false, type: text, label: "SHA-256 of that storyboard.md; required with approved_plan"}
       inputs: {required: false, type: file, label: "JSON {pending id: local path} resolving the storyboard's pending items"}
       note: {required: false, type: text, label: "rights/usage statement, must-keeps, anything else"}
@@ -60,13 +60,13 @@ template and not "close enough". Judge every frame against it:
 
 <Procedure>
 
-1. Work only in `specialist_call(kind="work")`. Creator owns the client's
+1. Work only in `specialist_call(kind="work")`. The Assistant owns the user's
    meaning, rights and approvals; you own the whole execution: beats, layout,
    typography, drawn visuals, motion, seams and self-review. Draw what the
    piece needs yourself (SVG/CSS/HTML: UI screens, icons, characters, flags,
    device frames, marks). You have no image generation, TTS, music or SFX: a
    raster asset, voice or soundtrack the piece needs is a
-   dependency request back to Creator, never invented or silently substituted. Reproducing a
+   dependency request back to the Assistant, never invented or silently substituted. Reproducing a
    third-party brand, logo or copy needs the client's permitted-use
    statement in `note`; without it, treat the reference as inspiration.
    A PV/showcase reel puts the supplied material at the centre: the photos,
@@ -123,7 +123,7 @@ template and not "close enough". Judge every frame against it:
 
    Report the path, SHA-256, status and the pending list with what each
    needs, then STOP. A budget or a brief is not approval.
-5. Round B (`approved_plan` + `approval_sha256` relayed by Creator in the
+5. Round B (`approved_plan` + `approval_sha256` relayed by the Assistant in the
    same work conversation): author `<deliver>/source/` per
    [authoring](references/authoring.md). Build each beat's hero frame at
    full quality first, then motion, then seams. Render drafts with the
@@ -146,7 +146,7 @@ template and not "close enough". Judge every frame against it:
    change. Continue until the remaining gaps are only ones you cannot close
    locally (a proprietary font, a photograph), up to 8 drafts. An approved
    storyboard with pending items allows authoring and silent drafts.
-7. Final: when every pending item is resolved (Creator returns the files;
+7. Final: when every pending item is resolved (the Assistant returns the files;
    place them under `source/assets/` and list them in an `inputs` JSON), run
    the same command with `--quality final --inputs <inputs.json>` into a new
    `<deliver>/final/`. It verifies the approval hash, strict lint, canvas,

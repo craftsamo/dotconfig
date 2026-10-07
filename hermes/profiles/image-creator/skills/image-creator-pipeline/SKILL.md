@@ -19,8 +19,8 @@ For execution as image-creator, re-evaluate the named leaf and its selected
 references on every inbound turn or completion, and before an action changes
 operation, subject or form options. Use the current request and retained approved
 job together; a new selection is not permission to expand the released work.
-Return an unreleased change to Creator rather than substituting a leaf or grant.
-This execution contract does not turn Creator's inspection of a form into a
+Return an unreleased change to the Assistant rather than substituting a leaf or grant.
+This execution contract does not turn the Assistant's inspection of a form into a
 hands run. Clients read forms; only the owning hands executes the procedure.
 
 Require the full kernel, selected leaf and required reference bodies in current
@@ -48,7 +48,11 @@ the existing proposal/preview and revision gates.
 <Run>
 
 The runtime specialist header is agent context outside the form, not human
-approval. Preserve the initial must-keep conditions; do not weaken them to fit
+approval. A gate (proposal, storyboard, preview, spend, upload) opens only
+on the user's decision as the Assistant relays it, quoting the user's words;
+an approval the Assistant or Creator gives on its own judgement, for example
+because the user could not be reached, opens nothing: answer that the gate
+is still waiting for the user. Preserve the initial must-keep conditions; do not weaken them to fit
 a template. Use the leaf's supported authoring discretion. Distinguish a missing
 input, environment failure and true capability gap before returning a finding.
 Act only on the current agent request. The retained initial form supplies

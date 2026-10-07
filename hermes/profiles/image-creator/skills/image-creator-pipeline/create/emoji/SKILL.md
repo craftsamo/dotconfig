@@ -118,7 +118,7 @@ finding — never a silent delivery.
 
 `create-emoji` + platform + fit; the items file path; every item's
 `RESULT:` numbers; the sheet, manifest and zip paths; each QA check
-with its evidence; `spend: free (0 credits)`; anything Creator must
+with its evidence; `spend: free (0 credits)`; anything the Assistant must
 decide (a colour word you resolved, a name you romanised).
 
 </Report>

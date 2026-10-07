@@ -67,7 +67,7 @@ registration-only tests and direct CLI synthesis cannot detect this
 gateway-specific failure.
 
 Activate on the **gateway host only** (one bot token = one live connection —
-four bots means four tokens, all owned by this one process; stop any gateway
+three bots means three tokens, all owned by this one process; stop any gateway
 elsewhere first):
 
 ```
@@ -96,11 +96,11 @@ Routing quality depends on `profile.yaml` descriptions — create workers with
 
 | Component                                                                                    | State                                                                                                                                                   | Documented in                                                                      |
 | -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| Multiplex gateway (4 Telegram bots, assistant Discord, A2A endpoints)                       | deployed, one host                                                                                                                                      | "Gateway as a persistent service" above; [`topology.md`](./topology.md) "Topology" |
+| Multiplex gateway (3 Telegram bots, assistant Discord, A2A endpoints)                        | deployed, one host                                                                                                                                      | "Gateway as a persistent service" above; [`topology.md`](./topology.md) "Topology" |
 | A2A peer graph (`a2a_agents`, `timeout: 310`)                                                | deployed; peer-list enforcement is config + operating contract, not a plugin hook                                                                       | [`topology.md`](./topology.md) "Topology"                                          |
 | Resident sessions (fire-and-forget / cron / mass-parallel work goes through cron or resident sessions) | deployed; a real short-video production run through this flow is still unverified; direction is a stepwise move toward flatter, equal-primary operation | [`topology.md`](./topology.md) "Two delegation layers"                           |
 | Per-profile secret scopes                                                                    | deployed                                                                                                                                                | [`models-auth.md`](./models-auth.md) "Secrets layering"                            |
 | Model chains                                                                                 | deployed; probed per provider/model, per-profile behavior unevaluated                                                                                   | [`models-auth.md`](./models-auth.md) "Models and fallback chains"                  |
-| Creator hands (v3)                                                                           | in progress, family by family                                                                                                                           | [`hands/overview.md`](./hands/overview.md) "Migration"                             |
+| Hands commissioning and Creator advisor                                                      | candidate: Assistant commissions the hands, Creator advises; not deployed                                                                               | [`broker.md`](./broker.md), [`profiles/creator.md`](./profiles/creator.md)         |
 | Writer v8                                                                                    | deployed; resident `work` from the Assistant exercised through CLI and Telegram                                                                         | [`profiles/writer.md`](./profiles/writer.md)                                       |
 | Role-entry candidates (Engineer v9, Researcher/Searcher entries, Creative early delivery)    | candidates, not deployed; cutover needs explicit approval, a controlled gateway restart and fresh sessions                                              | [`profiles/`](./profiles/) per role                                                |

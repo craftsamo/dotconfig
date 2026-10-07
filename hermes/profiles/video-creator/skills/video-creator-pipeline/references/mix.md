@@ -2,11 +2,11 @@
 
 Read for create-ad/create-tour with `audio_workflow: mix`, or
 create-explainer-video receiving a finished Mix. Simple supplied audio needs
-no Mix. Creator brokers all requests; hands never call each other.
+no Mix. The Assistant brokers all requests; hands never call each other.
 
 ## Preliminary timing
 
-With no `mix_bundle`, use Creator's source inventory (stable source IDs,
+With no `mix_bundle`, use the Assistant's source inventory (stable source IDs,
 actual lengths and intent). Author `timing-spec.json` and freeze it:
 
 ```json
@@ -22,7 +22,7 @@ hermes-python "${HERMES_SKILL_DIR}/../../scripts/mix_audio.py" timing --spec-fil
 At most 32 unique cue IDs; sources may repeat. Times are finite seconds; each
 complete cue fits the output and source. Only timing is authored here, never
 gains/ducking or new sound. Return frozen `timing.json` and its hash through
-Creator to create-mix and STOP. No HTML, capture, pending/fake audio assets or
+the Assistant to create-mix and STOP. No HTML, capture, pending/fake audio assets or
 formal video approval. Users never need to write the JSON.
 
 ## Finished Mix

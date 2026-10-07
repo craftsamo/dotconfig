@@ -220,7 +220,7 @@ it); round A: the candidates with their `RESULT:` numbers and vision
 lines, the recommended anchor, and the exact `revise` line the client
 sends back; round B: the sheet path, the zip and manifest paths, each QA
 check with evidence, items marked failed and why;
-`spend: img <calls>/<budget>` (correctives included); anything Creator
+`spend: img <calls>/<budget>` (correctives included); anything the Assistant
 must decide.
 
 </Report>

@@ -13,8 +13,8 @@ Establish the role of music, performer/character and visual progression.
 Separate existing music and approved character assets from inputs still
 needed. Preserve requests for exact words, a supplied track, audible music
 or particular performance; ask Creator to assess feasibility instead of
-silently turning the request into a silent visual clip. Creator coordinates
-missing music or finishing dependencies under separately sanctioned work.
+silently turning the request into a silent visual clip. Execute releases
+missing music or finishing dependencies as separately sanctioned units.
 
 ## References
 

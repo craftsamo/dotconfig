@@ -3,7 +3,7 @@ name: create-music
 description: >-
   Compose instrumental BGM or a short melodic cue as a deterministic
   electronic score. Return a proposal first; render locally only after
-  Creator relays its approval. No user-written score required. No model
+  relayed approval. No user-written score required. No model
   or network. Not songs, SFX, mixing, edit-music or generate-music.
 version: 1.0.0
 metadata:
@@ -100,7 +100,7 @@ metadata:
 1. Confirm scope before anything else: this leaf composes **instrumental**
    BGM or a melodic opener/closer only. A request for a full song with
    lyrics/singing, standalone sound design/SFX, or audio mixing is `no
-   skill fits` - a finding for Creator, never an approximated substitute.
+   skill fits` - a finding for the Assistant, never an approximated substitute.
    A described real-world/sampled instrument, or any `style`/
    `instrumentation` outside the five score waveforms
    (sine/triangle/pulse/fm-bell/noise), routes to `generate-music`
@@ -156,7 +156,7 @@ metadata:
    settings/hashes and refuses conflicts on its own; it makes no audio
    call. Report the returned proposal path and its SHA-256, and STOP.
 5. Round B requires both `approved_plan` and `approval_sha256` from
-   Creator and `intent: revise <previous delivery>`, in the same work
+   the Assistant and `intent: revise <previous delivery>`, in the same work
    conversation as the client's approval. A changed creative field
    (theme/style/direction/tempo/duration/ending/key/meter/melody/
    harmony/must_keep) needs a new proposal and approval, never a

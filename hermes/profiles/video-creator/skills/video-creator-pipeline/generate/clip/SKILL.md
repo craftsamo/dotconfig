@@ -120,7 +120,7 @@ metadata:
    analysis is declined/unavailable, report a candidate with temporal QA
    unverified, never claim a fully passing movie from sampled stills.
 8. `intent: revise`: inventory prompt/raw/qa first; use surviving outputs
-   and ask Creator for the remaining grant if ambiguous. Never reset the
+   and ask the Assistant for the remaining grant if ambiguous. Never reset the
    budget on resume. Produce new filenames only.
 
 </Procedure>
@@ -149,6 +149,6 @@ metadata:
 RESULT facts and QA verdict (including failed/unverified); exactly one
 recommended candidate if any; `spend: video_generate <attempts>/<grant>;
 video_analyze <calls>`; backend/seed when returned; remaining budget;
-questions for Creator. Failed candidates are labeled, never called accepted.
+questions for the Assistant. Failed candidates are labeled, never called accepted.
 
 </Report>

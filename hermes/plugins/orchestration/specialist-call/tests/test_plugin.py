@@ -29,7 +29,8 @@ spec.loader.exec_module(p)
 A2A = p._a2a
 EXECUTE_SYNC = p._execute_sync
 RESIDENT_IMPL = p._resident
-CREATOR_TARGETS = ("engineer", "marketer", "researcher", "writer", "image-creator", "video-creator", "audio-creator")
+CREATOR_TARGETS = ("researcher",)
+HANDS_TARGETS = ("image-creator", "video-creator", "audio-creator")
 MARKETER_TARGETS = ("researcher",)
 
 
@@ -92,7 +93,7 @@ def test_routes_pins_and_never_upgrades_inquiry(caller):
     assert len(calls) == before
 
 
-@pytest.mark.parametrize("target", ["researcher", "assistant", "image-creator", "../creator", "http://localhost", "creator/../../writer"])
+@pytest.mark.parametrize("target", ["researcher", "assistant", "default", "../creator", "http://localhost", "creator/../../writer"])
 def test_target_policy(caller, target):
     assert "error" in call(target)
     assert not caller[1]
@@ -121,7 +122,7 @@ def test_creator_configured_targets(creator_caller, target, kind, backend):
     assert session("close", result["conversation_id"])["status"] == "closed"
 
 
-@pytest.mark.parametrize("target", ["assistant", "creator", "searcher", "arbitrary", "../writer", "http://127.0.0.1:9907"])
+@pytest.mark.parametrize("target", ["assistant", "creator", "searcher", "engineer", "marketer", "writer", "image-creator", "video-creator", "audio-creator", "arbitrary", "../writer", "http://127.0.0.1:9907"])
 def test_creator_arbitrary_targets_cannot_be_enabled(creator_caller, target):
     home, calls = creator_caller
     config = yaml.safe_load((home / "config.yaml").read_text())
@@ -693,12 +694,11 @@ def test_profile_configuration_and_plugin_api():
         assert set(config["specialist_call"]["resident_targets"]) == p.TARGETS[path.parent.name]
         platforms = config["platform_toolsets"]
         if path.parent.name == "creator":
-            assert platforms["telegram"] == platforms["cli"]
-            assert platforms["discord"] == []
-            # clarify needs a human; characters guards remote A2A peers itself
-            assert platforms["a2a"] == [tool for tool in platforms["cli"] if tool != "clarify"]
-        else:
+            # advisor without a bot: only the CLI and A2A surfaces carry tools
+            assert platforms["telegram"] == [] and platforms["discord"] == []
             assert platforms["a2a"] == platforms["cli"]
+        else:
+            assert platforms["a2a"] == [tool for tool in platforms["cli"] if tool != "media_inspect"]
         for tools in [config["toolsets"], *platforms.values()]:
             assert "a2a" not in tools
             if tools:
@@ -910,7 +910,7 @@ def test_sync_exit_reconciliation_reads_under_lock(caller, monkeypatch):
     assert p._read(record)["status"] == "completed"
 
 
-@pytest.mark.parametrize("profile,target", [("assistant", "creator"), *[("creator", t) for t in CREATOR_TARGETS]])
+@pytest.mark.parametrize("profile,target", [("assistant", "creator"), *[("assistant", t) for t in HANDS_TARGETS], *[("creator", t) for t in CREATOR_TARGETS]])
 def test_real_framework_dispatch_fresh_cached_and_reset_gateway(tmp_path, monkeypatch, profile, target):
     from gateway import session_context as sc
     from agent.agent_init import _publish_session_id

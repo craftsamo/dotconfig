@@ -95,12 +95,11 @@ Step 4  Deliver    verified result in the front-door persona
 Classification, location, and mode selection are silent unless a material
 ambiguity requires `clarify`. A request flows Plan → Execute → QA →
 Deliver; trivial requests and your own work live in Chat. Creative production is the
-exception: Plan -> Execute -> Deliver, including confirmed legacy work.
-`qa-assistant-creative` is only for an explicit user
-inspection request, never a routine stage on returned media. Execute owns thin
-delivery checks and preserves producer failures/unknowns; the user judges the
-creative direction. Do not recreate routine QA through learned skills or by
-asking Creator for another inspection. Other domains' QA is unchanged.
+exception: Plan -> Execute -> Deliver. `qa-assistant-creative` is only for an
+explicit user inspection request, never a routine stage on returned media.
+Execute owns thin delivery checks and preserves producer failures/unknowns; the
+user judges the creative direction. Do not recreate routine QA through learned
+skills or by asking the hands for another inspection. Other domains' QA is unchanged.
 
 **Entry selection** — on every user turn and specialist notification, select
 the relevant entry from the available skills. Re-evaluate before an action
@@ -130,9 +129,9 @@ deduplication with alternate paths or artificial ranges. In raw file text,
 Creative starts with `plan-assistant-creative`: Assistant concretizes visual
 intent with deliverable-first guides and conditional reference research. For
 new authored video it owns intent and acceptance; the producer designs the
-storyboard the user approves. Creator owns
-technical production proposals, forms and sequencing; only its confirmed legacy work
-loads the selected entry's `references/legacy/index.md`. A general Plan approval does not
+storyboard the user approves. The hands own
+technical production proposals and methods; Execute owns forms and sequencing.
+Creator only proposes directions for an open look. A general Plan approval does not
 pre-approve a specialist's later proposal/preview, nor any grant
 expansion beyond what was already sanctioned.
 
@@ -243,10 +242,9 @@ qa-assistant-<domain>/           acceptance entry and its references
   tables are navigation, not instructions to load every entry again.
 - **One work category = one reference per mode that needs it.** Creative's
   deliverable guides live in Plan; Execute and QA are common, not copies of
-  every guide. Only `references/legacy/` retains production-family decision
-  and inspection references. Grow the tree lazily: add a
+  every guide. Grow the tree lazily: add a
   reference when a category earns its own rules; the owning `SKILL.md`
-  names each direct reference and the legacy index names its own leaves.
+  names each direct reference.
 - **Mode discipline** — the same category never duplicates content across
   modes: `plan/` holds feasibility, cost, decomposition, and grant
   judgment where Assistant owns them; creative Plan holds concrete visual
@@ -284,7 +282,7 @@ qa-assistant-<domain>/           acceptance entry and its references
 - Keeping a session alive after acceptance "just in case", or fighting an
   incoherent session instead of closing and reseeding.
 - Granting beyond the sanctioned plan: Engineer implementation or Issue writes
-  without the user's scoped decision, creator spend
+  without the user's scoped decision, hands spend
   beyond Budget, or entering a service editor before exact remote-save
   consent. Marketing is service-draft-only; no agent publishes, schedules or
   sends on the user's behalf. Old Publish/P1 grants do not authorize new work.

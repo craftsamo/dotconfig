@@ -2,7 +2,7 @@
 """Approved, offline multi-source mixdown. No synthesis, ASR or listening claims.
 
 The proposal binds frozen source bytes, timing and DSP controls, not the identity
-of an approver. Creator must relay approval in the same work conversation.
+of an approver. The Assistant must relay approval in the same work conversation.
 """
 
 from __future__ import annotations
@@ -298,7 +298,7 @@ def propose(spec_file, description_file, out, previous=None):
                     "sources": evidence, "renderer": fingerprint(),
                     "previous": {"bundle": str(Path(previous).resolve()), "master_sha256": prior["take"]["master"]["sha256"]} if prior else None}
         document = ("# Mix Proposal\n\n" + description.rstrip() + "\n\n## Exact Mix\n\n```json\n" +
-                    dump(spec).decode() + "```\n\nApprove these exact bytes through Creator before rendering. "
+                    dump(spec).decode() + "```\n\nApprove these exact bytes through the Assistant before rendering. "
                     "Hashes bind content, not approver identity. Listening remains unverified. "
                     "Channel conversion: stereo to mono uses an arithmetic mean; mono to stereo duplicates at unity. "
                     "Normalization, when requested, is measured constant gain only; an infeasible peak/ loudness pair fails, never invokes a limiter.\n\n" +

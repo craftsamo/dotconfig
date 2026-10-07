@@ -25,21 +25,27 @@ class AudioCreatorRoutingTest(unittest.TestCase):
         cls.image = yaml.safe_load(
             (HERMES_ROOT / "profiles" / "image-creator" / "config.yaml").read_text()
         )
+        cls.assistant = yaml.safe_load(
+            (HERMES_ROOT / "profiles" / "assistant" / "config.example.yaml").read_text()
+        )
+        cls.commissioning = (
+            HERMES_ROOT / "profiles" / "assistant" / "skills" / "assistant-pipeline"
+            / "execute-assistant-creative"
+        )
 
-    def test_root_allowlist_and_creator_peer(self) -> None:
+    def test_root_allowlist_and_assistant_is_the_client(self) -> None:
         # One host gateway serves every profile directory; there is no allowlist to join.
         self.assertTrue(self.root["gateway"]["multiplex_profiles"])
         self.assertNotIn("multiplex_profile_allowlist", self.root["gateway"])
         self.assertEqual(9909, self.audio["platforms"]["a2a"]["extra"]["port"])
-        self.assertEqual(
-            "http://127.0.0.1:9909",
-            self.creator["a2a_agents"]["audio-creator"]["url"],
-        )
-        self.assertEqual(310, self.creator["a2a_agents"]["audio-creator"]["timeout"])
+        self.assertIn("audio-creator", self.assistant["specialist_call"]["resident_targets"])
         self.assertIn(
-            "~/.hermes/profiles/audio-creator/skills",
-            self.creator["skills"]["external_dirs"],
+            "~/.hermes/profiles/audio-creator/skills/audio-creator-pipeline",
+            self.assistant["skills"]["external_dirs"],
         )
+        # Creator is an advisor: no audio-creator peer, target or skills of its own to commission.
+        self.assertNotIn("audio-creator", self.creator["a2a_agents"])
+        self.assertEqual(["researcher"], self.creator["specialist_call"]["resident_targets"])
 
     def test_toolsets_are_exact_allowlist_no_broad_grants(self) -> None:
         expected = {"terminal", "file", "tts", "sfx_gen", "music_gen", "skills", "memory"}
@@ -63,7 +69,8 @@ class AudioCreatorRoutingTest(unittest.TestCase):
         self.assertNotIn("character-voice", creator_plugins)
         self.assertNotIn("sfx-gen", creator_plugins)
         self.assertNotIn("music-gen", creator_plugins)
-        self.assertIn("tts", set(self.creator["toolsets"]))
+        self.assertNotIn("tts", set(self.creator["toolsets"]))
+        self.assertNotIn("tts", set(self.creator["platform_toolsets"]["cli"]))
         self.assertNotIn("sfx_gen", set(self.creator["toolsets"]))
         self.assertNotIn("music_gen", set(self.creator["toolsets"]))
         self.assertNotIn("sfx-gen", set(self.image["plugins"]["enabled"]))
@@ -116,9 +123,15 @@ class AudioCreatorRoutingTest(unittest.TestCase):
         self.assertIn("edit-music", audio_prompt)
         self.assertIn("analyze-music", audio_prompt)
         self.assertIn("no skill fits", audio_prompt)
-        creator_prompt = self.creator["agent"]["system_prompt"]
-        self.assertIn("create-music", creator_prompt)
-        self.assertIn("generate-music", creator_prompt)
+        commission = (self.commissioning / "references" / "music.md").read_text()
+        self.assertIn("## Leaves", commission)
+        for leaf in ("create-music", "generate-music", "edit-music", "analyze-music"):
+            self.assertIn(f"`{leaf}`", commission)
+        advisor = (
+            HERMES_ROOT / "profiles" / "creator" / "skills" / "creator-pipeline"
+            / "references" / "audio-creator" / "music.md"
+        ).read_text()
+        self.assertIn("generate-music", advisor)
 
     def test_docs_list_all_three_hands_and_no_tts_voice_residue(self) -> None:
         profiles_md = "\n".join(
@@ -128,11 +141,11 @@ class AudioCreatorRoutingTest(unittest.TestCase):
         self.assertIn("video-creator", profiles_md)
         self.assertIn("audio-creator", profiles_md)
         self.assertNotIn("tts-voice", profiles_md)
-        creator_prompt = self.creator["agent"]["system_prompt"]
-        self.assertIn("image-creator", creator_prompt)
-        self.assertIn("video-creator", creator_prompt)
-        self.assertIn("audio-creator", creator_prompt)
-        self.assertNotIn("tts-voice", creator_prompt)
+        targets = set(self.assistant["specialist_call"]["resident_targets"])
+        self.assertTrue({"image-creator", "video-creator", "audio-creator"} <= targets)
+        self.assertNotIn("tts-voice", self.creator["agent"]["system_prompt"])
+        for hands in ("image-creator", "video-creator", "audio-creator"):
+            self.assertNotIn(hands, self.creator["agent"]["system_prompt"])
 
     def test_private_assistant_catalog_optional(self) -> None:
         """Only checked when the private overlay is present (not on a public clone)."""

@@ -42,8 +42,20 @@ def test_delivery_policy_does_not_expand_authority(profile):
     assert "no upload consent, overwrite permission or managed-skill edits" in text
 
 
-def test_creator_handoff_uses_the_same_nested_shape():
-    text = (ROOT / "profiles/creator/skills/creator-pipeline/build-creator/SKILL.md").read_text()
-    assert "<G>/.agent/<YYYYMMDD>-<job>/video-plan" in text
-    assert "All three hands accept" in text
-    assert "Do not relocate a valid Group-local request" in text
+def test_assistant_handoff_uses_the_same_nested_shape():
+    text = " ".join((
+        ROOT / "profiles/assistant/skills/assistant-pipeline/execute-assistant-creative/SKILL.md"
+    ).read_text().split())
+    assert "`.agent/<YYYYMMDD>-<job>/` (or a job-owned subdirectory)" in text
+    assert "`~/Workspaces/.agent/<YYYYMMDD>-<job>/`" in text
+    assert "Never create a Group, relocate a valid Group-local job or overwrite an existing output" in text
+    for value in (".agent/deliverables/", ".deliverables/", ".scratch/", ".notes/"):
+        assert value not in text
+
+
+def test_creator_does_not_dictate_delivery_paths():
+    text = " ".join((
+        ROOT / "profiles/creator/skills/creator-pipeline/SKILL.md"
+    ).read_text().split())
+    assert "leaves `deliver:` and `budget:` for the Assistant to fill when unknown" in text
+    assert "Never write into a deliverable or a `deliver:` directory" in text

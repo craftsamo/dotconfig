@@ -7,7 +7,7 @@ provenance record. Nothing is drawn or generated. Zero spend.
 Usage:
   kenney-fetch.py --search WORD
       List candidate packs (slug, title, page URL) from kenney.nl/assets.
-      Prints CANDIDATES lines and exits; writes nothing. The Creator picks
+      Prints CANDIDATES lines and exits; writes nothing. The Assistant picks
       a slug, never this script.
 
   kenney-fetch.py --pack SLUG --out DIR [--pick GLOB]...

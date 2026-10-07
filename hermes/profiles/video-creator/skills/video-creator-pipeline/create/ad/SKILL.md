@@ -4,7 +4,7 @@ description: >-
   Create a short authored ad (default portrait 9:16, or 16:9/1:1/4:5, 24-60fps)
   from client-approved product, audience, message, CTA and optional supplied
   assets/audio, or an approved Audio Mix master. Returns an unspent content
-  plan for approval first; authors/freezes source only after Creator relays
+  plan for approval first; authors/freezes source only after relayed
   approval of that exact plan. Local HyperFrames project, proof frames and
   MP4. Not video/image generation, TTS, capture, or a claims fact-checker.
 version: 1.0.0
@@ -36,7 +36,7 @@ metadata:
       mix_bundle: {required: false, type: path, label: "mix only: bundle dir to verify+stage; plan binds staged master/receipt by hash"}
       reference: {required: false, type: file, label: "local reference/report for inspiration/claim evidence; never uploaded"}
       duration: {required: false, type: int, label: "final 6..30s (default 15); study 1..10s"}
-      approved_plan: {required: false, type: file, label: "Creator-relayed exact approved plan.json; absent = proposal only"}
+      approved_plan: {required: false, type: file, label: "relayed exact approved plan.json; absent = proposal only"}
       approval_sha256: {required: false, type: text, label: "SHA-256 of the approved plan.json; required with approved_plan"}
       preview: {required: false, type: path, label: "client-approved preview folder from snapshot; required before render"}
       preview_sha256: {required: false, type: text, label: "SHA-256 of the approved preview.json; required with preview"}
@@ -54,7 +54,7 @@ exception below; optional external technical reading does not grant it.
 skill_view(name="video-creator-pipeline", file_path="references/three-graphics.md")
 ```
 
-1. Work only in `specialist_call(kind="work")`. Creator owns product meaning,
+1. Work only in `specialist_call(kind="work")`. The Assistant owns product meaning,
    audience, message/CTA wording and PV routing; you own concrete layout,
    timeline and QA within the approved plan. Missing supplied product/logo/
    audio/video assets are not a blocker for a text-only ad — but `assets/`
@@ -76,9 +76,9 @@ skill_view(name="video-creator-pipeline", file_path="references/three-graphics.m
    substitutions below; all remaining source and approval checks still apply.
    Before Round A, if `audio_workflow: mix` and `mix_bundle` is absent,
    read [Mix receiving](../../references/mix.md). Author/freeze a timing
-   proposal from Creator's source inventory and video direction; return
+   proposal from the Assistant's source inventory and video direction; return
    its path/hash and STOP. No HTML, dummy audio, formal plan approval or
-   rendering. Resume Round A only after Creator supplies the finished Mix;
+   rendering. Resume Round A only after the Assistant supplies the finished Mix;
    stage its real bytes BEFORE computing the plan's asset hashes.
 2. Read [authoring](references/authoring.md) for the exact `plan.json` schema
    and CLI walkthrough before writing anything. For known choices read the
@@ -110,7 +110,7 @@ skill_view(name="video-creator-pipeline", file_path="references/three-graphics.m
    used below. It reads the schema and exact asset inventory (including suffix,
    size and vendor checks), writes nothing and executes no source. Preserve its
    unverified checks: passing preflight does not approve or prove a render.
-4. Round B requires both `approved_plan` and `approval_sha256` from Creator.
+4. Round B requires both `approved_plan` and `approval_sha256` from the Assistant.
    Before fresh authoring, read the shared HyperFrames reference policy
    through the parent skill (not this leaf):
 
@@ -178,7 +178,7 @@ skill_view(name="video-creator-pipeline", file_path="references/three-graphics.m
    Inspect every proof frame against its `expect` text and record findings in
    `qa.md` before the next visual call. Return snapshots and the printed
    `preview_sha256`, then wait for actual client approval of that exact
-   preview folder. Hashes bind approval bytes, not caller identity; Creator
+   preview folder. Hashes bind approval bytes, not caller identity; the Assistant
    relaying approval in the same work conversation is what grants the resume.
 6. Resume only with both the approved preview folder and its exact SHA-256:
 

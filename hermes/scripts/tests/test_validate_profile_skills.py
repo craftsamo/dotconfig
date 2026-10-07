@@ -64,7 +64,6 @@ class SandboxTreeTest(unittest.TestCase):
             ".DS_Store", "references/.DS_Store", "references/plan/.DS_Store",
             "references/.editor/state", "plan-assistant-creative/.SKILL.md.swp",
             "plan-assistant-creative/references/.DS_Store",
-            "plan-assistant-creative/references/legacy/.DS_Store",
         ):
             self.write(path, "editor metadata\n")
         self.assertEqual([], self.validate())
@@ -143,7 +142,7 @@ class SandboxTreeTest(unittest.TestCase):
             "tests/fixtures/SKILL.md",
             "references/plan/SKILL.md",
             "plan-assistant-writing/references/fixtures/SKILL.md",
-            "execute-assistant-creative/references/legacy/tests/SKILL.md",
+            "execute-assistant-creative/references/tests/SKILL.md",
         ):
             with self.subTest(rel=rel):
                 self.write(rel, "---\nname: unexpected\n---\n")
@@ -259,13 +258,13 @@ class SandboxTreeTest(unittest.TestCase):
                 path.write_text(original + f"\n[entry](../../{name}/SKILL.md)")
                 self.assertEqual([], self.validate())
 
-    def test_chat_and_creative_reference_floors(self) -> None:
+    def test_chat_reference_floor_and_no_creative_legacy_shelf(self) -> None:
         self.build_minimal_tree()
         self.write("chat-assistant/references/extra.md", "# Extra\n")
-        (self.root / "execute-assistant-creative/references/legacy/index.md").unlink()
         errors = self.validate()
         self.assertTrue(any("unexpected chat reference" in e for e in errors))
-        self.assertTrue(any("missing creative legacy index" in e for e in errors))
+        self.write("execute-assistant-creative/references/legacy/index.md", "# Retired shelf\n")
+        self.assertTrue(any("no nesting below entry references" in e for e in self.validate()))
 
     def test_markdown_links_are_confined_in_every_domain(self) -> None:
         self.build_minimal_tree()

@@ -77,7 +77,7 @@ Every check with its evidence:
 - **Safe zone** — `mark_extent_in_maskable` ≤ 410.
 - **16 px legibility** — vision on `icon-16.png` at native size: the mark
   is still recognisable as the mark, not a smudge. If not, it is a finding
-  for Creator (simplify the SVG), never a local redraw.
+  for the Assistant (simplify the SVG), never a local redraw.
 - **Identity across sizes** — vision on the contact sheet: the same mark,
   same colour, same proportions at every size.
 
@@ -87,7 +87,7 @@ Every check with its evidence:
 
 `create-icon` + bg/colour used; the delivered directory and every file
 with its measured size (the `RESULT:` line); each QA check with its
-evidence; `spend: free`; anything Creator must decide (a mark that fails
+evidence; `spend: free`; anything the Assistant must decide (a mark that fails
 at 16 px).
 
 </Report>

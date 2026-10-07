@@ -79,7 +79,7 @@ metadata:
    comma-list, not a single option. Read each selected
    `references/contents/<category>.md`. Use its table only when `items`
    is absent; otherwise parse the explicit list without adding defaults.
-   For custom categories agree descriptions and canvas sizes with Creator.
+   For custom categories agree descriptions and canvas sizes with the Assistant.
    Require unique `category/item` slugs, at least two items, size 1-4,
    and exactly the requested categories. Unknown sizes or an unusable
    reference produce one `Q<n>:` block, not a guessed batch.
@@ -123,7 +123,7 @@ metadata:
    kit but the UI is not tilted like the world props. After EACH look
    append the named findings to `qa.md`; vision retains about three
    images. Return candidates, recommendation, expanded item count and
-   Round B call allowance. STOP. Approval comes back through Creator as
+   Round B call allowance. STOP. Approval comes back through the Assistant as
    `intent: revise <dir>` with `anchor: <approved image>`; never choose
    your own anchor and continue.
 

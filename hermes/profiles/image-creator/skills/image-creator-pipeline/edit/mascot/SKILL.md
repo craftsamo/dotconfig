@@ -135,7 +135,7 @@ finding — never a silent delivery.
 
 `edit-mascot` + the edits applied; every output path with its `RESULT:`
 numbers; the sheet / zip paths; each QA check with evidence; `spend:
-free (0 credits)`; anything Creator must decide (a crop fraction you
+free (0 credits)`; anything the Assistant must decide (a crop fraction you
 chose, a source that needs real background removal or a redraw).
 
 </Report>
