@@ -4,7 +4,8 @@ note.com for the Assistant and Marketer. Both read note; the Assistant alone
 saves the user's unpublished drafts, each save behind an approval card. The tool reads public articles,
 creators, comments and hashtags, plus the user's own drafts and stats. Drafts
 are written in Markdown, and images are uploaded from local files. An offline
-`check` tells whether a body would save; Writer gets that action alone. Nothing
+`check` tells whether a body would save; Writer gets that action alone, and
+Searcher gets the public reads alone (never the user's drafts or stats). Nothing
 publishes, deletes, likes, follows or comments: the user publishes in the
 browser. Part of the Hermes design docs — index:
 [`PROFILES.md`](../PROFILES.md).
@@ -13,10 +14,10 @@ browser. Part of the Hermes design docs — index:
 
 | Piece                                                                                                                                       | Home                                                                   | Reader                      |
 | ------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- | --------------------------- |
-| Engine: validation, pacing, session state, public reads, result shapes, image checks, write plan, approval card, image upload, bypass guard | `plugins/social/note-access/na.py`                                            | all                         |
-| Markdown ⇄ note editor HTML                                                                                                                 | `plugins/social/note-access/notefmt.py`                                       | all                         |
-| The only process holding the session; a fixed set of signed-in operations                                                                   | `plugins/social/note-access/bridge.py`                                        | all                         |
-| `note` tool and the `pre_tool_call` hook (toolset `note_access`), the actions each profile gets                                             | `plugins/social/note-access/__init__.py`                                      | Assistant, Marketer, Writer |
+| Engine: validation, pacing, session state, public reads, result shapes, image checks, write plan, approval card, image upload, bypass guard | `plugins/social/note-access/na.py`                                     | all                         |
+| Markdown ⇄ note editor HTML                                                                                                                 | `plugins/social/note-access/notefmt.py`                                | all                         |
+| The only process holding the session; a fixed set of signed-in operations                                                                   | `plugins/social/note-access/bridge.py`                                 | all                         |
+| `note` tool and the `pre_tool_call` hook (toolset `note_access`), the actions each profile gets                                             | `plugins/social/note-access/__init__.py`                               | Assistant, Marketer, Writer |
 | How the Assistant works with it: actions, budget, preparing a body, saving, results                                                         | the `note-com` technic (`profiles/assistant/skills/technic/note-com/`) | Assistant                   |
 | When Chat uses it                                                                                                                           | the Assistant's private Chat reference `note.md`                       | Assistant                   |
 | How Marketer reads and measures on note                                                                                                     | `marketer-pipeline/references/platforms/note.md`                       | Marketer                    |
@@ -42,6 +43,7 @@ its read-only browsing rules and lease ([marketer.md](profiles/marketer.md)).
 | Assistant | every read, `check`, saves | refused           |
 | Marketer  | every read, `check`        | reads and `check` |
 | Writer    | `check` only               | `check`           |
+| Searcher  | public reads               | refused           |
 
 The action list a profile gets (`PROFILES`) is fixed when the plugin
 registers and checked again by the gate, the handler and the engine, so naming
