@@ -92,6 +92,48 @@ def test_writer_gets_the_format_check_only():
     assert "[[image|embed|table" in tool["description"]
 
 
+PRIVATE_ACTIONS = ("drafts", "draft", "stats", "create_draft", "update_draft", "check")
+
+
+def test_searcher_gets_the_public_reads_only():
+    ctx = registered("searcher")
+    tool = ctx.tools["note"]
+    params = tool["schema"]["parameters"]["properties"]
+    assert tool["toolset"] == "note_access" and [name for name, _ in ctx.hooks] == ["pre_tool_call"]
+    assert params["action"]["enum"] == list(plugin.PUBLIC_READS)
+    assert set(params) == {"action", *plugin.PUBLIC_READ_PROPERTIES}
+    assert not set(PRIVATE_ACTIONS) & set(params["action"]["enum"])
+    for word in ("create_draft", "update_draft", "check (body", "drafts (", "stats ("):
+        assert word not in tool["description"]
+    assert "not available to this profile" in tool["description"]
+
+
+def test_searcher_reads_reach_the_engine_and_private_actions_do_not(isolated):
+    handler, gate = handler_and_gate("searcher")
+    assert json.loads(handler({"action": "status"}))["ok"] is True
+    for action in plugin.PUBLIC_READS:
+        assert gate(tool_name="note", args={"action": action, "query": "q", "note": "n0000000000a1",
+                                            "creator": "@a", "tag": "t"}) is None
+    calls_before = list(isolated)
+    for action in PRIVATE_ACTIONS:
+        args = {"action": action, "draft": "n0000000000a1", "base": "t1", "title": "T", "body": "x"}
+        assert gate(tool_name="note", args=args, tool_call_id="s")["action"] == "block"
+        assert json.loads(handler(args))["ok"] is False
+        with pytest.raises(na.NoteError):
+            na.execute(args, can_write=False, allowed=plugin.PUBLIC_READS)
+    assert isolated == calls_before
+
+
+def test_inbound_a2a_never_reaches_searcher(monkeypatch):
+    monkeypatch.setattr(plugin, "_inbound_peer", lambda: True)
+    monkeypatch.setattr(plugin, "_home", lambda: Path("/h/profiles/searcher"))
+    handler, gate = handler_and_gate("searcher")
+    for args in ({"action": "search", "query": "q"}, {"action": "status"}):
+        directive = gate(tool_name="note", args=args)
+        assert directive["action"] == "block" and "A2A" in directive["message"]
+        assert "A2A" in json.loads(handler(args))["error"]
+
+
 def test_a_read_only_profile_gets_no_write_schema(monkeypatch):
     monkeypatch.setitem(plugin.PROFILES, "marketer", na.READS)
     tool = registered("marketer").tools["note"]
@@ -225,7 +267,7 @@ def test_writer_checks_on_a2a_and_nothing_else(isolated, monkeypatch):
 
 
 def test_the_gate_blocks_ways_around_the_tool():
-    for profile in ("assistant", "marketer", "writer"):
+    for profile in ("assistant", "marketer", "writer", "searcher"):
         _, gate = handler_and_gate(profile)
         directive = gate(tool_name="terminal", args={"command": "curl https://note.com/api/v2/current_user"})
         assert directive == {"action": "block", "message": na.BYPASS_MESSAGE}

@@ -495,7 +495,7 @@ keeps user keys.
 - **social/note-access** (`standalone`): `note` (toolset `note_access`) for the
   assistant (read, and save unpublished drafts from Markdown with images
   through the approval gate; a run without a person hands the save back to
-  its caller) and marketer (read only) — search, articles,
+  its caller), marketer (read only) and searcher (public reads only) — search, articles,
   creators, comments, hashtags and the user's own drafts and stats on
   note.com — plus an offline `check` of a draft body, the only action Writer
   gets. Standard library only: `bridge.py` alone reads the session
