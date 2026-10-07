@@ -7,6 +7,7 @@ import io
 import json
 import os
 from pathlib import Path
+import re
 import shlex
 import subprocess
 import signal
@@ -1538,17 +1539,34 @@ def test_reconcile_turn_marks_child_environment(tmp_path):
 
 def test_handoff_states_the_turn_budget():
     base = {"conversation_id": "a" * 32, "job_id": "b" * 32, "initial_job_id": "b" * 32,
-            "initial_request": "hello", "requester_profile": "assistant"}
+            "initial_request": "hello", "requester_profile": "assistant", "target": "engineer"}
     plain = p._handoff(dict(base), "hello")
     assert "Turn budget" not in plain
     timed = p._handoff({**base, "deadline": time.time() + 90 * 60}, "hello")
     assert "Turn budget: this turn is killed at" in timed
     assert "(~89 min from now)" in timed or "(~90 min from now)" in timed
-    assert "committed checkpoint" in timed
+    assert "committed checkpoint on the task branch" in timed and "uncommitted work" in timed
     assert "(~1 min from now)" in p._handoff({**base, "deadline": time.time() + 65}, "hello")
     assert "RECONCILE-ONLY" not in timed
     limited = p._handoff({**base, "deadline": time.time() + 65, "turn_kind": "reconcile"}, "hello")
     assert "Turn kind: RECONCILE-ONLY" in limited and "No opencode_call" in limited
+
+
+@pytest.mark.parametrize("target", sorted(set().union(*p.TARGETS.values()) - p.COMMIT_TARGETS))
+def test_only_the_engineer_handoff_asks_for_a_committed_checkpoint(target):
+    base = {"conversation_id": "a" * 32, "job_id": "b" * 32, "initial_job_id": "b" * 32,
+            "initial_request": "hello", "requester_profile": "assistant", "deadline": time.time() + 90 * 60}
+    text = p._handoff({**base, "target": target}, "hello")
+    assert re.search(r"~(89|90) min from now", text)
+    assert "stop with a checkpoint report rather than starting work that cannot finish" in text
+    assert "commit" not in text.split("Turn budget:")[1].split("\n")[0].lower()
+    assert "task branch" not in text
+
+
+def test_a_handoff_without_a_target_never_asks_for_a_commit():
+    base = {"conversation_id": "a" * 32, "job_id": "b" * 32, "initial_job_id": "b" * 32,
+            "initial_request": "hello", "requester_profile": "assistant", "deadline": time.time() + 90 * 60}
+    assert "committed checkpoint" not in p._handoff(base, "hello")
 
 
 # -- parallel launch, wait and cancel ------------------------------------------
