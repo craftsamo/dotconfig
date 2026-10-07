@@ -16,7 +16,7 @@ from IDs, markup fences and production notes for unchanged consumption.
 Unresolved insertion markers or required unavailable attachments mean the
 unit is not ready for publication. Do not invent a current platform limit
 or treat a rough count as a measured fit; unresolved required checks stay
-NOT verified. Marketer still performs actual platform/claim/legal inspection.
+NOT verified. The requester still performs actual platform/claim/legal inspection.
 Consumer operations need separately scoped authority after this acceptance;
 writing QA does not grant that authority.
 
@@ -307,7 +307,7 @@ Missing mandatory assets, links or evidence remain explicit blockers.
 
 Text inspection does not prove a rendered page, inbox delivery, working flow,
 legal compliance or conversion lift. Reliable counts need an actual method;
-required unverified checks remain NOT verified. Marketer's inspection and
+required unverified checks remain NOT verified. The requester's inspection and
 exact-candidate publication approval remain separate after writing acceptance.
 
 ### Copy scoring anchors

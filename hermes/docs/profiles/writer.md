@@ -47,15 +47,16 @@ together (see [topology](../topology.md) "Candidate rollout and cutover").
 
 ## Writer post family
 
-Post text is a Writer artifact, not a Marketer-side paraphrase of a brief.
+Post text is a Writer artifact, not a requester-side paraphrase of a brief.
 The post leaves (`write-post`, `edit-post`, `analyze-post`) serve X/Instagram,
 each with its own platform references. Source text and style examples are
 distinct from claim evidence. X Articles are not posts; Instagram captions are
 not image text. Metadata and unresolved insertion markers never enter published
 bodies.
 
-The requester accepts the actual draft; Marketer then checks platform fit,
-claims and legal conditions and requires exact remote-save consent. Text
+The requester (for marketing, the Assistant) accepts the actual draft, checks
+platform fit, claims and legal conditions and requires exact remote-save
+consent; Marketer may review it as advice. Text
 defects go back to Writer. A changed draft needs new approval. Service-draft
 support is verified separately; the user publishes. Analyze returns a report and
 never publishes or silently rewrites its target.
@@ -162,8 +163,8 @@ purpose calls for action. Edits compare the full revision with protected and
 untouched fields; analysis quotes observations without producing replacement
 copy or claiming conversion performance/legal clearance.
 
-The requester independently accepts the actual draft/report. Marketer consumes
-accepted copy fields unchanged, performs its existing inspection and requires
+The requester independently accepts the actual draft/report, consumes
+accepted copy fields unchanged, performs its inspection and requires
 exact-candidate remote-save consent; it saves drafts only and the user
 publishes. A direct Writer peer response is not independently accepted merely
 because it includes self-review. Text defects go back to Writer, not through
