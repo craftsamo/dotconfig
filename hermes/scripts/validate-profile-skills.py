@@ -742,12 +742,43 @@ def validate_worker(
     return len(leaves) + len(writing) + len(entries) + len(creator_entries), len(learned)
 
 
-SEARCHER_ENTRIES = ("plan-searcher", "build-searcher", "qa-searcher")
-SEARCHER_UNITS = ("lookup", "sweep", "hunt")
+STAGES = ("plan", "build", "qa")
+STAGE_SECTIONS = ("## Output template", "## Verification", "## Handoff")
+MODE_SECTIONS = ("## Plan", "## Build", "## Output template", "## Verification", "## Handoff")
+
+SEARCHER_MODES = ("lookup", "sweep", "hunt")
+SEARCHER_ENTRIES = tuple(f"{mode}-searcher" for mode in SEARCHER_MODES)
+SEARCHER_SHARED_REFERENCES = {f"{stage}.md" for stage in STAGES}
+
+
+def _pipeline_documents(pipeline_dir: Path) -> set[str]:
+    return {
+        path.relative_to(pipeline_dir).as_posix()
+        for path in pipeline_dir.rglob("*")
+        if path.is_file() and (
+            path.name == "SKILL.md"
+            or not any(part.startswith(".") for part in path.relative_to(pipeline_dir).parts)
+        )
+    }
+
+
+def _validate_stage_references(pipeline_dir: Path, role: str, kernel_text: str, shared: set[str],
+                               errors: list[str]) -> None:
+    """The kernel links every shared reference; each stage reference owns its sections."""
+    for name in sorted(shared):
+        if f"(references/{name})" not in kernel_text:
+            errors.append(f"{role} kernel does not link reference: {name}")
+    for stage in STAGES:
+        path = pipeline_dir / "references" / f"{stage}.md"
+        if path.is_file():
+            body = path.read_text(encoding="utf-8")
+            for section in STAGE_SECTIONS:
+                if section not in body:
+                    errors.append(f"{role} stage reference missing {section}: {stage}.md")
 
 
 def validate_searcher_entries(pipeline_dir: Path, errors: list[str]) -> dict[str, Path]:
-    """Three phase owners retain retrieval units."""
+    """Three retrieval modes over one kernel; Plan, Build and QA are shared stages."""
     entries: dict[str, Path] = {}
     links = [path for path in pipeline_dir.rglob("*") if path.is_symlink()]
     if links:
@@ -756,15 +787,8 @@ def validate_searcher_entries(pipeline_dir: Path, errors: list[str]) -> dict[str
         return entries
 
     expected = {"SKILL.md"} | {f"{name}/SKILL.md" for name in SEARCHER_ENTRIES}
-    expected.update(f"{name}/references/{unit}.md" for name in SEARCHER_ENTRIES for unit in SEARCHER_UNITS)
-    found = {
-        path.relative_to(pipeline_dir).as_posix()
-        for path in pipeline_dir.rglob("*")
-        if path.is_file() and (
-            path.name == "SKILL.md"
-            or not any(part.startswith(".") for part in path.relative_to(pipeline_dir).parts)
-        )
-    }
+    expected.update(f"references/{name}" for name in SEARCHER_SHARED_REFERENCES)
+    found = _pipeline_documents(pipeline_dir)
     for path in sorted(expected - found):
         errors.append(f"missing searcher instruction: {path}")
     for path in sorted(found - expected):
@@ -772,6 +796,7 @@ def validate_searcher_entries(pipeline_dir: Path, errors: list[str]) -> dict[str
 
     kernel = pipeline_dir / "SKILL.md"
     kernel_text = kernel.read_text(encoding="utf-8") if kernel.is_file() else ""
+    _validate_stage_references(pipeline_dir, "searcher", kernel_text, SEARCHER_SHARED_REFERENCES, errors)
     for name in SEARCHER_ENTRIES:
         entry = pipeline_dir / name / "SKILL.md"
         if not entry.is_file():
@@ -783,9 +808,9 @@ def validate_searcher_entries(pipeline_dir: Path, errors: list[str]) -> dict[str
         if not isinstance(version, str) or not version.strip():
             errors.append(f"searcher entry version must be a nonempty string: {name}")
         description = data.get("description", "")
-        unit = name.split("-", 1)[0]
-        if not isinstance(description, str) or not re.match(rf"^{unit}\b", description, re.I):
-            errors.append(f"searcher description must frontload {unit}: {name}")
+        mode = name.split("-", 1)[0]
+        if not isinstance(description, str) or not re.match(rf"^{mode}\b", description, re.I):
+            errors.append(f"searcher description must frontload {mode}: {name}")
         raw = entry.read_text(encoding="utf-8")
         if raw.find("\n---", 4) not in range(4, 4000):
             errors.append(f"searcher frontmatter exceeds 4000-character discovery prefix: {name}")
@@ -794,27 +819,23 @@ def validate_searcher_entries(pipeline_dir: Path, errors: list[str]) -> dict[str
         block = " ".join(read_before.group(1).split()) if read_before else ""
         for required in (
             'skill_view(name="searcher-pipeline")',
+            'file_path="references/<stage>.md"',
             "${HERMES_SKILL_DIR}/../SKILL.md", "${HERMES_SKILL_DIR}/SKILL.md",
-            "${HERMES_SKILL_DIR}/references/<unit>.md",
+            "${HERMES_SKILL_DIR}/../references/<stage>.md",
             "full-body", "current context", "not a past load or summary",
             "unchanged", "earlier body is unavailable", "read_file", "next_offset",
             "stop", "caller's release",
         ):
             if required not in block:
                 errors.append(f"searcher entry ReadBeforeWork missing {required}: {name}")
-        if any(section not in text for section in ("## Verification", "## Handoff", "## Output template")):
-            errors.append(f"searcher entry must own its verification and handoff: {name}")
+        for section in MODE_SECTIONS:
+            if section not in text:
+                errors.append(f"searcher entry missing {section}: {name}")
         if f"({name}/SKILL.md)" not in kernel_text:
             errors.append(f"searcher kernel does not route {name}")
-        for unit in SEARCHER_UNITS:
-            if f"(references/{unit}.md)" not in text:
-                errors.append(f"searcher entry does not link owned reference {unit}: {name}")
-            reference = pipeline_dir / name / "references" / f"{unit}.md"
-            if reference.is_file():
-                body = reference.read_text(encoding="utf-8")
-                section = {"plan": "## Plan", "build": "## Output template", "qa": "## Verification"}[name.split("-", 1)[0]]
-                if section not in body:
-                    errors.append(f"searcher reference missing {section}: {reference.relative_to(pipeline_dir)}")
+        for stage in STAGES:
+            if f"(../references/{stage}.md)" not in text:
+                errors.append(f"searcher entry does not link stage reference {stage}: {name}")
 
     for path in sorted(pipeline_dir.rglob("*.md")):
         if "goal_mode" in path.read_text(encoding="utf-8"):
@@ -829,34 +850,32 @@ def validate_searcher_entries(pipeline_dir: Path, errors: list[str]) -> dict[str
     return entries
 
 
-RESEARCHER_ENTRIES = {
-    f"{phase}-researcher" for phase in ("plan", "build", "qa")
-}
-RESEARCHER_UNITS = ("evidence-pack", "tradeoff-matrix", "fact-check", "guidance")
+RESEARCHER_MODES = ("investigate", "compare", "verify", "advise")
+RESEARCHER_ENTRIES = {f"{mode}-researcher" for mode in RESEARCHER_MODES}
+RESEARCHER_SHARED_REFERENCES = {"gather.md"} | {f"{stage}.md" for stage in STAGES}
 
 
 def validate_researcher_entries(pipeline_dir: Path, errors: list[str]) -> dict[str, Path]:
-    """Three phase owners, each with four unit guides; gathering stays shared."""
+    """Four research modes over one kernel; the stages and gathering stay shared."""
     entries: dict[str, Path] = {}
     for path in pipeline_dir.rglob("*"):
         if path.is_symlink():
             errors.append(f"researcher pipeline must not contain symlinks: {path}")
     if any(path.is_symlink() for path in pipeline_dir.rglob("*")):
         return entries
-    expected = {"SKILL.md", "references/gather.md"} | {
-        f"{name}/SKILL.md" for name in RESEARCHER_ENTRIES
-    }
-    expected.update(f"{name}/references/{unit}.md" for name in RESEARCHER_ENTRIES for unit in RESEARCHER_UNITS)
-    found = {
-        p.relative_to(pipeline_dir).as_posix() for p in pipeline_dir.rglob("*")
-        if p.is_file() and (p.name == "SKILL.md" or not any(part.startswith(".") for part in p.relative_to(pipeline_dir).parts))
-    }
+    expected = {"SKILL.md"} | {f"{name}/SKILL.md" for name in RESEARCHER_ENTRIES}
+    expected.update(f"references/{name}" for name in RESEARCHER_SHARED_REFERENCES)
+    found = _pipeline_documents(pipeline_dir)
     for path in sorted(expected - found):
         errors.append(f"missing researcher document: {path}")
     for path in sorted(found - expected):
         errors.append(f"unexpected researcher document: {path}")
     kernel = pipeline_dir / "SKILL.md"
     kernel_text = kernel.read_text(encoding="utf-8") if kernel.is_file() else ""
+    _validate_stage_references(pipeline_dir, "researcher", kernel_text, RESEARCHER_SHARED_REFERENCES, errors)
+    build = pipeline_dir / "references/build.md"
+    if build.is_file() and "<Method>" not in build.read_text(encoding="utf-8"):
+        errors.append("researcher build stage must own the <Method>")
     for name in sorted(RESEARCHER_ENTRIES):
         path = pipeline_dir / name / "SKILL.md"
         if not path.is_file():
@@ -867,6 +886,8 @@ def validate_researcher_entries(pipeline_dir: Path, errors: list[str]) -> dict[s
         description = data.get("description")
         if not isinstance(description, str) or not 1 <= len(description.strip()) <= 1024:
             errors.append(f"researcher entry needs a description: {name}")
+        elif not re.match(rf"^{name.split('-', 1)[0]}\b", description, re.I):
+            errors.append(f"researcher description must frontload {name.split('-', 1)[0]}: {name}")
         if not isinstance(data.get("version"), str) or not data["version"].strip():
             errors.append(f"researcher entry needs a version: {name}")
         text = path.read_text(encoding="utf-8")
@@ -879,28 +900,23 @@ def validate_researcher_entries(pipeline_dir: Path, errors: list[str]) -> dict[s
         for required in (
             'skill_view(name="researcher-pipeline")',
             'skill_view(name="researcher-pipeline", file_path="references/gather.md")',
+            'file_path="references/<stage>.md"',
             "${HERMES_SKILL_DIR}/../SKILL.md",
             "${HERMES_SKILL_DIR}/../references/gather.md",
+            "${HERMES_SKILL_DIR}/../references/<stage>.md",
             "${HERMES_SKILL_DIR}/SKILL.md",
-            "${HERMES_SKILL_DIR}/references/<unit>.md",
             "read_file", "next_offset", "stop",
         ):
             if required not in before:
                 errors.append(f"researcher entry missing dependency/recovery {required}: {name}")
         if not re.search(r"reuse.*full.*(?:context|body)", before, re.I):
             errors.append(f"researcher entry missing full-body reuse contract: {name}")
-        for section in ("## Output template", "## Verification", "## Handoff"):
+        for section in MODE_SECTIONS:
             if section not in text:
                 errors.append(f"researcher entry missing {section}: {name}")
-        for unit in RESEARCHER_UNITS:
-            if f"(references/{unit}.md)" not in text:
-                errors.append(f"researcher entry does not link owned reference {unit}: {name}")
-            reference = pipeline_dir / name / "references" / f"{unit}.md"
-            if reference.is_file():
-                body = reference.read_text(encoding="utf-8")
-                section = {"plan": "## Plan", "build": "## Output template", "qa": "## Verification"}[name.split("-", 1)[0]]
-                if section not in body:
-                    errors.append(f"researcher reference missing {section}: {reference.relative_to(pipeline_dir)}")
+        for stage in STAGES:
+            if f"(../references/{stage}.md)" not in text:
+                errors.append(f"researcher entry does not link stage reference {stage}: {name}")
     for doc in sorted(pipeline_dir.rglob("*.md")):
         if doc.is_symlink() or not doc.resolve().is_relative_to(pipeline_dir.resolve()):
             errors.append(f"researcher document escapes pipeline: {doc}")
