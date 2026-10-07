@@ -212,10 +212,11 @@ as a separate sub-account through twscrape, paced and capped, downloads a
 post's media, records the main account's public counts and checks public
 posts in bulk through FxTwitter outside those caps (`verify`); nothing posts
 or sends. Marketer shares the tool and its caps for analysis. The browser
-stays off x.com, which carries the user's main login, with one exception:
-when the user asks for it, the Assistant completes an X Article draft in the
-editor and stops at a saved draft, never publishing or scheduling. The
-public technic `x-twitter` holds the mechanics for both. Contract:
+stays off x.com, which carries the user's main login, with two exceptions,
+both at the user's request and both stopping at a saved draft, never
+publishing or scheduling: the Assistant saves an approved ordinary post
+draft, and completes an X Article draft in the editor. The public technic
+`x-twitter` holds the mechanics for all three. Contract:
 [x-access.md](../x-access.md).
 
 note.com is the assistant's to write too (`note_access` toolset, never on
