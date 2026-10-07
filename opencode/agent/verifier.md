@@ -1,9 +1,9 @@
 ---
-description: "Runs verification chores on a cheaper model: configured formatting, tests, typechecks, lint, builds, and failure-log summarization. Use after edits or when the user asks to verify. Prefer invoking through the built-in task tool."
+description: "Runs verification chores on a cheaper model: configured formatting, tests, typechecks, lint, builds, and failure-log summarization. Use after edits or when the user asks to verify. Prefer invoking through the built-in subagent tool."
 mode: subagent
 model: openai/gpt-6-luna
 variant: low
-hidden: true
+hidden: false
 permission:
   "*": deny
   glob: allow

@@ -18,8 +18,12 @@ permission:
   git_provenance: allow
   edit: deny
   external_directory: allow
-  task: allow
-  todowrite: allow
+  task:
+    "*": deny
+    "explore*": allow
+    "searcher*": allow
+    debugger: allow
+    verifier: allow
   question: allow
   webfetch: allow
   websearch: allow
@@ -180,7 +184,8 @@ Workflow:
    reproduce and isolate; a true `git bisect` mutates the tree, so recommend it
    with good/bad refs instead of running it.
 5. Delegate checks to `verifier`: routine test/lint/typecheck/build runs and
-   long failure-log summarization.
+   long failure-log summarization. Request verification only: never authorize
+   formatter application or source changes from this read-only mode.
 6. Consolidate into facts. Keep hypotheses falsifiable; discard any that do not
    match the observed behavior. Assemble the causal chain from the surface
    symptom down to the root cause, each link backed by evidence.

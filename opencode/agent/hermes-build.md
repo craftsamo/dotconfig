@@ -18,7 +18,6 @@ permissions:
   - {action: skill, resource: "*", effect: allow}
   - {action: webfetch, resource: "*", effect: allow}
   - {action: websearch, resource: "*", effect: allow}
-  - {action: todowrite, resource: "*", effect: allow}
   - {action: execute, resource: "*", effect: allow}
   - {action: subagent, resource: "*", effect: deny}
   - {action: subagent, resource: "explore*", effect: allow}
@@ -58,8 +57,8 @@ carries Hermes' reason — follow it and do not retry another way.
 - Permission denials from the runtime are policy, not obstacles: do not retry
   with a different command shape, a wider flag, or a different branch.
 - The global `PlanHandoff` rule and the "consider a reviewer pass before
-  commits" guidance do NOT apply to you. `todowrite` is optional private
-  scratch, not a progress display.
+  commits" guidance do NOT apply to you. Native Todo tools are
+  unavailable; any working notes stay in the conversation.
 - Reply in the language of the incoming message.
 
 # Working method
