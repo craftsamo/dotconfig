@@ -281,6 +281,9 @@ Contract: [docs/hands/overview.md](docs/hands/overview.md),
 ## OpenCode integration
 
 Contract: [docs/profiles/engineer.md "OpenCode runtime"](docs/profiles/engineer.md).
+Two plugins exist while Engineer moves over: `opencode` (the Assistant) and
+`opencode-v2` (Engineer; rules at the end of this section). A profile enables one,
+since both register `opencode_session` and `opencode_history`.
 When editing `plugins/orchestration/opencode` or `~/.config/opencode/agent/hermes-*.md`:
 
 - **Two policy owners with a fixed boundary.** Each `hermes-*.md` owns its
@@ -326,6 +329,34 @@ When editing `plugins/orchestration/opencode` or `~/.config/opencode/agent/herme
   `_model_key` folding speed tiers and snapshots, or a fallback or `-fast`
   alias slips through. When a profile's main model equals a hidden primary's
   pin, give it its own `opencode_cli.models` for that role.
+
+When editing `plugins/orchestration/opencode-v2` (contract:
+[docs/profiles/engineer.md "OpenCode runtime (opencode-v2)"](docs/profiles/engineer.md)):
+
+- **The plugin keeps no run record.** The owner binding lives in the session's
+  `metadata.hermes`; a run's state is read from the service (the `idle` message
+  carries a turn's outcome). Do not add a state file, a watcher or a stored PID:
+  they would become a second source of truth that disagrees with the service. The
+  per-worktree lock file only serializes starts. Nothing enforces a deadline on
+  purpose (a run outlives Hermes); do not reintroduce one without deciding that.
+- **Roles are configuration, not code.** Role names, agents, policies and models
+  come from `opencode_v2.roles`; `DEFAULT_ROLES` is only the fallback. Code keys
+  on the policy (`read-only` / `write`), never on a role or agent name.
+- **The ruleset still carries no broad allow, with one exception:** a `write`
+  run's `edit *` in its worktree, ordered before every edit deny so the config,
+  skill and secret denies still win (a test enforces both). Anything else the
+  caller must never approve is a `deny`; an `ask` reaches the caller.
+- **Reach OpenCode only through `api.py`**, as above. Prefer stable routes over
+  `/api/experimental/*`: instructions entries are the one experimental route
+  used, with a prompt fallback when the service refuses it.
+- **Keep the `hermes_opencode2_*` module names** (api, config, policy, models,
+  turn, history) distinct from the `opencode` plugin's `hermes_opencode_*`: the
+  multiplex gateway shares one `sys.modules`, and a shared name would load
+  whichever plugin came first for both.
+- **A caller never gets its own model**, as above: keep the `post_api_request`
+  hook registered and `models.model_key` folding speed tiers and snapshots.
+- Engineer's tool deadline stays above `opencode_v2.wait_timeout`, so one
+  blocking run call hands back before its tool times out.
 
 ## Candidates and cutover
 

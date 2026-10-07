@@ -14,7 +14,7 @@ plans remain useful context, not an automatic new approval.
 | Relationship                 | Owner of decisions                                                              | Execution                                       |
 | ---------------------------- | ------------------------------------------------------------------------------- | ----------------------------------------------- |
 | Client with Engineer         | Outcome, scope and important tradeoffs agreed conversationally                  | Human clarify or structured Client Q<n> replies |
-| Engineer with OpenCode       | Technical planning, in-scope implementation sequencing, evidence and correction | opencode_call / opencode_session                |
+| Engineer with OpenCode       | Technical planning, in-scope implementation sequencing, evidence and correction | opencode*run*<role> / opencode_session          |
 | OpenCode with its own agents | Code-level methods, exploration, testing and review                             | OpenCode's own tools/skills                     |
 
 One explicit implementation approval releases the agreed scope through QA,
@@ -46,6 +46,10 @@ selection, approval compliance or delivery. Existing specialist jobs and grants
 are reconciled, never silently replayed by migration.
 
 ### OpenCode runtime
+
+This section describes the `opencode` plugin, which the Assistant still runs.
+Engineer runs [`opencode-v2`](#opencode-runtime-opencode-v2) below; a profile
+enables one of the two.
 
 `plugins/orchestration/opencode` drives the person's shared OpenCode 2 service over its HTTP
 API (`opencode_call`, `opencode_session`) and keeps the private
@@ -200,6 +204,75 @@ likely (a worktree only for isolation). A plan made on the default branch
 starts a new conversation whose message carries the proposal sections and
 decisions verbatim; a fork is a full-history copy and prunes nothing.
 
+### OpenCode runtime (opencode-v2)
+
+`plugins/orchestration/opencode-v2` is Engineer's OpenCode transport
+(`plugins.enabled: opencode-v2`, settings under `opencode_v2`). It and the
+`opencode` plugin both register `opencode_session` and `opencode_history`, so a
+profile enables only one. In the multiplex gateway registrations are scoped per
+profile, so Engineer on this plugin and the Assistant on the other do not collide.
+
+**No run record.** A run is an OpenCode session. Its metadata (`hermes`) binds it
+to the originating Hermes session (owner, routing digest), role and branch, and
+a caller can only act on sessions it is bound to. State is read from the service
+each time: the `idle` message that closes a turn carries its outcome
+(`succeeded`, `failed`, `interrupted`); the active-session list says whether it
+still runs; pending permission requests and forms say whether it is paused. Why:
+the service is the one source of truth and sessions survive Hermes. The cost is
+deliberate — nothing enforces a deadline, so a run outlives its Hermes process and
+its resident turn until the caller interrupts it, and an unanswered request
+stays pending. The only local file is a per-worktree lock under the profile home
+that serializes concurrent starts; it records nothing.
+
+**Roles are configuration.** `opencode_v2.roles` maps a role name to an installed
+OpenCode agent, a policy (`read-only` or `write`), and optionally a model
+(`provider/model[#variant]`) and a note. Each becomes an
+`opencode_run_<role>` tool; with no `roles` the four defaults apply (plan,
+review and debug read-only, build write). The agents are the person's own
+modes — there are no hidden primaries and no operating contract beyond a short
+`hermes.note` instruction entry (prepended to the prompt if the service refuses
+the entry). Hermes sits in the person's seat: a question the agent asks and a
+permission it needs arrive as `waiting` and are answered with `opencode_request`.
+OpenCode records a switch of agent in the same session (Plan → Build) and
+injects its own mode-change reminder, so a role change needs no handling here;
+each turn re-sends agent, model, permissions and metadata and verifies the
+service applied them before the prompt.
+
+**Policy.** `policy.rules` builds the session ruleset; the boundary is the same
+as above (subagents copy it and OpenCode applies it after their own posture, so
+it holds denies, asks and narrow allows). One deliberate exception: a `write`
+run allows `edit` in its worktree. Without it every edit is a round trip to the
+caller, as OpenCode's own build mode asks a person each time; the cost is that a
+subagent that denies itself edits (explore) loses that denial for the run. The
+allow is placed before the edit denies for OpenCode's config/skill directories
+and secret files, which therefore still win. `read-only` denies edits and the
+`worker` and `general` subagents. Both policies keep secrets unreadable, deny
+force and protected-branch pushes, merges and `gh api`, and ask for history
+rewrites, branch moves, package runners and ungranted Issue writes. A write run
+needs the Client's quoted `approval`, a named non-default task branch, and a
+worktree no other session is running in. Models follow the same rules as above:
+any catalog model of `allowed_providers` that can use tools, never the
+caller's own.
+
+**Hand-back.** A run tool returns when the turn finished (`completed`, `failed`,
+`interrupted`), paused (`waiting`), is stuck in a provider retry worth a decision
+(`running` with `retrying`; a limit at once, anything else from the third
+attempt), or cannot be confirmed (`unknown`: service unreachable for two minutes,
+no outcome 30 s after the run stopped, or a prompt whose admission was not
+confirmed). Otherwise it returns `running` with `timed_out` at
+`min(opencode_v2.wait_timeout, tool deadline − 30 s, turn deadline)`.
+`opencode_session wait` blocks the same way and takes `through_retry` to wait a
+retry out. Engineer's tool deadline (3660) stays above `wait_timeout` (3300).
+`unknown` blocks nothing: with no record there is nothing to reconcile, so the
+caller reads the diff and worktree before another turn. A live (Telegram) caller
+gets the current state at once and a notifier process for the next hand-back.
+
+**Tests.** `opencode-v2/tests` run against a fake service
+(`fake_service.py`) that models the messages, idle markers, requests and forms
+the real service returns. They cannot show what the real service does; the shape
+of those replies was measured on OpenCode 2.0.23 and a real-service smoke run is
+a manual step before a cutover.
+
 ### Resident turns and reconcile
 
 A resident Engineer is a plain CLI process, and CLI has no background-process
@@ -221,7 +294,9 @@ they are told only to stop with a checkpoint report). `build-engineer`
 checkpoint-commits verified increments and stops at
 ~15 min remaining. An OpenCode turn's own deadline never outlives the resident
 turn (`RESIDENT_DEADLINE`), so a run still going then is interrupted, not left
-uncertain. The Assistant sizes turns to one verifiable increment and continues
+uncertain. (That describes the `opencode` plugin. Under `opencode-v2` nothing
+interrupts a run at the turn's end; Engineer interrupts it, or a read-only run
+is read next turn.) The Assistant sizes turns to one verifiable increment and continues
 in the same conversation — never a whole "implement to PR" scope in one turn,
 which strands uncommitted work.
 
@@ -229,8 +304,11 @@ An interrupted conversation accepts `specialist_call(kind="reconcile")` and
 nothing else. OpenCode records are owned by the Engineer session + routing
 digest, so after a timeout only the SAME resident session can
 `opencode_session reconcile` its children — a fresh conversation or a terminal
-resume is refused as "another originating session". The reconcile turn runs
-with `RESIDENT_TURN_KIND=reconcile`, under which `opencode_call` is refused; on
+resume is refused as "another originating session" (the same binding holds
+under `opencode-v2`, where the turn inspects with `status`/`diff` and
+`interrupt`s instead of reconciling). The reconcile turn runs
+with `RESIDENT_TURN_KIND=reconcile`, under which `opencode_call` and every
+`opencode_run_<role>` are refused; on
 success the conversation ends `reconciled` (closable, never resumable for
 work). The Assistant-side `kind` validation runs inside the gateway process, so
 changing it needs a gateway restart; runner/handoff/opencode changes apply on

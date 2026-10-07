@@ -112,7 +112,8 @@ backed by the two blind A/Bs above (small n per arm). Provider facts:
   pinned to it, but searcher's stay `auto`, which resolves to its main model:
   compression and titles there now run on GPT-6.1 Sol. The ChatGPT subscription
   is sized for OpenCode (its searchers,
-  `debugger`, `reviewer-deep`, `hermes-build`, all on GPT-6.1 Sol, and cheap
+  `debugger`, `reviewer-deep`, the build role (`hermes-build`, or
+  `opencode_v2.roles.build`), all on GPT-6.1 Sol, and cheap
   subagents) and shares one Plus allowance with Hermes, so keep the tier off
   profiles with heavy jobs: a single `video-creator` job reads tens of millions
   of tokens and would exhaust it for OpenCode too. GPT-6.1 Sol rejects
