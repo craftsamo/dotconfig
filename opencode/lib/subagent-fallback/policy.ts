@@ -16,17 +16,6 @@ export type QuotaProof = {
   reason?: string
 }
 
-export type BillingProof = {
-  state: "subscription_only" | "credits_available" | "paid_risk" | "unknown"
-  observedAt: number
-  reason?: string
-}
-
-export type UsageProof = {
-  quota: QuotaProof
-  billing: BillingProof
-}
-
 export type AccountProof = {
   connectionID: string
   providerID: string
@@ -48,26 +37,13 @@ export type LaunchDecision =
   | { kind: "default" | "fallback" | "credits"; model: ModelRef }
   | { kind: "stop"; reason: string }
 
-export const QUOTA_MAX_AGE_MS = 30_000
+// Quota's default refresh is five minutes; allow the export's next UI refresh.
+export const QUOTA_MAX_AGE_MS = 6 * 60_000
 
 export const REASON_SOURCE_ACCOUNT =
   "The source provider account is missing or is not an approved subscription OAuth connection."
-export const REASON_SOURCE_BILLING =
-  "The source provider billing proof is missing, stale, invalid, or not subscription-only."
-export const REASON_TARGET_BILLING =
-  "The alternate provider billing proof is missing, stale, invalid, or not subscription-only."
-export const REASON_TARGET_MISSING =
-  "The source quota is exhausted and no alternate provider proof was supplied."
 export const REASON_TARGET_ACCOUNT =
   "The alternate provider account is missing or is not an approved subscription OAuth connection."
-export const REASON_TARGET_QUOTA =
-  "The alternate provider quota proof is unknown, stale, or invalid."
-export const REASON_TARGET_EXHAUSTED =
-  "Both the source and alternate provider quota pools are exhausted."
-export const REASON_CREDIT_QUOTA_UNKNOWN =
-  "The included quota state is unknown, so existing credits cannot be used yet."
-export const REASON_CREDITS_UNAVAILABLE =
-  "Both included quota pools are exhausted and no existing credits are available."
 export const REASON_CATALOG =
   "The selected model is not available in the catalog with the required status, tools, variant, and limits."
 
@@ -159,27 +135,12 @@ export function freshState(
   if (quota.state === "available") return "available"
   if (quota.state === "exhausted") {
     if (
-      quota.resetAt === undefined ||
-      !Number.isFinite(quota.resetAt) ||
-      quota.resetAt <= now
+      quota.resetAt !== undefined &&
+      (!Number.isFinite(quota.resetAt) || quota.resetAt <= now)
     )
       return undefined
     return "exhausted"
   }
-  return undefined
-}
-
-function billingKnown(
-  billing: BillingProof | undefined,
-  now: number,
-): "subscription_only" | "credits_available" | undefined {
-  if (!billing) return undefined
-  if (!Number.isFinite(billing.observedAt) || !Number.isFinite(now))
-    return undefined
-  const age = now - billing.observedAt
-  if (age < 0 || age > QUOTA_MAX_AGE_MS) return undefined
-  if (billing.state === "subscription_only") return "subscription_only"
-  if (billing.state === "credits_available") return "credits_available"
   return undefined
 }
 
@@ -211,13 +172,11 @@ export function decideLaunch(input: {
   source: {
     account: AccountProof | undefined
     quota: QuotaProof
-    billing: BillingProof
   }
   target:
     | {
         account: AccountProof | undefined
         quota: QuotaProof
-        billing: BillingProof
       }
     | undefined
   catalog: CatalogModel[]
@@ -228,50 +187,28 @@ export function decideLaunch(input: {
 
   if (!approved(source.account, route.primary.providerID))
     return stop(REASON_SOURCE_ACCOUNT)
-  const sourceBilling = billingKnown(source.billing, now)
-  if (!sourceBilling) return stop(REASON_SOURCE_BILLING)
-
   const sourceState = freshState(source.quota, now)
-  if (sourceState === "available") {
+  if (sourceState !== "exhausted") {
     if (!catalogOk(catalog, route.primary)) return stop(REASON_CATALOG)
     return { kind: "default", model: route.primary }
   }
 
   const targetAccountOk =
     !!target && approved(target.account, route.alternate.providerID)
-  const targetBilling = target ? billingKnown(target.billing, now) : undefined
   const targetState = target ? freshState(target.quota, now) : undefined
-
-  if (
-    targetAccountOk &&
-    targetBilling &&
-    targetState === "available" &&
-    catalogOk(catalog, route.alternate)
-  )
-    return { kind: "fallback", model: route.alternate }
-
-  if (sourceState !== "exhausted") {
-    if (sourceBilling === "credits_available")
-      return stop(REASON_CREDIT_QUOTA_UNKNOWN)
+  // Missing/stale data is not exhaustion; leave the usual model to the provider.
+  if (!targetState) {
     if (!catalogOk(catalog, route.primary)) return stop(REASON_CATALOG)
     return { kind: "default", model: route.primary }
   }
 
-  if (!target) return stop(REASON_TARGET_MISSING)
   if (!targetAccountOk) return stop(REASON_TARGET_ACCOUNT)
-  if (!targetState) return stop(REASON_TARGET_QUOTA)
   if (targetState === "available") {
-    if (!targetBilling) return stop(REASON_TARGET_BILLING)
-    return stop(REASON_CATALOG)
-  }
-
-  if (sourceBilling === "credits_available") {
-    if (!catalogOk(catalog, route.primary)) return stop(REASON_CATALOG)
-    return { kind: "credits", model: route.primary }
-  }
-  if (targetBilling === "credits_available") {
     if (!catalogOk(catalog, route.alternate)) return stop(REASON_CATALOG)
-    return { kind: "credits", model: route.alternate }
+    return { kind: "fallback", model: route.alternate }
   }
-  return stop(REASON_CREDITS_UNAVAILABLE)
+  // No independent credit balance check. Native OAuth/provider behavior decides
+  // whether the usual model can proceed; this is an attempt, not billing proof.
+  if (!catalogOk(catalog, route.primary)) return stop(REASON_CATALOG)
+  return { kind: "credits", model: route.primary }
 }
