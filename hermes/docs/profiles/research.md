@@ -37,7 +37,13 @@ claim ledger) and `advise-researcher` (directives for a named consumer). Each
 entry owns what Plan, Build and QA mean for its question — framing, synthesis,
 output template and verification — while the stages themselves are shared
 `references/plan.md`, `build.md` (with the evidence Method) and `qa.md` beside
-`references/gather.md`, which is required beyond a few direct lookups. This is
+`references/gather.md`, which is required beyond a few direct lookups.
+On-chain evidence comes from the read-only `evm` and `solana` tools: the
+kernel's source evaluation says how chain state, text in the chain and
+name-based leads score, and `references/platforms/evm.md` and `solana.md`
+(one per chain, like Marketer's per-service references) hold each chain's
+patterns — who controls a contract or program, test calls, fund trails — and
+limits. This is
 the shape of Marketer's and Creator's advisory entries: modes named for the
 work, one kernel, shared references. `validate_researcher_entries` enforces the
 closed tree, kernel routing and links, canonical recovery paths and each
@@ -68,8 +74,10 @@ stage references. Retrieval and link integrity remain its limits: no trust
 verdicts, synthesis, rankings or production. Beyond web search and `x_search`,
 it reads public X posts, YouTube, note and Substack through the `x`, `youtube`,
 `note` and `substack` tools, each limited to a public-only action list (see
-[x-access.md](../x-access.md) "Profiles"); the `x` tool's `search` is only the
-fallback for when `x_search` is unavailable, within a capped share of the
+[x-access.md](../x-access.md) "Profiles"), and reads chains through `evm` and
+`solana` (what to record, kept to facts, in its own
+`references/platforms/evm.md` and `solana.md`); the `x` tool's `search` is only
+the fallback for when `x_search` is unavailable, within a capped share of the
 shared X reads. It never gets the messaging tools, the user's own drafts,
 statistics or channels, or any write.
 

@@ -20,6 +20,7 @@ Keychain. Part of the Hermes design docs — index:
 | Engine dependencies, hash-locked                                                                                                    | `engines/web3/requirements.{in,lock}` → `local/web3/venv`                                                                      | both plugins                              |
 | Setup and status launcher                                                                                                           | `scripts/web3.sh install\|status\|addresses`                                                                                   | people                                    |
 | When and how the Assistant reads chains and sends funds                                                                             | the Assistant's Chat reference `web3.md`                                                                                       | Assistant                                 |
+| How Researcher weighs and gathers chain evidence, and what Searcher records from chains | each pipeline's `references/platforms/evm.md` and `solana.md` | Researcher, Searcher |
 
 Every profile in the plugins' list gets the read actions; the Assistant's
 tools also carry the wallet actions (`accounts`, `quote`, `transfer`,
@@ -87,9 +88,10 @@ descriptions, revert strings, memo and log text — is data from strangers:
 results return it as `{"untrusted": …}`, and the tool description tells
 the model it never carries instructions.
 
-Both tools answer inbound A2A reads on Researcher, Searcher and Marketer,
-whose work arrives that way; the Assistant refuses them, as for its other
-accounts, and no inbound request ever reaches a wallet action. A call names a
+Both tools answer inbound A2A reads on Researcher and Marketer, whose work
+arrives that way (Searcher works only in resident sessions and has no A2A
+endpoint); the Assistant refuses them, as for its other accounts, and no
+inbound request ever reaches a wallet action. A call names a
 chain of its tool's family and an action its profile has; anything else is
 refused before the engine starts, and only the action's own fields reach the
 engine.
