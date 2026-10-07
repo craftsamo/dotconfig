@@ -1,8 +1,7 @@
 description: 'Purpose-led retrieval through Plan, Build and QA: proposes bounded
   lookup / sweep / hunt units from client purpose, consumer, constraints and budget,
   agrees scope, retrieves real web/X sources and checks links and coverage.
-  Resident work or unchanged survey-enumeration / exhaustive-hunt cards; valid
-  cards enter Build then QA directly, malformed cards are refused. Delivers
-  link-first findings with open gaps, never synthesis, rankings, whole-project
-  decomposition, cross-role assignment or card registration.'
+  Resident work only; every kanban card is refused. Delivers link-first
+  findings with open gaps, never synthesis, rankings, whole-project
+  decomposition or cross-role assignment.'
 description_auto: false

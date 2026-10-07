@@ -79,9 +79,6 @@ ASSISTANT_CARD_UNITS = {
     "execute-assistant-creative": {
         "anchored-image-batch": "creator", "deterministic-render": "creator"
     },
-    "execute-assistant-search": {
-        "survey-enumeration": "searcher", "exhaustive-hunt": "searcher"
-    },
 }
 # The sanctioned (mode, capability, subdir) shelf below entry references:
 # creative's legacy/, the flat home of retained production references with
@@ -307,7 +304,7 @@ def validate_card_units(
 
 
 def collect_card_catalog() -> dict[str, str]:
-    """Best-effort card catalog from the two authorized Execute entries.
+    """Best-effort card catalog from the one authorized Execute entry (creative).
 
     Used when validating a single worker profile without the full assistant
     pass; schema errors are ignored here (the --all pass reports them).
@@ -489,7 +486,7 @@ def validate_assistant_pipeline(
         if doc.name == "SKILL.md" and doc.relative_to(ASSISTANT_PIPELINE).parts not in allowed:
             errors.append(f"unexpected skill root: {rel_pipeline(doc)}")
         if doc not in card_paths and "card_units" in frontmatter(doc):
-            errors.append(f"card_units are only legal on creative/search Execute SKILL.md: {rel_pipeline(doc)}")
+            errors.append(f"card_units are only legal on the creative Execute SKILL.md: {rel_pipeline(doc)}")
         for link, target in markdown_links(doc):
             if not target.is_relative_to(ASSISTANT_PIPELINE.resolve()):
                 errors.append(f"assistant reference link escapes the pipeline: {link} in {rel_pipeline(doc)}")
@@ -979,7 +976,7 @@ SEARCHER_UNITS = ("lookup", "sweep", "hunt")
 
 
 def validate_searcher_entries(pipeline_dir: Path, errors: list[str]) -> dict[str, Path]:
-    """Three phase owners retain retrieval units and the existing card gate."""
+    """Three phase owners retain retrieval units; Searcher defines no card units."""
     entries: dict[str, Path] = {}
     links = [path for path in pipeline_dir.rglob("*") if path.is_symlink()]
     if links:
@@ -1030,7 +1027,7 @@ def validate_searcher_entries(pipeline_dir: Path, errors: list[str]) -> dict[str
             "${HERMES_SKILL_DIR}/references/<unit>.md",
             "full-body", "current context", "not a past load or summary",
             "unchanged", "earlier body is unavailable", "read_file", "next_offset",
-            "stop", "card gate", "caller's release",
+            "stop", "kanban card", "caller's release",
         ):
             if required not in block:
                 errors.append(f"searcher entry ReadBeforeWork missing {required}: {name}")
@@ -1048,10 +1045,12 @@ def validate_searcher_entries(pipeline_dir: Path, errors: list[str]) -> dict[str
                 if section not in body:
                     errors.append(f"searcher reference missing {section}: {reference.relative_to(pipeline_dir)}")
 
-    # Searcher's cards are declared by Assistant, never re-declared on a unit.
+    # Searcher defines no card units, and no goal_mode loop exists without a card.
     for path in sorted(pipeline_dir.rglob("*.md")):
         if "card_units" in frontmatter(path):
             errors.append(f"searcher must not declare card_units: {path}")
+        if "goal_mode" in path.read_text(encoding="utf-8"):
+            errors.append(f"searcher defines no cards, so it has no goal_mode: {path}")
         if path.name != "SKILL.md" and "name" in frontmatter(path):
             errors.append(f"searcher reference must not declare a skill name: {path}")
         for link, target in markdown_links(path):

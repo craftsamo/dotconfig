@@ -10,5 +10,6 @@
   frontier is followed rather than replaying the same phrasing or losing state.
 - Gaps state what was NOT found, where it might live, and what Researcher must
   verify or synthesize. Silence is not coverage.
-- Done criteria, exclusions, saturation and budget match the ledger. goal_mode
-  turns remain one hop; non-goal inline work retains the 2-3 hop bound and cap.
+- Done criteria, exclusions, saturation and budget match the ledger. A turn
+  that ended before saturation states why, hands back the ledger and gaps, and
+  stays within the agreed cap.

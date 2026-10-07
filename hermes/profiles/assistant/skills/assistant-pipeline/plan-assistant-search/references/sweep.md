@@ -7,17 +7,14 @@ matrix, dedup, and saturation mechanics; its Plan proposes population, coverage
 and fields for Client agreement against your purpose and consumer.
 
 Searcher unit `sweep` · QA `sweep` · units: one enumeration per
-unit; card-eligible as `survey-enumeration` once every decision
-below is settled.
+unit, run as a resident session.
 
 ## Agree before Build
 
 These are proposal choices, not required inputs for a purpose-first Plan.
 The caller may author them fully; otherwise Searcher proposes them for Client
 agreement. Follow the parent entry's agreement and preliminary Build gates;
-retain same-role unit boundaries. Cards require every settled `required_inputs`
-field and never host Plan; `../../references/execute/kanban-lite.md` remains
-specification authority.
+retain same-role unit boundaries.
 
 - **The population** — one line naming what counts as a member and
   what plainly does not; the boundary cases decide the dedup
@@ -50,7 +47,7 @@ specification authority.
 ## Red flags
 
 - No floor count or measurable claim: specialist Plan proposes coverage from
-  purpose; Build or card release without settled coverage is a spec-gap finding.
+  purpose; Build release without settled coverage is a spec-gap finding.
 - Per-item fields undecided: specialist Plan proposes them from consumer needs;
   agree before Build rather than retrieve a table that must be rebuilt.
 - The sweep wants the items ranked, scored, or recommended —

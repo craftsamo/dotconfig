@@ -16,10 +16,10 @@ probes, QA cards — is retired; do not write or expect those markers.
 
 ## The closed catalog
 
-**A card must be one catalog unit.** The catalog is the union of
-`card_units` front matter in `../../execute-assistant-creative/SKILL.md`
-and `../../execute-assistant-search/SKILL.md`; a card is
-legal only when:
+**A card must be one catalog unit.** The catalog is the `card_units` front
+matter in `../../execute-assistant-creative/SKILL.md`; only Creator has units.
+Search, research, engineering, writing and marketing never ride the board. A
+card is legal only when:
 
 1. its work matches one unit's `name` and unit definition,
 2. every `required_inputs` item exists and is settled (an approved
@@ -61,17 +61,16 @@ body:
 
 Parameters:
 
-- `assignee` — required; exact profile name (`creator`, `writer`,
-  `researcher`, `searcher`, `engineer`, `marketer`). The dispatcher never
-  validates it: a typo leaves the card sitting unclaimed forever, so
-  double-check the name.
+- `assignee` — required; the unit's exact profile name (`creator`). The
+  dispatcher never validates it: a typo leaves the card sitting unclaimed
+  forever, so double-check the name.
 - `skills: ["<profile>-pipeline", ...optional technics]` — always pin the
   pipeline; add a technic only when the deliverable clearly selects one
   that exists on that profile.
 - `workspace_kind`: `scratch` default; `worktree` + absolute
   `workspace_path` (or `project: <slug>`) for repo work; `dir` rare.
 - `max_runtime_seconds` = the unit's `runtime_cap`; `goal_mode: true`
-  (+ `goal_max_turns`) only where the unit says so (open-ended hunts).
+  (+ `goal_max_turns`) only where the unit says so.
 - `idempotency_key` on any retry/re-dispatch so a duplicate returns the
   existing card.
 - Require `subscribed=true` on create (a gateway chat auto-subscribes);

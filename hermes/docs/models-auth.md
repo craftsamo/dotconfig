@@ -65,8 +65,11 @@ and the **image-creator** / **audio-creator** hands lead on
   tier, pending runtime capability/entitlement validation (vision is
   unverified for these profiles); it is not adopted silently, and the
   OpenRouter tail is not removed to make room for it.
-- **Searcher** stays on `xai-oauth` / grok-4.3: xAI capacity is reserved for
-  Searcher, X search and Imagine video.
+- **Searcher leads on GPT-6.1 Sol** (`openai-codex`), then Sonnet 5.5, then
+  `xai-oauth` / grok-4.7, then the OpenRouter tail. xAI stays in the chain
+  because `x_search` and Imagine video draw on it. Searcher is the only profile that leads on the
+  shared ChatGPT allowance, so re-size OpenCode's usage if its retrieval volume
+  grows ("Codex" below).
 - The coding model inside OpenCode is a separate layer: Engineer uses
   OpenCode's configured per-agent defaults, optionally overridden by maintainer
   `opencode_cli.models`. No second fixed ladder or automatic replay of an
@@ -78,7 +81,7 @@ and the **image-creator** / **audio-creator** hands lead on
 | **assistant**                        | `anthropic` / **claude-opus-5-5**   | `anthropic` / claude-fable-5-1    | `anthropic` / claude-sonnet-5-5   | `openai-codex` / gpt-6.1-sol                | `openrouter` / `xiaomi/mimo-v2.5`           | `medium`           |
 | **engineer**                         | `anthropic` / **claude-fable-5-1**  | `anthropic` / claude-opus-5-5     | `anthropic` / claude-sonnet-5-5   | `openrouter` / `deepseek/deepseek-v4-flash` | —                                           | `high`             |
 | **researcher**                       | `anthropic` / **claude-sonnet-5-5** | `anthropic` / claude-opus-5-5     | `openai-codex` / gpt-6.1-sol      | `openrouter` / `xiaomi/mimo-v2.5`           | —                                           | `medium`           |
-| **searcher**                         | `xai-oauth` / grok-4.3              | `openrouter` / `xiaomi/mimo-v2.5` | —                                 | —                                           | —                                           | `low`              |
+| **searcher**                         | `openai-codex` / **gpt-6.1-sol**    | `anthropic` / claude-sonnet-5-5   | `xai-oauth` / grok-4.7            | `openrouter` / `xiaomi/mimo-v2.5`           | —                                           | `low`              |
 | **creator**, **video-creator**       | `anthropic` / **claude-opus-5-5**   | `anthropic` / claude-fable-5-1    | `anthropic` / claude-sonnet-5-5   | `openrouter` / `minimax/minimax-m3`         | —                                           | `medium`           |
 | **image-creator**, **audio-creator** | `anthropic` / **claude-sonnet-5-5** | `anthropic` / claude-opus-5-5     | `anthropic` / claude-fable-5-1    | `openrouter` / `minimax/minimax-m3`         | —                                           | `medium`           |
 | **writer**                           | `anthropic` / **claude-sonnet-5-5** | `anthropic` / claude-opus-5-5     | `anthropic` / claude-fable-5-1    | `openai-codex` / gpt-6.1-sol                | `openrouter` / `deepseek/deepseek-v4-flash` | `medium`           |
@@ -104,9 +107,11 @@ backed by the two blind A/Bs above (small n per arm). Provider facts:
   `get_model_context_length` reports 1M for it via the `claude-fable` prefix.
 - **Codex** (`base_url: https://chatgpt.com/backend-api/codex`) — **images,
   plus one last-resort chat tier.** GPT-6.1 Sol sits ahead of the OpenRouter
-  tail on `writer`, `researcher` and `assistant` only, so a spent Claude weekly
-  pool degrades to a capable model instead of a cheap one. No auxiliary task is
-  pinned to it. The ChatGPT subscription is sized for OpenCode (its searchers,
+  tail on `writer`, `researcher` and `assistant`, and the lead tier on
+  `searcher`, so a spent Claude weekly pool degrades to a capable model instead of a cheap one. No auxiliary task is
+  pinned to it, but searcher's stay `auto`, which resolves to its main model:
+  compression and titles there now run on GPT-6.1 Sol. The ChatGPT subscription
+  is sized for OpenCode (its searchers,
   `debugger`, `reviewer-deep`, `hermes-build`, all on GPT-6.1 Sol, and cheap
   subagents) and shares one Plus allowance with Hermes, so keep the tier off
   profiles with heavy jobs: a single `video-creator` job reads tens of millions
@@ -119,20 +124,22 @@ backed by the two blind A/Bs above (small n per arm). Provider facts:
   default) still try `openai-codex` for images, which draws on that shared pool.
   Do not add the tier to another profile or an aux task without re-sizing
   OpenCode's usage.
-- **xAI (searcher only)** — `xai-oauth` (`base_url: https://api.x.ai/v1`) is a
+- **xAI (searcher T3, `x_search`, Imagine)** — `xai-oauth` (`base_url: https://api.x.ai/v1`) is a
   flat-rate **xAI subscription**, not the metered
   `XAI_API_KEY` API, so per-token prices do not apply and searcher adds no
-  worker to the Claude weekly pool. grok-4.3 is positioned for _tool calling and
-  instruction following_ — the right shape for link-first retrieval — and its
-  reasoning can be switched off (`none`). It is on the reasoning-capable
-  allowlist (`model_metadata.py`), so its `reasoning_effort` really is sent as
-  `reasoning: {effort: …}`; non-allowlisted Grok models have the field dropped
-  on purpose, because xAI answers an unsupported `reasoningEffort` with 400.
+  worker to the Claude weekly pool. grok-4.7 is not on the reasoning-capable
+  allowlist (`model_metadata.py` lists `grok-4.3`, `grok-4.5`, `grok-4.6`), so
+  Hermes drops its `reasoning_effort` on purpose, because xAI answers an
+  unsupported `reasoningEffort` with 400, and the profile's `low` does not
+  reach it. Its context length is not in the static table either (the closest
+  prefix, `grok-4`, is 256K against the catalog's 500K).
 
-  **A lapsed xAI OAuth does not degrade searcher to its lower tiers.**
-  Credential resolution fails before the request is built, so the agent aborts
-  with `xAI OAuth state is missing access_token` and `fallback_providers` never
-  engages. The same gate hides `x_search` from the schema, which
+  **A lapsed xAI OAuth is no longer a searcher outage, but it still hides
+  `x_search`.** While xAI led, credential resolution failed before the request
+  was built, so the agent aborted with `xAI OAuth state is missing access_token`
+  and `fallback_providers` never engaged. With Codex leading, chat no longer
+  depends on that login; the same gate still hides `x_search` from the
+  schema, which
   `hermes doctor` misleadingly reports as `x_search (missing XAI_API_KEY)` — the tool
   prefers the OAuth bearer and only falls back to the key (`tools/xai_http.py`).
   Re-authenticate with `hermes model` from the **default** profile — never

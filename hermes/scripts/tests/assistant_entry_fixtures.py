@@ -9,9 +9,6 @@ CARDS = {
     "execute-assistant-creative": {
         "anchored-image-batch": "creator", "deterministic-render": "creator"
     },
-    "execute-assistant-search": {
-        "survey-enumeration": "searcher", "exhaustive-hunt": "searcher"
-    },
 }
 
 

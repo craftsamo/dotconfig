@@ -104,11 +104,16 @@ call times) and lock files.
 | --------- | ------------------------------- | ------------- |
 | Assistant | every read and write            | refused       |
 | Marketer  | reads only (schema and handler) | reads allowed |
+| Searcher  | public reads only               | refused       |
 
 The action list a profile gets is fixed when the plugin registers and checked
 again by the gate and the engine. Marketer's endpoint is inquiry-only: an
 inbound request reads only when the turn's bound profile home is Marketer's,
-failing closed otherwise.
+failing closed otherwise. Searcher gets `status`, `search`, `videos`,
+`channels`, `playlist`, `comments` and `transcript`: no `my_videos`,
+`analytics`, `my_channel` or `captions` (the user's own channels), no
+`download` (it writes media files) and no channel selector. Its searches
+count against the 100 a day all profiles share.
 
 ## Reads
 

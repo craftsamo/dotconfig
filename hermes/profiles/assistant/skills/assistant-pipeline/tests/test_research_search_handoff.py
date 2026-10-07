@@ -14,18 +14,7 @@ UNITS = {
     "research": ("evidence-pack", "tradeoff-matrix", "fact-check", "guidance"),
     "search": ("lookup", "sweep", "hunt"),
 }
-CARD_YAML = """card_units:
-  - name: survey-enumeration
-    assignee: searcher
-    required_inputs: [settled-question, coverage-claim, per-item-fields]
-    unit_cap: "one enumeration/survey with an explicit floor count and per-item field list"
-    runtime_cap: 1800
-  - name: exhaustive-hunt
-    assignee: searcher
-    required_inputs: [settled-question, done-criteria, scope-exclusions]
-    unit_cap: "one goal-mode multi-hop source hunt; goal_mode: true + goal_max_turns"
-    runtime_cap: 3600
-"""
+RETIRED_SEARCH_CARDS = ("survey-enumeration", "exhaustive-hunt")
 
 
 def public_pipeline(domain):
@@ -102,26 +91,29 @@ class ResearchSearchHandoffTest(unittest.TestCase):
             self.assertIn("bounded preliminary Build", public)
             self.assertRegex(public, r"(?:agree the main work|Do not silently release the main work)")
 
-    def test_exact_card_catalog_and_both_lanes(self):
+    def test_search_defines_no_cards_and_is_resident_only_on_both_sides(self):
         raw = (ROOT / "execute-assistant-search/SKILL.md").read_text(encoding="utf-8")
-        self.assertIn(CARD_YAML, raw)
-        self.assertEqual(yaml.safe_load(raw.split("---\n", 2)[1])["card_units"],
-                         yaml.safe_load(CARD_YAML)["card_units"])
+        self.assertNotIn("card_units", yaml.safe_load(raw.split("---\n", 2)[1]))
         caller = " ".join(raw.split())
         public = text(public_pipeline("search") / "SKILL.md")
-        for token in ("survey-enumeration", "exhaustive-hunt", "kanban_block(kind=capability)"):
-            self.assertIn(token, caller)
-            self.assertIn(token, public)
+        self.assertIn("Search never rides kanban", caller)
+        self.assertIn("refused by the searcher with `kanban_block(kind=capability)`", caller)
         self.assertIn("No detailed prebuilt spec is required to start Plan", caller)
-        self.assertIn("Cards never host Plan", caller)
-        self.assertIn("Build -> specialist QA -> terminal", caller)
-        self.assertIn("Build -> QA -> terminal", public)
-        self.assertIn("Lookups never ride kanban", caller)
-        self.assertIn("kanban-lite.md` remains specification authority", caller)
-        for marker in ("STATE:", "DECISION(Q<n>):", "PROGRESS:", "AUTHORITY+:",
-                       "needs_input", "SCHEDULED: until=", "REVIEW:", "kanban-resolve-block.sh"):
-            self.assertIn(marker, public)
+        self.assertIn("is one conversation", caller)
+        self.assertIn("Searcher defines no card units", public)
+        self.assertIn("refused with `kanban_block(kind=capability)`", public)
+        for gone in (*RETIRED_SEARCH_CARDS, "goal_mode", "goal_max_turns"):
+            self.assertNotIn(gone, caller)
+            self.assertNotIn(gone, public)
+        for path in ROOT.glob("*-assistant-search/**/*.md"):
+            for gone in (*RETIRED_SEARCH_CARDS, "goal_mode", "goal_max_turns"):
+                self.assertNotIn(gone, path.read_text(encoding="utf-8"), path.name)
+        for marker in ("STATE:", "DECISION(Q<n>):", "AUTHORITY+:", "SCHEDULED: until=",
+                       "kanban_complete"):
+            self.assertNotIn(marker, public)
         kanban = text(ROOT / "references/execute/kanban-lite.md")
+        self.assertIn("only Creator has units", kanban)
+        self.assertNotIn("execute-assistant-search", kanban)
         self.assertIn("every `required_inputs` item exists and is settled", kanban)
         self.assertIn("One round is the cap", kanban)
         self.assertIn("Second block of any kind", kanban)

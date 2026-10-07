@@ -7,14 +7,14 @@ agreement against your purpose.
 
 Searcher unit `lookup` · QA `lookup` · units: one settled question
 per unit; a batch of related questions releases as one unit with an
-itemized list. Never a card — chat work or a session turn.
+itemized list. Chat work or a session turn.
 
 ## Agree before Build
 
 These are proposal choices, not required inputs for a purpose-first Plan.
 The caller may author them fully; otherwise Searcher proposes them for Client
 agreement. Follow the parent entry's agreement and preliminary Build gates;
-retain same-role unit boundaries. Lookups never ride cards.
+retain same-role unit boundaries.
 
 - **The question** — one line per item; a lookup that cannot be
   stated in one line is not a lookup (route to `sweep.md` or

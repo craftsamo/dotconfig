@@ -214,8 +214,11 @@ The fallback `opencode_session(action="wait", timeout?)` blocks the same way.
 
 The 90-minute resident turn (`TURN_TIMEOUT`, fixed in both
 `resident-session.sh` and `plugins/orchestration/specialist-call`) is visible to the
-specialist: the handoff prints a `Turn budget:` line from `data["deadline"]`,
-and `build-engineer` checkpoint-commits verified increments and stops at
+specialist: the handoff prints a `Turn budget:` line from `data["deadline"]` to
+every target, and asks for a committed checkpoint on the task branch only when
+the target is Engineer (`COMMIT_TARGETS`; the other roles have no branch, so
+they are told only to stop with a checkpoint report). `build-engineer`
+checkpoint-commits verified increments and stops at
 ~15 min remaining. An OpenCode turn's own deadline never outlives the resident
 turn (`RESIDENT_DEADLINE`), so a run still going then is interrupted, not left
 uncertain. The Assistant sizes turns to one verifiable increment and continues

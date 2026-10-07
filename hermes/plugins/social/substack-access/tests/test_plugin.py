@@ -93,6 +93,54 @@ def test_marketer_cannot_call_a_write_even_by_name():
     assert directive["action"] == "block" and "only read" in directive["message"]
 
 
+PRIVATE_ACTIONS = ("inbox", "published", "drafts", "draft", "prepublish", "stats",
+                   "create_draft", "update_draft", "publish", "schedule", "unschedule", "note")
+
+
+def test_searcher_sees_publications_and_posts_only():
+    ctx = registered("searcher")
+    tool = ctx.tools["substack"]
+    params = tool["schema"]["parameters"]["properties"]
+    assert tool["toolset"] == "substack_access" and [name for name, _ in ctx.hooks] == ["pre_tool_call"]
+    assert params["action"]["enum"] == ["status", "archive", "post"] == list(plugin.sa.PUBLIC_READS)
+    assert set(params) == {"action", *plugin.PUBLIC_PROPERTIES}
+    for word in ("inbox (", "published (", "drafts (", "stats (", "create_draft"):
+        assert word not in tool["description"]
+    assert "paywalled" in tool["description"] and "not available to this profile" in tool["description"]
+
+
+@pytest.mark.parametrize("action", PRIVATE_ACTIONS)
+def test_searcher_cannot_call_the_user_s_own_reads_or_writes(action, monkeypatch):
+    reached = []
+    monkeypatch.setattr(plugin.sa, "bridge", lambda op, **fields: reached.append(op) or fake_bridge(op, **fields))
+    ctx = registered("searcher")
+    args = {"action": action, "draft": "1", "text": "hi", "send_email": False}
+    directive = ctx.hooks[0][1](tool_name="substack", args=args, tool_call_id="c1")
+    assert directive["action"] == "block" and "not available to this profile" in directive["message"]
+    result = json.loads(ctx.tools["substack"]["handler"](args))
+    assert result["ok"] is False and "not available to this profile" in result["error"]
+    assert reached == []
+
+
+def test_searcher_status_and_reads_pass_the_gate_and_the_bypass_guard_stays():
+    ctx = registered("searcher")
+    gate = ctx.hooks[0][1]
+    for action in plugin.sa.PUBLIC_READS:
+        assert gate(tool_name="substack", args={"action": action, "post": "https://a.substack.com/p/x"}) is None
+    assert json.loads(ctx.tools["substack"]["handler"]({"action": "status"}))["ok"] is True
+    directive = gate(tool_name="terminal", args={"command": "secret get SUBSTACK_COOKIES"})
+    assert directive == {"action": "block", "message": plugin.sa.BYPASS_MESSAGE}
+
+
+def test_inbound_a2a_never_reaches_searcher(monkeypatch):
+    monkeypatch.setattr(plugin, "_inbound_peer", lambda: True)
+    ctx = registered("searcher")
+    directive = ctx.hooks[0][1](tool_name="substack", args={"action": "status"})
+    assert directive["action"] == "block" and "A2A" in directive["message"]
+    result = json.loads(ctx.tools["substack"]["handler"]({"action": "status"}))
+    assert result["ok"] is False and "A2A" in result["error"]
+
+
 # --- writes ---------------------------------------------------------------------------------------
 
 PREPARED = {"publication": {"name": "CraftSamo", "url": "https://craftsamo.substack.com", "subdomain": "craftsamo"},

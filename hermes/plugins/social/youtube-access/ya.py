@@ -52,7 +52,10 @@ WRITES = ("update", "thumbnail", "reply", "upload", "playlist_create", "playlist
           "playlist_update", "playlist_move", "channel_update", "watermark", "watermark_remove", "moderate",
           "caption_upload")
 ACTIONS = READS + WRITES
-PROFILE_ACTIONS = {"assistant": ACTIONS, "marketer": READS}
+# Searcher reads public YouTube only: no own-channel reads (my_videos, analytics, my_channel, captions of
+# an own video) and no download.
+PUBLIC_READS = ("status", "search", "videos", "channels", "playlist", "comments", "transcript")
+PROFILE_ACTIONS = {"assistant": ACTIONS, "marketer": READS, "searcher": PUBLIC_READS}
 # Edits approved once per video: "session" / "always" on the first card covers that video's later
 # edits. A privacy or schedule change, and every other write, is approved per exact call.
 VIDEO_EDITS = {"update", "thumbnail"}

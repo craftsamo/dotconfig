@@ -12,9 +12,9 @@ index: [`PROFILES.md`](../PROFILES.md).
 
 | Piece                                                                                                                              | Home                                                     | Reader              |
 | ---------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- | ------------------- |
-| Engine: validation, profile actions, pacing, session state, result shapes, image outbox, approval card, write ledger, bypass guard | `plugins/social/substack-access/sa.py`                          | all                 |
-| One Substack call per request in the engine venv; reads the cookies                                                                | `plugins/social/substack-access/bridge.py`                      | all                 |
-| `substack` tool and its `pre_tool_call` hooks (toolset `substack_access`)                                                          | `plugins/social/substack-access/__init__.py`                    | Assistant, Marketer |
+| Engine: validation, profile actions, pacing, session state, result shapes, image outbox, approval card, write ledger, bypass guard | `plugins/social/substack-access/sa.py`                   | all                 |
+| One Substack call per request in the engine venv; reads the cookies                                                                | `plugins/social/substack-access/bridge.py`               | all                 |
+| `substack` tool and its `pre_tool_call` hooks (toolset `substack_access`)                                                          | `plugins/social/substack-access/__init__.py`             | Assistant, Marketer |
 | Engine venv                                                                                                                        | `scripts/substack-access.sh`, `engines/python-substack/` | people              |
 | When and how the Assistant uses it                                                                                                 | the Assistant's private Chat reference `substack.md`     | Assistant           |
 | When Marketer may read with it                                                                                                     | `marketer-pipeline/references/platforms/substack.md`     | Marketer            |
@@ -76,12 +76,18 @@ refused session.
 | --------- | ------------------------------- | ------------- |
 | Assistant | every read and write            | refused       |
 | Marketer  | reads only (schema and handler) | reads allowed |
+| Searcher  | `status`, `archive`, `post`     | refused       |
 
 The action list a profile gets is fixed when the plugin registers and checked
 again in both hooks and the handler, so naming a write from Marketer is
 refused even though the tool is the same. Marketer answers a peer's question
 (an A2A inquiry from the Assistant, Creator or Engineer) with a read; the
-Assistant's account access never serves a peer.
+Assistant's account access never serves a peer. Searcher reads publications
+and posts but never the inbox, the user's own posts, drafts or statistics.
+It reads through the user's session, so a paid post the user subscribes to
+comes back in full: Searcher's description tells it to use such a post to
+check a claim, quote only what the brief needs and mark the source as
+paywalled.
 
 ## Reads
 
