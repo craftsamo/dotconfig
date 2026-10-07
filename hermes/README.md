@@ -378,6 +378,14 @@ keeps user keys.
   `xiaomi/mimo-v2.5`), so `auxiliary.vision` can stay `auto` and images route
   natively to the main model. **Pinning `auxiliary.vision` to a video-capable
   model disables the main model's native image vision.**
+- **inspection/media-inspect** (`standalone`): the `media_inspect` tool for
+  Creator and the Assistant, each offered its own action list like the
+  `social/` and `messaging/` access plugins: `probe` (format, duration,
+  streams), `frames` (stills at times or frame numbers) and `sheet` (one
+  contact sheet). Engine `media.py` (stdlib + ffprobe/ffmpeg). It never writes
+  next to the input: output goes to a fresh run directory under the OS
+  temporary directory, and runs older than seven days are removed when the
+  plugin registers.
 - **tts/tts-fallback** (`backend`, `tts.provider: tts-fallback`) and
   **tts/irodori-tts** / **tts/qwen3-tts** (`backend`, loopback clients): see
   [Local TTS engines](#local-tts-engines).
