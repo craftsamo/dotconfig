@@ -33,6 +33,7 @@ files below. Do not load every file merely because the result is a video.
 | explainer-video causal state and supplied performance | `references/explanation-performance.md`; timing/continuity files when needed |
 | music-video shots against supplied music | `references/generated-shots.md`, `references/continuity.md` |
 | master join and burned-caption review (order, transition and soundtrack are fixed by the form) | `references/motion-review.md` only; no new motion decision |
+| pixel-animation cadence, held frames and loop seam | `references/timing-spacing.md`; `references/motion-review.md` for the loop and protected regions |
 
 Read `references/motion-review.md` before a perceptual review, including
 analyze-ad and a creative analyze-clip request. Pure trim, re-encode, metadata or

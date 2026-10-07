@@ -25,6 +25,9 @@ claim a diagram or textual specification proves the final visual quality.
 | mascot pose, gesture and identity | `references/symbols-characters.md`; `references/surface-light.md` for modeled/painted form |
 | reimagine medium and protected subject traits | `references/generation.md`; `references/surface-light.md` when applicable |
 | kit component relationships, states and geometry | `references/systems-assets.md`; `references/symbols-characters.md` for icon sets |
+| diagram reading order, grouping and label legibility | `references/composition.md`, `references/typography.md` |
+| pixel-art silhouette and small-grid legibility | `references/symbols-characters.md`; `references/systems-assets.md` for a batch |
+| illustration composition, medium and text-free subject | `references/generation.md`, `references/composition.md`; `references/surface-light.md` when material/light is a real choice |
 
 For any `generate` operation, also read `references/generation.md` before the
 prompt decision. For source selection, read only when judging fit or consistency;

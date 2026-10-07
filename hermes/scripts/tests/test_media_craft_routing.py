@@ -143,11 +143,11 @@ def test_missing_and_ambiguous_knowledge_fail_without_hiding_producer(craft_stor
     assert "stop" in policy["content"] or "blocks" in policy["content"]
 
 
-def test_all_eighteen_subjects_have_behavioral_cases():
+def test_every_hands_subject_has_behavioral_cases():
     subjects = {leaf.parent.name for profile in PROFILE_CRAFT if profile != "creator"
                 for leaf in pipeline(profile).glob("*/*/SKILL.md")}
     cases = [case for path in (ROOT / "agents/tests").glob("media-craft-*-cases.json")
              for case in json.loads(path.read_text())]
     assert subjects == {subject for case in cases for subject in case["subjects"]}
-    assert len(subjects) == 18
+    assert len(subjects) == 22
     assert "human" in (pipeline("audio-creator") / "references/craft.md").read_text().lower()
