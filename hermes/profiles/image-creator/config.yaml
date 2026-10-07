@@ -501,6 +501,8 @@ skills:
   external_dirs:
     - ~/.agents/skills/media-craft-direction
     - ~/.agents/skills/media-craft-visual
+    - ~/ghq/github.com/NousResearch/hermes-agent/skills/creative/architecture-diagram
+    - ~/ghq/github.com/NousResearch/hermes-agent/optional-skills/creative/concept-diagrams
   create_dir: skills/learned
   disabled: []
   template_vars: true
