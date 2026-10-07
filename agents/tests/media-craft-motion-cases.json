@@ -225,5 +225,25 @@
       "frames at each line start showing who holds focus",
       "qa.md note naming the staging device per line"
     ]
+  },
+  {
+    "id": "pixel-animation-loop-pops",
+    "request": "Our looping pixel campfire animation visibly jumps every time it restarts.",
+    "operation": "critique",
+    "expected": [
+      "locates the jump at the last-to-first transition rather than inside the cycle",
+      "checks whether the first frame was duplicated at the end or a flame cel breaks the cadence",
+      "proposes a redrawn transition cel on the native grid within the same cadence"
+    ],
+    "must_not": [
+      "must not crossfade or interpolate frames to hide the seam",
+      "must not change the effective frame rate to mask the jump"
+    ],
+    "subjects": [
+      "pixel-animation"
+    ],
+    "review_evidence": [
+      "step through the last and first frames and read the verifier's loop-seam value"
+    ]
   }
 ]
