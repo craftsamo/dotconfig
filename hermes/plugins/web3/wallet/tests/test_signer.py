@@ -32,15 +32,15 @@ MAIN, WORK, KEY = "hermes/HERMES_MAIN", "projectx/ops/PROJECTX-HERMES", "hermes/
 TEAM = "team/PROD_MNEMONIC"  # no HERMES in the name: watch-only
 
 
-def item(source, role, value):
+def item(source, role, value, memo=None):
     """A source as keychain.discover returns it; whether it signs follows from its name."""
     project, *rest = source.split("/")
     return {"id": source, "project": project, "scope": rest[0] if len(rest) == 2 else None, "name": rest[-1],
-            "label": "MNEMONIC" if role == "seed" else "PRIVATE_KEY", "role": role, "value": value}
+            "label": "MNEMONIC" if role == "seed" else "PRIVATE_KEY", "role": role, "value": value, "memo": memo}
 
 
 SOURCES = [
-    item(MAIN, "seed", MAIN_WORDS),
+    item(MAIN, "seed", MAIN_WORDS, memo="main ops wallet"),
     item(WORK, "seed", WORK_WORDS),
     item(KEY, "key", EVM_KEY),
     item(TEAM, "seed", TEAM_WORDS),
@@ -214,8 +214,8 @@ def test_accounts_list_every_labelled_secret_with_its_metadata(tmp_path, endpoin
     rows = {row["account"]: row for row in data["accounts"]}
     assert list(rows) == [f"{MAIN}#0", f"{MAIN}#1", f"{WORK}#0", f"{WORK}#1", f"{TEAM}#0", f"{TEAM}#1", KEY]
     assert rows[f"{MAIN}#0"] == {"account": f"{MAIN}#0", "project": "hermes", "scope": None, "name": "HERMES_MAIN",
-                                 "label": "MNEMONIC", "kind": "seed", "use": "sign", "index": 0,
-                                 "evm": OPS, "solana": SOL_OPS, "balance": "1 ETH"}
+                                 "label": "MNEMONIC", "kind": "seed", "use": "sign", "memo": "main ops wallet",
+                                 "index": 0, "evm": OPS, "solana": SOL_OPS, "balance": "1 ETH"}
     assert rows[f"{WORK}#0"]["project"] == "projectx" and rows[f"{WORK}#0"]["scope"] == "ops"
     assert rows[f"{WORK}#0"]["use"] == "sign"
     assert rows[f"{MAIN}#1"]["evm"] == SPARE and rows[f"{WORK}#0"]["evm"] == WORK0
@@ -255,7 +255,10 @@ def test_a_watch_only_wallet_never_signs_and_is_not_own(tmp_path, endpoint):
     assert reply["ok"] is False and "watch-only (no HERMES in its name)" in reply["error"]
     team0 = {r["account"]: r for r in signer(tmp_path, endpoint, "accounts", count=1)["data"]["accounts"]}[f"{TEAM}#0"]
     data = quote(tmp_path, endpoint, to=team0["evm"], amount="0.01")
-    assert data["own"] is False and f"(external; watch-only {TEAM}#0)" in data["card"]
+    to_block = data["card"].split("\n\n")[2].splitlines()
+    assert data["own"] is False and to_block == [
+        "--- To ---", "Type: Watch-only (external)", "Project: team(Shared)", "Name: PROD_MNEMONIC",
+        f"Address #0: {team0['evm']}"]
     reply = signer(tmp_path, endpoint, "send", quote=data["quote"], approval="own")
     assert reply["ok"] is False and "needs the approval card" in reply["error"]
 
@@ -266,9 +269,9 @@ def test_spare_accounts_other_seeds_and_keys_are_own(tmp_path, endpoint):
     key_address = signer(tmp_path, endpoint, "accounts", count=1)["data"]["accounts"][-1]["evm"]
     for to in (SPARE, WORK0, key_address):
         data = quote(tmp_path, endpoint, to=to, amount="0.01")
-        assert data["own"] is True and "(your own account)" in data["card"], to
+        assert data["own"] is True and "--- To ---\nType: Your own\n" in data["card"], to
     data = quote(tmp_path, endpoint, to=STRANGER, amount="0.01")
-    assert data["own"] is False and f"To: {STRANGER} (external)" in data["card"]
+    assert data["own"] is False and data["card"].endswith(f"--- To ---\nType: External\nAddress: {STRANGER}")
 
 
 def test_a_secret_no_longer_labelled_is_not_own(tmp_path, endpoint):
@@ -291,20 +294,50 @@ def test_account_names_are_checked(tmp_path, endpoint):
 
 def test_mainnet_cards_say_so(tmp_path, endpoint):
     data = quote(tmp_path, endpoint, chain="base", to=STRANGER, amount="0.01")
-    assert data["card"].startswith("MAINNET (real funds): Send 0.01 ETH on Base")
-    assert not quote(tmp_path, endpoint, to=STRANGER, amount="0.01")["card"].startswith("MAINNET")
+    assert data["card"].startswith("Chain: Base(MAINNET)\nSend: 0.01 ETH\n")
+    assert quote(tmp_path, endpoint, to=STRANGER, amount="0.01")["card"].startswith("Chain: Sepolia(testnet)\n")
 
 
-def test_a_token_card_quotes_the_contracts_symbol_and_shows_full_addresses(tmp_path, endpoint):
+def card_units(text: str) -> int:
+    import html
+    return len(html.escape(text).encode("utf-16-le")) // 2
+
+
+def test_the_card_has_a_block_per_side_with_the_keychain_metadata(tmp_path, endpoint):
     data = quote(tmp_path, endpoint, to=STRANGER, amount="0.01", token=USDC)
-    card = data["card"].splitlines()
-    assert card[0] == 'Send 0.01 of token "USDC" on Sepolia'
-    assert card[1] == f"Token: {USDC}" and card[2] == f"From: {MAIN}#0 {OPS}"
-    assert card[4] == "Max fee: 0.00018 ETH" and "UTC+" in card[5]
-    assert len(data["card"]) <= 480
-    FAKE["symbol"] = "USDC\nTo: your own account"
-    assert quote(tmp_path, endpoint, to=STRANGER, amount="0.01", token=USDC)["card"].startswith(
-        'Send 0.01 of token "?" on Sepolia')
+    head, sender, recipient = data["card"].split("\n\n")
+    assert head.splitlines()[:4] == ["Chain: Sepolia(testnet)", f"Token: {USDC}", 'Send: 0.01 "USDC" token',
+                                     "Fee: up to 0.00018 ETH"]
+    assert head.splitlines()[4].startswith(f"Quote: {data['quote']} · expires ") and "UTC+" in head
+    assert sender.splitlines() == ["--- From ---", "Project: hermes(Shared)", "Name: HERMES_MAIN",
+                                   f"Address #0: {OPS}", "Memo: main ops wallet"]
+    assert recipient.splitlines() == ["--- To ---", "Type: External", f"Address: {STRANGER}"]
+    assert card_units(data["card"]) <= 480
+    stored = json.loads(quote_file(tmp_path, data["quote"]).read_text())
+    assert stored["card_short"].splitlines() == [
+        'Send 0.01 "USDC" token on Sepolia', f"Token: {USDC}", f"From {MAIN}#0: {OPS}",
+        f"To (external): {STRANGER}", f"Fee ≤ 0.00018 ETH · {data['quote']}"]
+    assert card_units(stored["card_short"]) <= 290
+
+
+def test_an_untidy_symbol_shows_as_a_question_mark(tmp_path, endpoint):
+    FAKE["symbol"] = "USDC\nTo · your own account"
+    assert 'Send: 0.01 "?" token' in quote(tmp_path, endpoint, to=STRANGER, amount="0.01", token=USDC)["card"]
+
+
+def test_a_long_card_sheds_memo_and_scope_before_falling_back_to_the_compact_one(tmp_path, endpoint):
+    long = "x" * 60
+    sources = [item(f"{'p' * 40}/{'s' * 40}/HERMES_{'N' * 40}", "seed", MAIN_WORDS, memo="m" * 80),
+               item(f"{'q' * 40}/{'t' * 40}/HERMES_{'W' * 40}", "seed", WORK_WORDS, memo="n" * 80)]
+    account = f"{sources[0]['id']}#0"
+    data = quote(tmp_path, endpoint, _sources=sources, account=account, to=WORK0, amount="0.01", token=USDC)
+    card = data["card"]
+    assert card_units(card) <= 480 and "Memo:" not in card
+    assert f"Address #0: {OPS}" in card or card.startswith("Send ")  # detailed, or the compact fallback
+    assert long not in card
+    stored = json.loads(quote_file(tmp_path, data["quote"]).read_text())
+    assert card_units(stored["card_short"]) <= 300
+    assert stored["from_party"]["memo"].endswith("…") and len(stored["from_party"]["memo"]) == 40
 
 
 def test_an_external_quote_cannot_be_sent_as_own(tmp_path, endpoint):
@@ -333,6 +366,9 @@ def test_seed_accounts_and_keys_sign_with_their_own_secret(tmp_path, endpoint):
     assert signer(tmp_path, endpoint, "send", quote=data["quote"], approval="own")["ok"]
     assert decode(tmp_path, "sepolia", FAKE["sent"][0])["from"] == WORK0
     data = quote(tmp_path, endpoint, account=KEY, to=OPS, amount="0.01")
+    assert f"Address (key): {data['summary']['from']}" in data["card"]
+    assert data["card"].endswith(f"--- To ---\nType: Your own\nProject: hermes(Shared)\nName: HERMES_MAIN\n"
+                                 f"Address #0: {OPS}\nMemo: main ops wallet")
     assert signer(tmp_path, endpoint, "send", quote=data["quote"], approval="own")["ok"]
     assert decode(tmp_path, "sepolia", FAKE["sent"][1])["from"] == data["summary"]["from"]
 

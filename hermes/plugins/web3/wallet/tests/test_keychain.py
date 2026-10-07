@@ -30,11 +30,11 @@ def test_only_wallet_kinds_are_picked_from_a_listing():
     found = keychain.parse_listing("work", LISTING)
     assert found == [
         {"project": "work", "scope": None, "name": "HERMES_MAIN", "label": "mnemonic", "role": "seed",
-         "use": "sign"},
+         "use": "sign", "memo": "hermes only"},
         {"project": "work", "scope": "deploy-ops", "name": "DEPLOYER", "label": "private key", "role": "key",
-         "use": "watch"},
+         "use": "watch", "memo": None},
         {"project": "work", "scope": None, "name": "OLD_SEED", "label": "seed phrase", "role": "seed",
-         "use": "watch"},
+         "use": "watch", "memo": None},
     ]
     assert [keychain.source_id(item) for item in found] == ["work/HERMES_MAIN", "work/deploy-ops/DEPLOYER",
                                                              "work/OLD_SEED"]

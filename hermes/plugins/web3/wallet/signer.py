@@ -27,6 +27,7 @@ from datetime import datetime
 from decimal import Decimal, InvalidOperation
 import hashlib
 import hmac
+import html
 import json
 import os
 from pathlib import Path
@@ -56,6 +57,9 @@ SYSTEM = "11111111111111111111111111111111"
 ATA_PROGRAM = "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
 QUOTE_ID = re.compile(r"^q[0-9a-f]{8}$")
 SYMBOL = re.compile(r"^[A-Za-z0-9.$_-]{1,12}$")
+MEMO_CLIP = 40
+CARD_BUDGET = 480          # Telegram cuts an approval card's reason at 500 escaped UTF-16 units
+SHORT_BUDGET = 290         # Discord cuts it at 300
 SETUP = ("store a Hermes-only seed phrase under a name with HERMES in it, like `secret set HERMES_MAIN -p <project> "
          "-D MNEMONIC` (a private key: -D PRIVATE_KEY); seed phrases and keys under other names are watch-only")
 
@@ -122,7 +126,7 @@ class Secrets:
                 self.keys[source] = secret
             self.meta[source] = {"project": item.get("project"), "scope": item.get("scope"),
                                  "name": item.get("name"), "label": item.get("label"),
-                                 "kind": item["role"], "use": use}
+                                 "kind": item["role"], "use": use, "memo": one_line(item.get("memo"), MEMO_CLIP)}
         self._parents: dict[str, tuple[bytes, bytes]] = {}
 
     def signable(self, source: str) -> bool:
@@ -245,6 +249,13 @@ class Secrets:
         """Every address the Hermes wallets control; watch-only wallets are not own."""
         return set(self.addresses(family, "sign"))
 
+    def party(self, account_id: str) -> dict:
+        """An account's Keychain metadata as the approval card shows it."""
+        source, index = self.account(account_id)
+        meta = self.meta[source]
+        return {"account": account_id, "project": meta["project"], "scope": meta["scope"] or "Shared",
+                "name": meta["name"], "index": index, "memo": meta.get("memo"), "use": meta["use"]}
+
     def mac(self, quote: dict) -> str:
         """Keyed from the quote's sending secret; covers everything but the MAC and the consumed mark."""
         source = quote["source"]
@@ -309,31 +320,92 @@ def native_units(base: int, decimals: int) -> Decimal:
     return (Decimal(base) / (Decimal(10) ** decimals)).normalize()
 
 
-def card(quote: dict) -> str:
-    """The approval card: one fact per line, every value from this quote, addresses in full. A token's
-    symbol is whatever its contract says, so it is quoted and the token's address follows."""
-    info = chains.info(quote["chain"])
+def one_line(text, clip: int) -> str | None:
+    """User text on one line, without control characters, clipped."""
+    if not isinstance(text, str):
+        return None
+    text = " ".join("".join(c if c.isprintable() else " " for c in text).split())
+    if not text:
+        return None
+    return text if len(text) <= clip else text[:clip - 1] + "…"
+
+
+def card_units(text: str) -> int:
+    """Length as Telegram's approval card counts it: HTML-escaped, in UTF-16 units."""
+    return len(html.escape(text).encode("utf-16-le")) // 2
+
+
+def _what(quote: dict) -> str:
     if quote["asset"] == "native":
         what = f"{quote['amount']} {quote['symbol']}"
     else:
-        what = f"{quote['amount']} of token \"{quote['symbol']}\""
+        what = f"{quote['amount']} \"{quote['symbol']}\" token"
     if quote.get("usd") is not None:
         what += f" (≈ ${quote['usd']:,.2f})"
-    lines = [("" if info["testnet"] else "MAINNET (real funds): ") + f"Send {what} on {info['name']}"]
+    return what
+
+
+def _to_type(quote: dict) -> str:
+    if quote["own"]:
+        return "Type: Your own"
+    if quote.get("to_party"):
+        return "Type: Watch-only (external)"
+    return "Type: External"
+
+
+def _party_lines(party: dict | None, address: str, drop: tuple) -> list[str]:
+    if not party:
+        return [f"Address: {address}"]
+    index = party.get("index")
+    lines = [f"Project: {party['project']}({party['scope']})", f"Name: {party['name']}",
+             f"Address #{index}: {address}" if index is not None else f"Address (key): {address}"]
+    if party.get("memo") and "memo" not in drop:
+        lines.append(f"Memo: {party['memo']}")
+    return lines
+
+
+def card(quote: dict, drop: tuple = ()) -> str:
+    """The detailed approval card (Telegram, CLI): the transfer first, then a block per side with the
+    Keychain's project (scope), name, address and memo; every value from this quote, addresses in full.
+    A token's symbol is whatever its contract says, so it is quoted and the token's address shown."""
+    info = chains.info(quote["chain"])
+    expires = datetime.fromtimestamp(quote["expires"]).astimezone().strftime("%H:%M UTC%z")
+    lines = [f"Chain: {info['name']}({'testnet' if info['testnet'] else 'MAINNET'})"]
     if quote["asset"] != "native":
         lines.append(f"Token: {quote['asset_address']}")
-    lines.append(f"From: {quote['account']} {quote['from']}")
-    if quote["own"]:
-        whose = "your own account"
-    elif quote.get("watched"):
-        whose = f"external; watch-only {quote['watched']}"
-    else:
-        whose = "external"
-    lines.append(f"To: {(quote['ens'] + ' = ') if quote.get('ens') else ''}{quote['to']} ({whose})")
-    lines.append(f"Max fee: {quote['max_fee']} {info['symbol']}")
-    expires = datetime.fromtimestamp(quote["expires"]).astimezone().strftime("%H:%M UTC%z")
-    lines.append(f"Quote: {quote['id']}, expires {expires}")
+    lines += [f"Send: {_what(quote)}", f"Fee: up to {quote['max_fee']} {info['symbol']}",
+              f"Quote: {quote['id']} · expires {expires}",
+              "", "--- From ---", *_party_lines(quote["from_party"], quote["from"], drop),
+              "", "--- To ---", _to_type(quote)]
+    if quote.get("ens"):
+        lines.append(f"ENS: {quote['ens']}")
+    lines += _party_lines(quote.get("to_party"), quote["to"], drop)
     return "\n".join(lines)
+
+
+def card_short(quote: dict) -> str:
+    """The compact approval card for surfaces with a small reason budget (Discord): the facts that
+    decide, addresses still in full."""
+    info = chains.info(quote["chain"])
+    lines = [("" if info["testnet"] else "MAINNET ") + f"Send {_what(quote)} on {info['name']}"]
+    if quote["asset"] != "native":
+        lines.append(f"Token: {quote['asset_address']}")
+    lines.append(f"From {one_line(quote['account'], 40)}: {quote['from']}")
+    whose = "own" if quote["own"] else ("watch-only" if quote.get("to_party") else "external")
+    lines.append(f"To ({whose}): {quote['to']}")
+    lines.append(f"Fee ≤ {quote['max_fee']} {info['symbol']} · {quote['id']}")
+    return "\n".join(lines)
+
+
+def cards(quote: dict) -> tuple[str, str]:
+    """(detailed, compact): the detailed card sheds the memos to fit Telegram's budget, and falls back to
+    the compact one."""
+    short = card_short(quote)
+    for drop in ((), ("memo",)):
+        text = card(quote, drop)
+        if card_units(text) <= CARD_BUDGET:
+            return text, short
+    return short, short
 
 
 def safe_symbol(text) -> str:
@@ -630,18 +702,20 @@ def op_quote(payload: dict) -> dict:
     except ledger.CapReached as exc:
         raise ChainError(str(exc)) from None
     recipient = built["to"].lower() if family == "evm" else built["to"]
-    own = recipient in secrets_.own(family)
-    watched = None if own else secrets_.addresses(family, "watch").get(recipient)
+    own_account = secrets_.addresses(family, "sign").get(recipient)
+    watched = None if own_account else secrets_.addresses(family, "watch").get(recipient)
+    own = own_account is not None
     now = time.time()
     quote = {"id": "q" + random.token_hex(4), "created": now, "expires": now + QUOTE_TTL, "account": account,
              "source": source, "index": index, "chain": chain, "family": family, "from": sender, "asset": asset,
-             "own": own, "watched": watched, **built}
+             "own": own, "watched": watched, "from_party": secrets_.party(account),
+             "to_party": secrets_.party(own_account or watched) if (own_account or watched) else None, **built}
     price = None
     if not chains.info(chain)["testnet"]:
         book = prices.Prices(online=not (rpc.testing() and payload.get("_offline")))
         price = book.native(chain) if asset == "native" else book.tokens_usd(chain, [built["asset_address"]]).get(asset)
     quote["usd"] = round(float(Decimal(built["amount"]) * Decimal(str(price))), 2) if price else None
-    quote["card"] = card(quote)
+    quote["card"], quote["card_short"] = cards(quote)
     quote["mac"] = secrets_.mac(quote)
     fd = os.open(state / "quotes" / f"{quote['id']}.json", os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     with os.fdopen(fd, "w", encoding="utf-8") as handle:

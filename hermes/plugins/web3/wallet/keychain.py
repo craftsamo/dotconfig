@@ -61,15 +61,17 @@ def parse_listing(project: str, text: str) -> list[dict]:
     starts = [header.find(column) for column in COLUMNS]
     if min(starts) < 0:
         return []
+    comment_at = header.find("COMMENT")
     found = []
     for row in lines[1:]:
         name = row[starts[0]:starts[1]].strip()
         scope = row[starts[1]:starts[2]].strip()
         label = row[starts[2]:starts[3]].strip()
+        memo = row[comment_at:].strip() if comment_at > 0 else ""
         role = kind_of(label)
         if name and role:
             found.append({"project": project, "scope": None if scope in ("", "Shared") else scope,
-                          "name": name, "label": label, "role": role, "use": use_of(name)})
+                          "name": name, "label": label, "role": role, "use": use_of(name), "memo": memo or None})
     return found
 
 
