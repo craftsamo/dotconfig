@@ -26,4 +26,4 @@ are relevant rather than turning the entire found image into a model input.
 Compare the original with the result for the user's stated invariants and
 the agreed degree of reinterpretation. A pleasing image that changes the
 protected identity is not a successful result. Report uncertainty where
-Creator's evidence cannot establish preservation.
+the hands' evidence cannot establish preservation.

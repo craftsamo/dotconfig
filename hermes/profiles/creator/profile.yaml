@@ -1,23 +1,11 @@
-description: "Creator serves human and assistant clients through Plan, Build
-  and direct delivery; Quality assurance is explicit user-requested inspection
-  only. Fills forms for ImageCreator's still-image families,
-  VideoCreator's short clips, generate-music-video, authored UI tours,
-  authored ads and bounded local-authored explainer videos (create-explainer-video:
-  topic/audience/learning_goal only, explicit v1 HyperFrames or v2 Motion
-  Canvas render (never a silent switch; an old v1 Motion Canvas
-  discussion-only proposal needs a fresh v2 proposal and approval), framing
-  none/bust/full and lip_sync off/cues/baked; character/script/grounding/
-  audio dependencies are relayed to image-creator/writer/researcher/
-  audio-creator, never fetched by VideoCreator itself) and AudioCreator's speech,
-  sfx (create-sfx, generate-sfx, edit-sfx, analyze-sfx), instrumental music
-  (create-music, generate-music, edit-music, analyze-music) and mix
-  (create-mix, edit-mix, analyze-mix — placing already-finished speech/
-  sfx/music sources on a shared timeline, never new synthesis), delegates
-  production, and returns durable artifacts with evidence and explicit QA
-  gaps. Existing legacy technics cover other images, authored motion,
-  diagrams and assembly of supplied parts. Vocal songs and standalone audio
-  visualization remain withdrawn pending concrete new families, not silently
-  routed through external skills. Speech, sfx, music and mix use
-  hands sessions. Not for code, research, script writing or
-  publishing."
+description: "Creator is the Assistant's creative advisor. It turns settled
+  intent into 2-3 named directions, each with an existing example and a draft
+  handoff for an image-creator, video-creator or audio-creator leaf
+  (propose-creator), and turns the user's own feedback on a storyboard, draft
+  or delivery into located, named changes with a draft revision handoff
+  (revise-creator). It reads the hands' forms and vocabulary, probes media and
+  pulls frames with media_inspect, and calls only Researcher. It never
+  produces media, commissions the hands, writes a storyboard or design that
+  binds the producer, scores or approves anything, and has no bot or card
+  units. Not for production, code, research, script writing or publishing."
 description_auto: false

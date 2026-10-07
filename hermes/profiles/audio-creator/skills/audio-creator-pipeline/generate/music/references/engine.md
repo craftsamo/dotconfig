@@ -1,6 +1,6 @@
 # Music generation engines
 
-Read this before proposing anything to Creator. `music_engines` is free
+Read this before proposing anything to the Assistant. `music_engines` is free
 and returns the live, authoritative list; this file is background, not a
 substitute for calling it.
 

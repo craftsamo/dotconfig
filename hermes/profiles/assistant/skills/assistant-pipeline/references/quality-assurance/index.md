@@ -6,7 +6,7 @@ output in those domains.
 
 The capability contract decides what the reply represents. Creative advice,
 analysis findings and proposal/preview stops do not imply missing final media.
-Creative production, including confirmed legacy work, goes
+Creative production goes
 directly through `../../execute-assistant-creative/SKILL.md`; do not apply this
 inspection floor or feedback loop to ordinary completions. Only an explicit user
 inspection request selects `../../qa-assistant-creative/SKILL.md`, whose bounded
@@ -101,7 +101,7 @@ Selection rules:
    MP4).
 2. Styles and presets (NES, PICO-8, palette names, aspect ratios, house
    style) are criteria inside the brief, not separate contracts.
-3. Outside the Creator-served acceptance path above, an unmapped deliverable
+3. Outside the hands-served acceptance path above, an unmapped deliverable
    family is NOT verifiable — say so and decide
    with the user; never fall back to a generic look-over for a
    publishing deliverable.

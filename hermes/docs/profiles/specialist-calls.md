@@ -14,8 +14,8 @@ caller has an explicit `specialist_call.resident_targets` allowlist:
 
 | Caller    | Targets                                                                                                         |
 | --------- | --------------------------------------------------------------------------------------------------------------- |
-| assistant | engineer, creator, marketer, writer; searcher resident-only. Never the hands, never researcher directly         |
-| creator   | its seven configured peers: engineer, marketer, researcher, writer, image-creator, video-creator, audio-creator |
+| assistant | engineer, creator, marketer, writer, image-creator, video-creator, audio-creator; searcher resident-only. Never researcher directly |
+| creator   | researcher only                                                                                                 |
 | marketer  | researcher only (keeps inbound A2A for its clients)                                                             |
 | engineer  | marketer, researcher, writer                                                                                    |
 
@@ -82,11 +82,11 @@ completion.
   step in flight has unknown effects (a first turn cancelled before a session
   was recorded restarts fresh and is told so). A turn that finished before the
   stop reached it stays `completed`. A2A inquiries cannot be cancelled, and A2A
-  inbound callers cannot detach. Nested children (a Creator's hands, an
-  Engineer's OpenCode runs) are not part of the confirmed group: their own
-  runners stop them on parent death, a little later — a Creator's hands as
-  `unknown` on the nested side, an OpenCode run as `interrupted` once OpenCode
-  confirms it stopped. A cancelled reconcile turn returns to `interrupted`, so cancelling never
+  inbound callers cannot detach. Nested children (a Creator's Researcher
+  call, an Engineer's OpenCode runs) are not part of the confirmed group: their
+  own runners stop them on parent death, a little later — a nested specialist
+  as `unknown` on the nested side, an OpenCode run as `interrupted` once
+  OpenCode confirms it stopped. A cancelled reconcile turn returns to `interrupted`, so cancelling never
   reopens work.
 
 ### Completion and deadlines
@@ -115,8 +115,8 @@ successful completion.
 `specialist_call` is a blocking tool for those CLI callers, so the caller's
 generic tool deadline (`timeouts.tools.sequential_call`, default 420 s) cuts it
 long before the runner's 5400 s: 41 Creator calls timed out that way and turned
-into `specialist_session` polling. `creator` and `marketer` (the CLI callers of
-long hands/peer turns) set `sequential_call` / `concurrent_batch` to 5460 —
+into `specialist_session` polling. `creator` and `marketer` (CLI callers of
+long Researcher turns) set `sequential_call` / `concurrent_batch` to 5460 —
 the runner deadline plus its cleanup allowance. The key applies to every tool of
 that profile; long terminal commands keep their own timeouts. Verify with
 `HERMES_HOME=~/.hermes/profiles/<p>` +

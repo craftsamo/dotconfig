@@ -1,9 +1,9 @@
 # Creative - receiving and delivering media
 
-Creator owns content-altering operations: generation, revision, crop, resize,
+The hands own content-altering operations: generation, revision, crop, resize,
 trim, conversion, mux, mix and any re-encoding. Your direct work is
 byte-preserving handling and the Execute entry's thin delivery checks. A delivery size problem
-is a correction request to Creator, not permission for your own ffmpeg fix.
+is a correction request to the producing hands, not permission for your own ffmpeg fix.
 
 ## Handoff
 
@@ -13,9 +13,8 @@ rewrite accepted Writer text. For an interrupted job, preserve paths, approval
 references, unresolved decisions and returned spend so resuming cannot become
 a duplicate production or a reset allowance.
 
-The normal job ledger uses Creator's reported total against the user's grant.
-Only a confirmed legacy job uses the per-unit ledger and frontier in
-[legacy/index.md](legacy/index.md); do not manufacture a parallel hands ledger.
+The job ledger sums each hands report's spend line against the user's grant;
+failed attempts and earlier consumption survive revisions and resumes.
 
 ## Delivery
 

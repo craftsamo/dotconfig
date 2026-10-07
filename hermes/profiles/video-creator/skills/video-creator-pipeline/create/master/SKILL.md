@@ -36,7 +36,7 @@ metadata:
    and decides nothing creative. It never trims, reorders, retimes, crops,
    grades, speeds up, loops, pads or rewrites a part or a caption. A missing
    or ambiguous decision (order, transition, which audio) is one batched
-   `Q<n>:` to Creator, never a local choice.
+   `Q<n>:` to the Assistant, never a local choice.
 2. Probe each segment with
    `python3 ${HERMES_SKILL_DIR}/../../scripts/clip-media.py probe <file>`.
    Segments must be 8-bit SDR, share size and frame rate and carry square
@@ -44,7 +44,7 @@ metadata:
    re-encode that segment), never an automatic scale. Embedded segment
    sound is dropped; a soundtrack comes only from `audio` or `mix_bundle`.
 3. The soundtrack must already last the joined picture's length (within
-   one frame). A mismatch goes back to Creator for audio-creator
+   one frame). A mismatch goes back to the Assistant for audio-creator
    (`edit-music` / `edit-mix`); it is never cut, padded or stretched here.
    A dissolve shortens the picture by its length at every join, so state
    the resulting total in the question.
@@ -92,7 +92,7 @@ metadata:
 
 `create-master`; output directory, movie and SRT paths, the RESULT JSON
 (inputs with hashes, probe, checks, loudness), the looks taken and
-findings, dropped segment sound, any question for Creator, and
+findings, dropped segment sound, any question for the Assistant, and
 `spend: media generation 0`.
 
 </Report>

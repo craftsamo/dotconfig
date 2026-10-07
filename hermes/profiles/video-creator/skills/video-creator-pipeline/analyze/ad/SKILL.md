@@ -104,7 +104,7 @@ metadata:
    INTERPRETATION, RECOMMENDATION and UNVERIFIED explicitly. Return the report
    and evidence location. No generation, repair, client claim validation or
    automatically triggered create-ad. One review pass; further sampling needs
-   a concrete unresolved question and Creator's approval, not "one more look".
+   a concrete unresolved question and the Assistant's approval, not "one more look".
 
 </Procedure>
 

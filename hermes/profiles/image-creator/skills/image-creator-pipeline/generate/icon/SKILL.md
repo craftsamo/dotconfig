@@ -128,6 +128,6 @@ delivered but named as failing; the report says why.
 `generate-icon` + style + background; `prompt.txt` path; every variant's
 path with its `RESULT:` numbers and the QA verdicts; the recommended
 variant; `spend: img <calls>/<budget>` (corrective included); anything
-Creator must decide.
+the Assistant must decide.
 
 </Report>

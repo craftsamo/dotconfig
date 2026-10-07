@@ -175,13 +175,13 @@ class TourTest(unittest.TestCase):
         import hermes_yaml as yaml
         video = yaml.safe_load((ROOT / "profiles/video-creator/config.yaml").read_text())
         self.assertNotIn("tts", video["toolsets"])
-        for path in ("build-creator/references/video-creator/tour.md",
-                     "plan-creator/references/video-creator/tour.md",
-                     "references/capabilities.md"):
-            contents = (ROOT / "profiles/creator/skills/creator-pipeline" / path).read_text()
-            self.assertIn("create-tour", contents)
-            self.assertIn('kind="work"', contents)
-        self.assertTrue((ROOT / "profiles/creator/skills/technic/creator-html-motion/SKILL.md").is_file())
+        commission = (ROOT / "profiles/assistant/skills/assistant-pipeline/execute-assistant-creative/references/tour.md").read_text()
+        self.assertIn("## Leaves", commission)
+        self.assertIn("| `create-tour` |", commission)
+        self.assertIn('target="video-creator", message=<the text>, kind="work"', commission)
+        advisor = (ROOT / "profiles/creator/skills/creator-pipeline/references/video-creator/tour.md").read_text()
+        self.assertIn("create-tour", advisor)
+        self.assertFalse((ROOT / "profiles/creator/skills/technic/creator-html-motion").exists())
 
     def test_form_and_manifest_boundaries(self):
         for field, value in (("style", "bad"), ("accent", "red;"), ("frame", "card"),

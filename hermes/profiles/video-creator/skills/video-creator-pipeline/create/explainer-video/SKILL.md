@@ -115,11 +115,11 @@ all character/audio/dependency gates; Motion Canvas cannot opt into this layer.
 skill_view(name="video-creator-pipeline", file_path="references/three-graphics.md")
 ```
 
-1. Always use a work session. Creator settles meaning, audience, learning goal
+1. Always use a work session. The Assistant settles meaning, audience, learning goal
    and client choices. You own the visual explanation, not new facts or rewritten
    dialogue. Use Writer's approved script inputs and Researcher's grounding when
-   needed, relayed through Creator. Missing script, voice or art may enter the
-   preliminary proposal as dependencies; ask Creator for them, never synthesize
+   needed, relayed through the Assistant. Missing script, voice or art may enter the
+   preliminary proposal as dependencies; ask the Assistant for them, never synthesize
    or call another hands profile directly. A budget is not approval.
 2. Confirm character intent using [character](references/character.md): none,
    existing, or new, then framing/performance/lip_sync. For no-character mode,
@@ -133,7 +133,7 @@ skill_view(name="video-creator-pipeline", file_path="references/three-graphics.m
    made: v1 HyperFrames suits HTML/UI or media-oriented compositions, v2
    Motion Canvas suits reactive diagrams, algorithms and Canvas-based
    explanation — never a silent switch on failure.
-3. Asset discovery belongs to Creator before handoff. Use the specified files
+3. Asset discovery belongs to the Assistant before handoff. Use the specified files
    first. A named collection is resolved only inside the caller-known workspace;
    ambiguous candidates go back to the client, never a whole-home scan. Store
    concrete paths and identity only in private job files, not in managed skills,
@@ -141,7 +141,7 @@ skill_view(name="video-creator-pipeline", file_path="references/three-graphics.m
    using neutral role names such as body, mouth-rest and narration rather than
    private names. Proposals remain private job evidence, not public-safe exports.
    Existing identity plus missing poses means a missing-only production request,
-   not a new character. New art/voice needs separate Creator-brokered approval
+   not a new character. New art/voice needs separate Assistant-brokered approval
    and budget through ImageCreator/AudioCreator. An unreadable supplied path is
    an error, not permission to invent a replacement or silently generate.
 4. Read [authoring](references/authoring.md) before preparing the internal spec.
@@ -175,7 +175,7 @@ skill_view(name="video-creator-pipeline", file_path="references/three-graphics.m
    and on-screen words. Every unit names its learning goal and before/change/after
    states; every important change has a proof sample. User-facing forms do not
    require the client to author JSON, cue schedules or a storyboard. Refer
-   unapproved/missing script content to Writer through Creator; do not draft
+   unapproved/missing script content to Writer through the Assistant; do not draft
    substitute dialogue yourself. Estimates are not measured audio timings.
    Genuinely missing asset references are null with explicit dependency requests;
    never use invented future paths/hashes. Include unsupported renderer or
@@ -191,7 +191,7 @@ skill_view(name="video-creator-pipeline", file_path="references/three-graphics.m
    proposal, not an executable release. When dependencies arrive, revise the
    timing/spec and create a new numbered proposal with actual files and hashes.
    AudioCreator owns speech and Mix; use the real master length, no hidden speedup.
-6. Round B: require Creator-relayed client approval of that exact executable
+6. Round B: require Assistant-relayed user approval of that exact executable
    proposal in the same work conversation. Check the helper's proposal hash;
    never manufacture approval. For HyperFrames only, read the optional policy
    through its parent skill before fresh authoring:

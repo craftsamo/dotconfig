@@ -237,12 +237,12 @@ in the manifest and named in the report — never a silent delivery.
 
 `generate-reimagine` + the styles + `keep`; **which backend member
 received the photo** (the client's image left the machine for it — a
-human client is told this before the handoff, Creator's job) and any
+user is told this before the handoff, the Assistant's job) and any
 member that refused it; per style: the sheet path, the recommended
 file, the second candidate, each QA check with its evidence from
 `qa.md`, a `contain` finish or a crop over 10 % if one happened; the
 manifest path; `spend: img <calls>/<budget>` (correctives included);
-anything Creator must decide (a described style you had to write, a
+anything the Assistant must decide (a described style you had to write, a
 style that failed twice and is out of correctives, the exact `revise`
 line for one more style on the same lock).
 

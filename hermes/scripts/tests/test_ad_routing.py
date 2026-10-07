@@ -75,44 +75,37 @@ class LeafValidatorTest(unittest.TestCase):
         self.assertEqual([], errors)
 
 
-# ── creator + video-creator config/pipeline describe create-ad / analyze-ad ─
+# ── commissioning + video-creator config/pipeline describe create-ad / analyze-ad ─
 
-class CreatorAndVideoConfigTest(unittest.TestCase):
+ASSISTANT_CREATIVE = (HERMES_ROOT / "profiles/assistant/skills/assistant-pipeline/"
+                      "execute-assistant-creative")
+CREATOR_PIPELINE = HERMES_ROOT / "profiles/creator/skills/creator-pipeline"
+
+
+class CommissioningAndVideoConfigTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.creator_config = yaml.safe_load((HERMES_ROOT / "profiles/creator/config.yaml").read_text())
+        cls.assistant_config = yaml.safe_load(
+            (HERMES_ROOT / "profiles/assistant/config.example.yaml").read_text())
         cls.video_config = yaml.safe_load((HERMES_ROOT / "profiles/video-creator/config.yaml").read_text())
         cls.video_profile = (HERMES_ROOT / "profiles/video-creator/profile.yaml").read_text()
-        cls.creator_prompt = cls.creator_config["agent"]["system_prompt"]
         cls.video_prompt = cls.video_config["agent"]["system_prompt"]
-        cls.pipeline_skill = (HERMES_ROOT / "profiles/creator/skills/creator-pipeline/SKILL.md").read_text()
-        pipeline = HERMES_ROOT / "profiles/creator/skills/creator-pipeline"
-        cls.plan_index_md = (pipeline / "plan-creator/SKILL.md").read_text()
-        cls.plan_ad_md = (pipeline / "plan-creator/references/video-creator/ad.md").read_text()
-        cls.plan_md = cls.plan_index_md + cls.plan_ad_md
-        cls.build_index_md = (pipeline / "build-creator/SKILL.md").read_text()
-        cls.build_ad_md = (pipeline / "build-creator/references/video-creator/ad.md").read_text()
-        cls.build_md = cls.build_index_md + cls.build_ad_md
-        cls.qa_index_md = (pipeline / "qa-creator/SKILL.md").read_text()
-        cls.qa_ad_md = (pipeline / "qa-creator/references/video-creator/ad.md").read_text()
-        cls.qa_md = cls.qa_index_md + cls.qa_ad_md
-        cls.capabilities_md = (pipeline / "references/capabilities.md").read_text()
+        cls.commission_md = (ASSISTANT_CREATIVE / "references/ad.md").read_text()
+        cls.commission_skill = (ASSISTANT_CREATIVE / "SKILL.md").read_text()
+        cls.advisor_md = (CREATOR_PIPELINE / "references/video-creator/ad.md").read_text()
+        cls.advisor_kernel = (CREATOR_PIPELINE / "SKILL.md").read_text()
 
-    def test_creator_config_and_pipeline_name_both_leaves(self) -> None:
-        for text in (self.creator_prompt, self.plan_md,
-                     self.build_md, self.qa_md, self.capabilities_md):
+    def test_commissioning_and_advisor_name_both_leaves(self) -> None:
+        for text in (self.commission_md, self.advisor_md):
             self.assertIn("create-ad", text)
             self.assertIn("analyze-ad", text)
 
-    def test_root_routes_to_phase_indexes_which_link_the_ad_subject(self) -> None:
-        """Root SKILL.md (v8) no longer enumerates every leaf; it routes to
-        each phase's index, and those indexes link the exact ad.md subject
-        reference exercised by the other assertions in this class."""
-        for path in ("plan-creator/SKILL.md", "build-creator/SKILL.md",
-                     "qa-creator/SKILL.md"):
-            self.assertIn(path, self.pipeline_skill)
-        for index_text in (self.plan_index_md, self.build_index_md, self.qa_index_md):
-            self.assertIn("(references/video-creator/ad.md)", index_text)
+    def test_commissioning_leaves_table_and_kernel_link_the_ad_subject(self) -> None:
+        self.assertIn("## Leaves", self.commission_md)
+        self.assertIn("| `create-ad` |", self.commission_md)
+        self.assertIn("| `analyze-ad` |", self.commission_md)
+        self.assertIn("(references/video-creator/ad.md)", self.advisor_kernel)
 
     def test_video_root_and_profile_describe_both_leaves(self) -> None:
         for text in (self.video_prompt, self.video_profile):
@@ -120,93 +113,78 @@ class CreatorAndVideoConfigTest(unittest.TestCase):
             self.assertIn("analyze-ad", text)
 
     def test_ad_leaves_always_use_specialist_kind_work(self) -> None:
-        self.assertIn('always specialist kind="work"', self.creator_prompt)
-        self.assertIn("video-creator's `create-ad` / `analyze-ad`", self.build_md)
+        self.assertIn("video-creator's `create-ad` / `analyze-ad`", self.commission_md)
         self.assertIn('kind="work")`; approval turns or bounded multi-pass evidence extraction, not an inquiry',
-                       self.build_md)
-        # Root (v8) states no per-leaf kind="work" rule itself; it routes to
-        # Build's index, which carries the general specialist_call
-        # kind="work" contract that ad's own transport row (asserted above)
-        # follows.
-        self.assertIn("build-creator/SKILL.md", self.pipeline_skill)
-        self.assertIn('kind="work")`; the tool starts the resident session you supervise',
-                       self.build_index_md)
+                      self.commission_md)
+        self.assertIn('kind="work"', self.commission_md.split("## Transport", 1)[1])
+        self.assertIn('target="<hands>", message=<the text>, kind="work"', self.commission_skill)
 
     def test_no_raw_a2a_path_for_ad_specialist_calls(self) -> None:
         """create-ad / analyze-ad are only ever reached via specialist_call,
         never a raw a2a_call / direct URL / resident script."""
-        self.assertIn("Specialist requests use specialist_call, never raw a2a_call, a direct\n"
-                       "resident script, or a peer URL.", self.creator_prompt)
-        self.assertIn("never an arbitrary profile,\n"
-                       "URL, raw `a2a_call`, or direct resident script for new work.", self.build_md)
-        self.assertNotIn("a2a_call(", self.build_md)
-        self.assertNotIn("a2a_call(", self.plan_md)
+        self.assertIn("specialist_call(target=\"video-creator\"", self.commission_md)
+        self.assertNotIn("a2a_call(", self.commission_md)
+        self.assertNotIn("a2a_call(", self.commission_skill)
+        self.assertNotIn("a2a_call(", self.advisor_md)
+
+    def test_assistant_commissions_video_creator_and_creator_cannot(self) -> None:
+        targets = self.assistant_config["specialist_call"]["resident_targets"]
+        self.assertIn("video-creator", targets)
+        self.assertEqual(["researcher"], self.creator_config["specialist_call"]["resident_targets"])
+        self.assertEqual(["researcher"], list(self.creator_config["a2a_agents"]))
+        self.assertNotIn("video-creator", self.creator_config["a2a_agents"])
+        self.assertNotIn("image_gen", self.creator_config["toolsets"])
+        self.assertNotIn("video_gen", self.creator_config["toolsets"])
 
     def test_generated_ad_is_a_clip_to_ad_chain_and_pv_is_promotion(self) -> None:
-        prompt = " ".join(self.creator_prompt.split())
-        self.assertIn("A generated ad is text-free generate-clip shots then create-ad with them as muted footage; "
-                      "a PV is create-promotion; never substitute MV.", prompt)
-        plan = " ".join(self.plan_md.split())
+        commission = " ".join(self.commission_md.split())
+        self.assertIn("A generated ad is not a leaf of its own", commission)
+        self.assertIn("text-free generate-clip shots", commission)
+        self.assertIn("A PV authored from supplied material is create-promotion", commission)
+        self.assertIn("Never silently route a requested generated ad or PV to MV.", commission)
         self.assertIn("A generated ad (its picture drawn by a video model) is a chain of existing units, not one leaf.",
-                      plan)
-        self.assertIn("they never stand in for the real product", plan)
-        capabilities = " ".join(self.capabilities_md.split())
-        self.assertIn("A generated ad is not a leaf of its own", capabilities)
-        self.assertIn("Never silently route a requested generated ad or PV to MV.", capabilities)
+                      commission)
+        self.assertIn("they never stand in for the real product", commission)
+        advisor = " ".join(self.advisor_md.split())
+        self.assertIn("never stand in for the real product", advisor)
+        self.assertIn("Introducing a brand, world or qualities without one action: [promotion]", advisor)
         profiles_md = " ".join((HERMES_ROOT / "docs" / "hands" / "video.md").read_text().split())
         self.assertIn("A generated ad is not a leaf", profiles_md)
         self.assertNotIn("generate-ad` is planned", profiles_md)
         leaves = {p.parent.name for p in (HERMES_ROOT / "profiles/video-creator/skills/video-creator-pipeline")
                   .glob("generate/*/SKILL.md")}
         self.assertNotIn("ad", leaves)
-        # Root (v8) no longer states served/unserved status per family; it
-        # points Plan at capabilities.md, which carries that status (asserted
-        # above).
-        self.assertIn("[capabilities](references/capabilities.md)", self.pipeline_skill)
 
 
-# ── human vs assistant brief: contract text only, not a live-runtime claim ──
+# ── agent-authored handoff vs human decision: contract text only ───────────
 
 class ClientOriginContractTest(unittest.TestCase):
-    """Runtime caller context precedes presentation when Creator fills a form.
-    These assertions only check the documented contract text; they make no
-    claim about live routing behavior, LLM output, or gateway state."""
+    """The Assistant is the only client of the hands and of Creator; a
+    specialist handoff is agent-authored and never a human approval. These
+    assertions only check the documented contract text; they make no claim
+    about live routing behavior, LLM output, or gateway state."""
 
     @classmethod
     def setUpClass(cls) -> None:
-        cls.pipeline_skill = (HERMES_ROOT / "profiles/creator/skills/creator-pipeline/SKILL.md").read_text()
-        cls.creator_prompt = yaml.safe_load(
-            (HERMES_ROOT / "profiles/creator/config.yaml").read_text())["agent"]["system_prompt"]
+        cls.kernel = (CREATOR_PIPELINE / "SKILL.md").read_text()
+        cls.commission_skill = (ASSISTANT_CREATIVE / "SKILL.md").read_text()
 
-    def test_assistant_brief_maps_to_a_batched_q_block(self) -> None:
-        for text in (self.pipeline_skill, self.creator_prompt):
-            self.assertIn("Q<n>:", text)
-        self.assertIn(
-            "Its\n  brief (`Goal:` / `Context:` / `Inputs:` / `Deliverable:` /\n"
-            "  `Constraints:` / `Budget:`) is parsed into the form; what it leaves\n"
-            "  unsettled returns as ONE `Q<n>:` text block (2-4 options +\n"
-            "  recommendation).",
-            self.pipeline_skill,
-        )
+    def test_creator_returns_one_q_block_to_the_assistant(self) -> None:
+        body = " ".join(self.kernel.split())
+        self.assertIn("a question back is one `Q<n>:` text block with 2-4 options and a recommendation", body)
 
-    def test_human_client_uses_clarify_never_a_typed_q_block(self) -> None:
-        self.assertIn("clarify", self.pipeline_skill)
-        self.assertIn(
-            "Questions go through the\n  `clarify` tool (native buttons), one call per round, one entry per\n"
-            "  open form field, the field's options as choices with your\n"
-            "  recommendation first. Never a typed `Q<n>:` list at a human.",
-            self.pipeline_skill,
-        )
+    def test_creator_never_uses_clarify(self) -> None:
+        self.assertIn("`clarify`", self.kernel.split("<Boundaries>", 1)[1])
+        self.assertIn("no generation, TTS, hands calls, `clarify`", " ".join(self.kernel.split()))
 
-    def test_conversational_agent_input_does_not_become_human_approval(self) -> None:
-        body = " ".join(self.pipeline_skill.split())
-        prompt = " ".join(self.creator_prompt.split())
-        self.assertIn("never establish human origin or approval", body)
-        self.assertIn("even when its current message is conversational", body)
-        self.assertIn("Use runtime caller context before message shape", prompt)
-        self.assertIn("conversational prose does not prove human origin", prompt)
-        for text in (body, prompt):
-            self.assertNotIn("conversational = a human", text)
+    def test_agent_authored_handoff_does_not_become_human_approval(self) -> None:
+        body = " ".join(self.kernel.split())
+        self.assertIn("A runtime specialist handoff is agent-authored, even when conversational", body)
+        self.assertIn("a choice is the user's only when the Assistant relays it as such", body)
+        commission = " ".join(self.commission_skill.split())
+        self.assertIn("The user's pick is a human decision; record it separately from Creator's recommendation",
+                      commission)
+        self.assertIn("Creator's output is advice: it approves nothing", commission)
 
 
 if __name__ == "__main__":

@@ -127,7 +127,7 @@ metadata:
 
 `edit-clip`; source and output paths; RESULT JSON; changes made, including
 audio loss/padding; QA check/evidence/verdict; review paths and missing
-checks; `spend: media generation 0`; any question for Creator. Do not call
+checks; `spend: media generation 0`; any question for the Assistant. Do not call
 a failed framing check a passing delivery.
 
 </Report>

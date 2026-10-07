@@ -14,7 +14,7 @@ clip is the final piece or an input to later assembly. For existing footage,
 preserve the chosen source and intended range; ask only when the segment is
 ambiguous. Clarify whether sound and continuous motion are required rather
 than assuming them from the word video. Separate source-upload and remote
-analysis permissions, and let Creator establish feasible scope.
+analysis permissions, and let the hands establish feasible scope.
 
 ## References
 

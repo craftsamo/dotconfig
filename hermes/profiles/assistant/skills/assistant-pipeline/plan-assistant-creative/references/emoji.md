@@ -5,7 +5,7 @@
 Expressions or short text reactions for conversations. A character's original
 identity design belongs to [mascot.md](mascot.md); a requested published glyph
 can be discussed through [icon.md](icon.md). A pack need not mean generating
-new art: tell Creator whether the user wants new reactions, changes or findings.
+new art: note for Execute whether the user wants new reactions, changes or findings.
 
 ## Client decisions
 

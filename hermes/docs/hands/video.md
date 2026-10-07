@@ -5,7 +5,7 @@ Ad, music-video, authoring references, tour, explainer-video, promotion, story, 
 `video-creator` receives filled forms on loopback A2A `:9908` (receive-only).
 It has video generation/analysis but no TTS, no image generation and no
 outbound A2A; it cannot call other hands or peers and returns dependency
-requests to Creator instead. Shared contract: [`overview.md`](./overview.md).
+requests to the Assistant instead. Shared contract: [`overview.md`](./overview.md).
 
 ## Ad family
 
@@ -56,7 +56,7 @@ Product categories stay form values, not separate ad skill families.
 - Content approval binds `plan.json` (exact copy/holds, supplied claims,
   complete asset hashes, proof samples). Preview approval binds the frozen
   source/checks/frames before final render. Create requires exact content-plan
-  approval, then exact frozen-preview approval, both relayed by Creator in the
+  approval, then exact frozen-preview approval, both relayed by the Assistant in the
   same work conversation; the helper binds bytes, not approver identity.
   Runtime identity is bound to preview approval; a changed CLI needs a new
   preview. Local helper primitives come from tour; its existing contracts are
@@ -153,8 +153,8 @@ scan keeps every form field.
   lock, short beat progression, effective form/input hashes, actual
   prompt/backend limits, sound/finishing choices, consents and call allowance,
   and returns only that file and its SHA-256 — zero media generation or
-  remote-analysis calls. Creator shows the proposal to its human client through
-  `clarify` or its agent client through text. A budget alone never authorizes
+  remote-analysis calls. The Assistant shows the proposal to the user through
+  `clarify` or to its agent client through text. A budget alone never authorizes
   generation.
 - The exact prompt is a separate prompt-only file, 1..1800 UTF-8 bytes, measured
   and hashed before approval and rechecked before submission — a conservative
@@ -165,7 +165,7 @@ scan keeps every form field.
   the producer, specification, duration and music/finishing order. The proposal
   is `pending-inputs` with `can_generate: false`, not a generation release.
   Pending character-image upload consent likewise permits only local planning.
-  Creator obtains the separate music production release (music is never
+  The Assistant obtains the separate music production release (music is never
   produced in this leaf), then supplies the real `music_file` and resolved
   consents for a NEW numbered proposal/hash and approval; a preliminary
   approval is not executable. Never mutate or execute the preliminary
@@ -228,7 +228,7 @@ The four references are optional, read-only, procedural background —
 staging/timing/determinism, GSAP animation rules, in-scene staging techniques
 and approved pointer-led scenes — never a new approval gate, workflow or leaf,
 and never a substitute for the leaf's own form fields, freeze/snapshot/render
-helpers or Creator-relayed approvals. `external_dirs` makes them visible to the
+helpers or Assistant-relayed approvals. `external_dirs` makes them visible to the
 whole profile; the restriction to those leaves is enforced by each leaf's
 Procedure, not by a tool-permission sandbox. A missing, unreadable or ambiguous
 reference is reported (one attempted lookup per needed resource) and the leaf
@@ -305,7 +305,7 @@ task-local authored UI walkthroughs — recreate from reference/design/text, edi
 supplied local footage, or capture an explicitly approved sanitized Web demo —
 with frozen source projects, exclusive preview/final directories and a safe
 approval resume. It is a new subject, not a global legacy retirement.
-Creator owns what_for/audience, semantic flow, fidelity and choice approvals;
+The Assistant owns what_for/audience, semantic flow, fidelity and choice approvals;
 VideoCreator authors task-local HTML/CSS/GSAP, state changes and camera/pointer
 from approved reference images, design and text. No per-step screenshots or
 client-written steps JSON are required. Frame and decorative background are
@@ -327,7 +327,7 @@ artifacts. Narration consumes finished audio-creator WAV plus current
 `words.json`; Tour makes no edits to frozen source, external runtime
 workflows/executables or TTS.
 
-Creator always routes this free leaf with `specialist_call(kind="work")`, never
+The Assistant always routes this free leaf with `specialist_call(kind="work")`, never
 raw A2A or a direct resident script. `authored.py` freezes v2/v3
 source/contract/form, checks real renders and publishes fresh preview/final
 evidence with full decode; it never generates layout/UI or enumerates UI
@@ -383,10 +383,10 @@ the version that created them.
 ### Footage And Capture v3
 
 The same leaf preserves frame/style/background/backdrop/free-text intro/outro.
-Creator proposes semantic steps from goal/audience/start_state and optional flow;
+The Assistant proposes semantic steps from goal/audience/start_state and optional flow;
 clients need not write action scripts. An explicit mode first returns only
 `proposal-vN.md` and SHA-256. The proposal's `tour` block binds the normalized
-form and capture scope. Creator relays client approval in the same work
+form and capture scope. The Assistant relays the user's approval in the same work
 conversation; hashes bind bytes, not caller identity. Approved reconnaissance
 precedes approved stateful recording. Changed scope needs a new proposal, not
 per-click approval inside the existing scope. Exact preview approval remains a
@@ -488,26 +488,26 @@ muted MP4 carrying its own sync evidence carries a continuous animated
 performance. A missing required performance asset is reported as
 `pending-inputs`, never a silent downgrade of framing/performance/lip_sync.
 
-**Characters and dependencies.** Creator, never VideoCreator, resolves
+**Characters and dependencies.** The Assistant, never VideoCreator, resolves
 characters. A library character is resolved through the `characters` tool
 (`list`, then `show <slug>` for the character card, then `show <slug> <guide>`
 for its approved visual, animation or voice guide and files; a private overlay
 plugin); only its approved package content is canon,
 never a draft or archive. Other material: a direct path or an identity
-Creator already holds first, else a bounded name-only lookup inside the
+The Assistant already holds first, else a bounded name-only lookup inside the
 caller's own known workspace; an ambiguous match goes back as a question. Never
 do a broad home-directory scan, and never invent a new character because a file
 is missing. Explicit assets are kept as unchanged originals; the resolved root and
 private asset names stay working detail and never enter a public proposal, form
-or report. Creator's Group-local `deliver:` conventions apply. An unspecified character is not "no character": Creator clarifies none
+or report. The Assistant's Group-local `deliver:` conventions apply. An unspecified character is not "no character": the Assistant clarifies none
 vs. existing vs. new. An existing character missing a needed pose becomes a
 missing-only generation request through the fitting image-creator mascot leaf,
 preserving its approved identity; new character art goes through
 image-creator's mascot family. Script text goes through Writer's current
-`write-script` family — never the retired writer technic and never Creator
+`write-script` family — never the retired writer technic and never the Assistant or Creator
 composing the script itself; grounding facts go through researcher as needed;
 narration/audio through audio-creator. VideoCreator returns a dependency request
-to Creator, released as its own separately budgeted/approved unit.
+to the Assistant, released as its own separately budgeted/approved unit.
 
 **Lifecycle.** `propose --spec SPEC --out <new proposal-vN dir>` writes
 `plan.json` + `proposal.md` + an assets snapshot and returns `pending-inputs`
@@ -517,7 +517,7 @@ on-screen copy are settled inputs; each unit explains its before/change/after
 and visual expectations. A proposal is formally ready only once the selected
 modes' required inputs and a supported renderer are in hand; silent or
 no-character modes need no audio/character assets. The user approves through
-Creator. Only then do `freeze --approved-plan <proposal.md> --approval-sha256
+the Assistant. Only then do `freeze --approved-plan <proposal.md> --approval-sha256
 HASH --source SOURCE --project NEW` and `snapshot --project PROJECT --out NEW`
 run, and only a matching `render --project PROJECT --approved-preview PREVIEW
 --approval-sha256 previewhash --out NEW` releases the final video. Nothing
@@ -555,7 +555,7 @@ reverse-seek ordering conflicts.
 Final QA always carries the engine's contrast-audit status; Motion Canvas has no
 automated contrast check and reports "requires manual visual review". Synthetic
 tone, manual-cue and test-video fixtures are technical evidence only, not real
-speech/character quality or live Creator-to-hands handoff proof. The family is
+speech/character quality or live Assistant-to-hands handoff proof. The family is
 additive: existing music-video, ad, tour and Mix routes are unchanged.
 
 ## Promotion family
@@ -607,7 +607,7 @@ the ratings; keep them out.
 
 **Lifecycle.** Round A writes `storyboard.md` and `promotion.py propose`
 stores it as `proposal-vN/storyboard.md` with its SHA-256 and
-`awaiting-approval` / `pending-inputs`. One Creator-relayed approval
+`awaiting-approval` / `pending-inputs`. One Assistant-relayed approval
 releases authoring, drafts and the final. `promotion.py render --quality
 final` verifies the hash, root canvas/duration, no remote references, strict
 lint, then renders with the installed `hyperframes` CLI and checks canvas,
@@ -616,7 +616,7 @@ pending id resolved by `--inputs`. It records a source tree hash, never
 freezes a copy.
 
 **Dependencies.** VideoCreator has no image generation, TTS, music or SFX.
-The storyboard's audio plan is the brief Creator gives audio-creator; rasters
+The storyboard's audio plan is the brief the Assistant gives audio-creator; rasters
 go through the fitting image-creator leaf. Each is its own released unit.
 Reproducing a third-party brand needs the client's permitted-use statement
 relayed in `note`.
@@ -662,14 +662,14 @@ checks the cast ids against the `--cast id=PATH` art (a mascot pack counts
 only its manifest's passed items), each beat's speaker against the cast on
 screen and each quoted line against the approved script, then appends every
 cast image's and the script's SHA-256 to the stored storyboard, so the one
-approval hash binds them. One Creator-relayed approval releases drafts (up to
+approval hash binds them. One Assistant-relayed approval releases drafts (up to
 8, gap-driven) and the final. `story.py render` runs create-promotion's
 render checks through a private instance of its helper (limits 10..120 s,
 `story.mp4`), requires every cast member's bound bytes referenced by the
 source, checks a script that arrived after approval against the quoted
 lines, and checks `mix-caption-N` markup against the Mix sidecar (none may
 exist without one). Script, missing poses (a missing-only mascot revise) and voices,
-music and SFX (speech per line, then one Mix) are separate units Creator
+music and SFX (speech per line, then one Mix) are separate units the Assistant
 releases. Tests: `scripts/tests/test_create_story.py`.
 
 ## Master family

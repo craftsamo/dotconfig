@@ -81,7 +81,7 @@ refused session.
 The action list a profile gets is fixed when the plugin registers and checked
 again in both hooks and the handler, so naming a write from Marketer is
 refused even though the tool is the same. Marketer answers a peer's question
-(an A2A inquiry from the Assistant, Creator or Engineer) with a read; the
+(an A2A inquiry from the Assistant or Engineer) with a read; the
 Assistant's account access never serves a peer. Searcher reads publications
 and posts but never the inbox, the user's own posts, drafts or statistics.
 It reads through the user's session, so a paid post the user subscribes to

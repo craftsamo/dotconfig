@@ -157,7 +157,7 @@ metadata:
 6. Run the bounded QA below, appending each look's finding to `<bundle>/qa.md`
    before the next look. Revise the exact failed input/layout once into a fresh
    bundle; if it still fails, report the finding. Never shrink unreadable copy
-   without informing Creator, retry blindly or edit the managed helper.
+   without informing the Assistant, retry blindly or edit the managed helper.
 
 </Procedure>
 

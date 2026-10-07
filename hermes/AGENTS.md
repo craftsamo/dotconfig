@@ -202,22 +202,26 @@ repository upkeep (Engineer through OpenCode, the Assistant's Admin topic).
   launcher's `install` (or `restart`) again, or launchd keeps restarting a
   file that is gone.
 
-## Creator hands and broker
+## Hands, commissioning and Creator
 
-Contract: [docs/hands/overview.md](docs/hands/overview.md) and
-[docs/broker.md](docs/broker.md). When editing:
+Contract: [docs/hands/overview.md](docs/hands/overview.md),
+[docs/broker.md](docs/broker.md) and
+[docs/profiles/creator.md](docs/profiles/creator.md). When editing:
 
 - A hands skill is a `<hands>-pipeline/<verb>/<subject>/SKILL.md` leaf with one
   form — never a technic, a generated index, `menu.yaml`, a preset layer or
   cross-media Styles (earlier shapes with those decided nothing or governed
-  everything). A subject must be unique across all hands, because Creator reads
-  them through one `external_dirs` list; the validator enforces the shape.
-- Creator's broker references mirror subjects, not forms: new subject
-  references land with their hands family, never as placeholder stubs.
+  everything). A subject must be unique across all hands, because the Assistant
+  and Creator read them through one `external_dirs` list; the validator enforces
+  the shape.
+- Each served subject has one Assistant commissioning reference and one Creator
+  capability reference; both mirror subjects, not forms, and land with their
+  hands family, never as placeholder stubs.
+- Creator stays an advisor: never give it a generation toolset, a hands target,
+  or a bot (the studies behind that split are in its doc). New
+  creative capability is a hands leaf, never a Creator technic.
 - An execution-environment trap goes into the Procedure of the leaf that hits
   it, not into a shared rule.
-- Legacy capability retirement stays family-by-family, after caller coverage
-  and a both-client soak — a new leaf alone does not retire anything.
 - Tests that read the design text: `test_ad_routing.py` and
   `test_audio_creator_routing.py` read `docs/`; after media-craft changes also
   run `test_media_craft_routing.py` with the hands/entry tests.

@@ -4,12 +4,12 @@ The v3 hands contract: client model, skill tree, form, handoff, media craft, mig
 
 ## Creator hands (v3, 2026-09)
 
-Creator's production moves, one asset family at a time, out of the generic
-`creator-*` technics and into **hands** profiles — `image-creator`
+Media production runs in three **hands** profiles — `image-creator`
 (A2A `:9907`), `video-creator` (`:9908`) and `audio-creator` (`:9909`). Each
 is a receive-only A2A endpoint with the tools of its medium and nothing else.
-Family details: [`image.md`](./image.md), [`video.md`](./video.md),
-[`audio.md`](./audio.md); Creator's side: [`broker.md`](../broker.md).
+The Assistant commissions them; Creator only advises. Family details:
+[`image.md`](./image.md), [`video.md`](./video.md), [`audio.md`](./audio.md);
+the client side: [`broker.md`](../broker.md).
 
 The rule is **one skill = one concrete deliverable = one form**, with nothing
 above the skill but a reader. A hands leaf is never a technic and never a
@@ -27,28 +27,18 @@ Keep relayed human decisions with their source/proposal/scope separate from
 agent implementation choices. Do not weaken the outcome to match a template;
 use the granted discretion without unnecessary repeated questions.
 
-Creator has **clients**, not entry points: the human (Creator's own Telegram
-bot) or the assistant (resident session / A2A, carrying a SessionBrief).
-Creator uses runtime caller context before message shape; conversational
-follow-ups are not proof of human origin or approval. Its job is the same for
-both clients: pick the skill, **fill its form** — with the `clarify` tool for a
-direct human (Telegram renders one inline button per option; the form's
-`options` become the choices, `other: true` is the UI's own "Other" row), by
-parsing the brief for an agent client, returning a text `Q<n>:` block for
-whatever required field it cannot fill — hand the filled form to the hands,
-gate the result against the intent (visual inspection or audio evidence),
-deliver. The hands never see the client or invent its requirements: they
-receive a filled form or return `Q<n>:`. A leaf may own creative execution
-within that form (MV direction, for example), with its explicit proposal
-approval gate.
+The hands have one **client**, the Assistant. It picks the leaf, **fills its
+form** from the user's words and relayed decisions (with Creator's draft
+handoff when Creator was consulted), sends it, relays proposals and approvals,
+and delivers. The hands never see the user or invent requirements: they
+receive a filled form or return one batched `Q<n>:` text block. A leaf may own
+creative execution within that form (a storyboard or MV direction, for
+example), behind its explicit proposal approval gate. A request from any other
+caller is answered with a pointer to the Assistant and nothing is produced.
 
-The assistant keeps delivery to the user, the durable path, Budget lines and
-GitHub bookkeeping; it does not make production decisions on Creator's behalf.
-Its outcome guides support Client dialogue; the old production decision leaves
-live at `plan-assistant-creative/references/legacy/<family>.md`, with their QA
-`Covers` mapping under `qa-assistant-creative/references/legacy/`. Those old
-mappings retire family by family only after the gates in "Migration" below,
-independently of the Client guides.
+Creator reads the forms and option references to propose directions and
+revisions, but never sends a handoff and never receives a report. When to
+consult it, and how a `Q<n>:` is answered: [`broker.md`](../broker.md).
 
 For a stuck resident transport, `specialist_session(action="reconcile", ...,
 evidence=...)` verifies its recorded process group is gone and its shell lock is
@@ -95,12 +85,12 @@ profiles/<hands>/skills/
   has a take allowance: one take plus one corrective per script by default.
   Failed synthesis invocations count. Long free work still uses resident sessions.
 - **Subjects** are concrete nouns (`icon`, `hero`, `clip`, `voice-line`),
-  **unique across all hands** because Creator reads every hands' tree through
-  one `skills.external_dirs` list; the validator (`validate_hands`) enforces
-  the shape and rejects a subject that appears under two hands. `name` equals
-  `<verb>-<subject>` and equals the path.
+  **unique across all hands** because the Assistant and Creator each read every
+  hands' tree through one `skills.external_dirs` list; the validator
+  (`validate_hands`) enforces the shape and rejects a subject that appears under
+  two hands. `name` equals `<verb>-<subject>` and equals the path.
 - The pipeline root holds no router and no lifecycle beyond the five steps
-  above; discovery is Creator reading the leaves' front matter directly. No
+  above; discovery is the client reading the leaves' front matter directly. No
   generated index, no shared Style system, no palette vocabulary above the leaf.
 - Hands report a defect in a leaf's own scripts or references to the
   maintainer; they never patch tracked skill roots (`skill-topology` blocks
@@ -131,8 +121,8 @@ instructions must be in current context, not merely recorded as loaded.
 Canonical `read_file` recovery follows genuine truncation offsets; unrecoverable
 required instructions stop the action. Optional advisory references keep their
 fallback. Loading never grants a new operation, resets spend or reruns a
-completed render. Creator inspecting a hands form does not become that hands'
-executor.
+completed render. The Assistant or Creator reading a hands form does not become
+that hands' executor.
 
 ### The form (front matter is the only representation)
 
@@ -142,7 +132,7 @@ executor.
 name: generate-icon
 description: >-
   <one sentence: what this leaf delivers, from which inputs — the only line
-  Creator needs to choose it>
+  a client needs to choose it>
 version: 1.0.0
 metadata:
   hermes:
@@ -177,7 +167,8 @@ backing mandatory even when the directory is missing. MV keeps style
 Multi-value text fields describe their comma-list syntax in the label;
 `other: true` permits that string at intake, and the leaf validates each
 member. An option is not a requirement to generate every default item:
-Creator confirms the expanded item list and spend before batch production.
+The Assistant confirms the expanded item list and spend with the user before
+batch production.
 
 Hermes discovery reads only the first 4,000 characters of a SKILL.md before
 parsing YAML, so a leaf's complete front matter must close inside that prefix
@@ -185,7 +176,7 @@ parsing YAML, so a leaf's complete front matter must close inside that prefix
 silently collapses sibling leaves into one parent-named skill even though the
 topology validator passes.
 
-### Handoff message (Creator → hands, A2A or resident session alike)
+### Handoff message (Assistant → hands, A2A or resident session alike)
 
 ```
 skill: generate-icon
@@ -213,11 +204,11 @@ an operating contract, not a filesystem sandbox or upload/overwrite consent.
 The hands reply with the leaf's `<Report>` (paths, every QA check with its
 evidence, spend) or with one batched `Q<n>:` block naming the missing
 required fields — never with a substitute. A request no leaf fits is a
-finding back to Creator (`no skill fits: …`), which Creator relays to the
-client and records for the maintainer; neither side improvises a leaf.
+finding back to the Assistant (`no skill fits: …`), which tells the user and
+records it for the maintainer; neither side improvises a leaf.
 Short free single-reply leaves use `specialist_call(kind="inquiry")`; anything
 metered, multi-turn or longer than one reply window uses `kind="work"` from
-Creator. Continue with the same target and returned conversation_id. Released
+the Assistant. Continue with the same target and returned conversation_id. Released
 inputs, permissions, budgets and the exact handoff text are unchanged. CLI
 calls wait within a finite deadline; A2A inbound cannot launch work and must
 ask its caller to reissue the unit through a work conversation.
@@ -237,11 +228,11 @@ The four tracked, portable `media-craft-direction`, `media-craft-visual`,
 not in hands' production trees or generated Styles catalogs, and use the
 standard shared-store install links. Creator's shared store already exposes
 them; image-creator pins direction/visual, video-creator direction/visual/motion,
-and audio-creator direction/audio individually. No hands receives the whole store.
-Each hands kernel's `references/craft.md` owns conditional reading for all its
-current subjects and actual creative decisions. Creator's Plan/Build/QA entries
-and the confirmed legacy path share Creator's own `references/craft.md`; legacy
-production uses that knowledge without retiring or silently replacing its methods.
+and audio-creator direction/audio individually, and the Assistant pins
+direction. No hands receives the whole store. Each hands kernel's
+`references/craft.md` owns conditional reading for all its current subjects and
+actual creative decisions; Creator's entries read the same knowledge to name
+directions and changes.
 
 These are technique and judgment resources, not new forms, producer roles,
 cross-media Styles, permissions, outside workflows or executable scripts. The
@@ -286,38 +277,39 @@ on an isolated home with the unmodified runtime (6 parallel frames: 3 shown, 3
 rules: contact sheets, at most three looks per step, a finding in `qa.md`
 before the next look.
 
-### Migration
+### Families and former technics
 
-Each family moves on its own, each step verified before the next: (0)
-contract + validator, (1) the hands skeleton, (2) the family's leaves proven from the
-hands' own CLI with a pasted filled form, (3) Creator routes that family to the
-hands while every other family stays on its technic, (4) the assistant's legacy
-plan leaf, QA contract and the creator technic for that family retire, (5) soak
-from both clients and record what the form got wrong. Nothing is retired in
-bulk. Retire legacy capability only after replacement caller coverage and the
-both-client soak — not merely because a leaf exists; a technic's card goes once
-every family it covered has moved. When the last family moves, `legacy/` goes,
-and so do `image_gen` / `video_gen` / `tts` / `unreal-engine` from Creator's
-toolsets. The abandoned `refactor/creator-profile` branch is read only for
-scripts worth porting.
+A family lands on its hands in steps, each verified before the next: (0)
+contract and validator, (1) the hands skeleton, (2) the family's leaves proven
+from the hands' own CLI with a pasted filled form, (3) both client-side
+references ([`broker.md`](../broker.md) "References each side owns"), (4) a soak
+through the Assistant, recording what the form got wrong.
 
-| Family          | Hands         | Leaves                                                                                                            | Legacy retained / retirement gate                                                                                                                                                                                          |
-| --------------- | ------------- | ----------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| icon            | image-creator | source, create, generate, edit, analyze                                                                           | `creator-logo-icons` and its assistant plan/QA retired; both-client soak (step 5) still open                                                                                                                               |
-| emoji           | image-creator | create, generate, edit, analyze                                                                                   | never had a technic; published glyphs use `source-icon`                                                                                                                                                                    |
-| mascot          | image-creator | generate, edit, analyze                                                                                           | no technic mapping                                                                                                                                                                                                         |
-| reimagine       | image-creator | generate                                                                                                          | no technic mapping                                                                                                                                                                                                         |
-| kit             | image-creator | source, create, generate, edit, analyze                                                                           | no legacy family maps 1:1; nothing retired                                                                                                                                                                                 |
-| card            | image-creator | create, generate, edit, analyze                                                                                   | `creator-text-card` and private-overlay mappings kept until handoff coverage, paid live validation and legacy caller migration prove retirement safe                                                                       |
-| clip            | video-creator | generate, edit, analyze                                                                                           | `creator-generated-video` and its assistant plan/QA kept for explicit legacy coverage (e.g. local ComfyUI)                                                                                                                 |
-| music-video     | video-creator | generate                                                                                                          | broader legacy video kept; nothing retires on partial MV coverage                                                                                                                                                          |
-| tour            | video-creator | create                                                                                                            | `creator-html-motion` and its 1:1 mappings kept intact                                                                                                                                                                     |
-| ad              | video-creator | analyze, create (a generated ad is generate-clip shots composed by create-ad; an authored PV is create-promotion) | no legacy mapping retired                                                                                                                                                                                                  |
-| explainer-video | video-creator | create                                                                                                            | `creator-manim-explainer` kept for explicit Manim / math / 3D scope                                                                                                                                                        |
-| promotion       | video-creator | create                                                                                                            | `creator-html-motion` kept, narrowed in routing to what no served video leaf covers (overlays on footage, captioned narration, audio-reactive, >60 s); its 1:1 mappings kept until caller coverage and both-client soak    |
-| story           | video-creator | create                                                                                                            | `creator-html-motion` kept for captioned narration and pieces outside the served scopes; nothing retires on this leaf alone                                                                                                |
-| master          | video-creator | create                                                                                                            | `creator-media-assembly` kept, narrowed in routing to what create-master does not cover (overlays on footage, segments' own sound, ducking, edit-spec trims); its mappings kept until caller coverage and both-client soak |
-| speech          | audio-creator | generate, edit, analyze                                                                                           | voice card, assistant plan/QA and canonical TTS special case retired; AudioCraft/HeartMuLa/songsee technics withdrawn without replacement                                                                                  |
-| sfx             | audio-creator | create, generate, edit, analyze                                                                                   | no technic mapping                                                                                                                                                                                                         |
-| music           | audio-creator | create, generate, edit, analyze                                                                                   | vocal-song generation and standalone audio visualization withdrawn, not migrated                                                                                                                                           |
-| mix             | audio-creator | create, edit, analyze                                                                                             | no technic mapping                                                                                                                                                                                                         |
+Creator's former `creator-*` technics end with the advisor cutover. Five become
+hands leaves first: the SVG diagram, grid-exact pixel art, official
+brand-asset sourcing (extending `source-icon`) and text-free generated
+illustration on image-creator, and pixel animation on video-creator. The other
+fourteen are archived under `hermes/archive/creator-technic/`, which no profile
+reads; `image_gen` / `video_gen` / `tts` / `unreal-engine` leave Creator's
+toolsets with them.
+
+| Family          | Hands         | Leaves                                                                                                            | Former technic                                                                                       |
+| --------------- | ------------- | ----------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| icon            | image-creator | source, create, generate, edit, analyze                                                                           | `creator-logo-icons` retired; `creator-brand-asset-sourcing` folds into `source-icon`                |
+| emoji           | image-creator | create, generate, edit, analyze                                                                                   | none; published glyphs use `source-icon`                                                             |
+| mascot          | image-creator | generate, edit, analyze                                                                                           | none                                                                                                 |
+| reimagine       | image-creator | generate                                                                                                          | none                                                                                                 |
+| kit             | image-creator | source, create, generate, edit, analyze                                                                           | none maps 1:1                                                                                        |
+| card            | image-creator | create, generate, edit, analyze                                                                                   | `creator-text-card` archived                                                                         |
+| clip            | video-creator | generate, edit, analyze                                                                                           | `creator-generated-video` archived (local ComfyUI included)                                          |
+| music-video     | video-creator | generate                                                                                                          | none                                                                                                 |
+| tour            | video-creator | create                                                                                                            | `creator-html-motion` archived                                                                       |
+| ad              | video-creator | analyze, create (a generated ad is generate-clip shots composed by create-ad; an authored PV is create-promotion) | none                                                                                                 |
+| explainer-video | video-creator | create                                                                                                            | `creator-manim-explainer` archived                                                                   |
+| promotion       | video-creator | create                                                                                                            | `creator-html-motion` archived (overlays on footage, captioned narration, audio-reactive, >60 s too) |
+| story           | video-creator | create                                                                                                            | `creator-html-motion` archived                                                                       |
+| master          | video-creator | create                                                                                                            | `creator-media-assembly` archived (segment sound, ducking, edit-spec trims too)                      |
+| speech          | audio-creator | generate, edit, analyze                                                                                           | voice card retired; AudioCraft/HeartMuLa/songsee withdrawn                                           |
+| sfx             | audio-creator | create, generate, edit, analyze                                                                                   | none                                                                                                 |
+| music           | audio-creator | create, generate, edit, analyze                                                                                   | vocal-song generation and standalone audio visualization withdrawn                                   |
+| mix             | audio-creator | create, edit, analyze                                                                                             | none                                                                                                 |

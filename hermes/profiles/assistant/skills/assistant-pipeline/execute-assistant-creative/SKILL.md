@@ -1,7 +1,7 @@
 ---
 name: execute-assistant-creative
-description: "Execute creative: relay briefs and approvals, supervise Creator and deliver candidates promptly with producer checks and caveats. Normal completions stay here, without a separate QA stage."
-version: 1.0.0
+description: "Execute creative: commission the media hands directly with filled forms, consult Creator for open looks and vague feedback, relay proposals and approvals, and deliver candidates promptly with producer checks and caveats. Normal completions stay here, without a separate QA stage."
+version: 2.0.0
 author: CraftSamo
 license: MIT
 metadata:
@@ -30,144 +30,181 @@ Read only applicable detail references below.
 
 </ReadBeforeWork>
 
-# Creative - Client dialogue
+# Creative - commissioning the hands
 
-## Hands-served families
+You are the only client of the media hands: `image-creator`, `video-creator`
+and `audio-creator`. You fill each leaf's form from the user's words and
+decisions, send it, relay proposals and approvals, sequence dependent units and
+deliver. The hands produce and self-check. Creator is your creative advisor: it
+proposes directions and translates vague feedback, but never produces, sends a
+handoff or approves anything. You produce nothing yourself, even when a leaf's
+procedure is readable.
 
-Creator is the production owner, including its delegated hands. You own the
-user's outcome, context, grants and delivery for the user's judgment, per
-[Client planning](../plan-assistant-creative/SKILL.md). These rules apply to the
-currently served scope, not a fixed list of media or operations.
+## Subject references
 
-Use `specialist_call(target="creator", ...)`. Never call `image-creator`,
-`video-creator` or `audio-creator` directly, never use raw `a2a_call`, and
-never fill in Creator's hands forms yourself.
+Read the selected subject's reference before filling or releasing its form,
+and again before relaying one of its approvals. Read only the subjects this job
+needs; a composite reads one per released unit.
 
-## Brief and continuation
+| Hands | Subject references |
+| --- | --- |
+| image-creator | [card](references/card.md), [icon](references/icon.md), [emoji](references/emoji.md), [mascot](references/mascot.md), [reimagine](references/reimagine.md), [kit](references/kit.md) |
+| video-creator | [clip](references/clip.md), [music-video](references/music-video.md), [ad](references/ad.md), [tour](references/tour.md), [explainer-video](references/explainer-video.md), [promotion](references/promotion.md), [master](references/master.md), [story](references/story.md) |
+| audio-creator | [speech](references/speech.md), [sfx](references/sfx.md), [music](references/music.md), [mix](references/mix.md) |
 
-Send a self-contained brief with the existing fields:
+## Choosing the leaf
+
+Read the candidate leaf with `skill_view(name="<verb>-<subject>")`. Its
+`description` says what it delivers, `metadata.hermes.hands` names the hands
+and `form` says what it needs; read its form and option references, never run
+its `<Procedure>`.
+
+| The user has / wants | Verb |
+| --- | --- |
+| an existing file to change | `edit` |
+| a look no library draws, or a subject no library has | `generate` |
+| a symbol a published library already has | `source` |
+| a deterministic composition or set from approved inputs | `create` |
+| a judgment, not new media | `analyze` |
+
+Use only an installed leaf for that verb and subject. A request no leaf fits is
+`no skill fits` to the user, with the missing capability, and a note for the
+maintainer; never improvise a leaf, fall back to an archived method or bend a
+form field to carry an unsupported requirement. A composite is a sequence of
+forms ordered by what feeds what: fill the first now and each dependent form
+only once its input exists.
+
+## Consulting Creator
+
+Commission directly when the user's own words settle every required field.
+Consult Creator first when a required field or the look is open, a reference or
+analogy needs interpreting, or feedback on a storyboard, draft or delivery is
+too vague to map onto a form. The look is open unless the user named it
+concretely (a leaf style or option, a reference to match, colours, typefaces or
+motifs); a mood given only as an adjective or two (「あたたかみのある感じで」,
+"something modern") is open, so get directions from Creator and let the user
+pick before commissioning:
+
+- `specialist_call(target="creator", kind="inquiry")` for a bounded proposal or
+  revision list; `kind="work"` when Creator must look at several media files or
+  the exchange takes several turns.
+- Send the settled intent (purpose, audience, destination, fixed words,
+  exclusions, supplied inputs and what each is for) or the artifacts with the
+  user's verbatim feedback. Never send a design of your own for it to fill in.
+- Show the user Creator's directions or changes in plain language, with their
+  examples. The user's pick is a human decision; record it separately from
+  Creator's recommendation, then send the picked draft handoff after checking
+  it against the leaf's form and this job's grants.
+
+Creator's output is advice: it approves nothing, releases no spend and is not
+a reviewer of a finished candidate.
+
+## Filling the form
+
+Infer before you ask: a colour named in passing, a pasted path or "transparent"
+is an answer. Ask the user only what is truly open, in ordinary language; never
+show them an internal form. A free-text answer goes into the field as written;
+never add form keys.
+Keep the original purpose, audience and must-keep conditions in every
+dependent form.
+
+- `deliver:` is the job's existing directory: the owning Group's
+  `.agent/<YYYYMMDD>-<job>/` (or a job-owned subdirectory), else
+  `~/Workspaces/.agent/<YYYYMMDD>-<job>/`. Never create a Group, relocate a valid
+  Group-local job or overwrite an existing output.
+- A metered leaf takes a `budget:` line from the user's actual grant or the
+  leaf's documented default; the subject reference names any leaf that needs
+  explicit current-work approval before spending. `cost: free` is not an
+  unlimited attempt allowance; failed attempts count and resumes never restore
+  them.
+- An upload of a real person's photo or any asset to a model or remote analysis
+  needs the user's explicit consent for that asset and operation, asked in the
+  same round as the related choice. A path, a public URL, a direction choice or
+  "use this" is not consent, and an omitted permission is unknown, not yes.
+  Missing permission blocks the affected operation, not harmless local
+  planning. Research examples are inspiration, never production inputs.
+- Authored video gets intent only; the producer writes the storyboard. Never
+  accept a silently flattened substitute for a required effect (a flat zoom for
+  parallax, a fade for a material change, a generic control for designed UI);
+  for an uncertain method, consult Creator with the requirement marked
+  discussion-only.
+
+## The handoff text
+
+Use exactly this shape as the `message`; paths are absolute, Japanese values
+are fine:
 
 ```text
-Goal: intended outcome and audience; consultation, production or analysis
-Context: use, purpose, what the user decided and what remains open
-Inputs: exact existing paths, their role and known permissions; missing inputs
-Deliverable: wanted artifact or findings, durable location, acceptance criteria
-Constraints: must-keep content, exclusions, deadline, decisions Creator may make
-Budget: the actual sanctioned allowance and any unresolved grant
+skill: <verb>-<subject>
+intent: new | revise <absolute path of the previous delivery>
+deliver: <absolute durable directory>
+budget: <grant>                      # provider calls or local speech takes; omit = leaf default
+form:
+  <field>: <value>                   # one line per filled field
 ```
 
-When useful, append `References:` and `Direction:` as plain briefing text:
-observations and sources, suggestions, user-decided direction, and explicit
-permission scope. Research examples are inspiration only unless separately
-authorized as production inputs. An omitted permission is unknown, not yes.
-These annotations are not new tool fields, a registry or another form schema.
+## Transport
 
-For newly authored video, send intent, not a design: purpose, audience,
-destination, fixed words, brand rules, exclusions, supplied inputs,
-references with what each is for, and acceptance criteria. Ask Creator to
-have its producer design the storyboard and to return it for the user's
-approval; relay that storyboard to the user in plain language and relay the
-user's decision back. Do not prescribe layouts, shapes, components or
-motion the user did not ask for.
+| Leaf | Transport |
+| --- | --- |
+| free, bounded, one reply (`source`, `create`, `edit`, `analyze`) | `specialist_call(target="<hands>", message=<the text>, kind="inquiry")` |
+| metered, multi-turn, or longer than ~4 minutes | `specialist_call(target="<hands>", message=<the text>, kind="work")` |
 
-Use `kind="inquiry"` only for a short, bounded, non-generating consultation.
-Released production and multi-turn work use `kind="work"`, including any
-analysis whose contract requires work. If an inquiry leads to production,
-start a work conversation with the settled context; never upgrade the pinned
-route in place. Keep target="creator" and its returned `conversation_id` for
-work continuations. No repeating the first call to work around a pending reply.
+These are defaults; the subject reference names free work that still needs
+`kind="work"`. Transport grants nothing. Continue with the same `target` and
+returned `conversation_id`; if an inquiry reveals metered or multi-turn work,
+open a new `kind="work"` conversation instead of upgrading it. One conversation
+per job per hands. Stop a turn that went wrong with `specialist_session(action=
+"cancel")`; continue a confirmed `cancelled` conversation with the corrected form
+(spend already made stays spent). Abandoned work follows
+[resident-session supervision](../references/execute/resident-sessions.md);
+never retry an unknown result or switch backends.
 
-Answer Creator's `Q<n>:` from existing context, or ask the user the unresolved
-decision in ordinary language. Do not expose an internal form. Consultation
-may end with advice and analysis with findings; neither implies a new file.
+Independent units may run in parallel conversations; a dependent unit waits
+for the report it consumes, and its form names the consumed path. Record each
+consumed version in the job notes; a changed input invalidates only its
+dependents' evidence.
 
-## Approval relay
+## Supervising
 
-Before resolving a material interpretation during execution, use the conditional
-craft reading in [Client planning](../plan-assistant-creative/SKILL.md), with its
-current owning entry and kernel. A tentative suggestion remains a suggestion;
-do not convert the producer's chosen metaphor into a user-mandated mechanism.
-An approved study is not an approved final, and a request to continue cannot
-prospectively approve exact plan/preview bytes that do not yet exist.
-
-Keep an explicit distinction in each continuation: human decision with source
-and exact affected proposal/preview, your implementation choice within the
-grant, or an unapproved suggestion. The transport retains the initial brief and
-attributes messages to an agent; this helps inspection, not authorization.
-An agent DECISION or a source label cannot turn a weakened requirement into
-human approval. Compare any proposed compromise with the original purpose,
-audience and must-keep conditions before responding to Creator.
-
-A proposal or preview is a valid approval stop, not a missing final or a
-stalled job. Show the actual returned material with a concise explanation;
-preserve exact copy, claims, alternatives and the artifact references.
-Relay the user's actual decision in the SAME `target` and `conversation_id`,
-quoting the exact proposal/preview/option references Creator returned.
-Never self-compute, refresh or fabricate approval hashes.
-
-A Budget line is not proposal approval. Proposal approval is not an expanded
-spending allowance. Apply the actual user's grant and the selected contract's
-required approval stops; do not add a mandatory taste vote for every minor
-choice already within granted discretion. Suggestions not yet decided remain
-suggestions, even when you favor them. A changed purpose, ratio, protected
-content or other approved scope needs impact assessment and the required
-new approval, not a silent continuation on an obsolete preview.
-
-## Inputs, progress and findings
-
-- Keep the user's original input paths. A readable local video needs no
-  fresh chat attachment. Missing inputs stay missing; do not invent paths,
-  substitute identities or search unrelated personal data.
-- Separate permission to read, reuse, upload to a production model, run
-  remote analysis and publish. Relay the exact granted scope. Missing
-  permission blocks the affected operation, not harmless local planning.
-- Let Creator coordinate production dependencies. Reuse accepted Writer
-  text unchanged and do not request the same unit from another specialist.
-- Acknowledge an accepted dispatch, retain its handle and wait for normal
-  completion notifications. Use the existing
-  [resident-session supervision](../references/execute/resident-sessions.md) for pending or
-  interrupted work; uncertainty is not authorization to launch duplicates.
-- Reconcile the job's returned spend against the sanctioned allowance.
-  Failed attempts and previous consumption survive revisions and resumes.
-  Return a discrepancy or missing evidence to the same work conversation.
+- A report names the leaf, the paths, every QA check with its evidence and the
+  spend line. A missing path or spend line is a defect to ask for, not assume.
+- A hands `Q<n>:` the user can answer literally: ask the user in plain
+  language, or answer from settled context. One that needs interpretation
+  ("brighter" — which field?): get options from Creator first, then let the
+  user choose. Never invent an approval or ask twice.
+- A proposal, storyboard or preview is an approval stop. Show the actual
+  returned material with a short explanation, then relay the user's decision in
+  the same conversation, quoting the user's own words and the exact path and
+  SHA-256 the hands returned. Never compute, refresh or invent a hash. A Budget
+  line is not proposal approval, and proposal approval is not more spend. An
+  approved study is not an approved final.
+- Approvals and choices are the user's alone. When the user cannot be reached
+  (a question tool fails, no reply arrives), stop and say in your reply what is
+  waiting for them; never approve, pick a direction or answer a hands question
+  on their behalf, and never read the original brief, a Budget line or
+  "make it good" as approval.
+- A one-line procedure note from the hands goes to the maintainer verbatim.
 
 ## Direct delivery
 
-Stay in Execute on normal Creator completion; do not load
-`qa-assistant-creative` or request another Creator inspection. This also applies
-to confirmed legacy units. Read the returned report for its
-output kind, durable paths, producer check status, obvious conflicts with settled
-constraints and spend. Do not mandate visual looks, remeasurements, a new QA
-report or autonomous aesthetic corrections before showing the candidate.
-
-Distinguish advice, analysis findings, proposals, approval previews and final
-candidates. Findings can be the requested outcome; a proposal is not a missing
-final. Never present source/reference material as newly produced output. Show
-usable previews promptly with failed and unknown checks disclosed, including
-unverified motion/listening/taste. Required failures still block final readiness
-and dependent use; request a scoped producer fix or report the blocker, never
-rename a failure PASS. Missing evidence remains unknown, not an inspection you
-performed. Preserve approved part versions and all proposal/preview, budget,
-upload, remote-analysis and publication gates.
+Stay in Execute on normal completion; do not load `qa-assistant-creative` or
+ask Creator to review. Read the report for output kind, paths, required check
+status, obvious conflicts with settled constraints and spend; request a missing
+receipt or a scoped fix from the same producer, or report the blocker. Never
+re-probe, repeat visual looks or spend the corrective allowance on your own
+taste before showing work.
 
 Deliver through [media-ops.md](references/media-ops.md): attach the actual
-viewable file when supported, or give an accessible viewing route and state any
-delivery limitation. An internal path alone is not a viewing method. Carry the
-producer's spend and relevant caveats forward without a second inspection.
-Delivery is not the user's acceptance, listening evidence or permission to
-continue production. Close only after acceptance of the requested outcome, not
-merely its proposal; leave approval-waiting or unresolved work explicit.
+file when supported, or give an accessible viewing route. Show usable previews
+promptly with failed and unknown checks disclosed, including unverified motion,
+listening or taste. A required failure still blocks final readiness and
+dependent use; never rename it PASS. Delivery is not the user's acceptance or
+permission to continue. Close a conversation only after the user accepts its
+result, not merely a proposal.
 
-If the user rejects the overall direction, revisit the reference interpretation
-with Creator and show a supported representative sample before full production.
-For a time-based reference, test the relevant composition AND progression, not
-only a static frame or ending. Keep existing sample modes, exact approval stops
-and consumed allowances; do not invent a study mode or iterate minor polish on
-the rejected idea. An explicit user request to inspect instead routes to
-[requested inspection](../qa-assistant-creative/SKILL.md) for bounded findings,
-not an automatic revision grant.
-
-## Confirmed legacy work
-
-Only Creator-confirmed legacy unit work loads
-[legacy/index.md](references/legacy/index.md).
+If the user rejects the overall direction, consult Creator on a different
+reading of the reference and show a supported representative sample before full
+production. For a time-based reference, the sample must show composition and
+progression, not only a frame or an ending. An explicit request to inspect
+routes to [requested inspection](../qa-assistant-creative/SKILL.md).

@@ -73,15 +73,6 @@ ASSISTANT_ENTRIES = {
         for capability in EXPECTED_CAPABILITIES
     },
 }
-# The sanctioned (mode, capability, subdir) shelf below entry references:
-# creative's legacy/, the flat home of retained production references with
-# fixed house prescriptions removed. Plan, execute and quality-assurance
-# each have one shelf; it never nests.
-CREATIVE_LEGACY_SHELVES = {
-    ("plan", "creative", "legacy"),
-    ("execute", "creative", "legacy"),
-    ("quality-assurance", "creative", "legacy"),
-}
 # Required Chat entry references and extra shared Execute files.
 REQUIRED_MODE_FILES = {
     "chat": {"workspace-ops.md", "message-reply.md", "work-report.md", "cron.md", "lookups.md", "whatsapp.md",
@@ -92,24 +83,6 @@ REQUIRED_MODE_FILES = {
 # Verification contracts that must exist (migration-loss guard); extra
 # leaves may grow beside them as long as the dir index routes them.
 REQUIRED_QA_CONTRACTS = {
-    # Creative's floor is qa-assistant-creative/references/legacy/.
-    "creative": {
-        "ascii-art.md",
-        "ascii-video.md",
-        "assembly.md",
-        "browser-media.md",
-        "comic.md",
-        "data-visualization.md",
-        "excalidraw-diagram.md",
-        "infographic.md",
-        "pixel-art.md",
-        "pixel-video.md",
-        "raster-image.md",
-        "sourced-asset.md",
-        "svg-diagram.md",
-        "text-visual.md",
-        "video.md",
-    },
     "research": {
         "evidence-pack.md",
         "tradeoff-matrix.md",
@@ -119,9 +92,9 @@ REQUIRED_QA_CONTRACTS = {
     "search": {"lookup.md", "sweep.md", "hunt.md"},
     "writing": {"prose.md", "script.md"},
 }
-# Capabilities whose required QA contract floor lives under legacy/
-# rather than directly in qa-assistant-<capability>/references/.
-QA_CONTRACT_LEGACY_CAPABILITIES = {"creative"}
+# Files beside the subject references in execute-assistant-creative/references/
+# that are not hands subjects.
+COMMISSIONING_SHARED_REFERENCES = {"media-ops.md"}
 
 
 def load_yaml(path: Path) -> dict[str, Any]:
@@ -199,31 +172,6 @@ def validate_index_routes(directory: Path, errors: list[str]) -> None:
             errors.append(
                 f"index.md does not route {leaf.name}: {rel_pipeline(directory)}"
             )
-
-
-def validate_creative_legacy_shelf(shelf: Path, mode: str, errors: list[str]) -> int:
-    """Retained legacy references stay flat."""
-    validate_index_routes(shelf, errors)
-    files = 0
-    for entry in sorted(shelf.iterdir()):
-        if entry.name.startswith("."):
-            continue
-        if entry.is_dir():
-            errors.append(
-                f"no nesting below the creative legacy shelf: {rel_pipeline(entry)}"
-            )
-            continue
-        if entry.name == "SKILL.md":
-            errors.append(
-                f"creative legacy shelf must not contain SKILL.md: "
-                f"{rel_pipeline(entry)}"
-            )
-            continue
-        if entry.suffix != ".md":
-            errors.append(f"non-markdown reference: {rel_pipeline(entry)}")
-            continue
-        files += 1
-    return files
 
 
 def validate_assistant_pipeline(errors: list[str]) -> int:
@@ -341,8 +289,6 @@ def validate_assistant_pipeline(errors: list[str]) -> int:
             if child.name not in {"SKILL.md", "references"}:
                 errors.append(f"unexpected assistant entry child: {rel_pipeline(child)}")
         own_refs = entry / "references"
-        if capability == "creative" and not (own_refs / "legacy" / "index.md").is_file():
-            errors.append(f"missing creative legacy index: {name}/references/legacy/index.md")
         if mode == "chat":
             for filename in sorted(REQUIRED_MODE_FILES["chat"]):
                 if not (own_refs / filename).is_file():
@@ -357,10 +303,7 @@ def validate_assistant_pipeline(errors: list[str]) -> int:
                 if route not in text:
                     errors.append(f"entry SKILL.md does not route {route}: {name}")
                 if leaf.is_dir():
-                    if (mode, capability, leaf.name) in CREATIVE_LEGACY_SHELVES:
-                        validate_creative_legacy_shelf(leaf, mode, errors)
-                    else:
-                        errors.append(f"no nesting below entry references: {rel_pipeline(leaf)}")
+                    errors.append(f"no nesting below entry references: {rel_pipeline(leaf)}")
                 elif leaf.suffix != ".md":
                     errors.append(f"non-markdown reference: {rel_pipeline(leaf)}")
                 elif leaf.name == "index.md":
@@ -381,8 +324,6 @@ def validate_assistant_pipeline(errors: list[str]) -> int:
 
     for capability, required in REQUIRED_QA_CONTRACTS.items():
         directory = assistant_entry_dir("quality-assurance", capability) / "references"
-        if capability in QA_CONTRACT_LEGACY_CAPABILITIES:
-            directory = directory / "legacy"
         present = (
             {p.name for p in directory.glob("*.md")} if directory.is_dir() else set()
         )
@@ -1418,54 +1359,38 @@ def validate_hands_subjects(
                 )
 
 
-# Second table cell only: `| Deliverable | <profile>: <name> | Notes |`. An
-# engine-variant suffix after the name (e.g. `generate-sfx (fal:...)`) is
-# discarded by \b; several rows serving the same (profile, name) pair are
-# expected and allowed (engine variants), not a duplicate-route error.
-HANDS_ROUTING_ROW = re.compile(
-    r"^\|[^|\n]+\|\s*(image-creator|video-creator|audio-creator):\s*([a-z]+-[a-z-]+)\b",
-    re.MULTILINE,
-)
-
-
 def validate_hands_routing(
     hands_leaves: dict[str, dict[str, Path]], errors: list[str]
 ) -> None:
-    """Cross-check the creator capabilities.md routing table against the
-    hands leaves actually installed on disk (leaves_by_profile from
-    validate_hands, same shape validate_hands_subjects already takes).
-    Path is derived from the current HERMES_ROOT global at call time (never
-    cached at import time) so tests can patch it."""
-    table = (
-        HERMES_ROOT
-        / "profiles/creator/skills/creator-pipeline/references/capabilities.md"
-    )
-    if not table.is_file():
-        errors.append(f"missing creator capabilities routing table: {table}")
-        return
-    text = table.read_text(encoding="utf-8")
-    installed = {
-        name: profile for profile, leaves in hands_leaves.items() for name in leaves
-    }
-    documented: set[tuple[str, str]] = set()
-    for profile, name in HANDS_ROUTING_ROW.findall(text):
-        owner = installed.get(name)
-        if owner is None:
-            errors.append(
-                f"capabilities.md routes to a hands leaf that is not installed: {profile}: {name}"
-            )
-            continue
-        if owner != profile:
-            errors.append(
-                f"capabilities.md assigns {name} to {profile} but it is installed under {owner}"
-            )
-            continue
-        documented.add((profile, name))
+    """Every installed hands subject has exactly one Assistant commissioning
+    reference (execute-assistant-creative/references/<subject>.md) and every
+    installed leaf is named in it, so no leaf is unreachable from the
+    commissioning side; a reference for a subject no hands serves is an
+    orphan. Paths are derived from the current ASSISTANT_PIPELINE global at
+    call time so tests can patch it."""
+    refs = assistant_entry_dir("execute", "creative") / "references"
+    subjects: dict[str, str] = {}
     for profile, leaves in hands_leaves.items():
-        for name in leaves:
-            if (profile, name) not in documented:
+        for name, path in leaves.items():
+            subjects.setdefault(path.parent.name, profile)
+    present = (
+        {p.stem for p in refs.glob("*.md") if p.name not in COMMISSIONING_SHARED_REFERENCES}
+        if refs.is_dir() else set()
+    )
+    for subject in sorted(subjects.keys() - present):
+        errors.append(
+            f"hands subject has no commissioning reference: {subjects[subject]}/{subject}"
+        )
+    for subject in sorted(present - subjects.keys()):
+        errors.append(f"commissioning reference has no hands subject: {subject}.md")
+    for profile, leaves in hands_leaves.items():
+        for name, path in sorted(leaves.items()):
+            ref = refs / f"{path.parent.name}.md"
+            if ref.is_file() and not re.search(
+                rf"(?<![\w-]){re.escape(name)}(?![\w-])", ref.read_text(encoding="utf-8")
+            ):
                 errors.append(
-                    f"installed hands leaf has no capabilities.md route: {profile}: {name}"
+                    f"commissioning reference does not name installed leaf: {profile}: {name}"
                 )
 
 
@@ -1498,15 +1423,13 @@ def validate_hands(profile: str, errors: list[str]) -> tuple[dict[str, Path], in
     return leaves, len(learned)
 
 
-# ── Creator references (v8 broker tree) ─────────────────────────────────
+# ── Creator references (v10 advisor tree) ───────────────────────────────
 #
-# Migrating off the v7 monolith reference files onto a plain Markdown
-# broker tree: `references/{plan,build,quality-assurance}/index.md` plus
-# one flat `<hands>/<subject>.md` leaf per hands subject (subjects read
-# dynamically from the hands leaves on disk, never hardcoded).
+# Creator advises the Assistant: a kernel, two entries (propose / revise) and
+# one capability reference per served hands subject under
+# `references/<hands>/<subject>.md` (subjects read from the hands leaves on
+# disk, never hardcoded).
 
-CREATOR_REFERENCE_PHASES = ("plan", "build", "quality-assurance")
-# Ordinary `[text](dest)`, an optional "title"/'title', or a `<dest>` target.
 LOCAL_LINK = re.compile(
     r"\]\(\s*(<[^>]*>|[^\s)]+)(?:\s+(?:\"[^\"]*\"|'[^']*'))?\s*\)"
 )
@@ -1592,210 +1515,101 @@ def validate_creator_reference_links(
 
 
 CREATOR_ENTRIES = {
-    "plan": "plan-creator",
-    "build": "build-creator",
-    "quality-assurance": "qa-creator",
+    "propose": "propose-creator",
+    "revise": "revise-creator",
 }
+CREATOR_PIPELINE_MAJOR = 10
 
 
 def validate_creator_references(pipeline_dir: Path, errors: list[str]) -> None:
-    """Validate independently discoverable v9 entries or the shipped v8 tree.
-    Build-alongside: while no phase
-    directory exists yet and the root major version is below 8, the v7
-    monolith files stay accepted. Any phase directory, or major >= 8,
-    switches on full-tree validation for all three phases at once.
-    """
+    """Validate the v10 advisor tree: the kernel links both entries and every
+    capability reference; references hold exactly one file per served hands
+    subject, flat under its hands directory, with links that stay inside the
+    pipeline."""
     pipeline = pipeline_dir / "SKILL.md"
     major = _pipeline_major_version(frontmatter(pipeline) if pipeline.is_file() else {})
-    if major is None:
-        errors.append("invalid creator pipeline version")
+    if major != CREATOR_PIPELINE_MAJOR:
+        errors.append(f"creator pipeline must be version {CREATOR_PIPELINE_MAJOR}: {major}")
         return
-    references = pipeline_dir / "references"
-    phase_dirs = {phase: references / phase for phase in CREATOR_REFERENCE_PHASES}
-    indexes = {phase: directory / "index.md" for phase, directory in phase_dirs.items()}
+    kernel_links = {target for _, target in markdown_links(pipeline)}
+    validate_creator_reference_links(pipeline, pipeline_dir, errors)
 
-    if major >= 9:
-        phase_dirs = {
-            phase: pipeline_dir / name / "references"
-            for phase, name in CREATOR_ENTRIES.items()
-        }
-        indexes = {
-            phase: pipeline_dir / name / "SKILL.md"
-            for phase, name in CREATOR_ENTRIES.items()
-        }
-        kernel_links = {target for _, target in markdown_links(pipeline)}
-        validate_creator_reference_links(pipeline, pipeline_dir, errors)
-        for phase, name in CREATOR_ENTRIES.items():
-            index = indexes[phase]
-            if (references / phase).exists():
-                errors.append(f"stale creator phase directory on v9: references/{phase}")
-            if not index.is_file():
-                errors.append(f"missing creator entry skill: {name}/SKILL.md")
-                continue
-            validate_skill(index, name, errors, expected_category="creator-pipeline")
-            if _pipeline_major_version(frontmatter(index)) is None:
-                errors.append(f"invalid creator entry version: {name}")
-            if not str(frontmatter(index).get("description", "")).strip():
-                errors.append(f"missing creator entry description: {name}")
-            if index.resolve() not in kernel_links:
-                errors.append(f"creator kernel does not link entry: {name}")
-            text = index.read_text(encoding="utf-8")
-            context = re.search(r"<ReadBeforeWork>(.*?)</ReadBeforeWork>", text, re.S)
-            block = " ".join(context.group(1).split()) if context else ""
-            for required in (
-                'skill_view(name="creator-pipeline")',
-                "full-body", "Reuse", "summary", "unchanged", "read_file",
-                "next_offset", "stop", "${HERMES_SKILL_DIR}/../SKILL.md",
-                "${HERMES_SKILL_DIR}/SKILL.md",
-            ):
-                if required not in block:
-                    errors.append(f"creator entry ReadBeforeWork missing {required}: {name}")
-            for child in index.parent.iterdir():
-                if not child.name.startswith(".") and child.name not in {"SKILL.md", "references"}:
-                    errors.append(f"unexpected creator entry child: {name}/{child.name}")
-            validate_creator_reference_links(index, pipeline_dir, errors)
-        if references.is_dir():
-            for shared in references.iterdir():
-                if not shared.name.startswith(".") and shared.name not in {"capabilities.md", "craft.md", "legacy"}:
-                    errors.append(f"unexpected creator shared reference: {shared.name}")
-            for doc in references.rglob("*.md"):
-                validate_creator_reference_links(doc, pipeline_dir, errors)
-
-    if not any(d.is_dir() for d in phase_dirs.values()) and major < 8:
-        return  # v7 baseline: still on the monolith references/{phase}.md files
-
-    hands_subjects = collect_hands_subjects()
-    phase_subject_paths: dict[str, dict[str, Path]] = {
-        phase: {} for phase in CREATOR_REFERENCE_PHASES
-    }
-
-    for phase, phase_dir in phase_dirs.items():
-        if not phase_dir.is_dir():
-            errors.append(f"missing creator reference phase: {phase}")
-            for hands, subjects in hands_subjects.items():
-                for subject in sorted(subjects):
-                    errors.append(
-                        f"creator reference phase {phase} missing hands subject: "
-                        f"{hands}/{subject}"
-                    )
+    for name in CREATOR_ENTRIES.values():
+        index = pipeline_dir / name / "SKILL.md"
+        if not index.is_file():
+            errors.append(f"missing creator entry skill: {name}/SKILL.md")
             continue
+        validate_skill(index, name, errors, expected_category="creator-pipeline")
+        if _pipeline_major_version(frontmatter(index)) is None:
+            errors.append(f"invalid creator entry version: {name}")
+        if not str(frontmatter(index).get("description", "")).strip():
+            errors.append(f"missing creator entry description: {name}")
+        if index.resolve() not in kernel_links:
+            errors.append(f"creator kernel does not link entry: {name}")
+        text = index.read_text(encoding="utf-8")
+        context = re.search(r"<ReadBeforeWork>(.*?)</ReadBeforeWork>", text, re.S)
+        block = " ".join(context.group(1).split()) if context else ""
+        for required in (
+            'skill_view(name="creator-pipeline")',
+            "full body", "Reuse", "unchanged", "read_file",
+            "next_offset", "stop", "${HERMES_SKILL_DIR}/../SKILL.md",
+            "${HERMES_SKILL_DIR}/SKILL.md",
+        ):
+            if required not in block:
+                errors.append(f"creator entry ReadBeforeWork missing {required}: {name}")
+        for child in index.parent.iterdir():
+            if not child.name.startswith(".") and child.name != "SKILL.md":
+                errors.append(f"unexpected creator entry child: {name}/{child.name}")
+        validate_creator_reference_links(index, pipeline_dir, errors)
 
-        if not indexes[phase].is_file():
-            errors.append(f"missing creator reference phase index.md: {phase}")
+    for child in pipeline_dir.iterdir():
+        if not child.name.startswith(".") and child.name not in {
+            "SKILL.md", "references", *CREATOR_ENTRIES.values()
+        }:
+            errors.append(f"unexpected creator pipeline child: {child.name}")
 
-        for entry in sorted(phase_dir.iterdir()):
-            if entry.name.startswith(".") or entry.name == "index.md":
+    references = pipeline_dir / "references"
+    hands_subjects = collect_hands_subjects()
+    if references.is_dir():
+        for shared in sorted(references.iterdir()):
+            if shared.name.startswith("."):
                 continue
-            if entry.is_file():
-                errors.append(
-                    f"unexpected file in creator reference phase {phase}: {entry.name}"
-                )
-                continue
-            if entry.name not in HANDS_PROFILES:
-                errors.append(
-                    f"unknown hands directory in creator reference phase "
-                    f"{phase}: {entry.name}"
-                )
-                continue
-            hands = entry.name
-            expected = hands_subjects.get(hands, set())
-            found: set[str] = set()
-            for leaf in sorted(entry.iterdir()):
+            if not shared.is_dir() or shared.name not in HANDS_PROFILES:
+                errors.append(f"unexpected creator reference: {shared.name}")
+    for hands, expected in hands_subjects.items():
+        directory = references / hands
+        found: set[str] = set()
+        if directory.is_dir():
+            for leaf in sorted(directory.iterdir()):
                 if leaf.name.startswith("."):
                     continue
+                rel = f"{hands}/{leaf.name}"
                 if leaf.is_dir():
-                    errors.append(
-                        f"no nesting below a creator reference hands dir: "
-                        f"{phase}/{hands}/{leaf.name}"
-                    )
+                    errors.append(f"no nesting below a creator reference hands dir: {rel}")
                     continue
-                if leaf.name == "SKILL.md":
-                    errors.append(
-                        f"creator reference tree must not contain SKILL.md: "
-                        f"{phase}/{hands}/{leaf.name}"
-                    )
-                    continue
-                if leaf.suffix != ".md":
-                    errors.append(
-                        f"non-markdown file in creator reference tree: "
-                        f"{phase}/{hands}/{leaf.name}"
-                    )
+                if leaf.suffix != ".md" or leaf.name == "SKILL.md":
+                    errors.append(f"unexpected file in creator references: {rel}")
                     continue
                 if not leaf.read_text(encoding="utf-8").strip():
-                    errors.append(
-                        f"empty creator reference file: {phase}/{hands}/{leaf.name}"
-                    )
-                subject = leaf.stem
-                found.add(subject)
-                phase_subject_paths[phase][f"{hands}/{subject}"] = leaf
-
-            for missing in sorted(expected - found):
-                errors.append(
-                    f"creator reference phase {phase} missing hands subject: "
-                    f"{hands}/{missing}"
-                )
-            for orphan in sorted(found - expected):
-                errors.append(
-                    f"creator reference phase {phase} has orphan hands subject: "
-                    f"{hands}/{orphan}"
-                )
-
-        for hands, subjects in hands_subjects.items():
-            if (phase_dir / hands).is_dir() or not subjects:
-                continue
-            for subject in sorted(subjects):
-                errors.append(
-                    f"creator reference phase {phase} missing hands subject: "
-                    f"{hands}/{subject}"
-                )
-
-    for phase, phase_dir in phase_dirs.items():
-        if not phase_dir.is_dir():
-            continue
-        index = indexes[phase]
-        if index.is_file():
-            linked = {target for _, target in markdown_links(index)}
-            for key, path in phase_subject_paths[phase].items():
-                if path.resolve() not in linked:
-                    errors.append(
-                        f"phase {phase} {index.name} does not link {key}: "
-                        f"{path.relative_to(pipeline_dir)}"
-                    )
-        for doc in sorted(phase_dir.rglob("*.md")):
-            validate_creator_reference_links(doc, pipeline_dir, errors)
-
-    if major >= 8:
-        for phase in CREATOR_REFERENCE_PHASES:
-            monolith = references / f"{phase}.md"
-            if monolith.is_file():
-                errors.append(
-                    f"stale monolith reference file on v8: "
-                    f"{monolith.relative_to(pipeline_dir)}"
-                )
+                    errors.append(f"empty creator reference file: {rel}")
+                found.add(leaf.stem)
+                if leaf.resolve() not in kernel_links:
+                    errors.append(f"creator kernel does not link {hands}/{leaf.stem}")
+                validate_creator_reference_links(leaf, pipeline_dir, errors)
+        for missing in sorted(expected - found):
+            errors.append(f"creator references missing hands subject: {hands}/{missing}")
+        for orphan in sorted(found - expected):
+            errors.append(f"creator references have orphan hands subject: {hands}/{orphan}")
 
 
-# ── Creative three-layer alignment ────────────────────────────────────────────
+# ── Creative Client references ───────────────────────────────────────────
 #
-# Plan decides, creator produces, QA verifies. The 1:1 parity contract is
-# scoped to plan-assistant-creative/references/legacy/ and the matching QA shelf,
-# the flat shelves that still carry the original creator-technic-aligned
-# leaves: they must pair 1:1 with creator technics, and the legacy QA
-# index's Covers column must map every canonical family to exactly one
-# contract. The plain-language guides in plan-assistant-creative/references/
-# (this migration's new client-facing surface) carry no such parity —
-# a new guide's name need not equal a creator hand, and an absent guide
-# does not mean the capability is unavailable. Families served by
-# Creator's hands (speech, icon, ...) are not technics and carry no leaf
-# or QA-index row in legacy. Paths below are derived from the current ASSISTANT_PIPELINE
-# / HERMES_ROOT globals at call time (never cached at import time) so
-# tests can patch them without stale module-level Path objects.
+# The plain-language guides in plan-assistant-creative/references/ carry no
+# parity with the hands: a guide's name need not equal a hands subject, and an
+# absent guide does not mean a capability is unavailable. Paths are derived
+# from the current ASSISTANT_PIPELINE global at call time so tests can patch it.
 
-CREATIVE_LEGACY_NON_FAMILY_LEAVES = {
-    "index.md",
-    "asset-set.md",
-    "composite-media.md",
-}
-# Headings every new plain-language creative guide must carry verbatim;
+# Headings every plain-language creative guide must carry verbatim;
 # reference-research.md is a cross-family reference, not a guide itself.
 CREATIVE_GUIDE_HEADINGS = (
     "## Use",
@@ -1810,6 +1624,7 @@ CREATIVE_RETIRED_REFERENCE_SEGMENTS = (
     "house-formats",
     "expressions",
     "production-facts.md",
+    "legacy",
 )
 # A backtick-quoted local path reference: requires a directory component
 # (so bare produced-artifact names like `proposal.md` are not treated as
@@ -1820,8 +1635,8 @@ CREATIVE_BACKTICK_REF = re.compile(r"`([^`\s]+)`")
 
 def validate_creative_new_guides(plan_dir: Path, errors: list[str]) -> None:
     """Every plain-language guide directly under the Plan entry's references
-    (not reference-research.md or anything under legacy/) must carry
-    the four client-facing headings verbatim."""
+    (not reference-research.md) must carry the four client-facing headings
+    verbatim."""
     for path in sorted(plan_dir.glob("*.md")):
         if path.name in CREATIVE_GUIDE_EXCLUDED_ROOTS:
             continue
@@ -1858,9 +1673,8 @@ def creative_doc_references(doc: Path) -> list[tuple[str, Path]]:
 
 
 def validate_creative_references(pipeline_dir: Path, errors: list[str]) -> None:
-    """Local document references across the three creative entries, legacy shelves
-    included), confined to the pipeline root and never pointing at a
-    retired shelf."""
+    """Local document references across the three creative entries, confined
+    to the pipeline root and never pointing at a retired shelf."""
     root = pipeline_dir.resolve()
     for mode in ("plan", "execute", "quality-assurance"):
         tree = assistant_entry_dir(mode, "creative", pipeline_dir)
@@ -1892,60 +1706,10 @@ def validate_creative_references(pipeline_dir: Path, errors: list[str]) -> None:
 
 def validate_creative_alignment(errors: list[str]) -> None:
     plan_dir = assistant_entry_dir("plan", "creative") / "references"
-    qa_dir = assistant_entry_dir("quality-assurance", "creative") / "references"
-    technic_dir = HERMES_ROOT / "profiles" / "creator" / "skills" / "technic"
-    legacy_dir = plan_dir / "legacy"
     if plan_dir.is_dir():
         validate_creative_new_guides(plan_dir, errors)
     validate_creative_references(ASSISTANT_PIPELINE, errors)
-    if not (technic_dir.is_dir() and plan_dir.is_dir()):
-        return  # missing roots are reported by the profile validators
-    if not legacy_dir.is_dir():
-        errors.append(f"missing creative plan legacy shelf: {legacy_dir}")
-        return
 
-    technics = {path.parent.name for path in technic_dir.glob("*/SKILL.md")}
-    canonical = technics
-
-    legacy_leaves = {
-        path.name for path in legacy_dir.glob("*.md")
-    } - CREATIVE_LEGACY_NON_FAMILY_LEAVES
-    expected = {f"{name.removeprefix('creator-')}.md" for name in technics}
-    for name in sorted(expected - legacy_leaves):
-        errors.append(f"creative legacy leaf missing for canonical family: {name}")
-    for name in sorted(legacy_leaves - expected):
-        errors.append(f"creative legacy leaf has no canonical family: {name}")
-
-    qa_legacy_dir = qa_dir / "legacy"
-    qa_index = qa_dir.parent / "SKILL.md"
-    if not qa_index.is_file():
-        errors.append(f"missing creative QA index: {qa_index}")
-        return
-    qa_legacy_index = qa_legacy_dir / "index.md"
-    if not qa_legacy_index.is_file():
-        errors.append(f"missing creative QA legacy index: {qa_legacy_index}")
-        return
-    covered: list[str] = []
-    for line in qa_legacy_index.read_text(encoding="utf-8").splitlines():
-        if not line.startswith("|") or line.startswith("| ---"):
-            continue
-        cells = [cell.strip() for cell in line.strip("|").split("|")]
-        if len(cells) < 3 or cells[1] == "Contract":
-            continue
-        contract = cells[1].strip("`")
-        if contract.endswith(".md") and not (qa_legacy_dir / contract).is_file():
-            errors.append(f"creative QA route names missing contract: {contract}")
-        covered.extend(re.findall(r"`([^`]+)`", cells[2]))
-    for name in sorted(canonical):
-        count = covered.count(name)
-        if count == 0:
-            errors.append(f"creative QA Covers misses canonical family: {name}")
-        elif count > 1:
-            errors.append(
-                f"creative QA Covers lists {name} {count} times (must be once)"
-            )
-    for name in sorted(set(covered) - canonical):
-        errors.append(f"creative QA Covers names unknown family: {name}")
 
 # ── Engineering plan-QA alignment ───────────────────────────────────────
 #

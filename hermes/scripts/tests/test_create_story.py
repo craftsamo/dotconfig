@@ -20,7 +20,8 @@ HERMES_ROOT = Path(__file__).resolve().parents[2]
 VIDEO = HERMES_ROOT / "profiles/video-creator/skills/video-creator-pipeline"
 LEAF = VIDEO / "create/story"
 CREATOR = HERMES_ROOT / "profiles/creator"
-CAPABILITIES = CREATOR / "skills/creator-pipeline/references/capabilities.md"
+COMMISSION = HERMES_ROOT / "profiles/assistant/skills/assistant-pipeline/execute-assistant-creative/references/story.md"
+ADVISOR = CREATOR / "skills/creator-pipeline/references/video-creator/story.md"
 
 spec = importlib.util.spec_from_file_location("create_story", LEAF / "scripts/story.py")
 story = importlib.util.module_from_spec(spec)
@@ -211,13 +212,13 @@ def test_leaf_form_and_routing():
     assert "local-authoring fallback" in text.split("<Report>")[1]
     assert 'file_path="references/motion-vocabulary.md"' in text
     assert "create-story" in (VIDEO / "references/hyperframes.md").read_text()
-    row = next(line for line in CAPABILITIES.read_text().splitlines() if "| video-creator: create-story |" in line)
-    assert "no lip sync" in row
-    prompt = yaml.safe_load((CREATOR / "config.yaml").read_text())["agent"]["system_prompt"]
-    assert "is create-story on video-creator" in prompt
-    for phase in ("plan", "build", "qa"):
-        entry = CREATOR / f"skills/creator-pipeline/{phase}-creator"
-        assert "[story](references/video-creator/story.md)" in (entry / "SKILL.md").read_text()
+    row = next(line for line in COMMISSION.read_text().splitlines() if "| `create-story` |" in line)
+    assert "kind=\"work\"" in row
+    assert "no lip sync" in " ".join(COMMISSION.read_text().split())
+    assert "`create-story`" in ADVISOR.read_text()
+    assert "(references/video-creator/story.md)" in (CREATOR / "skills/creator-pipeline/SKILL.md").read_text()
+    config = yaml.safe_load((CREATOR / "config.yaml").read_text())
+    assert config["specialist_call"]["resident_targets"] == ["researcher"]
 
 
 @pytest.mark.skipif(not shutil.which("hyperframes"), reason="hyperframes CLI not installed")
