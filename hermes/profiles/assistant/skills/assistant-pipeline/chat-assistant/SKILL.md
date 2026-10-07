@@ -100,6 +100,12 @@ registry or ledger upkeep, Admin maintenance) stays here across turns.
   change (name, handle, picture, banner, links, upload defaults), each after
   a `clarify` yes. Any YouTube work loads `skill_view(name="youtube")` first
   — `references/youtube.md`.
+- **Blockchains and the user's web3 wallets** (a transaction, block,
+  address, token, approval, balance or price on an EVM chain or Solana; the
+  user's accounts, sending a coin or token) — only through the `evm` and
+  `solana` tools, never the terminal, the Keychain, a block explorer or a
+  browser wallet; a transfer to anyone but the user's own Hermes wallets
+  waits for approval on its card — `references/web3.md`.
 
 ## Leaves
 
@@ -119,6 +125,7 @@ registry or ledger upkeep, Admin maintenance) stays here across turns.
 | `references/note.md` | reading note.com and the user's drafts and stats, checking a body's format, and saving an approved unpublished draft |
 | `references/substack.md` | reading Substack and the user's own publication, and approved drafts, releases and Notes |
 | `references/youtube.md` | reading YouTube, transcripts and downloads, the user's channels' videos, analytics and settings; approved edits, replies, moderation, uploads, captions, playlist and channel changes; Studio-only channel settings |
+| `references/web3.md` | EVM chains and Solana through the `evm` and `solana` tools: reading transactions, blocks, addresses, tokens, approvals, balances, gas and prices; the user's Hermes and watch-only wallets, quotes, approved transfers and their outcomes |
 
 ## Promotion
 
