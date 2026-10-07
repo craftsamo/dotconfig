@@ -23,6 +23,7 @@ toolsets:
   - substack_access
   - skills
   - memory
+  - web3_read
 max_concurrent_sessions:
 agent:
   system_prompt: |
@@ -614,6 +615,7 @@ platform_toolsets:
     - skills
     - substack_access
     - web
+    - web3_read
     - x_access
     - x_search
     - youtube_access
@@ -629,3 +631,4 @@ plugins:
     - x-access
     - substack-access
     - youtube-access
+    - chain-read
