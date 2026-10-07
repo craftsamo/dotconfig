@@ -20,7 +20,7 @@ take; an unknown link surface is not a verified conversion path.
 Do not fill a hashtag quota or add emoji because the platform is Instagram.
 Check the current destination/account limits before publishing. Writer
 creates text, not media, and this reference does not establish that the
-Marketer has an Instagram publishing integration. Without one, draft-only.
+requester has an Instagram publishing integration. Without one, draft-only.
 
 Source:
 - https://www.facebook.com/help/instagram/442418472487929

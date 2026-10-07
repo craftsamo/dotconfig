@@ -212,22 +212,22 @@ as a separate sub-account through twscrape, paced and capped, downloads a
 post's media, records the main account's public counts and checks public
 posts in bulk through FxTwitter outside those caps (`verify`); nothing posts
 or sends. Marketer shares the tool and its caps for analysis. The browser
-stays off x.com, which carries the user's main login, with one exception:
-when the user asks for it, the Assistant completes an X Article draft in the
-editor and stops at a saved draft, never publishing or scheduling. The
-public technic `x-twitter` holds the mechanics for both. Contract:
+stays off x.com, which carries the user's main login, with two exceptions,
+both at the user's request and both stopping at a saved draft, never
+publishing or scheduling: the Assistant saves an approved ordinary post
+draft, and completes an X Article draft in the editor. The public technic
+`x-twitter` holds the mechanics for all three. Contract:
 [x-access.md](../x-access.md).
 
 note.com is the assistant's to write too (`note_access` toolset, never on
-the assistant's A2A; Marketer has the same tool, Writer only its offline
-format `check`): public articles, creators, comments and
+the assistant's A2A; Marketer has its reads and `check`, Writer only the
+offline format `check`): public articles, creators, comments and
 hashtags plus the user's own drafts and stats are read as the user's main
 account, and unpublished drafts are created or wholly replaced from Markdown
 with local images, each save waiting for approval on a card naming the
 draft, the title, every new image and the start of the text; nothing
-publishes. A resident Marketer cannot answer a card, so it hands its note
-save to the Assistant, which saves it unchanged with its own card. The
-public technic `note-com` holds the mechanics; the browser stays off note.
+publishes. The public technic `note-com` holds the mechanics; the browser
+stays off note.
 Contract: [note-access.md](../note-access.md).
 
 The user's own Substack account is shared with Marketer, which only reads
@@ -249,6 +249,16 @@ each waiting for approval on a card naming the channel and the change.
 Settings outside the API (name, handle, picture, banner, links, upload
 defaults) go through YouTube Studio in its browser after a `clarify`
 confirmation. Contract: [youtube-access.md](../youtube-access.md).
+
+Marketing work is the Assistant's to execute, with Marketer as its strategy
+advisor ([marketer.md](./marketer.md)): the marketing entries consult Marketer
+on direction, reviews and results, release Writer and Creator units, accept
+them with the shared writing contract and save the approved service-side
+draft themselves after exact remote-save consent — X posts and Articles in
+the Assistant's browser (`x-twitter`), Substack and note through their tools
+and cards, Zenn personal Articles in the browser (public technic `zenn-dev`).
+Nothing publishes, schedules or sends; the user publishes. Marketer's browser
+is never a fallback.
 
 ### Kanban catalog
 

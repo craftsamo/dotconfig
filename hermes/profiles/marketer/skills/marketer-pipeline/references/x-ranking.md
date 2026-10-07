@@ -82,9 +82,10 @@ counts as a lever. Experiments on the client's own account decide these.
 
 ## Review lenses for an X draft
 
-Use in [content QA](../qa-marketer/references/content.md) when the destination
-is X. Report each lens as observed / risk / direction for Writer, label
-judgments as hypotheses and never rewrite the text yourself. A lens that does
+Use in [content review](../review-marketer/references/content.md) when the
+destination is X. Report each lens as observed / risk / direction for Writer
+(through the client), label judgments as hypotheses and never rewrite the
+text yourself. A lens that does
 not fit the message's purpose is skipped, not forced.
 
 - Worth sharing: would the target reader send it to a specific person or keep
