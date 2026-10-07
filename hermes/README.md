@@ -137,9 +137,9 @@ profiles/<name>/       # bots: assistant, engineer, creator, marketer; specialis
   profile.yaml         # routing description (kanban/delegation)
   SOUL.example.md      # persona template; real SOUL.md (BASE + role posture) untracked
   .no-bundled-skills
-  skills/              # <profile>-pipeline/ (the one root pipeline skill;
-                       #   assistant's is a private-overlay symlink), technic/
-                       #   (flat leaf technics, where used), learned/ (ignored)
+  skills/              # <profile>-pipeline/ (the one root pipeline skill),
+                       #   technic/ (flat leaf technics, where used),
+                       #   learned/ (ignored)
   scripts/             # assistant: resident-session.sh, kanban-resolve-block.sh,
                        #   kanban-scheduled-sweeper.sh, x-snapshot.sh,
                        #   creative-timeline.py, local-* cron wrappers (generated, ignored);
@@ -165,14 +165,17 @@ live under `profiles/creator/skills`. Skill placement (validator-enforced):
 - Writer reads the `japanese-writing` core through its curated
   `external-skills/` symlink.
 - The assistant's `assistant-pipeline` (kernel + 19 child entries + shared mode
-  references) is a private-overlay symlink; its pinned Telegram topics bind no
-  skill (their contracts are `channel_prompts` entries).
-- The assistant also has a **private technic shelf** for technics that must not
-  be public: the overlay's `hermes/profiles/assistant/skills/technic/` (same
+  references) is tracked here like every other pipeline; its pinned Telegram
+  topics bind no skill (their contracts are `channel_prompts` entries). Its
+  tests (`assistant-pipeline/tests/`) read the private `config.yaml` only
+  through an explicit `HERMES_PRIVATE_ROOT`.
+- The assistant also has a **private technic shelf** for knowledge that must
+  not be public — account names, businesses and people the pipeline routes
+  to by name only: the overlay's `hermes/profiles/assistant/skills/technic/` (same
   flat leaf shape as `technic/`), read through one `skills.external_dirs` entry
   in its private `config.yaml` — never a link into the public `technic/` (its
-  names would show in `git status`) and never the overlay's whole `skills/`
-  (that indexes `assistant-pipeline` twice). The runtime index groups such a
+  names would show in `git status`) and never an ancestor that also contains
+  `assistant-pipeline` (that indexes it twice). The runtime index groups such a
   leaf under its own name rather than `technic`; loading by name is unchanged.
   The validator checks its shape, its `external_dirs` entry and that each name
   is unique across every source the assistant reads.
@@ -1168,8 +1171,9 @@ tool returns `status: "blocked"`.
   — run before cutover and after an
   upstream update; it resolves the runtime's PM test interpreter through
   `bin/hermes-python --test`. It runs the strict Git/topology
-  validator, paired public/private tests and runtime regressions; it never
-  installs, restarts or migrates jobs.
+  validator, the public tests (including the Assistant pipeline's, against the
+  paired private config) and runtime regressions; it never installs, restarts
+  or migrates jobs.
 - Entry-runtime suites in `scripts/tests/` (provisioned Hermes Python, explicit
   source `PYTHONPATH`, isolated HOME, no network; registered in
   `verify-work-continuity.py`): `test_{engineer,creator,marketer,searcher,writer,assistant}_entry_runtime.py`,
@@ -1178,9 +1182,9 @@ tool returns `status: "blocked"`.
   `test_searcher_pipeline.py`; run `test_media_craft_routing.py` and
   `test_audio_creator_routing.py` with the hands tests. What they prove:
   [docs/topology.md](docs/topology.md) "Candidate rollout and cutover".
-- Paired candidate selectors: set `HERMES_PRIVATE_ROOT=<private-checkout>` on
-  public tests and `HERMES_PUBLIC_ROOT=<public-checkout>` on private tests.
-  These select source trees for tests, not runtime wiring. Never run install
+- Paired candidate selector: set `HERMES_PRIVATE_ROOT=<private-checkout>` on
+  public tests that read private config (an absent value skips them). It
+  selects a source tree for tests, not runtime wiring. Never run install
   scripts or create live links for candidate checks, and never weaken live
   Git/symlink ownership checks.
 

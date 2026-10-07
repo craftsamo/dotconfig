@@ -125,8 +125,7 @@ exercised, and both human and Assistant clients have soaked. A shared QA
 contract stays until its last consumer moves. Merely adding a Client guide
 or relocating a reference satisfies none of those retirement gates.
 
-The rebuild is a paired public-validator/private-pipeline change. Candidate
-checks resolve the candidate creative roots at call time and validate
+Candidate checks resolve the candidate creative roots at call time and validate
 structure without invoking live Git-boundary checks on a temporary copy.
 Cutover needs approval; check real ownership and a fresh session separately.
 Rollback restores the paired task-owned references and validator, never job

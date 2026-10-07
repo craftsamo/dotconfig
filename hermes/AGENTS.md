@@ -40,7 +40,10 @@ repository upkeep (Engineer through OpenCode, the Assistant's Admin topic).
   PR text; it lives in the private overlay (`~/.config/private`, the
   `private-dotconfig` repo). Use neutral examples (`work`, `personal`,
   `Leads`). The overlay installs local commit and push hooks that refuse
-  known names; a refusal is fixed by rewording, never by `--no-verify`.
+  known names; a refusal is fixed by rewording, never by `--no-verify`. The
+  Assistant pipeline is tracked here too: what it must know about a private
+  account, business or person goes on the private technic shelf, and the
+  entry names that technic only.
 - **`config.yaml` is rewritten by Hermes on load.** Match its output format
   (block style, key order) and keep diffs minimal; never hand-reformat or
   alphabetize. Custom top-level keys survive the rewrite.
@@ -160,9 +163,8 @@ repository upkeep (Engineer through OpenCode, the Assistant's Admin topic).
   installer run reseeds dead relative links into `profiles/*/skills/` or the
   shared `hermes/skills/` — the tell is the validator's `local skill root must
   not contain symlinks` while `skills list` still works. **Delete** those
-  links, never repoint them; check both roots. The one intentional link is the
-  Assistant's private-overlay `assistant-pipeline`; its private technics are
-  read through one `external_dirs` entry, never a link (see
+  links, never repoint them; check both roots. No skill root is a link: the
+  Assistant's private technics are read through one `external_dirs` entry (see
   [README "Layout"](README.md#layout)). Verify with
   `hermes -p creator skills list` — a bare `hyperframes skills` installs rather
   than reports.

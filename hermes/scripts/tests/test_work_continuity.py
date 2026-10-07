@@ -50,7 +50,7 @@ class CommandPlanTest(unittest.TestCase):
         names = [stage["name"] for stage in plan]
         self.assertEqual(
             ["validate-profile-skills --all --strict-git", "public pytest",
-             "private assistant unittest", "runtime pytest"],
+             "assistant unittest", "runtime pytest"],
             names,
         )
         public_stage = plan[1]
@@ -63,9 +63,11 @@ class CommandPlanTest(unittest.TestCase):
         ])
         for stage in plan:
             self.assertNotIn(".", stage["argv"])
-        private_stage = plan[2]["argv"]
-        self.assertEqual(str(self.private / V.PRIVATE_TESTS), private_stage[-1])
-        self.assertNotIn("test_assistant*.py", private_stage)
+        assistant_stage = plan[2]
+        self.assertEqual(str(V.PUBLIC_ROOT / V.ASSISTANT_TESTS), assistant_stage["argv"][-1])
+        self.assertEqual(V.PUBLIC_ROOT, assistant_stage["cwd"])
+        self.assertEqual(str(self.private), assistant_stage["env"]["HERMES_PRIVATE_ROOT"])
+        self.assertNotIn("test_assistant*.py", assistant_stage["argv"])
 
     def test_checkout_names_are_not_a_command_policy(self) -> None:
         plan = V.build_plan(Path("/tmp/download-cache/runtime"), Path("/tmp/restart-review/private"), self.python)
@@ -89,14 +91,12 @@ class PreflightFailureTest(unittest.TestCase):
         self.addCleanup(directory.cleanup)
         root = Path(directory.name)
         self.private = root / "private"
+        self.private.mkdir()
+        self.other_private = root / "other-private"
+        self.other_private.mkdir()
         hermes = root / "public/hermes"
-        for name in ("assistant-pipeline",):
-            rel = Path("profiles/assistant/skills") / name
-            target = self.private / "hermes" / rel
-            target.mkdir(parents=True)
-            link = hermes / rel
-            link.parent.mkdir(parents=True, exist_ok=True)
-            link.symlink_to(target)
+        self.pipeline = hermes / "profiles/assistant/skills/assistant-pipeline"
+        self.pipeline.mkdir(parents=True)
         self.home = root / "home"
         (self.home / ".config").mkdir(parents=True)
         (self.home / ".config/private").symlink_to(self.private)
@@ -110,7 +110,7 @@ class PreflightFailureTest(unittest.TestCase):
             V.check_runtime(Path("/definitely/not/a/real/runtime"))
 
     def test_candidate_pair_mismatch_fails_descriptively(self) -> None:
-        # Correct overlay links, but the home boundary selects a different pair.
+        # A tracked pipeline, but the home boundary selects a different pair.
         with patch.object(Path, "home", return_value=Path("/fake/home/for/mismatch")):
             with self.assertRaisesRegex(V.ContinuityError, "unpaired candidate"):
                 V.check_candidate_pairing(self.private)
@@ -118,13 +118,23 @@ class PreflightFailureTest(unittest.TestCase):
     def test_candidate_pair_matches_in_isolation(self) -> None:
         V.check_candidate_pairing(self.private)
 
-    def test_missing_overlay_link_is_still_rejected(self) -> None:
-        (V.HERMES_ROOT / "profiles/assistant/skills/assistant-pipeline").unlink()
-        with self.assertRaisesRegex(V.ContinuityError, "must be a real symlink"):
+    def test_leftover_overlay_link_is_rejected(self) -> None:
+        target = self.private / "hermes/profiles/assistant/skills/assistant-pipeline"
+        target.mkdir(parents=True)
+        self.pipeline.rmdir()
+        self.pipeline.symlink_to(target)
+        with self.assertRaisesRegex(V.ContinuityError, "must be a tracked directory"):
+            V.check_candidate_pairing(self.private)
+
+    def test_missing_pipeline_is_rejected(self) -> None:
+        self.pipeline.rmdir()
+        with self.assertRaisesRegex(V.ContinuityError, "missing assistant pipeline"):
             V.check_candidate_pairing(self.private)
 
     def test_candidate_pair_wrong_private_root_fails_descriptively(self) -> None:
-        with self.assertRaisesRegex(V.ContinuityError, "not under --private"):
+        with self.assertRaisesRegex(V.ContinuityError, "unpaired candidate"):
+            V.check_candidate_pairing(self.other_private)
+        with self.assertRaisesRegex(V.ContinuityError, "missing --private checkout"):
             V.check_candidate_pairing(Path("/some/other/private/root"))
 
     def test_missing_declared_public_file_fails(self) -> None:
@@ -168,9 +178,8 @@ class PerProfileHandoffContractTest(unittest.TestCase):
     human approval, and must not otherwise claim extra production rights
     from that attribution. This does NOT prove an LLM actually honours it
     at runtime -- see the module docstring for the live-acceptance cases
-    that check does need. assistant/default are delegated to the private
-    overlay's own tests (not duplicated here); their entry only confirms
-    the delegation, not the private text itself."""
+    that check does need. assistant/default are delegated to the Assistant
+    pipeline's own tests (not duplicated here)."""
 
     PUBLIC_ROOTS = (
         "creator", "engineer", "marketer", "writer", "researcher", "searcher",

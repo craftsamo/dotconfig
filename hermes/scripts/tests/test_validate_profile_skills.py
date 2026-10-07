@@ -21,8 +21,6 @@ SPEC.loader.exec_module(VALIDATOR)
 
 class AssistantPipelineTreeTest(unittest.TestCase):
     def test_repository_tree_is_valid(self) -> None:
-        if not VALIDATOR.ASSISTANT_PIPELINE.is_dir():
-            self.skipTest("deployment-only: repository private overlay is absent")
         errors: list[str] = []
         refs, catalog = VALIDATOR.validate_assistant_pipeline(errors)
         self.assertEqual([], errors)
@@ -435,37 +433,12 @@ class AssistantAlignmentIsolationTest(unittest.TestCase):
                 VALIDATOR.assistant_entry_dir("plan", "unknown")
 
 
-class PairedCandidateStructureTest(unittest.TestCase):
-    def test_absent_private_candidate_environment_skips(self) -> None:
-        with mock.patch.dict(os.environ, {}, clear=True), mock.patch.object(
-            VALIDATOR, "validate_assistant_pipeline"
-        ) as validate:
-            with self.assertRaisesRegex(unittest.SkipTest, "requires explicit HERMES_PRIVATE_ROOT"):
-                self.test_paired_candidate_structure()
-            validate.assert_not_called()
-
-    def test_invalid_private_candidate_environment_fails_without_live_fallback(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            for value, message in (
-                ("", "HERMES_PRIVATE_ROOT must not be empty"),
-                ("   ", "HERMES_PRIVATE_ROOT must not be empty"),
-                (str(Path(tmp) / "nonexistent"), "candidate pipeline missing"),
-            ):
-                with self.subTest(value=value), mock.patch.dict(
-                    os.environ, {"HERMES_PRIVATE_ROOT": value}
-                ), mock.patch.object(VALIDATOR, "validate_assistant_pipeline") as validate:
-                    with self.assertRaisesRegex(AssertionError, message):
-                        self.test_paired_candidate_structure()
-                    validate.assert_not_called()
-
-    def test_paired_candidate_structure(self) -> None:
-        private_root = os.environ.get("HERMES_PRIVATE_ROOT")
-        if private_root is None:
-            self.skipTest("opt-in paired-candidate check requires explicit HERMES_PRIVATE_ROOT")
-        self.assertTrue(private_root.strip(), "HERMES_PRIVATE_ROOT must not be empty")
-        pipeline = Path(private_root) / "hermes/profiles/assistant/skills/assistant-pipeline"
-        self.assertTrue(pipeline.is_dir(), f"candidate pipeline missing: {pipeline}")
+class AssistantCrossProfileStructureTest(unittest.TestCase):
+    def test_pipeline_matches_this_checkout_s_workers_and_hands(self) -> None:
         public = SCRIPT.parents[1]
+        pipeline = public / "profiles/assistant/skills/assistant-pipeline"
+        self.assertTrue(pipeline.is_dir(), f"assistant pipeline missing: {pipeline}")
+        self.assertFalse(pipeline.is_symlink(), f"assistant pipeline must be tracked here: {pipeline}")
         with mock.patch.object(VALIDATOR, "ASSISTANT_PIPELINE", pipeline), mock.patch.object(
             VALIDATOR, "HERMES_ROOT", public
         ):
@@ -508,19 +481,17 @@ class ContinuityCandidateEnvironmentTest(unittest.TestCase):
                     self.assertEqual(str(SCRIPT.parents[2]), stage["env"]["HERMES_PUBLIC_ROOT"])
 
 
-class GitBoundaryOverlayTest(unittest.TestCase):
-    """Managed dirs provided by the private overlay are sanctioned symlinks."""
+class GitBoundarySymlinkTest(unittest.TestCase):
+    """Managed skill dirs are real tracked directories; no link is sanctioned,
+    including a stale one into the private overlay left by an older install."""
 
     def setUp(self) -> None:
         self._tmp = tempfile.TemporaryDirectory()
         root = Path(self._tmp.name)
         self.overlay = root / "private"
         (self.overlay / "skills" / "assistant-pipeline").mkdir(parents=True)
-        (root / "elsewhere" / "assistant-pipeline").mkdir(parents=True)
         self.overlay_link = root / "overlay-link"
         self.overlay_link.symlink_to(self.overlay / "skills" / "assistant-pipeline")
-        self.foreign_link = root / "foreign-link"
-        self.foreign_link.symlink_to(root / "elsewhere" / "assistant-pipeline")
         self._original = VALIDATOR.PRIVATE_OVERLAY
         VALIDATOR.PRIVATE_OVERLAY = self.overlay
         # A real, gitignored path inside the repo keeps the learned probe green.
@@ -532,24 +503,25 @@ class GitBoundaryOverlayTest(unittest.TestCase):
         VALIDATOR.PRIVATE_OVERLAY = self._original
         self._tmp.cleanup()
 
-    def test_accepts_symlink_into_private_overlay(self) -> None:
+    def test_rejects_symlink_into_private_overlay(self) -> None:
         errors: list[str] = []
         VALIDATOR.validate_git_boundary([self.overlay_link], self.learned, errors)
-        self.assertEqual([], errors)
+        self.assertTrue(any("must be a real directory" in e for e in errors), errors)
 
-    def test_rejects_symlink_outside_private_overlay(self) -> None:
-        errors: list[str] = []
-        VALIDATOR.validate_git_boundary([self.foreign_link], self.learned, errors)
-        self.assertTrue(
-            any("symlink outside the private overlay" in e for e in errors), errors
-        )
-
-    def test_rejects_dangling_overlay_symlink(self) -> None:
+    def test_rejects_dangling_symlink(self) -> None:
         dangling = Path(self._tmp.name) / "dangling-link"
         dangling.symlink_to(self.overlay / "skills" / "missing")
         errors: list[str] = []
         VALIDATOR.validate_git_boundary([dangling], self.learned, errors)
-        self.assertTrue(errors, "dangling overlay symlink must be reported")
+        self.assertTrue(errors, "dangling symlink must be reported")
+
+    def test_skill_root_rejects_overlay_link(self) -> None:
+        skills = Path(self._tmp.name) / "skills"
+        skills.mkdir()
+        (skills / "assistant-pipeline").symlink_to(self.overlay / "skills" / "assistant-pipeline")
+        errors: list[str] = []
+        VALIDATOR.validate_allowed_skill_roots(skills, set(), errors)
+        self.assertTrue(any("must not contain symlinks" in e for e in errors), errors)
 
 
 class AssistantPrivateTechnicTest(unittest.TestCase):
@@ -1144,8 +1116,8 @@ class HandsLeafTest(unittest.TestCase):
 
 class EndToEndTest(unittest.TestCase):
     def test_all_profiles_pass(self) -> None:
-        if not VALIDATOR.ASSISTANT_PIPELINE.is_dir():
-            self.skipTest("deployment-only: repository private overlay is absent")
+        if not VALIDATOR.PRIVATE_OVERLAY.is_dir():
+            self.skipTest("deployment-only: private overlay is absent")
         # Invoke via sys.executable, not the script's `uv run --script` shebang:
         # this pins the actual provisioned interpreter running the test itself,
         # instead of letting uv/mise resolve one under a possibly-faked HOME.
