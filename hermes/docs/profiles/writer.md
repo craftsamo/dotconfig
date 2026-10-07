@@ -232,12 +232,11 @@ reliability or statistical score calibration.
 
 The canonical requester contract is public at
 `profiles/writer/skills/writer-pipeline/references/acceptance/{index,prose,script}.md`
-and is not copied elsewhere. Assistant's private QA files are thin adapters, and
-Marketer reads the same source; caller external skill roots must expose Writer's
-pipeline for name-based reads (default's filesystem fallback: see
+and is not copied elsewhere. Assistant's private QA files are thin adapters;
+caller external skill roots must expose Writer's pipeline for name-based reads (default's filesystem fallback: see
 [topology](../topology.md) "Default is the assistant's CLI counterpart"). No
 private task records or purchased source text moved. All 19 Writer non-kernel
-names stay disabled on Assistant and Marketer (18 production leaves plus
+names stay disabled on the Assistant (18 production leaves plus
 `consult-writer`) so reference access does not import an execution menu; the
 root remains readable and consultation stays delegated to Writer. Reading a form
 or acceptance contract as a Client does not execute Writer's procedure. An

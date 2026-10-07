@@ -31,7 +31,7 @@ import hermes_yaml as yaml
 TARGETS = {
     "assistant": {"engineer", "creator", "marketer", "writer", "searcher"},
     "creator": {"engineer", "marketer", "researcher", "writer", "image-creator", "video-creator", "audio-creator"},
-    "marketer": {"engineer", "creator", "researcher", "writer"},
+    "marketer": {"researcher"},
     "engineer": {"marketer", "researcher", "writer"},
 }
 RESIDENT = Path(__file__).resolve().parents[3] / "profiles/assistant/scripts/resident-session.sh"

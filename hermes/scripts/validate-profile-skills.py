@@ -1252,14 +1252,14 @@ def validate_engineer_references(pipeline_dir: Path, errors: list[str]) -> dict[
 
 
 MARKETER_ENTRY_REFERENCES = {
-    "plan-marketer": {"discovery.md", "positioning.md", "offer.md", "channels.md", "campaign.md"},
-    "build-marketer": {"parts.md", "draft.md", "measurement.md"},
-    "qa-marketer": {"strategy.md", "content.md", "saved-draft.md"},
-    "analyze-marketer": set(),
+    "plan-marketer": {"discovery.md", "positioning.md", "offer.md", "channels.md", "campaign.md",
+                      "strategy.md"},
+    "review-marketer": {"content.md"},
+    "analyze-marketer": {"measurement.md"},
 }
 MARKETER_SHARED_REFERENCES = {
     "platforms/x.md", "platforms/substack.md", "platforms/note.md",
-    "platforms/zenn.md", "state.md", "x-ranking.md",
+    "platforms/zenn.md", "state.md", "x-ranking.md", "browsing.md",
 }
 MARKETER_REFERENCE_FILES = {
     f"references/{name}" for name in MARKETER_SHARED_REFERENCES
@@ -1270,7 +1270,7 @@ MARKETER_REFERENCE_FILES = {
 
 
 def validate_marketer_references(pipeline_dir: Path, errors: list[str]) -> dict[str, Path]:
-    """Four selectable procedures depend on one kernel and shared platform rules."""
+    """Three advisory entries depend on one kernel and shared platform rules."""
     entries: dict[str, Path] = {}
     symlinks = [path for path in pipeline_dir.rglob("*") if path.is_symlink()]
     for path in symlinks:
@@ -1286,8 +1286,8 @@ def validate_marketer_references(pipeline_dir: Path, errors: list[str]) -> dict[
     if major < 7 and not any((references / mode).is_dir() for mode in
                              ("plan", "build", "quality-assurance", "analyze")):
         return entries
-    if major < 8:
-        errors.append("marketer entry routing requires pipeline version 8 or later")
+    if major < 9:
+        errors.append("marketer advisory entries require pipeline version 9 or later")
 
     allowed_skills = {pipeline} | {
         pipeline_dir / name / "SKILL.md" for name in MARKETER_ENTRY_REFERENCES
@@ -1380,10 +1380,6 @@ def validate_marketer_references(pipeline_dir: Path, errors: list[str]) -> dict[
                 errors.append(f"non-markdown marketer reference: {path.relative_to(pipeline_dir)}")
     if not (pipeline_dir / "scripts/browser-lease.py").is_file():
         errors.append("missing marketer browser lease helper")
-    acceptance = HERMES_ROOT / "profiles/writer/skills/writer-pipeline/references/acceptance"
-    for name in ("index.md", "prose.md", "script.md"):
-        if not (acceptance / name).is_file():
-            errors.append(f"missing shared writing acceptance: {name}")
     return entries
 
 

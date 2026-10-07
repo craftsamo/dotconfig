@@ -250,6 +250,16 @@ Settings outside the API (name, handle, picture, banner, links, upload
 defaults) go through YouTube Studio in its browser after a `clarify`
 confirmation. Contract: [youtube-access.md](../youtube-access.md).
 
+Marketing work is the Assistant's to execute, with Marketer as its strategy
+advisor ([marketer.md](./marketer.md)): the marketing entries consult Marketer
+on direction, reviews and results, release Writer and Creator units, accept
+them with the shared writing contract and save the approved service-side
+draft themselves after exact remote-save consent — X posts and Articles in
+the Assistant's browser (`x-twitter`), Substack and note through their tools
+and cards, Zenn personal Articles in the browser (public technic `zenn-dev`).
+Nothing publishes, schedules or sends; the user publishes. Marketer's browser
+is never a fallback.
+
 ### Kanban catalog
 
 The kanban catalog is closed and per-assignee: its machine-readable surface is

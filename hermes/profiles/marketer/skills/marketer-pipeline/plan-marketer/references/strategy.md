@@ -15,7 +15,7 @@ Do not require a product, revenue KPI, funnel, fixed cadence or research ritual
 when the released purpose is learning, relationships or a bounded correction.
 
 Return ready-for-decision, needs-revision or needs-evidence with specific reasons.
-Marketer is checking its own strategy, not claiming an independent external
-verdict. Request Researcher evidence or a scoped peer critique when useful;
-the user still decides material direction and commitments. Approval does not
-authorize service uploads or prove future effectiveness.
+Checking Marketer's own strategy is not an independent external verdict.
+Request Researcher evidence when useful; the user still decides material
+direction and commitments. Approval does not authorize service uploads or
+prove future effectiveness.

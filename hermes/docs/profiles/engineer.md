@@ -278,8 +278,8 @@ bytes, never re-encodes). Details: creator's `creator-pipeline` skill.
 the approved outline, or a whole small job — under the selected leaf's
 QA contract, returning
 undecided deliverable-defining choices as spec-gap or granularity findings. Details: writer's
-`writer-pipeline` skill. **marketer** owns strategy, offer discovery, producer
-coordination and browser draft work for both human and Assistant clients;
-Assistant supplies goals/constraints, not a fully settled marketing strategy.
-Its exact-consent, draft-only grant: [`marketer.md`](./marketer.md) "Marketer
-strategy and browser drafts".
+`writer-pipeline` skill. **marketer** is the strategy advisor for human,
+Assistant, Creator and Engineer clients: strategy, offer discovery, review
+findings and outcome analysis, read-only toward every service; clients
+execute. Contract: [`marketer.md`](./marketer.md) "Marketer as strategy
+advisor".

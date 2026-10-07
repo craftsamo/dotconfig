@@ -94,24 +94,19 @@ def test_analysis_is_not_new_copy_or_a_performance_verdict():
     assert "a naturalness score only from the shared diagnosis when requested" in text
 
 
-def test_marketer_consumes_copy_without_bypassing_acceptance():
-    produce = content(MARKETER / "build-marketer/references/parts.md")
-    acceptance = content(MARKETER / "qa-marketer/references/content.md")
-    for verb in ("write", "edit", "analyze"):
-        assert f"`{verb}-copy`" in produce
-    assert "performs independent" in produce
-    assert "same Writer" in produce
-    assert "Do not shorten, strengthen, add urgency or run humanizer" in acceptance
-    assert "Analysis reports are decision inputs" in produce
-    assert "supported custom destination is not evidence" in produce
-    assert "PASONA" not in produce
+def test_marketer_advises_on_copy_without_writing_or_accepting_it():
+    review = content(MARKETER / "review-marketer/references/content.md")
+    assert "Do not score prose craft, shorten, strengthen, add urgency or run a humanizer" in review
+    assert "let the client return it to the producer" in review
+    assert "PASONA" not in review
     config = yaml.safe_load((MARKETER.parents[1] / "config.yaml").read_text())
-    prompt = config["agent"]["system_prompt"]
-    assert "never local claim removal" in prompt
-    assert "references/acceptance/index.md" in prompt
+    prompt = " ".join(config["agent"]["system_prompt"].split())
+    assert "never a replacement manuscript" in prompt
+    assert "references/acceptance/index.md" not in prompt
+    assert "writer-pipeline" not in str(config["skills"]["external_dirs"])
     kernel = content(MARKETER / "SKILL.md")
-    assert "Writer authors and edits intended post/article/copy/script text" in kernel
-    assert "No Publish grant" in kernel
+    assert "Writer authors post/article/copy/script text and Creator makes media" in kernel
+    assert "never a substitute public manuscript" in kernel
     assert "legacy copy craft" not in kernel
 
 

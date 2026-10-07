@@ -16,7 +16,7 @@ Process topology, the multiplex gateway and A2A peer graph, delegation layers, t
         │ resident sessions         │       engineer  → marketer researcher writer
         │ lean kanban cards         │       creator   → engineer marketer researcher writer
         │ delegate_task             │                   + image-creator video-creator audio-creator
-        ▼                           ▼       marketer  → engineer creator researcher writer
+        ▼                           ▼       marketer  → researcher
   hermes -p <specialist>   anonymous subagents      (writer / researcher / hands: receive-only;
   chat --resume <id> / ~/.hermes/kanban.db           searcher: no endpoint — resident/kanban only)
 ```
@@ -93,8 +93,8 @@ needed. Gateway up adds the board for fire-and-forget work; gateway down,
 | **image-creator** | Creator's still-image hands: runs one `<verb>/<subject>` leaf from a filled form, QA with evidence, report; answers only Creator                                                                                                                                                             | — (A2A receive-only) | `.` (launch / task ws) | `terminal,file,vision,image_gen,skills,memory`                                                                                                                     | served (a2a :9907)           | yes                   |
 | **video-creator** | Creator's video hands: clip, tour, ad, explainer-video and music-video leaves from approved forms; answers only Creator                                                                                                                                                                      | — (A2A receive-only) | `.` (launch / task ws) | `terminal,file,vision,video_gen,video,skills,memory`                                                                                                               | served (a2a :9908)           | yes                   |
 | **audio-creator** | Creator's audio hands: speech, sfx, music (instrumental BGM/melodic pieces only) and mix (placing already-finished sources, never synthesis) from approved forms; measured/readback QA, no claims of listening; no full songs or voice registration                                          | — (A2A receive-only) | `.` (launch / task ws) | `terminal,file,tts,sfx_gen,music_gen,skills,memory`                                                                                                                | served (a2a :9909)           | yes                   |
-| **writer**        | reader-facing prose and producer-facing scripts from released units (outline / piece / whole job); draft-only, never publishes; serves all four primaries                                                                                                                                    | — (A2A receive-only) | `.` (launch / task ws) | `writing-inspection,characters,file,web,skills,memory,delegation`                                                                                                  | served (a2a :9905)           | yes                   |
-| **marketer**      | primary: strategy, offer discovery, producer coordination, existing-browser service drafts and outcome analysis; no publishing                                                                                                                                                               | Telegram (own bot)   | `.` (launch / task ws) | `terminal,file,web,browser,x_search,x_access,youtube_access,vision,skills,memory,delegation,specialist,clarify`                                                    | served (bot + a2a :9904)     | yes                   |
+| **writer**        | reader-facing prose and producer-facing scripts from released units (outline / piece / whole job); draft-only, never publishes; serves assistant, engineer and creator                                                                                                                       | — (A2A receive-only) | `.` (launch / task ws) | `writing-inspection,characters,file,web,skills,memory,delegation`                                                                                                  | served (a2a :9905)           | yes                   |
+| **marketer**      | primary: strategy advisor — discovery, positioning, campaigns, review findings and outcome analysis for assistant/creator/engineer and the human; read-only toward every service; clients execute                                                                                            | Telegram (own bot)   | `.` (launch / task ws) | `terminal,file,web,browser,x_search,x_access,substack_access,youtube_access,note_access,vision,skills,memory,delegation,specialist,clarify`                        | served (bot + a2a :9904)     | yes                   |
 
 ### Toolsets
 
@@ -112,7 +112,7 @@ tools automatically.
   empty.
 - **A2A lists.** Every A2A-serving profile has an `a2a` list for its inbound peer
   sessions, usually narrower than CLI (Marketer's inbound A2A has no browser,
-  terminal or delegation, so authenticated work needs a resident session).
+  terminal or delegation, so its browsing needs a resident session).
   `a2a` is also the name of the OUTBOUND toolset (the five default-off `a2a_*`
   tools); assistant, creator, marketer and engineer expose only `specialist` for
   outbound requests.
@@ -126,8 +126,8 @@ performs the non-creative quality gate itself (see
 bookkeeping and delivers; the **producer** self-verifies before reporting. The
 normal flow stays **searcher (retrieve) → researcher (synthesize) → engineer
 (implement)**, with **creator** (media) and **writer** (prose/scripts) as
-production stages and **marketer** as the outbound end stage — it saves service
-drafts only; the user publishes. User approval follows the domain's checks.
+production stages and **marketer** as the strategy advisor beside them; the
+assistant saves the resulting service drafts and the user publishes. User approval follows the domain's checks.
 Creative production uses direct early delivery rather than another broker
 inspection.
 
@@ -199,10 +199,13 @@ Three per-profile layers, kept separate:
   retrieved); writer = deliverable integrity (no fabricated
   facts/quotes/URLs; assumptions labeled; the selected leaf's applicable
   checks with explicit evidence gaps) + never publishes; marketer = the
-  draft + evidence floor (exact remote-save consent before input; no publishing,
-  scheduling or sending; traceable claims and no fabricated demand/metrics;
-  user-owned commitments; independent content acceptance and reopened unpublished
-  draft verification; uncertain effects never blindly retried); front doors = heavy work never runs in their
+  advisory + evidence floor (read-only toward every service: no posting,
+  editor entry, draft saving or sending; traceable claims and no fabricated
+  demand/metrics; user-owned commitments; a review is advice, never
+  acceptance); the assistant's marketing entries carry the draft floor (exact
+  remote-save consent before input; no publishing, scheduling or sending;
+  reopened unpublished draft verification; uncertain effects never blindly
+  retried); front doors = heavy work never runs in their
   own turn, deliverables are verified before delivery, and blocked cards
   resolve only through the guarded resolver after the one complete DECISION
   batch; a second block or a capability/spec-gap block pulls the card back.
@@ -313,10 +316,10 @@ Three per-profile layers, kept separate:
     skill — shared Japanese workflow, references and read-only inspector,
     single-sourced with the shared `agents/curated/` store) and upstream
     `creative/humanizer` (explicit-request only).
-  - marketer → `marketer-pipeline` (resident-only for authenticated work, cards
-    refused; see [marketer.md](./profiles/marketer.md)). Writer's pipeline is
-    readable through `skills.external_dirs` for shared requester acceptance, not
-    local manuscript production. No xurl/humanizer imports or publish engine.
+  - marketer → `marketer-pipeline` (plan / review / analyze advisory entries;
+    browsing resident-only, cards refused; see [marketer.md](./profiles/marketer.md)).
+    Its only external skill is the private `hermes-browser-relaunch`; Writer's
+    pipeline is not readable there. No xurl/humanizer imports or publish engine.
 
   Upstream wiring pattern: official `skills/` libraries attach per category
   directory, `optional-skills/` per individual skill directory, and unwanted

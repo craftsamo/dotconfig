@@ -1,10 +1,10 @@
 ---
 name: plan-marketer
 description: >-
-  Plan marketing: audience, offer, channels and campaigns. Agree direction and
-  evidence with the client; not content production, browser saving or results
-  analysis.
-version: 1.0.0
+  Plan marketing: audience, offer, channels and campaigns. Advise on direction
+  from evidence and record the client's decisions; not content production,
+  draft saving or results analysis.
+version: 2.0.0
 author: CraftSamo
 license: MIT
 metadata:
@@ -36,26 +36,26 @@ owning skill directory. Follow next_offset until the required body is
 complete. Do not evade dedup with alternate paths or artificial ranges. If the
 body remains missing, stop the affected action and report it.
 
-Read shared [state](../references/state.md) for records, approvals or
-resumes. For a named service, read only its applicable shared procedure:
+Read shared [state](../references/state.md) for the strategy record. For a
+named service, read only its applicable shared reference:
 [X](../references/platforms/x.md), [Substack](../references/platforms/substack.md),
 [note](../references/platforms/note.md) or [Zenn](../references/platforms/zenn.md).
-X content review, X result analysis and X conversation discovery also read
+X content, result and conversation questions also read
 [X ranking](../references/x-ranking.md).
-Instruction reads do not authorize browser work. Any actual browser action,
-including verification or measurement, requires the kernel's
-[browser lease](../scripts/browser-lease.py) contract and the relevant shared
-procedure.
+Instruction reads do not authorize browser work. Any actual browser page
+follows [browsing](../references/browsing.md) and its lease.
 
 </ReadBeforeWork>
 
 # Plan
 
 Start from the requested decision, existing decisions and available evidence.
-The deliverable may be advice, an alternative, a campaign or a released content
-unit; it need not be a complete marketing plan. Read [state](../references/state.md) before
-creating or resuming durable work. If the human names no existing record, agree
-on a private job/project location; do not demand an Assistant-supplied ledger.
+The deliverable may be advice, an alternative, a campaign outline or a brief
+the client can commission; it need not be a complete marketing plan. Read
+[state](../references/state.md) before continuing durable work. If the human
+names no existing record, agree on a private location before keeping one; do
+not demand an Assistant-supplied ledger. A one-off question can stay in the
+conversation.
 
 1. Establish the desired outcome, current situation and constraints that could
    change the answer. Preserve supplied priorities and non-goals. Ask only the
@@ -63,21 +63,25 @@ on a private job/project location; do not demand an Assistant-supplied ledger.
 2. Select the relevant procedure: [discovery](references/discovery.md) for unknown audience
    or offering; [positioning](references/positioning.md) for who/why; [offer](references/offer.md) for
    what to provide; [channels](references/channels.md) for where/how to reach people;
-   [campaign](references/campaign.md) for a bounded execution plan.
-3. Gather enough evidence to choose a next action. Delegate substantive research
-   through [parts](../build-marketer/references/parts.md). Separate public market observation from
-   permission to open an authenticated account or upload private material.
+   [campaign](references/campaign.md) for a bounded sequence of pieces or tests.
+3. Gather enough evidence to choose a next action: the read-only tools, the
+   client's own numbers through [Analyze](../analyze-marketer/SKILL.md) when they
+   decide the answer, and Researcher for depth evidence or claim checks
+   (purpose, consumer, constraints and budget; agree its proposed scope within
+   your existing grant, and escalate new spend to your client). Opening an
+   authenticated account follows [browsing](../references/browsing.md).
 4. Propose the smallest useful action and its reason, cost/time shape, unknowns
-   and relevant stopping condition. Use [strategy QA](../qa-marketer/references/strategy.md).
+   and stopping condition. Check it with [strategy check](references/strategy.md).
    Do not invent a forecast merely to fill a template.
-5. Record the user's decision where required. Release only the agreed work to
-   [Build](../build-marketer/SKILL.md). Strategy approval does not authorize paid generation,
-   service uploads, draft replacement, publishing or recurring jobs.
+5. Record the client's decision where the record exists. Content or media the
+   plan needs leaves as a brief for the client to commission: purpose, reader,
+   decided claims and conditions, destination, required media and evidence.
+   Strategy approval does not authorize paid generation, service uploads,
+   publishing or recurring jobs, and Marketer starts none of them.
 
-Marketer owns these proposals even when Assistant is the client. Assistant may
-relay constraints and approval; it is not a second strategist. A price, offer
-term or delivery commitment is a proposal until explicitly decided by the user.
-For direct-human work the same evidence and approval requirements apply.
+Marketer owns these proposals whoever the client is. The Assistant relays
+constraints and approvals and executes; it is not a second strategist. A price,
+offer term or delivery commitment is a proposal until the user decides it.
 
 Consultation may finish in the reply. Critique reports evidence-anchored findings
 without repairing its target. For a consequential decision, test the strongest

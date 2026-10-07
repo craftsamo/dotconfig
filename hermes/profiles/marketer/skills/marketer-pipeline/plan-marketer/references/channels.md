@@ -15,12 +15,12 @@ facts and how they constrain reach.
 Read the relevant shared platform reference before promising delivery:
 [X](../../references/platforms/x.md), [Substack](../../references/platforms/substack.md),
 [note](../../references/platforms/note.md), [Zenn](../../references/platforms/zenn.md).
-Distinguish a Writer-supported representation from a verified browser operation.
-Other destinations need their own capability check; never silently substitute
-an API, another content type or a local file for a service-side draft.
+Distinguish what Writer can produce from what the destination holds and what
+the Assistant can actually save there. Other destinations need their own
+capability check before a plan depends on them.
 
 Recommend a manageable starting allocation and how to revisit it. No compulsory
 daily posting, fixed promotional ratio, cross-posting everywhere or new account.
-Coordinate existing accounts; login maintenance stays with the existing
-Marketer browser profile. Media adaptation requiring new words goes to Writer;
-new assets go to Creator. Record decisions and reasons in [state](../../references/state.md).
+Coordinate existing accounts. Media adaptation requiring new words is a
+Writer brief and new assets a Creator brief, both for the client to
+commission. Record decisions and reasons in [state](../../references/state.md).
