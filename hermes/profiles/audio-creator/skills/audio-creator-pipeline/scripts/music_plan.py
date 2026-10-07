@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Freeze music direction and exact score/prompt bytes before any audio work.
 
-Hashes bind content, not approver identity. Creator must relay the actual
+Hashes bind content, not approver identity. The Assistant must relay the actual
 client's approval in the same work conversation; a file is not that approval.
 """
 
@@ -187,7 +187,7 @@ def propose(kind, form_file, arrangement_file, out, score_file=None, prompt_file
     payload = json.dumps(manifest, ensure_ascii=False, indent=2, allow_nan=False)
     document = (f"# Music {kind} Proposal\n\n" + arrangement.rstrip() +
                 "\n\n## Effective Form And Execution Settings\n\n```json\n" + payload +
-                "\n```\n\nApprove this exact proposal through Creator before audio work. "
+                "\n```\n\nApprove this exact proposal through the Assistant before audio work. "
                 "The hash binds content, not approver identity. No reference audio is uploaded. "
                 "Auditory quality and generated vocal absence remain unverified.\n\n" + START + payload + END + "\n")
     raw = document.encode("utf-8")
@@ -210,7 +210,7 @@ def load_approved(path, sha256, kind):
     path = Path(path).expanduser().absolute()
     raw = read_bytes(path)
     if digest(raw) != sha256:
-        raise ValueError("proposal hash differs from the Creator-relayed approval")
+        raise ValueError("proposal hash differs from the Assistant-relayed approval")
     document = raw.decode("utf-8")
     if document.count(START) != 1 or document.count(END) != 1:
         raise ValueError("proposal must contain one frozen music manifest")

@@ -76,7 +76,7 @@ metadata:
 2. Look once at the source at native size; identify requested protected text,
    faces, logos and mandatory content. Persist that finding before the next
    look. Convert requested must-keep areas into source-pixel rectangles. If
-   boundaries cannot be confidently established, ask Creator or use approved
+   boundaries cannot be confidently established, ask the Assistant or use approved
    contain/pad; never treat absent rectangles as crop permission. Cover/focus
    may remove edges; contain fits over cream padding; pad preserves scale.
 3. Write JSON from the form (decode focus/protected text into concrete arrays).

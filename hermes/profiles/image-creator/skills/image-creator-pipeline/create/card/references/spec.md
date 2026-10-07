@@ -103,7 +103,7 @@ with `.texture { opacity: …; }`, never replace it.
 
 If the requested look needs a layout outside this template contract, use the
 authored path below instead of substituting a named style. A genuine remaining
-capability gap goes to Creator without weakening the request. The template CSS
+capability gap goes to the Assistant without weakening the request. The template CSS
 allowlist and offline CSP reduce exposure; they do not certify aesthetic
 fidelity or trusted local font/image decoder safety. Read the actual screenshot.
 

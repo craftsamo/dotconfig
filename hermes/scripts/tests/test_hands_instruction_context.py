@@ -78,7 +78,7 @@ def test_hands_turn_and_option_contract_offline_mechanical(hands_config):
         "recover the canonical file with read_file",
         "if recovery fails, stop the affected action and report the missing instructions",
         "Reselection does not release a different leaf, scope or grant, restart production or reset spent attempts",
-        "Return unreleased changes to Creator",
+        "Return unreleased changes to the Assistant",
     ):
         assert required in prompt, required
 
@@ -92,8 +92,8 @@ def test_hands_owner_context_offline_mechanical(profile):
         "before an action changes operation, subject or form options",
         "current request and retained approved job together",
         "new selection is not permission to expand the released work",
-        "Return an unreleased change to Creator rather than substituting a leaf or grant",
-        "does not turn Creator's inspection of a form into a hands run",
+        "Return an unreleased change to the Assistant rather than substituting a leaf or grant",
+        "does not turn the Assistant's inspection of a form into a hands run",
         "Clients read forms; only the owning hands executes the procedure",
         "Require the full kernel, selected leaf and required reference bodies in current context",
         "not a past load, summary or preload marker",
@@ -101,14 +101,14 @@ def test_hands_owner_context_offline_mechanical(profile):
         "Read only applicable options, not the whole reference tree",
         "Optional advisory references retain their existing fallback",
         "If skill_view returns unchanged but the earlier body is unavailable",
-        "read_file on the canonical document",
+        "use read_file on the canonical document",
         "`${HERMES_SKILL_DIR}/SKILL.md`",
         "`${HERMES_SKILL_DIR}/<verb>/<subject>/SKILL.md`",
         "references resolve from that leaf's directory",
         "document's owning skill root, not the last loaded skill",
         "Follow next_offset for a genuinely truncated read",
         "never use alternate paths or artificial ranges to evade deduplication",
-        "If required instructions remain unavailable, stop the affected action",
+        "If required instructions remain unavailable, stop the affected action and report the missing document",
         "Loading instructions never restarts production, restores spent attempts or changes approval, engine, inputs or budget",
         "Reuse surviving outputs and preserve the existing proposal/preview and revision gates",
     ):

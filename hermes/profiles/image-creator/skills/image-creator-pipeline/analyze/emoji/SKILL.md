@@ -93,7 +93,7 @@ the evidence (`MEASURE:` field or "vision: <what was seen>"), PASS /
 WARN / FAIL, and for WARN / FAIL the fix — `edit-emoji` (re-platform,
 stroke, `--cutout key`, crop), `generate-emoji` corrective on that item
 (with the prop rule: large, saturated, off the hair), `create-emoji`
-(text belongs there), or "re-anchor the pack" (Creator's / the client's
+(text belongs there), or "re-anchor the pack" (the Assistant's / the user's
 decision, not yours).
 
 </QA>
@@ -103,6 +103,6 @@ decision, not yours).
 `analyze-emoji` + platform; the `SUMMARY:` line; the findings table
 (check · file · evidence · verdict · fix); one line of overall verdict
 ("ships on slack" / "not on telegram: 3 files are png, re-platform with
-edit-emoji"); `spend: free`; anything Creator must decide.
+edit-emoji"); `spend: free`; anything the Assistant must decide.
 
 </Report>

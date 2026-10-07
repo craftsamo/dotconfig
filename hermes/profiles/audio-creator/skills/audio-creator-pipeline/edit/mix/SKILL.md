@@ -5,7 +5,7 @@ description: >-
   envelope automation, added or removed cues, or overall duration/
   loudness targets, from a plain-language change request. Loads the
   frozen sources and previous spec, authors a full revised plan and a
-  proposal, and renders locally only after Creator relays approval.
+  proposal, and renders locally only after relayed approval.
   Never separates stems from the master or synthesizes new audio; not a
   from-scratch mix (create-mix) or a single-file edit (edit-music/
   edit-sfx/edit-speech).
@@ -85,7 +85,7 @@ metadata:
    work), but produces no mixed audio, no ASR, no network call. Report
    the returned proposal path and its SHA-256, and STOP.
 3. Round B requires both `approved_plan` and `approval_sha256` from
-   Creator and `intent: revise <previous delivery>`, in the same work
+   the Assistant and `intent: revise <previous delivery>`, in the same work
    conversation. Run:
 
    ```sh

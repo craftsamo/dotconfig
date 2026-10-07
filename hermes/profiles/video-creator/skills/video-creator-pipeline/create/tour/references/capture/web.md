@@ -44,7 +44,7 @@ The single fenced `tour` JSON block contains a fully defaulted `form` plus:
 ```
 
 This is a scope excerpt, not a complete proposal. Target/start_state must equal
-the form. `source` must equal `<job>/source.json`. Creator/VideoCreator derive
+the form. `source` must equal `<job>/source.json`. VideoCreator derives
 exact selectors during consented reconnaissance; do not require the client to
 know DOM ids. Unknown selectors mean reconnaissance-only scope first, then a
 new proposal with stateful actions. Sites without stable ids need supplied
@@ -124,4 +124,4 @@ after stop; resource exhaustion is still a host operational risk.
 
 Inspect receipt.json, closed.json, actions.jsonl and raw.webm. Complete receipt
 is required for capture-mode freeze. A successful recording is not a verified
-edit or a live Creator handoff. Use the common preview/render pipeline next.
+edit or a live Assistant handoff. Use the common preview/render pipeline next.

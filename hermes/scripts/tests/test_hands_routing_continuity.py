@@ -1,5 +1,5 @@
-"""Tests for validate_hands_routing (capabilities.md <-> installed hands
-leaves cross-check) plus a real runtime-discovery regression for every
+"""Tests for validate_hands_routing (Assistant commissioning references <->
+installed hands leaves coverage check) plus a real runtime-discovery regression for every
 installed hands leaf across all three hands profiles. No generic generated
 catalog is built here: expected leaf names always come from an actual
 on-disk scan of the candidate under test, never a hardcoded literal list."""
@@ -19,110 +19,88 @@ VALIDATOR = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(VALIDATOR)
 
 
-def _leaves(*pairs: tuple[str, str]) -> dict[str, dict[str, Path]]:
+def _leaves(*triples: tuple[str, str, str]) -> dict[str, dict[str, Path]]:
     """Build a hands_leaves mapping (profile -> {name: Path}) from (profile,
-    name) pairs; the Path value's content is irrelevant to validate_hands_routing,
-    only the mapping shape matters."""
+    subject, name) triples; the leaf path mirrors <verb>/<subject>/SKILL.md,
+    since validate_hands_routing derives the subject from the parent dir."""
     result: dict[str, dict[str, Path]] = {}
-    for profile, name in pairs:
-        result.setdefault(profile, {})[name] = Path(f"/fake/{profile}/{name}/SKILL.md")
+    for profile, subject, name in triples:
+        verb = name.split("-", 1)[0]
+        result.setdefault(profile, {})[name] = Path(f"/fake/{profile}/{verb}/{subject}/SKILL.md")
     return result
 
 
-def _row(profile: str, name: str, note: str = "some engine/variant detail") -> str:
-    return f"| a deliverable | {profile}: {name} | {note} |\n"
-
-
 class HandsRoutingSandboxTest(unittest.TestCase):
-    """Fixture-based unit tests: HERMES_ROOT is monkeypatched to a temporary
-    tree for the whole test, so no live repo file is ever written."""
+    """Fixture-based unit tests: ASSISTANT_PIPELINE is monkeypatched to a
+    temporary tree for the whole test, so no live repo file is ever written."""
 
     def setUp(self) -> None:
         self._tmp = tempfile.TemporaryDirectory()
         self.root = Path(self._tmp.name)
-        self._original_root = VALIDATOR.HERMES_ROOT
-        VALIDATOR.HERMES_ROOT = self.root
-        self.table = self.root / "profiles/creator/skills/creator-pipeline/references/capabilities.md"
-        self.table.parent.mkdir(parents=True, exist_ok=True)
+        self._original_root = VALIDATOR.ASSISTANT_PIPELINE
+        VALIDATOR.ASSISTANT_PIPELINE = self.root
+        self.refs = self.root / "execute-assistant-creative/references"
+        self.refs.mkdir(parents=True, exist_ok=True)
 
     def tearDown(self) -> None:
-        VALIDATOR.HERMES_ROOT = self._original_root
+        VALIDATOR.ASSISTANT_PIPELINE = self._original_root
         self._tmp.cleanup()
 
-    def test_missing_table_reports_and_stops(self) -> None:
-        errors: list[str] = []
-        VALIDATOR.validate_hands_routing(_leaves(("audio-creator", "create-mix")), errors)
-        self.assertEqual(1, len(errors))
-        self.assertIn("missing creator capabilities routing table", errors[0])
+    def ref(self, subject: str, text: str) -> None:
+        (self.refs / f"{subject}.md").write_text(text, encoding="utf-8")
 
-    def test_clean_table_reports_nothing(self) -> None:
-        self.table.write_text(_row("audio-creator", "create-mix"), encoding="utf-8")
+    def check(self, leaves) -> list[str]:
         errors: list[str] = []
-        VALIDATOR.validate_hands_routing(_leaves(("audio-creator", "create-mix")), errors)
-        self.assertEqual([], errors)
+        VALIDATOR.validate_hands_routing(leaves, errors)
+        return errors
 
-    def test_orphan_route_to_uninstalled_leaf_reported(self) -> None:
-        self.table.write_text(
-            _row("audio-creator", "create-mix") + _row("audio-creator", "generate-mix"),
-            encoding="utf-8",
-        )
-        errors: list[str] = []
-        VALIDATOR.validate_hands_routing(_leaves(("audio-creator", "create-mix")), errors)
-        self.assertEqual(1, len(errors))
-        self.assertIn("not installed", errors[0])
-        self.assertIn("generate-mix", errors[0])
+    def test_missing_reference_directory_reports_every_subject(self) -> None:
+        self.refs.rmdir()
+        errors = self.check(_leaves(("audio-creator", "mix", "create-mix")))
+        self.assertEqual(["hands subject has no commissioning reference: audio-creator/mix"], errors)
 
-    def test_missing_installed_route_reported(self) -> None:
-        self.table.write_text(_row("audio-creator", "create-mix"), encoding="utf-8")
-        errors: list[str] = []
-        VALIDATOR.validate_hands_routing(
-            _leaves(("audio-creator", "create-mix"), ("audio-creator", "edit-mix")), errors
-        )
-        self.assertEqual(1, len(errors))
-        self.assertIn("has no capabilities.md route", errors[0])
-        self.assertIn("edit-mix", errors[0])
+    def test_clean_reference_reports_nothing(self) -> None:
+        self.ref("mix", "| a mix | create-mix |\n")
+        self.assertEqual([], self.check(_leaves(("audio-creator", "mix", "create-mix"))))
 
-    def test_wrong_hands_assignment_reported(self) -> None:
-        # The table claims video-creator serves create-mix; it is actually
-        # installed under audio-creator -- a wrong-hands-assignment error,
-        # plus (separately true) audio-creator's real leaf still has no
-        # documented route of its own, since the only row for that name
-        # named the wrong profile.
-        self.table.write_text(_row("video-creator", "create-mix"), encoding="utf-8")
-        errors: list[str] = []
-        VALIDATOR.validate_hands_routing(_leaves(("audio-creator", "create-mix")), errors)
-        self.assertEqual(2, len(errors))
-        joined = "\n".join(errors)
-        self.assertIn("assigns create-mix to video-creator", joined)
-        self.assertIn("installed under audio-creator", joined)
-        self.assertIn("audio-creator: create-mix", joined)
+    def test_missing_subject_reference_reported(self) -> None:
+        self.ref("mix", "create-mix\n")
+        errors = self.check(_leaves(("audio-creator", "mix", "create-mix"), ("audio-creator", "sfx", "generate-sfx")))
+        self.assertEqual(["hands subject has no commissioning reference: audio-creator/sfx"], errors)
 
-    def test_duplicate_engine_variant_rows_are_allowed(self) -> None:
-        self.table.write_text(
-            _row("audio-creator", "generate-sfx", "(local Stable Audio 3 Medium, engine omitted)")
-            + _row("audio-creator", "generate-sfx", "(`engine: fal:elevenlabs-sfx-v2`)"),
-            encoding="utf-8",
-        )
-        errors: list[str] = []
-        VALIDATOR.validate_hands_routing(_leaves(("audio-creator", "generate-sfx")), errors)
-        self.assertEqual([], errors)
+    def test_orphan_reference_without_hands_subject_reported(self) -> None:
+        self.ref("mix", "create-mix\n")
+        self.ref("pixel-art", "# nothing serves this\n")
+        errors = self.check(_leaves(("audio-creator", "mix", "create-mix")))
+        self.assertEqual(["commissioning reference has no hands subject: pixel-art.md"], errors)
 
-    def test_multiple_profiles_and_missing_leaves_report_independently(self) -> None:
-        self.table.write_text(_row("image-creator", "create-card"), encoding="utf-8")
-        errors: list[str] = []
-        VALIDATOR.validate_hands_routing(
-            _leaves(("image-creator", "create-card"), ("video-creator", "generate-clip")), errors
-        )
-        self.assertEqual(1, len(errors))
-        self.assertIn("generate-clip", errors[0])
+    def test_leaf_not_named_in_its_reference_reported(self) -> None:
+        self.ref("mix", "create-mix\n")
+        errors = self.check(_leaves(("audio-creator", "mix", "create-mix"), ("audio-creator", "mix", "edit-mix")))
+        self.assertEqual(["commissioning reference does not name installed leaf: audio-creator: edit-mix"], errors)
+
+    def test_leaf_name_must_match_whole_word(self) -> None:
+        self.ref("mix", "create-mix-extra\n")
+        errors = self.check(_leaves(("audio-creator", "mix", "create-mix")))
+        self.assertEqual(["commissioning reference does not name installed leaf: audio-creator: create-mix"], errors)
+
+    def test_shared_media_ops_reference_is_not_an_orphan(self) -> None:
+        self.ref("media-ops", "# shared\n")
+        self.ref("mix", "create-mix\n")
+        self.assertEqual([], self.check(_leaves(("audio-creator", "mix", "create-mix"))))
+
+    def test_multiple_profiles_report_independently(self) -> None:
+        self.ref("card", "create-card\n")
+        errors = self.check(_leaves(("image-creator", "card", "create-card"), ("video-creator", "clip", "generate-clip")))
+        self.assertEqual(["hands subject has no commissioning reference: video-creator/clip"], errors)
 
 
 class HandsRoutingLiveCandidateTest(unittest.TestCase):
     """Runs validate_hands + validate_hands_routing against THIS worktree's
-    real, unmodified installed leaves and capabilities.md -- catches a
-    routing-table regression (like the Mix omission this fixes) directly."""
+    real, unmodified installed leaves and commissioning references -- catches a
+    coverage regression (a subject or leaf missing from them) directly."""
 
-    def test_real_capabilities_table_matches_installed_leaves(self) -> None:
+    def test_real_commissioning_references_cover_installed_leaves(self) -> None:
         errors: list[str] = []
         hands_leaves: dict[str, dict[str, Path]] = {}
         for profile in VALIDATOR.HANDS_PROFILES:
@@ -134,7 +112,7 @@ class HandsRoutingLiveCandidateTest(unittest.TestCase):
         VALIDATOR.validate_hands_routing(hands_leaves, routing_errors)
         self.assertEqual([], routing_errors)
 
-    def test_mix_leaves_are_now_routed(self) -> None:
+    def test_mix_leaves_are_commissioned(self) -> None:
         errors: list[str] = []
         hands_leaves: dict[str, dict[str, Path]] = {}
         for profile in VALIDATOR.HANDS_PROFILES:

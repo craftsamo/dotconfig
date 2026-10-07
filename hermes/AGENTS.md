@@ -218,7 +218,7 @@ Contract: [docs/hands/overview.md](docs/hands/overview.md),
   capability reference; both mirror subjects, not forms, and land with their
   hands family, never as placeholder stubs.
 - Creator stays an advisor: never give it a generation toolset, a hands target,
-  a card unit or a bot (the studies behind that split are in its doc). New
+  or a bot (the studies behind that split are in its doc). New
   creative capability is a hands leaf, never a Creator technic.
 - An execution-environment trap goes into the Procedure of the leaf that hits
   it, not into a shared rule.

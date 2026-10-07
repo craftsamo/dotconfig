@@ -66,14 +66,14 @@ metadata:
    not accept.
 2. Call `sfx_engines` (free) for the live list and its `runtime`/
    `available` fields. Report a `local:stable-audio-3-medium`
-   `available: false` result (e.g. drift/no install) to Creator as a
+   `available: false` result (e.g. drift/no install) to the Assistant as a
    setup finding — never silently substitute fal, and never invent an
    engine id.
 3. Pick the engine:
    - No `engine` requested, or explicitly `local:stable-audio-3-medium`
      (the default): local. It takes `seed` (default 0) and rejects
       `loop: yes`/`prompt_influence` — a request for either is a
-     `Q<n>` back to Creator, never silently dropped. It needs no
+     `Q<n>` back to the Assistant, never silently dropped. It needs no
      `paid_approved`/`max_usd` and spends $0.
    - Explicitly `fal:elevenlabs-sfx-v2`: this API has no `seed` — a
      request for a reproducible/seeded take on fal is a `Q<n>`, never

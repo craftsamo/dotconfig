@@ -40,22 +40,32 @@ def test_exact_profile_craft_surface(profile):
 @pytest.mark.parametrize("profile", PROFILE_CRAFT)
 def test_conditional_craft_routes_cover_subjects(profile):
     root = pipeline(profile)
+    if profile == "creator":
+        kernel = " ".join((root / "SKILL.md").read_text().split())
+        knowledge = kernel.split("<Knowledge>", 1)[1].split("</Knowledge>", 1)[0]
+        assert "read_file" in knowledge and "current" in knowledge
+        for suffix in PROFILE_CRAFT[profile]:
+            assert f"media-craft-{suffix}" in knowledge
+        assert not (root / "references/craft.md").exists()
+        for mode in ("propose", "revise"):
+            entry = (root / f"{mode}-creator/SKILL.md").read_text()
+            assert "media-craft-direction" in entry
+            assert "../references/craft.md" not in entry
+        revise = (root / "revise-creator/SKILL.md").read_text()
+        for suffix in ("visual", "motion", "audio"):
+            assert f"media-craft-{suffix}" in revise
+        return
     policy = (root / "references/craft.md").read_text()
     assert "read_file" in policy and "current context" in policy
     for suffix in PROFILE_CRAFT[profile]:
         assert f"media-craft-{suffix}" in policy
-    if profile == "creator":
-        for mode in ("plan", "build", "qa"):
-            assert "../references/craft.md" in (root / f"{mode}-creator/SKILL.md").read_text()
-        assert "../craft.md" in (root / "references/legacy/produce.md").read_text()
-    else:
-        assert "[craft reading](references/craft.md)" in (root / "SKILL.md").read_text()
-        leaves = list(root.glob("*/*/SKILL.md"))
-        assert leaves
-        for leaf in leaves:
-            assert leaf.parent.name in policy
-        kernel = " ".join((root / "SKILL.md").read_text().split())
-        assert "Require the full kernel, selected leaf and required reference bodies in current context" in kernel
+    assert "[craft reading](references/craft.md)" in (root / "SKILL.md").read_text()
+    leaves = list(root.glob("*/*/SKILL.md"))
+    assert leaves
+    for leaf in leaves:
+        assert leaf.parent.name in policy
+    kernel = " ".join((root / "SKILL.md").read_text().split())
+    assert "Require the full kernel, selected leaf and required reference bodies in current context" in kernel
 
 
 @pytest.fixture(params=PROFILE_CRAFT)
@@ -73,7 +83,8 @@ def craft_store(request, tmp_path, monkeypatch):
         name = f"media-craft-{suffix}"
         shutil.copytree(ROOT / "agents/curated" / name, store / name)
     source = pipeline(profile)
-    for file in [*source.glob("**/SKILL.md"), source / "references/craft.md"]:
+    extra = [] if profile == "creator" else [source / "references/craft.md"]
+    for file in [*source.glob("**/SKILL.md"), *extra]:
         target = local / source.name / file.relative_to(source)
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(file, target)
@@ -123,6 +134,10 @@ def test_missing_and_ambiguous_knowledge_fail_without_hiding_producer(craft_stor
     skills._SKILLS_CACHE.clear()
     assert json.loads(skills.skill_view(name))["success"] is False
     assert json.loads(skills.skill_view(f"{profile}-pipeline"))["success"]
+    if profile == "creator":
+        kernel = json.loads(skills.skill_view("creator-pipeline"))
+        assert "stop that decision" in " ".join(kernel["content"].split())
+        return
     policy = json.loads(skills.skill_view(f"{profile}-pipeline", file_path="references/craft.md"))
     assert policy["success"]
     assert "stop" in policy["content"] or "blocks" in policy["content"]

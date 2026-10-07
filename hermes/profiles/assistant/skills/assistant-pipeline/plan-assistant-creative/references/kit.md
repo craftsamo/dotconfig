@@ -12,7 +12,7 @@ Identify the receiving project, scene or interface and the actual items/states
 needed. Preserve any supplied asset list, visual identity and consumer
 requirements; do not infer missing states from a generic game template.
 Distinguish new props/art from exact interface geometry and from repackaging
-an existing set, leaving the production method to Creator. Ask the consumer
+an existing set, leaving the production method to the hands. Ask the consumer
 about required handoff information only when it is genuinely unknown.
 
 ## References
@@ -24,7 +24,7 @@ extract its assets or proof they meet the receiving project's contract.
 
 ## Acceptance
 
-Are agreed items/states present, identifiable and coherent? Do Creator's
+Are agreed items/states present, identifiable and coherent? Do the hands'
 previews and evidence support the actual consumer's alignment and reuse needs?
 Do not claim implementation success from delivered art, or accept missing
 states merely because the individual pictures look good.

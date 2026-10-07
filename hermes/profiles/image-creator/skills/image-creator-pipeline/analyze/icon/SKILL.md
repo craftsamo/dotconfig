@@ -82,7 +82,7 @@ finding. Every row of the table names: the check, the file, the evidence
 (`MEASURE:` field or "vision: <what was seen>"), PASS / WARN / FAIL, and
 for WARN / FAIL the fix — `edit-icon` (pad, recolour, background, cut-out,
 resize), `create-icon` (re-derive from the SVG), `generate-icon`
-corrective (redraw), or "simplify the mark" (Creator's / the client's
+corrective (redraw), or "simplify the mark" (the Assistant's / the user's
 decision, not yours).
 
 </QA>
@@ -91,7 +91,7 @@ decision, not yours).
 
 `analyze-icon` + `what_for`; the findings table (check · file · evidence ·
 verdict · fix); one line of overall verdict ("ships as favicon" / "not as
-maskable: extent 0.84 > 0.80"); `spend: free`; anything Creator must
+maskable: extent 0.84 > 0.80"); `spend: free`; anything the Assistant must
 decide.
 
 </Report>

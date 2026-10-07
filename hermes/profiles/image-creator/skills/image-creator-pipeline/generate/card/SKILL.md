@@ -98,7 +98,7 @@ metadata:
    These are art prose, not duplicated composition CSS. Free style requires a
    concrete backdrop prompt AND task-local CSS under create-card's contract.
 2. Before ANY media call, obtain explicit budget approval from the user in the
-   current work conversation (Creator relays it). Default proposal is 3 variant
+   current work conversation (the Assistant relays it). Default proposal is 3 variant
    attempts + 1 corrective TOTAL, not permission to spend. Persist the granted
    cap and approval evidence in `<task>/attempts.json`. On every resume read
    previous entries first; never reset spent calls. Record each invocation

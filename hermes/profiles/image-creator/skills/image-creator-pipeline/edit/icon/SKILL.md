@@ -100,6 +100,6 @@ Every check with its evidence, per output:
 <Report>
 
 `edit-icon` + the edits applied; every output path with its `RESULT:`
-numbers and QA verdicts; `spend: free`; anything Creator must decide.
+numbers and QA verdicts; `spend: free`; anything the Assistant must decide.
 
 </Report>

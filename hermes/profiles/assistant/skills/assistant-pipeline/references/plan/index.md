@@ -30,8 +30,8 @@ Do not repeat approval of the same plan. This does not waive a capability's
 later exact-proposal, preview, upload or Publish gate, or authorize an
 ungranted sample. Small-job shortcuts waive ceremony, not those permissions.
 For creative work, consultation and reference research alone authorize no
-production; Creator owns production decomposition except on a confirmed
-legacy route. Plan revisions mid-flight (a premise breaks, scope changes
+production; production decomposition belongs to Execute's sequencing of
+hands units. Plan revisions mid-flight (a premise breaks, scope changes
 materially, cost balloons) come back to the user as one plain update + `clarify` when a
 real decision is needed.
 
@@ -57,8 +57,8 @@ entry whose full instructions are already available.
 | Capability | File | Owns |
 | --- | --- | --- |
 | engineering | [plan-assistant-engineering](../../plan-assistant-engineering/SKILL.md) | Client outcome/constraints, Engineer proposal, implementation approval |
-| creative | [plan-assistant-creative](../../plan-assistant-creative/SKILL.md) | Client outcome, optional reference research, grants and acceptance criteria; Creator proposes production |
+| creative | [plan-assistant-creative](../../plan-assistant-creative/SKILL.md) | Client outcome, optional reference research, grants and acceptance criteria; Creator proposes directions and the hands produce |
 | writing | [plan-assistant-writing](../../plan-assistant-writing/SKILL.md) | type decisions, unit decomposition (outline / piece), sources |
 | research | [plan-assistant-research](../../plan-assistant-research/SKILL.md) | purpose and constraints through the primary Client; Researcher proposal and agreement |
 | search | [plan-assistant-search](../../plan-assistant-search/SKILL.md) | purpose and constraints; Searcher-proposed retrieval scope, coverage and units for agreement |
-| marketing | [plan-assistant-marketing](../../plan-assistant-marketing/SKILL.md) | strategy questions to Marketer; Writer/Creator units, destination and exact remote-save consent planned by you |
+| marketing | [plan-assistant-marketing](../../plan-assistant-marketing/SKILL.md) | strategy questions to Marketer; Writer/hands units, destination and exact remote-save consent planned by you |

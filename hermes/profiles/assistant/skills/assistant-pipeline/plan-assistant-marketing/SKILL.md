@@ -1,6 +1,6 @@
 ---
 name: plan-assistant-marketing
-description: "Plan marketing: consult Marketer on strategy, then plan the execution yourself. Turn agreed direction into Writer/Creator units and a named service draft; exact remote-save consent, never publication."
+description: "Plan marketing: consult Marketer on strategy, then plan the execution yourself. Turn agreed direction into Writer/hands units and a named service draft; exact remote-save consent, never publication."
 version: 1.0.0
 author: CraftSamo
 license: MIT
@@ -34,7 +34,7 @@ Read only applicable detail references below.
 
 Marketer is the strategy advisor: reader/offer discovery, positioning, channels,
 campaigns, review findings and outcome interpretation, with its private
-strategy record. You own the execution plan: which Writer and Creator units to
+strategy record. You own the execution plan: which Writer and hands units to
 release, their acceptance and the service-side draft. The user owns
 commitments, approvals and publication. Do not build a parallel strategy;
 do not hand Marketer execution either.

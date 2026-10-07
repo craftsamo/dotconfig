@@ -167,7 +167,7 @@ Every check with its evidence:
   outside the category's defaults, `RESULT:` printed `custom_names=` and
   every such manifest entry carries `"custom_name": true`; a request that
   actually wanted a distinct bespoke look per custom name is a finding
-  for Creator, not something this leaf renders on its own.
+  for the Assistant, not something this leaf renders on its own.
 - **`flat-vector` never runs without `rsvg-convert`** — a missing
   dependency is `ui-draw: rsvg-convert (librsvg) not found — required for
   --style flat-vector; run ./install.sh --deps` on stderr and a non-zero
@@ -178,7 +178,7 @@ Every check with its evidence:
   an SVG renderer and is unaffected.)
 
 A failed check is a rerun with the option that fixes it (free) or a
-finding for Creator — never a silent delivery.
+finding for the Assistant — never a silent delivery.
 
 </QA>
 
@@ -188,7 +188,7 @@ finding for Creator — never a silent delivery.
 stroke, size, states, items override if any); the delivered directory,
 `manifest.json`/`slices.json` paths and the atlas/qa paths; each QA check
 with its evidence, including the step-5 9-slice AE count; `spend: free`;
-anything Creator must decide (a world-prop request that does not belong
+anything the Assistant must decide (a world-prop request that does not belong
 in this leaf, a radius/stroke rejected for not fitting a requested
 category, a custom item name that implied a bespoke look this leaf does
 not draw).

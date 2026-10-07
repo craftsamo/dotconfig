@@ -14,6 +14,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+import hermes_yaml as yaml
 from agent import skill_utils
 from tools import skills_tool
 
@@ -30,6 +31,10 @@ PIPELINE_DIR = (
 MUSIC_VIDEO_LEAF_DIR = PIPELINE_DIR / "generate" / "music-video"
 MUSIC_VIDEO_SKILL = MUSIC_VIDEO_LEAF_DIR / "SKILL.md"
 CREATOR_PIPELINE = VALIDATOR.HERMES_ROOT / "profiles" / "creator" / "skills" / "creator-pipeline"
+COMMISSIONING = (
+    VALIDATOR.HERMES_ROOT / "profiles" / "assistant" / "skills" / "assistant-pipeline"
+    / "execute-assistant-creative"
+)
 
 
 class GenerateMusicVideoLeafTest(unittest.TestCase):
@@ -216,40 +221,22 @@ class MusicVideoRootAndRoutingTest(unittest.TestCase):
         text = MUSIC_VIDEO_SKILL.read_text(encoding="utf-8")
         self.assertIn("Uses video_generate, not a new API.", text)
 
-    def test_routed_in_creator_config_capabilities_plan_build(self) -> None:
-        root = (CREATOR_PIPELINE / "SKILL.md").read_text(encoding="utf-8")
-        capabilities = (CREATOR_PIPELINE / "references" / "capabilities.md").read_text(
+    def test_routed_in_commissioning_and_advisor_references(self) -> None:
+        commission = COMMISSIONING / "references" / "music-video.md"
+        commission_text = commission.read_text(encoding="utf-8")
+        advisor = (CREATOR_PIPELINE / "references" / "video-creator" / "music-video.md").read_text(
             encoding="utf-8"
         )
-        plan_index = (CREATOR_PIPELINE / "plan-creator" / "SKILL.md").read_text(
-            encoding="utf-8"
-        )
-        plan = plan_index + (
-            CREATOR_PIPELINE / "plan-creator" / "references" / "video-creator" / "music-video.md"
-        ).read_text(encoding="utf-8")
-        build_index = (CREATOR_PIPELINE / "build-creator" / "SKILL.md").read_text(
-            encoding="utf-8"
-        )
-        build = build_index + (
-            CREATOR_PIPELINE / "build-creator" / "references" / "video-creator" / "music-video.md"
-        ).read_text(encoding="utf-8")
-        self.assertIn("video-creator: generate-music-video", capabilities)
-        self.assertIn('music-video-style piece ("MV")', plan)
-        self.assertIn("generate-music-video", plan)
-        self.assertIn("generate-music-video", build)
-        for text in (capabilities, plan, build):
+        kernel = (CREATOR_PIPELINE / "SKILL.md").read_text(encoding="utf-8")
+        self.assertIn("## Leaves", commission_text)
+        self.assertIn("| `generate-music-video` |", commission_text)
+        self.assertIn('music-video-style piece ("MV")', commission_text)
+        self.assertIn("generate-music-video", advisor)
+        self.assertIn("(references/video-creator/music-video.md)", kernel)
+        for text in (commission_text, advisor, kernel):
             self.assertNotIn("generate-mv", text)
-        # Root (v8) no longer enumerates leaves; it routes to Plan/Build's
-        # index, and those indexes link the exact music-video.md reference
-        # exercised above.
-        for path in ("plan-creator/SKILL.md", "build-creator/SKILL.md"):
-            self.assertIn(path, root)
-        self.assertIn("(references/video-creator/music-video.md)", plan_index)
-        self.assertIn("(references/video-creator/music-video.md)", build_index)
-        self.assertNotIn("generate-mv", root)
         for relative in (
             "creator/config.yaml", "creator/profile.yaml",
-            "creator/skills/creator-pipeline/qa-creator/references/video-creator/music-video.md",
             "video-creator/config.yaml", "video-creator/profile.yaml",
             "video-creator/skills/video-creator-pipeline/SKILL.md",
         ):
@@ -257,8 +244,22 @@ class MusicVideoRootAndRoutingTest(unittest.TestCase):
                 text = (VALIDATOR.HERMES_ROOT / "profiles" / relative).read_text(
                     encoding="utf-8"
                 )
-                self.assertIn("generate-music-video", text)
                 self.assertNotIn("generate-mv", text)
+                if relative.startswith("video-creator/"):
+                    self.assertIn("generate-music-video", text)
+
+    def test_creator_is_not_a_music_video_client(self) -> None:
+        creator = yaml.safe_load(
+            (VALIDATOR.HERMES_ROOT / "profiles" / "creator" / "config.yaml").read_text(encoding="utf-8")
+        )
+        self.assertEqual(["researcher"], creator["specialist_call"]["resident_targets"])
+        self.assertNotIn("video_gen", creator["toolsets"])
+        assistant = yaml.safe_load(
+            (VALIDATOR.HERMES_ROOT / "profiles" / "assistant" / "config.example.yaml").read_text(
+                encoding="utf-8"
+            )
+        )
+        self.assertIn("video-creator", assistant["specialist_call"]["resident_targets"])
 
     def test_no_model_or_provider_config_drift(self) -> None:
         """One shared top-level model/provider block for the whole profile;
@@ -309,21 +310,15 @@ class StaticContractLanguageTest(unittest.TestCase):
         self.assertIn("Before Round B, a character_reference without upload_inputs: yes returns Q<n>", text)
         self.assertIn("its hash identifies a preliminary proposal", text.lower())
 
-    def test_creator_preserves_direction_and_resolves_dependencies_separately(self) -> None:
-        phase_dirs = {"plan": "plan-creator", "build": "build-creator",
-                      "quality-assurance": "qa-creator"}
-        for phase, entry_dir in phase_dirs.items():
-            text = " ".join(
-                (CREATOR_PIPELINE / entry_dir / "references" / "video-creator" / "music-video.md")
-                .read_text()
-                .split()
-            )
-            self.assertIn("pending-inputs", text)
-            self.assertIn("music_file", text)
-        self.assertIn(
-            "separate approval",
-            (CREATOR_PIPELINE / "build-creator/references/video-creator/music-video.md").read_text(),
+    def test_commissioning_preserves_direction_and_resolves_dependencies_separately(self) -> None:
+        text = " ".join((COMMISSIONING / "references" / "music-video.md").read_text().split())
+        self.assertIn("pending-inputs", text)
+        self.assertIn("music_file", text)
+        self.assertIn("separate approval", text)
+        advisor = " ".join(
+            (CREATOR_PIPELINE / "references" / "video-creator" / "music-video.md").read_text().split()
         )
+        self.assertIn("A supplied song is finished separately", advisor)
 
     def test_upload_consent_named_explicitly(self) -> None:
         self.assertIn(
@@ -343,11 +338,9 @@ class StaticContractLanguageTest(unittest.TestCase):
         self.assertIn("intent: revise <deliver>", self.text)
 
     def test_continuous_performance_is_not_rejected_for_missing_cuts(self) -> None:
-        qa = (
-            CREATOR_PIPELINE / "qa-creator" / "references" / "video-creator" / "music-video.md"
-        ).read_text(encoding="utf-8")
-        self.assertIn("Cuts are allowed, not mandatory", qa)
-        self.assertIn("preserve UNVERIFIED", qa)
+        text = " ".join((COMMISSIONING / "references" / "music-video.md").read_text().split())
+        self.assertIn("Continuous forbids shot breaks regardless of pace", text)
+        self.assertIn("turn performance into mandatory rapid editing", text)
 
     def test_tempo_is_in_prompt_and_does_not_mutate_existing_approval(self) -> None:
         self.assertIn(
@@ -356,9 +349,8 @@ class StaticContractLanguageTest(unittest.TestCase):
         )
         self.assertIn("do not inject new defaults or silently reinterpret it", self.text)
         self.assertIn("theme, pace, transition, words policy", self.text)
-        self.assertIn("not necessarily cuts; continuous forbids shot breaks", (
-            CREATOR_PIPELINE / "qa-creator" / "references" / "video-creator" / "music-video.md"
-        ).read_text(encoding="utf-8"))
+        commission = " ".join((COMMISSIONING / "references" / "music-video.md").read_text().split())
+        self.assertIn("Have the hands put tempo/boundary choices in the proposal AND actual prompt", commission)
 
     def test_prompt_length_is_measured_before_approval_and_submission(self) -> None:
         self.assertIn("1..1800 UTF-8 bytes INCLUDING its final newline before approval", self.text)

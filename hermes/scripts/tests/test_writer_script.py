@@ -106,13 +106,13 @@ def test_narration_does_not_treat_estimated_timing_as_performance(verb):
     assert "600" not in text  # A consumer limit is not a universal script rule.
 
 
-def test_creator_accepts_raw_approved_words_not_the_analysis():
-    path = HERMES / "profiles/creator/skills/creator-pipeline/plan-creator/references/audio-creator/speech.md"
+def test_assistant_commissions_raw_approved_words_not_the_analysis():
+    path = HERMES / "profiles/assistant/skills/assistant-pipeline/execute-assistant-creative/references/speech.md"
     text = content(path)
     assert "`write-script` or `edit-script`" in text
     assert "an `analyze-script` report is not a speech part" in text
     assert "approved raw spoken-text file, not a structured master" in text
-    assert "changes return to the requester for Writer, not local rewriting" in text
+    assert "go back to Writer, not local rewriting" in text
     assert "A request for sectioning is not an automatic take grant" in text
 
 

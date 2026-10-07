@@ -15,7 +15,8 @@ HERMES_ROOT = Path(__file__).resolve().parents[2]
 VIDEO = HERMES_ROOT / "profiles/video-creator/skills/video-creator-pipeline"
 LEAF = VIDEO / "create/promotion"
 CREATOR = HERMES_ROOT / "profiles/creator"
-CAPABILITIES = CREATOR / "skills/creator-pipeline/references/capabilities.md"
+ADVISOR = CREATOR / "skills/creator-pipeline/references/video-creator/promotion.md"
+COMMISSION = HERMES_ROOT / "profiles/assistant/skills/assistant-pipeline/execute-assistant-creative/references/promotion.md"
 
 spec = importlib.util.spec_from_file_location("promotion", LEAF / "scripts/promotion.py")
 motion = importlib.util.module_from_spec(spec)
@@ -111,22 +112,22 @@ def test_leaf_form_and_shared_policy():
     assert {"subject", "what_for", "approved_plan", "approval_sha256", "inputs"} <= set(meta["form"])
     assert len(leaf.split("---")[1]) < 3800
     assert 'file_path="references/hyperframes.md"' in leaf
-    assert "dependency request back to Creator" in leaf
+    assert "dependency request back to the Assistant" in leaf
     assert "create-promotion" in (VIDEO / "references/hyperframes.md").read_text()
 
 
-def test_creator_routes_authored_motion_to_video_creator():
-    table = CAPABILITIES.read_text()
-    assert "| video-creator: create-promotion |" in table
-    legacy = next(line for line in table.splitlines() if "`creator-html-motion` |" in line)
-    assert "create-promotion first" in legacy
-    prompt = yaml.safe_load((CREATOR / "config.yaml").read_text())["agent"]["system_prompt"]
-    assert "create-promotion on video-creator" in prompt
-    assert "you do not author that HTML motion" in prompt
-    for phase in ("plan", "build", "qa"):
-        entry = CREATOR / f"skills/creator-pipeline/{phase}-creator"
-        assert "references/video-creator/promotion.md" in (entry / "SKILL.md").read_text()
-        assert (entry / "references/video-creator/promotion.md").is_file()
+def test_assistant_commissions_authored_motion_and_creator_only_advises():
+    commission = COMMISSION.read_text()
+    assert "## Leaves" in commission and "| `create-promotion` |" in commission
+    assert 'specialist_call(target="video-creator"' in commission and 'kind="work"' in commission
+    assert "[commissioning](../SKILL.md)" in commission
+    assert ADVISOR.is_file() and "`create-promotion`" in ADVISOR.read_text()
+    assert "(references/video-creator/promotion.md)" in (CREATOR / "skills/creator-pipeline/SKILL.md").read_text()
+    config = yaml.safe_load((CREATOR / "config.yaml").read_text())
+    assert config["specialist_call"]["resident_targets"] == ["researcher"]
+    assert "video_gen" not in config["toolsets"] and "image_gen" not in config["toolsets"]
+    prompt = yaml.safe_load((HERMES_ROOT / "profiles/assistant/config.example.yaml").read_text())
+    assert "video-creator" in prompt["specialist_call"]["resident_targets"]
 
 
 @pytest.mark.skipif(not shutil.which("hyperframes"), reason="hyperframes CLI not installed")
@@ -158,8 +159,8 @@ def test_storyboard_approves_structure_not_pixels():
     assert "never fixes pixel sizes" in leaf and "by redesign, not nudges" in leaf
     assert "up to 8 drafts" in leaf and "<Standard>" in leaf
     assert "never in pixels" in authoring and "## Look" in authoring
-    build = (CREATOR / "skills/creator-pipeline/build-creator/references/video-creator/promotion.md").read_text()
-    assert "needs no new approval" in build and "Small execution fixes" not in build
+    commission = COMMISSION.read_text()
+    assert "needs no new approval" in commission and "Small execution fixes" not in commission
 
 
 @pytest.mark.skipif(not shutil.which("ffmpeg"), reason="ffmpeg not installed")
@@ -210,8 +211,10 @@ def test_pv_and_series_are_promotion_not_a_new_subject():
     vocab = (LEAF.parent.parent / "references/motion-vocabulary.md").read_text()
     assert "## Film structures" in vocab and "showcase reel (PV)" in vocab
     assert not (LEAF.parent / "pv").exists()
-    row = next(line for line in CAPABILITIES.read_text().splitlines() if "| video-creator: create-promotion |" in line)
+    row = next(line for line in COMMISSION.read_text().splitlines() if line.endswith("| `create-promotion` | free"
+               ) or "| `create-promotion` |" in line)
     assert "PV/showcase reel" in row and "`series_of`" in row
+    assert "showcase reel" in ADVISOR.read_text() and "`series_of`" in ADVISOR.read_text()
 
 
 # ── frame rate ─────────────────────────────────────────────────────────

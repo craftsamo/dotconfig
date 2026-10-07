@@ -2,7 +2,7 @@
 
 Motion Canvas is implemented and executable here. This reference covers what
 is different about it; the common plan fields, `propose`/`freeze`/`snapshot`/
-`render` lifecycle, and Creator-relayed approvals are exactly as described in
+`render` lifecycle, and Assistant-relayed approvals are exactly as described in
 [authoring](authoring.md) — nothing about approvals changes for this engine.
 
 ## Choosing this engine

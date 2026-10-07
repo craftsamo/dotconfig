@@ -120,7 +120,7 @@ seen>"), PASS / WARN / FAIL / GAP, and for WARN / FAIL the fix —
 `--crop`), `generate-mascot` corrective on that item (with the prop
 rule: large, saturated, off the body's colours), a `generate-mascot`
 revise with the palette written as hex in the form, or "re-anchor the
-pack" (Creator's / the client's decision, not yours).
+pack" (the Assistant's / the user's decision, not yours).
 
 </QA>
 
@@ -129,6 +129,6 @@ pack" (Creator's / the client's decision, not yours).
 `analyze-mascot`; the `SUMMARY:` line; the findings table (check · file
 · evidence · verdict · fix); one line of overall verdict ("the concept
 holds; ship" / "not as a pack: 3 items drift from the anchor, corrective
-or re-anchor"); `spend: free`; anything Creator must decide.
+or re-anchor"); `spend: free`; anything the Assistant must decide.
 
 </Report>

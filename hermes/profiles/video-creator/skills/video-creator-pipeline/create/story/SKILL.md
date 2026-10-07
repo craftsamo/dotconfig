@@ -29,7 +29,7 @@ metadata:
       world: {required: false, type: text, label: "setting, era, places, mood"}
       assets: {required: false, type: path, label: "supplied backgrounds, props, footage inserts"}
       audio: {required: false, type: file, label: "finished WAV or Mix master from audio-creator"}
-      approved_plan: {required: false, type: file, label: "Creator-relayed approval: exact proposal-vN/storyboard.md"}
+      approved_plan: {required: false, type: file, label: "relayed approval: exact proposal-vN/storyboard.md"}
       approval_sha256: {required: false, type: text, label: "SHA-256 of that storyboard.md"}
       inputs: {required: false, type: file, label: "JSON {pending id: local path} resolving pending items"}
       note: {required: false, type: text}
@@ -37,7 +37,7 @@ metadata:
 
 <Procedure>
 
-1. Work only in `specialist_call(kind="work")`. Creator owns the story's
+1. Work only in `specialist_call(kind="work")`. The Assistant owns the story's
    meaning, the script, the cast and the approvals; you own staging,
    acting, layout, drawn worlds, motion, seams and self-review. The cast is
    the approved art only: never redraw, restyle, trace or generate a
@@ -86,7 +86,7 @@ metadata:
    script, then appends the cast art and script hashes to the stored
    storyboard, so the approval binds them. Report the path, SHA-256, status and pending list with the
    dependency request for each, then STOP. A budget is not approval.
-4. Round B (`approved_plan` + `approval_sha256` relayed by Creator in the
+4. Round B (`approved_plan` + `approval_sha256` relayed by the Assistant in the
    same work conversation): author `<deliver>/source/`, the hero frame of
    each beat first, then acting, then seams. Render drafts with
    `story.py render ... --quality draft` (same arguments as create-promotion,

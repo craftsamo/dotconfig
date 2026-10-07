@@ -54,7 +54,7 @@ metadata:
 1. If `icon` is a WORD rather than a `set:name` id, run
    `${HERMES_SKILL_DIR}/scripts/icon-fetch.sh --search <word>` and return
    the `CANDIDATES:` list as `Q1:` with your recommendation (glyph choice is
-   Creator's, not yours). Stop there.
+   the Assistant's, not yours). Stop there.
 2. Otherwise run:
 
    ```
@@ -100,6 +100,6 @@ reported gap; it is never silently delivered.
 `source-icon` + the background used; the svg and png at their absolute
 paths; each QA check with its evidence (the `RESULT:` numbers and the
 vision verdict); the `LICENSE:` line verbatim; `spend: free`; anything
-Creator must decide (a search's candidates).
+the Assistant must decide (a search's candidates).
 
 </Report>

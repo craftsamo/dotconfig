@@ -85,7 +85,7 @@ capability.
 ### Boundaries
 
 - **No production.** Creator has no image, video, music, SFX or TTS
-  generation, no hands targets, no kanban card units, no `clarify` and no
+  generation, no hands targets, no `clarify` and no
   production delegation. Its tools read: files, vision, the web, skills and
   memory, plus the shared media inspection tool below.
 - **Media inspection.** The generic `media_inspect` tool (plugin

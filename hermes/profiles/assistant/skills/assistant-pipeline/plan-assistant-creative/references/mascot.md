@@ -5,7 +5,7 @@
 Designing or extending a recognizable character for a brand, product, team
 or story. Reinterpreting a photo without designing an identity belongs to
 [reimagine.md](reimagine.md). A mascot request is not automatically a request
-for animation, a rig or a talking model; Creator confirms those boundaries.
+for animation, a rig or a talking model; the installed leaf confirms those boundaries.
 
 ## Client decisions
 

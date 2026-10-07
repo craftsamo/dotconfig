@@ -27,7 +27,7 @@ a new storyboard, like an aspect change.
 
 ## Storyboard (`storyboard.md`)
 
-VideoCreator writes it; the client approves its exact bytes through Creator.
+VideoCreator writes it; the user approves its exact bytes through the Assistant.
 It is a structure contract. Write the look in words and reference points,
 never in pixels: a storyboard that says "counter 220px" freezes a size the
 first draft may show is wrong. (2026-09-23: a storyboard with numeric sizes

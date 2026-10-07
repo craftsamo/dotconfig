@@ -50,7 +50,7 @@ metadata:
 
 1. Read the script file and form. Reject blank/>600-character scripts and
    contradictory controls before synthesis. Do not silently split long prose
-   into extra paid-by-time takes: return it to Creator for sectioning. The
+   into extra paid-by-time takes: return it to the Assistant for sectioning. The
    default allowance is **one take + one corrective**, counting every synthesis
    invocation, including failures. Record the running tally under `deliver`.
 2. Resolve the voice. `house` calls `text_to_speech` on the configured
@@ -92,7 +92,7 @@ metadata:
    candidate bundle for diagnosis; it is not a finished delivery. A close but
    nonidentical transcript is `WARN`, not proof of mispronunciation. Correct
    at most once when there is a concrete synthesis defect and allowance;
-   unresolved reading/acting judgments go to Creator/the client. Revisions
+   unresolved reading/acting judgments go to the Assistant/the user. Revisions
    preserve script/voice and modify only requested controls. Seed replay also
    needs the same engine checkpoint, text and style: compare decoded PCM
    hashes, not Ogg container bytes. A house replay is a new take, not

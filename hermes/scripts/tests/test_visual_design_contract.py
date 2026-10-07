@@ -12,18 +12,18 @@ def text(path):
 
 
 class VisualDesignContractTest(unittest.TestCase):
-    def test_creator_preserves_complete_design_and_actual_support(self):
-        root = ROOT / "creator/skills/creator-pipeline"
-        craft = text(root / "references/craft.md")
-        for phrase in ("read the complete supplied design", "scene/event/component IDs",
-                       "Three.js", "GLSL", "Anime.js", "GSAP", "conceptual roles",
-                       "not consent, feasibility or quality"):
-            self.assertIn(phrase, craft)
-        self.assertIn("Missing required 3D or shader support is a named capability gap", craft)
-        self.assertIn("never rewrite a frozen design", craft)
-        self.assertIn("not another Creator/Assistant inspection", craft)
-        for entry in ("plan-creator", "build-creator"):
-            self.assertIn("design-preserving realization contract", text(root / entry / "SKILL.md"))
+    def test_assistant_carries_complete_design_and_creator_does_not_bind_it(self):
+        skill = text(ROOT / "assistant/skills/assistant-pipeline/execute-assistant-creative/SKILL.md")
+        for phrase in ("carry the complete identified design (JSON, HTML timeline, receipt)",
+                       "never add form keys", "claim unsupported Three.js or shader support",
+                       "accept a silently flattened substitute",
+                       "authored video gets intent only and the producer writes the storyboard"):
+            self.assertIn(phrase, skill)
+        kernel = text(ROOT / "creator/skills/creator-pipeline/SKILL.md")
+        self.assertIn("Technique names (GSAP, Three.js, shaders) appear only where the selected leaf supports them",
+                      kernel)
+        self.assertIn("No storyboard, timeline, frame specification, layout or pixel size", kernel)
+        self.assertIn("never propose an unsupported method", kernel)
 
     def test_hands_preserve_components_and_intermediate_motion(self):
         video = text(ROOT / "video-creator/skills/video-creator-pipeline/references/craft.md")
@@ -32,7 +32,7 @@ class VisualDesignContractTest(unittest.TestCase):
         self.assertIn("Do not postpone intermediate choreography", video)
         self.assertIn("exact proposal/preview approvals", video)
         self.assertIn("actual native/use-size pixels", image)
-        self.assertIn("return that specific limitation to Creator", image)
+        self.assertIn("return that specific limitation to the Assistant", image)
         self.assertIn("budgets/approvals unchanged", image)
 
 
