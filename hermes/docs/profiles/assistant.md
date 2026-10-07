@@ -20,31 +20,35 @@ in the flow.
 
 ## Visual design
 
-Assistant is a deliverable-first Client, not a second production broker. For
+Assistant is the hands' only client and commissions them itself
+([broker.md](../broker.md)); it adds no aesthetic gate. For
 newly authored video it passes intent and acceptance — purpose, audience,
 destination, fixed words, brand rules, exclusions, inputs, references and what
 each is for — and the producer designs the storyboard, which Assistant relays
-for the user's approval. Static UI images use the Plan entry's
+for the user's approval. When the look is open, Creator proposes named
+directions that travel in the form's fields and `note`, never a design
+([creator.md](./creator.md)). Static UI images use the Plan entry's
 `plan-assistant-creative/references/ui-design.md` component design without an
-invented video duration. Creator owns realization and production approvals;
-the hands keep their own proposal and preview approvals.
+invented video duration. The hands keep their own proposal and preview
+approvals.
 
 ## Creative early delivery candidate
 
-Normal creative production is Plan -> Build/Execute -> delivery. Creator and
-Assistant do not run a routine perceptual acceptance stage, repeat measurements,
+Normal creative production is Plan -> Execute -> delivery. The
+Assistant does not run a routine perceptual acceptance stage, repeat measurements,
 invoke learned verification for a second gate or autonomously polish a candidate
 before showing it; do not restore routine broker inspection through learned
-skills or delivery references. This includes confirmed legacy methods. The producer keeps its self-checks; brokers read report
+skills or delivery references, and does not consult Creator as a reviewer of
+a finished candidate. The producer keeps its self-checks; the Assistant reads report
 completeness, obvious settled-constraint conflicts and spend, then forward
 artifacts and limitations. Required failures still block final readiness and
 dependent use, but a viewable preview can be shown with those failures
 disclosed. Delivery is not acceptance, and an early preview establishes neither
 final readiness nor approval.
 
-`qa-creator` and `qa-assistant-creative` remain explicit user-requested inspection
-entries, not automatic completion steps. They return one scoped findings pass,
-not an automatic repair grant or a chain of broker reviews. Existing entry
+`qa-assistant-creative` remains the explicit user-requested inspection
+entry, not an automatic completion step. It returns one scoped findings pass,
+not an automatic repair grant or a chain of reviews. Existing entry
 topology, hands forms, producer scripts, failed/unknown disclosure,
 proposal/preview hashes and approvals, upload and remote-analysis consent,
 budgets and non-creative QA remain unchanged.
@@ -204,7 +208,7 @@ confirmation. Contract: [youtube-access.md](../youtube-access.md).
 
 Marketing work is the Assistant's to execute, with Marketer as its strategy
 advisor ([marketer.md](./marketer.md)): the marketing entries consult Marketer
-on direction, reviews and results, release Writer and Creator units, accept
+on direction, reviews and results, release Writer and hands units, accept
 them with the shared writing contract and save the approved service-side
 draft themselves after exact remote-save consent — X posts and Articles in
 the Assistant's browser (`x-twitter`), Substack and note through their tools

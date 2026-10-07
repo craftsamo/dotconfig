@@ -270,19 +270,18 @@ asset + 1 corrective pass, expanded only via `AUTHORITY+:`), leaves
 `PROGRESS:` per finished asset, and — since a task's scratch workspace
 survives block/crash respawns (deleted only on completion) — resumes by
 inventorying surviving intermediates instead of re-spending credits.
-Creator consumes **released units** (anchor / part / assembly) whose
-deliverable-defining decisions the assistant fixed in its plan family
-leaves; a spec gap or implied composite returns as a finding, input
-parts are consumed verbatim, and the production boundary keeps every
-content-altering transform on the creator side (the assistant handles
-bytes, never re-encodes). Details: creator's `creator-pipeline` skill.
+The **hands** consume filled forms the assistant commissions directly; a
+missing required field returns as a `Q<n>:` block, input parts are consumed
+verbatim, and every content-altering transform stays with the hands (the
+assistant handles bytes, never re-encodes). Details:
+[`broker.md`](../broker.md).
 **writer** consumes released units the same way — an outline unit
 (structure + tone samples, gated before drafting), piece units against
 the approved outline, or a whole small job — under the selected leaf's
 QA contract, returning
 undecided deliverable-defining choices as spec-gap or granularity findings. Details: writer's
 `writer-pipeline` skill. **marketer** is the strategy advisor for human,
-Assistant, Creator and Engineer clients: strategy, offer discovery, review
+Assistant and Engineer clients: strategy, offer discovery, review
 findings and outcome analysis, read-only toward every service; clients
 execute. Contract: [`marketer.md`](./marketer.md) "Marketer as strategy
 advisor".

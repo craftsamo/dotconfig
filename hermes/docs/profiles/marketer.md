@@ -8,16 +8,16 @@ Marketer answers marketing questions; it does not execute. It owns strategy
 (reader/offer discovery, positioning, offers, channels, campaigns), review
 findings on content, drafts and posts, the interpretation of results and the
 private strategy record. Its clients own execution: the Assistant commissions
-Writer and Creator, accepts their work and saves service-side drafts
+Writer and the media hands, accepts their work and saves service-side drafts
 ([assistant.md](./assistant.md)); the user decides commitments and publishes.
 
-Clients are the Assistant, Creator and Engineer through `specialist_call`,
+Clients are the Assistant and Engineer through `specialist_call`,
 and the human directly through Marketer's own Telegram bot. A bounded question
 is an A2A inquiry answered in one reply; multi-turn strategy or anything that
 needs the browser is a resident `kind="work"` conversation. Marketer's only
 outbound peer is Researcher (`specialist_call.resident_targets: [researcher]`,
 enforced again by the plugin's role policy), for depth evidence and claim
-checks; it never calls Writer, Creator or Engineer.
+checks; it never calls Writer, Creator, the hands or Engineer.
 
 Marketer v9 keeps `marketer-pipeline` as its kernel and three independent
 entry skills beneath it, outside `references/`: `plan-marketer`,

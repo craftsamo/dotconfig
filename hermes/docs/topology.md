@@ -5,28 +5,29 @@ Process topology, the multiplex gateway and A2A peer graph, delegation layers, t
 ## Topology
 
 ```
-   human (terminal)     human (Telegram × 4 bots + Discord)
-          │                │        │        │        │
-        default        assistant engineer creator marketer   ← four PRIMARY bots
-        (CLI)              │      (all adapters live in ONE multiplex gateway
+   human (terminal)     human (Telegram × 3 bots + Discord)
+          │                │        │        │
+        default        assistant engineer marketer   ← three PRIMARY bots
+         (CLI)              │      (all adapters live in ONE multiplex gateway
           │                │       process, hosted by default)
           └──────┬─────────┘
                  │                        peer graph (specialist_call; A2A = localhost HTTP):
         ┌────────┼──────────────────┐       assistant → engineer creator marketer writer (+ resident searcher)
-        │ resident sessions         │       engineer  → marketer researcher writer
-        │ delegate_task             │       creator   → engineer marketer researcher writer
-        │                           │                   + image-creator video-creator audio-creator
+        │ resident sessions         │                   + image-creator video-creator audio-creator
+        │ delegate_task             │       engineer  → marketer researcher writer
+        │                           │       creator   → researcher
         ▼                           ▼       marketer  → researcher
   hermes -p <specialist>   anonymous subagents      (writer / researcher / hands: receive-only;
   chat --resume <id>                       searcher: no endpoint — resident only)
 ```
 
-Four profiles are **primaries** — assistant (the original front door),
-engineer, creator and marketer — each with its own Telegram bot. Primaries reach
-each other and the specialists only through `specialist_call` against configured
-targets, never a direct URL; Telegram cannot carry bot-to-bot traffic. writer,
-researcher and the three hands serve inbound A2A but initiate nothing; searcher
-has no A2A endpoint. Heavy interactive work runs in **resident sessions** (a
+Three profiles are **primaries** — assistant (the original front door),
+engineer and marketer — each with its own Telegram bot. Primaries and Creator
+reach the specialists only through `specialist_call` against configured
+targets, never a direct URL; Telegram cannot carry bot-to-bot traffic. Creator
+is the Assistant's creative advisor with no bot; it calls only Researcher.
+writer, researcher and the three hands serve inbound A2A but initiate nothing;
+searcher has no A2A endpoint. Heavy interactive work runs in **resident sessions** (a
 persistent `hermes -p <specialist> chat` started by `specialist_call(kind="work")`
 and supervised turn by turn); short `kind="inquiry"` requests use configured A2A
 peers. This grants assistant no direct researcher access and gives the hands no
@@ -81,12 +82,12 @@ needed. Gateway up adds cron for fire-and-forget work; gateway down,
 | **engineer**      | developer using OpenCode; human/Assistant Clients; technical planning, approved implementation through PR and UI QA; Issue writes only on explicit request                                                                                                                                   | Telegram (own bot)   | explicit task worktree | `terminal,file,web,browser,vision,skills,todo,memory,clarify,delegation,specialist,opencode`                                                                       | bot + inquiry-only a2a :9902 | yes                   |
 | **researcher**    | purpose-first depth Plan / Build / QA: evidence-pack / tradeoff-matrix / fact-check / guidance; proposes own-role scope, requests heavy breadth from the caller; serves engineer/creator/marketer only (not Assistant directly), cards refused                                               | — (A2A receive-only) | `.` (launch / task ws) | `file,web,vision,video,skills,memory,delegation`                                                                                                                   | served (a2a :9906)           | yes                   |
 | **searcher**      | purpose-first retrieval Plan / Build / QA: lookup / sweep / hunt; resident sessions only, cards refused; a multi-hop hunt is one conversation the caller continues                                                                                                                           | — (specialist)       | `.` (launch / task ws) | `file,web,x_search,x_access,youtube_access,note_access,substack_access,skills,memory`                                                                              | served (no platforms)        | yes                   |
-| **creator**       | primary: plans with human/assistant clients, delegates served image/video/speech/sfx/music/mix forms, gates evidence and delivers; remaining technics cover images, authored video and assembly of supplied parts; vocal-song generation and standalone audio visualization remain withdrawn | Telegram (own bot)   | `.` (launch / task ws) | `terminal,file,vision,image_gen,video_gen,video,tts,skills,memory,delegation,specialist,clarify,characters` + gen plugins + `unreal-engine` MCP                    | served (bot + a2a :9903)     | yes                   |
-| **image-creator** | Creator's still-image hands: runs one `<verb>/<subject>` leaf from a filled form, QA with evidence, report; answers only Creator                                                                                                                                                             | — (A2A receive-only) | `.` (launch / task ws) | `terminal,file,vision,image_gen,skills,memory`                                                                                                                     | served (a2a :9907)           | yes                   |
-| **video-creator** | Creator's video hands: clip, tour, ad, explainer-video and music-video leaves from approved forms; answers only Creator                                                                                                                                                                      | — (A2A receive-only) | `.` (launch / task ws) | `terminal,file,vision,video_gen,video,skills,memory`                                                                                                               | served (a2a :9908)           | yes                   |
-| **audio-creator** | Creator's audio hands: speech, sfx, music (instrumental BGM/melodic pieces only) and mix (placing already-finished sources, never synthesis) from approved forms; measured/readback QA, no claims of listening; no full songs or voice registration                                          | — (A2A receive-only) | `.` (launch / task ws) | `terminal,file,tts,sfx_gen,music_gen,skills,memory`                                                                                                                | served (a2a :9909)           | yes                   |
-| **writer**        | reader-facing prose and producer-facing scripts from released units (outline / piece / whole job); draft-only, never publishes; serves assistant, engineer and creator                                                                                                                       | — (A2A receive-only) | `.` (launch / task ws) | `writing-inspection,characters,file,web,skills,memory,delegation`                                                                                                  | served (a2a :9905)           | yes                   |
-| **marketer**      | primary: strategy advisor — discovery, positioning, campaigns, review findings and outcome analysis for assistant/creator/engineer and the human; read-only toward every service; clients execute                                                                                            | Telegram (own bot)   | `.` (launch / task ws) | `terminal,file,web,browser,x_search,x_access,substack_access,youtube_access,note_access,vision,skills,memory,delegation,specialist,clarify`                        | served (bot + a2a :9904)     | yes                   |
+| **creator**       | the Assistant's creative advisor: turns intent into 2-3 named directions with draft hands handoffs, and feedback into located, named revisions; never produces or commissions (see [creator.md](./profiles/creator.md))                                               | — (Assistant only)   | `.` (launch / task ws) | `file,vision,web,skills,memory,specialist,media_inspect`                                                                                                           | served (a2a :9903)           | yes                   |
+| **image-creator** | still-image hands: runs one `<verb>/<subject>` leaf from a filled form, QA with evidence, report; answers only the Assistant                                                                                                                                          | — (A2A receive-only) | `.` (launch / task ws) | `terminal,file,vision,image_gen,skills,memory`                                                                                                                     | served (a2a :9907)           | yes                   |
+| **video-creator** | video hands: clip, tour, ad, explainer-video, promotion, story, master and music-video leaves from approved forms; answers only the Assistant                                                                                                                         | — (A2A receive-only) | `.` (launch / task ws) | `terminal,file,vision,video_gen,video,skills,memory`                                                                                                               | served (a2a :9908)           | yes                   |
+| **audio-creator** | audio hands: speech, sfx, music (instrumental BGM/melodic pieces only) and mix (placing already-finished sources, never synthesis) from approved forms; measured/readback QA, no claims of listening; no full songs or voice registration; answers only the Assistant | — (A2A receive-only) | `.` (launch / task ws) | `terminal,file,tts,sfx_gen,music_gen,skills,memory`                                                                                                                | served (a2a :9909)           | yes                   |
+| **writer**        | reader-facing prose and producer-facing scripts from released units (outline / piece / whole job); draft-only, never publishes; serves assistant and engineer                                                                                                             | — (A2A receive-only) | `.` (launch / task ws) | `writing-inspection,characters,file,web,skills,memory,delegation`                                                                                                  | served (a2a :9905)           | yes                   |
+| **marketer**      | primary: strategy advisor — discovery, positioning, campaigns, review findings and outcome analysis for assistant/engineer and the human;         read-only toward every service; clients execute                                                                     | Telegram (own bot)   | `.` (launch / task ws) | `terminal,file,web,browser,x_search,x_access,substack_access,youtube_access,note_access,vision,skills,memory,delegation,specialist,clarify`                        | served (bot + a2a :9904)     | yes                   |
 
 ### Toolsets
 
@@ -96,8 +97,8 @@ granular: the composite `hermes-cli` / `hermes-telegram` toolsets expand to a
 broad surface and strip default-off tools such as `video` / `video_gen`.
 Top-level `toolsets` mirrors the role.
 
-- **Messaging lists.** The four bots (assistant, engineer, creator, marketer)
-  carry real `telegram` lists; assistant alone adds `discord`. writer,
+- **Messaging lists.** The three bots (assistant, engineer, marketer) carry
+  real `telegram` lists; assistant alone adds `discord`. creator, writer,
   researcher, searcher, the hands and default keep their Telegram / Discord lists
   empty.
 - **A2A lists.** Every A2A-serving profile has an `a2a` list for its inbound peer
@@ -107,19 +108,20 @@ Top-level `toolsets` mirrors the role.
   tools); assistant, creator, marketer and engineer expose only `specialist` for
   outbound requests.
 - **MCP.** Platforms without MCP access carry the `no_mcp` denial sentinel;
-  otherwise each allowed server is listed explicitly (assistant and creator name
-  only `unreal-engine`) so future servers are never inherited.
+  otherwise each allowed server is listed explicitly (assistant names only
+  `unreal-engine`) so future servers are never inherited.
 
 Role split: **the assistant** plans with the user, supervises specialists,
 performs the non-creative quality gate itself (see
 [assistant.md](./profiles/assistant.md) "Assistant quality gate"), owns GitHub
 bookkeeping and delivers; the **producer** self-verifies before reporting. The
 normal flow stays **searcher (retrieve) → researcher (synthesize) → engineer
-(implement)**, with **creator** (media) and **writer** (prose/scripts) as
-production stages and **marketer** as the strategy advisor beside them; the
-assistant saves the resulting service drafts and the user publishes. User approval follows the domain's checks.
-Creative production uses direct early delivery rather than another broker
-inspection.
+(implement)**, with the **hands** (media) and **writer** (prose/scripts) as
+production stages, and **creator** (creative direction) and **marketer**
+(strategy) as advisors beside them; the assistant commissions the hands itself,
+saves the resulting service drafts and the user publishes. User approval follows
+the domain's checks. Creative production uses direct early delivery rather than
+another broker inspection.
 
 ### Planning ownership
 
@@ -180,8 +182,9 @@ Three per-profile layers, kept separate:
   Every contract also carries an always-on **safety floor** — the rules that must
   hold even when the profile's skill never loads: engineer = explicit implementation
   approval through PR, separate explicit-only Issue management, no merge/deploy/
-  default-branch push, preserve changes and uncertain effects; creator = the Budget/spend floor (default caps, inventory
-  surviving work before regenerating); researcher = evidence integrity (no
+  default-branch push, preserve changes and uncertain effects; creator = the
+  advisory floor (no production, no commissioning, no design that binds the
+  producer, no verdicts; a recommendation is never approval); researcher = evidence integrity (no
   fabricated citations); searcher = link integrity (only URLs actually
   retrieved); writer = deliverable integrity (no fabricated
   facts/quotes/URLs; assumptions labeled; the selected leaf's applicable
@@ -192,8 +195,9 @@ Three per-profile layers, kept separate:
   acceptance); the assistant's marketing entries carry the draft floor (exact
   remote-save consent before input; no publishing, scheduling or sending;
   reopened unpublished draft verification; uncertain effects never blindly
-  retried); front doors = heavy work never runs in their
-  own turn, deliverables are verified before delivery.
+  retried) and its creative entries carry the hands floor (Budget/spend caps,
+  exact approval relay, explicit upload consent); front doors = heavy work never
+  runs in their own turn, deliverables are verified before delivery.
   Each profile also states its **MEMORY.md policy**: durable cross-task facts
   only (task state lives in git and the session; playbook-sized
   knowledge becomes a skill), and `user_profile_enabled` is off for workers —
@@ -223,9 +227,11 @@ Three per-profile layers, kept separate:
     via `skills.external_dirs`: official apple / creative / email / github / media
     / note-taking / productivity / research / smart-home / social-media plus
     optional `one-three-one-rule` (decision framing) and `watchers` (RSS/API
-    polling for cron sweeps); heavy tool-bound creative entries (`comfyui`,
+    polling for cron sweeps), the three hands pipelines (read for their forms;
+    the commissioning references live in `execute-assistant-creative`, see
+    [`broker.md`](./broker.md)); heavy tool-bound creative entries (`comfyui`,
     `touchdesigner-mcp`, `manim-video`, `ascii-video`) sit in `skills.disabled` —
-    media production is creator's.
+    media production is the hands'.
   - engineer → `engineer-pipeline` (cards refused; see
     [engineer.md](./profiles/engineer.md)) + official `autonomous-ai-agents` /
     `software-development` / `github` plus optional `code-wiki`,
@@ -252,44 +258,17 @@ Three per-profile layers, kept separate:
     [`hands/overview.md`](./hands/overview.md).
     video-creator and audio-creator follow the same shape
     ([`hands/video.md`](./hands/video.md), [`hands/audio.md`](./hands/audio.md)).
-  - creator → `creator-pipeline` v9: `plan-creator` (runtime caller context
-    before message shape; agent follow-ups are not direct human approval; fill the
-    leaf's form via `clarify` or the brief; composites = a sequence of forms),
-    `build-creator` (handoff text, specialist inquiry / work session, supervision,
-    relaying `Q<n>`, direct delivery), `qa-creator` (explicit user request only;
-    bounded findings, no automatic revision). Each entry reads only the selected
-    `references/<hands>/<subject>.md`; the hands leaf remains the only form (see
-    [`broker.md`](./broker.md) "Broker shape"). `capabilities.md` routes served
-    families first, then the technic table. Families with no hands yet keep the
-    technic-era contract under `references/legacy/`: produce / direction /
-    advisory + iterate / verify / delivery / resume, the MediaBrief `brief.md` and
-    its validation, intent triage, the unit discipline (released-spec consumption,
-    spec-gap findings, verbatim part inputs), Budget grant parsing,
-    workspace-reuse resume, visual verification, durable-path delivery, and
-    `card.md` (cards are legacy-only, for `anchored-image-batch` /
-    `deterministic-render`, until they move to the hands with their family).
-    `skills/technic/` leaves: `creator-generated-image`,
-    `creator-article-illustration`, `creator-infographic`, `creator-svg-diagram`,
-    `creator-excalidraw-diagram`, `creator-text-card`, `creator-meme`,
-    `creator-ascii-art`, `creator-gif-sourcing`, `creator-generated-video`,
-    `creator-html-motion`, `creator-p5js-experience`, `creator-ascii-video`,
-    `creator-manim-explainer`, `creator-pixel-art`, `creator-pixel-video`,
-    `creator-knowledge-comic`, `creator-brand-asset-sourcing`,
-    `creator-media-assembly`. Each owns one production grammar and its medium QA;
-    styles/presets and same-tool modes stay in references. Official creative
-    skills may be engines behind these canonical names, never alternate dispatch
-    identities. `creator-html-motion` uses the CLI-owned HyperFrames store
-    (`~/.agents/skills` via `skills.external_dirs`: `hyperframes` routes the
-    domain/workflow skills, `media-use` resolves assets / captions; new narration
-    is a separate audio-creator input, never an external TTS bypass). Bundled
-    `creative/` + `media/` stay available; optional skills are a curated set of
-    individual directories (article illustration, pixel art, comics, memes,
-    concept diagrams, creative ideation) so the official optional `hyperframes`
-    and `tldraw-offline` cannot collide with the store's names. `unreal-mcp` is
-    wired for assistant and creator, backed by their `unreal-engine` MCP
-    allowlist; `blender-mcp`, `touchdesigner-mcp` and the ambiguous external
-    `pixel-art` stay in `skills.disabled` (the canonical Pixel leaves may use its
-    scripts as opt-in backends but are the only stable dispatch identities).
+  - creator → `creator-pipeline` v10: `propose-creator` (intent into 2-3
+    named directions, each with an existing example and a draft hands handoff)
+    and `revise-creator` (verbatim feedback into located, named changes, each
+    with a draft revision handoff); one capability reference per served subject
+    under `references/<hands>/<subject>.md` (see
+    [creator.md](./profiles/creator.md)). No technics: the former `creator-*`
+    leaves are folded into the hands or archived (see
+    [`hands/overview.md`](./hands/overview.md) "Families and former technics").
+    External libraries: the three hands pipelines (read-only, for forms and
+    option references), the curated `media-craft-*` skills and the HyperFrames
+    store's knowledge skills for vocabulary; no production engines.
   - writer → `writer-pipeline` (resident + inbound A2A, cards refused; released
     units — outline / piece / whole job — with spec-gap and granularity findings;
     18 `<write|edit|analyze>/<subject>/SKILL.md` leaves across post, article,
