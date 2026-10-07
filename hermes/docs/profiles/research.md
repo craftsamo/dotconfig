@@ -60,7 +60,13 @@ Searcher's v7.0.0 `searcher-pipeline` kernel (retrieval, release and card gate)
 routes `plan-searcher`, `build-searcher`, `qa-searcher`. Each independent entry
 owns three plain `references/<unit>.md` files for `lookup`, `sweep`, `hunt`.
 Retrieval and link integrity remain its limits: no trust verdicts, synthesis,
-rankings or production.
+rankings or production. Beyond web search and `x_search`, it reads public X
+posts, YouTube, note and Substack through the `x`, `youtube`, `note` and
+`substack` tools, each limited to a public-only action list (see
+[x-access.md](../x-access.md) "Profiles"); the `x` tool's `search` is only the
+fallback for when `x_search` is unavailable, within a capped share of the
+shared X reads. It never gets the messaging tools, the user's own drafts,
+statistics or channels, or any write.
 
 Only two cards remain legal: `survey-enumeration` requires a settled question,
 coverage claim/floor count and per-item fields; `exhaustive-hunt` requires a

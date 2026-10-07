@@ -65,8 +65,12 @@ def test_profile_selection_contract_and_unchanged_tool_surface():
         "selected unit references", "before ALL phases", "Build -> QA -> terminal",
     ):
         assert phrase in prompt
-    assert set(config["toolsets"]) == {"file", "web", "x_search", "skills", "memory"}
-    assert set(config["platform_toolsets"]["cli"]) == {"file", "web", "x_search", "skills", "memory", "no_mcp", "connections"}
+    social = {"x_access", "youtube_access", "note_access", "substack_access"}
+    assert set(config["toolsets"]) == {"file", "web", "x_search", "skills", "memory"} | social
+    assert set(config["platform_toolsets"]["cli"]) == {
+        "file", "web", "x_search", "skills", "memory", "no_mcp", "connections"} | social
+    assert {"x-access", "youtube-access", "note-access", "substack-access"} <= set(config["plugins"]["enabled"])
+    assert "messaging" not in " ".join(config["toolsets"]) and not [t for t in config["toolsets"] if t.endswith("_account")]
     assert config["platform_toolsets"]["telegram"] == []
     assert config["platform_toolsets"]["discord"] == []
     assert config["skills"]["create_dir"] == "skills/learned"
