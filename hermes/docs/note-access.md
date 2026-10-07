@@ -1,7 +1,7 @@
 # note access
 
-note.com for the Assistant and Marketer. Both read note and save the user's
-unpublished drafts, each save behind an approval card. The tool reads public articles,
+note.com for the Assistant and Marketer. Both read note; the Assistant alone
+saves the user's unpublished drafts, each save behind an approval card. The tool reads public articles,
 creators, comments and hashtags, plus the user's own drafts and stats. Drafts
 are written in Markdown, and images are uploaded from local files. An offline
 `check` tells whether a body would save; Writer gets that action alone. Nothing
@@ -17,9 +17,9 @@ browser. Part of the Hermes design docs — index:
 | Markdown ⇄ note editor HTML                                                                                                                 | `plugins/social/note-access/notefmt.py`                                       | all                         |
 | The only process holding the session; a fixed set of signed-in operations                                                                   | `plugins/social/note-access/bridge.py`                                        | all                         |
 | `note` tool and the `pre_tool_call` hook (toolset `note_access`), the actions each profile gets                                             | `plugins/social/note-access/__init__.py`                                      | Assistant, Marketer, Writer |
-| How the Assistant works with it: actions, budget, preparing a body, saving, results, Marketer's save packages                               | the `note-com` technic (`profiles/assistant/skills/technic/note-com/`) | Assistant                   |
+| How the Assistant works with it: actions, budget, preparing a body, saving, results                                                         | the `note-com` technic (`profiles/assistant/skills/technic/note-com/`) | Assistant                   |
 | When Chat uses it                                                                                                                           | the Assistant's private Chat reference `note.md`                       | Assistant                   |
-| How Marketer drafts and measures on note                                                                                                    | `marketer-pipeline/references/platforms/note.md`                       | Marketer                    |
+| How Marketer reads and measures on note                                                                                                     | `marketer-pipeline/references/platforms/note.md`                       | Marketer                    |
 | How Writer writes and checks a note source draft                                                                                            | `writer-pipeline/<write\|edit\|analyze>/article/references/note.md`    | Writer                      |
 
 note has no public API. The tool calls the internal endpoints that note's own
@@ -31,16 +31,16 @@ no install step. The bridge runs under Hermes' own interpreter in isolated mode
 (`-I`), as a child process with a minimal environment: `HOME`, `PATH` and
 `LANG`, none of the gateway's keys.
 
-For note the tool replaces Marketer's browser procedure: Marketer never types
-into note's editor and needs no browser lease for note
-([marketer.md](profiles/marketer.md)).
+Marketer, a read-only advisor, reads note through the tool, never note's
+editor; only a visual look the user asks for opens note in its browser, under
+its read-only browsing rules and lease ([marketer.md](profiles/marketer.md)).
 
 ## Profiles
 
 | Profile   | Actions                    | Inbound A2A       |
 | --------- | -------------------------- | ----------------- |
 | Assistant | every read, `check`, saves | refused           |
-| Marketer  | every read, `check`, saves | reads and `check` |
+| Marketer  | every read, `check`        | reads and `check` |
 | Writer    | `check` only               | `check`           |
 
 The action list a profile gets (`PROFILES`) is fixed when the plugin
@@ -53,17 +53,13 @@ answers a peer's question with a read, the user's drafts and stats included,
 on the shared request budget. Writer, which has no terminal, checks its own
 note drafts.
 
-Where a profile may save, whether a save can run depends on whether a person
-can answer the card. On a gateway platform (each profile's own Telegram bot)
-or an interactive CLI the card appears and the save runs after approval. A
-resident session that one agent starts in another (`specialist_call` →
-`resident-session.sh`) runs as a single query, as do cron, webhooks and API
-sessions: nobody can answer there, so the plugin refuses the save and its
-answer tells the agent to return the exact save — action, draft key and
-`saved` time, title, Markdown, image and cover paths — to its caller. For
-Marketer working for the Assistant, that caller is the Assistant, which saves
-the package unchanged with its own card and passes the result back. No
-approval is relayed or inferred across sessions.
+Whether the Assistant's save can run depends on whether a person can answer
+the card. On its gateway platform or an interactive CLI the card appears and
+the save runs after approval. Cron, webhooks, API sessions and single queries
+have nobody to answer, so the plugin refuses the save and its answer tells the
+agent to return the exact save — action, draft key and `saved` time, title,
+Markdown, image and cover paths — to its caller. No approval is relayed or
+inferred across sessions.
 
 ## Session and state
 
@@ -195,9 +191,8 @@ only after Hermes' approval card for that exact call. `base` is required: the
 saved since is refused, so an edit made after that read is never overwritten,
 whoever finally saves. `preview=true` on either action runs every check below
 and returns the card the save would show, without saving or asking; it works
-in any run, so a resident agent checks its save package before handing it
-over. Both profiles keep
-`approvals.timeout` at 600 s so a card outlasts a Telegram tap.
+in any run. The Assistant keeps `approvals.timeout` at 600 s so a card
+outlasts a Telegram tap.
 The `pre_tool_call` hook builds the write plan first and blocks a write that
 would fail:
 
@@ -305,8 +300,6 @@ Assistant's.
 2. Enable the plugin and add `note_access` to the profile's `toolsets` and
    `platform_toolsets` (`a2a` only for Marketer and Writer), then restart the
    gateway. Marketer and Writer have it in this repo; the Assistant's lives in
-   the private overlay. Optionally set
-   `note_access.attach_roots` per profile; a Marketer package handed to the
-   Assistant must use paths inside the Assistant's roots (both default to
-   `~/Workspaces`).
+   the private overlay. Optionally set `note_access.attach_roots` for the
+   Assistant (default `~/Workspaces`).
 3. `note status` shows whether the cookie is stored and accepted.
