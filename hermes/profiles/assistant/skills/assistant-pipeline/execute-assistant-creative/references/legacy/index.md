@@ -55,13 +55,9 @@ for the same dependency.
 - A proposal approval does not grant more spend, and a spending allowance
   does not approve a specific proposal. Preserve both boundaries.
 
-## Parallel work and cards
+## Parallel work
 
 Independent, style-independent parts may use separate resident sessions.
 Shared anchors and unsettled dependencies must pass the gate before their
-consumers run. Only the two unchanged `card_units` in [../index.md](../../SKILL.md)
-may ride kanban: approved anchored image batches and fully specified
-deterministic renders. A whole video is not a card. Card defects normally
-return to a resident conversation with the paths and itemized findings, not
-a fresh card that loses history. A purely mechanical identical-spec rerender
-still follows the existing closed catalog.
+consumers run. Defects return to the resident conversation with the paths
+and itemized findings.

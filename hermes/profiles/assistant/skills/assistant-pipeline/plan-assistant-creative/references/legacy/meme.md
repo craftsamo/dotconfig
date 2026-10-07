@@ -8,7 +8,7 @@ Exact typography cards without a joke structure → `text-card.md`.
 
 Technic `creator-meme` · QA `text-visual` · deterministic
 composition (custom generated scene = separate budgeted stage) ·
-resident-only (humor is taste — cards can't carry it).
+resident-only (humor is taste).
 
 ## Fix before release
 

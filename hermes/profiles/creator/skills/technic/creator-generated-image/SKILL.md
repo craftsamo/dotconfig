@@ -38,7 +38,7 @@ backgrounds, and slide/document art. Do not use for:
 
 <Inputs>
 
-The card's MediaBrief, validated by `creator-pipeline`, must pin purpose,
+The MediaBrief, validated by `creator-pipeline`, must pin purpose,
 audience, destination, dimensions/aspect/crop behavior, format/size cap,
 style or brand inputs, count, Backend, and Budget. Allowed backends are
 `core:image_generate` and `external:comfyui`. Missing material direction or an

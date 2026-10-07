@@ -5,11 +5,6 @@ import hermes_yaml as yaml
 
 CAPABILITIES = ("engineering", "creative", "writing", "research", "search", "marketing")
 PHASES = {"plan": "plan", "execute": "execute", "qa": "quality-assurance"}
-CARDS = {
-    "execute-assistant-creative": {
-        "anchored-image-batch": "creator", "deterministic-render": "creator"
-    },
-}
 
 
 def entry_text(name, routes=()):
@@ -21,12 +16,6 @@ def entry_text(name, routes=()):
         "version": "1.0.0",
         "metadata": {"hermes": {"category": "assistant-pipeline"}},
     }
-    if name in CARDS:
-        data["card_units"] = [
-            {"name": unit, "assignee": assignee, "required_inputs": ["spec"],
-             "unit_cap": "one", "runtime_cap": 900}
-            for unit, assignee in CARDS[name].items()
-        ]
     paths = ["SKILL.md"]
     calls = ['skill_view(name="assistant-pipeline")']
     if phase != "chat":
@@ -50,7 +39,7 @@ def build_assistant_tree(write, validator):
     write("SKILL.md", "---\nname: assistant-pipeline\nmetadata:\n  hermes:\n"
           "    category: orchestration\n---\n# Kernel\n")
     for prefix, phase in PHASES.items():
-        extras = ("resident-sessions.md", "kanban-lite.md", "scheduled.md") if prefix == "execute" else ()
+        extras = ("resident-sessions.md",) if prefix == "execute" else ()
         write(f"references/{phase}/index.md", "\n".join(
             [f"{prefix}-assistant-{cap}" for cap in CAPABILITIES] + list(extras)
         ))

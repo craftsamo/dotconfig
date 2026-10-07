@@ -8,5 +8,5 @@ description: >-
   an Issue URL alone is read-only grounding. No repo creation, board writes,
   merge, deploy or default-branch push. Own isolated browser verification.
   Direct/resident conversations perform work;
-  inbound A2A is inquiry-only, and engineering defines no kanban card units.
+  inbound A2A is inquiry-only.
 description_auto: false

@@ -17,8 +17,7 @@ metadata:
 On every caller, resume or completion turn and before a midturn phase,
 unit or scope change, require full-body kernel, selected entry and selected unit
 references in current context, not a past load or summary. Direct entry requires
-`skill_view(name="searcher-pipeline")` before checking; a kanban card is refused
-by the kernel before any phase.
+`skill_view(name="searcher-pipeline")` before checking.
 Load `skill_view(name="qa-searcher")` and
 `skill_view(name="qa-searcher", file_path="references/<unit>.md")`.
 If unchanged is returned while the earlier body is unavailable, or a body is

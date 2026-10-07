@@ -8,16 +8,13 @@
   specialist questions you cannot answer within the sanctioned plan to
   the user (`clarify` when options exist); answer the rest yourself and
   note the decision in one line to the user when material.
-- **kanban** — register a lean card per `kanban-lite.md` for the catalog
-  unit named in the plan, ack with the task id, and end the turn; the
-  completion notification wakes you.
 
 Sequencing is conversational: when stage B consumes stage A's output,
-wait for A's turn/card to complete (background notification), QA it, then
+wait for A's turn to complete (background notification), QA it, then
 feed it to B. Independent stages may run as parallel resident sessions
-(different keys) or parallel cards. Register only the **frontier** — the
+(different keys). Start only the **frontier** — the
 stages whose inputs have already passed your QA; later stages wait in the
-plan, not on the board. For creative media, use the selected creative Execute
+plan. For creative media, use the selected creative Execute
 entry's direct delivery and producer-check handoff instead of Assistant QA.
 Required technical failures and missing approvals still block dependent use;
 Writer text and all other domains retain their own acceptance gates.
@@ -39,7 +36,7 @@ navigation for a changed domain, not a loop that reloads that entry.
 | marketer | strategy advisor: offer discovery, positioning, campaigns, review findings and outcome analysis; never commissions parts or saves drafts | [execute-assistant-marketing](../../execute-assistant-marketing/SKILL.md): you commission, accept and save the service draft after exact remote-save consent; no publishing |
 
 The profile is the execution contract (model, tools, standing prompt);
-its pipeline skill auto-loads in every session and card and routes
+its pipeline skill auto-loads in every session and routes
 internally by its own contract — describe WHAT you need, not which internal
 mode. Media never gets improvised by the assistant, whatever the tier;
 text and analysis may stay inline only when genuinely light.
@@ -58,5 +55,3 @@ back-and-forth stays resident. No direct Assistant-to-Researcher route is added.
 | Leaf | Owns |
 | --- | --- |
 | `resident-sessions.md` | wrapper commands, SessionBrief, grants, lifecycle, failure handling |
-| `kanban-lite.md` | card catalog rule, card contract, wakeup triage, failures |
-| `scheduled.md` | time-parked work (`scheduled` column + sweeper) |

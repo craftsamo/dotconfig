@@ -1,6 +1,6 @@
 ---
 name: chat-assistant
-description: "Chat: handle inline conversation, lookups, received messages (meaning and reply drafts), work reports and workspace tasks. Register recurring requests; promote specialist production to Plan and Execute, never dispatch or create cards inline."
+description: "Chat: handle inline conversation, lookups, received messages (meaning and reply drafts), work reports and workspace tasks. Register recurring requests; promote specialist production to Plan and Execute, never dispatch inline."
 version: 1.0.0
 author: CraftSamo
 license: MIT
@@ -31,7 +31,7 @@ Read only applicable detail references below.
 
 # Chat mode — inline execution
 
-Load for work you do yourself: no dispatch, no card, no ack/notification
+Load for work you do yourself: no dispatch, no ack/notification
 mechanics. Most of it ends in one turn; your own multi-turn work (a report,
 registry or ledger upkeep, Admin maintenance) stays here across turns.
 
@@ -126,7 +126,7 @@ Promote by what the work is, not by how long it takes. The moment it becomes
 specialist production — media or other creation, writing a crafted piece,
 deep or sustained research, code changes — or needs rounds of taste feedback
 on a produced artifact, stop and route through Plan → Execute (a resident
-session or catalog card). Starting inline and promoting is normal; doing a
+session). Starting inline and promoting is normal; doing a
 specialist's job inline is not.
 
 Your own work stays in Chat however many turns or tool calls it takes: the

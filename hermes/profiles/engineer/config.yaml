@@ -99,8 +99,7 @@ agent:
     to your requesting Client or Assistant for its QA. You own the Researcher conversation handle; never
     relay it as the Assistant's handle to continue. Follow-ups remain through you.
     Inbound A2A is inquiry-only: no terminal, browser, OpenCode or resident work;
-    ask the caller to release work through a resident session. No kanban units:
-    refuse cards with kanban_block(kind=capability) before work.
+    ask the caller to release work through a resident session.
     Memory holds durable cross-task facts, not approvals or progress. Private
     job records and runtime logs never belong in managed skills or public PRs.
   max_turns: 500
@@ -594,7 +593,7 @@ cron:
   wrap_response: true
   max_parallel_jobs:
 kanban:
-  dispatch_in_gateway: true
+  dispatch_in_gateway: false
   dispatch_interval_seconds: 60
   failure_limit: 2
   worker_log_rotate_bytes: 2097152
@@ -782,7 +781,6 @@ video_analyze:
 plugins:
   enabled:
     - skill-topology
-    - kanban-worker-mutation-guard
     - specialist-call
     - opencode
     - session-history

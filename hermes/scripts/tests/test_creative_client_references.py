@@ -351,8 +351,8 @@ class CreativeClientReferencesTestCase(unittest.TestCase):
 
 
 class CreativeLegacyShelfStructureTestCase(unittest.TestCase):
-    """Structural rules for the flat creative/legacy/ shelf and its
-    card_units restriction, verified via validate_assistant_pipeline
+    """Structural rules for the flat creative/legacy/ shelf,
+    verified via validate_assistant_pipeline
     against a synthetic ASSISTANT_PIPELINE."""
 
     def setUp(self) -> None:
@@ -432,29 +432,6 @@ class CreativeLegacyShelfStructureTestCase(unittest.TestCase):
         )
         errors = self.validate()
         self.assertTrue(any("non-markdown reference" in e for e in errors), errors)
-
-    def test_nested_card_units_in_legacy_rejected(self) -> None:
-        self.build_minimal_tree()
-        self.build_execute_legacy_shelf()
-        self.write(
-            "execute-assistant-creative/references/legacy/raster-image.md",
-            "---\n"
-            "card_units:\n"
-            "  - name: sneaky-card\n"
-            "    assignee: creator\n"
-            "    required_inputs: [x]\n"
-            '    unit_cap: "one"\n'
-            "    runtime_cap: 60\n"
-            "---\n# raster\n",
-        )
-        errors = self.validate()
-        self.assertTrue(
-            any(
-                "card_units are not permitted in the creative legacy shelf" in e
-                for e in errors
-            ),
-            errors,
-        )
 
 
 if __name__ == "__main__":

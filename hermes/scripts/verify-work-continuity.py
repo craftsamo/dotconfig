@@ -31,8 +31,6 @@ PUBLIC_PYTEST_FILES = (
     "hermes/scripts/tests/test_assistant_entry_runtime.py",
     "hermes/scripts/tests/test_ad_routing.py",
     "hermes/scripts/tests/test_creative_client_references.py",
-    "hermes/scripts/tests/test_creative_timeline.py",
-    "hermes/scripts/tests/test_timeline_review.py",
     "hermes/scripts/tests/test_visual_design_contract.py",
     "hermes/scripts/tests/test_three_graphics.py",
     "hermes/scripts/tests/test_three_graphics_native.py",
@@ -76,7 +74,6 @@ RUNTIME_PYTEST_FILES = (
     "tests/agent/test_anthropic_oauth_invoke_recovery.py",
     "tests/agent/test_anthropic_oauth_billing_header.py",
     "tests/gateway/test_dm_topics.py",
-    "tests/gateway/test_kanban_notifier.py",
     "tests/gateway/test_auto_voice_reply_format.py",
     "tests/pm/test_runtime_journal_safety.py",
 )

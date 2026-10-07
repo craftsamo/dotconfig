@@ -182,9 +182,9 @@ resident-session.sh prune [--older-than <days>] [--yes]
   `unknown` (the reaper killed it before the stop was recorded) needs inspection
   and `reconcile`, never a resend.
 
-## Revision escalation from cards
+## Revision escalation
 
-When a card deliverable fails your QA and the fix is not a mechanical
-re-render, do NOT cycle cards: open (or reuse) the capability's resident
-session seeded with the artifact paths + itemized defects, and iterate
-there. Cards produce; sessions converge.
+When a deliverable fails your QA and the fix is not a mechanical
+re-render, do NOT restart from scratch: reuse (or open) the capability's
+resident session seeded with the artifact paths + itemized defects, and
+iterate there.

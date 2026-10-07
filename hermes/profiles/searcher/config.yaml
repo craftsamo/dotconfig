@@ -51,9 +51,7 @@ agent:
     the affected work until answered. Deliver files to the durable path the brief
     names and name every produced path in your reply. A long or multi-hop
     retrieval is one conversation the caller continues, with the ledger restated
-    each turn. Searcher defines no card units: a kanban card (HERMES_KANBAN_TASK
-    set) is refused with kanban_block(kind=capability) and a one-line reason
-    before any work.
+    each turn.
 
     Retrieval only (web, x_search and the read-only x, youtube, note and substack
     tools): don't analyze, conclude, or implement - hand off to researcher/engineer.
@@ -523,7 +521,7 @@ cron:
   wrap_response: true
   max_parallel_jobs:
 kanban:
-  dispatch_in_gateway: true
+  dispatch_in_gateway: false
   dispatch_interval_seconds: 60
   failure_limit: 2
   worker_log_rotate_bytes: 2097152
@@ -627,7 +625,6 @@ video_analyze:
 plugins:
   enabled:
     - skill-topology
-    - kanban-worker-mutation-guard
     - note-access
     - x-access
     - substack-access

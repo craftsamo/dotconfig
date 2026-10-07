@@ -30,10 +30,9 @@ exact-reference batch that has no remaining style decision.
 
 ## Runtime boundary
 
-Direction is resident-session work by default. Anchor exploration is NOT a
-kanban catalog unit: present the plan and samples in the session reply and
-wait for approval there. A kanban card requires an already-approved anchor;
-only then may it run the legal `anchored-image-batch` unit with settled inputs.
+Direction is resident-session work. Anchor exploration presents the plan and
+samples in the session reply and waits for approval there; a batch runs only
+after the anchor is approved.
 
 ## Procedure
 
@@ -74,7 +73,7 @@ only then may it run the legal `anchored-image-batch` unit with settled inputs.
 - The Direction stage presents the plan and samples in the session reply.
   Produce then delivers the batch through `references/legacy/delivery.md`.
 - After approval, the reply names the locked anchor so a later session or
-  legal anchored-image-batch card does not re-derive it.
+  batch does not re-derive it.
 
 ## Pitfalls
 
