@@ -1,0 +1,4 @@
+name: wallet
+version: 1.0.0
+description: The Assistant's web3 wallet — lists the Keychain's seed phrases and keys, and sends native coins and tokens on EVM chains and Solana from Hermes wallets, with an approval card for every external recipient.
+kind: standalone
