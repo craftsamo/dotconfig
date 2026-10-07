@@ -11,8 +11,8 @@ Its candidate path is usable without a global Skill install or wrapper change.
    hermes-agent source checkout. A branch in live ~/.config is not isolation:
    existing ~/.hermes symlinks can expose edits before merge. Do not redirect
    live links or use install.sh to test a candidate.
-2. After explicit implementation approval, use opencode_call agent="build"
-   with the existing approval/conversation/worktree binding. Engineer performs
+2. After explicit implementation approval, use opencode_run_build
+   with the existing approval/session/worktree binding. Engineer performs
    no target edits itself. A request to change Engineer's own pipeline or agent
    platform requires explicit self-modification scope even through OpenCode;
    ordinary implementation approval does not override machine-env's guard.
