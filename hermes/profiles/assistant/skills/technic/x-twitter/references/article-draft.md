@@ -1,14 +1,21 @@
 # Finishing an X Article draft in the browser
 
-The one sanctioned browser use on x.com. It writes into the user's main
-account, so the conditions are strict.
+One of the two sanctioned browser uses on x.com, beside post drafts
+(`post-draft.md`). It writes into the user's main account, so the conditions
+are strict.
 
 ## When
 
 - **Only on request.** The user asked, in this conversation, for a specific
   X Article draft to be finished or edited in the editor: an edit URL, or a
   draft they name. Writing or revising an article otherwise ends with the
-  Markdown and images delivered to the user, who pastes them.
+  Markdown and images delivered to the user, who pastes them. For a new
+  Article, the user creates the empty draft and hands over its edit URL.
+- **Exact consent, risk disclosed.** The user approved the exact text and
+  images for this draft before you open the editor (autosave writes at
+  once). X's automation rules prohibit scripting the website and draft work
+  is not a stated exception: say so once per job and record the user's
+  decision, as `post-draft.md` describes.
 - **Stop at a saved draft.** Never press publish or schedule, and never
   change the audience or paid settings. Open nothing else on x.com
   (timeline, profile, notifications, account pages).
